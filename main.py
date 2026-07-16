@@ -4,7 +4,7 @@
 import os
 from datetime import datetime
 
-from packages.core.server import app
+from packages.web.server import app
 
 if __name__ == "__main__":
     import uvicorn

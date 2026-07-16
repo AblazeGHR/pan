@@ -1,4 +1,4 @@
-"""Pan — FastAPI routes + WebSocket."""
+"""Pan Web Channel — FastAPI routes + WebSocket + Dashboard."""
 
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import worker
-from . import session as sess
-from .adapters import get_adapter
-from .adapters.cbc import sessions as cbc_sessions
-from .config import load_config
+from packages.core import worker
+from packages.core import session as sess
+from packages.core.adapters import get_adapter
+from packages.core.adapters.cbc import sessions as cbc_sessions
+from packages.core.config import load_config
 
 # ── logging ──
 
@@ -56,10 +56,13 @@ app = FastAPI(title="Pan", lifespan=lifespan)
 ws_clients: set[WebSocket] = set()
 agent_clients: set[WebSocket] = set()
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+# ── file paths (relative to packages/web/) ──
+_WEB_DIR = Path(__file__).resolve().parent
+_PROJECT_DIR = _WEB_DIR.parent.parent  # packages/web/ → packages/ → project root
+DATA_DIR = _PROJECT_DIR / "data"
 WORKDIRS_DIR = DATA_DIR / "workdirs"
-DASHBOARD_FILE = Path(__file__).resolve().parent.parent.parent / "index.html"
-MOBILE_DASHBOARD_FILE = Path(__file__).resolve().parent.parent.parent / "mobile.html"
+DASHBOARD_FILE = _WEB_DIR / "index.html"
+MOBILE_DASHBOARD_FILE = _WEB_DIR / "mobile.html"
 _MOBILE_UA_RE = re.compile(
     r"Mobile|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone|webOS",
     re.IGNORECASE,
@@ -88,11 +91,7 @@ worker.set_broadcaster(broadcast)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Log every API request with method, path, and status code.
-
-    Set CLICONDUCTOR_LOG_SKIP=comma,separated,path,prefixes to skip specific
-    endpoints from being logged.
-    """
+    """Log every API request with method, path, and status code."""
     path = request.url.path
     response = await call_next(request)
 
@@ -164,19 +163,12 @@ def _check_session_name(name: str) -> str | None:
 
 _WORKDIR_NAME_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 
-# Reserved for future path restriction — set in config.json to limit
-# workdir to specific base directories (e.g. ["d:/project"]).
+# Reserved for future path restriction
 _ALLOWED_WORKDIR_ROOTS: list[Path] | None = None
 
 
 def _resolve_workdir(workdir_name: str) -> Path:
-    """Resolve a workdir name to a Path, creating it.
-
-    - Absolute paths (e.g. D:\\project\\foo) are used directly.
-    - Simple names (e.g. my-session) are placed under WORKDIRS_DIR.
-    - Optional path restriction: set _ALLOWED_WORKDIR_ROOTS in the
-      caller to reject paths outside allowed base directories.
-    """
+    """Resolve a workdir name to a Path, creating it."""
     p = Path(workdir_name)
     if p.is_absolute():
         if _ALLOWED_WORKDIR_ROOTS is not None:
@@ -194,7 +186,7 @@ def _resolve_workdir(workdir_name: str) -> Path:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
-    # Slug name — resolve under WORKDIRS_DIR (original behaviour)
+    # Slug name — resolve under WORKDIRS_DIR
     if not _WORKDIR_NAME_RE.match(workdir_name):
         raise ValueError(
             f"Invalid workdir name: {workdir_name!r} "
@@ -241,7 +233,7 @@ def _apply_session_updates(s: sess.Session, data: dict):
 
 @app.get("/favicon.ico")
 async def favicon():
-    svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#58a6ff"/><text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-family="monospace" font-weight="bold">C</text></svg>'
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#58a6ff"/><text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-family="monospace" font-weight="bold">P</text></svg>'
     return Response(content=svg, media_type="image/svg+xml")
 
 
@@ -403,7 +395,7 @@ async def api_get_session(session_id: str):
 
 @app.patch("/api/sessions/{session_id}")
 async def api_update_session(session_id: str, data: dict):
-    """Update session-level settings (model/mode/thinking/effort) without spawning a worker."""
+    """Update session-level settings without spawning a worker."""
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
@@ -427,7 +419,6 @@ async def api_rename_session(session_id: str, data: dict):
     if not s:
         return {"error": "Session not found"}
 
-    # Same name — nothing to do
     if s.name == new_name:
         return {"sessionId": s.id, "name": new_name, "status": "unchanged"}
 
@@ -475,7 +466,6 @@ async def api_branch_session(session_id: str, data: dict):
     except Exception as e:
         return {"error": f"Fork failed: {e}"}
 
-    # Import the forked session's JSONL
     try:
         history = cbc_sessions.parse_cbc_history(new_cbc_id_str, cwd)
         raw_usage_entries = cbc_sessions.get_raw_usage(new_cbc_id_str, cwd)
@@ -485,7 +475,6 @@ async def api_branch_session(session_id: str, data: dict):
     raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
     total_usage = sess.compute_total_usage(raw_usage)
 
-    # Create Pan session with user's name and parent's settings
     new_s = sess.create(
         name=name,
         cbc_session_id=new_cbc_id_str,
@@ -532,9 +521,7 @@ async def api_models():
 
 @app.get("/api/adapter/config")
 async def api_adapter_config():
-    """Return default adapter configuration (models, effort values, permission modes).
-    Frontend uses this to dynamically render selects.
-    """
+    """Return default adapter configuration for frontend selects."""
     a = get_adapter("cbc")
     return {
         "models": a.supported_models,
@@ -545,25 +532,20 @@ async def api_adapter_config():
     }
 
 
-# ── Spawn (create worker for a session) ──
+# ── Spawn ──
 
 @app.post("/api/spawn")
 async def api_spawn(data: dict):
-    """Spawn a Worker for a Session.
-
-    If session_id is provided, use that Session.
-    Otherwise, create a new Session first.
-    """
+    """Spawn a Worker for a Session."""
     session_id = data.get("sessionId")
     if session_id:
         s = sess.get(session_id)
         if not s:
             return {"error": f"Session {session_id} not found"}
-        # 杀掉已有的 worker（避免多个 worker 跑同一 session）
+        # kill existing worker (avoid multiple workers on same session)
         existing = worker.find_worker_by_session(session_id)
         if existing:
             await worker.kill_worker(existing.worker_id)
-        # apply settings from request if provided
         _apply_session_updates(s, data)
         sess.save(s)
     else:
@@ -596,23 +578,15 @@ async def api_spawn(data: dict):
 
 @app.post("/api/task")
 async def api_task(data: dict):
-    """Send a task to a Worker by worker_id or session_id.
-
-    Auto-spawns a worker (with --resume if session has cbc_session_id)
-    if the session exists but has no live worker — consistent with the
-    WS /ws and /ws/agent endpoints. Worker death is common (server restart,
-    cbc crash), so we recover transparently instead of erroring.
-    """
+    """Send a task to a Worker by worker_id or session_id."""
     worker_id = data.get("workerId")
     session_id = data.get("sessionId")
 
-    # Resolve worker_id from session_id
     if not worker_id and session_id:
         w = worker.find_worker_by_session(session_id)
         if w:
             worker_id = w.worker_id
 
-    # No worker found — try to auto-spawn for this session
     if not worker_id and session_id:
         s = sess.get(session_id)
         if not s:
@@ -640,8 +614,6 @@ async def api_task(data: dict):
 
     err = await worker.send_task(worker_id, text, source="agent")
     if err:
-        # Worker died between resolve and send (race). Kill the corpse,
-        # auto-spawn+resume a fresh one, retry the task once.
         if session_id and err in ("Worker not found", "Worker process dead"):
             old = worker.find_worker_by_session(session_id)
             if old:
@@ -674,7 +646,7 @@ async def api_kill(worker_id: str):
 
 @app.get("/api/list")
 async def api_list():
-    """List running workers (not sessions)."""
+    """List running workers."""
     return {
         "workers": [
             {
@@ -691,7 +663,6 @@ async def api_list():
 
 @app.get("/api/cbc/projects")
 async def api_cbc_projects():
-    """List cbc project directories that have resumable sessions."""
     config = load_config()
     ci = config.get("cbc_import", {})
     recent_days = ci.get("import_recent_days", 30)
@@ -713,11 +684,7 @@ def _sanitize_project_dir(cwd: str) -> str:
 
 @app.get("/api/cbc/sessions")
 async def api_cbc_sessions(project_dir: str = "", cwd: str = "", all: int = 0):
-    """List external cbc sessions available for import.
-
-    project_dir: cbc project dir name (e.g. "d-project-CLIConductor")
-    cwd:         fallback filesystem path (auto-sanitized)
-    """
+    """List external cbc sessions available for import."""
     config = load_config()
     filter_cfg = config.get("cbc_import", {})
 
@@ -730,10 +697,6 @@ async def api_cbc_sessions(project_dir: str = "", cwd: str = "", all: int = 0):
     if all:
         return {"sessions": all_sessions, "total": len(all_sessions)}
 
-    # Filter 1: removed — already-imported sessions are now visible
-    #           and can be re-imported (old session is replaced).
-
-    # Filter 2: skip non-main workdir sessions
     exclude_patterns = filter_cfg.get("exclude_workdir_patterns", [])
     target_dir = None
     if filter_cfg.get("project_dir_exact_match", False):
@@ -764,7 +727,7 @@ async def api_cbc_sessions(project_dir: str = "", cwd: str = "", all: int = 0):
 
 @app.get("/api/cbc/browse")
 async def api_cbc_browse(path: str = "", limit: int = 30, offset: int = 0, q: str = ""):
-    """Browse cbc sessions as a file-tree (breadcrumb + folders + paginated sessions)."""
+    """Browse cbc sessions as a file-tree."""
     result = cbc_sessions.browse_cbc_tree(
         path=path, limit=limit, offset=offset, query=q,
     )
@@ -781,13 +744,11 @@ async def api_cbc_sessions_import(data: dict):
     project_dir = data.get("project_dir")
     cwd = data.get("cwd") or str(Path.cwd())
 
-    # When frontend sends project_dir but not cwd, resolve the actual filesystem path
     if not data.get("cwd") and project_dir:
         resolved = cbc_sessions.project_dir_to_path(project_dir)
         if resolved:
             cwd = resolved
 
-    # Parse cbc data first (needed regardless of new vs reimport)
     try:
         if project_dir:
             history = cbc_sessions.parse_cbc_history(session_id, project_dir=project_dir)
@@ -801,7 +762,6 @@ async def api_cbc_sessions_import(data: dict):
     raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
     total_usage = sess.compute_total_usage(raw_usage)
 
-    # If already imported — update in-place (preserve name, model, settings)
     existing = None
     for s in sess.list_all():
         if s.cbc_session_id == session_id:
@@ -823,7 +783,6 @@ async def api_cbc_sessions_import(data: dict):
         })
         return _session_to_api(existing)
 
-    # New session
     name = (
         data.get("name", "")
         or cbc_sessions.get_session_title(session_id, project_dir=project_dir, cwd=cwd)
@@ -860,14 +819,7 @@ async def api_restart(worker_id: str):
 
 @app.post("/api/worker/{worker_id}/settings")
 async def api_worker_settings(worker_id: str, data: dict):
-    """Apply model/mode/thinking settings to a session and respawn the worker once.
-    Accepted fields:
-
-        model                  — model name (str or None)
-        permissionMode         — permission mode (str or None)
-        alwaysThinkingEnabled  — enable thinking (bool)
-        effort                 — effort level (low/medium/high/xhigh)
-    """
+    """Apply model/mode/thinking settings to a session and respawn the worker."""
     w = worker.get_worker(worker_id)
     if not w:
         return {"error": "Worker not found"}
@@ -875,11 +827,9 @@ async def api_worker_settings(worker_id: str, data: dict):
     if not s:
         return {"error": "Session not found"}
 
-    # update session fields first …
     _apply_session_updates(s, data)
     sess.save(s)
 
-    # … then build extra args from the updated session and respawn once
     extra_args: list[str] = []
     if "model" in data:
         extra_args.extend(["--model", data["model"]])
@@ -912,7 +862,6 @@ async def api_rename(worker_id: str, data: dict):
     if err:
         return {"error": err}
 
-    # resolve session: prefer live worker, fallback to sessionId in body
     session_id = None
     w = worker.get_worker(worker_id)
     if w:
@@ -991,12 +940,10 @@ async def api_takeover(worker_id: str):
     if w.status == "held":
         return {"error": "Worker already in takeover mode"}
 
-    # check adapter supports takeover
     adapter_cmd = w.adapter.takeover_command(s)
     if not adapter_cmd:
         return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
 
-    # restart worker to free session, then mark held
     err = await worker.restart_worker(worker_id)
     if err:
         return {"error": err}
@@ -1030,7 +977,7 @@ async def api_takeover(worker_id: str):
         "status": "takeover started",
     }
 
-# ── Static files (CSS, JS) ──
-STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static"
+# ── Static files ──
+STATIC_DIR = _WEB_DIR / "static"
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

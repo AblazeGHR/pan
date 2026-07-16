@@ -20,18 +20,19 @@ Pan/
 ├── main.py                    入口
 ├── packages/
 │   ├── core/                  Core 模块（进程管理 + 消息路由）
-│   │   ├── server.py          FastAPI 路由 + WS
-│   │   ├── worker.py          Worker 数据类 + 生命周期
-│   │   ├── session.py         Session 存储
+│   │   ├── worker.py          Worker 生命周期管理
+│   │   ├── session.py         Session 存储（JSON）
 │   │   ├── config.py          配置加载
 │   │   └── adapters/          CLI Adapter（cbc/claude/...）
+│   ├── web/                  Web 通道（Dashboard + HTTP API）
+│   │   ├── server.py          FastAPI 路由 + WebSocket
+│   │   ├── index.html         Dashboard 桌面版
+│   │   ├── mobile.html        Dashboard 移动版
+│   │   ├── ts/                TypeScript 源码
+│   │   └── static/            编译产物 + CSS
 │   └── qq/                   QQ Bot 通道（NoneBot2 桥接）
 │       ├── plugin.py          QQ 消息处理
 │       └── bot.py             QQ Bot 入口
-├── index.html                 Dashboard 桌面版
-├── mobile.html                Dashboard 移动版
-├── ts/                        TypeScript 源码
-├── static/                    编译产物 + CSS
 ├── scripts/                   启动/停止脚本
 ├── docs/                      文档
 ├── data/                      运行时数据（gitignored）
