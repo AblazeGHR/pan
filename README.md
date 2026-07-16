@@ -10,7 +10,8 @@
 
 | Phase | 目标 | 状态 |
 |:-----|------|:----:|
-| Phase 1 | Core 内部清洁化，稳定 API | 进行中 |
+| Phase 1 | Core 内部清洁化，稳定 API | 完成 |
+| Phase 2 | 逐个抽离通道模块 | 进行中 |
 
 ### 项目架构 (Phase 1)
 
@@ -18,13 +19,15 @@
 Pan/
 ├── main.py                    入口
 ├── packages/
-│   └── core/                  Core 模块（进程管理 + 消息路由）
-│       ├── server.py          FastAPI 路由 + WS
-│       ├── worker.py          Worker 数据类 + 生命周期
-│       ├── session.py         Session 存储
-│       ├── config.py          配置加载
-│       └── adapters/          CLI Adapter（cbc/claude/...）
-├── qq-bridge/                 QQ Bot 桥接（Phase 2 独立）
+│   ├── core/                  Core 模块（进程管理 + 消息路由）
+│   │   ├── server.py          FastAPI 路由 + WS
+│   │   ├── worker.py          Worker 数据类 + 生命周期
+│   │   ├── session.py         Session 存储
+│   │   ├── config.py          配置加载
+│   │   └── adapters/          CLI Adapter（cbc/claude/...）
+│   └── qq/                   QQ Bot 通道（NoneBot2 桥接）
+│       ├── plugin.py          QQ 消息处理
+│       └── bot.py             QQ Bot 入口
 ├── index.html                 Dashboard 桌面版
 ├── mobile.html                Dashboard 移动版
 ├── ts/                        TypeScript 源码

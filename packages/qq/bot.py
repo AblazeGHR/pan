@@ -1,4 +1,4 @@
-"""QQ Bridge 入口 — 启动 NoneBot2 并加载插件。"""
+"""Pan QQ Channel entry point — start NoneBot2 and load QQ plugin."""
 
 from nonebot.adapters.onebot.v11 import Adapter as OneBotAdapter
 import nonebot

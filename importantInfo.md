@@ -22,4 +22,4 @@
 
 1. NapCat（先启动，保持后台）
 2. Pan：`python main.py`
-3. QQ Bridge：`cd qq-bridge && python bot.py`
+3. QQ Bridge：`cd packages/qq && python bot.py`
