@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# pre-commit hook — ensures TypeScript compilation is clean.
+# If ts/app.ts was edited, this blocks the commit until `npx tsc` succeeds.
+#
+# Install: ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+
+set -e
+
+# Only check if TypeScript files are in the staging area
+if ! git diff --cached --name-only | grep -q 'ts/app.ts'; then
+  exit 0
+fi
+
+echo "🔍 pre-commit: TypeScript file staged, checking compilation..."
+
+# Compile (type-check only — no emit, which is faster)
+if ! npx tsc --noEmit 2>&1; then
+  echo ""
+  echo "❌ TypeScript compilation failed. Please fix the errors and try again."
+  exit 1
+fi
+
+echo "✅ TypeScript compilation OK"

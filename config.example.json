@@ -1,0 +1,55 @@
+{
+  "_如何使用": "复制本文件为 config.json，删除 _如何使用 这个键，修改剩余字段后重启服务。所有字段可选，省略时使用下方默认值。",
+
+  "port": 8767,
+
+  "cbc": {
+    "_字段说明": {
+      "model": {
+        "默认值": "deepseek-v4-flash",
+        "可选值": [
+          "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v3-2-volc",
+          "custom-local:deepseek-v4-pro",
+          "glm-5.2", "glm-5.1", "glm-5.0", "glm-5.0-turbo", "glm-5v-turbo", "glm-4.7",
+          "minimax-m3-pay", "minimax-m2.7",
+          "kimi-k2.7", "kimi-k2.6",
+          "hy3"
+        ]
+      },
+      "permission_mode": {
+        "默认值": "bypassPermissions",
+        "可选值": ["", "default", "acceptEdits", "bypassPermissions", "plan", "dontAsk", "auto"]
+      },
+      "always_thinking_enabled": {
+        "默认值": false,
+        "说明": "cbc 的 alwaysThinkingEnabled 设置；false 时 --effort 不生效"
+      },
+      "effort": {
+        "默认值": "",
+        "可选值": ["", "none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"],
+        "说明": "仅 always_thinking_enabled=true 时生效；空值表示不传递 --effort 参数"
+      }
+    },
+    "model": "deepseek-v4-flash",
+    "permission_mode": "bypassPermissions",
+    "always_thinking_enabled": false,
+    "effort": ""
+  },
+
+  "cbc_import": {
+    "_字段说明": {
+      "min_message_count": "最少消息数，低于此值不在导入列表显示（默认 5）",
+      "max_sessions_shown": "导入列表最多显示数量（默认 30）",
+      "exclude_workdir_patterns": "排除 workdir 含指定子串的 session，project_dir_exact_match=false 时生效",
+      "project_dir_exact_match": "仅显示与当前项目路径完全匹配的 session",
+      "import_recent_days": "只显示最近N天修改过的session（默认 30，0=不限）",
+      "min_resume_bytes": "JSONL文件至少多大才算可resume（默认 200）"
+    },
+    "min_message_count": 5,
+    "max_sessions_shown": 30,
+    "exclude_workdir_patterns": [],
+    "project_dir_exact_match": false,
+    "import_recent_days": 30,
+    "min_resume_bytes": 200
+  }
+}

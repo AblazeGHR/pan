@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Pan</title>
+<link rel="stylesheet" href="/static/css/styles.css?v=14">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>Pan</h1>
+  <div class="sess-actions">
+    <div class="ns-quick-group">
+      <button class="ns-quick-btn" onclick="quickNewSession()">+ New</button>
+      <button class="ns-gear-btn" onclick="newSession()" title="New with custom settings">&#9881;</button>
+    </div>
+    <button id="importCbcBtn">Import</button>
+  </div>
+  <div id="sessionList"><div class="sidebar-loading">Loading…</div></div>
+</div>
+
+<div id="chat">
+  <div id="topBar">
+    <span class="chat-empty" id="emptyHint">Select a session</span>
+    <span class="chat-name" id="chatName" style="display:none"></span>
+    <span class="chat-model" id="chatModel" style="display:none"></span>
+    <span id="chatSessionIds" class="chat-sessionids" style="display:none"></span>
+    <span id="chatStatus" class="chat-status"></span>
+    <button id="viewToggleBtn" onclick="toggleView()" title="Toggle Bubble/TUI view">💬</button>
+    <button id="settingsBtn" onclick="toggleSettings()" style="display:none">⚙</button>
+  </div>
+
+  <div id="settingsPanel">
+    <label>Model</label>
+    <select id="settingModel" onchange="updateSetButtonVisibility()"></select>
+    <input id="settingModelCustom" class="model-custom" placeholder="custom">
+    <div class="sep"></div>
+    <label>Mode</label>
+    <select id="settingMode" onchange="updateSetButtonVisibility()"></select>
+    <div class="sep"></div>
+    <label for="settingThinking">Think</label>
+    <input type="checkbox" id="settingThinking" onchange="onThinkingToggle()">
+    <span id="effortGroup" style="display:none">
+      <label for="settingEffort">Effort</label>
+      <select id="settingEffort" onchange="updateSetButtonVisibility()"></select>
+    </span>
+    <div class="sep"></div>
+    <button id="applySettingsBtn" class="btn btn-p" style="display:none" onclick="applySettings()">Apply Settings</button>
+    <div class="sep"></div>
+    <button class="btn" onclick="restartWorker()">Restart</button>
+    <button class="btn" onclick="interruptWorker()">Interrupt</button>
+    <button class="btn btn-p" onclick="takeover()">Takeover</button>
+    <button class="btn btn-d" onclick="killWorker()">Kill</button>
+  </div>
+
+  <div id="messages"></div>
+
+  <div id="inputRow">
+    <input id="chatInput" placeholder="Type a message…" onkeydown="if(event.key==='Enter')send()">
+    <span id="mobileWorkerDot" class="s-dot offline"></span>
+    <button type="button" onclick="send()"><span style="pointer-events:none">Send</span></button>
+  </div>
+</div>
+
+<!-- New Session Modal -->
+<div id="newSessionModal">
+  <div class="ns-panel">
+    <div class="ns-header">
+      <span class="ns-heading">New Session</span>
+      <button id="closeNewSessionModal" class="ns-close">&times;</button>
+    </div>
+    <div class="ns-body">
+      <label class="ns-label" for="nsNameInput">Session Name</label>
+      <input id="nsNameInput" class="ns-input" type="text" placeholder="auto-generate if empty" maxlength="64">
+      <label class="ns-label" for="nsWorkdirInput">Working Directory</label>
+      <input id="nsWorkdirInput" class="ns-input" type="text" placeholder="D:\project\my-app (leave empty for default)">
+      <button id="nsCreateBtn" class="ns-create">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import cbc Session Modal -->
+<div id="importModal">
+  <div class="im-panel">
+    <div class="im-header">
+      <span class="im-heading">Import from cbc</span>
+      <button id="closeImportModal" class="im-close">&times;</button>
+    </div>
+    <div class="im-select">
+      <label class="im-label">Workdir</label>
+      <select id="cbcDriveSelect">
+        <option value="">Drive</option>
+      </select>
+      <select id="cbcProjectSelect">
+        <option value="">Project</option>
+      </select>
+    </div>
+    <div id="cbcSessionList" class="im-body"></div>
+    <div id="cbcSessionCount" class="im-footer"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="/static/js/app.js?v=14"></script>
+</body>
+</html>
