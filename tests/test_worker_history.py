@@ -19,11 +19,11 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock
 
-# Make src importable
+# Make packages importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src import worker, session as _sess
-from src.adapters import CbcAdapter
+from packages.core import worker, session as _sess
+from packages.core.adapters import CbcAdapter
 
 
 # ── fixtures ──
@@ -91,8 +91,8 @@ def _setup_session(history: list[dict] = None, cbc_session_id: str = "cbc-123"):
     s = _sess.Session(
         id="ses_test",
         name="test",
-        cbc_session_id=cbc_session_id,
         model="test-model",
+        adapter_config={"cli_session_id": cbc_session_id},
         history=history or [],
     )
     # Bypass file IO for speed — use cache directly
