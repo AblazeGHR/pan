@@ -545,11 +545,11 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
             s.model = orig.model
         if not s.permission_mode:
             s.permission_mode = orig.permission_mode
-        if not s.effort:
-            s.effort = orig.effort
-        s.always_thinking_enabled = s.always_thinking_enabled or orig.always_thinking_enabled
-        if not s.max_thinking_tokens:
-            s.max_thinking_tokens = orig.max_thinking_tokens
+        if not s.adapter_config.get("effort"):
+            s.adapter_config["effort"] = orig.adapter_config.get("effort", "")
+        s.adapter_config["always_thinking_enabled"] = s.adapter_config.get("always_thinking_enabled") or orig.adapter_config.get("always_thinking_enabled")
+        if not s.adapter_config.get("max_thinking_tokens"):
+            s.adapter_config["max_thinking_tokens"] = orig.adapter_config.get("max_thinking_tokens")
 
     # branch needs --fork-session from adapter
     extra_args = w.adapter.fork_args(s)

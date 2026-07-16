@@ -121,15 +121,16 @@ def _session_to_api(s: sess.Session):
     """Convert Session to API response dict."""
     w = worker.find_worker_by_session(s.id)
     config = load_config().get("cbc", {})
+    ac = s.adapter_config
     return {
         "id": s.id,
         "name": s.name,
-        "cbcSessionId": s.cbc_session_id,
+        "cbcSessionId": s.cli_session_id,
         "model": s.model or config.get("model") or worker.DEFAULT_MODEL,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
-        "alwaysThinkingEnabled": s.always_thinking_enabled,
-        "effort": s.effort or config.get("effort", ""),
-        "maxThinkingTokens": s.max_thinking_tokens,
+        "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
+        "effort": ac.get("effort") or config.get("effort", ""),
+        "maxThinkingTokens": ac.get("max_thinking_tokens"),
         "workdir": s.workdir,
         "history": s.history,
         "lastResult": s.last_result,
@@ -213,10 +214,12 @@ def _build_session_params(data: dict) -> dict:
         "name": name,
         "model": data.get("model") or config.get("model") or worker.DEFAULT_MODEL,
         "permission_mode": data.get("permissionMode") or config.get("permission_mode") or None,
-        "always_thinking_enabled": data.get("alwaysThinkingEnabled", config.get("always_thinking_enabled", False)),
-        "effort": data.get("effort") or config.get("effort", ""),
-        "max_thinking_tokens": data.get("maxThinkingTokens") or None,
         "workdir": str(_resolve_workdir(workdir_name)),
+        "adapter_config": {
+            "always_thinking_enabled": data.get("alwaysThinkingEnabled", config.get("always_thinking_enabled", False)),
+            "effort": data.get("effort") or config.get("effort", ""),
+            "max_thinking_tokens": data.get("maxThinkingTokens") or None,
+        },
     }
 
 
@@ -227,11 +230,11 @@ def _apply_session_updates(s: sess.Session, data: dict):
     if "permissionMode" in data:
         s.permission_mode = data["permissionMode"] or None
     if "alwaysThinkingEnabled" in data:
-        s.always_thinking_enabled = data["alwaysThinkingEnabled"]
+        s.set_adapter_field("always_thinking_enabled", data["alwaysThinkingEnabled"])
     if "effort" in data:
-        s.effort = data["effort"]
+        s.set_adapter_field("effort", data["effort"])
     if "maxThinkingTokens" in data:
-        s.max_thinking_tokens = data["maxThinkingTokens"]
+        s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
 
 
 # ── Dashboard & favicon ──
@@ -488,9 +491,9 @@ async def api_branch_session(session_id: str, data: dict):
         cbc_session_id=new_cbc_id_str,
         model=s.model,
         permission_mode=s.permission_mode,
-        always_thinking_enabled=s.always_thinking_enabled,
-        effort=s.effort,
-        max_thinking_tokens=s.max_thinking_tokens,
+        always_thinking_enabled=s.adapter_config.get("always_thinking_enabled", False),
+        effort=s.adapter_config.get("effort", ""),
+        max_thinking_tokens=s.adapter_config.get("max_thinking_tokens"),
         raw_usage=raw_usage,
         total_usage=total_usage,
         workdir=s.workdir,
@@ -893,8 +896,8 @@ async def api_worker_settings(worker_id: str, data: dict):
         "sessionId": s.id,
         "model": s.model,
         "permissionMode": s.permission_mode,
-        "alwaysThinkingEnabled": s.always_thinking_enabled,
-        "effort": s.effort,
+        "alwaysThinkingEnabled": s.adapter_config.get("always_thinking_enabled", False),
+        "effort": s.adapter_config.get("effort", ""),
         "status": "settings applied",
     }
 
@@ -946,9 +949,9 @@ async def api_branch(worker_id: str, data: dict):
     name = data.get("name") or f"{orig.name}-branch"
     new_session = sess.create(name, model=orig.model,
                               permission_mode=orig.permission_mode,
-                              always_thinking_enabled=orig.always_thinking_enabled,
-                              effort=orig.effort,
-                              max_thinking_tokens=orig.max_thinking_tokens,
+                              always_thinking_enabled=orig.adapter_config.get("always_thinking_enabled", False),
+                              effort=orig.adapter_config.get("effort", ""),
+                              max_thinking_tokens=orig.adapter_config.get("max_thinking_tokens"),
                               workdir=orig.workdir)
 
     result = await worker.branch_worker(worker_id, new_session.id)

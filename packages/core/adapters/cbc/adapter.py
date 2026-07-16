@@ -81,18 +81,19 @@ class CbcAdapter:
 
     def thinking_args(self, s: Session) -> list[str]:
         """cbc 的 alwaysThinkingEnabled 默认 true，关闭时需 --settings 覆盖。"""
-        if not s.always_thinking_enabled:
+        if not s.adapter_config.get("always_thinking_enabled", False):
             return ["--settings", '{"alwaysThinkingEnabled": false}']
         return []
 
     _VALID_EFFORT = frozenset({"none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"})
 
     def effort_args(self, s: Session) -> list[str]:
-        if s.always_thinking_enabled and s.effort:
-            if s.effort not in self._VALID_EFFORT:
-                print(f"[CbcAdapter] Ignoring invalid effort value: {s.effort!r}")
+        ace = s.adapter_config.get("effort", "")
+        if s.adapter_config.get("always_thinking_enabled", False) and ace:
+            if ace not in self._VALID_EFFORT:
+                print(f"[CbcAdapter] Ignoring invalid effort value: {ace!r}")
                 return []
-            return ["--effort", s.effort]
+            return ["--effort", ace]
         return []
 
     def permission_mode_args(self, s: Session) -> list[str]:

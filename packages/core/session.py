@@ -28,13 +28,10 @@ def _new_id() -> str:
 class Session:
     id: str
     name: str
-    cbc_session_id: str | None = None
-    adapter: str = "cbc"   # CLI adapter name, default "cbc" (backward compatible)
+    adapter: str = "cbc"   # CLI adapter name, default "cbc"
     model: str | None = None
     permission_mode: str | None = None
-    always_thinking_enabled: bool = False
-    effort: str = ""
-    max_thinking_tokens: int | None = None
+    adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
     raw_usage: dict | None = None
     total_usage: dict | None = None
     workdir: str = ""
@@ -43,23 +40,77 @@ class Session:
     created_at: str = ""
     updated_at: str = ""
 
+    # ── adapter_config convenience accessors ──
+
+    @property
+    def cli_session_id(self) -> str | None:
+        """Adapter-native session ID (for --resume, --continue, etc.)."""
+        return self.adapter_config.get("cli_session_id")
+
+    @cli_session_id.setter
+    def cli_session_id(self, value: str | None):
+        if value:
+            self.adapter_config["cli_session_id"] = value
+        else:
+            self.adapter_config.pop("cli_session_id", None)
+
+    @property
+    def cbc_session_id(self) -> str | None:
+        """Backward-compat alias for cli_session_id (deprecated)."""
+        return self.cli_session_id
+
+    @cbc_session_id.setter
+    def cbc_session_id(self, value: str | None):
+        self.cli_session_id = value
+
+    def adapter_field(self, key: str, default=None):
+        """Read a value from adapter_config."""
+        return self.adapter_config.get(key, default)
+
+    def set_adapter_field(self, key: str, value):
+        """Set a value in adapter_config in-place."""
+        if value is not None and value != "" and value is not False:
+            self.adapter_config[key] = value
+        else:
+            self.adapter_config.pop(key, None)
+
     def __post_init__(self):
         if not self.created_at:
             self.created_at = datetime.now().isoformat()
         if not self.updated_at:
             self.updated_at = self.created_at
+        # migrate any legacy top-level fields that ended up on the instance
+        # (from Session(**data) with old JSON having cbc_session_id, etc.)
+        _migrate_legacy_fields(self)
+
+    @classmethod
+    def _from_data(cls, data: dict) -> Session:
+        """Construct Session from legacy or new JSON data.
+
+        Pops legacy adapter-specific fields from data and puts
+        them into adapter_config before constructing the instance.
+        """
+        ac = data.pop("adapter_config", {}) or {}
+        for old_key, new_key in [
+            ("cbc_session_id", "cli_session_id"),
+            ("always_thinking_enabled", "always_thinking_enabled"),
+            ("effort", "effort"),
+            ("max_thinking_tokens", "max_thinking_tokens"),
+        ]:
+            val = data.pop(old_key, None)
+            if val is not None and val != "" and val is not False:
+                ac[new_key] = val
+        data["adapter_config"] = ac
+        return cls(**data)
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
             "name": self.name,
-            "cbc_session_id": self.cbc_session_id,
             "adapter": self.adapter,
             "model": self.model,
             "permission_mode": self.permission_mode,
-            "always_thinking_enabled": self.always_thinking_enabled,
-            "effort": self.effort,
-            "max_thinking_tokens": self.max_thinking_tokens,
+            "adapter_config": self.adapter_config,
             "raw_usage": self.raw_usage,
             "total_usage": self.total_usage,
             "workdir": self.workdir,
@@ -78,23 +129,33 @@ _cache: dict[str, Session] = {}
 
 def create(name: str, model: str | None = None,
            permission_mode: str | None = None,
-           always_thinking_enabled: bool = False,
-           effort: str = "",
-           max_thinking_tokens: int | None = None,
+           adapter_config: dict | None = None,
            raw_usage: dict | None = None,
            total_usage: dict | None = None,
            workdir: str = "",
+           history: list[dict] | None = None,
+           # backward-compat kwargs (migrated to adapter_config)
            cbc_session_id: str | None = None,
-           history: list[dict] | None = None) -> Session:
+           always_thinking_enabled: bool = False,
+           effort: str = "",
+           max_thinking_tokens: int | None = None) -> Session:
+    # build adapter_config
+    ac = dict(adapter_config) if adapter_config else {}
+    if cbc_session_id and "cli_session_id" not in ac:
+        ac["cli_session_id"] = cbc_session_id
+    if always_thinking_enabled and "always_thinking_enabled" not in ac:
+        ac["always_thinking_enabled"] = True
+    if effort and "effort" not in ac:
+        ac["effort"] = effort
+    if max_thinking_tokens and "max_thinking_tokens" not in ac:
+        ac["max_thinking_tokens"] = max_thinking_tokens
+
     s = Session(
         id=_new_id(),
         name=name,
-        cbc_session_id=cbc_session_id,
         model=model,
         permission_mode=permission_mode,
-        always_thinking_enabled=always_thinking_enabled,
-        effort=effort,
-        max_thinking_tokens=max_thinking_tokens,
+        adapter_config=ac,
         raw_usage=raw_usage,
         total_usage=total_usage,
         workdir=workdir,
@@ -113,7 +174,8 @@ def get(session_id: str) -> Session | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        s = Session(**data)
+        s = Session._from_data(data)
+        _migrate_legacy_fields(s)
         _migrate_session_usage(s)
         _cache[session_id] = s
         return s
@@ -162,7 +224,8 @@ def list_all() -> list[Session]:
                         # 不覆盖已缓存的 Session（worker 可能在 _read_stdout
                         # 里 append 了 history 但还没 save，磁盘版本更旧）
                         if sid and sid not in _cache:
-                            s = Session(**data)
+                            s = Session._from_data(data)
+                            _migrate_legacy_fields(s)
                             _migrate_session_usage(s)
                             _cache[sid] = s
                     except (json.JSONDecodeError, OSError):
@@ -170,6 +233,27 @@ def list_all() -> list[Session]:
         _all_loaded = True
     # after initial load, cache is always current (create/save/delete sync it)
     return sorted(_cache.values(), key=lambda s: s.created_at)
+
+
+# ── migration helpers ──
+
+def _migrate_legacy_fields(s: Session):
+    """Migrate old top-level adapter-specific fields into adapter_config."""
+    changed = False
+    # if old-style fields exist as attributes, move them to adapter_config
+    legacy_map = {
+        "cbc_session_id": "cli_session_id",
+        "always_thinking_enabled": "always_thinking_enabled",
+        "effort": "effort",
+        "max_thinking_tokens": "max_thinking_tokens",
+    }
+    for old_key, new_key in legacy_map.items():
+        value = getattr(s, old_key, None)
+        if value and new_key not in s.adapter_config:
+            s.adapter_config[new_key] = value
+            changed = True
+    if changed:
+        _save_sync(s)
 
 
 def _deep_sum_raw_usage(a: dict, b: dict) -> dict:

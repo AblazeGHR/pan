@@ -44,3 +44,4 @@ docs/
 archive/
 experiments/
 !docs/plans&overviews/
+qq-bridge/.env
