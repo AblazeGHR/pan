@@ -21,6 +21,6 @@ def get_adapter(name: str) -> CliAdapter:
     return _adapters[name]
 
 
-def list_adapters() -> list[str]:
-    """返回已注册的 adapter 名清单。"""
-    return list(_adapters.keys())
+def list_adapters() -> list[CliAdapter]:
+    """返回已注册的 adapter 实例清单。"""
+    return list(_adapters.values())
