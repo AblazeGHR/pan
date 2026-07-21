@@ -298,6 +298,9 @@ def get_raw_usage(session_id: str, project_cwd: str | None = None, *, project_di
     project_cwd: filesystem path → auto-sanitize to cbc project dir
     project_dir:  cbc project dir name directly (e.g. "d-project-CLIConductor")
 
+    Also scans subagent JSONL files (<session-dir>/subagents/agent-*.jsonl),
+    since cbc spawns subagents that consume credits independently.
+
     Returns list of dicts, each containing rawUsage from one assistant message:
         {"model": str, "rawUsage": dict, "timestamp": str}
     """
@@ -309,32 +312,46 @@ def get_raw_usage(session_id: str, project_cwd: str | None = None, *, project_di
     if not path.exists():
         return []
 
-    usage_entries: list[dict] = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+    usage_entries: list[dict] = _extract_usage_entries(path)
 
-            if event.get("type") != "message" or event.get("role") != "assistant":
-                continue
-
-            pd = event.get("providerData", {})
-            raw_usage = pd.get("rawUsage")
-            if not raw_usage:
-                continue
-
-            usage_entries.append({
-                "model": pd.get("model", ""),
-                "rawUsage": raw_usage,
-                "timestamp": _ts_to_iso(event.get("timestamp", 0)),
-            })
+    # 扫描子 agent 的 JSONL 文件
+    subagents_dir = proj_dir / session_id / "subagents"
+    if subagents_dir.is_dir():
+        for agent_file in sorted(subagents_dir.glob("agent-*.jsonl")):
+            usage_entries.extend(_extract_usage_entries(agent_file))
 
     return usage_entries
+
+
+def _extract_usage_entries(filepath: Path) -> list[dict]:
+    """从单个 JSONL 文件中提���所有带 rawUsage 的事件（assistant message + function_call）。"""
+    entries: list[dict] = []
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                # function_call events also carry rawUsage when the LLM
+                # decides which tool to call — capture those credits too.
+                pd = event.get("providerData", {})
+                raw_usage = pd.get("rawUsage")
+                if not raw_usage:
+                    continue
+
+                entries.append({
+                    "model": pd.get("model", ""),
+                    "rawUsage": raw_usage,
+                    "timestamp": _ts_to_iso(event.get("timestamp", 0)),
+                })
+    except OSError:
+        pass
+    return entries
 
 
 # ── internals ──

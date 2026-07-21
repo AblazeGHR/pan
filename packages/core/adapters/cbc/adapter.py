@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
+import time
 from pathlib import Path
 from ...session import Session
+
+_log = logging.getLogger(__name__)
 
 
 class CbcAdapter:
@@ -199,68 +203,82 @@ class CbcAdapter:
 
     # ── enrich ──
 
-    def enrich_after_result(self, s: Session) -> dict | None:
-        """从 JSONL 读取本轮对话最新的 raw_usage。
+    def enrich_after_result(self, s: Session) -> list[dict] | None:
+        """从 JSONL 读取本轮对话新增的所有 raw_usage 条目。
 
-        从文件尾部向前扫描，找到第一条 assistant message 的 raw_usage。
-        失败时静默返回 None，不影响主路径。
+        与旧版不同，不再只读尾部最新的 16KB，而是读取全文件，
+        然后与 session 已累积的 request_count 比较，只返回新增条目。
+        避免因 cbc 写入延迟或同一轮多次 API 调用导致的遗漏。
+
+        返回 list[dict]：新增的 rawUsage 条目列表，或 None（无新数据/失败）。
         """
         if not s.cbc_session_id:
             return None
         try:
-            return _read_jsonl_latest_raw_usage(s.cbc_session_id)
+            return _read_jsonl_new_entries(s)
         except Exception:
+            _log.debug("enrich_after_result failed", exc_info=True)
             return None
 
+    # ── enrich helpers ──
 
-def _read_jsonl_latest_raw_usage(cbc_session_id: str) -> dict | None:
-    """从 cbc session JSONL 文件尾部读取最新 raw_usage。"""
-    import re
-    base = Path(os.path.expanduser("~/.codebuddy/projects"))
-    # 尝试常见 project dir 名
-    for child in base.iterdir():
-        if not child.is_dir():
-            continue
-        fpath = child / f"{cbc_session_id}.jsonl"
-        if not fpath.exists():
-            continue
+    @staticmethod
+    def _find_project_dir(cbc_session_id: str) -> tuple[Path | None, str | None]:
+        """Find the cbc project directory containing the session JSONL file.
 
-        # 从后向前读取约 16KB，应覆盖最近几条 assistant message
-        try:
-            tail = _tail_bytes(str(fpath), 16 * 1024)
-        except OSError:
-            return None
-        lines = tail.split(b"\n")
-        last_raw_usage = None
-        for raw_line in reversed(lines):
-            line = raw_line.strip()
-            if not line:
+        Returns (fpath, project_dir_name) or (None, None).
+        """
+        base = Path(os.path.expanduser("~/.codebuddy/projects"))
+        for child in base.iterdir():
+            if not child.is_dir():
                 continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("type") == "message" and event.get("role") == "assistant":
-                pd = event.get("providerData", {})
-                ru = pd.get("rawUsage")
-                if ru:
-                    last_raw_usage = ru
-                    return {
-                        "model": pd.get("model", ""),
-                        "rawUsage": ru,
-                        "timestamp": event.get("timestamp", 0),
-                    }
-        return last_raw_usage
-
-    return None
+            fpath = child / f"{cbc_session_id}.jsonl"
+            if fpath.exists():
+                return fpath, child.name
+        return None, None
 
 
-def _tail_bytes(filepath: str, size: int) -> bytes:
-    """读取文件尾部约 size 字节。"""
-    with open(filepath, "rb") as f:
-        from os import SEEK_END
-        f.seek(0, SEEK_END)
-        file_size = f.tell()
-        read_size = min(file_size, size)
-        f.seek(-read_size, SEEK_END)
-        return f.read()
+def _read_jsonl_new_entries(s: Session) -> list[dict] | None:
+    """Get all NEW rawUsage entries since the last enrichment.
+
+    1. Wait briefly for cbc to finish writing JSONL (mitigates race condition).
+    2. Read ALL rawUsage entries from the JSONL file.
+    3. Compare with session's accumulated request_count per model.
+    4. Return only entries beyond what's already been accumulated.
+    """
+    from .sessions import get_raw_usage
+
+    fpath, proj_dir_name = CbcAdapter._find_project_dir(s.cbc_session_id)
+    if not fpath or not proj_dir_name:
+        return None
+
+    # 短暂延迟，等待 cbc 完成 JSONL 写入（解决时序竞态）
+    time.sleep(0.2)
+
+    # 读取文件中所有 rawUsage 条目
+    all_entries = get_raw_usage(s.cbc_session_id, project_dir=proj_dir_name)
+    if not all_entries:
+        return None
+
+    # 筛选新增条目：使用 per-model request_count 作为已累积标记
+    acc = s.raw_usage or {}
+    new_entries = []
+    passed = {}  # per-model counter of entries already seen/passed
+
+    for entry in all_entries:
+        model = entry.get("model", "")
+        acc_model = acc.get(model, {})
+        acc_count = acc_model.get("request_count", 0)
+        passed_count = passed.get(model, 0)
+
+        if passed_count >= acc_count:
+            # 此条目尚未累积
+            new_entries.append(entry)
+        passed[model] = passed_count + 1
+
+    if new_entries:
+        total_new_credit = sum(
+            e.get("rawUsage", {}).get("credit", 0) for e in new_entries
+        )
+        _log.debug("enrich: %d new entries, credit delta=%.2f", len(new_entries), total_new_credit)
+    return new_entries if new_entries else None

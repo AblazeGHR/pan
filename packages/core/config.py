@@ -24,6 +24,12 @@ DEFAULT_CONFIG: dict = {
         # 默认 effort 级别："" | "none" | "off" | "auto" | "low" | "medium" | "high" | "xhigh" | "max" | "ultracode"
         "effort": "",
     },
+    "kimi": {
+        "model": "kimi-code/kimi-for-coding",
+        "permission_mode": "",
+        "always_thinking_enabled": False,
+        "effort": "",
+    },
     # 服务端口（环境变量 CLICONDUCTOR_PORT 可覆盖）
     "port": 8767,
     # Remote 通道默认配置

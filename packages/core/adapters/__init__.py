@@ -8,9 +8,11 @@ from __future__ import annotations
 from .base import CliAdapter
 from .registry import register, get_adapter, list_adapters
 from .cbc import CbcAdapter
+from .kimi import KimiAdapter
 
 # 启动时注册内置 adapter
 register("cbc", CbcAdapter())
+register("kimi", KimiAdapter())
 
 __all__ = [
     "CliAdapter",

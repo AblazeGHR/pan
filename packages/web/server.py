@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from packages.core import worker
 from packages.core import session as sess
-from packages.core.adapters import get_adapter
+from packages.core.adapters import get_adapter, list_adapters
 from packages.core.adapters.cbc import sessions as cbc_sessions
 from packages.core.config import load_config
 
@@ -121,13 +121,15 @@ async def no_cache_api(request: Request, call_next):
 def _session_to_api(s: sess.Session):
     """Convert Session to API response dict."""
     w = worker.find_worker_by_session(s.id)
-    config = load_config().get("cbc", {})
+    a = get_adapter(s.adapter)
+    config = load_config().get(s.adapter, {})
     ac = s.adapter_config
     return {
         "id": s.id,
         "name": s.name,
+        "adapter": s.adapter,
         "cbcSessionId": s.cli_session_id,
-        "model": s.model or config.get("model") or worker.DEFAULT_MODEL,
+        "model": s.model or config.get("model") or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
@@ -201,12 +203,15 @@ def _resolve_workdir(workdir_name: str) -> Path:
 
 def _build_session_params(data: dict) -> dict:
     """Extract session creation parameters from request data, with defaults."""
-    config = load_config().get("cbc", {})
+    adapter_name = data.get("adapter") or "cbc"
+    a = get_adapter(adapter_name)
+    config = load_config().get(adapter_name, {})
     name = data.get("name", "default")
     workdir_name = data.get("workdir") or name
     return {
         "name": name,
-        "model": data.get("model") or config.get("model") or worker.DEFAULT_MODEL,
+        "adapter": adapter_name,
+        "model": data.get("model") or config.get("model") or a.default_model,
         "permission_mode": data.get("permissionMode") or config.get("permission_mode") or None,
         "workdir": str(_resolve_workdir(workdir_name)),
         "adapter_config": {
@@ -392,7 +397,15 @@ async def ws_agent_endpoint(ws: WebSocket):
 async def api_list_sessions():
     """List all sessions (includes worker status if active)."""
     sessions = sess.list_all()
-    return {"sessions": [_session_to_api(s) for s in sessions]}
+    result = []
+    for s in sessions:
+        api = _session_to_api(s)
+        full_history = api.get("history") or []
+        api["history"] = full_history[-50:] if len(full_history) > 50 else full_history
+        api["historyTruncated"] = len(full_history) > 50
+        api["historyTotal"] = len(full_history)
+        result.append(api)
+    return {"sessions": result}
 
 
 @app.post("/api/sessions")
@@ -419,6 +432,25 @@ async def api_get_session(session_id: str):
     if not s:
         return {"error": "Session not found"}
     return _session_to_api(s)
+
+
+@app.get("/api/sessions/{session_id}/history")
+async def api_session_history(session_id: str, before: int = 0, limit: int = 50):
+    """Paginated session history for lazy-loading older messages."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    total = len(s.history)
+    if before <= 0:
+        before = total
+    start = max(0, before - limit)
+    page = s.history[start:before]
+    return {
+        "history": page,
+        "total": total,
+        "hasMore": start > 0,
+        "start": start,
+    }
 
 
 @app.patch("/api/sessions/{session_id}")
@@ -543,20 +575,41 @@ async def api_delete_session(session_id: str):
 
 
 @app.get("/api/models")
-async def api_models():
-    return {"models": worker.SUPPORTED_MODELS, "default": worker.DEFAULT_MODEL}
+async def api_models(adapter: str = "cbc"):
+    """Return model list and default for a given adapter."""
+    a = get_adapter(adapter)
+    return {"models": a.supported_models, "default": a.default_model}
 
 
 @app.get("/api/adapter/config")
-async def api_adapter_config():
-    """Return default adapter configuration for frontend selects."""
-    a = get_adapter("cbc")
+async def api_adapter_config(adapter: str = "cbc"):
+    """Return adapter configuration for frontend selects (per-adapter dynamic)."""
+    a = get_adapter(adapter)
     return {
         "models": a.supported_models,
         "defaultModel": a.default_model,
         "effortValues": list(a.effort_values),
         "permissionModes": a.permission_modes,
         "defaultPermissionMode": a.default_permission_mode,
+        "supportedSettings": getattr(a, "supported_settings", ["model", "permissionMode", "thinking", "effort"]),
+    }
+
+
+@app.get("/api/adapters")
+async def api_list_adapters():
+    """Return all registered adapter names and basic info."""
+    adapters = list_adapters()
+    return {
+        "adapters": [
+            {
+                "name": a.name,
+                "defaultModel": a.default_model,
+                "supportsResume": a.supports_resume,
+                "supportsFork": a.supports_fork,
+            }
+            for a in adapters
+        ],
+        "default": "cbc",
     }
 
 
@@ -600,7 +653,7 @@ async def api_spawn(data: dict):
         "sessionId": session_id,
         "name": s.name,
         "status": w.status,
-        "model": s.model or worker.DEFAULT_MODEL,
+        "model": s.model or get_adapter(s.adapter).default_model,
     }
 
 
@@ -629,7 +682,7 @@ async def api_task(data: dict):
             "sessionId": session_id,
             "name": s.name,
             "status": "idle",
-            "model": s.model or worker.DEFAULT_MODEL,
+            "model": s.model or get_adapter(s.adapter).default_model,
             "reason": "auto-spawned by /api/task",
         })
 
@@ -835,6 +888,89 @@ async def api_cbc_sessions_import(data: dict):
     return _session_to_api(s)
 
 
+# ── Kimi import ──
+
+@app.get("/api/kimi/workspaces")
+async def api_kimi_workspaces():
+    """List Kimi workspaces that have sessions."""
+    from packages.core.adapters.kimi import sessions as kimi_sessions
+    return {"workspaces": kimi_sessions.list_kimi_workspaces()}
+
+
+@app.get("/api/kimi/sessions")
+async def api_kimi_sessions(cwd: str = ""):
+    """List Kimi sessions for a workspace."""
+    from packages.core.adapters.kimi import sessions as kimi_sessions
+    return {"sessions": kimi_sessions.list_kimi_sessions_for_cwd(cwd)}
+
+
+@app.post("/api/kimi/sessions/import")
+async def api_kimi_sessions_import(data: dict):
+    """Import a Kimi session into Pan (Session only, no worker spawned)."""
+    from packages.core.adapters.kimi import sessions as kimi_sessions
+
+    session_id = data.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    cwd = data.get("cwd") or str(Path.cwd())
+
+    try:
+        history = kimi_sessions.parse_kimi_history(session_id, cwd)
+        raw_usage_entries = kimi_sessions.get_raw_usage(session_id, cwd)
+    except Exception as e:
+        return {"error": f"Failed to parse Kimi session history: {e}"}
+
+    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
+    total_usage = sess.compute_total_usage(raw_usage)
+
+    # Dedup by cli_session_id
+    existing = None
+    for s in sess.list_all():
+        if s.cli_session_id == session_id and s.adapter == "kimi":
+            existing = s
+            break
+
+    if existing:
+        w = worker.find_worker_by_session(existing.id)
+        if w:
+            await worker.kill_worker(w.worker_id)
+        existing.history = history
+        existing.raw_usage = raw_usage
+        existing.total_usage = total_usage
+        existing.last_result = None
+        sess.save(existing)
+        await broadcast({
+            "type": "session.updated",
+            "sessionId": existing.id,
+        })
+        return _session_to_api(existing)
+
+    name = (
+        data.get("name", "")
+        or kimi_sessions.get_session_title(session_id, cwd)
+        or f"kimi-{session_id[:8]}"
+    )
+
+    s = sess.create(
+        name=name,
+        adapter="kimi",
+        cbc_session_id=session_id,
+        history=history,
+        raw_usage=raw_usage,
+        total_usage=total_usage,
+        workdir=cwd,
+    )
+
+    await broadcast({
+        "type": "session.created",
+        "sessionId": s.id,
+        "name": s.name,
+    })
+
+    return _session_to_api(s)
+
+
 # ── Worker actions ──
 
 @app.post("/api/worker/{worker_id}/restart")
@@ -863,7 +999,7 @@ async def api_worker_settings(worker_id: str, data: dict):
         extra_args.extend(["--model", data["model"]])
     if "permissionMode" in data:
         extra_args.extend(["--permission-mode", data["permissionMode"] or ""])
-    extra_args.extend(worker.effort_args(s))
+    extra_args.extend(get_adapter(s.adapter).effort_args(s))
 
     err = await worker.respawn_worker(worker_id, extra_args if extra_args else None)
     if err:

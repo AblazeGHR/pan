@@ -36,6 +36,35 @@
     "effort": ""
   },
 
+  "kimi": {
+    "_字段说明": {
+      "model": {
+        "默认值": "kimi-code/kimi-for-coding",
+        "可选值": [
+          "kimi-code/kimi-for-coding",
+          "kimi-code/kimi-for-coding-highspeed",
+          "kimi-code/k3"
+        ]
+      },
+      "permission_mode": {
+        "默认值": "",
+        "说明": "Kimi 的 -p/--prompt 模式暂不支持 -y/--auto/--plan，保持空值即可"
+      },
+      "always_thinking_enabled": {
+        "默认值": false,
+        "说明": "Kimi 的思考模式由 config.toml 控制，Pan 仅作记录"
+      },
+      "effort": {
+        "默认值": "",
+        "说明": "Kimi prompt 模式暂不支持 effort 命令行参数"
+      }
+    },
+    "model": "kimi-code/kimi-for-coding",
+    "permission_mode": "",
+    "always_thinking_enabled": false,
+    "effort": ""
+  },
+
   "cbc_import": {
     "_字段说明": {
       "min_message_count": "最少消息数，低于此值不在导入列表显示（默认 5）",

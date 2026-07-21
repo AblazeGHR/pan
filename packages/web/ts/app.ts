@@ -8,6 +8,7 @@ interface Message {
 interface Session {
   id: string;
   name: string;
+  adapter?: string;
   cbcSessionId?: string | null;
   model?: string | null;
   permissionMode?: string | null;
@@ -18,6 +19,8 @@ interface Session {
   workerStatus?: string | null;
   workerId?: string | null;
   history: Message[];
+  historyTruncated?: boolean;
+  historyTotal?: number;
   lastResult?: Record<string, unknown> | null;
   totalUsage?: Record<string, number> | null;
 }
@@ -77,6 +80,8 @@ interface ApiConfigResponse {
   defaultModel: string;
   effortValues: string[];
   permissionModes: {value: string; label: string}[];
+  defaultPermissionMode?: string;
+  supportedSettings?: string[];
 }
 
 interface SyncedSettings {
@@ -98,6 +103,9 @@ let currentWorkerId: string | null = null;
 let modelData: Session[] = [];
 let lastSyncedSettings: SyncedSettings | null = null;
 let defaultPermissionMode: string = '';
+let currentAdapter: string = 'cbc';
+let allAdapters: {name: string; defaultModel: string; supportsResume: boolean; supportsFork: boolean}[] = [];
+let supportedSettings: string[] = ['model', 'permissionMode', 'thinking', 'effort']; // updated per-adapter
 let bubbleViewEnabled: boolean = true;
 let currentHistory: Message[] = [];
 let toolGroupOpen: boolean = false;
@@ -745,6 +753,13 @@ function syncPanelFromServer(): void {
   const s = modelData.find((x: Session) => x.id === currentSessionId);
   if (!s) return;
 
+  // Switch adapter config if the session has a different adapter
+  const sessAdapter = s.adapter || 'cbc';
+  if (sessAdapter !== currentAdapter) {
+    loadAdapterConfig(sessAdapter);
+    return;
+  }
+
   // wait until all selects are populated (async adapter config fetch)
   if ((document.getElementById('settingModel') as HTMLSelectElement).getAttribute('data-loaded') !== '1') return;
   if (!_adapterConfigReady) return;
@@ -1064,11 +1079,12 @@ function send(): void {
 
 // ── New Session (modal) ──
 
-function _doCreateSession(name: string, workdir: string | null): void {
+function _doCreateSession(name: string, workdir: string | null, adapter?: string): void {
   // Optimistic UI: placeholder immediately
   const placeholder: Session = {
     id: '__pending_' + name,
     name: '...',
+    adapter: adapter || 'cbc',
     model: defaultModel,
     history: [],
     alwaysThinkingEnabled: false,
@@ -1078,6 +1094,7 @@ function _doCreateSession(name: string, workdir: string | null): void {
   selectSession(placeholder.id);
   const body: Record<string, string> = { name: name };
   if (workdir) body.workdir = workdir;
+  if (adapter && adapter !== 'cbc') body.adapter = adapter;
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1112,15 +1129,17 @@ function quickNewSession(): void {
     name = 'session-' + (modelData.length + n);
     n++;
   }
-  _doCreateSession(name, null);
+  _doCreateSession(name, null, currentAdapter);
 }
 
 function newSession(): void {
   const modal = document.getElementById('newSessionModal') as HTMLElement;
   const nameInput = document.getElementById('nsNameInput') as HTMLInputElement;
   const workdirInput = document.getElementById('nsWorkdirInput') as HTMLInputElement;
+  const adapterSelect = document.getElementById('nsAdapterSelect') as HTMLSelectElement;
   nameInput.value = '';
   workdirInput.value = '';
+  if (adapterSelect) adapterSelect.value = currentAdapter;
   modal.classList.add('open');
   nameInput.focus();
 }
@@ -1252,27 +1271,56 @@ function branchSession(id: string): void {
     });
 }
 
-// ── Init ──
+// ── Adapter config loading ──
 
-function init(): void {
-  fetch('/api/adapter/config')
+/** Load adapter configuration for a specific adapter name, populate selects. */
+function loadAdapterConfig(adapterName: string): void {
+  fetch('/api/adapter/config?adapter=' + encodeURIComponent(adapterName))
     .then((r: Response) => r.json())
     .then((data: ApiConfigResponse) => {
       allModels = data.models || [];
       defaultModel = data.defaultModel || 'deepseek-v4-flash';
       effortValues = data.effortValues || [];
       permissionModes = data.permissionModes || [];
-      defaultPermissionMode = (data as any).defaultPermissionMode || 'default';
+      defaultPermissionMode = data.defaultPermissionMode || '';
+      supportedSettings = data.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'];
+      currentAdapter = adapterName;
+      _adapterConfigReady = true;
       buildModelSelect();
       buildModeSelect();
       buildEffortSelect();
-      _adapterConfigReady = true;
+      updateSettingsVisibility();
       if (document.getElementById('settingsPanel')!.classList.contains('open'))
         syncPanelFromServer();
     })
     .catch(function () {
       // Server unavailable — will retry on settings panel open
     });
+}
+
+/** Show/hide settings fields based on supportedSettings of the current adapter. */
+function updateSettingsVisibility(): void {
+  const modeGroup = document.getElementById('modeGroup') as HTMLElement;
+  const thinkingGroup = document.getElementById('thinkingGroup') as HTMLElement;
+  const effortGroup = document.getElementById('effortGroup') as HTMLElement;
+  if (modeGroup) modeGroup.style.display = supportedSettings.indexOf('permissionMode') >= 0 ? '' : 'none';
+  if (thinkingGroup) thinkingGroup.style.display = supportedSettings.indexOf('thinking') >= 0 ? '' : 'none';
+  if (effortGroup) effortGroup.style.display = supportedSettings.indexOf('effort') >= 0 ? '' : 'none';
+}
+
+// ── Init ──
+
+function init(): void {
+  // Load adapter list
+  fetch('/api/adapters')
+    .then((r: Response) => r.json())
+    .then((data: {adapters: any[]; default: string}) => {
+      allAdapters = data.adapters || [];
+    });
+
+  // Load default adapter config
+  loadAdapterConfig('cbc');
+
   refreshSessions();
 
   // ── Import Modal (file-explorer style) ──
@@ -1422,8 +1470,9 @@ function init(): void {
       } while (modelData.find((s: Session) => s.name === name || s.id === '__pending_' + name));
     }
     const workdir = nsWorkdirInput.value.trim() || null;
+    const adapter = (document.getElementById('nsAdapterSelect') as HTMLSelectElement)?.value || 'cbc';
     newSessionModal.classList.remove('open');
-    _doCreateSession(name, workdir);
+    _doCreateSession(name, workdir, adapter);
   });
   nsNameInput.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {

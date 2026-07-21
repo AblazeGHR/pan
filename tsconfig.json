@@ -3,12 +3,12 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "outDir": "static/js",
-    "rootDir": "ts",
+    "outDir": "packages/web/static/js",
+    "rootDir": "packages/web/ts",
     "strict": true,
     "sourceMap": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
-  "include": ["ts/**/*.ts"]
+  "include": ["packages/web/ts/**/*.ts"]
 }

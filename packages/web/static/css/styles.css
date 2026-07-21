@@ -1165,6 +1165,23 @@ body {
   border-color: #58a6ff;
 }
 
+.ns-select {
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #0d1117;
+  color: #c9d1d9;
+  font-size: .85rem;
+}
+
+.ns-select:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
 .ns-create {
   margin-top: 8px;
   padding: 8px;

@@ -17,12 +17,6 @@ import psutil
 from . import session as _sess
 from .adapters import get_adapter, CliAdapter
 
-_DEFAULT_ADAPTER = get_adapter("cbc")
-
-# Backward-compatible shortcuts (server.py references these)
-DEFAULT_MODEL = _DEFAULT_ADAPTER.default_model
-SUPPORTED_MODELS = _DEFAULT_ADAPTER.supported_models
-
 
 @dataclass
 class Worker:
@@ -69,13 +63,6 @@ async def _bcast(data: dict):
         r = _broadcast(data)
         if hasattr(r, "__await__"):
             await r
-
-
-# ── helpers (public API for server.py) ──
-
-def effort_args(s: _sess.Session) -> list[str]:
-    """Return default adapter's effort CLI args (exposed for server.py)."""
-    return _DEFAULT_ADAPTER.effort_args(s)
 
 
 # ── helpers (internal) ──
@@ -162,7 +149,7 @@ async def _read_stdout(w: Worker):
                 except Exception:
                     pass
                 if enrichment:
-                    s.raw_usage = _sess.accumulate_raw_usage(s.raw_usage, [enrichment])
+                    s.raw_usage = _sess.accumulate_raw_usage(s.raw_usage, enrichment)
                     s.total_usage = _sess.compute_total_usage(s.raw_usage)
                 await _sess.save_async(s)
 

@@ -129,6 +129,7 @@ _cache: dict[str, Session] = {}
 
 def create(name: str, model: str | None = None,
            permission_mode: str | None = None,
+           adapter: str = "cbc",
            adapter_config: dict | None = None,
            raw_usage: dict | None = None,
            total_usage: dict | None = None,
@@ -153,6 +154,7 @@ def create(name: str, model: str | None = None,
     s = Session(
         id=_new_id(),
         name=name,
+        adapter=adapter,
         model=model,
         permission_mode=permission_mode,
         adapter_config=ac,
