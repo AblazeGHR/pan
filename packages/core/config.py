@@ -26,6 +26,15 @@ DEFAULT_CONFIG: dict = {
     },
     # 服务端口（环境变量 CLICONDUCTOR_PORT 可覆盖）
     "port": 8767,
+    # Remote 通道默认配置
+    "remote": {
+        "enabled": False,
+        "provider": "cloudflare",
+        "quick_tunnel": True,
+        "config_path": "",
+        "binary_path": "",
+        "status_port": 8769,
+    },
 }
 
 

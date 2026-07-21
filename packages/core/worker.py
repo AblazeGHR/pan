@@ -12,6 +12,8 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 
+import psutil
+
 from . import session as _sess
 from .adapters import get_adapter, CliAdapter
 
@@ -39,6 +41,22 @@ class Worker:
 workers: dict[str, Worker] = {}
 
 _broadcast: callable = None
+
+
+def _kill_pid_tree(pid: int) -> None:
+    """同步：用 psutil 杀掉指定 PID 及其所有子进程树。"""
+    try:
+        parent = psutil.Process(pid)
+        for child in parent.children(recursive=True):
+            try:
+                child.kill()
+            except psutil.NoSuchProcess:
+                pass
+        parent.kill()
+    except psutil.NoSuchProcess:
+        pass
+    except Exception as e:
+        print(f"[Worker] psutil kill tree failed for PID={pid}: {e}")
 
 
 def set_broadcaster(fn: callable):
@@ -295,39 +313,10 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
     pid = w.takeover_pid
     print(f"[Worker {w.worker_id}] 杀 takeover 终端 PID={pid}")
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "taskkill", "/PID", str(pid), "/F", "/T",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=10)
-        out = stdout.decode("gbk", errors="replace").strip()
-        err = stderr.decode("gbk", errors="replace").strip()
-        if proc.returncode == 0:
-            print(f"[Worker {w.worker_id}] taskkill OK: {out}")
-        else:
-            try:
-                check = await asyncio.create_subprocess_exec(
-                    "tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.DEVNULL,
-                )
-                c_stdout, _ = await asyncio.wait_for(
-                    check.communicate(), timeout=5)
-                cout = c_stdout.decode("gbk", errors="replace")
-                if str(pid) in cout:
-                    print(f"[Worker {w.worker_id}] taskkill rc={proc.returncode} "
-                          f"({err}), 进程仍存活！")
-                else:
-                    print(f"[Worker {w.worker_id}] taskkill rc={proc.returncode}, "
-                          f"进程已不存在（可能已自行退出）")
-            except Exception as ce:
-                print(f"[Worker {w.worker_id}] tasklist 检查异常: {ce}")
-    except asyncio.TimeoutError:
-        print(f"[Worker {w.worker_id}] taskkill 超时 PID={pid}")
+        await asyncio.to_thread(_kill_pid_tree, pid)
+        print(f"[Worker {w.worker_id}] takeover 终端已结束 PID={pid}")
     except Exception as e:
-        print(f"[Worker {w.worker_id}] taskkill 异常: {e}")
+        print(f"[Worker {w.worker_id}] 杀 takeover 终端异常: {e}")
     w.takeover_pid = None
     return True
 
@@ -338,19 +327,7 @@ async def _kill_process_tree(w: Worker) -> None:
         return
     pid = w.process.pid
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "taskkill", "/F", "/T", "/PID", str(pid),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        await asyncio.wait_for(proc.wait(), timeout=5)
-    except asyncio.TimeoutError:
-        try:
-            w.process.kill()
-        except ProcessLookupError:
-            pass
-        except Exception:
-            pass
+        await asyncio.to_thread(_kill_pid_tree, pid)
     except Exception:
         try:
             w.process.kill()
@@ -467,7 +444,7 @@ async def restart_worker(worker_id: str) -> str | None:
     # kill takeover terminal if one was opened
     await _kill_takeover_terminal(w)
 
-    # kill existing cbc process tree（taskkill /F /T，避免 node.exe 孤儿）
+    # kill existing cbc process tree（psutil 递归杀，避免 node.exe 孤儿）
     await _kill_process_tree(w)
     w.process = None
 
@@ -627,8 +604,7 @@ def find_worker_by_session(session_id: str) -> Worker | None:
 async def shutdown_all():
     """关闭所有 worker 的 cbc 进程树 + takeover 终端。
 
-    必须用 _kill_process_tree / _kill_takeover_terminal（内部走 taskkill /F /T），
-    不能只调 w.process.kill()——后者只杀 cbc.cmd，留下 node.exe 孤儿。
+    使用 psutil 递归杀进程树（避免 node.exe 等孤儿进程）。
     """
     ids = list(workers.keys())
     for wid in ids:

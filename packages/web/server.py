@@ -6,6 +6,8 @@ import asyncio
 import json
 import os
 import re
+import subprocess
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -227,6 +229,32 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("effort", data["effort"])
     if "maxThinkingTokens" in data:
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
+
+
+def _open_terminal(cmd: str, cwd: str | Path) -> int:
+    """Open a new terminal window running `cmd` in `cwd` (cross-platform)."""
+    cwd = str(cwd) if cwd else str(Path.cwd())
+    if sys.platform == "win32":
+        proc = subprocess.Popen(
+            ["powershell.exe", "-NoExit", "-Command", cmd],
+            cwd=cwd,
+            creationflags=subprocess.CREATE_NEW_CONSOLE,
+        )
+        return proc.pid
+    elif sys.platform == "darwin":
+        script = f'tell app "Terminal" to do script "{cmd}"'
+        proc = subprocess.Popen(["osascript", "-e", script], cwd=cwd)
+        return proc.pid
+    else:
+        try:
+            proc = subprocess.Popen(
+                ["gnome-terminal", "--", "bash", "-c", cmd],
+                cwd=cwd,
+            )
+            return proc.pid
+        except FileNotFoundError:
+            proc = subprocess.Popen(["xterm", "-e", cmd], cwd=cwd)
+            return proc.pid
 
 
 # ── Dashboard & favicon ──
@@ -927,8 +955,6 @@ async def api_interrupt(worker_id: str):
 
 @app.post("/api/worker/{worker_id}/takeover")
 async def api_takeover(worker_id: str):
-    import subprocess
-
     w = worker.get_worker(worker_id)
     if not w:
         return {"error": "Worker not found"}
@@ -957,15 +983,12 @@ async def api_takeover(worker_id: str):
     })
 
     try:
-        proc = subprocess.Popen(
-            ["powershell.exe", "-NoExit", "-Command",
-             " ".join(adapter_cmd)],
-            cwd=s.workdir or str(Path.cwd()),
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
+        w.takeover_pid = _open_terminal(
+            " ".join(adapter_cmd),
+            s.workdir or Path.cwd(),
         )
-        w.takeover_pid = proc.pid
     except FileNotFoundError:
-        return {"error": "powershell.exe not found"}
+        return {"error": "terminal opener not found"}
     except OSError as e:
         return {"error": str(e)}
 

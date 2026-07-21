@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 from ...session import Session
 
@@ -65,15 +66,23 @@ class CbcAdapter:
 
     default_permission_mode = "bypassPermissions"
 
-    _CBC_PATH = os.environ.get(
-        "PAN_CBC_PATH",
-        r"D:\node_npm\node_global\cbc.cmd",
-    )
+    def _resolve_cbc_path(self) -> str:
+        """确定 cbc 可执行文件路径：配置 > 环境变量 > PATH 查找 > 回退名。"""
+        from ...config import load_config
+        config = load_config()
+        cbc_path = config.get("cbc", {}).get("path")
+        if cbc_path:
+            return cbc_path
+        env_path = os.environ.get("PAN_CBC_PATH")
+        if env_path:
+            return env_path
+        which_path = shutil.which("cbc")
+        return which_path or "cbc"
 
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
-        return [self._CBC_PATH, "-p", "--output-format", "stream-json",
+        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json",
                 "--input-format", "stream-json", "-y"]
 
     def model_args(self, s: Session) -> list[str]:

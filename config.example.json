@@ -51,5 +51,22 @@
     "project_dir_exact_match": false,
     "import_recent_days": 30,
     "min_resume_bytes": 200
+  },
+
+  "remote": {
+    "_字段说明": {
+      "enabled": "是否启用远程通道（默认 false）",
+      "provider": "远程通道供应商，目前仅支持 cloudflare",
+      "quick_tunnel": "true 使用临时 trycloudflare.com URL；false 使用 named tunnel",
+      "config_path": "named tunnel 的 cloudflared config.yml 路径（quick_tunnel=false 时必填）",
+      "binary_path": "cloudflared 可执行文件路径，留空则从 PATH 查找",
+      "status_port": "Remote 状态 HTTP 服务端口（默认 8769）"
+    },
+    "enabled": false,
+    "provider": "cloudflare",
+    "quick_tunnel": true,
+    "config_path": "",
+    "binary_path": "",
+    "status_port": 8769
   }
 }
