@@ -148,7 +148,13 @@ body {
       <button class="ns-quick-btn" onclick="quickNewSession()">+ New</button>
       <button class="ns-gear-btn" onclick="newSession()" title="New with custom settings">&#9881;</button>
     </div>
-    <button id="importCbcBtn">Import</button>
+    <div class="import-menu">
+      <button id="importBtn">Import ▼</button>
+      <div id="importDropdown" class="import-dropdown">
+        <div class="import-option" onclick="(window as any).openImport('cbc')">Import from cbc</div>
+        <div class="import-option" onclick="(window as any).openImport('kimi')">Import from Kimi</div>
+      </div>
+    </div>
   </div>
   <div id="sessionList"><div class="sidebar-loading">Loading…</div></div>
 </div>
@@ -224,14 +230,21 @@ body {
   </div>
 </div>
 
-<!-- Import cbc Session Modal -->
+<!-- Import Session Modal -->
 <div id="importModal">
   <div class="im-panel">
     <div class="im-header">
-      <span class="im-heading">Import from cbc</span>
+      <span class="im-heading">Import Session</span>
       <button id="closeImportModal" class="im-close">&times;</button>
     </div>
     <div class="im-select">
+      <label class="im-label">Agent CLI</label>
+      <select id="importAdapterSelect">
+        <option value="cbc">cbc</option>
+        <option value="kimi">kimi</option>
+      </select>
+    </div>
+    <div id="cbcImportFilters" class="im-select">
       <label class="im-label">Workdir</label>
       <select id="cbcDriveSelect">
         <option value="">Drive</option>
@@ -240,8 +253,14 @@ body {
         <option value="">Project</option>
       </select>
     </div>
-    <div id="cbcSessionList" class="im-body"></div>
-    <div id="cbcSessionCount" class="im-footer"></div>
+    <div id="kimiImportFilters" class="im-select" style="display:none">
+      <label class="im-label">Workspace</label>
+      <select id="kimiWorkspaceSelect">
+        <option value="">Workspace</option>
+      </select>
+    </div>
+    <div id="importSessionList" class="im-body"></div>
+    <div id="importSessionCount" class="im-footer"></div>
   </div>
 </div>
 

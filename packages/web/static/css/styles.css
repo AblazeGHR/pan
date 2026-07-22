@@ -963,6 +963,52 @@ body {
   opacity: 1;
 }
 
+/* ── Import Dropdown ── */
+.import-menu {
+  position: relative;
+  flex: 1;
+}
+.import-menu > button {
+  width: 100%;
+  padding: 6px 0;
+  border: 1px dashed #30363d;
+  border-radius: 6px;
+  background: transparent;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: .72rem;
+}
+.import-menu > button:hover {
+  border-color: #58a6ff;
+  color: #58a6ff;
+  background: #58a6ff08;
+}
+.import-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  z-index: 50;
+  overflow: hidden;
+}
+.import-dropdown.open {
+  display: block;
+}
+.import-option {
+  padding: 8px 10px;
+  font-size: .8rem;
+  color: #e6edf3;
+  cursor: pointer;
+}
+.import-option:hover {
+  background: #21262d;
+  color: #58a6ff;
+}
+
 /* ── Import Modal ── */
 #importModal {
   display: none;

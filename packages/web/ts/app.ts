@@ -75,7 +75,17 @@ interface ApiGenericResponse {
   cbcSessionId?: string;
 }
 
+interface AdapterConfig {
+  models: string[];
+  defaultModel: string;
+  effortValues: string[];
+  permissionModes: {value: string; label: string}[];
+  defaultPermissionMode: string;
+  supportedSettings: string[];
+}
+
 interface ApiConfigResponse {
+  adapter?: string;
   models: string[];
   defaultModel: string;
   effortValues: string[];
@@ -93,23 +103,32 @@ interface SyncedSettings {
 
 // ── State ──
 
+let availableAdapters: string[] = [];
+const adapterConfigs: Map<string, AdapterConfig> = new Map();
+let currentAdapter: string = 'cbc';
+let _adapterConfigReady: boolean = false;
+
+// Live config values (synced from adapterConfigs when adapter changes)
 let allModels: string[] = [];
 let defaultModel: string = 'deepseek-v4-flash';
 let effortValues: string[] = [];
 let permissionModes: {value: string; label: string}[] = [];
-let _adapterConfigReady: boolean = false;
+let defaultPermissionMode: string = '';
+let supportedSettings: string[] = ['model', 'permissionMode', 'thinking', 'effort'];
+let allAdapters: {name: string; defaultModel: string; supportsResume: boolean; supportsFork: boolean}[] = [];
+function supportsSetting(name: string): boolean { return supportedSettings.indexOf(name) >= 0; }
+
 let currentSessionId: string | null = null;
 let currentWorkerId: string | null = null;
 let modelData: Session[] = [];
 let lastSyncedSettings: SyncedSettings | null = null;
-let defaultPermissionMode: string = '';
-let currentAdapter: string = 'cbc';
-let allAdapters: {name: string; defaultModel: string; supportsResume: boolean; supportsFork: boolean}[] = [];
-let supportedSettings: string[] = ['model', 'permissionMode', 'thinking', 'effort']; // updated per-adapter
 let bubbleViewEnabled: boolean = true;
 let currentHistory: Message[] = [];
 let toolGroupOpen: boolean = false;
 let _currentToolGroupStart: number = -1;
+let _rendering: boolean = false;
+let _historyLoading: boolean = false;
+let _historyLoadEnd: number = 0;
 const _inputDrafts: Map<string, string> = new Map();
 /** Per-session set of unread thinking/tool content hashes */
 const _sessionUnread: Map<string, Set<string>> = new Map();
@@ -121,13 +140,60 @@ function _getUnread(): Set<string> {
   return s;
 }
 
+// ── Render guards ──
+// Tracks the last history tail we rendered for the current session, so WS-driven
+// refreshSessions() can skip full re-renders when nothing has changed.
+let _renderedFor: { sessionId: string | null; tailRole: string; tailContent: string } = {
+  sessionId: null,
+  tailRole: '',
+  tailContent: '',
+};
+
+/** Tail used for the render guard: last non-system message.
+ *  Local-only system messages (e.g. "[DONE] Task completed") never appear in
+ *  the server-side history, so comparing them would defeat the guard and
+ *  trigger a full rebuild after every task. */
+function _tailOf(history: Message[]): { role: string; content: string } {
+  const h = history || [];
+  for (let i = h.length - 1; i >= 0; i--) {
+    if (h[i].role !== 'system') {
+      return { role: h[i].role, content: h[i].content || '' };
+    }
+  }
+  return { role: '', content: '' };
+}
+
+function _recordRenderedFor(sessionId: string | null, history: Message[]): void {
+  const tail = _tailOf(history);
+  _renderedFor = {
+    sessionId,
+    tailRole: tail.role,
+    tailContent: tail.content,
+  };
+}
+
+function _shouldRenderMessages(sessionId: string | null, history: Message[]): boolean {
+  const tail = _tailOf(history);
+  return !(
+    _renderedFor.sessionId === sessionId &&
+    _renderedFor.tailRole === tail.role &&
+    _renderedFor.tailContent === tail.content
+  );
+}
+
 // ── Markdown / LaTeX rendering ──
 if (typeof (window as any).marked !== 'undefined') {
   (window as any).marked.setOptions({ breaks: true, gfm: true });
 }
 
+// Markdown cache — avoids re-parsing the same content on session switches
+const _mdCache: Map<string, string> = new Map();
+const _MD_CACHE_MAX = 2000;
+
 function renderMarkdown(text: string): string {
   if (!text) return '';
+  const cached = _mdCache.get(text);
+  if (cached !== undefined) return cached;
 
   const mathStore: Array<{ key: string; latex: string; display: boolean }> = [];
   let mathIndex = 0;
@@ -169,7 +235,14 @@ function renderMarkdown(text: string): string {
       (window as any).hljs.highlightElement(block);
     });
   }
-  return tmp.innerHTML;
+  const result = tmp.innerHTML;
+  _mdCache.set(text, result);
+  if (_mdCache.size > _MD_CACHE_MAX) {
+    // delete oldest entry (Map is insertion-ordered)
+    const first = _mdCache.keys().next().value as string;
+    _mdCache.delete(first);
+  }
+  return result;
 }
 
 // ── View toggle ──
@@ -227,7 +300,7 @@ function onWsMessage(e: MessageEvent): void {
       _applyWorkerUpdate(d.sessionId, d.workerId, 'idle');
       break;
     case 'worker.status':
-      _applyWorkerUpdate(d.sessionId, d.workerId, d.status ?? 'idle');
+      _applyWorkerUpdate(d.sessionId, d.workerId, d.status?? 'idle');
       break;
     case 'session.renamed':
     case 'session.updated':
@@ -235,7 +308,7 @@ function onWsMessage(e: MessageEvent): void {
       break;
     // session.created / session.deleted: 乐观UI已处理，不触发WS刷新
     case 'error':
-      toast(d.message ?? 'Unknown error');
+      toast(d.message?? 'Unknown error');
       break;
   }
 }
@@ -250,13 +323,13 @@ function _applyWorkerUpdate(
 ): void {
   for (let i = 0; i < modelData.length; i++) {
     if (modelData[i].id === sessionId) {
-      modelData[i].workerId = workerId ?? undefined;
+      modelData[i].workerId = workerId?? undefined;
       modelData[i].workerStatus = status;
       break;
     }
   }
   if (sessionId === currentSessionId) {
-    currentWorkerId = workerId ?? null;
+    currentWorkerId = workerId?? null;
     updateTopBar();
   }
   // In-place sidebar dot update (avoid full list rebuild flicker)
@@ -279,6 +352,7 @@ function _applyWorkerUpdate(
 // ── Session list ──
 let _refreshVersion: number = 0;
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let _renderVersion: number = 0;
 
 function scheduleRefreshSessions(): void {
   if (_refreshTimer) clearTimeout(_refreshTimer);
@@ -308,10 +382,15 @@ function refreshSessions(): void {
         currentWorkerId = null;
         showEmpty();
       } else {
-        currentWorkerId = matched.workerId ?? null;
+        currentWorkerId = matched.workerId?? null;
         const chatNameEl = document.getElementById('chatName')!;
         if (chatNameEl.style.display !== 'none') {
-          renderMessages(matched.history || []);
+          // Skip full rebuild if the tail of the server's history is already
+          // rendered. Local DOM may contain more older messages; rebuilding
+          // would throw them away.
+          if (_shouldRenderMessages(currentSessionId, matched.history || [])) {
+            renderMessages(matched.history || []);
+          }
         }
       }
       if (currentSessionId) updateTopBar();
@@ -371,7 +450,7 @@ function renderSessionList(): void {
   el.innerHTML = '';
   modelData.forEach((s: Session) => {
     const div = document.createElement('div');
-    div.className = 'sess-item' + (s.id === currentSessionId ? ' active' : '');
+    div.className = 'sess-item' + (s.id === currentSessionId? ' active' : '');
     div.dataset.sessionId = s.id;
     div.onclick = function (e: MouseEvent) {
       const target = e.target as HTMLElement;
@@ -401,14 +480,14 @@ function renderSessionList(): void {
       s.id +
       '\')" title="Session actions" style="background:none;border:none;color:#484f58;cursor:pointer;font-size:.85rem;padding:0 2px">\u2699</button>' +
       '</div>' +
-      (lastMsg ? '<div class="sess-preview">' + esc(lastMsg) + '</div>' : '') +
+      (lastMsg? '<div class="sess-preview">' + esc(lastMsg) + '</div>' : '') +
       '<div class="sess-meta"><span class="sess-model">' +
       esc(s.model || defaultModel) +
       '</span>' +
       '<span>' +
-      (s.historyTotal ?? (s.history || []).length) +
+      (s.historyTotal?? (s.history || []).length) +
       ' msgs</span>' +
-      (totalCredit != null ? '<span class="sess-credit">' + totalCredit.toFixed(2) + ' credits</span>' : '') +
+      (totalCredit != null? '<span class="sess-credit">' + totalCredit.toFixed(2) + ' credits</span>' : '') +
       '</div>';
     el.appendChild(div);
   });
@@ -432,7 +511,13 @@ function selectSession(id: string): void {
   const s = modelData.find((x: Session) => x.id === id);
   if (!s) return;
 
-  currentWorkerId = s.workerId ?? null;
+  currentWorkerId = s.workerId?? null;
+  _historyLoading = false;
+  // Index of the oldest loaded message within the FULL session history.
+  // The server only sends the last N (truncated) messages, so the oldest
+  // loaded message sits at historyTotal - loaded, NOT at loaded.
+  const loaded = (s.history || []).length;
+  _historyLoadEnd = Math.max(0, (s.historyTotal?? loaded) - loaded);
 
   renderSessionList();
   updateTopBar();
@@ -441,10 +526,89 @@ function selectSession(id: string): void {
   input.value = _inputDrafts.get(id) || '';
   const settingsBtn = document.getElementById('settingsBtn')!;
   settingsBtn.style.display = '';
-  // sync panel if it's already open
+  // sync panel if it's already open (may need to switch adapter config first)
   if (document.getElementById('settingsPanel')!.classList.contains('open')) {
     syncPanelFromServer();
   }
+  // Load additional history if truncated
+  if (s.historyTruncated) {
+    loadOlderMessages();
+  }
+}
+
+/** Fetch and prepend older messages for the current session. */
+function loadOlderMessages(): void {
+  if (_historyLoading || _historyLoadEnd <= 0 || !currentSessionId) return;
+  _historyLoading = true;
+  const sid = currentSessionId;
+  const limit = 50;
+  fetch('/api/sessions/' + sid + '/history?before=' + _historyLoadEnd + '&limit=' + limit)
+    .then((r: Response) => r.json())
+    .then((d: any) => {
+      _historyLoading = false;
+      if (currentSessionId !== sid) return;
+      if (d.error) return;
+      const msgs: Message[] = d.history || d.messages || [];
+      if (msgs.length === 0) return;
+      _historyLoadEnd = d.start;      // Build fragment for older messages
+      const frag = document.createDocumentFragment();
+      const grouped: Array<{ type?: string; items?: Message[] } & Partial<Message>> = [];
+      let toolGroup: any = null;
+      for (let i = 0; i < msgs.length; i++) {
+        const h = msgs[i];
+        if (h.role === 'tool') {
+          if (!toolGroup) {
+            toolGroup = { type: 'tool_group', items: [] };
+            grouped.push(toolGroup);
+          }
+          toolGroup.items!.push(h);
+        } else {
+          toolGroup = null;
+          grouped.push(h);
+        }
+      }
+      for (let i = 0; i < grouped.length; i++) {
+        const g = grouped[i];
+        if (g.type === 'tool_group') {
+          _renderToolGroup(g.items!, frag);
+        } else {
+          _renderMsgEl(g.role || '', g.content || '', frag);
+        }
+      }
+      const el = document.getElementById('messages')!;
+      // Preserve scroll: anchor to first visible element
+      const ref = el.firstElementChild;
+      const scrollRefTop = ref? ref.getBoundingClientRect().top: 0;
+      if (el.firstChild) {
+        el.insertBefore(frag, el.firstChild);
+      } else {
+        el.appendChild(frag);
+      }
+      // Restore scroll position so visible content stays put
+      if (ref) {
+        el.scrollTop += ref.getBoundingClientRect().top - scrollRefTop;
+      }
+      // Update modelData
+      const s = modelData.find((x: Session) => x.id === sid);
+      if (s) {
+        s.history = msgs.concat(s.history);
+        if (d.start <= 0) s.historyTruncated = false;
+      }
+      // Trim from bottom if DOM nodes exceed limit (user is near top anyway)
+      let nodeCount = el.children.length;
+      if (nodeCount > MAX_MESSAGE_NODES) {
+        const trimCount = nodeCount - MAX_MESSAGE_NODES;
+        for (let i = 0; i < trimCount; i++) {
+          const last = el.lastElementChild;
+          if (last) el.removeChild(last);
+        }
+      }
+    })
+    .catch(function () {
+      // Network failure: reset the loading flag so future scrolls can retry,
+      // otherwise lazy-loading would be stuck forever.
+      _historyLoading = false;
+    });
 }
 
 // ── Top bar ──
@@ -459,7 +623,7 @@ function updateTopBar(): void {
   (document.getElementById('chatName')!).style.display = '';
   (document.getElementById('chatModel')!).style.display = '';
   (document.getElementById('chatName')!).textContent =
-    s.name || (currentSessionId ?? '').slice(0, 12);
+    s.name || (currentSessionId?? '').slice(0, 12);
   (document.getElementById('chatModel')!).textContent = s.model || defaultModel;
   const sidsEl = document.getElementById('chatSessionIds')!;
   sidsEl.style.display = 'flex';
@@ -470,7 +634,7 @@ function updateTopBar(): void {
     esc(sesId.slice(0, 12)) +
     '<button class="sid-copy" title="Copy session ID" onclick="copyToClipboard(\'' + sesId + '\')">\u29C9</button>' +
     '</span>' +
-    (cbcId ?
+    (cbcId?
       '<span class="sid-item">' +
       esc(cbcId.slice(0, 8)) +
       '<button class="sid-copy" title="Copy cbc session ID" onclick="copyToClipboard(\'' + cbcId + '\')">\u29C9</button>' +
@@ -478,7 +642,7 @@ function updateTopBar(): void {
       : '');
   const status = s.workerStatus || 'offline';
   (document.getElementById('chatStatus')!).textContent =
-    status + (currentWorkerId ? ' (' + currentWorkerId + ')' : ' (no worker)');
+    status + (currentWorkerId? ' (' + currentWorkerId + ')' : ' (no worker)');
   const dot = document.getElementById('mobileWorkerDot');
   if (dot) dot.className = 's-dot ' + status;
 }
@@ -496,35 +660,39 @@ function showEmpty(): void {
   (document.getElementById('messages')!).innerHTML =
     '<div class="empty-chat">Select a session to start</div>';
   currentHistory = [];
+  _recordRenderedFor(currentSessionId, currentHistory);
   toolGroupOpen = false;
 }
 
 // ── Scroll helpers ──
 
 const SCROLL_BOTTOM_THRESHOLD = 120;
+const MAX_MESSAGE_NODES = 2000;
+const RENDER_CHUNK = 30;
 
-function isNearBottom(el: HTMLElement): boolean {
+function isNearBottom(): boolean {
+  const el = document.getElementById('messages')!;
   return el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_BOTTOM_THRESHOLD;
 }
 
 function scrollMessages(): void {
-  const el = document.getElementById('messages')!;
-  if (isNearBottom(el)) {
-    scrollMessages();
+  if (isNearBottom()) {
+    scrollToBottom();
+  } else {
+    updateScrollToBottomBtn();
   }
-  updateScrollToBottomBtn();
 }
 
 function updateScrollToBottomBtn(): void {
   const el = document.getElementById('messages')!;
   const btn = document.getElementById('scrollBottomBtn') as HTMLButtonElement;
   if (!btn) return;
-  btn.style.display = isNearBottom(el) || el.scrollHeight <= el.clientHeight ? 'none' : '';
+  btn.style.display = isNearBottom() || el.scrollHeight <= el.clientHeight? 'none' : '';
 }
 
 function scrollToBottom(): void {
   const el = document.getElementById('messages')!;
-  scrollMessages();
+  el.scrollTop = el.scrollHeight;
   updateScrollToBottomBtn();
 }
 
@@ -532,12 +700,15 @@ function scrollToBottom(): void {
 
 function renderMessages(history: Message[]): void {
   currentHistory = history || [];
+  _recordRenderedFor(currentSessionId, currentHistory);
   _currentToolGroupStart = -1;
+  _rendering = true;
   const el = document.getElementById('messages')!;
   el.innerHTML = '';
   if (!currentHistory || currentHistory.length === 0) {
     el.innerHTML =
       '<div class="empty-chat">No messages yet. Start a conversation.</div>';
+    _rendering = false;
     toolGroupOpen = false;
     return;
   }
@@ -556,15 +727,76 @@ function renderMessages(history: Message[]): void {
       grouped.push(h);
     }
   }
-  grouped.forEach(function (g: any) {
-    if (g.type === 'tool_group') {
-      _renderToolGroup(g.items!);
-    } else {
-      _renderMsgEl(g.role, g.content);
+
+  function finishRender(): void {
+    _rendering = false;
+    scrollToBottom();
+    toolGroupOpen = false;
+  }
+
+  // Fast path: small sessions render synchronously
+  if (grouped.length <= RENDER_CHUNK) {
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < grouped.length; i++) {
+      const g = grouped[i];
+      if (g.type === 'tool_group') {
+        _renderToolGroup(g.items!, frag);
+      } else {
+        _renderMsgEl(g.role || '', g.content || '', frag);
+      }
     }
-  });
-  scrollMessages();
-  toolGroupOpen = false;
+    el.appendChild(frag);
+    finishRender();
+    return;
+  }
+  // Chunked path: first chunk sync, rest via timeout. Only scroll once at the
+  // end to avoid per-chunk reflows and visual jumping.
+  _renderVersion++;
+  const version = _renderVersion;
+  let index = 0;
+
+  function renderNextChunk(): void {
+    if (version !== _renderVersion) return;
+    const end = Math.min(index + RENDER_CHUNK, grouped.length);
+    const frag = document.createDocumentFragment();
+    for (let i = index; i < end; i++) {
+      const g = grouped[i];
+      if (g.type === 'tool_group') {
+        _renderToolGroup(g.items!, frag);
+      } else {
+        _renderMsgEl(g.role || '', g.content || '', frag);
+      }
+    }
+    el.appendChild(frag);
+    index = end;
+    if (index < grouped.length) {
+      setTimeout(renderNextChunk, 0);
+    } else {
+      finishRender();
+    }
+  }
+
+  // First chunk renders synchronously for immediate visibility
+  {
+    const end = Math.min(RENDER_CHUNK, grouped.length);
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < end; i++) {
+      const g = grouped[i];
+      if (g.type === 'tool_group') {
+        _renderToolGroup(g.items!, frag);
+      } else {
+        _renderMsgEl(g.role || '', g.content || '', frag);
+      }
+    }
+    el.appendChild(frag);
+    index = end;
+  }
+
+  if (index < grouped.length) {
+    setTimeout(renderNextChunk, 0);
+  } else {
+    finishRender();
+  }
 }
 
 function formatToolContent(content: string): string {
@@ -621,10 +853,10 @@ function toolName(content: string): string {
   return content.split('\n')[0].trim().slice(0, 30);
 }
 
-function _renderMsgEl(role: string, content: string): void {
+function _renderMsgEl(role: string, content: string, parent?: Node): void {
   // a non-tool message closes any open streaming tool-group
   if (role !== 'tool') _currentToolGroupStart = -1;
-  const el = document.getElementById('messages')!;
+  const el = parent || document.getElementById('messages')!;
   const div = document.createElement('div');
   if (role === 'user') {
     div.className = 'msg user';
@@ -657,14 +889,12 @@ function _renderMsgEl(role: string, content: string): void {
     div.textContent = content || '';
   }
   el.appendChild(div);
-  scrollMessages();
 }
 
-function _renderToolGroup(items: Message[]): void {
+function _renderToolGroup(items: Message[], parent?: Node): void {
   const wrapper = _createToolGroupEl(items);
-  const el = document.getElementById('messages')!;
+  const el = parent || document.getElementById('messages')!;
   el.appendChild(wrapper);
-  scrollMessages();
 }
 
 /** Build a tool-group element (header + body) for the given items.
@@ -681,7 +911,7 @@ function _createToolGroupEl(items: Message[]): HTMLElement {
     '\uD83D\uDD27 <strong>' + count + ' tools:</strong> ' +
     esc(names) +
     ' <span class="toggle-icon">\u25BC</span>' +
-    (hasUnread ? '<span class="unread-badge"></span>' : '') +
+    (hasUnread? '<span class="unread-badge"></span>' : '') +
     '</div>' +
     '<div class="tool-group-body"></div>';
   wrapper.setAttribute('data-tool-contents', JSON.stringify(items.map(function (t: Message) { return t.content; })));
@@ -722,8 +952,10 @@ function _lastToolGroupEl(): HTMLElement | null {
 
 function addMessage(role: string, content: string): void {
   currentHistory.push({ role: role, content: content });
+  _recordRenderedFor(currentSessionId, currentHistory);
   if (role === 'thinking' || role === 'tool') _getUnread().add(content);
   _renderMsgEl(role, content);
+  scrollMessages();
 }
 
 function appendEvent(event: WorkerEvent): void {
@@ -747,6 +979,8 @@ function appendEvent(event: WorkerEvent): void {
         _appendToolMessage(c);
       }
     });
+    _recordRenderedFor(currentSessionId, currentHistory);
+    scrollMessages();
   }
 }
 
@@ -809,38 +1043,43 @@ function syncPanelFromServer(): void {
   const s = modelData.find((x: Session) => x.id === currentSessionId);
   if (!s) return;
 
-  // Switch adapter config if the session has a different adapter
-  const sessAdapter = s.adapter || 'cbc';
-  if (sessAdapter !== currentAdapter) {
-    loadAdapterConfig(sessAdapter);
-    return;
-  }
-
   // wait until all selects are populated (async adapter config fetch)
   if ((document.getElementById('settingModel') as HTMLSelectElement).getAttribute('data-loaded') !== '1') return;
   if (!_adapterConfigReady) return;
 
+  updateSettingsVisibility();
+
   const sel = document.getElementById('settingModel') as HTMLSelectElement;
   const model = s.model || defaultModel;
-  sel.value = allModels.indexOf(model) >= 0 ? model : '';
+  sel.value = allModels.indexOf(model) >= 0 ? model: '';
 
-  (document.getElementById('settingMode') as HTMLSelectElement).value =
-    s.permissionMode || defaultPermissionMode;
-  (document.getElementById('settingThinking') as HTMLInputElement).checked =
-    s.alwaysThinkingEnabled || false;
-  (document.getElementById('settingEffort') as HTMLSelectElement).value =
-    effortValues.indexOf(s.effort) >= 0 ? s.effort : (effortValues[1] || effortValues[0] || '');
+  if (supportsSetting('permissionMode')) {
+    (document.getElementById('settingMode') as HTMLSelectElement).value =
+      s.permissionMode || defaultPermissionMode;
+  }
+  if (supportsSetting('thinking')) {
+    (document.getElementById('settingThinking') as HTMLInputElement).checked =
+      s.alwaysThinkingEnabled || false;
+  }
+  if (supportsSetting('effort')) {
+    (document.getElementById('settingEffort') as HTMLSelectElement).value =
+      effortValues.indexOf(s.effort) >= 0 ? s.effort: (effortValues [1] || effortValues [0] || '');
+  }
   (document.getElementById('effortGroup')!).style.display =
-    (s.alwaysThinkingEnabled && effortValues.length > 0) ? '' : 'none';
+    (supportsSetting('thinking') && supportsSetting('effort') && s.alwaysThinkingEnabled && effortValues.length > 0) ? '' : 'none';
 
   // record the baseline so we can detect pending changes
   lastSyncedSettings = {
     model: getSettingModel(),
-    permissionMode: (document.getElementById('settingMode') as HTMLSelectElement).value,
-    alwaysThinkingEnabled: (
-      document.getElementById('settingThinking') as HTMLInputElement
-    ).checked,
-    effort: (document.getElementById('settingEffort') as HTMLSelectElement).value,
+    permissionMode: supportsSetting('permissionMode')
+      ? (document.getElementById('settingMode') as HTMLSelectElement).value
+      : '',
+    alwaysThinkingEnabled: supportsSetting('thinking')
+      ? (document.getElementById('settingThinking') as HTMLInputElement).checked
+      : false,
+    effort: supportsSetting('effort')
+      ? (document.getElementById('settingEffort') as HTMLSelectElement).value
+      : '',
   };
   updateSetButtonVisibility();
 }
@@ -880,13 +1119,14 @@ function updateSetButtonVisibility(): void {
 /** Called when the Think checkbox is toggled: show/hide Effort + auto-select
  *  medium, then update the Set button.  No API call is made. */
 function onThinkingToggle(): void {
+  if (!supportsSetting('thinking')) return;
   const thinking = (document.getElementById('settingThinking') as HTMLInputElement).checked;
   (document.getElementById('effortGroup')!).style.display =
-    (thinking && effortValues.length > 0) ? '' : 'none';
-  if (thinking && effortValues.length > 0) {
+    (supportsSetting('effort') && thinking && effortValues.length > 0) ? '' : 'none';
+  if (supportsSetting('effort') && thinking && effortValues.length > 0) {
     const eff = document.getElementById('settingEffort') as HTMLSelectElement;
-    if (!eff.value || eff.value === effortValues[0])
-      eff.value = effortValues[1] || effortValues[0];
+    if (!eff.value || eff.value === effortValues [0])
+      eff.value = effortValues [1] || effortValues [0];
   }
   updateSetButtonVisibility();
 }
@@ -978,7 +1218,7 @@ function restartWorker(): void {
           toast('Spawn failed: ' + d.error);
           return;
         }
-        currentWorkerId = d.workerId ?? null;
+        currentWorkerId = d.workerId?? null;
         updateTopBar();
       });
   }
@@ -1009,7 +1249,7 @@ function takeover(): void {
         return;
       }
       navigator.clipboard
-        .writeText('cbc --resume ' + (d.cbcSessionId ?? ''))
+        .writeText('cbc --resume ' + (d.cbcSessionId?? ''))
         .then(() => {
           toast('PowerShell opened. Session copied to clipboard.');
         })
@@ -1101,7 +1341,7 @@ function send(): void {
           toast('Spawn failed: ' + d.error);
           return;
         }
-        currentWorkerId = d.workerId ?? null;
+        currentWorkerId = d.workerId?? null;
         doSend();
       });
     return;
@@ -1142,16 +1382,15 @@ function _doCreateSession(name: string, workdir: string | null, adapter?: string
     id: '__pending_' + name,
     name: '...',
     adapter: adp,
-    model: defaultModel,
+    model: defaultModel(),
     history: [],
     alwaysThinkingEnabled: false,
     effort: '',
   };
   modelData.push(placeholder);
   selectSession(placeholder.id);
-  const body: Record<string, string> = { name: name };
+  const body: Record<string, string> = { name: name, adapter: adp };
   if (workdir) body.workdir = workdir;
-  if (adp && adp !== 'cbc') body.adapter = adp;
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1193,10 +1432,9 @@ function newSession(): void {
   const modal = document.getElementById('newSessionModal') as HTMLElement;
   const nameInput = document.getElementById('nsNameInput') as HTMLInputElement;
   const workdirInput = document.getElementById('nsWorkdirInput') as HTMLInputElement;
-  const adapterSelect = document.getElementById('nsAdapterSelect') as HTMLSelectElement;
   nameInput.value = '';
   workdirInput.value = '';
-  if (adapterSelect) adapterSelect.value = currentAdapter;
+  _populateNewSessionAdapterSelect();
   modal.classList.add('open');
   nameInput.focus();
 }
@@ -1313,7 +1551,7 @@ function reimportSession(id: string): void {
 function branchSession(id: string): void {
   const s = modelData.find((x: Session) => x.id === id);
   if (!s || !s.cbcSessionId) return;
-  const defaultName = s.name ? s.name + '-branch' : '';
+  const defaultName = s.name? s.name + '-branch' : '';
   const newName = (prompt('Branch session name:', defaultName) || '').trim();
   if (!newName) return;
   fetch('/api/sessions/' + id + '/branch', {
@@ -1335,12 +1573,15 @@ function loadAdapterConfig(adapterName: string): void {
   fetch('/api/adapter/config?adapter=' + encodeURIComponent(adapterName))
     .then((r: Response) => r.json())
     .then((data: ApiConfigResponse) => {
-      allModels = data.models || [];
-      defaultModel = data.defaultModel || 'deepseek-v4-flash';
-      effortValues = data.effortValues || [];
-      permissionModes = data.permissionModes || [];
-      defaultPermissionMode = data.defaultPermissionMode || '';
-      supportedSettings = data.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'];
+      const cfg: AdapterConfig = {
+        models: data.models || [],
+        defaultModel: data.defaultModel || 'deepseek-v4-flash',
+        effortValues: data.effortValues || [],
+        permissionModes: data.permissionModes || [],
+        defaultPermissionMode: data.defaultPermissionMode || '',
+        supportedSettings: data.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'],
+      };
+      adapterConfigs.set(adapterName, cfg);
       currentAdapter = adapterName;
       _adapterConfigReady = true;
       buildModelSelect();
@@ -1360,37 +1601,138 @@ function updateSettingsVisibility(): void {
   const modeGroup = document.getElementById('modeGroup') as HTMLElement;
   const thinkingGroup = document.getElementById('thinkingGroup') as HTMLElement;
   const effortGroup = document.getElementById('effortGroup') as HTMLElement;
-  if (modeGroup) modeGroup.style.display = supportedSettings.indexOf('permissionMode') >= 0 ? '' : 'none';
-  if (thinkingGroup) thinkingGroup.style.display = supportedSettings.indexOf('thinking') >= 0 ? '' : 'none';
-  if (effortGroup) effortGroup.style.display = supportedSettings.indexOf('effort') >= 0 ? '' : 'none';
+  if (modeGroup) modeGroup.style.display = supportsSetting('permissionMode') ? '' : 'none';
+  if (thinkingGroup) thinkingGroup.style.display = supportsSetting('thinking') ? '' : 'none';
+  if (effortGroup) effortGroup.style.display = supportsSetting('effort') ? '' : 'none';
+}
+
+/** Populate the Agent CLI selector in the new-session modal. */
+function _populateNewSessionAdapterSelect(): void {
+  const sel = document.getElementById('nsAdapter') as HTMLSelectElement;
+  if (!sel) return;
+  sel.innerHTML = '';
+  availableAdapters.forEach((a: string) => {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    sel.appendChild(opt);
+  });
+  sel.value = currentAdapter || 'cbc';
+}
+
+/** Switch adapter config to match the selected session, then call cb.
+ *  Rebuilds the panel selects when the adapter changes. */
+function _syncAdapterForSession(s: Session, cb?: () => void): void {
+  const adp = s.adapter || 'cbc';
+  if (adp === currentAdapter && _adapterConfigReady) {
+    buildAdapterSelect();
+    if (cb) cb();
+    return;
+  }
+  _adapterConfigReady = false;
+  _loadAdapterListAndConfig(adp)
+    .then(() => {
+      _adapterConfigReady = true;
+      buildAdapterSelect();
+      buildModelSelect();
+      buildModeSelect();
+      buildEffortSelect();
+      if (cb) cb();
+    })
+    .catch(() => {
+      _adapterConfigReady = false;
+    });
+}
+
+/** Load the list of adapters, then fetch config for the chosen adapter.
+ *  If the adapter is already cached, resolve immediately. */
+async function _loadAdapterListAndConfig(adapter: string): Promise<void> {
+  if (availableAdapters.length === 0) {
+    try {
+      const r = await fetch('/api/adapters');
+      const d = await r.json();
+      availableAdapters = d.adapters || ['cbc'];
+    } catch (e) {
+      availableAdapters = ['cbc'];
+    }
+  }
+  if (!adapterConfigs.has(adapter)) {
+    const r = await fetch('/api/adapter/config?adapter=' + encodeURIComponent(adapter));
+    const d: ApiConfigResponse = await r.json();
+    adapterConfigs.set(adapter, {
+      models: d.models || [],
+      defaultModel: d.defaultModel || '',
+      effortValues: d.effortValues || [],
+      permissionModes: d.permissionModes || [],
+      defaultPermissionMode: d.defaultPermissionMode || '',
+      supportedSettings: d.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'],
+    });
+  }
+  currentAdapter = adapter;
+}
+
+/** Build the Agent CLI (adapter) selector in the settings panel.
+ *  For any active session (including placeholders) the selector is read-only. */
+function buildAdapterSelect(): void {
+  const sel = document.getElementById('settingAdapter') as HTMLSelectElement;
+  sel.innerHTML = '';
+  availableAdapters.forEach((a: string) => {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    sel.appendChild(opt);
+  });
+  sel.value = currentAdapter;
+  sel.disabled = !!currentSessionId;
+}
+
+/** Adapter change handler for the settings panel.
+ *  The panel selector is currently read-only for active sessions. */
+function onAdapterChange(): void {
+  // no-op: switching CLI tools for an existing session is not supported yet
 }
 
 // ── Init ──
 
 function init(): void {
-  // Load adapter list
-  fetch('/api/adapters')
-    .then((r: Response) => r.json())
-    .then((data: {adapters: any[]; default: string}) => {
-      allAdapters = data.adapters || [];
-      // Populate adapter selects in new-session modal and settings
-      const nsSelect = document.getElementById('nsAdapterSelect') as HTMLSelectElement;
-      if (nsSelect) {
-        nsSelect.innerHTML = '';
-        allAdapters.forEach(function (adp: any) {
-          const opt = document.createElement('option');
-          opt.value = adp.name;
-          opt.textContent = adp.name + ' (' + (adp.supportsResume ? 'resume' : 'stateless') + ')';
-          nsSelect.appendChild(opt);
-        });
-        nsSelect.value = currentAdapter || 'cbc';
-      }
+  _loadAdapterListAndConfig('cbc')
+    .then(() => {
+      _adapterConfigReady = true;
+      buildModelSelect();
+      buildModeSelect();
+      buildEffortSelect();
+      _populateNewSessionAdapterSelect();
+      if (document.getElementById('settingsPanel')!.classList.contains('open'))
+        syncPanelFromServer();
+    })
+    .catch(function () {
+      // Server unavailable — will retry on settings panel open
     });
 
-  // Load default adapter config
-  loadAdapterConfig('cbc');
-
   refreshSessions();
+
+  // Lazy-load older messages on scroll (throttled; skip during render/load).
+  let _scrollTimer: ReturnType<typeof setTimeout> | null = null;
+  document.getElementById('messages')!.addEventListener('scroll', function () {
+    updateScrollToBottomBtn();
+    if (_rendering || _historyLoading) return;
+    if (_scrollTimer !== null) return;
+    _scrollTimer = setTimeout(() => {
+      _scrollTimer = null;
+      const el = document.getElementById('messages') as HTMLElement;
+      if (el.scrollTop <= 200) {
+        loadOlderMessages();
+      }
+    }, 150);
+  });
+
+  // Scroll-to-bottom button
+  const scrollToBottomBtn = document.getElementById('scrollBottomBtn');
+  if (scrollToBottomBtn) {
+    scrollToBottomBtn.addEventListener('click', () => {
+      scrollToBottom();
+    });
+  }
 
   // ── Import Modal (file-explorer style) ──
   const importCbcBtn = document.getElementById('importCbcBtn') as HTMLButtonElement;
@@ -1439,10 +1781,10 @@ function init(): void {
   }
 
   function renderCbcSessions(sessions: CbcSessionItem[]): void {
-    cbcSessionCountEl.textContent = sessions.length ? `${sessions.length} session(s) found` : '';
+    cbcSessionCountEl.textContent = sessions.length? `${sessions.length} session(s) found` : '';
     cbcSessionListEl.innerHTML = sessions.map((s: CbcSessionItem) => {
-      const ts = s.last_timestamp ? new Date(s.last_timestamp).toLocaleString() : '';
-      const forkBadge = s.forked_from ? ' \uD83D\uDD00' : '';
+      const ts = s.last_timestamp? new Date(s.last_timestamp).toLocaleString() : '';
+      const forkBadge = s.forked_from? ' \uD83D\uDD00' : '';
       return `<div class="im-item" data-sid="${esc(s.session_id)}" data-pd="${esc(s.project_dir)}">
         <div class="im-title">${esc(s.title || 'Untitled')}${forkBadge}</div>
         <div class="im-meta">${s.message_count} msgs \u00B7 ${esc(s.model || '?')} \u00B7 ${esc(ts)}</div>
@@ -1541,7 +1883,7 @@ function init(): void {
       } while (modelData.find((s: Session) => s.name === name || s.id === '__pending_' + name));
     }
     const workdir = nsWorkdirInput.value.trim() || null;
-    const adapter = (document.getElementById('nsAdapterSelect') as HTMLSelectElement)?.value || 'cbc';
+    const adapter = (document.getElementById('nsAdapter') as HTMLSelectElement)?.value || 'cbc';
     newSessionModal.classList.remove('open');
     _doCreateSession(name, workdir, adapter);
   });
