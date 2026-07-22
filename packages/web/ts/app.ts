@@ -259,17 +259,43 @@ function _applyWorkerUpdate(
     currentWorkerId = workerId ?? null;
     updateTopBar();
   }
-  renderSessionList();
-  refreshSessions();
+  // In-place sidebar dot update (avoid full list rebuild flicker)
+  if (sessionId) {
+    const items = document.querySelectorAll('.sess-item');
+    items.forEach(function (item) {
+      const div = item as HTMLElement;
+      if (div.dataset.sessionId === sessionId) {
+        const dot = div.querySelector('.s-dot');
+        if (dot) {
+          const newClass = 's-dot ' + (status || 'offline');
+          dot.className = newClass;
+        }
+      }
+    });
+  }
+  scheduleRefreshSessions();
 }
 
 // ── Session list ──
 let _refreshVersion: number = 0;
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleRefreshSessions(): void {
+  if (_refreshTimer) clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(() => {
+    _refreshTimer = null;
+    refreshSessions();
+  }, 300);
+}
 
 function refreshSessions(): void {
   _refreshVersion++;
   const version = _refreshVersion;
-  document.getElementById('sessionList')!.innerHTML = '<div class="sidebar-loading">Loading...</div>';
+  const listEl = document.getElementById('sessionList')!;
+  // Only show loading spinner on first fetch (empty list); avoid flicker on subsequent updates
+  if (listEl.children.length === 0) {
+    listEl.innerHTML = '<div class="sidebar-loading">Loading...</div>';
+  }
   fetch('/api/sessions')
     .then((r: Response) => r.json())
     .then((data: ApiSessionsResponse) => {
@@ -346,6 +372,7 @@ function renderSessionList(): void {
   modelData.forEach((s: Session) => {
     const div = document.createElement('div');
     div.className = 'sess-item' + (s.id === currentSessionId ? ' active' : '');
+    div.dataset.sessionId = s.id;
     div.onclick = function (e: MouseEvent) {
       const target = e.target as HTMLElement;
       if (target.closest('.sess-del')) return;
@@ -379,7 +406,7 @@ function renderSessionList(): void {
       esc(s.model || defaultModel) +
       '</span>' +
       '<span>' +
-      (s.history || []).length +
+      (s.historyTotal ?? (s.history || []).length) +
       ' msgs</span>' +
       (totalCredit != null ? '<span class="sess-credit">' + totalCredit.toFixed(2) + ' credits</span>' : '') +
       '</div>';
@@ -472,6 +499,35 @@ function showEmpty(): void {
   toolGroupOpen = false;
 }
 
+// ── Scroll helpers ──
+
+const SCROLL_BOTTOM_THRESHOLD = 120;
+
+function isNearBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_BOTTOM_THRESHOLD;
+}
+
+function scrollMessages(): void {
+  const el = document.getElementById('messages')!;
+  if (isNearBottom(el)) {
+    scrollMessages();
+  }
+  updateScrollToBottomBtn();
+}
+
+function updateScrollToBottomBtn(): void {
+  const el = document.getElementById('messages')!;
+  const btn = document.getElementById('scrollBottomBtn') as HTMLButtonElement;
+  if (!btn) return;
+  btn.style.display = isNearBottom(el) || el.scrollHeight <= el.clientHeight ? 'none' : '';
+}
+
+function scrollToBottom(): void {
+  const el = document.getElementById('messages')!;
+  scrollMessages();
+  updateScrollToBottomBtn();
+}
+
 // ── Messages ──
 
 function renderMessages(history: Message[]): void {
@@ -507,7 +563,7 @@ function renderMessages(history: Message[]): void {
       _renderMsgEl(g.role, g.content);
     }
   });
-  el.scrollTop = el.scrollHeight;
+  scrollMessages();
   toolGroupOpen = false;
 }
 
@@ -601,14 +657,14 @@ function _renderMsgEl(role: string, content: string): void {
     div.textContent = content || '';
   }
   el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
+  scrollMessages();
 }
 
 function _renderToolGroup(items: Message[]): void {
   const wrapper = _createToolGroupEl(items);
   const el = document.getElementById('messages')!;
   el.appendChild(wrapper);
-  el.scrollTop = el.scrollHeight;
+  scrollMessages();
 }
 
 /** Build a tool-group element (header + body) for the given items.
@@ -718,14 +774,14 @@ function _appendToolMessage(content: string): void {
       '<span class="unread-badge"></span>';
     (lastGroup.querySelector('.tool-group-header') as HTMLElement).innerHTML = headerHtml;
     lastGroup.setAttribute('data-tool-contents', JSON.stringify(allTools.map(function (m: Message) { return m.content; })));
-    el.scrollTop = el.scrollHeight;
+    scrollMessages();
     return;
   }
   // start a new tool-group
   _currentToolGroupStart = currentHistory.length - 1;
   const wrapper = _createToolGroupEl([{ role: 'tool', content: content }]);
   el.appendChild(wrapper);
-  el.scrollTop = el.scrollHeight;
+  scrollMessages();
 }
 
 function appendResult(d: StreamEvent): void {
@@ -1081,10 +1137,11 @@ function send(): void {
 
 function _doCreateSession(name: string, workdir: string | null, adapter?: string): void {
   // Optimistic UI: placeholder immediately
+  const adp = adapter || currentAdapter || 'cbc';
   const placeholder: Session = {
     id: '__pending_' + name,
     name: '...',
-    adapter: adapter || 'cbc',
+    adapter: adp,
     model: defaultModel,
     history: [],
     alwaysThinkingEnabled: false,
@@ -1094,7 +1151,7 @@ function _doCreateSession(name: string, workdir: string | null, adapter?: string
   selectSession(placeholder.id);
   const body: Record<string, string> = { name: name };
   if (workdir) body.workdir = workdir;
-  if (adapter && adapter !== 'cbc') body.adapter = adapter;
+  if (adp && adp !== 'cbc') body.adapter = adp;
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1316,6 +1373,18 @@ function init(): void {
     .then((r: Response) => r.json())
     .then((data: {adapters: any[]; default: string}) => {
       allAdapters = data.adapters || [];
+      // Populate adapter selects in new-session modal and settings
+      const nsSelect = document.getElementById('nsAdapterSelect') as HTMLSelectElement;
+      if (nsSelect) {
+        nsSelect.innerHTML = '';
+        allAdapters.forEach(function (adp: any) {
+          const opt = document.createElement('option');
+          opt.value = adp.name;
+          opt.textContent = adp.name + ' (' + (adp.supportsResume ? 'resume' : 'stateless') + ')';
+          nsSelect.appendChild(opt);
+        });
+        nsSelect.value = currentAdapter || 'cbc';
+      }
     });
 
   // Load default adapter config
@@ -1402,6 +1471,7 @@ function init(): void {
 
   importCbcBtn.addEventListener('click', async () => {
     importModal.classList.add('open');
+    cbcSessionCountEl.textContent = '';
     cbcSessionListEl.innerHTML = '<div class="im-loading">Loading...</div>';
     cbcDriveSelect.innerHTML = '<option value="">Loading...</option>';
     cbcProjectSelect.innerHTML = '<option value="">-</option>';
@@ -1429,6 +1499,7 @@ function init(): void {
   cbcProjectSelect.addEventListener('change', () => {
     currentProjectDir = cbcProjectSelect.value;
     if (!currentProjectDir) return;
+    cbcSessionCountEl.textContent = '';
     cbcSessionListEl.innerHTML = '<div class="im-loading">Loading...</div>';
     fetchCbcSessions(currentProjectDir)
       .then((sessions: CbcSessionItem[]) => renderCbcSessions(sessions))

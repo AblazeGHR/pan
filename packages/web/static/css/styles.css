@@ -323,6 +323,28 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  position: relative;
+}
+
+#scrollBottomBtn {
+  position: absolute;
+  bottom: 70px;
+  right: 20px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #c9d1d9;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+#scrollBottomBtn:hover {
+  opacity: 1;
+  background: #30363d;
 }
 
 .msg {
