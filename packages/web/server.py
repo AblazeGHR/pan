@@ -222,6 +222,14 @@ def _build_session_params(data: dict) -> dict:
     }
 
 
+def _safe_adapter(adapter_name: str):
+    """Return adapter by name, falling back to cbc on unknown names."""
+    try:
+        return get_adapter(adapter_name)
+    except KeyError:
+        return get_adapter("cbc")
+
+
 def _apply_session_updates(s: sess.Session, data: dict):
     """Apply model/mode/thinking/effort fields from data to a Session (in-place)."""
     if "model" in data:
@@ -577,15 +585,16 @@ async def api_delete_session(session_id: str):
 @app.get("/api/models")
 async def api_models(adapter: str = "cbc"):
     """Return model list and default for a given adapter."""
-    a = get_adapter(adapter)
+    a = _safe_adapter(adapter)
     return {"models": a.supported_models, "default": a.default_model}
 
 
 @app.get("/api/adapter/config")
 async def api_adapter_config(adapter: str = "cbc"):
     """Return adapter configuration for frontend selects (per-adapter dynamic)."""
-    a = get_adapter(adapter)
+    a = _safe_adapter(adapter)
     return {
+        "adapter": a.name,
         "models": a.supported_models,
         "defaultModel": a.default_model,
         "effortValues": list(a.effort_values),
@@ -842,6 +851,14 @@ async def api_cbc_sessions_import(data: dict):
 
     raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
     total_usage = sess.compute_total_usage(raw_usage)
+
+    # 信用验证：比对 raw_usage_entries 总和与 total_usage（调试用途，不阻断导入）
+    cbc_credit_sum = sum(
+        e.get("rawUsage", {}).get("credit", 0) for e in raw_usage_entries
+    )
+    cli_credit = total_usage.get("credit", 0) if total_usage else 0
+    if abs(cbc_credit_sum - cli_credit) > 0.01:
+        _log(f"[WARN] import credit mismatch: cbc_sum={cbc_credit_sum:.2f} cli={cli_credit:.2f}")
 
     existing = None
     for s in sess.list_all():

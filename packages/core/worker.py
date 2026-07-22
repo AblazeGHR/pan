@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,6 +17,8 @@ import psutil
 
 from . import session as _sess
 from .adapters import get_adapter, CliAdapter
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -149,8 +152,12 @@ async def _read_stdout(w: Worker):
                 except Exception:
                     pass
                 if enrichment:
+                    prev_total = s.total_usage
                     s.raw_usage = _sess.accumulate_raw_usage(s.raw_usage, enrichment)
                     s.total_usage = _sess.compute_total_usage(s.raw_usage)
+                    prev_credit = prev_total.get("credit", 0) if prev_total else 0
+                    new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
+                    _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
                 await _sess.save_async(s)
 
             await _bcast({
@@ -472,6 +479,7 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
 
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    w.process = None
 
     proc = await _spawn_process(w.session_id, adapter=w.adapter, extra_args=extra_args)
     if isinstance(proc, str):
@@ -514,6 +522,10 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         s.adapter_config["always_thinking_enabled"] = s.adapter_config.get("always_thinking_enabled") or orig.adapter_config.get("always_thinking_enabled")
         if not s.adapter_config.get("max_thinking_tokens"):
             s.adapter_config["max_thinking_tokens"] = orig.adapter_config.get("max_thinking_tokens")
+        # For adapters that fork via file copy (e.g. kimi), pass the parent's
+        # cli_session_id so fork_args can create the branched session.
+        if orig.cli_session_id and not s.cli_session_id:
+            s.cli_session_id = orig.cli_session_id
 
     # branch needs --fork-session from adapter
     extra_args = w.adapter.fork_args(s)

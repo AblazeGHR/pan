@@ -49,6 +49,11 @@ class CliAdapter(Protocol):
     @property
     def supports_fork(self) -> bool: ...
 
+    @property
+    def supported_settings(self) -> list[str]:
+        """该 adapter 支持的设置项标识列表（如 model, permissionMode, thinking, effort）。"""
+        ...
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]: ...
