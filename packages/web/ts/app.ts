@@ -1124,15 +1124,14 @@ function syncPanelFromServer(): void {
 /** Returns true when any panel field differs from lastSyncedSettings. */
 function hasPendingChanges(): boolean {
   if (!lastSyncedSettings) return false;
-  return (
-    getSettingModel() !== lastSyncedSettings.model ||
-    (document.getElementById('settingMode') as HTMLSelectElement).value !==
-      lastSyncedSettings.permissionMode ||
-    (document.getElementById('settingThinking') as HTMLInputElement).checked !==
-      lastSyncedSettings.alwaysThinkingEnabled ||
-    (document.getElementById('settingEffort') as HTMLSelectElement).value !==
-      lastSyncedSettings.effort
-  );
+  if (supportsSetting('model') && getSettingModel() !== lastSyncedSettings.model) return true;
+  if (supportsSetting('permissionMode') &&
+      (document.getElementById('settingMode') as HTMLSelectElement).value !== lastSyncedSettings.permissionMode) return true;
+  if (supportsSetting('thinking') &&
+      (document.getElementById('settingThinking') as HTMLInputElement).checked !== lastSyncedSettings.alwaysThinkingEnabled) return true;
+  if (supportsSetting('effort') &&
+      (document.getElementById('settingEffort') as HTMLSelectElement).value !== lastSyncedSettings.effort) return true;
+  return false;
 }
 
 function getSettingModel(): string {
@@ -1231,10 +1230,10 @@ function _postWorkerSettings(): void {
 /** Called after successful settings apply — update baseline and hide button. */
 function markSettingsApplied(): void {
   lastSyncedSettings = {
-    model: getSettingModel(),
-    permissionMode: (document.getElementById('settingMode') as HTMLSelectElement).value,
-    alwaysThinkingEnabled: (document.getElementById('settingThinking') as HTMLInputElement).checked,
-    effort: (document.getElementById('settingEffort') as HTMLSelectElement).value,
+    model: supportsSetting('model') ? getSettingModel() : '',
+    permissionMode: supportsSetting('permissionMode') ? (document.getElementById('settingMode') as HTMLSelectElement).value : '',
+    alwaysThinkingEnabled: supportsSetting('thinking') ? (document.getElementById('settingThinking') as HTMLInputElement).checked : false,
+    effort: supportsSetting('effort') ? (document.getElementById('settingEffort') as HTMLSelectElement).value : '',
   };
   updateSetButtonVisibility();
 }
@@ -1363,13 +1362,7 @@ function send(): void {
       sessionId: currentSessionId,
     };
     if (hasPendingChanges()) {
-      body.model = getSettingModel();
-      const mode = (document.getElementById('settingMode') as HTMLSelectElement).value;
-      if (mode) body.permissionMode = mode;
-      body.alwaysThinkingEnabled = (
-        document.getElementById('settingThinking') as HTMLInputElement
-      ).checked;
-      body.effort = (document.getElementById('settingEffort') as HTMLSelectElement).value;
+      Object.assign(body, _buildSettingsBody());
     }
     fetch('/api/spawn', {
       method: 'POST',
@@ -1395,12 +1388,7 @@ function send(): void {
     fetch('/api/worker/' + currentWorkerId + '/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: getSettingModel(),
-        permissionMode: (document.getElementById('settingMode') as HTMLSelectElement).value || undefined,
-        alwaysThinkingEnabled: thinking,
-        effort: effort,
-      }),
+      body: JSON.stringify(_buildSettingsBody()),
     })
       .then((r: Response) => r.json())
       .then((d: ApiGenericResponse) => {
@@ -1680,11 +1668,11 @@ async function _loadAdapterListAndConfig(adapter: string): Promise<void> {
 // ── Init ──
 
 function init(): void {
-  // Load default adapter config
-  loadAdapterConfig('cbc');
-
-  // Load adapter list and populate new-session select
-  _loadAdapterListAndConfig('cbc');
+  // Load adapter list, then load default config serially
+  _loadAdapterListAndConfig('cbc')
+    .then(() => {
+      loadAdapterConfig('cbc');
+    });
 
   refreshSessions();
 
