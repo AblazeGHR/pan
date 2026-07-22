@@ -176,11 +176,15 @@ body {
     <select id="settingModel" onchange="updateSetButtonVisibility()"></select>
     <input id="settingModelCustom" class="model-custom" placeholder="custom">
     <div class="sep"></div>
-    <label>Mode</label>
-    <select id="settingMode" onchange="updateSetButtonVisibility()"></select>
+    <div id="modeGroup">
+      <label>Mode</label>
+      <select id="settingMode" onchange="updateSetButtonVisibility()"></select>
+    </div>
     <div class="sep"></div>
-    <label for="settingThinking">Think</label>
-    <input type="checkbox" id="settingThinking" onchange="onThinkingToggle()">
+    <div id="thinkingGroup">
+      <label for="settingThinking">Think</label>
+      <input type="checkbox" id="settingThinking" onchange="onThinkingToggle()">
+    </div>
     <span id="effortGroup" style="display:none">
       <label for="settingEffort">Effort</label>
       <select id="settingEffort" onchange="updateSetButtonVisibility()"></select>

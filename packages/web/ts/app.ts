@@ -1645,7 +1645,7 @@ function updateSettingsVisibility(): void {
 
 /** Populate the Agent CLI selector in the new-session modal. */
 function _populateNewSessionAdapterSelect(): void {
-  const sel = document.getElementById('nsAdapter') as HTMLSelectElement;
+  const sel = document.getElementById('nsAdapterSelect') as HTMLSelectElement;
   if (!sel) return;
   sel.innerHTML = '';
   availableAdapters.forEach((a: string) => {
@@ -1657,94 +1657,29 @@ function _populateNewSessionAdapterSelect(): void {
   sel.value = currentAdapter || 'cbc';
 }
 
-/** Switch adapter config to match the selected session, then call cb.
- *  Rebuilds the panel selects when the adapter changes. */
-function _syncAdapterForSession(s: Session, cb?: () => void): void {
-  const adp = s.adapter || 'cbc';
-  if (adp === currentAdapter && _adapterConfigReady) {
-    buildAdapterSelect();
-    if (cb) cb();
-    return;
-  }
-  _adapterConfigReady = false;
-  _loadAdapterListAndConfig(adp)
-    .then(() => {
-      _adapterConfigReady = true;
-      buildAdapterSelect();
-      buildModelSelect();
-      buildModeSelect();
-      buildEffortSelect();
-      if (cb) cb();
-    })
-    .catch(() => {
-      _adapterConfigReady = false;
-    });
-}
-
-/** Load the list of adapters, then fetch config for the chosen adapter.
- *  If the adapter is already cached, resolve immediately. */
+/** Load the list of adapters and populate the new-session select. */
 async function _loadAdapterListAndConfig(adapter: string): Promise<void> {
   if (availableAdapters.length === 0) {
     try {
       const r = await fetch('/api/adapters');
       const d = await r.json();
-      availableAdapters = d.adapters || ['cbc'];
+      const adaptersObj = d.adapters || [{name: 'cbc'}];
+      availableAdapters = adaptersObj.map((a: any) => a.name || a);
     } catch (e) {
       availableAdapters = ['cbc'];
     }
   }
-  if (!adapterConfigs.has(adapter)) {
-    const r = await fetch('/api/adapter/config?adapter=' + encodeURIComponent(adapter));
-    const d: ApiConfigResponse = await r.json();
-    adapterConfigs.set(adapter, {
-      models: d.models || [],
-      defaultModel: d.defaultModel || '',
-      effortValues: d.effortValues || [],
-      permissionModes: d.permissionModes || [],
-      defaultPermissionMode: d.defaultPermissionMode || '',
-      supportedSettings: d.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'],
-    });
-  }
-  currentAdapter = adapter;
-}
-
-/** Build the Agent CLI (adapter) selector in the settings panel.
- *  For any active session (including placeholders) the selector is read-only. */
-function buildAdapterSelect(): void {
-  const sel = document.getElementById('settingAdapter') as HTMLSelectElement;
-  sel.innerHTML = '';
-  availableAdapters.forEach((a: string) => {
-    const opt = document.createElement('option');
-    opt.value = a;
-    opt.textContent = a;
-    sel.appendChild(opt);
-  });
-  sel.value = currentAdapter;
-  sel.disabled = !!currentSessionId;
-}
-
-/** Adapter change handler for the settings panel.
- *  The panel selector is currently read-only for active sessions. */
-function onAdapterChange(): void {
-  // no-op: switching CLI tools for an existing session is not supported yet
+  _populateNewSessionAdapterSelect();
 }
 
 // ── Init ──
 
 function init(): void {
-  _loadAdapterListAndConfig('cbc')
-    .then(() => {
-      _adapterConfigReady = true;
-      buildModelSelect();
-      buildModeSelect();
-      buildEffortSelect();
-      _populateNewSessionAdapterSelect();
-      if (document.getElementById('settingsPanel')!.classList.contains('open'))
-        syncPanelFromServer();
-    })
-    .catch(function () {
-      // Server unavailable — will retry on settings panel open
-    });
+  // Load default adapter config
+  loadAdapterConfig('cbc');
+
+  // Load adapter list and populate new-session select
+  _loadAdapterListAndConfig('cbc');
 
   refreshSessions();
 
