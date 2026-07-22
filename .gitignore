@@ -35,7 +35,6 @@ prompt.md
 # config
 config.json
 start_cliconductor.bat
-scripts/start_*.ps1
 scripts/stop_*.bat
 # compiled from ts/app.ts — do not edit directly
 packages/web/static/js/app.js
