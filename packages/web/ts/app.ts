@@ -108,15 +108,14 @@ const adapterConfigs: Map<string, AdapterConfig> = new Map();
 let currentAdapter: string = 'cbc';
 let _adapterConfigReady: boolean = false;
 
-// Live config values (synced from adapterConfigs when adapter changes)
-let allModels: string[] = [];
-let defaultModel: string = 'deepseek-v4-flash';
-let effortValues: string[] = [];
-let permissionModes: {value: string; label: string}[] = [];
-let defaultPermissionMode: string = '';
-let supportedSettings: string[] = ['model', 'permissionMode', 'thinking', 'effort'];
-let allAdapters: {name: string; defaultModel: string; supportsResume: boolean; supportsFork: boolean}[] = [];
-function supportsSetting(name: string): boolean { return supportedSettings.indexOf(name) >= 0; }
+// Cached config getters for the currently selected adapter
+function allModels(): string[] { return adapterConfigs.get(currentAdapter)?.models || []; }
+function defaultModel(): string { return adapterConfigs.get(currentAdapter)?.defaultModel || 'deepseek-v4-flash'; }
+function effortValues(): string[] { return adapterConfigs.get(currentAdapter)?.effortValues || []; }
+function permissionModes(): {value: string; label: string}[] { return adapterConfigs.get(currentAdapter)?.permissionModes || []; }
+function defaultPermissionMode(): string { return adapterConfigs.get(currentAdapter)?.defaultPermissionMode || ''; }
+function supportedSettings(): string[] { return adapterConfigs.get(currentAdapter)?.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort']; }
+function supportsSetting(name: string): boolean { return supportedSettings().indexOf(name) >= 0; }
 
 let currentSessionId: string | null = null;
 let currentWorkerId: string | null = null;
@@ -482,7 +481,7 @@ function renderSessionList(): void {
       '</div>' +
       (lastMsg? '<div class="sess-preview">' + esc(lastMsg) + '</div>' : '') +
       '<div class="sess-meta"><span class="sess-model">' +
-      esc(s.model || defaultModel) +
+      esc(s.model || defaultModel()) +
       '</span>' +
       '<span>' +
       (s.historyTotal?? (s.history || []).length) +
@@ -624,7 +623,7 @@ function updateTopBar(): void {
   (document.getElementById('chatModel')!).style.display = '';
   (document.getElementById('chatName')!).textContent =
     s.name || (currentSessionId?? '').slice(0, 12);
-  (document.getElementById('chatModel')!).textContent = s.model || defaultModel;
+  (document.getElementById('chatModel')!).textContent = s.model || defaultModel();
   const sidsEl = document.getElementById('chatSessionIds')!;
   sidsEl.style.display = 'flex';
   var sesId = s.id || '';
@@ -1050,12 +1049,12 @@ function syncPanelFromServer(): void {
   updateSettingsVisibility();
 
   const sel = document.getElementById('settingModel') as HTMLSelectElement;
-  const model = s.model || defaultModel;
-  sel.value = allModels.indexOf(model) >= 0 ? model: '';
+  const model = s.model || defaultModel();
+  sel.value = allModels().indexOf(model) >= 0 ? model: '';
 
   if (supportsSetting('permissionMode')) {
     (document.getElementById('settingMode') as HTMLSelectElement).value =
-      s.permissionMode || defaultPermissionMode;
+      s.permissionMode || defaultPermissionMode();
   }
   if (supportsSetting('thinking')) {
     (document.getElementById('settingThinking') as HTMLInputElement).checked =
@@ -1063,10 +1062,10 @@ function syncPanelFromServer(): void {
   }
   if (supportsSetting('effort')) {
     (document.getElementById('settingEffort') as HTMLSelectElement).value =
-      effortValues.indexOf(s.effort) >= 0 ? s.effort: (effortValues [1] || effortValues [0] || '');
+      effortValues().indexOf(s.effort) >= 0 ? s.effort: (effortValues()[1] || effortValues()[0] || '');
   }
   (document.getElementById('effortGroup')!).style.display =
-    (supportsSetting('thinking') && supportsSetting('effort') && s.alwaysThinkingEnabled && effortValues.length > 0) ? '' : 'none';
+    (supportsSetting('thinking') && supportsSetting('effort') && s.alwaysThinkingEnabled && effortValues().length > 0) ? '' : 'none';
 
   // record the baseline so we can detect pending changes
   lastSyncedSettings = {
@@ -1104,9 +1103,9 @@ function getSettingModel(): string {
     const inp = document.getElementById(
       'settingModelCustom'
     ) as HTMLInputElement;
-    return inp.value.trim() || defaultModel;
+    return inp.value.trim() || defaultModel();
   }
-  return sel.value || defaultModel;
+  return sel.value || defaultModel();
 }
 
 /** Show/hide the Apply Settings button based on whether settings differ from
@@ -1122,11 +1121,11 @@ function onThinkingToggle(): void {
   if (!supportsSetting('thinking')) return;
   const thinking = (document.getElementById('settingThinking') as HTMLInputElement).checked;
   (document.getElementById('effortGroup')!).style.display =
-    (supportsSetting('effort') && thinking && effortValues.length > 0) ? '' : 'none';
-  if (supportsSetting('effort') && thinking && effortValues.length > 0) {
+    (supportsSetting('effort') && thinking && effortValues().length > 0) ? '' : 'none';
+  if (supportsSetting('effort') && thinking && effortValues().length > 0) {
     const eff = document.getElementById('settingEffort') as HTMLSelectElement;
-    if (!eff.value || eff.value === effortValues [0])
-      eff.value = effortValues [1] || effortValues [0];
+    if (!eff.value || eff.value === effortValues()[0])
+      eff.value = effortValues()[1] || effortValues()[0];
   }
   updateSetButtonVisibility();
 }
@@ -1906,7 +1905,7 @@ function buildModelSelect(): void {
   blank.value = '';
   blank.textContent = '\u2014 model \u2014';
   sel.appendChild(blank);
-  allModels.forEach((m: string) => {
+  allModels().forEach((m: string) => {
     const opt = document.createElement('option');
     opt.value = m;
     opt.textContent = m;
@@ -1927,7 +1926,7 @@ function buildModelSelect(): void {
 function buildModeSelect(): void {
   const sel = document.getElementById('settingMode') as HTMLSelectElement;
   sel.innerHTML = '';
-  permissionModes.forEach((p: {value: string; label: string}) => {
+  permissionModes().forEach((p: {value: string; label: string}) => {
     const opt = document.createElement('option');
     opt.value = p.value;
     opt.textContent = p.label;
@@ -1938,7 +1937,7 @@ function buildModeSelect(): void {
 function buildEffortSelect(): void {
   const sel = document.getElementById('settingEffort') as HTMLSelectElement;
   sel.innerHTML = '';
-  effortValues.forEach((v: string) => {
+  effortValues().forEach((v: string) => {
     const opt = document.createElement('option');
     opt.value = v;
     opt.textContent = v;
