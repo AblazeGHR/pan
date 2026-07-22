@@ -105,7 +105,7 @@ class CliAdapter(Protocol):
 
     # ── enrich ──
 
-    def enrich_after_result(self, s: Session) -> dict | None:
+    def enrich_after_result(self, s: Session) -> list[dict] | None:
         """一轮对话结束后，从 CLI 原生存储获取消耗数据（token/credit 等）。
 
         返回 None 表示该 adapter 不支持或本轮无数据。

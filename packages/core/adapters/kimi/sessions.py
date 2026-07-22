@@ -146,7 +146,7 @@ def list_kimi_sessions(project_cwd: str | None = None) -> list[dict]:
             "model": model,
         })
 
-    sessions.sort(key=lambda s: s.get("updatedAt") or s.get("createdAt") or "", reverse=True)
+    sessions.sort(key=lambda s: str(s.get("updatedAt") or s.get("createdAt") or ""), reverse=True)
     return sessions
 
 
