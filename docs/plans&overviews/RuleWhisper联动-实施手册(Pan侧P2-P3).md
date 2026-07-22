@@ -160,3 +160,136 @@ Pan 的 `plugin.py` 在 `handle_message` 开头遍历从 manifest 加载的 `com
 ---
 
 *创建：2026-07-22 · 最后更新：2026-07-22（改为 manifest loader 方案）· 适用：Pan 侧 P2（Loader）+ P3（联调）*
+
+
+---
+
+## 六、实施计划与关键注意点
+
+### 6.1 实施顺序
+
+**第 1 步：Manifest Loader**
+
+新建 `packages/core/manifest_loader.py`：
+
+```
+Pan 启动时遍历 config.json 的 plugin_manifests → 逐行读 manifest.json →
+合并 profiles/mcp_servers/command_routes 到全局池。
+```
+
+关键逻辑：
+- `${PLUGIN_DIR}` 解析为 manifest 所在目录的绝对路径（用于 MCP Server 的 cwd）
+- 同名 profile/mcp_server 后加载的覆盖先加载的（或报冲突）——定一种策略即可
+- 加载失败（JSON 解析错、文件不存在）→ 打 warning log，继续加载其他 manifest，不崩
+
+**第 2 步：Pan config.json 增加 plugin_manifests**
+
+```jsonc
+{
+  "plugin_manifests": [
+    "../RuleWhisper/pan_plugin/manifest.json"
+  ]
+}
+```
+
+去掉原先硬编码的 profiles/mcp_servers/command_routes。Pan 自己的 config 里不再出现 RuleWhisper 任何字面量。
+
+**第 3 步：adapter 注入 MCP config**
+
+在 `cbc/kimi` adapter 的 `build_spawn_args` 中：
+- 从 spawn settings 读取 `mcp_servers` 列表（由 loader 从 manifest 灌入）
+- 调用 `_mcp_args(servers)` 生成 `--mcp-config` 参数串
+- 追加到 spawn args
+
+**第 4 步：QQ Bot 命令路由**
+
+在 `packages/qq/plugin.py` 的 `handle_message` 函数开头插入前缀匹配：
+
+```
+遍历 manifest_loader 提供的 command_routes 列表
+  → 命中前缀 → POST target（HTTP 直发）
+  → 未命中 → 走现有 LLM 路径（_send_and_wait）
+```
+
+请求体格式注意：RuleWhisper 的 `/api/dice` 和 `/api/query` 接收 `{"text": "..."}`，不是 `{"raw": "..."}`。`strip_prefix: true` 时去掉前缀再发给 API。
+
+**第 5 步：Session 绑定 game_id**
+
+Pan 的 session metadata 增加 `game_id` 字段。每次调 RuleWhisper MCP tool 时从 session 取 game_id 并传入。
+
+game_id 的来源：
+- 初期：KP 在群内手动创建 game（`python -m src.cli game new ...`）并绑定 group_id
+- Pan 根据 session 的 group_id 反查 game_id（遍历 game/ 下各 game.json 的 group_id 字段匹��）
+
+**第 6 步：联调验证**
+
+按 P3 冒烟清单逐项验收（确定性指令 + 自然语言链路 + health 回归）。
+
+### 6.2 关键注意点
+
+#### ⚠️ command_routes 的前缀匹配顺序
+
+`manifest.command_routes[]` 是数组，匹配顺序有讲究：
+- `.rc` 和 `.rca` 同时存在时，`.rca` 应排在前面（长前缀优先）
+- Pan loader 加载后按 `strip_prefix` 长度降序排列，避免短前缀误吞长前缀
+
+#### ⚠️ MCP config JSON 的序列化
+
+cbc 的 `--mcp-config` 接收 JSON 字符串。`_mcp_args` 中 `json.dumps(srv)` 时注意：
+- `ensure_ascii=False`（保留中文）
+- `separators=(',', ':')`（紧凑格式，避免空格干扰参数解析）
+- 整个 JSON 值需要被 shell 安全包裹（加引号）
+
+#### ⚠️ Worker 进程回收
+
+MCP Server 由 Worker 子进程 fork（或 spawn），Worker kill 时需要确保 MCP 子进程也被回收：
+- 验证 Pan 的进程管理是否递归 kill 进程树
+- 如果只 kill 父进程不 kill 子进程，会导致 MCP Server 僵尸进程残留
+
+#### ⚠️ 请求体字段名
+
+RuleWhisper HTTP API 接收 `{"text": "..."}` 而不是 `{"raw": "..."}`。Pan 的前缀路由转发时需确保字段名正确。
+
+POST body 示例：
+```python
+payload = {"text": stripped_message}
+resp = await client.post(route["target"], json=payload)
+```
+
+#### ⚠️ 不同 plugin manifest 的同名冲突
+
+如果两个 manifest 都定义了 `name: "rulewhisper"` 的 mcp_server：
+- 策略 A：后加载覆盖先加载（简单）
+- 策略 B：报错退出（安全）
+- 建议先实现 A，manifest name 本身是去重键
+
+#### ⚠️ game_id 的传递链
+
+完整链路：
+```
+QQ 消息 "短剑伤害"
+  → Pan 未命中 command_routes → 走 LLM 路径
+  → 从 session metadata 取 game_id
+  → spawn Worker（通过 mcp_servers 注入 RuleWhisper MCP）
+  → LLM 调 get_weapon(game_id="xxx", name="短剑")
+  → RuleWhisper MCP 根据 game_id 读取对应的规则版本和武器数据
+  → 返回
+```
+
+关键：`game_id` 不需要在 spawn Worker 时传入——它只是 MCP tool 的参数，LLM 调 tool 时 Pan 从 session metadata 取并传递。
+
+### 6.3 文件变更清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `packages/core/manifest_loader.py` | 新建 | loader 主逻辑 |
+| `config.json`/`config.example.json` | 改造 | 增加 plugin_manifests，移除硬编码的 profiles/mcp/routes |
+| `packages/core/adapters/cbc/adapter.py` | 改造 | 增加 mcp_args helper + build_spawn_args 注入 |
+| `packages/core/adapters/kimi/adapter.py` | 改造 | 同上（kimi 适配器的 MCP 支持） |
+| `packages/qq/plugin.py` | 改造 | 前缀路由匹配（command_routes） |
+| `packages/core/session.py`（或等效文件） | 改造 | session metadata 增加 game_id |
+| `docs/plans&overviews/RuleWhisper联动-实施手册(Pan侧P2-P3).md` | 本文件 | 实施手册 + 计划 |
+
+---
+
+*创建：2026-07-22 · 最后更新：2026-07-22 · 状态：待实施*
