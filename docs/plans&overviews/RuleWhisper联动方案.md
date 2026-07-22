@@ -20,7 +20,7 @@
 | 能力 | 形态 | 访问方式 |
 |------|------|----------|
 | P0 HTTP API | FastAPI，端口 **9731** | `http://127.0.0.1:9731` |
-| P1 MCP Server | fastmcp，6 个工具 | stdio（默认）或 SSE（端口 **9733**） |
+| P1 MCP Server | fastmcp，全部能力（规则/骰子/数据/game-char/版本管理，~15 个，rebuild_index 除外） | stdio（默认）或 SSE（端口 **9733**） |
 | 插件声明 | `pan_plugin/manifest.json` | RuleWhisper 仓库根目录 |
 
 **MCP 启动命令**（stdio，供 cbc/kimi 作为子进程 spawn）：
@@ -31,7 +31,7 @@ python -m src.server.mcp    # 从 RuleWhisper 仓库根运行
 
 > ⚠️ 模块路径是 `src.server.mcp`（不是 `rulewhisper.server.mcp`）。stdio 模式不需要 `--port`。
 
-**MCP 工具清单（6 个）**：`query_rule`、`roll_dice`、`get_weapon`、`get_monster`、`get_spell`、`get_skill`。所有 tool 接受 `game_id` 参数（允许 `null`）。
+**MCP 工具清单（全部能力，rebuild_index 除���）**：`query_rule`、`roll_dice`、`get_weapon`、`get_monster`、`get_spell`、`get_skill`。所有 tool 接受 `game_id` 参数（允许 `null`）。
 
 **HTTP API 端点**：`GET /api/health`、`POST /api/query`、`POST /api/dice`、`GET /api/weapon|monster|spell|skill/{name}`、`GET /api/rule/{page}`。
 
