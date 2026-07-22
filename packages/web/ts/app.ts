@@ -1201,13 +1201,17 @@ function applySettings(): void {
 
 /** Build the settings payload object from panel values. */
 function _buildSettingsBody(): Record<string, unknown> {
-  const mode = (document.getElementById('settingMode') as HTMLSelectElement).value;
-  return {
-    model: getSettingModel(),
-    permissionMode: mode || undefined,
-    alwaysThinkingEnabled: (document.getElementById('settingThinking') as HTMLInputElement).checked,
-    effort: (document.getElementById('settingEffort') as HTMLSelectElement).value,
-  };
+  const body: Record<string, unknown> = {};
+  if (supportsSetting('model')) body.model = getSettingModel();
+  if (supportsSetting('permissionMode')) {
+    const mode = (document.getElementById('settingMode') as HTMLSelectElement).value;
+    if (mode) body.permissionMode = mode;
+  }
+  if (supportsSetting('thinking'))
+    body.alwaysThinkingEnabled = (document.getElementById('settingThinking') as HTMLInputElement).checked;
+  if (supportsSetting('effort'))
+    body.effort = (document.getElementById('settingEffort') as HTMLSelectElement).value;
+  return body;
 }
 
 /** POST current panel settings to the worker (always allowed, triggers respawn). */
@@ -1640,7 +1644,8 @@ function updateSettingsVisibility(): void {
   const effortGroup = document.getElementById('effortGroup') as HTMLElement;
   if (modeGroup) modeGroup.style.display = supportsSetting('permissionMode') ? '' : 'none';
   if (thinkingGroup) thinkingGroup.style.display = supportsSetting('thinking') ? '' : 'none';
-  if (effortGroup) effortGroup.style.display = supportsSetting('effort') ? '' : 'none';
+  // Effort only visible when BOTH thinking and effort are supported
+  if (effortGroup) effortGroup.style.display = (supportsSetting('thinking') && supportsSetting('effort')) ? '' : 'none';
 }
 
 /** Populate the Agent CLI selector in the new-session modal. */
@@ -1849,6 +1854,9 @@ function init(): void {
     if (allKimiWorkspaces.length > 0) {
       kimiWorkspaceSelect.value = allKimiWorkspaces[0].root;
       currentKimiCwd = allKimiWorkspaces[0].root;
+      fetchKimiSessions(currentKimiCwd)
+        .then((sessions: KimiSessionItem[]) => renderKimiSessions(sessions))
+        .catch((e: Error) => { importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">${esc(e.message)}</div>`; });
     }
   }
 
@@ -1856,7 +1864,7 @@ function init(): void {
     importSessionCountEl.textContent = sessions.length? `${sessions.length} session(s) found` : '';
     importSessionListEl.innerHTML = sessions.map((s: KimiSessionItem) => {
       const ts = s.updatedAt? new Date(s.updatedAt).toLocaleString() : '';
-      return `<div class="im-item" data-adapter="kimi" data-sid="${esc(s.session_id)}" data-cwd="${esc(currentKimiCwd)}">
+      return `<div class="im-item" data-adapter="kimi" data-sid="${esc(s.session_id)}" data-cwd="${esc(s.workDir)}">
         <div class="im-title">${esc(s.title || 'Untitled')}</div>
         <div class="im-meta">${s.message_count} msgs \u00B7 ${esc(s.model || '?')} \u00B7 ${esc(ts)}</div>
       </div>`;
@@ -1895,10 +1903,14 @@ function init(): void {
 
   cbcDriveSelect.addEventListener('change', () => {
     const drive = cbcDriveSelect.value;
-    if (drive) {
-      buildProjectSelect(drive);
+    if (!drive) {
+      cbcProjectSelect.innerHTML = '<option value="">Project</option>';
+      importSessionListEl.innerHTML = '<div class="im-loading">Select a project.</div>';
+      return;
     }
+    buildProjectSelect(drive);
   });
+
 
   kimiWorkspaceSelect.addEventListener('change', () => {
     currentKimiCwd = kimiWorkspaceSelect.value;
