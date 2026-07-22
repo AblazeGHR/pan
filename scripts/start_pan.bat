@@ -45,8 +45,8 @@ where cloudflared >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo [WARN] cloudflared not found in PATH, skipping remote tunnel.
 ) else (
-    set "PAN_CF_CONFIG=C:\Users\14709\.cloudflared\config-test.yml"
-    powershell -NoProfile -File "%SCRIPT_DIR%start_cf.ps1" -PidFile "%PID_CF%" -LocalPort 8768
+    if not defined PAN_CF_CONFIG set "PAN_CF_CONFIG=%USERPROFILE%\.cloudflared\config-test.yml"
+    powershell -NoProfile -File "%SCRIPT_DIR%start_cf.ps1" -PidFile "%PID_CF%" -ConfigPath "%PAN_CF_CONFIG%"
     set /p CF_PID=<"%PID_CF%"
 )
 
