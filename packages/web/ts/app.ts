@@ -1088,7 +1088,7 @@ function syncPanelFromServer(): void {
 
   const sel = document.getElementById('settingModel') as HTMLSelectElement;
   const model = s.model || defaultModel();
-  sel.value = allModels().indexOf(model) >= 0 ? model: '';
+  sel.value = allModels().indexOf(model) >= 0 ? model : defaultModel();
 
   if (supportsSetting('permissionMode')) {
     (document.getElementById('settingMode') as HTMLSelectElement).value =
@@ -1974,10 +1974,6 @@ function init(): void {
 function buildModelSelect(): void {
   const sel = document.getElementById('settingModel') as HTMLSelectElement;
   sel.innerHTML = '';
-  const blank = document.createElement('option');
-  blank.value = '';
-  blank.textContent = '\u2014 model \u2014';
-  sel.appendChild(blank);
   allModels().forEach((m: string) => {
     const opt = document.createElement('option');
     opt.value = m;
