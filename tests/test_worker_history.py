@@ -86,13 +86,13 @@ async def _drive_stdout(w: Worker, mock_proc: MockProcess):
     await worker._read_stdout(w)
 
 
-def _setup_session(history: list[dict] = None, cbc_session_id: str = "cbc-123"):
+def _setup_session(history: list[dict] = None, cli_session_id: str = "cbc-123"):
     """Create a real on-disk session in a temp dir."""
     s = _sess.Session(
         id="ses_test",
         name="test",
         model="test-model",
-        adapter_config={"cli_session_id": cbc_session_id},
+        adapter_config={"cli_session_id": cli_session_id},
         history=history or [],
     )
     # Bypass file IO for speed — use cache directly

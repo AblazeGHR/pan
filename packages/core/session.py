@@ -54,15 +54,6 @@ class Session:
         else:
             self.adapter_config.pop("cli_session_id", None)
 
-    @property
-    def cbc_session_id(self) -> str | None:
-        """Backward-compat alias for cli_session_id (deprecated)."""
-        return self.cli_session_id
-
-    @cbc_session_id.setter
-    def cbc_session_id(self, value: str | None):
-        self.cli_session_id = value
-
     def adapter_field(self, key: str, default=None):
         """Read a value from adapter_config."""
         return self.adapter_config.get(key, default)
@@ -136,14 +127,14 @@ def create(name: str, model: str | None = None,
            workdir: str = "",
            history: list[dict] | None = None,
            # backward-compat kwargs (migrated to adapter_config)
-           cbc_session_id: str | None = None,
+           cli_session_id: str | None = None,
            always_thinking_enabled: bool = False,
            effort: str = "",
            max_thinking_tokens: int | None = None) -> Session:
     # build adapter_config
     ac = dict(adapter_config) if adapter_config else {}
-    if cbc_session_id and "cli_session_id" not in ac:
-        ac["cli_session_id"] = cbc_session_id
+    if cli_session_id and "cli_session_id" not in ac:
+        ac["cli_session_id"] = cli_session_id
     if always_thinking_enabled and "always_thinking_enabled" not in ac:
         ac["always_thinking_enabled"] = True
     if effort and "effort" not in ac:

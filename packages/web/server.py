@@ -20,6 +20,7 @@ from packages.core import worker
 from packages.core import session as sess
 from packages.core.adapters import get_adapter, list_adapters
 from packages.core.adapters.cbc import sessions as cbc_sessions
+from packages.core.adapters.kimi import sessions as kimi_sessions
 from packages.core.config import load_config
 
 # ── logging ──
@@ -128,7 +129,7 @@ def _session_to_api(s: sess.Session):
         "id": s.id,
         "name": s.name,
         "adapter": s.adapter,
-        "cbcSessionId": s.cli_session_id,
+        "cliSessionId": s.cli_session_id,
         "model": s.model or config.get("model") or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
@@ -508,12 +509,16 @@ async def api_rename_session(session_id: str, data: dict):
 
 @app.post("/api/sessions/{session_id}/branch")
 async def api_branch_session(session_id: str, data: dict):
-    """Branch from a session — copy cbc JSONL, import new session, preserve settings."""
+    """Branch from a session — copy adapter-specific transcript, import new session, preserve settings.
+
+    Dispatches by adapter because each backend stores sessions differently
+    (cbc: JSONL under a project dir; kimi: wire.jsonl under ~/.kimi-code/sessions).
+    """
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    if not s.cbc_session_id:
-        return {"error": "Session has no cbc session ID — cannot branch"}
+    if not s.cli_session_id:
+        return {"error": "Session has no CLI session ID — cannot branch"}
 
     name = (data.get("name") or "").strip()
     if not name:
@@ -523,20 +528,30 @@ async def api_branch_session(session_id: str, data: dict):
     if err:
         return {"error": err}
 
-    # Fork via pure file operations — no cbc process spawned
+    # Fork via pure file operations — no CLI process spawned.
     cwd = s.workdir or ""
     try:
-        new_cbc_id_str = cbc_sessions.fork_cbc_session(
-            s.cbc_session_id, name, cwd or None,
-        )
+        if s.adapter == "kimi":
+            # Kimi has no --fork flag; copy the session directory instead.
+            new_cli_id = kimi_sessions.fork_kimi_session(
+                s.cli_session_id, name, cwd or None,
+            )
+        else:
+            new_cli_id = cbc_sessions.fork_cbc_session(
+                s.cli_session_id, name, cwd or None,
+            )
     except FileNotFoundError as e:
         return {"error": str(e)}
     except Exception as e:
         return {"error": f"Fork failed: {e}"}
 
     try:
-        history = cbc_sessions.parse_cbc_history(new_cbc_id_str, cwd)
-        raw_usage_entries = cbc_sessions.get_raw_usage(new_cbc_id_str, cwd)
+        if s.adapter == "kimi":
+            history = kimi_sessions.parse_kimi_history(new_cli_id, cwd or None)
+            raw_usage_entries = kimi_sessions.get_raw_usage(new_cli_id, cwd or None)
+        else:
+            history = cbc_sessions.parse_cbc_history(new_cli_id, cwd)
+            raw_usage_entries = cbc_sessions.get_raw_usage(new_cli_id, cwd)
     except Exception as e:
         return {"error": f"Failed to parse forked session: {e}"}
 
@@ -545,7 +560,8 @@ async def api_branch_session(session_id: str, data: dict):
 
     new_s = sess.create(
         name=name,
-        cbc_session_id=new_cbc_id_str,
+        adapter=s.adapter,
+        cli_session_id=new_cli_id,
         model=s.model,
         permission_mode=s.permission_mode,
         always_thinking_enabled=s.adapter_config.get("always_thinking_enabled", False),
@@ -862,7 +878,7 @@ async def api_cbc_sessions_import(data: dict):
 
     existing = None
     for s in sess.list_all():
-        if s.cbc_session_id == session_id:
+        if s.cli_session_id == session_id:
             existing = s
             break
 
@@ -889,7 +905,7 @@ async def api_cbc_sessions_import(data: dict):
 
     s = sess.create(
         name=name,
-        cbc_session_id=session_id,
+        cli_session_id=session_id,
         history=history,
         raw_usage=raw_usage,
         total_usage=total_usage,
@@ -972,7 +988,7 @@ async def api_kimi_sessions_import(data: dict):
     s = sess.create(
         name=name,
         adapter="kimi",
-        cbc_session_id=session_id,
+        cli_session_id=session_id,
         history=history,
         raw_usage=raw_usage,
         total_usage=total_usage,
@@ -1073,11 +1089,11 @@ async def api_branch(worker_id: str, data: dict):
         return {"error": "Worker not found"}
 
     orig = sess.get(w.session_id)
-    if not orig or not orig.cbc_session_id:
+    if not orig or not orig.cli_session_id:
         return {"error": "Session not ready for branching"}
 
     name = data.get("name") or f"{orig.name}-branch"
-    new_session = sess.create(name, model=orig.model,
+    new_session = sess.create(name, adapter=orig.adapter, model=orig.model,
                               permission_mode=orig.permission_mode,
                               always_thinking_enabled=orig.adapter_config.get("always_thinking_enabled", False),
                               effort=orig.adapter_config.get("effort", ""),
@@ -1114,8 +1130,8 @@ async def api_takeover(worker_id: str):
     s = sess.get(w.session_id)
     if not s:
         return {"error": "Session not found"}
-    if not s.cbc_session_id:
-        return {"error": "Worker has no cbc session yet"}
+    if not s.cli_session_id:
+        return {"error": "Worker has no CLI session yet"}
     if w.status == "held":
         return {"error": "Worker already in takeover mode"}
 
@@ -1148,7 +1164,8 @@ async def api_takeover(worker_id: str):
     return {
         "workerId": worker_id,
         "sessionId": w.session_id,
-        "cbcSessionId": s.cbc_session_id,
+        "cliSessionId": s.cli_session_id,
+        "takeoverCommand": " ".join(adapter_cmd),
         "takeoverPid": w.takeover_pid,
         "status": "takeover started",
     }

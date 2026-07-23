@@ -151,13 +151,13 @@ class CbcAdapter:
         return ["--permission-mode", mode]
 
     def resume_args(self, s: Session) -> list[str]:
-        if s.cbc_session_id:
-            return ["--resume", s.cbc_session_id]
+        if s.cli_session_id:
+            return ["--resume", s.cli_session_id]
         return []
 
     def fork_args(self, s: Session | None = None) -> list[str]:
-        """返回 fork 参数。若 session 没有 cbc_session_id，需要显式 --resume。"""
-        if s and not s.cbc_session_id:
+        """返回 fork 参数。若 session 没有 cli_session_id，需要显式 --resume。"""
+        if s and not s.cli_session_id:
             return ["--resume", "", "--fork-session"]
         return ["--fork-session"]
 
@@ -234,9 +234,9 @@ class CbcAdapter:
     # ── takeover ──
 
     def takeover_command(self, s: Session) -> list[str]:
-        if not s.cbc_session_id:
+        if not s.cli_session_id:
             return []
-        return ["cbc", "--resume", s.cbc_session_id]
+        return ["cbc", "--resume", s.cli_session_id]
 
     # ── enrich ──
 
@@ -249,7 +249,7 @@ class CbcAdapter:
 
         返回 list[dict]：新增的 rawUsage 条目列表，或 None（无新数据/失败）。
         """
-        if not s.cbc_session_id:
+        if not s.cli_session_id:
             return None
         try:
             return _read_jsonl_new_entries(s)
@@ -260,7 +260,7 @@ class CbcAdapter:
     # ── enrich helpers ──
 
     @staticmethod
-    def _find_project_dir(cbc_session_id: str) -> tuple[Path | None, str | None]:
+    def _find_project_dir(cli_session_id: str) -> tuple[Path | None, str | None]:
         """Find the cbc project directory containing the session JSONL file.
 
         Returns (fpath, project_dir_name) or (None, None).
@@ -269,7 +269,7 @@ class CbcAdapter:
         for child in base.iterdir():
             if not child.is_dir():
                 continue
-            fpath = child / f"{cbc_session_id}.jsonl"
+            fpath = child / f"{cli_session_id}.jsonl"
             if fpath.exists():
                 return fpath, child.name
         return None, None
@@ -285,7 +285,7 @@ def _read_jsonl_new_entries(s: Session) -> list[dict] | None:
     """
     from .sessions import get_raw_usage
 
-    fpath, proj_dir_name = CbcAdapter._find_project_dir(s.cbc_session_id)
+    fpath, proj_dir_name = CbcAdapter._find_project_dir(s.cli_session_id)
     if not fpath or not proj_dir_name:
         return None
 
@@ -293,7 +293,7 @@ def _read_jsonl_new_entries(s: Session) -> list[dict] | None:
     time.sleep(0.2)
 
     # 读取文件中所有 rawUsage 条目
-    all_entries = get_raw_usage(s.cbc_session_id, project_dir=proj_dir_name)
+    all_entries = get_raw_usage(s.cli_session_id, project_dir=proj_dir_name)
     if not all_entries:
         return None
 

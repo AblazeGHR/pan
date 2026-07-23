@@ -9,7 +9,7 @@ interface Session {
   id: string;
   name: string;
   adapter?: string;
-  cbcSessionId?: string | null;
+  cliSessionId?: string | null;
   model?: string | null;
   permissionMode?: string | null;
   alwaysThinkingEnabled: boolean;
@@ -43,7 +43,7 @@ interface WorkerEvent {
   model?: string;
   is_error?: boolean;
   result?: string;
-  cbc_session_id?: string;
+  cliSessionId?: string;
 }
 
 interface StreamEvent {
@@ -54,7 +54,7 @@ interface StreamEvent {
   message?: string;
   status?: string;
   name?: string;
-  cbcSessionId?: string;
+  cliSessionId?: string;
 }
 
 interface ApiSessionsResponse {
@@ -72,7 +72,8 @@ interface ApiGenericResponse {
   workerId?: string;
   sessionId?: string;
   status?: string;
-  cbcSessionId?: string;
+  cliSessionId?: string;
+  takeoverCommand?: string;
 }
 
 interface AdapterConfig {
@@ -669,7 +670,7 @@ function updateTopBar(): void {
   const sidsEl = document.getElementById('chatSessionIds')!;
   sidsEl.style.display = 'flex';
   var sesId = s.id || '';
-  var cbcId = s.cbcSessionId;
+  var cbcId = s.cliSessionId;
   sidsEl.innerHTML =
     '<span class="sid-item">' +
     esc(sesId.slice(0, 12)) +
@@ -1301,7 +1302,7 @@ function takeover(): void {
         return;
       }
       navigator.clipboard
-        .writeText('cbc --resume ' + (d.cbcSessionId?? ''))
+        .writeText(d.takeoverCommand ?? ('cbc --resume ' + (d.cliSessionId?? '')))
         .then(() => {
           toast('PowerShell opened. Session copied to clipboard.');
         })
@@ -1529,7 +1530,7 @@ function toggleSessMenu(e: MouseEvent, id: string): void {
   menu.id = 'sessMenu';
   menu.innerHTML =
     '<div class="sess-menu-item" onclick="closeSessMenu();renameSession(\'' + id + '\')">\u270E Rename</div>' +
-    (s.cbcSessionId
+    (s.cliSessionId
       ? '<div class="sess-menu-item" onclick="closeSessMenu();reimportSession(\'' + id + '\')">\u21BB Reimport</div>' +
         '<div class="sess-menu-item" onclick="closeSessMenu();branchSession(\'' + id + '\')">\u2442 Branch</div>'
       : '') +
@@ -1558,11 +1559,12 @@ function renameSession(id: string): void {
 
 function reimportSession(id: string): void {
   const s = modelData.find((x: Session) => x.id === id);
-  if (!s || !s.cbcSessionId) return;
+  if (!s || !s.cliSessionId) return;
   const cwd = s.workdir || '';
-  const body: Record<string, string> = { session_id: s.cbcSessionId };
+  const body: Record<string, string> = { session_id: s.cliSessionId };
   if (cwd) body.cwd = cwd;
-  fetch('/api/cbc/sessions/import', {
+  const url = s.adapter === 'kimi' ? '/api/kimi/sessions/import' : '/api/cbc/sessions/import';
+  fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -1589,7 +1591,7 @@ function reimportSession(id: string): void {
 
 function branchSession(id: string): void {
   const s = modelData.find((x: Session) => x.id === id);
-  if (!s || !s.cbcSessionId) return;
+  if (!s || !s.cliSessionId) return;
   const defaultName = s.name? s.name + '-branch' : '';
   const newName = (prompt('Branch session name:', defaultName) || '').trim();
   if (!newName) return;

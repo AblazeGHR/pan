@@ -106,7 +106,7 @@ async def _read_stdout(w: Worker):
             if s:
                 sid = adapter.extract_session_id(event)
                 if sid:
-                    s.cbc_session_id = sid
+                    s.cli_session_id = sid
                 model = adapter.extract_model(event)
                 if model and not s.model:
                     s.model = model
@@ -137,7 +137,7 @@ async def _read_stdout(w: Worker):
                 s.last_result = {
                     "status": w.status,
                     "result": result_text,
-                    "cbc_session_id": s.cbc_session_id,
+                    "cli_session_id": s.cli_session_id,
                     "timestamp": datetime.now().isoformat(),
                 }
                 if isinstance(result_text, str) and result_text.strip():
@@ -230,7 +230,7 @@ async def _consumer(w: Worker):
                 s.last_result = {
                     "status": "error",
                     "result": f"Worker process dead (returncode={w.process.returncode if w.process else 'none'})",
-                    "cbc_session_id": s.cbc_session_id,
+                    "cli_session_id": s.cli_session_id,
                     "timestamp": datetime.now().isoformat(),
                 }
                 await _sess.save_async(s)
@@ -284,7 +284,7 @@ async def create_worker(session_id: str) -> Worker | str:
     if isinstance(proc, str):
         return proc
 
-    resuming = bool(s.cbc_session_id) and adapter.supports_resume
+    resuming = bool(s.cli_session_id) and adapter.supports_resume
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
                status="idle", process=proc, queue=asyncio.Queue(),
@@ -454,9 +454,9 @@ async def restart_worker(worker_id: str) -> str | None:
         return f"Spawn failed ({w.session_id}): {proc}"
     w.process = proc
     w.status = "idle"
-    # if session has cbc_session_id, --resume was used → enter replay mode
+    # if session has cli_session_id, --resume was used → enter replay mode
     s = _sess.get(w.session_id)
-    w._replaying = bool(s and s.cbc_session_id) and w.adapter.supports_resume
+    w._replaying = bool(s and s.cli_session_id) and w.adapter.supports_resume
     await _restart_tasks(w)
 
     s = _session(w)
