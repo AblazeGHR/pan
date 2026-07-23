@@ -49,11 +49,19 @@ class KimiAdapter:
         from ...config import load_config
         return load_config().get("kimi", {})
 
-    supported_models = [
+    _BUILTIN_MODELS = [
         "kimi-code/kimi-for-coding",
         "kimi-code/kimi-for-coding-highspeed",
         "kimi-code/k3",
     ]
+
+    @property
+    def supported_models(self) -> list[str]:
+        """模型列表：config.json kimi.models 优先，否则用硬编码默认值。"""
+        models = self._kimi_config.get("models")
+        if isinstance(models, list) and len(models) > 0:
+            return [str(m) for m in models]
+        return self._BUILTIN_MODELS
 
     supports_resume = False  # Kimi -S 恢复上下文但不重放历史事件
     supports_fork = True  # 通过文件复制实现 fork

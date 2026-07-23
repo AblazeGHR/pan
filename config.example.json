@@ -57,9 +57,14 @@
       "effort": {
         "默认值": "",
         "说明": "Kimi prompt 模式暂不支持 effort 命令行参数"
+      },
+      "models": {
+        "默认值": [],
+        "说明": "可用模型列表（空=用内置默认值）。例: [\"my-model-1\", \"my-model-2\"]"
       }
     },
     "model": "kimi-code/kimi-for-coding",
+    "models": [],
     "permission_mode": "",
     "always_thinking_enabled": false,
     "effort": ""
