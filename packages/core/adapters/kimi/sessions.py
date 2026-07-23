@@ -259,7 +259,7 @@ def parse_kimi_history(session_id: str, workdir: str | None = None) -> list[dict
     session_dir: Path | None = None
     for entry in index:
         if entry.get("sessionId") == session_id:
-            if workdir and entry.get("workDir") != workdir:
+            if workdir and not _same_path(entry.get("workDir", ""), workdir):
                 continue
             session_dir = Path(entry.get("sessionDir"))
             break
@@ -284,7 +284,7 @@ def get_raw_usage(session_id: str, workdir: str | None = None) -> list[dict]:
     session_dir: Path | None = None
     for entry in index:
         if entry.get("sessionId") == session_id:
-            if workdir and entry.get("workDir") != workdir:
+            if workdir and not _same_path(entry.get("workDir", ""), workdir):
                 continue
             session_dir = Path(entry.get("sessionDir"))
             break
@@ -319,7 +319,7 @@ def get_session_title(session_id: str, workdir: str | None = None) -> str:
     session_dir: Path | None = None
     for entry in index:
         if entry.get("sessionId") == session_id:
-            if workdir and entry.get("workDir") != workdir:
+            if workdir and not _same_path(entry.get("workDir", ""), workdir):
                 continue
             session_dir = Path(entry.get("sessionDir"))
             break
