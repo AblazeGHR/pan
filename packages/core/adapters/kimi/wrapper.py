@@ -129,13 +129,15 @@ def _main_loop(kimi_path: str, model: str | None,
             session_id = new_session_id or session_id
             proc.wait()
 
-            if proc.returncode != 0:
+            if proc.returncode != 0 and not last_text:
                 result_event = {
                     "role": "result",
                     "is_error": True,
                     "result": f"kimi exited with code {proc.returncode}",
                 }
             else:
+                if proc.returncode != 0:
+                    print(f"[kimi wrapper] process exited {proc.returncode} but output collected, ignoring", file=sys.stderr)
                 result_event = {
                     "role": "result",
                     "is_error": False,
