@@ -202,17 +202,52 @@ class KimiAdapter:
         return None
 
     def is_assistant_event(self, event: dict) -> bool:
-        return event.get("role") == "assistant"
+        role = event.get("role", "")
+        # Also match thinking-content events so they feed into extract_assistant_blocks
+        return role in ("assistant", "thinking")
 
     def extract_assistant_blocks(self, event: dict) -> list[dict]:
         blocks: list[dict] = []
-        if event.get("content"):
-            blocks.append({"role": "assistant", "content": event["content"]})
+
+        # ── flat string content (one-shot -p mode) ──
+        content = event.get("content")
+        if isinstance(content, str):
+            role = event.get("role", "")
+            blk_role = "thinking" if role == "thinking" else "assistant"
+            blocks.append({"role": blk_role, "content": content})
+
+        # ── structured content block array (some models emit this) ──
+        elif isinstance(content, list):
+            for b in content:
+                if not isinstance(b, dict):
+                    continue
+                t = b.get("type", "")
+                if t == "text":
+                    blocks.append({"role": "assistant", "content": b.get("text", "")})
+                elif t in ("think", "thinking"):
+                    blocks.append({"role": "thinking", "content": b.get(t, "")})
+                elif t == "tool_use":
+                    n = b.get("name", "?")
+                    i = b.get("input", {})
+                    i_str = json.dumps(i, ensure_ascii=False) if isinstance(i, dict) else str(i)
+                    blocks.append({"role": "tool", "content": f"{n}({i_str})"})
+
+        # ── direct content.part events (same shape as wire.jsonl's inner event) ──
+        if not blocks and event.get("type") == "content.part":
+            part = event.get("part", {})
+            ptype = part.get("type", "")
+            text = part.get(ptype, "").strip()
+            if text:
+                role = "thinking" if ptype == "think" else "assistant"
+                blocks.append({"role": role, "content": text})
+
+        # ── tool calls ──
         for tc in event.get("tool_calls", []):
             fn = tc.get("function", {})
             name = fn.get("name", "?")
             args = fn.get("arguments", "{}")
             blocks.append({"role": "tool", "content": f"{name}({args})"})
+
         return blocks
 
     def is_result_event(self, event: dict) -> bool:
