@@ -107,7 +107,7 @@ def _main_loop(kimi_path: str, model: str | None,
                 proc = subprocess.Popen(
                     args,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
+                    stderr=subprocess.PIPE,
                     cwd=cwd or None,
                 )
             except FileNotFoundError:
@@ -127,13 +127,18 @@ def _main_loop(kimi_path: str, model: str | None,
 
             new_session_id, last_text = _forward_and_collect(proc.stdout, session_id)
             session_id = new_session_id or session_id
+            _, stderr_bytes = proc.communicate()
             proc.wait()
 
             if proc.returncode != 0 and not last_text:
+                stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip() if stderr_bytes else ""
+                msg = f"kimi exited with code {proc.returncode}"
+                if stderr_text:
+                    msg += f": {stderr_text}"
                 result_event = {
                     "role": "result",
                     "is_error": True,
-                    "result": f"kimi exited with code {proc.returncode}",
+                    "result": msg,
                 }
             else:
                 if proc.returncode != 0:
