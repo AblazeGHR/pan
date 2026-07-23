@@ -1984,6 +1984,7 @@ function buildModelSelect(): void {
   cust.value = '__custom__';
   cust.textContent = '\u270e custom\u2026';
   sel.appendChild(cust);
+  sel.value = defaultModel();
   sel.onchange = function () {
     (document.getElementById('settingModelCustom')!).style.display =
       sel.value === '__custom__' ? 'inline-block' : 'none';
