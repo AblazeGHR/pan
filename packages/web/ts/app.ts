@@ -121,6 +121,8 @@ function supportsSetting(name: string): boolean { return supportedSettings().ind
 let currentSessionId: string | null = null;
 let currentWorkerId: string | null = null;
 let modelData: Session[] = [];
+let _multiSelectMode = false;
+let _selectedIds: Set<string> = new Set();
 let lastSyncedSettings: SyncedSettings | null = null;
 let bubbleViewEnabled: boolean = true;
 let currentHistory: Message[] = [];
@@ -492,12 +494,21 @@ function renderSessionList(): void {
   el.innerHTML = '';
   modelData.forEach((s: Session) => {
     const div = document.createElement('div');
-    div.className = 'sess-item' + (s.id === currentSessionId? ' active' : '');
+    const isSelected = _multiSelectMode && _selectedIds.has(s.id);
+    div.className = 'sess-item' +
+      (s.id === currentSessionId? ' active' : '') +
+      (isSelected? ' selected' : '');
     div.dataset.sessionId = s.id;
     div.onclick = function (e: MouseEvent) {
       const target = e.target as HTMLElement;
       if (target.closest('.sess-del')) return;
       if (s.id.indexOf('__pending_') === 0) return; // Placeholder — not a real session yet
+      if (_multiSelectMode) {
+        // In multi-select mode: toggle checkbox
+        const cb = div.querySelector('.sess-check') as HTMLInputElement;
+        if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
+        return;
+      }
       if (document.getElementById('sessMenu')) { closeSessMenu(); return; }
       selectSession(s.id);
     };
@@ -511,6 +522,14 @@ function renderSessionList(): void {
     }
 
     const totalCredit = totalUsageCredit(s);
+    const headerRight = _multiSelectMode
+      ? '<input type="checkbox" class="sess-check"' + (isSelected? ' checked' : '') +
+        ' onclick="event.stopPropagation()"' +
+        ' onchange="toggleMultiSelect(\'' + s.id + '\',this.checked)"' +
+        ' title="Select session">'
+      : '<button class="sess-del" onclick="toggleSessMenu(event,\'' +
+        s.id +
+        '\')" title="Session actions" style="background:none;border:none;color:#484f58;cursor:pointer;font-size:.85rem;padding:0 2px">\u2699</button>';
     div.innerHTML =
       '<div style="display:flex;justify-content:space-between;align-items:start">' +
       '<div class="sess-name"><span class="s-dot ' +
@@ -518,9 +537,7 @@ function renderSessionList(): void {
       '"></span>' +
       esc(s.name) +
       '</div>' +
-      '<button class="sess-del" onclick="toggleSessMenu(event,\'' +
-      s.id +
-      '\')" title="Session actions" style="background:none;border:none;color:#484f58;cursor:pointer;font-size:.85rem;padding:0 2px">\u2699</button>' +
+      headerRight +
       '</div>' +
       (lastMsg? '<div class="sess-preview">' + esc(lastMsg) + '</div>' : '') +
       '<div class="sess-meta"><span class="sess-model">' +
@@ -1509,6 +1526,76 @@ function deleteSession(id: string): void {
     });
 }
 
+// ── Multi-select mode ──
+
+function enterMultiSelect(initId: string): void {
+  _multiSelectMode = true;
+  _selectedIds = new Set([initId]);
+  renderSessionList();
+  showMultiSelectBar();
+}
+
+function exitMultiSelect(): void {
+  _multiSelectMode = false;
+  _selectedIds.clear();
+  renderSessionList();
+  hideMultiSelectBar();
+}
+
+function toggleMultiSelect(id: string, checked: boolean): void {
+  if (checked) _selectedIds.add(id);
+  else _selectedIds.delete(id);
+  updateSelectedCount();
+  var el = document.querySelector('.sess-item[data-session-id="' + id + '"]');
+  if (el) {
+    if (checked) el.classList.add('selected');
+    else el.classList.remove('selected');
+  }
+}
+
+function batchDeleteSelected(): void {
+  var ids = Array.from(_selectedIds);
+  if (ids.length === 0) return;
+  if (!confirm('Delete ' + ids.length + ' selected session(s)?')) return;
+
+  modelData = modelData.filter(function (s: Session) { return !_selectedIds.has(s.id); });
+  ids.forEach(function (id) {
+    if (currentSessionId === id) { currentSessionId = null; currentWorkerId = null; showEmpty(); }
+  });
+
+  _multiSelectMode = false;
+  _selectedIds.clear();
+  renderSessionList();
+  hideMultiSelectBar();
+
+  fetch('/api/sessions/batch-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionIds: ids }),
+  })
+    .then(function (r: Response) { return r.json(); })
+    .then(function (d: ApiGenericResponse) {
+      if (d.error) { toast(d.error); return; }
+      refreshSessions();
+    });
+}
+
+function showMultiSelectBar(): void {
+  var bar = document.getElementById('multiSelectBar')!;
+  bar.style.display = 'flex';
+  updateSelectedCount();
+}
+
+function hideMultiSelectBar(): void {
+  var bar = document.getElementById('multiSelectBar');
+  if (bar) bar.style.display = 'none';
+}
+
+function updateSelectedCount(): void {
+  var el = document.getElementById('selectedCount');
+  if (el) el.textContent = String(_selectedIds.size);
+}
+
 // ── Session gear menu ──
 
 function closeSessMenu(): void {
@@ -1534,6 +1621,7 @@ function toggleSessMenu(e: MouseEvent, id: string): void {
       ? '<div class="sess-menu-item" onclick="closeSessMenu();reimportSession(\'' + id + '\')">\u21BB Reimport</div>' +
         '<div class="sess-menu-item" onclick="closeSessMenu();branchSession(\'' + id + '\')">\u2442 Branch</div>'
       : '') +
+    '<div class="sess-menu-item" onclick="closeSessMenu();enterMultiSelect(\'' + id + '\')">\u2611 Select</div>' +
     '<div class="sess-menu-item sess-menu-danger" onclick="closeSessMenu();deleteSession(\'' + id + '\')">\u2715 Delete</div>';
 
   const btn = e.currentTarget as HTMLElement;

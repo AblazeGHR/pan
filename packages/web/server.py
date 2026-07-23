@@ -598,6 +598,31 @@ async def api_delete_session(session_id: str):
     return {"sessionId": session_id, "status": "deleted"}
 
 
+@app.post("/api/sessions/batch-delete")
+async def api_batch_delete_sessions(data: dict):
+    """Delete multiple sessions and their workers at once."""
+    session_ids = data.get("sessionIds", [])
+    if not session_ids:
+        return {"error": "sessionIds is required"}
+
+    deleted = 0
+    for sid in session_ids:
+        w = worker.find_worker_by_session(sid)
+        if w:
+            asyncio.create_task(
+                worker.cleanup_worker_background(w.worker_id, w.session_id)
+            )
+        sess.delete(sid)
+        deleted += 1
+
+    await broadcast({
+        "type": "sessions.deleted",
+        "sessionIds": session_ids,
+    })
+
+    return {"deleted": deleted}
+
+
 @app.get("/api/models")
 async def api_models(adapter: str = "cbc"):
     """Return model list and default for a given adapter."""

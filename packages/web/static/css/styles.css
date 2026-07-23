@@ -1303,3 +1303,58 @@ body {
 .sess-menu-danger:hover {
   background: #2d1216;
 }
+
+/* ── Multi-select mode ── */
+
+#multiSelectBar {
+  background: #0d1117;
+}
+#multiSelectBar button {
+  padding: 5px 12px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  font-size: .78rem;
+  cursor: pointer;
+  color: #e6edf3;
+  background: #21262d;
+}
+#multiSelectBar button:hover {
+  background: #30363d;
+}
+#multiSelectBar button.btn-danger {
+  color: #f85149;
+  border-color: #f85149;
+}
+#multiSelectBar button.btn-danger:hover {
+  background: #f85149;
+  color: #fff;
+}
+
+.sess-item.selected {
+  background: #1a2332;
+  border-left-color: #58a6ff;
+}
+
+.sess-check {
+  background: none;
+  border: 2px solid #484f58;
+  width: 16px; height: 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sess-check:checked {
+  background: #58a6ff;
+  border-color: #58a6ff;
+}
+.sess-check:checked::after {
+  content: '✓';
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+}

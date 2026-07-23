@@ -25,6 +25,10 @@
     </div>
   </div>
   <div id="sessionList"><div class="sidebar-loading">Loading…</div></div>
+  <div id="multiSelectBar" style="display:none;padding:8px 14px;border-top:1px solid #30363d;gap:8px;align-items:center">
+    <button class="btn-danger" onclick="batchDeleteSelected()">Delete (<span id="selectedCount">0</span>)</button>
+    <button onclick="exitMultiSelect()">Cancel</button>
+  </div>
 </div>
 
 <div id="chat">
