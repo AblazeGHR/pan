@@ -1080,6 +1080,14 @@ function syncPanelFromServer(): void {
   const s = modelData.find((x: Session) => x.id === currentSessionId);
   if (!s) return;
 
+  // If session uses a different adapter, load its config first
+  const sessAdapter = s.adapter || 'cbc';
+  if (sessAdapter !== currentAdapter) {
+    _adapterConfigReady = false;
+    loadAdapterConfig(sessAdapter);
+    return;
+  }
+
   // wait until all selects are populated (async adapter config fetch)
   if ((document.getElementById('settingModel') as HTMLSelectElement).getAttribute('data-loaded') !== '1') return;
   if (!_adapterConfigReady) return;
