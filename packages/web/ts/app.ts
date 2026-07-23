@@ -1905,6 +1905,13 @@ function init(): void {
       return;
     }
     buildProjectSelect(drive);
+    if (currentProjectDir) {
+      importSessionCountEl.textContent = '';
+      importSessionListEl.innerHTML = '<div class="im-loading">Loading...</div>';
+      fetchCbcSessions(currentProjectDir)
+        .then((sessions: CbcSessionItem[]) => renderCbcSessions(sessions))
+        .catch((e: Error) => { importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">${esc(e.message)}</div>`; });
+    }
   });
 
 
