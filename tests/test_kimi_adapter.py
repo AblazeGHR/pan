@@ -26,7 +26,7 @@ def _adapter() -> KimiAdapter:
 def test_adapter_metadata():
     a = _adapter()
     assert a.name == "kimi"
-    assert "kimi-code/kimi-for-coding" in a.supported_models
+    assert len(a.supported_models) > 0
     # supports_resume=False means Kimi won't replay history events on resume,
     # so worker.py should NOT skip assistant events.
     assert a.supports_resume is False

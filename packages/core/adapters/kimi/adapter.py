@@ -8,9 +8,25 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from ...session import Session
+
+
+def _parse_kimi_models_from_toml() -> list[str]:
+    """从 ~/.kimi-code/config.toml 的 [models.\"...\"] 段解析可用模型名。"""
+    toml_path = Path.home() / ".kimi-code" / "config.toml"
+    if not toml_path.is_file():
+        return []
+    try:
+        text = toml_path.read_text(encoding="utf-8")
+    except Exception:
+        return []
+    models = []
+    for m in re.finditer(r'\[models\."([^"]+)"\]', text):
+        models.append(m.group(1))
+    return models
 
 
 class KimiAdapter:
@@ -57,10 +73,16 @@ class KimiAdapter:
 
     @property
     def supported_models(self) -> list[str]:
-        """模型列表：config.json kimi.models 优先，否则用硬编码默认值。"""
+        """模型列表：config.json > kimi config.toml > 硬编码默认值。"""
+        # 1. config.json 显式配置
         models = self._kimi_config.get("models")
         if isinstance(models, list) and len(models) > 0:
             return [str(m) for m in models]
+        # 2. 从 kimi config.toml 自动获取
+        toml_models = _parse_kimi_models_from_toml()
+        if toml_models:
+            return toml_models
+        # 3. 硬编码默认值
         return self._BUILTIN_MODELS
 
     supports_resume = False  # Kimi -S 恢复上下文但不重放历史事件
