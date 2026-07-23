@@ -71,19 +71,26 @@ class KimiAdapter:
         "kimi-code/k3",
     ]
 
+    _cached_models: list[str] | None = None  # class-level cache
+
     @property
     def supported_models(self) -> list[str]:
-        """模型列表：config.json > kimi config.toml > 硬编码默认值。"""
+        """模型列表：config.json > kimi config.toml > 硬编码默认值（缓存）。"""
+        if KimiAdapter._cached_models is not None:
+            return KimiAdapter._cached_models
         # 1. config.json 显式配置
         models = self._kimi_config.get("models")
         if isinstance(models, list) and len(models) > 0:
-            return [str(m) for m in models]
+            KimiAdapter._cached_models = [str(m) for m in models]
+            return KimiAdapter._cached_models
         # 2. 从 kimi config.toml 自动获取
         toml_models = _parse_kimi_models_from_toml()
         if toml_models:
-            return toml_models
+            KimiAdapter._cached_models = toml_models
+            return KimiAdapter._cached_models
         # 3. 硬编码默认值
-        return self._BUILTIN_MODELS
+        KimiAdapter._cached_models = self._BUILTIN_MODELS
+        return KimiAdapter._cached_models
 
     supports_resume = False  # Kimi -S 恢复上下文但不重放历史事件
     supports_fork = True  # 通过文件复制实现 fork

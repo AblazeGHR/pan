@@ -5,12 +5,27 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
+import subprocess
 import time
 from pathlib import Path
 from ...session import Session
 
 _log = logging.getLogger(__name__)
+
+
+def _parse_models_from_cbc_help() -> list[str]:
+    """从 `cbc --help` 解析支持的模型列表（仅加载一次）。"""
+    try:
+        r = subprocess.run("cbc --help", capture_output=True, text=True, timeout=10, shell=True)
+    except Exception:
+        return []
+    output = r.stdout or r.stderr or ""
+    m = re.search(r"Currently supported:\s*\(([^)]+)\)", output)
+    if not m:
+        return []
+    return [name.strip() for name in m.group(1).split(",") if name.strip()]
 
 
 class CbcAdapter:
@@ -48,7 +63,8 @@ class CbcAdapter:
     def _cbc_config(self) -> dict:
         from ...config import load_config
         return load_config().get("cbc", {})
-    supported_models = [
+
+    _BUILTIN_MODELS = [
         "glm-5.2", "glm-5.1", "glm-5.0", "glm-5.0-turbo", "glm-5v-turbo", "glm-4.7",
         "minimax-m3-pay", "minimax-m2.7",
         "kimi-k2.7", "kimi-k2.6",
@@ -56,6 +72,27 @@ class CbcAdapter:
         "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v3-2-volc",
         "custom-local:deepseek-v4-pro",
     ]
+
+    _cached_models: list[str] | None = None  # class-level cache
+
+    @property
+    def supported_models(self) -> list[str]:
+        """模型列表：config.json > cbc --help 解析 > 硬编码默认值（缓存）。"""
+        if CbcAdapter._cached_models is not None:
+            return CbcAdapter._cached_models
+        # 1. config.json 显式配置
+        models = self._cbc_config.get("models")
+        if isinstance(models, list) and len(models) > 0:
+            CbcAdapter._cached_models = [str(m) for m in models]
+            return CbcAdapter._cached_models
+        # 2. 从 cbc --help 自动获取
+        cli_models = _parse_models_from_cbc_help()
+        if cli_models:
+            CbcAdapter._cached_models = cli_models
+            return CbcAdapter._cached_models
+        # 3. 硬编码默认值
+        CbcAdapter._cached_models = self._BUILTIN_MODELS
+        return CbcAdapter._cached_models
     supports_resume = True
     supports_fork = True
     effort_values = ["none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"]
