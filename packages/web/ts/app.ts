@@ -320,6 +320,8 @@ function _applyWorkerUpdate(
   workerId: string | undefined | null,
   status: string | null
 ): void {
+  if (!sessionId) return;
+
   for (let i = 0; i < modelData.length; i++) {
     if (modelData[i].id === sessionId) {
       modelData[i].workerId = workerId?? undefined;
@@ -332,18 +334,20 @@ function _applyWorkerUpdate(
     updateTopBar();
   }
   // In-place sidebar dot update (avoid full list rebuild flicker)
-  if (sessionId) {
-    const items = document.querySelectorAll('.sess-item');
-    items.forEach(function (item) {
+  const list = document.getElementById('sessionList');
+  if (list) {
+    let found = false;
+    list.querySelectorAll('.sess-item').forEach(function (item) {
       const div = item as HTMLElement;
       if (div.dataset.sessionId === sessionId) {
+        found = true;
         const dot = div.querySelector('.s-dot');
         if (dot) {
-          const newClass = 's-dot ' + (status || 'offline');
-          dot.className = newClass;
+          dot.className = 's-dot ' + (status || 'offline');
         }
       }
     });
+    if (!found) renderSessionList();
   }
   scheduleRefreshSessions();
 }
@@ -1391,8 +1395,6 @@ function send(): void {
 
   // worker exists: if panel has unapplied changes, apply them first, then send
   if (hasPendingChanges()) {
-    const thinking = (document.getElementById('settingThinking') as HTMLInputElement).checked;
-    const effort = (document.getElementById('settingEffort') as HTMLSelectElement).value;
     fetch('/api/worker/' + currentWorkerId + '/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
