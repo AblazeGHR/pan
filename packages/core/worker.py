@@ -180,15 +180,22 @@ async def _read_stdout(w: Worker):
             })
 
     # stdout EOF — 进程退出了
-    w.status = "error"
     code = w.process.returncode if w.process else "unknown"
     print(f"[Worker {w.worker_id}] {adapter.name} 进程退出，返回码 {code}")
-    await _bcast({
-        "type": "worker.crashed",
-        "workerId": w.worker_id,
-        "sessionId": w.session_id,
-        "returncode": code,
-    })
+
+    # 如果已经通过 result event 收到正常输出（last_result 有内容且非 error），
+    # 不要覆盖。某些 CLI 退出时返回非零码（如 kimi 的 0xC0000409）但回复已完整。
+    if code != 0 and w.status == "idle" and s and s.last_result and s.last_result.get("status") != "error":
+        print(f"[Worker {w.worker_id}] 已有正常结果，忽略非零退出码 {code}")
+        w.status = "idle"
+    else:
+        w.status = "error"
+        await _bcast({
+            "type": "worker.crashed",
+            "workerId": w.worker_id,
+            "sessionId": w.session_id,
+            "returncode": code,
+        })
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
