@@ -805,6 +805,9 @@ async def api_cbc_projects():
     return {"projects": projects}
 
 
+
+
+@app.get("/api/cbc/sessions")
 async def api_cbc_sessions(project_dir: str = "", cwd: str = "", all: int = 0):
     """List external cbc sessions available for import."""
     config = load_config()
