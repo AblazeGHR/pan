@@ -20,6 +20,7 @@ from packages.core import worker
 from packages.core import session as sess
 from packages.core.adapters import get_adapter, list_adapters
 from packages.core.adapters.cbc import sessions as cbc_sessions
+from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
 from packages.core.config import load_config
 
@@ -804,16 +805,6 @@ async def api_cbc_projects():
     return {"projects": projects}
 
 
-def _sanitize_project_dir(cwd: str) -> str:
-    """Mirror cbc's sanitize logic for exact dir matching."""
-    p = cwd.replace(":", "")
-    p = p.replace("\\", "-").replace("/", "-")
-    p = re.sub(r"^[-]+", "", p)
-    p = re.sub(r"[-]+", "-", p)
-    return p.lower()
-
-
-@app.get("/api/cbc/sessions")
 async def api_cbc_sessions(project_dir: str = "", cwd: str = "", all: int = 0):
     """List external cbc sessions available for import."""
     config = load_config()
@@ -831,11 +822,11 @@ async def api_cbc_sessions(project_dir: str = "", cwd: str = "", all: int = 0):
     exclude_patterns = filter_cfg.get("exclude_workdir_patterns", [])
     target_dir = None
     if filter_cfg.get("project_dir_exact_match", False):
-        target_dir = _sanitize_project_dir(cwd)
+        target_dir = sanitize_project_dir_name(cwd)
 
     filtered: list[dict] = []
     for s in all_sessions:
-        if target_dir and s["project_dir"] != target_dir:
+        if target_dir and s["project_dir"].lower() != target_dir:
             continue
         if not target_dir and any(p in s["project_dir"] for p in exclude_patterns):
             continue

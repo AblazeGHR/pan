@@ -22,13 +22,25 @@ def _project_dir(project_cwd: str | None) -> Path:
     """
     base = Path(os.path.expanduser("~/.codebuddy/projects"))
     if project_cwd:
-        # match cbc's sanitization: strip drive colon, lowercase,
-        # replace \\ and / with -, collapse multiple -
-        sanitized = project_cwd.replace(":", "").lower()
-        sanitized = sanitized.replace("\\", "-").replace("/", "-")
-        sanitized = re.sub(r"-+", "-", sanitized).strip("-")
+        sanitized = sanitize_project_dir_name(project_cwd)
         return base / sanitized
     return base
+
+
+def sanitize_project_dir_name(cwd: str) -> str:
+    """Mirror cbc's path-to-directory-name sanitization.
+
+    Produces the same result as cbc's internal sanitizer: strip drive
+    colon, lowercase, replace ``\\`` and ``/`` with ``-``, collapse
+    consecutive ``-``, strip leading/trailing ``-``.
+
+    This is the canoncial implementation shared by ``_project_dir``,
+    ``server._sanitize_project_dir``, and any future callers.
+    """
+    p = cwd.replace(":", "").lower()
+    p = p.replace("\\", "-").replace("/", "-")
+    p = re.sub(r"-+", "-", p).strip("-")
+    return p
 
 
 @functools.lru_cache(maxsize=128)
@@ -291,8 +303,8 @@ def _project_dir_to_path(dir_name: str) -> str:
     if not parts:
         return ""
     drive = parts[0] + ":"
-    rest = "/".join(parts[1:])
-    return (drive + "/" + rest).upper()
+    rest = "\\".join(parts[1:])
+    return (drive + "\\" + rest).upper()
 
 
 def project_dir_to_path(dir_name: str) -> str | None:
