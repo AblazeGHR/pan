@@ -46,7 +46,7 @@ _poll_tasks: dict[str, asyncio.Task] = {}
 @dataclass
 class BridgeSession:
     qq_user_id: str
-    cli_session_id: str | None = None
+    session_id: str | None = None  # Pan internal session ID (ses_xxx), not the CLI session UUID
     worker_id: str | None = None
     last_result_ts: str = ""
 
@@ -141,19 +141,19 @@ async def _poll_result(session_id: str, qq_user_id: str):
 
 async def _ensure_session(qq_user_id: str) -> str | None:
     session = _sessions.get(qq_user_id)
-    if session and session.cli_session_id:
-        data = await _get(f"/api/sessions/{session.cli_session_id}")
+    if session and session.session_id:
+        data = await _get(f"/api/sessions/{session.session_id}")
         if "error" not in data:
             # always sync workerId from server — cache may be stale
             session.worker_id = data.get("workerId")
             # session exists on disk but worker may be dead
             if not session.worker_id:
-                result = await _post("/api/spawn", {"sessionId": session.cli_session_id})
+                result = await _post("/api/spawn", {"sessionId": session.session_id})
                 if "error" not in result:
                     session.worker_id = result.get("workerId")
                 else:
                     print(f"[QQ Bridge] re-spawn worker failed: {result['error']}")
-            return session.cli_session_id
+            return session.session_id
 
     # check for existing session (avoid duplicates)
     existing = await _get("/api/sessions")
@@ -163,16 +163,16 @@ async def _ensure_session(qq_user_id: str) -> str | None:
                 lr = sess_data.get("lastResult") or {}
                 bridge = BridgeSession(
                     qq_user_id=qq_user_id,
-                    cli_session_id=sess_data["id"],
+                    session_id=sess_data["id"],
                     worker_id=sess_data.get("workerId"),
                     last_result_ts=lr.get("timestamp", ""),
                 )
                 _sessions[qq_user_id] = bridge
                 if not bridge.worker_id:
-                    result = await _post("/api/spawn", {"sessionId": bridge.cli_session_id})
+                    result = await _post("/api/spawn", {"sessionId": bridge.session_id})
                     if "error" not in result:
                         bridge.worker_id = result.get("workerId")
-                return bridge.cli_session_id
+                return bridge.session_id
 
     # new session
     name = f"qq-{qq_user_id[-6:]}"
@@ -180,20 +180,20 @@ async def _ensure_session(qq_user_id: str) -> str | None:
     if "error" in s:
         print(f"[QQ Bridge] create session failed: {s['error']}")
         return None
-    cli_session_id = s["id"]
+    session_id = s["id"]
 
-    result = await _post("/api/spawn", {"sessionId": cli_session_id})
+    result = await _post("/api/spawn", {"sessionId": session_id})
     if "error" in result:
         print(f"[QQ Bridge] spawn worker failed: {result['error']}")
         return None
 
     bridge = BridgeSession(
         qq_user_id=qq_user_id,
-        cli_session_id=cli_session_id,
+        session_id=session_id,
         worker_id=result.get("workerId"),
     )
     _sessions[qq_user_id] = bridge
-    return cli_session_id
+    return session_id
 
 
 async def _send_and_wait(text: str, qq_user_id: str) -> str:
