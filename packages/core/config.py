@@ -30,7 +30,9 @@ DEFAULT_CONFIG: dict = {
         "always_thinking_enabled": False,
         "effort": "",
     },
-    # 服务端口（环境变量 CLICONDUCTOR_PORT 可覆盖）
+    # 前端模式："coexist"（默认，/ 旧前端 + /react/ React）、"react"（/ React）、"legacy"（仅旧前端）
+    "frontend": "coexist",
+    # 服务端口（环境变量 PAN_PORT 可覆盖）
     "port": 8767,
     # Remote 通道默认配置
     "remote": {

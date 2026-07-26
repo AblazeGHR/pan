@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from packages.core import worker
@@ -67,6 +67,15 @@ DATA_DIR = _PROJECT_DIR / "data"
 WORKDIRS_DIR = DATA_DIR / "workdirs"
 DASHBOARD_FILE = _WEB_DIR / "index.html"
 MOBILE_DASHBOARD_FILE = _WEB_DIR / "mobile.html"
+REACT_DIST_DIR = _WEB_DIR / "dist"
+REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
+
+# Production switch: config.json frontend 字段
+# "coexist"（默认）→ 旧前端 / + React /react/
+# "react" → React SPA /
+# "legacy" → 仅旧前端
+FRONTEND_MODE = load_config().get("frontend", "coexist")
+
 _MOBILE_UA_RE = re.compile(
     r"Mobile|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone|webOS",
     re.IGNORECASE,
@@ -282,6 +291,13 @@ async def favicon():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
+    # PAN_FRONTEND=react → serve React SPA at root
+    if FRONTEND_MODE == "react" and REACT_DIST_EXISTS:
+        return HTMLResponse(
+            content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-cache"},
+        )
+
     ua = request.headers.get("user-agent", "")
     if _MOBILE_UA_RE.search(ua):
         return HTMLResponse(
@@ -1188,6 +1204,31 @@ async def api_takeover(worker_id: str):
         "takeoverPid": w.takeover_pid,
         "status": "takeover started",
     }
+
+# ── React SPA (coexistence mode: /react/*) ──
+# Mount React at /react/ unless FRONTEND_MODE=legacy
+if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
+    react_name = (
+        "react"
+        if not app.routes or not any(
+            getattr(r, "name", "") == "react" for r in app.routes
+        )
+        else "react_v2"
+    )
+    app.mount(
+        f"/{react_name}",
+        StaticFiles(directory=str(REACT_DIST_DIR), html=True),
+        name=react_name,
+    )
+
+    @app.get(f"/{react_name}/{{full_path:path}}")
+    async def react_spa_fallback(full_path: str):
+        """SPA fallback: return index.html for any /react/* path not matching a file."""
+        file_path = REACT_DIST_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(REACT_DIST_DIR / "index.html")
+
 
 # ── Static files ──
 STATIC_DIR = _WEB_DIR / "static"
