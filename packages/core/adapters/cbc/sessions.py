@@ -6,6 +6,7 @@ parses JSONL transcripts into CLIConductor history format.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -21,13 +22,56 @@ def _project_dir(project_cwd: str | None) -> Path:
     """
     base = Path(os.path.expanduser("~/.codebuddy/projects"))
     if project_cwd:
-        # match cbc's sanitization: strip drive colon, lowercase,
-        # replace \\ and / with -, collapse multiple -
-        sanitized = project_cwd.replace(":", "").lower()
-        sanitized = sanitized.replace("\\", "-").replace("/", "-")
-        sanitized = re.sub(r"-+", "-", sanitized).strip("-")
+        sanitized = sanitize_project_dir_name(project_cwd)
         return base / sanitized
     return base
+
+
+def sanitize_project_dir_name(cwd: str) -> str:
+    """Mirror cbc's path-to-directory-name sanitization.
+
+    Produces the same result as cbc's internal sanitizer: strip drive
+    colon, lowercase, replace ``\\`` and ``/`` with ``-``, collapse
+    consecutive ``-``, strip leading/trailing ``-``.
+
+    This is the canoncial implementation shared by ``_project_dir``,
+    ``server._sanitize_project_dir``, and any future callers.
+    """
+    p = cwd.replace(":", "").lower()
+    p = p.replace("\\", "-").replace("/", "-")
+    p = re.sub(r"-+", "-", p).strip("-")
+    return p
+
+
+@functools.lru_cache(maxsize=128)
+def _read_project_cwd(dir_name: str) -> str | None:
+    """Read the original cwd from the first JSONL event in a cbc project directory.
+
+    cbc sanitizes directory names by replacing ``\\`` and ``/`` with ``-``,
+    which is lossy when filenames already contain ``-``. To recover the real
+    path, we read the ``cwd`` field from any session's first event — cbc
+    stores it in every event regardless of type.
+
+    Cached via LRU so repeated scans of the same project dir are fast.
+    """
+    base = Path(os.path.expanduser("~/.codebuddy/projects"))
+    proj_dir = base / dir_name
+    if not proj_dir.is_dir():
+        return None
+    for entry in sorted(proj_dir.iterdir()):
+        if not entry.suffix == ".jsonl" or entry.stem == "agent":
+            continue
+        try:
+            with open(entry, encoding="utf-8") as f:
+                first_line = f.readline().strip()
+                if first_line:
+                    event = json.loads(first_line)
+                    cwd = event.get("cwd")
+                    if cwd:
+                        return cwd
+        except (json.JSONDecodeError, OSError):
+            continue
+    return None
 
 
 def list_cbc_sessions(project_cwd: str | None = None, *, project_dir: str | None = None) -> list[dict]:
@@ -218,16 +262,25 @@ def browse_cbc_tree(path: str = "", limit: int = 30, offset: int = 0, query: str
 
 
 def _parse_project_label(dir_name: str) -> tuple[str, str]:
-    """Extract drive letter and short label from sanitized project name.
+    """Extract drive letter and short label from a cbc project directory name.
 
-    e.g. d-project-CLIConductor → ("D:", "CLIConductor")
-         d-obisidian_plugin    → ("D:", "obisidian_plugin")
+    Uses the real ``cwd`` from JSONL when available; falls back to
+    heuristic splitting.
     """
+    cwd = _read_project_cwd(dir_name)
+    if cwd:
+        drive = cwd[:2].upper()  # e.g. "D:"
+        # Short label: drive-relative path, or just last component
+        rel = cwd[3:]  # strip "D:\"
+        parts = rel.replace("\\", "/").rstrip("/").split("/")
+        short_label = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else rel)
+        return drive, short_label
+
+    # Fallback heuristic
     parts = dir_name.split("-")
     if not parts:
         return ("", dir_name)
     drive = parts[0].upper() + ":"
-    # Take everything after the drive letter as the short label
     short_label = "-".join(parts[1:]) if len(parts) >= 2 else dir_name
     if not short_label:
         short_label = dir_name
@@ -235,17 +288,23 @@ def _parse_project_label(dir_name: str) -> tuple[str, str]:
 
 
 def _project_dir_to_path(dir_name: str) -> str:
-    """Reverse cbc's sanitization to create a reasonable path hint.
+    """Reverse cbc's sanitization to produce a filesystem path.
 
-    e.g. d-project-CLIConductor → D:/project/CLIConductor (best guess).
+    Uses the real ``cwd`` recorded in a session JSONL as the primary source.
+    Falls back to heuristic parsing when no session files are available
+    (e.g. a project dir that was just created but has no JSONL yet).
     """
+    cwd = _read_project_cwd(dir_name)
+    if cwd:
+        return cwd
+
+    # Fallback: heuristic reverse-engineering (lossy for paths containing '-')
     parts = dir_name.split("-")
     if not parts:
         return ""
-    # Reconstruct: first part starts with drive letter, rest join with /
-    drive = parts[0] + ":"  # e.g. "d:"
-    rest = "/".join(parts[1:])
-    return (drive + "/" + rest).upper()
+    drive = parts[0] + ":"
+    rest = "\\".join(parts[1:])
+    return (drive + "\\" + rest).upper()
 
 
 def project_dir_to_path(dir_name: str) -> str | None:

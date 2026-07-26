@@ -105,7 +105,7 @@ async def _read_stdout(w: Worker):
             s = _session(w)
             if s:
                 sid = adapter.extract_session_id(event)
-                if sid:
+                if sid and not s.cli_session_id:
                     s.cli_session_id = sid
                 model = adapter.extract_model(event)
                 if model and not s.model:
