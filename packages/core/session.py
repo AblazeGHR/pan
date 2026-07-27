@@ -289,17 +289,20 @@ def accumulate_raw_usage(existing: dict | None, entries: list[dict]) -> dict:
 def compute_total_usage(raw_usage: dict | None) -> dict | None:
     """从按模型累加的 raw_usage 汇总累计消耗。
 
-    返回 {"prompt_tokens": int, "cache_hit_tokens": int, "cache_miss_tokens": int, "credit": float}
+    返回 {"prompt_tokens": int, "cache_hit_tokens": int, "cache_miss_tokens": int,
+          "completion_tokens": int, "credit": float}
     或 None（raw_usage 为空时）。
     """
     if not raw_usage:
         return None
-    total = {"prompt_tokens": 0, "cache_hit_tokens": 0, "cache_miss_tokens": 0, "credit": 0.0}
+    total = {"prompt_tokens": 0, "cache_hit_tokens": 0, "cache_miss_tokens": 0,
+             "completion_tokens": 0, "credit": 0.0}
     for entry in raw_usage.values():
         ru = entry.get("rawUsage", {})
         total["prompt_tokens"] += ru.get("prompt_tokens", 0)
         total["cache_hit_tokens"] += ru.get("prompt_cache_hit_tokens", 0)
         total["cache_miss_tokens"] += ru.get("prompt_cache_miss_tokens", 0)
+        total["completion_tokens"] += ru.get("completion_tokens", 0)
         total["credit"] += ru.get("credit", 0)
     return total
 
