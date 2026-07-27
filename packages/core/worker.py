@@ -607,6 +607,22 @@ def find_worker_by_session(session_id: str) -> Worker | None:
     return None
 
 
+def find_alive_worker_by_session(session_id: str) -> Worker | None:
+    """Like find_worker_by_session, but only returns workers whose OS process
+    is still alive (returncode is None).
+
+    A worker in the `workers` dict can have a dead process in the brief window
+    between process exit and `_read_stdout` popping it. Also, `status` only
+    equals "running" during active message processing — an idle worker (alive
+    process, waiting for input) has status "idle" but should still be preserved
+    by reimport. Checking `returncode is None` is the robust liveness test.
+    """
+    w = find_worker_by_session(session_id)
+    if w and w.process and w.process.returncode is None:
+        return w
+    return None
+
+
 async def shutdown_all():
     """关闭所有 worker 的 cbc 进程树 + takeover 终端。
 
