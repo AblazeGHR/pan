@@ -29,9 +29,6 @@ interface SessionStore {
   sessionUnread: Record<string, Set<string>>;
   rendering: boolean;
 
-  // Derived (kept in sync via subscribe)
-  currentSession: Session | null;
-
   // Actions
   loadSessions: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
@@ -72,7 +69,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   inputDrafts: {},
   sessionUnread: {},
   rendering: false,
-  currentSession: null,
 
   loadSessions: async () => {
     try {
@@ -420,17 +416,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 }));
 
-// Auto-derive currentSession from sessions + currentSessionId.
-// (A plain getter would be killed by Zustand's Object.assign in set().)
-let _deriving = false;
-useSessionStore.subscribe((state) => {
-  if (_deriving) return;
-  const expected = state.currentSessionId
-    ? state.sessions.find((s) => s.id === state.currentSessionId) ?? null
-    : null;
-  if (expected !== state.currentSession) {
-    _deriving = true;
-    useSessionStore.setState({ currentSession: expected });
-    _deriving = false;
-  }
-});
+// Custom hook: derive currentSession from sessions + currentSessionId.
+// We cannot use a getter (killed by Zustand's Object.assign) nor a
+// subscribe+setState pattern (triggers React #185 nested-update guard).
+// Instead, each consumer calls this hook which uses a pure Zustand selector.
+export function useCurrentSession() {
+  return useSessionStore((s) =>
+    s.currentSessionId
+      ? s.sessions.find((session) => session.id === s.currentSessionId) ?? null
+      : null,
+  );
+}

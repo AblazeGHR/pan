@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useUIStore } from '@/stores/uiStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +10,7 @@ export function SettingsPanel() {
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const toggleSettings = useUIStore((s) => s.toggleSettings);
   const showToast = useUIStore((s) => s.showToast);
-  const session = useSessionStore((s) => s.currentSession);
+  const session = useCurrentSession();
   const currentWorkerId = useWorkerStore((s) => s.currentWorkerId);
 
   const config = useAdapterStore((s) => s.getConfig());
