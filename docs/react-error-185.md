@@ -1,6 +1,7 @@
 # React #185 诊断文档
 
-> 最后更新：2026-07-27
+> 最后更新：2026-07-28
+> **状态：根因已定位并修复。**
 
 ## 问题描述
 
@@ -15,7 +16,37 @@
 
 ## 根因定位现状
 
-**尚未定位到的根因。** 5 轮修复消除了已知缺陷，但 #185 仍然存在。
+**已定位（2026-07-28）。** 前 5 轮修复都在盯 `useVirtualizer`，但真正根因在 Zustand selector 返回不稳定引用。
+
+### 真正的根因
+
+`ToolGroup.tsx:61` 和 `ThinkingBlock.tsx:11` 都使用：
+
+```tsx
+const unread = useSessionStore((s) => s.getUnread());
+```
+
+而 `sessionStore.ts` 的 `getUnread()` 在无未读时返回 `new Set()`——**每次调用都是新引用**：
+
+```ts
+// 旧代码（BUG）
+getUnread: () => {
+  const { currentSessionId, sessionUnread } = get();
+  if (!currentSessionId) return new Set();        // ← 不稳定
+  return sessionUnread[currentSessionId] ?? new Set();  // ← 不稳定
+}
+```
+
+Zustand v5 底层用 `useSyncExternalStore`，对 selector 返回值做 `Object.is` 比较。新 `Set()` 每次都是不同引用 → 永远判定为"变化" → 触发重渲染 → 重渲染时 selector 又返回新 `Set()` → 无限循环 → React #185。
+
+### 为什么只触发于长 session
+
+长 session（`historyTruncated=true`）的最近 50 条消息里几乎必然包含 assistant 的 `tool_use` / `thinking` 块 → 渲染 `ToolGroup` / `ThinkingBlock` → 触发不稳定的 selector。短 session 通常是简单 Q&A，没有 tool/thinking 消息，不渲染这些组件，所以不触发。**与消息数量无关，与是否含 tool/thinking 消息有关**——长 session 只是更强相关。
+
+### 修复（2026-07-28）
+
+1. **`sessionStore.ts`**：新增模块级常量 `EMPTY_UNREAD_SET`，`getUnread()` 改为返回它，保证引用稳定。
+2. **`sessionStore.ts`**：`selectSession` 中移除 `historyLoading: needsOlder`（R3 引入）和随后的 `loadOlderMessages()` 调用。R3 的 `historyLoading: needsOlder` 本意是阻塞 scroll handler，但它也让 `loadOlderMessages()` 的自身 guard 直接 return（no-op），导致 `historyLoading` 永远卡在 true、"Loading older messages..." 永远显示、滚动加载也被阻塞。scroll handler 的 150ms 防抖 + `scrollToBottom()` 已足够防止 session 切换时的误触发。
 
 ## 关键数据流
 
