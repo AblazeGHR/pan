@@ -5,6 +5,7 @@ import { SessionList } from '@/components/session/SessionList';
 import { NewSessionModal } from '@/components/session/NewSessionModal';
 import { ImportModal } from '@/components/session/ImportModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
+import { NavLink } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 
 export function Sidebar() {
@@ -49,6 +50,34 @@ export function Sidebar() {
       <div className="px-3 py-2 border-b border-border-muted">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg font-bold text-text-primary">Pan</h1>
+        </div>
+        {/* View navigation */}
+        <div className="flex gap-1 mb-2">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `flex-1 text-center py-1 text-xs rounded transition-colors ${
+                isActive
+                  ? 'bg-accent/20 text-accent font-medium'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+              }`
+            }
+          >
+            Chat
+          </NavLink>
+          <NavLink
+            to="/editor"
+            className={({ isActive }) =>
+              `flex-1 text-center py-1 text-xs rounded transition-colors ${
+                isActive
+                  ? 'bg-accent/20 text-accent font-medium'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+              }`
+            }
+          >
+            Editor
+          </NavLink>
         </div>
         <div className="flex gap-1">
           <Button

@@ -178,6 +178,10 @@ def _check_session_name(name: str) -> str | None:
 
 _WORKDIR_NAME_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
 
+# ── file-system api constants ──
+_HIDDEN_ENTRIES = {".git", ".venv", "node_modules", "__pycache__", ".codebuddy"}
+_MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MiB
+
 # Reserved for future path restriction
 _ALLOWED_WORKDIR_ROOTS: list[Path] | None = None
 
@@ -210,6 +214,18 @@ def _resolve_workdir(workdir_name: str) -> Path:
     workdir = WORKDIRS_DIR / workdir_name
     workdir.mkdir(parents=True, exist_ok=True)
     return workdir
+
+
+def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
+    """Resolve a relative path within a session's workdir, rejecting escapes."""
+    s = sess.get(session_id)
+    if not s or not s.workdir:
+        raise ValueError("session has no workdir")
+    root = Path(s.workdir).resolve()
+    target = (root / rel_path).resolve()
+    # raises ValueError if rel_path (after resolving .. etc.) escapes root
+    target.relative_to(root)
+    return target
 
 
 def _build_session_params(data: dict) -> dict:
@@ -1204,6 +1220,129 @@ async def api_takeover(worker_id: str):
         "takeoverPid": w.takeover_pid,
         "status": "takeover started",
     }
+
+# ── File-system operations ──
+
+@app.get("/api/fs/list")
+async def api_fs_list(session_id: str, path: str = "", include_hidden: bool = False):
+    """List files/dirs under a path within the session's workdir."""
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    if not target.is_dir():
+        return {"error": f"Not a directory: {path!r}"}
+    try:
+        entries = []
+        for entry in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            if entry.name.startswith("."):
+                if not include_hidden:
+                    continue
+                if entry.name in _HIDDEN_ENTRIES:
+                    continue
+            stat = entry.stat()
+            entries.append({
+                "name": entry.name,
+                "type": "dir" if entry.is_dir() else "file",
+                "size": stat.st_size if entry.is_file() else 0,
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            })
+        return {"entries": entries}
+    except PermissionError:
+        return {"error": f"Permission denied: {path!r}"}
+
+
+@app.get("/api/fs/read")
+async def api_fs_read(session_id: str, path: str = ""):
+    """Read file contents within the session's workdir."""
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    if not target.is_file():
+        return {"error": f"Not a file: {path!r}"}
+    if target.stat().st_size > _MAX_FILE_BYTES:
+        return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
+    try:
+        content = target.read_text(encoding="utf-8")
+        return {"content": content, "size": len(content)}
+    except UnicodeDecodeError:
+        return {"error": "Cannot read binary file"}
+    except PermissionError:
+        return {"error": f"Permission denied: {path!r}"}
+
+
+@app.post("/api/fs/write")
+async def api_fs_write(data: dict):
+    """Write content to a file within the session's workdir (atomic write)."""
+    session_id = data.get("session_id")
+    path = data.get("path", "")
+    content = data.get("content", "")
+    if not session_id:
+        return {"error": "session_id required"}
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # atomic: write to temp then replace
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(str(tmp), str(target))
+        return {"path": path, "size": len(content)}
+    except PermissionError:
+        return {"error": f"Permission denied: {path!r}"}
+
+
+@app.post("/api/fs/rename")
+async def api_fs_rename(data: dict):
+    """Rename a file or directory within the session's workdir."""
+    session_id = data.get("session_id")
+    frm = data.get("from", "")
+    to = data.get("to", "")
+    if not session_id:
+        return {"error": "session_id required"}
+    if not frm:
+        return {"error": "from path required"}
+    if not to:
+        return {"error": "to path required"}
+    try:
+        src = _resolve_fs_path(session_id, frm)
+        dst = _resolve_fs_path(session_id, to)
+    except ValueError as e:
+        return {"error": str(e)}
+    try:
+        os.replace(str(src), str(dst))
+        return {"from": frm, "to": to}
+    except PermissionError:
+        return {"error": f"Permission denied"}
+    except OSError as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/fs/delete")
+async def api_fs_delete(data: dict):
+    """Delete a file or empty directory within the session's workdir."""
+    session_id = data.get("session_id")
+    path = data.get("path", "")
+    if not session_id:
+        return {"error": "session_id required"}
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    if not target.exists():
+        return {"error": f"Not found: {path!r}"}
+    try:
+        if target.is_dir():
+            target.rmdir()  # only deletes empty dirs — safety
+        else:
+            target.unlink()
+        return {"path": path, "deleted": True}
+    except OSError as e:
+        return {"error": str(e)}
+
 
 # ── React SPA (coexistence mode: /react/*) ──
 # Mount React at /react/ unless FRONTEND_MODE=legacy
