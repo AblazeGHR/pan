@@ -31,7 +31,7 @@ export default function EditorView() {
 
   return (
     <div className="flex h-full">
-      <FileTree sessionId={currentSession.id} workdir={currentSession.workdir} />
+      <FileTree workdir={currentSession.workdir} />
       <EditorPane />
     </div>
   );

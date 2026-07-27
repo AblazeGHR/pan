@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import type { FileNode, FsEntry } from '@/types';
+import type { FileNode } from '@/types';
 import { listFiles, readFile, writeFile, renameFs, deleteFs } from '@/services/api';
-import type * as Monaco from 'monaco-editor';
 
-// Module-level ref for Monaco model disposal on tab close
-let monacoRef: typeof Monaco | null = null;
-export function setMonacoRef(m: typeof Monaco) {
+// Module-level ref for Monaco model disposal on tab close.
+// Type is 'any' because monaco-editor is loaded dynamically via @monaco-editor/react.
+let monacoRef: any = null;
+export function setMonacoRef(m: any) {
   monacoRef = m;
 }
 
@@ -85,7 +85,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   dirty: new Set(),
   contents: {},
 
-  setRoot: async (sessionId: string, workdir: string) => {
+  setRoot: async (sessionId: string, _workdir: string) => {
     set({ sessionId, treeLoading: true, tree: [], expanded: new Set(), selectedPath: null });
     try {
       const rootNodes = await fetchTree(sessionId, '', '');
@@ -158,7 +158,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   openFile: async (path: string) => {
-    const { sessionId, openPaths, contents } = get();
+    const { sessionId, openPaths } = get();
     if (!sessionId) return;
 
     set({ selectedPath: path });
@@ -193,7 +193,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         // Activate nearest tab
         const idx = s.openPaths.indexOf(path);
         if (newOpen.length > 0) {
-          newActive = newOpen[Math.min(idx, newOpen.length - 1)];
+          newActive = newOpen[Math.min(idx, newOpen.length - 1)] ?? null;
         } else {
           newActive = null;
         }

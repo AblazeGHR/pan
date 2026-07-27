@@ -1,8 +1,7 @@
-import { useRef, useCallback } from 'react';
-import Editor, { OnMount, BeforeMount } from '@monaco-editor/react';
-import { setMonacoRef, useEditorStore } from '@/stores/editorStore';
-import { languageFromPath } from '@/stores/editorStore';
-import type * as Monaco from 'monaco-editor';
+import { useCallback } from 'react';
+import Editor from '@monaco-editor/react';
+import type { OnMount, BeforeMount } from '@monaco-editor/react';
+import { setMonacoRef, useEditorStore, languageFromPath } from '@/stores/editorStore';
 
 interface CodeEditorProps {
   path: string | null;
@@ -39,14 +38,12 @@ const beforeMount: BeforeMount = (monaco) => {
 };
 
 export function CodeEditor({ path, content }: CodeEditorProps) {
-  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const saveFile = useEditorStore((s) => s.saveFile);
   const markDirty = useEditorStore((s) => s.markDirty);
   const activePath = useEditorStore((s) => s.activePath);
 
   const handleMount: OnMount = useCallback(
     (editor, monaco) => {
-      editorRef.current = editor;
       setMonacoRef(monaco);
 
       // Register Ctrl+S

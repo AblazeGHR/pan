@@ -1,9 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import type { FileNode, FsEntry } from '@/types';
+import { useState, useRef, useEffect } from 'react';
+import type { FileNode } from '@/types';
 import { useEditorStore } from '@/stores/editorStore';
 
 interface FileTreeProps {
-  sessionId: string;
   workdir: string;
 }
 
@@ -18,7 +17,6 @@ function FileTreeItem({
   const selectedPath = useEditorStore((s) => s.selectedPath);
   const toggleDir = useEditorStore((s) => s.toggleDir);
   const openFile = useEditorStore((s) => s.openFile);
-  const setActive = useEditorStore((s) => s.setActive);
   const renameFile = useEditorStore((s) => s.renameFile);
   const deleteFile = useEditorStore((s) => s.deleteFile);
 
@@ -153,7 +151,7 @@ function FileTreeItem({
   );
 }
 
-export function FileTree({ sessionId, workdir }: FileTreeProps) {
+export function FileTree({ workdir }: FileTreeProps) {
   const tree = useEditorStore((s) => s.tree);
   const treeLoading = useEditorStore((s) => s.treeLoading);
   const refreshTree = useEditorStore((s) => s.refreshTree);
