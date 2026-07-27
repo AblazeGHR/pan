@@ -41,8 +41,4 @@ config.json
 # compiled from ts/app.ts — do not edit directly
 packages/web/static/js/app.js
 packages/web/static/js/app.js.map
-docs/
-archive/
-experiments/
-!docs/plans&overviews/
 packages/qq/.env
