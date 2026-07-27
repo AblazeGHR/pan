@@ -1,17 +1,25 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { FileTree } from '@/components/editor/FileTree';
 import { EditorPane } from '@/components/editor/EditorPane';
 
 export default function EditorView() {
   const currentSession = useSessionStore((s) => s.currentSession);
+  const { isMobile } = useMediaQuery();
+  const [treeOpen, setTreeOpen] = useState(false);
 
   useEffect(() => {
     if (currentSession?.id && currentSession?.workdir) {
       useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
     }
   }, [currentSession?.id, currentSession?.workdir]);
+
+  // Close tree when switching to desktop
+  useEffect(() => {
+    if (!isMobile) setTreeOpen(false);
+  }, [isMobile]);
 
   if (!currentSession) {
     return (
@@ -30,9 +38,16 @@ export default function EditorView() {
   }
 
   return (
-    <div className="flex h-full">
-      <FileTree workdir={currentSession.workdir} />
-      <EditorPane />
+    <div className="flex h-full relative">
+      <FileTree
+        workdir={currentSession.workdir}
+        isOpen={treeOpen}
+        onClose={() => setTreeOpen(false)}
+      />
+      <EditorPane
+        isMobile={isMobile}
+        onToggleTree={() => setTreeOpen((v) => !v)}
+      />
     </div>
   );
 }

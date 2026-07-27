@@ -4,6 +4,8 @@ import { useEditorStore } from '@/stores/editorStore';
 
 interface FileTreeProps {
   workdir: string;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 function FileTreeItem({
@@ -151,23 +153,42 @@ function FileTreeItem({
   );
 }
 
-export function FileTree({ workdir }: FileTreeProps) {
+export function FileTree({ workdir, isOpen, onClose }: FileTreeProps) {
   const tree = useEditorStore((s) => s.tree);
   const treeLoading = useEditorStore((s) => s.treeLoading);
   const refreshTree = useEditorStore((s) => s.refreshTree);
 
-  return (
-    <div className="w-60 h-full flex flex-col bg-bg-secondary border-r border-border-default flex-shrink-0">
+  const isOverlay = isOpen !== undefined;
+
+  const treeContent = (
+    <div
+      className={`h-full flex flex-col bg-bg-secondary border-r border-border-default ${
+        isOverlay
+          ? 'w-64 absolute inset-y-0 left-0 z-50 shadow-lg'
+          : 'w-60 flex-shrink-0'
+      }`}
+    >
       {/* Title bar */}
       <div className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider border-b border-border-default">
         <span>Files</span>
-        <button
-          className="hover:text-text-primary transition-colors"
-          onClick={() => refreshTree('')}
-          title="Refresh"
-        >
-          ↻
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="hover:text-text-primary transition-colors"
+            onClick={() => refreshTree('')}
+            title="Refresh"
+          >
+            ↻
+          </button>
+          {isOverlay && onClose && (
+            <button
+              className="hover:text-text-primary transition-colors ml-1"
+              onClick={onClose}
+              title="Close"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tree content */}
@@ -189,5 +210,27 @@ export function FileTree({ workdir }: FileTreeProps) {
         {workdir}
       </div>
     </div>
+  );
+
+  if (!isOverlay) return treeContent;
+
+  return (
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50"
+          onClick={onClose}
+        />
+      )}
+      {/* Sliding panel */}
+      <div
+        className={`absolute inset-y-0 left-0 z-50 transform transition-transform duration-200 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {treeContent}
+      </div>
+    </>
   );
 }
