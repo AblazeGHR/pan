@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<!--
+  MCP Apps Sandbox Proxy (io.modelcontextprotocol/ui, protocol 2026-01-26)
+
+  这是 @mcp-ui/client AppRenderer 要求 host 自供的「异源沙箱代理页」。
+  AppRenderer 不托管此页面 —— 必须由 host 在【与主页面不同的 origin】提供。
+
+  本仓库通过 remote-gateway 的独立沙箱端口/origin 提供（见 design 决策 2）。
+  本地开发 / 同端口部署时，浏览器仍把 srcdoc iframe 视为 opaque origin，
+  内层 iframe 与 host 不同源，满足规范的异源隔离要求。
+
+  职责（规范 §Sandbox Proxy）：
+  1. 加载后向 parent(host) 发送 `ui/notifications/sandbox-proxy-ready`
+  2. 收到 host 的 `ui/notifications/sandbox-resource-ready { html, sandbox?, csp?, permissions? }`
+     → 用 srcdoc 把 server HTML 装进内层 iframe，套用 sandbox 属性
+  3. 透明转发：除 `ui/notifications/sandbox-*` 外的所有 postMessage，
+     在 host ↔ 内层 iframe 之间双向中转
+-->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MCP Apps Sandbox</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+    #app { display: block; width: 100%; border: 0; }
+  </style>
+</head>
+<body>
+<script>
+(function () {
+  'use strict';
+
+  // 仅转发非 sandbox-* 控制消息（规范要求）
+  var SANDBOX_PROXY_READY = 'ui/notifications/sandbox-proxy-ready';
+  var SANDBOX_RESOURCE_READY = 'ui/notifications/sandbox-resource-ready';
+
+  var host = window.parent;
+  var hostOrigin = '*'; // host origin 在 cross-origin 场景未知，用 '*'；隔离由 iframe sandbox 保证
+  var inner = null;     // 内层 iframe（承载 server HTML）
+  var innerWindow = null;
+
+  function isSandboxControl(method) {
+    return typeof method === 'string' && method.indexOf('ui/notifications/sandbox-') === 0;
+  }
+
+  // host → 内层：转发（除 sandbox-* 控制消息）
+  function onHostMessage(ev) {
+    if (ev.source !== host) { return; }
+    var data = ev.data;
+    var method = data && data.method;
+
+    if (method === SANDBOX_RESOURCE_READY) {
+      loadResource(data.params || {});
+      return;
+    }
+    // 其余消息透明转发给内层 iframe
+    if (!isSandboxControl(method) && innerWindow) {
+      innerWindow.postMessage(data, '*');
+    }
+  }
+
+  // 内层 → host：转发（除 sandbox-* 控制消息）
+  function onInnerMessage(ev) {
+    if (!innerWindow || ev.source !== innerWindow) { return; }
+    var data = ev.data;
+    var method = data && data.method;
+    if (!isSandboxControl(method)) {
+      host.postMessage(data, hostOrigin);
+    }
+  }
+
+  // 收到 host 的 resource-ready：装载 server HTML 到内层 iframe
+  function loadResource(params) {
+    var html = typeof params.html === 'string' ? params.html : '';
+    // 规范默认；host 可经 params.sandbox 覆盖
+    var sandboxAttr = params.sandbox || 'allow-scripts allow-same-origin allow-forms';
+
+    if (inner) {
+      inner.remove();
+      inner = null;
+      innerWindow = null;
+    }
+
+    inner = document.createElement('iframe');
+    inner.id = 'app';
+    inner.setAttribute('sandbox', sandboxAttr);
+    inner.style.width = '100%';
+    inner.style.height = '100%';
+    inner.style.border = '0';
+
+    // CSP：若 host 传了 csp，注入 <meta http-equiv> 作为兜底
+    // （更安全的方式是代理服务器以 HTTP 头下发，此处为 srcdoc 场景的 fallback）
+    var cspMeta = buildCspMeta(params.csp);
+    var doc = cspMeta ? injectMetaIntoHtml(html, cspMeta) : html;
+
+    inner.srcdoc = doc;
+    document.body.appendChild(inner);
+    innerWindow = inner.contentWindow;
+  }
+
+  function buildCspMeta(csp) {
+    if (!csp || typeof csp !== 'object') { return ''; }
+    var connect = Array.isArray(csp.connectDomains) ? csp.connectDomains.join(' ') : '';
+    var resource = Array.isArray(csp.resourceDomains) ? csp.resourceDomains.join(' ') : '';
+    var directives = [
+      "default-src 'none'",
+      "script-src 'unsafe-inline' 'unsafe-eval' " + resource,
+      "style-src 'unsafe-inline' " + resource,
+      "img-src data: blob: " + resource,
+      "font-src data: " + resource,
+      "connect-src " + connect
+    ].join('; ');
+    return '<meta http-equiv="Content-Security-Policy" content="' + escapeAttr(directives) + '">';
+  }
+
+  function escapeAttr(s) {
+    return String(s).replace(/"/g, '&quot;');
+  }
+
+  function injectMetaIntoHtml(html, metaTag) {
+    if (/<head[^>]*>/i.test(html)) {
+      return html.replace(/<head([^>]*)>/i, '<head$1>' + metaTag);
+    }
+    if (/<html[^>]*>/i.test(html)) {
+      return html.replace(/<html([^>]*)>/i, '<html$1><head>' + metaTag + '</head>');
+    }
+    return metaTag + html;
+  }
+
+  window.addEventListener('message', function (ev) {
+    onHostMessage(ev);
+    onInnerMessage(ev);
+  });
+
+  // 告知 host：沙箱代理已就绪，可以发送 resource-ready
+  host.postMessage({ jsonrpc: '2.0', method: SANDBOX_PROXY_READY, params: {} }, hostOrigin);
+})();
+</script>
+</body>
+</html>
