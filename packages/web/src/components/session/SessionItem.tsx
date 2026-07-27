@@ -31,9 +31,7 @@ export function SessionItem({
 
   const handleClick = () => {
     if (isPending) return;
-    if (multiSelectMode && onSelect) {
-      onSelect();
-    }
+    onSelect?.();
   };
 
   return (
