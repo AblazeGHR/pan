@@ -1,18 +1,16 @@
 import { useRef, useCallback, useEffect } from 'react';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsClient } from '@/services/ws';
 
 export function InputRow() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const {
-    currentSessionId,
-    currentSession,
-    inputDrafts,
-    addMessage,
-    setInputDraft,
-  } = useSessionStore();
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const currentSession = useCurrentSession();
+  const inputDrafts = useSessionStore((s) => s.inputDrafts);
+  const addMessage = useSessionStore((s) => s.addMessage);
+  const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { startWorker } = useWorkerStore();
   const { showToast } = useUIStore();
 

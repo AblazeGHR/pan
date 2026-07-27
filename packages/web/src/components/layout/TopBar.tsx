@@ -1,11 +1,11 @@
-import { useSessionStore } from '@/stores/sessionStore';
+import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
 
 export function TopBar() {
-  const currentSession = useSessionStore((s) => s.currentSession);
+  const currentSession = useCurrentSession();
   const currentWorkerId = useWorkerStore((s) => s.currentWorkerId);
   const { settingsOpen, toggleSettings, showToast } = useUIStore();
   const { restart, killCurrent, interrupt, takeover } = useWorkerStore();

@@ -15,6 +15,11 @@ import type {
   SettingsBody,
   WorkerItem,
   ApiWorkerListResponse,
+  ApiFsListResponse,
+  ApiFsReadResponse,
+  ApiFsWriteResponse,
+  ApiFsGenericResponse,
+  FsEntry,
 } from '@/types';
 
 const BASE = '/api';
@@ -337,6 +342,72 @@ export async function reimportSession(
   const data = await request<ApiSessionResponse>(url, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── File-system operations ──
+
+export async function listFiles(
+  sessionId: string,
+  path: string = '',
+  includeHidden: boolean = false,
+): Promise<FsEntry[]> {
+  const params = new URLSearchParams({ session_id: sessionId, path });
+  if (includeHidden) params.set('include_hidden', 'true');
+  const data = await request<ApiFsListResponse>(
+    `${BASE}/fs/list?${params.toString()}`,
+  );
+  if (data.error) throw new Error(data.error);
+  return data.entries || [];
+}
+
+export async function readFile(
+  sessionId: string,
+  path: string,
+): Promise<string> {
+  const params = new URLSearchParams({ session_id: sessionId, path });
+  const data = await request<ApiFsReadResponse>(
+    `${BASE}/fs/read?${params.toString()}`,
+  );
+  if (data.error) throw new Error(data.error);
+  return data.content;
+}
+
+export async function writeFile(
+  sessionId: string,
+  path: string,
+  content: string,
+): Promise<ApiFsWriteResponse> {
+  const data = await request<ApiFsWriteResponse>(`${BASE}/fs/write`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, path, content }),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function renameFs(
+  sessionId: string,
+  from: string,
+  to: string,
+): Promise<ApiFsGenericResponse> {
+  const data = await request<ApiFsGenericResponse>(`${BASE}/fs/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, from, to }),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function deleteFs(
+  sessionId: string,
+  path: string,
+): Promise<ApiFsGenericResponse> {
+  const data = await request<ApiFsGenericResponse>(`${BASE}/fs/delete`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, path }),
   });
   if (data.error) throw new Error(data.error);
   return data;

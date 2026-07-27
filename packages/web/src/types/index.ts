@@ -232,6 +232,46 @@ export interface SettingsBody {
   effort?: string;
 }
 
+// ── File-system types ──
+
+export interface FsEntry {
+  name: string;
+  type: 'file' | 'dir';
+  size: number;
+  modified: string;
+}
+
+export interface FileNode extends FsEntry {
+  path: string;
+  children?: FileNode[];
+  expanded?: boolean;
+}
+
+export interface ApiFsListResponse {
+  entries: FsEntry[];
+  error?: string;
+}
+
+export interface ApiFsReadResponse {
+  content: string;
+  size: number;
+  error?: string;
+}
+
+export interface ApiFsWriteResponse {
+  path: string;
+  size: number;
+  error?: string;
+}
+
+export interface ApiFsGenericResponse {
+  error?: string;
+  from?: string;
+  to?: string;
+  path?: string;
+  deleted?: boolean;
+}
+
 // ── Worker info for store ──
 
 export interface WorkerInfo {
