@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
+import { useCurrentSession } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { FileTree } from '@/components/editor/FileTree';

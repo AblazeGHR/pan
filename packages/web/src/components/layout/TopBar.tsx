@@ -1,4 +1,4 @@
-import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
+import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
