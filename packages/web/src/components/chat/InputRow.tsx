@@ -95,12 +95,15 @@ export function InputRow() {
   };
 
   return (
-    <div className="border-t border-border-default bg-bg-primary p-3">
+    <div className="border-t border-border-default bg-bg-primary p-2 md:p-3">
       <div className="flex gap-2">
         <textarea
           ref={inputRef}
           placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
           rows={2}
+          enterKeyHint="send"
+          inputMode="text"
+          autoCapitalize="sentences"
           className="flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent"
           onKeyDown={handleKeyDown}
         />
