@@ -29,7 +29,7 @@ interface SessionStore {
   sessionUnread: Record<string, Set<string>>;
   rendering: boolean;
 
-  // Computed
+  // Derived (kept in sync via subscribe)
   currentSession: Session | null;
 
   // Actions
@@ -72,11 +72,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   inputDrafts: {},
   sessionUnread: {},
   rendering: false,
-
-  get currentSession() {
-    const { sessions, currentSessionId } = get();
-    return sessions.find((s) => s.id === currentSessionId) ?? null;
-  },
+  currentSession: null,
 
   loadSessions: async () => {
     try {
@@ -423,3 +419,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 }));
+
+// Auto-derive currentSession from sessions + currentSessionId.
+// (A plain getter would be killed by Zustand's Object.assign in set().)
+let _deriving = false;
+useSessionStore.subscribe((state) => {
+  if (_deriving) return;
+  const expected = state.currentSessionId
+    ? state.sessions.find((s) => s.id === state.currentSessionId) ?? null
+    : null;
+  if (expected !== state.currentSession) {
+    _deriving = true;
+    useSessionStore.setState({ currentSession: expected });
+    _deriving = false;
+  }
+});
