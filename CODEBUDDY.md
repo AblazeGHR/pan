@@ -10,8 +10,8 @@ The ONLY source file for the frontend is **`packages/web/ts/app.ts`** (TypeScrip
 ## Port Configuration
 
 Service port is configured in `config.json` (gitignored). Each branch has its own:
-- `main` branch → port `8767`
-- `test` branch → port `8768`
+- `main` branch → port `8768`
+- `test` branch → port `8767`
 
 `main.py` reads from `load_config().get("port")`. Environment variable `PAN_PORT` overrides.
 
