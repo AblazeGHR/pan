@@ -30,18 +30,18 @@ export function TopBar() {
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 border-b border-border-default bg-bg-primary gap-2 flex-wrap">
+    <div className="flex items-center justify-between pl-10 pr-3 md:pl-4 md:pr-4 py-2 border-b border-border-default bg-bg-primary gap-2 flex-wrap">
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-center gap-2">
           <WorkerDot status={status} />
-          <span className="text-sm font-medium text-text-primary truncate max-w-[200px]">
+          <span className="text-sm font-medium text-text-primary truncate max-w-[120px] md:max-w-[200px]">
             {currentSession.name || currentSession.id?.slice(0, 12)}
           </span>
         </div>
-        <span className="text-xs text-text-tertiary">
+        <span className="hidden md:inline text-xs text-text-tertiary">
           {currentSession.model || '?'}
         </span>
-        <div className="flex items-center gap-1 text-xs text-text-secondary">
+        <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">
           <span
             className="cursor-pointer hover:text-text-primary"
             onClick={() => handleCopy(currentSession.id || '')}
@@ -62,7 +62,7 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <span className="text-xs text-text-tertiary mr-1">
+        <span className="hidden md:inline text-xs text-text-tertiary mr-1">
           {status}
           {currentWorkerId ? ` (${currentWorkerId})` : ' (no worker)'}
         </span>

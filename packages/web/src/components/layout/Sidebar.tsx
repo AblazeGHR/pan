@@ -45,7 +45,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-60 min-w-[15rem] flex flex-col h-full border-r border-border-default bg-bg-secondary">
+    <aside className="w-60 max-w-[85vw] flex flex-col h-full border-r border-border-default bg-bg-secondary">
       {/* Header with New/Import buttons */}
       <div className="px-3 py-2 border-b border-border-muted">
         <div className="flex items-center justify-between mb-2">

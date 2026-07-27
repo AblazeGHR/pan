@@ -142,7 +142,7 @@ export function SettingsPanel() {
   const showEffort = showThinking && supportsSetting(config, 'effort') && alwaysThinking;
 
   return (
-    <div className="border-t border-border-default bg-bg-secondary p-4" role="region">
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-bg-primary p-4 pt-14 md:relative md:inset-auto md:z-auto md:border-t md:border-border-default md:bg-bg-secondary md:p-4" role="region">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-text-primary">Settings</h3>
         <Button variant="ghost" size="sm" onClick={toggleSettings}>
