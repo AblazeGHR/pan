@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { FileTree } from '@/components/editor/FileTree';
 import { EditorPane } from '@/components/editor/EditorPane';
 
 export default function EditorView() {
-  const currentSession = useSessionStore((s) => s.currentSession);
+  const currentSession = useCurrentSession();
   const { isMobile } = useMediaQuery();
   const [treeOpen, setTreeOpen] = useState(false);
 
