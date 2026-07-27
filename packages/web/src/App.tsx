@@ -27,6 +27,18 @@ function Layout() {
         </button>
       )}
 
+      {/* Mobile overlay — sibling of sidebar, BEHIND it (z-30 < z-40).
+          Previously this was nested INSIDE the sidebar container, which
+          placed it above the <aside> (z-auto) within the z-40 stacking
+          context — the gray backdrop covered the session list and blocked
+          taps. */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar — full overlay on mobile */}
       <div
         className={`${
@@ -38,13 +50,6 @@ function Layout() {
         }`}
       >
         <Sidebar />
-        {/* Mobile overlay */}
-        {isMobile && sidebarOpen && (
-          <div
-            className="fixed inset-0 z-30 bg-black/50"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
       </div>
 
       <main className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-10' : ''}`}>
