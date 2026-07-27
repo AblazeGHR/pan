@@ -6,13 +6,11 @@ const SCROLL_BOTTOM_THRESHOLD = 120;
 
 export function ChatMessages() {
   const parentRef = useRef<HTMLDivElement>(null);
-  const {
-    currentMessages,
-    hasMoreMessages,
-    historyLoading,
-    loadOlderMessages,
-    currentSessionId,
-  } = useSessionStore();
+  const currentMessages = useSessionStore((s) => s.currentMessages);
+  const hasMoreMessages = useSessionStore((s) => s.hasMoreMessages);
+  const historyLoading = useSessionStore((s) => s.historyLoading);
+  const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
 
   // Group messages: consecutive tool messages become ToolGroup
   const grouped = groupMessages(currentMessages);
@@ -46,7 +44,7 @@ export function ChatMessages() {
     if (isNearBottom()) {
       scrollToBottom();
     }
-  });
+  }, [currentMessages, isNearBottom, scrollToBottom]);
 
   // Lazy load older messages on scroll to top
   useEffect(() => {
@@ -61,8 +59,10 @@ export function ChatMessages() {
         if (el.scrollTop <= 200 && hasMoreMessages && !historyLoading) {
           const prevScroll = el.scrollHeight;
           loadOlderMessages().then(() => {
-            // Preserve scroll position
-            el.scrollTop = el.scrollHeight - prevScroll;
+            // Preserve scroll position after DOM has updated
+            requestAnimationFrame(() => {
+              el.scrollTop = el.scrollHeight - prevScroll;
+            });
           });
         }
       }, 150);
