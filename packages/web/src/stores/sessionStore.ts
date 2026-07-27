@@ -104,34 +104,38 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   selectSession: async (id: string) => {
     const { currentSessionId } = get();
 
-    set((s) => {
-      const currentInput = (
-        document.getElementById('chatInput') as HTMLInputElement | null
-      )?.value;
-      const newDrafts = { ...s.inputDrafts };
-      if (currentSessionId && currentInput?.trim()) {
-        newDrafts[currentSessionId] = currentInput;
-      } else if (currentSessionId) {
-        delete newDrafts[currentSessionId];
-      }
-      return { inputDrafts: newDrafts, currentSessionId: id };
-    });
+    // Save current draft before switching
+    let drafts = { ...get().inputDrafts };
+    const currentInput = (
+      document.getElementById('chatInput') as HTMLInputElement | null
+    )?.value;
+    if (currentSessionId && currentInput?.trim()) {
+      drafts[currentSessionId] = currentInput;
+    } else if (currentSessionId) {
+      const { [currentSessionId]: _, ...rest } = drafts;
+      drafts = rest;
+    }
 
     const session = get().sessions.find((s) => s.id === id);
     if (!session) return;
 
     const loaded = (session.history || []).length;
+    const needsOlder = !!session.historyTruncated;
+
+    // Single set — one render for session switch
     set({
+      currentSessionId: id,
+      inputDrafts: drafts,
       currentMessages: session.history || [],
-      hasMoreMessages: !!session.historyTruncated,
-      historyLoading: false,
+      hasMoreMessages: needsOlder,
+      historyLoading: needsOlder,  // Block scroll handler during auto-load
       historyLoadEnd: Math.max(
         0,
         (session.historyTotal ?? loaded) - loaded,
       ),
     });
 
-    if (session.historyTruncated) {
+    if (needsOlder) {
       get().loadOlderMessages();
     }
   },

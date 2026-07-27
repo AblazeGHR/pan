@@ -96,7 +96,6 @@ export function ChatMessages() {
       <div
         ref={parentRef}
         className="flex-1 overflow-auto"
-        style={{ contain: 'strict' }}
       >
         <div
           style={{
