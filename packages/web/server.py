@@ -935,6 +935,18 @@ async def api_cbc_sessions_import(data: dict):
 
     if existing:
         w = worker.find_worker_by_session(existing.id)
+        if w and w.status == "running":
+            # Worker is running — update history/usage in-place without disruption.
+            existing.history = history
+            existing.raw_usage = raw_usage
+            existing.total_usage = total_usage
+            # Do NOT reset last_result — the worker is still in flight.
+            sess.save(existing)
+            await broadcast({
+                "type": "session.updated",
+                "sessionId": existing.id,
+            })
+            return _session_to_api(existing)
         if w:
             await worker.kill_worker(w.worker_id)
         existing.history = history
@@ -1017,6 +1029,18 @@ async def api_kimi_sessions_import(data: dict):
 
     if existing:
         w = worker.find_worker_by_session(existing.id)
+        if w and w.status == "running":
+            # Worker is running — update history/usage in-place without disruption.
+            existing.history = history
+            existing.raw_usage = raw_usage
+            existing.total_usage = total_usage
+            # Do NOT reset last_result — the worker is still in flight.
+            sess.save(existing)
+            await broadcast({
+                "type": "session.updated",
+                "sessionId": existing.id,
+            })
+            return _session_to_api(existing)
         if w:
             await worker.kill_worker(w.worker_id)
         existing.history = history
