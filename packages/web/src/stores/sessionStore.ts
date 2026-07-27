@@ -57,6 +57,12 @@ interface SessionStore {
   clearUnread: () => void;
 }
 
+// Stable empty Set returned by getUnread() when there are no unread items.
+// MUST be a shared reference — returning `new Set()` each call would make
+// `useSessionStore((s) => s.getUnread())` an unstable selector, which
+// (via useSyncExternalStore) triggers infinite re-renders → React #185.
+const EMPTY_UNREAD_SET: Set<string> = new Set();
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   currentSessionId: null,
@@ -122,22 +128,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const loaded = (session.history || []).length;
     const needsOlder = !!session.historyTruncated;
 
-    // Single set — one render for session switch
+    // Single set — one render for session switch.
+    // NOTE: do NOT set historyLoading=true here. Previously this blocked the
+    // scroll-handler lazy-load race, but it also made the subsequent
+    // loadOlderMessages() call a no-op (its own guard sees historyLoading=true
+    // and returns), leaving the "Loading older messages..." indicator stuck
+    // forever and breaking scroll-up lazy loading. The scroll handler's 150ms
+    // debounce plus scrollToBottom() in ChatMessages is enough to prevent
+    // spurious loads on session switch.
     set({
       currentSessionId: id,
       inputDrafts: drafts,
       currentMessages: session.history || [],
       hasMoreMessages: needsOlder,
-      historyLoading: needsOlder,  // Block scroll handler during auto-load
+      historyLoading: false,
       historyLoadEnd: Math.max(
         0,
         (session.historyTotal ?? loaded) - loaded,
       ),
     });
-
-    if (needsOlder) {
-      get().loadOlderMessages();
-    }
   },
 
   loadOlderMessages: async () => {
@@ -390,8 +399,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   getUnread: () => {
     const { currentSessionId, sessionUnread } = get();
-    if (!currentSessionId) return new Set();
-    return sessionUnread[currentSessionId] ?? new Set();
+    if (!currentSessionId) return EMPTY_UNREAD_SET;
+    return sessionUnread[currentSessionId] ?? EMPTY_UNREAD_SET;
   },
 
   markUnread: (content: string) => {
