@@ -122,6 +122,47 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* ── Kimi-style prose ── */
+
+.prose-kimi {
+  font: 400 15px/1.6 var(--font-sans);
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+.prose-kimi > * + * { margin-top: 0.8rem; }
+.prose-kimi h1 { font-size: 18px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; border-bottom: 1px solid var(--color-border-default); padding-bottom: 4px; }
+.prose-kimi h2 { font-size: 17px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; }
+.prose-kimi h3 { font-size: 16px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; }
+.prose-kimi h4 { font-size: 16px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; color: var(--color-text-secondary); }
+.prose-kimi p { margin: 0.8rem 0; }
+.prose-kimi blockquote { margin: 0.5em 0; padding: 4px 12px; border-left: 3px solid var(--color-border-default); color: var(--color-text-secondary); }
+.prose-kimi ul, .prose-kimi ol { padding-left: 1.4em; margin: 0.6em 0; }
+.prose-kimi li { margin: 0.3em 0; }
+.prose-kimi hr { border: none; border-top: 1px solid var(--color-border-default); margin: 0.8em 0; }
+.prose-kimi a { color: #1783ff; text-decoration: none; }
+.prose-kimi a:hover { text-decoration: underline; }
+.prose-kimi strong { font-weight: 700; }
+.prose-kimi code { font: 0.9em var(--font-mono); padding: 0 4px; border-radius: 6px; }
+.prose-kimi table { font-size: 16px; margin: 0.5em 0; }
+.prose-kimi th { font-weight: 500; }
+.prose-kimi th, .prose-kimi td { text-align: left; vertical-align: top; }
+
+/* Light theme specific */
+.prose-kimi code { background: #f3f5f8; }
+[data-theme="dark"] .prose-kimi code { background: #282828; }
+
+/* Inline code — color via highlight.js already handles it */
+.prose-kimi pre {
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font: 13px/1.65 var(--font-mono);
+  box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+  margin: 0.6em 0;
+}
+[data-theme="light"] .prose-kimi pre { background: #f3f5f8; }
+[data-theme="dark"] .prose-kimi pre { background: #282828; }
+
 /* ── Message entrance animations ── */
 
 @keyframes msg-in {

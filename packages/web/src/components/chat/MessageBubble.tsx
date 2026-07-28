@@ -38,7 +38,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <div className="max-w-[78%] bg-accent/15 border border-accent/30 px-[15px] py-[11px] rounded-tl-[16px] rounded-tr-[16px] rounded-bl-[6px] rounded-br-[16px]">
           <MarkdownRenderer
             content={message.content}
-            className="prose prose-sm max-w-none break-words"
+            className="text-sm"
           />
         </div>
       </div>

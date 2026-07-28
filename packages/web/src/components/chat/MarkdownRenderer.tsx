@@ -108,7 +108,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
   if (!content) return null;
 
   return (
-    <div className={`prose prose-base max-w-none break-words ${className}`}>
+    <div className={`prose-kimi max-w-none break-words ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight, rehypeKatex]}
