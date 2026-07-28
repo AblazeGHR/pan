@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, CircleCheck, CircleX, Loader2, Wrench } from 'lucide-react';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useDetailStore } from '@/stores/detailStore';
 
 interface ToolGroupProps {
   items: Message[];
@@ -117,6 +118,20 @@ export function ToolGroup({ items }: ToolGroupProps) {
   const tools = items.map((t) => parseTool(t.content));
   const hasUnread = items.some((t) => unread.has(t.content));
 
+  const handleToolClick = (idx: number, tool: ToolInfo) => {
+    // Open detail panel for this tool
+    const detail = useDetailStore.getState();
+    detail.openDetail({ type: 'tool', content: tool.rawContent, title: tool.name });
+
+    // Keep existing expand/collapse behavior
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
   const toggleTool = (idx: number) => {
     setExpandedTools((prev) => {
       const next = new Set(prev);
@@ -152,7 +167,7 @@ export function ToolGroup({ items }: ToolGroupProps) {
 
               {/* Tool Row */}
               <div
-                onClick={() => toggleTool(i)}
+                onClick={() => handleToolClick(i, tool)}
                 className="flex items-center gap-2 min-h-[30px] px-3 cursor-pointer hover:bg-bg-hover/30 transition-colors select-none"
               >
                 <StatusIcon status={tool.status} />

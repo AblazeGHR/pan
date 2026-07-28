@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useDetailStore } from '@/stores/detailStore';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ThinkingBlockProps {
@@ -21,6 +22,12 @@ export function ThinkingBlock({ message }: ThinkingBlockProps) {
   }, [isOpen, hasUnread, message.content]);
 
   const toggle = () => {
+    const detail = useDetailStore.getState();
+    if (detail.detailTarget?.content === message.content) {
+      detail.closeDetail(); // toggle off
+    } else {
+      detail.openDetail({ type: 'thinking', content: message.content, title: 'Thinking' });
+    }
     setIsOpen(!isOpen);
   };
 
