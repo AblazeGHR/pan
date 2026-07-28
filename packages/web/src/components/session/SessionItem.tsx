@@ -88,7 +88,7 @@ export function SessionItem({
         <div className="flex items-center gap-2 mt-1 text-xs text-text-secondary">
           <span className="flex items-center gap-0.5">
             <MessageSquare size={10} />
-            {messages.length}
+            {session.historyTotal ?? messages.length}
           </span>
           {session.model && (
             <span className="flex items-center gap-0.5 truncate">
