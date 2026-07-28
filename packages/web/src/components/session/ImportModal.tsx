@@ -197,7 +197,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
 
   // ── Render ──
   return (
-    <Modal open={open} onClose={onClose} title="Import Session">
+    <Modal open={open} onClose={onClose} title="Import Session" size="lg">
       <div className="flex flex-col gap-4">
         {/* Adapter selector */}
         <div className="flex gap-1 rounded border border-border-muted bg-bg-tertiary p-0.5">

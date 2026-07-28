@@ -6,9 +6,17 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   className?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export function Modal({ open, onClose, title, children, className = '' }: ModalProps) {
+const sizeClasses: Record<string, string> = {
+  sm: 'max-w-sm',
+  md: 'max-w-lg',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+};
+
+export function Modal({ open, onClose, title, children, className = '', size = 'md' }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,7 +39,7 @@ export function Modal({ open, onClose, title, children, className = '' }: ModalP
       }}
     >
       <div
-        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl max-w-lg w-full mx-4 ${className}`}
+        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full mx-4 max-h-[85vh] flex flex-col overflow-hidden ${sizeClasses[size]} ${className}`}
       >
         {title && (
           <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
@@ -44,7 +52,7 @@ export function Modal({ open, onClose, title, children, className = '' }: ModalP
             </button>
           </div>
         )}
-        <div className="p-4">{children}</div>
+        <div className="p-4 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );
