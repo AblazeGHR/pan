@@ -142,16 +142,47 @@ body {
 .prose-kimi a { color: #1783ff; text-decoration: none; }
 .prose-kimi a:hover { text-decoration: underline; }
 .prose-kimi strong { font-weight: 700; }
-.prose-kimi code { font: 0.9em var(--font-mono); padding: 0 4px; border-radius: 6px; }
-.prose-kimi table { font-size: 16px; margin: 0.5em 0; }
-.prose-kimi th { font-weight: 500; }
-.prose-kimi th, .prose-kimi td { text-align: left; vertical-align: top; }
 
-/* Light theme specific */
-.prose-kimi code { background: #f3f5f8; }
-[data-theme="dark"] .prose-kimi code { background: #282828; }
+/* Images */
+.prose-kimi img { max-width: 100%; height: auto; min-width: 0; min-height: 0; border-radius: 6px; }
 
-/* Inline code — color via highlight.js already handles it */
+/* Keyboard shortcut */
+.prose-kimi kbd { font: 0.85em var(--font-mono); padding: 1px 5px; border: 1px solid var(--color-border-default); border-radius: 4px; box-shadow: 0 1px 0 var(--color-border-default); }
+
+/* Inline code */
+.prose-kimi :not(pre) > code {
+  font: 0.9em var(--font-mono);
+  padding: 0 4px;
+  border-radius: 6px;
+  background: #f3f5f8;
+}
+[data-theme="dark"] .prose-kimi :not(pre) > code { background: #282828; }
+
+/* Tables — Kimi-style bordered with header */
+.prose-kimi table {
+  font-size: 16px;
+  margin: 0.5em 0;
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+.prose-kimi thead { border-bottom: 2px solid var(--color-border-default); }
+.prose-kimi th {
+  font-weight: 500;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-default);
+  white-space: nowrap;
+}
+.prose-kimi td {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-default);
+}
+[data-theme="light"] .prose-kimi th { background: #fafbfc; }
+[data-theme="dark"] .prose-kimi th { background: #222222; }
+
+/* Standalone pre (non-code-block <pre>) */
 .prose-kimi pre {
   border: 1px solid var(--color-border-default);
   border-radius: 8px;
@@ -159,6 +190,7 @@ body {
   font: 13px/1.65 var(--font-mono);
   box-shadow: 0 1px 2px rgba(16,24,40,0.04);
   margin: 0.6em 0;
+  overflow-x: auto;
 }
 [data-theme="light"] .prose-kimi pre { background: #f3f5f8; }
 [data-theme="dark"] .prose-kimi pre { background: #282828; }
