@@ -1,6 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
+/* ── Design tokens ── */
+
 @theme {
+  /* Dark theme (default) */
   --color-bg-primary: #0d1117;
   --color-bg-secondary: #161b22;
   --color-bg-tertiary: #21262d;
@@ -15,4 +19,96 @@
   --color-success: #3fb950;
   --color-warning: #d29922;
   --color-danger: #f85149;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* Radii */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-panel: 0 4px 12px rgba(0,0,0,0.15);
+  --shadow-dropdown: 0 8px 24px rgba(0,0,0,0.2);
+
+  /* Font */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+}
+
+/* ── Light theme overrides ── */
+
+[data-theme="light"] {
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f6f8fa;
+  --color-bg-tertiary: #e8eaed;
+  --color-bg-hover: #e0e2e5;
+  --color-text-primary: #1f2328;
+  --color-text-secondary: #656d76;
+  --color-text-tertiary: #8e96a1;
+  --color-accent: #0969da;
+  --color-accent-hover: #0550b7;
+  --color-border-default: #d8dee4;
+  --color-border-muted: #e8e9ea;
+  --color-success: #1a7f37;
+  --color-warning: #9a6700;
+  --color-danger: #cf222e;
+
+  --shadow-card: 0 1px 3px rgba(31,35,40,0.12), 0 1px 2px rgba(31,35,40,0.06);
+  --shadow-panel: 0 4px 12px rgba(31,35,40,0.12);
+  --shadow-dropdown: 0 8px 24px rgba(31,35,40,0.15);
+}
+
+/* ── Global font ── */
+
+html {
+  font-family: var(--font-sans);
+}
+
+pre, code, textarea, input[type="text"] {
+  font-family: var(--font-mono);
+}
+
+/* ── Toast animations ── */
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(1rem) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(1rem) scale(0.95);
+  }
+}
+
+.toast-enter {
+  animation: toast-in 0.25s ease-out forwards;
+}
+
+.toast-exit {
+  animation: toast-out 0.2s ease-in forwards;
+}
+
+/* ── Global transitions for theme switch ── */
+
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
 }

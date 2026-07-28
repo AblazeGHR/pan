@@ -26,6 +26,8 @@ import {
   Layers,
   ChevronUp,
   ChevronDown,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -55,6 +57,8 @@ export function Sidebar() {
     expandAllGroups,
     filesCollapsed,
     toggleFilesCollapsed,
+    theme,
+    toggleTheme,
   } = useUIStore();
 
   // Editor store
@@ -152,6 +156,16 @@ export function Sidebar() {
         >
           <Code size={18} />
         </NavLink>
+
+        <div className="flex-1" />
+
+        <button
+          onClick={toggleTheme}
+          className="text-text-tertiary hover:text-text-primary p-1.5 rounded transition-colors"
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
       </nav>
     );
   }
@@ -170,13 +184,22 @@ export function Sidebar() {
           <div className="px-3 py-2 border-b border-border-muted">
             <div className="flex items-center justify-between mb-2">
               <h1 className="text-lg font-bold text-text-primary">Pan</h1>
-              <button
-                onClick={toggleSidebar}
-                className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
-                title="Collapse sidebar"
-              >
-                <PanelLeftClose size={16} />
-              </button>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={toggleTheme}
+                  className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                  title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+                >
+                  {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
+                <button
+                  onClick={toggleSidebar}
+                  className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Route nav */}
@@ -350,13 +373,22 @@ export function Sidebar() {
           <div className="px-3 py-2 border-b border-border-muted">
             <div className="flex items-center justify-between mb-2">
               <h1 className="text-lg font-bold text-text-primary">Pan</h1>
-              <button
-                onClick={toggleSidebar}
-                className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
-                title="Collapse sidebar"
-              >
-                <PanelLeftClose size={16} />
-              </button>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={toggleTheme}
+                  className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                  title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+                >
+                  {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
+                <button
+                  onClick={toggleSidebar}
+                  className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Route nav */}

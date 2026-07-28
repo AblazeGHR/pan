@@ -75,6 +75,24 @@ function persistSortBy(mode: SortMode) {
 
 export type GroupMode = 'none' | 'workdir';
 export type SortMode = 'recent' | 'name';
+export type Theme = 'dark' | 'light';
+
+function loadTheme(): Theme {
+  try {
+    const v = localStorage.getItem('pan:theme');
+    return v === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+function persistTheme(t: Theme) {
+  try {
+    localStorage.setItem('pan:theme', t);
+  } catch {
+    // no-op
+  }
+}
 
 interface UIStore {
   settingsOpen: boolean;
@@ -87,6 +105,7 @@ interface UIStore {
   sortBy: SortMode;
   collapsedGroups: Set<string>;
   filesCollapsed: boolean;
+  theme: Theme;
 
   toggleSettings: () => void;
   closeSettings: () => void;
@@ -102,6 +121,7 @@ interface UIStore {
   collapseAllGroups: () => void;
   expandAllGroups: () => void;
   toggleFilesCollapsed: () => void;
+  toggleTheme: () => void;
 }
 
 let toastCounter = 0;
@@ -117,6 +137,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   sortBy: loadSortBy(),
   collapsedGroups: new Set<string>(),
   filesCollapsed: false,
+  theme: loadTheme(),
 
   toggleSettings: () => {
     set((s) => ({ settingsOpen: !s.settingsOpen }));
@@ -197,5 +218,11 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   toggleFilesCollapsed: () => {
     set((s) => ({ filesCollapsed: !s.filesCollapsed }));
+  },
+
+  toggleTheme: () => {
+    const next = get().theme === 'dark' ? 'light' : 'dark';
+    set({ theme: next });
+    persistTheme(next);
   },
 }));

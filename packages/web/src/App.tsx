@@ -2,17 +2,46 @@ import { useState, useEffect } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sidebar } from './components/layout/Sidebar';
 import { ToastContainer } from './components/ui/Toast';
+import { CommandPalette } from './components/CommandPalette';
 import { useMediaQuery } from './hooks/useMediaQuery';
-import { Outlet } from 'react-router-dom';
+import { useUIStore } from './stores/uiStore';
+import { Outlet, useNavigate } from 'react-router-dom';
 
 function Layout() {
   const { isMobile } = useMediaQuery();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const theme = useUIStore((s) => s.theme);
+  const navigate = useNavigate();
 
   // Close sidebar on mobile when switching out of mobile
   useEffect(() => {
     if (!isMobile) setSidebarOpen(false);
   }, [isMobile]);
+
+  // Sync data-theme to <html>
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'b') {
+          e.preventDefault();
+          useUIStore.getState().toggleSidebar();
+        } else if (e.key === '1') {
+          e.preventDefault();
+          navigate('/');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          navigate('/editor');
+        }
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [navigate]);
 
   return (
     <div className="flex h-screen bg-bg-primary text-text-primary overflow-hidden">
@@ -56,6 +85,7 @@ function Layout() {
         <Outlet />
       </main>
       <ToastContainer />
+      <CommandPalette />
     </div>
   );
 }
