@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronDown, ChevronUp, CircleCheck, CircleX, Loader2, Wrench } from 'lucide-react';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 
@@ -6,92 +7,175 @@ interface ToolGroupProps {
   items: Message[];
 }
 
-function toolName(content: string): string {
-  if (!content) return '(empty)';
-  const callMatch = content.match(/^tool call:\s*(.+)/);
-  if (callMatch?.[1]) return callMatch[1].split('\n')[0]?.trim() || '';
-  const resultMatch = content.match(/^tool result \(([^)]+)\)/);
-  if (resultMatch) return resultMatch[1]!.trim();
-  const idx = content.indexOf('(');
-  if (idx >= 0) return content.slice(0, idx).trim();
-  return content.split('\n')[0]!.trim().slice(0, 30);
+interface ToolInfo {
+  name: string;
+  status: 'done' | 'error' | 'running';
+  args: Record<string, unknown> | null;
+  argsPreview: string;
+  rawContent: string;
 }
 
-function formatToolContent(content: string): string {
-  if (!content) return '🔧 (empty)';
-
-  // Legacy format: "tool call: name\nargs: {...}"
-  let match = content.match(/^tool call:\s*(.+?)(?:\r?\n|\r)args:\s*([\s\S]*)$/);
-  if (match) {
-    const name = match[1]!.trim();
-    const jsonText = match[2]!.trim();
-    return `🔧 ${name}\n${formatJson(jsonText)}`;
+function parseTool(content: string): ToolInfo {
+  if (!content) {
+    return { name: '(empty)', status: 'running', args: null, argsPreview: '', rawContent: content };
   }
 
-  // Modern format: "name(args)"
-  match = content.match(/^([^(]+)\(([\s\S]*)\)$/);
-  if (match) {
-    const name = (match[1] || '').trim() || 'tool';
-    const jsonText = match[2] || '';
-    return `🔧 ${name}\n${formatJson(jsonText)}`;
-  }
+  let name = '';
+  let argsText = '';
 
-  return `🔧 ${content}`;
-}
-
-function formatJson(jsonText: string): string {
-  try {
-    const parsed = JSON.parse(jsonText);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const cleaned: Record<string, unknown> = {};
-      for (const key of Object.keys(parsed)) {
-        if (key === '_comment' || key === '$comment' || key === '-comment') continue;
-        cleaned[key] = parsed[key];
+  // Format: "tool call: name\nargs: {...}"
+  const callMatch = content.match(/^tool call:\s*(.+?)(?:\r?\n|\r)args:\s*([\s\S]*)$/);
+  if (callMatch) {
+    name = callMatch[1]?.split('\n')[0]?.trim() || '';
+    argsText = callMatch[2]?.trim() || '';
+  } else {
+    // Format: "name(args)"
+    const modernMatch = content.match(/^([^(]+)\(([\s\S]*)\)$/);
+    if (modernMatch) {
+      name = (modernMatch[1] || '').trim() || 'tool';
+      argsText = modernMatch[2] || '';
+    } else {
+      // Format: "tool result (name)"
+      const resultMatch = content.match(/^tool result\s*\(([^)]+)\)/);
+      if (resultMatch) {
+        name = resultMatch[1]?.trim() || '';
+      } else {
+        const idx = content.indexOf('(');
+        if (idx >= 0) {
+          name = content.slice(0, idx).trim();
+        } else {
+          name = content.split('\n')[0]?.trim().slice(0, 30) || '';
+        }
       }
-      return JSON.stringify(cleaned, null, 2);
     }
-    return jsonText;
+  }
+
+  // Parse args JSON and extract first arg for preview
+  let args: Record<string, unknown> | null = null;
+  let argsPreview = '';
+  if (argsText) {
+    try {
+      args = JSON.parse(argsText);
+      if (args && typeof args === 'object' && !Array.isArray(args)) {
+        const keys = Object.keys(args);
+        if (keys.length > 0) {
+          const firstKey = keys[0]!;
+          const firstVal = args[firstKey];
+          const valStr = typeof firstVal === 'string' ? firstVal : JSON.stringify(firstVal);
+          argsPreview = `${firstKey}: ${valStr.length > 40 ? valStr.slice(0, 40) + '...' : valStr}`;
+        }
+      }
+    } catch {
+      argsPreview = argsText.length > 30 ? argsText.slice(0, 30) + '...' : argsText;
+    }
+  }
+
+  // Determine status
+  let status: ToolInfo['status'] = 'running';
+  const lower = content.toLowerCase();
+  if (lower.includes('error')) {
+    status = 'error';
+  } else if (content.startsWith('tool result') || content.includes('completed') || content.includes('result')) {
+    status = 'done';
+  }
+
+  return { name, status, args, argsPreview, rawContent: content };
+}
+
+function formatArgs(args: Record<string, unknown> | null): string {
+  if (!args) return '';
+  try {
+    const cleaned: Record<string, unknown> = {};
+    for (const key of Object.keys(args)) {
+      if (key === '_comment' || key === '$comment' || key === '-comment') continue;
+      cleaned[key] = args[key];
+    }
+    return JSON.stringify(cleaned, null, 2);
   } catch {
-    return jsonText;
+    return JSON.stringify(args, null, 2);
+  }
+}
+
+function StatusIcon({ status }: { status: ToolInfo['status'] }) {
+  switch (status) {
+    case 'done':
+      return <CircleCheck className="text-success flex-shrink-0" size={14} />;
+    case 'error':
+      return <CircleX className="text-danger flex-shrink-0" size={14} />;
+    case 'running':
+      return <Loader2 className="animate-spin text-accent flex-shrink-0" size={14} />;
   }
 }
 
 export function ToolGroup({ items }: ToolGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
   const unread = useSessionStore((s) => s.getUnread());
+
+  if (items.length === 0) return null;
+
+  const tools = items.map((t) => parseTool(t.content));
   const hasUnread = items.some((t) => unread.has(t.content));
-  const names = items
-    .map((t) => toolName(t.content))
-    .slice(0, 3)
-    .join(', ');
-  const moreCount = items.length > 3 ? `, +${items.length - 3}` : '';
+
+  const toggleTool = (idx: number) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
 
   return (
-    <div className={`tool-group ${isOpen ? '' : 'collapsed'}`}>
+    <div className="border border-border-default rounded-lg bg-bg-secondary mb-3">
+      {/* Group Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary transition-colors w-full text-left"
+        className="flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover/30 transition-colors w-full text-left select-none"
       >
-        <span className="text-warning">🔧</span>
-        <span>
-          <strong>{items.length} tools:</strong> {names}{moreCount}
-        </span>
-        <span className="text-[10px]">{isOpen ? '▲' : '▼'}</span>
+        <Wrench size={14} />
+        <span>{items.length} tools</span>
         {hasUnread && !isOpen && (
-          <span className="w-2 h-2 rounded-full bg-accent" title="unread" />
+          <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" title="unread" />
         )}
+        <span className="ml-auto text-text-tertiary">
+          {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
       </button>
+
+      {/* Tool rows */}
       {isOpen && (
-        <div className="mt-2 space-y-1">
-          {items.map((tool, i) => (
-            <pre
-              key={i}
-              className="p-2 rounded bg-bg-tertiary border border-border-muted text-xs text-text-secondary whitespace-pre-wrap"
-            >
-              {formatToolContent(tool.content)}
-            </pre>
+        <>
+          {tools.map((tool, i) => (
+            <div key={i}>
+              {i > 0 && <div className="border-t border-border-default" />}
+
+              {/* Tool Row */}
+              <div
+                onClick={() => toggleTool(i)}
+                className="flex items-center gap-2 min-h-[30px] px-3 cursor-pointer hover:bg-bg-hover/30 transition-colors select-none"
+              >
+                <StatusIcon status={tool.status} />
+                <span className="text-xs font-mono text-text-primary truncate">{tool.name}</span>
+                {tool.argsPreview && (
+                  <span className="text-xs text-text-tertiary truncate">{tool.argsPreview}</span>
+                )}
+                <span className="ml-auto text-text-tertiary flex-shrink-0">
+                  {expandedTools.has(i) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </span>
+              </div>
+
+              {/* Expanded content */}
+              {expandedTools.has(i) && (
+                <div className="bg-bg-tertiary border-t border-border-default p-3 overflow-hidden">
+                  <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed text-text-secondary">
+                    {tool.args ? formatArgs(tool.args) : tool.rawContent}
+                  </pre>
+                </div>
+              )}
+            </div>
           ))}
-        </div>
+        </>
       )}
     </div>
   );
