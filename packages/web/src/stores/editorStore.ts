@@ -20,6 +20,7 @@ interface EditorStore {
   activePath: string | null;
   dirty: Set<string>;
   contents: Record<string, string>;
+  mdViewMode: Record<string, 'edit' | 'preview' | 'split'>;
 
   // actions
   setRoot: (sessionId: string, workdir: string) => Promise<void>;
@@ -32,6 +33,7 @@ interface EditorStore {
   saveFile: (repath?: string) => Promise<void>;
   renameFile: (from: string, to: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
+  setMdViewMode: (path: string, mode: 'edit' | 'preview' | 'split') => void;
 }
 
 // Language detection from file extension
@@ -84,6 +86,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activePath: null,
   dirty: new Set(),
   contents: {},
+  mdViewMode: {},
 
   setRoot: async (sessionId: string, _workdir: string) => {
     set({ sessionId, treeLoading: true, tree: [], expanded: new Set(), selectedPath: null });
@@ -295,6 +298,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     } catch {
       // show error
     }
+  },
+
+  setMdViewMode: (path, mode) => {
+    set((s) => ({
+      mdViewMode: { ...s.mdViewMode, [path]: mode },
+    }));
   },
 }));
 

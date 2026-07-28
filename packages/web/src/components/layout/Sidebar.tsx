@@ -1,25 +1,85 @@
-import { useState, useRef, useCallback } from 'react';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useEditorStore } from '@/stores/editorStore';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SessionList } from '@/components/session/SessionList';
 import { NewSessionModal } from '@/components/session/NewSessionModal';
 import { ImportModal } from '@/components/session/ImportModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
-import { NavLink } from 'react-router-dom';
+import { FileTree } from '@/components/editor/FileTree';
+import { SidebarResizer } from './SidebarResizer';
 import { Button } from '@/components/ui/Button';
+import {
+  MessageSquare,
+  Code,
+  PanelLeftClose,
+  PanelLeft,
+  Plus,
+  Settings,
+  Import,
+  FolderOpen,
+  RefreshCw,
+  Search,
+  ArrowUpDown,
+  Layers,
+} from 'lucide-react';
 
 export function Sidebar() {
+  const location = useLocation();
+  const isEditorRoute = location.pathname === '/editor';
+  const { isMobile } = useMediaQuery();
+
+  // Session store
   const { multiSelectMode, exitMultiSelect, selectedIds, batchRemoveSessions, sessions } =
     useSessionStore();
-  const { showToast } = useUIStore();
+  const currentSession = useCurrentSession();
 
+  // UI store
+  const {
+    sidebarWidth,
+    sidebarCollapsed,
+    toggleSidebar,
+    showToast,
+    groupBy,
+    setGroupBy,
+    searchQuery,
+    setSearchQuery,
+    sortBy,
+    setSortBy,
+  } = useUIStore();
+
+  // Editor store
+  const treeLoading = useEditorStore((s) => s.treeLoading);
+  const refreshTree = useEditorStore((s) => s.refreshTree);
+
+  // Local state
   const [showNewModal, setShowNewModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [menuSession, setMenuSession] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-
   const importRef = useRef<HTMLDivElement>(null);
+
+  // Init editor tree when on editor route and session changes
+  useEffect(() => {
+    if (isEditorRoute && currentSession?.id && currentSession?.workdir) {
+      useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
+    }
+  }, [isEditorRoute, currentSession?.id, currentSession?.workdir]);
+
+  // Close import dropdown on outside click
+  useEffect(() => {
+    if (!showImportDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (importRef.current && !importRef.current.contains(e.target as Node)) {
+        setShowImportDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showImportDropdown]);
 
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
@@ -44,131 +104,277 @@ export function Sidebar() {
     setMenuSession(id);
   };
 
+  // ── Nav rail (collapsed mode, desktop only) ──
+
+  if (sidebarCollapsed && !isMobile) {
+    return (
+      <nav className="flex flex-col items-center h-full bg-bg-secondary border-r border-border-default py-3 gap-2" style={{ width: 48 }}>
+        <button
+          onClick={toggleSidebar}
+          className="text-text-tertiary hover:text-text-primary p-1.5 rounded transition-colors"
+          title="Expand sidebar"
+        >
+          <PanelLeft size={18} />
+        </button>
+
+        <NavLink
+          to="/"
+          end
+          title="Chat"
+          className={({ isActive }) =>
+            `p-1.5 rounded transition-colors ${
+              isActive
+                ? 'text-accent bg-accent/10'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
+            }`
+          }
+        >
+          <MessageSquare size={18} />
+        </NavLink>
+
+        <NavLink
+          to="/editor"
+          title="Editor"
+          className={({ isActive }) =>
+            `p-1.5 rounded transition-colors ${
+              isActive
+                ? 'text-accent bg-accent/10'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
+            }`
+          }
+        >
+          <Code size={18} />
+        </NavLink>
+      </nav>
+    );
+  }
+
+  // ── Expanded sidebar ──
+
   return (
-    <aside className="w-60 max-w-[85vw] flex flex-col h-full border-r border-border-default bg-bg-secondary">
-      {/* Header with New/Import buttons */}
-      <div className="px-3 py-2 border-b border-border-muted">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-lg font-bold text-text-primary">Pan</h1>
-        </div>
-        {/* View navigation */}
-        <div className="flex gap-1 mb-2">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              `flex-1 text-center py-1 text-xs rounded transition-colors ${
-                isActive
-                  ? 'bg-accent/20 text-accent font-medium'
-                  : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-              }`
-            }
-          >
-            Chat
-          </NavLink>
-          <NavLink
-            to="/editor"
-            className={({ isActive }) =>
-              `flex-1 text-center py-1 text-xs rounded transition-colors ${
-                isActive
-                  ? 'bg-accent/20 text-accent font-medium'
-                  : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-              }`
-            }
-          >
-            Editor
-          </NavLink>
-        </div>
-        <div className="flex gap-1">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={quickNew}
-            title="Quick new session"
-            className="flex-1"
-          >
-            + New
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowNewModal(true)}
-            title="New with settings"
-          >
-            ⚙
-          </Button>
-          <div ref={importRef} className="relative">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowImportDropdown(!showImportDropdown)}
-              title="Import session"
-            >
-              Import ▾
-            </Button>
-            {showImportDropdown && (
-              <div
-                className="absolute left-0 top-full mt-1 z-20 bg-bg-tertiary border border-border-default rounded-md shadow-lg py-1 min-w-[140px]"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowImportDropdown(false);
-                  setShowImportModal(true);
-                }}
+    <aside
+      className="relative flex flex-col h-full border-r border-border-default bg-bg-secondary"
+      style={{ width: sidebarWidth }}
+    >
+      {/* ── Chat route content ── */}
+      {!isEditorRoute && (
+        <>
+          {/* Header */}
+          <div className="px-3 py-2 border-b border-border-muted">
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-lg font-bold text-text-primary">Pan</h1>
+              <button
+                onClick={toggleSidebar}
+                className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                title="Collapse sidebar"
               >
-                <button className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20">
-                  Import from cbc
-                </button>
-                <button className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20">
-                  Import from kimi
-                </button>
+                <PanelLeftClose size={16} />
+              </button>
+            </div>
+
+            {/* Route nav */}
+            <div className="flex gap-1 mb-2">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <MessageSquare size={12} />
+                Chat
+              </NavLink>
+              <NavLink
+                to="/editor"
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <Code size={12} />
+                Editor
+              </NavLink>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-1">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={quickNew}
+                title="Quick new session"
+                className="flex-1"
+              >
+                <Plus size={14} />
+                New
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowNewModal(true)}
+                title="New with settings"
+              >
+                <Settings size={14} />
+              </Button>
+              <div ref={importRef} className="relative">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowImportDropdown(!showImportDropdown)}
+                  title="Import session"
+                >
+                  <Import size={14} />
+                </Button>
+                {showImportDropdown && (
+                  <div
+                    className="absolute left-0 top-full mt-1 z-20 bg-bg-tertiary border border-border-default rounded-md shadow-lg py-1 min-w-[140px]"
+                    onClick={() => {
+                      setShowImportDropdown(false);
+                      setShowImportModal(true);
+                    }}
+                  >
+                    <button className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20">
+                      Import from cbc
+                    </button>
+                    <button className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20">
+                      Import from kimi
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Multi-select bar */}
-      {multiSelectMode && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border-muted bg-bg-tertiary">
-          <span className="text-xs text-text-secondary">
-            {selectedIds.size} selected
-          </span>
-          <div className="flex-1" />
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={handleBatchDelete}
-            disabled={selectedIds.size === 0}
-          >
-            Delete
-          </Button>
-          <Button variant="ghost" size="sm" onClick={exitMultiSelect}>
-            Cancel
-          </Button>
-        </div>
+          {/* Search + tools bar */}
+          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border-muted bg-bg-secondary">
+            <div className="relative flex-1">
+              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Filter..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
+              />
+            </div>
+            <button
+              onClick={() => setSortBy(sortBy === 'recent' ? 'name' : 'recent')}
+              className={`p-1 rounded transition-colors ${
+                sortBy === 'name'
+                  ? 'text-accent bg-accent/10'
+                  : 'text-text-tertiary hover:text-text-primary'
+              }`}
+              title={`Sort by ${sortBy === 'recent' ? 'name' : 'recent'}`}
+            >
+              <ArrowUpDown size={14} />
+            </button>
+            <button
+              onClick={() => setGroupBy(groupBy === 'workdir' ? 'none' : 'workdir')}
+              className={`p-1 rounded transition-colors ${
+                groupBy === 'workdir'
+                  ? 'text-accent bg-accent/10'
+                  : 'text-text-tertiary hover:text-text-primary'
+              }`}
+              title={`${groupBy === 'workdir' ? 'Disable' : 'Enable'} workdir grouping`}
+            >
+              <Layers size={14} />
+            </button>
+          </div>
+
+          {/* Multi-select bar */}
+          {multiSelectMode && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border-muted bg-bg-tertiary">
+              <span className="text-xs text-text-secondary">
+                {selectedIds.size} selected
+              </span>
+              <div className="flex-1" />
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleBatchDelete}
+                disabled={selectedIds.size === 0}
+              >
+                Delete
+              </Button>
+              <Button variant="ghost" size="sm" onClick={exitMultiSelect}>
+                Cancel
+              </Button>
+            </div>
+          )}
+
+          {/* Session list */}
+          <div className="flex-1 overflow-y-auto">
+            <SessionList onSessionMenu={handleSessionMenu} />
+          </div>
+
+          {/* Session context menu */}
+          {menuSession && (
+            <SessionMenu
+              session={sessions.find((s) => s.id === menuSession)!}
+              position={menuPosition}
+              onClose={() => setMenuSession(null)}
+            />
+          )}
+        </>
       )}
 
-      {/* Session list */}
-      <div className="flex-1 overflow-y-auto">
-        <SessionList onSessionMenu={handleSessionMenu} />
-      </div>
+      {/* ── Editor route content ── */}
+      {isEditorRoute && (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border-default min-h-[40px]">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+              <FolderOpen size={13} />
+              Files
+            </div>
+            <div className="flex items-center gap-0.5">
+              <button
+                className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                onClick={() => refreshTree('')}
+                title="Refresh file tree"
+              >
+                <RefreshCw size={13} className={treeLoading ? 'animate-spin' : ''} />
+              </button>
+              <button
+                onClick={toggleSidebar}
+                className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                title="Collapse sidebar"
+              >
+                <PanelLeftClose size={14} />
+              </button>
+            </div>
+          </div>
 
-      {/* Session context menu */}
-      {menuSession && (
-        <SessionMenu
-          session={sessions.find((s) => s.id === menuSession)!}
-          position={menuPosition}
-          onClose={() => setMenuSession(null)}
-        />
+          {/* File tree */}
+          {currentSession?.workdir ? (
+            <FileTree workdir={currentSession.workdir} />
+          ) : (
+            <div className="flex-1 flex items-center justify-center px-4 text-xs text-text-tertiary text-center">
+              Select a session to browse files
+            </div>
+          )}
+
+          {/* Workdir footer */}
+          {currentSession?.workdir && (
+            <div
+              className="px-3 py-1.5 text-[10px] text-text-tertiary border-t border-border-default truncate flex-shrink-0"
+              title={currentSession.workdir}
+            >
+              {currentSession.workdir}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Close dropdown on outside click */}
-      {showImportDropdown && (
-        <div
-          className="fixed inset-0 z-10"
-          onClick={() => setShowImportDropdown(false)}
-        />
-      )}
+      {/* Resizer (desktop only) */}
+      {!isMobile && <SidebarResizer />}
 
       {/* Modals */}
       <NewSessionModal

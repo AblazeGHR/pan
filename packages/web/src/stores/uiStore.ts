@@ -1,16 +1,101 @@
 import { create } from 'zustand';
 import type { ToastMessage } from '@/types';
 
+// ── localStorage helpers ──
+
+function loadSidebarWidth(): number {
+  try {
+    const v = localStorage.getItem('pan:sidebarWidth');
+    const n = v ? parseInt(v, 10) : 260;
+    return Math.max(200, Math.min(480, n));
+  } catch {
+    return 260;
+  }
+}
+
+function persistSidebarWidth(w: number) {
+  try {
+    localStorage.setItem('pan:sidebarWidth', String(w));
+  } catch {
+    // no-op
+  }
+}
+
+function loadSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem('pan:sidebarCollapsed') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function persistSidebarCollapsed(c: boolean) {
+  try {
+    localStorage.setItem('pan:sidebarCollapsed', c ? '1' : '0');
+  } catch {
+    // no-op
+  }
+}
+
+function loadGroupBy(): GroupMode {
+  try {
+    const v = localStorage.getItem('pan:groupBy');
+    return v === 'workdir' ? 'workdir' : 'none';
+  } catch {
+    return 'none';
+  }
+}
+
+function persistGroupBy(mode: GroupMode) {
+  try {
+    localStorage.setItem('pan:groupBy', mode);
+  } catch {
+    // no-op
+  }
+}
+
+function loadSortBy(): SortMode {
+  try {
+    const v = localStorage.getItem('pan:sortBy');
+    return v === 'name' ? 'name' : 'recent';
+  } catch {
+    return 'recent';
+  }
+}
+
+function persistSortBy(mode: SortMode) {
+  try {
+    localStorage.setItem('pan:sortBy', mode);
+  } catch {
+    // no-op
+  }
+}
+
+// ── Store ──
+
+export type GroupMode = 'none' | 'workdir';
+export type SortMode = 'recent' | 'name';
+
 interface UIStore {
   settingsOpen: boolean;
   toastQueue: ToastMessage[];
   bubbleViewEnabled: boolean;
+  sidebarWidth: number;
+  sidebarCollapsed: boolean;
+  groupBy: GroupMode;
+  searchQuery: string;
+  sortBy: SortMode;
 
   toggleSettings: () => void;
   closeSettings: () => void;
   showToast: (message: string, type?: ToastMessage['type']) => void;
   dismissToast: (id: string) => void;
   toggleBubbleView: () => void;
+  setSidebarWidth: (w: number) => void;
+  toggleSidebar: () => void;
+  setGroupBy: (mode: GroupMode) => void;
+  setSearchQuery: (q: string) => void;
+  setSortBy: (mode: SortMode) => void;
 }
 
 let toastCounter = 0;
@@ -19,6 +104,11 @@ export const useUIStore = create<UIStore>((set, get) => ({
   settingsOpen: false,
   toastQueue: [],
   bubbleViewEnabled: true,
+  sidebarWidth: loadSidebarWidth(),
+  sidebarCollapsed: loadSidebarCollapsed(),
+  groupBy: loadGroupBy(),
+  searchQuery: '',
+  sortBy: loadSortBy(),
 
   toggleSettings: () => {
     set((s) => ({ settingsOpen: !s.settingsOpen }));
@@ -46,5 +136,31 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   toggleBubbleView: () => {
     set((s) => ({ bubbleViewEnabled: !s.bubbleViewEnabled }));
+  },
+
+  setSidebarWidth: (w) => {
+    const clamped = Math.max(200, Math.min(480, Math.round(w)));
+    set({ sidebarWidth: clamped });
+    persistSidebarWidth(clamped);
+  },
+
+  toggleSidebar: () => {
+    const next = !get().sidebarCollapsed;
+    set({ sidebarCollapsed: next });
+    persistSidebarCollapsed(next);
+  },
+
+  setGroupBy: (mode) => {
+    set({ groupBy: mode });
+    persistGroupBy(mode);
+  },
+
+  setSearchQuery: (q) => {
+    set({ searchQuery: q });
+  },
+
+  setSortBy: (mode) => {
+    set({ sortBy: mode });
+    persistSortBy(mode);
   },
 }));
