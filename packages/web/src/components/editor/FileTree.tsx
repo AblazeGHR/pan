@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FileNode } from '@/types';
 import { useEditorStore } from '@/stores/editorStore';
+import { File, Folder, FolderOpen, Pencil, X } from 'lucide-react';
 
 interface FileTreeProps {
   workdir: string;
-  isOpen?: boolean;
-  onClose?: () => void;
 }
 
 function FileTreeItem({
@@ -74,21 +73,24 @@ function FileTreeItem({
         style={{ paddingLeft: `${8 + depth * 16}px`, paddingRight: '8px' }}
         onClick={handleClick}
       >
-        {/* Indent guides */}
-        {/* Chevron or spacer */}
         {node.type === 'dir' ? (
           <span
-            className={`w-3 text-center text-[10px] transition-transform flex-shrink-0 ${
+            className={`w-3 text-center flex-shrink-0 transition-transform ${
               isExpanded ? 'rotate-90' : ''
             }`}
           >
-            ▶
+            <FolderOpen size={12} className="text-text-tertiary" />
           </span>
         ) : (
           <span className="w-3 flex-shrink-0" />
         )}
 
-        {/* File/dir name or rename input */}
+        {node.type === 'dir' ? (
+          <Folder size={12} className="text-text-tertiary flex-shrink-0" />
+        ) : (
+          <File size={12} className="text-text-tertiary flex-shrink-0" />
+        )}
+
         {renaming ? (
           <input
             ref={renameInputRef}
@@ -106,11 +108,10 @@ function FileTreeItem({
           <span className="truncate flex-1">{node.name}</span>
         )}
 
-        {/* Actions on hover */}
         {!renaming && (
           <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
             <button
-              className="text-text-tertiary hover:text-text-primary px-0.5"
+              className="text-text-tertiary hover:text-text-primary p-0.5"
               onClick={(e) => {
                 e.stopPropagation();
                 setRenaming(true);
@@ -118,20 +119,19 @@ function FileTreeItem({
               }}
               title="Rename"
             >
-              ✎
+              <Pencil size={10} />
             </button>
             <button
-              className="text-text-tertiary hover:text-danger px-0.5"
+              className="text-text-tertiary hover:text-danger p-0.5"
               onClick={handleDelete}
               title="Delete"
             >
-              ✕
+              <X size={10} />
             </button>
           </div>
         )}
       </div>
 
-      {/* Children */}
       {isExpanded && node.children && node.children.length > 0 && (
         <div>
           {node.children.map((child) => (
@@ -140,7 +140,6 @@ function FileTreeItem({
         </div>
       )}
 
-      {/* Empty dir indicator */}
       {isExpanded && node.children && node.children.length === 0 && (
         <div
           className="text-[11px] text-text-tertiary italic"
@@ -153,45 +152,12 @@ function FileTreeItem({
   );
 }
 
-export function FileTree({ workdir, isOpen, onClose }: FileTreeProps) {
+export function FileTree({ workdir: _workdir }: FileTreeProps) {
   const tree = useEditorStore((s) => s.tree);
   const treeLoading = useEditorStore((s) => s.treeLoading);
-  const refreshTree = useEditorStore((s) => s.refreshTree);
 
-  const isOverlay = isOpen !== undefined;
-
-  const treeContent = (
-    <div
-      className={`h-full flex flex-col bg-bg-secondary border-r border-border-default ${
-        isOverlay
-          ? 'w-64 absolute inset-y-0 left-0 z-50 shadow-lg'
-          : 'w-60 flex-shrink-0'
-      }`}
-    >
-      {/* Title bar */}
-      <div className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider border-b border-border-default">
-        <span>Files</span>
-        <div className="flex items-center gap-1">
-          <button
-            className="hover:text-text-primary transition-colors"
-            onClick={() => refreshTree('')}
-            title="Refresh"
-          >
-            ↻
-          </button>
-          {isOverlay && onClose && (
-            <button
-              className="hover:text-text-primary transition-colors ml-1"
-              onClick={onClose}
-              title="Close"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Tree content */}
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 overflow-y-auto">
         {treeLoading && (
           <div className="px-3 py-4 text-xs text-text-tertiary">Loading...</div>
@@ -204,33 +170,6 @@ export function FileTree({ workdir, isOpen, onClose }: FileTreeProps) {
             <FileTreeItem key={node.path} node={node} depth={0} />
           ))}
       </div>
-
-      {/* Footer: workdir path */}
-      <div className="px-3 py-1.5 text-[10px] text-text-tertiary border-t border-border-default truncate" title={workdir}>
-        {workdir}
-      </div>
     </div>
-  );
-
-  if (!isOverlay) return treeContent;
-
-  return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50"
-          onClick={onClose}
-        />
-      )}
-      {/* Sliding panel */}
-      <div
-        className={`absolute inset-y-0 left-0 z-50 transform transition-transform duration-200 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {treeContent}
-      </div>
-    </>
   );
 }
