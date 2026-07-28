@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorkerId = useWorkerStore((s) => s.currentWorkerId);
-  const { settingsOpen, toggleSettings, showToast } = useUIStore();
+  const { showToast } = useUIStore();
   const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
 
   if (!currentSession) {
@@ -126,13 +126,6 @@ export function TopBar() {
             Start
           </Button>
         )}
-        <Button
-          variant={settingsOpen ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={toggleSettings}
-        >
-          ⚙
-        </Button>
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const selectSession = useSessionStore((s) => s.selectSession);
   const toggleSelection = useSessionStore((s) => s.toggleSelection);
 
-  const { groupBy, searchQuery, sortBy } = useUIStore();
+  const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse } = useUIStore();
 
   const { filtered, grouped } = useMemo(() => {
     let filtered = [...sessions];
@@ -110,7 +110,13 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     return (
       <div className="flex flex-col">
         {grouped.map((group) => (
-          <GroupSection key={group.key} label={group.label} count={group.sessions.length}>
+          <GroupSection
+            key={group.key}
+            label={group.label}
+            count={group.sessions.length}
+            collapsed={collapsedGroups.has(group.key)}
+            onToggle={() => toggleGroupCollapse(group.key)}
+          >
             {group.sessions.map((session) => (
               <SessionItem
                 key={session.id}
@@ -163,9 +169,11 @@ interface GroupSectionProps {
   label: string;
   count: number;
   children: React.ReactNode;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
-function GroupSection({ label, count, children }: GroupSectionProps) {
+function GroupSection({ label, count, children, collapsed, onToggle }: GroupSectionProps) {
   const shortLabel = useMemo(() => {
     const parts = label.replace(/\\/g, '/').split('/').filter(Boolean);
     if (parts.length <= 2) return label;
@@ -174,7 +182,13 @@ function GroupSection({ label, count, children }: GroupSectionProps) {
 
   return (
     <div>
-      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-tertiary/50 border-b border-border-muted sticky top-0 z-[1]">
+      <div
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-tertiary/50 border-b border-border-muted sticky top-0 z-[1] cursor-pointer hover:bg-bg-hover/30 transition-colors select-none"
+        onClick={onToggle}
+      >
+        <span className="text-[10px] text-text-tertiary transition-transform shrink-0" style={{ transform: collapsed ? '' : 'rotate(90deg)' }}>
+          ▶
+        </span>
         <FolderOpen size={11} className="text-text-tertiary shrink-0" />
         <span className="text-[11px] text-text-tertiary font-medium truncate" title={label}>
           {shortLabel}
@@ -183,7 +197,7 @@ function GroupSection({ label, count, children }: GroupSectionProps) {
           {count}
         </span>
       </div>
-      {children}
+      {!collapsed && children}
     </div>
   );
 }

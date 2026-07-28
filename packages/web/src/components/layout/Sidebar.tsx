@@ -24,6 +24,8 @@ import {
   Search,
   ArrowUpDown,
   Layers,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -48,6 +50,11 @@ export function Sidebar() {
     setSearchQuery,
     sortBy,
     setSortBy,
+    collapsedGroups,
+    collapseAllGroups,
+    expandAllGroups,
+    filesCollapsed,
+    toggleFilesCollapsed,
   } = useUIStore();
 
   // Editor store
@@ -286,6 +293,17 @@ export function Sidebar() {
             >
               <Layers size={14} />
             </button>
+            {groupBy === 'workdir' && (
+              <button
+                onClick={() =>
+                  collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups()
+                }
+                className="p-1 rounded transition-colors text-text-tertiary hover:text-text-primary"
+                title={collapsedGroups.size > 0 ? 'Expand all groups' : 'Collapse all groups'}
+              >
+                {collapsedGroups.size > 0 ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            )}
           </div>
 
           {/* Multi-select bar */}
@@ -328,37 +346,90 @@ export function Sidebar() {
       {/* ── Editor route content ── */}
       {isEditorRoute && (
         <>
-          {/* Header */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border-default min-h-[40px]">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-              <FolderOpen size={13} />
-              Files
-            </div>
-            <div className="flex items-center gap-0.5">
-              <button
-                className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
-                onClick={() => refreshTree('')}
-                title="Refresh file tree"
-              >
-                <RefreshCw size={13} className={treeLoading ? 'animate-spin' : ''} />
-              </button>
+          {/* Top header — Pan title + collapse */}
+          <div className="px-3 py-2 border-b border-border-muted">
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-lg font-bold text-text-primary">Pan</h1>
               <button
                 onClick={toggleSidebar}
                 className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
                 title="Collapse sidebar"
               >
-                <PanelLeftClose size={14} />
+                <PanelLeftClose size={16} />
               </button>
+            </div>
+
+            {/* Route nav */}
+            <div className="flex gap-1">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <MessageSquare size={12} />
+                Chat
+              </NavLink>
+              <NavLink
+                to="/editor"
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <Code size={12} />
+                Editor
+              </NavLink>
             </div>
           </div>
 
-          {/* File tree */}
-          {currentSession?.workdir ? (
-            <FileTree workdir={currentSession.workdir} />
-          ) : (
-            <div className="flex-1 flex items-center justify-center px-4 text-xs text-text-tertiary text-center">
-              Select a session to browse files
+          {/* Files section — collapsible */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border-default min-h-[40px] cursor-pointer select-none hover:bg-bg-hover/30 transition-colors" onClick={toggleFilesCollapsed}>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+              <span className="text-[10px] text-text-tertiary transition-transform shrink-0" style={{ transform: filesCollapsed ? '' : 'rotate(90deg)' }}>
+                ▶
+              </span>
+              <FolderOpen size={13} />
+              Files
             </div>
+            <div className="flex items-center gap-0.5">
+              {!filesCollapsed && (
+                <button
+                  className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    refreshTree('');
+                  }}
+                  title="Refresh file tree"
+                >
+                  <RefreshCw size={13} className={treeLoading ? 'animate-spin' : ''} />
+                </button>
+              )}
+              {filesCollapsed ? (
+                <ChevronDown size={14} className="text-text-tertiary" />
+              ) : (
+                <ChevronUp size={14} className="text-text-tertiary" />
+              )}
+            </div>
+          </div>
+
+          {/* File tree (collapsible) */}
+          {!filesCollapsed && (
+            currentSession?.workdir ? (
+              <FileTree workdir={currentSession.workdir} />
+            ) : (
+              <div className="flex-1 flex items-center justify-center px-4 text-xs text-text-tertiary text-center">
+                Select a session to browse files
+              </div>
+            )
           )}
 
           {/* Workdir footer */}

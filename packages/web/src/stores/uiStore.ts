@@ -85,6 +85,8 @@ interface UIStore {
   groupBy: GroupMode;
   searchQuery: string;
   sortBy: SortMode;
+  collapsedGroups: Set<string>;
+  filesCollapsed: boolean;
 
   toggleSettings: () => void;
   closeSettings: () => void;
@@ -96,6 +98,10 @@ interface UIStore {
   setGroupBy: (mode: GroupMode) => void;
   setSearchQuery: (q: string) => void;
   setSortBy: (mode: SortMode) => void;
+  toggleGroupCollapse: (key: string) => void;
+  collapseAllGroups: () => void;
+  expandAllGroups: () => void;
+  toggleFilesCollapsed: () => void;
 }
 
 let toastCounter = 0;
@@ -109,6 +115,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
   groupBy: loadGroupBy(),
   searchQuery: '',
   sortBy: loadSortBy(),
+  collapsedGroups: new Set<string>(),
+  filesCollapsed: false,
 
   toggleSettings: () => {
     set((s) => ({ settingsOpen: !s.settingsOpen }));
@@ -162,5 +170,32 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setSortBy: (mode) => {
     set({ sortBy: mode });
     persistSortBy(mode);
+  },
+
+  toggleGroupCollapse: (key) => {
+    set((s) => {
+      const next = new Set(s.collapsedGroups);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return { collapsedGroups: next };
+    });
+  },
+
+  collapseAllGroups: () => {
+    set((s) => {
+      // Get all current group keys from store side effects are OK
+      return { collapsedGroups: new Set(s.collapsedGroups) };
+    });
+  },
+
+  expandAllGroups: () => {
+    set({ collapsedGroups: new Set() });
+  },
+
+  toggleFilesCollapsed: () => {
+    set((s) => ({ filesCollapsed: !s.filesCollapsed }));
   },
 }));

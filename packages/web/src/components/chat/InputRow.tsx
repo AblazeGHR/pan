@@ -3,6 +3,7 @@ import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsClient } from '@/services/ws';
+import { Settings } from 'lucide-react';
 
 export function InputRow() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -12,7 +13,7 @@ export function InputRow() {
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { startWorker } = useWorkerStore();
-  const { showToast } = useUIStore();
+  const { showToast, toggleSettings } = useUIStore();
 
   // Restore draft when session changes
   useEffect(() => {
@@ -112,6 +113,13 @@ export function InputRow() {
           className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
         >
           Send
+        </button>
+        <button
+          onClick={toggleSettings}
+          className="rounded border border-border-default bg-bg-tertiary px-2 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors self-end"
+          title="Session settings"
+        >
+          <Settings size={16} />
         </button>
       </div>
     </div>
