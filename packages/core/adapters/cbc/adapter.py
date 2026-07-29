@@ -130,18 +130,9 @@ class CbcAdapter:
         return ["--model", s.model or self.default_model]
 
     def thinking_args(self, s: Session) -> list[str]:
-        """Build --settings JSON, merging alwaysThinkingEnabled and MCP approval."""
-        settings: dict = {}
-
+        """Build --settings JSON for alwaysThinkingEnabled."""
         if not s.adapter_config.get("always_thinking_enabled", False):
-            settings["alwaysThinkingEnabled"] = False
-
-        # Auto-approve project MCP servers in non-interactive mode
-        if s.adapter_config.get("mcp_servers"):
-            settings["enableAllProjectMcpServers"] = True
-
-        if settings:
-            return ["--settings", json.dumps(settings, ensure_ascii=False, separators=(",", ":"))]
+            return ["--settings", '{"alwaysThinkingEnabled": false}']
         return []
 
     _VALID_EFFORT = frozenset({"none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"})
@@ -184,11 +175,11 @@ class CbcAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """Write .mcp.json to workdir and pass --mcp-config.
+        """Write .mcp.json to workdir and pass --mcp-config with file path.
 
-        cbc requires MCP servers to be defined in a .mcp.json file in the
-        project scope (workdir). The --settings enableAllProjectMcpServers
-        flag auto-approves them in non-interactive mode.
+        --mcp-config with a file path works reliably, while
+        enableAllProjectMcpServers requires cbc to have previously
+        registered the directory as a known project.
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
@@ -215,6 +206,8 @@ class CbcAdapter:
             os.makedirs(workdir, exist_ok=True)
             with open(mcp_json_path, "w", encoding="utf-8") as f:
                 json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
+
+            return ["--mcp-config", mcp_json_path]
 
         return []
 
