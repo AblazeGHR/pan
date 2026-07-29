@@ -146,7 +146,7 @@ export function ToolGroup({ items }: ToolGroupProps) {
       {/* Group Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover/30 transition-colors w-full text-left select-none"
+        className="tool-group-header flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover/30 transition-colors w-full text-left select-none"
       >
         <Wrench size={14} />
         <span>{items.length} tools</span>
@@ -168,7 +168,7 @@ export function ToolGroup({ items }: ToolGroupProps) {
               {/* Tool Row */}
               <div
                 onClick={() => handleToolClick(i, tool)}
-                className="flex items-center gap-2 min-h-[30px] px-3 cursor-pointer hover:bg-bg-hover/30 transition-colors select-none"
+                className="msg tool flex items-center gap-2 min-h-[30px] px-3 cursor-pointer hover:bg-bg-hover/30 transition-colors select-none"
               >
                 <StatusIcon status={tool.status} />
                 <span className="text-xs font-mono text-text-primary truncate">{tool.name}</span>

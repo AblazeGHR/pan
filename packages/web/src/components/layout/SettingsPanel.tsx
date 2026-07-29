@@ -4,6 +4,7 @@ import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { Button } from '@/components/ui/Button';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { SyncedSettings, SettingsBody, PermissionMode } from '@/types';
 
 export function SettingsPanel() {
@@ -21,6 +22,10 @@ export function SettingsPanel() {
   const updateSyncedSettings = useAdapterStore((s) => s.updateSyncedSettings);
   const lastSyncedSettings = useAdapterStore((s) => s.lastSyncedSettings);
   const { loadSessions } = useSessionStore();
+  const { isMobile } = useMediaQuery();
+
+  // Worker actions
+  const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
 
   // Local form state
   const [model, setModel] = useState('');
@@ -153,95 +158,166 @@ export function SettingsPanel() {
       {!configReady ? (
         <p className="text-xs text-text-tertiary">Loading settings...</p>
       ) : (
-        <div className="space-y-3">
-          {/* Model */}
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">Model</label>
-            <select
-              value={isCustomModel ? '__custom__' : model}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === '__custom__') {
-                  setIsCustomModel(true);
-                  setCustomModel(model);
-                } else {
-                  setIsCustomModel(false);
-                  setModel(v);
-                }
-              }}
-              className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
-            >
-              {models.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-              <option value="__custom__">✎ custom...</option>
-            </select>
-            {isCustomModel && (
-              <input
-                type="text"
-                value={customModel}
-                onChange={(e) => setCustomModel(e.target.value)}
-                placeholder={config?.defaultModel}
-                className="mt-1 w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
-              />
+        <div className={isMobile ? 'space-y-3' : 'flex gap-6'}>
+          {/* Left column: Model settings */}
+          <div className="flex-1 space-y-3 min-w-0">
+            {/* Model */}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Model</label>
+              <select
+                value={isCustomModel ? '__custom__' : model}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__custom__') {
+                    setIsCustomModel(true);
+                    setCustomModel(model);
+                  } else {
+                    setIsCustomModel(false);
+                    setModel(v);
+                  }
+                }}
+                className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+              >
+                {models.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+                <option value="__custom__">✎ custom...</option>
+              </select>
+              {isCustomModel && (
+                <input
+                  type="text"
+                  value={customModel}
+                  onChange={(e) => setCustomModel(e.target.value)}
+                  placeholder={config?.defaultModel}
+                  className="mt-1 w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                />
+              )}
+            </div>
+
+            {/* Permission Mode */}
+            {showMode && (
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Permission Mode</label>
+                <select
+                  value={permissionMode}
+                  onChange={(e) => setPermissionMode(e.target.value)}
+                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                >
+                  {modes.map((p: PermissionMode) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Thinking */}
+            {showThinking && (
+              <div>
+                <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={alwaysThinking}
+                    onChange={(e) => setAlwaysThinking(e.target.checked)}
+                    className="rounded border-border-default bg-bg-tertiary"
+                  />
+                  Always Thinking
+                </label>
+              </div>
+            )}
+
+            {/* Effort */}
+            {showEffort && effortValues.length > 0 && (
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Effort</label>
+                <select
+                  value={effort}
+                  onChange={(e) => setEffort(e.target.value)}
+                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                >
+                  {effortValues.map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Apply button */}
+            {hasChanges && (
+              <div className="pt-1">
+                <Button variant="primary" size="sm" onClick={handleApply}>
+                  Apply Settings
+                </Button>
+              </div>
             )}
           </div>
 
-          {/* Permission Mode */}
-          {showMode && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Permission Mode</label>
-              <select
-                value={permissionMode}
-                onChange={(e) => setPermissionMode(e.target.value)}
-                className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+          {/* Divider (desktop only) */}
+          {!isMobile && <div className="w-px bg-border-default self-stretch" />}
+
+          {/* Right column: Worker actions */}
+          <div className={isMobile ? 'pt-2 border-t border-border-muted' : ''}>
+            <h4 className="text-xs font-semibold text-text-secondary mb-2">
+              Worker
+            </h4>
+            <div className="flex flex-col gap-1.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const workerId = currentWorkerId;
+                  if (workerId) {
+                    restart(workerId).catch((e) => showToast(e.message, 'error'));
+                  } else if (session?.id) {
+                    restart(session.id).catch((e) => showToast(e.message, 'error'));
+                  }
+                }}
               >
-                {modes.map((p: PermissionMode) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Thinking */}
-          {showThinking && (
-            <div>
-              <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={alwaysThinking}
-                  onChange={(e) => setAlwaysThinking(e.target.checked)}
-                  className="rounded border-border-default bg-bg-tertiary"
-                />
-                Always Thinking
-              </label>
-            </div>
-          )}
-
-          {/* Effort */}
-          {showEffort && effortValues.length > 0 && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Effort</label>
-              <select
-                value={effort}
-                onChange={(e) => setEffort(e.target.value)}
-                className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
-              >
-                {effortValues.map((v) => (
-                  <option key={v} value={v}>{v}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Apply button */}
-          {hasChanges && (
-            <div className="pt-1">
-              <Button variant="primary" size="sm" onClick={handleApply}>
-                Apply Settings
+                ⟳ Restart
               </Button>
+              {currentWorkerId && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      interrupt(currentWorkerId).catch((e) =>
+                        showToast(e.message, 'error'),
+                      )
+                    }
+                  >
+                    ⊘ Interrupt
+                  </Button>
+                  {!isMobile && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        takeover(currentWorkerId)
+                          .then(() =>
+                            showToast('PowerShell opened for takeover'),
+                          )
+                          .catch((e) => showToast(e.message, 'error'))
+                      }
+                    >
+                      ⤓ Takeover
+                    </Button>
+                  )}
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      if (!confirm(`Kill worker ${currentWorkerId}?`)) return;
+                      killCurrent(currentWorkerId).catch((e) =>
+                        showToast(e.message, 'error'),
+                      );
+                    }}
+                  >
+                    ✕ Kill
+                  </Button>
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

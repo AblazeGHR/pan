@@ -8,9 +8,9 @@
 | CSS | **Tailwind CSS 4** | CSS-first 配置、无死 CSS、`dark:` 深色模式、CodeBuddy 同款 |
 | Markdown | react-markdown + rehype-highlight + rehype-katex | 安全无 XSS、可注入自定义组件、React 生态原生 |
 | 状态管理 | Zustand | 1KB、无 Context 重渲染、WS handler 外部可访问 |
-| 迁移策略 | **双前端共存** | 旧前端 `/` 照常运行，新前端 `/react/*` 开发验证 |
+| 迁移策略 | **双前端长期共存** | 旧前端 `/` 稳定运行，新前端 `/react/*` 持续迭代，永不下线旧版 |
 | 开发工作流 | Vite dev server + 代理 FastAPI | HMR 是长期开发效率的前提 |
-| 后端挂载 | 新 `packages/web/dist/` | 干净断开旧约定 |
+| 后端挂载 | 新 `packages/web/dist/` | 干净断开旧约定，两套独立部署 |
 | 包管理器 | **pnpm** | 速度快、磁盘高效、严格依赖 |
 | Node 版本 | 锁定 LTS（.nvmrc） | 团队协作一致性 |
 | API 类型 | **openapi-typescript 自动生成** | 后端 FastAPI OpenAPI → 前端 TS 类型，避免漂移 |
@@ -25,11 +25,13 @@
 同一台服务器，同一组后端 API，两套前端并存
 
 URL                 → 前端            → 状态
-/                   旧 Vanilla app     → 生产稳定，零改动
-/react/*            新 React SPA      → 开发中，迭代验证
-/api/*              共享后端 API       → 完全不变
-/ws                 共享 WebSocket     → 完全不变
+/                   旧 Vanilla app     → 稳定后备，按需适配
+/react/*            新 React SPA      → 主要开发目标
+/api/*              共享后端 API       → 面向新前端演进
+/ws                 共享 WebSocket     → 面向新前端演进
 ```
+
+**后端开发优先级**：后端以新 React 前端为第一目标。若后端 API 演进导致旧前端兼容问题，**调整旧前端进行适配**，不回退后端变更。旧前端是跟随方，不是制约方。
 
 **server.py 变化极简**，只需新增两个路由：
 ```python
@@ -609,12 +611,11 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)))  # ← 不变
 - ✅ **SPA fallback**：`/react/chat/123` 等前端路由能正常工作（之前会 404）
 - ✅ **零改动旧逻辑**：`@app.get("/")` 和 `/static` 完全不变
 
-**切换预案**（未来 React 稳定后）：
+**入口切换**（长期保留旧前端，按需切换默认入口）：
 ```python
-# 只需要改：
+# 将 React 设为默认入口时：
 # app.mount("/", StaticFiles(directory=str(REACT_DIST_DIR), html=True))
-# 并删除 app.mount("/react", ...) 和 app.mount("/static", ...)
-# 同时删除旧 @app.get("/") 路由
+# 旧前端仍可通过 /legacy 或其他路径访问
 ```
 
 ### ⚠️ React Router basename 配置（关键 bug 修复）
@@ -708,42 +709,23 @@ Step 27: 移动端响应式适配
 
 验证点：/react 完全可替代旧前端的所有功能。
 
-### Phase 5: 切换上线（含回滚预案）
+### Phase 5: 长期双前端共存
+
+旧版前端不下线，与新 React 前端长期共存：
 
 ```
-Step 28: 完成所有功能验证后，修改 server.py：
-   - 默认路由指向 React SPA（app.mount("/", StaticFiles(directory=REACT_DIST_DIR, html=True))）
-   - 删除 /react 前缀路由（或保留作为别名）
-   - 删除 /static 旧静态文件挂载
-Step 29: 保留旧前端代码 2 周，观察 React 稳定性
-Step 30: 确认稳定后删除旧文件：
-   - packages/web/ts/app.ts
-   - packages/web/index.html、mobile.html
-   - packages/web/static/css/、static/js/
-Step 31: 更新 CODEBUDDY.md（新单源规则: src/main.tsx）
-Step 32: 更新 scripts/pre-commit（改为 pnpm lint + tsc --noEmit）
+Step 28: 保持当前架构不变：
+   - /  → 旧 Vanilla 前端（生产稳定，永远不动）
+   - /react/* → 新 React SPA（持续迭代）
+Step 29: 更新 CODEBUDDY.md，标注双前端的单源规则：
+   - 旧前端单源: ts/app.ts
+   - 新前端单源: src/main.tsx
+Step 30: 更新 scripts/pre-commit，同时校验两个前端：
+   - 旧前端: npx tsc（ts/app.ts 编译）
+   - 新前端: pnpm build（Vite 构建）
 ```
 
-### 回滚预案（5 分钟内）
-
-**方案 A：环境变量切换（推荐，3 秒回滚）**
-```python
-# server.py 加配置开关
-FRONTEND_MODE = os.environ.get("PAN_FRONTEND", "react")  # react | legacy
-
-if FRONTEND_MODE == "react":
-    app.mount("/", StaticFiles(directory=str(REACT_DIST_DIR), html=True))
-else:
-    # 旧前端逻辑
-    pass
-```
-重启服务即可切换，无需 git revert。
-
-**方案 B：Git 回滚**
-```bash
-git revert <切换 PR 的 commit>
-# 重新部署
-```
+**入口切换方式**：通过修改 server.py 中的默认路由即可完成切换，无需删除旧代码。哪套前端作为 `/` 入口是可配置的选择，不涉及代码删除。
 
 ---
 
@@ -770,11 +752,12 @@ src/editor/
 
 ## 关键原则
 
-1. **旧前端零改动** — 整个迁移过程不动 `ts/app.ts`、`server.py` 只加 2 行路由
-2. **组件从简开始** — 每完成一个组件就验证一个，不攒技术债
-3. **Phase 1-4 随时可回退** — 回退只需删除 server.py 新增的路由
-4. **Zustand 在 WS handler 外工作** — 这是选择 Zustand 而非 Context 的关键原因，WebSocket 回调可以直接 `useSessionStore.getState().xxx()`
-5. **所有 API 路由不变** — React 和 Vanilla 共用完全相同的后端接口
+1. **后端面向新前端开发** — 后端 API/WS 演进以 React 前端为第一目标，旧前端按需适配跟随
+2. **旧前端永久保留** — `ts/app.ts` 持续维护，作为稳定后备运行，但不制约后端演进
+3. **双前端长期共存** — `/` 旧 Vanilla 前端 + `/react/*` 新 React SPA
+4. **组件从简开始** — 每完成一个组件就验证一个，不攒技术债
+5. **Zustand 在 WS handler 外工作** — 这是选择 Zustand 而非 Context 的关键原因，WebSocket 回调可以直接 `useSessionStore.getState().xxx()`
+6. **所有 API 路由不变** — React 和 Vanilla 共用完全相同的后端接口
 
 ---
 
@@ -830,23 +813,22 @@ function ChatMessages() {
 }
 ```
 
-### E. 回滚预案
-React 前端上线后若发现严重问题，**5 分钟内回滚**：
+### E. 双前端切换方式
+
+旧前端不下线，入口切换通过环境变量控制：
 
 ```python
-# 方案 1（最快，3 秒回滚）：在 server.py 加环境变量开关
-if os.environ.get("PAN_FRONTEND") == "legacy":
-    # 旧前端默认路由
-    pass
-else:
-    # React 默认路由
-    pass
-# 重启服务即可切换
+# server.py 通过环境变量控制默认入口
+FRONTEND_MODE = os.environ.get("PAN_FRONTEND", "legacy")  # legacy | react
 
-# 方案 2（git 回滚）：git revert 切换 PR，重新部署
+if FRONTEND_MODE == "react":
+    app.mount("/", StaticFiles(directory=str(REACT_DIST_DIR), html=True))
+else:
+    # 旧前端作为默认入口（当前默认值）
+    pass
 ```
 
-**建议**：Phase 5 切换上线后，保留旧前端代码至少 2 周，观察 React 稳定性后再删除。
+无论默认入口是哪套，另一套始终可通过对应路径访问（`/` 或 `/react`）。
 
 ### F. bundle 体积监控
 ```bash
@@ -880,12 +862,11 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { hasError
 }
 ```
 
-### H. CSS 变量与 Tailwind 主题统一
-**问题**：原方案同时在 Tailwind config 定义颜色 + 旧 styles.css 有 CSS 变量，两套 source of truth。
-**方案**：
-1. 删除旧 styles.css（Phase 5）
-2. Tailwind 4 用 CSS `@theme` 定义颜色（CSS-first 配置）
-3. 需要动态切换主题时，用 CSS 变量 + Tailwind 引用
+### H. CSS 变量与 Tailwind 主题分离
+**策略**：旧 styles.css 与 React 前端各自独立维护主题，互不依赖。
+- 旧 `styles.css` 保持不变（旧前端专属）
+- React 前端用 Tailwind 4 的 CSS `@theme` 定义颜色（CSS-first 配置）
+- 两套主题系统独立运行，不共享 CSS 变量
 
 ```css
 /* src/index.css */

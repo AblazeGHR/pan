@@ -3,12 +3,14 @@ import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorkerId = useWorkerStore((s) => s.currentWorkerId);
-  const { showToast } = useUIStore();
+  const { showToast, toggleBubbleView, bubbleViewEnabled } = useUIStore();
   const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
+  const { isMobile } = useMediaQuery();
 
   if (!currentSession) {
     return (
@@ -37,6 +39,13 @@ export function TopBar() {
           <span className="text-sm font-medium text-text-primary truncate max-w-[120px] md:max-w-[200px]">
             {currentSession.name || currentSession.id?.slice(0, 12)}
           </span>
+          <button
+            onClick={toggleBubbleView}
+            className="text-sm text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+            title={bubbleViewEnabled ? 'Switch to TUI view' : 'Switch to Bubble view'}
+          >
+            {bubbleViewEnabled ? '💬' : '🖥️'}
+          </button>
         </div>
         <span className="hidden md:inline text-xs text-text-tertiary">
           {currentSession.model || '?'}
@@ -84,20 +93,22 @@ export function TopBar() {
             >
               ⊘
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                takeover(currentWorkerId)
-                  .then(() =>
-                    showToast('PowerShell opened for takeover'),
-                  )
-                  .catch((e) => showToast(e.message, 'error'));
-              }}
-              title="Takeover"
-            >
-              ⤓
-            </Button>
+            {!isMobile && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  takeover(currentWorkerId)
+                    .then(() =>
+                      showToast('PowerShell opened for takeover'),
+                    )
+                    .catch((e) => showToast(e.message, 'error'));
+                }}
+                title="Takeover"
+              >
+                ⤓
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
