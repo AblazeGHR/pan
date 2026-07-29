@@ -279,7 +279,7 @@ def _build_session_params(data: dict) -> dict:
                 params["permission_mode"] = char.permission_mode
             params["character_id"] = char.id
             params["system_prompt"] = char.system_prompt
-            if char.mcp_servers:
+            if char.mcp_servers is not None and len(char.mcp_servers) > 0:
                 params["adapter_config"]["mcp_servers"] = char.mcp_servers
     
     return params
