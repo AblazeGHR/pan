@@ -337,7 +337,7 @@ async def create_worker(session_id: str) -> Worker | str:
 
     # Inject system_prompt as first message if set
     if s.system_prompt:
-        _log(f"[Worker {worker_id}] injecting system_prompt ({len(s.system_prompt)} chars)")
+        _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
         await send_task(worker_id, s.system_prompt, source="system_prompt")
     
     return w
