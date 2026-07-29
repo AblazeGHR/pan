@@ -236,6 +236,13 @@ async def _read_stdout(w: Worker):
 # ── consumer ──
 
 async def _consumer(w: Worker):
+    """Consumer loop. Two modes:
+    
+    - Stream mode (default): long-running cbc process with --input-format stream-json.
+      Each message is written to stdin, responses parsed from stdout.
+    - One-shot MCP mode: new cbc process per message with --mcp-config.
+      Used when session has mcp_servers configured (cbc MCP incompatible with stream-json).
+    """
     while True:
         item = await w.queue.get()
         if item is None:
@@ -244,53 +251,174 @@ async def _consumer(w: Worker):
         text = item["text"]
         source = item.get("source", "agent")
 
-        # 用户发新消息 → replay 阶段结束。即使 cbc 还在重放旧事件，
-        # 后续 assistant 事件必须正常 append 到 history（否则回复丢失）。
         w._replaying = False
 
-        # 先把用户消息记进 history 并落盘——不管进程死活都该记，
-        # 否则 worker 崩溃 / server 重启会丢用户消息
         s = _session(w)
         if s:
-            # Auto-inject memory context when session has a character_id
             injected_text = await _maybe_inject_memory(s, text)
             s.history.append({"role": "user", "content": injected_text})
             await _sess.save_async(s)
             text = injected_text
 
-        if w.process is None or w.process.returncode is not None:
-            # 进程已死，别静默丢任务——记到 last_result 并广播，
-            # 让 polling 的 bot / dashboard 能看到失败原因而不是等满 120s
-            if s:
-                s.last_result = {
-                    "status": "error",
-                    "result": f"Worker process dead (returncode={w.process.returncode if w.process else 'none'})",
-                    "cli_session_id": s.cli_session_id,
-                    "timestamp": datetime.now().isoformat(),
-                }
-                await _sess.save_async(s)
-            await _bcast({
-                "type": "worker.result",
-                "workerId": w.worker_id,
-                "sessionId": w.session_id,
+        # Check if MCP mode (one-shot) or stream mode
+        use_mcp = s and s.adapter_config.get("mcp_servers")
+
+        if use_mcp:
+            await _consumer_mcp(w, text, source, s)
+        else:
+            await _consumer_stream(w, text, source, s)
+
+
+async def _consumer_stream(w: Worker, text: str, source: str, s):
+    """Stream mode: write to long-running cbc stdin."""
+    if w.process is None or w.process.returncode is not None:
+        if s:
+            s.last_result = {
                 "status": "error",
-                "result": "Worker process dead",
-            })
-            continue
-
-        w.status = "running"
-
-        data = w.adapter.encode_user_message(text)
-        w.process.stdin.write(data + b"\n")
-        await w.process.stdin.drain()
-
+                "result": f"Worker process dead (returncode={w.process.returncode if w.process else 'none'})",
+                "cli_session_id": s.cli_session_id,
+                "timestamp": datetime.now().isoformat(),
+            }
+            await _sess.save_async(s)
         await _bcast({
-            "type": "worker.status",
+            "type": "worker.result",
             "workerId": w.worker_id,
             "sessionId": w.session_id,
-            "status": "running",
-            "source": source,
+            "status": "error",
+            "result": "Worker process dead",
         })
+        return
+
+    w.status = "running"
+
+    data = w.adapter.encode_user_message(text)
+    w.process.stdin.write(data + b"\n")
+    await w.process.stdin.drain()
+
+    await _bcast({
+        "type": "worker.status",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "status": "running",
+        "source": source,
+    })
+
+
+async def _consumer_mcp(w: Worker, text: str, source: str, s):
+    """One-shot MCP mode: spawn new cbc process per message with --mcp-config.
+
+    Uses --resume to maintain conversation continuity across messages.
+    The cbc process runs as a one-shot (-p mode) with the prompt as a CLI arg,
+    which allows --mcp-config to work (incompatible with --input-format stream-json).
+    """
+    w.status = "running"
+    await _bcast({
+        "type": "worker.status",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "status": "running",
+        "source": source,
+    })
+
+    adapter = w.adapter
+
+    # Build args without --input-format stream-json (required for MCP to work)
+    args = adapter.base_args_stream() if hasattr(adapter, 'base_args_stream') else adapter.base_args()
+    args.extend(adapter.model_args(s))
+    args.extend(adapter.permission_mode_args(s))
+    if hasattr(adapter, 'effort_args'):
+        args.extend(adapter.effort_args(s))
+    if hasattr(adapter, 'thinking_args'):
+        args.extend(adapter.thinking_args(s))
+    # Resume for context continuity (skip for system_prompt messages)
+    if source != "system_prompt" and s.cli_session_id and adapter.supports_resume:
+        args.extend(adapter.resume_args(s))
+    # MCP config
+    if hasattr(adapter, 'mcp_args'):
+        args.extend(adapter.mcp_args(s))
+    # Prompt as last argument
+    args.append(text)
+
+    _log.info("[Worker %s] MCP one-shot spawn: %s", w.worker_id, " ".join(args[:8]) + " ...")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=s.workdir or None,
+        )
+    except Exception as e:
+        _log.error("[Worker %s] MCP spawn failed: %s", w.worker_id, e)
+        if s:
+            s.last_result = {"status": "error", "result": f"MCP spawn failed: {e}", "timestamp": datetime.now().isoformat()}
+            await _sess.save_async(s)
+        w.status = "idle"
+        return
+
+    # Collect output
+    output = b""
+    try:
+        while True:
+            chunk = await asyncio.wait_for(proc.stdout.read(4096), timeout=120)
+            if not chunk:
+                break
+            output += chunk
+    except asyncio.TimeoutError:
+        _log.warning("[Worker %s] MCP process timeout", w.worker_id)
+
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=10)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+
+    # Parse stream-json output
+    result_text = ""
+    cli_session_id = None
+    for line in output.decode(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        t = event.get("type", "")
+        if t == "result":
+            result_text = event.get("result", "")
+        elif t == "system" and event.get("subtype") == "init":
+            cli_session_id = event.get("session_id")
+        elif t == "assistant":
+            content = event.get("message", {}).get("content", "")
+            if isinstance(content, list):
+                content = " ".join(
+                    x.get("text", "") for x in content
+                    if isinstance(x, dict) and x.get("type") == "text"
+                )
+            s.history.append({"role": "assistant", "content": str(content)})
+
+    if cli_session_id:
+        s.cli_session_id = cli_session_id
+
+    if s:
+        s.last_result = {
+            "status": "done" if result_text else "error",
+            "result": result_text or "(no output)",
+            "cli_session_id": s.cli_session_id,
+            "timestamp": datetime.now().isoformat(),
+        }
+        await _sess.save_async(s)
+
+    w.status = "idle"
+    await _bcast({
+        "type": "worker.result",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "status": s.last_result["status"] if s else "error",
+        "result": s.last_result.get("result", "") if s else "",
+    })
 
 
 # ── lifecycle ──
@@ -300,18 +428,18 @@ async def create_worker(session_id: str) -> Worker | str:
 
     Returns Worker on success, error string on failure.
 
-    一个 session 同时只能有一个活 worker：如果已有旧 worker（哪怕状态是
-    error），先杀掉移除，避免 find_worker_by_session 返回错的那个。
+    Two modes:
+    - Stream mode (default): long-running process with --input-format stream-json.
+    - MCP mode: no long-running process. Each task spawns a one-shot cbc process.
+      Used when session has mcp_servers configured.
     """
     s = _sess.get(session_id)
     if not s:
         return f"Session {session_id} not found"
 
-    # 杀掉同 session 的旧 worker（崩过留了 error 尸体 / 重复 spawn）
     old = find_worker_by_session(session_id)
     if old:
         await kill_worker(old.worker_id)
-        # Clear stale cli_session_id so new spawn doesn't try --resume on dead session
         if s.cli_session_id:
             s.set_adapter_field("cli_session_id", None)
             await _sess.save_async(s)
@@ -319,17 +447,27 @@ async def create_worker(session_id: str) -> Worker | str:
     adapter = get_adapter(s.adapter)
     worker_id = await _next_worker_id()
 
-    proc = await _spawn_process(session_id, adapter=adapter)
-    if isinstance(proc, str):
-        return proc
+    use_mcp = bool(s.adapter_config.get("mcp_servers"))
 
-    resuming = bool(s.cli_session_id) and adapter.supports_resume
+    if use_mcp:
+        # MCP mode: no long-running process, consumer spawns per-task
+        proc = None
+        resuming = False
+    else:
+        # Stream mode: spawn long-running process
+        proc = await _spawn_process(session_id, adapter=adapter)
+        if isinstance(proc, str):
+            return proc
+        resuming = bool(s.cli_session_id) and adapter.supports_resume
+
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
                status="idle", process=proc, queue=asyncio.Queue(),
                _replaying=resuming)
     workers[worker_id] = w
-    w._stdout_task = asyncio.create_task(_read_stdout(w))
+
+    if not use_mcp:
+        w._stdout_task = asyncio.create_task(_read_stdout(w))
     w._consume_task = asyncio.create_task(_consumer(w))
 
     await _bcast({
@@ -341,7 +479,6 @@ async def create_worker(session_id: str) -> Worker | str:
         "model": s.model or adapter.default_model,
     })
 
-    # 持久化 session（记录 workdir 等）
     await _sess.save_async(s)
 
     # Inject system_prompt as first message if set
@@ -628,7 +765,8 @@ async def send_task(worker_id: str, text: str, source: str = "agent") -> str | N
         return "Worker not found"
     if w.status == "held":
         return "Worker is held (takeover mode). Restart first."
-    if w.process is None or w.process.returncode is not None:
+    # In MCP mode, process is None (spawned per-task). Still allow queue.
+    if w.process is not None and w.process.returncode is not None:
         return "Worker process dead"
     if w.queue is None:
         return "Worker queue not ready"

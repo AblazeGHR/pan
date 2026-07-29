@@ -123,8 +123,17 @@ class CbcAdapter:
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
+        """Stream mode: long-running with stdin/stdout stream-json."""
         return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json",
                 "--input-format", "stream-json", "-y"]
+
+    def base_args_stream(self) -> list[str]:
+        """One-shot MCP mode: prompt as CLI arg, no stdin streaming.
+        
+        --input-format stream-json is incompatible with --mcp-config,
+        so we omit it here. cbc processes the prompt as a one-shot.
+        """
+        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json", "-y"]
 
     def model_args(self, s: Session) -> list[str]:
         return ["--model", s.model or self.default_model]
@@ -179,11 +188,37 @@ class CbcAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """MCP servers are configured in ~/.codebuddy/mcp.json (user-level).
-
-        --input-format stream-json is incompatible with --mcp-config,
-        so we rely on user-level MCP configuration instead.
+        """Write .mcp.json to workdir and return --mcp-config arg.
+        
+        Used only in one-shot MCP mode (not stream mode).
         """
+        servers = s.adapter_config.get("mcp_servers")
+        if not servers:
+            return []
+
+        workdir = s.workdir
+        if workdir:
+            mcp_servers: dict[str, dict] = {}
+            for srv in servers:
+                name = srv.get("name", "unnamed")
+                entry: dict = {}
+                if "command" in srv:
+                    entry["command"] = srv["command"]
+                if "args" in srv:
+                    entry["args"] = srv["args"]
+                if "cwd" in srv:
+                    entry["cwd"] = srv["cwd"]
+                if "env" in srv:
+                    entry["env"] = srv["env"]
+                mcp_servers[name] = entry
+
+            mcp_json_path = os.path.join(workdir, ".mcp.json")
+            os.makedirs(workdir, exist_ok=True)
+            with open(mcp_json_path, "w", encoding="utf-8") as f:
+                json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
+
+            return ["--mcp-config", mcp_json_path]
+
         return []
 
     # ── stdin 消息编码 ──
