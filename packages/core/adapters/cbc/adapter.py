@@ -123,8 +123,9 @@ class CbcAdapter:
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
-        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json",
-                "--input-format", "stream-json", "-y"]
+        # --input-format stream-json breaks --mcp-config in cbc.
+        # Without it, cbc accepts plain text via stdin (still outputs stream-json).
+        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json", "-y"]
 
     def model_args(self, s: Session) -> list[str]:
         return ["--model", s.model or self.default_model]
@@ -217,13 +218,8 @@ class CbcAdapter:
     # ── stdin 消息编码 ──
 
     def encode_user_message(self, text: str) -> bytes:
-        return json.dumps({
-            "type": "user",
-            "message": {
-                "role": "user",
-                "content": [{"type": "text", "text": text}],
-            },
-        }).encode("utf-8")
+        # Without --input-format stream-json, cbc expects plain text on stdin
+        return (text + "\n").encode("utf-8")
 
     # ── stdout 事件解析 ──
 
