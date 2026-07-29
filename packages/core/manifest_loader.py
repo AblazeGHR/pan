@@ -135,12 +135,17 @@ def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
     if memory_dir and not Path(memory_dir).is_absolute():
         memory_dir = str(Path(plugin_dir) / memory_dir)
 
+    # Normalize system_prompt: if it's a list, join with newlines
+    sp = raw.get("system_prompt", "")
+    if isinstance(sp, list):
+        sp = "\n".join(sp)
+
     return Profile(
         name=raw.get("name", ""),
         adapter=raw.get("adapter", "cbc"),
         model=raw.get("model"),
         permission_mode=raw.get("permission_mode"),
-        system_prompt=raw.get("system_prompt", ""),
+        system_prompt=sp,
         mcp_servers=list(raw.get("mcp_servers", [])),
         memory_dir=memory_dir,
         source_manifest=plugin_dir,
