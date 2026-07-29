@@ -1,0 +1,29 @@
+{
+  "name": "pan-mcp",
+  "description": "Pan MCP Server - wraps Pan's HTTP API as MCP tools for agent consumption",
+  "health_check": "http://127.0.0.1:9740/health",
+  "mcp_servers": [
+    {
+      "name": "pan",
+      "command": "python",
+      "args": ["-m", "packages.mcp.server"],
+      "cwd": "${PLUGIN_DIR}"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "pan-operator",
+      "adapter": "cbc",
+      "model": "hy3",
+      "system_prompt": [
+        "你是 Pan 的操作员。你通过 MCP 工具管理 Pan 的会话和工作进程。",
+        "使用 session_create / session_list / session_get 管理会话。",
+        "使用 worker_spawn / worker_task / worker_kill 管理工作进程。",
+        "在执行前先列出当前会话和工作进程状态。"
+      ],
+      "mcp_servers": ["pan"],
+      "permission_mode": "bypassPermissions"
+    }
+  ],
+  "command_routes": []
+}
