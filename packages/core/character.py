@@ -149,6 +149,8 @@ class CharacterManager:
                             cfg["args"] = srv.args
                         if srv.env:
                             cfg["env"] = srv.env
+                        if srv.cwd:
+                            cfg["cwd"] = srv.cwd
                         mcp_configs.append(cfg)
                         break
         

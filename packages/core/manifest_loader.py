@@ -34,6 +34,7 @@ class McpServer:
     command: str | None = None
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
+    cwd: str | None = None
 
 
 @dataclass
@@ -167,6 +168,8 @@ def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
             k: v.replace("${PLUGIN_DIR}", plugin_dir) if isinstance(v, str) else str(v)
             for k, v in raw["env"].items()
         }
+    if "cwd" in raw:
+        srv.cwd = raw["cwd"].replace("${PLUGIN_DIR}", plugin_dir)
     return srv
 
 
