@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     global _character_manager
     config = load_config()
     plugin_paths = config.get("plugin_manifests", ["manifest.json"])
-    _character_manager = CharacterManager(str(DATA_DIR.parent))
+    _character_manager = CharacterManager(str(DATA_DIR))
     try:
         _character_manager.load_manifest(plugin_paths)
         profiles = _character_manager.list_profiles()
