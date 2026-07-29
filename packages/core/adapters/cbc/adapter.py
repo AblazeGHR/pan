@@ -188,9 +188,11 @@ class CbcAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """Write .mcp.json to workdir and return --mcp-config arg.
-        
-        Used only in one-shot MCP mode (not stream mode).
+        """Write .codebuddy/mcp.json to workdir and return --mcp-config arg.
+
+        cbc auto-discovers .codebuddy/mcp.json in the project directory when
+        given -d, so MCP tools load as fully connected (not deferred).
+        Writing to .mcp.json instead makes MCP tools deferred only.
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
@@ -212,9 +214,16 @@ class CbcAdapter:
                     entry["env"] = srv["env"]
                 mcp_servers[name] = entry
 
-            mcp_json_path = os.path.join(workdir, ".mcp.json")
-            os.makedirs(workdir, exist_ok=True)
+            # Use .codebuddy/mcp.json so cbc auto-discovers via -d
+            codebuddy_dir = os.path.join(workdir, ".codebuddy")
+            mcp_json_path = os.path.join(codebuddy_dir, "mcp.json")
+            os.makedirs(codebuddy_dir, exist_ok=True)
             with open(mcp_json_path, "w", encoding="utf-8") as f:
+                json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
+
+            # Also write <workdir>/.mcp.json as fallback
+            mcp_json_alt = os.path.join(workdir, ".mcp.json")
+            with open(mcp_json_alt, "w", encoding="utf-8") as f:
                 json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
 
             return ["--mcp-config", mcp_json_path]
