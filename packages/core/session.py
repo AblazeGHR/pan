@@ -34,6 +34,7 @@ class Session:
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
     character_id: str | None = None   # bound character ID (for memory + system_prompt)
     system_prompt: str | None = None  # injected at Worker spawn
+    game_id: str | None = None        # RuleWhisper game identifier for MCP tool calls
     raw_usage: dict | None = None
     total_usage: dict | None = None
     workdir: str = ""
@@ -106,6 +107,7 @@ class Session:
             "adapter_config": self.adapter_config,
             "character_id": self.character_id,
             "system_prompt": self.system_prompt,
+            "game_id": self.game_id,
             "raw_usage": self.raw_usage,
             "total_usage": self.total_usage,
             "workdir": self.workdir,

@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -46,6 +46,7 @@ class Character:
     model: str | None = None
     permission_mode: str | None = None
     system_prompt: str = ""
+    mcp_servers: list[dict] = field(default_factory=list)  # MCP server configs from manifest
     memory_db_path: str = ""  # e.g. "data/memory/char_abc123.sqlite"
     memory_dir: str | None = None  # directory of .md knowledge files
     created_at: str = ""
@@ -59,6 +60,7 @@ class Character:
             "model": self.model,
             "permission_mode": self.permission_mode,
             "system_prompt": self.system_prompt,
+            "mcp_servers": self.mcp_servers,
             "memory_db_path": self.memory_db_path,
             "memory_dir": self.memory_dir,
             "created_at": self.created_at,
@@ -74,6 +76,7 @@ class Character:
             model=data.get("model"),
             permission_mode=data.get("permission_mode"),
             system_prompt=data.get("system_prompt", ""),
+            mcp_servers=data.get("mcp_servers", []),
             memory_db_path=data.get("memory_db_path", ""),
             memory_dir=data.get("memory_dir"),
             created_at=data.get("created_at", ""),
@@ -132,6 +135,23 @@ class CharacterManager:
             raise ValueError(f"Profile not found: {profile_name}")
 
         char_id = "char_" + secrets.token_hex(8)
+        
+        # Resolve mcp_servers: profile has names, manifest has full configs
+        mcp_configs: list[dict] = []
+        if profile.mcp_servers and self._manifest_config:
+            for srv_name in profile.mcp_servers:
+                for srv in self._manifest_config.mcp_servers:
+                    if srv.name == srv_name:
+                        cfg: dict = {"name": srv.name}
+                        if srv.command:
+                            cfg["command"] = srv.command
+                        if srv.args:
+                            cfg["args"] = srv.args
+                        if srv.env:
+                            cfg["env"] = srv.env
+                        mcp_configs.append(cfg)
+                        break
+        
         char = Character(
             id=char_id,
             profile_name=profile.name,
@@ -140,6 +160,7 @@ class CharacterManager:
             model=profile.model,
             permission_mode=profile.permission_mode,
             system_prompt=profile.system_prompt,
+            mcp_servers=mcp_configs,
             memory_db_path=str(self._memory_dir / f"{char_id}.sqlite"),
             memory_dir=profile.memory_dir,
             created_at=datetime.now(timezone.utc).isoformat(),

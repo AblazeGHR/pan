@@ -171,8 +171,22 @@ class KimiAdapter:
         args = self.base_args()
         args.extend(self.model_args(s))
         args.extend(self.resume_args(s))
+        args.extend(self.mcp_args(s))
         if extra_args:
             args.extend(extra_args)
+        return args
+
+    def mcp_args(self, s: Session) -> list[str]:
+        """Inject --mcp-config from session's mcp_servers."""
+        servers = s.adapter_config.get("mcp_servers")
+        if not servers:
+            return []
+        args = []
+        for srv in servers:
+            args.extend([
+                "--mcp-config",
+                json.dumps(srv, ensure_ascii=False, separators=(",", ":")),
+            ])
         return args
 
     # ── stdin 消息编码 ──
