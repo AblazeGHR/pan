@@ -174,6 +174,10 @@ class CbcAdapter:
     def build_spawn_args(self, s: Session,
                           extra_args: list[str] | None = None) -> list[str]:
         args = self.base_args()
+        # cbc needs -d to recognize the workdir as a project root
+        # (for .mcp.json discovery via enableAllProjectMcpServers)
+        if s.workdir:
+            args.extend(["-d", s.workdir])
         args.extend(self.model_args(s))
         args.extend(self.permission_mode_args(s))
         args.extend(self.effort_args(s))
