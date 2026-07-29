@@ -360,6 +360,11 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # MCP config
     if hasattr(adapter, 'mcp_args'):
         args.extend(adapter.mcp_args(s))
+    # NOTE: pass -d <workdir> as arg (not cwd= to subprocess)
+    # cbc treats cwd= as "random dir" but -d as "project directory",
+    # and only -d registers the MCP servers as directly connected.
+    if s.workdir:
+        args.extend(["-d", s.workdir])
     # Append conversation history as context (cbc doesn't resume, so we replay)
     # Format: previous conversation turns + current text
     if s.history:
@@ -369,14 +374,13 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # Prompt as last argument
     args.append(text)
 
-    _log.info("[Worker %s] MCP one-shot spawn: %s", w.worker_id, " ".join(args[:8]) + " ...")
+    _log.info("[Worker %s] MCP one-shot spawn (full args): %s", w.worker_id, " ".join(repr(a) for a in args))
 
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            cwd=s.workdir or None,
         )
     except Exception as e:
         _log.error("[Worker %s] MCP spawn failed: %s", w.worker_id, e)
