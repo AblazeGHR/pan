@@ -45,9 +45,20 @@ class Profile:
     model: str | None = None
     permission_mode: str | None = None
     system_prompt: str = ""
+    mcp_mode: str = "optional"    # "always" | "optional" | "never"
     mcp_servers: list[str] = field(default_factory=list)
     memory_dir: str | None = None  # Path to character's memory .md files
     source_manifest: str = ""      # Which manifest.json defined this profile
+
+    @property
+    def mcp_locked(self) -> bool:
+        """True if mcp_mode prevents toggling MCP on/off."""
+        return self.mcp_mode in ("always", "never")
+
+    @property
+    def mcp_default(self) -> bool:
+        """True if MCP should be enabled by default for this profile."""
+        return self.mcp_mode == "always"
 
 
 @dataclass
@@ -145,6 +156,7 @@ def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
         name=raw.get("name", ""),
         adapter=raw.get("adapter", "cbc"),
         model=raw.get("model"),
+        mcp_mode=raw.get("mcp_mode", "optional"),
         permission_mode=raw.get("permission_mode"),
         system_prompt=sp,
         mcp_servers=list(raw.get("mcp_servers", [])),

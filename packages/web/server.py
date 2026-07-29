@@ -171,7 +171,22 @@ def _session_to_api(s: sess.Session):
         "updatedAt": s.updated_at,
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
+        "mcpEnabled": ac.get("mcp_enabled", False),
+        "mcpLocked": _get_mcp_locked_state(s),
     }
+
+
+def _get_mcp_locked_state(s) -> bool | None:
+    """Check if MCP toggle is locked for this session's character profile."""
+    if not s.character_id or _character_manager is None:
+        return None
+    try:
+        char = _character_manager.get_character(s.character_id)
+        if char and char.mcp_mode:
+            return char.mcp_mode in ("always", "never")
+    except Exception:
+        pass
+    return None
 
 
 _NAME_RE = re.compile(r"^\S+$")  # session name: any non-whitespace chars
@@ -279,8 +294,18 @@ def _build_session_params(data: dict) -> dict:
                 params["permission_mode"] = char.permission_mode
             params["character_id"] = char.id
             params["system_prompt"] = char.system_prompt
+            # Always pass mcp_servers so config is available if user toggles MCP on
             if char.mcp_servers is not None and len(char.mcp_servers) > 0:
                 params["adapter_config"]["mcp_servers"] = char.mcp_servers
+            # Set mcp_enabled based on profile's mcp_mode
+            if char.mcp_mode == "always":
+                params["adapter_config"]["mcp_enabled"] = True
+            elif char.mcp_mode == "never":
+                params["adapter_config"]["mcp_enabled"] = False
+            elif char.mcp_mode == "optional":
+                # Start in stream mode, user can toggle later
+                if "mcp_enabled" not in params["adapter_config"]:
+                    params["adapter_config"]["mcp_enabled"] = False
     
     return params
 
@@ -305,6 +330,32 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("effort", data["effort"])
     if "maxThinkingTokens" in data:
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
+    if "mcpEnabled" in data:
+        _apply_mcp_enabled(s, data["mcpEnabled"])
+
+
+def _apply_mcp_enabled(s: sess.Session, enable: bool):
+    """Apply mcpEnabled toggle, respecting profile mcp_mode lock."""
+    if not enable:
+        # Always allow disabling
+        s.set_adapter_field("mcp_enabled", False)
+        return
+
+    # Check if profile allows enabling MCP
+    if s.character_id and _character_manager is not None:
+        try:
+            char = _character_manager.get_character(s.character_id)
+            if char and char.mcp_mode == "never":
+                raise ValueError(f"MCP is locked to 'never' for profile '{char.profile_name}'")
+            if char and char.mcp_mode == "always":
+                # Already enabled, no-op
+                s.set_adapter_field("mcp_enabled", True)
+                return
+        except Exception:
+            # If character lookup fails, allow the update (best effort)
+            pass
+
+    s.set_adapter_field("mcp_enabled", enable)
 
 
 def _open_terminal(cmd: str, cwd: str | Path) -> int:
@@ -537,13 +588,23 @@ async def api_update_session(session_id: str, data: dict):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    _apply_session_updates(s, data)
+    require_restart = False
+    old_mcp_enabled = s.adapter_config.get("mcp_enabled")
+    try:
+        _apply_session_updates(s, data)
+    except ValueError as e:
+        return {"error": str(e)}
+    new_mcp_enabled = s.adapter_config.get("mcp_enabled")
+    require_restart = old_mcp_enabled != new_mcp_enabled
     sess.save(s)
     await broadcast({
         "type": "session.updated",
         "sessionId": s.id,
     })
-    return _session_to_api(s)
+    result = _session_to_api(s)
+    if require_restart:
+        result["requireRestart"] = True
+    return result
 
 
 @app.post("/api/sessions/{session_id}/rename")

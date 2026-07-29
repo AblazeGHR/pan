@@ -46,6 +46,7 @@ class Character:
     model: str | None = None
     permission_mode: str | None = None
     system_prompt: str = ""
+    mcp_mode: str = "optional"    # inherited from profile: "always" | "optional" | "never"
     mcp_servers: list[dict] = field(default_factory=list)  # MCP server configs from manifest
     memory_db_path: str = ""  # e.g. "data/memory/char_abc123.sqlite"
     memory_dir: str | None = None  # directory of .md knowledge files
@@ -60,6 +61,7 @@ class Character:
             "model": self.model,
             "permission_mode": self.permission_mode,
             "system_prompt": self.system_prompt,
+            "mcp_mode": self.mcp_mode,
             "mcp_servers": self.mcp_servers,
             "memory_db_path": self.memory_db_path,
             "memory_dir": self.memory_dir,
@@ -76,6 +78,7 @@ class Character:
             model=data.get("model"),
             permission_mode=data.get("permission_mode"),
             system_prompt=data.get("system_prompt", ""),
+            mcp_mode=data.get("mcp_mode", "optional"),
             mcp_servers=data.get("mcp_servers", []),
             memory_db_path=data.get("memory_db_path", ""),
             memory_dir=data.get("memory_dir"),
@@ -162,6 +165,7 @@ class CharacterManager:
             model=profile.model,
             permission_mode=profile.permission_mode,
             system_prompt=profile.system_prompt,
+            mcp_mode=profile.mcp_mode,
             mcp_servers=mcp_configs,
             memory_db_path=str(self._memory_dir / f"{char_id}.sqlite"),
             memory_dir=profile.memory_dir,

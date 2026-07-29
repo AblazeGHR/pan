@@ -261,7 +261,7 @@ async def _consumer(w: Worker):
             text = injected_text
 
         # Check if MCP mode (one-shot) or stream mode
-        use_mcp = s and s.adapter_config.get("mcp_servers")
+        use_mcp = s and s.adapter_config.get("mcp_enabled") and s.adapter_config.get("mcp_servers")
 
         if use_mcp:
             await _consumer_mcp(w, text, source, s)
@@ -447,7 +447,7 @@ async def create_worker(session_id: str) -> Worker | str:
     adapter = get_adapter(s.adapter)
     worker_id = await _next_worker_id()
 
-    use_mcp = bool(s.adapter_config.get("mcp_servers"))
+    use_mcp = bool(s.adapter_config.get("mcp_enabled") and s.adapter_config.get("mcp_servers"))
 
     if use_mcp:
         # MCP mode: no long-running process, consumer spawns per-task
