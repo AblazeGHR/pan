@@ -304,6 +304,30 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     })
 
 
+def _format_history_for_context(history: list[dict], max_chars: int = 8000) -> str:
+    """Format session history as a context block for one-shot MCP prompts.
+
+    Skips the system_prompt entry (it's already in cbc's context via .mcp.json or
+    separate handling). Truncates to max_chars to avoid hitting token limits.
+    """
+    lines = []
+    for h in history:
+        role = h.get("role", "")
+        if role == "system":
+            continue
+        content = h.get("content", "")
+        if not content:
+            continue
+        if role == "user":
+            lines.append(f"[User]: {content}")
+        elif role == "assistant":
+            lines.append(f"[Assistant]: {content}")
+    text = "\n\n".join(lines)
+    if len(text) > max_chars:
+        text = "...[truncated]...\n" + text[-max_chars:]
+    return text
+
+
 async def _consumer_mcp(w: Worker, text: str, source: str, s):
     """One-shot MCP mode: spawn new cbc process per message with --mcp-config.
 
@@ -328,14 +352,20 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     args.extend(adapter.permission_mode_args(s))
     if hasattr(adapter, 'effort_args'):
         args.extend(adapter.effort_args(s))
-    # NOTE: skip thinking_args() because --settings breaks MCP initialization
-    # (cbc's --settings JSON conflicts with --mcp-config)
-    # Resume for context continuity (skip for system_prompt messages)
-    if source != "system_prompt" and s.cli_session_id and adapter.supports_resume:
-        args.extend(adapter.resume_args(s))
+    # NOTE: skip --resume in MCP mode. cbc's session_id in init event
+    # doesn't match its saved file IDs (causes "No conversation found").
+    # MCP server maintains its own game/character state.
+    # if source != "system_prompt" and s.cli_session_id and adapter.supports_resume:
+    #     args.extend(adapter.resume_args(s))
     # MCP config
     if hasattr(adapter, 'mcp_args'):
         args.extend(adapter.mcp_args(s))
+    # Append conversation history as context (cbc doesn't resume, so we replay)
+    # Format: previous conversation turns + current text
+    if s.history:
+        history_context = _format_history_for_context(s.history)
+        if history_context:
+            text = f"{history_context}\n[User]: {text}"
     # Prompt as last argument
     args.append(text)
 
