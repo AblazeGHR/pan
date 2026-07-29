@@ -336,23 +336,22 @@ def _apply_session_updates(s: sess.Session, data: dict):
 
 def _apply_mcp_enabled(s: sess.Session, enable: bool):
     """Apply mcpEnabled toggle, respecting profile mcp_mode lock."""
-    if not enable:
-        # Always allow disabling
-        s.set_adapter_field("mcp_enabled", False)
-        return
-
-    # Check if profile allows enabling MCP
+    # Check if profile locks the MCP setting
     if s.character_id and _character_manager is not None:
         try:
             char = _character_manager.get_character(s.character_id)
-            if char and char.mcp_mode == "never":
-                raise ValueError(f"MCP is locked to 'never' for profile '{char.profile_name}'")
-            if char and char.mcp_mode == "always":
-                # Already enabled, no-op
-                s.set_adapter_field("mcp_enabled", True)
-                return
+            if char:
+                if char.mcp_mode == "always" and not enable:
+                    raise ValueError(f"MCP is locked to 'always' for profile '{char.profile_name}'. Cannot disable.")
+                if char.mcp_mode == "never" and enable:
+                    raise ValueError(f"MCP is locked to 'never' for profile '{char.profile_name}'. Cannot enable.")
+                if char.mcp_mode == "always":
+                    # Already enabled, no-op
+                    s.set_adapter_field("mcp_enabled", True)
+                    return
+        except ValueError:
+            raise
         except Exception:
-            # If character lookup fails, allow the update (best effort)
             pass
 
     s.set_adapter_field("mcp_enabled", enable)
