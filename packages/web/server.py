@@ -23,6 +23,7 @@ from packages.core.adapters.cbc import sessions as cbc_sessions
 from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
 from packages.core.config import load_config
+from packages.core.character import CharacterManager
 
 # ── logging ──
 
@@ -50,9 +51,25 @@ async def lifespan(app: FastAPI):
     sessions = sess.list_all()
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
+    
+    # Init CharacterManager with manifest
+    global _character_manager
+    config = load_config()
+    plugin_paths = config.get("plugin_manifests", ["manifest.json"])
+    _character_manager = CharacterManager(str(DATA_DIR.parent))
+    try:
+        _character_manager.load_manifest(plugin_paths)
+        profiles = _character_manager.list_profiles()
+        _log(f"[Pan] Loaded {len(profiles)} character profiles from manifest")
+    except Exception as e:
+        _log(f"[Pan] Character manifest not loaded: {e}")
+    
     yield
     await worker.shutdown_all()
     _log("[Pan] All workers shut down")
+
+
+_character_manager: CharacterManager | None = None
 
 
 app = FastAPI(title="Pan", lifespan=lifespan)
@@ -235,7 +252,8 @@ def _build_session_params(data: dict) -> dict:
     config = load_config().get(adapter_name, {})
     name = data.get("name", "default")
     workdir_name = data.get("workdir") or name
-    return {
+    
+    params = {
         "name": name,
         "adapter": adapter_name,
         "model": data.get("model") or config.get("model") or a.default_model,
@@ -247,6 +265,22 @@ def _build_session_params(data: dict) -> dict:
             "max_thinking_tokens": data.get("maxThinkingTokens") or None,
         },
     }
+    
+    # If characterId is set, override adapter/model/permission_mode/system_prompt from character
+    character_id = data.get("characterId")
+    if character_id and _character_manager is not None:
+        char = _character_manager.get_character(character_id)
+        if char:
+            if not data.get("adapter"):
+                params["adapter"] = char.adapter
+            if not data.get("model"):
+                params["model"] = char.model
+            if not data.get("permissionMode"):
+                params["permission_mode"] = char.permission_mode
+            params["character_id"] = char.id
+            params["system_prompt"] = char.system_prompt
+    
+    return params
 
 
 def _safe_adapter(adapter_name: str):
@@ -1246,6 +1280,258 @@ async def api_takeover(worker_id: str):
         "takeoverPid": w.takeover_pid,
         "status": "takeover started",
     }
+
+# ── Memory API ──
+
+_memory_managers: dict[str, object] = {}  # character_id → MemoryManager
+
+def _get_memory_manager(character_id: str):
+    """Get or create a MemoryManager for a character."""
+    if character_id not in _memory_managers:
+        from packages.core.memory import MemoryManager
+        api_key = os.environ.get("OPENAI_API_KEY")
+        db_path = str(DATA_DIR / "memory" / f"{character_id}.sqlite")
+        db_path_parent = Path(db_path).parent
+        db_path_parent.mkdir(parents=True, exist_ok=True)
+        _memory_managers[character_id] = MemoryManager(
+            db_path=db_path,
+            api_key=api_key,
+        )
+    return _memory_managers[character_id]
+
+
+# ── Character API ──
+
+
+@app.get("/api/characters/profiles")
+async def api_characters_profiles():
+    """List available character profiles from manifest."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    profiles = _character_manager.list_profiles()
+    return {
+        "profiles": [
+            {
+                "name": p.name,
+                "adapter": p.adapter,
+                "model": p.model,
+                "system_prompt_preview": p.system_prompt[:100] + "..." if len(p.system_prompt) > 100 else p.system_prompt,
+            }
+            for p in profiles
+        ],
+        "total": len(profiles),
+    }
+
+
+@app.post("/api/characters")
+async def api_characters_create(data: dict):
+    """Create a new character from a manifest profile."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    profile_name = data.get("profile_name", "")
+    if not profile_name:
+        return {"error": "profile_name is required"}
+    try:
+        char = _character_manager.create_character(
+            profile_name=profile_name,
+            name=data.get("name"),
+            auto_index=True,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+    return {
+        "id": char.id,
+        "profile_name": char.profile_name,
+        "name": char.name,
+        "adapter": char.adapter,
+        "model": char.model,
+        "system_prompt_preview": char.system_prompt[:100] + "..." if len(char.system_prompt) > 100 else char.system_prompt,
+        "created_at": char.created_at,
+    }
+
+
+@app.get("/api/characters")
+async def api_characters_list():
+    """List all created characters."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    chars = _character_manager.list_characters()
+    return {
+        "characters": [
+            {
+                "id": c.id,
+                "profile_name": c.profile_name,
+                "name": c.name,
+                "adapter": c.adapter,
+                "model": c.model,
+            }
+            for c in chars
+        ],
+        "total": len(chars),
+    }
+
+
+@app.get("/api/characters/{character_id}")
+async def api_characters_get(character_id: str):
+    """Get character details including memory stats."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    char = _character_manager.get_character(character_id)
+    if char is None:
+        return {"error": f"Character {character_id} not found"}
+    mem_stats = None
+    try:
+        mgr = _character_manager.get_memory_manager(character_id)
+        if mgr:
+            mem_stats = mgr.stats()
+    except Exception:
+        pass
+    return {
+        "id": char.id,
+        "profile_name": char.profile_name,
+        "name": char.name,
+        "adapter": char.adapter,
+        "model": char.model,
+        "system_prompt": char.system_prompt,
+        "memory_db_path": char.memory_db_path,
+        "memory_dir": char.memory_dir,
+        "memory_stats": {"files": mem_stats.files, "chunks": mem_stats.chunks} if mem_stats else None,
+        "created_at": char.created_at,
+    }
+
+
+@app.delete("/api/characters/{character_id}")
+async def api_characters_delete(character_id: str):
+    """Delete a character and its memory store."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    if _character_manager.delete_character(character_id):
+        return {"status": "deleted", "character_id": character_id}
+    return {"error": f"Character {character_id} not found"}
+
+
+@app.post("/api/memory/index")
+async def api_memory_index(data: dict):
+    """Index a directory of .md files into the memory store.
+    
+    Request body:
+        character_id: str — which character's memory store
+        dir_path: str     — directory containing .md files to index
+    """
+    character_id = data.get("character_id", "default")
+    dir_path = data.get("dir_path")
+    if not dir_path:
+        return {"error": "dir_path is required"}
+
+    mgr = _get_memory_manager(character_id)
+    report = mgr.index_directory(dir_path)
+    return {
+        "character_id": character_id,
+        "files_scanned": report.files_scanned,
+        "files_modified": report.files_modified,
+        "chunks_upserted": report.chunks_upserted,
+        "details": [
+            {"path": d.path, "status": d.status, "chunks": d.chunks}
+            for d in report.details
+        ],
+    }
+
+
+@app.get("/api/memory/search")
+async def api_memory_search(
+    q: str = "",
+    character_id: str = "default",
+    max_results: int = 6,
+    min_score: float = 0.35,
+):
+    """Search the memory store for a character.
+    
+    Query params:
+        q            — search query text
+        character_id — which character's memory store
+        max_results  — max number of results (default 6)
+        min_score    — minimum score threshold (default 0.35)
+    """
+    if not q.strip():
+        return {"results": [], "total": 0}
+
+    mgr = _get_memory_manager(character_id)
+    results = mgr.search(q, max_results=max_results, min_score=min_score)
+    return {
+        "results": [
+            {
+                "chunk_id": r.chunk_id,
+                "path": r.path,
+                "text": r.text,
+                "score": round(r.score, 4),
+                "start_line": r.start_line,
+                "end_line": r.end_line,
+                "source": r.source,
+            }
+            for r in results
+        ],
+        "total": len(results),
+    }
+
+
+@app.get("/api/memory/stats")
+async def api_memory_stats(character_id: str = "default"):
+    """Get memory store statistics for a character."""
+    mgr = _get_memory_manager(character_id)
+    stats = mgr.stats()
+    return {
+        "character_id": character_id,
+        "files": stats.files,
+        "chunks": stats.chunks,
+    }
+
+
+@app.post("/api/memory/inject")
+async def api_memory_inject(data: dict):
+    """Search memory and return formatted context for Worker injection.
+
+    Request body:
+        text         — user's query to search memory AND the task text
+        character_id — which character's memory to search (default: "default")
+        max_results  — max memory snippets (default: 3)
+        min_score    — minimum score threshold (default: 0.35)
+
+    Returns:
+        injected_text — the task text with memory context prepended
+        context       — raw memory context (Markdown)
+        snippet_count — number of memory snippets found
+    """
+    from packages.core.memory_context import search_and_format, inject_context
+
+    text = data.get("text", "")
+    if not text.strip():
+        return {"error": "text is required"}
+
+    character_id = data.get("character_id", "default")
+    max_results = data.get("max_results", 3)
+    min_score = float(data.get("min_score", 0.35))
+
+    # Search memory using the task text as query
+    context = search_and_format(
+        query=text,
+        character_id=character_id,
+        max_results=max_results,
+        min_score=min_score,
+        db_dir=str(DATA_DIR / "memory"),
+    )
+
+    if context.snippet_count > 0:
+        injected = inject_context(text, context)
+    else:
+        injected = text
+
+    return {
+        "injected_text": injected,
+        "context": context.results_md,
+        "snippet_count": context.snippet_count,
+        "character_id": character_id,
+    }
+
 
 # ── File-system operations ──
 

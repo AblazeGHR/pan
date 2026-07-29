@@ -32,6 +32,8 @@ class Session:
     model: str | None = None
     permission_mode: str | None = None
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
+    character_id: str | None = None   # bound character ID (for memory + system_prompt)
+    system_prompt: str | None = None  # injected at Worker spawn
     raw_usage: dict | None = None
     total_usage: dict | None = None
     workdir: str = ""
@@ -102,6 +104,8 @@ class Session:
             "model": self.model,
             "permission_mode": self.permission_mode,
             "adapter_config": self.adapter_config,
+            "character_id": self.character_id,
+            "system_prompt": self.system_prompt,
             "raw_usage": self.raw_usage,
             "total_usage": self.total_usage,
             "workdir": self.workdir,

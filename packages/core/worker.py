@@ -21,6 +21,33 @@ from .adapters import get_adapter, CliAdapter
 _log = logging.getLogger(__name__)
 
 
+# ── Memory injection helper ──
+
+
+async def _maybe_inject_memory(s, text: str) -> str:
+    """If session has a character_id, search memory and inject context.
+
+    Runs in a thread to avoid blocking the event loop (embedding is CPU-bound).
+    On failure, returns the original text unchanged.
+    """
+    if not s.character_id:
+        return text
+
+    try:
+        from .memory_context import search_and_format, inject_context
+
+        ctx = await asyncio.to_thread(
+            search_and_format,
+            text,
+            character_id=s.character_id,
+        )
+        if ctx.snippet_count > 0:
+            return inject_context(text, ctx)
+    except Exception:
+        _log.warning("Memory injection failed for %s, using raw text", s.character_id)
+    return text
+
+
 @dataclass
 class Worker:
     worker_id: str
@@ -220,8 +247,11 @@ async def _consumer(w: Worker):
         # 否则 worker 崩溃 / server 重启会丢用户消息
         s = _session(w)
         if s:
-            s.history.append({"role": "user", "content": text})
+            # Auto-inject memory context when session has a character_id
+            injected_text = await _maybe_inject_memory(s, text)
+            s.history.append({"role": "user", "content": injected_text})
             await _sess.save_async(s)
+            text = injected_text
 
         if w.process is None or w.process.returncode is not None:
             # 进程已死，别静默丢任务——记到 last_result 并广播，
@@ -304,6 +334,12 @@ async def create_worker(session_id: str) -> Worker | str:
 
     # 持久化 session（记录 workdir 等）
     await _sess.save_async(s)
+
+    # Inject system_prompt as first message if set
+    if s.system_prompt:
+        _log(f"[Worker {worker_id}] injecting system_prompt ({len(s.system_prompt)} chars)")
+        await send_task(worker_id, s.system_prompt, source="system_prompt")
+    
     return w
 
 
