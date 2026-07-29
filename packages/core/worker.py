@@ -328,8 +328,8 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     args.extend(adapter.permission_mode_args(s))
     if hasattr(adapter, 'effort_args'):
         args.extend(adapter.effort_args(s))
-    if hasattr(adapter, 'thinking_args'):
-        args.extend(adapter.thinking_args(s))
+    # NOTE: skip thinking_args() because --settings breaks MCP initialization
+    # (cbc's --settings JSON conflicts with --mcp-config)
     # Resume for context continuity (skip for system_prompt messages)
     if source != "system_prompt" and s.cli_session_id and adapter.supports_resume:
         args.extend(adapter.resume_args(s))
