@@ -2,6 +2,11 @@
 
 > 记录 2026-07-29 Pan 接入 RuleWhisper MCP 的全部试错过程与最终方案。避免后人踩重复的坑。
 
+## 相关文档
+
+- [cbc MCP 端到端调通记录](./cbc-mcp-e2e-调通记录.md) — 2026-07-30 生产级联调，含 prompt 设计、历史重放、model 行为分析
+- [下一阶段优化计划](./下一阶段优化计划.md) — 历史截断、性能、`--resume`、前端联调
+
 ## 决策总结
 
 | 方案 | 结论 |
@@ -119,6 +124,8 @@ cbc mcp remove <name>            移除服务器
 - `command` 必须是可以直接执行的绝对路径
 - `cwd` 是进程工作目录，MCP server 的 `python -m` 从这里解析模块
 - `args` 是纯参数列表，不会被进一步解析
+- **`type: "stdio"` 建议显式添加**，帮助 cbc 正确识别 server 类型（缺失时可能影响发现）
+- `.codebuddy/mcp.json` 优于 `.mcp.json` — cbc 通过 `-d workdir` 自动发现前者
 
 ## MCP Server 开发注意事项
 
