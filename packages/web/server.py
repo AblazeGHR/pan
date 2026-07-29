@@ -936,13 +936,11 @@ async def api_cbc_sessions_import(data: dict):
     if existing:
         w = worker.find_alive_worker_by_session(existing.id)
         if w:
-            # Worker process is alive — only update usage in-place.
-            # Do NOT overwrite history: _read_stdout is the authoritative
-            # source while the worker is running.  Replacing history would
-            # race with concurrent _read_stdout appends, causing duplicates
-            # that appear as double agent-side output in the dashboard.
+            # Worker process is alive — update history/usage in-place without disruption.
+            existing.history = history
             existing.raw_usage = raw_usage
             existing.total_usage = total_usage
+            # Do NOT reset last_result — the worker is still alive.
             sess.save(existing)
             await broadcast({
                 "type": "session.updated",
@@ -1033,13 +1031,11 @@ async def api_kimi_sessions_import(data: dict):
     if existing:
         w = worker.find_alive_worker_by_session(existing.id)
         if w:
-            # Worker process is alive — only update usage in-place.
-            # Do NOT overwrite history: _read_stdout is the authoritative
-            # source while the worker is running.  Replacing history would
-            # race with concurrent _read_stdout appends, causing duplicates
-            # that appear as double agent-side output in the dashboard.
+            # Worker process is alive — update history/usage in-place without disruption.
+            existing.history = history
             existing.raw_usage = raw_usage
             existing.total_usage = total_usage
+            # Do NOT reset last_result — the worker is still alive.
             sess.save(existing)
             await broadcast({
                 "type": "session.updated",
