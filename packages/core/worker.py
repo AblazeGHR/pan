@@ -367,10 +367,16 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         args.extend(["-d", s.workdir])
     # Append conversation history as context (cbc doesn't resume, so we replay)
     # Format: previous conversation turns + current text
-    if s.history:
+    # MCP mode: system_prompt is NOT injected separately (avoids LLM entering
+    # pure roleplay mode). Instead, prepend it to the first user message.
+    if s.history and len(s.history) > 1:
         history_context = _format_history_for_context(s.history)
         if history_context:
             text = f"{history_context}\n[User]: {text}"
+    if s.system_prompt and len(s.history) <= 1:
+        # First user message: user instruction first (model prioritizes it),
+        # system_prompt follows as context
+        text = f"{text}\n\n---\n{s.system_prompt}"
     # Prompt as last argument
     args.append(text)
 
@@ -406,6 +412,16 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()
+
+    # DEBUG: save raw cbc output for inspection
+    debug_path = os.path.join(s.workdir, ".pan-cbc-raw.jsonl") if s else None
+    if debug_path:
+        try:
+            os.makedirs(s.workdir, exist_ok=True)
+            with open(debug_path, "wb") as df:
+                df.write(output)
+        except Exception:
+            pass
 
     # Parse stream-json output
     result_text = ""
@@ -516,9 +532,13 @@ async def create_worker(session_id: str) -> Worker | str:
     await _sess.save_async(s)
 
     # Inject system_prompt as first message if set
-    if s.system_prompt:
+    # MCP mode: skip separate injection — system_prompt biases LLM into pure
+    # roleplay, preventing it from discovering MCP tools via ToolSearch.
+    if s.system_prompt and not use_mcp:
         _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
         await send_task(worker_id, s.system_prompt, source="system_prompt")
+    elif s.system_prompt and use_mcp:
+        _log.info("[Worker %s] MCP mode: system_prompt will be prepended to first user message", worker_id)
     
     return w
 

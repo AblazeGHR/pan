@@ -212,6 +212,8 @@ class CbcAdapter:
                     entry["cwd"] = srv["cwd"]
                 if "env" in srv:
                     entry["env"] = srv["env"]
+                # Always set type to stdio for reliable cbc discovery
+                entry.setdefault("type", "stdio")
                 mcp_servers[name] = entry
 
             # Use .codebuddy/mcp.json so cbc auto-discovers via -d
