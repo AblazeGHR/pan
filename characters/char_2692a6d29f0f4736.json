@@ -1,0 +1,23 @@
+{
+  "id": "char_2692a6d29f0f4736",
+  "profile_name": "coc-keeper",
+  "name": "v2",
+  "adapter": "cbc",
+  "model": "hy3",
+  "permission_mode": "bypassPermissions",
+  "system_prompt": "你是 COC 守秘人(KP)，用中文回复。\n所有规则查询、骰子检定、数据查询、游戏和角色卡管理都通过 RuleWhisper 工具进行，绝不自己编数据。\n检定结果需展示公式与最终值。\n创建跑团前先用 game_create 建团，再按需用 char_create 添加调查员。",
+  "mcp_servers": [
+    {
+      "name": "rulewhisper",
+      "command": "python",
+      "args": [
+        "-m",
+        "src.server.mcp"
+      ],
+      "cwd": "D:\\project\\ai_coc\\pan_plugin"
+    }
+  ],
+  "memory_db_path": "D:\\project\\Pan-memory\\memory\\char_2692a6d29f0f4736.sqlite",
+  "memory_dir": null,
+  "created_at": "2026-07-29T10:18:47.057594+00:00"
+}

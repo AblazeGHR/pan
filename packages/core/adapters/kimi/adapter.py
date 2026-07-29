@@ -184,9 +184,6 @@ class KimiAdapter:
         args = []
         for srv in servers:
             cfg = dict(srv)
-            if "cwd" in cfg:
-                cfg.setdefault("env", {})
-                cfg["env"]["CWD"] = cfg.pop("cwd")
             args.extend([
                 "--mcp-config",
                 json.dumps(cfg, ensure_ascii=False, separators=(",", ":")),
