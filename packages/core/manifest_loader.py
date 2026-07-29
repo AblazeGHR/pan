@@ -154,9 +154,10 @@ def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
 
 
 def _resolve_plugin_var(value: str, plugin_dir: str) -> str:
-    """Replace ${PLUGIN_DIR} and normalize the path."""
-    resolved = value.replace("${PLUGIN_DIR}", plugin_dir)
-    return str(Path(resolved).resolve())
+    """Replace ${PLUGIN_DIR} and normalize the path. Only resolves if the var is present."""
+    if "${PLUGIN_DIR}" in value:
+        return str(Path(value.replace("${PLUGIN_DIR}", plugin_dir)).resolve())
+    return value
 
 
 def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
