@@ -32,6 +32,7 @@
   },
 
   "plugin_manifests": [
+    "manifest.json",
     "../ai_coc/pan_plugin/manifest.json",
     "packages/mcp/manifest.json"
   ]
