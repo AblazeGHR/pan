@@ -123,9 +123,8 @@ class CbcAdapter:
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
-        # --input-format stream-json breaks --mcp-config in cbc.
-        # Without it, cbc accepts plain text via stdin (still outputs stream-json).
-        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json", "-y"]
+        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json",
+                "--input-format", "stream-json", "-y"]
 
     def model_args(self, s: Session) -> list[str]:
         return ["--model", s.model or self.default_model]
@@ -180,46 +179,23 @@ class CbcAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """Write .mcp.json to workdir and pass --mcp-config file path.
+        """MCP servers are configured in ~/.codebuddy/mcp.json (user-level).
 
-        Uses --mcp-config with explicit file path which reliably loads
-        the MCP server into cbc's deferred tools list. The server connects
-        automatically when the first tool call is made.
+        --input-format stream-json is incompatible with --mcp-config,
+        so we rely on user-level MCP configuration instead.
         """
-        servers = s.adapter_config.get("mcp_servers")
-        if not servers:
-            return []
-
-        workdir = s.workdir
-        if workdir:
-            mcp_servers: dict[str, dict] = {}
-            for srv in servers:
-                name = srv.get("name", "unnamed")
-                entry: dict = {}
-                if "command" in srv:
-                    entry["command"] = srv["command"]
-                if "args" in srv:
-                    entry["args"] = srv["args"]
-                if "cwd" in srv:
-                    entry["cwd"] = srv["cwd"]
-                if "env" in srv:
-                    entry["env"] = srv["env"]
-                mcp_servers[name] = entry
-
-            mcp_json_path = os.path.join(workdir, ".mcp.json")
-            os.makedirs(workdir, exist_ok=True)
-            with open(mcp_json_path, "w", encoding="utf-8") as f:
-                json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
-
-            return ["--mcp-config", mcp_json_path]
-
         return []
 
     # ── stdin 消息编码 ──
 
     def encode_user_message(self, text: str) -> bytes:
-        # Without --input-format stream-json, cbc expects plain text on stdin
-        return (text + "\n").encode("utf-8")
+        return json.dumps({
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": text}],
+            },
+        }).encode("utf-8")
 
     # ── stdout 事件解析 ──
 

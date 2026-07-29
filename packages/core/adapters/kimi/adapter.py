@@ -177,18 +177,8 @@ class KimiAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """Inject --mcp-config from session's mcp_servers."""
-        servers = s.adapter_config.get("mcp_servers")
-        if not servers:
-            return []
-        args = []
-        for srv in servers:
-            cfg = dict(srv)
-            args.extend([
-                "--mcp-config",
-                json.dumps(cfg, ensure_ascii=False, separators=(",", ":")),
-            ])
-        return args
+        """MCP servers are configured in ~/.codebuddy/mcp.json (user-level)."""
+        return []
 
     # ── stdin 消息编码 ──
 
