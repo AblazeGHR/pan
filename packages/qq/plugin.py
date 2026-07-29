@@ -45,7 +45,8 @@ _poll_tasks: dict[str, asyncio.Task] = {}
 
 @dataclass
 class BridgeSession:
-    qq_user_id: str
+    scope: str = "user"           # "user" or "group"
+    scope_id: str = ""            # user_id or group_id
     session_id: str | None = None  # Pan internal session ID (ses_xxx), not the CLI session UUID
     worker_id: str | None = None
     last_result_ts: str = ""
@@ -89,8 +90,8 @@ async def _post(path: str, data: dict = None) -> dict:
 
 # ── polling ──
 
-async def _poll_result(session_id: str, qq_user_id: str):
-    session = _sessions.get(qq_user_id)
+async def _poll_result(session_id: str, session_key: str):
+    session = _sessions.get(session_key)
     if not session:
         return
 
@@ -139,8 +140,9 @@ async def _poll_result(session_id: str, qq_user_id: str):
         evt.set()
 
 
-async def _ensure_session(qq_user_id: str) -> str | None:
-    session = _sessions.get(qq_user_id)
+async def _ensure_session(scope_id: str, scope: str = "user") -> str | None:
+    session_key = f"{scope}:{scope_id}"
+    session = _sessions.get(session_key)
     if session and session.session_id:
         data = await _get(f"/api/sessions/{session.session_id}")
         if "error" not in data:
@@ -156,18 +158,21 @@ async def _ensure_session(qq_user_id: str) -> str | None:
             return session.session_id
 
     # check for existing session (avoid duplicates)
+    prefix = "qqg" if scope == "group" else "qq"
+    name_prefix = f"{prefix}-{scope_id[-6:]}"
     existing = await _get("/api/sessions")
     if "sessions" in existing:
         for sess_data in existing["sessions"]:
-            if sess_data.get("name", "").startswith(f"qq-{qq_user_id[-6:]}"):
+            if sess_data.get("name", "").startswith(name_prefix):
                 lr = sess_data.get("lastResult") or {}
                 bridge = BridgeSession(
-                    qq_user_id=qq_user_id,
+                    scope=scope,
+                    scope_id=scope_id,
                     session_id=sess_data["id"],
                     worker_id=sess_data.get("workerId"),
                     last_result_ts=lr.get("timestamp", ""),
                 )
-                _sessions[qq_user_id] = bridge
+                _sessions[session_key] = bridge
                 if not bridge.worker_id:
                     result = await _post("/api/spawn", {"sessionId": bridge.session_id})
                     if "error" not in result:
@@ -175,7 +180,7 @@ async def _ensure_session(qq_user_id: str) -> str | None:
                 return bridge.session_id
 
     # new session
-    name = f"qq-{qq_user_id[-6:]}"
+    name = name_prefix
     s = await _post("/api/sessions", {"name": name})
     if "error" in s:
         print(f"[QQ Bridge] create session failed: {s['error']}")
@@ -188,25 +193,27 @@ async def _ensure_session(qq_user_id: str) -> str | None:
         return None
 
     bridge = BridgeSession(
-        qq_user_id=qq_user_id,
+        scope=scope,
+        scope_id=scope_id,
         session_id=session_id,
         worker_id=result.get("workerId"),
     )
-    _sessions[qq_user_id] = bridge
+    _sessions[session_key] = bridge
     return session_id
 
 
-async def _send_and_wait(text: str, qq_user_id: str) -> str:
-    session_id = await _ensure_session(qq_user_id)
+async def _send_and_wait(text: str, scope_id: str, scope: str = "user") -> str:
+    session_id = await _ensure_session(scope_id, scope)
     if not session_id:
         return "[Pan] cannot create session"
 
+    session_key = f"{scope}:{scope_id}"
     evt = asyncio.Event()
     _pending[session_id] = evt
 
     if session_id not in _poll_tasks or _poll_tasks[session_id].done():
         _poll_tasks[session_id] = asyncio.create_task(
-            _poll_result(session_id, qq_user_id)
+            _poll_result(session_id, session_key)
         )
 
     result = await _post("/api/task", {
@@ -262,8 +269,12 @@ async def handle_message(bot: Bot, event: MessageEvent):
         bot_qq = int(bot.self_id)
         if bot_qq not in [seg.data.get("qq", 0) for seg in event.message if seg.type == "at"]:
             return
+        scope = "group"
+        scope_id = str(event.group_id)
+    else:
+        scope = "user"
+        scope_id = str(event.get_user_id())
 
-    qq_user_id = str(event.get_user_id())
     text = event.get_plaintext().strip()
 
     if not text:
@@ -271,7 +282,7 @@ async def handle_message(bot: Bot, event: MessageEvent):
 
     await bot.send(event, "processing, please wait...")
 
-    response = await _send_and_wait(text, qq_user_id)
+    response = await _send_and_wait(text, scope_id, scope=scope)
 
     MAX_LEN = 1500
     if len(response) <= MAX_LEN:
