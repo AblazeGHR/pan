@@ -24,8 +24,23 @@ logger = logging.getLogger(__name__)
 VECTOR_WEIGHT = 0.7
 TEXT_WEIGHT = 0.3
 DEFAULT_MAX_RESULTS = 6
-DEFAULT_MIN_SCORE = 0.20
+DEFAULT_MIN_SCORE = 0.25
 CANDIDATE_MULTIPLIER = 4
+
+
+# ── CJK helper ──────────────────────────────────────────────────────── #
+
+def _is_cjk_char(c: str) -> bool:
+    """Quick CJK check — same ranges as chunker.is_cjk."""
+    cp = ord(c)
+    return (
+        (0x4E00 <= cp <= 0x9FFF)
+        or (0x3400 <= cp <= 0x4DBF)
+        or (0x3000 <= cp <= 0x303F)
+        or (0xFF00 <= cp <= 0xFFEF)
+        or (0x2E80 <= cp <= 0x2FFF)
+        or (0xAC00 <= cp <= 0xD7AF)
+    )
 
 
 # ── Search result ───────────────────────────────────────────────────── #
@@ -176,11 +191,25 @@ class HybridSearcher:
     def _expand_query(query: str) -> str:
         """Extract keywords for FTS5 matching.
 
-        Strips common punctuation while preserving CJK characters.
+        Uses jieba for Chinese segmentation, strips ASCII punctuation.
         Returns space-separated terms suitable for FTS5 unicode61 tokenizer.
         """
-        # Remove ASCII punctuation except hyphens (keep for compound terms)
+        # Remove ASCII punctuation except hyphens
         cleaned = re.sub(r"[^\w\s\u4e00-\u9fff\-]", " ", query)
-        # Collapse whitespace
-        terms = cleaned.split()
+
+        # Try jieba for Chinese word segmentation
+        try:
+            import jieba
+
+            terms = list(jieba.cut(cleaned))
+            # Filter single-char non-CJK terms, keep all CJK
+            terms = [
+                t.strip()
+                for t in terms
+                if t.strip() and (len(t) > 1 or _is_cjk_char(t[0]))
+            ]
+        except ImportError:
+            # Fallback to simple whitespace split
+            terms = cleaned.split()
+
         return " ".join(terms)
