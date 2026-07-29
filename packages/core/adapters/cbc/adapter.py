@@ -130,9 +130,18 @@ class CbcAdapter:
         return ["--model", s.model or self.default_model]
 
     def thinking_args(self, s: Session) -> list[str]:
-        """cbc 的 alwaysThinkingEnabled 默认 true，关闭时需 --settings 覆盖。"""
+        """Build --settings JSON, merging alwaysThinkingEnabled and MCP approval."""
+        settings: dict = {}
+
         if not s.adapter_config.get("always_thinking_enabled", False):
-            return ["--settings", '{"alwaysThinkingEnabled": false}']
+            settings["alwaysThinkingEnabled"] = False
+
+        # Auto-approve project MCP servers in non-interactive mode
+        if s.adapter_config.get("mcp_servers"):
+            settings["enableAllProjectMcpServers"] = True
+
+        if settings:
+            return ["--settings", json.dumps(settings, ensure_ascii=False, separators=(",", ":"))]
         return []
 
     _VALID_EFFORT = frozenset({"none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"})
@@ -175,18 +184,39 @@ class CbcAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """Inject --mcp-config from session's mcp_servers."""
+        """Write .mcp.json to workdir and pass --mcp-config.
+
+        cbc requires MCP servers to be defined in a .mcp.json file in the
+        project scope (workdir). The --settings enableAllProjectMcpServers
+        flag auto-approves them in non-interactive mode.
+        """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
             return []
-        args = []
-        for srv in servers:
-            cfg = dict(srv)
-            args.extend([
-                "--mcp-config",
-                json.dumps(cfg, ensure_ascii=False, separators=(",", ":")),
-            ])
-        return args
+
+        # Write .mcp.json to workdir
+        workdir = s.workdir
+        if workdir:
+            mcp_servers: dict[str, dict] = {}
+            for srv in servers:
+                name = srv.get("name", "unnamed")
+                entry: dict = {}
+                if "command" in srv:
+                    entry["command"] = srv["command"]
+                if "args" in srv:
+                    entry["args"] = srv["args"]
+                if "cwd" in srv:
+                    entry["cwd"] = srv["cwd"]
+                if "env" in srv:
+                    entry["env"] = srv["env"]
+                mcp_servers[name] = entry
+
+            mcp_json_path = os.path.join(workdir, ".mcp.json")
+            os.makedirs(workdir, exist_ok=True)
+            with open(mcp_json_path, "w", encoding="utf-8") as f:
+                json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
+
+        return []
 
     # ── stdin 消息编码 ──
 
