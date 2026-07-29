@@ -1,0 +1,28 @@
+{
+  "name": "pan-self",
+  "description": "Pan self-hosted plugin — MCP server for agent consumption + Skill documentation",
+  "mcp_servers": [
+    {
+      "name": "pan",
+      "command": "${PLUGIN_DIR}/.venv/Scripts/python",
+      "args": ["-m", "packages.mcp.server"],
+      "cwd": "${PLUGIN_DIR}"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "pan-operator",
+      "adapter": "cbc",
+      "model": "hy3",
+      "permission_mode": "bypassPermissions",
+      "mcp_servers": ["pan"],
+      "system_prompt": [
+        "你是 Pan 的操作员。你通过 MCP 工具管理 Pan 的会话和工作进程。",
+        "核心流程: session_create → worker_spawn → worker_task → session_get 读取结果。",
+        "执行前先用 session_list 了解当前状态。",
+        "任务完成后 worker 保持 idle，可继续发任务或 worker_kill 释放。"
+      ]
+    }
+  ],
+  "command_routes": []
+}
