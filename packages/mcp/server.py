@@ -29,14 +29,14 @@ import urllib.error
 
 from mcp.server.fastmcp import FastMCP
 
-PAN_API_URL = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
+_pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 
 mcp = FastMCP("Pan")
 
 
 def _api(method: str, path: str, body: dict | None = None) -> dict:
     """Call Pan's HTTP API and return parsed JSON response."""
-    url = f"{PAN_API_URL}{path}"
+    url = f"{_pan_api_url}{path}"
     data = json.dumps(body).encode("utf-8") if body else None
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
@@ -200,6 +200,7 @@ def model_list(adapter: str = "cbc") -> dict:
 # ---------------------------------------------------------------------------
 
 def main():
+    import __main__
     parser = argparse.ArgumentParser(description="Pan MCP Server")
     parser.add_argument("--transport", default="stdio",
                         choices=["stdio", "sse", "streamable-http"])
@@ -207,12 +208,12 @@ def main():
                         help="Port for SSE/streamable-http transport (default: 9740)")
     parser.add_argument("--host", default="127.0.0.1",
                         help="Host for SSE/streamable-http transport")
-    parser.add_argument("--pan-url", default=PAN_API_URL,
-                        help=f"Pan API base URL (default: {PAN_API_URL})")
+    parser.add_argument("--pan-url", default=_pan_api_url,
+                        help=f"Pan API base URL (default: {_pan_api_url})")
     args = parser.parse_args()
 
-    global PAN_API_URL
-    PAN_API_URL = args.pan_url.rstrip("/")
+    # Update module-level API URL so tools use the CLI override
+    __main__._pan_api_url = args.pan_url.rstrip("/")
 
     mcp.settings.host = args.host
     mcp.settings.port = args.port
