@@ -153,23 +153,29 @@ def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
     )
 
 
+def _resolve_plugin_var(value: str, plugin_dir: str) -> str:
+    """Replace ${PLUGIN_DIR} and normalize the path."""
+    resolved = value.replace("${PLUGIN_DIR}", plugin_dir)
+    return str(Path(resolved).resolve())
+
+
 def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
     """Parse an MCP server entry, resolving ${PLUGIN_DIR}."""
     srv = McpServer(name=raw.get("name", ""))
     if "command" in raw:
-        srv.command = raw["command"].replace("${PLUGIN_DIR}", plugin_dir) if isinstance(raw["command"], str) else raw["command"]
+        srv.command = _resolve_plugin_var(raw["command"], plugin_dir) if isinstance(raw["command"], str) else raw["command"]
     if "args" in raw:
         srv.args = [
-            arg.replace("${PLUGIN_DIR}", plugin_dir) if isinstance(arg, str) else str(arg)
+            _resolve_plugin_var(arg, plugin_dir) if isinstance(arg, str) else str(arg)
             for arg in raw["args"]
         ]
     if "env" in raw:
         srv.env = {
-            k: v.replace("${PLUGIN_DIR}", plugin_dir) if isinstance(v, str) else str(v)
+            k: _resolve_plugin_var(v, plugin_dir) if isinstance(v, str) else str(v)
             for k, v in raw["env"].items()
         }
     if "cwd" in raw:
-        srv.cwd = raw["cwd"].replace("${PLUGIN_DIR}", plugin_dir)
+        srv.cwd = _resolve_plugin_var(raw["cwd"], plugin_dir) if isinstance(raw["cwd"], str) else raw["cwd"]
     return srv
 
 
