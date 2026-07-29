@@ -157,7 +157,7 @@ def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
     """Parse an MCP server entry, resolving ${PLUGIN_DIR}."""
     srv = McpServer(name=raw.get("name", ""))
     if "command" in raw:
-        srv.command = raw["command"]
+        srv.command = raw["command"].replace("${PLUGIN_DIR}", plugin_dir) if isinstance(raw["command"], str) else raw["command"]
     if "args" in raw:
         srv.args = [
             arg.replace("${PLUGIN_DIR}", plugin_dir) if isinstance(arg, str) else str(arg)
