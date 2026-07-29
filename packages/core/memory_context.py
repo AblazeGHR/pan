@@ -47,17 +47,18 @@ def search_and_format(
     """
     from pathlib import Path
 
-    from .memory import MemoryManager, PROVIDER_OPENAI
+    from .memory import MemoryManager, PROVIDER_SENTENCE_TRANSFORMERS
 
     if db_dir is None:
-        db_dir = str(Path(__file__).resolve().parent.parent.parent / "data" / "memory")
+        # Use data/memory relative to project root (cwd when running main.py)
+        db_dir = str(Path.cwd() / "data" / "memory")
 
     import os
     if api_key is None:
         api_key = os.environ.get("OPENAI_API_KEY")
 
     if provider is None:
-        provider = PROVIDER_OPENAI
+        provider = PROVIDER_SENTENCE_TRANSFORMERS
 
     db_path = str(Path(db_dir) / f"{character_id}.sqlite")
 

@@ -12,6 +12,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import psutil
 
@@ -36,10 +37,14 @@ async def _maybe_inject_memory(s, text: str) -> str:
     try:
         from .memory_context import search_and_format, inject_context
 
+        # Resolve memory db path from character
+        db_dir = str(Path.cwd() / "data" / "memory")
+
         ctx = await asyncio.to_thread(
             search_and_format,
             text,
             character_id=s.character_id,
+            db_dir=db_dir,
         )
         if ctx.snippet_count > 0:
             return inject_context(text, ctx)
