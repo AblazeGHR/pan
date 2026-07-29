@@ -311,6 +311,10 @@ async def create_worker(session_id: str) -> Worker | str:
     old = find_worker_by_session(session_id)
     if old:
         await kill_worker(old.worker_id)
+        # Clear stale cli_session_id so new spawn doesn't try --resume on dead session
+        if s.cli_session_id:
+            s.set_adapter_field("cli_session_id", None)
+            await _sess.save_async(s)
 
     adapter = get_adapter(s.adapter)
     worker_id = await _next_worker_id()
