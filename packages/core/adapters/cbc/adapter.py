@@ -130,9 +130,19 @@ class CbcAdapter:
         return ["--model", s.model or self.default_model]
 
     def thinking_args(self, s: Session) -> list[str]:
-        """Build --settings JSON for alwaysThinkingEnabled."""
+        """Build --settings JSON, merging alwaysThinkingEnabled and MCP approval."""
+        settings: dict = {}
+
         if not s.adapter_config.get("always_thinking_enabled", False):
-            return ["--settings", '{"alwaysThinkingEnabled": false}']
+            settings["alwaysThinkingEnabled"] = False
+
+        # Auto-approve project MCP servers in non-interactive mode.
+        # Requires .codebuddy directory in workdir for cbc to recognize it as a project.
+        if s.adapter_config.get("mcp_servers"):
+            settings["enableAllProjectMcpServers"] = True
+
+        if settings:
+            return ["--settings", json.dumps(settings, ensure_ascii=False, separators=(",", ":"))]
         return []
 
     _VALID_EFFORT = frozenset({"none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"})
@@ -175,17 +185,16 @@ class CbcAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """Write .mcp.json to workdir and pass --mcp-config with file path.
+        """Write .mcp.json to workdir and ensure .codebuddy dir exists.
 
-        --mcp-config with a file path works reliably, while
-        enableAllProjectMcpServers requires cbc to have previously
-        registered the directory as a known project.
+        cbc's enableAllProjectMcpServers scans for .mcp.json in directories
+        that contain a .codebuddy marker (project root detection). We create
+        an empty .codebuddy dir so cbc recognizes the workdir as a project.
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
             return []
 
-        # Write .mcp.json to workdir
         workdir = s.workdir
         if workdir:
             mcp_servers: dict[str, dict] = {}
@@ -202,12 +211,13 @@ class CbcAdapter:
                     entry["env"] = srv["env"]
                 mcp_servers[name] = entry
 
+            # Create .codebuddy marker dir so cbc detects this as a project
+            codebuddy_dir = os.path.join(workdir, ".codebuddy")
+            os.makedirs(codebuddy_dir, exist_ok=True)
+
             mcp_json_path = os.path.join(workdir, ".mcp.json")
-            os.makedirs(workdir, exist_ok=True)
             with open(mcp_json_path, "w", encoding="utf-8") as f:
                 json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
-
-            return ["--mcp-config", mcp_json_path]
 
         return []
 
