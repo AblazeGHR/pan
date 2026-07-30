@@ -352,11 +352,16 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     args.extend(adapter.permission_mode_args(s))
     if hasattr(adapter, 'effort_args'):
         args.extend(adapter.effort_args(s))
-    # NOTE: skip --resume in MCP mode. cbc's session_id in init event
-    # doesn't match its saved file IDs (causes "No conversation found").
-    # MCP server maintains its own game/character state.
-    # if source != "system_prompt" and s.cli_session_id and adapter.supports_resume:
-    #     args.extend(adapter.resume_args(s))
+    # NOTE: skip --settings in MCP mode (breaks MCP init)
+    # see thinking_args() — skip it here since we're in base_args_stream() path
+
+    # --resume: cbc natively maintains conversation history in
+    # ~/.codebuddy/projects/d-project-Pan-memory/<session-id>.jsonl.
+    # When cli_session_id is set (saved from init event), cbc picks up
+    # the full context including MCP tool discovery state.
+    if s.cli_session_id and adapter.supports_resume:
+        args.extend(adapter.resume_args(s))
+
     # MCP config
     if hasattr(adapter, 'mcp_args'):
         args.extend(adapter.mcp_args(s))
@@ -365,17 +370,11 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # and only -d registers the MCP servers as directly connected.
     if s.workdir:
         args.extend(["-d", s.workdir])
-    # Append conversation history as context (cbc doesn't resume, so we replay)
-    # Format: previous conversation turns + current text
-    # MCP mode: system_prompt is NOT injected separately (avoids LLM entering
-    # pure roleplay mode). Instead, prepend it to the first user message.
-    if s.history and len(s.history) > 1:
-        history_context = _format_history_for_context(s.history)
-        if history_context:
-            text = f"{history_context}\n[User]: {text}"
-    if s.system_prompt and len(s.history) <= 1:
-        # First user message: user instruction first (model prioritizes it),
-        # system_prompt follows as context
+
+    # History replay: only needed when --resume is NOT available
+    # (first message of a session, before cli_session_id is captured).
+    if s.system_prompt and not s.cli_session_id:
+        # First user message: user instruction first, system_prompt follows
         text = f"{text}\n\n---\n{s.system_prompt}"
     # Prompt as last argument
     args.append(text)
