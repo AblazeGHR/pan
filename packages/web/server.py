@@ -1255,6 +1255,36 @@ async def api_takeover(worker_id: str):
         "status": "takeover started",
     }
 
+
+@app.get("/api/worker/{worker_id}/takeover-command")
+async def api_takeover_command(worker_id: str):
+    """Return the takeover command without executing it (mobile use).
+
+    Unlike POST /takeover, this does NOT restart the worker or open a
+    terminal.  The caller (mobile dashboard) copies the command to
+    clipboard so the user can paste it manually.
+    """
+    w = worker.get_worker(worker_id)
+    if not w:
+        return {"error": "Worker not found"}
+    s = sess.get(w.session_id)
+    if not s:
+        return {"error": "Session not found"}
+    if not s.cli_session_id:
+        return {"error": "Worker has no CLI session yet"}
+
+    adapter_cmd = w.adapter.takeover_command(s)
+    if not adapter_cmd:
+        return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
+
+    return {
+        "workerId": worker_id,
+        "sessionId": w.session_id,
+        "cliSessionId": s.cli_session_id,
+        "takeoverCommand": " ".join(adapter_cmd),
+    }
+
+
 # ── File-system operations ──
 
 @app.get("/api/fs/list")

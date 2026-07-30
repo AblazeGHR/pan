@@ -1345,6 +1345,32 @@ function takeover(): void {
     });
 }
 
+function takeoverMobile(): void {
+  if (!currentWorkerId) {
+    toast('No worker running');
+    return;
+  }
+  fetch('/api/worker/' + currentWorkerId + '/takeover-command')
+    .then((r: Response) => r.json())
+    .then((d: any) => {
+      if (d.error) {
+        toast(d.error);
+        return;
+      }
+      navigator.clipboard
+        .writeText(d.takeoverCommand ?? ('cbc --resume ' + (d.cliSessionId?? '')))
+        .then(() => {
+          toast('Takeover command copied to clipboard.');
+        })
+        .catch(() => {
+          toast('Failed to copy command. Manual: ' + (d.takeoverCommand || ''));
+        });
+    })
+    .catch(() => {
+      toast('Failed to get takeover command.');
+    });
+}
+
 function killWorker(): void {
   if (!currentWorkerId) {
     toast('No worker running');
