@@ -759,7 +759,14 @@ function updateScrollToBottomBtn(): void {
 
 function scrollToBottom(): void {
   const el = document.getElementById('messages')!;
-  el.scrollTop = el.scrollHeight;
+  const last = el.lastElementChild;
+  if (last) {
+    // scrollIntoView works correctly with content-visibility:auto
+    // where scrollHeight may be underestimated.
+    last.scrollIntoView({ block: 'end' });
+  } else {
+    el.scrollTop = el.scrollHeight;
+  }
   updateScrollToBottomBtn();
 }
 
@@ -772,6 +779,7 @@ function renderMessages(history: Message[]): void {
   _rendering = true;
   const el = document.getElementById('messages')!;
   el.innerHTML = '';
+  el.scrollTop = 0;
   if (!currentHistory || currentHistory.length === 0) {
     el.innerHTML =
       '<div class="empty-chat">No messages yet. Start a conversation.</div>';
