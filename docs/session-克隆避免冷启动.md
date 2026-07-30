@@ -1,63 +1,92 @@
-# 方案：利用 session 克隆避免 MCP 首条消息冷启动
+# 方案：利用 profile 模板化避免 MCP 首条消息冷启动
 
 > **状态更新 2026-07-30**：后续消息性能已通过 `--resume` 解决(commit `80d5f7c`)。
-> 本方案专注于**首条消息冷启动**优化——`--resume` 不解决此问题（新 session = 新 cbc 进程 = 零上下文）。
+> 本方案专注于**首条消息冷启动**优化（新 session = 新 cbc 进程 = 零上下文）。
 
 ## 问题
 
-新 session 首条消息 ~90s（模型先探索 Pan 项目代码库 20+ 次再发现 MCP 工具）。探索是**必然的**——每个 cbc 进程从零开始，不继承任何项目知识。
-
+新 session 首条消息 ~90s（模型先探索 Pan 项目代码库 20+ 次再发现 MCP 工具）。
 后续消息已通过 `--resume` 优化至 ~35s。但首条仍慢。
 
-## 思路
+## 简化设计
 
-"已探索过的 character/session" 是一笔资产——它记住了项目结构、MCP 工具列表。如果能**克隆**这种已完成的 session，新 session 的**首条消息**注入已有的探索上下文，模型直接进入 MCP 工具使用。
+不实现独立的 session 克隆 API，而是利用现有的 **profile → character** 管线：
 
-## 核心假设
+- **Profile** 除了 `mcp_servers`、`system_prompt` 等字段外，可选携带 `bootstrap_session`（引用一个已探索过的 session 的 key history）
+- **Character** 创建时继承 profile 的 `bootstrap_context`
+- **Worker** 首条消息时，将 `bootstrap_context` 注入 prompt（在 system_prompt 之前），模型看到 "之前曾成功调用过 MCP 工具" 后跳过探索
 
-`--resume` 解决了后续消息的上下文连续性问题，但无法跨 session 生效。如果新 session 创建时将 "已探索" 的上下文**注入首次 cbc 调用的 prompt**（而非依赖 `--resume`），模型可能跳过代码库探索。
+## 数据流
 
-## 需要确认的问题
+```
+Profile (manifest.json)
+  ├── system_prompt: "你是 COC 守秘人..."
+  ├── mcp_servers: [rulewhisper]
+  └── bootstrap_session: "ses_abc123"        ← 新增：模板 session ID
 
-1. **Branch API 目前做了什么？** 是复制 session state 还是只复制配置？
-2. **首次消息注入格式**——当前 `--resume` 模式的首条消息只前置 system_prompt，克隆方案需要额外注入探索上下文（成功的 ToolSearch → DeferExecuteTool 调用记录）
-3. **workdir 隔离**——每个 session 有自己的 workdir，首次 cbc 仍会用 `-d <workdir>` 指定目录
+Character (创建时)
+  ├── system_prompt (from profile)
+  ├── mcp_servers (from profile)
+  └── bootstrap_context (from profile.bootstrap_session)  ← 新增：编译后的上下文
 
-## 分阶段实施
+Worker._consumer_mcp (首条消息)
+  text = f"[Bootstrap: 之前已成功通过 ToolSearch 找到 RuleWhisper MCP 工具...]\n{text}\n\n---\n{s.system_prompt}"
+```
 
-### Phase 1：调研 branch 现有能力 (30min)
+## Bootstrap Session 的生命周期
 
-- 读 `/api/sessions/{id}/branch` handler
-- 读 `_format_history_for_context` 实现
-- 手工 branch 一个已探索 session，看继承了什么
+1. **手动创建模板 session**：用 CLI/API 跑一次完整探索 + game_list
+2. **编译 bootstrap_context**：从 session history 提取关键信息，压缩为文本摘要
+3. **绑定到 profile**：profile 的 `bootstrap_session` 指向该 session
+4. **新 character 继承**：create_character 时从 bootstrap session 提取上下文注入 character
 
-### Phase 2：改造 branch 为 "克隆" (1h)
+## 实施步骤
 
-如果现有 branch 不完全复制历史，补充：
-- clone 时复制完整 history + adapter_config + system_prompt
-- 可选：同时复制 workdir 中的 `.codebuddy/mcp.json`
-- 可选：标记 "isTemplate" / "isPrimed" 状态
+### Step 1：Profile 增加 bootstrap_session 字段 (15min)
 
-### Phase 3：探索剪枝 (30min)
+manifest.json 中 profile 增加：
+```json
+{
+  "name": "coc-keeper",
+  "mcp_mode": "always",
+  "bootstrap_session": "ses_template_coc"  // 模板 session ID
+}
+```
 
-为了让克隆的 history 更紧凑：
-- 去掉 codebase 探索消息（Grep/Bash/Agent），只保留 MCP tool_use/tool_result
-- 把成功的 tool 调用作为 "范例" 前置
-- 探索 `_format_history_for_context` 过滤能力
+manifest_loader 解析该字段到 Profile dataclass。
 
-### Phase 4：验证 (30min)
+### Step 2：Character 继承 bootstrap_context (15min)
 
-- 创建 primed session（跑一次完整探索 + game_list 成功）
-- branch 出新 session
-- 发首条消息，对比冷启动耗时
+Character dataclass 增加 `bootstrap_context: str | None` 字段。
+create_character 时从 profile 的 bootstrap_session 读 session JSON，提取 key history 编译为文本。
+
+### Step 3：Worker 注入 bootstrap_context (15min)
+
+`_consumer_mcp` 首条消息时（`not s.cli_session_id`），若 `char.bootstrap_context` 存在：
+```
+{bootstrap_context}
+---
+{user_text}
+---
+{system_prompt}
+```
+
+### Step 4：验证 (15min)
+
+- 创建模板 session → 编译 bootstrap_context
+- 从 profile 创建新 character → start session → spawn worker
+- 首条消息 "list games"，对比耗时
 
 ## 不覆盖的范围
 
 - system_prompt 优化（已做过）
-- `--resume`（已解决，commit `80d5f7c`）
+- `--resume`（已解决）
+- 自动编译 bootstrap context（先手动编辑）
+- 多个模板 session（先支持一个）
 
 ## 关键文件
 
-- `packages/web/server.py` — branch handler + session creation
-- `packages/core/worker.py` — `_consumer_mcp`, `_format_history_for_context`
-- `packages/core/session.py` — Session dataclass
+- `manifest.json` / `manifest_loader.py` — profile 字段扩展
+- `packages/core/character.py` — Character 增加 bootstrap_context
+- `packages/core/worker.py` — `_consumer_mcp` 注入逻辑
+- `data/sessions/ses_template_*.json` — 模板 session 数据
