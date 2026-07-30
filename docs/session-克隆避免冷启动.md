@@ -1,22 +1,27 @@
-# 方案：利用 session 克隆避免 MCP 冷启动探索
+# 方案：利用 session 克隆避免 MCP 首条消息冷启动
+
+> **状态更新 2026-07-30**：后续消息性能已通过 `--resume` 解决(commit `80d5f7c`)。
+> 本方案专注于**首条消息冷启动**优化——`--resume` 不解决此问题（新 session = 新 cbc 进程 = 零上下文）。
 
 ## 问题
 
 新 session 首条消息 ~90s（模型先探索 Pan 项目代码库 20+ 次再发现 MCP 工具）。探索是**必然的**——每个 cbc 进程从零开始，不继承任何项目知识。
 
+后续消息已通过 `--resume` 优化至 ~35s。但首条仍慢。
+
 ## 思路
 
-"已探索过的 character/session" 是一笔资产——它记住了项目结构、MCP 工具列表，后续消息不再探索代码。如果能**克隆**这种已完成的 session，新 session 继承其探索历史，首条消息就跳过探索。
+"已探索过的 character/session" 是一笔资产——它记住了项目结构、MCP 工具列表。如果能**克隆**这种已完成的 session，新 session 的**首条消息**注入已有的探索上下文，模型直接进入 MCP 工具使用。
 
 ## 核心假设
 
-`_consumer_mcp` 每次调用都重放全部 history：`_format_history_for_context(s.history)`。如果 branching 能复制历史，新 session 的 cbc 会看到 "之前曾经成功调用了 game_list..."——模型可能直接进入 MCP 工具使用，而非从零探索。
+`--resume` 解决了后续消息的上下文连续性问题，但无法跨 session 生效。如果新 session 创建时将 "已探索" 的上下文**注入首次 cbc 调用的 prompt**（而非依赖 `--resume`），模型可能跳过代码库探索。
 
 ## 需要确认的问题
 
 1. **Branch API 目前做了什么？** 是复制 session state 还是只复制配置？
-2. **历史重放格式**——`_format_history_for_context` 对 MCP tool_use/tool_result 的序列化效果如何？
-3. **workdir 隔离**——每个 session 有自己的 workdir，但 cbc 用 `-d workdir` 指定项目目录，历史里可能包含硬编码路径
+2. **首次消息注入格式**——当前 `--resume` 模式的首条消息只前置 system_prompt，克隆方案需要额外注入探索上下文（成功的 ToolSearch → DeferExecuteTool 调用记录）
+3. **workdir 隔离**——每个 session 有自己的 workdir，首次 cbc 仍会用 `-d <workdir>` 指定目录
 
 ## 分阶段实施
 
@@ -49,8 +54,7 @@
 ## 不覆盖的范围
 
 - system_prompt 优化（已做过）
-- history 截断（已在计划中，独立解决）
-- `--resume` 评估（独立议题）
+- `--resume`（已解决，commit `80d5f7c`）
 
 ## 关键文件
 
