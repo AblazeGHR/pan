@@ -24,29 +24,35 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   if (role === 'system') {
     return (
       <div className="flex justify-center py-2">
-        <span className="text-xs text-text-tertiary bg-bg-tertiary rounded px-3 py-1">
+        <span className="msg system text-xs text-text-tertiary bg-bg-tertiary rounded px-3 py-1">
           {message.content}
         </span>
       </div>
     );
   }
 
-  // User messages — right aligned
+  // User messages — right aligned, kimi-code style
   if (role === 'user') {
     return (
-      <div className="flex justify-end px-4 py-2">
-        <div className="max-w-[75%] rounded-lg rounded-br-sm bg-accent/20 px-4 py-2">
-          <MarkdownRenderer content={message.content} />
+      <div className="px-4 mb-4 flex justify-end">
+        <div className="msg user max-w-[78%] bg-accent/15 border border-accent/30 px-[15px] py-[11px] rounded-tl-[16px] rounded-tr-[16px] rounded-bl-[6px] rounded-br-[16px]">
+          <MarkdownRenderer
+            content={message.content}
+            className="text-sm"
+          />
         </div>
       </div>
     );
   }
 
-  // Assistant messages — left aligned
+  // Assistant messages — left aligned, no bubble
   return (
-    <div className="flex justify-start px-4 py-2">
-      <div className="max-w-[85%] rounded-lg rounded-bl-sm bg-bg-tertiary px-4 py-2">
-        <MarkdownRenderer content={message.content} />
+    <div className="px-4 mb-2.5">
+      <div className="msg assistant max-w-[94%] text-[15px] leading-relaxed font-medium">
+        <MarkdownRenderer
+          content={message.content}
+          className="prose prose-base max-w-none break-words"
+        />
       </div>
     </div>
   );

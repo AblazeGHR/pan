@@ -1,6 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
+/* ── iOS safe-area insets ── */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
 /* ── Design tokens ── */
 
 @theme {
@@ -111,4 +120,237 @@ pre, code, textarea, input[type="text"] {
 
 body {
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── Kimi-style prose ── */
+
+.prose-kimi {
+  font: 400 15px/1.6 var(--font-sans);
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+.prose-kimi > * + * { margin-top: 0.8rem; }
+.prose-kimi h1 { font-size: 18px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; border-bottom: 1px solid var(--color-border-default); padding-bottom: 4px; }
+.prose-kimi h2 { font-size: 17px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; }
+.prose-kimi h3 { font-size: 16px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; }
+.prose-kimi h4 { font-size: 16px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; color: var(--color-text-secondary); }
+.prose-kimi p { margin: 0.8rem 0; }
+.prose-kimi blockquote { margin: 0.5em 0; padding: 4px 12px; border-left: 3px solid var(--color-border-default); color: var(--color-text-secondary); }
+.prose-kimi ul, .prose-kimi ol { padding-left: 1.4em; margin: 0.6em 0; }
+.prose-kimi li { margin: 0.3em 0; }
+.prose-kimi hr { border: none; border-top: 1px solid var(--color-border-default); margin: 0.8em 0; }
+.prose-kimi a { color: #1783ff; text-decoration: none; }
+.prose-kimi a:hover { text-decoration: underline; }
+.prose-kimi strong { font-weight: 700; }
+
+/* Images */
+.prose-kimi img { max-width: 100%; height: auto; min-width: 0; min-height: 0; border-radius: 6px; }
+
+/* Keyboard shortcut */
+.prose-kimi kbd { font: 0.85em var(--font-mono); padding: 1px 5px; border: 1px solid var(--color-border-default); border-radius: 4px; box-shadow: 0 1px 0 var(--color-border-default); }
+
+/* Inline code */
+.prose-kimi :not(pre) > code {
+  font: 0.9em var(--font-mono);
+  padding: 0 4px;
+  border-radius: 6px;
+  background: #f3f5f8;
+}
+[data-theme="dark"] .prose-kimi :not(pre) > code { background: #282828; }
+
+/* Tables — Kimi-style bordered with header */
+.prose-kimi table {
+  font-size: 16px;
+  margin: 0.5em 0;
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+.prose-kimi thead { border-bottom: 2px solid var(--color-border-default); }
+.prose-kimi th {
+  font-weight: 500;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-default);
+  white-space: nowrap;
+}
+.prose-kimi td {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-default);
+}
+[data-theme="light"] .prose-kimi th { background: #fafbfc; }
+[data-theme="dark"] .prose-kimi th { background: #222222; }
+
+/* Standalone pre (non-code-block <pre>) */
+.prose-kimi pre {
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font: 13px/1.65 var(--font-mono);
+  box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+  margin: 0.6em 0;
+  overflow-x: auto;
+}
+[data-theme="light"] .prose-kimi pre { background: #f3f5f8; }
+[data-theme="dark"] .prose-kimi pre { background: #282828; }
+
+/* ── Message entrance animations ── */
+
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.msg-enter {
+  animation: msg-in 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-enter {
+    animation-duration: 0.001ms;
+  }
+}
+
+/* ── Bottom sheet animation ── */
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ── Mobile: dialogs become bottom sheets ── */
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    align-items: flex-end !important;
+  }
+  .modal-overlay .modal-card {
+    width: 100% !important;
+    max-height: 88vh;
+    border-radius: 16px 16px 0 0 !important;
+    border-bottom: none !important;
+    animation: sheet-up 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* ── TUI Mode (flat text, no bubbles) ── */
+
+.tui-mode {
+  padding: 12px 0 !important;
+}
+
+.tui-mode .msg {
+  border-radius: 0;
+  max-width: 100% !important;
+  width: 100%;
+  padding: 2px 16px;
+  margin: 0;
+}
+
+/* TUI user: green left bar + ">" prefix */
+.tui-mode .msg.user {
+  background: transparent !important;
+  border: none !important;
+  border-left: 3px solid var(--color-success);
+  border-top: 1px solid var(--color-success);
+  border-bottom: 1px solid var(--color-success);
+  padding: 4px 16px 4px 24px;
+  max-width: none !important;
+  margin: 6px 0;
+  position: relative;
+}
+
+.tui-mode .msg.user::before {
+  content: '>';
+  position: absolute;
+  left: 6px;
+  top: 7px;
+  color: var(--color-success);
+  font-family: var(--font-mono);
+  font-size: .85rem;
+  line-height: 1;
+}
+
+/* TUI assistant: white left bar */
+.tui-mode .msg.assistant {
+  background: transparent !important;
+  border: none !important;
+  border-left: 3px solid var(--color-text-tertiary);
+  padding: 2px 16px 2px 24px;
+  max-width: 100% !important;
+  width: 100%;
+}
+
+/* TUI thinking: collapsible with purple border */
+.tui-mode .msg.thinking {
+  border-left: 3px solid #d2a8ff;
+  padding: 2px 16px 2px 24px;
+  border-radius: 0;
+  background: transparent;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* TUI tool: orange border */
+.tui-mode .msg.tool {
+  border-left: 3px solid #ffa657;
+  padding: 3px 16px 3px 24px;
+  border-radius: 0;
+  background: transparent;
+  font-size: .75rem;
+  color: var(--color-text-secondary);
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* TUI tool group */
+.tui-mode .tool-group {
+  border-radius: 0;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  background: transparent;
+  width: 100% !important;
+  max-width: 100% !important;
+  align-self: stretch !important;
+}
+
+.tui-mode .tool-group .msg.tool {
+  border-left: none;
+}
+
+.tui-mode .tool-group-header {
+  border-radius: 0;
+  background: transparent;
+}
+
+/* TUI system */
+.tui-mode .msg.system {
+  align-self: flex-start;
+  text-align: left;
+  padding: 2px 16px;
+}
+
+.tui-mode .msg.system::before {
+  content: '--- ';
+}
+
+/* TUI code blocks */
+.tui-mode pre {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 4px 0;
+}
+
+.tui-mode code {
+  background: var(--color-bg-secondary);
 }

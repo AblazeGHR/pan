@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
-# pre-commit hook — ensures TypeScript compilation is clean.
-# If packages/web/ts/app.ts was edited, blocks the commit until `npx tsc` succeeds.
+# pre-commit hook — ensures both frontends compile cleanly.
 #
 # Install: ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
 
 set -e
 
-# Only check if TypeScript files are in the staging area
-if ! git diff --cached --name-only | grep -q 'packages/web/ts/app.ts'; then
-  exit 0
+staged=$(git diff --cached --name-only)
+
+# Old frontend (Vanilla JS)
+if echo "$staged" | grep -q 'packages/web/ts/app.ts'; then
+  echo "pre-commit: checking legacy frontend..."
+  cd packages/web && npx tsc --noEmit 2>&1 || {
+    echo ""
+    echo "Legacy TypeScript compilation failed. Fix errors and try again."
+    exit 1
+  }
+  cd - > /dev/null
+  echo "Legacy frontend OK"
 fi
 
-echo "🔍 pre-commit: TypeScript file staged, checking compilation..."
-
-# Compile (type-check only — no emit, which is faster)
-if ! npx tsc --noEmit 2>&1; then
-  echo ""
-  echo "❌ TypeScript compilation failed. Please fix the errors and try again."
-  exit 1
+# New frontend (React)
+if echo "$staged" | grep -q 'packages/web/src/'; then
+  echo "pre-commit: checking React frontend..."
+  cd packages/web && npx tsc -b --noEmit 2>&1 || {
+    echo ""
+    echo "React TypeScript compilation failed. Fix errors and try again."
+    exit 1
+  }
+  cd - > /dev/null
+  echo "React frontend OK"
 fi
-
-echo "✅ TypeScript compilation OK"

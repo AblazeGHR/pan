@@ -57,7 +57,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="New Session">
+    <Modal open={open} onClose={onClose} title="New Session" size="lg">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Adapter select */}
         <label className="flex flex-col gap-1">

@@ -1,9 +1,180 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useAdapterStore } from '@/stores/adapterStore';
 import { wsClient } from '@/services/ws';
-import { Settings } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import type { AdapterConfig, PermissionMode } from '@/types';
+
+const PILL_CLASS =
+  'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border-default bg-bg-tertiary hover:bg-bg-hover cursor-pointer transition-colors';
+
+const DROPDOWN_ITEM =
+  'px-2 py-1 text-xs hover:bg-bg-hover cursor-pointer whitespace-nowrap';
+
+// ── helpers ──
+
+function supportsSetting(
+  config: AdapterConfig | null,
+  name: string,
+): boolean {
+  if (!config?.supportedSettings) return false;
+  return config.supportedSettings.includes(name);
+}
+
+function permBorderClass(value: string): string {
+  if (value === 'bypass') return 'border-danger/50';
+  if (value === 'yolo' || value === 'acceptEdits') return 'border-warning/50';
+  return 'border-border-default';
+}
+
+// ── pill sub-components ──
+
+function ModelPill({
+  sessionModel,
+  defaultModel,
+  models,
+  show,
+  onApply,
+}: {
+  sessionModel: string;
+  defaultModel: string;
+  models: string[];
+  show: boolean;
+  onApply: (key: string, value: string) => void;
+}) {
+  if (!show) return null;
+
+  const [open, setOpen] = useState(false);
+  const current = sessionModel || defaultModel;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-model-pill]')) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div data-model-pill className="relative">
+      <button className={PILL_CLASS} onClick={() => setOpen(!open)}>
+        <span className="font-semibold">{current}</span>
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full mb-1 left-0 min-w-[160px] rounded-md border border-border-default bg-bg-primary shadow-lg z-30">
+          {models.map((m) => (
+            <div
+              key={m}
+              className={
+                DROPDOWN_ITEM +
+                (m === current ? ' bg-accent/10 text-accent' : '')
+              }
+              onClick={() => {
+                onApply('model', m);
+                setOpen(false);
+              }}
+            >
+              {m}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PermissionPill({
+  sessionMode,
+  defaultMode,
+  modes,
+  show,
+  onApply,
+}: {
+  sessionMode: string | null;
+  defaultMode: string;
+  modes: PermissionMode[];
+  show: boolean;
+  onApply: (key: string, value: string) => void;
+}) {
+  if (!show) return null;
+
+  const [open, setOpen] = useState(false);
+  const current = sessionMode || defaultMode;
+  const active = modes.find((m) => m.value === current);
+  const label = active?.label || current;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-perm-pill]')) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div data-perm-pill className="relative">
+      <button
+        className={PILL_CLASS + ' ' + permBorderClass(current)}
+        onClick={() => setOpen(!open)}
+      >
+        <span>{label}</span>
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full mb-1 left-0 min-w-[160px] rounded-md border border-border-default bg-bg-primary shadow-lg z-30">
+          {modes.map((m) => (
+            <div
+              key={m.value}
+              className={
+                DROPDOWN_ITEM +
+                (m.value === current ? ' bg-accent/10 text-accent' : '')
+              }
+              onClick={() => {
+                onApply('permissionMode', m.value);
+                setOpen(false);
+              }}
+            >
+              {m.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThinkingToggle({
+  enabled,
+  show,
+  onApply,
+}: {
+  enabled: boolean;
+  show: boolean;
+  onApply: (key: string, value: boolean) => void;
+}) {
+  if (!show) return null;
+
+  return (
+    <button
+      className={
+        PILL_CLASS +
+        (enabled ? ' bg-accent/10 border-accent/50 text-accent' : '')
+      }
+      onClick={() => onApply('alwaysThinkingEnabled', !enabled)}
+    >
+      Thinking
+    </button>
+  );
+}
+
+// ── main component ──
 
 export function InputRow() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -13,7 +184,30 @@ export function InputRow() {
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { startWorker } = useWorkerStore();
-  const { showToast, toggleSettings } = useUIStore();
+  const { showToast } = useUIStore();
+
+  // ── Adapter settings ──
+  const config = useAdapterStore((s) => s.getConfig());
+  const currentAdapter = useAdapterStore((s) => s.currentAdapter);
+  const loadConfig = useAdapterStore((s) => s.loadConfig);
+  const applySettings = useAdapterStore((s) => s.applySettings);
+  const { loadSessions } = useSessionStore();
+
+  useEffect(() => {
+    if (currentSession) {
+      loadConfig(currentSession.adapter || 'cbc');
+    }
+  }, [currentSession?.id]);
+
+  const applySetting = async (key: string, value: unknown) => {
+    if (!currentSession) return;
+    try {
+      await applySettings(currentSession.id, undefined, { [key]: value });
+      await loadSessions();
+    } catch (e) {
+      showToast((e as Error).message || 'Failed', 'error');
+    }
+  };
 
   // Restore draft when session changes
   useEffect(() => {
@@ -95,9 +289,42 @@ export function InputRow() {
     }
   };
 
+  const showModelPill = supportsSetting(config, 'model');
+  const showPermPill = supportsSetting(config, 'permissionMode');
+  const showThinking = supportsSetting(config, 'thinking');
+  const hasToolbar = currentSession && (showModelPill || showPermPill || showThinking);
+
   return (
-    <div className="border-t border-border-default bg-bg-primary p-2 md:p-3">
-      <div className="flex gap-2">
+    <div className="border-t border-border-default bg-bg-primary">
+      {/* Toolbar row */}
+      {hasToolbar && (
+        <div className="flex items-center gap-1.5 px-3 pt-2 pb-0">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <ModelPill
+              sessionModel={currentSession.model || ''}
+              defaultModel={config?.defaultModel || ''}
+              models={config?.models || []}
+              show={showModelPill}
+              onApply={applySetting}
+            />
+            <PermissionPill
+              sessionMode={currentSession.permissionMode || null}
+              defaultMode={config?.defaultPermissionMode || ''}
+              modes={config?.permissionModes || []}
+              show={showPermPill}
+              onApply={applySetting}
+            />
+            <ThinkingToggle
+              enabled={currentSession.alwaysThinkingEnabled}
+              show={showThinking}
+              onApply={applySetting}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Textarea + Send row */}
+      <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
         <textarea
           ref={inputRef}
           placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
@@ -108,19 +335,14 @@ export function InputRow() {
           className="flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent"
           onKeyDown={handleKeyDown}
         />
-        <button
-          onClick={() => handleSend(inputRef.current?.value || '')}
-          className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
-        >
-          Send
-        </button>
-        <button
-          onClick={toggleSettings}
-          className="rounded border border-border-default bg-bg-tertiary px-2 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors self-end"
-          title="Session settings"
-        >
-          <Settings size={16} />
-        </button>
+        <div className="flex flex-col gap-1 items-end">
+          <button
+            onClick={() => handleSend(inputRef.current?.value || '')}
+            className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );

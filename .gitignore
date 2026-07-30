@@ -38,6 +38,7 @@ prompt.md
 /.playwright-cli/
 # config
 config.json
+.mcp.json
 # compiled from ts/app.ts — do not edit directly
 packages/web/static/js/app.js
 packages/web/static/js/app.js.map

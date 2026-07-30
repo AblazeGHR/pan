@@ -12,7 +12,7 @@ export function ToastContainer() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed z-50 flex flex-col gap-2 pointer-events-none" style={{ bottom: `max(16px, var(--safe-bottom))`, right: `max(16px, var(--safe-right))` }}>
       {toastQueue.map((toast) => (
         <div
           key={toast.id}

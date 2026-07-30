@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
 import { groupMessages, MessageDisplayItem } from './MessageBubble';
 const SCROLL_BOTTOM_THRESHOLD = 120;
 
@@ -11,6 +12,7 @@ export function ChatMessages() {
   const historyLoading = useSessionStore((s) => s.historyLoading);
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const bubbleViewEnabled = useUIStore((s) => s.bubbleViewEnabled);
 
   // Group messages: consecutive tool messages become ToolGroup
   const grouped = groupMessages(currentMessages);
@@ -95,7 +97,7 @@ export function ChatMessages() {
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div
         ref={parentRef}
-        className="flex-1 overflow-auto"
+        className={`flex-1 overflow-auto ${!bubbleViewEnabled ? 'tui-mode' : ''}`}
       >
         <div
           style={{

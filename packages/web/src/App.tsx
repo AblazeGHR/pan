@@ -3,6 +3,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sidebar } from './components/layout/Sidebar';
 import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
+import { DetailPanel } from './components/detail/DetailPanel';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useUIStore } from './stores/uiStore';
 import { Outlet, useNavigate } from 'react-router-dom';
@@ -44,7 +45,13 @@ function Layout() {
   }, [navigate]);
 
   return (
-    <div className="flex h-screen bg-bg-primary text-text-primary overflow-hidden">
+    <div
+      className="h-screen bg-bg-primary text-text-primary overflow-hidden"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'auto 0 minmax(0,1fr) 0 auto',
+      }}
+    >
       {/* Mobile hamburger button */}
       {isMobile && (
         <button
@@ -68,7 +75,7 @@ function Layout() {
         />
       )}
 
-      {/* Sidebar — full overlay on mobile */}
+      {/* Sidebar — full overlay on mobile — grid column 1 */}
       <div
         className={`${
           isMobile
@@ -77,14 +84,25 @@ function Layout() {
               }`
             : 'relative'
         }`}
+        style={{ gridColumn: '1' }}
       >
         <Sidebar />
       </div>
 
-      <main className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-10' : ''}`}>
+      {/* Resize handle gutter — grid column 2 (0-width) */}
+
+      {/* Main content — grid column 3 */}
+      <main
+        className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-10' : ''}`}
+        style={{ gridColumn: '3' }}
+      >
         <Outlet />
       </main>
+
+      {/* Resize handle gutter — grid column 4 (0-width) */}
+
       <ToastContainer />
+      <DetailPanel />
       <CommandPalette />
     </div>
   );

@@ -1032,16 +1032,20 @@ async def api_cbc_sessions_import(data: dict):
     if existing:
         w = worker.find_alive_worker_by_session(existing.id)
         if w:
-            # Worker process is alive — update history/usage in-place without disruption.
+            # Worker process is alive — overwrite history atomically.
+            # _replaying=True prevents _read_stdout from appending during
+            # the race window (CLI writes to external store before stdout),
+            # which would otherwise duplicate agent-side messages.
+            w._replaying = True
             existing.history = history
             existing.raw_usage = raw_usage
             existing.total_usage = total_usage
-            # Do NOT reset last_result — the worker is still alive.
             sess.save(existing)
             await broadcast({
                 "type": "session.updated",
                 "sessionId": existing.id,
             })
+            w._replaying = False
             return _session_to_api(existing)
         w = worker.find_worker_by_session(existing.id)
         if w:
@@ -1127,16 +1131,20 @@ async def api_kimi_sessions_import(data: dict):
     if existing:
         w = worker.find_alive_worker_by_session(existing.id)
         if w:
-            # Worker process is alive — update history/usage in-place without disruption.
+            # Worker process is alive — overwrite history atomically.
+            # _replaying=True prevents _read_stdout from appending during
+            # the race window (CLI writes to external store before stdout),
+            # which would otherwise duplicate agent-side messages.
+            w._replaying = True
             existing.history = history
             existing.raw_usage = raw_usage
             existing.total_usage = total_usage
-            # Do NOT reset last_result — the worker is still alive.
             sess.save(existing)
             await broadcast({
                 "type": "session.updated",
                 "sessionId": existing.id,
             })
+            w._replaying = False
             return _session_to_api(existing)
         w = worker.find_worker_by_session(existing.id)
         if w:

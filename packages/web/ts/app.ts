@@ -131,6 +131,9 @@ let _currentToolGroupStart: number = -1;
 let _rendering: boolean = false;
 let _historyLoading: boolean = false;
 let _historyLoadEnd: number = 0;
+/** True when loadOlderMessages was triggered by session switch (initial load)
+ *  rather than user scroll-up; signals the callback to scroll to bottom. */
+let _loadOlderToBottom: boolean = false;
 const _inputDrafts: Map<string, string> = new Map();
 /** Per-session set of unread thinking/tool content hashes */
 const _sessionUnread: Map<string, Set<string>> = new Map();
@@ -591,6 +594,7 @@ function selectSession(id: string): void {
   }
   // Load additional history if truncated
   if (s.historyTruncated) {
+    _loadOlderToBottom = true;
     loadOlderMessages();
   }
 }
@@ -643,8 +647,12 @@ function loadOlderMessages(): void {
       } else {
         el.appendChild(frag);
       }
-      // Restore scroll position so visible content stays put
-      if (ref) {
+      // Restore scroll position so visible content stays put,
+      // UNLESS this is the initial load after session switch (then scroll to bottom).
+      if (_loadOlderToBottom) {
+        _loadOlderToBottom = false;
+        scrollToBottom();
+      } else if (ref) {
         el.scrollTop += ref.getBoundingClientRect().top - scrollRefTop;
       }
       // Update modelData
