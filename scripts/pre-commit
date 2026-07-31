@@ -10,12 +10,11 @@ staged=$(git diff --cached --name-only)
 # Old frontend (Vanilla JS)
 if echo "$staged" | grep -q 'packages/web/ts/app.ts'; then
   echo "pre-commit: checking legacy frontend..."
-  cd packages/web && npx tsc --noEmit 2>&1 || {
+  npx tsc --noEmit 2>&1 || {
     echo ""
     echo "Legacy TypeScript compilation failed. Fix errors and try again."
     exit 1
   }
-  cd - > /dev/null
   echo "Legacy frontend OK"
 fi
 
