@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -18,9 +19,11 @@ class MemoryStore:
     def __init__(self, db_path: str) -> None:
         self.db_path: str = str(Path(db_path))
         self._conn: sqlite3.Connection | None = None
+        self._lock = threading.RLock()  # serializes access across threads (watcher + API threadpool)
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.row_factory = sqlite3.Row
         self._ensure_schema()
 
@@ -38,8 +41,31 @@ class MemoryStore:
             return
 
         schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
-        with self._conn:
+        with self._lock, self._conn:
             self._conn.executescript(schema_sql)
+
+    # ------------------------------------------------------------------ #
+    #  Meta (key-value)
+    # ------------------------------------------------------------------ #
+
+    def set_meta(self, key: str, value: str) -> None:
+        """Store a key-value metadata entry (upsert)."""
+        assert self._conn is not None
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+
+    def get_meta(self, key: str) -> str | None:
+        """Read a metadata entry, or None if missing."""
+        assert self._conn is not None
+        row = self._conn.execute(
+            "SELECT value FROM meta WHERE key = ?", (key,)
+        ).fetchone()
+        if row is None:
+            return None
+        return row["value"]
 
     # ------------------------------------------------------------------ #
     #  File operations
@@ -49,7 +75,7 @@ class MemoryStore:
         self, path: str, source: str, hash: str, mtime: float, size: int
     ) -> None:
         assert self._conn is not None
-        with self._conn:
+        with self._lock, self._conn:
             self._conn.execute(
                 "INSERT OR REPLACE INTO files (path, source, hash, mtime, size) "
                 "VALUES (?, ?, ?, ?, ?)",
@@ -60,7 +86,7 @@ class MemoryStore:
         self, path: str, hash: str, mtime: float, size: int
     ) -> None:
         assert self._conn is not None
-        with self._conn:
+        with self._lock, self._conn:
             self._conn.execute(
                 "UPDATE files SET hash = ?, mtime = ?, size = ? WHERE path = ?",
                 (hash, mtime, size, path),
@@ -85,7 +111,7 @@ class MemoryStore:
 
     def delete_file(self, path: str) -> None:
         assert self._conn is not None
-        with self._conn:
+        with self._lock, self._conn:
             self._conn.execute("DELETE FROM files WHERE path = ?", (path,))
 
     # ------------------------------------------------------------------ #
@@ -99,7 +125,7 @@ class MemoryStore:
         end_line, hash, model, text, embedding (already JSON-serialized).
         """
         assert self._conn is not None
-        with self._conn:
+        with self._lock, self._conn:
             self._conn.execute(
                 "INSERT OR REPLACE INTO chunks "
                 "(id, path, source, start_line, end_line, hash, model, text, embedding, updated_at) "
@@ -134,7 +160,7 @@ class MemoryStore:
 
     def delete_chunks_for_file(self, path: str) -> None:
         assert self._conn is not None
-        with self._conn:
+        with self._lock, self._conn:
             # Gather ids so we can clean FTS too
             ids = [
                 row["id"]
@@ -146,6 +172,78 @@ class MemoryStore:
             for chunk_id in ids:
                 self._conn.execute(
                     "DELETE FROM fts WHERE id = ?", (chunk_id,)
+                )
+
+    def replace_file_chunks(
+        self,
+        file_row: dict[str, Any],
+        chunks: list[dict[str, Any]],
+    ) -> None:
+        """Atomically replace a file's chunks: delete old, write new file row
+        and all new chunks + FTS rows in a single transaction.
+
+        The caller must have computed embeddings *before* calling this — an
+        embedding failure leaves the DB untouched (file remains indexable).
+        """
+        assert self._conn is not None
+        with self._lock, self._conn:
+            # Gather old chunk ids to clean FTS
+            old_ids = [
+                row["id"]
+                for row in self._conn.execute(
+                    "SELECT id FROM chunks WHERE path = ?", (file_row["path"],)
+                ).fetchall()
+            ]
+            self._conn.execute(
+                "DELETE FROM chunks WHERE path = ?", (file_row["path"],)
+            )
+            for chunk_id in old_ids:
+                self._conn.execute(
+                    "DELETE FROM fts WHERE id = ?", (chunk_id,)
+                )
+
+            self._conn.execute(
+                "INSERT OR REPLACE INTO files (path, source, hash, mtime, size) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    file_row["path"],
+                    file_row["source"],
+                    file_row["hash"],
+                    file_row["mtime"],
+                    file_row["size"],
+                ),
+            )
+
+            for chunk in chunks:
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO chunks "
+                    "(id, path, source, start_line, end_line, hash, model, text, embedding, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        chunk["id"],
+                        chunk["path"],
+                        chunk["source"],
+                        chunk["start_line"],
+                        chunk["end_line"],
+                        chunk["hash"],
+                        chunk["model"],
+                        chunk["text"],
+                        chunk["embedding"],
+                        time.time(),
+                    ),
+                )
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO fts (text, id, path, source, model, start_line, end_line) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        chunk["text"],
+                        chunk["id"],
+                        chunk["path"],
+                        chunk["source"],
+                        chunk["model"],
+                        chunk["start_line"],
+                        chunk["end_line"],
+                    ),
                 )
 
     def get_chunks_for_search(self) -> list[dict[str, Any]]:
@@ -186,7 +284,7 @@ class MemoryStore:
         dims: int,
     ) -> None:
         assert self._conn is not None
-        with self._conn:
+        with self._lock, self._conn:
             self._conn.execute(
                 "INSERT OR REPLACE INTO embedding_cache "
                 "(provider, model, provider_key, hash, embedding, dims, updated_at) "

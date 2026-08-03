@@ -37,8 +37,11 @@ async def _maybe_inject_memory(s, text: str) -> str:
     try:
         from .memory_context import search_and_format, inject_context
 
-        # Resolve memory db path from character
-        db_dir = str(Path.cwd() / "data" / "memory")
+        # Resolve memory db dir from the project root (repo-relative), NOT
+        # Path.cwd() — the server uses an absolute DATA_DIR and the two must
+        # point at the same DB (#22).
+        _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+        db_dir = str(_PROJECT_ROOT / "data" / "memory")
 
         ctx = await asyncio.to_thread(
             search_and_format,
@@ -60,6 +63,7 @@ class Worker:
     adapter: CliAdapter       # CLI tool adapter instance
     status: str = "idle"      # idle | running | held | error
     process: asyncio.subprocess.Process | None = None
+    _mcp_proc: asyncio.subprocess.Process | None = None  # in-flight one-shot MCP process
     _stdout_task: asyncio.Task | None = None
     _consume_task: asyncio.Task | None = None
     queue: asyncio.Queue | None = None
@@ -395,22 +399,42 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         w.status = "idle"
         return
 
+    # Track in-flight process so kill_worker can terminate it (see #3).
+    w._mcp_proc = proc
+
     # Collect output
     output = b""
     try:
-        while True:
-            chunk = await asyncio.wait_for(proc.stdout.read(4096), timeout=120)
-            if not chunk:
-                break
-            output += chunk
-    except asyncio.TimeoutError:
-        _log.warning("[Worker %s] MCP process timeout", w.worker_id)
+        try:
+            while True:
+                chunk = await asyncio.wait_for(proc.stdout.read(4096), timeout=120)
+                if not chunk:
+                    break
+                output += chunk
+                if len(output) > 16 * 1024 * 1024:
+                    _log.warning(
+                        "[Worker %s] MCP output exceeded 16MB, aborting read",
+                        w.worker_id,
+                    )
+                    proc.kill()
+                    break
+        except asyncio.TimeoutError:
+            _log.warning("[Worker %s] MCP process timeout", w.worker_id)
 
-    try:
-        await asyncio.wait_for(proc.wait(), timeout=10)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.wait()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+    finally:
+        # If cancelled (CancelledError) or the process is still alive after
+        # wait(), kill it — prevents orphaned cbc/MCP processes (#3).
+        if proc.returncode is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        w._mcp_proc = None
 
     # DEBUG: save raw cbc output for inspection
     debug_path = os.path.join(s.workdir, ".pan-cbc-raw.jsonl") if s else None
@@ -559,18 +583,27 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
 
 async def _kill_process_tree(w: Worker) -> None:
     """杀 worker 的 CLI 子进程树。异步版，不阻塞事件循环。"""
-    if not w.process:
-        return
-    pid = w.process.pid
-    try:
-        await asyncio.to_thread(_kill_pid_tree, pid)
-    except Exception:
+    # Stream mode: w.process is the long-running cbc
+    if w.process:
+        pid = w.process.pid
         try:
-            w.process.kill()
-        except ProcessLookupError:
-            pass
+            await asyncio.to_thread(_kill_pid_tree, pid)
         except Exception:
-            pass
+            try:
+                w.process.kill()
+            except (ProcessLookupError, Exception):
+                pass
+
+    # MCP mode: w._mcp_proc is the in-flight one-shot cbc (may be None)
+    if w._mcp_proc:
+        mpid = w._mcp_proc.pid
+        try:
+            await asyncio.to_thread(_kill_pid_tree, mpid)
+        except Exception:
+            try:
+                w._mcp_proc.kill()
+            except (ProcessLookupError, Exception):
+                pass
 
 
 async def kill_worker(worker_id: str) -> str | None:

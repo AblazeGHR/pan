@@ -73,26 +73,22 @@ class SessionIndexer:
         
         if not lines:
             return 0
-        
+
         full_text = "\n".join(lines)
-        
-        # Write to a temp .md file so the existing indexer can process it
-        from tempfile import NamedTemporaryFile
-        
-        with NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False, encoding="utf-8"
-        ) as f:
-            f.write(full_text)
-            tmp_path = f.name
-        
+
+        # Index under a STABLE virtual path so re-indexing the same session
+        # replaces the same file row instead of accumulating orphans (#19).
+        # source="sessions" satisfies the schema CHECK constraint (#18).
+        virtual_path = f"session://{self._session_id}"
         try:
-            report = self._mgr.index_file(
-                tmp_path,
-                source=f"sessions:{self._session_id}",
+            report = self._mgr.index_text(
+                full_text,
+                source="sessions",
+                path=virtual_path,
             )
             chunks = report.chunks
         finally:
-            Path(tmp_path).unlink(missing_ok=True)
+            pass  # virtual path — nothing to unlink
         
         # Update tracking
         raw = json.dumps(history, ensure_ascii=False)

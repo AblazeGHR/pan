@@ -335,24 +335,23 @@ def _apply_session_updates(s: sess.Session, data: dict):
 
 
 def _apply_mcp_enabled(s: sess.Session, enable: bool):
-    """Apply mcpEnabled toggle, respecting profile mcp_mode lock."""
-    # Check if profile locks the MCP setting
+    """Apply mcpEnabled toggle, respecting profile mcp_mode lock.
+
+    No broad `except Exception: pass` here — swallowing non-ValueError
+    exceptions bypassed the always/never lock (#12). If the character lookup
+    raises, that's a real error and should surface.
+    """
     if s.character_id and _character_manager is not None:
-        try:
-            char = _character_manager.get_character(s.character_id)
-            if char:
-                if char.mcp_mode == "always" and not enable:
-                    raise ValueError(f"MCP is locked to 'always' for profile '{char.profile_name}'. Cannot disable.")
-                if char.mcp_mode == "never" and enable:
-                    raise ValueError(f"MCP is locked to 'never' for profile '{char.profile_name}'. Cannot enable.")
-                if char.mcp_mode == "always":
-                    # Already enabled, no-op
-                    s.set_adapter_field("mcp_enabled", True)
-                    return
-        except ValueError:
-            raise
-        except Exception:
-            pass
+        char = _character_manager.get_character(s.character_id)
+        if char:
+            if char.mcp_mode == "always" and not enable:
+                raise ValueError(f"MCP is locked to 'always' for profile '{char.profile_name}'. Cannot disable.")
+            if char.mcp_mode == "never" and enable:
+                raise ValueError(f"MCP is locked to 'never' for profile '{char.profile_name}'. Cannot enable.")
+            if char.mcp_mode == "always":
+                # Already enabled, no-op
+                s.set_adapter_field("mcp_enabled", True)
+                return
 
     s.set_adapter_field("mcp_enabled", enable)
 
@@ -806,7 +805,10 @@ async def api_spawn(data: dict):
         existing = worker.find_worker_by_session(session_id)
         if existing:
             await worker.kill_worker(existing.worker_id)
-        _apply_session_updates(s, data)
+        try:
+            _apply_session_updates(s, data)
+        except ValueError as e:
+            return {"error": str(e)}
         sess.save(s)
     else:
         params = _build_session_params(data)
@@ -1205,7 +1207,10 @@ async def api_worker_settings(worker_id: str, data: dict):
     if not s:
         return {"error": "Session not found"}
 
-    _apply_session_updates(s, data)
+    try:
+        _apply_session_updates(s, data)
+    except ValueError as e:
+        return {"error": str(e)}
     sess.save(s)
 
     extra_args: list[str] = []
@@ -1355,10 +1360,31 @@ async def api_takeover(worker_id: str):
 
 _memory_managers: dict[str, object] = {}  # character_id → MemoryManager
 
+# character_id must be exactly "char_" + 16 lowercase hex (or "default")
+_CHARACTER_ID_RE = re.compile(r"^(?:char_[0-9a-f]{16}|default)$")
+
+
+def _validate_character_id(character_id: str) -> bool:
+    """Return True if character_id is safe to embed in a filesystem path."""
+    return bool(_CHARACTER_ID_RE.match(character_id))
+
+
 def _get_memory_manager(character_id: str):
-    """Get or create a MemoryManager for a character."""
+    """Get or create a MemoryManager for a character.
+
+    Rejects unsafe character_ids (path traversal). Memory is indexed with the
+    same sentence-transformers provider used by the worker injection path
+    (packages/core/memory_context.py) to avoid embedding dims mismatch.
+    """
+    from packages.core.memory import MemoryManager, PROVIDER_SENTENCE_TRANSFORMERS
+
+    if not _validate_character_id(character_id):
+        raise ValueError(
+            f"Invalid character_id: {character_id!r}. "
+            "Expected 'char_<16 hex>' or 'default'."
+        )
+
     if character_id not in _memory_managers:
-        from packages.core.memory import MemoryManager
         api_key = os.environ.get("OPENAI_API_KEY")
         db_path = str(DATA_DIR / "memory" / f"{character_id}.sqlite")
         db_path_parent = Path(db_path).parent
@@ -1366,6 +1392,7 @@ def _get_memory_manager(character_id: str):
         _memory_managers[character_id] = MemoryManager(
             db_path=db_path,
             api_key=api_key,
+            provider=PROVIDER_SENTENCE_TRANSFORMERS,
         )
     return _memory_managers[character_id]
 
@@ -1493,8 +1520,23 @@ async def api_memory_index(data: dict):
     if not dir_path:
         return {"error": "dir_path is required"}
 
-    mgr = _get_memory_manager(character_id)
-    report = mgr.index_directory(dir_path)
+    try:
+        mgr = _get_memory_manager(character_id)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    # Restrict dir_path to the project root to prevent arbitrary-directory
+    # indexing (security). Mirrors _resolve_fs_path's containment check.
+    try:
+        target = Path(dir_path).resolve()
+        target.relative_to(_PROJECT_DIR)
+    except ValueError:
+        return {
+            "error": f"dir_path {dir_path!r} is outside allowed roots "
+            f"({_PROJECT_DIR})"
+        }
+
+    report = mgr.index_directory(str(target))
     return {
         "character_id": character_id,
         "files_scanned": report.files_scanned,
@@ -1525,7 +1567,10 @@ async def api_memory_search(
     if not q.strip():
         return {"results": [], "total": 0}
 
-    mgr = _get_memory_manager(character_id)
+    try:
+        mgr = _get_memory_manager(character_id)
+    except ValueError as e:
+        return {"error": str(e)}
     results = mgr.search(q, max_results=max_results, min_score=min_score)
     return {
         "results": [
@@ -1547,7 +1592,10 @@ async def api_memory_search(
 @app.get("/api/memory/stats")
 async def api_memory_stats(character_id: str = "default"):
     """Get memory store statistics for a character."""
-    mgr = _get_memory_manager(character_id)
+    try:
+        mgr = _get_memory_manager(character_id)
+    except ValueError as e:
+        return {"error": str(e)}
     stats = mgr.stats()
     return {
         "character_id": character_id,
@@ -1580,6 +1628,9 @@ async def api_memory_inject(data: dict):
     character_id = data.get("character_id", "default")
     max_results = data.get("max_results", 3)
     min_score = float(data.get("min_score", 0.35))
+
+    if not _validate_character_id(character_id):
+        return {"error": f"Invalid character_id: {character_id!r}"}
 
     # Search memory using the task text as query
     context = search_and_format(

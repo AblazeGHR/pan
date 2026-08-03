@@ -1,7 +1,9 @@
 """Tests for MCP injection and RuleWhisper integration."""
 
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -17,9 +19,17 @@ from packages.core.adapters.kimi.adapter import KimiAdapter
 
 def _make_session(mcp_servers=None):
     s = Session(id="ses_test", name="test", adapter="cbc")
+    # mcp_args writes .codebuddy/mcp.json into the workdir
+    s.workdir = tempfile.mkdtemp(prefix="pan-mcp-test-")
     if mcp_servers:
         s.adapter_config["mcp_servers"] = mcp_servers
     return s
+
+
+def _read_mcp_json(s):
+    path = os.path.join(s.workdir, ".codebuddy", "mcp.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 class TestCbcMCPArgs:
@@ -45,11 +55,13 @@ class TestCbcMCPArgs:
         args = adapter.mcp_args(s)
         assert "--mcp-config" in args
         assert len(args) == 2
-        # Verify JSON format
-        config = json.loads(args[1])
-        assert config["name"] == "rulewhisper"
-        assert config["command"] == "python"
-        assert config["args"] == ["-m", "src.server.mcp"]
+        # Verify written .codebuddy/mcp.json content
+        config = _read_mcp_json(s)
+        assert "rulewhisper" in config["mcpServers"]
+        entry = config["mcpServers"]["rulewhisper"]
+        assert entry["command"] == "python"
+        assert entry["args"] == ["-m", "src.server.mcp"]
+        assert entry["type"] == "stdio"
 
     def test_multiple_mcp_servers(self):
         adapter = CbcAdapter()
@@ -58,9 +70,10 @@ class TestCbcMCPArgs:
             {"name": "b", "command": "cmd_b"},
         ])
         args = adapter.mcp_args(s)
-        assert len(args) == 4  # 2 servers * 2 args each
+        assert len(args) == 2  # single --mcp-config pointing at one file
         assert args[0] == "--mcp-config"
-        assert args[2] == "--mcp-config"
+        config = _read_mcp_json(s)
+        assert set(config["mcpServers"].keys()) == {"a", "b"}
 
     def test_integrated_into_build_spawn_args(self):
         adapter = CbcAdapter()
@@ -72,36 +85,27 @@ class TestCbcMCPArgs:
         s.model = "hy3"
         args = adapter.build_spawn_args(s)
         assert "--mcp-config" in args
-        idx = args.index("--mcp-config")
-        config = json.loads(args[idx + 1])
-        assert config["name"] == "rw"
+        config = _read_mcp_json(s)
+        assert "rw" in config["mcpServers"]
 
-    def test_json_compact_format(self):
-        """Verify JSON serialization uses compact format per spec."""
+    def test_no_workdir_returns_empty(self):
+        """mcp_args requires a workdir to write the config file."""
         adapter = CbcAdapter()
-        s = _make_session(mcp_servers=[{
-            "name": "rw",
-            "command": "python",
-            "args": ["-m", "src.server.mcp"],
-        }])
-        args = adapter.mcp_args(s)
-        json_str = args[1]
-        # Should not contain spaces after separators (compact format)
-        assert '"name":"rw"' in json_str
-        assert '"command":"python"' in json_str
+        s = Session(id="ses_test", name="test", adapter="cbc")
+        s.adapter_config["mcp_servers"] = [{"name": "rw", "command": "python"}]
+        assert adapter.mcp_args(s) == []
 
 
 class TestKimiMCPArgs:
-    def test_mcp_args_injected(self):
+    def test_mcp_args_empty(self):
+        """Kimi configures MCP at user-level (~/.codebuddy/mcp.json), not CLI."""
         adapter = KimiAdapter()
         s = _make_session(mcp_servers=[{
             "name": "rw",
             "command": "python",
             "args": ["-m", "src.server.mcp"],
         }])
-        s.model = "kimi-code/kimi-for-coding"
-        args = adapter.build_spawn_args(s)
-        assert "--mcp-config" in args
+        assert adapter.mcp_args(s) == []
 
 
 # ------------------------------------------------------------------ #

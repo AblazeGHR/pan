@@ -99,6 +99,7 @@ class HybridSearcher:
         if not chunks:
             return []
 
+        query_dims = len(query_embedding)
         vector_scores: dict[str, float] = {}
         chunk_map: dict[str, dict] = {}
         for chunk in chunks:
@@ -111,6 +112,15 @@ class HybridSearcher:
                     "Skipping chunk %s — invalid embedding JSON: %s",
                     chunk_id,
                     exc,
+                )
+                continue
+            if len(emb) != query_dims:
+                logger.warning(
+                    "Skipping chunk %s — embedding dims %d != query dims %d "
+                    "(provider mismatch; re-index memory)",
+                    chunk_id,
+                    len(emb),
+                    query_dims,
                 )
                 continue
             vector_scores[chunk_id] = self._cosine_similarity(
@@ -178,13 +188,15 @@ class HybridSearcher:
     def _normalize_fts_scores(fts_results: list[dict]) -> dict[str, float]:
         """Convert FTS5 rank values to 0..1 scores.
 
-        FTS5 rank is negative (more negative = better match).
-        Normalized: score = 1.0 / (1.0 + (-rank))
+        FTS5 rank is negative; more negative = better match.
+        Normalized: score = (-rank) / (1 + (-rank)), mapping [0, ∞) → [0, 1).
+        A better match (larger -rank) therefore scores closer to 1.
         """
         scores: dict[str, float] = {}
         for row in fts_results:
             rank = row.get("rank", 0)
-            scores[row["id"]] = 1.0 / (1.0 + (-rank))
+            pos = -rank
+            scores[row["id"]] = pos / (1.0 + pos)
         return scores
 
     @staticmethod

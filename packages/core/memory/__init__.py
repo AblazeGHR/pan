@@ -100,6 +100,25 @@ class MemoryManager:
         )
         self._searcher = HybridSearcher(self._store, self._embedder)
 
+        # Record provider + dims in meta table on first open; validate on
+        # subsequent opens. Mixing providers in one DB silently corrupts
+        # cosine scores (dims mismatch → zip truncation). See #1/#14.
+        stored_provider = self._store.get_meta("embedding_provider")
+        stored_dims = self._store.get_meta("embedding_dims")
+        current_provider = provider or PROVIDER_OPENAI
+        current_dims = str(self._embedder.dims)
+        if stored_provider is None:
+            self._store.set_meta("embedding_provider", current_provider)
+            self._store.set_meta("embedding_dims", current_dims)
+        elif stored_provider != current_provider or stored_dims != current_dims:
+            self._store.close()
+            raise ValueError(
+                f"Memory DB '{self._db_path}' was indexed with provider "
+                f"'{stored_provider}' ({stored_dims} dims), but is being opened "
+                f"with '{current_provider}' ({current_dims} dims). Re-index the "
+                "character memory with a single provider."
+            )
+
         self._watcher: MemoryWatcher | None = None
         self._watch_dir: str | None = None
 
@@ -161,6 +180,54 @@ class MemoryManager:
         """
         return self._index_single_file(file_path, source=source)
 
+    def index_text(
+        self, text: str, source: str = "memory", path: str = "memory://inline"
+    ) -> FileReport:
+        """Index in-memory Markdown text under a stable virtual *path*.
+
+        Unlike index_file, no filesystem read is performed — the text is
+        chunked/embedded directly. Re-indexing the same *path* replaces the
+        existing file's chunks atomically. Used by SessionIndexer (#18/#19).
+        """
+        file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+        existing = self._store.get_file(path)
+        if existing and existing["hash"] == file_hash:
+            return FileReport(path=path, status="unchanged", chunks=0)
+
+        chunk_infos = chunk_markdown(text, source_path=path)
+
+        # Embed FIRST — failure leaves the DB untouched.
+        chunk_rows: list[dict] = []
+        if chunk_infos:
+            embeddings = self._embedder.embed_batch([c.text for c in chunk_infos])
+            for info, emb in zip(chunk_infos, embeddings):
+                chunk_rows.append({
+                    "id": info.id,
+                    "path": info.source_path,
+                    "source": source,
+                    "start_line": info.start_line,
+                    "end_line": info.end_line,
+                    "hash": info.hash,
+                    "model": EMBEDDING_MODEL,
+                    "text": info.text,
+                    "embedding": json.dumps(emb),
+                })
+
+        self._store.replace_file_chunks(
+            file_row={
+                "path": path,
+                "source": source,
+                "hash": file_hash,
+                "mtime": 0.0,
+                "size": len(text.encode("utf-8")),
+            },
+            chunks=chunk_rows,
+        )
+
+        status = "updated" if existing else "new"
+        return FileReport(path=path, status=status, chunks=len(chunk_infos))
+
     def reindex(self, dir_path: str, source: str = "memory") -> SyncReport:
         """Force re-index all .md files, regardless of mtime.
 
@@ -172,7 +239,11 @@ class MemoryManager:
     def _index_single_file(
         self, file_path: str, source: str = "memory"
     ) -> FileReport:
-        """Index one .md file: chunk → embed → store."""
+        """Index one .md file: chunk → embed → store.
+
+        Embedding happens BEFORE any DB write: if embedding fails, the DB is
+        untouched so the file remains indexable on the next attempt.
+        """
         p = Path(file_path)
         if not p.exists():
             return FileReport(path=file_path, status="error", chunks=0)
@@ -189,32 +260,19 @@ class MemoryManager:
                 chunks=0,
             )
 
-        # Remove old chunks, insert file record
-        self._store.delete_chunks_for_file(file_path)
-        self._store.insert_file(
-            path=file_path,
-            source=source,
-            hash=file_hash,
-            mtime=mtime,
-            size=len(raw.encode("utf-8")),
-        )
-
         # Chunk
         chunk_infos = chunk_markdown(raw, source_path=file_path)
-        if not chunk_infos:
-            return FileReport(
-                path=file_path,
-                status="updated" if existing else "new",
-                chunks=0,
-            )
 
-        # Embed
-        texts = [c.text for c in chunk_infos]
-        embeddings = self._embedder.embed_batch(texts)
+        # Embed FIRST — if this fails, nothing was written and the file
+        # remains indexable next time (see #7).
+        if chunk_infos:
+            texts = [c.text for c in chunk_infos]
+            embeddings = self._embedder.embed_batch(texts)
 
-        # Store
+        # Build chunk rows
+        chunk_rows: list[dict] = []
         for info, emb in zip(chunk_infos, embeddings):
-            self._store.insert_chunk({
+            chunk_rows.append({
                 "id": info.id,
                 "path": info.source_path,
                 "source": source,
@@ -225,6 +283,18 @@ class MemoryManager:
                 "text": info.text,
                 "embedding": json.dumps(emb),
             })
+
+        # Atomically replace old chunks + update file record
+        self._store.replace_file_chunks(
+            file_row={
+                "path": file_path,
+                "source": source,
+                "hash": file_hash,
+                "mtime": mtime,
+                "size": len(raw.encode("utf-8")),
+            },
+            chunks=chunk_rows,
+        )
 
         status = "updated" if existing else "new"
         return FileReport(

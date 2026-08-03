@@ -68,7 +68,8 @@ class TestHybridSearcher:
     def test_single_chunk_matching(self):
         chunk = _make_chunk("abc", "coc 克苏鲁神话规则")
         store = _make_mock_store(chunks=[chunk])
-        embedder = _make_mock_embedder([1.0] * 5)  # Same as chunk
+        # Query vector must match chunk dims (1536) — see #14 dims guard
+        embedder = _make_mock_embedder([1.0] * 1536)
 
         # Override dimensions for this simple test
         import packages.core.memory.search as mod
@@ -142,6 +143,24 @@ class TestHybridSearcher:
             results = searcher.search("missed by vector", max_results=5, min_score=0.01)
             assert len(results) == 1
             assert results[0].chunk_id == "fts1"
+        finally:
+            mod.HybridSearcher._cosine_similarity = orig_cos
+
+    def test_dims_mismatch_skipped(self):
+        """Chunk embedding dims != query dims must be skipped, not compared."""
+        # Chunk has 1536-dim embedding, query vector is 5-dim
+        chunk = _make_chunk("mismatch", "dim mismatch")
+        store = _make_mock_store(chunks=[chunk])
+        embedder = _make_mock_embedder([1.0] * 5)
+
+        import packages.core.memory.search as mod
+        orig_cos = mod.HybridSearcher._cosine_similarity
+        mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 1.0)
+
+        try:
+            searcher = HybridSearcher(store, embedder)
+            results = searcher.search("test", min_score=0.01)
+            assert results == []  # skipped due to dims mismatch
         finally:
             mod.HybridSearcher._cosine_similarity = orig_cos
 
@@ -235,8 +254,8 @@ class TestFtsNormalization:
         scores = HybridSearcher._normalize_fts_scores([
             {"id": "a", "rank": -5.0},
         ])
-        # score = 1.0 / (1.0 + 5.0) = 1/6 ≈ 0.167
-        assert 0.16 < scores["a"] < 0.17
+        # score = (-rank)/(1 + -rank) = 5/6 ≈ 0.833 (better match → higher)
+        assert 0.82 < scores["a"] < 0.85
 
     def test_bad_match(self):
         from packages.core.memory.search import HybridSearcher
@@ -244,8 +263,8 @@ class TestFtsNormalization:
         scores = HybridSearcher._normalize_fts_scores([
             {"id": "x", "rank": -0.01},
         ])
-        # score = 1.0 / (1.0 + 0.01) ≈ 0.99
-        assert 0.98 < scores["x"] < 1.0
+        # score = 0.01/1.01 ≈ 0.0099 (worse match → near 0)
+        assert 0.0 < scores["x"] < 0.02
 
     def test_missing_rank(self):
         from packages.core.memory.search import HybridSearcher
@@ -253,7 +272,7 @@ class TestFtsNormalization:
         scores = HybridSearcher._normalize_fts_scores([
             {"id": "norank"},
         ])
-        assert scores["norank"] == 1.0
+        assert scores["norank"] == 0.0
 
 
 class TestQueryExpansion:

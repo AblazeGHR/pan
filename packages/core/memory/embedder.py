@@ -112,6 +112,16 @@ class Embedder:
 
         self._provider_key = self._cache_key()
 
+    @property
+    def dims(self) -> int:
+        """Embedding vector dimension for the active provider/model."""
+        return self._dims
+
+    @property
+    def provider(self) -> str:
+        """Active provider name (openai / ollama / sentence-transformers / local)."""
+        return self._provider
+
     # ------------------------------------------------------------------ #
     #  Public API
     # ------------------------------------------------------------------ #
