@@ -686,6 +686,18 @@ async def api_branch_session(session_id: str, data: dict):
     raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
     total_usage = sess.compute_total_usage(raw_usage)
 
+    # Preserve MCP binding from parent so branched session inherits
+    # character identity + MCP servers (needed for --resume to work with tools).
+    new_adapter_config = {
+        "always_thinking_enabled": s.adapter_config.get("always_thinking_enabled", False),
+        "effort": s.adapter_config.get("effort", ""),
+        "max_thinking_tokens": s.adapter_config.get("max_thinking_tokens"),
+    }
+    if s.adapter_config.get("mcp_servers"):
+        new_adapter_config["mcp_servers"] = s.adapter_config["mcp_servers"]
+    if "mcp_enabled" in s.adapter_config:
+        new_adapter_config["mcp_enabled"] = s.adapter_config["mcp_enabled"]
+
     new_s = sess.create(
         name=name,
         adapter=s.adapter,
@@ -699,6 +711,9 @@ async def api_branch_session(session_id: str, data: dict):
         total_usage=total_usage,
         workdir=s.workdir,
         history=history,
+        character_id=s.character_id,
+        system_prompt=s.system_prompt,
+        adapter_config=new_adapter_config,
     )
 
     await broadcast({

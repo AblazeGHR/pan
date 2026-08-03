@@ -520,6 +520,25 @@ def write_custom_title(session_id: str, title: str, cwd: str | None = None):
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _find_session_jsonl(session_id: str) -> Path | None:
+    """Search all cbc project dirs for a session JSONL by ID.
+
+    Pan-spawned cbc processes run with the Pan root as cwd, so sessions land
+    under the root project dir (e.g. d-project-Pan-mcp-coldstart). Session
+    sessions may also exist under workdir-derived dirs. Scan all of them.
+    """
+    base = Path(os.path.expanduser("~/.codebuddy/projects"))
+    if not base.is_dir():
+        return None
+    for proj in base.iterdir():
+        if not proj.is_dir():
+            continue
+        candidate = proj / f"{session_id}.jsonl"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def fork_cbc_session(parent_id: str, name: str, cwd: str | None = None) -> str:
     """Fork a cbc session by copying JSONL + writing meta.json.
 
@@ -530,8 +549,15 @@ def fork_cbc_session(parent_id: str, name: str, cwd: str | None = None) -> str:
     proj_dir = _project_dir(cwd)
     parent_path = proj_dir / f"{parent_id}.jsonl"
 
+    # Pan-spawned cbc runs with process cwd = Pan root, so the session JSONL
+    # may live under the root project dir rather than the workdir-derived path.
+    # Fall back to scanning all project dirs for the parent session.
     if not parent_path.exists():
-        raise FileNotFoundError(f"Parent session JSONL not found: {parent_path}")
+        found = _find_session_jsonl(parent_id)
+        if found is None:
+            raise FileNotFoundError(f"Parent session JSONL not found: {parent_path}")
+        proj_dir = found.parent
+        parent_path = found
 
     # Generate unique session ID
     new_id = str(_uuid.uuid4())
