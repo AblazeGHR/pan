@@ -450,3 +450,118 @@ s.set_adapter_field("mcp_enabled", enable)   # 异常时执行，绕过锁
 10. **#17** spawn/settings 端点加 ValueError 捕获
 
 其余高/中危项可在合并后逐步修复，但 #1-#7 直接影响核心功能可用性和安全性，建议合并前解决。
+
+---
+
+# 复查报告（2026-08-04，HEAD=52aef16）
+
+> 复查范围：`2fb34f6..52aef16`，即修复提交 `8da29c2`（声称修复 #1-#7 #12 #17 #18 #19 #22 #29 #39）+ 合并提交 `52aef16`（`725e680` branch 继承 + `f9a28da` coldstart profile + `manifest.json`）。
+> 验证：`pytest` 85 passed ✓；legacy `tsc --noEmit` ✓；React `pnpm build` 因本地缺 `node_modules` 失败（环境问题，非本分支回归，见下）。
+
+## 结论
+
+**上一轮的 10 项合并前必修项中，9 项已真正修复，1 项（#39）只做了一半。但本轮合入的新代码引入了 3 个新的合并阻塞问题（manifest 绝对路径、character 端点路径穿越、fork 回退不一致）。**
+
+核心 memory 子系统的正确性修复（#1/#2/#7/#14/#18/#19）质量良好：provider 统一到 ST、meta 记录维度、embedding 失败不落库、FTS 归一化公式改对，且有对应测试。建议合入前先解决下方「新发现的合并阻塞项」。
+
+## 已确认修复（8da29c2）
+
+| # | 项 | 状态 |
+|---|----|------|
+| 1 | embedding provider 统一 | ✓ server `_get_memory_manager` 改用 ST；meta 表记录 provider/dims，打开时校验，不一致 raise。worker/character 路径本就是 ST，三处一致 |
+| 2 | FTS5 归一化公式 | ✓ `(-rank)/(1+(-rank))`，更好匹配得分更高；测试已同步更新 |
+| 6 | dir_path 任意目录 | ✓ `_PROJECT_DIR` 容纳检查（`target.relative_to`） |
+| 7 | embedding 失败破坏索引 | ✓ embed 先于任何 DB 写；`replace_file_chunks` 事务内删旧写新 |
+| 12 | mcp_mode 锁被宽泛 except 绕过 | ✓ 移除 `except Exception: pass` |
+| 14 | 维度不匹配 zip 截断 | ✓ 搜索时校验 `len(emb) == query_dims`，不符则跳过并告警；有回归测试 |
+| 17 | spawn/settings ValueError → 500 | ✓ 两端点捕获 ValueError 返回 `{"error":...}` |
+| 18 | SessionIndexer 违反 CHECK | ✓ `source="sessions"` |
+| 19 | session temp 文件孤儿累积 | ✓ 稳定虚拟路径 `session://{id}` + 整体替换 |
+| 26 | 无 busy_timeout | ✓ `PRAGMA busy_timeout=5000` |
+| 29 | MCP 输出无上限 | ✓ 16MB 截断并 kill |
+| 3 | MCP 在途进程泄漏 | ✓ `w._mcp_proc` 记录在途 proc，`_kill_process_tree` 双路径处理，`finally` 兜底 kill |
+| 22 | worker/server 路径分歧 | ✓ 基本修复：worker 与 `/api/memory/inject` 都用项目根 `data/memory`（`search_and_format` 的 cwd 默认值仍在，但无残余调用者） |
+
+## 部分修复 / 未达承诺
+
+### #39 只做了一半 — sqlite 仍被 git 跟踪
+`8da29c2` 提交信息声称「git 删除 runtime sqlite 残留」，但 `git ls-files` 仍列出 6 个文件：
+```
+memory/char_0dbe7e52ad06c3cd.sqlite{,-shm,-wal}
+memory/char_2692a6d29f0f4736.sqlite{,-shm,-wal}
+```
+只加了 `.gitignore` 条目（且 `memory/char_*.sqlite` 模式不匹配新路径 `data/memory/`，不过 `data/` 本就已忽略，无实际影响）。`-wal` 文件每次访问都变，仍会持续产生 diff。
+**修复**：`git rm --cached memory/char_*.sqlite{,-shm,-wal}`。
+
+### #4 SQLite 锁只覆盖了写
+RLock + busy_timeout 已加，但读方法（`get_chunks_for_search`、`search_fts`、`get_meta`、`get_file`、`get_stats`）未加锁。watcher 线程写事务与 API 线程池读并发时，同一连接上仍可能触发 `sqlite3.ProgrammingError: Recursive use of cursors not allowed`。低概率竞态，未完全关闭。
+
+## 新发现的合并阻塞项（来自 52aef16）
+
+### N1. manifest.json 硬编码绝对路径（合入 main 即坏）
+`manifest.json` 的 `mcp_servers.rulewhisper`：
+```json
+"command": "D:/project/ai_coc/.venv/Scripts/python",
+"cwd": "D:/project/ai_coc"
+```
+这是**本机**另一项目的 venv 绝对路径，已提交进 git。其他机器/CI 克隆后：
+- rulewhisper MCP server 无法启动；
+- 而 `coc-keeper-coldstart` profile 的 `system_prompt` 明确「禁止验证系统信息、禁止重新发现 MCP 工具、已连接 RuleWhisper」——模型会在工具实际不存在时自信地调用幻觉工具，产生错误结果且无法自纠。
+
+**修复**：manifest 的 MCP server 定义改为相对/可配置（如环境变量占位 `$AI_COC_ROOT`），或从默认 manifest 移除、放入用户级 `~/.codebuddy/mcp.json`（Kimi adapter 已是这种模式）。
+
+### N2. system_prompt 含拼写错误
+`coc-keeper-coldstart` prompt 中 `ddata/sessions/（会话存储）` —— 应为 `data/sessions/`。信息注入错误，会误导模型关于项目结构。
+
+### N3. fork_cbc_session 回退后 custom-title 写到错误目录
+`fork_cbc_session` 经 `_find_session_jsonl` 找到父 session 后把 `proj_dir` 重指到 `found.parent`（sessions.py:559），新 session 文件 + meta 写在该目录；但随后 `write_custom_title(new_id, name, cwd)`（sessions.py:582）仍用 `_project_dir(cwd)` 解析路径 → 与 `proj_dir` 不一致时，标题事件被静默丢弃（`if not path.exists(): return`）。
+
+### N4. branch 后 Pan 侧 history/usage 为空
+`api_branch_session`（server.py:681-682）用 `cbc_sessions.parse_cbc_history(new_cli_id, cwd)` / `get_raw_usage(new_cli_id, cwd)` 解析新 session，两者仍走 `_project_dir(cwd)`，**没有** `_find_session_jsonl` 回退。当 fork 走了跨目录回退（这正是该提交要解决的场景），新文件不在 `_project_dir(cwd)` 下 → 返回空 history / 空 usage。cbc `--resume` 仍能靠 JSONL 恢复模型上下文，所以功能"能跑"，但 Pan Session 的历史列表与用量统计为空。
+**修复**：把 `_find_session_jsonl` 的解析逻辑下沉为一个共用的 `_resolve_session_path(session_id, cwd)`，fork/parse/get_raw_usage/write_custom_title 统一调用。
+
+### N5. character GET/DELETE 端点未校验 character_id（#5 修复不完整）
+`#5` 只修了 memory 四个端点，`/api/characters/{id}` 的 GET（server.py:1486）和 DELETE（server.py:1515）仍直接拼路径：
+```python
+# character.py:191 / 211-212
+file_path = self._characters_dir / f"{character_id}.json"
+json_path = self._characters_dir / f"{character_id}.json"
+```
+经 `%2F` 编码的 `/` 会在路由匹配后被解码，`DELETE /api/characters/..%2F..%2Ffoo` → `data/characters/../../foo.json` → **可删除仓库内任意以 `.json` 结尾的文件**；GET 端可读取任意 `.json` 文件内容（需为合法 JSON dict）。无认证 + 默认绑 127.0.0.1 时，本地任意进程/被 XSS 的浏览器标签页可直接利用。
+**修复**：`api_characters_get/delete` 入口同样调用 `_validate_character_id`（`char_[0-9a-f]{16}|default` 白名单）。
+
+## 其余仍开放项（未在本轮承诺内，维持原判）
+
+高：#8 超时无感知、#9 非零退出被吞、#10 删除的 session 被复活、#11 cli_session_id 清除失效、#13 chunk ID 不含 path 碰撞、#15 删除文件不清理索引、#16 无认证。
+中：#20 ST 模型每条消息重载、#21 全表扫描、#23 FTS id 列应 UNINDEXED、#24 FTS INSERT OR REPLACE 无效、#25 无迁移系统、#27 FTS 操作符注入、#28 model 列恒为 OpenAI 名、#30 memory_context 连接泄漏（`except` 块跳过 `mgr.close()`）、#31 memory_dir 可逃逸、#32 CharacterManager 无锁、#33 删除 character 后 server 缓存残留、#34 stdio 模式 health_check 不可达。
+低：#35-#38 死代码/假测试、#40-#43 细节。
+
+## 验证记录
+
+- `python -m pytest tests/ -x -q` → **85 passed**（与提交声称一致）。
+- `packages/web`：`npx tsc --noEmit` 通过。
+- `packages/web`：`pnpm build` 失败，根因是 `node_modules` 未安装（`ELIFECYCLE Command failed` + `TS2688 vite/client`），**非代码回归**。pre-commit hook 仅在被暂存文件触及 `packages/web/ts/app.ts` / `packages/web/src/` 时才跑前端检查，本分支改动均为 Python/manifest/docs，不触发，故不构成合并阻塞；但合入前建议在干净环境装依赖跑一次完整 pre-commit。
+
+## 合入前建议清单（本轮新增）
+
+1. **N1** manifest 绝对路径改可配置/移除（否则其他环境 MCP 必坏且模型幻觉）
+2. **N5** character GET/DELETE 加 `character_id` 校验（任意 `.json` 删除漏洞）
+3. **#39** `git rm --cached` 6 个 sqlite 残留
+4. **N4/N3** fork 路径解析统一（branch 后 history/usage 空、标题丢失）
+5. **N2** prompt 拼写 `ddata` → `data`
+
+以上 5 项工作量都很小，建议在本分支内解决后再合并 main。核心 memory 修复（#1/#2/#7/#14/#18/#19）经复查是正确的。
+
+---
+
+# 修复状态（2026-08-04 起）
+
+按「合入前建议清单」逐项修复，状态实时更新：
+
+- [x] **#39** git rm --cached 6 个 sqlite 残留
+- [x] **N2** 复查为**误报**——提交的 manifest.json 中本就是 `data/sessions/`，`ddata` 是 `git show` 终端换行折行的显示假象，无需修改
+- [x] **N1** manifest 绝对路径已移除：根 `manifest.json` 的 `mcp_servers` 置空；`rulewhisper` 由 `config.json` 的 `plugin_manifests` 加载的 `../ai_coc/pan_plugin/manifest.json`（`${PLUGIN_DIR}` 占位，可移植）提供，`create_character` 对未解析名字优雅跳过
+- [x] **N5** `api_characters_get/delete` 增加 `_validate_character_id` 校验（`char_[0-9a-f]{16}|default`），封堵 `%2F` 路径穿越任意 `.json` 删除/读取
+- [x] **N4/N3** `sessions.py` 新增 `_resolve_session_file(session_id, project_cwd, project_dir)`，`fork_cbc_session`/`write_custom_title`/`parse_cbc_history`/`get_raw_usage` 统一走该解析（显式 project_dir → cwd 派生目录 → 全目录扫描回退）
+- [x] 验证：`pytest` **85 passed**（修复后重跑全绿）；`ast`/`json` 语法检查通过
+- [ ] 提交（可选）：建议单独提交「fix: 合并前复查 5 项阻塞修复」

@@ -1488,6 +1488,8 @@ async def api_characters_get(character_id: str):
     """Get character details including memory stats."""
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    if not _validate_character_id(character_id):
+        return {"error": f"Invalid character_id: {character_id!r}"}
     char = _character_manager.get_character(character_id)
     if char is None:
         return {"error": f"Character {character_id} not found"}
@@ -1517,6 +1519,8 @@ async def api_characters_delete(character_id: str):
     """Delete a character and its memory store."""
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    if not _validate_character_id(character_id):
+        return {"error": f"Invalid character_id: {character_id!r}"}
     if _character_manager.delete_character(character_id):
         return {"status": "deleted", "character_id": character_id}
     return {"error": f"Character {character_id} not found"}
