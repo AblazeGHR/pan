@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS chunks (
 -- Full-text search index
 CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
     text,
-    id,
+    id         UNINDEXED,  -- 16-hex chunk id must not be tokenized (#23)
     path       UNINDEXED,
     source     UNINDEXED,
     model      UNINDEXED,

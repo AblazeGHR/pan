@@ -118,6 +118,11 @@ class Embedder:
         return self._dims
 
     @property
+    def model_name(self) -> str:
+        """Name of the actual model in use (not a constant)."""
+        return self._model
+
+    @property
     def provider(self) -> str:
         """Active provider name (openai / ollama / sentence-transformers / local)."""
         return self._provider

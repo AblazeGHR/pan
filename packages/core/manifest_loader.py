@@ -193,10 +193,20 @@ def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
 
 
 def _dedup_append(lst: list, item, key) -> None:
-    """Replace existing item with same key, otherwise append."""
+    """Replace existing item with same key, otherwise append.
+
+    Overriding an earlier entry is intentional (later manifests win) but must
+    not be silent — a plugin shadowing a built-in profile/system_prompt is
+    usually a misconfiguration (#40).
+    """
     k = key(item)
     for i, existing in enumerate(lst):
         if key(existing) == k:
+            if existing != item:
+                log.warning(
+                    "Manifest entry %r overridden by later manifest (dedup)",
+                    k,
+                )
             lst[i] = item
             return
     lst.append(item)

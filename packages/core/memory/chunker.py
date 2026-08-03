@@ -190,7 +190,12 @@ def _make_chunk(
 ) -> ChunkInfo:
     """Build a ChunkInfo from a list of lines."""
     chunk_text = "\n".join(lines)
-    hash_digest = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
+    # Include source_path in the hash: identical text in different files must
+    # NOT collide on the same chunk ID (that would silently drop one file's
+    # chunk via INSERT OR REPLACE) — see #13.
+    hash_digest = hashlib.sha256(
+        f"{source_path}:{chunk_text}".encode("utf-8")
+    ).hexdigest()
     start_line = (cursor_line - len(lines)) + 1  # 1-indexed
     end_line = cursor_line
     return ChunkInfo(

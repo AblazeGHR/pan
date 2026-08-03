@@ -129,9 +129,11 @@ class HybridSearcher:
 
         # 3. FTS scoring
         expanded_query = self._expand_query(query)
-        fts_results = self._store.search_fts(
-            expanded_query, max_results * CANDIDATE_MULTIPLIER
-        )
+        fts_results: list[dict] = []
+        if expanded_query:
+            fts_results = self._store.search_fts(
+                expanded_query, max_results * CANDIDATE_MULTIPLIER
+            )
         fts_scores = self._normalize_fts_scores(fts_results)
 
         # 4. Hybrid merge — every chunk_id from EITHER result set
@@ -204,7 +206,10 @@ class HybridSearcher:
         """Extract keywords for FTS5 matching.
 
         Uses jieba for Chinese segmentation, strips ASCII punctuation.
-        Returns space-separated terms suitable for FTS5 unicode61 tokenizer.
+        Every term is double-quoted to force literal matching — unquoted
+        ``OR``/``AND``/``NOT`` in a user query would be interpreted as FTS5
+        boolean operators and could raise a syntax error (#27).
+        Returns "" when there are no usable terms (caller skips FTS).
         """
         # Remove ASCII punctuation except hyphens
         cleaned = re.sub(r"[^\w\s\u4e00-\u9fff\-]", " ", query)
@@ -224,4 +229,6 @@ class HybridSearcher:
             # Fallback to simple whitespace split
             terms = cleaned.split()
 
-        return " ".join(terms)
+        if not terms:
+            return ""
+        return " ".join(f'"{t}"' for t in terms)

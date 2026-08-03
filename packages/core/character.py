@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,6 +102,7 @@ class CharacterManager:
         self._memory_dir.mkdir(parents=True, exist_ok=True)
 
         self._memory_managers: dict[str, MemoryManager] = {}
+        self._memory_managers_lock = threading.Lock()  # guards the dict (#32)
         self._manifest_config: ManifestConfig | None = None
 
     # ------------------------------------------------------------------ #
@@ -221,7 +223,8 @@ class CharacterManager:
             deleted = True
 
         # Remove from lazy cache (close first if loaded)
-        mgr = self._memory_managers.pop(character_id, None)
+        with self._memory_managers_lock:
+            mgr = self._memory_managers.pop(character_id, None)
         if mgr is not None:
             try:
                 mgr.close()
@@ -241,8 +244,9 @@ class CharacterManager:
     def get_memory_manager(
         self, character_id: str, api_key: str | None = None
     ) -> MemoryManager | None:
-        if character_id in self._memory_managers:
-            return self._memory_managers[character_id]
+        with self._memory_managers_lock:
+            if character_id in self._memory_managers:
+                return self._memory_managers[character_id]
 
         char = self.get_character(character_id)
         if char is None:
@@ -264,7 +268,17 @@ class CharacterManager:
             )
             return None
 
-        self._memory_managers[character_id] = mgr
+        # Re-check under the lock: another thread may have created the manager
+        # (or deleted the character) while we were building it (#32).
+        with self._memory_managers_lock:
+            existing = self._memory_managers.get(character_id)
+            if existing is not None:
+                try:
+                    mgr.close()
+                except Exception:
+                    pass
+                return existing
+            self._memory_managers[character_id] = mgr
         return mgr
 
     def search_memory(

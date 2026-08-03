@@ -308,30 +308,6 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     })
 
 
-def _format_history_for_context(history: list[dict], max_chars: int = 8000) -> str:
-    """Format session history as a context block for one-shot MCP prompts.
-
-    Skips the system_prompt entry (it's already in cbc's context via .mcp.json or
-    separate handling). Truncates to max_chars to avoid hitting token limits.
-    """
-    lines = []
-    for h in history:
-        role = h.get("role", "")
-        if role == "system":
-            continue
-        content = h.get("content", "")
-        if not content:
-            continue
-        if role == "user":
-            lines.append(f"[User]: {content}")
-        elif role == "assistant":
-            lines.append(f"[Assistant]: {content}")
-    text = "\n\n".join(lines)
-    if len(text) > max_chars:
-        text = "...[truncated]...\n" + text[-max_chars:]
-    return text
-
-
 async def _consumer_mcp(w: Worker, text: str, source: str, s):
     """One-shot MCP mode: spawn new cbc process per message with --mcp-config.
 
@@ -404,6 +380,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
 
     # Collect output
     output = b""
+    timed_out = False
     try:
         try:
             while True:
@@ -419,6 +396,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
                     proc.kill()
                     break
         except asyncio.TimeoutError:
+            timed_out = True
             _log.warning("[Worker %s] MCP process timeout", w.worker_id)
 
         try:
@@ -436,6 +414,8 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
                 pass
         w._mcp_proc = None
 
+    returncode = proc.returncode
+
     # DEBUG: save raw cbc output for inspection
     debug_path = os.path.join(s.workdir, ".pan-cbc-raw.jsonl") if s else None
     if debug_path:
@@ -446,9 +426,11 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         except Exception:
             pass
 
-    # Parse stream-json output
+    # Parse stream-json output — collect first, apply to the session only
+    # after confirming it still exists (#10).
     result_text = ""
     cli_session_id = None
+    assistant_blocks: list[str] = []
     for line in output.decode(errors="replace").split("\n"):
         line = line.strip()
         if not line:
@@ -470,27 +452,57 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
                     x.get("text", "") for x in content
                     if isinstance(x, dict) and x.get("type") == "text"
                 )
-            s.history.append({"role": "assistant", "content": str(content)})
+            if content:
+                assistant_blocks.append(str(content))
+
+    # Re-fetch the session: it may have been deleted while the process ran.
+    # Never write through a stale reference — that would resurrect a deleted
+    # session on disk (#10).
+    s = _sess.get(w.session_id)
+    if s is None:
+        _log.warning(
+            "[Worker %s] Session %s deleted while task in flight; discarding result",
+            w.worker_id,
+            w.session_id,
+        )
+        w.status = "idle"
+        return
 
     if cli_session_id:
         s.cli_session_id = cli_session_id
+    for content in assistant_blocks:
+        s.history.append({"role": "assistant", "content": content})
 
-    if s:
-        s.last_result = {
-            "status": "done" if result_text else "error",
-            "result": result_text or "(no output)",
-            "cli_session_id": s.cli_session_id,
-            "timestamp": datetime.now().isoformat(),
-        }
-        await _sess.save_async(s)
+    # Surface failures the user can actually see (#8 timeout, #9 non-zero exit).
+    if timed_out and not result_text:
+        status, result = (
+            "error",
+            "Task timed out after 120s and the process was killed",
+        )
+    elif not result_text and returncode not in (None, 0):
+        tail = output.decode(errors="replace")[-2000:].strip()
+        status, result = "error", f"cbc exited with code {returncode}:\n{tail}"
+    else:
+        status, result = (
+            "done" if result_text else "error",
+            result_text or "(no output)",
+        )
+
+    s.last_result = {
+        "status": status,
+        "result": result,
+        "cli_session_id": s.cli_session_id,
+        "timestamp": datetime.now().isoformat(),
+    }
+    await _sess.save_async(s)
 
     w.status = "idle"
     await _bcast({
         "type": "worker.result",
         "workerId": w.worker_id,
         "sessionId": w.session_id,
-        "status": s.last_result["status"] if s else "error",
-        "result": s.last_result.get("result", "") if s else "",
+        "status": status,
+        "result": result,
     })
 
 
@@ -512,10 +524,11 @@ async def create_worker(session_id: str) -> Worker | str:
 
     old = find_worker_by_session(session_id)
     if old:
+        # Replace a live worker for this session. Deliberately do NOT clear
+        # cli_session_id: resuming the cbc JSONL is the intended context-
+        # continuity mechanism, and clearing it here would force a cold start
+        # on every restart (#11, resolved by design).
         await kill_worker(old.worker_id)
-        if s.cli_session_id:
-            s.set_adapter_field("cli_session_id", None)
-            await _sess.save_async(s)
 
     adapter = get_adapter(s.adapter)
     worker_id = await _next_worker_id()

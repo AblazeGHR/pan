@@ -60,9 +60,10 @@ class MemoryStore:
     def get_meta(self, key: str) -> str | None:
         """Read a metadata entry, or None if missing."""
         assert self._conn is not None
-        row = self._conn.execute(
-            "SELECT value FROM meta WHERE key = ?", (key,)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM meta WHERE key = ?", (key,)
+            ).fetchone()
         if row is None:
             return None
         return row["value"]
@@ -94,25 +95,43 @@ class MemoryStore:
 
     def get_file(self, path: str) -> dict[str, Any] | None:
         assert self._conn is not None
-        row = self._conn.execute(
-            "SELECT path, source, hash, mtime, size FROM files WHERE path = ?",
-            (path,),
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT path, source, hash, mtime, size FROM files WHERE path = ?",
+                (path,),
+            ).fetchone()
         if row is None:
             return None
         return dict(row)
 
     def file_exists(self, path: str) -> bool:
         assert self._conn is not None
-        row = self._conn.execute(
-            "SELECT 1 FROM files WHERE path = ?", (path,)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT 1 FROM files WHERE path = ?", (path,)
+            ).fetchone()
         return row is not None
 
     def delete_file(self, path: str) -> None:
         assert self._conn is not None
         with self._lock, self._conn:
             self._conn.execute("DELETE FROM files WHERE path = ?", (path,))
+
+    def get_files(self, source: str | None = None) -> list[dict[str, Any]]:
+        """List tracked files, optionally filtered by source."""
+        assert self._conn is not None
+        with self._lock:
+            if source:
+                rows = self._conn.execute(
+                    "SELECT path, source, hash, mtime, size FROM files "
+                    "WHERE source = ?",
+                    (source,),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT path, source, hash, mtime, size FROM files"
+                ).fetchall()
+        return [dict(row) for row in rows]
 
     # ------------------------------------------------------------------ #
     #  Chunk operations
@@ -123,9 +142,14 @@ class MemoryStore:
 
         The *chunk* dict must contain keys: id, path, source, start_line,
         end_line, hash, model, text, embedding (already JSON-serialized).
+
+        FTS5 has no UNIQUE constraint on ``id``, so ``INSERT OR REPLACE``
+        behaves like plain ``INSERT`` and duplicates rows on re-index. Delete
+        the existing row first to guarantee one row per chunk id (#24).
         """
         assert self._conn is not None
         with self._lock, self._conn:
+            self._conn.execute("DELETE FROM fts WHERE id = ?", (chunk["id"],))
             self._conn.execute(
                 "INSERT OR REPLACE INTO chunks "
                 "(id, path, source, start_line, end_line, hash, model, text, embedding, updated_at) "
@@ -248,10 +272,11 @@ class MemoryStore:
 
     def get_chunks_for_search(self) -> list[dict[str, Any]]:
         assert self._conn is not None
-        rows = self._conn.execute(
-            "SELECT id, path, source, start_line, end_line, hash, model, text, embedding, updated_at "
-            "FROM chunks"
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, path, source, start_line, end_line, hash, model, text, embedding, updated_at "
+                "FROM chunks"
+            ).fetchall()
         return [dict(row) for row in rows]
 
     # ------------------------------------------------------------------ #
@@ -261,13 +286,14 @@ class MemoryStore:
     def search_fts(self, query: str, max_results: int = 50) -> list[dict[str, Any]]:
         """Full-text search via FTS5 ordered by BM25 rank."""
         assert self._conn is not None
-        rows = self._conn.execute(
-            "SELECT text, id, path, source, model, start_line, end_line, rank "
-            "FROM fts WHERE fts MATCH ? "
-            "ORDER BY rank "
-            "LIMIT ?",
-            (query, max_results),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT text, id, path, source, model, start_line, end_line, rank "
+                "FROM fts WHERE fts MATCH ? "
+                "ORDER BY rank "
+                "LIMIT ?",
+                (query, max_results),
+            ).fetchall()
         return [dict(row) for row in rows]
 
     # ------------------------------------------------------------------ #
@@ -304,11 +330,12 @@ class MemoryStore:
         self, provider: str, model: str, provider_key: str, hash: str
     ) -> list[float] | None:
         assert self._conn is not None
-        row = self._conn.execute(
-            "SELECT embedding FROM embedding_cache "
-            "WHERE provider = ? AND model = ? AND provider_key = ? AND hash = ?",
-            (provider, model, provider_key, hash),
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT embedding FROM embedding_cache "
+                "WHERE provider = ? AND model = ? AND provider_key = ? AND hash = ?",
+                (provider, model, provider_key, hash),
+            ).fetchone()
         if row is None:
             return None
         return json.loads(row["embedding"])
@@ -320,12 +347,13 @@ class MemoryStore:
     def get_stats(self) -> dict[str, Any]:
         """Return row counts for files and chunks."""
         assert self._conn is not None
-        file_count = self._conn.execute(
-            "SELECT COUNT(*) AS cnt FROM files"
-        ).fetchone()["cnt"]
-        chunk_count = self._conn.execute(
-            "SELECT COUNT(*) AS cnt FROM chunks"
-        ).fetchone()["cnt"]
+        with self._lock:
+            file_count = self._conn.execute(
+                "SELECT COUNT(*) AS cnt FROM files"
+            ).fetchone()["cnt"]
+            chunk_count = self._conn.execute(
+                "SELECT COUNT(*) AS cnt FROM chunks"
+            ).fetchone()["cnt"]
         return {"files": file_count, "chunks": chunk_count}
 
     # ------------------------------------------------------------------ #

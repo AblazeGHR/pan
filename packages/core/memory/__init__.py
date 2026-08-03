@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -129,11 +130,12 @@ class MemoryManager:
     def index_directory(
         self, dir_path: str, source: str = "memory"
     ) -> SyncReport:
-        """Index all .md files under *dir_path* (non-recursive).
+        """Index all .md files under *dir_path* recursively.
 
-        Returns a SyncReport summarizing what was indexed.
+        Also prunes index entries for files that no longer exist on disk
+        (orphan cleanup, #15). Returns a SyncReport summarizing the result.
         """
-        dir_path = str(Path(dir_path))
+        dir_path = str(Path(dir_path).resolve())
         report_files: list[FileReport] = []
         total_upserted = 0
 
@@ -145,7 +147,9 @@ class MemoryManager:
                 details=[],
             )
 
-        md_files = sorted(p.glob("*.md"))
+        # Recursive glob — must match the watcher's recursive=True (#36).
+        md_files = sorted(p.rglob("*.md"))
+        disk_paths = {str(m) for m in md_files}
         for md_path in md_files:
             try:
                 file_report = self._index_single_file(
@@ -160,6 +164,26 @@ class MemoryManager:
                         path=str(md_path), status="error", chunks=0
                     )
                 )
+
+        # #15: remove entries for files that existed in the index under
+        # dir_path but are no longer on disk (normalize both sides to resolved
+        # absolute paths so legacy relative entries are pruned too).
+        # Boundary check uses os.sep so sibling dirs like ".../memory2" are
+        # not treated as being under ".../memory".
+        try:
+            prefix = dir_path + os.sep
+            for row in self._store.get_files(source=source):
+                indexed = row["path"]
+                try:
+                    resolved = str(Path(indexed).resolve())
+                except (OSError, ValueError):
+                    continue
+                if resolved.startswith(prefix) and resolved not in disk_paths:
+                    log.info("Pruning orphan index entry: %s", indexed)
+                    self._store.delete_chunks_for_file(indexed)
+                    self._store.delete_file(indexed)
+        except Exception:
+            log.exception("Orphan cleanup failed for %s", dir_path)
 
         modified = sum(
             1 for r in report_files if r.status in ("new", "updated")
@@ -179,6 +203,14 @@ class MemoryManager:
         Checks mtime + hash to decide whether re-indexing is needed.
         """
         return self._index_single_file(file_path, source=source)
+
+    def remove_file(self, file_path: str) -> None:
+        """Remove a file and all its chunks/FTS rows from the index.
+
+        Used when a watched .md file is deleted from disk (#15).
+        """
+        self._store.delete_chunks_for_file(file_path)
+        self._store.delete_file(file_path)
 
     def index_text(
         self, text: str, source: str = "memory", path: str = "memory://inline"
@@ -209,7 +241,7 @@ class MemoryManager:
                     "start_line": info.start_line,
                     "end_line": info.end_line,
                     "hash": info.hash,
-                    "model": EMBEDDING_MODEL,
+                    "model": self._embedder.model_name,
                     "text": info.text,
                     "embedding": json.dumps(emb),
                 })
@@ -279,7 +311,7 @@ class MemoryManager:
                 "start_line": info.start_line,
                 "end_line": info.end_line,
                 "hash": info.hash,
-                "model": EMBEDDING_MODEL,
+                "model": self._embedder.model_name,
                 "text": info.text,
                 "embedding": json.dumps(emb),
             })
@@ -346,7 +378,14 @@ class MemoryManager:
 
         self._watch_dir = str(Path(dir_path))
 
-        def _on_change(path: str):
+        def _on_change(path: str, event_type: str = "changed"):
+            if event_type == "deleted":
+                log.info("File deleted, removing from index: %s", path)
+                try:
+                    self.remove_file(path)
+                except Exception:
+                    log.exception("Remove-from-index failed for %s", path)
+                return
             log.info("File changed, re-indexing: %s", path)
             try:
                 self.index_file(path)

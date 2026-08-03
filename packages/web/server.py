@@ -1522,6 +1522,14 @@ async def api_characters_delete(character_id: str):
     if not _validate_character_id(character_id):
         return {"error": f"Invalid character_id: {character_id!r}"}
     if _character_manager.delete_character(character_id):
+        # Drop any cached MemoryManager in this module too — the underlying
+        # .sqlite has been unlinked and the fd is stale (#33).
+        mgr = _memory_managers.pop(character_id, None)
+        if mgr is not None:
+            try:
+                mgr.close()
+            except Exception:
+                pass
         return {"status": "deleted", "character_id": character_id}
     return {"error": f"Character {character_id} not found"}
 

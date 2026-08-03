@@ -62,6 +62,7 @@ def search_and_format(
 
     db_path = str(Path(db_dir) / f"{character_id}.sqlite")
 
+    mgr: MemoryManager | None = None
     try:
         mgr = MemoryManager(
             db_path=db_path,
@@ -70,7 +71,6 @@ def search_and_format(
             model_path=model_path,
         )
         results = mgr.search(query, max_results=max_results, min_score=min_score)
-        mgr.close()
     except Exception as exc:
         log.warning("Memory search failed for %s: %s", character_id, exc)
         return MemoryContext(
@@ -79,6 +79,14 @@ def search_and_format(
             snippet_count=0,
             source=character_id,
         )
+    finally:
+        # Always close, even when search() raised — otherwise the SQLite
+        # connection leaks on every failed lookup (#30).
+        if mgr is not None:
+            try:
+                mgr.close()
+            except Exception:
+                pass
 
     if not results:
         return MemoryContext(

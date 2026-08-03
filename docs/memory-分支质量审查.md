@@ -565,3 +565,39 @@ json_path = self._characters_dir / f"{character_id}.json"
 - [x] **N4/N3** `sessions.py` 新增 `_resolve_session_file(session_id, project_cwd, project_dir)`，`fork_cbc_session`/`write_custom_title`/`parse_cbc_history`/`get_raw_usage` 统一走该解析（显式 project_dir → cwd 派生目录 → 全目录扫描回退）
 - [x] 验证：`pytest` **85 passed**（修复后重跑全绿）；`ast`/`json` 语法检查通过
 - [ ] 提交（可选）：建议单独提交「fix: 合并前复查 5 项阻塞修复」
+
+---
+
+# 第 2 轮修复（2026-08-04）
+
+按「其余仍开放项」继续修，聚焦可机械修复的高/中危项；#16（认证）、#34（health_check）、#20（ST 模型缓存）、#21（ANN 索引）、#25（迁移系统）属设计决策/较大改造，暂缓。
+
+## 已修复
+
+### worker.py（#8 #9 #10 #11 #35）
+- **#8** MCP 超时用户可见：`timed_out` 标记，超时且无 result 时 `last_result` 明确报 "Task timed out after 120s and the process was killed" 并广播
+- **#9** 非零退出被吞：`returncode` 非零且无 result 时，`last_result` 携带 returncode + 输出尾部 2KB
+- **#10** 删除的 session 被复活：解析结果先收集到局部列表，保存前重新 `_sess.get(w.session_id)`，None 则丢弃结果（不再通过陈旧引用写盘）
+- **#11** cli_session_id 清除死代码：**按设计解决**——清除逻辑被调用方顺序架空空转；若强行激活会破坏本分支核心的 `--resume` 上下文连续性。已移除误导性死代码并注释说明
+- **#35** 删除死代码 `_format_history_for_context`
+
+### memory（#13 #24 #27 #28 #30 #23 #4 #15 #36）
+- **#13** chunk ID 含 `source_path`：`sha256(f"{source_path}:{chunk_text}")`，同文本跨文件不再碰撞
+- **#24** `insert_chunk` FTS 先 DELETE 再 INSERT（活动路径 `replace_file_chunks` 本已如此）
+- **#27** FTS 操作符注入：`_expand_query` 每词加双引号强制字面匹配；空词表跳过 FTS
+- **#28** `chunks.model` 记录 `embedder.model_name`（真实模型），不再恒为 OpenAI 默认名
+- **#30** `memory_context.search_and_format` 用 try/finally 保证 `mgr.close()`，修复连接泄漏
+- **#23** schema：fts `id UNINDEXED`（新库生效）
+- **#4** store 读方法（get_meta/get_file/get_chunks_for_search/search_fts/get_embedding_cache/get_stats 等）全部加 RLock，跨线程共享连接竞态关闭
+- **#15** 删除文件清理索引：watcher 支持 `FileDeletedEvent` → `remove_file`（删 chunks+FTS+files）；`index_directory`/`sync` 孤儿清理（比对磁盘，删除不存在的索引条目）
+- **#36** `index_directory` 改 `rglob("*.md")` 递归，与 watcher `recursive=True` 一致
+
+### character/server（#32 #33 #40）
+- **#32** `CharacterManager` 加 `_memory_managers_lock`，`get_memory_manager` 的 check-then-act 原子化（双检+重复创建时 close）
+- **#33** `api_characters_delete` 同步清理 server 侧 `_memory_managers` 缓存并 close
+- **#40** `_dedup_append` 同名覆盖时 `log.warning`
+
+## 验证
+- `pytest` **85 passed**
+- 内存功能冒烟：递归扫描 ✓、跨文件同文本 chunk ID 唯一 ✓、删文件后孤儿清理（2→1）✓、FTS `"OR"` 查询不再报语法错 ✓
+- 待提交

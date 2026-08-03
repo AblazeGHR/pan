@@ -30,15 +30,17 @@ class MemoryWatcher:
     def __init__(
         self,
         watch_dir: str,
-        on_change: Callable[[str], None],
+        on_change: Callable[[str, str], None],
         debounce: float = DEFAULT_DEBOUNCE,
     ) -> None:
+        """*on_change* is called as ``on_change(path, event_type)`` where
+        event_type is ``"changed"`` or ``"deleted"`` (#15)."""
         self._watch_dir = Path(watch_dir).resolve()
         self._on_change = on_change
         self._debounce = debounce
         self._observer: object | None = None
         self._timer: threading.Timer | None = None
-        self._pending: set[str] = set()
+        self._pending: set[tuple[str, str]] = set()
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ #
@@ -58,7 +60,6 @@ class MemoryWatcher:
             return
 
         try:
-            from watchdog.events import FileSystemEventHandler
             from watchdog.observers import Observer
         except ImportError:
             log.warning(
@@ -86,13 +87,13 @@ class MemoryWatcher:
     #  Event handling
     # ------------------------------------------------------------------ #
 
-    def _on_file_event(self, file_path: str):
+    def _on_file_event(self, file_path: str, event_type: str = "changed"):
         """Handler for file-system events, debounced."""
         if not file_path.endswith(".md"):
             return
 
         with self._lock:
-            self._pending.add(file_path)
+            self._pending.add((file_path, event_type))
             self._cancel_timer()
             self._timer = threading.Timer(self._debounce, self._flush)
             self._timer.start()
@@ -102,14 +103,14 @@ class MemoryWatcher:
         with self._lock:
             if not self._pending:
                 return
-            paths = sorted(self._pending)
+            pending = sorted(self._pending)
             self._pending = set()
 
-        for path in paths:
+        for path, event_type in pending:
             try:
-                self._on_change(path)
+                self._on_change(path, event_type)
             except Exception:
-                log.exception("Error handling file change for %s", path)
+                log.exception("Error handling file event for %s", path)
 
     def _cancel_timer(self):
         if self._timer is not None:
@@ -123,32 +124,28 @@ class MemoryWatcher:
 
 
 class _Handler:
-    """Minimal watchdog handler that forwards events."""
+    """Minimal watchdog handler that forwards events.
 
-    def __init__(self, callback: Callable[[str], None]) -> None:
-        from watchdog.events import FileSystemEventHandler
+    Overrides ``dispatch`` directly — ``on_modified``/``on_created`` are NOT
+    used (watchdog calls ``dispatch``), so they are intentionally absent.
+    """
 
+    def __init__(self, callback: Callable[[str, str], None]) -> None:
         self._callback = callback
 
-    def on_modified(self, event):
-        # watchdog may pass event; skip guard to avoid import issues
-        path = getattr(event, "src_path", None)
-        if path:
-            self._callback(path)
-
-    def on_created(self, event):
-        path = getattr(event, "src_path", None)
-        if path:
-            self._callback(path)
-
     def dispatch(self, event):
-        """Route event to the correct handler."""
+        """Route an event to the callback: changed vs deleted (#15)."""
         from watchdog.events import (
             FileCreatedEvent,
+            FileDeletedEvent,
             FileModifiedEvent,
         )
 
         if isinstance(event, (FileModifiedEvent, FileCreatedEvent)):
             path = event.src_path
             if path:
-                self._callback(path)
+                self._callback(path, "changed")
+        elif isinstance(event, FileDeletedEvent):
+            path = event.src_path
+            if path:
+                self._callback(path, "deleted")
