@@ -15,6 +15,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -109,6 +110,7 @@ class Embedder:
         self._model_path = model_path
         self._local_model: object | None = None
         self._st_model: object | None = None  # sentence-transformers
+        self._model_load_lock = threading.Lock()  # serialize lazy model load
 
         self._provider_key = self._cache_key()
 
@@ -347,36 +349,44 @@ class Embedder:
     # ------------------------------------------------------------------ #
 
     def _ensure_st_model(self):
-        """Lazy-load the sentence-transformers model."""
+        """Lazy-load the sentence-transformers model.
+
+        Serialized with a lock: with a shared cached Embedder, concurrent
+        first embeds from multiple threads would otherwise load the model
+        twice (#20).
+        """
         if self._st_model is not None:
             return
 
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError:
-            raise EmbeddingError(
-                "The 'sentence-transformers' package is required. "
-                "Install it with: pip install sentence-transformers"
-            ) from None
+        with self._model_load_lock:
+            if self._st_model is not None:  # double-check
+                return
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError:
+                raise EmbeddingError(
+                    "The 'sentence-transformers' package is required. "
+                    "Install it with: pip install sentence-transformers"
+                ) from None
 
-        # Use HF mirror for China access, cache on D drive
-        import os as _os
-        if not _os.environ.get("HF_ENDPOINT"):
-            _os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+            # Use HF mirror for China access, cache on D drive
+            import os as _os
+            if not _os.environ.get("HF_ENDPOINT"):
+                _os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
-        # Put model cache outside C drive
-        cache_dir = self._model_path  # Allow model_path as cache_dir for ST
-        if not cache_dir:
-            cache_dir = _os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
-            # Default to D drive if available
-            if cache_dir.startswith("C:") or cache_dir.startswith("c:"):
-                alt = "D:/cache/huggingface"
-                if Path(alt).parent.exists():
-                    cache_dir = alt
+            # Put model cache outside C drive
+            cache_dir = self._model_path  # Allow model_path as cache_dir for ST
+            if not cache_dir:
+                cache_dir = _os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+                # Default to D drive if available
+                if cache_dir.startswith("C:") or cache_dir.startswith("c:"):
+                    alt = "D:/cache/huggingface"
+                    if Path(alt).parent.exists():
+                        cache_dir = alt
 
-        log.info("Loading sentence-transformers model: %s (cache: %s)", self._model, cache_dir)
-        self._st_model = SentenceTransformer(self._model, cache_folder=cache_dir)
-        log.info("Sentence-transformers model loaded (%d dims)", self._dims)
+            log.info("Loading sentence-transformers model: %s (cache: %s)", self._model, cache_dir)
+            self._st_model = SentenceTransformer(self._model, cache_folder=cache_dir)
+            log.info("Sentence-transformers model loaded (%d dims)", self._dims)
 
     def _embed_st(self, texts: list[str]) -> list[list[float]]:
         """Compute embeddings using sentence-transformers."""

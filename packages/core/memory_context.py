@@ -8,6 +8,7 @@ results are pre-searched and formatted as context text rather than injected as t
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
@@ -20,6 +21,65 @@ class MemoryContext:
     results_md: str  # Markdown-formatted results
     snippet_count: int
     source: str  # character_id
+
+
+# ── MemoryManager cache (#20) ────────────────────────────────────────── #
+#
+# search_and_format runs once per user message (worker injection path). Each
+# call used to build a fresh MemoryManager, which reloaded the sentence-
+# transformers model (3-10s) on every message. Cache the manager per
+# (db_path, provider, model_path) so the model loads once per character and
+# is reused — matching the server-side _get_memory_manager behavior.
+
+_manager_cache: dict[tuple, object] = {}  # (db_path, provider, model_path, api_key) -> MemoryManager
+_manager_lock = threading.Lock()
+
+
+def _get_cached_manager(
+    db_path: str,
+    provider: str,
+    model_path: str | None,
+    api_key: str | None,
+):
+    """Return a cached MemoryManager, building it on first use (thread-safe)."""
+    from .memory import MemoryManager
+
+    key = (db_path, provider, model_path, api_key)
+    with _manager_lock:
+        cached = _manager_cache.get(key)
+        if cached is not None:
+            return cached
+
+    # Build outside the lock (model load is expensive; don't hold it).
+    mgr = MemoryManager(
+        db_path=db_path,
+        api_key=api_key,
+        provider=provider,
+        model_path=model_path,
+    )
+    with _manager_lock:
+        existing = _manager_cache.get(key)
+        if existing is not None:
+            # Another thread built it first — drop the duplicate.
+            try:
+                mgr.close()
+            except Exception:
+                pass
+            return existing
+        _manager_cache[key] = mgr
+        return mgr
+
+
+def clear_memory_manager_cache() -> None:
+    """Close and drop all cached MemoryManagers (e.g. on shutdown / in tests)."""
+    with _manager_lock:
+        items = list(_manager_cache.values())
+        _manager_cache.clear()
+    for mgr in items:
+        try:
+            mgr.close()
+        except Exception:
+            pass
 
 
 def search_and_format(
@@ -47,7 +107,7 @@ def search_and_format(
     """
     from pathlib import Path
 
-    from .memory import MemoryManager, PROVIDER_SENTENCE_TRANSFORMERS
+    from .memory import PROVIDER_SENTENCE_TRANSFORMERS
 
     if db_dir is None:
         # Use data/memory relative to project root (cwd when running main.py)
@@ -62,14 +122,11 @@ def search_and_format(
 
     db_path = str(Path(db_dir) / f"{character_id}.sqlite")
 
-    mgr: MemoryManager | None = None
+    # Cached manager: the sentence-transformers model is loaded once per
+    # character and reused across messages (#20). No close() here — the
+    # manager lives for the process lifetime.
     try:
-        mgr = MemoryManager(
-            db_path=db_path,
-            api_key=api_key,
-            provider=provider,
-            model_path=model_path,
-        )
+        mgr = _get_cached_manager(db_path, provider, model_path, api_key)
         results = mgr.search(query, max_results=max_results, min_score=min_score)
     except Exception as exc:
         log.warning("Memory search failed for %s: %s", character_id, exc)
@@ -79,14 +136,6 @@ def search_and_format(
             snippet_count=0,
             source=character_id,
         )
-    finally:
-        # Always close, even when search() raised — otherwise the SQLite
-        # connection leaks on every failed lookup (#30).
-        if mgr is not None:
-            try:
-                mgr.close()
-            except Exception:
-                pass
 
     if not results:
         return MemoryContext(

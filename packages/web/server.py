@@ -66,6 +66,12 @@ async def lifespan(app: FastAPI):
     
     yield
     await worker.shutdown_all()
+    # Release cached MemoryManagers + loaded embedding models (#20).
+    try:
+        from packages.core.memory_context import clear_memory_manager_cache
+        clear_memory_manager_cache()
+    except Exception:
+        pass
     _log("[Pan] All workers shut down")
 
 

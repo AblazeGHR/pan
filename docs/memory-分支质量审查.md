@@ -533,7 +533,7 @@ json_path = self._characters_dir / f"{character_id}.json"
 ## 其余仍开放项（未在本轮承诺内，维持原判）
 
 高：#8 超时无感知、#9 非零退出被吞、#10 删除的 session 被复活、#11 cli_session_id 清除失效、#13 chunk ID 不含 path 碰撞、#15 删除文件不清理索引、#16 无认证。
-中：#20 ST 模型每条消息重载、#21 全表扫描、#23 FTS id 列应 UNINDEXED、#24 FTS INSERT OR REPLACE 无效、#25 无迁移系统、#27 FTS 操作符注入、#28 model 列恒为 OpenAI 名、#30 memory_context 连接泄漏（`except` 块跳过 `mgr.close()`）、#31 memory_dir 可逃逸、#32 CharacterManager 无锁、#33 删除 character 后 server 缓存残留、#34 stdio 模式 health_check 不可达。
+中：#21 全表扫描、#25 无迁移系统、#31 memory_dir 可逃逸、#34 stdio 模式 health_check 不可达。
 低：#35-#38 死代码/假测试、#40-#43 细节。
 
 ## 验证记录
@@ -570,7 +570,9 @@ json_path = self._characters_dir / f"{character_id}.json"
 
 # 第 2 轮修复（2026-08-04）
 
-按「其余仍开放项」继续修，聚焦可机械修复的高/中危项；#16（认证）、#34（health_check）、#20（ST 模型缓存）、#21（ANN 索引）、#25（迁移系统）属设计决策/较大改造，暂缓。
+按「其余仍开放项」继续修，聚焦可机械修复的高/中危项；#16（认证）、#34（health_check）、#21（ANN 索引）、#25（迁移系统）属设计决策/较大改造，暂缓。
+
+> 补充（#20）：`memory_context` 新增按 `(db_path, provider, model_path, api_key)` 的进程级 `MemoryManager` 缓存 + 双检锁；`search_and_format` 命中复用不再 close，ST 模型每个 character 只加载一次。`Embedder._ensure_st_model` 加加载锁防并发双载；server 关闭时 `clear_memory_manager_cache()` 释放模型。冒烟验证通过。
 
 ## 已修复
 
