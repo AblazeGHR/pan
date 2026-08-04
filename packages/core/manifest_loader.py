@@ -144,8 +144,21 @@ def _merge_manifest(config: ManifestConfig, data: dict, plugin_dir: str) -> None
 def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
     """Parse a profile entry from manifest.json."""
     memory_dir = raw.get("memory_dir")
-    if memory_dir and not Path(memory_dir).is_absolute():
-        memory_dir = str(Path(plugin_dir) / memory_dir)
+    if memory_dir:
+        # Resolve relative to the manifest's directory and validate the
+        # result stays inside it — an absolute or ``..``-escaping memory_dir
+        # would let a malicious manifest index arbitrary directories (#31).
+        memory_dir = str(Path(plugin_dir, memory_dir).resolve())
+        try:
+            Path(memory_dir).relative_to(Path(plugin_dir).resolve())
+        except ValueError:
+            log.error(
+                "Profile %r: memory_dir %r escapes plugin dir %r; ignoring it",
+                raw.get("name", ""),
+                memory_dir,
+                plugin_dir,
+            )
+            memory_dir = None
 
     # Normalize system_prompt: if it's a list, join with newlines
     sp = raw.get("system_prompt", "")

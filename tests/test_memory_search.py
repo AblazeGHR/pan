@@ -4,7 +4,9 @@ Tests the search logic without needing an API key by mocking the embedder.
 """
 
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -77,7 +79,7 @@ class TestHybridSearcher:
         searcher = HybridSearcher(store, embedder)
 
         # Mock cosine to return 1.0
-        orig_cos = mod.HybridSearcher._cosine_similarity
+        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
         mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 1.0)
 
         try:
@@ -95,7 +97,7 @@ class TestHybridSearcher:
         embedder = _make_mock_embedder()
 
         import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher._cosine_similarity
+        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
 
         def mock_cos(a, b):
             return 0.1  # Very low score
@@ -115,7 +117,7 @@ class TestHybridSearcher:
         embedder = _make_mock_embedder()
 
         import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher._cosine_similarity
+        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
         mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 0.8)
 
         try:
@@ -135,7 +137,7 @@ class TestHybridSearcher:
         embedder = _make_mock_embedder()
 
         import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher._cosine_similarity
+        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
         mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 0.1)
 
         try:
@@ -154,7 +156,7 @@ class TestHybridSearcher:
         embedder = _make_mock_embedder([1.0] * 5)
 
         import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher._cosine_similarity
+        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
         mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 1.0)
 
         try:
@@ -180,7 +182,7 @@ class TestHybridSearcher:
         embedder = _make_mock_embedder()
 
         import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher._cosine_similarity
+        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
         mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 0.8)
 
         try:
@@ -197,7 +199,7 @@ class TestHybridSearcher:
         embedder = _make_mock_embedder()
 
         import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher._cosine_similarity
+        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
         mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 0.05)
 
         try:
@@ -296,3 +298,87 @@ class TestQueryExpansion:
 
         result = HybridSearcher._expand_query("non-breaking space")
         assert "non-breaking" in result
+
+
+# ------------------------------------------------------------------ #
+#  Real SQLite integration (not mocked) — #38
+# ------------------------------------------------------------------ #
+
+class TestRealSqliteIntegration:
+    """Exercise HybridSearcher against a real MemoryStore + FTS5 schema.
+
+    The unit tests above mock the store; this class verifies the actual SQL,
+    tokenizer config, and hybrid merge behave correctly end-to-end.
+    """
+
+    def _search(self, query, embed_vector):
+        from packages.core.memory.store import MemoryStore
+
+        db = os.path.join(tempfile.mkdtemp(prefix="pan-search-"), "test.sqlite")
+        store = MemoryStore(db)
+        try:
+            store.insert_file("/mem/coc.md", "memory", "h1", 0.0, 10)
+            store.insert_chunk({
+                "id": "coc00000000000001",
+                "path": "/mem/coc.md", "source": "memory",
+                "start_line": 1, "end_line": 2, "hash": "h1",
+                "model": "test", "text": "克苏鲁神话 COC 规则书 技能检定",
+                "embedding": json.dumps([1.0, 0.0, 0.0, 0.0]),
+            })
+            store.insert_file("/mem/dnd.md", "memory", "h2", 0.0, 10)
+            store.insert_chunk({
+                "id": "dnd00000000000001",
+                "path": "/mem/dnd.md", "source": "memory",
+                "start_line": 1, "end_line": 2, "hash": "h2",
+                "model": "test", "text": "龙与地下城 冒险者 法术 地下城",
+                "embedding": json.dumps([0.0, 0.0, 0.0, 1.0]),
+            })
+
+            class FakeEmbedder:
+                dims = 4
+
+                def embed(self, text):
+                    return embed_vector
+
+            searcher = HybridSearcher(store, FakeEmbedder())
+            return searcher.search(query, min_score=0.05)
+        finally:
+            store.close()
+
+    def test_real_sqlite_ranks_similar_chunk_first(self):
+        # Query vector close to the COC chunk → it must rank first via real
+        # cosine + FTS against a real SQLite DB.
+        results = self._search("COC 技能检定", [0.9, 0.1, 0.0, 0.0])
+        assert results, "real SQLite search returned no results"
+        assert results[0].chunk_id == "coc00000000000001", (
+            f"expected COC chunk first, got {results[0].chunk_id}"
+        )
+
+    def test_real_sqlite_fts_operator_query_does_not_raise(self):
+        # Unquoted FTS5 operators in a user query must be neutralized (#27)
+        # against the real tokenizer, not just in a mocked store.
+        results = self._search("COC OR 法术", [0.9, 0.1, 0.0, 0.0])
+        # Must not raise; vector side alone should still surface the COC chunk.
+        assert any(r.chunk_id == "coc00000000000001" for r in results)
+
+    def test_real_sqlite_stats(self):
+        db = os.path.join(tempfile.mkdtemp(prefix="pan-search-"), "test.sqlite")
+        from packages.core.memory.store import MemoryStore
+
+        store = MemoryStore(db)
+        try:
+            store.insert_file("/mem/x.md", "memory", "h", 0.0, 5)
+            store.insert_chunk({
+                "id": "x" * 16,
+                "path": "/mem/x.md", "source": "memory",
+                "start_line": 1, "end_line": 1, "hash": "h",
+                "model": "test", "text": "hello world",
+                "embedding": json.dumps([0.5, 0.5]),
+            })
+            stats = store.get_stats()
+            assert stats["files"] == 1
+            assert stats["chunks"] == 1
+            # FTS row mirrored by insert_chunk
+            assert len(store.search_fts('"hello"')) == 1
+        finally:
+            store.close()

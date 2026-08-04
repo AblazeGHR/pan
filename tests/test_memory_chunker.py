@@ -128,13 +128,15 @@ class TestChunkMarkdown:
         content = "\n".join(f"line {i:03d}" for i in range(1, 200))
         chunks = chunk_markdown(content, chunk_tokens=50, chunk_overlap=20)
 
-        if len(chunks) >= 2:
-            combined = set()
-            all_lines = set()
-            for chunk in chunks:
-                chunk_lines = set(chunk.text.splitlines())
-                combined.update(chunk_lines)
-                all_lines.update(chunk.text.splitlines())
+        assert len(chunks) >= 2, f"expected multiple chunks, got {len(chunks)}"
+        for i in range(1, len(chunks)):
+            prev_lines = set(chunks[i - 1].text.splitlines())
+            cur_lines = set(chunks[i].text.splitlines())
+            overlap = prev_lines & cur_lines
+            assert overlap, (
+                f"chunk {i} shares no lines with chunk {i - 1} "
+                f"(overlap broken): {chunks[i - 1].text!r} vs {chunks[i].text!r}"
+            )
 
     def test_hash_reproducibility(self):
         """Same content should produce same hash."""

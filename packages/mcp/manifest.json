@@ -1,7 +1,6 @@
 {
   "name": "pan-mcp",
   "description": "Pan MCP Server - wraps Pan's HTTP API as MCP tools for agent consumption",
-  "health_check": "http://127.0.0.1:9740/health",
   "mcp_servers": [
     {
       "name": "pan",

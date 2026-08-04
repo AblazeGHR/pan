@@ -111,63 +111,81 @@ def chunk_markdown(
     current_char_count = 0
     chunks: list[ChunkInfo] = []
     line_idx = 0  # 0-indexed cursor into *lines*
+    in_fence = False  # inside a ```/~~~ fenced block (#42)
 
     while line_idx < len(lines):
         line = lines[line_idx]
         line_len = len(line)
+        line_is_fence = line.strip().startswith(("```", "~~~"))
 
-        # --- Intra-line split when a single line exceeds max_chars ---
-        if line_len > max_chars:
-            # First flush any accumulated shorter lines
-            if current_lines:
+        # Never flush/split while inside a code fence — cutting a block here
+        # would break its syntax (#42). Fenced blocks accumulate whole.
+        if not in_fence:
+            # --- Intra-line split when a single line exceeds max_chars ---
+            if line_len > max_chars:
+                # First flush any accumulated shorter lines
+                if current_lines:
+                    chunks.append(_make_chunk(
+                        current_lines, line_idx,
+                        source_path=source_path,
+                    ))
+                    current_lines = []
+                    current_char_count = 0
+
+                # Split the long line into overlapping pieces
+                pos = 0
+                chunk_line_num = line_idx + 1  # 1-indexed
+                while pos < line_len:
+                    piece = line[pos:pos + max_chars]
+                    chunks.append(_make_chunk(
+                        [piece], chunk_line_num,
+                        source_path=source_path,
+                    ))
+                    pos += max_chars - overlap_chars
+                    if pos <= 0:  # safety: overlap could equal or exceed max_chars
+                        pos = max_chars
+
+                line_idx += 1
+                continue
+
+            # --- Flush when adding this line would exceed max_chars ---
+            if current_lines and current_char_count + line_len > max_chars:
                 chunks.append(_make_chunk(
                     current_lines, line_idx,
                     source_path=source_path,
                 ))
-                current_lines = []
-                current_char_count = 0
 
-            # Split the long line into overlapping pieces
-            pos = 0
-            chunk_line_num = line_idx + 1  # 1-indexed
-            while pos < line_len:
-                piece = line[pos:pos + max_chars]
-                chunks.append(_make_chunk(
-                    [piece], chunk_line_num,
-                    source_path=source_path,
-                ))
-                pos += max_chars - overlap_chars
-                if pos <= 0:  # safety: overlap could equal or exceed max_chars
-                    pos = max_chars
+                # --- Overlap: keep last N chars worth of lines ---
+                carry_lines: list[str] = []
+                carry_chars = 0
+                for ol_line in reversed(current_lines):
+                    if carry_chars + len(ol_line) > overlap_chars:
+                        break
+                    carry_lines.insert(0, ol_line)
+                    carry_chars += len(ol_line)
 
-            line_idx += 1
-            continue
+                # If the carried tail starts inside a fenced block (odd fence
+                # count — e.g. it ends at the block's closing ```), reopen the
+                # fence so the next chunk stays syntactically balanced (#42).
+                fence_count = sum(
+                    1 for ln in carry_lines
+                    if ln.strip().startswith(("```", "~~~"))
+                )
+                if fence_count % 2 == 1:
+                    carry_lines.insert(0, "```")
+                    carry_chars += 3
 
-        # --- Flush when adding this line would exceed max_chars ---
-        if current_lines and current_char_count + line_len > max_chars:
-            chunks.append(_make_chunk(
-                current_lines, line_idx,
-                source_path=source_path,
-            ))
-
-            # --- Overlap: keep last N chars worth of lines ---
-            carry_lines: list[str] = []
-            carry_chars = 0
-            for ol_line in reversed(current_lines):
-                if carry_chars + len(ol_line) > overlap_chars:
-                    break
-                carry_lines.insert(0, ol_line)
-                carry_chars += len(ol_line)
-
-            current_lines = carry_lines
-            current_char_count = carry_chars
-            # Do NOT advance line_idx — reprocess the line that triggered flush
-            continue
+                current_lines = carry_lines
+                current_char_count = carry_chars
+                # Do NOT advance line_idx — reprocess the line that triggered flush
+                continue
 
         # --- Accumulate ---
         current_lines.append(line)
         current_char_count += line_len
         line_idx += 1
+        if line_is_fence:
+            in_fence = not in_fence
 
     # --- Flush remaining lines ---
     if current_lines:

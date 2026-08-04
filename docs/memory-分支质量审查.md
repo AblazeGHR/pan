@@ -532,9 +532,9 @@ json_path = self._characters_dir / f"{character_id}.json"
 
 ## 其余仍开放项（未在本轮承诺内，维持原判）
 
-高：#8 超时无感知、#9 非零退出被吞、#10 删除的 session 被复活、#11 cli_session_id 清除失效、#13 chunk ID 不含 path 碰撞、#15 删除文件不清理索引、#16 无认证。
-中：#21 全表扫描、#25 无迁移系统、#31 memory_dir 可逃逸、#34 stdio 模式 health_check 不可达。
-低：#35-#38 死代码/假测试、#40-#43 细节。
+高：#16 无认证。
+中：#21 全表扫描。
+低：#38 部分（已补真实 SQLite 集成测试，搜索仍无 ANN）、#42 部分（代码块已感知，标题边界未做）、#43 部分（已分批，token 预算未做）。
 
 ## 验证记录
 
@@ -602,4 +602,44 @@ json_path = self._characters_dir / f"{character_id}.json"
 ## 验证
 - `pytest` **85 passed**
 - 内存功能冒烟：递归扫描 ✓、跨文件同文本 chunk ID 唯一 ✓、删文件后孤儿清理（2→1）✓、FTS `"OR"` 查询不再报语法错 ✓
+- 待提交
+
+---
+
+# 第 3 轮修复（2026-08-04）
+
+继续处理中/低危可机械修复项。#16（认证）、#21（ANN 索引）仍属设计决策/大改造，暂缓。
+
+## 已修复
+
+### #31 memory_dir 可逃逸（security）
+`manifest_loader._parse_profile` 将 `memory_dir` resolve 后做 `relative_to(plugin_dir)` 容纳校验，逃逸则忽略并 `log.error`。恶意 manifest 无法再指向任意目录。
+
+### #34 health_check + #41 --pan-url
+- **#34**：`packages/mcp/manifest.json` 移除 `health_check`——该字段 loader 不消费，且默认 stdio 传输下无 HTTP server，健康检查永远失败
+- **#41**：`packages/mcp/server.py` 用 `global _pan_api_url` 覆盖，替代无效的 `__main__` 属性写法（库导入时不再静默失效）
+
+### #37 假测试（补真实断言）
+- `test_memory_chunker.py::test_overlap_exists`：逐对断言相邻 chunk 有重叠行
+- `test_character.py::test_get_memory_manager_no_api_key`：断言缓存一致性（重复调用同实例）+ 优雅降级
+
+### #43 embed 分批
+`embed_batch` 按 `EMBED_BATCH_SIZE=128` 分批发给 provider，大文件不再产生单次超大请求。
+
+### #25 迁移系统（schema_version）
+- `SCHEMA_VERSION=2` + `_MIGRATIONS`（事务内逐版本执行，失败回滚可重试）
+- 新库直接写 `schema_version`；旧库自动迁移：v2 重建 FTS 表使 `id UNINDEXED`
+- 冒烟验证：v1 库迁移后行保留、`"恐怖"` 可检索、`id UNINDEXED` 生效
+
+### #42 chunker 代码块感知
+- 代码围栏（``` / ~~~）内不切分、不按行内拆分，围栏块整体累积
+- 重叠 carry 若落在围栏内（奇数 fence 计数），自动补开围栏保持语法闭合
+- 冒烟验证：纯块/混合/多块/小块均围栏平衡，chunker 22 项测试通过
+
+### #38 真实 SQLite 搜索集成测试（+ 修复测试自身泄漏）
+- 新增 `TestRealSqliteIntegration`：真实 `MemoryStore`+FTS5 schema 跑 `HybridSearcher`，验证向量排序、FTS 操作符查询不抛错、stats 与 FTS 镜像
+- **顺带修复既有测试泄漏**：`orig_cos = mod.HybridSearcher._cosine_similarity` 取到的是未包装的原始函数，finally 还原成普通类属性后 `staticmethod` 失效，后续所有未 mock 的搜索调用都会 `TypeError`。改为 `__dict__["_cosine_similarity"]` 捕获描述符本体
+
+## 验证
+- `pytest` **88 passed**（+3 集成测试）
 - 待提交

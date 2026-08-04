@@ -200,7 +200,7 @@ def model_list(adapter: str = "cbc") -> dict:
 # ---------------------------------------------------------------------------
 
 def main():
-    import __main__
+    global _pan_api_url  # module-level override; __main__ attr would be a no-op when imported (#41)
     parser = argparse.ArgumentParser(description="Pan MCP Server")
     parser.add_argument("--transport", default="stdio",
                         choices=["stdio", "sse", "streamable-http"])
@@ -213,7 +213,7 @@ def main():
     args = parser.parse_args()
 
     # Update module-level API URL so tools use the CLI override
-    __main__._pan_api_url = args.pan_url.rstrip("/")
+    _pan_api_url = args.pan_url.rstrip("/")
 
     mcp.settings.host = args.host
     mcp.settings.port = args.port

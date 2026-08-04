@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -10,7 +11,29 @@ from pathlib import Path
 from typing import Any
 
 
+log = logging.getLogger(__name__)
+
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
+
+# Bump when schema.sql changes in a way that needs migrating old DBs.
+SCHEMA_VERSION = 2
+
+# Ordered migrations: version N applies to DBs at version N-1 (or unknown).
+# Each migration is a list of SQL statements run in a single transaction —
+# a failure rolls back, leaving the DB at its old version for retry (#25).
+_MIGRATIONS: dict[int, list[str]] = {
+    2: [
+        # v2: fts.id must be UNINDEXED so 16-hex chunk ids are not tokenized.
+        "CREATE VIRTUAL TABLE fts_v2 USING fts5("
+        "text, id UNINDEXED, path UNINDEXED, source UNINDEXED, "
+        "model UNINDEXED, start_line UNINDEXED, end_line UNINDEXED, "
+        "tokenize='unicode61')",
+        "INSERT INTO fts_v2(rowid, text, id, path, source, model, start_line, end_line) "
+        "SELECT rowid, text, id, path, source, model, start_line, end_line FROM fts",
+        "DROP TABLE fts",
+        "ALTER TABLE fts_v2 RENAME TO fts",
+    ],
+}
 
 
 class MemoryStore:
@@ -32,17 +55,43 @@ class MemoryStore:
     # ------------------------------------------------------------------ #
 
     def _ensure_schema(self) -> None:
-        """Execute schema.sql if tables do not already exist."""
+        """Create schema for fresh DBs; migrate existing ones to the latest version."""
         assert self._conn is not None
-        cursor = self._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='meta'"
-        )
-        if cursor.fetchone() is not None:
-            return
-
-        schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
         with self._lock, self._conn:
-            self._conn.executescript(schema_sql)
+            cursor = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='meta'"
+            )
+            if cursor.fetchone() is None:
+                schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
+                self._conn.executescript(schema_sql)
+                self._conn.execute(
+                    "INSERT INTO meta (key, value) VALUES ('schema_version', ?)",
+                    (str(SCHEMA_VERSION),),
+                )
+                return
+
+            # Existing DB — apply any pending migrations (#25).
+            self._apply_migrations()
+
+    def _apply_migrations(self) -> None:
+        """Run pending migrations in order, then bump schema_version.
+
+        Caller must hold ``self._lock`` and an open transaction.
+        """
+        assert self._conn is not None
+        row = self._conn.execute(
+            "SELECT value FROM meta WHERE key = 'schema_version'"
+        ).fetchone()
+        current = int(row["value"]) if row and row["value"].isdigit() else 1
+
+        for version in range(current + 1, SCHEMA_VERSION + 1):
+            for stmt in _MIGRATIONS.get(version, []):
+                self._conn.execute(stmt)
+            self._conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)",
+                (str(version),),
+            )
+            log.info("Memory schema migrated to v%d", version)
 
     # ------------------------------------------------------------------ #
     #  Meta (key-value)

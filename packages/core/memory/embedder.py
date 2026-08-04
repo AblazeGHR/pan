@@ -47,6 +47,9 @@ OLLAMA_DIMS = 768
 ST_DEFAULT_MODEL = os.environ.get("PAN_ST_MODEL", "BAAI/bge-base-zh-v1.5")
 ST_DIMS = int(os.environ.get("PAN_ST_DIMS", "768"))
 
+# Max texts per provider call in embed_batch (#43)
+EMBED_BATCH_SIZE = 128
+
 # llama.cpp GGUF defaults
 LOCAL_DEFAULT_MODEL = "embeddinggemma-300m-qat-Q8_0.gguf"
 LOCAL_DIMS = 768
@@ -148,7 +151,11 @@ class Embedder:
         return results[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Embed multiple texts, reusing cached embeddings."""
+        """Embed multiple texts, reusing cached embeddings.
+
+        Uncached texts are sent to the provider in bounded batches (#43) so a
+        huge file does not produce a single oversized provider request.
+        """
         if not texts:
             return []
 
@@ -169,9 +176,11 @@ class Embedder:
                 to_embed.append(text)
                 to_embed_indices.append(i)
 
-        if to_embed:
-            embedded = self._embed_uncached(to_embed)
-            for j, idx in enumerate(to_embed_indices):
+        for start in range(0, len(to_embed), EMBED_BATCH_SIZE):
+            batch = to_embed[start:start + EMBED_BATCH_SIZE]
+            batch_indices = to_embed_indices[start:start + EMBED_BATCH_SIZE]
+            embedded = self._embed_uncached(batch)
+            for j, idx in enumerate(batch_indices):
                 results[idx] = embedded[j]
 
         assert all(r is not None for r in results)

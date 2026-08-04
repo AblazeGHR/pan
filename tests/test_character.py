@@ -225,7 +225,7 @@ class TestCharacterManager:
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_get_memory_manager_no_api_key(self):
-        """get_memory_manager without API key returns None (graceful)."""
+        """get_memory_manager without API key is graceful and cached."""
         tmp, data_dir = _make_temp_data_dir()
         try:
             _write_manifest(tmp)
@@ -233,10 +233,15 @@ class TestCharacterManager:
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
             char = mgr.create_character("test-profile", auto_index=False)
 
-            # Should not crash — returns None when no embedding available
-            mm = mgr.get_memory_manager(char.id)
-            # Without API key, Embedder will fail. CharacterManager catches and returns None.
-            # If sentence-transformers is installed and model cached, it may succeed.
-            # Either way, no exception.
+            # Must not raise. With the ST provider a manager is constructible
+            # without any API key; if so it must be cached (same instance on
+            # repeat lookup, #32) and closeable. If None, lookups must agree.
+            mm1 = mgr.get_memory_manager(char.id)
+            mm2 = mgr.get_memory_manager(char.id)
+            if mm1 is not None:
+                assert mm2 is mm1, "get_memory_manager not cached"
+                mm1.close()
+            else:
+                assert mm2 is None, "cache and fresh lookup disagree"
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
