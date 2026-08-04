@@ -91,25 +91,17 @@ class TestHybridSearcher:
             mod.HybridSearcher._cosine_similarity = orig_cos
 
     def test_min_score_filter(self):
-        chunk1 = _make_chunk("a1", "coc 基础规则")
-        chunk2 = _make_chunk("a2", "dnd 相关")
+        # Real cosine: query is orthogonal to both chunk embeddings → vector
+        # scores are 0, so everything is filtered (no monkeypatch needed —
+        # the numpy path bypasses _cosine_similarity, #21).
+        chunk1 = _make_chunk("a1", "coc 基础规则", embedding=[1.0, 0.0, 0.0, 0.0])
+        chunk2 = _make_chunk("a2", "dnd 相关", embedding=[0.0, 1.0, 0.0, 0.0])
         store = _make_mock_store(chunks=[chunk1, chunk2])
-        embedder = _make_mock_embedder()
+        embedder = _make_mock_embedder(return_vector=[0.0, 0.0, 1.0, 0.0])
 
-        import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
-
-        def mock_cos(a, b):
-            return 0.1  # Very low score
-
-        mod.HybridSearcher._cosine_similarity = staticmethod(mock_cos)
-
-        try:
-            searcher = HybridSearcher(store, embedder)
-            results = searcher.search("test", min_score=0.35)
-            assert results == []  # Below threshold
-        finally:
-            mod.HybridSearcher._cosine_similarity = orig_cos
+        searcher = HybridSearcher(store, embedder)
+        results = searcher.search("test", min_score=0.35)
+        assert results == []  # Below threshold
 
     def test_max_results_limit(self):
         chunks = [_make_chunk(f"c{i}", f"文档内容 {i}") for i in range(10)]
@@ -194,20 +186,14 @@ class TestHybridSearcher:
             mod.HybridSearcher._cosine_similarity = orig_cos
 
     def test_all_below_min_score(self):
-        chunk = _make_chunk("low", "low relevance")
+        # Query orthogonal to the chunk → cosine 0 → below threshold.
+        chunk = _make_chunk("low", "low relevance", embedding=[1.0, 0.0, 0.0, 0.0])
         store = _make_mock_store(chunks=[chunk])
-        embedder = _make_mock_embedder()
+        embedder = _make_mock_embedder(return_vector=[0.0, 0.0, 1.0, 0.0])
 
-        import packages.core.memory.search as mod
-        orig_cos = mod.HybridSearcher.__dict__["_cosine_similarity"]
-        mod.HybridSearcher._cosine_similarity = staticmethod(lambda a, b: 0.05)
-
-        try:
-            searcher = HybridSearcher(store, embedder)
-            results = searcher.search("unrelated", min_score=0.35)
-            assert results == []
-        finally:
-            mod.HybridSearcher._cosine_similarity = orig_cos
+        searcher = HybridSearcher(store, embedder)
+        results = searcher.search("unrelated", min_score=0.35)
+        assert results == []
 
 
 class TestSearchResult:

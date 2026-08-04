@@ -100,8 +100,18 @@ class HybridSearcher:
             return []
 
         query_dims = len(query_embedding)
-        vector_scores: dict[str, float] = {}
+
+        # numpy batch cosine (#21): vectorize the O(n) scoring instead of a
+        # pure-Python per-chunk loop. Falls back to _cosine_similarity when
+        # numpy is unavailable.
+        try:
+            import numpy as np
+        except ImportError:
+            np = None
+
         chunk_map: dict[str, dict] = {}
+        valid_ids: list[str] = []
+        valid_embs: list[list[float]] = []
         for chunk in chunks:
             chunk_id = chunk["id"]
             chunk_map[chunk_id] = chunk
@@ -123,9 +133,29 @@ class HybridSearcher:
                     query_dims,
                 )
                 continue
-            vector_scores[chunk_id] = self._cosine_similarity(
-                query_embedding, emb
-            )
+            valid_ids.append(chunk_id)
+            valid_embs.append(emb)
+
+        vector_scores: dict[str, float] = {}
+        if valid_ids:
+            if np is not None:
+                mat = np.asarray(valid_embs, dtype=np.float64)
+                q = np.asarray(query_embedding, dtype=np.float64)
+                q_norm = float(np.linalg.norm(q))
+                if q_norm > 0:
+                    norms = np.linalg.norm(mat, axis=1)
+                    norms[norms == 0] = 1.0  # zero-vector chunk → score 0
+                    scores = np.maximum(
+                        0.0, (mat @ q) / (norms * q_norm)
+                    )
+                    vector_scores = dict(zip(valid_ids, scores.tolist()))
+                else:
+                    vector_scores = {cid: 0.0 for cid in valid_ids}
+            else:
+                for cid, emb in zip(valid_ids, valid_embs):
+                    vector_scores[cid] = self._cosine_similarity(
+                        query_embedding, emb
+                    )
 
         # 3. FTS scoring
         expanded_query = self._expand_query(query)

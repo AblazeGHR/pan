@@ -532,9 +532,9 @@ json_path = self._characters_dir / f"{character_id}.json"
 
 ## 其余仍开放项（未在本轮承诺内，维持原判）
 
-高：#16 无认证。
-中：#21 全表扫描。
-低：#38 部分（已补真实 SQLite 集成测试，搜索仍无 ANN）、#42 部分（代码块已感知，标题边界未做）、#43 部分（已分批，token 预算未做）。
+高：#16 已按策略解决（绑 loopback + 非回环告警；未来暴露公网需 shared-secret）。
+中：#21 已落地 numpy 向量化（端到端仍受 JSON 反序列化瓶颈限制；真·ANN 留待数据量爆发）。
+低：#42 部分（代码块已感知，标题边界未做）、#43 部分（已分批，token 预算未做）。
 
 ## 验证记录
 
@@ -642,4 +642,24 @@ json_path = self._characters_dir / f"{character_id}.json"
 
 ## 验证
 - `pytest` **88 passed**（+3 集成测试）
+- 待提交
+
+---
+
+# 第 4 轮修复（2026-08-04）——#16 / #21 按建议落地
+
+## #21 搜索向量评分 numpy 向量化
+- `search.py`：向量评分改 numpy 批量矩阵余弦（`mat @ q / (norms * q_norm)`，零范数置 1 防除零，`max(0)` 夹紧），替换逐 chunk 纯 Python 余弦
+- 结果与纯 Python 完全一致（20k×768 冒烟：top-5 顺序与分数逐项吻合；端到端 7.7s→6.1s，余弦计算本身 ~80x）
+- **残留瓶颈**：`json.loads` 反序列化 embedding 占主导，端到端仍 JSON-bound。要根治需改 embedding 存储格式（如 BLOB/内存缓存），属后续改造
+- numpy 缺失时回退纯 Python 循环；测试改为真实正交向量断言（不再依赖 `_cosine_similarity` monkeypatch）
+
+## #16 无认证——按"零代码+策略"解决
+- 现状评估：默认绑 127.0.0.1，消费者为同源前端 + pan MCP server（独立进程）+ WS
+- **决策**：不引入 token 认证（会波及 2 个前端 + MCP server + WS，收益对本机单用户场景有限）
+- **落地**：`main.py` 增加非回环绑定告警——`PAN_HOST` 设为非 loopback 时启动打印醒目 WARNING（"Pan API has NO authentication…"），防止误绑公网裸奔
+- 策略：保持绑 127.0.0.1；如未来需要暴露公网，再上 shared-secret（见第 3 轮决策点记录）
+
+## 验证
+- `pytest` **88 passed**
 - 待提交
