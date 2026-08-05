@@ -168,16 +168,18 @@ tests/test_memory_chunker.py — 22 tests
   ├── is_cjk()          — 5 tests (中文/日文/韩文/全角/ASCII)
   ├── CJK 检测比例        — 4 tests (纯 ASCII/纯 CJK/混合/空)
   ├── chars_per_token   — 3 tests (ASCII/CJK/阈值边界)
-  └── chunk_markdown()  — 10 tests (空/短行/长行/行号/重叠/哈希)
+  └── chunk_markdown()  — 10 tests (空/短行/长行/行号/重叠/哈希/代码围栏)
 
-tests/test_memory_search.py — 18 tests
+tests/test_memory_search.py — 22 tests
   ├── empty scenarios   — 2 tests (空查询/空存储)
   ├── hybrid search     — 6 tests (匹配/过滤/限制/FTS-only/容错/低分)
   ├── cosine similarity — 3 tests (完美匹配/正交/零向量)
   ├── FTS normalization — 3 tests (正/负/缺 rank)
-  └── query expansion   — 3 tests (CJK保留/标点移除/连字符)
+  ├── query expansion   — 3 tests (CJK保留/标点移除/连字符)
+  └── TestRealSqliteIntegration — 3 tests (真实 SQLite+FTS5, 非 mock)
 
-Total: 40 tests, all passing
+另有 test_character.py(13) / test_mcp_integration.py(20) / test_worker_history.py(7) / test_kimi_adapter.py(4)
+Total: 88 tests, all passing
 ```
 
 ---
@@ -187,6 +189,8 @@ Total: 40 tests, all passing
 | 步骤 | 状态 | 说明 |
 |------|------|------|
 | S1-S6 核心引擎 | 完成 | 本文档所在阶段 |
-| S7 HTTP 端点 | 待后续 | `/api/memory/*` 路由 |
-| S8 Character 衔接 | 待后续 | ManifestLoader 关联 memory dir |
-| S9 Worker 注入 | 待后续 | memory_search tool → Worker context |
+| S7 HTTP 端点 | 完成 | `/api/memory/{index,search,stats,inject}` + `/api/characters/*` |
+| S8 Character 衔接 | 完成 | ManifestLoader 关联 memory dir + provider 统一（sentence-transformers） |
+| S9 Worker 注入 | 完成 | `memory_context.search_and_format` 缓存 + ST 模型全局单例 |
+
+> 后续质量加固见 [memory 分支质量审查](../memory-分支质量审查.md)（provider/dims 校验、迁移系统、chunker 围栏感知、numpy 向量化等，5 轮迭代，88 tests）。

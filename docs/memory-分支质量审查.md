@@ -685,4 +685,44 @@ json_path = self._characters_dir / f"{character_id}.json"
 ## 验证
 - `pytest` **88 passed**
 - 冒烟：池去重 ✓ / 维度 fail-fast ✓ / 默认路径 ✓
-- 待提交
+
+---
+
+# 最终状态总结（2026-08-04，HEAD=a09fda9）
+
+## 审查结论
+
+原报告 43 项发现 + 复查新增 5 项（N1-N5）**已全部处理**（修复 / 按设计解决 / 策略落地），第 5 轮又收掉了 3 项残留限制（A/C/G）。`feature/memory` 分支已具备合并条件。
+
+## 修复方式分布
+
+| 方式 | 项 |
+|------|----|
+| 代码修复 | #1-#9、#12-#15、#17-#20、#22-#30、#32、#33、#36、#37、#39-#43、N1、N3-N5、A、C、G |
+| 按设计解决 | #11（`--resume` 连续性优先）、#16（loopback 绑定 + 非回环告警）、#21（numpy 向量化，端到端仍 JSON-bound）、#34（移除无效 health_check）、N2（误报） |
+| 暂缓（记录触发条件） | ANN/embedding BLOB（单 character >~1 万 chunk）、chunker 标题边界、embed token 预算、worker MCP E2E 测试基建 |
+
+## 关键防护网（合并后长期有效）
+
+- **安全**：#5/N5 校验 `character_id`（防路径穿越/任意 `.json` 删除）、#6 限制 `dir_path`、#31 `memory_dir` 容纳校验、#16 非回环绑定告警
+- **正确性**：#1 meta 记录 provider/dims 打开校验 + 旧库 probe fail-fast、#2 FTS 归一化、#7 先 embed 后写库、#13 chunk ID 含 source_path、#14 维度守卫、#25 schema 迁移系统
+- **稳定性**：#3 MCP 进程防泄漏、#8/#9 超时/退出码用户可见、#10 不复活已删 session、#4 全方法加锁、#20 manager 缓存 + #A 模型单例
+- **数据卫生**：#15 删除清理 + 孤儿清扫、#18/#19 session 索引合法化、#39 清理 git 中的 runtime sqlite
+
+## 测试
+
+- `pytest`：**88 passed**（chunker 22 + search 22 + character 13 + mcp_integration 20 + worker_history 7 + kimi_adapter 4）
+- 搜索层含真实 SQLite 集成测试（`TestRealSqliteIntegration`，非 mock）
+- 遗留：worker MCP one-shot 路径无 E2E 测试（依赖真实 cbc 进程），属测试基建缺口
+
+## 合并前注意（非阻塞）
+
+- `config.json`（gitignored）中 `plugin_manifests` 依赖 `../ai_coc/pan_plugin/manifest.json` 提供 `rulewhisper` MCP server——**换机器需自行配置该插件路径**，根 manifest 不再包含本机路径（N1 修复的代价）
+- 旧 memory DB 首次打开会触发 v1→v2 FTS 重建迁移；维度不一致的旧库会打开即报错并提示 re-index（预期行为）
+- `coc-keeper-coldstart` profile 的 system_prompt 断言"已连接 RuleWhisper MCP"，若插件未配置会导致模型幻觉调用——该 profile 依赖插件就绪
+
+## 后续建议（不阻塞合并）
+
+1. embedding 存储改 BLOB + 内存矩阵缓存，解决搜索 JSON 反序列化瓶颈
+2. worker MCP 路径 E2E 测试（本地 mock cbc 进程）
+3. chunker 标题边界感知（提升检索质量）
