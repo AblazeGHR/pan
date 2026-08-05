@@ -356,6 +356,8 @@ body {
   word-break: break-word;
   margin: 2px 0;
   overflow-wrap: anywhere;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 80px;
 }
 
 /* ── Markdown content inside messages ── */
@@ -567,6 +569,8 @@ body {
   margin: 4px 0;
   max-width: 100%;
   align-self: flex-start;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
 }
 
 .tool-group-header {

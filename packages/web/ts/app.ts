@@ -759,7 +759,14 @@ function updateScrollToBottomBtn(): void {
 
 function scrollToBottom(): void {
   const el = document.getElementById('messages')!;
-  el.scrollTop = el.scrollHeight;
+  const last = el.lastElementChild;
+  if (last) {
+    // scrollIntoView works correctly with content-visibility:auto
+    // where scrollHeight may be underestimated.
+    last.scrollIntoView({ block: 'end' });
+  } else {
+    el.scrollTop = el.scrollHeight;
+  }
   updateScrollToBottomBtn();
 }
 
