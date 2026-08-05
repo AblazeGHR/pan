@@ -111,5 +111,12 @@
     "config_path": "",
     "binary_path": "",
     "status_port": 8769
-  }
+  },
+
+  "plugin_manifests": {
+    "_字段说明": {
+      "plugin_manifests": "外部 manifest.json 文件或目录路径列表，用于加载 Character profiles"
+    }
+  },
+  "plugin_manifests": ["manifest.json"]
 }

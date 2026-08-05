@@ -325,12 +325,10 @@ def parse_cbc_history(session_id: str, project_cwd: str | None = None, *, projec
 
     Returns list of {"role": str, "content": str} blocks.
     """
-    if project_dir:
-        proj_dir = Path(os.path.expanduser("~/.codebuddy/projects")) / project_dir
-    else:
-        proj_dir = _project_dir(project_cwd)
-    path = proj_dir / f"{session_id}.jsonl"
-    if not path.exists():
+    path = _resolve_session_file(
+        session_id, project_cwd=project_cwd, project_dir=project_dir
+    )
+    if path is None:
         return []
 
     history: list[dict] = []
@@ -363,13 +361,12 @@ def get_raw_usage(session_id: str, project_cwd: str | None = None, *, project_di
     Returns list of dicts, each containing rawUsage from one assistant message:
         {"model": str, "rawUsage": dict, "timestamp": str}
     """
-    if project_dir:
-        proj_dir = Path(os.path.expanduser("~/.codebuddy/projects")) / project_dir
-    else:
-        proj_dir = _project_dir(project_cwd)
-    path = proj_dir / f"{session_id}.jsonl"
-    if not path.exists():
+    path = _resolve_session_file(
+        session_id, project_cwd=project_cwd, project_dir=project_dir
+    )
+    if path is None:
         return []
+    proj_dir = path.parent
 
     usage_entries: list[dict] = _extract_usage_entries(path)
 
@@ -503,9 +500,8 @@ def get_session_title(session_id: str, cwd: str | None = None,
 
 def write_custom_title(session_id: str, title: str, cwd: str | None = None):
     """Write a custom-title event to a cbc session's JSONL file."""
-    proj_dir = _project_dir(cwd)
-    path = proj_dir / f"{session_id}.jsonl"
-    if not path.exists():
+    path = _resolve_session_file(session_id, project_cwd=cwd)
+    if path is None:
         return
     import uuid
     event = {
@@ -520,6 +516,52 @@ def write_custom_title(session_id: str, title: str, cwd: str | None = None):
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _find_session_jsonl(session_id: str) -> Path | None:
+    """Search all cbc project dirs for a session JSONL by ID.
+
+    Pan-spawned cbc processes run with the Pan root as cwd, so sessions land
+    under the root project dir (e.g. d-project-Pan-mcp-coldstart). Session
+    sessions may also exist under workdir-derived dirs. Scan all of them.
+    """
+    base = Path(os.path.expanduser("~/.codebuddy/projects"))
+    if not base.is_dir():
+        return None
+    for proj in base.iterdir():
+        if not proj.is_dir():
+            continue
+        candidate = proj / f"{session_id}.jsonl"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _resolve_session_file(
+    session_id: str,
+    project_cwd: str | None = None,
+    project_dir: str | None = None,
+) -> Path | None:
+    """Locate a session JSONL, in priority order.
+
+    1. ``project_dir`` — explicit cbc project dir name (trusted, no fallback)
+    2. ``project_cwd`` — workdir-derived project dir
+    3. scan all project dirs (cross-directory fallback for Pan-spawned cbc)
+
+    Returns the resolved file path or None if not found anywhere. All session
+    read/write paths should go through this so the cross-directory fallback
+    behaves consistently (fork vs parse vs custom-title). See N4/N3.
+    """
+    if project_dir:
+        proj = Path(os.path.expanduser("~/.codebuddy/projects")) / project_dir
+        candidate = proj / f"{session_id}.jsonl"
+        return candidate if candidate.is_file() else None
+
+    proj = _project_dir(project_cwd)
+    candidate = proj / f"{session_id}.jsonl"
+    if candidate.is_file():
+        return candidate
+    return _find_session_jsonl(session_id)
+
+
 def fork_cbc_session(parent_id: str, name: str, cwd: str | None = None) -> str:
     """Fork a cbc session by copying JSONL + writing meta.json.
 
@@ -527,11 +569,13 @@ def fork_cbc_session(parent_id: str, name: str, cwd: str | None = None) -> str:
     Returns the new (pre-generated) cbc session ID.
     """
     import uuid as _uuid
-    proj_dir = _project_dir(cwd)
-    parent_path = proj_dir / f"{parent_id}.jsonl"
-
-    if not parent_path.exists():
-        raise FileNotFoundError(f"Parent session JSONL not found: {parent_path}")
+    parent_path = _resolve_session_file(parent_id, project_cwd=cwd)
+    if parent_path is None:
+        raise FileNotFoundError(
+            f"Parent session JSONL not found: "
+            f"{_project_dir(cwd) / f'{parent_id}.jsonl'}"
+        )
+    proj_dir = parent_path.parent
 
     # Generate unique session ID
     new_id = str(_uuid.uuid4())
