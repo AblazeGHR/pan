@@ -110,8 +110,9 @@ def search_and_format(
     from .memory import PROVIDER_SENTENCE_TRANSFORMERS
 
     if db_dir is None:
-        # Use data/memory relative to project root (cwd when running main.py)
-        db_dir = str(Path.cwd() / "data" / "memory")
+        # Resolve from the module path (repo root), not cwd — matches the
+        # worker and server paths regardless of launch directory (#22/#G).
+        db_dir = str(Path(__file__).resolve().parent.parent.parent / "data" / "memory")
 
     import os
     if api_key is None:

@@ -69,6 +69,28 @@ class EmbeddingError(Exception):
     message: str
 
 
+# ── Shared sentence-transformers pool ─────────────────────────────────── #
+# One SentenceTransformer instance per (model, cache_dir) instead of one per
+# Embedder — a ~400MB model must not be duplicated for every character's
+# MemoryManager (#20 memory). encode() is thread-safe for inference.
+
+_st_model_pool: dict[tuple, object] = {}
+_st_model_pool_lock = threading.Lock()
+
+
+def _get_or_create_st_model(model: str, cache_dir: str):
+    """Return a process-wide SentenceTransformer for (model, cache_dir)."""
+    from sentence_transformers import SentenceTransformer
+
+    key = (model, cache_dir)
+    with _st_model_pool_lock:
+        inst = _st_model_pool.get(key)
+        if inst is None:
+            inst = SentenceTransformer(model, cache_folder=cache_dir)
+            _st_model_pool[key] = inst
+        return inst
+
+
 class Embedder:
     """Compute embeddings via OpenAI API or local llama.cpp model."""
 
@@ -394,7 +416,8 @@ class Embedder:
                         cache_dir = alt
 
             log.info("Loading sentence-transformers model: %s (cache: %s)", self._model, cache_dir)
-            self._st_model = SentenceTransformer(self._model, cache_folder=cache_dir)
+            # Shared instance: multiple characters reuse ONE loaded model (#20 memory).
+            self._st_model = _get_or_create_st_model(self._model, cache_dir)
             log.info("Sentence-transformers model loaded (%d dims)", self._dims)
 
     def _embed_st(self, texts: list[str]) -> list[list[float]]:

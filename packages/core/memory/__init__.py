@@ -109,6 +109,19 @@ class MemoryManager:
         current_provider = provider or PROVIDER_OPENAI
         current_dims = str(self._embedder.dims)
         if stored_provider is None:
+            # Pre-provider-tracking DB: probe the actual chunk dims BEFORE
+            # stamping the current provider. If existing embeddings were made
+            # with a different vector size, fail fast at open instead of
+            # silently degrading at search time (dims guard skipping chunks).
+            probe = self._store.probe_embedding_dims()
+            if probe is not None and probe != self._embedder.dims:
+                self._store.close()
+                raise ValueError(
+                    f"Memory DB '{self._db_path}' contains {probe}-dim "
+                    f"embeddings but is being opened with {current_dims}-dim "
+                    f"provider '{current_provider}'. Re-index the character "
+                    "memory with a single provider."
+                )
             self._store.set_meta("embedding_provider", current_provider)
             self._store.set_meta("embedding_dims", current_dims)
         elif stored_provider != current_provider or stored_dims != current_dims:

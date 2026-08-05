@@ -663,3 +663,26 @@ json_path = self._characters_dir / f"{character_id}.json"
 ## 验证
 - `pytest` **88 passed**
 - 待提交
+
+---
+
+# 第 5 轮修复（2026-08-04）——残留限制 A/C/G
+
+## A. ST 模型全局单例（多 character 内存）
+- `embedder.py` 新增 `_st_model_pool`（按 `(model, cache_dir)` 模块级单例）+ `_get_or_create_st_model`，所有 Embedder 共享同一 `SentenceTransformer` 实例
+- 修复前：N 个被检索的 character = N 份 ~400MB 模型副本（#20 缓存带来的内存副作用）
+- 修复后：同模型同缓存目录只加载一份；冒烟验证同 key 返回同实例、不同 cache_dir 各一份
+
+## C. 旧库 provider/dims 不 fail-fast
+- `store.probe_embedding_dims()` 读取首个 chunk 的实际 embedding 维度
+- `MemoryManager.__init__`：meta 缺失（#1 之前建的库）时先 probe，若与当前 provider 维度不一致 → 打开即 `ValueError` 提示 re-index，不再静默盖章导致搜索时逐 chunk 跳过
+- 冒烟验证：4 维旧库开 768 维 provider 抛错；维度一致正常打开
+
+## G. `search_and_format` db_dir 默认值
+- 默认值由 `Path.cwd()/data/memory` 改为模块路径解析的仓库根 `data/memory`，消除 cwd 分歧坑
+- 验证：生产模块解析出 `D:\project\Pan-memory\data\memory`
+
+## 验证
+- `pytest` **88 passed**
+- 冒烟：池去重 ✓ / 维度 fail-fast ✓ / 默认路径 ✓
+- 待提交

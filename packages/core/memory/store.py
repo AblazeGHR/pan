@@ -328,6 +328,24 @@ class MemoryStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def probe_embedding_dims(self) -> int | None:
+        """Return the dims of the first stored chunk embedding, or None if empty.
+
+        Used to fail fast when opening a pre-provider-tracking DB whose
+        existing chunks were embedded with a different vector size (#1/#14).
+        """
+        assert self._conn is not None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT embedding FROM chunks LIMIT 1"
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            return len(json.loads(row["embedding"]))
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     # ------------------------------------------------------------------ #
     #  Full-text search
     # ------------------------------------------------------------------ #
