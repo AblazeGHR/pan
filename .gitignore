@@ -43,3 +43,8 @@ config.json
 packages/web/static/js/app.js
 packages/web/static/js/app.js.map
 packages/qq/.env
+
+# Runtime memory DB (per-character sqlite)
+memory/char_*.sqlite
+memory/char_*.sqlite-shm
+memory/char_*.sqlite-wal

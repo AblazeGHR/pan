@@ -123,14 +123,23 @@ class CbcAdapter:
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
+        """Stream mode: long-running with stdin/stdout stream-json."""
         return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json",
                 "--input-format", "stream-json", "-y"]
+
+    def base_args_stream(self) -> list[str]:
+        """One-shot MCP mode: prompt as CLI arg, no stdin streaming.
+        
+        --input-format stream-json is incompatible with --mcp-config,
+        so we omit it here. cbc processes the prompt as a one-shot.
+        """
+        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json", "-y"]
 
     def model_args(self, s: Session) -> list[str]:
         return ["--model", s.model or self.default_model]
 
     def thinking_args(self, s: Session) -> list[str]:
-        """cbc 的 alwaysThinkingEnabled 默认 true，关闭时需 --settings 覆盖。"""
+        """Build --settings JSON for alwaysThinkingEnabled."""
         if not s.adapter_config.get("always_thinking_enabled", False):
             return ["--settings", '{"alwaysThinkingEnabled": false}']
         return []
@@ -164,14 +173,64 @@ class CbcAdapter:
     def build_spawn_args(self, s: Session,
                           extra_args: list[str] | None = None) -> list[str]:
         args = self.base_args()
+        # cbc needs -d to recognize the workdir as a project root
+        # (for .mcp.json discovery via enableAllProjectMcpServers)
+        if s.workdir:
+            args.extend(["-d", s.workdir])
         args.extend(self.model_args(s))
         args.extend(self.permission_mode_args(s))
         args.extend(self.effort_args(s))
         args.extend(self.thinking_args(s))
         args.extend(self.resume_args(s))
+        args.extend(self.mcp_args(s))
         if extra_args:
             args.extend(extra_args)
         return args
+
+    def mcp_args(self, s: Session) -> list[str]:
+        """Write .codebuddy/mcp.json to workdir and return --mcp-config arg.
+
+        cbc auto-discovers .codebuddy/mcp.json in the project directory when
+        given -d, so MCP tools load as fully connected (not deferred).
+        Writing to .mcp.json instead makes MCP tools deferred only.
+        """
+        servers = s.adapter_config.get("mcp_servers")
+        if not servers:
+            return []
+
+        workdir = s.workdir
+        if workdir:
+            mcp_servers: dict[str, dict] = {}
+            for srv in servers:
+                name = srv.get("name", "unnamed")
+                entry: dict = {}
+                if "command" in srv:
+                    entry["command"] = srv["command"]
+                if "args" in srv:
+                    entry["args"] = srv["args"]
+                if "cwd" in srv:
+                    entry["cwd"] = srv["cwd"]
+                if "env" in srv:
+                    entry["env"] = srv["env"]
+                # Always set type to stdio for reliable cbc discovery
+                entry.setdefault("type", "stdio")
+                mcp_servers[name] = entry
+
+            # Use .codebuddy/mcp.json so cbc auto-discovers via -d
+            codebuddy_dir = os.path.join(workdir, ".codebuddy")
+            mcp_json_path = os.path.join(codebuddy_dir, "mcp.json")
+            os.makedirs(codebuddy_dir, exist_ok=True)
+            with open(mcp_json_path, "w", encoding="utf-8") as f:
+                json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
+
+            # Also write <workdir>/.mcp.json as fallback
+            mcp_json_alt = os.path.join(workdir, ".mcp.json")
+            with open(mcp_json_alt, "w", encoding="utf-8") as f:
+                json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
+
+            return ["--mcp-config", mcp_json_path]
+
+        return []
 
     # ── stdin 消息编码 ──
 

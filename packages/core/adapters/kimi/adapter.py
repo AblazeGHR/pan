@@ -171,9 +171,14 @@ class KimiAdapter:
         args = self.base_args()
         args.extend(self.model_args(s))
         args.extend(self.resume_args(s))
+        args.extend(self.mcp_args(s))
         if extra_args:
             args.extend(extra_args)
         return args
+
+    def mcp_args(self, s: Session) -> list[str]:
+        """MCP servers are configured in ~/.codebuddy/mcp.json (user-level)."""
+        return []
 
     # ── stdin 消息编码 ──
 

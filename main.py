@@ -20,6 +20,20 @@ if __name__ == "__main__":
     tm = datetime.now().strftime("%H:%M:%S")
     print(f"[{tm}] Pan starting on {host}:{port}")
 
+    # No-auth guard (#16, resolved by policy): the API has no authentication.
+    # Binding to anything but loopback exposes every endpoint on the network.
+    import ipaddress
+    try:
+        is_loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        is_loopback = host in ("localhost", "::1")
+    if not is_loopback:
+        print(
+            f"[{tm}] WARNING: Pan API has NO authentication and is bound to "
+            f"'{host}' — all endpoints are reachable by anyone on this network. "
+            "Keep PAN_HOST at 127.0.0.1 unless you know what you are doing."
+        )
+
     config = uvicorn.Config(app, host=host, port=port, log_level="info", access_log=False)
     server = uvicorn.Server(config)
     server.run()

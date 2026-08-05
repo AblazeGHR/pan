@@ -32,6 +32,9 @@ class Session:
     model: str | None = None
     permission_mode: str | None = None
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
+    character_id: str | None = None   # bound character ID (for memory + system_prompt)
+    system_prompt: str | None = None  # injected at Worker spawn
+    game_id: str | None = None        # RuleWhisper game identifier for MCP tool calls
     raw_usage: dict | None = None
     total_usage: dict | None = None
     workdir: str = ""
@@ -102,6 +105,9 @@ class Session:
             "model": self.model,
             "permission_mode": self.permission_mode,
             "adapter_config": self.adapter_config,
+            "character_id": self.character_id,
+            "system_prompt": self.system_prompt,
+            "game_id": self.game_id,
             "raw_usage": self.raw_usage,
             "total_usage": self.total_usage,
             "workdir": self.workdir,
@@ -126,6 +132,9 @@ def create(name: str, model: str | None = None,
            total_usage: dict | None = None,
            workdir: str = "",
            history: list[dict] | None = None,
+           character_id: str | None = None,
+           system_prompt: str | None = None,
+           game_id: str | None = None,
            # backward-compat kwargs (migrated to adapter_config)
            cli_session_id: str | None = None,
            always_thinking_enabled: bool = False,
@@ -149,6 +158,9 @@ def create(name: str, model: str | None = None,
         model=model,
         permission_mode=permission_mode,
         adapter_config=ac,
+        character_id=character_id,
+        system_prompt=system_prompt,
+        game_id=game_id,
         raw_usage=raw_usage,
         total_usage=total_usage,
         workdir=workdir,
