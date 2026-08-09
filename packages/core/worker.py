@@ -430,7 +430,8 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # after confirming it still exists (#10).
     result_text = ""
     cli_session_id = None
-    assistant_blocks: list[str] = []
+    assistant_events: list[dict] = []  # raw assistant events, re-broadcast as worker.stream
+    assistant_blocks: list[dict] = []  # extracted history blocks (assistant/thinking/tool)
     for line in output.decode(errors="replace").split("\n"):
         line = line.strip()
         if not line:
@@ -446,14 +447,12 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         elif t == "system" and event.get("subtype") == "init":
             cli_session_id = event.get("session_id")
         elif t == "assistant":
-            content = event.get("message", {}).get("content", "")
-            if isinstance(content, list):
-                content = " ".join(
-                    x.get("text", "") for x in content
-                    if isinstance(x, dict) and x.get("type") == "text"
-                )
-            if content:
-                assistant_blocks.append(str(content))
+            # Extract blocks the same way stream mode's _read_stdout does, so
+            # history format and the re-broadcast event match stream mode.
+            blocks = adapter.extract_assistant_blocks(event)
+            if blocks:
+                assistant_events.append(event)
+                assistant_blocks.extend(blocks)
 
     # Re-fetch the session: it may have been deleted while the process ran.
     # Never write through a stale reference — that would resurrect a deleted
@@ -470,8 +469,9 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
 
     if cli_session_id:
         s.cli_session_id = cli_session_id
-    for content in assistant_blocks:
-        s.history.append({"role": "assistant", "content": content})
+    # Append extracted blocks (assistant/thinking/tool) — same as stream mode.
+    for block in assistant_blocks:
+        s.history.append(block)
 
     # Surface failures the user can actually see (#8 timeout, #9 non-zero exit).
     if timed_out and not result_text:
@@ -495,6 +495,17 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         "timestamp": datetime.now().isoformat(),
     }
     await _sess.save_async(s)
+
+    # Broadcast assistant events as worker.stream so the frontend displays the
+    # reply in real-time — MCP mode otherwise only emits worker.result, which
+    # both frontends render as a bare "[DONE]" system message (#stream-mcp).
+    for event in assistant_events:
+        await _bcast({
+            "type": "worker.stream",
+            "workerId": w.worker_id,
+            "sessionId": w.session_id,
+            "event": event,
+        })
 
     w.status = "idle"
     await _bcast({
