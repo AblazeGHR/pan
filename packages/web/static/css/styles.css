@@ -164,6 +164,14 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+.sess-item .sess-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .sess-item .sess-preview {
@@ -237,6 +245,10 @@ body {
 #topBar .chat-name {
   font-size: .95rem;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 #topBar .chat-model {

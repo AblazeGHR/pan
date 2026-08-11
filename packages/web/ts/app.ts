@@ -534,11 +534,11 @@ function renderSessionList(): void {
         s.id +
         '\')" title="Session actions" style="background:none;border:none;color:#484f58;cursor:pointer;font-size:.85rem;padding:0 2px">\u2699</button>';
     div.innerHTML =
-      '<div style="display:flex;justify-content:space-between;align-items:start">' +
+      '<div style="display:flex;justify-content:space-between;align-items:start;min-width:0">' +
       '<div class="sess-name"><span class="s-dot ' +
       (s.workerStatus || 'offline') +
       '"></span>' +
-      esc(s.name) +
+      '<span class="sess-name-text">' + esc(s.name) + '</span>' +
       '</div>' +
       headerRight +
       '</div>' +
