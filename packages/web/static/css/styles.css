@@ -360,6 +360,13 @@ body {
   contain-intrinsic-size: auto 80px;
 }
 
+/* Temporarily disable content-visibility while scrolling to bottom so
+ * scrollHeight reflects real element heights (see scrollToBottom). */
+#messages.no-cv .msg,
+#messages.no-cv .tool-group {
+  content-visibility: visible;
+}
+
 /* ── Markdown content inside messages ── */
 .msg-content p {
   margin: 4px 0;

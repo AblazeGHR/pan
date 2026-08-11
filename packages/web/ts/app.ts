@@ -759,14 +759,14 @@ function updateScrollToBottomBtn(): void {
 
 function scrollToBottom(): void {
   const el = document.getElementById('messages')!;
-  const last = el.lastElementChild;
-  if (last) {
-    // scrollIntoView works correctly with content-visibility:auto
-    // where scrollHeight may be underestimated.
-    last.scrollIntoView({ block: 'end' });
-  } else {
-    el.scrollTop = el.scrollHeight;
-  }
+  // content-visibility:auto skips layout for off-screen messages, which
+  // underestimates scrollHeight.  Temporarily force full layout, read the
+  // true height, then restore so the performance optimization stays on.
+  el.classList.add('no-cv');
+  // Force reflow so the browser recalculates layout with real heights.
+  void el.offsetHeight;
+  el.scrollTop = el.scrollHeight;
+  el.classList.remove('no-cv');
   updateScrollToBottomBtn();
 }
 
