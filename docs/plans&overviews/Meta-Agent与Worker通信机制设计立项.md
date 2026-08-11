@@ -2,6 +2,8 @@
 
 > 基于当前方案讨论中发现的三项设计空白，立项调研。
 > 状态：立项阶段 | 创建：2026-07-22
+>
+> **落地进展（2026-08-11）**：「建议 2」的基建已部分落地——`packages/mcp/` 将 Session/Worker 管理封装为标准 MCP 工具（session_create/worker_task/...），并配套 `.codebuddy/skills/pan/SKILL.md` 使用手册（对应「建议 3」的 Skill 注入）。Worker 间通信（收件箱/三原语）与事件订阅过滤仍属规划。
 
 ---
 
@@ -329,7 +331,7 @@ Pan 的核心场景是 **Supervisor 模式**（Meta-Agent 作为中心调度的�
 
 基于对 15+ 个同类产品的调研，三条建议的对标选择如下：
 
-### ��议 1：Worker 间通信 — 参考 CCB 的协议标��� + CAO 的收件箱
+### 建议 1：Worker 间通信 — 参考 CCB 的协议标记 + CAO 的收件箱
 
 **首选参考：CCB (Claude Code Bridge)**
 
@@ -340,7 +342,7 @@ Worker A ── 消息（含 PAN_REQ_ID）──→ Pan Core ──→ Worker B 
 Worker A ── send_message() ──────────→ Pan Core ──→ 父 Worker 的收件箱
 ```
 
-**不选 CAO 的原因**：CAO 需要每个 Worker ��� Agent 主动调用 `send_message` MCP 工具，这在 Pan 的 Worker 是通用 CLI 进���的架构下增加了适配复杂度。
+**不选 CAO 的原因**：CAO 需要每个 Worker 的 Agent 主动调用 `send_message` MCP 工具，这在 Pan 的 Worker 是通用 CLI 进程的架构下增加了适配复杂度。
 
 **方案要点**：
 - Core 维护 `worker_inbox: dict[str, asyncio.Queue]`（内存收件箱）

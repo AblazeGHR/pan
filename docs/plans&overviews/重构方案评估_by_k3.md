@@ -1,6 +1,6 @@
 # CLIConductor 重构方案评估（by k3）
 
-> 基于 `docs/plans&overviews/目标与范围.md`、`跨平台适配计划.md` 及 Maestro 对比分析。
+> 基于 `docs/plans&overviews/目标与范围.md`、`跨平台适配计划.md`（已实现并归档删除）及 Maestro 对比分析。
 
 ---
 

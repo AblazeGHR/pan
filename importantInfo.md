@@ -7,6 +7,8 @@
 | NoneBot2 / QQ Bridge | **8080** | NoneBot2 自带的 uvicorn HTTP 服务（仅框架用，不对外）|
 | NapCat (QQ) | **3001** | NapCat 正向 WebSocket 服务端，供 NoneBot2 连接 |
 
+> **Remote Tunnel URL 机制**：公网域名来自 `config.json` → `remote.config_path` 指向的 cloudflared yml 的 `ingress.hostname`；tunnel 暴露的是 Pan 主端口（`config.port`）。`scripts/start_cf.ps1` 会读取 `config.json` 并注入临时 yml，**不依赖 `remote.enabled` 字段**。
+
 ### Pan
 
 - `http://127.0.0.1:{port}` — Dashboard 页面（legacy 前端）
@@ -23,5 +25,7 @@
 ### 启动顺序
 
 1. NapCat（先启动，保持后台）
-2. Pan：`python main.py`
+2. Pan：`python main.py`（或 `scripts/start_pan.bat`）
 3. QQ Bridge：`cd packages/qq && python bot.py`
+
+> QQ Bridge 默认端口从 `config.json` 的 `port` 字段读取，可用环境变量 `PAN_URL` 覆盖。

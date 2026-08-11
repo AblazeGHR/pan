@@ -1,6 +1,8 @@
 # cbc MCP 端到端调通记录
 
 > 记录 2026-07-29 ~ 2026-07-30 Pan 接入 RuleWhisper MCP 的端到端测试过程、发现的问题与最终方案。
+>
+> **状态（2026-08-11）**：本记录为历史排障知识，cbc 行为总结与 prompt 设计经验仍有效。其中「system_prompt 内容优化」后续被 `coc-keeper-coldstart` profile（信任强化 prompt，`f9a28da`）进一步取代，首条冷启动 ~90s → ~16s；后续消息由 `--resume` 解决（见 [下一阶段优化计划](./下一阶段优化计划.md)）。
 
 ## 重要结论
 

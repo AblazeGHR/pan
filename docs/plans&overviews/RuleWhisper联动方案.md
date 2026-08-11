@@ -1,6 +1,8 @@
 # RuleWhisper 联动方案
 
 > 从设计提案到 Phase 1 实施手册的统一文档。关联（RuleWhisper 仓库）：`docs/Pan联动实施方案.md`。
+>
+> **状态（2026-08 更新）**：**Manifest Loader / Profile / Character / Memory / MCP 注入已全部落地并合入 main**（`packages/core/manifest_loader.py`、`character.py`、`memory/`，feature/memory 分支）。尚待实现：**QQ 前缀命令路由**（manifest `command_routes` 直发 HTTP API，当前 plugin.py 全走 LLM 路径）与**群级 game_id 绑定**。
 
 ---
 
@@ -31,7 +33,7 @@ python -m src.server.mcp    # 从 RuleWhisper 仓库根运行
 
 > ⚠️ 模块路径是 `src.server.mcp`（不是 `rulewhisper.server.mcp`）。stdio 模式不需要 `--port`。
 
-**MCP 工具清单（全部能力，rebuild_index 除���）**：`query_rule`、`roll_dice`、`get_weapon`、`get_monster`、`get_spell`、`get_skill`。所有 tool 接受 `game_id` 参数（允许 `null`）。
+**MCP 工具清单（全部能力，rebuild_index 除外）**：`query_rule`、`roll_dice`、`get_weapon`、`get_monster`、`get_spell`、`get_skill`。所有 tool 接受 `game_id` 参数（允许 `null`）。
 
 **HTTP API 端点**：`GET /api/health`、`POST /api/query`、`POST /api/dice`、`GET /api/weapon|monster|spell|skill/{name}`、`GET /api/rule/{page}`。
 
@@ -70,12 +72,14 @@ RuleWhisper 仓库 `pan_plugin/manifest.json` 已包含 `_concepts`（概念定�
 ```jsonc
 {
   "plugin_manifests": [
-    "../RuleWhisper/pan_plugin/manifest.json"
+    "../ai_coc/pan_plugin/manifest.json"   // RuleWhisper 插件，含 profiles/mcp_servers
   ]
 }
 ```
 
-Pan 自身的 `profiles`、`mcp_servers`、`command_routes` 不再手写��—全部从 manifest 加载并合并。
+> 当前实现：根 `manifest.json` 内置 3 个 profile（default / coc-keeper / coc-keeper-coldstart），`mcp_servers` 为空数组（避免本机绝对路径入库）；`rulewhisper` server 由 `config.json` 的 `plugin_manifests` 引用的外部 manifest（`${PLUGIN_DIR}` 占位）提供。换机器需自行配置插件路径。
+
+Pan 自身的 `profiles`、`mcp_servers`、`command_routes` 不再手写——全部从 manifest 加载并合并。
 
 ### 5.3 Loader 实现要点
 
@@ -106,13 +110,15 @@ def _mcp_args(self, servers: list[dict]) -> list[str]:
 
 ### 5.5 Manifest Loader 验收
 
-- [ ] Pan `config.json` 只含 `plugin_manifests`（不含硬编码的 RuleWhisper 相关项）。
-- [ ] 用 `coc-keeper` profile 创建一个 character，其 session 内 Worker 日志可见 `src.server.mcp` 子进程拉起。
-- [ ] session 中要求「查短剑属性」「掷 .rc 侦察 60」，LLM 调用 `get_weapon` / `roll_dice` 返回真实数据。
+- [x] Pan `config.json` 只含 `plugin_manifests`（不含硬编码的 RuleWhisper 相关项）。— 已落地（根 manifest `mcp_servers` 置空，rulewhisper 由外部插件 manifest 提供）
+- [x] 用 `coc-keeper` profile 创建一个 character，其 session 内 Worker 日志可见 `src.server.mcp` 子进程拉起。— 已通过端到端验证（见 `docs/cbc-mcp-e2e-调通记录.md`）
+- [x] session 中要求「查短剑属性」「掷 .rc 侦察 60」，LLM 调用 `get_weapon` / `roll_dice` 返回真实数据。— 已通过（`game_list`/`query_rule` 等真实返回）
 
 ---
 
 ## 六、Phase 1：联调（QQ 群内全链路）
+
+> **当前状态**：LLM 链路（自然语言 → coc-keeper character → MCP 工具）已通过 API/CLI 端到端验证。**QQ 前缀命令路由（6.1 的 command_routes 直发）尚未实现** —— 当前 `plugin.py` 对群内所有消息一律走 LLM 路径（`_send_and_wait`）；群级 Session 绑定（`scope: "user" | "group"`）已实现，但 game_id 绑定（7.1）未做。
 
 目标：群内消息按 manifest 声明的 `command_routes` 路由，自然语言走 LLM（自动用 RuleWhisper MCP）。
 
@@ -132,7 +138,7 @@ Pan 的 `plugin.py` 在 `handle_message` 开头遍历从 manifest 加载的 `com
 
 **确定性指令**（毫秒级，不走 LLM）：
 ```
-群消息 ".rc 1d100 侦察检��"
+群消息 ".rc 1d100 侦察检定"
   → Pan plugin.py 遍历 command_routes，命中前缀 ".rc"
   → POST http://127.0.0.1:9731/api/dice
   → RuleWhisper 骰子引擎返回 [60/60] 常规成功！
@@ -227,7 +233,6 @@ name = f"{prefix}-{scope_id[-6:]}"
 | Game Layer 设计方案 | RuleWhisper `docs/game-layer-设计方案.md` | Game/Character 持久化层设计 |
 | PLAN | RuleWhisper `docs/PLAN.md` | 整体路线图 |
 | 目标与范围 | Pan `docs/plans&overviews/` | Pan 全局定位 |
-| 跨平台适配计划 | Pan `docs/plans&overviews/` | Win/Linux/macOS 改造 |
 
 ---
 
@@ -236,7 +241,7 @@ name = f"{prefix}-{scope_id[-6:]}"
 ### 11.1 实施顺序
 
 **第 1 步：Manifest Loader**
-新建 `packages/core/manifest_loader.py`。Pan 启动时遍历 `plugin_manifests` → 逐行读 manifest.json → 合��� profiles/mcp_servers/command_routes。
+新建 `packages/core/manifest_loader.py`。Pan 启动时遍历 `plugin_manifests` → 逐行读 manifest.json → 合并 profiles/mcp_servers/command_routes。
 
 关键逻辑：
 - `${PLUGIN_DIR}` 解析为 manifest 所在目录的绝对路径
@@ -260,7 +265,7 @@ session metadata 增加 `game_id`。KP 手动创建 game 并绑定 group_id，Pa
 
 ### 11.2 关键注意点
 
-#### ���️ command_routes 的前缀匹配顺序
+#### ⚠️ command_routes 的前缀匹配顺序
 
 `.rc` 和 `.rca` 同时存在时，`.rca` 应排前面。Pan loader 加载后按 prefix 长度降序排列。
 
@@ -306,4 +311,4 @@ QQ 消息 "短剑伤害"
 
 ---
 
-*创建：2026-07-22 · 最后更新：2026-07-22 · 状态：Phase 1 待实施*
+*创建：2026-07-22 · 最后更新：2026-08-11 · 状态：Loader/Character/Memory 已实施；QQ 前缀路由 + game_id 待实现*

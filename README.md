@@ -11,7 +11,7 @@
 | Phase | 目标 | 状态 |
 |:-----|------|:----:|
 | Phase 1 | Core 内部清洁化 + 稳定 API + 跨平台适配 | 完成 |
-| Phase 2 | 逐个抽离通道模块（QQ / Web / Remote / Memory / SDK） | **Phase 2 进行中** — QQ/Web/Remote 已抽离，Memory/SDK 规划中 |
+| Phase 2 | 逐个抽离通道模块（QQ / Web / Remote / Memory / SDK） | **Phase 2 进行中** — QQ/Web/Remote/MCP 已抽离；Memory 已落地（`packages/core/memory/`，feature/memory 已合入 main）；SDK 规划中 |
 
 ### 前端说明
 
@@ -31,13 +31,21 @@ Pan/
 ├── main.py                    入口
 ├── config.json                配置文件（gitignored）
 ├── config.example.json        配置模板
+├── manifest.json              内置 profiles / mcp_servers 声明
 ├── packages/
-│   ├── core/                  Core 模块（进程管理 + 消息路由）
-│   │   ├── worker.py          Worker 生命周期管理
+│   ├── core/                  Core 模块（进程管理 + 消息路由 + Memory）
+│   │   ├── worker.py          Worker 生命周期管理（stream / one-shot MCP 双模式）
 │   │   ├── session.py         Session 存储（JSON）
 │   │   ├── config.py          配置加载
-│   │   └── adapters/          CLI Adapter（cbc/kimi/...）
-│   │       ├── cbc/           CBC Adapter
+│   │   ├── character.py       Character 框架（profile → character → memory）
+│   │   ├── manifest_loader.py 插件 manifest 加载器（${PLUGIN_DIR} 解析、合并 profiles/mcp_servers）
+│   │   ├── memory_context.py  记忆上下文注入（search_and_format）
+│   │   ├── memory/            Memory 子系统（SQLite + FTS5 + embedding 混合检索）
+│   │   │   ├── __init__.py    MemoryManager 统一入口
+│   │   │   ├── schema.sql / store.py / chunker.py / embedder.py / search.py / watcher.py / session_indexer.py
+│   │   └── adapters/          CLI Adapter（cbc/kimi）
+│   │       ├── base.py / registry.py
+│   │       ├── cbc/           CBC Adapter（含 session 解析/分支）
 │   │       └── kimi/          Kimi Adapter
 │   ├── web/                  Web 通道（Dashboard + HTTP API）
 │   │   ├── server.py          FastAPI 路由 + WebSocket
@@ -50,18 +58,21 @@ Pan/
 │   │   ├── package.json
 │   │   └── vite.config.ts
 │   ├── qq/                   QQ Bot 通道（NoneBot2 桥接）
-│   │   ├── plugin.py          QQ 消息处理
+│   │   ├── plugin.py          QQ 消息处理（user/group scope、轮询结果）
 │   │   ├── bot.py             QQ Bot 入口
 │   │   └── requirements.txt
-│   └── remote/               远程访问通道（Cloudflare Tunnel）
-│       ├── tunnel.py          cloudflared 进程管理
-│       ├── api.py             状态 HTTP 服务
-│       ├── main.py            独立入口
-│       └── __main__.py        `python -m packages.remote` 入口
-├── scripts/                   启动/停止脚本
-├── docs/                      文档（gitignored，plans&overviews 除外）
-├── tests/                     测试
-├── data/                      运行时数据（gitignored）
+│   ├── remote/               远程访问通道（Cloudflare Tunnel）
+│   │   ├── tunnel.py          cloudflared 进程管理
+│   │   ├── api.py             状态 HTTP 服务
+│   │   ├── main.py            独立入口
+│   │   └── __main__.py        `python -m packages.remote` 入口
+│   └── mcp/                  Meta-Agent MCP Server（session/worker 管理工具）
+│       ├── server.py          标准 MCP 服务端
+│       └── manifest.json      mcp 插件声明
+├── scripts/                   启动/停止脚本（start_pan.bat / start_main.ps1 / start_cf.ps1 / pre-commit）
+├── docs/                      文档（全部纳入 git 跟踪）
+├── tests/                     测试（6 个文件，88 passed）
+├── data/                      运行时数据（gitignored：sessions / characters / memory / workdirs）
 └── requirements.txt
 ```
 
@@ -73,9 +84,12 @@ Pan/
 # 安装依赖
 pip install -r requirements.txt
 
-# 启动
+# 启动（默认端口见 config.json 的 port 字段；main 分支 8768，test 分支 8767）
 python main.py
 # → http://localhost:8767
+
+# 运行测试
+python -m pytest tests/ -q
 ```
 
 ## 远程访问（Remote 通道）
@@ -84,7 +98,7 @@ Pan 通过 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/
 
 前置条件：已安装 `cloudflared` 并添加到 PATH（`where cloudflared` 可找到）。
 
-1. 在 `config.json` 中启用：
+1. 在 `config.json` 中配置：
 
 ```json
 {
@@ -92,6 +106,8 @@ Pan 通过 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/
     "enabled": true,
     "provider": "cloudflare",
     "quick_tunnel": true,
+    "config_path": "C:/Users/<you>/.cloudflared/config-test.yml",
+    "binary_path": "cloudflared",
     "status_port": 8769
   }
 }
@@ -101,6 +117,7 @@ Pan 通过 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/
 
 ```bash
 python -m packages.remote
+# 或直接运行脚本：scripts/start_cf.ps1
 ```
 
 quick tunnel 会自动输出一个 `*.trycloudflare.com` 公网 URL；named tunnel 需设置 `quick_tunnel: false` 并指定 `config_path`。
@@ -111,13 +128,15 @@ quick tunnel 会自动输出一个 `*.trycloudflare.com` 公网 URL；named tunn
 curl http://127.0.0.1:8769/status
 ```
 
+> 公网域名与端口由 `config.json` 决定：tunnel 暴露的是 Pan 主端口（`remote.config_path` 指向的 yml 由 `scripts/start_cf.ps1` 注入 `ingress.hostname` + `config.port`）。`remote.status_port` 是本地状态服务端口。
+
 ## 架构
 
 ```
          Meta-Agent                   人类                    远程访问
-    (CodeBuddy 等)              (Dashboard)            (Cloudflare Tunnel)
+    (CodeBuddy / MCP)           (Dashboard)            (Cloudflare Tunnel)
           │                          │                          │
-    /ws/agent 通道              /ws + HTTP              公网 URL + WS
+   /ws/agent + MCP tools       /ws + HTTP              公网 URL + WS
     （事件流 + 命令）          （观察 + 注入 + 接管）      （Dashboard / QQ Bot 外部接入）
           │                          │                          │
           └──────────┬───────────────┘                          │
@@ -127,10 +146,12 @@ curl http://127.0.0.1:8769/status
             │  (FastAPI 服务)    │        HTTP / WebSocket
             │                   │
             │  Session Manager │
-            │  ├─ Worker-1     │── cbc (stream-json)
-            │  ├─ Worker-2     │── cbc (stream-json)
-            │  └─ Worker-N     │── ...
+            │  ├─ Worker-1     │── cbc / kimi（stream / one-shot MCP）
+            │  ├─ Worker-2     │── ...
+            │  └─ Worker-N     │
             │                   │
+            │  Character 框架   │── profile → character → memory
+            │  Memory 子系统    │── SQLite + FTS5 + embedding 检索
             │  Event Bus       │─── WS 广播
             │  Session Store   │─── JSON 持久化
             └──────────────────┘
@@ -143,10 +164,16 @@ curl http://127.0.0.1:8769/status
 - **Worker** — 运行时 CLI 子进程，持有 session_id 引用。kill 后 Worker 消失。
 - **Session** — 持久化数据（UUID `ses_<16hex>`），独立于 Worker 生命周期。
 
+### Character / Profile 框架
+
+- **Profile** — manifest.json 声明的创建模板（adapter / model / mcp_servers / system_prompt / memory_dir）。
+- **Character** — 由 profile 创建的机器人实例，持有独立记忆库（`data/characters/{id}/memory/` → `data/memory/{id}.sqlite`）。
+- **Memory** — 每个 character 一个 SQLite 库，支持知识文件索引（`/api/memory/index`）、混合检索（向量 + FTS5）、运行中注入（`/api/memory/inject`）。
+
 ### CLI Adapter 协议
 
 通过 `CliAdapter` 协议抽象 CLI 工具差异：
-- `cbc` — CodeBuddy CLI（stream-json 协议）
+- `cbc` — CodeBuddy CLI（stream-json 协议 + one-shot MCP 模式）
 - `kimi` — Kimi CLI（kimi-code，支持高速/付费模型）
 - 未来：`claude-cli`、`gemini-cli` 等
 
@@ -177,6 +204,25 @@ POST   /api/worker/{id}/rename         → 重命名 Worker
 POST   /api/worker/{id}/branch         → Worker 分支
 POST   /api/worker/{id}/interrupt      → 中断 Worker
 POST   /api/worker/{id}/takeover       → 接管 Worker 终端
+GET    /api/worker/{id}/takeover-command → 生成接管命令
+
+# Character / Memory
+GET    /api/characters/profiles        → 列出可用 Profile
+POST   /api/characters                 → 创建 Character
+GET    /api/characters                 → 列出 Character
+GET    /api/characters/{id}            → 获取 Character 详情
+DELETE /api/characters/{id}            → 删除 Character
+POST   /api/memory/index               → 索引记忆目录（.md → SQLite）
+GET    /api/memory/search              → 混合检索记忆
+GET    /api/memory/stats               → 记忆库统计
+POST   /api/memory/inject              → 手动注入记忆
+
+# 文件系统（session workdir 内）
+GET    /api/fs/list                    → 列出目录
+GET    /api/fs/read                    → 读取文件
+POST   /api/fs/write                   → 写入文件
+POST   /api/fs/rename                  → 重命名
+POST   /api/fs/delete                  → 删除
 
 # Adapter / 模型
 GET    /api/adapters                   → 列举可用 Adapter

@@ -1,5 +1,7 @@
 # Pan Memory — Phase 1 实施计划
 
+> **状态（2026-08-11）：本计划已全部实施并合入 main（feature/memory，commit aebcb31）。** S1-S9 均完成，测试 88 passed。本文档保留作为设计决策记录，实际实现细节以代码为准。
+>
 > 基于 OpenClaw 记忆系统分析，Phase 1 实现核心记忆引擎：SQLite 存储 + 混合检索。  
 > 日期：2026-07-29 | 分支：`feature/memory`
 

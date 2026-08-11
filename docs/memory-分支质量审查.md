@@ -1,5 +1,7 @@
 # feature/memory 分支质量审查
 
+> **状态（2026-08-11）：feature/memory 已合入 main（commit aebcb31）。** 原报告 43 项 + 复查新增 5 项（N1-N5）+ 第 5 轮残留限制（A/C/G）均已处理完毕（见文末「最终状态总结」），`pytest` 88 passed。本文档作为历史审计记录保留，其中「关键防护网」仍适用于当前代码。
+>
 > 审查日期：2026-07-31
 > 审查范围：`feature/memory` 分支相对 `main` 的全部差异（47 commits ahead, 3 behind）
 > 审查方法：对 memory 子系统、worker dual-mode、MCP server、character 框架、测试套件进行逐文件代码审查
