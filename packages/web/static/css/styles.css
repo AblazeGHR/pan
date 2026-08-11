@@ -213,6 +213,7 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .s-dot.idle { background: #3fb950; }
