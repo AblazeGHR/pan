@@ -132,15 +132,6 @@ export function ToolGroup({ items }: ToolGroupProps) {
     });
   };
 
-  const toggleTool = (idx: number) => {
-    setExpandedTools((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
-
   return (
     <div className="border border-border-default rounded-lg bg-bg-secondary mb-3">
       {/* Group Header */}

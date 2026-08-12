@@ -188,7 +188,6 @@ export function InputRow() {
 
   // ── Adapter settings ──
   const config = useAdapterStore((s) => s.getConfig());
-  const currentAdapter = useAdapterStore((s) => s.currentAdapter);
   const loadConfig = useAdapterStore((s) => s.loadConfig);
   const applySettings = useAdapterStore((s) => s.applySettings);
   const { loadSessions } = useSessionStore();

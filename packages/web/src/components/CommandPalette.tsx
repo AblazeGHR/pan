@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -142,7 +142,6 @@ export function CommandPalette() {
     }
   };
 
-  const flatIndex = useRef(0);
   let globalIndex = 0;
 
   // Auto-focus input

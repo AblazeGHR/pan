@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import { Copy, Check } from 'lucide-react';
 import 'highlight.js/styles/github-dark.css';
+
+type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
+type PreProps = React.JSX.IntrinsicElements['pre'] & ExtraProps;
 
 interface MarkdownRendererProps {
   content: string;
@@ -17,7 +20,7 @@ function extractCodeText(node: React.ReactNode): string {
   if (typeof node === 'number') return String(node);
   if (Array.isArray(node)) return node.map(extractCodeText).join('');
   if (React.isValidElement(node)) {
-    return extractCodeText((node.props as Record<string, unknown>).children);
+    return extractCodeText((node.props as { children?: React.ReactNode }).children);
   }
   return '';
 }
@@ -63,21 +66,21 @@ function DiffLines({ codeText, ...rest }: { codeText: string; [key: string]: unk
   );
 }
 
-function CodeBlock({ className, children, ...props }: Record<string, unknown>) {
-  const match = /language-(\w+)/.exec((className as string) || '');
+function CodeBlock({ className, children, ...props }: CodeProps) {
+  const match = /language-(\w+)/.exec(className || '');
   const language = match ? match[1] : null;
 
   // Inline code — no language-* class means inline
   if (!language) {
     return (
       <code className="bg-bg-tertiary rounded px-1 py-0.5 text-[0.9em] font-mono" {...props}>
-        {children as React.ReactNode}
+        {children}
       </code>
     );
   }
 
   // Extract raw text for copy and diff rendering
-  const codeText = extractCodeText(children as React.ReactNode).replace(/\n$/, '');
+  const codeText = extractCodeText(children).replace(/\n$/, '');
 
   return (
     <div className="rounded-lg border border-border-default bg-bg-tertiary overflow-hidden my-3">
@@ -100,8 +103,8 @@ function CodeBlock({ className, children, ...props }: Record<string, unknown>) {
   );
 }
 
-function PreBlock({ children }: Record<string, unknown>) {
-  return <>{children as React.ReactNode}</>;
+function PreBlock({ children }: PreProps) {
+  return <>{children}</>;
 }
 
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
