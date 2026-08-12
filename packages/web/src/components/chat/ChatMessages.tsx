@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { groupMessages, MessageDisplayItem } from './MessageBubble';
+import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
 const SCROLL_BOTTOM_THRESHOLD = 120;
 
 export function ChatMessages() {
@@ -109,6 +109,8 @@ export function ChatMessages() {
           {virtualizer.getVirtualItems().map((vItem) => {
             const item = grouped[vItem.index];
             if (!item) return null;
+            const prevItem = grouped[vItem.index - 1];
+            const prevRole = prevItem ? getItemRole(prevItem) : null;
             return (
               <div
                 key={vItem.key}
@@ -122,7 +124,7 @@ export function ChatMessages() {
                   transform: `translateY(${vItem.start}px)`,
                 }}
               >
-                <MessageDisplayItem item={item} />
+                <MessageDisplayItem item={item} prevRole={prevRole} />
               </div>
             );
           })}
