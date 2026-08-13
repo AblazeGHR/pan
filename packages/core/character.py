@@ -120,6 +120,17 @@ class CharacterManager:
             return []
         return self._manifest_config.profiles
 
+    def list_command_routes(self):
+        """Return manifest command_routes for QQ Bot prefix routing.
+
+        Returns an empty list if no manifest is loaded — callers (e.g. the QQ
+        plugin via ``GET /api/manifest/command-routes``) treat empty as "no
+        prefix routing, all messages go to LLM path".
+        """
+        if self._manifest_config is None:
+            return []
+        return self._manifest_config.command_routes
+
     def get_profile(self, name: str) -> Profile | None:
         if self._manifest_config is None:
             return None

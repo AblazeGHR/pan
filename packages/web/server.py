@@ -179,6 +179,7 @@ def _session_to_api(s: sess.Session):
         "workerId": w.worker_id if w else None,
         "mcpEnabled": ac.get("mcp_enabled", False),
         "mcpLocked": _get_mcp_locked_state(s),
+        "gameId": s.game_id,
     }
 
 
@@ -338,6 +339,11 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
     if "mcpEnabled" in data:
         _apply_mcp_enabled(s, data["mcpEnabled"])
+    if "gameId" in data:
+        # Allow None / empty to clear; store string otherwise. Used by QQ
+        # plugin to bind a RuleWhisper game_id to a group-scoped session so
+        # LLM-driven MCP tool calls can pass it through.
+        s.game_id = data["gameId"] or None
 
 
 def _apply_mcp_enabled(s: sess.Session, enable: bool):
@@ -1471,6 +1477,28 @@ async def api_characters_profiles():
     }
 
 
+@app.get("/api/manifest/command-routes")
+async def api_manifest_command_routes():
+    """List QQ Bot command routes from loaded manifests.
+
+    Used by the QQ Bot plugin (separate NoneBot2 process) to do prefix
+    matching: a message starting with one of ``prefixes`` is forwarded
+    directly to ``target`` (HTTP POST ``{"text": "..."}``) without going
+    through the LLM path. The plugin should sort by prefix length descending
+    so ``.rca`` wins over ``.rc``.
+    """
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    routes = _character_manager.list_command_routes()
+    return {
+        "routes": [
+            {"prefixes": list(r.prefixes), "target": r.target}
+            for r in routes
+        ],
+        "total": len(routes),
+    }
+
+
 @app.post("/api/characters")
 async def api_characters_create(data: dict):
     """Create a new character from a manifest profile."""
@@ -1850,6 +1878,15 @@ if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
         )
         else "react_v2"
     )
+
+    @app.get(f"/{react_name}/", response_class=HTMLResponse)
+    async def react_index_html():
+        """Serve React index.html with no-cache so new builds are picked up on refresh."""
+        return HTMLResponse(
+            content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-cache"},
+        )
+
     app.mount(
         f"/{react_name}",
         StaticFiles(directory=str(REACT_DIST_DIR), html=True),
@@ -1862,7 +1899,10 @@ if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
         file_path = REACT_DIST_DIR / full_path
         if file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(REACT_DIST_DIR / "index.html")
+        return FileResponse(
+            REACT_DIST_DIR / "index.html",
+            headers={"Cache-Control": "no-cache"},
+        )
 
 
 # ── Static files ──
