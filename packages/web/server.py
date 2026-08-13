@@ -1066,15 +1066,17 @@ async def api_cbc_sessions_import(data: dict):
             # the race window (CLI writes to external store before stdout),
             # which would otherwise duplicate agent-side messages.
             w._replaying = True
-            existing.history = history
-            existing.raw_usage = raw_usage
-            existing.total_usage = total_usage
-            sess.save(existing)
-            await broadcast({
-                "type": "session.updated",
-                "sessionId": existing.id,
-            })
-            w._replaying = False
+            try:
+                existing.history = history
+                existing.raw_usage = raw_usage
+                existing.total_usage = total_usage
+                sess.save(existing)
+                await broadcast({
+                    "type": "session.updated",
+                    "sessionId": existing.id,
+                })
+            finally:
+                w._replaying = False
             return _session_to_api(existing)
         w = worker.find_worker_by_session(existing.id)
         if w:
@@ -1165,15 +1167,17 @@ async def api_kimi_sessions_import(data: dict):
             # the race window (CLI writes to external store before stdout),
             # which would otherwise duplicate agent-side messages.
             w._replaying = True
-            existing.history = history
-            existing.raw_usage = raw_usage
-            existing.total_usage = total_usage
-            sess.save(existing)
-            await broadcast({
-                "type": "session.updated",
-                "sessionId": existing.id,
-            })
-            w._replaying = False
+            try:
+                existing.history = history
+                existing.raw_usage = raw_usage
+                existing.total_usage = total_usage
+                sess.save(existing)
+                await broadcast({
+                    "type": "session.updated",
+                    "sessionId": existing.id,
+                })
+            finally:
+                w._replaying = False
             return _session_to_api(existing)
         w = worker.find_worker_by_session(existing.id)
         if w:
@@ -1804,6 +1808,8 @@ async def api_fs_write(data: dict):
     content = data.get("content", "")
     if not session_id:
         return {"error": "session_id required"}
+    if len(content) > _MAX_FILE_BYTES:
+        return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
     try:
         target = _resolve_fs_path(session_id, path)
     except ValueError as e:

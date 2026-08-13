@@ -180,7 +180,6 @@ export function InputRow() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentSession = useCurrentSession();
-  const inputDrafts = useSessionStore((s) => s.inputDrafts);
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { startWorker } = useWorkerStore();
@@ -208,14 +207,16 @@ export function InputRow() {
     }
   };
 
-  // Restore draft when session changes
+  // Restore draft when session changes. Reads from getState() so it does not
+  // depend on `inputDrafts` (which would re-run — and reset the caret — on
+  // every keystroke now that onChange persists drafts).
   useEffect(() => {
-    if (inputRef.current && currentSessionId) {
-      inputRef.current.value = inputDrafts[currentSessionId] || '';
-    } else if (inputRef.current) {
-      inputRef.current.value = '';
-    }
-  }, [currentSessionId, inputDrafts]);
+    if (!inputRef.current) return;
+    const draft = currentSessionId
+      ? useSessionStore.getState().inputDrafts[currentSessionId]
+      : '';
+    inputRef.current.value = draft || '';
+  }, [currentSessionId]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -332,6 +333,9 @@ export function InputRow() {
           inputMode="text"
           autoCapitalize="sentences"
           className="flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent"
+          onChange={(e) => {
+            if (currentSessionId) setInputDraft(currentSessionId, e.target.value);
+          }}
           onKeyDown={handleKeyDown}
         />
         <div className="flex flex-col gap-1 items-end">

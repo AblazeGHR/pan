@@ -1,5 +1,6 @@
 """Pan configuration system."""
 
+import copy
 import json
 from pathlib import Path
 
@@ -49,7 +50,7 @@ DEFAULT_CONFIG: dict = {
 def load_config() -> dict:
     """Load configuration from config.json, deep-merged with defaults."""
     if not CONFIG_FILE.exists():
-        return dict(DEFAULT_CONFIG)
+        return copy.deepcopy(DEFAULT_CONFIG)
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         user_config = json.load(f)
     return _deep_merge(DEFAULT_CONFIG, user_config)

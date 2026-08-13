@@ -22,7 +22,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const selectSession = useSessionStore((s) => s.selectSession);
   const toggleSelection = useSessionStore((s) => s.toggleSelection);
 
-  const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse } = useUIStore();
+  const { groupBy, searchQuery, sortBy, collapsedGroups, allGroupsCollapsed, toggleGroupCollapse } = useUIStore();
 
   const { filtered, grouped } = useMemo(() => {
     let filtered = [...sessions];
@@ -114,7 +114,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             key={group.key}
             label={group.label}
             count={group.sessions.length}
-            collapsed={collapsedGroups.has(group.key)}
+            collapsed={allGroupsCollapsed || collapsedGroups.has(group.key)}
             onToggle={() => toggleGroupCollapse(group.key)}
           >
             {group.sessions.map((session) => (

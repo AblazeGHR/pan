@@ -104,6 +104,7 @@ interface UIStore {
   searchQuery: string;
   sortBy: SortMode;
   collapsedGroups: Set<string>;
+  allGroupsCollapsed: boolean;
   filesCollapsed: boolean;
   theme: Theme;
 
@@ -136,6 +137,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   searchQuery: '',
   sortBy: loadSortBy(),
   collapsedGroups: new Set<string>(),
+  allGroupsCollapsed: false,
   filesCollapsed: false,
   theme: loadTheme(),
 
@@ -206,14 +208,11 @@ export const useUIStore = create<UIStore>((set, get) => ({
   },
 
   collapseAllGroups: () => {
-    set((s) => {
-      // Get all current group keys from store side effects are OK
-      return { collapsedGroups: new Set(s.collapsedGroups) };
-    });
+    set({ allGroupsCollapsed: true });
   },
 
   expandAllGroups: () => {
-    set({ collapsedGroups: new Set() });
+    set({ allGroupsCollapsed: false, collapsedGroups: new Set() });
   },
 
   toggleFilesCollapsed: () => {

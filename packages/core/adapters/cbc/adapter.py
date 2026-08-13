@@ -18,7 +18,7 @@ _log = logging.getLogger(__name__)
 def _parse_models_from_cbc_help() -> list[str]:
     """从 `cbc --help` 解析支持的模型列表（仅加载一次）。"""
     try:
-        r = subprocess.run("cbc --help", capture_output=True, text=True, timeout=10, shell=True)
+        r = subprocess.run(["cbc", "--help"], capture_output=True, text=True, timeout=10)
     except Exception:
         return []
     output = r.stdout or r.stderr or ""

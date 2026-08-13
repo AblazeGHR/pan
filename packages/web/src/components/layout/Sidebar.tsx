@@ -53,6 +53,7 @@ export function Sidebar() {
     sortBy,
     setSortBy,
     collapsedGroups,
+    allGroupsCollapsed,
     collapseAllGroups,
     expandAllGroups,
     filesCollapsed,
@@ -319,12 +320,22 @@ export function Sidebar() {
             {groupBy === 'workdir' && (
               <button
                 onClick={() =>
-                  collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups()
+                  allGroupsCollapsed || collapsedGroups.size > 0
+                    ? expandAllGroups()
+                    : collapseAllGroups()
                 }
                 className="p-1 rounded transition-colors text-text-tertiary hover:text-text-primary"
-                title={collapsedGroups.size > 0 ? 'Expand all groups' : 'Collapse all groups'}
+                title={
+                  allGroupsCollapsed || collapsedGroups.size > 0
+                    ? 'Expand all groups'
+                    : 'Collapse all groups'
+                }
               >
-                {collapsedGroups.size > 0 ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {allGroupsCollapsed || collapsedGroups.size > 0 ? (
+                  <ChevronUp size={14} />
+                ) : (
+                  <ChevronDown size={14} />
+                )}
               </button>
             )}
           </div>

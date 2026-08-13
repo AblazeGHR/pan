@@ -128,6 +128,7 @@ def _session(w: Worker) -> _sess.Session | None:
 
 async def _read_stdout(w: Worker):
     adapter = w.adapter
+    s = None  # bound even if stdout yields no parseable event (EOF check below)
     async for line in w.process.stdout:
         line_str = line.decode("utf-8", errors="replace").rstrip("\n")
         if not line_str:
