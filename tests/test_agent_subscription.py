@@ -64,7 +64,8 @@ def test_subscribe_filters_event_types():
     _cleanup()
     ws = FakeWS()
     srv.agent_clients.add(ws)
-    srv.agent_subscriptions[ws] = {"worker.result", "worker.status"}
+    sub = srv.AgentSubscription(event_types={"worker.result", "worker.status"})
+    srv.agent_subscriptions[ws] = sub
 
     events = [
         {"type": "worker.result", "workerId": "w1"},
@@ -84,7 +85,8 @@ def test_wildcard_subscribes_all():
     _cleanup()
     ws = FakeWS()
     srv.agent_clients.add(ws)
-    srv.agent_subscriptions[ws] = {"*"}
+    sub = srv.AgentSubscription(event_types={"*"})
+    srv.agent_subscriptions[ws] = sub
 
     events = [
         {"type": "worker.stream", "workerId": "w1"},
@@ -98,13 +100,49 @@ def test_wildcard_subscribes_all():
 
 
 def test_empty_subscription_resets_to_default():
-    """subscribe([]) semantics handled by endpoint: stores default set."""
+    """subscribe([]) semantics: empty list resets to default event types."""
     _cleanup()
-    # Simulate the endpoint logic: [] → default subscription
+    sub = srv.AgentSubscription(event_types={"worker.stream"})  # start non-default
+    # Simulate endpoint logic: [] → default subscription
     raw_types = []
-    subs = set(str(t) for t in raw_types)
-    srv.agent_subscriptions["ws"] = subs if subs else set(srv._AGENT_DEFAULT_SUBSCRIPTION)
-    assert srv.agent_subscriptions["ws"] == set(srv._AGENT_DEFAULT_SUBSCRIPTION)
+    types = set(str(t) for t in raw_types)
+    sub.event_types = types if types else set(srv._AGENT_DEFAULT_SUBSCRIPTION)
+    assert sub.event_types == set(srv._AGENT_DEFAULT_SUBSCRIPTION)
+    _cleanup()
+
+
+def test_session_ids_filter():
+    """worker.result filtered to subscribed session ids."""
+    _cleanup()
+    ws = FakeWS()
+    srv.agent_clients.add(ws)
+    sub = srv.AgentSubscription(event_types={"worker.result"}, session_ids={"sA"})
+    srv.agent_subscriptions[ws] = sub
+
+    events = [
+        {"type": "worker.result", "workerId": "w1", "sessionId": "sA", "taskSeq": 1},
+        {"type": "worker.result", "workerId": "w1", "sessionId": "sB", "taskSeq": 1},
+    ]
+    for e in events:
+        _run(srv.broadcast(e))
+
+    # only sA delivered
+    got_sids = [m.get("sessionId") for m in ws.sent]
+    assert got_sids == ["sA"], f"session filter failed, got {got_sids}"
+    _cleanup()
+
+
+def test_consumed_seq_tracked():
+    """broadcast records consumed result seq per session."""
+    _cleanup()
+    ws = FakeWS()
+    srv.agent_clients.add(ws)
+    sub = srv.AgentSubscription(event_types={"worker.result"})
+    srv.agent_subscriptions[ws] = sub
+
+    _run(srv.broadcast({"type": "worker.result", "workerId": "w1", "sessionId": "s1", "taskSeq": 3}))
+
+    assert sub.consumed_seq.get("s1") == 3, f"consumed seq not tracked: {sub.consumed_seq}"
     _cleanup()
 
 
@@ -118,7 +156,8 @@ def test_dead_agent_pruned_on_broadcast():
 
     ws = BrokenWS()
     srv.agent_clients.add(ws)
-    srv.agent_subscriptions[ws] = {"worker.result"}
+    sub = srv.AgentSubscription(event_types={"worker.result"})
+    srv.agent_subscriptions[ws] = sub
 
     _run(srv.broadcast({"type": "worker.result", "workerId": "w1"}))
 
@@ -131,5 +170,7 @@ if __name__ == "__main__":
     test_subscribe_filters_event_types()
     test_wildcard_subscribes_all()
     test_empty_subscription_resets_to_default()
+    test_session_ids_filter()
+    test_consumed_seq_tracked()
     test_dead_agent_pruned_on_broadcast()
     print("\n=== ALL SUBSCRIPTION TESTS PASSED ===")

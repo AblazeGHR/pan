@@ -21,6 +21,7 @@ from packages.core import worker, session as _sess
 def _cleanup():
     worker.workers.clear()
     worker._result_waiters.clear()
+    worker._task_status.clear()
     _sess._cache.clear()
     worker.set_broadcaster(None)
 
@@ -237,6 +238,60 @@ def test_ensure_worker_autospawns():
     _cleanup()
 
 
+def test_handoff_task_id_idempotent_after_complete():
+    """Same taskId re-handoff returns existing result, does NOT re-enqueue."""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "task-abc-123"
+
+    async def scenario():
+        # First handoff with taskId
+        t1 = asyncio.create_task(worker.handoff(s.id, "job", task_id=tid))
+        await asyncio.sleep(0.05)
+        # Simulate worker finishing (handoff allocated seq=1)
+        worker._resolve_result_waiter(w.worker_id, "done", "the answer", task_seq=1)
+        r1 = await t1
+        # Second handoff with SAME taskId → should return stored result
+        r2 = await worker.handoff(s.id, "job", task_id=tid)
+        return r1, r2
+
+    r1, r2 = asyncio.run(scenario())
+
+    assert r1["status"] == "done" and r1["result"] == "the answer"
+    assert r2["status"] == "done" and r2["result"] == "the answer", f"re-handoff wrong: {r2}"
+    # taskId propagated
+    assert r1.get("taskId") == tid
+    assert r2.get("taskId") == tid
+    # Second handoff did NOT enqueue another task (still only the original queued item)
+    assert w.queue.qsize() == 1, f"task re-enqueued: qsize={w.queue.qsize()}"
+    print("PASS: handoff taskId idempotent after complete")
+    _cleanup()
+
+
+def test_handoff_task_id_pending_on_timeout():
+    """Timed-out handoff with taskId returns pending; retry returns pending not re-enqueue."""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "task-pending-1"
+
+    async def scenario():
+        r1 = await worker.handoff(s.id, "slow job", task_id=tid, timeout=0.05)
+        # Second attempt with same taskId
+        r2 = await worker.handoff(s.id, "slow job", task_id=tid, timeout=0.05)
+        return r1, r2
+
+    r1, r2 = asyncio.run(scenario())
+
+    assert r1["status"] == "pending", f"got {r1}"
+    assert r2["status"] == "pending", f"got {r2}"
+    # Only one task in queue (idempotent)
+    assert w.queue.qsize() == 1, f"task re-enqueued: qsize={w.queue.qsize()}"
+    print("PASS: handoff taskId pending on timeout")
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_handoff_waits_for_result()
     test_handoff_timeout()
@@ -245,4 +300,6 @@ if __name__ == "__main__":
     test_send_to_existing_worker()
     test_send_unknown_worker_errors()
     test_ensure_worker_autospawns()
+    test_handoff_task_id_idempotent_after_complete()
+    test_handoff_task_id_pending_on_timeout()
     print("\n=== ALL PRIMITIVE TESTS PASSED ===")

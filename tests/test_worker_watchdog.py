@@ -207,10 +207,76 @@ def test_watchdog_exits_when_worker_removed():
     _cleanup()
 
 
+def test_mcp_idle_worker_reclaimed():
+    """MCP one-shot worker (process=None) idle past idle_sec → killed.
+
+    MCP watchdog does idle reclamation but never timeout (running is left
+    to the read timeout in _consumer_mcp).
+    """
+    _cleanup()
+    killed = []
+
+    async def fake_kill(worker_id):
+        killed.append(worker_id)
+        return None
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TIMEOUT_SEC = 0.1
+    worker._WORKER_IDLE_SEC = 0.1
+    # MCP mode: process=None
+    w = _setup_worker(_setup_session().id, status="idle", last_activity=0.0)
+    w.process = None
+
+    orig_kill = worker.kill_worker
+    worker.kill_worker = fake_kill
+    try:
+        asyncio.run(_run_watchdog(w))
+    finally:
+        worker.kill_worker = orig_kill
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert killed == [w.worker_id], f"MCP idle worker not reclaimed: {killed}"
+    _cleanup()
+
+
+def test_mcp_running_worker_not_timeout_killed():
+    """MCP one-shot worker running past timeout is NOT killed (read-timeout owns it)."""
+    _cleanup()
+    killed = []
+
+    async def fake_kill(worker_id):
+        killed.append(worker_id)
+        return None
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TIMEOUT_SEC = 0.1
+    worker._WORKER_IDLE_SEC = 999
+    # MCP running, very old last_activity (would exceed timeout if stream)
+    w = _setup_worker(_setup_session().id, status="running", last_activity=0.0)
+    w.process = None
+
+    orig_kill = worker.kill_worker
+    worker.kill_worker = fake_kill
+    try:
+        asyncio.run(_run_watchdog(w))
+    finally:
+        worker.kill_worker = orig_kill
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert killed == [], f"MCP running worker wrongly timeout-killed: {killed}"
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_timeout_kills_running_worker()
     test_active_running_worker_not_killed()
     test_idle_worker_reclaimed()
     test_held_worker_skipped()
     test_watchdog_exits_when_worker_removed()
+    test_mcp_idle_worker_reclaimed()
+    test_mcp_running_worker_not_timeout_killed()
     print("\n=== ALL WATCHDOG TESTS PASSED ===")

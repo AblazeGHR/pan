@@ -184,21 +184,28 @@ def worker_list() -> dict:
 
 
 @mcp.tool()
-def worker_handoff(session_id: str, text: str, timeout: float = 600.0) -> dict:
+def worker_handoff(session_id: str, text: str, timeout: float = 600.0,
+                   task_id: str | None = None) -> dict:
     """Send a task and BLOCK until the worker returns a result.
 
     Synchronous orchestration primitive: ensures a worker exists for the
     session, sends the task, then waits for the worker.result event.
     Returns the final result dict. Use for serial dependent steps.
 
+    Idempotency: pass the same `task_id` when retrying a timed-out handoff —
+    the server won't re-enqueue if that taskId is already known (returns its
+    status / existing result). Prevents double-execution of the same task.
+
     Args:
         session_id: Session ID to run the task on
         text: Task text / prompt
         timeout: Max seconds to wait for completion (default 600 / 10min)
+        task_id: Optional caller-supplied idempotency key (uuid-like string)
     """
-    return _api("POST", "/api/handoff",
-                {"sessionId": session_id, "text": text, "timeout": timeout},
-                timeout=timeout + 60)
+    body = {"sessionId": session_id, "text": text, "timeout": timeout}
+    if task_id:
+        body["taskId"] = task_id
+    return _api("POST", "/api/handoff", body, timeout=timeout + 60)
 
 
 @mcp.tool()

@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -82,11 +83,27 @@ app = FastAPI(title="Pan", lifespan=lifespan)
 
 ws_clients: set[WebSocket] = set()
 agent_clients: set[WebSocket] = set()
-# 每个 /ws/agent 连接的订阅集合；未订阅默认只推 worker.result（agent 摘要视角）
-agent_subscriptions: dict[WebSocket, set[str]] = {}
 
 # agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
 _AGENT_DEFAULT_SUBSCRIPTION = frozenset({"worker.result"})
+
+
+@dataclass
+class AgentSubscription:
+    """单个 /ws/agent 连接的订阅状态。
+
+    - event_types：订阅的事件类型（默认只 worker.result）
+    - session_ids：关心的 session 集合；非空时 worker.result 只推给匹配
+      workerId→sessionId 的连接的 session；空集 = 订阅所有 session
+    - consumed_seq：每 session 已消费的 result 序号（taskSeq），重连补发用
+    """
+    event_types: set[str] = field(default_factory=lambda: set(_AGENT_DEFAULT_SUBSCRIPTION))
+    session_ids: set[str] = field(default_factory=set)
+    consumed_seq: dict[str, int] = field(default_factory=dict)
+
+
+# 每个 /ws/agent 连接的订阅状态；未订阅默认只推 worker.result
+agent_subscriptions: dict[WebSocket, AgentSubscription] = {}
 
 # ── file paths (relative to packages/web/) ──
 _WEB_DIR = Path(__file__).resolve().parent
@@ -120,13 +137,22 @@ async def broadcast(data: dict):
     ws_clients.difference_update(dead)
     dead_a = set()
     etype = data.get("type", "")
+    data_session_id = data.get("sessionId")
     for ws in list(agent_clients):
-        # 按订阅过滤：未订阅只推 worker.result；已订阅则只推订阅的类型
-        subs = agent_subscriptions.get(ws)
-        if subs is None:
-            subs = _AGENT_DEFAULT_SUBSCRIPTION
-        if etype not in subs and "*" not in subs:
+        sub = agent_subscriptions.get(ws)
+        if sub is None:
+            sub = AgentSubscription()
+        # 事件类型过滤
+        if etype not in sub.event_types and "*" not in sub.event_types:
             continue
+        # worker.result 按 sessionId 过滤（若订阅了特定 session 列表）
+        if etype == "worker.result" and sub.session_ids and data_session_id not in sub.session_ids:
+            continue
+        # 记录已消费的 result 序号（重连补发用）
+        if etype == "worker.result" and data_session_id:
+            seq = data.get("taskSeq")
+            if isinstance(seq, int):
+                sub.consumed_seq[data_session_id] = max(sub.consumed_seq.get(data_session_id, 0), seq)
         try:
             await ws.send_json(data)
         except Exception:
@@ -492,18 +518,55 @@ async def ws_agent_endpoint(ws: WebSocket):
             msg_type = msg.get("type")
 
             if msg_type == "subscribe":
-                # 订阅事件类型：{"type":"subscribe","eventTypes":["worker.result","worker.status"]}
-                # 传 "*" 订阅全部；传 [] 等价于默认（仅 worker.result）
-                raw_types = msg.get("eventTypes") or []
-                if not isinstance(raw_types, list):
-                    await ws.send_json({"type": "error", "message": "eventTypes must be a list"})
-                    continue
-                subs = set(str(t) for t in raw_types)
-                agent_subscriptions[ws] = subs if subs else set(_AGENT_DEFAULT_SUBSCRIPTION)
+                # 订阅：{"type":"subscribe","eventTypes":[...],"sessionIds":[...]}
+                # - eventTypes: "*" 订阅全部；[] 或省略 → 默认（仅 worker.result）
+                # - sessionIds: 关心的 session 列表；省略 → 订阅所有 session 的 result
+                sub = agent_subscriptions.get(ws)
+                if sub is None:
+                    sub = AgentSubscription()
+                    agent_subscriptions[ws] = sub
+                raw_types = msg.get("eventTypes")
+                if raw_types is not None:
+                    if not isinstance(raw_types, list):
+                        await ws.send_json({"type": "error", "message": "eventTypes must be a list"})
+                        continue
+                    types = set(str(t) for t in raw_types)
+                    sub.event_types = types if types else set(_AGENT_DEFAULT_SUBSCRIPTION)
+                raw_sids = msg.get("sessionIds")
+                if raw_sids is not None:
+                    if not isinstance(raw_sids, list):
+                        await ws.send_json({"type": "error", "message": "sessionIds must be a list"})
+                        continue
+                    sub.session_ids = set(str(s) for s in raw_sids)
                 await ws.send_json({
                     "type": "subscribed",
-                    "eventTypes": sorted(agent_subscriptions[ws]),
+                    "eventTypes": sorted(sub.event_types),
+                    "sessionIds": sorted(sub.session_ids),
                 })
+
+            elif msg_type == "reconnect":
+                # 断线重连补发：{"type":"reconnect","sessionIds":[...]}
+                # 补发各 session 未消费的 worker.result（seq 大于已消费游标）
+                sub = agent_subscriptions.get(ws)
+                if sub is None:
+                    sub = AgentSubscription()
+                    agent_subscriptions[ws] = sub
+                for sid in (msg.get("sessionIds") or []):
+                    s = sess.get(sid)
+                    if not s or not s.last_result or s.last_result.get("status") != "done":
+                        continue
+                    # 该 session 最新 result 已消费过则跳过
+                    if sub.consumed_seq.get(sid, 0) > 0:
+                        continue
+                    await ws.send_json({
+                        "type": "worker.result",
+                        "workerId": "",
+                        "sessionId": sid,
+                        "status": s.last_result.get("status"),
+                        "result": s.last_result.get("result"),
+                        "taskSeq": sub.consumed_seq.get(sid, 0),
+                        "replayed": True,
+                    })
 
             elif msg_type == "task":
                 session_id = msg.get("sessionId")
@@ -981,13 +1044,18 @@ async def api_task(data: dict):
 
 @app.post("/api/handoff")
 async def api_handoff(data: dict):
-    """同步等待：发任务并阻塞直到 worker 返回结果（默认 10min 超时）。"""
+    """同步等待：发任务并阻塞直到 worker 返回结果（默认 10min 超时）。
+
+    支持 task_id 幂等：重发同一 taskId 不重复入队（超时后安全重试）。
+    """
     session_id = data.get("sessionId")
     text = data.get("text")
     if not session_id or not text:
         return {"error": "sessionId and text are required"}
     timeout = data.get("timeout", 600)
-    return await worker.handoff(session_id, text, source="agent", timeout=float(timeout))
+    task_id = data.get("taskId")
+    return await worker.handoff(session_id, text, source="agent",
+                                timeout=float(timeout), task_id=task_id)
 
 
 @app.post("/api/assign")
