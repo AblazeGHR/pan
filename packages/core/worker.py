@@ -387,6 +387,9 @@ async def _watchdog(w: Worker):
             continue
 
         idle_for = time.monotonic() - w.last_activity
+        if w.status == "idle":
+            print(f"[WD] worker={w.worker_id} status=idle idle_for={idle_for:.0f}s "
+                  f"(idle_sec={_WORKER_IDLE_SEC})", flush=True)
 
         # MCP one-shot：只回收长期 idle 的 worker（running 由读取超时兜底）
         if w.process is None:
