@@ -34,14 +34,14 @@ _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 mcp = FastMCP("Pan")
 
 
-def _api(method: str, path: str, body: dict | None = None) -> dict:
+def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
     """Call Pan's HTTP API and return parsed JSON response."""
     url = f"{_pan_api_url}{path}"
     data = json.dumps(body).encode("utf-8") if body else None
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="replace")
@@ -51,6 +51,8 @@ def _api(method: str, path: str, body: dict | None = None) -> dict:
             return {"ok": False, "error": {"code": e.code, "message": error_body}}
     except urllib.error.URLError as e:
         return {"ok": False, "error": {"code": "connection_error", "message": str(e.reason)}}
+    except TimeoutError:
+        return {"ok": False, "error": {"code": "timeout", "message": "request timed out"}}
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +181,54 @@ def worker_kill(worker_id: str) -> dict:
 def worker_list() -> dict:
     """List all running workers."""
     return _api("GET", "/api/list")
+
+
+@mcp.tool()
+def worker_handoff(session_id: str, text: str, timeout: float = 600.0) -> dict:
+    """Send a task and BLOCK until the worker returns a result.
+
+    Synchronous orchestration primitive: ensures a worker exists for the
+    session, sends the task, then waits for the worker.result event.
+    Returns the final result dict. Use for serial dependent steps.
+
+    Args:
+        session_id: Session ID to run the task on
+        text: Task text / prompt
+        timeout: Max seconds to wait for completion (default 600 / 10min)
+    """
+    return _api("POST", "/api/handoff",
+                {"sessionId": session_id, "text": text, "timeout": timeout},
+                timeout=timeout + 60)
+
+
+@mcp.tool()
+def worker_assign(session_id: str, text: str) -> dict:
+    """Dispatch a task asynchronously and return immediately.
+
+    Async orchestration primitive: returns {"status": "queued", ...}
+    right away. Completion is delivered via the worker.result event —
+    subscribe to /ws/agent with eventTypes=["worker.result"] to catch it.
+    Use for parallel fan-out.
+
+    Args:
+        session_id: Session ID to run the task on
+        text: Task text / prompt
+    """
+    return _api("POST", "/api/assign", {"sessionId": session_id, "text": text})
+
+
+@mcp.tool()
+def worker_send(worker_id: str, text: str) -> dict:
+    """Send a message to an existing live worker (multi-turn collaboration).
+
+    Completion is delivered via the worker.result event. If the worker
+    is dead, returns an error (spawn it again first).
+
+    Args:
+        worker_id: Worker ID (e.g. "worker-1")
+        text: Task text / prompt
+    """
+    return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
 
 
 # ---------------------------------------------------------------------------

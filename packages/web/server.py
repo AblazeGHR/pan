@@ -535,6 +535,33 @@ async def ws_agent_endpoint(ws: WebSocket):
                         "model": s.model,
                     })
 
+            elif msg_type == "handoff":
+                session_id = msg.get("sessionId")
+                text = msg.get("text")
+                if not session_id or not text:
+                    await ws.send_json({"type": "error", "message": "sessionId and text required"})
+                    continue
+                result = await worker.handoff(session_id, text, source="agent")
+                await ws.send_json({"type": "handoff.result", **result})
+
+            elif msg_type == "assign":
+                session_id = msg.get("sessionId")
+                text = msg.get("text")
+                if not session_id or not text:
+                    await ws.send_json({"type": "error", "message": "sessionId and text required"})
+                    continue
+                result = await worker.assign(session_id, text, source="agent")
+                await ws.send_json({"type": "assign.result", **result})
+
+            elif msg_type == "send":
+                worker_id = msg.get("workerId")
+                text = msg.get("text")
+                if not worker_id or not text:
+                    await ws.send_json({"type": "error", "message": "workerId and text required"})
+                    continue
+                result = await worker.send(worker_id, text, source="agent")
+                await ws.send_json({"type": "send.result", **result})
+
             elif msg_type == "kill":
                 session_id = msg.get("sessionId") or msg.get("workerId")
                 w = worker.find_worker_by_session(session_id)
@@ -949,6 +976,27 @@ async def api_task(data: dict):
         "sessionId": w.session_id if w else session_id,
         "status": "queued",
     }
+
+
+@app.post("/api/handoff")
+async def api_handoff(data: dict):
+    """同步等待：发任务并阻塞直到 worker 返回结果（默认 10min 超时）。"""
+    session_id = data.get("sessionId")
+    text = data.get("text")
+    if not session_id or not text:
+        return {"error": "sessionId and text are required"}
+    timeout = data.get("timeout", 600)
+    return await worker.handoff(session_id, text, source="agent", timeout=float(timeout))
+
+
+@app.post("/api/assign")
+async def api_assign(data: dict):
+    """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。"""
+    session_id = data.get("sessionId")
+    text = data.get("text")
+    if not session_id or not text:
+        return {"error": "sessionId and text are required"}
+    return await worker.assign(session_id, text, source="agent")
 
 
 @app.post("/api/kill/{worker_id}")

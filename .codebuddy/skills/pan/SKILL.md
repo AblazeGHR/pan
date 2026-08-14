@@ -38,7 +38,10 @@ Pan 是一个 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?` | 为会话生成 Worker |
-| `worker_task` | `session_id?`, `worker_id?`, `text` | 发送任务文本 |
+| `worker_task` | `session_id?`, `worker_id?`, `text` | 发送任务文本（异步，返回 queued） |
+| `worker_handoff` | `session_id`, `text`, `timeout?` | **同步**：发任务并阻塞直到返回结果（串行依赖步骤用这个） |
+| `worker_assign` | `session_id`, `text` | **异步分派**：发任务立即返回，完成时通过 `worker.result` 事件回调（并行 fan-out 用） |
+| `worker_send` | `worker_id`, `text` | 向已有 Worker 发消息（多轮协作） |
 | `worker_kill` | `worker_id` | 终止 Worker 进程 |
 | `worker_list` | (无) | 列出所有运行中 Worker |
 
@@ -50,25 +53,31 @@ Pan 是一个 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent
 
 ## 标准工作流
 
-### 流程 1：创建会话并执行任务
+### 流程 1：创建会话并执行任务（推荐：handoff 同步等结果）
 
 ```
 1. session_create(name="my-session", adapter="cbc", model="hy3")
    → 返回 session_id: "ses_abc123..."
 
-2. worker_spawn(session_id="ses_abc123...")
-   → Worker 启动，状态 idle
+2. worker_handoff(session_id="ses_abc123...", text="你的任务描述")
+   → 阻塞直到 Worker 完成，直接返回最终结果
+   → {"status": "done", "result": "...", "workerId": "worker-1"}
+```
 
-3. worker_task(session_id="ses_abc123...", text="你的任务描述")
-   → 返回 {"status": "queued"}
+**不需要手动轮询**。handoff 默认 10 分钟超时，超时返回 `{"status": "error", "result": "handoff timed out after 600s"}`。
 
-4. 等待 10-60 秒后...
+### 流程 1b：异步分派多个任务（并行 fan-out）
 
-5. session_get(session_id="ses_abc123...")
-   → 检查 lastResult.status:
-      - "done" → 读取 lastResult.result
-      - "queued"/"running" → 继续等待
-      - "error" → 查看错误信息
+```
+1. 为每个任务创建/复用 session
+   worker_assign(session_id="ses_a...", text="任务A")
+   worker_assign(session_id="ses_b...", text="任务B")
+   → 两个都返回 {"status": "queued"}
+
+2. 通过 /ws/agent 订阅 worker.result 事件接收完成回调
+   subscribe { eventTypes: ["worker.result"] }
+
+3. 收集所有完成的 worker.result 事件后汇总
 ```
 
 ### 流程 2：在已有会话上继续对话
@@ -80,10 +89,8 @@ Pan 是一个 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent
 2. worker_spawn(session_id="ses_abc123...")  # 如果 Worker 已死
    → Worker 启动，恢复历史上下文
 
-3. worker_task(session_id="ses_abc123...", text="继续之前的话题...")
-
-4. session_get(session_id="ses_abc123...")
-   → 读取最新回复
+3. worker_handoff(session_id="ses_abc123...", text="继续之前的话题...")
+   → 同步拿到新回复
 ```
 
 ### 流程 3：检查状态
@@ -119,6 +126,8 @@ Worker 任务提交后，通过 `session_get` 的 `lastResult.status` 判断：
 | `"error"` | 任务失败 | 读取 `result` 字段获取错误信息 |
 
 也可以通过 `session_list` 返回的 `workerStatus` 快速判断：
+- `"spawning"` → Worker 刚启动，CLI 尚未就绪（不要立即发任务，稍等重试）
+- `"queued"` → 任务已入队
 - `"running"` → 正在执行任务
 - `"idle"` → Worker 空闲，可发送任务
 - `"error"` → Worker 异常
@@ -129,10 +138,11 @@ Worker 任务提交后，通过 `session_get` 的 `lastResult.status` 判断：
 1. **先查后做**：使用 `session_list()` 了解当前状态再操作
 2. **命名规范**：Session 名称用短横线连接，有语义（如 `code-review`、`debug-auth`）
 3. **及时清理**：不再需要的 session 用 `session_delete` 释放资源
-4. **异步等待**：`worker_task` 提交后不要立即 `session_get`，等 10-30 秒让 LLM 处理
-5. **错误重试**：`lastResult.status == "error"` 时检查原因，修复后 `worker_task` 重新发送
-6. **一个 Session 一个任务**：避免在同一 Session 中混合多个不相关任务
-7. **利用 history**：`session_get` 返回完整对话历史，上下文自然累积
+4. **串行依赖用 `worker_handoff`**：同步阻塞拿结果，不要轮询 `session_get`
+5. **并行 fan-out 用 `worker_assign` + 订阅 `worker.result`**：一次分派多个任务，收集完成事件后汇总
+6. **错误重试**：返回 `error` 时检查原因，修复后重新调用 `worker_handoff`/`worker_assign`
+7. **一个 Session 一个任务**：避免在同一 Session 中混合多个不相关任务
+8. **利用 history**：`session_get` 返回完整对话历史，上下文自然累积
 
 ## 常见问题
 
@@ -141,6 +151,9 @@ A: Worker 崩溃了，执行 `worker_spawn(session_id=...)` 重新生成。
 
 **Q: worker_task 后长时间无回复？**
 A: 检查 `workerStatus`——如果是 `"idle"` 说明任务已完成但结果未读取。执行 `session_get`。
+
+**Q: handoff 超时了？**
+A: 默认 10 分钟。任务复杂可传更大 `timeout`；超时后结果仍可能稍后到达，可 `session_get` 补查。
 
 **Q: 想切换模型？**
 A: 重新 `session_create` 并指定新 `model`。不能热切换运行中 Worker 的模型。

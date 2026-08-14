@@ -75,6 +75,17 @@ workers: dict[str, Worker] = {}
 
 _broadcast: callable = None
 
+# ── result waiters: 供 handoff（同步等待）在进程内捕获 worker.result ──
+# worker_id → asyncio.Future，result 事件广播时 resolve
+_result_waiters: dict[str, asyncio.Future] = {}
+
+
+def _resolve_result_waiter(worker_id: str, status: str, result: str):
+    """当 worker 产生 result 时，resolve 正在等待该 worker 的 handoff future。"""
+    fut = _result_waiters.pop(worker_id, None)
+    if fut is not None and not fut.done():
+        fut.set_result({"status": status, "result": result})
+
 
 def _kill_pid_tree(pid: int) -> None:
     """同步：用 psutil 杀掉指定 PID 及其所有子进程树。"""
@@ -213,6 +224,7 @@ async def _read_stdout(w: Worker):
                 "status": w.status,
                 "result": adapter.extract_result_text(event),
             })
+            _resolve_result_waiter(w.worker_id, w.status, adapter.extract_result_text(event))
             w.status = "idle"
             continue
 
@@ -250,6 +262,8 @@ async def _read_stdout(w: Worker):
         "sessionId": w.session_id,
         "returncode": code,
     })
+    # 有 handoff 在等这个 worker → 立即 resolve 为错误，避免悬挂到超时
+    _resolve_result_waiter(w.worker_id, "error", f"worker exited (returncode={code})")
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
@@ -309,6 +323,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
             "status": "error",
             "result": "Worker process dead",
         })
+        _resolve_result_waiter(w.worker_id, "error", "Worker process dead")
         return
 
     w.status = "running"
@@ -533,6 +548,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         "status": status,
         "result": result,
     })
+    _resolve_result_waiter(w.worker_id, status, result)
 
 
 # ── lifecycle ──
@@ -660,6 +676,9 @@ async def kill_worker(worker_id: str) -> str | None:
         w._stdout_task.cancel()
     await _kill_process_tree(w)
     await _kill_takeover_terminal(w)
+
+    # 有 handoff 在等这个 worker → 立即 resolve 为错误
+    _resolve_result_waiter(worker_id, "error", "worker killed")
 
     workers.pop(worker_id, None)
     await _bcast({
@@ -911,6 +930,81 @@ async def send_task(worker_id: str, text: str, source: str = "agent") -> str | N
             "status": "queued",
         })
     return None
+
+
+# ── 编排原语：handoff / assign / send（供 Meta-Agent 调用） ──
+
+
+async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
+    """确保 session 有活的 worker。返回 (worker, None) 或 (None, error)。"""
+    w = find_worker_by_session(session_id)
+    if w is None or (w.process is not None and w.process.returncode is not None):
+        created = await create_worker(session_id)
+        if isinstance(created, str):
+            return None, created
+        w = created
+    return w, None
+
+
+async def handoff(session_id: str, text: str, source: str = "agent",
+                  timeout: float = 600.0) -> dict:
+    """同步阻塞：确保 worker 存在 → 发任务 → 等待该 worker 的 result 事件。
+
+    适用于串行依赖步骤。返回 {"status", "result", "workerId"}；
+    超时（默认 10 分钟）返回 {"status": "error"}。
+    """
+    w, err = await _ensure_worker(session_id)
+    if err:
+        return {"status": "error", "result": err}
+
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future = loop.create_future()
+    _result_waiters[w.worker_id] = fut
+
+    send_err = await send_task(w.worker_id, text, source=source)
+    if send_err:
+        _result_waiters.pop(w.worker_id, None)
+        return {"status": "error", "result": send_err}
+
+    try:
+        result = await asyncio.wait_for(fut, timeout=timeout)
+    except asyncio.TimeoutError:
+        _result_waiters.pop(w.worker_id, None)
+        return {"status": "error", "result": f"handoff timed out after {timeout:.0f}s"}
+    result["workerId"] = w.worker_id
+    return result
+
+
+async def assign(session_id: str, text: str, source: str = "agent") -> dict:
+    """异步分派：确保 worker 存在 → 发任务 → 立即返回 queued。
+
+    完成时通过 worker.result 事件（配合 /ws/agent subscribe）回调。
+    适用于并行 fan-out。
+    """
+    w, err = await _ensure_worker(session_id)
+    if err:
+        return {"status": "error", "result": err}
+
+    send_err = await send_task(w.worker_id, text, source=source)
+    if send_err:
+        return {"status": "error", "result": send_err}
+    return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
+
+
+async def send(worker_id: str, text: str, source: str = "agent") -> dict:
+    """向已有 worker 发消息（持续性多轮协作）。
+
+    若 worker 已死返回 error（需先 spawn）。完成时通过 worker.result 事件回调。
+    """
+    w = workers.get(worker_id)
+    if w is None:
+        return {"status": "error", "result": "Worker not found"}
+    if w.process is not None and w.process.returncode is not None:
+        return {"status": "error", "result": "Worker process dead"}
+    send_err = await send_task(worker_id, text, source=source)
+    if send_err:
+        return {"status": "error", "result": send_err}
+    return {"status": "queued", "workerId": worker_id, "sessionId": w.session_id}
 
 
 def get_worker(worker_id: str) -> Worker | None:
