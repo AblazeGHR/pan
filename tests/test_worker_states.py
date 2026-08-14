@@ -1,11 +1,12 @@
 """Tests for Worker state machine transitions.
 
-Phase A: distinguish spawning / queued / zombie from idle/running/error.
+Phase A: distinguish queued / zombie from idle/running/error.
 
 - send_task on idle worker → status "queued" + worker.status broadcast
-- _read_stdout init event on spawning worker → status "idle" + broadcast
+- _read_stdout init event extracts metadata but does NOT change status
+  (stream mode has no init event; worker is idle from spawn)
 - _read_stdout EOF → status "zombie" + worker.zombie broadcast + dict removal
-- create_worker stream mode → initial status "spawning"
+- create_worker stream mode → initial status "idle"
 
 Uses mock cbc process (no real cbc needed).
 """
@@ -116,37 +117,12 @@ def test_send_task_does_not_override_running():
     _cleanup()
 
 
-def test_init_event_transitions_spawning_to_idle():
-    """init event on spawning worker → idle + worker.status broadcast."""
-    _cleanup()
-    broadcast_calls = []
+def test_init_event_extracts_metadata_only():
+    """init event extracts cli_session_id/model but leaves status unchanged.
 
-    async def fake_broadcast(data):
-        broadcast_calls.append(data)
-
-    worker.set_broadcaster(fake_broadcast)
-    s = _setup_session()
-    w = _setup_worker(s.id, status="spawning")
-    w.process = MockProcess([_system_init_event()], hold_open=True)
-
-    async def run():
-        task = asyncio.create_task(worker._read_stdout(w))
-        await asyncio.sleep(0.05)
-        return task
-
-    task = asyncio.run(run())
-    task.cancel()
-
-    assert w.status == "idle", f"expected idle after init, got {w.status}"
-    idle_bc = [c for c in broadcast_calls if c.get("type") == "worker.status"
-               and c.get("status") == "idle"]
-    assert len(idle_bc) == 1, f"missing idle broadcast: {broadcast_calls}"
-    print("PASS: init event spawning → idle + broadcast")
-    _cleanup()
-
-
-def test_init_event_does_not_touch_non_spawning():
-    """init event on non-spawning worker leaves status unchanged."""
+    stream mode has no init event on startup; when one does arrive
+    (e.g. MCP one-shot), it must not clobber worker status.
+    """
     _cleanup()
     s = _setup_session()
     w = _setup_worker(s.id, status="running")
@@ -161,7 +137,9 @@ def test_init_event_does_not_touch_non_spawning():
     task.cancel()
 
     assert w.status == "running", f"expected running unchanged, got {w.status}"
-    print("PASS: init event leaves non-spawning status alone")
+    assert s.cli_session_id == "cbc-123", f"cli_session_id not extracted: {s.cli_session_id}"
+    assert s.model == "test-model", f"model not extracted: {s.model}"
+    print("PASS: init event extracts metadata, keeps status")
     _cleanup()
 
 
@@ -219,8 +197,12 @@ def test_eof_normal_exit_still_zombie():
     _cleanup()
 
 
-def test_create_worker_stream_starts_spawning(monkeypatch):
-    """create_worker (stream mode) → initial status "spawning"."""
+def test_create_worker_stream_starts_idle(monkeypatch):
+    """create_worker (stream mode) → initial status "idle".
+
+    stream mode has no init event on startup, so the worker is idle
+    from spawn (matching main branch behavior).
+    """
     _cleanup()
     s = _setup_session()
     # stream mode: no mcp_servers in adapter_config
@@ -245,9 +227,9 @@ def test_create_worker_stream_starts_spawning(monkeypatch):
     w = asyncio.run(run())
 
     assert isinstance(w, worker.Worker), f"create_worker failed: {w}"
-    assert w.status == "spawning", f"expected spawning, got {w.status}"
+    assert w.status == "idle", f"expected idle, got {w.status}"
     # cleanup tasks to avoid warnings
-    for t in (w._stdout_task, w._consume_task):
+    for t in (w._stdout_task, w._consume_task, w._watchdog_task):
         if t:
             t.cancel()
     _cleanup()
@@ -256,8 +238,7 @@ def test_create_worker_stream_starts_spawning(monkeypatch):
 if __name__ == "__main__":
     test_send_task_sets_queued()
     test_send_task_does_not_override_running()
-    test_init_event_transitions_spawning_to_idle()
-    test_init_event_does_not_touch_non_spawning()
+    test_init_event_extracts_metadata_only()
     test_eof_sets_zombie_and_removes()
     test_eof_normal_exit_still_zombie()
     print("\n=== ALL STATE TESTS PASSED ===")

@@ -86,7 +86,7 @@ class Worker:
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance
-    status: str = "idle"      # idle | running | held | error | spawning | queued | zombie
+    status: str = "idle"      # idle | running | held | error | queued | zombie
     process: asyncio.subprocess.Process | None = None
     _mcp_proc: asyncio.subprocess.Process | None = None  # in-flight one-shot MCP process
     _stdout_task: asyncio.Task | None = None
@@ -195,6 +195,8 @@ async def _read_stdout(w: Worker):
         w.last_activity = time.monotonic()
 
         # 提取 session_id + model 并写入 Session
+        # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，
+        # spawn 即就绪，所以这里只提取元数据，不做状态转换（worker 初始即 idle）。
         if adapter.is_init_event(event):
             s = _session(w)
             if s:
@@ -205,15 +207,6 @@ async def _read_stdout(w: Worker):
                 if model and not s.model:
                     s.model = model
                 await _sess.save_async(s)
-            # spawning → idle：CLI 就绪，可以接收任务
-            if w.status == "spawning":
-                w.status = "idle"
-                await _bcast({
-                    "type": "worker.status",
-                    "workerId": w.worker_id,
-                    "sessionId": w.session_id,
-                    "status": "idle",
-                })
 
         # 收集对话历史（replay 期间跳过，避免重复追加）
         if adapter.is_assistant_event(event) and not w._replaying:
@@ -687,7 +680,7 @@ async def create_worker(session_id: str) -> Worker | str:
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
-               status="idle" if use_mcp else "spawning", process=proc, queue=asyncio.Queue(),
+               status="idle", process=proc, queue=asyncio.Queue(),
                _replaying=resuming)
     w.last_activity = time.monotonic()
     workers[worker_id] = w
@@ -893,7 +886,7 @@ async def restart_worker(worker_id: str) -> str | None:
     if isinstance(proc, str):
         return f"Spawn failed ({w.session_id}): {proc}"
     w.process = proc
-    w.status = "spawning"
+    w.status = "idle"
     # if session has cli_session_id, --resume was used → enter replay mode
     s = _sess.get(w.session_id)
     w._replaying = bool(s and s.cli_session_id) and w.adapter.supports_resume
@@ -932,14 +925,14 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
     if isinstance(proc, str):
         return proc
     w.process = proc
-    w.status = "spawning"
+    w.status = "idle"
     await _restart_tasks(w)
 
     await _bcast({
         "type": "worker.reconfigured",
         "workerId": worker_id,
         "sessionId": w.session_id,
-        "status": "spawning",
+        "status": "idle",
     })
     return None
 
@@ -986,7 +979,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
 
     new_w = Worker(worker_id=new_id, session_id=new_session_id,
                    adapter=w.adapter,
-                   status="spawning", process=proc, queue=asyncio.Queue())
+                   status="idle", process=proc, queue=asyncio.Queue())
     # 注意：branch 不设 _replaying（与 create_worker/restart_worker 不同）。
     # branch 的新 session history 为空，需要从 cbc --resume --fork-session
     # 的重放中填入历史，所以走正常 append 路径。主路径的 session 已有
@@ -1006,7 +999,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         "workerId": new_id,
         "sessionId": new_session_id,
         "name": s.name,
-        "status": "spawning",
+        "status": "idle",
         "parentWorkerId": worker_id,
     })
     return new_w

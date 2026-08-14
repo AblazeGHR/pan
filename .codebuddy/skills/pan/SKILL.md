@@ -127,10 +127,9 @@ Worker 任务提交后，通过 `session_get` 的 `lastResult.status` 判断：
 | `"error"` | 任务失败 | 读取 `result` 字段获取错误信息 |
 
 也可以通过 `session_list` 返回的 `workerStatus` 快速判断：
-- `"spawning"` → Worker 刚启动，CLI 尚未就绪（不要立即发任务，稍等重试）
 - `"queued"` → 任务已入队
 - `"running"` → 正在执行任务
-- `"idle"` → Worker 空闲，可发送任务
+- `"idle"` → Worker 空闲，可发送任务（spawn 即就绪，无需等待）
 - `"error"` → Worker 异常
 - `null` → 无 Worker（需 `worker_spawn`；也可能是 watchdog 自动回收后尚未重建）
 
