@@ -61,7 +61,7 @@ class Worker:
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance
-    status: str = "idle"      # idle | running | held | error
+    status: str = "idle"      # idle | running | held | error | spawning | queued | zombie
     process: asyncio.subprocess.Process | None = None
     _mcp_proc: asyncio.subprocess.Process | None = None  # in-flight one-shot MCP process
     _stdout_task: asyncio.Task | None = None
@@ -148,6 +148,15 @@ async def _read_stdout(w: Worker):
                 if model and not s.model:
                     s.model = model
                 await _sess.save_async(s)
+            # spawning → idle：CLI 就绪，可以接收任务
+            if w.status == "spawning":
+                w.status = "idle"
+                await _bcast({
+                    "type": "worker.status",
+                    "workerId": w.worker_id,
+                    "sessionId": w.session_id,
+                    "status": "idle",
+                })
 
         # 收集对话历史（replay 期间跳过，避免重复追加）
         if adapter.is_assistant_event(event) and not w._replaying:
@@ -233,6 +242,14 @@ async def _read_stdout(w: Worker):
             "sessionId": w.session_id,
             "returncode": code,
         })
+    # zombie：进程已死、尚未回收的瞬间状态。先广播再移除，让订阅方能观测到。
+    w.status = "zombie"
+    await _bcast({
+        "type": "worker.zombie",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "returncode": code,
+    })
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
@@ -560,7 +577,7 @@ async def create_worker(session_id: str) -> Worker | str:
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
-               status="idle", process=proc, queue=asyncio.Queue(),
+               status="idle" if use_mcp else "spawning", process=proc, queue=asyncio.Queue(),
                _replaying=resuming)
     workers[worker_id] = w
 
@@ -573,7 +590,7 @@ async def create_worker(session_id: str) -> Worker | str:
         "workerId": worker_id,
         "sessionId": session_id,
         "name": s.name,
-        "status": "idle",
+        "status": w.status,
         "model": s.model or adapter.default_model,
     })
 
@@ -746,7 +763,7 @@ async def restart_worker(worker_id: str) -> str | None:
     if isinstance(proc, str):
         return f"Spawn failed ({w.session_id}): {proc}"
     w.process = proc
-    w.status = "idle"
+    w.status = "spawning"
     # if session has cli_session_id, --resume was used → enter replay mode
     s = _sess.get(w.session_id)
     w._replaying = bool(s and s.cli_session_id) and w.adapter.supports_resume
@@ -758,7 +775,7 @@ async def restart_worker(worker_id: str) -> str | None:
         "workerId": worker_id,
         "sessionId": w.session_id,
         "name": s.name if s else worker_id,
-        "status": "idle",
+        "status": w.status,
     })
     return None
 
@@ -785,14 +802,14 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
     if isinstance(proc, str):
         return proc
     w.process = proc
-    w.status = "idle"
+    w.status = "spawning"
     await _restart_tasks(w)
 
     await _bcast({
         "type": "worker.reconfigured",
         "workerId": worker_id,
         "sessionId": w.session_id,
-        "status": "idle",
+        "status": "spawning",
     })
     return None
 
@@ -839,7 +856,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
 
     new_w = Worker(worker_id=new_id, session_id=new_session_id,
                    adapter=w.adapter,
-                   status="idle", process=proc, queue=asyncio.Queue())
+                   status="spawning", process=proc, queue=asyncio.Queue())
     # 注意：branch 不设 _replaying（与 create_worker/restart_worker 不同）。
     # branch 的新 session history 为空，需要从 cbc --resume --fork-session
     # 的重放中填入历史，所以走正常 append 路径。主路径的 session 已有
@@ -855,7 +872,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         "workerId": new_id,
         "sessionId": new_session_id,
         "name": s.name,
-        "status": "idle",
+        "status": "spawning",
         "parentWorkerId": worker_id,
     })
     return new_w
@@ -883,6 +900,16 @@ async def send_task(worker_id: str, text: str, source: str = "agent") -> str | N
         return "Worker queue not ready"
 
     await w.queue.put({"text": text, "source": source})
+
+    # queued：任务已入队、consumer 尚未取出。若队列前面还有任务，保持 queued 直到轮到它。
+    if w.status in ("idle", "queued"):
+        w.status = "queued"
+        await _bcast({
+            "type": "worker.status",
+            "workerId": w.worker_id,
+            "sessionId": w.session_id,
+            "status": "queued",
+        })
     return None
 
 
