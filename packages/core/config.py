@@ -25,6 +25,14 @@ DEFAULT_CONFIG: dict = {
         # 默认 effort 级别："" | "none" | "off" | "auto" | "low" | "medium" | "high" | "xhigh" | "max" | "ultracode"
         "effort": "",
     },
+    # Worker 生命周期管理
+    "worker": {
+        # 静默超时（秒）：running/queued 状态下持续无任何 stdout 输出超过该值时 kill。
+        # stream 模式由 watchdog 判定；MCP one-shot 模式由读取超时承担（同一配置）。
+        "timeout_sec": 300,
+        # 空闲回收（秒）：idle 状态（任务完成）持续超过该值时回收进程。held/zombie 跳过。
+        "idle_sec": 300,
+    },
     "kimi": {
         "model": "kimi-code/kimi-for-coding",
         "permission_mode": "",

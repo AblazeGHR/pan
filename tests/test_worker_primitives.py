@@ -57,8 +57,9 @@ def test_handoff_waits_for_result():
         # Start handoff in a task; it will block on the result future
         task = asyncio.create_task(worker.handoff(s.id, "compute something"))
         await asyncio.sleep(0.05)
-        # Simulate the worker finishing: resolve the result via _resolve_result_waiter
-        worker._resolve_result_waiter(w.worker_id, "done", "the answer")
+        # Simulate the worker finishing: resolve with the handoff-allocated seq
+        # (handoff allocated seq=1; result must carry that seq to match)
+        worker._resolve_result_waiter(w.worker_id, "done", "the answer", task_seq=1)
         return await task
 
     result = asyncio.run(scenario())
@@ -99,7 +100,7 @@ def test_handoff_dead_worker_resolves_error():
     async def scenario():
         task = asyncio.create_task(worker.handoff(s.id, "job"))
         await asyncio.sleep(0.05)
-        # Simulate EOF/zombie: resolve with error
+        # Simulate EOF/zombie: resolve with error (task_seq=None → force resolve)
         worker._resolve_result_waiter(w.worker_id, "error", "worker exited (returncode=1)")
         return await task
 
@@ -108,6 +109,53 @@ def test_handoff_dead_worker_resolves_error():
     assert result["status"] == "error", f"got {result}"
     assert "worker exited" in result["result"], f"got {result}"
     print("PASS: handoff resolves on worker death")
+    _cleanup()
+
+
+def test_waiter_ignores_other_tasks_result():
+    """result of a different task (wrong seq) must NOT resolve the waiter."""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+
+    async def scenario():
+        # handoff allocates seq=1 for its task
+        task = asyncio.create_task(worker.handoff(s.id, "my job"))
+        await asyncio.sleep(0.05)
+        # A previous task (seq=0) finishes first — must NOT resolve handoff's waiter
+        worker._resolve_result_waiter(w.worker_id, "done", "other task result", task_seq=0)
+        # waiter should still be registered
+        assert w.worker_id in worker._result_waiters, "waiter wrongly removed by other task result"
+        # Now handoff's own task (seq=1) finishes
+        worker._resolve_result_waiter(w.worker_id, "done", "my job result", task_seq=1)
+        return await task
+
+    result = asyncio.run(scenario())
+
+    assert result["status"] == "done", f"got {result}"
+    assert result["result"] == "my job result", f"got {result}"
+    print("PASS: waiter ignores other tasks' results")
+    _cleanup()
+
+
+def test_waiter_force_resolve_ignores_seq():
+    """task_seq=None (worker killed) force-resolves regardless of seq."""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+
+    async def scenario():
+        task = asyncio.create_task(worker.handoff(s.id, "job"))
+        await asyncio.sleep(0.05)
+        # Force resolve (kill path) — even though waiter expects seq=1
+        worker._resolve_result_waiter(w.worker_id, "error", "worker killed")
+        return await task
+
+    result = asyncio.run(scenario())
+
+    assert result["status"] == "error", f"got {result}"
+    assert "worker killed" in result["result"], f"got {result}"
+    print("PASS: force resolve ignores seq")
     _cleanup()
 
 
