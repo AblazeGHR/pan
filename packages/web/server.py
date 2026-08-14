@@ -82,6 +82,11 @@ app = FastAPI(title="Pan", lifespan=lifespan)
 
 ws_clients: set[WebSocket] = set()
 agent_clients: set[WebSocket] = set()
+# 每个 /ws/agent 连接的订阅集合；未订阅默认只推 worker.result（agent 摘要视角）
+agent_subscriptions: dict[WebSocket, set[str]] = {}
+
+# agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
+_AGENT_DEFAULT_SUBSCRIPTION = frozenset({"worker.result"})
 
 # ── file paths (relative to packages/web/) ──
 _WEB_DIR = Path(__file__).resolve().parent
@@ -114,7 +119,14 @@ async def broadcast(data: dict):
             dead.add(ws)
     ws_clients.difference_update(dead)
     dead_a = set()
+    etype = data.get("type", "")
     for ws in list(agent_clients):
+        # 按订阅过滤：未订阅只推 worker.result；已订阅则只推订阅的类型
+        subs = agent_subscriptions.get(ws)
+        if subs is None:
+            subs = _AGENT_DEFAULT_SUBSCRIPTION
+        if etype not in subs and "*" not in subs:
+            continue
         try:
             await ws.send_json(data)
         except Exception:
@@ -478,7 +490,21 @@ async def ws_agent_endpoint(ws: WebSocket):
 
             msg_type = msg.get("type")
 
-            if msg_type == "task":
+            if msg_type == "subscribe":
+                # 订阅事件类型：{"type":"subscribe","eventTypes":["worker.result","worker.status"]}
+                # 传 "*" 订阅全部；传 [] 等价于默认（仅 worker.result）
+                raw_types = msg.get("eventTypes") or []
+                if not isinstance(raw_types, list):
+                    await ws.send_json({"type": "error", "message": "eventTypes must be a list"})
+                    continue
+                subs = set(str(t) for t in raw_types)
+                agent_subscriptions[ws] = subs if subs else set(_AGENT_DEFAULT_SUBSCRIPTION)
+                await ws.send_json({
+                    "type": "subscribed",
+                    "eventTypes": sorted(agent_subscriptions[ws]),
+                })
+
+            elif msg_type == "task":
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
                 if session_id and text:
@@ -505,7 +531,7 @@ async def ws_agent_endpoint(ws: WebSocket):
                         "sessionId": s.id,
                         "workerId": result.worker_id,
                         "name": s.name,
-                        "status": "idle",
+                        "status": result.status,
                         "model": s.model,
                     })
 
@@ -528,6 +554,7 @@ async def ws_agent_endpoint(ws: WebSocket):
         pass
     finally:
         agent_clients.discard(ws)
+        agent_subscriptions.pop(ws, None)
 
 
 # ── Session API ──
