@@ -20,6 +20,7 @@ Pan 是一个 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent
 - Session 是持久化的——kill Worker 不会删除 Session 数据
 - 一个 Session 同一时间只有一个 Worker
 - Worker 回复是异步的——`worker_task` 返回 `queued`，需要随后 `session_get` 读取结果
+- Worker 会被 watchdog 自动回收（空闲/卡死），用前若 `workerStatus` 为 `null` 需重新 spawn
 
 ## 可用 MCP 工具
 
@@ -131,7 +132,23 @@ Worker 任务提交后，通过 `session_get` 的 `lastResult.status` 判断：
 - `"running"` → 正在执行任务
 - `"idle"` → Worker 空闲，可发送任务
 - `"error"` → Worker 异常
-- `null` → 无 Worker（需 `worker_spawn`）
+- `null` → 无 Worker（需 `worker_spawn`；也可能是 watchdog 自动回收后尚未重建）
+
+## 自动回收（watchdog）
+
+Pan 会对 **stream 模式**的 Worker 自动回收，无需手动清理：
+
+| 条件 | 行为 | 默认 |
+|------|------|------|
+| `running`/`queued` 持续 **无任何输出** 超过 `worker.timeout_sec` | 判定卡死 → kill（等待中的 handoff 收到 error） | 300s |
+| `idle` 持续超过 `worker.idle_sec` | 空闲回收 → kill（session 保留，可重建） | 300s |
+| `held`（takeover 模式）/ `zombie` | **跳过**，不回收 | — |
+
+**要点**：
+- `last_activity` 每次 stdout 有事件即刷新——**长任务只要持续输出就不会被误杀**，超时只针对"进程活着但完全静默"的卡死
+- 回收后 `workerStatus` 变 `null`，session 数据完好；下次 `worker_spawn`/`worker_handoff` 自动重建并恢复上下文
+- MCP one-shot 模式由读取超时承担（同一 `worker.timeout_sec`），无独立 watchdog
+- 配置在 `config.json` 的 `worker` 段，改后重启生效
 
 ## 最佳实践
 
@@ -143,6 +160,7 @@ Worker 任务提交后，通过 `session_get` 的 `lastResult.status` 判断：
 6. **错误重试**：返回 `error` 时检查原因，修复后重新调用 `worker_handoff`/`worker_assign`
 7. **一个 Session 一个任务**：避免在同一 Session 中混合多个不相关任务
 8. **利用 history**：`session_get` 返回完整对话历史，上下文自然累积
+9. **不依赖长驻 Worker**：watchdog 会自动回收空闲 Worker，用完即走，下次调用自动重建
 
 ## 常见问题
 
@@ -154,6 +172,9 @@ A: 检查 `workerStatus`——如果是 `"idle"` 说明任务已完成但结果�
 
 **Q: handoff 超时了？**
 A: 默认 10 分钟。任务复杂可传更大 `timeout`；超时后结果仍可能稍后到达，可 `session_get` 补查。
+
+**Q: Worker 被 watchdog 回收了？**
+A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `worker_spawn` 或 `worker_handoff`，会自动重建并恢复上下文。
 
 **Q: 想切换模型？**
 A: 重新 `session_create` 并指定新 `model`。不能热切换运行中 Worker 的模型。
