@@ -1135,7 +1135,7 @@ async def handoff(session_id: str, text: str, source: str = "agent",
     fut: asyncio.Future = loop.create_future()
     _result_waiters[w.worker_id] = (seq, fut)
 
-    send_err = await send_task(w.worker_id, text, source=source, seq=seq)
+    send_err = await send_task(w.worker_id, text, source=source, seq=seq, task_id=task_id)
     if send_err:
         _result_waiters.pop(w.worker_id, None)
         if task_id is not None:
