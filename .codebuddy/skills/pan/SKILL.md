@@ -40,7 +40,7 @@ Pan 是一个 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent
 |------|------|------|
 | `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?` | 为会话生成 Worker |
 | `worker_task` | `session_id?`, `worker_id?`, `text` | 发送任务文本（异步，返回 queued） |
-| `worker_handoff` | `session_id`, `text`, `timeout?` | **同步**：发任务并阻塞直到返回结果（串行依赖步骤用这个） |
+| `worker_handoff` | `session_id`, `text`, `timeout?`, `task_id?` | **同步**：发任务并阻塞直到返回结果（串行依赖步骤用这个）。传 `task_id` 可幂等重试（超时后安全重发不双跑） |
 | `worker_assign` | `session_id`, `text` | **异步分派**：发任务立即返回，完成时通过 `worker.result` 事件回调（并行 fan-out 用） |
 | `worker_send` | `worker_id`, `text` | 向已有 Worker 发消息（多轮协作） |
 | `worker_kill` | `worker_id` | 终止 Worker 进程 |
@@ -160,6 +160,8 @@ Pan 会对 **stream 模式**的 Worker 自动回收，无需手动清理：
 7. **一个 Session 一个任务**：避免在同一 Session 中混合多个不相关任务
 8. **利用 history**：`session_get` 返回完整对话历史，上下文自然累积
 9. **不依赖长驻 Worker**：watchdog 会自动回收空闲 Worker，用完即走，下次调用自动重建
+10. **超时重试用同一 task_id**：handoff 超时返回 `pending`，重发带**同一个 `task_id`** 可安全重试——已完成返回缓存结果，进行中不重复入队（防双跑）
+11. **订阅可限定 session**：`subscribe` 传 `sessionIds` 只收指定会话的 `worker.result`；断线后发 `reconnect`（带 sessionIds）补发未消费结果
 
 ## 常见问题
 

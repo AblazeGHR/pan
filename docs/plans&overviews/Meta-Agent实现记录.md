@@ -70,25 +70,35 @@
 
 | 项 | 现状 | 触发条件 |
 |----|------|---------|
-| **D2 Worker 收件箱**（Worker↔Worker 通信） | 未实现，纯星型拓扑 | 出现具体协作场景（代码审查→修复→测试链） |
-| **MCP 模式 watchdog** | 未启用（由读取超时承担） | 可接受，one-shot 生命周期短 |
-| **事件订阅的 WebSocket 断线重连** | 前端/Meta-Agent 需自行处理 | 联调时补 |
+| **D2 Worker 收件箱**（Worker↔Worker 通信） | 未实现，纯星型拓扑（**现阶段有意保留**） | 出现具体协作场景（代码审查→修复→测试链） |
 | **`cbc.CMD` Windows wrapper 可靠性** | 既有环境问题，service 层实际工作正常 | 换机器/环境时验证 |
+
+### 已补齐（2026-08-14 第二轮）
+
+| 项 | 实现 |
+|----|------|
+| **MCP 模式 watchdog** | 只做 idle 回收（running 由 `_consumer_mcp` 读取超时兜底），长期空闲的 MCP worker 不再泄漏 |
+| **订阅按 sessionId 过滤** | 订阅升级为 `AgentSubscription` dataclass（event_types + session_ids + consumed_seq），worker.result 按 session 定向推送 |
+| **断线重连补发** | `reconnect` 命令按 session 补发未消费的 result（consumed_seq 游标） |
+| **handoff taskId 幂等** | 同一 taskId 重发不重复入队：已完成返回缓存结果，进行中返回 pending。超时后安全重试防双跑 |
 
 ### 设计上有意保留的限制
 
+- **星形拓扑**：Meta-Agent ↔ Worker 的纯星型结构，Worker 间不直接通信，编排逻辑由 Meta-Agent 承担。现阶段设计如此，不改。
 - **handoff 一个 Session 一个任务**：SKILL.md 最佳实践第 7 条。序号配对已修复"拿错结果"缺陷，但多任务并发仍不推荐。
 - **任务丢失不自动重试**：watchdog 超时 kill 后任务不回队列，Meta-Agent 收到 error 自行决策。避免副作用任务重复执行。
 
 ## 四、验证记录
 
-- **单测**：113 passed（含 worker 状态机 6、订阅过滤 5、三原语 9、watchdog 5）
+- **单测**：119 passed（含 worker 状态机 5、订阅过滤 7、三原语 11、watchdog 7）
 - **端到端**（hy3 真实模型，pan-test 分支）：
   - spawn worker → 立即 `idle` ✅
   - `POST /api/handoff` → `{"status":"done","result":"OK"}` ✅
   - `/ws/agent` subscribe → 只收订阅类型 ✅
   - `POST /api/assign` → queued → running → result 事件流 ✅
   - `send` 多轮协作 → 第二次对话返回正确结果 ✅
+  - **taskId 幂等**：超时→pending，重试不双跑，完成后同 taskId 返回缓存 ✅
+  - **订阅 sessionId 过滤**：只订阅 session A，B 的 result 不收 ✅
   - session 清理 ✅
 
 ## 五、关联文档
