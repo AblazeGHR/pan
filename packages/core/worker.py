@@ -387,9 +387,6 @@ async def _watchdog(w: Worker):
             continue
 
         idle_for = time.monotonic() - w.last_activity
-        if w.status == "idle":
-            print(f"[WD] worker={w.worker_id} status=idle idle_for={idle_for:.0f}s "
-                  f"(idle_sec={_WORKER_IDLE_SEC})", flush=True)
 
         # MCP one-shot：只回收长期 idle 的 worker（running 由读取超时兜底）
         if w.process is None:
@@ -806,7 +803,11 @@ async def kill_worker(worker_id: str) -> str | None:
     if not w:
         return "Worker not found"
 
-    if w._watchdog_task:
+    # 若 kill_worker 由该 worker 自己的 watchdog 触发，不能 cancel 当前任务
+    # （否则 kill 流程刚 cancel 就收到 CancelledError 被中断，进程杀不掉、
+    #  worker 也不 pop）——让 watchdog 自然 return 即可。
+    current = asyncio.current_task()
+    if w._watchdog_task and w._watchdog_task is not current:
         w._watchdog_task.cancel()
     if w._consume_task:
         w._consume_task.cancel()

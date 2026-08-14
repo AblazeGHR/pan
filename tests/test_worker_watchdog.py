@@ -271,6 +271,62 @@ def test_mcp_running_worker_not_timeout_killed():
     _cleanup()
 
 
+def test_watchdog_self_cancel_regression():
+    """Watchdog must reclaim worker via REAL kill_worker (not a stub).
+
+    Regression: kill_worker cancels the watchdog task, but when the watchdog
+    itself called kill_worker, the self-cancel interrupted kill mid-way —
+    process not killed, worker never popped from dict.
+    """
+    _cleanup()
+    s = _setup_session()
+    proc = AsyncMock()
+    proc.returncode = None
+    proc.pid = 99999
+    w = worker.Worker(
+        worker_id="worker-real",
+        session_id=s.id,
+        adapter=CbcAdapter(),
+        status="idle",
+        process=proc,
+        queue=asyncio.Queue(),
+        _replaying=False,
+        last_activity=0.0,  # very old → will exceed idle_sec
+    )
+    worker.workers[w.worker_id] = w
+
+    # Use REAL kill_worker; stub only the process-tree kill to avoid real signals
+    orig_kpt = worker._kill_process_tree
+    orig_ktt = worker._kill_takeover_terminal
+    worker._kill_process_tree = AsyncMock()
+    worker._kill_takeover_terminal = AsyncMock()
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TIMEOUT_SEC = 999
+    worker._WORKER_IDLE_SEC = 0.1
+    try:
+        async def run():
+            task = asyncio.create_task(worker._watchdog(w))
+            await asyncio.sleep(0.1)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        asyncio.run(run())
+    finally:
+        worker._kill_process_tree = orig_kpt
+        worker._kill_takeover_terminal = orig_ktt
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert w.worker_id not in worker.workers, \
+        "watchdog self-cancel bug: worker not reclaimed via real kill_worker"
+    print("PASS: watchdog reclaims via real kill_worker (self-cancel fixed)")
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_timeout_kills_running_worker()
     test_active_running_worker_not_killed()
@@ -279,4 +335,5 @@ if __name__ == "__main__":
     test_watchdog_exits_when_worker_removed()
     test_mcp_idle_worker_reclaimed()
     test_mcp_running_worker_not_timeout_killed()
+    test_watchdog_self_cancel_regression()
     print("\n=== ALL WATCHDOG TESTS PASSED ===")
