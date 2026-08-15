@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import ReactMarkdown, { type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -8,6 +8,10 @@ import 'highlight.js/styles/github-dark.css';
 
 type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
 type PreProps = React.JSX.IntrinsicElements['pre'] & ExtraProps;
+
+/** True while rendering a <pre> subtree, i.e. a block-level code block.
+ *  Inline code (backticks) is never wrapped in a <pre>. */
+const PreContext = createContext(false);
 
 interface MarkdownRendererProps {
   content: string;
@@ -67,11 +71,13 @@ function DiffLines({ codeText, ...rest }: { codeText: string; [key: string]: unk
 }
 
 function CodeBlock({ className, children, ...props }: CodeProps) {
-  const match = /language-(\w+)/.exec(className || '');
+  const isInPre = useContext(PreContext);
+  // Support hyphenated language names (e.g. "shell-session")
+  const match = /language-([\w-]+)/.exec(className || '');
   const language = match ? match[1] : null;
 
-  // Inline code — no language-* class means inline
-  if (!language) {
+  // Inline code — only code NOT inside a <pre> is inline
+  if (!isInPre) {
     return (
       <code className="bg-bg-tertiary rounded px-1 py-0.5 text-[0.9em] font-mono" {...props}>
         {children}
@@ -79,14 +85,15 @@ function CodeBlock({ className, children, ...props }: CodeProps) {
     );
   }
 
-  // Extract raw text for copy and diff rendering
+  // Block code (fenced or indented) — with or without a language label
   const codeText = extractCodeText(children).replace(/\n$/, '');
+  const langLabel = language || 'code';
 
   return (
     <div className="rounded-lg border border-border-default bg-bg-tertiary overflow-hidden my-3">
       <div className="flex items-center justify-between px-3 py-1 bg-bg-secondary border-b border-border-default">
         <span className="text-[11px] text-text-tertiary font-mono uppercase tracking-wider">
-          {language}
+          {langLabel}
         </span>
         <CopyButton codeText={codeText} />
       </div>
@@ -104,7 +111,7 @@ function CodeBlock({ className, children, ...props }: CodeProps) {
 }
 
 function PreBlock({ children }: PreProps) {
-  return <>{children}</>;
+  return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {

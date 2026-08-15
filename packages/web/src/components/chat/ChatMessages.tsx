@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
+import { ArrowDown } from 'lucide-react';
 const SCROLL_BOTTOM_THRESHOLD = 120;
 
 export function ChatMessages() {
@@ -138,7 +139,7 @@ export function ChatMessages() {
           className="absolute bottom-2 right-4 rounded-full bg-accent text-white p-2 shadow-lg hover:bg-accent-hover transition-colors z-10"
           title="Scroll to bottom"
         >
-          ↓
+          <ArrowDown size={16} />
         </button>
       )}
 

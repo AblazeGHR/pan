@@ -74,10 +74,7 @@ export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) 
   return (
     <div className={`${mt} px-3 sm:px-6 lg:px-8`}>
       <div className="msg assistant text-sm leading-relaxed">
-        <MarkdownRenderer
-          content={message.content}
-          className="prose prose-base max-w-none break-words"
-        />
+        <MarkdownRenderer content={message.content} />
       </div>
     </div>
   );

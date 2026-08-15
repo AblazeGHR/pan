@@ -128,7 +128,10 @@ export function CommandPalette() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setSelectedIndex((i) => {
+        if (filtered.length === 0) return 0;
+        return Math.min(i + 1, filtered.length - 1);
+      });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));

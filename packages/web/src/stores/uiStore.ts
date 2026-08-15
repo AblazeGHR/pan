@@ -154,9 +154,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set((s) => ({
       toastQueue: [...s.toastQueue, { id, message, type }],
     }));
-    setTimeout(() => {
-      get().dismissToast(id);
-    }, 3000);
+    // Auto-dismiss is scheduled by ToastContainer so the exit animation
+    // can play before removal.
   },
 
   dismissToast: (id) => {

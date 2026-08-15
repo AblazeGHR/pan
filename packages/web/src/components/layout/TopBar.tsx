@@ -4,6 +4,15 @@ import { useUIStore } from '@/stores/uiStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import {
+  MessageSquare,
+  Monitor,
+  Copy,
+  RotateCw,
+  Ban,
+  Download,
+  X,
+} from 'lucide-react';
 
 export function TopBar() {
   const currentSession = useCurrentSession();
@@ -44,7 +53,7 @@ export function TopBar() {
             className="text-sm text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
             title={bubbleViewEnabled ? 'Switch to TUI view' : 'Switch to Bubble view'}
           >
-            {bubbleViewEnabled ? '💬' : '🖥️'}
+            {bubbleViewEnabled ? <MessageSquare size={16} /> : <Monitor size={16} />}
           </button>
         </div>
         <span className="hidden md:inline text-xs text-text-tertiary">
@@ -56,7 +65,7 @@ export function TopBar() {
             onClick={() => handleCopy(currentSession.id || '')}
             title="Copy session ID"
           >
-            {currentSession.id?.slice(0, 12)} ⧉
+            {currentSession.id?.slice(0, 12)} <Copy size={11} className="inline" />
           </span>
           {currentSession.cliSessionId && (
             <span
@@ -64,7 +73,8 @@ export function TopBar() {
               onClick={() => handleCopy(currentSession.cliSessionId || '')}
               title="Copy CLI session ID"
             >
-              {currentSession.cliSessionId.slice(0, 8)} ⧉
+              {currentSession.cliSessionId.slice(0, 8)}{' '}
+              <Copy size={11} className="inline" />
             </span>
           )}
         </div>
@@ -83,7 +93,7 @@ export function TopBar() {
               onClick={() => restart(currentWorkerId)}
               title="Restart worker"
             >
-              ⟳
+              <RotateCw size={14} />
             </Button>
             <Button
               variant="ghost"
@@ -91,7 +101,7 @@ export function TopBar() {
               onClick={() => interrupt(currentWorkerId)}
               title="Interrupt"
             >
-              ⊘
+              <Ban size={14} />
             </Button>
             {!isMobile && (
               <Button
@@ -106,7 +116,7 @@ export function TopBar() {
                 }}
                 title="Takeover"
               >
-                ⤓
+                <Download size={14} />
               </Button>
             )}
             <Button
@@ -120,7 +130,7 @@ export function TopBar() {
               }}
               title="Kill worker"
             >
-              ✕
+              <X size={14} />
             </Button>
           </>
         )}

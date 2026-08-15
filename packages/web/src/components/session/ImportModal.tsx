@@ -21,6 +21,7 @@ import {
 interface ImportModalProps {
   open: boolean;
   onClose: () => void;
+  initialAdapter?: Adapter;
 }
 
 type Adapter = 'cbc' | 'kimi';
@@ -39,7 +40,7 @@ function formatTime(ts: string): string {
   }
 }
 
-export function ImportModal({ open, onClose }: ImportModalProps) {
+export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportModalProps) {
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const selectSession = useSessionStore((s) => s.selectSession);
   const showToast = useUIStore((s) => s.showToast);
@@ -67,7 +68,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
   // ── Reset on open/close ──
   useEffect(() => {
     if (!open) return;
-    setAdapter('cbc');
+    setAdapter(initialAdapter);
     setProjects([]);
     setProjectsLoading(false);
     setSelectedDrive(null);
