@@ -114,6 +114,19 @@
 - 根因：cbc 项目发现 `<cwd>/.mcp.json`，把 pan 注册为 **project-scope** MCP 并持久化（`cbc mcp remove "pan" -s project` 确认它存在 `.mcp.json` 里）；该注册干扰 `--mcp-config` 的显式连接。带 `-d` 时 cbc 项目发现不读 `.mcp.json`，所以此前一直没暴露
 - 修复：`mcp_args()` 不再写 `<workdir>/.mcp.json` fallback，只写 `.codebuddy/mcp.json` + `--mcp-config`
 
+**精确结论（2026-08-16 补充验证）**：
+
+`.mcp.json` 与 Pan 的 MCP 注入**无关且不必要**——注入唯一通道是 `--mcp-config`。它是否与注入冲突，**完全取决于内部那条 server 的启动状态**：
+
+| `.mcp.json` 内 server 的 command | 注册状态 | 与 `--mcp-config` 是否冲突 |
+|----------------------------------|---------|---------------------------|
+| 绝对路径（能正常启动） | `Connected` | **不冲突**——同名时 `--mcp-config` 的 connected 路径胜出（组合 G 试验 + workdir=Pan 根端到端均验证） |
+| 裸 `python`（启动失败） | `Failed to connect` | **冲突**——project-scope 注册阻断 `--mcp-config`（本坑场景） |
+
+即：**只要 `.mcp.json` 内部的 server 能正常启动，它与注入并存没问题；一旦内部 server 启动失败，就会阻断注入。** 该失败条件已被 manifest 绝对路径化（见 #16）从源头消除。
+
+注意：`.mcp.json` 仍有一项非注入用途——**项目根 `.mcp.json` 给开发环境的 CodeBuddy 会话提供 MCP 工具**（如本仓库根的 rulewhisper）。Pan worker 不需要它，但开发场景需要。
+
 ### 16. manifest 的 `command` 必须绝对路径【2026-08-16】
 
 - 现象：pan MCP server 用 `command: "python"`（依赖 PATH）时 cbc 启动失败
