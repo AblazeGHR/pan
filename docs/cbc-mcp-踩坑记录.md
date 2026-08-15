@@ -6,6 +6,7 @@
 ## 相关文档
 
 - [下一阶段优化计划](./下一阶段优化计划.md) — 任务进度跟踪（前端集成、性能、错误处理）
+- [system_prompt 注入与 Windows .CMD 转义](./cbc-mcp-system-prompt-注入与CMD转义.md) — 2026-08-15：profile 的 system_prompt 不生效 + cbc.CMD 长参数崩溃
 
 ## 决策总结
 
