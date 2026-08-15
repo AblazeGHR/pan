@@ -15,10 +15,18 @@ from ...session import Session
 _log = logging.getLogger(__name__)
 
 
-def _parse_models_from_cbc_help() -> list[str]:
-    """从 `cbc --help` 解析支持的模型列表（仅加载一次）。"""
+def _parse_models_from_cbc_help(argv_prefix: list[str] | None = None) -> list[str]:
+    """从 `cbc --help` 解析支持的模型列表（仅加载一次）。
+
+    *argv_prefix* is the resolved launch prefix (e.g. ``["node", <entry>]``
+    from CbcAdapter._resolve_cbc_argv). Passing a bare ``["cbc"]`` fails on
+    Windows because the npm shim is a `.CMD` batch file, which CreateProcess
+    cannot execute directly (FileNotFoundError) — the caller must pass the
+    node-resolved argv.
+    """
     try:
-        r = subprocess.run(["cbc", "--help"], capture_output=True, text=True, timeout=10)
+        cmd = (argv_prefix or ["cbc"]) + ["--help"]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
     except Exception:
         return []
     output = r.stdout or r.stderr or ""
@@ -85,8 +93,8 @@ class CbcAdapter:
         if isinstance(models, list) and len(models) > 0:
             CbcAdapter._cached_models = [str(m) for m in models]
             return CbcAdapter._cached_models
-        # 2. 从 cbc --help 自动获取
-        cli_models = _parse_models_from_cbc_help()
+        # 2. 从 cbc --help 自动获取（用 node 解析的 argv，避免 .CMD shim 启动失败）
+        cli_models = _parse_models_from_cbc_help(self._resolve_cbc_argv())
         if cli_models:
             CbcAdapter._cached_models = cli_models
             return CbcAdapter._cached_models
