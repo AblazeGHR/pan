@@ -325,9 +325,23 @@ class CbcAdapter:
     # ── takeover ──
 
     def takeover_command(self, s: Session) -> list[str]:
+        """Build the cbc command for interactive takeover of a session.
+
+        Uses the resolved node entry (not a .CMD shim, which PowerShell/cmd
+        mangles). The terminal is opened with cwd=<workdir> (see
+        _open_terminal), so cbc resolves its project dir from the process CWD —
+        passing -d here actually *breaks* resume when CWD differs (JSONL lives
+        under the CWD-derived project). Re-applies --system-prompt since
+        --resume alone won't re-inject it.
+        """
         if not s.cli_session_id:
             return []
-        return ["cbc", "--resume", s.cli_session_id]
+        cmd = self._resolve_cbc_argv()
+        cmd.append("--resume")
+        cmd.append(s.cli_session_id)
+        if s.system_prompt:
+            cmd.extend(["--system-prompt", s.system_prompt])
+        return cmd
 
     # ── enrich ──
 

@@ -540,6 +540,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
+            cwd=s.workdir or None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
