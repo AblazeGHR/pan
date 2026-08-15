@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -53,7 +53,6 @@ export function Sidebar() {
     sortBy,
     setSortBy,
     collapsedGroups,
-    allGroupsCollapsed,
     collapseAllGroups,
     expandAllGroups,
     filesCollapsed,
@@ -93,6 +92,20 @@ export function Sidebar() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showImportDropdown]);
+
+  // Group keys for collapse-all (mirrors SessionList workdir grouping)
+  const groupKeys = useMemo(() => {
+    if (groupBy !== 'workdir') return [] as string[];
+    const keys = new Set<string>();
+    for (const s of sessions) {
+      if (s.workdir) {
+        keys.add(s.workdir.replace(/\\/g, '/').replace(/\/$/, ''));
+      } else {
+        keys.add('__no_workdir');
+      }
+    }
+    return [...keys];
+  }, [sessions, groupBy]);
 
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
@@ -329,18 +342,12 @@ export function Sidebar() {
             {groupBy === 'workdir' && (
               <button
                 onClick={() =>
-                  allGroupsCollapsed || collapsedGroups.size > 0
-                    ? expandAllGroups()
-                    : collapseAllGroups()
+                  collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups(groupKeys)
                 }
                 className="p-1 rounded transition-colors text-text-tertiary hover:text-text-primary"
-                title={
-                  allGroupsCollapsed || collapsedGroups.size > 0
-                    ? 'Expand all groups'
-                    : 'Collapse all groups'
-                }
+                title={collapsedGroups.size > 0 ? 'Expand all groups' : 'Collapse all groups'}
               >
-                {allGroupsCollapsed || collapsedGroups.size > 0 ? (
+                {collapsedGroups.size > 0 ? (
                   <ChevronUp size={14} />
                 ) : (
                   <ChevronDown size={14} />

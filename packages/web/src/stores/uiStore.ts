@@ -104,7 +104,6 @@ interface UIStore {
   searchQuery: string;
   sortBy: SortMode;
   collapsedGroups: Set<string>;
-  allGroupsCollapsed: boolean;
   filesCollapsed: boolean;
   theme: Theme;
 
@@ -119,7 +118,7 @@ interface UIStore {
   setSearchQuery: (q: string) => void;
   setSortBy: (mode: SortMode) => void;
   toggleGroupCollapse: (key: string) => void;
-  collapseAllGroups: () => void;
+  collapseAllGroups: (keys: string[]) => void;
   expandAllGroups: () => void;
   toggleFilesCollapsed: () => void;
   toggleTheme: () => void;
@@ -137,7 +136,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
   searchQuery: '',
   sortBy: loadSortBy(),
   collapsedGroups: new Set<string>(),
-  allGroupsCollapsed: false,
   filesCollapsed: false,
   theme: loadTheme(),
 
@@ -206,12 +204,12 @@ export const useUIStore = create<UIStore>((set, get) => ({
     });
   },
 
-  collapseAllGroups: () => {
-    set({ allGroupsCollapsed: true });
+  collapseAllGroups: (keys) => {
+    set({ collapsedGroups: new Set(keys) });
   },
 
   expandAllGroups: () => {
-    set({ allGroupsCollapsed: false, collapsedGroups: new Set() });
+    set({ collapsedGroups: new Set() });
   },
 
   toggleFilesCollapsed: () => {
