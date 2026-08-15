@@ -78,6 +78,19 @@ interface ApiGenericResponse {
   takeoverCommand?: string;
 }
 
+interface CharacterProfile {
+  name: string;
+  adapter?: string;
+  model?: string;
+  mcpServers?: string[];
+  system_prompt_preview?: string;
+}
+
+interface ApiProfilesResponse {
+  profiles?: CharacterProfile[];
+  error?: string;
+}
+
 interface AdapterConfig {
   models: string[];
   defaultModel: string;
@@ -134,6 +147,12 @@ let modelData: Session[] = [];
 let _multiSelectMode = false;
 let _selectedIds: Set<string> = new Set();
 let lastSyncedSettings: SyncedSettings | null = null;
+/** Available MCP server names collected from character profiles
+ *  (GET /api/characters/profiles -> profiles[].mcpServers, deduped). */
+let availableMcpServers: string[] = [];
+/** True once the user changed #settingMcpServers; gates whether
+ *  _buildSettingsBody() sends mcpServers (avoids meaningless PATCH). */
+let _mcpServersDirty = false;
 let bubbleViewEnabled: boolean = true;
 let currentHistory: Message[] = [];
 let toolGroupOpen: boolean = false;
@@ -1167,6 +1186,12 @@ function syncPanelFromServer(): void {
     mcp.disabled = s.mcpLocked === true;
   }
 
+  // MCP servers: the session serialization doesn't expose mcp_servers, so the
+  // current value can't be echoed. Keep the dropdown a setter only — reset it
+  // to "（无）" and leave it out of the baseline to avoid false "pending".
+  _mcpServersDirty = false;
+  (document.getElementById('settingMcpServers') as HTMLSelectElement).value = '';
+
   // record the baseline so we can detect pending changes
   lastSyncedSettings = {
     model: getSettingModel(),
@@ -1198,6 +1223,11 @@ function hasPendingChanges(): boolean {
       (document.getElementById('settingEffort') as HTMLSelectElement).value !== lastSyncedSettings.effort) return true;
   if (supportsMCP() &&
       (document.getElementById('settingMcp') as HTMLInputElement).checked !== lastSyncedSettings.mcpEnabled) return true;
+  // MCP servers dropdown: any non-empty selection counts as pending. syncPanel
+  // and markSettingsApplied reset it to "（无）", so a non-empty value always
+  // means the user actively picked it.
+  if (supportsMCP() &&
+      (document.getElementById('settingMcpServers') as HTMLSelectElement).value !== '') return true;
   return false;
 }
 
@@ -1279,6 +1309,12 @@ function _buildSettingsBody(): Record<string, unknown> {
     body.effort = (document.getElementById('settingEffort') as HTMLSelectElement).value;
   if (supportsMCP())
     body.mcpEnabled = (document.getElementById('settingMcp') as HTMLInputElement).checked;
+  // Only send mcpServers after the user actually changed the dropdown, so
+  // unrelated PATCHes (e.g. Restart) don't clobber the configured servers.
+  if (supportsMCP() && _mcpServersDirty) {
+    const server = (document.getElementById('settingMcpServers') as HTMLSelectElement).value;
+    body.mcpServers = server ? [server] : [];
+  }
   return body;
 }
 
@@ -1305,6 +1341,10 @@ function markSettingsApplied(): void {
     effort: supportsSetting('effort') ? (document.getElementById('settingEffort') as HTMLSelectElement).value : '',
     mcpEnabled: supportsMCP() ? (document.getElementById('settingMcp') as HTMLInputElement).checked : false,
   };
+  // Reset the MCP servers dropdown so it doesn't stay "pending" after apply
+  // (it's a setter only — there's no current value to echo back).
+  _mcpServersDirty = false;
+  (document.getElementById('settingMcpServers') as HTMLSelectElement).value = '';
   updateSetButtonVisibility();
 }
 
@@ -1514,6 +1554,9 @@ function _doCreateSession(name: string, workdir: string | null, adapter?: string
   selectSession(placeholder.id);
   const body: Record<string, string> = { name: name, adapter: adp };
   if (workdir) body.workdir = workdir;
+  const profileSel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
+  const characterId = profileSel ? profileSel.value : '';
+  if (characterId) body.characterId = characterId;
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1558,6 +1601,7 @@ function newSession(): void {
   nameInput.value = '';
   workdirInput.value = '';
   _populateNewSessionAdapterSelect();
+  _populateNewSessionProfileSelect();
   modal.classList.add('open');
   nameInput.focus();
 }
@@ -1797,11 +1841,14 @@ function updateSettingsVisibility(): void {
   const thinkingGroup = document.getElementById('thinkingGroup') as HTMLElement;
   const effortGroup = document.getElementById('effortGroup') as HTMLElement;
   const mcpGroup = document.getElementById('mcpGroup') as HTMLElement;
+  const mcpServerGroup = document.getElementById('mcpServerGroup') as HTMLElement;
   if (modeGroup) modeGroup.style.display = supportsSetting('permissionMode') ? '' : 'none';
   if (thinkingGroup) thinkingGroup.style.display = supportsSetting('thinking') ? '' : 'none';
   // Effort only visible when BOTH thinking and effort are supported
   if (effortGroup) effortGroup.style.display = (supportsSetting('thinking') && supportsSetting('effort')) ? '' : 'none';
   if (mcpGroup) mcpGroup.style.display = supportsMCP() ? '' : 'none';
+  // MCP server dropdown shows whenever the MCP toggle is visible.
+  if (mcpServerGroup) mcpServerGroup.style.display = supportsMCP() ? '' : 'none';
 }
 
 /** Populate the Agent CLI selector in the new-session modal. */
@@ -1816,6 +1863,72 @@ function _populateNewSessionAdapterSelect(): void {
     sel.appendChild(opt);
   });
   sel.value = currentAdapter || 'cbc';
+}
+
+/** Fetch character profiles (GET /api/characters/profiles). Resolves to the
+ *  profile array; resolves to [] on failure so callers stay simple. */
+function _fetchProfiles(): Promise<CharacterProfile[]> {
+  return fetch('/api/characters/profiles')
+    .then((r: Response) => r.json())
+    .then((data: ApiProfilesResponse) => data.profiles || [])
+    .catch(function () { return []; });
+}
+
+/** Populate the Profile selector in the new-session modal. First option is
+ *  "（无 Profile）" (value ""), then one option per profile labelled
+ *  "name (model) [MCP]" ([MCP] when the profile ships mcpServers). Also feeds
+ *  the settings-panel MCP server list from the same response. */
+function _populateNewSessionProfileSelect(): void {
+  const sel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
+  if (!sel) return;
+  sel.innerHTML = '<option value="">（无 Profile）</option>';
+  _fetchProfiles().then((profiles: CharacterProfile[]) => {
+    _updateMcpServersFromProfiles(profiles);
+    profiles.forEach((p: CharacterProfile) => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      let label = p.name + ' (' + (p.model || '?') + ')';
+      if (p.mcpServers && p.mcpServers.length > 0) label += ' [MCP]';
+      opt.textContent = label;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+/** Rebuild availableMcpServers (deduped names across all profiles) and refresh
+ *  the settings-panel MCP server dropdown. */
+function _updateMcpServersFromProfiles(profiles: CharacterProfile[]): void {
+  const set: string[] = [];
+  profiles.forEach((p: CharacterProfile) => {
+    (p.mcpServers || []).forEach((name: string) => {
+      if (set.indexOf(name) < 0) set.push(name);
+    });
+  });
+  availableMcpServers = set;
+  _populateSettingsMcpServersSelect();
+}
+
+/** Populate #settingMcpServers: "（无）" (value "") + one option per available
+ *  MCP server name. Preserves the current selection if still available. */
+function _populateSettingsMcpServersSelect(): void {
+  const sel = document.getElementById('settingMcpServers') as HTMLSelectElement;
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">（无）</option>';
+  availableMcpServers.forEach((name: string) => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  if (availableMcpServers.indexOf(current) >= 0) sel.value = current;
+}
+
+/** Called when the MCP server dropdown changes: mark it dirty (so a later
+ *  _buildSettingsBody() sends mcpServers) and refresh the Apply button. */
+function onMcpServersChange(): void {
+  _mcpServersDirty = true;
+  updateSetButtonVisibility();
 }
 
 /** Load the list of adapters and populate the new-session select. */
@@ -1841,6 +1954,12 @@ function init(): void {
     .then(() => {
       loadAdapterConfig('cbc');
     });
+
+  // Preload MCP server names for the settings dropdown (also refreshed each
+  // time the new-session modal opens via _populateNewSessionProfileSelect).
+  _fetchProfiles().then((profiles: CharacterProfile[]) => {
+    _updateMcpServersFromProfiles(profiles);
+  });
 
   refreshSessions();
 

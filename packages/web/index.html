@@ -64,6 +64,10 @@
       <label for="settingMcp">MCP</label>
       <input type="checkbox" id="settingMcp" onchange="updateSetButtonVisibility()">
     </div>
+    <div id="mcpServerGroup" style="display:none">
+      <label for="settingMcpServers">MCP Servers</label>
+      <select id="settingMcpServers" onchange="onMcpServersChange()"></select>
+    </div>
     <div class="sep"></div>
     <button id="applySettingsBtn" class="btn btn-p" style="display:none" onclick="applySettings()">Apply Settings</button>
     <div class="sep"></div>
@@ -100,6 +104,10 @@
       <select id="nsAdapterSelect" class="ns-select">
         <option value="cbc">cbc (CodeBuddy)</option>
         <option value="kimi">kimi (Kimi Code)</option>
+      </select>
+      <label class="ns-label" for="nsProfileSelect">Profile</label>
+      <select id="nsProfileSelect" class="ns-select">
+        <option value="">（无 Profile）</option>
       </select>
       <button id="nsCreateBtn" class="ns-create">Create</button>
     </div>
