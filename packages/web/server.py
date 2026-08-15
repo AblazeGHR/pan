@@ -333,6 +333,13 @@ def _build_session_params(data: dict) -> dict:
     character_id = data.get("characterId")
     if character_id and _character_manager is not None:
         char = _character_manager.get_character(character_id)
+        if char is None:
+            # characterId may be a profile name (e.g. "meta-agent") rather than a
+            # persisted character id — instantiate the profile on first use.
+            try:
+                char = _character_manager.create_character(character_id)
+            except ValueError:
+                char = None
         if char:
             if not data.get("adapter"):
                 params["adapter"] = char.adapter
