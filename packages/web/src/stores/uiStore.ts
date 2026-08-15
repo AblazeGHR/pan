@@ -118,7 +118,7 @@ interface UIStore {
   setSearchQuery: (q: string) => void;
   setSortBy: (mode: SortMode) => void;
   toggleGroupCollapse: (key: string) => void;
-  collapseAllGroups: () => void;
+  collapseAllGroups: (keys: string[]) => void;
   expandAllGroups: () => void;
   toggleFilesCollapsed: () => void;
   toggleTheme: () => void;
@@ -152,9 +152,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set((s) => ({
       toastQueue: [...s.toastQueue, { id, message, type }],
     }));
-    setTimeout(() => {
-      get().dismissToast(id);
-    }, 3000);
+    // Auto-dismiss is scheduled by ToastContainer so the exit animation
+    // can play before removal.
   },
 
   dismissToast: (id) => {
@@ -205,11 +204,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
     });
   },
 
-  collapseAllGroups: () => {
-    set((s) => {
-      // Get all current group keys from store side effects are OK
-      return { collapsedGroups: new Set(s.collapsedGroups) };
-    });
+  collapseAllGroups: (keys) => {
+    set({ collapsedGroups: new Set(keys) });
   },
 
   expandAllGroups: () => {

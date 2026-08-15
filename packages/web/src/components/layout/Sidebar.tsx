@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -68,6 +68,7 @@ export function Sidebar() {
   // Local state
   const [showNewModal, setShowNewModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importAdapter, setImportAdapter] = useState<'cbc' | 'kimi'>('cbc');
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [menuSession, setMenuSession] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
@@ -91,6 +92,20 @@ export function Sidebar() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showImportDropdown]);
+
+  // Group keys for collapse-all (mirrors SessionList workdir grouping)
+  const groupKeys = useMemo(() => {
+    if (groupBy !== 'workdir') return [] as string[];
+    const keys = new Set<string>();
+    for (const s of sessions) {
+      if (s.workdir) {
+        keys.add(s.workdir.replace(/\\/g, '/').replace(/\/$/, ''));
+      } else {
+        keys.add('__no_workdir');
+      }
+    }
+    return [...keys];
+  }, [sessions, groupBy]);
 
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
@@ -263,17 +278,25 @@ export function Sidebar() {
                   <Import size={14} />
                 </Button>
                 {showImportDropdown && (
-                  <div
-                    className="absolute left-0 top-full mt-1 z-20 bg-bg-tertiary border border-border-default rounded-md shadow-lg py-1 min-w-[140px]"
-                    onClick={() => {
-                      setShowImportDropdown(false);
-                      setShowImportModal(true);
-                    }}
-                  >
-                    <button className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20">
+                  <div className="absolute left-0 top-full mt-1 z-20 bg-bg-tertiary border border-border-default rounded-md shadow-lg py-1 min-w-[140px]">
+                    <button
+                      className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20"
+                      onClick={() => {
+                        setImportAdapter('cbc');
+                        setShowImportDropdown(false);
+                        setShowImportModal(true);
+                      }}
+                    >
                       Import from cbc
                     </button>
-                    <button className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20">
+                    <button
+                      className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20"
+                      onClick={() => {
+                        setImportAdapter('kimi');
+                        setShowImportDropdown(false);
+                        setShowImportModal(true);
+                      }}
+                    >
                       Import from kimi
                     </button>
                   </div>
@@ -319,7 +342,7 @@ export function Sidebar() {
             {groupBy === 'workdir' && (
               <button
                 onClick={() =>
-                  collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups()
+                  collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups(groupKeys)
                 }
                 className="p-1 rounded transition-colors text-text-tertiary hover:text-text-primary"
                 title={collapsedGroups.size > 0 ? 'Expand all groups' : 'Collapse all groups'}
@@ -426,9 +449,6 @@ export function Sidebar() {
           {/* Files section — collapsible */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border-default min-h-[40px] cursor-pointer select-none hover:bg-bg-hover/30 transition-colors" onClick={toggleFilesCollapsed}>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-              <span className="text-[10px] text-text-tertiary transition-transform shrink-0" style={{ transform: filesCollapsed ? '' : 'rotate(90deg)' }}>
-                ▶
-              </span>
               <FolderOpen size={13} />
               Files
             </div>
@@ -487,6 +507,7 @@ export function Sidebar() {
       <ImportModal
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
+        initialAdapter={importAdapter}
       />
     </aside>
   );

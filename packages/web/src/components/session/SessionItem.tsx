@@ -22,6 +22,27 @@ function shortWorkdir(workdir?: string): string {
   return `/${lastTwo.join('/')}`;
 }
 
+/** Strip common markdown syntax so a one-line preview reads as plain text. */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ') // fenced code blocks
+    .replace(/`([^`]*)`/g, '$1') // inline code
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1') // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links
+    .replace(/^#{1,6}\s*/gm, '') // headings
+    .replace(/^>\s?/gm, '') // blockquotes
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+    .replace(/\*([^*]+)\*/g, '$1') // italic
+    .replace(/__([^_]+)__/g, '$1') // bold (underscore)
+    .replace(/_([^_]+)_/g, '$1') // italic (underscore)
+    .replace(/~~([^~]+)~~/g, '$1') // strikethrough
+    .replace(/^\s*[-*+]\s+/gm, '') // unordered list markers
+    .replace(/^\s*\d+\.\s+/gm, '') // ordered list markers
+    .replace(/\|/g, ' ') // table pipes
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function SessionItem({
   session,
   isActive,
@@ -33,12 +54,12 @@ export function SessionItem({
   const isPending = session.id.startsWith('__pending_');
   const messages = session.history || [];
   const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-  const preview =
-    lastMsg && lastMsg.content
-      ? lastMsg.content.length > 50
-        ? lastMsg.content.slice(0, 50) + '...'
-        : lastMsg.content
-      : null;
+  const previewText = lastMsg ? stripMarkdown(lastMsg.content) : '';
+  const preview = previewText
+    ? previewText.length > 50
+      ? previewText.slice(0, 50) + '...'
+      : previewText
+    : null;
   const credit = session.totalUsage?.credit ?? null;
 
   const handleClick = () => {
@@ -73,7 +94,7 @@ export function SessionItem({
             {session.name || 'Untitled'}
           </span>
           {session.adapter && (
-            <span className="text-[10px] text-text-tertiary bg-bg-tertiary rounded px-1 py-px shrink-0">
+            <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
               {session.adapter}
             </span>
           )}

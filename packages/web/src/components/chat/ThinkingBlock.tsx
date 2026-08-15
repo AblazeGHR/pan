@@ -3,6 +3,7 @@ import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useDetailStore } from '@/stores/detailStore';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ThinkingBlockProps {
   message: Message;
@@ -54,9 +55,9 @@ export function ThinkingBlock({ message }: ThinkingBlockProps) {
       >
         <div
           ref={contentRef}
-          className="rounded-lg bg-bg-tertiary border border-border-default text-sm text-text-secondary leading-relaxed whitespace-pre-wrap px-4 py-3 max-h-40 overflow-y-auto"
+          className="rounded-lg bg-bg-tertiary border border-border-default text-sm text-text-secondary leading-relaxed px-4 py-3 max-h-40 overflow-y-auto"
         >
-          {message.content}
+          <MarkdownRenderer content={message.content} />
         </div>
       </div>
     </div>

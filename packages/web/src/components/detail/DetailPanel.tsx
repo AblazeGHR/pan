@@ -1,13 +1,14 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useDetailStore } from '@/stores/detailStore';
 import { PanelHeader } from './PanelHeader';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 
 export function DetailPanel() {
   const detailTarget = useDetailStore((s) => s.detailTarget);
   const panelWidth = useDetailStore((s) => s.panelWidth);
   const closeDetail = useDetailStore((s) => s.closeDetail);
   const setPanelWidth = useDetailStore((s) => s.setPanelWidth);
-  const contentRef = useRef<HTMLPreElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const isResizing = useRef(false);
 
@@ -70,13 +71,16 @@ export function DetailPanel() {
       />
 
       <PanelHeader title={title} subtitle={subtitle} onClose={closeDetail} />
-      <div className="flex-1 overflow-y-auto p-4">
-        <pre
-          ref={contentRef}
-          className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed"
-        >
-          {detailTarget.content}
-        </pre>
+      <div ref={contentRef} className="flex-1 overflow-y-auto p-4">
+        {detailTarget.type === 'thinking' ? (
+          <div className="text-sm text-text-secondary leading-relaxed">
+            <MarkdownRenderer content={detailTarget.content} />
+          </div>
+        ) : (
+          <pre className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">
+            {detailTarget.content}
+          </pre>
+        )}
       </div>
     </aside>
   );

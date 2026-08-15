@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   open: boolean;
@@ -46,9 +47,10 @@ export function Modal({ open, onClose, title, children, className = '', size = '
             <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
             <button
               onClick={onClose}
-              className="text-text-tertiary hover:text-text-primary text-lg leading-none"
+              aria-label="Close"
+              className="text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1 rounded transition-colors"
             >
-              x
+              <X size={14} />
             </button>
           </div>
         )}

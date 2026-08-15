@@ -22,8 +22,11 @@ export function SessionMenu({ session, position, onClose }: SessionMenuProps) {
       }
     };
     // Delay to avoid immediate close from the click that opened it
-    setTimeout(() => document.addEventListener('click', handler), 0);
-    return () => document.removeEventListener('click', handler);
+    const timer = setTimeout(() => document.addEventListener('click', handler), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handler);
+    };
   }, [onClose]);
 
   useEffect(() => {

@@ -326,6 +326,7 @@ export function InputRow() {
       <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
         <textarea
           ref={inputRef}
+          id="chatInput"
           placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
           rows={2}
           enterKeyHint="send"
