@@ -107,6 +107,18 @@
 - 早期 `_consumer_mcp` 每次把全部 history 重放进 prompt → 上下文爆炸，模型退回到 Bash/Grep 探索
 - 修复：用 `--resume <cli_session_id>` 让 cbc 原生维持对话连续性，不再手动重放
 
+### 15. `.mcp.json` fallback 会阻断 `--mcp-config` 连接【2026-08-16】
+
+- 现象：移除 `-d` 后，`--mcp-config` 显式传配置但 MCP 未连接（`init` 的 `mcp_servers: []`，模型报工具 not found）
+- 定位：`cbc mcp list` 显示 `pan: Needs approval`，`cbc mcp get pan` 显示 `Scope: project`、`Failed to connect`
+- 根因：cbc 项目发现 `<cwd>/.mcp.json`，把 pan 注册为 **project-scope** MCP 并持久化（`cbc mcp remove "pan" -s project` 确认它存在 `.mcp.json` 里）；该注册干扰 `--mcp-config` 的显式连接。带 `-d` 时 cbc 项目发现不读 `.mcp.json`，所以此前一直没暴露
+- 修复：`mcp_args()` 不再写 `<workdir>/.mcp.json` fallback，只写 `.codebuddy/mcp.json` + `--mcp-config`
+
+### 16. manifest 的 `command` 必须绝对路径【2026-08-16】
+
+- 现象：pan MCP server 用 `command: "python"`（依赖 PATH）时 cbc 启动失败
+- 修复：`packages/mcp/manifest.json` 改为 `"${PLUGIN_DIR}/../../.venv/Scripts/python"`（`${PLUGIN_DIR}` 解析为可移植绝对路径）
+
 ## 最终方案：双模式 Worker
 
 ```python

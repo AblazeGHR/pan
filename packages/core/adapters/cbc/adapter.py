@@ -205,10 +205,11 @@ class CbcAdapter:
     def build_spawn_args(self, s: Session,
                           extra_args: list[str] | None = None) -> list[str]:
         args = self.base_args()
-        # cbc needs -d to recognize the workdir as a project root
-        # (for .mcp.json discovery via enableAllProjectMcpServers)
-        if s.workdir:
-            args.extend(["-d", s.workdir])
+        # No -d: cbc derives the project dir from the process CWD (set by
+        # create_subprocess_exec cwd=s.workdir), which also fixes the JSONL
+        # storage location for --resume. -d only mattered for the old
+        # enableAllProjectMcpServers discovery — --mcp-config replaced it
+        # (tested 2026-08-16: -d is redundant for connect/resume).
         args.extend(self.model_args(s))
         args.extend(self.permission_mode_args(s))
         args.extend(self.effort_args(s))
@@ -224,11 +225,10 @@ class CbcAdapter:
 
         The ONLY thing that makes MCP servers connect is passing --mcp-config
         explicitly (tested 2026-08-16, cbc 2.136.0):
-        - `-d` does NOT auto-discover .codebuddy/mcp.json — MCP stays unconnected
-          (a previous comment here claimed it did; that was wrong).
-        - A project-level `.mcp.json` IS discovered but loads tools as deferred
-          (model must ToolSearch to find them) — hence the fallback write below
-          is best-effort only.
+        - `-d` does NOT auto-discover .codebuddy/mcp.json — MCP stays unconnected.
+        - A project-level `<workdir>/.mcp.json` is discovered as a project-scope
+          MCP server. Without -d that registration blocks --mcp-config (pan
+          shows "Needs approval"/"Failed to connect"), so we no longer write it.
         With --mcp-config, tools load as directly connected (not deferred).
         """
         servers = s.adapter_config.get("mcp_servers")
@@ -253,17 +253,17 @@ class CbcAdapter:
                 entry.setdefault("type", "stdio")
                 mcp_servers[name] = entry
 
-            # Use .codebuddy/mcp.json so cbc auto-discovers via -d
+            # Primary config: loaded via the explicit --mcp-config arg below.
+            # NOTE (2026-08-16): we deliberately do NOT also write
+            # <workdir>/.mcp.json — without -d, cbc discovers it as a project
+            # MCP server, registers pan as project-scope with "Needs approval"
+            # / "Failed to connect" (when command is a bare name), and that
+            # registration blocks the explicit --mcp-config connection.
             codebuddy_dir = os.path.join(workdir, ".codebuddy")
             mcp_json_path = os.path.join(codebuddy_dir, "mcp.json")
             os.makedirs(codebuddy_dir, exist_ok=True)
             with open(mcp_json_path, "w", encoding="utf-8") as f:
                 json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
-
-            # Also write <workdir>/.mcp.json as fallback
-            mcp_json_alt = os.path.join(workdir, ".mcp.json")
-            with open(mcp_json_alt, "w", encoding="utf-8") as f:
-                json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
 
             return ["--mcp-config", mcp_json_path]
 

@@ -519,11 +519,9 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # MCP config
     if hasattr(adapter, 'mcp_args'):
         args.extend(adapter.mcp_args(s))
-    # NOTE: pass -d <workdir> as arg (not cwd= to subprocess)
-    # cbc treats cwd= as "random dir" but -d as "project directory",
-    # and only -d registers the MCP servers as directly connected.
-    if s.workdir:
-        args.extend(["-d", s.workdir])
+    # No -d: create_subprocess_exec(cwd=s.workdir) below already makes cbc treat
+    # the workdir as its project dir (JSONL + resume). MCP connection comes
+    # from --mcp-config above (tested 2026-08-16: -d is redundant).
 
     # System prompt: pass via --system-prompt (override) so cbc injects it as a
     # real system message. --append-system-prompt is NOT honored by the model;

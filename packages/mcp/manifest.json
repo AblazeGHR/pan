@@ -4,7 +4,7 @@
   "mcp_servers": [
     {
       "name": "pan",
-      "command": "python",
+      "command": "${PLUGIN_DIR}/../../.venv/Scripts/python",
       "args": ["-m", "packages.mcp.server"],
       "cwd": "${PLUGIN_DIR}/../.."
     }

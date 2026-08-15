@@ -27,6 +27,22 @@
 4. **项目级 `.mcp.json` 发现的工具 → deferred**（试验 D/E），无论 one-shot 还是 stream 模式。
 5. **方案 A（`--tools NoDefer`）有效但冗余**——不注入修饰符，`--mcp-config` 路径下也已经是 non-defer。
 
+### 2026-08-16 代码修改记录（移除 -d 的完整配套）
+
+试验确认 `-d` 对 MCP 连接 / resume / JSONL 路径均无作用（JSONL 项目目录由 **cwd** 派生，`--resume` 按 session_id 查找），故移除。但移除后暴露两个**隐藏问题**，必须配套修：
+
+| 问题 | 现象 | 根因 | 修复 |
+|------|------|------|------|
+| `.mcp.json` fallback 阻断 MCP | 无 `-d` 时 `--mcp-config` 连接失败（`mcp_servers: []`，`cbc mcp list` 显示 pan `Needs approval` / `Failed to connect`，Scope: project） | cbc 项目发现 `<cwd>/.mcp.json`，把 pan 注册为 **project-scope** MCP 并持久化；该注册干扰 `--mcp-config` 的显式连接。带 `-d` 时 cbc 项目发现不读 `.mcp.json`，故此前从未暴露 | `mcp_args()` 不再写 `<workdir>/.mcp.json` fallback，只写 `.codebuddy/mcp.json` 并显式传 `--mcp-config` |
+| `command: "python"` 启动失败 | cbc 启动 pan MCP server 失败（PATH 里 `python` 解析异常） | manifest 里 `command: "python"` 依赖 PATH，不可靠 | `packages/mcp/manifest.json` 改为 `"${PLUGIN_DIR}/../../.venv/Scripts/python"`（可移植绝对路径） |
+
+**最终代码状态（已端到端验证）**：
+- `adapter.py` `build_spawn_args()` + `worker.py` `_consumer_mcp()`：不再传 `-d`
+- `adapter.py` `mcp_args()`：只写 `.codebuddy/mcp.json`，不写 `.mcp.json`
+- `packages/mcp/manifest.json`：pan `command` 用 `${PLUGIN_DIR}` 解析的绝对 venv python
+
+**验证结果**：stream 模式、meta-agent（pan MCP 直接调用 + resume）、coc-keeper-coldstart（rulewhisper 直接调用）三条链路全部通过；worker 写入无 `.mcp.json`、command 为绝对路径。
+
 ### 08-15 记录判定
 
 08-15 记录的"Pan worker 实测 deferred、必须 ToolSearch"**为过时错误**，一律以本文 08-16 实测为准。其错误来源：当时的"deferred"观察实为"C 类未连接"（`init` 的 `mcp_servers: []` 被误读为 deferred，见踩坑记录 #9）。
