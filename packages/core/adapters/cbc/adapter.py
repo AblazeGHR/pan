@@ -18,7 +18,7 @@ _log = logging.getLogger(__name__)
 def _parse_models_from_cbc_help() -> list[str]:
     """从 `cbc --help` 解析支持的模型列表（仅加载一次）。"""
     try:
-        r = subprocess.run("cbc --help", capture_output=True, text=True, timeout=10, shell=True)
+        r = subprocess.run(["cbc", "--help"], capture_output=True, text=True, timeout=10)
     except Exception:
         return []
     output = r.stdout or r.stderr or ""
@@ -120,11 +120,43 @@ class CbcAdapter:
         which_path = shutil.which("cbc")
         return which_path or "cbc"
 
+    def _resolve_cbc_argv(self) -> list[str]:
+        """Return the full argv prefix to launch cbc.
+
+        On Windows, `shutil.which` resolves npm shims to a `.CMD` batch file.
+        Passing a `.CMD` straight into asyncio.create_subprocess_exec goes
+        through cmd.exe, which mangles long/multiline/unicode args (e.g. a
+        700-char system prompt with quotes) — cbc then exits in ~30ms.
+        Resolve the shim to `node <entry.js>` so args pass through intact.
+        """
+        path = self._resolve_cbc_path()
+        if path.lower().endswith((".cmd", ".bat")):
+            shim_dir = os.path.dirname(os.path.abspath(path))
+            node_exe = os.path.join(shim_dir, "node.exe")
+            if not os.path.exists(node_exe):
+                node_exe = "node"
+            # npm shim layout: <dir>/node_modules/<pkg>/bin/<name>
+            candidates = [
+                os.path.join(shim_dir, "node_modules", p, "bin", name)
+                for p in ("@tencent-ai/codebuddy-code", "@tencent-ai/codebuddy")
+                for name in ("codebuddy", "codebuddy.js")
+            ]
+            # fallback: glob the whole node_modules for a codebuddy bin entry
+            import glob as _glob
+            if not any(os.path.exists(c) for c in candidates):
+                hits = _glob.glob(os.path.join(shim_dir, "node_modules", "*", "*", "bin", "codebuddy*"))
+                candidates += hits
+            for c in candidates:
+                if os.path.exists(c):
+                    return [node_exe, c]
+            return [path]
+        return [path]
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
         """Stream mode: long-running with stdin/stdout stream-json."""
-        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json",
+        return self._resolve_cbc_argv() + ["-p", "--output-format", "stream-json",
                 "--input-format", "stream-json", "-y"]
 
     def base_args_stream(self) -> list[str]:
@@ -133,7 +165,7 @@ class CbcAdapter:
         --input-format stream-json is incompatible with --mcp-config,
         so we omit it here. cbc processes the prompt as a one-shot.
         """
-        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json", "-y"]
+        return self._resolve_cbc_argv() + ["-p", "--output-format", "stream-json", "-y"]
 
     def model_args(self, s: Session) -> list[str]:
         return ["--model", s.model or self.default_model]
@@ -173,10 +205,11 @@ class CbcAdapter:
     def build_spawn_args(self, s: Session,
                           extra_args: list[str] | None = None) -> list[str]:
         args = self.base_args()
-        # cbc needs -d to recognize the workdir as a project root
-        # (for .mcp.json discovery via enableAllProjectMcpServers)
-        if s.workdir:
-            args.extend(["-d", s.workdir])
+        # No -d: cbc derives the project dir from the process CWD (set by
+        # create_subprocess_exec cwd=s.workdir), which also fixes the JSONL
+        # storage location for --resume. -d only mattered for the old
+        # enableAllProjectMcpServers discovery — --mcp-config replaced it
+        # (tested 2026-08-16: -d is redundant for connect/resume).
         args.extend(self.model_args(s))
         args.extend(self.permission_mode_args(s))
         args.extend(self.effort_args(s))
@@ -190,9 +223,13 @@ class CbcAdapter:
     def mcp_args(self, s: Session) -> list[str]:
         """Write .codebuddy/mcp.json to workdir and return --mcp-config arg.
 
-        cbc auto-discovers .codebuddy/mcp.json in the project directory when
-        given -d, so MCP tools load as fully connected (not deferred).
-        Writing to .mcp.json instead makes MCP tools deferred only.
+        The ONLY thing that makes MCP servers connect is passing --mcp-config
+        explicitly (tested 2026-08-16, cbc 2.136.0):
+        - `-d` does NOT auto-discover .codebuddy/mcp.json — MCP stays unconnected.
+        - A project-level `<workdir>/.mcp.json` is discovered as a project-scope
+          MCP server. Without -d that registration blocks --mcp-config (pan
+          shows "Needs approval"/"Failed to connect"), so we no longer write it.
+        With --mcp-config, tools load as directly connected (not deferred).
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
@@ -216,17 +253,17 @@ class CbcAdapter:
                 entry.setdefault("type", "stdio")
                 mcp_servers[name] = entry
 
-            # Use .codebuddy/mcp.json so cbc auto-discovers via -d
+            # Primary config: loaded via the explicit --mcp-config arg below.
+            # NOTE (2026-08-16): we deliberately do NOT also write
+            # <workdir>/.mcp.json — without -d, cbc discovers it as a project
+            # MCP server, registers pan as project-scope with "Needs approval"
+            # / "Failed to connect" (when command is a bare name), and that
+            # registration blocks the explicit --mcp-config connection.
             codebuddy_dir = os.path.join(workdir, ".codebuddy")
             mcp_json_path = os.path.join(codebuddy_dir, "mcp.json")
             os.makedirs(codebuddy_dir, exist_ok=True)
             with open(mcp_json_path, "w", encoding="utf-8") as f:
                 json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
-
-            # Also write <workdir>/.mcp.json as fallback
-            mcp_json_alt = os.path.join(workdir, ".mcp.json")
-            with open(mcp_json_alt, "w", encoding="utf-8") as f:
-                json.dump({"mcpServers": mcp_servers, "disabledMcpServers": []}, f, ensure_ascii=False, indent=2)
 
             return ["--mcp-config", mcp_json_path]
 
@@ -293,9 +330,23 @@ class CbcAdapter:
     # ── takeover ──
 
     def takeover_command(self, s: Session) -> list[str]:
+        """Build the cbc command for interactive takeover of a session.
+
+        Uses the resolved node entry (not a .CMD shim, which PowerShell/cmd
+        mangles). The terminal is opened with cwd=<workdir> (see
+        _open_terminal), so cbc resolves its project dir from the process CWD —
+        passing -d here actually *breaks* resume when CWD differs (JSONL lives
+        under the CWD-derived project). Re-applies --system-prompt since
+        --resume alone won't re-inject it.
+        """
         if not s.cli_session_id:
             return []
-        return ["cbc", "--resume", s.cli_session_id]
+        cmd = self._resolve_cbc_argv()
+        cmd.append("--resume")
+        cmd.append(s.cli_session_id)
+        if s.system_prompt:
+            cmd.extend(["--system-prompt", s.system_prompt])
+        return cmd
 
     # ── enrich ──
 

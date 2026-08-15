@@ -5,9 +5,10 @@ Usage:
     python -m packages.mcp.server --transport sse --port 9740   # SSE transport
 
 Tools exposed:
-    - session_create: Create a new session
+    - session_create: Create a new session (optional workdir)
     - session_list: List all sessions
-    - session_get: Get session details
+    - session_get: Get session details (optional history limit)
+    - session_update: Update session settings (model/effort/mcp etc.)
     - session_delete: Delete a session
     - worker_spawn: Spawn a worker for a session
     - worker_task: Send a task to a worker
@@ -34,14 +35,14 @@ _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 mcp = FastMCP("Pan")
 
 
-def _api(method: str, path: str, body: dict | None = None) -> dict:
+def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
     """Call Pan's HTTP API and return parsed JSON response."""
     url = f"{_pan_api_url}{path}"
     data = json.dumps(body).encode("utf-8") if body else None
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="replace")
@@ -51,6 +52,24 @@ def _api(method: str, path: str, body: dict | None = None) -> dict:
             return {"ok": False, "error": {"code": e.code, "message": error_body}}
     except urllib.error.URLError as e:
         return {"ok": False, "error": {"code": "connection_error", "message": str(e.reason)}}
+    except TimeoutError:
+        return {"ok": False, "error": {"code": "timeout", "message": "request timed out"}}
+
+
+def _strip_usage(result: dict) -> dict:
+    """Remove token usage fields from session API responses.
+
+    Usage counters (rawUsage/totalUsage) are meaningless to agents and just
+    burn context tokens. Human consumers should use the HTTP API directly.
+    """
+    if not isinstance(result, dict):
+        return result
+    result = dict(result)
+    result.pop("rawUsage", None)
+    result.pop("totalUsage", None)
+    if "sessions" in result and isinstance(result["sessions"], list):
+        result["sessions"] = [_strip_usage(s) for s in result["sessions"]]
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +82,7 @@ def session_create(
     adapter: str = "cbc",
     model: str | None = None,
     permission_mode: str | None = None,
+    workdir: str | None = None,
 ) -> dict:
     """Create a new session (persistent conversation container).
 
@@ -71,29 +91,42 @@ def session_create(
         adapter: CLI adapter to use ("cbc" or "kimi")
         model: AI model name (e.g. "hy3", "deepseek-v4-flash")
         permission_mode: Permission mode ("bypassPermissions", "acceptEdits", "default", "plan")
+        workdir: Workdir name, resolved under data/workdirs/. Defaults to session name.
     """
     body: dict = {"name": name, "adapter": adapter}
     if model:
         body["model"] = model
     if permission_mode:
         body["permissionMode"] = permission_mode
-    return _api("POST", "/api/sessions", body)
+    if workdir:
+        body["workdir"] = workdir
+    return _strip_usage(_api("POST", "/api/sessions", body))
 
 
 @mcp.tool()
 def session_list() -> dict:
     """List all sessions with their worker status."""
-    return _api("GET", "/api/sessions")
+    return _strip_usage(_api("GET", "/api/sessions"))
 
 
 @mcp.tool()
-def session_get(session_id: str) -> dict:
+def session_get(session_id: str, limit: int = 0) -> dict:
     """Get full session details including history and last result.
 
     Args:
         session_id: Session ID (e.g. "ses_abc123def4567890")
+        limit: Max history entries to return (0 = full history, default). When
+            set, history is truncated to the latest `limit` entries and
+            historyTruncated/historyTotal markers are added.
     """
-    return _api("GET", f"/api/sessions/{session_id}")
+    result = _api("GET", f"/api/sessions/{session_id}")
+    if limit and "history" in result and isinstance(result["history"], list):
+        history = result["history"]
+        result = dict(result)
+        result["history"] = history[-limit:]
+        result["historyTruncated"] = len(history) > limit
+        result["historyTotal"] = len(history)
+    return _strip_usage(result)
 
 
 @mcp.tool()
@@ -104,6 +137,55 @@ def session_delete(session_id: str) -> dict:
         session_id: Session ID to delete
     """
     return _api("DELETE", f"/api/sessions/{session_id}")
+
+
+@mcp.tool()
+def session_update(
+    session_id: str,
+    model: str | None = None,
+    permission_mode: str | None = None,
+    always_thinking_enabled: bool | None = None,
+    effort: str | None = None,
+    max_thinking_tokens: int | None = None,
+    mcp_enabled: bool | None = None,
+    mcp_servers: list[str] | None = None,
+    game_id: str | None = None,
+) -> dict:
+    """Update session-level settings without spawning a worker.
+
+    Note: changing mcpEnabled makes the response include requireRestart: true —
+    the worker must be respawned (worker_kill + worker_spawn) for the change
+    to take effect.
+
+    Args:
+        session_id: Session ID
+        model: AI model name (e.g. "hy3", "deepseek-v4-flash")
+        permission_mode: Permission mode ("bypassPermissions", "acceptEdits", "default", "plan")
+        always_thinking_enabled: Toggle extended thinking
+        effort: Thinking effort (e.g. "low"/"medium"/"high")
+        max_thinking_tokens: Max thinking tokens
+        mcp_enabled: Toggle MCP tools for this session
+        mcp_servers: MCP server names from the manifest (e.g. ["pan"])
+        game_id: RuleWhisper game binding; pass "" to clear
+    """
+    body: dict = {}
+    if model is not None:
+        body["model"] = model
+    if permission_mode is not None:
+        body["permissionMode"] = permission_mode
+    if always_thinking_enabled is not None:
+        body["alwaysThinkingEnabled"] = always_thinking_enabled
+    if effort is not None:
+        body["effort"] = effort
+    if max_thinking_tokens is not None:
+        body["maxThinkingTokens"] = max_thinking_tokens
+    if mcp_enabled is not None:
+        body["mcpEnabled"] = mcp_enabled
+    if mcp_servers is not None:
+        body["mcpServers"] = mcp_servers
+    if game_id is not None:
+        body["gameId"] = game_id or None
+    return _strip_usage(_api("PATCH", f"/api/sessions/{session_id}", body))
 
 
 @mcp.tool()
@@ -127,7 +209,8 @@ def session_history(session_id: str, limit: int = 50, before: int | None = None)
 
 @mcp.tool()
 def worker_spawn(session_id: str | None = None, name: str | None = None,
-                 adapter: str = "cbc", model: str | None = None) -> dict:
+                 adapter: str = "cbc", model: str | None = None,
+                 workdir: str | None = None) -> dict:
     """Spawn a worker (CLI process) for a session. Creates session if name given.
 
     Args:
@@ -135,6 +218,7 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
         name: Or create a new session with this name
         adapter: CLI adapter (default "cbc")
         model: Model override
+        workdir: Workdir for the new session (only used when name is given)
     """
     body: dict = {"adapter": adapter}
     if session_id:
@@ -143,6 +227,8 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
         body["name"] = name
     if model:
         body["model"] = model
+    if workdir:
+        body["workdir"] = workdir
     return _api("POST", "/api/spawn", body)
 
 
@@ -179,6 +265,61 @@ def worker_kill(worker_id: str) -> dict:
 def worker_list() -> dict:
     """List all running workers."""
     return _api("GET", "/api/list")
+
+
+@mcp.tool()
+def worker_handoff(session_id: str, text: str, timeout: float = 600.0,
+                   task_id: str | None = None) -> dict:
+    """Send a task and BLOCK until the worker returns a result.
+
+    Synchronous orchestration primitive: ensures a worker exists for the
+    session, sends the task, then waits for the worker.result event.
+    Returns the final result dict. Use for serial dependent steps.
+
+    Idempotency: pass the same `task_id` when retrying a timed-out handoff —
+    the server won't re-enqueue if that taskId is already known (returns its
+    status / existing result). Prevents double-execution of the same task.
+
+    Args:
+        session_id: Session ID to run the task on
+        text: Task text / prompt
+        timeout: Max seconds to wait for completion (default 600 / 10min)
+        task_id: Optional caller-supplied idempotency key (uuid-like string)
+    """
+    body = {"sessionId": session_id, "text": text, "timeout": timeout}
+    if task_id:
+        body["taskId"] = task_id
+    return _api("POST", "/api/handoff", body, timeout=timeout + 60)
+
+
+@mcp.tool()
+def worker_assign(session_id: str, text: str) -> dict:
+    """Dispatch a task asynchronously and return immediately.
+
+    Async orchestration primitive: returns {"status": "queued", ...}
+    right away. Completion is delivered via the worker.result event —
+    subscribe to /ws/agent with eventTypes=["worker.result"] to catch it.
+    Use for parallel fan-out.
+
+    Args:
+        session_id: Session ID to run the task on
+        text: Task text / prompt
+    """
+    return _api("POST", "/api/assign", {"sessionId": session_id, "text": text})
+
+
+@mcp.tool()
+def worker_send(worker_id: str, text: str) -> dict:
+    """Send a message to an existing live worker (multi-turn collaboration).
+
+    Completion is delivered via the worker.result event. If the worker
+    is dead, returns an error (spawn it again first).
+
+    Args:
+        worker_id: Worker ID (e.g. "worker-1")
+        text: Task text / prompt
+    """
+    return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
 
 
 # ---------------------------------------------------------------------------

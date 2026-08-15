@@ -1,5 +1,6 @@
 """Pan configuration system."""
 
+import copy
 import json
 from pathlib import Path
 
@@ -23,6 +24,14 @@ DEFAULT_CONFIG: dict = {
         "always_thinking_enabled": False,
         # 默认 effort 级别："" | "none" | "off" | "auto" | "low" | "medium" | "high" | "xhigh" | "max" | "ultracode"
         "effort": "",
+    },
+    # Worker 生命周期管理
+    "worker": {
+        # 静默超时（秒）：running/queued 状态下持续无任何 stdout 输出超过该值时 kill。
+        # stream 模式由 watchdog 判定；MCP one-shot 模式由读取超时承担（同一配置）。
+        "timeout_sec": 300,
+        # 空闲回收（秒）：idle 状态（任务完成）持续超过该值时回收进程。held/zombie 跳过。
+        "idle_sec": 300,
     },
     "kimi": {
         "model": "kimi-code/kimi-for-coding",
@@ -49,7 +58,7 @@ DEFAULT_CONFIG: dict = {
 def load_config() -> dict:
     """Load configuration from config.json, deep-merged with defaults."""
     if not CONFIG_FILE.exists():
-        return dict(DEFAULT_CONFIG)
+        return copy.deepcopy(DEFAULT_CONFIG)
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         user_config = json.load(f)
     return _deep_merge(DEFAULT_CONFIG, user_config)

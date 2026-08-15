@@ -108,19 +108,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   selectSession: async (id: string) => {
-    const { currentSessionId } = get();
-
-    // Save current draft before switching
-    let drafts = { ...get().inputDrafts };
-    const currentInput = (
-      document.getElementById('chatInput') as HTMLInputElement | null
-    )?.value;
-    if (currentSessionId && currentInput?.trim()) {
-      drafts[currentSessionId] = currentInput;
-    } else if (currentSessionId) {
-      const { [currentSessionId]: _, ...rest } = drafts;
-      drafts = rest;
-    }
+    // Drafts are persisted by InputRow's onChange → setInputDraft; nothing to
+    // save here. (Previously read a non-existent `#chatInput` DOM node.)
 
     const session = get().sessions.find((s) => s.id === id);
     if (!session) return;
@@ -138,7 +127,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // spurious loads on session switch.
     set({
       currentSessionId: id,
-      inputDrafts: drafts,
       currentMessages: session.history || [],
       hasMoreMessages: needsOlder,
       historyLoading: false,

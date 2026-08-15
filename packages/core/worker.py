@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -18,8 +19,49 @@ import psutil
 
 from . import session as _sess
 from .adapters import get_adapter, CliAdapter
+from .config import load_config
 
 _log = logging.getLogger(__name__)
+
+
+# ── Worker 生命周期配置（启动时读取一次，缓存）──
+
+_WORKER_TIMEOUT_SEC: float = 300.0  # 静默超时：无输出超过该值 → kill
+_WORKER_IDLE_SEC: float = 300.0     # 空闲回收：idle 超时 → kill
+_WATCHDOG_TICK_SEC: float = 30.0    # watchdog 检查间隔
+
+# 可被 server 启动时覆盖（测试也可直接赋值）
+_DEFAULTS_INITIALIZED = False
+
+
+def load_worker_config():
+    """从 config.json 读取 worker 生命周期配置并缓存。
+
+    由 server 启动时调用一次（lifespan）；直接使用 core 的场景也会在
+    首次 create_worker 前惰性初始化。
+    """
+    global _WORKER_TIMEOUT_SEC, _WORKER_IDLE_SEC, _DEFAULTS_INITIALIZED
+    cfg = load_config().get("worker", {})
+    _WORKER_TIMEOUT_SEC = float(cfg.get("timeout_sec", 300))
+    _WORKER_IDLE_SEC = float(cfg.get("idle_sec", 300))
+    _DEFAULTS_INITIALIZED = True
+
+
+# ── Memory injection 开关（config.json -> memory.enabled）──
+# 默认开启（保持既有行为）；设 false 可完全跳过 embedding 记忆注入，
+# 避免首次加载 bge 模型 + huggingface 网络重试阻塞 worker 任务。
+
+_MEMORY_ENABLED = True
+
+
+def load_memory_config():
+    """从 config.json 的 memory.enabled 读取记忆注入开关。
+
+    config.json:
+        "memory": { "enabled": false }
+    """
+    global _MEMORY_ENABLED
+    _MEMORY_ENABLED = bool(load_config().get("memory", {}).get("enabled", True))
 
 
 # ── Memory injection helper ──
@@ -31,6 +73,8 @@ async def _maybe_inject_memory(s, text: str) -> str:
     Runs in a thread to avoid blocking the event loop (embedding is CPU-bound).
     On failure, returns the original text unchanged.
     """
+    if not _MEMORY_ENABLED:
+        return text
     if not s.character_id:
         return text
 
@@ -43,14 +87,23 @@ async def _maybe_inject_memory(s, text: str) -> str:
         _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
         db_dir = str(_PROJECT_ROOT / "data" / "memory")
 
-        ctx = await asyncio.to_thread(
-            search_and_format,
-            text,
-            character_id=s.character_id,
-            db_dir=db_dir,
+        # Bounded wait: first call loads the embedding model (bge-base-zh), which
+        # can take minutes when huggingface is unreachable (network retries).
+        # A worker task must not sit in queued indefinitely while model loads —
+        # degrade to raw text after a short budget.
+        ctx = await asyncio.wait_for(
+            asyncio.to_thread(
+                search_and_format,
+                text,
+                character_id=s.character_id,
+                db_dir=db_dir,
+            ),
+            timeout=15.0,
         )
         if ctx.snippet_count > 0:
             return inject_context(text, ctx)
+    except asyncio.TimeoutError:
+        _log.warning("Memory injection timed out for %s, using raw text", s.character_id)
     except Exception:
         _log.warning("Memory injection failed for %s, using raw text", s.character_id)
     return text
@@ -61,19 +114,54 @@ class Worker:
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance
-    status: str = "idle"      # idle | running | held | error
+    status: str = "idle"      # idle | running | held | error | queued | zombie
     process: asyncio.subprocess.Process | None = None
     _mcp_proc: asyncio.subprocess.Process | None = None  # in-flight one-shot MCP process
     _stdout_task: asyncio.Task | None = None
     _consume_task: asyncio.Task | None = None
+    _watchdog_task: asyncio.Task | None = None
     queue: asyncio.Queue | None = None
     _replaying: bool = False  # true during cbc --resume event replay
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
+    # ── 活性探测（watchdog 用）──
+    last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
+    # ── 任务序号（result 与 task 配对用）──
+    _task_counter: int = 0   # 已分配的任务序号（send_task 入队时自增）
+    _result_count: int = 0   # 已收到的 result 数（result 顺序 == 任务顺序）
+    _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
+    _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
 
 
 workers: dict[str, Worker] = {}
 
 _broadcast: callable = None
+
+# ── result waiters: 供 handoff（同步等待）在进程内捕获 worker.result ──
+# worker_id → (期望的 taskSeq, asyncio.Future)；result 的 taskSeq 匹配才 resolve
+_result_waiters: dict[str, tuple[int, asyncio.Future]] = {}
+
+# ── task 幂等注册表: taskId → {"status", "workerId", "result"}
+# handoff 生成 taskId 入队时登记，result 时标记完成；Meta-Agent 重发带同一
+# taskId → 检测已存在则返回状态，不重复入队（防超时后双跑）
+_task_status: dict[str, dict] = {}
+
+
+def _resolve_result_waiter(worker_id: str, status: str, result: str,
+                           task_seq: int | None = None):
+    """当 worker 产生 result 时，resolve 正在等待该 worker 的 handoff future。
+
+    task_seq 传入时只匹配期望该序号的 waiter（避免拿到别的任务的结果）；
+    为 None 时强制 resolve（worker 被杀/崩溃场景）。
+    """
+    entry = _result_waiters.get(worker_id)
+    if entry is None:
+        return
+    want_seq, fut = entry
+    if task_seq is not None and want_seq != task_seq:
+        return  # 不是等待的这个任务的结果，保留 waiter
+    _result_waiters.pop(worker_id, None)
+    if not fut.done():
+        fut.set_result({"status": status, "result": result})
 
 
 def _kill_pid_tree(pid: int) -> None:
@@ -128,6 +216,7 @@ def _session(w: Worker) -> _sess.Session | None:
 
 async def _read_stdout(w: Worker):
     adapter = w.adapter
+    s = None  # bound even if stdout yields no parseable event (EOF check below)
     async for line in w.process.stdout:
         line_str = line.decode("utf-8", errors="replace").rstrip("\n")
         if not line_str:
@@ -136,7 +225,12 @@ async def _read_stdout(w: Worker):
         if event is None:
             continue
 
+        # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
+        w.last_activity = time.monotonic()
+
         # 提取 session_id + model 并写入 Session
+        # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，
+        # spawn 即就绪，所以这里只提取元数据，不做状态转换（worker 初始即 idle）。
         if adapter.is_init_event(event):
             s = _session(w)
             if s:
@@ -196,13 +290,27 @@ async def _read_stdout(w: Worker):
                     _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
                 await _sess.save_async(s)
 
+            w._result_count += 1
+            task_seq = w._result_count
+            result_text = adapter.extract_result_text(event)
             await _bcast({
                 "type": "worker.result",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
                 "status": w.status,
-                "result": adapter.extract_result_text(event),
+                "result": result_text,
+                "taskSeq": task_seq,
             })
+            _resolve_result_waiter(w.worker_id, w.status, result_text, task_seq=task_seq)
+            # 幂等：完成对应 taskId（若有）
+            if w._current_task_id and w._current_task_id in _task_status:
+                _task_status[w._current_task_id] = {
+                    "status": w.status,
+                    "result": result_text,
+                    "workerId": w.worker_id,
+                    "taskId": w._current_task_id,
+                }
+            w._current_task_id = None
             w.status = "idle"
             continue
 
@@ -232,6 +340,16 @@ async def _read_stdout(w: Worker):
             "sessionId": w.session_id,
             "returncode": code,
         })
+    # zombie：进程已死、尚未回收的瞬间状态。先广播再移除，让订阅方能观测到。
+    w.status = "zombie"
+    await _bcast({
+        "type": "worker.zombie",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "returncode": code,
+    })
+    # 有 handoff 在等这个 worker → 立即 resolve 为错误，避免悬挂到超时
+    _resolve_result_waiter(w.worker_id, "error", f"worker exited (returncode={code})")
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
@@ -254,6 +372,8 @@ async def _consumer(w: Worker):
 
         text = item["text"]
         source = item.get("source", "agent")
+        w._current_seq = item.get("seq")
+        w._current_task_id = item.get("taskId")
 
         w._replaying = False
 
@@ -273,6 +393,57 @@ async def _consumer(w: Worker):
             await _consumer_stream(w, text, source, s)
 
 
+# ── watchdog：超时 / 空闲回收 ──
+
+
+async def _watchdog(w: Worker):
+    """周期性检查 worker 活性，超时/空闲则 kill。
+
+    - stream 模式（w.process 非 None）：
+      - running/queued：持续无输出超 _WORKER_TIMEOUT_SEC → 判定卡死 → kill
+      - idle：任务完成且长时间无新任务 → 空闲回收 → kill
+    - MCP one-shot 模式（w.process 为 None）：
+      - 只做 idle 回收（超时已由 _consumer_mcp 读取超时承担，running 不干预）
+    - held（takeover 模式）/ zombie：跳过，不回收
+    触发 kill 时先 resolve 等待中的 handoff（error），再回收进程。
+    """
+    while True:
+        await asyncio.sleep(_WATCHDOG_TICK_SEC)
+        if w.worker_id not in workers:
+            return
+        if w.status in ("held", "zombie"):
+            continue
+
+        idle_for = time.monotonic() - w.last_activity
+
+        # MCP one-shot：只回收长期 idle 的 worker（running 由读取超时兜底）
+        if w.process is None:
+            if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
+                _log.info(
+                    "[Worker %s] watchdog(mcp): idle for %.0fs, reclaiming",
+                    w.worker_id, idle_for,
+                )
+                await kill_worker(w.worker_id)
+                return
+            continue
+
+        # stream 模式：超时 + 空闲回收
+        if w.status in ("running", "queued") and idle_for > _WORKER_TIMEOUT_SEC:
+            _log.warning(
+                "[Worker %s] watchdog: no output for %.0fs, killing (timeout)",
+                w.worker_id, idle_for,
+            )
+            await kill_worker(w.worker_id)
+            return
+        if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
+            _log.info(
+                "[Worker %s] watchdog: idle for %.0fs, reclaiming",
+                w.worker_id, idle_for,
+            )
+            await kill_worker(w.worker_id)
+            return
+
+
 async def _consumer_stream(w: Worker, text: str, source: str, s):
     """Stream mode: write to long-running cbc stdin."""
     if w.process is None or w.process.returncode is not None:
@@ -290,7 +461,10 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
             "sessionId": w.session_id,
             "status": "error",
             "result": "Worker process dead",
+            "taskSeq": w._current_seq,
         })
+        # worker 已死，任何等待它的 handoff 都应立刻返回 error
+        _resolve_result_waiter(w.worker_id, "error", "Worker process dead")
         return
 
     w.status = "running"
@@ -345,17 +519,17 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # MCP config
     if hasattr(adapter, 'mcp_args'):
         args.extend(adapter.mcp_args(s))
-    # NOTE: pass -d <workdir> as arg (not cwd= to subprocess)
-    # cbc treats cwd= as "random dir" but -d as "project directory",
-    # and only -d registers the MCP servers as directly connected.
-    if s.workdir:
-        args.extend(["-d", s.workdir])
+    # No -d: create_subprocess_exec(cwd=s.workdir) below already makes cbc treat
+    # the workdir as its project dir (JSONL + resume). MCP connection comes
+    # from --mcp-config above (tested 2026-08-16: -d is redundant).
 
-    # History replay: only needed when --resume is NOT available
-    # (first message of a session, before cli_session_id is captured).
+    # System prompt: pass via --system-prompt (override) so cbc injects it as a
+    # real system message. --append-system-prompt is NOT honored by the model;
+    # and text\n---\nprompt concatenation reads as ordinary user text.
+    # Only inject on the first message of a session (before cli_session_id is
+    # captured); --resume carries the model's context afterwards.
     if s.system_prompt and not s.cli_session_id:
-        # First user message: user instruction first, system_prompt follows
-        text = f"{text}\n\n---\n{s.system_prompt}"
+        args.extend(["--system-prompt", s.system_prompt])
     # Prompt as last argument
     args.append(text)
 
@@ -364,6 +538,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
+            cwd=s.workdir or None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
@@ -381,10 +556,13 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # Collect output
     output = b""
     timed_out = False
+    if not _DEFAULTS_INITIALIZED:
+        load_worker_config()
+    read_timeout = _WORKER_TIMEOUT_SEC
     try:
         try:
             while True:
-                chunk = await asyncio.wait_for(proc.stdout.read(4096), timeout=120)
+                chunk = await asyncio.wait_for(proc.stdout.read(4096), timeout=read_timeout)
                 if not chunk:
                     break
                 output += chunk
@@ -477,7 +655,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     if timed_out and not result_text:
         status, result = (
             "error",
-            "Task timed out after 120s and the process was killed",
+            f"Task timed out after {read_timeout:.0f}s (no output) and the process was killed",
         )
     elif not result_text and returncode not in (None, 0):
         tail = output.decode(errors="replace")[-2000:].strip()
@@ -508,13 +686,26 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         })
 
     w.status = "idle"
+    w._result_count += 1
+    task_seq = w._current_seq
     await _bcast({
         "type": "worker.result",
         "workerId": w.worker_id,
         "sessionId": w.session_id,
         "status": status,
         "result": result,
+        "taskSeq": task_seq,
     })
+    _resolve_result_waiter(w.worker_id, status, result, task_seq=task_seq)
+    # 幂等：完成对应 taskId（若有）
+    if w._current_task_id and w._current_task_id in _task_status:
+        _task_status[w._current_task_id] = {
+            "status": status,
+            "result": result,
+            "workerId": w.worker_id,
+            "taskId": w._current_task_id,
+        }
+    w._current_task_id = None
 
 
 # ── lifecycle ──
@@ -561,10 +752,15 @@ async def create_worker(session_id: str) -> Worker | str:
                adapter=adapter,
                status="idle", process=proc, queue=asyncio.Queue(),
                _replaying=resuming)
+    w.last_activity = time.monotonic()
     workers[worker_id] = w
 
     if not use_mcp:
         w._stdout_task = asyncio.create_task(_read_stdout(w))
+    # watchdog 两种模式都启用：stream 做超时+空闲回收，MCP 只做空闲回收
+    if not _DEFAULTS_INITIALIZED:
+        load_worker_config()
+    w._watchdog_task = asyncio.create_task(_watchdog(w))
     w._consume_task = asyncio.create_task(_consumer(w))
 
     await _bcast({
@@ -572,7 +768,7 @@ async def create_worker(session_id: str) -> Worker | str:
         "workerId": worker_id,
         "sessionId": session_id,
         "name": s.name,
-        "status": "idle",
+        "status": w.status,
         "model": s.model or adapter.default_model,
     })
 
@@ -636,12 +832,21 @@ async def kill_worker(worker_id: str) -> str | None:
     if not w:
         return "Worker not found"
 
+    # 若 kill_worker 由该 worker 自己的 watchdog 触发，不能 cancel 当前任务
+    # （否则 kill 流程刚 cancel 就收到 CancelledError 被中断，进程杀不掉、
+    #  worker 也不 pop）——让 watchdog 自然 return 即可。
+    current = asyncio.current_task()
+    if w._watchdog_task and w._watchdog_task is not current:
+        w._watchdog_task.cancel()
     if w._consume_task:
         w._consume_task.cancel()
     if w._stdout_task:
         w._stdout_task.cancel()
     await _kill_process_tree(w)
     await _kill_takeover_terminal(w)
+
+    # 有 handoff 在等这个 worker → 立即 resolve 为错误
+    _resolve_result_waiter(worker_id, "error", "worker killed")
 
     workers.pop(worker_id, None)
     await _bcast({
@@ -662,6 +867,8 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
         w = workers.get(worker_id)
         if not w:
             return
+        if w._watchdog_task:
+            w._watchdog_task.cancel()
         if w._consume_task:
             w._consume_task.cancel()
         if w._stdout_task:
@@ -707,13 +914,20 @@ async def _spawn_process(session_id: str,
 
 
 async def _restart_tasks(w: Worker):
+    if w._watchdog_task:
+        w._watchdog_task.cancel()
     if w._stdout_task:
         w._stdout_task.cancel()
     if w._consume_task:
         w._consume_task.cancel()
     w.queue = asyncio.Queue()
-    w._stdout_task = asyncio.create_task(_read_stdout(w))
+    w.last_activity = time.monotonic()
+    if w.process is not None:
+        w._stdout_task = asyncio.create_task(_read_stdout(w))
     w._consume_task = asyncio.create_task(_consumer(w))
+    if not _DEFAULTS_INITIALIZED:
+        load_worker_config()
+    w._watchdog_task = asyncio.create_task(_watchdog(w))
 
 
 async def restart_worker(worker_id: str) -> str | None:
@@ -757,7 +971,7 @@ async def restart_worker(worker_id: str) -> str | None:
         "workerId": worker_id,
         "sessionId": w.session_id,
         "name": s.name if s else worker_id,
-        "status": "idle",
+        "status": w.status,
     })
     return None
 
@@ -844,8 +1058,12 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     # 的重放中填入历史，所以走正常 append 路径。主路径的 session 已有
     # 完整 history（磁盘 ground truth），replay 期间跳过 append 避免重复。
     workers[new_id] = new_w
+    new_w.last_activity = time.monotonic()
     new_w._stdout_task = asyncio.create_task(_read_stdout(new_w))
     new_w._consume_task = asyncio.create_task(_consumer(new_w))
+    if not _DEFAULTS_INITIALIZED:
+        load_worker_config()
+    new_w._watchdog_task = asyncio.create_task(_watchdog(new_w))
 
     await _sess.save_async(s)
 
@@ -869,7 +1087,8 @@ async def interrupt_worker(worker_id: str) -> str | None:
     return await restart_worker(worker_id)
 
 
-async def send_task(worker_id: str, text: str, source: str = "agent") -> str | None:
+async def send_task(worker_id: str, text: str, source: str = "agent",
+                    seq: int | None = None, task_id: str | None = None) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -881,8 +1100,127 @@ async def send_task(worker_id: str, text: str, source: str = "agent") -> str | N
     if w.queue is None:
         return "Worker queue not ready"
 
-    await w.queue.put({"text": text, "source": source})
+    # 分配任务序号（handoff 预分配后传入，保证 waiter 与 item 一致）
+    if seq is None:
+        w._task_counter += 1
+        seq = w._task_counter
+
+    w.last_activity = time.monotonic()
+    await w.queue.put({"text": text, "source": source, "seq": seq, "taskId": task_id})
+
+    # queued：任务已入队、consumer 尚未取出。若队列前面还有任务，保持 queued 直到轮到它。
+    if w.status in ("idle", "queued"):
+        w.status = "queued"
+        await _bcast({
+            "type": "worker.status",
+            "workerId": w.worker_id,
+            "sessionId": w.session_id,
+            "status": "queued",
+        })
     return None
+
+
+# ── 编排原语：handoff / assign / send（供 Meta-Agent 调用） ──
+
+
+async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
+    """确保 session 有活的 worker。返回 (worker, None) 或 (None, error)。"""
+    w = find_worker_by_session(session_id)
+    if w is None or (w.process is not None and w.process.returncode is not None):
+        created = await create_worker(session_id)
+        if isinstance(created, str):
+            return None, created
+        w = created
+    return w, None
+
+
+async def handoff(session_id: str, text: str, source: str = "agent",
+                  timeout: float = 600.0, task_id: str | None = None) -> dict:
+    """同步阻塞：确保 worker 存在 → 发任务 → 等待该任务对应的 result。
+
+    预分配任务序号：waiter 只匹配该序号的 result，避免拿到队列中
+    其他任务的结果。超时（默认 10 分钟）返回 {"status": "error"}。
+
+    task_id 幂等：同一 taskId 重发不重复入队。若该 taskId 已存在：
+    - 已完成 → 返回已有结果
+    - 进行中 → 返回 {"status": "pending", "taskId":...}
+    用于超时后安全重试，避免双跑。
+    """
+    # taskId 幂等检查
+    if task_id is not None and task_id in _task_status:
+        existing = _task_status[task_id]
+        if existing["status"] in ("done", "error"):
+            return dict(existing)
+        return {"status": "pending", "taskId": task_id}
+
+    w, err = await _ensure_worker(session_id)
+    if err:
+        return {"status": "error", "result": err}
+
+    # 预分配序号：send_task 不再自增，保证 item.seq == waiter 期望的 seq
+    w._task_counter += 1
+    seq = w._task_counter
+
+    if task_id is not None:
+        _task_status[task_id] = {"status": "pending", "workerId": w.worker_id, "taskId": task_id}
+
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future = loop.create_future()
+    _result_waiters[w.worker_id] = (seq, fut)
+
+    send_err = await send_task(w.worker_id, text, source=source, seq=seq, task_id=task_id)
+    if send_err:
+        _result_waiters.pop(w.worker_id, None)
+        if task_id is not None:
+            _task_status[task_id] = {"status": "error", "result": send_err, "taskId": task_id}
+        return {"status": "error", "result": send_err}
+
+    try:
+        result = await asyncio.wait_for(fut, timeout=timeout)
+    except asyncio.TimeoutError:
+        _result_waiters.pop(w.worker_id, None)
+        # 超时：任务仍在队列中跑，返回 pending + taskId，Meta-Agent 稍后重试/查状态
+        if task_id is not None:
+            return {"status": "pending", "taskId": task_id,
+                    "workerId": w.worker_id, "result": f"handoff timed out after {timeout:.0f}s"}
+        return {"status": "error", "result": f"handoff timed out after {timeout:.0f}s"}
+    result["workerId"] = w.worker_id
+    if task_id is not None:
+        result["taskId"] = task_id
+        _task_status[task_id] = dict(result)
+    return result
+
+
+async def assign(session_id: str, text: str, source: str = "agent") -> dict:
+    """异步分派：确保 worker 存在 → 发任务 → 立即返回 queued。
+
+    完成时通过 worker.result 事件（配合 /ws/agent subscribe）回调。
+    适用于并行 fan-out。
+    """
+    w, err = await _ensure_worker(session_id)
+    if err:
+        return {"status": "error", "result": err}
+
+    send_err = await send_task(w.worker_id, text, source=source)
+    if send_err:
+        return {"status": "error", "result": send_err}
+    return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
+
+
+async def send(worker_id: str, text: str, source: str = "agent") -> dict:
+    """向已有 worker 发消息（持续性多轮协作）。
+
+    若 worker 已死返回 error（需先 spawn）。完成时通过 worker.result 事件回调。
+    """
+    w = workers.get(worker_id)
+    if w is None:
+        return {"status": "error", "result": "Worker not found"}
+    if w.process is not None and w.process.returncode is not None:
+        return {"status": "error", "result": "Worker process dead"}
+    send_err = await send_task(worker_id, text, source=source)
+    if send_err:
+        return {"status": "error", "result": send_err}
+    return {"status": "queued", "workerId": worker_id, "sessionId": w.session_id}
 
 
 def get_worker(worker_id: str) -> Worker | None:
@@ -926,6 +1264,8 @@ async def shutdown_all():
         w = workers.get(wid)
         if not w:
             continue
+        if w._watchdog_task:
+            w._watchdog_task.cancel()
         if w._consume_task:
             w._consume_task.cancel()
         if w._stdout_task:

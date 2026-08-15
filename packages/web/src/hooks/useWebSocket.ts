@@ -22,47 +22,51 @@ export function useWebSocket() {
 
     wsClient.connect();
 
+    // Capture every unsubscribe so remounts don't accumulate duplicate
+    // handlers on the singleton wsClient.
+    const unsubscribers: Array<() => void> = [];
+
     // Open handler — refresh sessions on connect
-    wsClient.on('open', () => {
+    unsubscribers.push(wsClient.on('open', () => {
       useSessionStore.getState().loadSessions();
       useWorkerStore.getState().refresh();
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
-    });
+    }));
 
     // Worker spawned / restarted / reconfigured
-    wsClient.on('worker.spawned', (e: StreamEvent) =>
+    unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) =>
       handleWorkerUpdate(e, 'idle'),
-    );
-    wsClient.on('worker.restarted', (e: StreamEvent) =>
+    ));
+    unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) =>
       handleWorkerUpdate(e, 'idle'),
-    );
-    wsClient.on('worker.reconfigured', (e: StreamEvent) =>
+    ));
+    unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) =>
       handleWorkerUpdate(e, 'idle'),
-    );
+    ));
 
     // Worker destroyed / crashed
-    wsClient.on('worker.destroyed', (e: StreamEvent) =>
+    unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) =>
       handleWorkerUpdate(e, null),
-    );
-    wsClient.on('worker.crashed', (e: StreamEvent) =>
+    ));
+    unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) =>
       handleWorkerUpdate(e, null),
-    );
+    ));
 
     // Worker status update
-    wsClient.on('worker.status', (e: StreamEvent) => {
+    unsubscribers.push(wsClient.on('worker.status', (e: StreamEvent) => {
       handleWorkerUpdate(e, e.status ?? 'idle');
-    });
+    }));
 
     // Stream events (real-time message chunks)
-    wsClient.on('worker.stream', (e: StreamEvent) => {
+    unsubscribers.push(wsClient.on('worker.stream', (e: StreamEvent) => {
       const store = useSessionStore.getState();
       if (e.sessionId !== store.currentSessionId || !e.event) return;
       appendEvent(e.event);
-    });
+    }));
 
     // Result event
-    wsClient.on('worker.result', (e: StreamEvent) => {
+    unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       const sessionStore = useSessionStore.getState();
       if (e.sessionId === sessionStore.currentSessionId) {
         const status = e.status === 'error' ? 'error' : 'done';
@@ -72,23 +76,25 @@ export function useWebSocket() {
         });
       }
       handleWorkerUpdate(e, 'idle');
-    });
+    }));
 
     // Session events
-    wsClient.on('session.renamed', () => {
+    unsubscribers.push(wsClient.on('session.renamed', () => {
       useSessionStore.getState().loadSessions();
-    });
-    wsClient.on('session.updated', () => {
+    }));
+    unsubscribers.push(wsClient.on('session.updated', () => {
       useSessionStore.getState().loadSessions();
-    });
+    }));
 
     // Error
-    wsClient.on('error', (e: StreamEvent) => {
+    unsubscribers.push(wsClient.on('error', (e: StreamEvent) => {
       useUIStore.getState().showToast(e.message ?? 'Unknown error', 'error');
-    });
+    }));
 
     return () => {
-      // Don't disconnect on unmount — connection is managed by singleton
+      // Don't disconnect on unmount — connection is managed by singleton.
+      // But DO remove handlers so a remount re-registers cleanly.
+      unsubscribers.forEach((unsub) => unsub());
     };
   }, []);
 }

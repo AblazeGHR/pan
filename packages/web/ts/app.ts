@@ -18,6 +18,8 @@ interface Session {
   workdir?: string;
   workerStatus?: string | null;
   workerId?: string | null;
+  mcpEnabled?: boolean;
+  mcpLocked?: boolean | null;
   history: Message[];
   historyTruncated?: boolean;
   historyTotal?: number;
@@ -74,6 +76,19 @@ interface ApiGenericResponse {
   status?: string;
   cliSessionId?: string;
   takeoverCommand?: string;
+}
+
+interface CharacterProfile {
+  name: string;
+  adapter?: string;
+  model?: string;
+  mcpServers?: string[];
+  system_prompt_preview?: string;
+}
+
+interface ApiProfilesResponse {
+  profiles?: CharacterProfile[];
+  error?: string;
 }
 
 interface AdapterConfig {
@@ -1490,6 +1505,9 @@ function _doCreateSession(name: string, workdir: string | null, adapter?: string
   selectSession(placeholder.id);
   const body: Record<string, string> = { name: name, adapter: adp };
   if (workdir) body.workdir = workdir;
+  const profileSel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
+  const characterId = profileSel ? profileSel.value : '';
+  if (characterId) body.characterId = characterId;
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1534,6 +1552,7 @@ function newSession(): void {
   nameInput.value = '';
   workdirInput.value = '';
   _populateNewSessionAdapterSelect();
+  _populateNewSessionProfileSelect();
   modal.classList.add('open');
   nameInput.focus();
 }
@@ -1790,6 +1809,34 @@ function _populateNewSessionAdapterSelect(): void {
     sel.appendChild(opt);
   });
   sel.value = currentAdapter || 'cbc';
+}
+
+/** Fetch character profiles (GET /api/characters/profiles). Resolves to the
+ *  profile array; resolves to [] on failure so callers stay simple. */
+function _fetchProfiles(): Promise<CharacterProfile[]> {
+  return fetch('/api/characters/profiles')
+    .then((r: Response) => r.json())
+    .then((data: ApiProfilesResponse) => data.profiles || [])
+    .catch(function () { return []; });
+}
+
+/** Populate the Profile selector in the new-session modal. First option is
+ *  "（无 Profile）" (value ""), then one option per profile labelled
+ *  "name (model) [MCP]" ([MCP] when the profile ships mcpServers). */
+function _populateNewSessionProfileSelect(): void {
+  const sel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
+  if (!sel) return;
+  sel.innerHTML = '<option value="">（无 Profile）</option>';
+  _fetchProfiles().then((profiles: CharacterProfile[]) => {
+    profiles.forEach((p: CharacterProfile) => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      let label = p.name + ' (' + (p.model || '?') + ')';
+      if (p.mcpServers && p.mcpServers.length > 0) label += ' [MCP]';
+      opt.textContent = label;
+      sel.appendChild(opt);
+    });
+  });
 }
 
 /** Load the list of adapters and populate the new-session select. */

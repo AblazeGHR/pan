@@ -154,3 +154,55 @@ class TestCharacterMCPServers:
         assert d["mcp_servers"] == [{"name": "rw", "command": "python"}]
         c2 = Character.from_dict(d)
         assert c2.mcp_servers == [{"name": "rw", "command": "python"}]
+
+
+# ------------------------------------------------------------------ #
+#  _apply_mcp_servers (PATCH mcpServers)
+# ------------------------------------------------------------------ #
+
+class TestApplyMCPServers:
+    def _make_manager(self, monkeypatch):
+        """Return a session + a character manager with one manifest server 'pan'."""
+        import packages.web.server as srv
+        from packages.core.character import CharacterManager
+
+        s = Session(id="ses_mcp", name="t")
+        cm = CharacterManager()
+        cm.load_manifest(["packages/mcp/manifest.json"])
+        monkeypatch.setattr(srv, "_character_manager", cm)
+        return s
+
+    def test_resolve_names_to_configs(self, monkeypatch):
+        import packages.web.server as srv
+        s = self._make_manager(monkeypatch)
+        srv._apply_mcp_servers(s, ["pan"])
+        configs = s.adapter_config.get("mcp_servers") or []
+        assert len(configs) == 1
+        assert configs[0]["name"] == "pan"
+        assert configs[0]["command"] == "python"
+        assert configs[0]["args"] == ["-m", "packages.mcp.server"]
+
+    def test_clear_with_empty(self, monkeypatch):
+        import packages.web.server as srv
+        s = self._make_manager(monkeypatch)
+        s.set_adapter_field("mcp_servers", [{"name": "pan"}])
+        srv._apply_mcp_servers(s, [])
+        assert s.adapter_config.get("mcp_servers") == []
+
+    def test_unknown_server_raises(self, monkeypatch):
+        import packages.web.server as srv
+        s = self._make_manager(monkeypatch)
+        try:
+            srv._apply_mcp_servers(s, ["nope"])
+            assert False, "expected ValueError"
+        except ValueError as e:
+            assert "Unknown MCP server" in str(e)
+
+    def test_non_list_raises(self, monkeypatch):
+        import packages.web.server as srv
+        s = self._make_manager(monkeypatch)
+        try:
+            srv._apply_mcp_servers(s, "pan")
+            assert False, "expected ValueError"
+        except ValueError as e:
+            assert "must be a list" in str(e)

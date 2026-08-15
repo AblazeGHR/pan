@@ -1,19 +1,23 @@
 # cbc MCP 踩坑记录与方案选型
 
-> 记录 2026-07-29 Pan 接入 RuleWhisper MCP 的全部试错过程与最终方案。避免后人踩重复的坑。
+> 记录 Pan 接入 MCP 的完整试错过程与最终方案。避免后人踩重复的坑。
+> 合并自原「cbc-mcp-踩坑记录.md」+「cbc-mcp-e2e-调通记录.md」+ 2026-08-15 Meta-Agent 集成新发现。
 
 ## 相关文档
 
-- [cbc MCP 端到端调通记录](./cbc-mcp-e2e-调通记录.md) — 2026-07-30 生产级联调，含 prompt 设计、历史重放、model 行为分析
-- [下一阶段优化计划](./下一阶段优化计划.md) — 历史截断、性能、`--resume`、前端联调
+- [下一阶段优化计划](./下一阶段优化计划.md) — 任务进度跟踪（前端集成、性能、错误处理）
+- [system_prompt 注入与 Windows .CMD 转义](./cbc-mcp-system-prompt-注入与CMD转义.md) — 2026-08-15：profile 的 system_prompt 不生效 + cbc.CMD 长参数崩溃
 
 ## 决策总结
+
+> 2026-08-16 更新：`--mcp-config` 显式传 `.codebuddy/mcp.json` 时工具为 **direct connected（non-defer）**，无需 ToolSearch（受控试验确认，cbc 2.136.0）。原记录"工具均为 deferred"已被修正。
 
 | 方案 | 结论 |
 |------|------|
 | `--mcp-config` + `--input-format stream-json` | **不兼容**，MCP 不加载 |
-| `--mcp-config` 文件路径（无 `--input-format`） | **可行**，但进程一问一答后退出 |
-| `enableAllProjectMcpServers` + `.mcp.json` + `-d workdir` | **可行**，需要 `.codebuddy/` 目录让 cbc 识别为项目 |
+| `--mcp-config` 文件路径（无 `--input-format`） | **最终方案**；工具 direct connected（non-defer，2026-08-16 实测），进程一问一答后退出 |
+| `-d` 自动发现 `.codebuddy/mcp.json`（无 `--mcp-config`） | **不生效**（2026-08-16 实测 MCP 未连接），需显式 `--mcp-config` |
+| 项目级 `.mcp.json` 发现 | 工具 **deferred**（需 ToolSearch，2026-08-16 实测） |
 | One-shot MCP 模式 + `--resume` | **最终方案**，每次 task 新开 cbc 进程 |
 
 ## 踩坑时间线
@@ -63,6 +67,57 @@
 - Worker 重启后 `cli_session_id` 未清除
 - cbc 尝试 resume 不存在的 session → 立即退出（exit 0）
 - 修复：`create_worker` 中杀死旧 worker 后清除 `s.cli_session_id`
+
+### 9. MCP 工具的 deferred 状态（必须两步调用）【关键】
+
+**【2026-08-16 修正】** MCP 工具是否 deferred **取决于加载路径**，不是固定行为：
+
+- `--mcp-config` 显式传 `.codebuddy/mcp.json` → 工具**直接进活跃列表**（direct connected），无需 ToolSearch（实测）
+- 项目级 `.mcp.json` 发现 → 工具 deferred，需 `ToolSearch("pan")` → `DeferExecuteTool` 调用
+- `-d` 自动发现 `.codebuddy/mcp.json` → **不生效**（MCP 未连接，工具既不可见也搜不到）
+- `init` 事件的 `mcp_servers: []` 可能是"未连接"或"deferred"，两者都不展示。区分：`ToolSearch` 搜得到 = deferred；搜不到 = 未连接
+- 2026-08-15 教训：meta-agent worker 因工具列表无 `session_list` 误判"MCP 未连接"；2026-08-16 实测该路径实为 direct connected（`_consumer_mcp` 显式传 `--mcp-config`）
+
+### 10. MCP server 的 cwd 必须指向包根【2026-08-15 新增】
+
+- `cwd: "${PLUGIN_DIR}"`（= `packages/mcp`）时，`python -m packages.mcp.server` 报 `ModuleNotFoundError: No module named 'packages'`
+- 修复：`cwd: "${PLUGIN_DIR}/../.."` 指向项目根（`Path.resolve()` 后正确）
+- 验证：`python -m packages.mcp.server` 从项目根启动，MCP 协议握手正常
+
+### 11. MCP server 连接自身 API 的端口【2026-08-15 新增】
+
+- Pan MCP server（`packages/mcp/server.py`）默认连 `PAN_API_URL`（默认 `http://127.0.0.1:8768`）
+- 若 Pan 服务跑在别的端口（如 8769），worker 调用工具时 `[WinError 10061] 连接被拒`
+- 修复：主服务用默认端口 8768，或用 `PAN_API_URL` 环境变量覆盖（manifest 的 `env` 字段）
+
+### 12. 带 character 的 session 首次任务被 memory 阻塞【2026-08-15 新增】
+
+- `_maybe_inject_memory` 对带 `character_id` 的 session 触发 embedding 搜索
+- 首次加载 bge-base-zh 模型 + huggingface 网络重试可阻塞数分钟，`asyncio.to_thread` 无超时 → worker 卡 `queued`
+- 修复：`memory.enabled` 配置开关（`config.json -> memory.enabled`，默认 true）+ 15s 超时降级为原文本
+
+### 13. MCP 模式 system_prompt 注入时机（roleplay 陷阱）
+
+- MCP 模式若像 stream 模式那样把 system_prompt 作为**独立首条消息**发送，LLM 会陷入角色扮演（"你是 KP..." → thinking "this is a roleplay task"），跳过工具发现
+- 修复：MCP 模式**不单独注入**，改为前置到首次用户消息：`f"{user_text}\n\n---\n{system_prompt}"`
+- `_consumer_mcp` 中：`if s.system_prompt and not s.cli_session_id: text = f"{text}\n\n---\n{s.system_prompt}"`
+
+### 14. 历史重放污染（`--resume` 替代）
+
+- 早期 `_consumer_mcp` 每次把全部 history 重放进 prompt → 上下文爆炸，模型退回到 Bash/Grep 探索
+- 修复：用 `--resume <cli_session_id>` 让 cbc 原生维持对话连续性，不再手动重放
+
+### 15. `.mcp.json` fallback 会阻断 `--mcp-config` 连接【2026-08-16】
+
+- 现象：移除 `-d` 后，`--mcp-config` 显式传配置但 MCP 未连接（`init` 的 `mcp_servers: []`，模型报工具 not found）
+- 定位：`cbc mcp list` 显示 `pan: Needs approval`，`cbc mcp get pan` 显示 `Scope: project`、`Failed to connect`
+- 根因：cbc 项目发现 `<cwd>/.mcp.json`，把 pan 注册为 **project-scope** MCP 并持久化（`cbc mcp remove "pan" -s project` 确认它存在 `.mcp.json` 里）；该注册干扰 `--mcp-config` 的显式连接。带 `-d` 时 cbc 项目发现不读 `.mcp.json`，所以此前一直没暴露
+- 修复：`mcp_args()` 不再写 `<workdir>/.mcp.json` fallback，只写 `.codebuddy/mcp.json` + `--mcp-config`
+
+### 16. manifest 的 `command` 必须绝对路径【2026-08-16】
+
+- 现象：pan MCP server 用 `command: "python"`（依赖 PATH）时 cbc 启动失败
+- 修复：`packages/mcp/manifest.json` 改为 `"${PLUGIN_DIR}/../../.venv/Scripts/python"`（`${PLUGIN_DIR}` 解析为可移植绝对路径）
 
 ## 最终方案：双模式 Worker
 
@@ -125,7 +180,9 @@ cbc mcp remove <name>            移除服务器
 - `cwd` 是进程工作目录，MCP server 的 `python -m` 从这里解析模块
 - `args` 是纯参数列表，不会被进一步解析
 - **`type: "stdio"` 建议显式添加**，帮助 cbc 正确识别 server 类型（缺失时可能影响发现）
-- `.codebuddy/mcp.json` 优于 `.mcp.json` — cbc 通过 `-d workdir` 自动发现前者
+- `.codebuddy/mcp.json` + **`--mcp-config` 显式传入** → 工具 direct connected（non-defer）
+- ⚠️ 2026-08-16 实测：cbc 经 `-d` **不会**自动发现 `.codebuddy/mcp.json`（MCP 未连接）；必须 `--mcp-config` 显式传
+- 项目级 `.mcp.json`（workdir 根）发现的工具为 **deferred**（需 ToolSearch）
 
 ## MCP Server 开发注意事项
 
@@ -135,11 +192,41 @@ cbc mcp remove <name>            移除服务器
 - 同步工具函数可直接用 `@mcp.tool()` 装饰
 - stdio transport：`mcp.run(transport="stdio")`
 - SSE transport：`mcp.run(transport="sse")` + `--port`
+- **依赖自身 API 的 server 用 `PAN_API_URL` 环境变量配端口**（默认 8768）
+
+## Prompt 设计经验
+
+| 原则 | 说明 |
+|------|------|
+| 显式命名工具 | 列出 `mcp__pan__session_create` 等完整名称（`--mcp-config` 路径下工具已直接可见，命名是保险） |
+| 显式说明调用方式 | "通过 ToolSearch + DeferExecuteTool 两步调用"（仅 `.mcp.json` deferred 路径需要） |
+| 告知工具真实性 | "以下工具是真实可用的(非角色扮演)" |
+| 用户指令前置 | `user_text\n---\nsystem_prompt` 比反向更有效 |
+| 避免过长 | 911 chars 版本导致进程卡死，275 chars 正常 |
+| **显式声明 deferred** | "MCP 工具不在工具列表里，必须先 ToolSearch"（08-16 修正：仅对 `.mcp.json` deferred 路径必要；`--mcp-config` 路径下模型直接可见）【2026-08-15，08-16 修正】 |
+
+## cbc 行为总结
+
+| 行为 | 说明 |
+|------|------|
+| `--mcp-config <path>` | 文件路径有效，JSON 字符串无效 |
+| `--input-format stream-json` | **不兼容** `--mcp-config`，MCP 不加载 |
+| `--output-format stream-json` | 输出格式，与 MCP 兼容 |
+| `-p` (one-shot) | 线程安全，每次独立 session |
+| `-d <dir>` | 注册为项目目录；⚠️ 2026-08-16 实测**不触发** `.codebuddy/mcp.json` 自动发现（需 `--mcp-config` 显式传） |
+| `--resume <sessionId>` | cli_session_id 不匹配时失败 ("No conversation found") |
+| `--settings` | some settings 与 MCP 冲突(如 alwaysThinkingEnabled) |
+| MCP 工具是否 deferred | 取决于加载路径：`--mcp-config` 显式传 → **direct connected**；项目级 `.mcp.json` → **deferred** |
+| `~/.codebuddy/mcp.json` (user) | `cbc mcp list` 注册表，`-p` 模式下**不加载** |
+| `.codebuddy/mcp.json` (project) | 仅配合 `--mcp-config` 显式传入生效，工具 direct connected |
 
 ## 关键教训
 
 1. **`--input-format stream-json` 是 MCP 杀手** — 有它就不要指望 `--mcp-config`
-2. **先手动测试后集成** — 用 `cbc -p --no-input-format ...` 验证 MCP 连接
+2. **先手动测试后集成** — 用 `cbc -p --mcp-config ...` 验证 MCP 连接
 3. **`bool([])` = `False`** — 检查列表时用 `len(list) > 0` 或 `list is not None`
 4. **`--resume` 的 session ID 要清理** — 杀死旧 worker 时同步清除 `cli_session_id`
 5. **`${PLUGIN_DIR}` 解析需要 `Path.resolve()`** — 简单的 `replace` 会留下 `../` 路径
+6. **MCP 工具不出现 ≠ 未连接** — 先 `ToolSearch("mcp")` 区分：搜得到 = **deferred**（`.mcp.json` 路径）；搜不到 = **未连接**（多半 `--mcp-config` 没传或 cwd 错）。`--mcp-config` 路径下工具应直接可见【2026-08-15，08-16 修正】
+7. **MCP server cwd 要指向包根** — `${PLUGIN_DIR}/../..` 而非 `${PLUGIN_DIR}`【2026-08-15】
+8. **带 character 的 session 首次任务会被 memory 加载阻塞** — 配 `memory.enabled: false` 或依赖 15s 超时【2026-08-15】

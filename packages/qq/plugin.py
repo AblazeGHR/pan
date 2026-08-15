@@ -36,6 +36,98 @@ PAN_URL = os.getenv("PAN_URL", f"http://127.0.0.1:{_default_port()}")
 POLL_INTERVAL = 1.5
 MAX_POLL_TIME = 120
 
+# ── command routes (QQ prefix → external HTTP API, bypasses LLM) ──
+
+# Cached as a list of (prefixes, target) tuples, sorted by longest prefix
+# first so ".rca" wins over ".rc". Empty list means "no manifest routes" —
+# every message falls through to the LLM path.
+_command_routes: list[tuple[list[str], str]] = []
+_command_routes_loaded: bool = False
+
+
+async def _refresh_command_routes() -> None:
+    """Pull manifest command_routes from Pan Core. Failure leaves cache empty."""
+    global _command_routes, _command_routes_loaded
+    data = await _get("/api/manifest/command-routes")
+    if "error" in data or "routes" not in data:
+        print(f"[QQ Bridge] command-routes fetch failed: {data.get('error', 'no routes field')}")
+        _command_routes = []
+        _command_routes_loaded = True
+        return
+    routes = []
+    for r in data["routes"]:
+        prefixes = list(r.get("prefixes", []))
+        target = r.get("target", "")
+        if prefixes and target:
+            routes.append((prefixes, target))
+    # Longest-prefix-first: ".rca" must be matched before ".rc".
+    routes.sort(key=lambda rt: max(len(p) for p in rt[0]), reverse=True)
+    _command_routes = routes
+    _command_routes_loaded = True
+    print(f"[QQ Bridge] loaded {len(routes)} command route group(s) from manifest")
+
+
+def _match_command_route(text: str) -> tuple[str, str] | None:
+    """Return (target_url, text_after_prefix) if text matches a route, else None."""
+    for prefixes, target in _command_routes:
+        for p in prefixes:
+            if text.startswith(p):
+                return target, text[len(p):].lstrip()
+    return None
+
+
+# ── game_id resolution (config-driven, optional) ──
+
+# RuleWhisper (or any plugin exposing a game lookup endpoint) is queried to
+# bind a group_id → game_id. Configured via env so Pan code stays
+# domain-agnostic (no RuleWhisper literal here). Template example:
+#   PAN_GAME_LOOKUP_URL="http://127.0.0.1:9731/api/games/by_group?group_id={group_id}"
+# Response JSON must contain a "game_id" field; otherwise None is returned.
+_GAME_LOOKUP_URL = os.getenv("PAN_GAME_LOOKUP_URL", "")
+
+
+async def _resolve_game_id(scope_id: str, scope: str) -> str | None:
+    """Resolve a RuleWhisper game_id for the given group_id.
+
+    Returns None if lookup is unconfigured, the scope is not group-level,
+    the upstream call fails, or the response carries no game_id. Failures
+    are logged at debug level only — game_id is best-effort metadata.
+    """
+    if not _GAME_LOOKUP_URL or scope != "group":
+        return None
+    url = _GAME_LOOKUP_URL.replace("{group_id}", scope_id)
+    try:
+        client = await _get_client()
+        r = await client.get(url)
+        r.raise_for_status()
+        data = r.json()
+        # Accept {"game_id": "..."} or {"id": "..."}; bail on anything else.
+        return data.get("game_id") or data.get("id")
+    except Exception as e:
+        print(f"[QQ Bridge] game_id lookup failed (non-fatal): {type(e).__name__}: {e}")
+        return None
+
+
+async def _sync_session_game_id(session_id: str, scope_id: str, scope: str) -> None:
+    """Ensure session carries a game_id for group-scoped sessions.
+
+    Called after _ensure_session resolves a session_id. Reads the current
+    session, short-circuits if it already has a game_id, otherwise resolves
+    and PATCHes. No-op for non-group scopes or unconfigured lookups.
+    """
+    if scope != "group":
+        return
+    data = await _get(f"/api/sessions/{session_id}")
+    if "error" in data:
+        return
+    if data.get("gameId"):
+        return  # already bound
+    game_id = await _resolve_game_id(scope_id, scope)
+    if not game_id:
+        return
+    await _patch(f"/api/sessions/{session_id}", {"gameId": game_id})
+
+
 # ── session mappings ──
 
 _sessions: dict[str, "BridgeSession"] = {}
@@ -85,6 +177,18 @@ async def _post(path: str, data: dict = None) -> dict:
         return r.json()
     except Exception as e:
         print(f"[QQ Bridge] POST failed: {type(e).__name__}: {e}")
+        return {"error": str(e)}
+
+
+async def _patch(path: str, data: dict = None) -> dict:
+    url = f"{PAN_URL}{path}"
+    try:
+        client = await _get_client()
+        r = await client.patch(url, json=data or {})
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[QQ Bridge] PATCH failed: {type(e).__name__}: {e}")
         return {"error": str(e)}
 
 
@@ -207,6 +311,11 @@ async def _send_and_wait(text: str, scope_id: str, scope: str = "user") -> str:
     if not session_id:
         return "[Pan] cannot create session"
 
+    # Best-effort game_id sync for group-scoped sessions so MCP tool calls
+    # (e.g. RuleWhisper get_weapon) can carry the right game_id. No-op for
+    # user-scoped sessions or unconfigured lookups.
+    await _sync_session_game_id(session_id, scope_id, scope)
+
     session_key = f"{scope}:{scope_id}"
     evt = asyncio.Event()
     _pending[session_id] = evt
@@ -280,6 +389,42 @@ async def handle_message(bot: Bot, event: MessageEvent):
     if not text:
         return
 
+    # Lazy-load command routes on first use (lets the bot start before Core
+    # if needed). Hits are forwarded straight to the manifest-declared HTTP
+    # target — 0 LLM tokens, millisecond latency.
+    global _command_routes_loaded
+    if not _command_routes_loaded:
+        await _refresh_command_routes()
+
+    match = _match_command_route(text)
+    if match:
+        target, body = match
+        await bot.send(event, "processing, please wait...")
+        try:
+            client = await _get_client()
+            r = await client.post(target, json={"text": body})
+            r.raise_for_status()
+            payload = r.json()
+            # RuleWhisper HTTP API returns {"result": "..."} or plain text
+            response = (
+                payload.get("result")
+                or payload.get("text")
+                or payload.get("message")
+                or (payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False))
+            )
+        except Exception as e:
+            response = f"[Pan] command route error: {type(e).__name__}: {e}"
+
+        MAX_LEN = 1500
+        if len(response) <= MAX_LEN:
+            await bot.send(event, response)
+        else:
+            for i in range(0, len(response), MAX_LEN):
+                chunk = response[i : i + MAX_LEN]
+                await bot.send(event, chunk)
+                await asyncio.sleep(0.5)
+        return
+
     await bot.send(event, "processing, please wait...")
 
     response = await _send_and_wait(text, scope_id, scope=scope)
@@ -309,6 +454,13 @@ async def _startup():
     except Exception as e:
         print(f"[QQ Bridge] cannot connect to Pan Core: {e}")
         print("[QQ Bridge] ensure Pan Core is running (python main.py)")
+    # Best-effort: pre-fetch command routes. Failure is non-fatal — the
+    # handler will lazy-retry on first message. Logged separately so a
+    # missing manifest is visible without masking Core connectivity.
+    try:
+        await _refresh_command_routes()
+    except Exception as e:
+        print(f"[QQ Bridge] command-routes prefetch failed (will retry on first msg): {e}")
 
 
 @driver.on_shutdown

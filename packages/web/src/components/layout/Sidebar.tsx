@@ -347,7 +347,11 @@ export function Sidebar() {
                 className="p-1 rounded transition-colors text-text-tertiary hover:text-text-primary"
                 title={collapsedGroups.size > 0 ? 'Expand all groups' : 'Collapse all groups'}
               >
-                {collapsedGroups.size > 0 ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {collapsedGroups.size > 0 ? (
+                  <ChevronUp size={14} />
+                ) : (
+                  <ChevronDown size={14} />
+                )}
               </button>
             )}
           </div>

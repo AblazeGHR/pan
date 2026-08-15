@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -83,6 +84,27 @@ app = FastAPI(title="Pan", lifespan=lifespan)
 ws_clients: set[WebSocket] = set()
 agent_clients: set[WebSocket] = set()
 
+# agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
+_AGENT_DEFAULT_SUBSCRIPTION = frozenset({"worker.result"})
+
+
+@dataclass
+class AgentSubscription:
+    """单个 /ws/agent 连接的订阅状态。
+
+    - event_types：订阅的事件类型（默认只 worker.result）
+    - session_ids：关心的 session 集合；非空时 worker.result 只推给匹配
+      workerId→sessionId 的连接的 session；空集 = 订阅所有 session
+    - consumed_seq：每 session 已消费的 result 序号（taskSeq），重连补发用
+    """
+    event_types: set[str] = field(default_factory=lambda: set(_AGENT_DEFAULT_SUBSCRIPTION))
+    session_ids: set[str] = field(default_factory=set)
+    consumed_seq: dict[str, int] = field(default_factory=dict)
+
+
+# 每个 /ws/agent 连接的订阅状态；未订阅默认只推 worker.result
+agent_subscriptions: dict[WebSocket, AgentSubscription] = {}
+
 # ── file paths (relative to packages/web/) ──
 _WEB_DIR = Path(__file__).resolve().parent
 _PROJECT_DIR = _WEB_DIR.parent.parent  # packages/web/ → packages/ → project root
@@ -114,7 +136,23 @@ async def broadcast(data: dict):
             dead.add(ws)
     ws_clients.difference_update(dead)
     dead_a = set()
+    etype = data.get("type", "")
+    data_session_id = data.get("sessionId")
     for ws in list(agent_clients):
+        sub = agent_subscriptions.get(ws)
+        if sub is None:
+            sub = AgentSubscription()
+        # 事件类型过滤
+        if etype not in sub.event_types and "*" not in sub.event_types:
+            continue
+        # worker.result 按 sessionId 过滤（若订阅了特定 session 列表）
+        if etype == "worker.result" and sub.session_ids and data_session_id not in sub.session_ids:
+            continue
+        # 记录已消费的 result 序号（重连补发用）
+        if etype == "worker.result" and data_session_id:
+            seq = data.get("taskSeq")
+            if isinstance(seq, int):
+                sub.consumed_seq[data_session_id] = max(sub.consumed_seq.get(data_session_id, 0), seq)
         try:
             await ws.send_json(data)
         except Exception:
@@ -123,6 +161,8 @@ async def broadcast(data: dict):
 
 
 worker.set_broadcaster(broadcast)
+worker.load_worker_config()
+worker.load_memory_config()
 
 
 @app.middleware("http")
@@ -179,6 +219,7 @@ def _session_to_api(s: sess.Session):
         "workerId": w.worker_id if w else None,
         "mcpEnabled": ac.get("mcp_enabled", False),
         "mcpLocked": _get_mcp_locked_state(s),
+        "gameId": s.game_id,
     }
 
 
@@ -244,11 +285,13 @@ def _resolve_workdir(workdir_name: str) -> Path:
         return p
 
     # Slug name — resolve under WORKDIRS_DIR
+    # 非法字符不抛错：清理成安全 slug（替换为 -），避免合法 session 名
+    # （如 "fanout.config"、"v1.2"）触发 500。
     if not _WORKDIR_NAME_RE.match(workdir_name):
-        raise ValueError(
-            f"Invalid workdir name: {workdir_name!r} "
-            f"(only alphanumeric, underscore, hyphen allowed)"
-        )
+        cleaned = re.sub(r"[^A-Za-z0-9_\-]+", "-", workdir_name).strip("-")
+        if not cleaned:
+            cleaned = "session"
+        workdir_name = cleaned
     workdir = WORKDIRS_DIR / workdir_name
     workdir.mkdir(parents=True, exist_ok=True)
     return workdir
@@ -291,6 +334,13 @@ def _build_session_params(data: dict) -> dict:
     character_id = data.get("characterId")
     if character_id and _character_manager is not None:
         char = _character_manager.get_character(character_id)
+        if char is None:
+            # characterId may be a profile name (e.g. "meta-agent") rather than a
+            # persisted character id — instantiate the profile on first use.
+            try:
+                char = _character_manager.create_character(character_id)
+            except ValueError:
+                char = None
         if char:
             if not data.get("adapter"):
                 params["adapter"] = char.adapter
@@ -338,6 +388,48 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
     if "mcpEnabled" in data:
         _apply_mcp_enabled(s, data["mcpEnabled"])
+    if "mcpServers" in data:
+        _apply_mcp_servers(s, data["mcpServers"])
+    if "gameId" in data:
+        # Allow None / empty to clear; store string otherwise. Used by QQ
+        # plugin to bind a RuleWhisper game_id to a group-scoped session so
+        # LLM-driven MCP tool calls can pass it through.
+        s.game_id = data["gameId"] or None
+
+
+def _apply_mcp_servers(s: sess.Session, server_names) -> None:
+    """Set session mcp_servers by manifest server names (e.g. ["pan"]).
+
+    Resolves names to full configs via the character manager's manifest table
+    (same as create_character). Accepts a list of names, or None/[] to clear.
+    """
+    if server_names in (None, [], ""):
+        s.set_adapter_field("mcp_servers", [])
+        return
+    if not isinstance(server_names, list):
+        raise ValueError("mcpServers must be a list of server names")
+    if _character_manager is None or _character_manager._manifest_config is None:
+        raise ValueError("MCP manifest not loaded")
+    configs: list[dict] = []
+    for name in server_names:
+        found = False
+        for srv in _character_manager._manifest_config.mcp_servers:
+            if srv.name == name:
+                cfg: dict = {"name": srv.name}
+                if srv.command:
+                    cfg["command"] = srv.command
+                if srv.args:
+                    cfg["args"] = srv.args
+                if srv.env:
+                    cfg["env"] = srv.env
+                if srv.cwd:
+                    cfg["cwd"] = srv.cwd
+                configs.append(cfg)
+                found = True
+                break
+        if not found:
+            raise ValueError(f"Unknown MCP server: {name!r}")
+    s.set_adapter_field("mcp_servers", configs)
 
 
 def _apply_mcp_enabled(s: sess.Session, enable: bool):
@@ -472,7 +564,58 @@ async def ws_agent_endpoint(ws: WebSocket):
 
             msg_type = msg.get("type")
 
-            if msg_type == "task":
+            if msg_type == "subscribe":
+                # 订阅：{"type":"subscribe","eventTypes":[...],"sessionIds":[...]}
+                # - eventTypes: "*" 订阅全部；[] 或省略 → 默认（仅 worker.result）
+                # - sessionIds: 关心的 session 列表；省略 → 订阅所有 session 的 result
+                sub = agent_subscriptions.get(ws)
+                if sub is None:
+                    sub = AgentSubscription()
+                    agent_subscriptions[ws] = sub
+                raw_types = msg.get("eventTypes")
+                if raw_types is not None:
+                    if not isinstance(raw_types, list):
+                        await ws.send_json({"type": "error", "message": "eventTypes must be a list"})
+                        continue
+                    types = set(str(t) for t in raw_types)
+                    sub.event_types = types if types else set(_AGENT_DEFAULT_SUBSCRIPTION)
+                raw_sids = msg.get("sessionIds")
+                if raw_sids is not None:
+                    if not isinstance(raw_sids, list):
+                        await ws.send_json({"type": "error", "message": "sessionIds must be a list"})
+                        continue
+                    sub.session_ids = set(str(s) for s in raw_sids)
+                await ws.send_json({
+                    "type": "subscribed",
+                    "eventTypes": sorted(sub.event_types),
+                    "sessionIds": sorted(sub.session_ids),
+                })
+
+            elif msg_type == "reconnect":
+                # 断线重连补发：{"type":"reconnect","sessionIds":[...]}
+                # 补发各 session 未消费的 worker.result（seq 大于已消费游标）
+                sub = agent_subscriptions.get(ws)
+                if sub is None:
+                    sub = AgentSubscription()
+                    agent_subscriptions[ws] = sub
+                for sid in (msg.get("sessionIds") or []):
+                    s = sess.get(sid)
+                    if not s or not s.last_result or s.last_result.get("status") != "done":
+                        continue
+                    # 该 session 最新 result 已消费过则跳过
+                    if sub.consumed_seq.get(sid, 0) > 0:
+                        continue
+                    await ws.send_json({
+                        "type": "worker.result",
+                        "workerId": "",
+                        "sessionId": sid,
+                        "status": s.last_result.get("status"),
+                        "result": s.last_result.get("result"),
+                        "taskSeq": sub.consumed_seq.get(sid, 0),
+                        "replayed": True,
+                    })
+
+            elif msg_type == "task":
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
                 if session_id and text:
@@ -499,9 +642,36 @@ async def ws_agent_endpoint(ws: WebSocket):
                         "sessionId": s.id,
                         "workerId": result.worker_id,
                         "name": s.name,
-                        "status": "idle",
+                        "status": result.status,
                         "model": s.model,
                     })
+
+            elif msg_type == "handoff":
+                session_id = msg.get("sessionId")
+                text = msg.get("text")
+                if not session_id or not text:
+                    await ws.send_json({"type": "error", "message": "sessionId and text required"})
+                    continue
+                result = await worker.handoff(session_id, text, source="agent")
+                await ws.send_json({"type": "handoff.result", **result})
+
+            elif msg_type == "assign":
+                session_id = msg.get("sessionId")
+                text = msg.get("text")
+                if not session_id or not text:
+                    await ws.send_json({"type": "error", "message": "sessionId and text required"})
+                    continue
+                result = await worker.assign(session_id, text, source="agent")
+                await ws.send_json({"type": "assign.result", **result})
+
+            elif msg_type == "send":
+                worker_id = msg.get("workerId")
+                text = msg.get("text")
+                if not worker_id or not text:
+                    await ws.send_json({"type": "error", "message": "workerId and text required"})
+                    continue
+                result = await worker.send(worker_id, text, source="agent")
+                await ws.send_json({"type": "send.result", **result})
 
             elif msg_type == "kill":
                 session_id = msg.get("sessionId") or msg.get("workerId")
@@ -522,6 +692,7 @@ async def ws_agent_endpoint(ws: WebSocket):
         pass
     finally:
         agent_clients.discard(ws)
+        agent_subscriptions.pop(ws, None)
 
 
 # ── Session API ──
@@ -918,6 +1089,32 @@ async def api_task(data: dict):
     }
 
 
+@app.post("/api/handoff")
+async def api_handoff(data: dict):
+    """同步等待：发任务并阻塞直到 worker 返回结果（默认 10min 超时）。
+
+    支持 task_id 幂等：重发同一 taskId 不重复入队（超时后安全重试）。
+    """
+    session_id = data.get("sessionId")
+    text = data.get("text")
+    if not session_id or not text:
+        return {"error": "sessionId and text are required"}
+    timeout = data.get("timeout", 600)
+    task_id = data.get("taskId")
+    return await worker.handoff(session_id, text, source="agent",
+                                timeout=float(timeout), task_id=task_id)
+
+
+@app.post("/api/assign")
+async def api_assign(data: dict):
+    """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。"""
+    session_id = data.get("sessionId")
+    text = data.get("text")
+    if not session_id or not text:
+        return {"error": "sessionId and text are required"}
+    return await worker.assign(session_id, text, source="agent")
+
+
 @app.post("/api/kill/{worker_id}")
 async def api_kill(worker_id: str):
     """Kill a Worker process. Does NOT delete the Session."""
@@ -1060,15 +1257,17 @@ async def api_cbc_sessions_import(data: dict):
             # the race window (CLI writes to external store before stdout),
             # which would otherwise duplicate agent-side messages.
             w._replaying = True
-            existing.history = history
-            existing.raw_usage = raw_usage
-            existing.total_usage = total_usage
-            sess.save(existing)
-            await broadcast({
-                "type": "session.updated",
-                "sessionId": existing.id,
-            })
-            w._replaying = False
+            try:
+                existing.history = history
+                existing.raw_usage = raw_usage
+                existing.total_usage = total_usage
+                sess.save(existing)
+                await broadcast({
+                    "type": "session.updated",
+                    "sessionId": existing.id,
+                })
+            finally:
+                w._replaying = False
             return _session_to_api(existing)
         w = worker.find_worker_by_session(existing.id)
         if w:
@@ -1159,15 +1358,17 @@ async def api_kimi_sessions_import(data: dict):
             # the race window (CLI writes to external store before stdout),
             # which would otherwise duplicate agent-side messages.
             w._replaying = True
-            existing.history = history
-            existing.raw_usage = raw_usage
-            existing.total_usage = total_usage
-            sess.save(existing)
-            await broadcast({
-                "type": "session.updated",
-                "sessionId": existing.id,
-            })
-            w._replaying = False
+            try:
+                existing.history = history
+                existing.raw_usage = raw_usage
+                existing.total_usage = total_usage
+                sess.save(existing)
+                await broadcast({
+                    "type": "session.updated",
+                    "sessionId": existing.id,
+                })
+            finally:
+                w._replaying = False
             return _session_to_api(existing)
         w = worker.find_worker_by_session(existing.id)
         if w:
@@ -1463,11 +1664,34 @@ async def api_characters_profiles():
                 "name": p.name,
                 "adapter": p.adapter,
                 "model": p.model,
+                "mcpServers": list(p.mcp_servers or []),
                 "system_prompt_preview": p.system_prompt[:100] + "..." if len(p.system_prompt) > 100 else p.system_prompt,
             }
             for p in profiles
         ],
         "total": len(profiles),
+    }
+
+
+@app.get("/api/manifest/command-routes")
+async def api_manifest_command_routes():
+    """List QQ Bot command routes from loaded manifests.
+
+    Used by the QQ Bot plugin (separate NoneBot2 process) to do prefix
+    matching: a message starting with one of ``prefixes`` is forwarded
+    directly to ``target`` (HTTP POST ``{"text": "..."}``) without going
+    through the LLM path. The plugin should sort by prefix length descending
+    so ``.rca`` wins over ``.rc``.
+    """
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    routes = _character_manager.list_command_routes()
+    return {
+        "routes": [
+            {"prefixes": list(r.prefixes), "target": r.target}
+            for r in routes
+        ],
+        "total": len(routes),
     }
 
 
@@ -1776,6 +2000,8 @@ async def api_fs_write(data: dict):
     content = data.get("content", "")
     if not session_id:
         return {"error": "session_id required"}
+    if len(content) > _MAX_FILE_BYTES:
+        return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
     try:
         target = _resolve_fs_path(session_id, path)
     except ValueError as e:
@@ -1850,6 +2076,15 @@ if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
         )
         else "react_v2"
     )
+
+    @app.get(f"/{react_name}/", response_class=HTMLResponse)
+    async def react_index_html():
+        """Serve React index.html with no-cache so new builds are picked up on refresh."""
+        return HTMLResponse(
+            content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-cache"},
+        )
+
     app.mount(
         f"/{react_name}",
         StaticFiles(directory=str(REACT_DIST_DIR), html=True),
@@ -1862,7 +2097,10 @@ if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
         file_path = REACT_DIST_DIR / full_path
         if file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(REACT_DIST_DIR / "index.html")
+        return FileResponse(
+            REACT_DIST_DIR / "index.html",
+            headers={"Cache-Control": "no-cache"},
+        )
 
 
 # ── Static files ──
