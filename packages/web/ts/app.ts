@@ -18,6 +18,8 @@ interface Session {
   workdir?: string;
   workerStatus?: string | null;
   workerId?: string | null;
+  mcpEnabled?: boolean;
+  mcpLocked?: boolean | null;
   history: Message[];
   historyTruncated?: boolean;
   historyTotal?: number;
@@ -100,6 +102,7 @@ interface SyncedSettings {
   permissionMode: string;
   alwaysThinkingEnabled: boolean;
   effort: string;
+  mcpEnabled: boolean;
 }
 
 // ── State ──
@@ -117,6 +120,13 @@ function permissionModes(): {value: string; label: string}[] { return adapterCon
 function defaultPermissionMode(): string { return adapterConfigs.get(currentAdapter)?.defaultPermissionMode || ''; }
 function supportedSettings(): string[] { return adapterConfigs.get(currentAdapter)?.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort']; }
 function supportsSetting(name: string): boolean { return supportedSettings().indexOf(name) >= 0; }
+/** MCP toggle is shown when the adapter supports MCP. Adapters advertise MCP
+ *  via supportedSettings 'mcp'; cbc is MCP-capable (writes .codebuddy/mcp.json
+ *  for --mcp-config), other adapters are not. */
+function supportsMCP(): boolean {
+  if (supportsSetting('mcp')) return true;
+  return currentAdapter === 'cbc';
+}
 
 let currentSessionId: string | null = null;
 let currentWorkerId: string | null = null;
@@ -1150,6 +1160,12 @@ function syncPanelFromServer(): void {
   }
   (document.getElementById('effortGroup')!).style.display =
     (supportsSetting('thinking') && supportsSetting('effort') && s.alwaysThinkingEnabled && effortValues().length > 0) ? '' : 'none';
+  if (supportsMCP()) {
+    const mcp = document.getElementById('settingMcp') as HTMLInputElement;
+    mcp.checked = s.mcpEnabled || false;
+    // Locked profiles (mcp_mode always/never) forbid toggling — mirror server-side guard.
+    mcp.disabled = s.mcpLocked === true;
+  }
 
   // record the baseline so we can detect pending changes
   lastSyncedSettings = {
@@ -1163,6 +1179,9 @@ function syncPanelFromServer(): void {
     effort: supportsSetting('effort')
       ? (document.getElementById('settingEffort') as HTMLSelectElement).value
       : '',
+    mcpEnabled: supportsMCP()
+      ? (document.getElementById('settingMcp') as HTMLInputElement).checked
+      : false,
   };
   updateSetButtonVisibility();
 }
@@ -1177,6 +1196,8 @@ function hasPendingChanges(): boolean {
       (document.getElementById('settingThinking') as HTMLInputElement).checked !== lastSyncedSettings.alwaysThinkingEnabled) return true;
   if (supportsSetting('effort') &&
       (document.getElementById('settingEffort') as HTMLSelectElement).value !== lastSyncedSettings.effort) return true;
+  if (supportsMCP() &&
+      (document.getElementById('settingMcp') as HTMLInputElement).checked !== lastSyncedSettings.mcpEnabled) return true;
   return false;
 }
 
@@ -1256,6 +1277,8 @@ function _buildSettingsBody(): Record<string, unknown> {
     body.alwaysThinkingEnabled = (document.getElementById('settingThinking') as HTMLInputElement).checked;
   if (supportsSetting('effort'))
     body.effort = (document.getElementById('settingEffort') as HTMLSelectElement).value;
+  if (supportsMCP())
+    body.mcpEnabled = (document.getElementById('settingMcp') as HTMLInputElement).checked;
   return body;
 }
 
@@ -1280,6 +1303,7 @@ function markSettingsApplied(): void {
     permissionMode: supportsSetting('permissionMode') ? (document.getElementById('settingMode') as HTMLSelectElement).value : '',
     alwaysThinkingEnabled: supportsSetting('thinking') ? (document.getElementById('settingThinking') as HTMLInputElement).checked : false,
     effort: supportsSetting('effort') ? (document.getElementById('settingEffort') as HTMLSelectElement).value : '',
+    mcpEnabled: supportsMCP() ? (document.getElementById('settingMcp') as HTMLInputElement).checked : false,
   };
   updateSetButtonVisibility();
 }
@@ -1772,10 +1796,12 @@ function updateSettingsVisibility(): void {
   const modeGroup = document.getElementById('modeGroup') as HTMLElement;
   const thinkingGroup = document.getElementById('thinkingGroup') as HTMLElement;
   const effortGroup = document.getElementById('effortGroup') as HTMLElement;
+  const mcpGroup = document.getElementById('mcpGroup') as HTMLElement;
   if (modeGroup) modeGroup.style.display = supportsSetting('permissionMode') ? '' : 'none';
   if (thinkingGroup) thinkingGroup.style.display = supportsSetting('thinking') ? '' : 'none';
   // Effort only visible when BOTH thinking and effort are supported
   if (effortGroup) effortGroup.style.display = (supportsSetting('thinking') && supportsSetting('effort')) ? '' : 'none';
+  if (mcpGroup) mcpGroup.style.display = supportsMCP() ? '' : 'none';
 }
 
 /** Populate the Agent CLI selector in the new-session modal. */
