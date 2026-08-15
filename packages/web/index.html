@@ -60,6 +60,10 @@
       <label for="settingEffort">Effort</label>
       <select id="settingEffort" onchange="updateSetButtonVisibility()"></select>
     </span>
+    <div id="mcpGroup" style="display:none">
+      <label for="settingMcp">MCP</label>
+      <input type="checkbox" id="settingMcp" onchange="updateSetButtonVisibility()">
+    </div>
     <div class="sep"></div>
     <button id="applySettingsBtn" class="btn btn-p" style="display:none" onclick="applySettings()">Apply Settings</button>
     <div class="sep"></div>
