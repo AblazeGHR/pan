@@ -16,7 +16,7 @@ Pan 是一个 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent
 | **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）或 `kimi`（Kimi CLI） |
 | **Model** | AI 模型名称，如 `hy3`、`deepseek-v4-flash` |
 
-**关键规则**：
+****重要**：Pan 的 MCP 工具是 deferred 的，不在工具列表里。用 ToolSearch（查询词 "pan" 或 "mcp"）发现后用 DeferExecuteTool 调用。工具命名空间为 mcp__pan__ 前缀。**关键规则**：
 - Session 是持久化的——kill Worker 不会删除 Session 数据
 - 一个 Session 同一时间只有一个 Worker
 - Worker 回复是异步的——`worker_task` 返回 `queued`，需要随后 `session_get` 读取结果
