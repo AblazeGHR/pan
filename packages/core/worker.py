@@ -47,6 +47,23 @@ def load_worker_config():
     _DEFAULTS_INITIALIZED = True
 
 
+# ── Memory injection 开关（config.json -> memory.enabled）──
+# 默认开启（保持既有行为）；设 false 可完全跳过 embedding 记忆注入，
+# 避免首次加载 bge 模型 + huggingface 网络重试阻塞 worker 任务。
+
+_MEMORY_ENABLED = True
+
+
+def load_memory_config():
+    """从 config.json 的 memory.enabled 读取记忆注入开关。
+
+    config.json:
+        "memory": { "enabled": false }
+    """
+    global _MEMORY_ENABLED
+    _MEMORY_ENABLED = bool(load_config().get("memory", {}).get("enabled", True))
+
+
 # ── Memory injection helper ──
 
 
@@ -56,6 +73,8 @@ async def _maybe_inject_memory(s, text: str) -> str:
     Runs in a thread to avoid blocking the event loop (embedding is CPU-bound).
     On failure, returns the original text unchanged.
     """
+    if not _MEMORY_ENABLED:
+        return text
     if not s.character_id:
         return text
 
@@ -68,14 +87,23 @@ async def _maybe_inject_memory(s, text: str) -> str:
         _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
         db_dir = str(_PROJECT_ROOT / "data" / "memory")
 
-        ctx = await asyncio.to_thread(
-            search_and_format,
-            text,
-            character_id=s.character_id,
-            db_dir=db_dir,
+        # Bounded wait: first call loads the embedding model (bge-base-zh), which
+        # can take minutes when huggingface is unreachable (network retries).
+        # A worker task must not sit in queued indefinitely while model loads —
+        # degrade to raw text after a short budget.
+        ctx = await asyncio.wait_for(
+            asyncio.to_thread(
+                search_and_format,
+                text,
+                character_id=s.character_id,
+                db_dir=db_dir,
+            ),
+            timeout=15.0,
         )
         if ctx.snippet_count > 0:
             return inject_context(text, ctx)
+    except asyncio.TimeoutError:
+        _log.warning("Memory injection timed out for %s, using raw text", s.character_id)
     except Exception:
         _log.warning("Memory injection failed for %s, using raw text", s.character_id)
     return text

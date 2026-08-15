@@ -292,6 +292,26 @@ def test_handoff_task_id_pending_on_timeout():
     _cleanup()
 
 
+def test_memory_injection_disabled_skips_embedding():
+    """memory.enabled=false → _maybe_inject_memory returns raw text without
+    touching the embedding model (no character lookup, no search)."""
+    _cleanup()
+    s = _setup_session(sid="ses_mem")
+    s.character_id = "char_test"
+
+    orig_enabled = worker._MEMORY_ENABLED
+    worker._MEMORY_ENABLED = False
+    try:
+        async def scenario():
+            return await worker._maybe_inject_memory(s, "hello")
+        result = asyncio.run(scenario())
+        assert result == "hello", f"expected raw text, got {result!r}"
+    finally:
+        worker._MEMORY_ENABLED = orig_enabled
+    print("PASS: memory injection disabled returns raw text")
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_handoff_waits_for_result()
     test_handoff_timeout()
@@ -302,4 +322,5 @@ if __name__ == "__main__":
     test_ensure_worker_autospawns()
     test_handoff_task_id_idempotent_after_complete()
     test_handoff_task_id_pending_on_timeout()
+    test_memory_injection_disabled_skips_embedding()
     print("\n=== ALL PRIMITIVE TESTS PASSED ===")

@@ -162,6 +162,7 @@ async def broadcast(data: dict):
 
 worker.set_broadcaster(broadcast)
 worker.load_worker_config()
+worker.load_memory_config()
 
 
 @app.middleware("http")
