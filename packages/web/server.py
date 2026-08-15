@@ -284,11 +284,13 @@ def _resolve_workdir(workdir_name: str) -> Path:
         return p
 
     # Slug name — resolve under WORKDIRS_DIR
+    # 非法字符不抛错：清理成安全 slug（替换为 -），避免合法 session 名
+    # （如 "fanout.config"、"v1.2"）触发 500。
     if not _WORKDIR_NAME_RE.match(workdir_name):
-        raise ValueError(
-            f"Invalid workdir name: {workdir_name!r} "
-            f"(only alphanumeric, underscore, hyphen allowed)"
-        )
+        cleaned = re.sub(r"[^A-Za-z0-9_\-]+", "-", workdir_name).strip("-")
+        if not cleaned:
+            cleaned = "session"
+        workdir_name = cleaned
     workdir = WORKDIRS_DIR / workdir_name
     workdir.mkdir(parents=True, exist_ok=True)
     return workdir
