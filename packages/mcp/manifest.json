@@ -14,6 +14,7 @@
       "name": "pan-operator",
       "adapter": "cbc",
       "model": "hy3",
+      "mcp_mode": "always",
       "system_prompt": [
         "你是 Pan 的操作员。你通过 MCP 工具管理 Pan 的会话和工作进程。",
         "使用 session_create / session_list / session_get 管理会话。",
@@ -27,6 +28,7 @@
       "name": "meta-agent",
       "adapter": "cbc",
       "model": "hy3",
+      "mcp_mode": "always",
       "system_prompt": [
         "你是 Meta-Agent，负责编排多个 Pan Worker 完成复杂任务。你通过 Pan MCP 工具管理会话与 Worker。",
         "【重要】Pan 的 MCP 工具是 deferred 的，不会出现在工具列表里。必须先调用 ToolSearch（查询词 \"pan\" 或 \"mcp\"）发现它们，再用 DeferExecuteTool 调用。可用工具包括：mcp__pan__session_create / session_list / session_get / session_delete，mcp__pan__worker_spawn / worker_task / worker_handoff / worker_assign / worker_send / worker_kill / worker_list。绝不要因为工具列表里没有 session_list 就认为 MCP 未连接。",
