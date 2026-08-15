@@ -380,11 +380,48 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
     if "mcpEnabled" in data:
         _apply_mcp_enabled(s, data["mcpEnabled"])
+    if "mcpServers" in data:
+        _apply_mcp_servers(s, data["mcpServers"])
     if "gameId" in data:
         # Allow None / empty to clear; store string otherwise. Used by QQ
         # plugin to bind a RuleWhisper game_id to a group-scoped session so
         # LLM-driven MCP tool calls can pass it through.
         s.game_id = data["gameId"] or None
+
+
+def _apply_mcp_servers(s: sess.Session, server_names) -> None:
+    """Set session mcp_servers by manifest server names (e.g. ["pan"]).
+
+    Resolves names to full configs via the character manager's manifest table
+    (same as create_character). Accepts a list of names, or None/[] to clear.
+    """
+    if server_names in (None, [], ""):
+        s.set_adapter_field("mcp_servers", [])
+        return
+    if not isinstance(server_names, list):
+        raise ValueError("mcpServers must be a list of server names")
+    if _character_manager is None or _character_manager._manifest_config is None:
+        raise ValueError("MCP manifest not loaded")
+    configs: list[dict] = []
+    for name in server_names:
+        found = False
+        for srv in _character_manager._manifest_config.mcp_servers:
+            if srv.name == name:
+                cfg: dict = {"name": srv.name}
+                if srv.command:
+                    cfg["command"] = srv.command
+                if srv.args:
+                    cfg["args"] = srv.args
+                if srv.env:
+                    cfg["env"] = srv.env
+                if srv.cwd:
+                    cfg["cwd"] = srv.cwd
+                configs.append(cfg)
+                found = True
+                break
+        if not found:
+            raise ValueError(f"Unknown MCP server: {name!r}")
+    s.set_adapter_field("mcp_servers", configs)
 
 
 def _apply_mcp_enabled(s: sess.Session, enable: bool):
@@ -1619,6 +1656,7 @@ async def api_characters_profiles():
                 "name": p.name,
                 "adapter": p.adapter,
                 "model": p.model,
+                "mcpServers": list(p.mcp_servers or []),
                 "system_prompt_preview": p.system_prompt[:100] + "..." if len(p.system_prompt) > 100 else p.system_prompt,
             }
             for p in profiles
