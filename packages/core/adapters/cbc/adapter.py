@@ -222,9 +222,14 @@ class CbcAdapter:
     def mcp_args(self, s: Session) -> list[str]:
         """Write .codebuddy/mcp.json to workdir and return --mcp-config arg.
 
-        cbc auto-discovers .codebuddy/mcp.json in the project directory when
-        given -d, so MCP tools load as fully connected (not deferred).
-        Writing to .mcp.json instead makes MCP tools deferred only.
+        The ONLY thing that makes MCP servers connect is passing --mcp-config
+        explicitly (tested 2026-08-16, cbc 2.136.0):
+        - `-d` does NOT auto-discover .codebuddy/mcp.json — MCP stays unconnected
+          (a previous comment here claimed it did; that was wrong).
+        - A project-level `.mcp.json` IS discovered but loads tools as deferred
+          (model must ToolSearch to find them) — hence the fallback write below
+          is best-effort only.
+        With --mcp-config, tools load as directly connected (not deferred).
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:

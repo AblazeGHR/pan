@@ -1,33 +1,48 @@
 # Pan MCP 工具 defer 机制与去 defer 方案
 
-> 记录 Pan MCP 工具为何是 deferred（延迟加载）的、CodeBuddy 的 defer/NoDefer 决策机制，以及让工具在新会话中直接进入活跃工具列表的方案。
+> 记录 Pan MCP 工具的加载/defer 机制、CodeBuddy 的 defer/NoDefer 决策机制，以及让工具在新会话中直接进入活跃工具列表的方案。
 > 相关文档：[cbc-mcp-踩坑记录](./cbc-mcp-踩坑记录.md) — MCP 接入的完整试错过程与最终方案。
 
-## 现象
+## 2026-08-16 实测更新（重要）
 
-Pan 的 MCP 工具（`mcp__pan__*`）**默认不会出现在模型的活跃工具列表里**，而是以 deferred 状态存在：
+> 对 cbc 2.136.0（hy3）做了一组受控试验，**修正了本文档 08-15 记录的核心结论**。
+> 08-15 记录的"Pan worker 工具是 deferred、必须 ToolSearch"为**过时错误**，以本文为准。
 
-- 必须先用 `ToolSearch`（查询词 `"pan"` / `"mcp"`）发现工具 schema
-- 再用 `DeferExecuteTool` 实际调用
-- 发现并激活后，该工具**在当前会话内保持活跃**（无需重复搜索）
+### 试验事实矩阵
 
-这不是连接失败。`init` 事件的 `mcp_servers: []` 也不代表 MCP 失败——deferred 工具本来就不展示在 init 元数据里。曾因此误判"MCP 未连接"（2026-08-15 教训，详见踩坑记录 #9）。
+| # | 加载方式 | init `mcp_servers` | 工具状态 |
+|---|---------|-------------------|---------|
+| A | `.codebuddy/mcp.json` + **`--mcp-config` 显式传**（cwd=workdir） | `[pan connected]` | **direct connected（非 defer）**，工具直接进活跃列表 |
+| B | 同 A + `--tools "default,NoDefer(mcp__pan__*)"` | `[pan connected]` | 同 A（修饰符有效但冗余） |
+| C | 仅 `.codebuddy/mcp.json`，靠 `-d` 自动发现（无 `--mcp-config`） | `[]` | **MCP 未连接**（工具不可用，也不是 deferred） |
+| D | 仅 workdir 根 `.mcp.json`，one-shot 模式 | `[]` | **deferred**（模型需 ToolSearch×3 才调用成功） |
+| E | workdir 根 `.mcp.json`，stream-json 模式 | `[]` | **deferred**（模型需 ToolSearch×4） |
+| F | **Pan worker 端到端**（meta-agent profile，`_consumer_mcp` 路径） | — | 模型**直接调用 `session_list` 成功**，未走 ToolSearch |
 
-## 为什么 Pan 工具是 deferred
+### 核心结论
 
-当前 Pan 的 cbc worker 通过 `-d workdir` 启动，cbc 自动发现项目级 MCP 配置。加载路径的差异决定了工具是否 deferred：
+1. **Pan worker 当前已经是 non-defer**——`_consumer_mcp` 通过 `mcp_args()` 显式传 `--mcp-config <workdir/.codebuddy/mcp.json>`，cbc 默认把 MCP 工具直接注入活跃列表，模型无需 ToolSearch（试验 F 端到端证实）。
+2. **真正决定 non-defer 的是 `--mcp-config` 显式传入**，不是文件位置、也不是 `-d`。
+3. **`-d` 自动发现 `.codebuddy/mcp.json` 不生效**（试验 C）：cwd=workdir、`-d workdir` 都试过，MCP 根本没连上。`adapter.py` 的注释有误（见下）。
+4. **项目级 `.mcp.json` 发现的工具 → deferred**（试验 D/E），无论 one-shot 还是 stream 模式。
+5. **方案 A（`--tools NoDefer`）有效但冗余**——不注入修饰符，`--mcp-config` 路径下也已经是 non-defer。
 
-| 配置文件位置 | 加载方式 | 工具状态 |
-|-------------|---------|---------|
-| `.codebuddy/mcp.json`（在 workdir 内） | cbc 经 `-d` 自动发现 | fully connected（注释声称不 defer，实测仍走 deferred） |
-| `.mcp.json`（fallback，adapter 同时写入） | 项目根发现 | **deferred only** |
+### 08-15 记录判定
 
-`packages/core/adapters/cbc/adapter.py:190-233` 的 `mcp_args()` 目前两个文件都写：
+08-15 记录的"Pan worker 实测 deferred、必须 ToolSearch"**为过时错误**，一律以本文 08-16 实测为准。其错误来源：当时的"deferred"观察实为"C 类未连接"（`init` 的 `mcp_servers: []` 被误读为 deferred，见踩坑记录 #9）。
 
-- `<workdir>/.codebuddy/mcp.json` → 通过 `--mcp-config <path>` 显式传入
-- `<workdir>/.mcp.json` → fallback
+## 现象（08-15 记录已废弃，见上文）
 
-代码注释（`adapter.py:195`）明确说明："Writing to .mcp.json instead makes MCP tools deferred only." 当前实际状态是 deferred，说明 cbc 经 `-d` 走的是 `.mcp.json` 发现路径，`--mcp-config` 的 fully-connected 路径并未优先采用。**这是加载路径的必然结果，不是 bug。**
+**当前事实**：工具是否 deferred 取决于**加载路径**，不是固定行为。见下节。
+
+## 加载路径与 defer 的真相
+
+`packages/core/adapters/cbc/adapter.py` 的 `mcp_args()`（约 222 行）写两个文件并显式传 `--mcp-config`：
+
+- `<workdir>/.codebuddy/mcp.json` → 通过 `--mcp-config <path>` **显式传入**（worker.py `_consumer_mcp` 使用）→ **工具直接可用**
+- `<workdir>/.mcp.json` → fallback（cbc 项目级发现路径）→ **工具 deferred**
+
+**`adapter.py:225` 注释修正**：原注释声称"cbc 经 `-d` 自动发现 `.codebuddy/mcp.json`，工具 fully connected"。实测（试验 C）`-d` **不会**自动发现该文件——能连上全靠 `--mcp-config` 显式传入。注释与 `.mcp.json` 相关的半句（"Writing to .mcp.json instead makes MCP tools deferred only"）成立。
 
 ## CodeBuddy 的 defer 决策机制
 
@@ -84,40 +99,36 @@ codebuddy --tools "default,NoDefer(mcp__pan__*)"
 
 **关键规则：`NoDefer` 永远胜过 `Defer`。** 即使某层配了 `Defer(X)`，只要任一工具列表里写了 `NoDefer(X)`，本次会话内 X 仍然直接可用——运行时表态优先。
 
-## 让新会话不 defer 的方案
+## 去 defer 方案（2026-08-16 结论：已不需要）
 
-### 方案 A：改 cbc adapter，spawn 参数注入 NoDefer（推荐，永久生效）
+### 方案 A：改 cbc adapter，spawn 参数注入 NoDefer
 
-在 `packages/core/adapters/cbc/adapter.py` 的 `build_spawn_args()`（`adapter.py:173`）中注入参数：
+在 `packages/core/adapters/cbc/adapter.py` 的 `build_spawn_args()` 中注入：
 
 ```python
-# 在 args 列表里追加
 args.extend(["--tools", "default,NoDefer(mcp__pan__*)"])
 ```
 
-效果：每个新 spawn 的 cbc worker 启动时，pan 整组 MCP 工具直接进入模型活跃工具列表，无需 ToolSearch。
-
-注意点：
-
-- 该参数经 `cbc` CLI 透传，`base_args()`（`adapter.py:125`）与 `base_args_stream()`（`adapter.py:130`）两条路径都要覆盖
-- 若未来有多个 MCP server，可改为从 `s.adapter_config["mcp_servers"]` 动态生成 `NoDefer(mcp__<server>__*)`，而不是硬编码 `pan`
-- 改完需要重启 Pan 服务，已存在的 worker 不受影响（spawn 时才读参数）
+**实测结论（试验 B/F）：有效，但冗余。** `_consumer_mcp` 已通过 `--mcp-config` 显式传配置，工具默认就是直接可用的。**不建议实施**——除非未来某条路径让 MCP 走 `.mcp.json` 项目发现（会变 deferred），那时才需要。
 
 ### 方案 B：worker_spawn extra_args 传参（不改代码）
 
-`worker_spawn` / `worker_handoff` 若支持透传 extra args 到 cbc 命令，可在创建会话时带上 `--tools "default,NoDefer(mcp__pan__*)"`。需要确认 worker API 是否透传该字段。
+`worker_spawn` / `worker_handoff` 若支持透传 extra args 到 cbc 命令，可在创建会话时带上 `--tools "default,NoDefer(mcp__pan__*)"`。同方案 A，当前不需要。
 
 ### 方案 C：MCP 静态配置 defer_loading: false
 
 在 `.mcp.json` 的 `pan` 条目显式写 `"defer_loading": false`。
 
-⚠️ 文档称默认值就是 `false`，且当前 deferred 的根因是 `.mcp.json` fallback 发现路径，所以**这条单独设置大概率不生效**——真正决定当前状态的是加载路径与 `NoDefer` 修饰符。建议不要作为主要手段。
+⚠️ 默认值就是 `false`，所以这条单独设置基本无意义；真正决定状态的是加载路径。
 
 ## 排查要点
 
-- 想确认工具是否真的可用：先 `ToolSearch("pan")`，搜得到就是连接正常，只是 deferred
-- `session_list` 等工具被 `ToolSearch` 加载后，**当前会话内一直保持活跃**，不会反复需要搜索
-- 修改 defer 相关配置后需重启 CodeBuddy / Pan 服务才生效（argv.json 等启动参数改动需重启）
+- **工具不可用 ≠ deferred，先分清三种状态**：
+  1. **未连接**：`init` 的 `mcp_servers: []` + `ToolSearch` 也搜不到 → MCP server 启动/配置有问题（多半是 `--mcp-config` 没传或 cwd 错）
+  2. **deferred**：`init` 的 `mcp_servers: []` + `ToolSearch` 能搜到 → 配置来自 `.mcp.json` 项目发现路径
+  3. **direct connected**：`init` 的 `mcp_servers` 非空（`[pan connected]`）+ 工具直接可见 → `--mcp-config` 路径，正常
+- `ToolSearch("pan")` 搜得到只能证明**已连接或已注册**，不代表 direct connected
+- 修改 defer 相关配置后需重启 CodeBuddy / Pan 服务才生效
 
 ## 相关链接
 

@@ -82,7 +82,7 @@ def _resolve_cbc_argv(self) -> list[str]:
 
 - memory 注入无超时：`_maybe_inject_memory` 首次加载 bge 模型可阻塞数分钟（已加 15s 超时 + `memory.enabled` 开关）
 - MCP server cwd 必须指向包根（`${PLUGIN_DIR}/../..`），否则 `ModuleNotFoundError`
-- MCP 工具 deferred，须 ToolSearch 发现（system_prompt 要显式引导）
+- MCP 工具是否 deferred 取决于加载路径（2026-08-16 实测）：`--mcp-config` 显式传 → 工具**直接可见**（无需 ToolSearch）；项目级 `.mcp.json` → 需 ToolSearch 发现。system_prompt 是否要引导 ToolSearch 取决于实际路径
 
 ## 完整测试命令（手动复现）
 

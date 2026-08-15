@@ -10,11 +10,14 @@
 
 ## 决策总结
 
+> 2026-08-16 更新：`--mcp-config` 显式传 `.codebuddy/mcp.json` 时工具为 **direct connected（non-defer）**，无需 ToolSearch（受控试验确认，cbc 2.136.0）。原记录"工具均为 deferred"已被修正。
+
 | 方案 | 结论 |
 |------|------|
 | `--mcp-config` + `--input-format stream-json` | **不兼容**，MCP 不加载 |
-| `--mcp-config` 文件路径（无 `--input-format`） | **可行**，但进程一问一答后退出 |
-| `enableAllProjectMcpServers` + `.mcp.json` + `-d workdir` | **可行**，需要 `.codebuddy/` 目录让 cbc 识别为项目 |
+| `--mcp-config` 文件路径（无 `--input-format`） | **最终方案**；工具 direct connected（non-defer，2026-08-16 实测），进程一问一答后退出 |
+| `-d` 自动发现 `.codebuddy/mcp.json`（无 `--mcp-config`） | **不生效**（2026-08-16 实测 MCP 未连接），需显式 `--mcp-config` |
+| 项目级 `.mcp.json` 发现 | 工具 **deferred**（需 ToolSearch，2026-08-16 实测） |
 | One-shot MCP 模式 + `--resume` | **最终方案**，每次 task 新开 cbc 进程 |
 
 ## 踩坑时间线
@@ -65,11 +68,15 @@
 - cbc 尝试 resume 不存在的 session → 立即退出（exit 0）
 - 修复：`create_worker` 中杀死旧 worker 后清除 `s.cli_session_id`
 
-### 9. MCP 工具是 deferred（必须两步调用）【关键】
+### 9. MCP 工具的 deferred 状态（必须两步调用）【关键】
 
-- `init` 事件的 `mcp_servers: []` **不代表 MCP 失败**——deferred 工具不展示在 init 元数据里
-- 工具**不会出现在工具列表**，必须 `ToolSearch("pan")` 发现 → `DeferExecuteTool` 调用
-- 2026-08-15 教训：meta-agent worker 因工具列表无 `session_list` 误判"MCP 未连接"，实际工具一直在，只是没人引导它 ToolSearch
+**【2026-08-16 修正】** MCP 工具是否 deferred **取决于加载路径**，不是固定行为：
+
+- `--mcp-config` 显式传 `.codebuddy/mcp.json` → 工具**直接进活跃列表**（direct connected），无需 ToolSearch（实测）
+- 项目级 `.mcp.json` 发现 → 工具 deferred，需 `ToolSearch("pan")` → `DeferExecuteTool` 调用
+- `-d` 自动发现 `.codebuddy/mcp.json` → **不生效**（MCP 未连接，工具既不可见也搜不到）
+- `init` 事件的 `mcp_servers: []` 可能是"未连接"或"deferred"，两者都不展示。区分：`ToolSearch` 搜得到 = deferred；搜不到 = 未连接
+- 2026-08-15 教训：meta-agent worker 因工具列表无 `session_list` 误判"MCP 未连接"；2026-08-16 实测该路径实为 direct connected（`_consumer_mcp` 显式传 `--mcp-config`）
 
 ### 10. MCP server 的 cwd 必须指向包根【2026-08-15 新增】
 
@@ -161,7 +168,9 @@ cbc mcp remove <name>            移除服务器
 - `cwd` 是进程工作目录，MCP server 的 `python -m` 从这里解析模块
 - `args` 是纯参数列表，不会被进一步解析
 - **`type: "stdio"` 建议显式添加**，帮助 cbc 正确识别 server 类型（缺失时可能影响发现）
-- `.codebuddy/mcp.json` 优于 `.mcp.json` — cbc 通过 `-d workdir` 自动发现前者
+- `.codebuddy/mcp.json` + **`--mcp-config` 显式传入** → 工具 direct connected（non-defer）
+- ⚠️ 2026-08-16 实测：cbc 经 `-d` **不会**自动发现 `.codebuddy/mcp.json`（MCP 未连接）；必须 `--mcp-config` 显式传
+- 项目级 `.mcp.json`（workdir 根）发现的工具为 **deferred**（需 ToolSearch）
 
 ## MCP Server 开发注意事项
 
@@ -177,12 +186,12 @@ cbc mcp remove <name>            移除服务器
 
 | 原则 | 说明 |
 |------|------|
-| 显式命名工具 | 列出 `mcp__pan__session_create` 等完整名称，模型才会去 ToolSearch |
-| 显式说明调用方式 | "通过 ToolSearch + DeferExecuteTool 两步调用" |
+| 显式命名工具 | 列出 `mcp__pan__session_create` 等完整名称（`--mcp-config` 路径下工具已直接可见，命名是保险） |
+| 显式说明调用方式 | "通过 ToolSearch + DeferExecuteTool 两步调用"（仅 `.mcp.json` deferred 路径需要） |
 | 告知工具真实性 | "以下工具是真实可用的(非角色扮演)" |
 | 用户指令前置 | `user_text\n---\nsystem_prompt` 比反向更有效 |
 | 避免过长 | 911 chars 版本导致进程卡死，275 chars 正常 |
-| **显式声明 deferred** | "MCP 工具不在工具列表里，必须先 ToolSearch"（否则模型误判未连接）【2026-08-15】 |
+| **显式声明 deferred** | "MCP 工具不在工具列表里，必须先 ToolSearch"（08-16 修正：仅对 `.mcp.json` deferred 路径必要；`--mcp-config` 路径下模型直接可见）【2026-08-15，08-16 修正】 |
 
 ## cbc 行为总结
 
@@ -192,12 +201,12 @@ cbc mcp remove <name>            移除服务器
 | `--input-format stream-json` | **不兼容** `--mcp-config`，MCP 不加载 |
 | `--output-format stream-json` | 输出格式，与 MCP 兼容 |
 | `-p` (one-shot) | 线程安全，每次独立 session |
-| `-d <dir>` | 注册为项目目录，启用 `.codebuddy/mcp.json` 发现 |
+| `-d <dir>` | 注册为项目目录；⚠️ 2026-08-16 实测**不触发** `.codebuddy/mcp.json` 自动发现（需 `--mcp-config` 显式传） |
 | `--resume <sessionId>` | cli_session_id 不匹配时失败 ("No conversation found") |
 | `--settings` | some settings 与 MCP 冲突(如 alwaysThinkingEnabled) |
-| MCP 工具均为 deferred | 必须 ToolSearch + DeferExecuteTool 两步调用 |
+| MCP 工具是否 deferred | 取决于加载路径：`--mcp-config` 显式传 → **direct connected**；项目级 `.mcp.json` → **deferred** |
 | `~/.codebuddy/mcp.json` (user) | `cbc mcp list` 注册表，`-p` 模式下**不加载** |
-| `.codebuddy/mcp.json` (project) | `-d` 指定后自动发现，工具标记为 deferred |
+| `.codebuddy/mcp.json` (project) | 仅配合 `--mcp-config` 显式传入生效，工具 direct connected |
 
 ## 关键教训
 
@@ -206,6 +215,6 @@ cbc mcp remove <name>            移除服务器
 3. **`bool([])` = `False`** — 检查列表时用 `len(list) > 0` 或 `list is not None`
 4. **`--resume` 的 session ID 要清理** — 杀死旧 worker 时同步清除 `cli_session_id`
 5. **`${PLUGIN_DIR}` 解析需要 `Path.resolve()`** — 简单的 `replace` 会留下 `../` 路径
-6. **MCP 工具不出现 ≠ 未连接** — 先试 `ToolSearch("mcp")` 再判断【2026-08-15】
+6. **MCP 工具不出现 ≠ 未连接** — 先 `ToolSearch("mcp")` 区分：搜得到 = **deferred**（`.mcp.json` 路径）；搜不到 = **未连接**（多半 `--mcp-config` 没传或 cwd 错）。`--mcp-config` 路径下工具应直接可见【2026-08-15，08-16 修正】
 7. **MCP server cwd 要指向包根** — `${PLUGIN_DIR}/../..` 而非 `${PLUGIN_DIR}`【2026-08-15】
 8. **带 character 的 session 首次任务会被 memory 加载阻塞** — 配 `memory.enabled: false` 或依赖 15s 超时【2026-08-15】
