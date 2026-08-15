@@ -525,11 +525,13 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     if s.workdir:
         args.extend(["-d", s.workdir])
 
-    # History replay: only needed when --resume is NOT available
-    # (first message of a session, before cli_session_id is captured).
+    # System prompt: pass via --system-prompt (override) so cbc injects it as a
+    # real system message. --append-system-prompt is NOT honored by the model;
+    # and text\n---\nprompt concatenation reads as ordinary user text.
+    # Only inject on the first message of a session (before cli_session_id is
+    # captured); --resume carries the model's context afterwards.
     if s.system_prompt and not s.cli_session_id:
-        # First user message: user instruction first, system_prompt follows
-        text = f"{text}\n\n---\n{s.system_prompt}"
+        args.extend(["--system-prompt", s.system_prompt])
     # Prompt as last argument
     args.append(text)
 

@@ -120,11 +120,43 @@ class CbcAdapter:
         which_path = shutil.which("cbc")
         return which_path or "cbc"
 
+    def _resolve_cbc_argv(self) -> list[str]:
+        """Return the full argv prefix to launch cbc.
+
+        On Windows, `shutil.which` resolves npm shims to a `.CMD` batch file.
+        Passing a `.CMD` straight into asyncio.create_subprocess_exec goes
+        through cmd.exe, which mangles long/multiline/unicode args (e.g. a
+        700-char system prompt with quotes) — cbc then exits in ~30ms.
+        Resolve the shim to `node <entry.js>` so args pass through intact.
+        """
+        path = self._resolve_cbc_path()
+        if path.lower().endswith((".cmd", ".bat")):
+            shim_dir = os.path.dirname(os.path.abspath(path))
+            node_exe = os.path.join(shim_dir, "node.exe")
+            if not os.path.exists(node_exe):
+                node_exe = "node"
+            # npm shim layout: <dir>/node_modules/<pkg>/bin/<name>
+            candidates = [
+                os.path.join(shim_dir, "node_modules", p, "bin", name)
+                for p in ("@tencent-ai/codebuddy-code", "@tencent-ai/codebuddy")
+                for name in ("codebuddy", "codebuddy.js")
+            ]
+            # fallback: glob the whole node_modules for a codebuddy bin entry
+            import glob as _glob
+            if not any(os.path.exists(c) for c in candidates):
+                hits = _glob.glob(os.path.join(shim_dir, "node_modules", "*", "*", "bin", "codebuddy*"))
+                candidates += hits
+            for c in candidates:
+                if os.path.exists(c):
+                    return [node_exe, c]
+            return [path]
+        return [path]
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
         """Stream mode: long-running with stdin/stdout stream-json."""
-        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json",
+        return self._resolve_cbc_argv() + ["-p", "--output-format", "stream-json",
                 "--input-format", "stream-json", "-y"]
 
     def base_args_stream(self) -> list[str]:
@@ -133,7 +165,7 @@ class CbcAdapter:
         --input-format stream-json is incompatible with --mcp-config,
         so we omit it here. cbc processes the prompt as a one-shot.
         """
-        return [self._resolve_cbc_path(), "-p", "--output-format", "stream-json", "-y"]
+        return self._resolve_cbc_argv() + ["-p", "--output-format", "stream-json", "-y"]
 
     def model_args(self, s: Session) -> list[str]:
         return ["--model", s.model or self.default_model]
