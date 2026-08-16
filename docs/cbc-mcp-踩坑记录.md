@@ -11,14 +11,17 @@
 ## 决策总结
 
 > 2026-08-16 更新：`--mcp-config` 显式传 `.codebuddy/mcp.json` 时工具为 **direct connected（non-defer）**，无需 ToolSearch（受控试验确认，cbc 2.136.0）。原记录"工具均为 deferred"已被修正。
+>
+> **2026-08-16 勘误（cbc 2.137.0）**：踩坑 #5 的"`--input-format stream-json` 与 `--mcp-config` 不兼容"结论仅在 **cbc 2.136.0** 成立，**2.137.0 已修复**。实测：stream-json 模式 + `--mcp-config`（stdio）下 `init` 事件 `mcp_servers: [{name: pan, status: connected}]`，且同一长驻进程**连续 3 轮**对话均成功调用 MCP 工具（`mcp__pan__session_list`/`model_list`，返回真实数据）。即 **stream 长驻 + MCP 在 2.137.0 下可行**，详见实验脚本 `streamjson_probe.py`/`multiround_probe.py`。
 
 | 方案 | 结论 |
 |------|------|
-| `--mcp-config` + `--input-format stream-json` | **不兼容**，MCP 不加载 |
+| `--mcp-config` + `--input-format stream-json` | **2.136.0 不兼容**（MCP 不加载）；**2.137.0 已兼容**（实测 3 轮多轮对话 MCP 正常） |
 | `--mcp-config` 文件路径（无 `--input-format`） | **最终方案**；工具 direct connected（non-defer，2026-08-16 实测），进程一问一答后退出 |
 | `-d` 自动发现 `.codebuddy/mcp.json`（无 `--mcp-config`） | **不生效**（2026-08-16 实测 MCP 未连接），需显式 `--mcp-config` |
 | 项目级 `.mcp.json` 发现 | 工具 **deferred**（需 ToolSearch，2026-08-16 实测） |
-| One-shot MCP 模式 + `--resume` | **最终方案**，每次 task 新开 cbc 进程 |
+| One-shot MCP 模式 + `--resume` | **2.136.0 起用的兜底方案**；每次 task 新开 cbc 进程（冷启动 ~19s） |
+| `--acp`（Agent Client Protocol）长连接 | **2.137.0 支持 MCP**，但 `session/new` 的 `mcpServers` schema 只接受 `http/sse/acp` 类型（**不支持 stdio**），需远程 SSE/HTTP 常驻 server |
 
 ## 踩坑时间线
 
@@ -43,11 +46,14 @@
 - 测试结果：**只有文件路径有效**，JSON 字符串不生效
 - 文件路径格式：`--mcp-config D:/path/to/.mcp.json`
 
-### 5. `--mcp-config` + `--input-format stream-json` 不兼容
+### 5. `--mcp-config` + `--input-format stream-json` 不兼容【2.137.0 已修复，勘误】
 
-- `--input-format stream-json` 让 cbc 忽略 `--mcp-config`
-- cbc 只读 `~/.codebuddy/mcp.json`（user-level），不读项目 `.mcp.json`
-- 即使 `~/.codebuddy/mcp.json` 有 server 配置，stream-json 模式下也不加载
+**2026-08-16 勘误**：本坑在 **cbc 2.136.0** 实测成立；**2.137.0 复测已不成立**——
+
+- 2.136.0：`--input-format stream-json` 让 cbc 忽略 `--mcp-config`；cbc 只读 `~/.codebuddy/mcp.json`（user-level），且 stream-json 模式下 user-level 也不加载
+- 2.137.0：`--input-format stream-json` + `--mcp-config <stdio 配置>` 正常加载。`init` 事件返回 `mcp_servers: [{name: pan, status: connected}]`；同一长驻进程连续 3 轮对话均成功调用 `mcp__pan__*` 工具（返回真实数据）。**stream 长驻 + MCP 可行，无需 one-shot 兜底**
+
+> 版本差异是行为变化主因（可能 2.137.0 修复），也可能 2.136.0 当时受 `.mcp.json` fallback 干扰（见 #15）。若将来升级 cbc 需用 `streamjson_probe.py` 复测。
 
 ### 6. `enableAllProjectMcpServers` 需要项目注册
 
@@ -148,6 +154,13 @@ else:
 - 进程常驻，stdin/stdout 双向通信
 - `_read_stdout` 实时解析响应
 
+### Stream 模式（带 MCP）【2.137.0 新增可行，已实现】
+
+- **不再需要 one-shot 兜底**：stream-json + `--mcp-config` 在 2.137.0 下可直接加载 MCP，且长驻进程多轮对话 MCP 工具持续可用（实测 3 轮）
+- 进程常驻 + watchdog 回收照旧，消除 one-shot 每任务 ~19s 冷启动
+- 工具为 deferred 状态（模型经 `ToolSearch`/`DeferExecuteTool` 调用；`--mcp-config` 路径下首轮 ToolSearch，后续直接调用）
+- **已实现（2026-08-16）**：`adapter_config.output_mode="stream"` 时 `create_worker`/`_consumer` 走 stream 分支（`use_mcp=False`），长驻进程 spawn 时经 `build_spawn_args`→`mcp_args()` 自动带 `--mcp-config`；system_prompt 以 `--system-prompt` 注入（避免角色扮演陷阱）。测试：`tests/test_worker_output_mode.py`
+
 ### One-shot MCP 模式（有 MCP）
 
 - 每次 task 新开 cbc 进程
@@ -157,6 +170,7 @@ else:
 - `--resume <cli_session_id>` 保持对话上下文
 - 阻塞等待进程完成，解析 stream-json 输出
 - `w.status` 正确暴露（running → idle）
+- **2.137.0 起已非必要**，仅作兼容降级保留（或依赖 `--resume` 的场景）
 
 ## cbc 参数速查
 
@@ -223,7 +237,7 @@ cbc mcp remove <name>            移除服务器
 | 行为 | 说明 |
 |------|------|
 | `--mcp-config <path>` | 文件路径有效，JSON 字符串无效 |
-| `--input-format stream-json` | **不兼容** `--mcp-config`，MCP 不加载 |
+| `--input-format stream-json` | **2.136.0 不兼容** `--mcp-config`（MCP 不加载）；**2.137.0 已兼容**（实测连接+多轮调用成功） |
 | `--output-format stream-json` | 输出格式，与 MCP 兼容 |
 | `-p` (one-shot) | 线程安全，每次独立 session |
 | `-d <dir>` | 注册为项目目录；⚠️ 2026-08-16 实测**不触发** `.codebuddy/mcp.json` 自动发现（需 `--mcp-config` 显式传） |
@@ -235,7 +249,7 @@ cbc mcp remove <name>            移除服务器
 
 ## 关键教训
 
-1. **`--input-format stream-json` 是 MCP 杀手** — 有它就不要指望 `--mcp-config`
+1. **`--input-format stream-json` 曾是 MCP 杀手（≤2.136.0）** — 2.137.0 已兼容，升级后需用 `streamjson_probe.py` 复测再决策；不要沿用旧结论
 2. **先手动测试后集成** — 用 `cbc -p --mcp-config ...` 验证 MCP 连接
 3. **`bool([])` = `False`** — 检查列表时用 `len(list) > 0` 或 `list is not None`
 4. **`--resume` 的 session ID 要清理** — 杀死旧 worker 时同步清除 `cli_session_id`

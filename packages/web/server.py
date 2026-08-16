@@ -219,6 +219,7 @@ def _session_to_api(s: sess.Session):
         "workerId": w.worker_id if w else None,
         "mcpEnabled": ac.get("mcp_enabled", False),
         "mcpLocked": _get_mcp_locked_state(s),
+        "outputMode": ac.get("output_mode"),
         "gameId": s.game_id,
     }
 
@@ -329,6 +330,10 @@ def _build_session_params(data: dict) -> dict:
             "max_thinking_tokens": data.get("maxThinkingTokens") or None,
         },
     }
+    # Optional worker execution mode ("stream" | "oneshot"); validated later
+    # by _apply_output_mode. Unset = automatic (existing behaviour).
+    if "outputMode" in data and data.get("outputMode") not in (None, ""):
+        params["adapter_config"]["output_mode"] = data["outputMode"]
     
     # If characterId is set, override adapter/model/permission_mode/system_prompt from character
     character_id = data.get("characterId")
@@ -390,6 +395,8 @@ def _apply_session_updates(s: sess.Session, data: dict):
         _apply_mcp_enabled(s, data["mcpEnabled"])
     if "mcpServers" in data:
         _apply_mcp_servers(s, data["mcpServers"])
+    if "outputMode" in data:
+        _apply_output_mode(s, data["outputMode"])
     if "gameId" in data:
         # Allow None / empty to clear; store string otherwise. Used by QQ
         # plugin to bind a RuleWhisper game_id to a group-scoped session so
@@ -452,6 +459,25 @@ def _apply_mcp_enabled(s: sess.Session, enable: bool):
                 return
 
     s.set_adapter_field("mcp_enabled", enable)
+
+
+_VALID_OUTPUT_MODES = ("stream", "oneshot")
+
+
+def _apply_output_mode(s: sess.Session, mode):
+    """Apply outputMode: worker execution channel ("stream" | "oneshot").
+
+    - "stream": long-running stream-json process; if MCP is also enabled,
+      the process is spawned with --mcp-config (stream + MCP, cbc >= 2.137.0).
+    - "oneshot": per-task one-shot cbc process (legacy MCP path).
+    - None/"" clears the field -> automatic (existing behaviour: MCP -> oneshot).
+    """
+    if mode in (None, "", "auto"):
+        s.adapter_config.pop("output_mode", None)
+        return
+    if mode not in _VALID_OUTPUT_MODES:
+        raise ValueError(f"outputMode must be one of {list(_VALID_OUTPUT_MODES)}, got {mode!r}")
+    s.set_adapter_field("output_mode", mode)
 
 
 def _open_terminal(cmd: str, cwd: str | Path) -> int:
@@ -765,12 +791,16 @@ async def api_update_session(session_id: str, data: dict):
         return {"error": "Session not found"}
     require_restart = False
     old_mcp_enabled = s.adapter_config.get("mcp_enabled")
+    old_output_mode = s.adapter_config.get("output_mode")
     try:
         _apply_session_updates(s, data)
     except ValueError as e:
         return {"error": str(e)}
     new_mcp_enabled = s.adapter_config.get("mcp_enabled")
-    require_restart = old_mcp_enabled != new_mcp_enabled
+    new_output_mode = s.adapter_config.get("output_mode")
+    # MCP enable/disable 或执行模式切换都需要重启 worker 才生效
+    require_restart = (old_mcp_enabled != new_mcp_enabled
+                       or old_output_mode != new_output_mode)
     sess.save(s)
     await broadcast({
         "type": "session.updated",
