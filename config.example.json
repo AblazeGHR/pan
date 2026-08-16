@@ -113,6 +113,15 @@
     "status_port": 8769
   },
 
+  "worker": {
+    "_字段说明": {
+      "timeout_sec": "静默超时（秒）：running/queued 状态下持续无 stdout 输出超过该值时 kill（默认 300）",
+      "idle_sec": "空闲回收（秒）：idle 状态（任务完成）持续超过该值时回收进程。held/zombie 跳过（默认 300）"
+    },
+    "timeout_sec": 300,
+    "idle_sec": 300
+  },
+
   "plugin_manifests": {
     "_字段说明": {
       "plugin_manifests": "外部 manifest.json 文件或目录路径列表，用于加载 Character profiles"

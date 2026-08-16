@@ -1135,7 +1135,8 @@ async def api_handoff(data: dict):
     session_id = data.get("sessionId")
     text = data.get("text")
     if not session_id or not text:
-        return {"error": "sessionId and text are required"}
+        return {"ok": False, "error": {"code": "missing_params",
+                                       "message": "sessionId and text are required"}}
     timeout = data.get("timeout", 600)
     task_id = data.get("taskId")
     return await worker.handoff(session_id, text, source="agent",
@@ -1148,7 +1149,8 @@ async def api_assign(data: dict):
     session_id = data.get("sessionId")
     text = data.get("text")
     if not session_id or not text:
-        return {"error": "sessionId and text are required"}
+        return {"ok": False, "error": {"code": "missing_params",
+                                       "message": "sessionId and text are required"}}
     return await worker.assign(session_id, text, source="agent")
 
 
