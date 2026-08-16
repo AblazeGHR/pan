@@ -216,6 +216,7 @@ def _session_to_api(s: sess.Session):
         "updatedAt": s.updated_at,
         "managed": s.managed,
         "managedBy": s.managed_by,
+        "reportSubscriptions": sorted(s.report_subscriptions),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "mcpEnabled": ac.get("mcp_enabled", False),
@@ -1154,6 +1155,59 @@ async def api_assign(data: dict):
         return {"ok": False, "error": {"code": "missing_params",
                                        "message": "sessionId and text are required"}}
     return await worker.assign(session_id, text, source="agent")
+
+
+@app.post("/api/report-subscribe")
+async def api_report_subscribe(data: dict):
+    """meta-agent 订阅某个 managed session 的完成报告（立项 4.3 订阅制）。
+
+    Body: {"managerId": <meta-agent session id>, "sessionId": <managed session id>}
+
+    订阅后，该 managed session 每次完成（done/error）都会把报告 append 到
+    meta-agent 的落盘队列 queue_pending（对齐 handoff 格式）。
+    未订阅则只保留现有 worker.result 广播。
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"error": "managerId and sessionId are required"}
+    manager = sess.get(manager_id)
+    if not manager:
+        return {"error": f"Manager session {manager_id} not found"}
+    target = sess.get(session_id)
+    if not target:
+        return {"error": f"Session {session_id} not found"}
+    # 软约束：已有归属且不属于该 manager → 拒绝（防止越权订阅）
+    if target.managed_by and target.managed_by != manager_id:
+        return {"error": f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"}
+    manager.report_subscriptions.add(session_id)
+    sess.save(manager)
+    return {
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "subscribed": True,
+        "reportSubscriptions": sorted(manager.report_subscriptions),
+    }
+
+
+@app.post("/api/report-unsubscribe")
+async def api_report_unsubscribe(data: dict):
+    """取消订阅 managed session 的完成报告（立项 4.3）。"""
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"error": "managerId and sessionId are required"}
+    manager = sess.get(manager_id)
+    if not manager:
+        return {"error": f"Manager session {manager_id} not found"}
+    manager.report_subscriptions.discard(session_id)
+    sess.save(manager)
+    return {
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "subscribed": session_id in manager.report_subscriptions,
+        "reportSubscriptions": sorted(manager.report_subscriptions),
+    }
 
 
 @app.post("/api/kill/{worker_id}")

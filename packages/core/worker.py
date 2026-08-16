@@ -328,6 +328,8 @@ async def _read_stdout(w: Worker):
                 "taskSeq": task_seq,
             })
             _resolve_result_waiter(w.worker_id, w.status, result_text, task_seq=task_seq)
+            # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
+            await _enqueue_report(w.session_id, w.status, result_text, w._current_task_id, w.worker_id)
             # 幂等：完成对应 taskId（若有）
             if w._current_task_id and w._current_task_id in _task_status:
                 _task_status[w._current_task_id] = {
@@ -392,11 +394,25 @@ async def _consumer(w: Worker):
       (cbc >= 2.137.0). Enabled via adapter_config.output_mode == "stream".
     - One-shot MCP mode: new cbc process per message with --mcp-config.
       Legacy path, used when output_mode is unset/oneshot.
+
+    Report consumption (订阅制，立项 4.3): a ``report_signal`` item only
+    wakes the consumer; the report payload lives in the persisted
+    ``Session.queue_pending``. On signal, all backlog reports are pulled from
+    the source of truth, concatenated verbatim into ONE message (visible
+    separator + source), and processed as a single message. Non-report
+    messages (handoff tasks / normal messages / system_prompt) stay single.
     """
     while True:
         item = await w.queue.get()
         if item is None:
             break
+
+        # 报告唤醒信号：正文在落盘 queue_pending，批量拉取拼接成一条消息处理
+        if item.get("type") == "report_signal":
+            s = _session(w)
+            if s and s.queue_pending:
+                await _consume_pending_reports(w, s)
+            continue
 
         text = item["text"]
         source = item.get("source", "agent")
@@ -419,6 +435,87 @@ async def _consumer(w: Worker):
             await _consumer_mcp(w, text, source, s)
         else:
             await _consumer_stream(w, text, source, s)
+
+
+# ── 订阅制报告消费（立项 4.3）──
+
+_REPORT_SEP = "─────"  # 报告拼接分隔线
+
+
+def _format_report_batch(reports: list[dict]) -> str:
+    """积压报告原样拼接：每条 report dict 序列化 + 显眼分隔线 + 来源标注。
+
+    报告形状对齐 handoff：{"status","result","sessionId","taskId","workerId"}。
+    """
+    parts = []
+    for r in reports:
+        src = r.get("sessionId") or r.get("workerId") or "unknown"
+        parts.append(
+            f"{_REPORT_SEP} 子任务报告（来源 sessionId={src}）{_REPORT_SEP}\n"
+            f"{json.dumps(r, ensure_ascii=False)}"
+        )
+    return "\n\n".join(parts)
+
+
+async def _consume_pending_reports(w: Worker, s):
+    """从落盘 queue_pending 取全部积压报告，拼接为一条消息交给模型处理。
+
+    消费即删（清空后立即回写），与"落盘真源 + 内存信号"一致。
+    """
+    reports = s.queue_pending
+    s.queue_pending = []
+    await _sess.save_async(s)
+    text = _format_report_batch(reports)
+
+    # 报告不是 handoff 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
+    w._current_seq = None
+    w._current_task_id = None
+    w._replaying = False
+
+    # 复用普通消息处理路径：记忆注入 → history append → 执行
+    injected_text = await _maybe_inject_memory(s, text)
+    s.history.append({"role": "user", "content": injected_text})
+    await _sess.save_async(s)
+
+    use_mcp = _use_oneshot_mcp(s)
+    if use_mcp:
+        await _consumer_mcp(w, injected_text, "report", s)
+    else:
+        await _consumer_stream(w, injected_text, "report", s)
+
+
+async def _enqueue_report(session_id: str, status: str, result: str,
+                          task_id: str | None, worker_id: str):
+    """订阅制报告入队：session 完成 → 若被其 managed_by 订阅，报告 append 到
+    manager 的落盘队列 queue_pending，并唤醒 manager 的 consumer。
+
+    未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
+    """
+    s = _sess.get(session_id)
+    if not s or not s.managed_by:
+        return
+    manager = _sess.get(s.managed_by)
+    if not manager:
+        return
+    if session_id not in (manager.report_subscriptions or set()):
+        return
+
+    manager.queue_pending.append({
+        "status": status,
+        "result": result,
+        "sessionId": session_id,
+        "taskId": task_id,
+        "workerId": worker_id,
+    })
+    await _sess.save_async(manager)
+
+    # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
+    # 信号只负责唤醒，不承载正文
+    mw = find_worker_by_session(s.managed_by)
+    if (mw and mw.queue is not None
+            and not (mw.process is not None and mw.process.returncode is not None)):
+        mw.last_activity = time.monotonic()
+        await mw.queue.put({"type": "report_signal"})
 
 
 # ── watchdog：超时 / 空闲回收 ──
@@ -766,6 +863,8 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         "taskSeq": task_seq,
     })
     _resolve_result_waiter(w.worker_id, status, result, task_seq=task_seq)
+    # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
+    await _enqueue_report(w.session_id, status, result, w._current_task_id, w.worker_id)
     # 幂等：完成对应 taskId（若有）
     if w._current_task_id and w._current_task_id in _task_status:
         _task_status[w._current_task_id] = {
@@ -866,6 +965,11 @@ async def create_worker(session_id: str) -> Worker | str:
         await send_task(worker_id, s.system_prompt, source="system_prompt")
     elif s.system_prompt:
         _log.info("[Worker %s] MCP mode: system_prompt injected via --system-prompt", worker_id)
+
+    # 订阅制报告：落盘 queue_pending 有积压（上次 worker 死亡/回收未消费）
+    # → 发唤醒信号，_consumer 批量消费（立项 4.3 防死亡丢消息）
+    if s.queue_pending:
+        await w.queue.put({"type": "report_signal"})
 
     return w
 

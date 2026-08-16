@@ -45,6 +45,7 @@ class Session:
     managed: list[str] = field(default_factory=list)  # session ids this session manages
     managed_by: str | None = None  # session id of the session managing this one
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
+    report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
 
     # ── adapter_config convenience accessors ──
 
@@ -76,6 +77,9 @@ class Session:
             self.created_at = datetime.now().isoformat()
         if not self.updated_at:
             self.updated_at = self.created_at
+        # 落盘 JSON 里 set 序列化为 list → 读回时还原
+        if isinstance(self.report_subscriptions, (list, tuple)):
+            self.report_subscriptions = set(self.report_subscriptions)
         # migrate any legacy top-level fields that ended up on the instance
         # (from Session(**data) with old JSON having cbc_session_id, etc.)
         _migrate_legacy_fields(self)
@@ -121,6 +125,7 @@ class Session:
             "managed": self.managed,
             "managed_by": self.managed_by,
             "queue_pending": self.queue_pending,
+            "report_subscriptions": sorted(self.report_subscriptions),
         }
 
 
