@@ -5,8 +5,8 @@
 
 ## 相关文档
 
-- [下一阶段优化计划](./下一阶段优化计划.md) — 任务进度跟踪（前端集成、性能、错误处理）
-- [Pan MCP defer 机制](./pan-mcp-defer-机制与去defer方案.md) — 加载路径与 defer 决策机制（原 system_prompt/CMD 转义内容已并入本文件 #17）
+- [阶段计划与进度](./阶段计划与进度.md) — 任务进度跟踪（前端集成、性能、错误处理）
+- [CodeBuddy MCP defer 机制](./references/cbc-mcp-defer-机制.md) — 加载路径与 defer 决策机制（原 system_prompt/CMD 转义内容已并入本文件 #17）
 
 ## 决策总结
 
@@ -55,7 +55,7 @@
 
 > 版本差异是行为变化主因（可能 2.137.0 修复），也可能 2.136.0 当时受 `.mcp.json` fallback 干扰（见 #15）。若将来升级 cbc 需用 `streamjson_probe.py` 复测。
 >
-> 注：`streamjson_probe.py` / `multiround_probe.py` 是当时的**临时实验脚本，未入库**（仅本地验证用）。
+> 注：`streamjson_probe.py` / `multiround_probe.py`（及 `acp_probe.py`、`acp_pan_mcp.json`）已归档到 `docs/archive/cbc-mcp-experiments/`。
 
 ### 6. `enableAllProjectMcpServers` 需要项目注册【已废弃】
 
