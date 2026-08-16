@@ -179,7 +179,11 @@ class TestApplyMCPServers:
         configs = s.adapter_config.get("mcp_servers") or []
         assert len(configs) == 1
         assert configs[0]["name"] == "pan"
-        assert configs[0]["command"] == "python"
+        # Manifest command resolves ${PLUGIN_DIR} to the project venv python
+        # (absolute path, since plain "python" depends on PATH and fails when
+        # launched from the cbc environment — see 54894ba).
+        expected_cmd = str(Path("packages/mcp/../../.venv/Scripts/python").resolve())
+        assert configs[0]["command"] == expected_cmd
         assert configs[0]["args"] == ["-m", "packages.mcp.server"]
 
     def test_clear_with_empty(self, monkeypatch):
