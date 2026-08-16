@@ -42,6 +42,9 @@ class Session:
     last_result: dict | None = None
     created_at: str = ""
     updated_at: str = ""
+    managed: list[str] = field(default_factory=list)  # session ids this session manages
+    managed_by: str | None = None  # session id of the session managing this one
+    queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
 
     # ── adapter_config convenience accessors ──
 
@@ -115,6 +118,9 @@ class Session:
             "last_result": self.last_result,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "managed": self.managed,
+            "managed_by": self.managed_by,
+            "queue_pending": self.queue_pending,
         }
 
 

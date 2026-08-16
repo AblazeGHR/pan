@@ -179,7 +179,11 @@ class TestApplyMCPServers:
         configs = s.adapter_config.get("mcp_servers") or []
         assert len(configs) == 1
         assert configs[0]["name"] == "pan"
-        assert configs[0]["command"] == "python"
+        # manifest.json command is "${PLUGIN_DIR}/../../.venv/Scripts/python",
+        # which the loader resolves to an absolute path inside the repo's .venv
+        cmd = configs[0]["command"].replace("\\", "/")
+        assert os.path.isabs(configs[0]["command"])
+        assert cmd.endswith(".venv/Scripts/python")
         assert configs[0]["args"] == ["-m", "packages.mcp.server"]
 
     def test_clear_with_empty(self, monkeypatch):

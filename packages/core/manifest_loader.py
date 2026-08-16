@@ -49,6 +49,7 @@ class Profile:
     mcp_servers: list[str] = field(default_factory=list)
     memory_dir: str | None = None  # Path to character's memory .md files
     source_manifest: str = ""      # Which manifest.json defined this profile
+    role: str = "default"          # Pan-internal boundary role (e.g. "meta-agent"), default "default"
 
     @property
     def mcp_locked(self) -> bool:
@@ -175,6 +176,7 @@ def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
         mcp_servers=list(raw.get("mcp_servers", [])),
         memory_dir=memory_dir,
         source_manifest=plugin_dir,
+        role=raw.get("role", "default"),
     )
 
 
