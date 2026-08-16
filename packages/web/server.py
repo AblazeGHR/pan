@@ -126,6 +126,9 @@ REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
 # "legacy" → 仅旧前端
 FRONTEND_MODE = load_config().get("frontend", "coexist")
 
+# 普通 session（无 character/profile）创建时的默认 MCP 开关（config.json -> mcp.enabled_default）
+MCP_DEFAULT_ENABLED = load_config().get("mcp", {}).get("enabled_default", False)
+
 _MOBILE_UA_RE = re.compile(
     r"Mobile|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone|webOS",
     re.IGNORECASE,
@@ -224,7 +227,7 @@ def _session_to_api(s: sess.Session):
         "reportSubscriptions": sorted(s.report_subscriptions),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
-        "mcpEnabled": ac.get("mcp_enabled", False),
+        "mcpEnabled": ac.get("mcp_enabled", MCP_DEFAULT_ENABLED),
         "mcpLocked": _get_mcp_locked_state(s),
         "outputMode": ac.get("output_mode"),
         "gameId": s.game_id,
@@ -335,6 +338,7 @@ def _build_session_params(data: dict) -> dict:
             "always_thinking_enabled": data.get("alwaysThinkingEnabled", config.get("always_thinking_enabled", False)),
             "effort": data.get("effort") or config.get("effort", ""),
             "max_thinking_tokens": data.get("maxThinkingTokens") or None,
+            "mcp_enabled": data.get("mcpEnabled", MCP_DEFAULT_ENABLED),
         },
     }
     # Optional worker execution mode ("stream" | "oneshot"); validated later
