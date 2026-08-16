@@ -11,7 +11,10 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 
 ## 0. 快速开始（30 秒冷启动）
 
-1. MCP 工具是 deferred 的：`ToolSearch`（查询词 `pan` 或 `mcp`）→ 发现后用 `DeferExecuteTool` 调用，命名空间 `mcp__pan__` 前缀。
+1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
+   - **`--mcp-config` 路径（meta-agent 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
+   - **项目级 `.mcp.json` 发现路径**：工具是 deferred 的 → `ToolSearch`（查询词 `pan`/`mcp`）→ `DeferExecuteTool` 调用。
+   - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3.2 / §12.2 G9）。
 2. 编排主链路：`session_create → worker_assign → 盯梢（worker.result）→ session_get 查结果 → session_delete 收尾`。
 3. 完成通知**二选一**（详见 §3，同用会重复通知）：
    - 外部协调（CodeBuddy 会话）：`Monitor` + `/ws/agent` 订阅 `worker.result`/`worker.zombie`；
@@ -124,8 +127,16 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 
 ### 3.2 meta-agent 内部：report_subscribe + queue_pending
 
+**前置条件（G5 实测 2026-08-17，不满足则本路径直接失效，退回 §5 轮询）**：
+
+| 前置 | 说明 | 不满足时的现象 |
+|------|------|---------------|
+| `PAN_AGENT_SESSION_ID` 存在 | **由 Pan adapter 注入 MCP server 进程环境**（写在 `data/mcp-configs/<session_id>.mcp.json` 的 `env` 段，随 stdio 启动带入）。**不在你的 shell `env` 里**——用 `env \| grep` 查不到属正常，别据此判断缺失；可从 `CODEBUDDY_MCP_CONFIG` 文件名/内容确认自己的 session id | 工具报缺少 manager id |
+| **同实例**：manager session 与被管 session 在**同一个 Pan 服务**（同端口） | MCP server 默认连 `PAN_API_URL`（默认 **8768**），而 `PAN_AGENT_SESSION_ID` 可能属于**另一个**服务（如 8767 pan-test）。三者（mcp-config `cwd`/`PAN_API_URL`/manager session 所在服务）必须一致 | manager session 在目标服务上"不存在"，订阅无效（§12.2 G9） |
+| 服务端含 `report-subscribe` 路由 | 该端点较新；**运行中的服务可能落后于 MCP 工具版本** | `report_subscribe` 返回 `{"detail":"Not Found"}`（404，实测于 8768/main；本分支 `server.py` 已含）（§12.2 G10） |
+
 ```
-1. worker_assign 前先订阅（需要环境变量 PAN_AGENT_SESSION_ID，仅 Pan 内 session 生效）：
+1. worker_assign 前先订阅（前置见上表）：
    report_subscribe(session_id="ses_managed...")
    → {"subscribed": true, "reportSubscriptions": [...]}
 
@@ -229,7 +240,9 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 
 ## 7. 可用 MCP 工具
 
-> MCP 工具是 deferred 的：`ToolSearch("pan")` → `DeferExecuteTool`。工具命名空间 `mcp__pan__`。
+> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。
+>
+> **巡检慎用 `session_list`**：无过滤参数、返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§12.2 G8）。改用 `worker_list` + 定向 `session_get(session_id, limit=15)`。
 
 ### 会话管理
 
@@ -288,6 +301,8 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 ### 9.1 workdir 机制
 
 - 默认：`data/workdirs/<name>`（session 名 slug 化，非法字符替换为 `-`）。
+- **相对基准 = 实际运行的那个 Pan 服务实例的数据根**，不是你的当前项目目录、也不是 mcp-config 的 `cwd`（G3/G12）。实测：8768 服务（cwd `D:\project\Pan`）→ 落 `D:\project\Pan\data\workdirs\<name>`；8767（pan-test）→ 落 `D:\project\pan-test\data\workdirs\<name>`。**以 `session_create` 返回的 `workdir` 字段为准**。
+- `session_delete` **不删 workdir 目录**（只 kill worker + 删 session 元数据），磁盘留空目录，需要时自行清理（G11）。
 - **绝对路径可指定 Pan 外目录**（如 `D:/some/project`）——Worker 的 `cwd` 就是 workdir，cbc 把 workdir 当项目目录（JSONL + resume 都在这里）。
 - 同名 session 名必须唯一；workdir 默认取 session 名。
 - 文件系统 API（`/api/cbc/browse` 等）限在 workdir 内，`..` 逃逸会被拒绝。
@@ -390,21 +405,52 @@ A: 确认已 `subscribe` 且 `eventTypes` 含 `worker.result`（默认只订阅�
 **Q: 订阅制报告没 append 到 queue_pending？**
 A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`、你的环境是否有 `PAN_AGENT_SESSION_ID`（report 工具仅 Pan 内 session 可用）。
 
-## 12. 冷启动实测记录与待补充清单（D5，2026-08-17）
+## 12. 冷启动实测记录与待补充清单（D5）
 
-**实测结论**：仅凭本手册完成 `session_create → worker_spawn → worker_assign → 盯梢 → 查结果 → session_delete` 主链路**一次走通**（子 worker 算 `17×23` 返回 391，正确）。流程、MCP 参数名、状态判断、轮询兜底均充分。
+> 立项 D5 要求同时验证 **HTTP 路径** 与 **MCP 路径**。下表 G1–G7 为 `docs/plans&overviews/冷启动Agent编排实测报告.md` 中 HTTP 路径实测结果；**MCP 路径实测（2026-08-17）见下方「MCP 路径实测」小节**，并据此更新 G2/G5、新增 G8–G12。
 
-**实测中发现的信息缺口（待补充，详见 `docs/plans&overviews/冷启动Agent编排实测报告.md`）**：
+### 12.1 HTTP 路径实测缺口（原 D5）
 
 | # | 缺口 | 建议补充位置 |
 |---|------|-------------|
 | G1 | `POST /api/sessions`、`POST /api/spawn`、`POST /api/assign`、`DELETE /api/sessions/{id}` 的**请求体字段未记录**（§5 只说"见 server.py"）——纯 HTTP 冷启动在第 1 步就需读代码 | §5 补核心端点 body 表 |
-| G2 | **MCP server 接线步骤缺失**：实测 ToolSearch 搜不到 `mcp__pan__` 工具时，手册无"如何启动/注入 MCP server 使工具可见"的动作序列 | 新增小节（§9.7 或独立 §） |
-| G3 | **workdir 相对基准未明确**：默认落点实测为 Pan server 数据根 `D:\project\pan-test\data\workdirs\<name>`，非当前项目目录 | §9.1 |
+| G3 | **workdir 相对基准未明确**：默认落点实测为 `D:\project\pan-test\data\workdirs\<name>`（Pan server 数据根），非当前项目目录 | §9.1 |
 | G4 | **Windows curl 内联 UTF-8 JSON 报 body 解析错误**（实测 `{"detail":"There was an error parsing the body"}`）；应改用 `--data-binary @file` 或 urllib/requests | §5 或 §9 |
-| G5 | `report_subscribe` 前置 `PAN_AGENT_SESSION_ID` 的**来源/注入方式未说明**（谁注入、何时有） | §3.2 |
 | G6 | **字段映射未说明**：create 返回 `id`，spawn/assign 入参用 `sessionId`；`sessionId` vs `session_id` 命名不一致 | §5 / §7 |
 | G7 | 轮询**放弃/超时策略缺失**（多久、几次轮询算失败） | §5 轮询模式 |
+
+### 12.2 MCP 路径实测（2026-08-17，meta-agent `mcp__pan__` 直连）
+
+**实测链路（一次走通）**：
+`session_create`(ses_d66c08611936941b) → `worker_assign`(queued/worker-2) → 轮询 `session_get`(limit=30) → `lastResult.status="done"`, `result="391"`（子 worker 算 `17×23`）→ `session_delete`(deleted)。
+**第二次**覆盖 `worker_spawn` 显式路径：create → `worker_spawn`(idle) → assign(queued) → 轮询 → `143÷11=13` done → delete。参数名、状态判断、轮询兜底均充分，**MCP 路径主链路顺畅**。
+
+**G2 / G5 处理结论（已覆盖，更新原描述）**：
+
+- **G2（MCP 接线）已解决且写入 §0/§7**：`mcp__pan__` 工具由 Pan adapter 在 spawn worker 时**自动注入**——通过 adapter 生成的 `data/mcp-configs/<session_id>.mcp.json`（含 `{"mcpServers":{"pan":{"command":"...python","args":["-m","packages.mcp.server"],"cwd":"...","type":"stdio"}}}`），经 `--mcp-config` 显式传入，**直接 connected 可见，无需 ToolSearch/DeferExecuteTool**。`ToolSearch`+`DeferExecuteTool` **仅**用于项目级 `.mcp.json` 路径发现的工具（见 §9.7）。手册原 §0/§7 "MCP 工具是 deferred 的"表述对 `--mcp-config` 路径不准确，已修正。
+
+- **G5（`PAN_AGENT_SESSION_ID` 来源）已查实（2026-08-17）**：该变量**由 Pan adapter 注入到 MCP server 进程环境**（写入上述 mcp-config 的 `env` 段：`PAN_AGENT_SESSION_ID=<manager session id>`、`PAN_AGENT_SESSION_TITLE=<title>`）。**来源**：manager（meta-agent 自身）session 被创建并启用 MCP 时，adapter 生成 mcp-config 时填入；**何时**：MCP server 以 stdio 拉起的那一刻就带在环境里，对 meta-agent 透明（其亲 shell `env` 里查不到这些变量，属正常）。
+
+- **G5 关键约束（新发现，致命）**：`report_subscribe` 要求 **manager session 与被管 session 同处一个 Pan 服务实例**。本实测中 MCP server 默认连 **8768**（见 §9.7/§0），而 `PAN_AGENT_SESSION_ID=ses_8f7825d50d340dad` 实际只存在于 **8767**（pan-test）。该环境变量值指向 8767，与 MCP server 的默认目标 8768 **跨端口**，导致 §3.2 内部报告路径在本布局下失效。**对齐前提**：`--mcp-config` 的 `cwd`/启动端口、`PAN_API_URL`、**与 `PAN_AGENT_SESSION_ID` 所在服务**必须三者一致。
+
+**MCP 路径新发现缺口（G8–G12，待补）**：
+
+| # | 缺口 / 现象 | 后果 | 建议补充位置 |
+|---|-------------|------|--------------|
+| G8 | `session_list` **无过滤参数**，默认把全部 session 的**完整 history** 序列化返回（实测 310KB / 265906 chars，触发工具输出 token 上限溢出） | 冷启动第一步"先查后做"反而撑爆上下文；必须先 `Read` 落盘文件分段看 | §7/§8：改用 `session_get(limit=)` + `worker_list` 代替全量 `session_list` |
+| G9 | **MCP server 默认端口（8768）与 `PAN_AGENT_SESSION_ID` 所在服务（8767）跨端口**（见 G5 约束） | `report_subscribe` 内部报告路径不可用 | §0/§3.2：明确"MCP 目标端口 = PAN_AGENT_SESSION_ID 所在端口"三对齐 |
+| G10 | **`report_subscribe` 在本布局返回 `404 "Not Found"`**：实测 8768(main) 服务 `server.py` 无 `report-subscribe` 路由（0 次命中），而本工作树 `server.py` 有（1 次）——即**运行中的服务落后于 MCP 工具版本**（版本 skew） | §3.2 内部报告完全走不通；只能退回 §5 轮询 `session_get` | §3.2：标注"需运行含 `report-subscribe` 的服务端（本分支 server.py 已含）"；否则用轮询兜底 |
+| G11 | `session_delete` **只 kill worker + 删 session 元数据，不删 workdir 磁盘目录**（实测删除后 `data/workdirs/mcp-cold-probe` 空目录残留） | 磁盘累积空目录，需另清理 | §2.5/§9：说明残留，必要时 `rm -rf workdir` |
+| G12 | workdir 默认基准 = **服务进程的数据根**，非固定 pan-test。本实测（8768 服务 cwd=`D:\project\Pan`）落点为 `D:\project\Pan\data/workdirs/<name>`，与 G3 记的 `D:\project\pan-test\...` 不同 | §9.1 的"Pan server 数据根"需指明是**实际运行实例的**数据根，可经 create 返回的 `workdir` 字段确证 | §9.1 |
+
+**MCP 路径推荐操作顺序（据实测固化）**：
+1. 确认 MCP server 目标端口 = `PAN_AGENT_SESSION_ID` 所在端口（否则 G9/G10 命中，立即退回轮询）。
+2. `session_create(name, adapter="cbc", model="hy3")` → 记下返回 `id`（= 后续 `session_id` 入参）。
+3. `worker_assign(session_id, text)` 立即返回 `queued`（自动 spawn，无需手动 `worker_spawn`；§2.1）。
+4. 轮询 `session_get(session_id, limit=15)` 直到 `lastResult.status=="done"`（≤30s 内完成，按 §8 不重发）。
+5. 读 `lastResult.result`。
+6. `session_delete(session_id)` 收尾（注意 G11 workdir 残留）。
+7. **避免**全量 `session_list`（G8）；状态巡检用 `worker_list` + 定向 `session_get`。
 
 ---
 
