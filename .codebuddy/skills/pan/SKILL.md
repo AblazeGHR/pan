@@ -390,6 +390,22 @@ A: 确认已 `subscribe` 且 `eventTypes` 含 `worker.result`（默认只订阅�
 **Q: 订阅制报告没 append 到 queue_pending？**
 A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`、你的环境是否有 `PAN_AGENT_SESSION_ID`（report 工具仅 Pan 内 session 可用）。
 
+## 12. 冷启动实测记录与待补充清单（D5，2026-08-17）
+
+**实测结论**：仅凭本手册完成 `session_create → worker_spawn → worker_assign → 盯梢 → 查结果 → session_delete` 主链路**一次走通**（子 worker 算 `17×23` 返回 391，正确）。流程、MCP 参数名、状态判断、轮询兜底均充分。
+
+**实测中发现的信息缺口（待补充，详见 `docs/plans&overviews/冷启动Agent编排实测报告.md`）**：
+
+| # | 缺口 | 建议补充位置 |
+|---|------|-------------|
+| G1 | `POST /api/sessions`、`POST /api/spawn`、`POST /api/assign`、`DELETE /api/sessions/{id}` 的**请求体字段未记录**（§5 只说"见 server.py"）——纯 HTTP 冷启动在第 1 步就需读代码 | §5 补核心端点 body 表 |
+| G2 | **MCP server 接线步骤缺失**：实测 ToolSearch 搜不到 `mcp__pan__` 工具时，手册无"如何启动/注入 MCP server 使工具可见"的动作序列 | 新增小节（§9.7 或独立 §） |
+| G3 | **workdir 相对基准未明确**：默认落点实测为 Pan server 数据根 `D:\project\pan-test\data\workdirs\<name>`，非当前项目目录 | §9.1 |
+| G4 | **Windows curl 内联 UTF-8 JSON 报 body 解析错误**（实测 `{"detail":"There was an error parsing the body"}`）；应改用 `--data-binary @file` 或 urllib/requests | §5 或 §9 |
+| G5 | `report_subscribe` 前置 `PAN_AGENT_SESSION_ID` 的**来源/注入方式未说明**（谁注入、何时有） | §3.2 |
+| G6 | **字段映射未说明**：create 返回 `id`，spawn/assign 入参用 `sessionId`；`sessionId` vs `session_id` 命名不一致 | §5 / §7 |
+| G7 | 轮询**放弃/超时策略缺失**（多久、几次轮询算失败） | §5 轮询模式 |
+
 ---
 
 ## 关联文档
