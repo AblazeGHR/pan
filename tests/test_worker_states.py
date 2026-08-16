@@ -65,7 +65,7 @@ def _setup_worker(session_id: str, status: str = "idle"):
         adapter=CbcAdapter(),
         status=status,
         process=MagicMock(),
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
         _replaying=False,
     )
     worker.workers[w.worker_id] = w

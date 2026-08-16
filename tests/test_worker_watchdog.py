@@ -39,7 +39,7 @@ def _setup_worker(session_id, status="idle", last_activity=None):
         adapter=CbcAdapter(),
         status=status,
         process=AsyncMock(),
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
         _replaying=False,
         last_activity=last_activity if last_activity is not None else time.monotonic(),
     )
@@ -290,7 +290,7 @@ def test_watchdog_self_cancel_regression():
         adapter=CbcAdapter(),
         status="idle",
         process=proc,
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
         _replaying=False,
         last_activity=0.0,  # very old → will exceed idle_sec
     )

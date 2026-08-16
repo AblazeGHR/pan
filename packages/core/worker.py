@@ -120,7 +120,10 @@ class Worker:
     _stdout_task: asyncio.Task | None = None
     _consume_task: asyncio.Task | None = None
     _watchdog_task: asyncio.Task | None = None
-    queue: asyncio.Queue | None = None
+    # 唤醒信号通道（内存），语义按立项 4.3/4.7 收窄为"只唤醒、不承载正文"：
+    # 消息真源是落盘 Session.queue_pending，本队列只放信号；真源迁移完成后
+    # 普通任务也只放 item.id，正文由 _consumer 从真源按 id 拉取。
+    pending_signal: asyncio.Queue | None = None
     _replaying: bool = False  # true during cbc --resume event replay
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
     # ── 活性探测（watchdog 用）──
@@ -136,8 +139,10 @@ workers: dict[str, Worker] = {}
 _broadcast: callable = None
 
 # ── result waiters: 供 handoff（同步等待）在进程内捕获 worker.result ──
-# worker_id → (期望的 taskSeq, asyncio.Future)；result 的 taskSeq 匹配才 resolve
-_result_waiters: dict[str, tuple[int, asyncio.Future]] = {}
+# worker_id → {seq: asyncio.Future}；result 的 taskSeq 匹配对应 seq 的 waiter 才 resolve。
+# 多槽位（按 seq，A3 waiter 审查）：同一 worker 上可并发多个 handoff，各占一槽，
+# 不再被单槽位覆盖。
+_result_waiters: dict[str, dict[int, asyncio.Future]] = {}
 
 # ── task 幂等注册表: taskId → {"status", "workerId", "result"}
 # handoff 生成 taskId 入队时登记，result 时标记完成；Meta-Agent 重发带同一
@@ -190,17 +195,34 @@ def _resolve_result_waiter(worker_id: str, status: str, result: str,
     """当 worker 产生 result 时，resolve 正在等待该 worker 的 handoff future。
 
     task_seq 传入时只匹配期望该序号的 waiter（避免拿到别的任务的结果）；
-    为 None 时强制 resolve（worker 被杀/崩溃场景）。
+    为 None 时强制 resolve（worker 被杀/崩溃场景，该 worker 上所有 waiter 全 error）。
     """
-    entry = _result_waiters.get(worker_id)
-    if entry is None:
+    waiters = _result_waiters.get(worker_id)
+    if not waiters:
         return
-    want_seq, fut = entry
-    if task_seq is not None and want_seq != task_seq:
-        return  # 不是等待的这个任务的结果，保留 waiter
-    _result_waiters.pop(worker_id, None)
+    if task_seq is None:
+        # 强制 resolve：worker 被杀/崩溃 → 所有等待中的 handoff 全部结束
+        _result_waiters.pop(worker_id, None)
+        for fut in list(waiters.values()):
+            if not fut.done():
+                fut.set_result({"status": status, "result": result})
+        return
+    fut = waiters.pop(task_seq, None)
+    if fut is None:
+        return  # 不是等待中的任务结果，保留其他 waiter
+    if not waiters:
+        _result_waiters.pop(worker_id, None)
     if not fut.done():
         fut.set_result({"status": status, "result": result})
+
+
+def _drop_result_waiter(worker_id: str, seq: int):
+    """移除某个 (worker, seq) 的 waiter；该 worker 无剩余 waiter 时清理外层 key。"""
+    waiters = _result_waiters.get(worker_id)
+    if waiters:
+        waiters.pop(seq, None)
+        if not waiters:
+            _result_waiters.pop(worker_id, None)
 
 
 def _kill_pid_tree(pid: int) -> None:
@@ -447,7 +469,7 @@ async def _consumer(w: Worker):
     messages (handoff tasks / normal messages / system_prompt) stay single.
     """
     while True:
-        item = await w.queue.get()
+        item = await w.pending_signal.get()
         if item is None:
             break
 
@@ -556,10 +578,11 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
     # 信号只负责唤醒，不承载正文
     mw = find_worker_by_session(s.managed_by)
-    if (mw and mw.queue is not None
+    if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
         mw.last_activity = time.monotonic()
-        await mw.queue.put({"type": "report_signal"})
+        # 信号只唤醒、不承载正文（立项 4.3/4.7：正文在落盘 queue_pending）
+        await mw.pending_signal.put({"type": "report_signal"})
 
 
 # ── watchdog：超时 / 空闲回收 ──
@@ -641,6 +664,68 @@ async def _watchdog(w: Worker):
             )
             await kill_worker(w.worker_id)
             return
+
+
+# ── 全局 watchdog：落盘队列自愈（立项 4.4）──
+# worker 级 _watchdog 随 worker 生灭（worker 死亡时它自己也结束），无法自愈；
+# 本任务生命周期=Pan 服务（由 server lifespan 启动/关闭），周期扫描"落盘队列
+# queue_pending 非空但没有活 worker 的 session"，自动 create_worker 恢复。
+# spawn 走 create_worker（自带防重复，立项 4.5），不会对同一 session 重复 spawn。
+
+_GLOBAL_WATCHDOG_TICK_SEC: float = _WATCHDOG_TICK_SEC  # 沿用 worker 级间隔
+_global_watchdog_task: asyncio.Task | None = None
+
+
+def start_global_watchdog() -> asyncio.Task:
+    """启动服务级 watchdog（生命周期=Pan 服务）。幂等：已在运行则复用。"""
+    global _global_watchdog_task
+    if _global_watchdog_task is not None and not _global_watchdog_task.done():
+        return _global_watchdog_task
+    _global_watchdog_task = asyncio.create_task(_global_watchdog())
+    _log.info("[Pan] Global watchdog started (tick=%.0fs)", _GLOBAL_WATCHDOG_TICK_SEC)
+    return _global_watchdog_task
+
+
+def stop_global_watchdog():
+    """取消服务级 watchdog（Pan 关闭时调用）。"""
+    global _global_watchdog_task
+    if _global_watchdog_task is not None:
+        _global_watchdog_task.cancel()
+        _global_watchdog_task = None
+
+
+async def _global_watchdog():
+    """服务级常驻循环：周期扫描并自动恢复（见模块注释）。"""
+    while True:
+        await asyncio.sleep(_GLOBAL_WATCHDOG_TICK_SEC)
+        try:
+            await _global_watchdog_tick()
+        except Exception as e:
+            _log.warning("[Pan] Global watchdog tick error: %r", e)
+
+
+async def _global_watchdog_tick():
+    """单轮扫描：queue_pending 非空 && 无活 worker → create_worker 恢复。
+
+    整个 tick 由 _global_watchdog 的 try/except 兜底，单个 session 的异常不会
+    中断后续轮次。
+    """
+    for s in list(_sess.list_all()):
+        if not s.queue_pending:
+            continue
+        if find_alive_worker_by_session(s.id) is not None:
+            continue  # 已有活 worker → 正常
+        # 无活 worker（从未 spawn，或注册了死进程尚未 pop）→ 交给 create_worker 自愈
+        _log.info(
+            "[Pan] Global watchdog recover: session=%s queue_pending=%d items, no live worker",
+            s.id, len(s.queue_pending),
+        )
+        created = await create_worker(s.id)
+        if isinstance(created, str):
+            _log.warning(
+                "[Pan] Global watchdog recover failed for session=%s: %s",
+                s.id, created,
+            )
 
 
 async def _consumer_stream(w: Worker, text: str, source: str, s):
@@ -960,10 +1045,25 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
 
 # ── lifecycle ──
 
+# spawn 防重复（立项 4.5）：同一 session 的并发 create_worker 通过 per-session
+# lock 串行化，避免竞态双 spawn。dict 的 setdefault 是纯同步原子操作（无 await
+# 临界区），事件循环内天然安全，不需要额外 guard lock。
+_spawn_locks: dict[str, asyncio.Lock] = {}
+
+
+async def _session_spawn_lock(session_id: str) -> asyncio.Lock:
+    """获取该 session 的 spawn 锁（并发 create_worker 串行化）。"""
+    return _spawn_locks.setdefault(session_id, asyncio.Lock())
+
+
 async def create_worker(session_id: str) -> Worker | str:
     """Spawn a CLI process for the given Session UUID.
 
     Returns Worker on success, error string on failure.
+
+    防重复 spawn（立项 4.5）：同一 session 的并发调用由 per-session lock 串行化；
+    已有活 worker 时直接复用现有 Worker，不重复创建（任何 session 不应被重复
+    spawn worker）。显式重启场景（/api/spawn 等）会先 kill 再进入本函数，不受影响。
 
     Three execution modes (see _use_oneshot_mcp):
     - Stream mode (default, no MCP): long-running process with --input-format stream-json.
@@ -972,16 +1072,32 @@ async def create_worker(session_id: str) -> Worker | str:
     - One-shot MCP mode: no long-running process. Each task spawns a one-shot
       cbc process. Used when MCP configured and output_mode unset/oneshot.
     """
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        return await _create_worker(session_id)
+
+
+async def _create_worker(session_id: str) -> Worker | str:
+    """create_worker 的锁内实现（勿直接调用）。"""
     s = _sess.get(session_id)
     if not s:
         return f"Session {session_id} not found"
 
+    # 防重复 spawn（立项 4.5）：已有活 worker 直接复用，不重复建。
+    alive = find_alive_worker_by_session(session_id)
+    if alive is not None:
+        _log.info(
+            "[Worker %s] create_worker dedup: session=%s already has live worker, reusing",
+            alive.worker_id, session_id,
+        )
+        return alive
+
     old = find_worker_by_session(session_id)
     if old:
-        # Replace a live worker for this session. Deliberately do NOT clear
-        # cli_session_id: resuming the cbc JSONL is the intended context-
-        # continuity mechanism, and clearing it here would force a cold start
-        # on every restart (#11, resolved by design).
+        # 有注册但进程已死的 worker（_read_stdout 尚未 pop）→ 清理后重建。
+        # Deliberately do NOT clear cli_session_id: resuming the cbc JSONL is
+        # the intended context-continuity mechanism, and clearing it here would
+        # force a cold start on every restart (#11, resolved by design).
         await kill_worker(old.worker_id)
 
     adapter = get_adapter(s.adapter)
@@ -1012,7 +1128,7 @@ async def create_worker(session_id: str) -> Worker | str:
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
-               status="idle", process=proc, queue=asyncio.Queue(),
+               status="idle", process=proc, pending_signal=asyncio.Queue(),
                _replaying=resuming)
     w.last_activity = time.monotonic()
     workers[worker_id] = w
@@ -1051,7 +1167,7 @@ async def create_worker(session_id: str) -> Worker | str:
     # 订阅制报告：落盘 queue_pending 有积压（上次 worker 死亡/回收未消费）
     # → 发唤醒信号，_consumer 批量消费（立项 4.3 防死亡丢消息）
     if s.queue_pending:
-        await w.queue.put({"type": "report_signal"})
+        await w.pending_signal.put({"type": "report_signal"})
 
     return w
 
@@ -1201,7 +1317,7 @@ async def _restart_tasks(w: Worker):
         w._stdout_task.cancel()
     if w._consume_task:
         w._consume_task.cancel()
-    w.queue = asyncio.Queue()
+    w.pending_signal = asyncio.Queue()
     w.last_activity = time.monotonic()
     if w.process is not None:
         w._stdout_task = asyncio.create_task(_read_stdout(w))
@@ -1333,7 +1449,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
 
     new_w = Worker(worker_id=new_id, session_id=new_session_id,
                    adapter=w.adapter,
-                   status="idle", process=proc, queue=asyncio.Queue())
+                   status="idle", process=proc, pending_signal=asyncio.Queue())
     # 注意：branch 不设 _replaying（与 create_worker/restart_worker 不同）。
     # branch 的新 session history 为空，需要从 cbc --resume --fork-session
     # 的重放中填入历史，所以走正常 append 路径。主路径的 session 已有
@@ -1375,11 +1491,11 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
         return "Worker not found"
     if w.status == "held":
         return "Worker is held (takeover mode). Restart first."
-    # In MCP mode, process is None (spawned per-task). Still allow queue.
+    # In MCP mode, process is None (spawned per-task). Still allow signal queue.
     if w.process is not None and w.process.returncode is not None:
         return "Worker process dead"
-    if w.queue is None:
-        return "Worker queue not ready"
+    if w.pending_signal is None:
+        return "Worker signal queue not ready"
 
     # 分配任务序号（handoff 预分配后传入，保证 waiter 与 item 一致）
     if seq is None:
@@ -1387,7 +1503,10 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
         seq = w._task_counter
 
     w.last_activity = time.monotonic()
-    await w.queue.put({"text": text, "source": source, "seq": seq, "taskId": task_id})
+    # 唤醒信号：真源（落盘 queue_pending）迁移完成前暂以完整 item 入队
+    # （_consumer 仍需 text/seq/taskId 配对）；迁移后本队列只放 item.id
+    # （立项 4.3/4.7）。
+    await w.pending_signal.put({"text": text, "source": source, "seq": seq, "taskId": task_id})
 
     # queued：任务已入队、consumer 尚未取出。若队列前面还有任务，保持 queued 直到轮到它。
     if w.status in ("idle", "queued"):
@@ -1417,10 +1536,18 @@ async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
 
 async def handoff(session_id: str, text: str, source: str = "agent",
                   timeout: float = 600.0, task_id: str | None = None) -> dict:
-    """同步阻塞：确保 worker 存在 → 发任务 → 等待该任务对应的 result。
+    """[DEPRECATED] 同步阻塞：确保 worker 存在 → 发任务 → 等待该任务对应的 result。
+
+    DEPRECATED（立项 4.7）：推荐改用 ``assign``（异步分派）+ 报告订阅消费。
+    理由：若确实需要等，meta-agent 不应处于 busy 或可能被插队的状态——"等"应是
+    meta-agent 的默认 idle 状态，而非一个阻塞调用动作。保留本函数仅服务确需
+    严格阻塞同步返回值的场景；未来可能整体移除。
+    标记粒度：代码注释 + MCP 工具 description，暂不加运行时警告。
 
     预分配任务序号：waiter 只匹配该序号的 result，避免拿到队列中
     其他任务的结果。超时（默认 10 分钟）返回 {"status": "error"}。
+    waiter 按 (worker, seq) 多槽位（dict[seq, Future]）：同一 worker 上并发
+    多个 handoff 互不覆盖，各自按自己的 seq resolve。
 
     task_id 幂等：同一 taskId 重发不重复入队。若该 taskId 已存在：
     - 已完成 → 返回已有结果
@@ -1450,11 +1577,11 @@ async def handoff(session_id: str, text: str, source: str = "agent",
 
     loop = asyncio.get_running_loop()
     fut: asyncio.Future = loop.create_future()
-    _result_waiters[w.worker_id] = (seq, fut)
+    _result_waiters.setdefault(w.worker_id, {})[seq] = fut
 
     send_err = await send_task(w.worker_id, text, source=source, seq=seq, task_id=task_id)
     if send_err:
-        _result_waiters.pop(w.worker_id, None)
+        _drop_result_waiter(w.worker_id, seq)
         if task_id is not None:
             _task_status[task_id] = {"status": "error", "result": send_err,
                                      "taskId": task_id, "ts": time.monotonic()}
@@ -1463,7 +1590,7 @@ async def handoff(session_id: str, text: str, source: str = "agent",
     try:
         result = await asyncio.wait_for(fut, timeout=timeout)
     except asyncio.TimeoutError:
-        _result_waiters.pop(w.worker_id, None)
+        _drop_result_waiter(w.worker_id, seq)
         # 超时：任务仍在队列中跑，返回 pending + taskId，Meta-Agent 稍后重试/查状态
         if task_id is not None:
             return {"status": "pending", "taskId": task_id,

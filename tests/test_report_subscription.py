@@ -132,7 +132,7 @@ def test_enqueue_report_wakes_manager_consumer(monkeypatch):
     mw = worker.Worker(
         worker_id="worker-mgr", session_id="ses_mgr",
         adapter=CbcAdapter(), status="idle", process=None,
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
     )
     worker.workers["worker-mgr"] = mw
 
@@ -141,7 +141,7 @@ def test_enqueue_report_wakes_manager_consumer(monkeypatch):
 
     asyncio.run(scenario())
 
-    item = asyncio.run(mw.queue.get())
+    item = asyncio.run(mw.pending_signal.get())
     assert item == {"type": "report_signal"}, f"got {item}"
     _cleanup()
 
@@ -189,7 +189,7 @@ def test_consumer_drains_reports_as_one_message(monkeypatch):
     w = worker.Worker(
         worker_id="worker-mgr", session_id="ses_mgr",
         adapter=CbcAdapter(), status="idle", process=None,
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
     )
     worker.workers["worker-mgr"] = w
     received = []
@@ -200,8 +200,8 @@ def test_consumer_drains_reports_as_one_message(monkeypatch):
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
     async def scenario():
-        await w.queue.put({"type": "report_signal"})
-        await w.queue.put(None)
+        await w.pending_signal.put({"type": "report_signal"})
+        await w.pending_signal.put(None)
         await worker._consumer(w)
 
     asyncio.run(scenario())
@@ -222,7 +222,7 @@ def test_consumer_report_signal_no_pending_is_noop(monkeypatch):
     w = worker.Worker(
         worker_id="worker-mgr", session_id="ses_mgr",
         adapter=CbcAdapter(), status="idle", process=None,
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
     )
     worker.workers["worker-mgr"] = w
     received = []
@@ -233,8 +233,8 @@ def test_consumer_report_signal_no_pending_is_noop(monkeypatch):
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
     async def scenario():
-        await w.queue.put({"type": "report_signal"})
-        await w.queue.put(None)
+        await w.pending_signal.put({"type": "report_signal"})
+        await w.pending_signal.put(None)
         await worker._consumer(w)
 
     asyncio.run(scenario())
@@ -251,7 +251,7 @@ def test_consumer_non_report_single(monkeypatch):
     w = worker.Worker(
         worker_id="worker-mgr", session_id="ses_mgr",
         adapter=CbcAdapter(), status="idle", process=None,
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
     )
     worker.workers["worker-mgr"] = w
     received = []
@@ -262,8 +262,8 @@ def test_consumer_non_report_single(monkeypatch):
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
     async def scenario():
-        await w.queue.put({"text": "hello", "source": "agent", "seq": 1, "taskId": None})
-        await w.queue.put(None)
+        await w.pending_signal.put({"text": "hello", "source": "agent", "seq": 1, "taskId": None})
+        await w.pending_signal.put(None)
         await worker._consumer(w)
 
     asyncio.run(scenario())

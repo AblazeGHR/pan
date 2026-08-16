@@ -66,7 +66,7 @@ def _setup_worker(session_id: str):
         adapter=CbcAdapter(),
         status="idle",
         process=None,
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
         _replaying=False,
     )
     worker.workers[w.worker_id] = w
