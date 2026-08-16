@@ -193,9 +193,54 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `GET` | `/api/models` | `?adapter=cbc` | `{"models": [...], "default": "..."}` |
 | `GET` | `/api/adapters` | — | 注册的 adapter 与能力（supportsResume/supportsFork） |
 
-**轮询模式**（不做 WS 订阅时的兜底）：`session_list` → 对 `lastResult.status == "done"` 的 session `session_get` 读结果。轮询粒度建议 ≥5s；`worker.result` 事件秒级，优于轮询。
+**轮询模式**（不做 WS 订阅时的兜底）：`GET /api/sessions/{id}` 看 `lastResult.status`（或 `session_list` 扫描全部 session，对 `done` 的读结果）。轮询粒度建议 ≥5s；`worker.result` 事件秒级，优于轮询。
 
-其余端点（`POST /api/sessions`、`POST /api/spawn`、`POST /api/task`、`POST /api/handoff`、`POST /api/assign`、`POST /api/kill/{worker_id}`、`GET /api/list`）均有对应 MCP 工具，冷启动用 MCP 即可；HTTP 形态见 `packages/web/server.py`。
+**轮询放弃/超时策略（G7）**：
+- **结束条件**：`lastResult.status` 变为 `done`（读 `result`）或 `error`（读 `result` 排查）→ 停止轮询。
+- **放弃条件一（worker 已死）**：轮询中发现 `workerStatus` 变 `null` 且 `lastResult.status` 仍是 `queued`/`running` → watchdog 已回收或进程已死，任务不会继续 → 停止本轮，`worker_spawn` 后重新 assign（或查 `worker.zombie` 确认死因）。
+- **放弃条件二（超时预算）**：为每轮任务设总预算。静默超时默认 300s（`config.example.json`）、运行环境实测 1200s——**轮询超过静默超时上限没有意义**：worker 要么已产出结果，要么已被 watchdog 判定卡死 kill。简单任务预算 60–120s；复杂任务预算取 `worker.timeout_sec`（§9.3）+ 余量。到点仍无结果且 worker 存活 → 停止盲目轮询，先查卡死原因（静默/大文件读取，§9.3 坑 A/B）再决定重发。
+- 首选仍是 WS 订阅 / `report_subscribe`：秒级且 `worker.zombie` 第一时间感知异常，轮询只是没有订阅时的兜底。
+
+> **Windows curl 内联 UTF-8 JSON 的坑（G4）**：Windows 下 `curl -d '{"text":"中文…"}'` 内联中文 body 会报 `{"detail":"There was an error parsing the body"}`——终端默认编码（GBK/cp936）或 shell 引号转义导致请求体非 UTF-8。对策（实测可行）：
+> - `curl -X POST http://127.0.0.1:8767/api/assign --data-binary @body.json`（`body.json` 以 UTF-8 保存）；
+> - 或 python urllib / requests：`json.dumps(body).encode("utf-8")`。
+> 纯 ASCII body 内联安全；中文/特殊符号一律走文件或脚本。
+
+### 5.1 核心编排端点请求体（MCP 直调 / 排查用）
+
+冷启动主链路 4 个端点（§2.1 流程对应）：
+
+| 方法 | URL | Body | 返回 |
+|------|-----|------|------|
+| `POST` | `/api/sessions` | `{"name":"fix-h1","adapter":"cbc","model":"hy3","permissionMode":"bypassPermissions","workdir":"...","alwaysThinkingEnabled":false,"effort":"","maxThinkingTokens":8192,"mcpEnabled":false,"outputMode":"stream","characterId":"..."}` | 完整 session（关键：`id`、`workdir`、`workerStatus:null`）。**只建 session，不 spawn worker** |
+| `POST` | `/api/spawn` | `{"sessionId":"ses_..."}` | `{"workerId","sessionId","name","status","model"}` |
+| `POST` | `/api/assign` | `{"sessionId":"ses_...","text":"任务内容"}` | `{"status":"queued","workerId","sessionId"}` |
+| `DELETE` | `/api/sessions/{id}` | —（无 body） | `{"sessionId","status":"deleted"}` |
+
+字段说明：
+- `POST /api/sessions`：`name` **必填**且全局唯一（不能含空格、≤64 字符）；其余字段均可省略。`adapter` 默认 `cbc`；`workdir` 默认取 name（相对基准见 §9.1）；`permissionMode` 默认取 config；`characterId` 会给定时覆盖 adapter/model/permissionMode（见 `packages/web/server.py` `_build_session_params`）。
+- `POST /api/spawn`：已有 worker 会**先 kill 再新建**（一个 session 一个 worker）；`sessionId` 省略时等同 create+spawn（body 同 create 字段）。
+- `POST /api/assign`：`sessionId`、`text` **均必填**；缺参返回 `{"ok":false,"error":{...}}`。worker 不存在时自动 spawn。完成异步经 `worker.result` 事件 / `lastResult` 返回。
+- `DELETE /api/sessions/{id}`：删除 session 并 kill 其 worker。
+
+其余端点（`POST /api/task`、`POST /api/handoff`、`POST /api/kill/{worker_id}`、`GET /api/list`）均有对应 MCP 工具，冷启动用 MCP 即可；HTTP 形态见 `packages/web/server.py`。
+
+### 5.2 字段命名映射（id vs sessionId，snake_case vs camelCase）
+
+HTTP JSON body 用 **camelCase**，MCP 工具参数用 **snake_case**——同一个值在不同层字段名不同：
+
+| 概念 | HTTP 响应 | HTTP 请求 body | MCP 参数 |
+|------|-----------|----------------|----------|
+| session id | `id` | `sessionId` | `session_id` |
+| worker id | `workerId` | `workerId` | `worker_id` |
+| 权限模式 | `permissionMode` | `permissionMode` | `permission_mode` |
+| 思考开关 | `alwaysThinkingEnabled` | `alwaysThinkingEnabled` | `always_thinking_enabled` |
+| 最大思考 tokens | `maxThinkingTokens` | `maxThinkingTokens` | `max_thinking_tokens` |
+| MCP 开关 | `mcpEnabled` | `mcpEnabled` | `mcp_enabled` |
+| MCP servers | — | `mcpServers` | `mcp_servers` |
+| 工作目录 | `workdir` | `workdir` | `workdir`（两边一致） |
+
+**G6 要点**：`POST /api/sessions` 返回的 `id` 与后续所有请求体的 `sessionId` 是**同一个值**（`ses_...`）。响应字段叫 `id`，但 spawn/assign/task/handoff 的 body 一律用 `sessionId`（MCP 里是 `session_id`）——不要照抄响应字段名传请求。
 
 **MCP server 自身**：`python -m packages.mcp.server`（stdio）；`--pan-url` / `PAN_API_URL` 覆盖 API 基址；`--transport sse --port 9740` 走 SSE。manifest：`packages/mcp/manifest.json`。
 
@@ -288,7 +333,8 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 ### 9.1 workdir 机制
 
 - 默认：`data/workdirs/<name>`（session 名 slug 化，非法字符替换为 `-`）。
-- **绝对路径可指定 Pan 外目录**（如 `D:/some/project`）——Worker 的 `cwd` 就是 workdir，cbc 把 workdir 当项目目录（JSONL + resume 都在这里）。
+- **相对基准 = Pan server 的项目根目录**（`packages/web/server.py` 的 `DATA_DIR = <项目根>/data`），**不是调用方（客户端 / 当前 shell）的工作目录**。实测：基于 pan-test 的仓库运行时默认落点是 `D:\project\pan-test\data\workdirs\<name>`，与 curl 发起位置无关——换仓库/换机器时数据根跟着 server 走，不在你 cd 的目录下。
+- 相对值一律按 slug 规则清理后放进 `data/workdirs/`；**绝对路径（`D:/...`、`/home/...`）才指向 Pan 外目录**——Worker 的 `cwd` 就是 workdir，cbc 把 workdir 当项目目录（JSONL + resume 都在这里）。
 - 同名 session 名必须唯一；workdir 默认取 session 名。
 - 文件系统 API（`/api/cbc/browse` 等）限在 workdir 内，`..` 逃逸会被拒绝。
 
@@ -396,15 +442,15 @@ A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`
 
 **实测中发现的信息缺口（待补充，详见 `docs/plans&overviews/冷启动Agent编排实测报告.md`）**：
 
-| # | 缺口 | 建议补充位置 |
-|---|------|-------------|
-| G1 | `POST /api/sessions`、`POST /api/spawn`、`POST /api/assign`、`DELETE /api/sessions/{id}` 的**请求体字段未记录**（§5 只说"见 server.py"）——纯 HTTP 冷启动在第 1 步就需读代码 | §5 补核心端点 body 表 |
-| G2 | **MCP server 接线步骤缺失**：实测 ToolSearch 搜不到 `mcp__pan__` 工具时，手册无"如何启动/注入 MCP server 使工具可见"的动作序列 | 新增小节（§9.7 或独立 §） |
-| G3 | **workdir 相对基准未明确**：默认落点实测为 Pan server 数据根 `D:\project\pan-test\data\workdirs\<name>`，非当前项目目录 | §9.1 |
-| G4 | **Windows curl 内联 UTF-8 JSON 报 body 解析错误**（实测 `{"detail":"There was an error parsing the body"}`）；应改用 `--data-binary @file` 或 urllib/requests | §5 或 §9 |
-| G5 | `report_subscribe` 前置 `PAN_AGENT_SESSION_ID` 的**来源/注入方式未说明**（谁注入、何时有） | §3.2 |
-| G6 | **字段映射未说明**：create 返回 `id`，spawn/assign 入参用 `sessionId`；`sessionId` vs `session_id` 命名不一致 | §5 / §7 |
-| G7 | 轮询**放弃/超时策略缺失**（多久、几次轮询算失败） | §5 轮询模式 |
+| # | 缺口 | 建议补充位置 | 状态 |
+|---|------|-------------|------|
+| G1 | `POST /api/sessions`、`POST /api/spawn`、`POST /api/assign`、`DELETE /api/sessions/{id}` 的**请求体字段未记录**（§5 只说"见 server.py"）——纯 HTTP 冷启动在第 1 步就需读代码 | §5 补核心端点 body 表 | ✅ §5.1 |
+| G2 | **MCP server 接线步骤缺失**：实测 ToolSearch 搜不到 `mcp__pan__` 工具时，手册无"如何启动/注入 MCP server 使工具可见"的动作序列 | 新增小节（§9.7 或独立 §） | 待补（并行 worker） |
+| G3 | **workdir 相对基准未明确**：默认落点实测为 Pan server 数据根 `D:\project\pan-test\data\workdirs\<name>`，非当前项目目录 | §9.1 | ✅ §9.1 |
+| G4 | **Windows curl 内联 UTF-8 JSON 报 body 解析错误**（实测 `{"detail":"There was an error parsing the body"}`）；应改用 `--data-binary @file` 或 urllib/requests | §5 或 §9 | ✅ §5 |
+| G5 | `report_subscribe` 前置 `PAN_AGENT_SESSION_ID` 的**来源/注入方式未说明**（谁注入、何时有） | §3.2 | 待补（并行 worker） |
+| G6 | **字段映射未说明**：create 返回 `id`，spawn/assign 入参用 `sessionId`；`sessionId` vs `session_id` 命名不一致 | §5 / §7 | ✅ §5.2 |
+| G7 | 轮询**放弃/超时策略缺失**（多久、几次轮询算失败） | §5 轮询模式 | ✅ §5 轮询模式 |
 
 ---
 
