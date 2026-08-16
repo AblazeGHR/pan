@@ -115,12 +115,50 @@ meta-agent 通过 MCP 工具（`worker_spawn` / `worker_task` / `worker_handoff`
 
 - **worker 级 watchdog 直接替换为全局级**？——待评估。若全局 watchdog 覆盖所有 worker 的 idle 回收 + 超时 + 自愈，则 worker 级可下放或合并。需在实现阶段确认是否整体替换，避免两套 watchdog 打架。
 
+### 4.8 MA 发送消息自动加来源前缀
+
+meta-agent 通过 `worker_send`（`packages/mcp/server.py:311`）向被管 session 发送编排消息时，**自动在 text 前拼接来源前缀**，便于目标 session 解析/区分"这条消息来自 MA 编排"vs"来自真实用户"。
+
+**前缀格式**（定稿）：
+
+```
+////by agent : {agent_session_id} | {agent_session_title}
+{text}
+```
+
+- `////` 是特殊前缀标记，供解析器/模型快速区分消息来源。
+- 内容带 MA 的 sessionId + title（发件人身份）。
+
+**实现链路（可靠，不依赖 LLM）**：
+
+1. **Pan 服务侧注入 env**：`adapter.mcp_args()`（`packages/core/adapters/cbc/adapter.py`）写 `<workdir>/.codebuddy/mcp.json`（即 `--mcp-config` 指向的文件；注意 `<workdir>/.mcp.json` 已废弃移除，`--mcp-config` 只接受文件路径，JSON 字符串不生效，见踩坑 #4）时，给 pan server 的 entry 注入动态 `env` 字段：
+   - `PAN_AGENT_SESSION_ID` = 当前 session.id（MA 的 sessionId）
+   - `PAN_AGENT_SESSION_TITLE` = 当前 session.name
+   
+   `mcp_args()` 已透传 `env` 字段（`if "env" in srv`），cbc 启动 MCP server 子进程时会把这个 env 注入 server 进程——这正是 host 信息里可靠的部分。MCP stdio 无会话上下文、`initialize` 的 `clientInfo` 只有 name/version、继承 env 无 PAN 身份（实测 2026-08-16，cbc 不注入 MA 的 `ses_xxx`），因此只能靠 mcp.json 的 `env` 注入。
+2. **MCP 工具侧拼接**：`worker_send`（server.py:311）读取这两个 env，把 `text` 改写为 `f"////by agent : {sid} | {title}\n{text}"` 再调 `/api/task`。
+
+**注意点**：
+- 仅在 `worker_send` 拼接（用户明确场景）；`worker_assign`/`worker_task` 是否也要前缀，实现时按需扩展。
+- 若目标 worker 是 MCP 模式（有自己的 MCP server），前缀随消息文本进入其 history，目标模型可见。
+- 该前缀与 4.3 的落盘拼接共存：目标 worker 消费时，带 `////by agent` 前缀的消息是**普通消息单条处理**（非 report 拼接），因为它是 MA 编排指令而非子任务报告。
+
 ### 4.7 handoff 演进（保留 + 标记废弃 + 队列语义澄清）
 
 - **不删除 handoff**（保留同步返回值能力，供确需严格阻塞的场景）。
 - **`Worker.queue` 职责澄清**：在"落盘真源 + 内存信号"架构下，`Worker.queue` 语义收窄为**唤醒信号**（放 `item.id`），改名以体现（如 `pending_signal`）。承载的 handoff 任务（需 seq 配对）在真源里保留 `seq/task_id`，配对逻辑不动。
 - **`worker_handoff` 标记 deprecated**：推荐用 `worker_assign` + 报告消费。理由：如果确实需要等，MA 不应处于 busy 或可能被插队的状态——"等"应是 MA 的默认 idle 状态，而非一个阻塞调用动作。
 - **deprecated 标记粒度**：代码注释 + MCP 工具 description（引导用 assign + 报告），暂不加运行时警告。
+
+### 4.9 mcp-config 收敛到 Pan 内统一目录
+
+- **问题**：`mcp_args()` 目前写 `<workdir>/.codebuddy/mcp.json`。当 workdir 在 Pan 外时（如 meta-agent session workdir=`D:/project`），Pan 会向**外部目录**写入 `.codebuddy/`——污染外部目录、且可能权限不可写。
+- **决策**：收敛到 **`data/mcp-configs/<session_id>.mcp.json`**（Pan 内统一目录），`--mcp-config` 指向它，**不再写 workdir**。目录可写、可控、可清理。
+- **实测（2026-08-16，cbc 2.136.0）**：
+  - `--mcp-config` 指向 workdir **之外**的文件 → cbc 照常连接（工具进活跃列表、`[pan connected]`）。
+  - 对照试验（workdir 内 vs 外，各跑 3-6 次共 9 次）：init 的 `mcp_servers` 时序差异**不稳定**——仅最先跑的 1 次显示 `[]`，其余 8 次直接 `connected`。偶发空是首次冷启动竞争，非位置决定；踩坑 #9 已覆盖（`[]` 不代表失败）。
+- **env 注入（4.8）**：收敛后照写（文件在 Pan 内，不受影响）。
+- **注意**：收敛后 workdir 内不再有 `.codebuddy/mcp.json`；session 删除时清理 `data/mcp-configs/<session_id>.mcp.json`。
 
 ---
 
@@ -144,6 +182,8 @@ meta-agent 通过 MCP 工具（`worker_spawn` / `worker_task` / `worker_handoff`
 - [ ] 消费拼接：`_consumer` 从真源取一批，积压 report dict 原样拼接（显眼分隔 + 来源），非 report 单条
 - [ ] 全局 watchdog：服务级常驻，扫描队列非空无活 worker 的 meta-agent session，自动 spawn；spawn 侧防重复
 - [ ] handoff 演进：`worker_handoff` 标记 deprecated（注释 + MCP description），`Worker.queue` 改名，seq 配对不动
+- [ ] MA 消息前缀：`mcp_args()` 注入 `PAN_AGENT_SESSION_ID/TITLE` env，`worker_send` 拼接 `////by agent : ...` 前缀
+- [ ] mcp-config 收敛：`mcp_args()` 改写 `data/mcp-configs/<session_id>.mcp.json`（不再写 workdir），session 删除清理
 - [ ] MCP 隔离（后续）：借 `role` + `managed` 禁止 meta-agent 触碰非其管理的 session
 - [ ] 未来队列编辑（后续）：API 暴露真源 `queue_pending` 的查看/修改/排序/拼接，改后发信号重取
 - [ ] 测试 + 文档更新（MCP 工具、SKILL.md、本立项收尾）
