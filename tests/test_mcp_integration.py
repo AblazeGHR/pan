@@ -8,7 +8,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import pytest
+
 from packages.core.session import Session
+from packages.core.adapters.cbc import adapter as cbc_adapter
 from packages.core.adapters.cbc.adapter import CbcAdapter
 from packages.core.adapters.kimi.adapter import KimiAdapter
 
@@ -19,7 +22,9 @@ from packages.core.adapters.kimi.adapter import KimiAdapter
 
 def _make_session(mcp_servers=None):
     s = Session(id="ses_test", name="test", adapter="cbc")
-    # mcp_args writes .codebuddy/mcp.json into the workdir
+    # mcp_args writes data/mcp-configs/<session_id>.mcp.json (Pan-internal),
+    # never into the workdir. workdir is still set so tests can assert the
+    # legacy .codebuddy/mcp.json is NOT written.
     s.workdir = tempfile.mkdtemp(prefix="pan-mcp-test-")
     if mcp_servers:
         s.adapter_config["mcp_servers"] = mcp_servers
@@ -27,12 +32,17 @@ def _make_session(mcp_servers=None):
 
 
 def _read_mcp_json(s):
-    path = os.path.join(s.workdir, ".codebuddy", "mcp.json")
+    path = cbc_adapter.MCP_CONFIG_DIR / f"{s.id}.mcp.json"
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
 class TestCbcMCPArgs:
+    @pytest.fixture(autouse=True)
+    def _hermetic_config_dir(self, tmp_path, monkeypatch):
+        """Point MCP_CONFIG_DIR at a temp dir so tests never touch real data/."""
+        monkeypatch.setattr(cbc_adapter, "MCP_CONFIG_DIR", tmp_path / "mcp-configs")
+
     def test_no_mcp_servers(self):
         adapter = CbcAdapter()
         s = _make_session()
@@ -55,13 +65,15 @@ class TestCbcMCPArgs:
         args = adapter.mcp_args(s)
         assert "--mcp-config" in args
         assert len(args) == 2
-        # Verify written .codebuddy/mcp.json content
+        # Verify written data/mcp-configs/ses_test.mcp.json content
         config = _read_mcp_json(s)
         assert "rulewhisper" in config["mcpServers"]
         entry = config["mcpServers"]["rulewhisper"]
         assert entry["command"] == "python"
         assert entry["args"] == ["-m", "src.server.mcp"]
         assert entry["type"] == "stdio"
+        # 4.9: legacy workdir/.codebuddy/mcp.json must NOT be written
+        assert not os.path.exists(os.path.join(s.workdir, ".codebuddy", "mcp.json"))
 
     def test_multiple_mcp_servers(self):
         adapter = CbcAdapter()
@@ -88,12 +100,58 @@ class TestCbcMCPArgs:
         config = _read_mcp_json(s)
         assert "rw" in config["mcpServers"]
 
-    def test_no_workdir_returns_empty(self):
-        """mcp_args requires a workdir to write the config file."""
+    def test_no_workdir_still_writes(self):
+        """Config now lives in Pan's data dir, so workdir is not required."""
         adapter = CbcAdapter()
-        s = Session(id="ses_test", name="test", adapter="cbc")
+        s = Session(id="ses_no_wd", name="test", adapter="cbc")
         s.adapter_config["mcp_servers"] = [{"name": "rw", "command": "python"}]
-        assert adapter.mcp_args(s) == []
+        args = adapter.mcp_args(s)
+        assert args[0] == "--mcp-config"
+        config = _read_mcp_json(s)
+        assert "rw" in config["mcpServers"]
+
+    # ── 4.8 pan env injection ──
+
+    def test_pan_server_env_injection(self):
+        """4.8: pan server entry gets MA session identity injected into env."""
+        adapter = CbcAdapter()
+        s = _make_session(mcp_servers=[{
+            "name": "pan",
+            "command": "python",
+            "args": ["-m", "packages.mcp.server"],
+        }])
+        args = adapter.mcp_args(s)
+        assert "--mcp-config" in args
+        entry = _read_mcp_json(s)["mcpServers"]["pan"]
+        assert entry["env"]["PAN_AGENT_SESSION_ID"] == s.id
+        assert entry["env"]["PAN_AGENT_SESSION_TITLE"] == s.name
+
+    def test_pan_env_merges_existing_env(self):
+        """Injection merges on top of any existing env passthrough."""
+        adapter = CbcAdapter()
+        s = _make_session(mcp_servers=[{
+            "name": "pan",
+            "command": "python",
+            "env": {"FOO": "bar"},
+        }])
+        adapter.mcp_args(s)
+        entry = _read_mcp_json(s)["mcpServers"]["pan"]
+        assert entry["env"]["FOO"] == "bar"
+        assert entry["env"]["PAN_AGENT_SESSION_ID"] == s.id
+        assert entry["env"]["PAN_AGENT_SESSION_TITLE"] == s.name
+
+    def test_non_pan_env_passthrough_untouched(self):
+        """Non-pan servers keep their env passthrough unchanged (4.8 no-op)."""
+        adapter = CbcAdapter()
+        s = _make_session(mcp_servers=[{
+            "name": "rw",
+            "command": "python",
+            "env": {"FOO": "bar"},
+        }])
+        adapter.mcp_args(s)
+        entry = _read_mcp_json(s)["mcpServers"]["rw"]
+        assert entry["env"] == {"FOO": "bar"}
+        assert "PAN_AGENT_SESSION_ID" not in entry["env"]
 
 
 class TestKimiMCPArgs:
@@ -179,7 +237,9 @@ class TestApplyMCPServers:
         configs = s.adapter_config.get("mcp_servers") or []
         assert len(configs) == 1
         assert configs[0]["name"] == "pan"
-        assert configs[0]["command"] == "python"
+        # manifest command is ${PLUGIN_DIR}/../../.venv/Scripts/python — the
+        # loader resolves it to an absolute venv path (54894ba)
+        assert configs[0]["command"].replace("\\", "/").endswith(".venv/Scripts/python")
         assert configs[0]["args"] == ["-m", "packages.mcp.server"]
 
     def test_clear_with_empty(self, monkeypatch):
@@ -206,3 +266,39 @@ class TestApplyMCPServers:
             assert False, "expected ValueError"
         except ValueError as e:
             assert "must be a list" in str(e)
+
+
+# ------------------------------------------------------------------ #
+#  worker_send MA prefix (packages/mcp/server.py, 立项 4.8)
+# ------------------------------------------------------------------ #
+
+class TestWorkerSendPrefix:
+    def _patch_api(self, monkeypatch):
+        import packages.mcp.server as mcp_server
+        captured = {}
+
+        def fake_api(method, path, body=None, timeout=30.0):
+            captured["path"] = path
+            captured["body"] = body
+            return {"ok": True}
+
+        monkeypatch.setattr(mcp_server, "_api", fake_api)
+        return captured
+
+    def test_prefix_applied_when_env_set(self, monkeypatch):
+        monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma_1")
+        monkeypatch.setenv("PAN_AGENT_SESSION_TITLE", "meta-agent")
+        import packages.mcp.server as mcp_server
+        captured = self._patch_api(monkeypatch)
+        mcp_server.worker_send(worker_id="worker-1", text="hello")
+        assert captured["path"] == "/api/task"
+        assert captured["body"]["workerId"] == "worker-1"
+        assert captured["body"]["text"] == "////by agent : ses_ma_1 | meta-agent\nhello"
+
+    def test_no_prefix_when_env_unset(self, monkeypatch):
+        monkeypatch.delenv("PAN_AGENT_SESSION_ID", raising=False)
+        monkeypatch.delenv("PAN_AGENT_SESSION_TITLE", raising=False)
+        import packages.mcp.server as mcp_server
+        captured = self._patch_api(monkeypatch)
+        mcp_server.worker_send(worker_id="worker-1", text="hello")
+        assert captured["body"]["text"] == "hello"
