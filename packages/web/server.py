@@ -212,6 +212,7 @@ def _session_to_api(s: sess.Session):
         "cliSessionId": s.cli_session_id,
         "model": s.model or config.get("model") or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
+        "role": s.role,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
         "maxThinkingTokens": ac.get("max_thinking_tokens"),
@@ -365,6 +366,7 @@ def _build_session_params(data: dict) -> dict:
             if not data.get("permissionMode"):
                 params["permission_mode"] = char.permission_mode
             params["character_id"] = char.id
+            params["role"] = char.role
             params["system_prompt"] = char.system_prompt
             # Always pass mcp_servers so config is available if user toggles MCP on
             if char.mcp_servers is not None and len(char.mcp_servers) > 0:
@@ -940,6 +942,7 @@ async def api_branch_session(session_id: str, data: dict):
         character_id=s.character_id,
         system_prompt=s.system_prompt,
         adapter_config=new_adapter_config,
+        role=s.role,
     )
 
     await broadcast({
@@ -954,6 +957,7 @@ async def api_branch_session(session_id: str, data: dict):
 @app.delete("/api/sessions/{session_id}")
 async def api_delete_session(session_id: str):
     """Delete a session and its worker if running."""
+    sess.release(session_id)  # 清理 managed 关系（立项 待实现 #3）
     w = worker.find_worker_by_session(session_id)
     if w:
         asyncio.create_task(
@@ -976,6 +980,7 @@ async def api_batch_delete_sessions(data: dict):
 
     deleted = 0
     for sid in session_ids:
+        sess.release(sid)  # 清理 managed 关系
         w = worker.find_worker_by_session(sid)
         if w:
             asyncio.create_task(
@@ -1189,6 +1194,8 @@ async def api_report_subscribe(data: dict):
     # 软约束：已有归属且不属于该 manager → 拒绝（防止越权订阅）
     if target.managed_by and target.managed_by != manager_id:
         return {"error": f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"}
+    # 订阅即接管：建立 managed 关系（双向落盘，立项 4.2）
+    sess.claim(manager_id, session_id)
     manager.report_subscriptions.add(session_id)
     sess.save(manager)
     return {
@@ -1216,6 +1223,43 @@ async def api_report_unsubscribe(data: dict):
         "sessionId": session_id,
         "subscribed": session_id in manager.report_subscriptions,
         "reportSubscriptions": sorted(manager.report_subscriptions),
+    }
+
+
+@app.post("/api/claim")
+async def api_claim(data: dict):
+    """建立 managed 关系（双向落盘，立项 4.2）。
+
+    Body: {"managerId": <manager session id>, "sessionId": <managed session id>}
+
+    效果：manager.managed += [sessionId]，session.managed_by = managerId。
+    约束：manager 的 role 必须是 "meta-agent"；session 若已有其他 manager 则拒绝。
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "managerId and sessionId are required"}}
+    manager = sess.get(manager_id)
+    if not manager:
+        return {"ok": False, "error": {
+            "code": "manager_not_found",
+            "message": f"Manager session {manager_id} not found"}}
+    if manager.role != "meta-agent":
+        return {"ok": False, "error": {
+            "code": "not_meta_agent",
+            "message": f"Manager session {manager_id} role is '{manager.role}', not 'meta-agent'"}}
+    err = sess.claim(manager_id, session_id)
+    if err:
+        return {"ok": False, "error": {
+            "code": "claim_failed",
+            "message": err}}
+    return {
+        "ok": True,
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "managed": list(manager.managed),
     }
 
 

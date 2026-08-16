@@ -31,6 +31,7 @@ class Session:
     adapter: str = "cbc"   # CLI adapter name, default "cbc"
     model: str | None = None
     permission_mode: str | None = None
+    role: str = "default"  # Pan-internal boundary role (e.g. "meta-agent"), default "default"
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
     character_id: str | None = None   # bound character ID (for memory + system_prompt)
     system_prompt: str | None = None  # injected at Worker spawn
@@ -111,6 +112,7 @@ class Session:
             "adapter": self.adapter,
             "model": self.model,
             "permission_mode": self.permission_mode,
+            "role": self.role,
             "adapter_config": self.adapter_config,
             "character_id": self.character_id,
             "system_prompt": self.system_prompt,
@@ -137,6 +139,7 @@ _cache: dict[str, Session] = {}
 
 def create(name: str, model: str | None = None,
            permission_mode: str | None = None,
+           role: str = "default",
            adapter: str = "cbc",
            adapter_config: dict | None = None,
            raw_usage: dict | None = None,
@@ -168,6 +171,7 @@ def create(name: str, model: str | None = None,
         adapter=adapter,
         model=model,
         permission_mode=permission_mode,
+        role=role,
         adapter_config=ac,
         character_id=character_id,
         system_prompt=system_prompt,
@@ -223,6 +227,56 @@ def delete(session_id: str):
     if path.exists():
         path.unlink()
     _cache.pop(session_id, None)
+
+
+def claim(manager_id: str, session_id: str) -> str | None:
+    """Set a bidirectional managed relationship (立项 4.2).
+
+    Establishes: manager.managed += [session_id], session.managed_by = manager_id.
+
+    Refuses (returns an error string) if the target session is already managed
+    by a different session. No-op success when the relationship already holds.
+
+    Returns None on success, or an error message string on refusal.
+    """
+    manager = get(manager_id)
+    if manager is None:
+        return f"Manager session {manager_id} not found"
+    target = get(session_id)
+    if target is None:
+        return f"Session {session_id} not found"
+    if target.managed_by and target.managed_by != manager_id:
+        return f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"
+    if session_id not in manager.managed:
+        manager.managed.append(session_id)
+        save(manager)
+    if target.managed_by != manager_id:
+        target.managed_by = manager_id
+        save(target)
+    return None
+
+
+def release(session_id: str) -> str | None:
+    """Remove the managed relationship pointing at session_id.
+
+    Called when a session is deleted: the managing session's `managed` list is
+    cleaned up so it doesn't reference a deleted session (立项 待实现 #3).
+
+    Returns None on success, or an error message string.
+    """
+    target = get(session_id)
+    if target is None:
+        return None  # nothing to clean up
+    manager_id = target.managed_by
+    if not manager_id:
+        return None
+    manager = get(manager_id)
+    if manager is not None and session_id in manager.managed:
+        manager.managed.remove(session_id)
+        save(manager)
+    target.managed_by = None
+    save(target)
+    return None
 
 
 _all_loaded: bool = False

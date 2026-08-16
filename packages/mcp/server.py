@@ -77,6 +77,92 @@ def _strip_usage(result: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# MCP isolation (立项 4.1 role + 4.2 managed): meta-agent 只能操作它管理的 session
+# ---------------------------------------------------------------------------
+
+def _caller_identity() -> dict | None:
+    """Return the calling agent's session info (id/role/managed) or None.
+
+    Identity comes from PAN_AGENT_SESSION_ID (4.8 injection). Returns None when
+    the env var is absent or the session can't be resolved — callers then run
+    unrestricted (external coordinators, default-role sessions).
+    """
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not sid:
+        return None
+    result = _api("GET", f"/api/sessions/{sid}")
+    if not isinstance(result, dict) or result.get("error") or "id" not in result:
+        return None
+    return result
+
+
+def _check_access(session_id: str, claim: bool = False) -> dict | None:
+    """Enforce meta-agent isolation on a target session.
+
+    Rules:
+    - No caller identity or caller role != "meta-agent" → allowed.
+    - meta-agent operating on its own session → allowed.
+    - Target in caller's managed list → allowed.
+    - Otherwise, if `claim` is True, attempt to claim via POST /api/claim
+      (succeeds only if the session is unclaimed or already this manager's).
+    - Otherwise → permission denied (ok:false + error).
+
+    Returns None when allowed, or an error dict when denied.
+    """
+    caller = _caller_identity()
+    if not caller or caller.get("role") != "meta-agent":
+        return None
+    if session_id == caller.get("id"):
+        return None
+    if session_id in (caller.get("managed") or []):
+        return None
+    if claim:
+        # 先看目标 session：不存在 → 放行（让下游工具报 not found）
+        target = _api("GET", f"/api/sessions/{session_id}")
+        if not isinstance(target, dict) or target.get("error"):
+            return None
+        tmb = target.get("managedBy")
+        if tmb and tmb != caller["id"]:
+            return {"ok": False, "error": {
+                "code": "permission_denied",
+                "message": f"meta-agent session {caller['id']} can only operate sessions it "
+                           f"manages; {session_id} is managed by {tmb}"}}
+        # 未归属或已归属本 manager → claim（幂等）
+        res = _api("POST", "/api/claim", {"managerId": caller["id"], "sessionId": session_id})
+        if isinstance(res, dict) and res.get("ok"):
+            return None
+        msg = "claim refused"
+        if isinstance(res, dict) and isinstance(res.get("error"), dict):
+            msg = res["error"].get("message", msg)
+        return {"ok": False, "error": {
+            "code": "permission_denied",
+            "message": f"meta-agent session {caller['id']} can only operate sessions it "
+                       f"manages; {session_id}: {msg}"}}
+    return {"ok": False, "error": {
+        "code": "permission_denied",
+        "message": f"meta-agent session {caller['id']} can only operate sessions it "
+                   f"manages; {session_id} is not in its managed list"}}
+
+
+def _auto_claim(session_id: str) -> None:
+    """Auto-claim a newly created session for the calling meta-agent (best-effort)."""
+    caller = _caller_identity()
+    if caller and caller.get("role") == "meta-agent" and session_id:
+        _api("POST", "/api/claim", {"managerId": caller["id"], "sessionId": session_id})
+
+
+def _worker_session_id(worker_id: str) -> str | None:
+    """Resolve a worker_id to its session_id via /api/list (or None)."""
+    result = _api("GET", "/api/list")
+    if not isinstance(result, dict):
+        return None
+    for w in result.get("workers", []) if isinstance(result.get("workers"), list) else []:
+        if w.get("workerId") == worker_id:
+            return w.get("sessionId")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Session management tools
 # ---------------------------------------------------------------------------
 
@@ -107,7 +193,11 @@ def session_create(
         body["permissionMode"] = permission_mode
     if workdir:
         body["workdir"] = workdir
-    return _strip_usage(_api("POST", "/api/sessions", body))
+    result = _strip_usage(_api("POST", "/api/sessions", body))
+    # meta-agent 创建的 session 自动归其管理（立项 4.2）
+    if isinstance(result, dict) and result.get("id"):
+        _auto_claim(result["id"])
+    return result
 
 
 @mcp.tool()
@@ -131,6 +221,9 @@ def session_get(session_id: str, limit: int = 0) -> dict:
 
     完整编排流程见 /pan skill。
     """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
     result = _api("GET", f"/api/sessions/{session_id}")
     if limit and "history" in result and isinstance(result["history"], list):
         history = result["history"]
@@ -150,6 +243,9 @@ def session_delete(session_id: str) -> dict:
 
     完整编排流程见 /pan skill。
     """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
     return _api("DELETE", f"/api/sessions/{session_id}")
 
 
@@ -184,6 +280,9 @@ def session_update(
 
     完整编排流程见 /pan skill。
     """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
     body: dict = {}
     if model is not None:
         body["model"] = model
@@ -215,6 +314,9 @@ def session_history(session_id: str, limit: int = 50, before: int | None = None)
 
     完整编排流程见 /pan skill。
     """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
     path = f"/api/sessions/{session_id}/history?limit={limit}"
     if before is not None:
         path += f"&before={before}"
@@ -247,6 +349,10 @@ def report_subscribe(session_id: str) -> dict:
         return {"ok": False, "error": {
             "code": "missing_identity",
             "message": "PAN_AGENT_SESSION_ID not set — report tools only work inside a Pan-managed meta-agent session"}}
+    # 订阅即接管：claim=True（目标未归属或已归属本 manager 才可订阅）
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
     return _api("POST", "/api/report-subscribe",
                 {"managerId": manager_id, "sessionId": session_id})
 
@@ -268,6 +374,10 @@ def report_unsubscribe(session_id: str) -> dict:
         return {"ok": False, "error": {
             "code": "missing_identity",
             "message": "PAN_AGENT_SESSION_ID not set — report tools only work inside a Pan-managed meta-agent session"}}
+    # 退订只允许针对本 manager 已管理的 session
+    denied = _check_access(session_id)
+    if denied:
+        return denied
     return _api("POST", "/api/report-unsubscribe",
                 {"managerId": manager_id, "sessionId": session_id})
 
@@ -293,6 +403,10 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
     """
     body: dict = {"adapter": adapter}
     if session_id:
+        # spawn 即接管：meta-agent 首次 spawn 现有 session 时自动建立 managed 关系
+        denied = _check_access(session_id, claim=True)
+        if denied:
+            return denied
         body["sessionId"] = session_id
     if name:
         body["name"] = name
@@ -300,7 +414,11 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
         body["model"] = model
     if workdir:
         body["workdir"] = workdir
-    return _api("POST", "/api/spawn", body)
+    result = _api("POST", "/api/spawn", body)
+    # name 路径会新建 session → 自动归调用 meta-agent 管理
+    if name and not session_id and isinstance(result, dict) and result.get("sessionId"):
+        _auto_claim(result["sessionId"])
+    return result
 
 
 @mcp.tool()
@@ -316,6 +434,17 @@ def worker_task(session_id: str | None = None, worker_id: str | None = None,
 
     完整编排流程见 /pan skill。
     """
+    if session_id:
+        # 派任务即接管（与 worker_assign 一致）
+        denied = _check_access(session_id, claim=True)
+        if denied:
+            return denied
+    elif worker_id:
+        sid = _worker_session_id(worker_id)
+        if sid:
+            denied = _check_access(sid, claim=True)
+            if denied:
+                return denied
     body: dict = {"text": text, "source": source}
     if worker_id:
         body["workerId"] = worker_id
@@ -333,6 +462,11 @@ def worker_kill(worker_id: str) -> dict:
 
     完整编排流程见 /pan skill。
     """
+    sid = _worker_session_id(worker_id)
+    if sid:
+        denied = _check_access(sid)
+        if denied:
+            return denied
     return _api("POST", f"/api/kill/{worker_id}")
 
 
@@ -375,6 +509,9 @@ def worker_handoff(session_id: str, text: str, timeout: float = 600.0,
 
     完整编排流程见 /pan skill。
     """
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
     body = {"sessionId": session_id, "text": text, "timeout": timeout}
     if task_id:
         body["taskId"] = task_id
@@ -397,6 +534,10 @@ def worker_assign(session_id: str, text: str) -> dict:
     调用链：完成信号经 /ws/agent 的 worker.result 事件推送，或轮询 session_get 取结果。
     完整编排流程见 /pan skill。
     """
+    # 派任务即接管：meta-agent 首次 assign 目标 session 时自动建立 managed 关系
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
     return _api("POST", "/api/assign", {"sessionId": session_id, "text": text})
 
 
@@ -426,6 +567,12 @@ def worker_send(worker_id: str, text: str) -> dict:
     title = os.environ.get("PAN_AGENT_SESSION_TITLE")
     if sid or title:
         text = f"////by agent : {sid} | {title}\n{text}"
+    # 向被管 session 的 worker 发消息即接管
+    target_sid = _worker_session_id(worker_id)
+    if target_sid:
+        denied = _check_access(target_sid, claim=True)
+        if denied:
+            return denied
     return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
 
 
