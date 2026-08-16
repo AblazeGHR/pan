@@ -212,6 +212,27 @@ def _session(w: Worker) -> _sess.Session | None:
     return _sess.get(w.session_id)
 
 
+def _mcp_configured(s: _sess.Session | None) -> bool:
+    """Session 是否配置了 MCP 工具（mcp_enabled 且 mcp_servers 非空）。
+
+    MCP 是叠加属性：与 worker 的执行模式（output_mode）独立。
+    """
+    return bool(s and s.adapter_config.get("mcp_enabled") and s.adapter_config.get("mcp_servers"))
+
+
+def _use_oneshot_mcp(s: _sess.Session | None) -> bool:
+    """是否走 one-shot MCP 模式（每次任务新开 cbc 进程 + --mcp-config）。
+
+    判定矩阵（三条通道）：
+    - 无 MCP（mcp_enabled/mcp_servers 缺失）→ False：stream 长驻（无 MCP）
+    - 有 MCP 且 output_mode == "stream" → False：stream 长驻 + MCP（cbc ≥ 2.137.0）
+    - 有 MCP 且 output_mode 未设置 / == "oneshot" → True：one-shot（现有行为）
+    """
+    if not _mcp_configured(s):
+        return False
+    return s.adapter_config.get("output_mode") != "stream"
+
+
 # ── stdout reader ──
 
 async def _read_stdout(w: Worker):
@@ -358,12 +379,14 @@ async def _read_stdout(w: Worker):
 # ── consumer ──
 
 async def _consumer(w: Worker):
-    """Consumer loop. Two modes:
-    
-    - Stream mode (default): long-running cbc process with --input-format stream-json.
-      Each message is written to stdin, responses parsed from stdout.
+    """Consumer loop. Three execution modes (selected by _use_oneshot_mcp):
+
+    - Stream mode (default, no MCP): long-running cbc process with
+      --input-format stream-json. Each message is written to stdin.
+    - Stream + MCP mode: same long-running process, spawned with --mcp-config
+      (cbc >= 2.137.0). Enabled via adapter_config.output_mode == "stream".
     - One-shot MCP mode: new cbc process per message with --mcp-config.
-      Used when session has mcp_servers configured (cbc MCP incompatible with stream-json).
+      Legacy path, used when output_mode is unset/oneshot.
     """
     while True:
         item = await w.queue.get()
@@ -384,8 +407,8 @@ async def _consumer(w: Worker):
             await _sess.save_async(s)
             text = injected_text
 
-        # Check if MCP mode (one-shot) or stream mode
-        use_mcp = s and s.adapter_config.get("mcp_enabled") and s.adapter_config.get("mcp_servers")
+        # 选择执行模式：one-shot MCP（每次任务新开进程）vs stream（长驻，可带 MCP）
+        use_mcp = _use_oneshot_mcp(s)
 
         if use_mcp:
             await _consumer_mcp(w, text, source, s)
@@ -756,10 +779,12 @@ async def create_worker(session_id: str) -> Worker | str:
 
     Returns Worker on success, error string on failure.
 
-    Two modes:
-    - Stream mode (default): long-running process with --input-format stream-json.
-    - MCP mode: no long-running process. Each task spawns a one-shot cbc process.
-      Used when session has mcp_servers configured.
+    Three execution modes (see _use_oneshot_mcp):
+    - Stream mode (default, no MCP): long-running process with --input-format stream-json.
+    - Stream + MCP mode: long-running process spawned with --mcp-config
+      (adapter_config.output_mode == "stream", requires cbc >= 2.137.0).
+    - One-shot MCP mode: no long-running process. Each task spawns a one-shot
+      cbc process. Used when MCP configured and output_mode unset/oneshot.
     """
     s = _sess.get(session_id)
     if not s:
@@ -776,15 +801,25 @@ async def create_worker(session_id: str) -> Worker | str:
     adapter = get_adapter(s.adapter)
     worker_id = await _next_worker_id()
 
-    use_mcp = bool(s.adapter_config.get("mcp_enabled") and s.adapter_config.get("mcp_servers"))
+    mcp_on = _mcp_configured(s)
+    use_mcp = _use_oneshot_mcp(s)
 
     if use_mcp:
-        # MCP mode: no long-running process, consumer spawns per-task
+        # One-shot MCP mode: no long-running process, consumer spawns per-task
         proc = None
         resuming = False
     else:
-        # Stream mode: spawn long-running process
-        proc = await _spawn_process(session_id, adapter=adapter)
+        # Stream mode: spawn long-running process.
+        # If MCP is configured (mcp_on, output_mode="stream"), the process is
+        # spawned with --mcp-config (build_spawn_args -> mcp_args) so the
+        # long-running stream keeps MCP tools (cbc >= 2.137.0).
+        extra_args = None
+        if mcp_on and s.system_prompt and not s.cli_session_id:
+            # stream+MCP: inject system_prompt via --system-prompt (same as
+            # one-shot MCP) instead of a separate first message, avoiding the
+            # roleplay trap (see cbc-mcp-踩坑记录.md #13).
+            extra_args = ["--system-prompt", s.system_prompt]
+        proc = await _spawn_process(session_id, adapter=adapter, extra_args=extra_args)
         if isinstance(proc, str):
             return proc
         resuming = bool(s.cli_session_id) and adapter.supports_resume
@@ -815,15 +850,18 @@ async def create_worker(session_id: str) -> Worker | str:
 
     await _sess.save_async(s)
 
-    # Inject system_prompt as first message if set
-    # MCP mode: skip separate injection — system_prompt biases LLM into pure
-    # roleplay, preventing it from discovering MCP tools via ToolSearch.
-    if s.system_prompt and not use_mcp:
+    # Inject system_prompt
+    # - Pure stream (no MCP): injected as a separate first message (existing).
+    # - With MCP (one-shot or stream+MCP): skipped here — injected via
+    #   --system-prompt at spawn / in _consumer_mcp, because a separate first
+    #   message biases the LLM into pure roleplay and prevents it from
+    #   discovering MCP tools via ToolSearch.
+    if s.system_prompt and not mcp_on:
         _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
         await send_task(worker_id, s.system_prompt, source="system_prompt")
-    elif s.system_prompt and use_mcp:
-        _log.info("[Worker %s] MCP mode: system_prompt will be prepended to first user message", worker_id)
-    
+    elif s.system_prompt:
+        _log.info("[Worker %s] MCP mode: system_prompt injected via --system-prompt", worker_id)
+
     return w
 
 
