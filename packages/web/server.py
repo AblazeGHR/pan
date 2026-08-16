@@ -139,24 +139,23 @@ async def broadcast(data: dict):
     etype = data.get("type", "")
     data_session_id = data.get("sessionId")
     for ws in list(agent_clients):
-        sub = agent_subscriptions.get(ws)
-        if sub is None:
-            sub = AgentSubscription()
+        sub = agent_subscriptions.setdefault(ws, AgentSubscription())
         # 事件类型过滤
         if etype not in sub.event_types and "*" not in sub.event_types:
             continue
         # worker.result 按 sessionId 过滤（若订阅了特定 session 列表）
         if etype == "worker.result" and sub.session_ids and data_session_id not in sub.session_ids:
             continue
-        # 记录已消费的 result 序号（重连补发用）
-        if etype == "worker.result" and data_session_id:
-            seq = data.get("taskSeq")
-            if isinstance(seq, int):
-                sub.consumed_seq[data_session_id] = max(sub.consumed_seq.get(data_session_id, 0), seq)
         try:
             await ws.send_json(data)
         except Exception:
             dead_a.add(ws)
+            continue
+        # 记录已消费的 result 序号（重连补发用）——发送成功后才推进
+        if etype == "worker.result" and data_session_id:
+            seq = data.get("taskSeq")
+            if isinstance(seq, int):
+                sub.consumed_seq[data_session_id] = max(sub.consumed_seq.get(data_session_id, 0), seq)
     agent_clients.difference_update(dead_a)
 
 
@@ -628,8 +627,14 @@ async def ws_agent_endpoint(ws: WebSocket):
                     s = sess.get(sid)
                     if not s or not s.last_result or s.last_result.get("status") != "done":
                         continue
-                    # 该 session 最新 result 已消费过则跳过
-                    if sub.consumed_seq.get(sid, 0) > 0:
+                    # 补发条件：consumed_seq < latest_seq（中途断线、部分消费也补发）
+                    latest_seq = s.last_result.get("taskSeq")
+                    if latest_seq is None:
+                        # 旧数据未存 taskSeq：仅当完全未消费时补发（保持原有行为）
+                        if sub.consumed_seq.get(sid, 0) > 0:
+                            continue
+                        latest_seq = 0
+                    elif sub.consumed_seq.get(sid, 0) >= latest_seq:
                         continue
                     await ws.send_json({
                         "type": "worker.result",
@@ -637,9 +642,11 @@ async def ws_agent_endpoint(ws: WebSocket):
                         "sessionId": sid,
                         "status": s.last_result.get("status"),
                         "result": s.last_result.get("result"),
-                        "taskSeq": sub.consumed_seq.get(sid, 0),
+                        "taskSeq": latest_seq,
                         "replayed": True,
                     })
+                    # 补发成功后再推进游标，避免下次 reconnect 重复补发
+                    sub.consumed_seq[sid] = max(sub.consumed_seq.get(sid, 0), latest_seq)
 
             elif msg_type == "task":
                 session_id = msg.get("sessionId")

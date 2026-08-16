@@ -283,6 +283,9 @@ async def _read_stdout(w: Worker):
                 w.status = "idle"
                 continue
 
+            w._result_count += 1
+            task_seq = w._result_count
+
             if s:
                 result_text = adapter.extract_result_text(event)
                 s.last_result = {
@@ -290,6 +293,7 @@ async def _read_stdout(w: Worker):
                     "result": result_text,
                     "cli_session_id": s.cli_session_id,
                     "timestamp": datetime.now().isoformat(),
+                    "taskSeq": task_seq,
                 }
                 if isinstance(result_text, str) and result_text.strip():
                     last = s.history[-1] if s.history else None
@@ -311,8 +315,6 @@ async def _read_stdout(w: Worker):
                     _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
                 await _sess.save_async(s)
 
-            w._result_count += 1
-            task_seq = w._result_count
             result_text = adapter.extract_result_text(event)
             await _bcast({
                 "type": "worker.result",
@@ -735,6 +737,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         "result": result,
         "cli_session_id": s.cli_session_id,
         "timestamp": datetime.now().isoformat(),
+        "taskSeq": w._current_seq,
     }
     await _sess.save_async(s)
 
