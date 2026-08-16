@@ -1232,6 +1232,16 @@ async def api_cbc_sessions_import(data: dict):
     except Exception as e:
         return {"error": f"Failed to parse session history: {e}"}
 
+    # 防御（#import-guard）：验证 cbc 侧 session 真实存在，防止孤儿/坏 id
+    # 污染导入。例如某 Pan session 的 cli_session_id 被错误指向一个不存在的
+    # cbc session，直接 import 会匹配到 existing 并清空其 history。
+    if project_dir:
+        session_path = cbc_sessions._resolve_session_file(session_id, project_dir=project_dir)
+    else:
+        session_path = cbc_sessions._resolve_session_file(session_id, cwd)
+    if session_path is None:
+        return {"error": f"CBC session {session_id} not found on disk; refusing to import"}
+
     raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
     total_usage = sess.compute_total_usage(raw_usage)
 
@@ -1248,6 +1258,12 @@ async def api_cbc_sessions_import(data: dict):
         if s.cli_session_id == session_id:
             existing = s
             break
+
+    # 防御（#import-guard）：匹配到已有 session 但 cbc 侧解析不出任何历史时，
+    # 拒绝用空历史覆盖，避免把已有会话数据清空。
+    if existing and not history:
+        _log(f"[WARN] import {session_id}: history empty for existing session {existing.id}; refusing to overwrite")
+        return {"error": f"CBC session {session_id} has no parseable history; refusing to overwrite existing session {existing.id}"}
 
     if existing:
         w = worker.find_alive_worker_by_session(existing.id)

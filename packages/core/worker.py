@@ -482,6 +482,29 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     })
 
 
+def _extract_cbc_error(output: bytes) -> str | None:
+    """Extract cbc's structured error message from one-shot stream-json output.
+
+    cbc exits 0 even on failure (e.g. ``--resume`` pointing at a session that
+    no longer exists), emitting ``{"type":"error","error":"..."}`` instead of
+    a ``result`` event. Without this, a broken ``cli_session_id`` surfaces as
+    a silent ``(no output)`` error, masking the real cause.
+    """
+    for line in output.decode(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "error":
+            msg = event.get("error")
+            if isinstance(msg, str) and msg.strip():
+                return msg.strip()
+    return None
+
+
 async def _consumer_mcp(w: Worker, text: str, source: str, s):
     """One-shot MCP mode: spawn new cbc process per message with --mcp-config.
 
@@ -646,7 +669,19 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         return
 
     if cli_session_id:
-        s.cli_session_id = cli_session_id
+        # Bind cli_session_id only when the session has none yet, or when the
+        # captured id matches the existing binding (idempotent no-op). Never
+        # overwrite a working binding with an unrelated id: a failed resume
+        # (cbc exits 0, emits {"type":"error"} and NO init event) leaves
+        # cli_session_id=None here, but a stale/mismatched init event must
+        # not clobber the session's real cbc session (#bind-override).
+        if not s.cli_session_id:
+            s.cli_session_id = cli_session_id
+        elif s.cli_session_id != cli_session_id:
+            _log.warning(
+                "[Worker %s] cli_session_id mismatch: existing=%s captured=%s; keeping existing",
+                w.worker_id, s.cli_session_id, cli_session_id,
+            )
     # Append extracted blocks (assistant/thinking/tool) — same as stream mode.
     for block in assistant_blocks:
         s.history.append(block)
@@ -660,6 +695,12 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     elif not result_text and returncode not in (None, 0):
         tail = output.decode(errors="replace")[-2000:].strip()
         status, result = "error", f"cbc exited with code {returncode}:\n{tail}"
+    elif not result_text and returncode == 0:
+        # cbc exits 0 even when it fails (e.g. --resume targets a session that
+        # no longer exists). Surface the structured error instead of a silent
+        # "(no output)" so a broken cli_session_id binding is visible.
+        cbc_error = _extract_cbc_error(output)
+        status, result = "error", cbc_error or "(no output)"
     else:
         status, result = (
             "done" if result_text else "error",
