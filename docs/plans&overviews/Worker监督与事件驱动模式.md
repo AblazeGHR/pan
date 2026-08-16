@@ -33,12 +33,17 @@ CodeBuddy Monitor 工具（command 模式 + persistent）
 **脚本**（`data/scripts/monitor_workers.py`）：
 ```python
 async with websockets.connect("ws://127.0.0.1:8768/ws/agent") as ws:
-    await ws.send(json.dumps({"type": "subscribe", "eventTypes": ["worker.result"]}))
+    await ws.send(json.dumps({"type": "subscribe",
+                              "eventTypes": ["worker.result", "worker.zombie"]}))
     async for msg in ws:
         ev = json.loads(msg)
         if ev.get("type") == "worker.result":
             print(f"DONE session={ev.get('sessionId')} status={ev.get('status')} worker={ev.get('workerId')}", flush=True)
+        elif ev.get("type") == "worker.zombie":
+            print(f"DIE session={ev.get('sessionId')} worker={ev.get('workerId')} returncode={ev.get('returncode')}", flush=True)
 ```
+
+**订阅事件**：`worker.result`（正常完成）+ `worker.zombie`（**意外死亡**——进程退出/watchdog kill 时广播，worker.py:371）。只订阅 result 会漏掉意外死亡（ma-report 2026-08-16 事件教训），必须两者都订阅。
 
 **启动**（Monitor 工具）：
 ```
