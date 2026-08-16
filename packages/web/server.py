@@ -214,6 +214,8 @@ def _session_to_api(s: sess.Session):
         "totalUsage": s.total_usage,
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
+        "managed": s.managed,
+        "managedBy": s.managed_by,
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "mcpEnabled": ac.get("mcp_enabled", False),
