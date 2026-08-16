@@ -39,7 +39,7 @@ def _setup_worker(session_id, status="idle"):
         adapter=__import__("packages.core.adapters", fromlist=["CbcAdapter"]).CbcAdapter(),
         status=status,
         process=None,
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
         _replaying=False,
     )
     worker.workers[w.worker_id] = w
@@ -174,7 +174,7 @@ def test_assign_returns_queued():
     assert result["status"] == "queued", f"got {result}"
     assert result["workerId"] == w.worker_id
     # task is actually queued on the worker
-    assert w.queue.qsize() == 1, f"task not queued, qsize={w.queue.qsize()}"
+    assert w.pending_signal.qsize() == 1, f"task not queued, qsize={w.pending_signal.qsize()}"
     print("PASS: assign returns queued")
     _cleanup()
 
@@ -191,7 +191,7 @@ def test_send_to_existing_worker():
     result = asyncio.run(scenario())
 
     assert result["status"] == "queued", f"got {result}"
-    assert w.queue.qsize() == 1
+    assert w.pending_signal.qsize() == 1
     print("PASS: send to existing worker")
     _cleanup()
 
@@ -264,7 +264,7 @@ def test_handoff_task_id_idempotent_after_complete():
     assert r1.get("taskId") == tid
     assert r2.get("taskId") == tid
     # Second handoff did NOT enqueue another task (still only the original queued item)
-    assert w.queue.qsize() == 1, f"task re-enqueued: qsize={w.queue.qsize()}"
+    assert w.pending_signal.qsize() == 1, f"task re-enqueued: qsize={w.pending_signal.qsize()}"
     print("PASS: handoff taskId idempotent after complete")
     _cleanup()
 
@@ -287,7 +287,7 @@ def test_handoff_task_id_pending_on_timeout():
     assert r1["status"] == "pending", f"got {r1}"
     assert r2["status"] == "pending", f"got {r2}"
     # Only one task in queue (idempotent)
-    assert w.queue.qsize() == 1, f"task re-enqueued: qsize={w.queue.qsize()}"
+    assert w.pending_signal.qsize() == 1, f"task re-enqueued: qsize={w.pending_signal.qsize()}"
     print("PASS: handoff taskId pending on timeout")
     _cleanup()
 
@@ -312,6 +312,62 @@ def test_memory_injection_disabled_skips_embedding():
     _cleanup()
 
 
+def test_handoff_concurrent_same_worker_multi_slot():
+    """同一 worker 上并发多个 handoff：按 seq 各占一槽，互不覆盖。"""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+
+    async def scenario():
+        h1 = asyncio.create_task(worker.handoff(s.id, "job1"))
+        await asyncio.sleep(0.02)
+        h2 = asyncio.create_task(worker.handoff(s.id, "job2"))
+        await asyncio.sleep(0.05)
+        # 两个 waiter 都注册着（多槽位，按 seq）
+        waiters = worker._result_waiters[w.worker_id]
+        assert len(waiters) == 2, f"expected 2 waiters, got {waiters}"
+        # 先完成 seq 较小的任务，只 resolve 它自己的 waiter
+        worker._resolve_result_waiter(w.worker_id, "done", "result1", task_seq=1)
+        r1 = await h1
+        # 另一个 waiter 不受影响，仍在等待
+        assert w.worker_id in worker._result_waiters, "second waiter wrongly removed"
+        worker._resolve_result_waiter(w.worker_id, "done", "result2", task_seq=2)
+        r2 = await h2
+        return r1, r2
+
+    r1, r2 = asyncio.run(scenario())
+
+    assert r1["status"] == "done" and r1["result"] == "result1", f"got {r1}"
+    assert r2["status"] == "done" and r2["result"] == "result2", f"got {r2}"
+    assert w.worker_id not in worker._result_waiters
+    print("PASS: concurrent handoffs on same worker use multi-slot waiters")
+    _cleanup()
+
+
+def test_force_resolve_resolves_all_waiters():
+    """worker 被杀 → 该 worker 上所有等待中的 handoff 全部 error，不 hang。"""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+
+    async def scenario():
+        h1 = asyncio.create_task(worker.handoff(s.id, "job1"))
+        await asyncio.sleep(0.02)
+        h2 = asyncio.create_task(worker.handoff(s.id, "job2"))
+        await asyncio.sleep(0.05)
+        worker._resolve_result_waiter(w.worker_id, "error", "worker killed")
+        r1, r2 = await asyncio.gather(h1, h2)
+        return r1, r2
+
+    r1, r2 = asyncio.run(scenario())
+
+    assert r1["status"] == "error" and r1["result"] == "worker killed", f"got {r1}"
+    assert r2["status"] == "error" and r2["result"] == "worker killed", f"got {r2}"
+    assert w.worker_id not in worker._result_waiters
+    print("PASS: force resolve ends all waiters on worker")
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_handoff_waits_for_result()
     test_handoff_timeout()
@@ -323,4 +379,6 @@ if __name__ == "__main__":
     test_handoff_task_id_idempotent_after_complete()
     test_handoff_task_id_pending_on_timeout()
     test_memory_injection_disabled_skips_embedding()
+    test_handoff_concurrent_same_worker_multi_slot()
+    test_force_resolve_resolves_all_waiters()
     print("\n=== ALL PRIMITIVE TESTS PASSED ===")

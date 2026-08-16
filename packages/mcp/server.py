@@ -319,7 +319,16 @@ def worker_list() -> dict:
 @mcp.tool()
 def worker_handoff(session_id: str, text: str, timeout: float = 600.0,
                    task_id: str | None = None) -> dict:
-    """Send a task and BLOCK until the worker returns a result.
+    """[DEPRECATED] Send a task and BLOCK until the worker returns a result.
+
+    DEPRECATED (立项 4.7): prefer ``worker_assign`` + report subscription
+    (``report_subscribe``) instead. If you truly need to wait, "waiting" should
+    be your session's default idle state — dispatch asynchronously with
+    worker_assign, subscribe to the completion report, and consume it when it
+    arrives — not a blocking call that leaves your session busy or subject to
+    interruption. This tool is retained only for cases that require a strictly
+    blocking synchronous return value; it may be removed in the future. No
+    runtime warning is emitted (deprecation is documentation-level only).
 
     Synchronous orchestration primitive: ensures a worker exists for the
     session, sends the task, then waits for the worker.result event.

@@ -52,6 +52,10 @@ async def lifespan(app: FastAPI):
     sessions = sess.list_all()
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
+
+    # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
+    # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
+    worker.start_global_watchdog()
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -66,6 +70,7 @@ async def lifespan(app: FastAPI):
         _log(f"[Pan] Character manifest not loaded: {e}")
     
     yield
+    worker.stop_global_watchdog()
     await worker.shutdown_all()
     # Release cached MemoryManagers + loaded embedding models (#20).
     try:

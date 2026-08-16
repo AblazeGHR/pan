@@ -108,7 +108,7 @@ def _setup_worker(session_id: str, replaying: bool = False):
         adapter=CbcAdapter(),
         status="idle",
         process=MagicMock(),
-        queue=asyncio.Queue(),
+        pending_signal=asyncio.Queue(),
         _replaying=replaying,
     )
     worker.workers[w.worker_id] = w
@@ -226,7 +226,7 @@ def test_user_message_during_replay_clears_flag():
     w = _setup_worker(s.id, replaying=True)
 
     # Simulate _consumer processing a user message
-    asyncio.run(w.queue.put({"text": "new q", "source": "agent"}))
+    asyncio.run(w.pending_signal.put({"text": "new q", "source": "agent"}))
 
     # Run one _consumer iteration
     async def run_consumer_once():
