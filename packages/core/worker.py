@@ -282,6 +282,11 @@ async def _read_stdout(w: Worker):
                 w.status = "idle"
                 continue
 
+            # taskSeq 统一用 _current_seq（_consumer 取出 item 时已从 handoff
+            # 预分配的序号记录）。用 _result_count 会在中断/重启后与
+            # _task_counter 错位，导致 handoff waiter 永远匹配不上而悬挂超时。
+            task_seq = w._current_seq
+
             if s:
                 result_text = adapter.extract_result_text(event)
                 s.last_result = {
@@ -289,6 +294,7 @@ async def _read_stdout(w: Worker):
                     "result": result_text,
                     "cli_session_id": s.cli_session_id,
                     "timestamp": datetime.now().isoformat(),
+                    "taskSeq": task_seq,
                 }
                 if isinstance(result_text, str) and result_text.strip():
                     last = s.history[-1] if s.history else None
@@ -310,9 +316,7 @@ async def _read_stdout(w: Worker):
                     _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
                 await _sess.save_async(s)
 
-            # result 的 taskSeq 必须用 _current_seq（_consumer 取出 item 时
-            # 已从 handoff 预分配的序号记录）。用 _result_count 会在中断/重启后
-            # 与 _task_counter 错位，导致 handoff waiter 永远匹配不上而悬挂超时。
+            # taskSeq 已在上方（last_result 补存处）统一用 _current_seq。
             task_seq = w._current_seq
             result_text = adapter.extract_result_text(event)
             await _bcast({
@@ -736,6 +740,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         "result": result,
         "cli_session_id": s.cli_session_id,
         "timestamp": datetime.now().isoformat(),
+        "taskSeq": w._current_seq,
     }
     await _sess.save_async(s)
 
