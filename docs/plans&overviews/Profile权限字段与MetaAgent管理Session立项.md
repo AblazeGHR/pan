@@ -80,7 +80,13 @@ meta-agent 通过 MCP 工具（`worker_spawn` / `worker_task` / `worker_handoff`
 
 ### 4.3 报告入队与消费（落盘真源 + 内存信号 + 拼接）
 
-**触发点**：复用 `_consumer` 完成路径——session done 时，若它有 `managed_by`，把报告 append 进 meta-agent 的落盘队列。
+**触发点**：复用 `_consumer` 完成路径——session done 时，若它有 `managed_by`，**且 meta-agent 已订阅该 session 的报告**（见下），把报告 append 进 meta-agent 的落盘队列。
+
+**报告订阅制（2026-08-16 补充）**：report 推送是**可选（opt-in）**，不是无条件：
+- 新增 MCP 工具：`report_subscribe(session_id)` / `report_unsubscribe(session_id)`——meta-agent 通过它们管理对 managed session 的完成报告订阅
+- 订阅状态存 meta-agent session（如 `Session.report_subscriptions: set[str]`，落盘）
+- **触发条件**：`managed_by` 存在 **且** 目标 meta-agent 订阅了该 session → 才 append 报告；未订阅则只保留现有 `worker.result` 广播（供外部协调者用）
+- **与外部监听的互斥**：`/ws/agent` + Monitor（外部协调者）与 report 订阅（meta-agent 内部）是**两套完成通知，二选一**——同用会重复通知。外部协调者监听 `worker.result` 时，meta-agent 不应再订阅报告（反之亦然）。详见 `Worker监督与事件驱动模式.md` 与 `Pan冷启动Agent编排skill立项.md`。
 
 **格式**：对齐 handoff 报告 dict（`status/result/sessionId/taskId/workerId`），原样入队（给 AI 看，不需格式化）。
 
@@ -177,7 +183,8 @@ meta-agent 通过 `worker_send`（`packages/mcp/server.py:311`）向被管 sessi
 
 - [ ] `role` 字段：Profile / Character / Session + manifest 声明 + 下放（manifest_loader / character / session / server 透传），默认 `default`
 - [ ] 归属：`managed`（列表）+ `managed_by`（反查），双向落盘，创建/接管时写入，API 暴露，删除清理
-- [ ] 报告入队：`_consumer` 完成路径复用，`managed_by` 存在则 append 报告入 meta-agent 落盘队列，对齐 handoff 格式
+- [ ] 报告入队（订阅制）：`_consumer` 完成路径复用，`managed_by` 存在**且 meta-agent 已订阅该 session 报告**才 append 入落盘队列，对齐 handoff 格式
+- [ ] 报告订阅：`Session.report_subscriptions`（落盘）+ MCP 工具 `report_subscribe`/`report_unsubscribe`
 - [ ] 落盘队列：`Session.queue_pending` 落盘（入队立即写、消费即删），spawn 时载入；`Worker.queue` 收窄为唤醒信号并改名
 - [ ] 消费拼接：`_consumer` 从真源取一批，积压 report dict 原样拼接（显眼分隔 + 来源），非 report 单条
 - [ ] 全局 watchdog：服务级常驻，扫描队列非空无活 worker 的 meta-agent session，自动 spawn；spawn 侧防重复

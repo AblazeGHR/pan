@@ -85,6 +85,7 @@ MCP 内返回操作手册全文，供"只认 MCP 习惯、不主动调 skill"的
 ## 五、任务拆解（若立项通过）
 
 - [ ] A：扩写 `.codebuddy/skills/pan/SKILL.md`（编排工作流 + API 速查 + 坑与约定 + 监督模板）
+- [ ] A：**完成通知二选一说明**——skill 手册明确 `Monitor + /ws/agent`（外部协调）与 `report_subscribe`（meta-agent 内部）互斥，同用会重复通知，指导按场景选一
 - [ ] A：监督脚本 `monitor_worker.py` 迁入 skill 目录并文档化
 - [ ] B：逐工具补 description 调用链引导（`packages/mcp/server.py`），指向 `/pan` skill
 - [ ] C：`pan_handbook` MCP 工具（读 SKILL.md 返回）

@@ -97,6 +97,20 @@ Profile 立项（`Profile权限字段与MetaAgent管理Session立项.md` 4.3）�
 - worker 完成时既有 `worker.result` 广播（供外部），也 append `queue_pending` 报告（供 meta-agent）
 - 监督脚本和报告消费共用同一"完成事件"
 
+### 4.4 完成通知：Monitor 与报告订阅**二选一**【2026-08-16 补充】
+
+两种完成通知路径**互斥，同用会重复通知**：
+
+| 通知方式 | 适用 | 机制 |
+|---------|------|------|
+| **外部协调**（`/ws/agent` + Monitor）| 外部 CodeBuddy 会话盯梢 | 订阅 WS，`worker.result` 事件 |
+| **内部报告**（report 订阅 + `queue_pending`）| meta-agent 管理自己的 subagent | MCP `report_subscribe`/`report_unsubscribe`，完成时报告入落盘队列 |
+
+- **外部协调者监听 `worker.result` 时，meta-agent 不应再订阅该 session 的报告**（反之亦然）
+- 报告推送已改为**订阅制（opt-in）**——未订阅不 append `queue_pending`，只保留 `worker.result` 广播供外部用
+- Monitor 限制：强绑定 cbc（仅 CodeBuddy 会话可用）、交互模式下"空闲才唤醒"——这些正是内部报告机制要补的（不依赖外部协调者）
+- 取舍：外部协调（实时、无落盘）vs 内部报告（异步、落盘可恢复、跨协调者）
+
 ### 4.4 watchdog 自愈联动
 
 全局 watchdog（立项 4.4）保证"队列非空 → 拉起 worker"；本模式保证"worker 完成 → 协调者感知"。两者互补：watchdog 管执行侧，监督管感知侧。
