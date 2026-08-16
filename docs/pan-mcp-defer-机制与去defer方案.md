@@ -53,12 +53,12 @@
 
 ## 加载路径与 defer 的真相
 
-`packages/core/adapters/cbc/adapter.py` 的 `mcp_args()`（约 222 行）写两个文件并显式传 `--mcp-config`：
+`packages/core/adapters/cbc/adapter.py` 的 `mcp_args()` 写 `<workdir>/.codebuddy/mcp.json` 并显式传 `--mcp-config`：
 
-- `<workdir>/.codebuddy/mcp.json` → 通过 `--mcp-config <path>` **显式传入**（worker.py `_consumer_mcp` 使用）→ **工具直接可用**
-- `<workdir>/.mcp.json` → fallback（cbc 项目级发现路径）→ **工具 deferred**
+- `<workdir>/.codebuddy/mcp.json` → 通过 `--mcp-config <path>` **显式传入**（worker 的 MCP spawn 路径）→ **工具直接可用**
+- （`<workdir>/.mcp.json` fallback 已于 2026-08-16 移除——cbc 项目发现它会注册 project-scope 阻断连接，见踩坑记录 #15）
 
-**`adapter.py:225` 注释修正**：原注释声称"cbc 经 `-d` 自动发现 `.codebuddy/mcp.json`，工具 fully connected"。实测（试验 C）`-d` **不会**自动发现该文件——能连上全靠 `--mcp-config` 显式传入。注释与 `.mcp.json` 相关的半句（"Writing to .mcp.json instead makes MCP tools deferred only"）成立。
+**`adapter.py` `mcp_args()` docstring 注释修正**：原注释声称"cbc 经 `-d` 自动发现 `.codebuddy/mcp.json`，工具 fully connected"。实测（试验 C）`-d` **不会**自动发现该文件——能连上全靠 `--mcp-config` 显式传入。
 
 ## CodeBuddy 的 defer 决策机制
 

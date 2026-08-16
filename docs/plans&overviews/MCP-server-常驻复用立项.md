@@ -1,43 +1,34 @@
-# MCP Server 常驻复用 — 立项
+# MCP Server 常驻复用 — 立项（已降级为可选优化）
 
 > 基于 2026-08-16 MCP 链路改造（移除 `-d`、去 `.mcp.json` fallback、manifest 绝对路径）后暴露的性能问题立项。
-> 状态：立项阶段（仅记录考量与待决策项，**不改代码**） | 创建：2026-08-16
+> 状态：**已部分过时**——cbc 2.137.0 的 stream+MCP 已解决"每任务冷启动 MCP server"主痛点，本方案降级为**跨 cbc 进程共享 server** 的可选优化。创建：2026-08-16
 
 ---
 
 ## 一、立项背景
 
-当前 MCP 模式的进程模型是**每个任务全量冷启动**：
+~~当前 MCP 模式的进程模型是每个任务全量冷启动（one-shot cbc + 每次新 spawn MCP server，~107s 首启 / ~19s 后续）。~~
 
-```
-meta-agent worker（一次 handoff 任务）
-  └─ 新起 cbc 进程（one-shot，-p）
-       └─ 新起 MCP server 子进程（stdio）
-  → 任务完成，cbc 退出 → MCP server 子进程随之退出
-```
+**2026-08-16 更新（cbc 2.137.0）**：stream+MCP 已实现（`adapter_config.output_mode="stream"`，长驻 cbc 进程 + `--mcp-config`），**MCP server 随长驻进程只启动一次，任务间复用**——"每任务冷启动 server"的痛点已被 stream+MCP 解决，无需本方案。
 
-每次任务都要重复冷启动 cbc + MCP server。已知性能记录（`cbc-mcp-system-prompt-注入与CMD转义.md`）：
-
-- MCP one-shot 首次任务：~107s（含启动 pan MCP server）
-- 后续任务（`--resume`）：~19s
-
-**痛点**：meta-agent 编排多步任务（多次 handoff）时，每步都付出一次 cbc + MCP server 的冷启动成本，且 server 每步重新建立与后端（Pan API / COC 规则库）的连接。
+剩余价值（可选优化）：**多个 cbc 进程（多个 worker）复用同一个 MCP server**。one-shot / 非 stream 模式下每个 cbc 各自 spawn 一个 server，若有多个 worker 并发使用同一 server，SSE/HTTP 常驻可让它们共享一个进程。
 
 ---
 
 ## 二、事实调查
 
-### 2.1 当前进程模型（2026-08-16 实测确认）
+### 2.1 进程模型（2026-08-16 实测确认）
 
-| 层 | 生命周期 | 原因 |
+| 层 | 生命周期 | 说明 |
 |----|---------|------|
-| cbc 进程 | 每任务一个，one-shot | `--mcp-config` + `--input-format stream-json` **不兼容**（踩坑 #5），MCP 模式无法走 stream 长连接 |
-| MCP server 子进程 | 每任务一个，随 cbc 退出 | stdio transport：server 通过 stdin/stdout 与**恰好一个** cbc 通信，cbc 退出即 stdin 关闭，server 结束 |
+| cbc 进程 | stream+MCP：长驻，server 随进程启动一次 | `output_mode="stream"` + `--mcp-config`，cbc **2.137.0** 起兼容（实测） |
+| MCP server 子进程 | stream+MCP：随长驻 cbc 启动一次，任务间复用 | 已解决"每任务冷启动"主痛点 |
+| one-shot（旧路径）| 每任务新 cbc + 新 server | `output_mode` 未设置时兜底；每任务冷启动 ~19s |
 
-### 2.2 复用被两层死结卡住
+### 2.2 复用现状
 
-1. **cbc 无法复用**：one-shot 模式下 cbc 处理完 prompt 即退出；MCP 与 stream-json 不兼容，无法改成长连接。
-2. **stdio server 无法复用**：server 绑定单一客户端进程生命周期，无法"常驻等待下一个客户端"。
+- **stream+MCP（2.137.0）已消除 server 冷启动**：长驻进程内 MCP server 只启动一次，后续任务直接复用。
+- **本方案（SSE 常驻）的剩余价值**：让**多个 cbc 进程**（多个 worker / one-shot 场景）共享同一个 server，而非各自 spawn。
 
 ### 2.3 已有的可用基础
 
@@ -53,13 +44,14 @@ parser.add_argument("--port", type=int, default=9740)
 
 ---
 
-## 三、目标
+## 三、目标（已降级）
 
-让 MCP server 作为**独立常驻进程**运行（随 Pan 服务启停），多个 cbc 客户端连接**同一个** server，消除每次任务的 server 冷启动成本。
+让 MCP server 作为**独立常驻进程**运行（随 Pan 服务启停），供**多个 cbc 客户端**连接**同一个** server，避免每个 cbc 各自 spawn 一个 server 进程。
 
 预期收益：
-- MCP server 只冷启动一次；后续所有任务零 server 冷启动
-- cbc 的 per-task 限制保留（cbc 不可复用是 cbc 本身限制），但大头成本（server 启动 + 后端连接重建）消除
+- one-shot / 非 stream 场景下，多个 worker 共享一个 server，省去各自的 server 进程
+- server 与后端（Pan API / COC 规则库）的连接复用
+- **注意**：主痛点（单 cbc 每任务冷启动）已由 stream+MCP 解决，本方案收益有限
 
 ---
 
@@ -118,7 +110,7 @@ cbc 的 `--mcp-config` 不再 spawn 子进程，改为连接远程 endpoint。
 
 ## 七、决策项
 
-1. **做不做**：冷启动（~19s/任务）是否为当前主要瓶颈？若是 → 推进；若任务频率低 → 可暂缓。
+1. **做不做**：stream+MCP 已解决单 cbc 冷启动；本方案只剩"多 worker 共享 server"的边际收益。**建议暂缓**，除非出现多个 worker 并发使用同一 server 且 server 资源成为瓶颈。
 2. **server 生命周期管理方式**：随 `main.py` 子进程 / 独立脚本 / 手动启动？
 3. **范围**：先只改 pan server，还是 rulewhisper 一并常驻？
 4. **transport 选型**：sse vs streamable-http（取决于 cbc 支持度）。

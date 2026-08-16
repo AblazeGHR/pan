@@ -41,19 +41,19 @@ meta-agent 通过 MCP 工具（`worker_spawn` / `worker_task` / `worker_handoff`
 ### 3.4 管理关系现状
 
 - Session 无 parent/owner 字段（grep 确认）。
-- Worker 唯一"parent"语义是 `branch_worker` 广播的 `parentWorkerId`（`worker.py:1117`，fork 血缘，非管理关系）。
+- Worker 唯一"parent"语义是 `branch_worker` 广播的 `parentWorkerId`（`worker.py:1155`，fork 血缘，非管理关系）。
 - **meta-agent 与被管 session 现无持久化归属**——需新增结构字段。
 
 ### 3.5 消息队列（`packages/core/worker.py`）
 
-- 队列：`Worker.queue` 为 `asyncio.Queue`（`:123`），入队项 `{"text","source","seq","taskId"}`（`:1150`）。**逐个入队、FIFO 消费**（`_consumer :360-393` 循环 `get`）。
-- `send_task`（`:1131-1161`）：校验 worker 存活，`seq` 自增，`queue.put`，idle/queued 置 `queued` 并广播。
-- **idle 判定**：`last_activity`（`_read_stdout :229`、`send_task :1149` 刷新）；`_watchdog`（`:399-444`）按 idle/running 超时回收。
-- **handoff 报告形状**（`worker.py:1178-1232`）：`{"status": "done"/"error"/"pending", "result":..., "workerId", "taskId"}`。`_consumer` 完成时构造 `worker.result` 广播 + 写 `s.last_result` + `_resolve_result_waiter`。
+- 队列：`Worker.queue` 为 `asyncio.Queue`（`:123`），入队项 `{"text","source","seq","taskId"}`。**逐个入队、FIFO 消费**（`_consumer :381` 循环 `get`）。
+- `send_task`（`:1169`）：校验 worker 存活，`seq` 自增，`queue.put`，idle/queued 置 `queued` 并广播。
+- **idle 判定**：`last_activity`（`_read_stdout :238`、`send_task` 刷新）；`_watchdog`（`:422`）按 idle/running 超时回收。
+- **handoff 报告形状**（`worker.py:1216`）：`{"status": "done"/"error"/"pending", "result":..., "workerId", "taskId"}`。`_consumer` 完成时构造 `worker.result` 广播 + 写 `s.last_result` + `_resolve_result_waiter`。
 
 ### 3.6 watchdog 生命周期（关键约束）
 
-`_watchdog(w)` **绑定单个 Worker**（`w._watchdog_task = create_task(_watchdog(w))`，worker.py:804/971/1107），随 worker 生灭，`if w.worker_id not in workers: return`（`:412-413`）。`shutdown_all()`（服务关闭）cancel 所有 worker task（`:1308-1313`）。
+`_watchdog(w)` **绑定单个 Worker**（`w._watchdog_task = create_task(_watchdog(w))`，worker.py:839/1009/1145），随 worker 生灭，`if w.worker_id not in workers: return`（`:435`）。`shutdown_all()`（服务关闭）cancel 所有 worker task（`:1336`）。
 
 **推论**：worker 死亡时它自己的 watchdog 也一起死，**无法用 worker 级 watchdog 自愈**。要"队列非空自动恢复"必须有**服务级（全局）守护**。
 
