@@ -104,5 +104,5 @@
 ## 五、关联文档
 
 - `Meta-Agent与Worker通信机制设计立项.md` — 设计立项与同类产品调研
-- `Phase2-收尾功能计划.md` — P1（状态机）/P4（Worker 间通信）排期
+- `阶段计划与进度.md` — P1（状态机）/P4（Worker 间通信）排期（原 Phase2-收尾功能计划，已合并）
 - `.codebuddy/skills/pan/SKILL.md` — Meta-Agent 使用手册（含 watchdog 行为）

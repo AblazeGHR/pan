@@ -52,6 +52,7 @@ class Character:
     memory_db_path: str = ""  # e.g. "data/memory/char_abc123.sqlite"
     memory_dir: str | None = None  # directory of .md knowledge files
     created_at: str = ""
+    role: str = "default"  # Pan-internal boundary role, inherited from profile
 
     def to_dict(self) -> dict:
         return {
@@ -67,6 +68,7 @@ class Character:
             "memory_db_path": self.memory_db_path,
             "memory_dir": self.memory_dir,
             "created_at": self.created_at,
+            "role": self.role,
         }
 
     @classmethod
@@ -84,6 +86,7 @@ class Character:
             memory_db_path=data.get("memory_db_path", ""),
             memory_dir=data.get("memory_dir"),
             created_at=data.get("created_at", ""),
+            role=data.get("role", "default"),
         )
 
 
@@ -183,6 +186,7 @@ class CharacterManager:
             memory_db_path=str(self._memory_dir / f"{char_id}.sqlite"),
             memory_dir=profile.memory_dir,
             created_at=datetime.now(timezone.utc).isoformat(),
+            role=profile.role,
         )
 
         if auto_index and char.memory_dir:

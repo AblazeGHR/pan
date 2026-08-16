@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "pan": {
+      "type": "stdio",
+      "command": "D:/project/Pan/.venv/Scripts/python.exe",
+      "args": ["-m", "packages.mcp.server"],
+      "cwd": "D:/project/Pan"
+    }
+  }
+}

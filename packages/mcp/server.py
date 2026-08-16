@@ -315,10 +315,22 @@ def worker_send(worker_id: str, text: str) -> dict:
     Completion is delivered via the worker.result event. If the worker
     is dead, returns an error (spawn it again first).
 
+    When this MCP server runs inside a Pan-managed session (env injected by
+    adapter.mcp_args() for the "pan" server), the text is prefixed with the
+    sending agent's identity so the target worker can distinguish agent
+    orchestration from real user messages (立项 4.8):
+
+        ////by agent : {PAN_AGENT_SESSION_ID} | {PAN_AGENT_SESSION_TITLE}
+        {text}
+
     Args:
         worker_id: Worker ID (e.g. "worker-1")
         text: Task text / prompt
     """
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    title = os.environ.get("PAN_AGENT_SESSION_TITLE")
+    if sid or title:
+        text = f"////by agent : {sid} | {title}\n{text}"
     return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
 
 

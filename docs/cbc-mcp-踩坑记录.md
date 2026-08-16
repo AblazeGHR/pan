@@ -5,8 +5,8 @@
 
 ## 相关文档
 
-- [下一阶段优化计划](./下一阶段优化计划.md) — 任务进度跟踪（前端集成、性能、错误处理）
-- [system_prompt 注入与 Windows .CMD 转义](./cbc-mcp-system-prompt-注入与CMD转义.md) — 2026-08-15：profile 的 system_prompt 不生效 + cbc.CMD 长参数崩溃
+- [阶段计划与进度](./阶段计划与进度.md) — 任务进度跟踪（前端集成、性能、错误处理）
+- [CodeBuddy MCP defer 机制](./references/cbc-mcp-defer-机制.md) — 加载路径与 defer 决策机制（原 system_prompt/CMD 转义内容已并入本文件 #17）
 
 ## 决策总结
 
@@ -54,8 +54,12 @@
 - 2.137.0：`--input-format stream-json` + `--mcp-config <stdio 配置>` 正常加载。`init` 事件返回 `mcp_servers: [{name: pan, status: connected}]`；同一长驻进程连续 3 轮对话均成功调用 `mcp__pan__*` 工具（返回真实数据）。**stream 长驻 + MCP 可行，无需 one-shot 兜底**
 
 > 版本差异是行为变化主因（可能 2.137.0 修复），也可能 2.136.0 当时受 `.mcp.json` fallback 干扰（见 #15）。若将来升级 cbc 需用 `streamjson_probe.py` 复测。
+>
+> 注：`streamjson_probe.py` / `multiround_probe.py`（及 `acp_probe.py`、`acp_pan_mcp.json`）已归档到 `docs/archive/cbc-mcp-experiments/`。
 
-### 6. `enableAllProjectMcpServers` 需要项目注册
+### 6. `enableAllProjectMcpServers` 需要项目注册【已废弃】
+
+> ⚠️ 该方案已被 `--mcp-config` 显式传入取代（见决策表），本坑仅作历史记录。
 
 - `--settings '{"enableAllProjectMcpServers":true}'` 只在 cbc "认识的项目"中查找 `.mcp.json`
 - Pan 的 workdir 是运行时创建的，cbc 不认识
@@ -138,6 +142,30 @@
 - 现象：pan MCP server 用 `command: "python"`（依赖 PATH）时 cbc 启动失败
 - 修复：`packages/mcp/manifest.json` 改为 `"${PLUGIN_DIR}/../../.venv/Scripts/python"`（`${PLUGIN_DIR}` 解析为可移植绝对路径）
 
+### 17. system_prompt 注入方式与 Windows .CMD 转义【2026-08-15，08-16 并入】
+
+> 合并自原「cbc-mcp-system-prompt-注入与CMD转义.md」（2026-08-16 文档整理）。
+
+**根因 1：system_prompt 注入方式（hy3 实测）**
+
+| 方式 | 效果 |
+|------|------|
+| 拼接进用户消息 `f"{text}\n---\n{system_prompt}"` | **不生效**——hy3 当普通用户文本 |
+| `--append-system-prompt <prompt>` | **不生效**——hy3 忽略追加语义 |
+| `--system-prompt <prompt>`（覆盖式） | **生效**——cbc 注入真实 system message |
+
+当前实现：one-shot `_consumer_mcp` / stream+MCP 都只在**首条消息**（`cli_session_id` 捕获前）注入 `--system-prompt`，之后靠 `--resume` 延续（系统提示随 cbc session 持久化）。
+
+**根因 2：Windows .CMD shim 参数转义崩溃**
+
+- `shutil.which("cbc")` 解析到 npm shim `cbc.CMD`；`create_subprocess_exec` 直接执行 .CMD 经 cmd.exe
+- 766 字中文 system_prompt（含引号/逗号/换行）被 cmd.exe 转义截断 → cbc 进程 28ms 退出
+- 修复：`_resolve_cbc_argv()` 把 `.CMD` 解析为 `node <entry.js>`，参数直传 node 绕开 cmd.exe
+
+**附带发现**：one-shot 首次 MCP server 冷启动 ~107s，后续 `--resume` ~19s；**已由 stream+MCP（cbc 2.137.0）消除**（长驻进程 server 只启一次）。
+
+**关联**：#13（system_prompt 注入时机 / roleplay 陷阱）。
+
 ## 最终方案：双模式 Worker
 
 ```python
@@ -158,7 +186,7 @@ else:
 
 - **不再需要 one-shot 兜底**：stream-json + `--mcp-config` 在 2.137.0 下可直接加载 MCP，且长驻进程多轮对话 MCP 工具持续可用（实测 3 轮）
 - 进程常驻 + watchdog 回收照旧，消除 one-shot 每任务 ~19s 冷启动
-- 工具为 deferred 状态（模型经 `ToolSearch`/`DeferExecuteTool` 调用；`--mcp-config` 路径下首轮 ToolSearch，后续直接调用）
+- 工具为 **direct connected**（2026-08-16 实测：stream+MCP 下直接调用 `mcp__pan__session_list` 成功，无需 ToolSearch；模型可直接访问）
 - **已实现（2026-08-16）**：`adapter_config.output_mode="stream"` 时 `create_worker`/`_consumer` 走 stream 分支（`use_mcp=False`），长驻进程 spawn 时经 `build_spawn_args`→`mcp_args()` 自动带 `--mcp-config`；system_prompt 以 `--system-prompt` 注入（避免角色扮演陷阱）。测试：`tests/test_worker_output_mode.py`
 
 ### One-shot MCP 模式（有 MCP）
@@ -177,7 +205,7 @@ else:
 ```
 cbc --help 输出中 MCP 相关参数：
 
---mcp-config <fileOrString>      加载 MCP 服务器（仅在无 --input-format stream-json 时生效）
+--mcp-config <fileOrString>      加载 MCP 服务器（cbc ≤ 2.136.0 仅在无 --input-format stream-json 时生效；2.137.0 起与 stream-json 兼容）
 --strict-mcp-config              仅使用 --mcp-config 的服务，忽略其他 MCP 配置
 
 cbc mcp add-json <name> <json>  添加 MCP 服务器

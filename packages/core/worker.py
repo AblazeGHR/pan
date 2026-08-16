@@ -127,7 +127,6 @@ class Worker:
     last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
     # ── 任务序号（result 与 task 配对用）──
     _task_counter: int = 0   # 已分配的任务序号（send_task 入队时自增）
-    _result_count: int = 0   # 已收到的 result 数（result 顺序 == 任务顺序）
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
 
@@ -283,6 +282,11 @@ async def _read_stdout(w: Worker):
                 w.status = "idle"
                 continue
 
+            # taskSeq 统一用 _current_seq（_consumer 取出 item 时已从 handoff
+            # 预分配的序号记录）。用 _result_count 会在中断/重启后与
+            # _task_counter 错位，导致 handoff waiter 永远匹配不上而悬挂超时。
+            task_seq = w._current_seq
+
             if s:
                 result_text = adapter.extract_result_text(event)
                 s.last_result = {
@@ -290,6 +294,7 @@ async def _read_stdout(w: Worker):
                     "result": result_text,
                     "cli_session_id": s.cli_session_id,
                     "timestamp": datetime.now().isoformat(),
+                    "taskSeq": task_seq,
                 }
                 if isinstance(result_text, str) and result_text.strip():
                     last = s.history[-1] if s.history else None
@@ -311,8 +316,8 @@ async def _read_stdout(w: Worker):
                     _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
                 await _sess.save_async(s)
 
-            w._result_count += 1
-            task_seq = w._result_count
+            # taskSeq 已在上方（last_result 补存处）统一用 _current_seq。
+            task_seq = w._current_seq
             result_text = adapter.extract_result_text(event)
             await _bcast({
                 "type": "worker.result",
@@ -735,6 +740,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         "result": result,
         "cli_session_id": s.cli_session_id,
         "timestamp": datetime.now().isoformat(),
+        "taskSeq": w._current_seq,
     }
     await _sess.save_async(s)
 
@@ -750,7 +756,6 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         })
 
     w.status = "idle"
-    w._result_count += 1
     task_seq = w._current_seq
     await _bcast({
         "type": "worker.result",

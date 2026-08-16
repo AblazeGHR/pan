@@ -10,9 +10,13 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from ...session import Session
+from ...session import SESSION_DIR, Session
 
 _log = logging.getLogger(__name__)
+
+# Pan 内统一目录：MCP 配置收敛到 data/mcp-configs/<session_id>.mcp.json（立项 4.9），
+# 不再写 workdir/.codebuddy/mcp.json（workdir 可能在 Pan 外，写外部目录污染且可能不可写）。
+MCP_CONFIG_DIR = SESSION_DIR.parent / "mcp-configs"
 
 
 def _parse_models_from_cbc_help(argv_prefix: list[str] | None = None) -> list[str]:
@@ -229,7 +233,7 @@ class CbcAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """Write .codebuddy/mcp.json to workdir and return --mcp-config arg.
+        """Write data/mcp-configs/<session_id>.mcp.json and return --mcp-config arg.
 
         The ONLY thing that makes MCP servers connect is passing --mcp-config
         explicitly (tested 2026-08-16, cbc 2.136.0):
@@ -238,44 +242,55 @@ class CbcAdapter:
           MCP server. Without -d that registration blocks --mcp-config (pan
           shows "Needs approval"/"Failed to connect"), so we no longer write it.
         With --mcp-config, tools load as directly connected (not deferred).
+
+        Config lives in Pan's own data dir (data/mcp-configs/<session_id>.mcp.json,
+        立项 4.9) — never in the workdir, which may sit outside Pan where writing
+        .codebuddy/ would pollute external dirs or be unwritable.
+
+        For the "pan" server, the MA session identity is injected into its env
+        (PAN_AGENT_SESSION_ID / PAN_AGENT_SESSION_TITLE) so the MCP server's
+        worker_send tool can tag agent-originated messages (立项 4.8).
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
             return []
 
-        workdir = s.workdir
-        if workdir:
-            mcp_servers: dict[str, dict] = {}
-            for srv in servers:
-                name = srv.get("name", "unnamed")
-                entry: dict = {}
-                if "command" in srv:
-                    entry["command"] = srv["command"]
-                if "args" in srv:
-                    entry["args"] = srv["args"]
-                if "cwd" in srv:
-                    entry["cwd"] = srv["cwd"]
-                if "env" in srv:
-                    entry["env"] = srv["env"]
-                # Always set type to stdio for reliable cbc discovery
-                entry.setdefault("type", "stdio")
-                mcp_servers[name] = entry
+        mcp_servers: dict[str, dict] = {}
+        for srv in servers:
+            name = srv.get("name", "unnamed")
+            entry: dict = {}
+            if "command" in srv:
+                entry["command"] = srv["command"]
+            if "args" in srv:
+                entry["args"] = srv["args"]
+            if "cwd" in srv:
+                entry["cwd"] = srv["cwd"]
+            if "env" in srv:
+                entry["env"] = srv["env"]
+            # pan server: inject MA session identity so worker_send can prefix
+            # agent-originated messages with the sending session (立项 4.8).
+            if name == "pan":
+                env = dict(entry.get("env") or {})
+                env["PAN_AGENT_SESSION_ID"] = s.id
+                env["PAN_AGENT_SESSION_TITLE"] = s.name
+                entry["env"] = env
+            # Always set type to stdio for reliable cbc discovery
+            entry.setdefault("type", "stdio")
+            mcp_servers[name] = entry
 
-            # Primary config: loaded via the explicit --mcp-config arg below.
-            # NOTE (2026-08-16): we deliberately do NOT also write
-            # <workdir>/.mcp.json — without -d, cbc discovers it as a project
-            # MCP server, registers pan as project-scope with "Needs approval"
-            # / "Failed to connect" (when command is a bare name), and that
-            # registration blocks the explicit --mcp-config connection.
-            codebuddy_dir = os.path.join(workdir, ".codebuddy")
-            mcp_json_path = os.path.join(codebuddy_dir, "mcp.json")
-            os.makedirs(codebuddy_dir, exist_ok=True)
-            with open(mcp_json_path, "w", encoding="utf-8") as f:
-                json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
+        # Pan-internal config: loaded via the explicit --mcp-config arg below.
+        # NOTE (2026-08-16): we deliberately do NOT write <workdir>/.mcp.json —
+        # without -d, cbc discovers it as a project MCP server, registers pan as
+        # project-scope with "Needs approval"/"Failed to connect" (when command is
+        # a bare name), and that registration blocks the explicit --mcp-config
+        # connection. Config lives in data/mcp-configs/ (立项 4.9): writable,
+        # controllable, cleanable.
+        mcp_json_path = MCP_CONFIG_DIR / f"{s.id}.mcp.json"
+        MCP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(mcp_json_path, "w", encoding="utf-8") as f:
+            json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
 
-            return ["--mcp-config", mcp_json_path]
-
-        return []
+        return ["--mcp-config", str(mcp_json_path)]
 
     # ── stdin 消息编码 ──
 
