@@ -6,6 +6,7 @@ without waiting real time.
 """
 
 import asyncio
+import json
 import sys
 import time
 from pathlib import Path
@@ -327,6 +328,65 @@ def test_watchdog_self_cancel_regression():
     _cleanup()
 
 
+def test_consumer_mcp_refreshes_last_activity_on_idle(monkeypatch, tmp_path):
+    """M3 回归: _consumer_mcp 置 idle 时必须刷新 last_activity。
+
+    旧行为: MCP 任务全程不刷新 last_activity，任务耗时被算进 idle 时长，
+    接近 timeout 的任务完成后 watchdog 下一 tick 就把它当空闲回收。
+    修复后: 任务完成置 idle 时同步 last_activity = now。
+    """
+    _cleanup()
+    s = _setup_session(sid="ses_mcp_idle")
+    s.adapter_config = {}  # 无 mcp_servers → mcp_args 不写配置文件
+    s.workdir = str(tmp_path)
+    w = _setup_worker(s.id, status="running", last_activity=0.0)
+    w.process = None  # MCP one-shot 模式
+
+    result_line = (json.dumps({"type": "result", "result": "the answer"}) + "\n").encode()
+
+    class _FakeStdout:
+        def __init__(self, chunks):
+            self._chunks = list(chunks)
+
+        async def read(self, n):
+            if self._chunks:
+                return self._chunks.pop(0)
+            return b""
+
+    class FakeMcpProc:
+        def __init__(self):
+            self._chunks = [result_line]
+            self.stdout = _FakeStdout(self._chunks)
+            self.returncode = 0
+            self.pid = 12345
+
+        async def wait(self):
+            return 0
+
+        def kill(self):
+            self.returncode = -1
+
+    async def fake_spawn(*args, **kwargs):
+        return FakeMcpProc()
+
+    async def fake_save(sess):
+        return None
+
+    monkeypatch.setattr(worker, "_DEFAULTS_INITIALIZED", True)
+    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(_sess, "save_async", fake_save)
+
+    async def run():
+        await worker._consumer_mcp(w, "hello", "agent", s)
+
+    asyncio.run(run())
+
+    assert w.status == "idle", f"expected idle, got {w.status}"
+    assert w.last_activity > 0, f"last_activity not refreshed: {w.last_activity}"
+    print("PASS: _consumer_mcp refreshes last_activity on idle")
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_timeout_kills_running_worker()
     test_active_running_worker_not_killed()
@@ -336,4 +396,5 @@ if __name__ == "__main__":
     test_mcp_idle_worker_reclaimed()
     test_mcp_running_worker_not_timeout_killed()
     test_watchdog_self_cancel_regression()
+    test_consumer_mcp_refreshes_last_activity_on_idle()
     print("\n=== ALL WATCHDOG TESTS PASSED ===")

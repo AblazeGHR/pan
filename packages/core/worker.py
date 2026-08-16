@@ -144,6 +144,46 @@ _result_waiters: dict[str, tuple[int, asyncio.Future]] = {}
 # taskId → 检测已存在则返回状态，不重复入队（防超时后双跑）
 _task_status: dict[str, dict] = {}
 
+# task 幂等注册表条目 TTL：条目超过该时长（无论 pending 还是已完成）在下次
+# handoff 访问注册表时被惰性清除，防止全局 dict 长期运行无界增长（H2 泄漏）。
+_TASK_STATUS_TTL_SEC: float = 86400.0  # 24h
+
+
+def _prune_task_status() -> None:
+    """惰性清除 _task_status 中超过 TTL 的过期条目。
+
+    注册表仅在 handoff 幂等检查处读取，故在 handoff 入口调用即可兜住泄漏。
+    ts 缺失的旧条目视为永不超时，避免破坏升级前写入的数据。
+    """
+    cutoff = time.monotonic() - _TASK_STATUS_TTL_SEC
+    expired = [
+        tid for tid, entry in _task_status.items()
+        if entry.get("ts", float("inf")) < cutoff
+    ]
+    for tid in expired:
+        _task_status.pop(tid, None)
+    if expired:
+        _log.info("_task_status: pruned %d expired task(s)", len(expired))
+
+
+def _mark_worker_tasks_error(worker_id: str, reason: str) -> int:
+    """kill_worker / worker 退出路径：把该 worker 名下 status==pending 的 taskId 标 error。
+
+    handoff 超时后任务仍在跑；若此时 worker 被杀/崩溃，taskId 若停留在 pending，
+    同 taskId 重试会被幂等注册表永久拦截、永不执行。标 error 后重试拿到确定性
+    失败（H2 卡死修复）。
+    """
+    now = time.monotonic()
+    marked = 0
+    for tid, entry in list(_task_status.items()):
+        if entry.get("workerId") == worker_id and entry.get("status") == "pending":
+            entry.update({"status": "error", "result": reason, "ts": now})
+            marked += 1
+    if marked:
+        _log.info("[Worker %s] _task_status: marked %d pending task(s) error (%s)",
+                  worker_id, marked, reason)
+    return marked
+
 
 def _resolve_result_waiter(worker_id: str, status: str, result: str,
                            task_seq: int | None = None):
@@ -337,6 +377,7 @@ async def _read_stdout(w: Worker):
                     "result": result_text,
                     "workerId": w.worker_id,
                     "taskId": w._current_task_id,
+                    "ts": time.monotonic(),
                 }
             w._current_task_id = None
             w.status = "idle"
@@ -378,6 +419,9 @@ async def _read_stdout(w: Worker):
     })
     # 有 handoff 在等这个 worker → 立即 resolve 为错误，避免悬挂到超时
     _resolve_result_waiter(w.worker_id, "error", f"worker exited (returncode={code})")
+    # H2: worker 退出 → 名下 pending 的 taskId 标 error（防止"超时+crash"组合
+    # 让同 taskId 重试永久卡 pending）
+    _mark_worker_tasks_error(w.worker_id, f"worker exited (returncode={code})")
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
@@ -725,6 +769,8 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         if s:
             s.last_result = {"status": "error", "result": f"MCP spawn failed: {e}", "timestamp": datetime.now().isoformat()}
             await _sess.save_async(s)
+        # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
+        w.last_activity = time.monotonic()
         w.status = "idle"
         return
 
@@ -820,6 +866,8 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
             w.worker_id,
             w.session_id,
         )
+        # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
+        w.last_activity = time.monotonic()
         w.status = "idle"
         return
 
@@ -882,6 +930,9 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
             "event": event,
         })
 
+    # M3: 置 idle 同步刷新活性时间——MCP 任务全程不刷新 last_activity，若不在此
+    # 重置，任务耗时会被算进 idle 时长，刚忙完就可能被 watchdog 立即回收。
+    w.last_activity = time.monotonic()
     w.status = "idle"
     task_seq = w._current_seq
     await _bcast({
@@ -902,6 +953,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
             "result": result,
             "workerId": w.worker_id,
             "taskId": w._current_task_id,
+            "ts": time.monotonic(),
         }
     w._current_task_id = None
 
@@ -1072,6 +1124,8 @@ async def kill_worker(worker_id: str) -> str | None:
 
     # 有 handoff 在等这个 worker → 立即 resolve 为错误
     _resolve_result_waiter(worker_id, "error", "worker killed")
+    # H2: worker 被杀 → 名下 pending 的 taskId 标 error（防止幂等重试永久卡 pending）
+    _mark_worker_tasks_error(worker_id, "worker killed")
 
     workers.pop(worker_id, None)
     await _bcast({
@@ -1104,6 +1158,8 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
         _log.warning("[Worker %s] BG cleanup error: %r", worker_id, exc)
     finally:
         workers.pop(worker_id, None)
+        # H2: worker 回收 → 名下 pending 的 taskId 标 error（与 kill_worker 一致）
+        _mark_worker_tasks_error(worker_id, "worker cleanup")
         try:
             await _bcast({
                 "type": "worker.destroyed",
@@ -1371,6 +1427,8 @@ async def handoff(session_id: str, text: str, source: str = "agent",
     - 进行中 → 返回 {"status": "pending", "taskId":...}
     用于超时后安全重试，避免双跑。
     """
+    # 惰性清理过期条目（TTL），防止注册表长期运行无界增长（H2 泄漏）
+    _prune_task_status()
     # taskId 幂等检查
     if task_id is not None and task_id in _task_status:
         existing = _task_status[task_id]
@@ -1387,7 +1445,8 @@ async def handoff(session_id: str, text: str, source: str = "agent",
     seq = w._task_counter
 
     if task_id is not None:
-        _task_status[task_id] = {"status": "pending", "workerId": w.worker_id, "taskId": task_id}
+        _task_status[task_id] = {"status": "pending", "workerId": w.worker_id,
+                                 "taskId": task_id, "ts": time.monotonic()}
 
     loop = asyncio.get_running_loop()
     fut: asyncio.Future = loop.create_future()
@@ -1397,7 +1456,8 @@ async def handoff(session_id: str, text: str, source: str = "agent",
     if send_err:
         _result_waiters.pop(w.worker_id, None)
         if task_id is not None:
-            _task_status[task_id] = {"status": "error", "result": send_err, "taskId": task_id}
+            _task_status[task_id] = {"status": "error", "result": send_err,
+                                     "taskId": task_id, "ts": time.monotonic()}
         return {"status": "error", "result": send_err}
 
     try:
@@ -1412,6 +1472,7 @@ async def handoff(session_id: str, text: str, source: str = "agent",
     result["workerId"] = w.worker_id
     if task_id is not None:
         result["taskId"] = task_id
+        result["ts"] = time.monotonic()
         _task_status[task_id] = dict(result)
     return result
 

@@ -292,6 +292,83 @@ def test_handoff_task_id_pending_on_timeout():
     _cleanup()
 
 
+def test_handoff_timeout_then_kill_then_retry_same_task_id():
+    """H2 回归: 超时→kill→同 taskId 重试不再永久卡 pending。
+
+    旧行为: handoff 超时后 taskId 留在 pending；worker 被杀时 kill_worker 不更新
+    _task_status → 重试同 taskId 永远被幂等拦截、永不执行。
+    修复后: kill_worker 把名下 pending taskId 标 error → 重试返回确定性 error，
+    且不重入队。
+    """
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "task-killed-1"
+
+    async def scenario():
+        r1 = await worker.handoff(s.id, "slow job", task_id=tid, timeout=0.05)
+        assert r1["status"] == "pending", f"got {r1}"
+        assert worker._task_status[tid]["status"] == "pending"
+
+        # worker 被杀 → 名下 pending taskId 应被标 error
+        await worker.kill_worker(w.worker_id)
+        assert worker._task_status[tid]["status"] == "error", \
+            f"pending task not marked error: {worker._task_status[tid]}"
+
+        # 同 taskId 重试（worker 已重建）→ 返回 error，不重入队
+        orig_create = worker.create_worker
+        worker.create_worker = lambda session_id: _setup_worker(session_id)
+        try:
+            r2 = await worker.handoff(s.id, "slow job", task_id=tid, timeout=0.05)
+        finally:
+            worker.create_worker = orig_create
+        return r1, r2
+
+    r1, r2 = asyncio.run(scenario())
+
+    assert r1["status"] == "pending", f"got {r1}"
+    assert r2["status"] == "error", f"retry after kill should be error, got {r2}"
+    assert "worker killed" in r2.get("result", ""), f"got {r2}"
+    # 重试被幂等拦截：在 worker 重建之前就返回 error → 没有创建新 worker、没有入队
+    assert w.worker_id not in worker.workers, \
+        "retry created a new worker despite idempotent error"
+    print("PASS: handoff timeout → kill → retry same taskId returns error")
+    _cleanup()
+
+
+def test_task_status_ttl_prunes_expired_entries():
+    """H2 回归: 超过 TTL 的 _task_status 条目在下次 handoff 访问时被惰性清除。
+
+    注册表是全局 dict，无清理会无界增长；过期条目应被当作不存在 → 同 taskId
+    重新入队执行。
+    """
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "task-ttl-1"
+    orig_ttl = worker._TASK_STATUS_TTL_SEC
+    worker._TASK_STATUS_TTL_SEC = 0.001
+    try:
+        async def scenario():
+            await worker.handoff(s.id, "job", task_id=tid, timeout=0.05)
+            assert tid in worker._task_status
+            # 人为调旧，模拟条目存活超过 TTL
+            worker._task_status[tid]["ts"] = 0.0
+            # 同 taskId 重试：过期条目先被 prune → 视为不存在 → 重新入队执行
+            r2 = await worker.handoff(s.id, "job", task_id=tid, timeout=0.05)
+            return w.queue.qsize(), r2
+        qsize, r2 = asyncio.run(scenario())
+    finally:
+        worker._TASK_STATUS_TTL_SEC = orig_ttl
+
+    assert qsize == 2, f"expired entry not pruned/re-enqueued: qsize={qsize}"
+    assert worker._task_status[tid]["status"] == "pending", \
+        f"entry not re-registered: {worker._task_status[tid]}"
+    assert r2["status"] == "pending", f"got {r2}"
+    print("PASS: _task_status TTL prunes expired entries")
+    _cleanup()
+
+
 def test_memory_injection_disabled_skips_embedding():
     """memory.enabled=false → _maybe_inject_memory returns raw text without
     touching the embedding model (no character lookup, no search)."""
@@ -322,5 +399,7 @@ if __name__ == "__main__":
     test_ensure_worker_autospawns()
     test_handoff_task_id_idempotent_after_complete()
     test_handoff_task_id_pending_on_timeout()
+    test_handoff_timeout_then_kill_then_retry_same_task_id()
+    test_task_status_ttl_prunes_expired_entries()
     test_memory_injection_disabled_skips_embedding()
     print("\n=== ALL PRIMITIVE TESTS PASSED ===")
