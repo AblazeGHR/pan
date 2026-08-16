@@ -17,6 +17,7 @@ Tools exposed:
     - model_list: List available AI models
     - report_subscribe: Subscribe to completion reports of a managed session
     - report_unsubscribe: Unsubscribe from completion reports of a managed session
+    - pan_handbook: Return the full Pan orchestration handbook (reads .codebuddy/skills/pan/SKILL.md)
 
 Environment variables:
     PAN_API_URL: Pan API base URL (default: http://127.0.0.1:8768)
@@ -29,6 +30,7 @@ import json
 import os
 import urllib.request
 import urllib.error
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -94,6 +96,9 @@ def session_create(
         model: AI model name (e.g. "hy3", "deepseek-v4-flash")
         permission_mode: Permission mode ("bypassPermissions", "acceptEdits", "default", "plan")
         workdir: Workdir name, resolved under data/workdirs/. Defaults to session name.
+
+    调用链：workdir 默认 data/workdirs/<name>（Pan 外目录用绝对路径）。
+    完整编排流程见 /pan skill。
     """
     body: dict = {"name": name, "adapter": adapter}
     if model:
@@ -107,7 +112,10 @@ def session_create(
 
 @mcp.tool()
 def session_list() -> dict:
-    """List all sessions with their worker status."""
+    """List all sessions with their worker status.
+
+    完整编排流程见 /pan skill。
+    """
     return _strip_usage(_api("GET", "/api/sessions"))
 
 
@@ -120,6 +128,8 @@ def session_get(session_id: str, limit: int = 0) -> dict:
         limit: Max history entries to return (0 = full history, default). When
             set, history is truncated to the latest `limit` entries and
             historyTruncated/historyTotal markers are added.
+
+    完整编排流程见 /pan skill。
     """
     result = _api("GET", f"/api/sessions/{session_id}")
     if limit and "history" in result and isinstance(result["history"], list):
@@ -137,6 +147,8 @@ def session_delete(session_id: str) -> dict:
 
     Args:
         session_id: Session ID to delete
+
+    完整编排流程见 /pan skill。
     """
     return _api("DELETE", f"/api/sessions/{session_id}")
 
@@ -169,6 +181,8 @@ def session_update(
         mcp_enabled: Toggle MCP tools for this session
         mcp_servers: MCP server names from the manifest (e.g. ["pan"])
         game_id: RuleWhisper game binding; pass "" to clear
+
+    完整编排流程见 /pan skill。
     """
     body: dict = {}
     if model is not None:
@@ -198,6 +212,8 @@ def session_history(session_id: str, limit: int = 50, before: int | None = None)
         session_id: Session ID
         limit: Max history entries to return (default 50)
         before: Only return entries before this index (for pagination)
+
+    完整编排流程见 /pan skill。
     """
     path = f"/api/sessions/{session_id}/history?limit={limit}"
     if before is not None:
@@ -223,6 +239,8 @@ def report_subscribe(session_id: str) -> dict:
 
     Args:
         session_id: Managed session ID to subscribe to reports for
+
+    完整编排流程见 /pan skill。
     """
     manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
     if not manager_id:
@@ -242,6 +260,8 @@ def report_unsubscribe(session_id: str) -> dict:
 
     Args:
         session_id: Managed session ID to unsubscribe from
+
+    完整编排流程见 /pan skill。
     """
     manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
     if not manager_id:
@@ -268,6 +288,8 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
         adapter: CLI adapter (default "cbc")
         model: Model override
         workdir: Workdir for the new session (only used when name is given)
+
+    完整编排流程见 /pan skill。
     """
     body: dict = {"adapter": adapter}
     if session_id:
@@ -291,6 +313,8 @@ def worker_task(session_id: str | None = None, worker_id: str | None = None,
         worker_id: Worker ID (e.g. "worker-1")
         text: Task text / prompt to send
         source: Source label (default "agent")
+
+    完整编排流程见 /pan skill。
     """
     body: dict = {"text": text, "source": source}
     if worker_id:
@@ -306,13 +330,18 @@ def worker_kill(worker_id: str) -> dict:
 
     Args:
         worker_id: Worker ID to kill (e.g. "worker-1")
+
+    完整编排流程见 /pan skill。
     """
     return _api("POST", f"/api/kill/{worker_id}")
 
 
 @mcp.tool()
 def worker_list() -> dict:
-    """List all running workers."""
+    """List all running workers.
+
+    完整编排流程见 /pan skill。
+    """
     return _api("GET", "/api/list")
 
 
@@ -343,6 +372,8 @@ def worker_handoff(session_id: str, text: str, timeout: float = 600.0,
         text: Task text / prompt
         timeout: Max seconds to wait for completion (default 600 / 10min)
         task_id: Optional caller-supplied idempotency key (uuid-like string)
+
+    完整编排流程见 /pan skill。
     """
     body = {"sessionId": session_id, "text": text, "timeout": timeout}
     if task_id:
@@ -362,6 +393,9 @@ def worker_assign(session_id: str, text: str) -> dict:
     Args:
         session_id: Session ID to run the task on
         text: Task text / prompt
+
+    调用链：完成信号经 /ws/agent 的 worker.result 事件推送，或轮询 session_get 取结果。
+    完整编排流程见 /pan skill。
     """
     return _api("POST", "/api/assign", {"sessionId": session_id, "text": text})
 
@@ -384,6 +418,9 @@ def worker_send(worker_id: str, text: str) -> dict:
     Args:
         worker_id: Worker ID (e.g. "worker-1")
         text: Task text / prompt
+
+    调用链：发送时自动拼接 ////by agent 前缀（来源标记，区分 MA 编排消息）。
+    完整编排流程见 /pan skill。
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     title = os.environ.get("PAN_AGENT_SESSION_TITLE")
@@ -402,8 +439,56 @@ def model_list(adapter: str = "cbc") -> dict:
 
     Args:
         adapter: Adapter name ("cbc" or "kimi")
+
+    完整编排流程见 /pan skill。
     """
     return _api("GET", f"/api/models?adapter={adapter}")
+
+
+# ---------------------------------------------------------------------------
+# Pan handbook (single source of truth: .codebuddy/skills/pan/SKILL.md)
+# ---------------------------------------------------------------------------
+
+def _pan_skill_path() -> str:
+    """Locate the pan skill handbook file (single source of truth).
+
+    Resolves from the module location (packages/mcp/server.py → project root),
+    falling back to the current working directory. An explicit PAN_SKILL_PATH
+    env override wins over both.
+    """
+    if env := os.environ.get("PAN_SKILL_PATH"):
+        return env
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent
+        / ".codebuddy" / "skills" / "pan" / "SKILL.md",
+        Path(".codebuddy") / "skills" / "pan" / "SKILL.md",
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return str(candidates[0])
+
+
+@mcp.tool()
+def pan_handbook() -> dict:
+    """Return the full Pan orchestration handbook.
+
+    Reads .codebuddy/skills/pan/SKILL.md live and returns its raw content
+    (single source of truth — nothing is duplicated here). Covers the
+    orchestration workflow, HTTP API cheat sheet, gotchas and conventions
+    (workdir, watchdog, handoff idempotency, ////by agent prefix, ...).
+
+    完整编排流程见 /pan skill。
+    """
+    path = _pan_skill_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+    except OSError as e:
+        return {"ok": False, "error": {
+            "code": "skill_not_found",
+            "message": f"pan SKILL.md not readable at {path}: {e}"}}
+    return {"ok": True, "name": "pan", "path": path, "content": content}
 
 
 # ---------------------------------------------------------------------------
