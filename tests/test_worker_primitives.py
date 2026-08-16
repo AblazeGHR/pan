@@ -356,7 +356,7 @@ def test_task_status_ttl_prunes_expired_entries():
             worker._task_status[tid]["ts"] = 0.0
             # 同 taskId 重试：过期条目先被 prune → 视为不存在 → 重新入队执行
             r2 = await worker.handoff(s.id, "job", task_id=tid, timeout=0.05)
-            return w.queue.qsize(), r2
+            return w.pending_signal.qsize(), r2
         qsize, r2 = asyncio.run(scenario())
     finally:
         worker._TASK_STATUS_TTL_SEC = orig_ttl
