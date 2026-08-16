@@ -1,7 +1,7 @@
 # Monitor 在 stream 模式下的可用性测试 — 立项
 
 > 背景：Monitor 是 CodeBuddy（cbc）的后台监听工具，需验证其在 **stream/非交互模式**（`-p --output-format stream-json`）下是否可用。
-> 状态：立项阶段（仅记录测试计划，**不改代码**） | 创建：2026-08-16
+> 状态：已测试（2026-08-16，结论见第四节） | 创建：2026-08-16
 
 ---
 
@@ -36,15 +36,31 @@
 
 ## 四、结论意义（测试后更新）
 
-- **若 stream 模式支持 Monitor**：技能文档维持现状，Monitor 可用于无头/自动化协调
-- **若不支持**：更新 `Worker监督与事件驱动模式.md` 与 `Pan冷启动Agent编排skill立项.md`——明确 **Monitor 仅限交互式协调会话**，无头场景的完成通知走 `/ws/agent`（外部）或报告订阅（内部），skill 手册写明适用范围
+**测试日期：2026-08-16** | 环境：cbc v2.137.0，`cbc -p --output-format stream-json -y`（glm-5.3）
+
+**结论：Monitor 在 stream/非交互模式（`-p --output-format stream-json`）下完全可用。**
+
+| # | 验证点 | 结果 | 证据 |
+|---|--------|------|------|
+| 1 | stream 模式工具注册 | **有** | ① 本进程（stream/one-shot cbc）deferred tools 含 Monitor，ToolSearch 可加载完整 schema（command/ws、timeout_ms、persistent）；② `cbc -p --output-format stream-json` 探测的 init 事件 `tools` 数组含 `"Monitor"`（另含 CronCreate/CronDelete/CronList/TaskOutput/TaskStop/PushNotification/Workflow）。注：`cbc --help` 无 `--monitor` 参数/子命令——Monitor 是**工具**而非 CLI 选项 |
+| 2 | stream 模式调用 Monitor（command 模式） | **成功，无报错** | 两次独立探测 `DeferExecuteTool({toolName:"Monitor", command:"bash echo_probe.sh"})` 均 `is_error:false`，返回 `Monitoring in background with task_id` + `<monitor-event>` 投递说明；本进程同样调用成功 |
+| 3 | 事件驱动唤醒 | **工作（进程存活期内）** | ① 探测：agent 设置 Monitor 后继续执行 Bash，收到全部 4 行增量输出（0 丢失），事件在轮次边界批量送达；② 本进程实测：收到 4 个 `<monitor-event>`（3 行输出 + done 状态）并被打断继续处理 |
+| 4 | 报错信息 | 无报错 | 未出现"工具未注册 / 依赖交互会话"类错误 |
+| 5 | Pan worker 场景 | **能用（有前提）** | worker（one-shot cbc）在 Monitor 监听期间只要有**后续轮次**，事件即会在轮次边界送达 |
+
+**与交互式的差异**：
+- 工具注册、调用、事件投递语义**完全一致**（同为"busy 时轮次边界投递 / idle 时唤醒"）。
+- 唯一差异来自 **one-shot 进程生命周期**：`-p` 进程在 agent 给出最终回答后立即退出，退出后到达的输出**无接收方**。实测：agent 设置 Monitor 后立即 finalize，后续 4 行输出全部丢失（probe1）；而保持后续动作则 4 行全部收到（probe2）。交互式会话常驻，无此问题。
+- 因此 worker 进程内部用 Monitor 盯梢子 worker 时，**必须保证设置 Monitor 后仍有后续动作**；更稳妥的是由外部协调者（常驻进程）用 Monitor 盯梢。
+
+**对文档的影响**：`Worker监督与事件驱动模式.md` 与 `Pan冷启动Agent编排skill立项.md` **维持现状，无需改写**——Monitor 同样适用于无头/自动化协调（stream 形态 worker 亦可，注明上述生命周期前提即可）。
 
 ## 五、任务拆解
 
-- [ ] 测试：stream 模式工具列表探测（#1）
-- [ ] 测试：stream 模式 Monitor 调用（#2/#3）
-- [ ] 测试：交互式对照（#4）
-- [ ] 根据结果更新监督文档 + skill 立项（#5）
+- [x] 测试：stream 模式工具列表探测（#1）— 2026-08-16，工具已注册
+- [x] 测试：stream 模式 Monitor 调用（#2/#3）— 2026-08-16，调用成功、事件投递工作（进程存活期内）
+- [x] 测试：交互式对照（#4）— 2026-08-16，语义一致，仅 one-shot 进程生命周期差异
+- [x] 根据结果更新监督文档 + skill 立项（#5）— 结论：支持，文档维持现状
 
 ---
 
