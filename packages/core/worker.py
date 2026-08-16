@@ -176,7 +176,7 @@ def _kill_pid_tree(pid: int) -> None:
     except psutil.NoSuchProcess:
         pass
     except Exception as e:
-        print(f"[Worker] psutil kill tree failed for PID={pid}: {e}")
+        _log.error("psutil kill tree failed for PID=%s: %s", pid, e)
 
 
 def set_broadcaster(fn: callable):
@@ -353,12 +353,12 @@ async def _read_stdout(w: Worker):
 
     # stdout EOF — 进程退出了
     code = w.process.returncode if w.process else "unknown"
-    print(f"[Worker {w.worker_id}] {adapter.name} 进程退出，返回码 {code}")
+    _log.info("[Worker %s] %s 进程退出，返回码 %s", w.worker_id, adapter.name, code)
 
     # 如果已经通过 result event 收到正常输出（last_result 有内容且非 error），
     # 不要覆盖。某些 CLI 退出时返回非零码（如 kimi 的 0xC0000409）但回复已完整。
     if code != 0 and w.status == "idle" and s and s.last_result and s.last_result.get("status") != "error":
-        print(f"[Worker {w.worker_id}] 已有正常结果，忽略非零退出码 {code}")
+        _log.info("[Worker %s] 已有正常结果，忽略非零退出码 %s", w.worker_id, code)
         w.status = "idle"
     else:
         w.status = "error"
@@ -531,22 +531,50 @@ async def _watchdog(w: Worker):
       - 只做 idle 回收（超时已由 _consumer_mcp 读取超时承担，running 不干预）
     - held（takeover 模式）/ zombie：跳过，不回收
     触发 kill 时先 resolve 等待中的 handoff（error），再回收进程。
+
+    每个动作（kill / 跳过）都写日志，记录 worker_id、idle_for、阈值
+    （_WORKER_TIMEOUT_SEC / _WORKER_IDLE_SEC）与判定分支（branch=...），
+    便于事后追溯 watchdog 对每个 worker 的处置。
     """
+    # 已记录过的跳过状态：held/zombie 只在状态变化时打 INFO（避免长驻 held
+    # 期间每 tick 刷屏），重复 tick 只打 DEBUG 保留完整审计。
+    last_skip_status: str | None = None
     while True:
         await asyncio.sleep(_WATCHDOG_TICK_SEC)
+
         if w.worker_id not in workers:
+            _log.debug(
+                "[Worker %s] watchdog exit: worker_id=%s not in registry, loop ending",
+                w.worker_id, w.worker_id,
+            )
             return
-        if w.status in ("held", "zombie"):
-            continue
 
         idle_for = time.monotonic() - w.last_activity
+
+        if w.status in ("held", "zombie"):
+            if w.status != last_skip_status:
+                _log.info(
+                    "[Worker %s] watchdog skip: status=%s idle_for=%.0fs "
+                    "branch=skip_held_zombie",
+                    w.worker_id, w.status, idle_for,
+                )
+                last_skip_status = w.status
+            else:
+                _log.debug(
+                    "[Worker %s] watchdog skip (repeated): status=%s idle_for=%.0fs "
+                    "branch=skip_held_zombie",
+                    w.worker_id, w.status, idle_for,
+                )
+            continue
+        last_skip_status = None
 
         # MCP one-shot：只回收长期 idle 的 worker（running 由读取超时兜底）
         if w.process is None:
             if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
                 _log.info(
-                    "[Worker %s] watchdog(mcp): idle for %.0fs, reclaiming",
-                    w.worker_id, idle_for,
+                    "[Worker %s] watchdog kill: reason=idle_reclaim mode=mcp status=%s "
+                    "idle_for=%.0fs idle_threshold=%.0fs branch=mcp_idle_reclaim",
+                    w.worker_id, w.status, idle_for, _WORKER_IDLE_SEC,
                 )
                 await kill_worker(w.worker_id)
                 return
@@ -555,15 +583,17 @@ async def _watchdog(w: Worker):
         # stream 模式：超时 + 空闲回收
         if w.status in ("running", "queued") and idle_for > _WORKER_TIMEOUT_SEC:
             _log.warning(
-                "[Worker %s] watchdog: no output for %.0fs, killing (timeout)",
-                w.worker_id, idle_for,
+                "[Worker %s] watchdog kill: reason=timeout mode=stream status=%s "
+                "idle_for=%.0fs timeout_threshold=%.0fs branch=stream_timeout",
+                w.worker_id, w.status, idle_for, _WORKER_TIMEOUT_SEC,
             )
             await kill_worker(w.worker_id)
             return
         if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
             _log.info(
-                "[Worker %s] watchdog: idle for %.0fs, reclaiming",
-                w.worker_id, idle_for,
+                "[Worker %s] watchdog kill: reason=idle_reclaim mode=stream status=%s "
+                "idle_for=%.0fs idle_threshold=%.0fs branch=stream_idle_reclaim",
+                w.worker_id, w.status, idle_for, _WORKER_IDLE_SEC,
             )
             await kill_worker(w.worker_id)
             return
@@ -979,12 +1009,12 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
     if not w.takeover_pid:
         return False
     pid = w.takeover_pid
-    print(f"[Worker {w.worker_id}] 杀 takeover 终端 PID={pid}")
+    _log.info("[Worker %s] 杀 takeover 终端 PID=%s", w.worker_id, pid)
     try:
         await asyncio.to_thread(_kill_pid_tree, pid)
-        print(f"[Worker {w.worker_id}] takeover 终端已结束 PID={pid}")
+        _log.info("[Worker %s] takeover 终端已结束 PID=%s", w.worker_id, pid)
     except Exception as e:
-        print(f"[Worker {w.worker_id}] 杀 takeover 终端异常: {e}")
+        _log.warning("[Worker %s] 杀 takeover 终端异常: %s", w.worker_id, e)
     w.takeover_pid = None
     return True
 
@@ -1025,7 +1055,14 @@ async def kill_worker(worker_id: str) -> str | None:
     #  worker 也不 pop）——让 watchdog 自然 return 即可。
     current = asyncio.current_task()
     if w._watchdog_task and w._watchdog_task is not current:
+        _log.info("[Worker %s] kill_worker: cancelling watchdog task", worker_id)
         w._watchdog_task.cancel()
+    elif w._watchdog_task is current:
+        _log.info(
+            "[Worker %s] kill_worker: skip watchdog self-cancel "
+            "(kill triggered by watchdog itself)",
+            worker_id,
+        )
     if w._consume_task:
         w._consume_task.cancel()
     if w._stdout_task:
@@ -1064,7 +1101,7 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
         await _kill_process_tree(w)
         await _kill_takeover_terminal(w)
     except Exception as exc:
-        print(f"[Worker {worker_id}] BG cleanup error: {exc!r}")
+        _log.warning("[Worker %s] BG cleanup error: %r", worker_id, exc)
     finally:
         workers.pop(worker_id, None)
         try:
@@ -1074,7 +1111,7 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
                 "sessionId": session_id,
             })
         except Exception as bcast_err:
-            print(f"[Worker {worker_id}] BG cleanup bcast error: {bcast_err!r}")
+            _log.warning("[Worker %s] BG cleanup bcast error: %r", worker_id, bcast_err)
 
 
 async def _spawn_process(session_id: str,

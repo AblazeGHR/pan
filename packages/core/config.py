@@ -33,6 +33,19 @@ DEFAULT_CONFIG: dict = {
         # 空闲回收（秒）：idle 状态（任务完成）持续超过该值时回收进程。held/zombie 跳过。
         "idle_sec": 300,
     },
+    # 本地日志（main.py 启动时配置）：文件大小/天轮转 + console 双输出
+    "logging": {
+        # 日志级别：DEBUG/INFO/WARNING/ERROR
+        "level": "INFO",
+        # 日志文件路径（相对路径以仓库根为基准）
+        "file": "data/logs/pan.log",
+        # 单文件大小上限（字节），超过即轮转
+        "max_bytes": 10485760,
+        # 保留的轮转日志份数
+        "backup_count": 7,
+        # 是否同时在控制台输出
+        "console": True,
+    },
     "kimi": {
         "model": "kimi-code/kimi-for-coding",
         "permission_mode": "",
