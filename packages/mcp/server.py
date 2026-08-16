@@ -15,6 +15,8 @@ Tools exposed:
     - worker_kill: Kill a worker
     - session_history: Get paginated conversation history
     - model_list: List available AI models
+    - report_subscribe: Subscribe to completion reports of a managed session
+    - report_unsubscribe: Unsubscribe from completion reports of a managed session
 
 Environment variables:
     PAN_API_URL: Pan API base URL (default: http://127.0.0.1:8768)
@@ -201,6 +203,53 @@ def session_history(session_id: str, limit: int = 50, before: int | None = None)
     if before is not None:
         path += f"&before={before}"
     return _api("GET", path)
+
+
+# ---------------------------------------------------------------------------
+# Report subscription tools (立项 4.3 订阅制)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def report_subscribe(session_id: str) -> dict:
+    """Subscribe to completion reports for a managed session.
+
+    Opt-in report delivery (立项 4.3): after subscribing, every time the
+    managed session finishes a task (done/error) its report dict — aligned
+    with handoff format: status/result/sessionId/taskId/workerId — is appended
+    to this meta-agent's persisted queue_pending and delivered as one batched
+    message to this session's worker (concatenated with a visible separator
+    when multiple reports accumulate). Unsubscribed sessions only keep the
+    existing worker.result broadcast for external coordinators.
+
+    Args:
+        session_id: Managed session ID to subscribe to reports for
+    """
+    manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not manager_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — report tools only work inside a Pan-managed meta-agent session"}}
+    return _api("POST", "/api/report-subscribe",
+                {"managerId": manager_id, "sessionId": session_id})
+
+
+@mcp.tool()
+def report_unsubscribe(session_id: str) -> dict:
+    """Unsubscribe from completion reports for a managed session.
+
+    Stops report delivery for the session. Existing worker.result broadcasts
+    are unaffected (they were never gated by subscription).
+
+    Args:
+        session_id: Managed session ID to unsubscribe from
+    """
+    manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not manager_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — report tools only work inside a Pan-managed meta-agent session"}}
+    return _api("POST", "/api/report-unsubscribe",
+                {"managerId": manager_id, "sessionId": session_id})
 
 
 # ---------------------------------------------------------------------------
