@@ -34,13 +34,13 @@ def _session(**adapter_config):
 # ── _mcp_configured ──
 
 
-def test_mcp_configured_false_when_disabled():
-    s = _session(mcp_enabled=False, mcp_servers=[{"name": "pan"}])
-    assert worker._mcp_configured(s) is False
+def test_mcp_configured_true_when_servers_nonempty():
+    s = _session(mcp_servers=[{"name": "pan"}])
+    assert worker._mcp_configured(s) is True
 
 
 def test_mcp_configured_false_when_no_servers():
-    s = _session(mcp_enabled=True, mcp_servers=[])
+    s = _session(mcp_servers=[])
     assert worker._mcp_configured(s) is False
 
 
@@ -49,33 +49,34 @@ def test_mcp_configured_false_when_missing():
     assert worker._mcp_configured(s) is False
 
 
-def test_mcp_configured_true():
-    s = _session(mcp_enabled=True, mcp_servers=[{"name": "pan"}])
+def test_mcp_configured_ignores_mcp_enabled():
+    """mcp_enabled 已废弃：即使 false，servers 非空仍视为启用。"""
+    s = _session(mcp_enabled=False, mcp_servers=[{"name": "pan"}])
     assert worker._mcp_configured(s) is True
 
 
 # ── _use_oneshot_mcp (decision matrix) ──
 
 
-def test_no_mcp_goes_stream():
-    s = _session(mcp_enabled=False, mcp_servers=[{"name": "pan"}])
+def test_no_servers_goes_stream():
+    s = _session()
     assert worker._use_oneshot_mcp(s) is False
 
 
 def test_mcp_without_output_mode_goes_stream():
     """MCP configured, output_mode unset -> stream + MCP (default since 2026-08-17)."""
-    s = _session(mcp_enabled=True, mcp_servers=[{"name": "pan"}])
+    s = _session(mcp_servers=[{"name": "pan"}])
     assert worker._use_oneshot_mcp(s) is False
 
 
 def test_mcp_with_explicit_oneshot_goes_oneshot():
-    s = _session(mcp_enabled=True, mcp_servers=[{"name": "pan"}], output_mode="oneshot")
+    s = _session(mcp_servers=[{"name": "pan"}], output_mode="oneshot")
     assert worker._use_oneshot_mcp(s) is True
 
 
 def test_mcp_with_stream_output_mode_goes_stream():
     """New channel: stream + MCP."""
-    s = _session(mcp_enabled=True, mcp_servers=[{"name": "pan"}], output_mode="stream")
+    s = _session(mcp_servers=[{"name": "pan"}], output_mode="stream")
     assert worker._use_oneshot_mcp(s) is False
 
 

@@ -53,7 +53,6 @@ def _setup_session(cli_session_id: str | None = None):
     s = _sess.Session(id="ses_test", name="test", model="test-model", adapter="cbc")
     if cli_session_id:
         s.cli_session_id = cli_session_id
-    s.adapter_config["mcp_enabled"] = True
     s.adapter_config["mcp_servers"] = [{"name": "pan", "command": "x"}]
     _sess._cache[s.id] = s
     return s

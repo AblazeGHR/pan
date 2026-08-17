@@ -262,13 +262,12 @@ def session_update(
     always_thinking_enabled: bool | None = None,
     effort: str | None = None,
     max_thinking_tokens: int | None = None,
-    mcp_enabled: bool | None = None,
     mcp_servers: list[str] | None = None,
     game_id: str | None = None,
 ) -> dict:
     """Update session-level settings without spawning a worker.
 
-    Note: changing mcpEnabled makes the response include requireRestart: true —
+    Note: changing mcpServers makes the response include requireRestart: true —
     the worker must be respawned (worker_kill + worker_spawn) for the change
     to take effect.
 
@@ -279,8 +278,8 @@ def session_update(
         always_thinking_enabled: Toggle extended thinking
         effort: Thinking effort (e.g. "low"/"medium"/"high")
         max_thinking_tokens: Max thinking tokens
-        mcp_enabled: Toggle MCP tools for this session
-        mcp_servers: MCP server names from the manifest (e.g. ["pan"])
+        mcp_servers: MCP server names from the manifest (e.g. ["pan"]); 非空即
+            启用 MCP，空列表/省略 = 无 MCP（单一事实源）
         game_id: RuleWhisper game binding; pass "" to clear
 
     完整编排流程见 /pan skill。
@@ -299,8 +298,6 @@ def session_update(
         body["effort"] = effort
     if max_thinking_tokens is not None:
         body["maxThinkingTokens"] = max_thinking_tokens
-    if mcp_enabled is not None:
-        body["mcpEnabled"] = mcp_enabled
     if mcp_servers is not None:
         body["mcpServers"] = mcp_servers
     if game_id is not None:

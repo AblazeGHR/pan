@@ -127,9 +127,6 @@ REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
 # "legacy" → 仅旧前端
 FRONTEND_MODE = load_config().get("frontend", "coexist")
 
-# 普通 session（无 character/profile）创建时的默认 MCP 开关（config.json -> mcp.enabled_default）
-MCP_DEFAULT_ENABLED = load_config().get("mcp", {}).get("enabled_default", False)
-
 _MOBILE_UA_RE = re.compile(
     r"Mobile|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone|webOS",
     re.IGNORECASE,
@@ -232,7 +229,7 @@ def _session_to_api(s: sess.Session):
         "reportSubscriptions": sorted(s.report_subscriptions),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
-        "mcpEnabled": ac.get("mcp_enabled", MCP_DEFAULT_ENABLED),
+        "mcpEnabled": bool(ac.get("mcp_servers")),
         "mcpLocked": _get_mcp_locked_state(s),
         "outputMode": ac.get("output_mode"),
         "gameId": s.game_id,
@@ -368,7 +365,6 @@ def _build_session_params(data: dict) -> dict:
             "always_thinking_enabled": data.get("alwaysThinkingEnabled", config.get("always_thinking_enabled", False)),
             "effort": data.get("effort") or config.get("effort", ""),
             "max_thinking_tokens": data.get("maxThinkingTokens") or None,
-            "mcp_enabled": data.get("mcpEnabled", MCP_DEFAULT_ENABLED),
         },
         "session_template": template_name,
         "restrict_to_managed": template.restrict_to_managed,
@@ -382,13 +378,10 @@ def _build_session_params(data: dict) -> dict:
         params["adapter_config"]["output_mode"] = data["outputMode"]
 
     # MCP servers come from the template (names → full configs).
-    if template.mcp_servers:
+    # mcp_mode decides injection: "always" injects; "optional"/"never" start
+    # without servers (optional templates toggle via PATCH mcpServers).
+    if template.mcp_mode == "always" and template.mcp_servers:
         params["adapter_config"]["mcp_servers"] = _resolve_mcp_server_configs(template.mcp_servers)
-    # mcp_mode lock: "always"/"never" override the toggle default.
-    if template.mcp_mode == "always":
-        params["adapter_config"]["mcp_enabled"] = True
-    elif template.mcp_mode == "never":
-        params["adapter_config"]["mcp_enabled"] = False
 
     # Character binding: memory/assets only (no session config from character).
     character_id = data.get("characterId")
@@ -443,7 +436,7 @@ def _safe_adapter(adapter_name: str):
 # 不含 name 等纯元数据字段。
 _PROCESS_AFFECTING_FIELDS = {
     "model", "permissionMode", "alwaysThinkingEnabled", "effort",
-    "maxThinkingTokens", "mcpEnabled", "mcpServers", "outputMode",
+    "maxThinkingTokens", "mcpServers", "outputMode",
 }
 
 
@@ -459,8 +452,6 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("effort", data["effort"])
     if "maxThinkingTokens" in data:
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
-    if "mcpEnabled" in data:
-        _apply_mcp_enabled(s, data["mcpEnabled"])
     if "mcpServers" in data:
         _apply_mcp_servers(s, data["mcpServers"])
     if "outputMode" in data:
@@ -476,36 +467,24 @@ def _apply_mcp_servers(s: sess.Session, server_names) -> None:
     """Set session mcp_servers by manifest server names (e.g. ["pan"]).
 
     Resolves names to full configs via the character manager's manifest table.
-    Accepts a list of names, or None/[] to clear.
+    Accepts a list of names, or None/[] to clear. mcp_servers 非空即启用
+    （单一事实源），mcp_mode 的 always/never 锁在此处强制执行。
     """
-    if server_names in (None, [], ""):
+    enabling = server_names not in (None, [], "")
+    if s.session_template and _character_manager is not None:
+        template = _character_manager.get_session_template(s.session_template)
+        if template:
+            if template.mcp_mode == "always" and not enabling:
+                raise ValueError(f"MCP is locked to 'always' for session template '{template.name}'. Cannot disable.")
+            if template.mcp_mode == "never" and enabling:
+                raise ValueError(f"MCP is locked to 'never' for session template '{template.name}'. Cannot enable.")
+
+    if not enabling:
         s.set_adapter_field("mcp_servers", [])
         return
     if not isinstance(server_names, list):
         raise ValueError("mcpServers must be a list of server names")
     s.set_adapter_field("mcp_servers", _resolve_mcp_server_configs(server_names))
-
-
-def _apply_mcp_enabled(s: sess.Session, enable: bool):
-    """Apply mcpEnabled toggle, respecting session_template mcp_mode lock.
-
-    No broad `except Exception: pass` here — swallowing non-ValueError
-    exceptions bypassed the always/never lock (#12). If the template lookup
-    raises, that's a real error and should surface.
-    """
-    if s.session_template and _character_manager is not None:
-        template = _character_manager.get_session_template(s.session_template)
-        if template:
-            if template.mcp_mode == "always" and not enable:
-                raise ValueError(f"MCP is locked to 'always' for session template '{template.name}'. Cannot disable.")
-            if template.mcp_mode == "never" and enable:
-                raise ValueError(f"MCP is locked to 'never' for session template '{template.name}'. Cannot enable.")
-            if template.mcp_mode == "always":
-                # Already enabled, no-op
-                s.set_adapter_field("mcp_enabled", True)
-                return
-
-    s.set_adapter_field("mcp_enabled", enable)
 
 
 _VALID_OUTPUT_MODES = ("stream", "oneshot")
@@ -853,16 +832,16 @@ async def api_update_session(session_id: str, data: dict):
     if not s:
         return {"error": "Session not found"}
     require_restart = False
-    old_mcp_enabled = s.adapter_config.get("mcp_enabled")
+    old_mcp_servers = s.adapter_config.get("mcp_servers")
     old_output_mode = s.adapter_config.get("output_mode")
     try:
         _apply_session_updates(s, data)
     except ValueError as e:
         return {"error": str(e)}
-    new_mcp_enabled = s.adapter_config.get("mcp_enabled")
+    new_mcp_servers = s.adapter_config.get("mcp_servers")
     new_output_mode = s.adapter_config.get("output_mode")
-    # MCP enable/disable 或执行模式切换都需要重启 worker 才生效
-    require_restart = (old_mcp_enabled != new_mcp_enabled
+    # MCP servers 增删或执行模式切换都需要重启 worker 才生效
+    require_restart = (old_mcp_servers != new_mcp_servers
                        or old_output_mode != new_output_mode)
     sess.save(s)
     await broadcast({
@@ -976,8 +955,6 @@ async def api_branch_session(session_id: str, data: dict):
     }
     if s.adapter_config.get("mcp_servers"):
         new_adapter_config["mcp_servers"] = s.adapter_config["mcp_servers"]
-    if "mcp_enabled" in s.adapter_config:
-        new_adapter_config["mcp_enabled"] = s.adapter_config["mcp_enabled"]
 
     new_s = sess.create(
         name=name,

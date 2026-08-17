@@ -275,18 +275,19 @@ def _session(w: Worker) -> _sess.Session | None:
 
 
 def _mcp_configured(s: _sess.Session | None) -> bool:
-    """Session 是否配置了 MCP 工具（mcp_enabled 且 mcp_servers 非空）。
+    """Session 是否配置了 MCP 工具（mcp_servers 非空）。
 
+    mcp_servers 是唯一事实源：非空即启用（单一事实源收敛立项）。
     MCP 是叠加属性：与 worker 的执行模式（output_mode）独立。
     """
-    return bool(s and s.adapter_config.get("mcp_enabled") and s.adapter_config.get("mcp_servers"))
+    return bool(s and s.adapter_config.get("mcp_servers"))
 
 
 def _use_oneshot_mcp(s: _sess.Session | None) -> bool:
     """是否走 one-shot MCP 模式（每次任务新开 cbc 进程 + --mcp-config）。
 
     判定矩阵（三条通道）：
-    - 无 MCP（mcp_enabled/mcp_servers 缺失）→ False：stream 长驻（无 MCP）
+    - 无 MCP（mcp_servers 缺失）→ False：stream 长驻（无 MCP）
     - 有 MCP 且 output_mode 未设置 / == "stream" → False：stream 长驻 + MCP（cbc ≥ 2.137.0，默认）
     - 有 MCP 且 output_mode == "oneshot" → True：one-shot（显式指定才走）
     """
