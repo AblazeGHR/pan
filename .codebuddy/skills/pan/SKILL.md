@@ -89,7 +89,7 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 3. worker_assign(session_id="ses_abc...", text="继续之前的话题...")
 ```
 
-任务文本的写法（首次自包含 vs 恢复简短继续）见 §2.6。
+任务文本的写法（取决于 `cliSessionId` 有无上下文，见 §2.6）。
 
 ### 2.4 检查状态
 
@@ -110,19 +110,18 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 
 **及时清理**：不再需要的 session 用 delete 释放进程与磁盘；watchdog 只回收进程，不删 session。
 
-### 2.6 派发规范：首次派发 vs 恢复中断任务
+### 2.6 派发规范：worker 无记忆，session 有记忆
 
-派发任务文本前，先 `session_get(session_id)` 看 **`cliSessionId`** 字段，决定任务文本怎么写：
+**记忆模型**：Worker 是**临时进程**——每次 spawn 都是全新进程，**无记忆**；Session 是**持久化容器**——保存 `history` + `cliSessionId`。重新 spawn 时 adapter 检测到 `cliSessionId` 非空即传 `cbc --resume <cliSessionId>`（`packages/core/adapters/cbc/adapter.py` `resume_args`），cbc 从 transcript（JSONL）恢复**完整上下文**（原任务描述、进度、历史对话都在）。session 的记忆来自持久化，不来自 worker。
 
-| 情形 | 判定（`cliSessionId`） | 任务文本写法 |
-|------|----------------------|-------------|
-| **首次派发** | 为空 / `null`（新 session，或从未 spawn 过） | **必须自包含**：背景 / 目标 / 涉及文件 / 边界 / 验收标准。worker 是全新 transcript，没有任何上下文可依赖 |
-| **恢复中断任务** | 已有值（之前 spawn 过，cbc 记录过 session id） | **简短「继续完成之前任务」指令**即可（如 `"继续完成之前的任务，汇报进度"`）。**不要重发完整任务描述** |
+**派发判定**：派发任务前先 `session_get(session_id)` 查 **`cliSessionId`** 字段：
 
-- **恢复的机制**：spawn 时 adapter 检测到 `cliSessionId` 会传 `cbc --resume <cliSessionId>`（`packages/core/adapters/cbc/adapter.py` `resume_args`），cbc 从 transcript（JSONL）恢复**全部上下文**——原任务描述、已完成进度、历史对话都在。所以恢复场景重发完整任务描述是**多余且有害**的：浪费 token，且措辞差异可能让 worker 误判为新任务/新要求。
-- **首次派发自包含清单**（任务文本建议含）：背景（为什么做）、目标（做什么/产出什么）、涉及文件（路径相对 workdir）、边界（不要做什么/约束）、验收标准（怎么算完成）。
-- **混合场景**：首次派发到新 session 用自包含文本；该 session 之后中断恢复，一律走「简短继续」。
-- 与 §2.3 的关系：§2.3 解决「找 session + spawn」，本小节解决「任务文本怎么写」——恢复中断任务时两者一起用：`worker_spawn`（`workerStatus` 为 null 时）→ 简短继续指令。
+| `cliSessionId` | 含义 | 任务文本写法 |
+|----------------|------|-------------|
+| **非空** | worker 将 `--resume` 恢复已有完整上下文 | **一律用简短指令**（追加任务 / 恢复中断 / 串行下一步 / 追问修正）：指出现有上下文里要做什么即可，**不要重发完整任务描述**——上下文已有原任务与进度，重发浪费 token，且措辞差异可能让 worker 误判为新任务/新要求 |
+| **为空 / null** | 新 session 或 worker 从未建立，worker 无上下文 | **任务描述必须自包含**：背景 / 目标 / 涉及文件（相对 workdir）/ 边界 / 验收标准 |
+
+- 与 §2.3 的关系：§2.3 解决「找 session + spawn」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`worker_spawn`（`workerStatus` 为 null 时）→ 简短指令。
 
 ## 3. 完成通知：二选一（互斥，勿同用）
 
