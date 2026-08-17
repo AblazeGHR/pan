@@ -209,11 +209,13 @@ def test_replay_events_not_broadcast():
     _cleanup()
 
 
-def test_user_message_during_replay_clears_flag():
-    """User sends message during replay: _replaying cleared, history appended.
+def test_user_message_during_replay_waits_then_appends():
+    """User sends message during replay: consumer waits for replay, then appends.
 
-    This is the key bug fixed in this commit — before, _consumer didn't clear
-    _replaying, so subsequent assistant events were skipped and replies lost.
+    This is the race fixed in this commit — before, _consumer unconditionally
+    cleared _replaying, so in-flight replay events were recorded as new history
+    (history doubled). Now it waits until _read_stdout finishes replay (clears
+    _replaying on the result event) before processing the message.
     """
     _cleanup()
     original = [
@@ -225,31 +227,36 @@ def test_user_message_during_replay_clears_flag():
     s = _setup_session(history=original)
     w = _setup_worker(s.id, replaying=True)
 
-    # Simulate _consumer processing a user message
-    asyncio.run(w.pending_signal.put({"text": "new q", "source": "agent"}))
-
-    # Run one _consumer iteration
-    async def run_consumer_once():
-        # _consumer loops forever; we run it briefly then cancel
+    async def scenario():
+        await w.pending_signal.put({"text": "new q", "source": "agent"})
         task = asyncio.create_task(worker._consumer(w))
-        await asyncio.sleep(0.05)
+        # replay 进行中：消息不应被处理，_replaying 保持 True
+        await asyncio.sleep(0.1)
+        assert w._replaying is True, "consumer should wait while replaying"
+        assert s.history[-1] == {"role": "assistant", "content": "old a"}, \
+            f"message should not be processed during replay: {s.history}"
+        # 模拟 replay 结束（_read_stdout 在 result 事件清 _replaying）
+        w._replaying = False
+        # 等待 consumer 唤醒并处理（覆盖 0.5s sleep 周期）
+        for _ in range(30):
+            if s.history[-1] == {"role": "user", "content": "new q"}:
+                break
+            await asyncio.sleep(0.05)
         task.cancel()
         try:
             await task
         except asyncio.CancelledError:
             pass
 
-    asyncio.run(run_consumer_once())
+    asyncio.run(scenario())
 
-    # _replaying must be cleared
-    assert w._replaying is False, "_consumer didn't clear _replaying"
-    # User message appended to history
+    # User message appended after replay finished
     assert s.history[-1] == {"role": "user", "content": "new q"}, \
         f"user message not appended: {s.history}"
     # Original history preserved (compare against snapshot, not the live list)
     assert s.history[:2] == original_snapshot, \
         f"original history lost: {s.history[:2]} vs {original_snapshot}"
-    print("PASS: user message during replay clears flag and appends")
+    print("PASS: user message during replay waits then appends")
     _cleanup()
 
 

@@ -489,6 +489,12 @@ async def _consumer(w: Worker):
         w._current_seq = item.get("seq")
         w._current_task_id = item.get("taskId")
 
+        # resume replay 进行中：等待 replay 播完再处理，避免把 replay 事件
+        # 误当新事件记录（history 重复）。replay 由 _read_stdout 在 result
+        # 事件时把 _replaying 置 False 结束。
+        while w._replaying and w.process is not None:
+            await asyncio.sleep(0.5)
+
         w._replaying = False
 
         s = _session(w)
