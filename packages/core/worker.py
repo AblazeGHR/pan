@@ -535,7 +535,10 @@ async def _consumer(w: Worker):
         # resume replay 进行中：等待 replay 播完再处理，避免把 replay 事件
         # 误当新事件记录（history 重复）。replay 由 _read_stdout 在 result
         # 事件时把 _replaying 置 False 结束。
-        while w._replaying and w.process is not None:
+        # 超时上限：transcript 若不含 result 事件（如任务被 kill 时未完成），
+        # replay 不会自然结束——10s 后强制结束 replay 继续处理，防止消息死等。
+        _replay_wait_until = time.monotonic() + 10
+        while w._replaying and w.process is not None and time.monotonic() < _replay_wait_until:
             await asyncio.sleep(0.5)
 
         w._replaying = False
