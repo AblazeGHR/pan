@@ -137,7 +137,9 @@ async def broadcast(data: dict):
     dead = set()
     for ws in list(ws_clients):
         try:
-            await ws.send_json(data)
+            # 发送超时：慢客户端（TCP 缓冲满）2s 内不消费即断开，防止阻塞
+            # broadcast → 卡死所有 _read_stdout / worker（实测 Edge 后台标签页）。
+            await asyncio.wait_for(ws.send_json(data), timeout=2)
         except Exception:
             dead.add(ws)
     ws_clients.difference_update(dead)
@@ -153,7 +155,7 @@ async def broadcast(data: dict):
         if etype == "worker.result" and sub.session_ids and data_session_id not in sub.session_ids:
             continue
         try:
-            await ws.send_json(data)
+            await asyncio.wait_for(ws.send_json(data), timeout=2)
         except Exception:
             dead_a.add(ws)
             continue
