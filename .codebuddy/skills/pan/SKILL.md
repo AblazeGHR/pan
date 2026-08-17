@@ -158,10 +158,13 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 python .codebuddy/skills/pan/scripts/monitor_workers.py
 # 通过 PAN_WS_URL 环境变量指定端口（默认 ws://127.0.0.1:8768/ws/agent）
 PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python .codebuddy/skills/pan/scripts/monitor_workers.py
+# 按 sessionId 过滤订阅（只盯自己派发的 session，避免其他 session 的完成事件打扰）
+PAN_SESSION_IDS=ses_a,ses_b python .codebuddy/skills/pan/scripts/monitor_workers.py
 ```
 
 行为：
 - 订阅 `worker.result`（正常完成）**和** `worker.zombie`（意外死亡 / watchdog 回收 / 进程退出）——worker 意外丢失对协调者可见。
+- **`PAN_SESSION_IDS` 按 session 过滤**（逗号分隔）；省略 = 订阅所有。**实践：派发 worker 后用 `PAN_SESSION_IDS` 只订阅自己派发的 session**——否则同一服务上其他协调者/测试 session 的完成事件会频繁唤醒你（噪音）。
 - 每事件输出一行（flush），一行一事件，兼容 Monitor 增量输出协议：
 
 ```

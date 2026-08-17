@@ -1,24 +1,15 @@
 """Subscribe to Pan /ws/agent and print worker events (one line each).
 
-Runs under CodeBuddy Monitor's `command` mode: each printed line wakes the
-coordinator.
+Runs under Monitor's `command` mode: each printed line wakes the coordinator.
 
 Subscribes to worker.result (normal completion) AND worker.zombie
 (unexpected death / watchdog kill / process exit) so unexpected worker
 loss is visible to the coordinator.
 
-Usage:
-    python monitor_workers.py
-    PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python monitor_workers.py
-
-Output protocol (one event = one line, flushed):
-    MONITOR_CONNECTED
-    MONITOR_SUBSCRIBED
-    DONE session=... status=done worker=worker-1
-    DIE  session=... worker=worker-2 returncode=1
-    MONITOR_DISCONNECTED: <reason>     # auto-reconnects after 5s
-
-See SKILL.md §4 (监督模板) for full context.
+Env:
+  PAN_WS_URL       WS endpoint (default ws://127.0.0.1:8768/ws/agent)
+  PAN_SESSION_IDS  comma-separated session ids to restrict subscription to
+                   (omitted = all sessions)
 """
 import asyncio
 import json
@@ -27,15 +18,21 @@ import os
 import websockets
 
 
+def _subscribe_message() -> dict:
+    raw = os.environ.get("PAN_SESSION_IDS", "")
+    sids = [s.strip() for s in raw.split(",") if s.strip()]
+    msg: dict = {"type": "subscribe", "eventTypes": ["worker.result", "worker.zombie"]}
+    if sids:
+        msg["sessionIds"] = sids
+    return msg
+
+
 async def main() -> None:
     uri = os.environ.get("PAN_WS_URL", "ws://127.0.0.1:8768/ws/agent")
     while True:
         try:
             async with websockets.connect(uri) as ws:
-                await ws.send(json.dumps({
-                    "type": "subscribe",
-                    "eventTypes": ["worker.result", "worker.zombie"],
-                }))
+                await ws.send(json.dumps(_subscribe_message()))
                 print("MONITOR_CONNECTED", flush=True)
                 async for msg in ws:
                     try:
