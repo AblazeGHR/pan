@@ -62,10 +62,10 @@ def test_no_mcp_goes_stream():
     assert worker._use_oneshot_mcp(s) is False
 
 
-def test_mcp_without_output_mode_goes_oneshot():
-    """Existing behaviour: MCP configured, output_mode unset -> one-shot."""
+def test_mcp_without_output_mode_goes_stream():
+    """MCP configured, output_mode unset -> stream + MCP (default since 2026-08-17)."""
     s = _session(mcp_enabled=True, mcp_servers=[{"name": "pan"}])
-    assert worker._use_oneshot_mcp(s) is True
+    assert worker._use_oneshot_mcp(s) is False
 
 
 def test_mcp_with_explicit_oneshot_goes_oneshot():
