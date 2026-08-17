@@ -9,8 +9,8 @@ Usage::
     from packages.core.manifest_loader import load_manifests
 
     config = load_manifests(["D:/project/RuleWhisper/pan_plugin"])
-    for profile in config.profiles:
-        print(profile.name, profile.system_prompt[:60])
+    for template in config.session_templates:
+        print(template.name, template.system_prompt[:60])
 """
 
 from __future__ import annotations
@@ -38,8 +38,13 @@ class McpServer:
 
 
 @dataclass
-class Profile:
-    """Character creation template from a manifest."""
+class SessionTemplate:
+    """Session configuration template from a manifest.
+
+    Declares everything needed to open one session: system_prompt / adapter /
+    model / permission_mode / mcp_mode / mcp_servers. Contains no character
+    bootstrap data (memory/assets live on CharacterTemplate).
+    """
     name: str
     adapter: str = "cbc"
     model: str | None = None
@@ -47,8 +52,7 @@ class Profile:
     system_prompt: str = ""
     mcp_mode: str = "optional"    # "always" | "optional" | "never"
     mcp_servers: list[str] = field(default_factory=list)
-    memory_dir: str | None = None  # Path to character's memory .md files
-    source_manifest: str = ""      # Which manifest.json defined this profile
+    source_manifest: str = ""      # Which manifest.json defined this template
     role: str = "default"          # Pan-internal boundary role (e.g. "meta-agent"), default "default"
 
     @property
@@ -58,8 +62,23 @@ class Profile:
 
     @property
     def mcp_default(self) -> bool:
-        """True if MCP should be enabled by default for this profile."""
+        """True if MCP should be enabled by default for this template."""
         return self.mcp_mode == "always"
+
+
+@dataclass
+class CharacterTemplate:
+    """Character creation template from a manifest.
+
+    Bootstraps a character: initial memory + assets, plus references to the
+    session_template(s) this character type is designed to run with. Contains
+    no system_prompt — session config lives on SessionTemplate.
+    """
+    name: str
+    session_templates: list[str] = field(default_factory=list)  # referenced session_template names
+    memory_dir: str | None = None  # bootstrap memory .md files
+    assets_dir: str | None = None  # bootstrap assets directory
+    source_manifest: str = ""      # Which manifest.json defined this template
 
 
 @dataclass
@@ -72,14 +91,21 @@ class CommandRoute:
 @dataclass
 class ManifestConfig:
     """Aggregated config from all loaded manifests."""
-    profiles: list[Profile] = field(default_factory=list)
+    session_templates: list[SessionTemplate] = field(default_factory=list)
+    character_templates: list[CharacterTemplate] = field(default_factory=list)
     mcp_servers: list[McpServer] = field(default_factory=list)
     command_routes: list[CommandRoute] = field(default_factory=list)
 
-    def get_profile(self, name: str) -> Profile | None:
-        for p in self.profiles:
-            if p.name == name:
-                return p
+    def get_session_template(self, name: str) -> SessionTemplate | None:
+        for t in self.session_templates:
+            if t.name == name:
+                return t
+        return None
+
+    def get_character_template(self, name: str) -> CharacterTemplate | None:
+        for t in self.character_templates:
+            if t.name == name:
+                return t
         return None
 
 
@@ -123,10 +149,16 @@ def load_manifests(plugin_paths: list[str]) -> ManifestConfig:
 
 def _merge_manifest(config: ManifestConfig, data: dict, plugin_dir: str) -> None:
     """Merge a single manifest's data into *config* with dedup."""
-    # Profiles — dedup by name
-    for raw in data.get("profiles", []):
-        profile = _parse_profile(raw, plugin_dir)
-        _dedup_append(config.profiles, profile, key=lambda p: p.name)
+    # Session templates — dedup by name. ``profiles`` is the legacy key kept
+    # for backward compatibility (pre-refactor manifests used it).
+    for raw in data.get("session_templates", data.get("profiles", [])):
+        template = _parse_session_template(raw, plugin_dir)
+        _dedup_append(config.session_templates, template, key=lambda t: t.name)
+
+    # Character templates — dedup by name
+    for raw in data.get("character_templates", []):
+        template = _parse_character_template(raw, plugin_dir)
+        _dedup_append(config.character_templates, template, key=lambda t: t.name)
 
     # MCP servers — dedup by name
     for raw in data.get("mcp_servers", []):
@@ -142,31 +174,14 @@ def _merge_manifest(config: ManifestConfig, data: dict, plugin_dir: str) -> None
         config.command_routes.append(route)
 
 
-def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
-    """Parse a profile entry from manifest.json."""
-    memory_dir = raw.get("memory_dir")
-    if memory_dir:
-        # Resolve relative to the manifest's directory and validate the
-        # result stays inside it — an absolute or ``..``-escaping memory_dir
-        # would let a malicious manifest index arbitrary directories (#31).
-        memory_dir = str(Path(plugin_dir, memory_dir).resolve())
-        try:
-            Path(memory_dir).relative_to(Path(plugin_dir).resolve())
-        except ValueError:
-            log.error(
-                "Profile %r: memory_dir %r escapes plugin dir %r; ignoring it",
-                raw.get("name", ""),
-                memory_dir,
-                plugin_dir,
-            )
-            memory_dir = None
-
+def _parse_session_template(raw: dict, plugin_dir: str) -> SessionTemplate:
+    """Parse a session_template entry from manifest.json."""
     # Normalize system_prompt: if it's a list, join with newlines
     sp = raw.get("system_prompt", "")
     if isinstance(sp, list):
         sp = "\n".join(sp)
 
-    return Profile(
+    return SessionTemplate(
         name=raw.get("name", ""),
         adapter=raw.get("adapter", "cbc"),
         model=raw.get("model"),
@@ -174,10 +189,46 @@ def _parse_profile(raw: dict, plugin_dir: str) -> Profile:
         permission_mode=raw.get("permission_mode"),
         system_prompt=sp,
         mcp_servers=list(raw.get("mcp_servers", [])),
-        memory_dir=memory_dir,
         source_manifest=plugin_dir,
         role=raw.get("role", "default"),
     )
+
+
+def _parse_character_template(raw: dict, plugin_dir: str) -> CharacterTemplate:
+    """Parse a character_template entry from manifest.json."""
+    session_templates = raw.get("session_templates", [])
+    if isinstance(session_templates, str):
+        session_templates = [session_templates]
+
+    return CharacterTemplate(
+        name=raw.get("name", ""),
+        session_templates=list(session_templates),
+        memory_dir=_resolve_plugin_dir(raw.get("memory_dir"), plugin_dir),
+        assets_dir=_resolve_plugin_dir(raw.get("assets_dir"), plugin_dir),
+        source_manifest=plugin_dir,
+    )
+
+
+def _resolve_plugin_dir(value, plugin_dir: str) -> str | None:
+    """Resolve a manifest-declared directory relative to *plugin_dir*.
+
+    Validates the result stays inside the plugin dir — an absolute or
+    ``..``-escaping path would let a malicious manifest index arbitrary
+    directories (#31). Returns None for empty/escaping values.
+    """
+    if not value:
+        return None
+    resolved = str(Path(plugin_dir, value).resolve())
+    try:
+        Path(resolved).relative_to(Path(plugin_dir).resolve())
+    except ValueError:
+        log.error(
+            "Manifest dir %r escapes plugin dir %r; ignoring it",
+            value,
+            plugin_dir,
+        )
+        return None
+    return resolved
 
 
 def _resolve_plugin_var(value: str, plugin_dir: str) -> str:
@@ -211,7 +262,7 @@ def _dedup_append(lst: list, item, key) -> None:
     """Replace existing item with same key, otherwise append.
 
     Overriding an earlier entry is intentional (later manifests win) but must
-    not be silent — a plugin shadowing a built-in profile/system_prompt is
+    not be silent — a plugin shadowing a built-in template/system_prompt is
     usually a misconfiguration (#40).
     """
     k = key(item)

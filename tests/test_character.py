@@ -1,7 +1,6 @@
 """Tests for Character management system."""
 
 import json
-import os
 import shutil
 import sys
 import tempfile
@@ -10,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core.character import Character, CharacterManager
-from packages.core.manifest_loader import load_manifests, ManifestConfig, Profile
+from packages.core.manifest_loader import CharacterTemplate, SessionTemplate
 
 
 # ------------------------------------------------------------------ #
@@ -26,19 +25,33 @@ def _make_temp_data_dir():
     return tmp, data_dir
 
 
-def _write_manifest(base_dir: str, profiles: list[dict] | None = None):
+def _write_manifest(base_dir: str, session_templates: list[dict] | None = None,
+                    character_templates: list[dict] | None = None):
     """Write a minimal manifest.json for testing."""
-    if profiles is None:
-        profiles = [
+    if session_templates is None:
+        session_templates = [
             {
-                "name": "test-profile",
+                "name": "test-session",
                 "adapter": "cbc",
                 "model": "deepseek-v4-flash",
                 "system_prompt": "You are a test assistant.",
                 "permission_mode": "bypassPermissions",
             }
         ]
-    data = {"profiles": profiles, "mcp_servers": [], "command_routes": []}
+    if character_templates is None:
+        character_templates = [
+            {
+                "name": "test-character",
+                "session_templates": ["test-session"],
+                "memory_dir": "data/characters/test/memory",
+            }
+        ]
+    data = {
+        "session_templates": session_templates,
+        "character_templates": character_templates,
+        "mcp_servers": [],
+        "command_routes": [],
+    }
     path = Path(base_dir) / "manifest.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return str(path)
@@ -52,11 +65,7 @@ class TestCharacter:
     def test_roundtrip(self):
         c = Character(
             id="char_test1234abcd",
-            profile_name="test-profile",
             name="测试角色",
-            adapter="cbc",
-            model="deepseek-v4-flash",
-            system_prompt="You are helpful.",
             memory_db_path="data/memory/char_test1234abcd.sqlite",
             memory_dir="characters/test/memory",
             created_at="2026-07-29T12:00:00",
@@ -64,17 +73,42 @@ class TestCharacter:
         d = c.to_dict()
         c2 = Character.from_dict(d)
         assert c2.id == c.id
-        assert c2.profile_name == c.profile_name
         assert c2.name == c.name
-        assert c2.system_prompt == c.system_prompt
         assert c2.memory_db_path == c.memory_db_path
+        assert c2.memory_dir == c.memory_dir
 
     def test_defaults(self):
-        c = Character(id="char_x", profile_name="p", name="n")
-        assert c.adapter == "cbc"
-        assert c.model is None
-        assert c.system_prompt == ""
+        c = Character(id="char_x", name="n")
+        assert c.memory_db_path == ""
+        assert c.memory_dir is None
         assert c.created_at == ""  # populated by CharacterManager, not dataclass
+
+    def test_no_session_config_fields(self):
+        """Character carries no session config (system_prompt/mcp/role)."""
+        c = Character(id="char_x", name="n")
+        assert not hasattr(c, "system_prompt")
+        assert not hasattr(c, "mcp_mode")
+        assert not hasattr(c, "mcp_servers")
+        assert not hasattr(c, "role")
+        assert not hasattr(c, "profile_name")
+
+
+# ------------------------------------------------------------------ #
+#  Manifest templates
+# ------------------------------------------------------------------ #
+
+class TestManifestTemplates:
+    def test_session_template_roundtrip(self):
+        t = SessionTemplate(name="t", system_prompt="hi", mcp_servers=["pan"], role="meta-agent")
+        assert t.mcp_locked is False  # mcp_mode default "optional"
+        assert t.mcp_servers == ["pan"]
+        assert t.role == "meta-agent"
+
+    def test_character_template_roundtrip(self):
+        t = CharacterTemplate(name="c", session_templates=["t"], memory_dir="m")
+        assert t.session_templates == ["t"]
+        assert t.memory_dir == "m"
+        assert not hasattr(t, "system_prompt")
 
 
 # ------------------------------------------------------------------ #
@@ -97,47 +131,48 @@ class TestCharacterManager:
             _write_manifest(tmp)
             mgr = CharacterManager(str(data_dir))
             cfg = mgr.load_manifest([str(Path(tmp) / "manifest.json")])
-            assert len(cfg.profiles) == 1
-            assert cfg.profiles[0].name == "test-profile"
-            assert "test assistant" in cfg.profiles[0].system_prompt
+            assert len(cfg.session_templates) == 1
+            assert cfg.session_templates[0].name == "test-session"
+            assert "test assistant" in cfg.session_templates[0].system_prompt
+            assert len(cfg.character_templates) == 1
+            assert cfg.character_templates[0].name == "test-character"
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_list_profiles_empty_before_load(self):
+    def test_list_session_templates_empty_before_load(self):
         tmp, data_dir = _make_temp_data_dir()
         try:
             mgr = CharacterManager(str(data_dir))
-            assert mgr.list_profiles() == []
+            assert mgr.list_session_templates() == []
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_list_profiles_after_load(self):
+    def test_list_session_templates_after_load(self):
         tmp, data_dir = _make_temp_data_dir()
         try:
-            _write_manifest(tmp, profiles=[
+            _write_manifest(tmp, session_templates=[
                 {"name": "a", "system_prompt": "A"},
                 {"name": "b", "system_prompt": "B"},
             ])
             mgr = CharacterManager(str(data_dir))
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
-            assert len(mgr.list_profiles()) == 2
+            assert len(mgr.list_session_templates()) == 2
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_create_character_from_profile(self):
+    def test_create_character_from_template(self):
         tmp, data_dir = _make_temp_data_dir()
         try:
             _write_manifest(tmp)
             mgr = CharacterManager(str(data_dir))
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
 
-            char = mgr.create_character("test-profile", name="测试", auto_index=False)
+            char = mgr.create_character("test-character", name="测试", auto_index=False)
             assert char.id.startswith("char_")
-            assert char.profile_name == "test-profile"
             assert char.name == "测试"
-            assert char.adapter == "cbc"
-            assert char.system_prompt == "You are a test assistant."
             assert "char_" in char.memory_db_path
+            assert char.memory_dir is not None
+            assert "characters" in char.memory_dir
             assert char.created_at != ""
 
             # Check JSON was persisted
@@ -146,7 +181,7 @@ class TestCharacterManager:
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_create_character_invalid_profile(self):
+    def test_create_character_invalid_template(self):
         tmp, data_dir = _make_temp_data_dir()
         try:
             mgr = CharacterManager(str(data_dir))
@@ -164,7 +199,7 @@ class TestCharacterManager:
             _write_manifest(tmp)
             mgr = CharacterManager(str(data_dir))
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
-            char = mgr.create_character("test-profile", auto_index=False)
+            char = mgr.create_character("test-character", auto_index=False)
 
             found = mgr.get_character(char.id)
             assert found is not None
@@ -178,9 +213,9 @@ class TestCharacterManager:
     def test_list_characters(self):
         tmp, data_dir = _make_temp_data_dir()
         try:
-            _write_manifest(tmp, profiles=[
-                {"name": "a", "system_prompt": "A"},
-                {"name": "b", "system_prompt": "B"},
+            _write_manifest(tmp, character_templates=[
+                {"name": "a", "memory_dir": None},
+                {"name": "b", "memory_dir": None},
             ])
             mgr = CharacterManager(str(data_dir))
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
@@ -201,7 +236,7 @@ class TestCharacterManager:
             _write_manifest(tmp)
             mgr = CharacterManager(str(data_dir))
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
-            char = mgr.create_character("test-profile", auto_index=False)
+            char = mgr.create_character("test-character", auto_index=False)
 
             char_id = char.id
             assert mgr.delete_character(char_id) is True
@@ -214,8 +249,8 @@ class TestCharacterManager:
         """auto_index=True with no memory_dir should not crash."""
         tmp, data_dir = _make_temp_data_dir()
         try:
-            _write_manifest(tmp, profiles=[
-                {"name": "no-mem", "system_prompt": "test", "memory_dir": None}
+            _write_manifest(tmp, character_templates=[
+                {"name": "no-mem", "memory_dir": None}
             ])
             mgr = CharacterManager(str(data_dir))
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
@@ -231,7 +266,7 @@ class TestCharacterManager:
             _write_manifest(tmp)
             mgr = CharacterManager(str(data_dir))
             mgr.load_manifest([str(Path(tmp) / "manifest.json")])
-            char = mgr.create_character("test-profile", auto_index=False)
+            char = mgr.create_character("test-character", auto_index=False)
 
             # Must not raise. With the ST provider a manager is constructible
             # without any API key; if so it must be cached (same instance on

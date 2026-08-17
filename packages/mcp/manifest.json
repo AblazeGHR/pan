@@ -9,7 +9,7 @@
       "cwd": "${PLUGIN_DIR}/../.."
     }
   ],
-  "profiles": [
+  "session_templates": [
     {
       "name": "pan-operator",
       "adapter": "cbc",

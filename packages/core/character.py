@@ -17,7 +17,7 @@ import json
 import logging
 import secrets
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 from .memory.embedder import PROVIDER_SENTENCE_TRANSFORMERS
 
 if TYPE_CHECKING:
-    from .manifest_loader import ManifestConfig, Profile
+    from .manifest_loader import ManifestConfig, SessionTemplate, CharacterTemplate
     from .memory import MemoryManager
     from .memory.search import SearchResult
 
@@ -38,55 +38,37 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class Character:
-    """A user-created character instance backed by a manifest profile."""
+    """A user-created persistent entity owning memory + assets.
+
+    A character is a long-lived identity shared across sessions. It carries no
+    session config (system_prompt / adapter / model / mcp_mode / mcp_servers) —
+    that comes from a session_template. It only owns retrievable memory and
+    (future) assets.
+    """
 
     id: str  # "char_<16 hex chars>"
-    profile_name: str  # manifest profile name (e.g. "coc-keeper")
     name: str  # user-visible name (e.g. "我的COC跑团")
-    adapter: str = "cbc"
-    model: str | None = None
-    permission_mode: str | None = None
-    system_prompt: str = ""
-    mcp_mode: str = "optional"    # inherited from profile: "always" | "optional" | "never"
-    mcp_servers: list[dict] = field(default_factory=list)  # MCP server configs from manifest
     memory_db_path: str = ""  # e.g. "data/memory/char_abc123.sqlite"
     memory_dir: str | None = None  # directory of .md knowledge files
     created_at: str = ""
-    role: str = "default"  # Pan-internal boundary role, inherited from profile
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
-            "profile_name": self.profile_name,
             "name": self.name,
-            "adapter": self.adapter,
-            "model": self.model,
-            "permission_mode": self.permission_mode,
-            "system_prompt": self.system_prompt,
-            "mcp_mode": self.mcp_mode,
-            "mcp_servers": self.mcp_servers,
             "memory_db_path": self.memory_db_path,
             "memory_dir": self.memory_dir,
             "created_at": self.created_at,
-            "role": self.role,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> Character:
         return cls(
             id=data.get("id", ""),
-            profile_name=data.get("profile_name", ""),
             name=data.get("name", ""),
-            adapter=data.get("adapter", "cbc"),
-            model=data.get("model"),
-            permission_mode=data.get("permission_mode"),
-            system_prompt=data.get("system_prompt", ""),
-            mcp_mode=data.get("mcp_mode", "optional"),
-            mcp_servers=data.get("mcp_servers", []),
             memory_db_path=data.get("memory_db_path", ""),
             memory_dir=data.get("memory_dir"),
             created_at=data.get("created_at", ""),
-            role=data.get("role", "default"),
         )
 
 
@@ -118,10 +100,15 @@ class CharacterManager:
         self._manifest_config = load_manifests(plugin_paths)
         return self._manifest_config
 
-    def list_profiles(self) -> list[Profile]:
+    def list_session_templates(self) -> list[SessionTemplate]:
         if self._manifest_config is None:
             return []
-        return self._manifest_config.profiles
+        return self._manifest_config.session_templates
+
+    def list_character_templates(self) -> list[CharacterTemplate]:
+        if self._manifest_config is None:
+            return []
+        return self._manifest_config.character_templates
 
     def list_command_routes(self):
         """Return manifest command_routes for QQ Bot prefix routing.
@@ -134,10 +121,15 @@ class CharacterManager:
             return []
         return self._manifest_config.command_routes
 
-    def get_profile(self, name: str) -> Profile | None:
+    def get_session_template(self, name: str) -> SessionTemplate | None:
         if self._manifest_config is None:
             return None
-        return self._manifest_config.get_profile(name)
+        return self._manifest_config.get_session_template(name)
+
+    def get_character_template(self, name: str) -> CharacterTemplate | None:
+        if self._manifest_config is None:
+            return None
+        return self._manifest_config.get_character_template(name)
 
     # ------------------------------------------------------------------ #
     #  Character CRUD
@@ -145,48 +137,22 @@ class CharacterManager:
 
     def create_character(
         self,
-        profile_name: str,
+        template_name: str,
         name: str | None = None,
         auto_index: bool = True,
     ) -> Character:
-        profile = self.get_profile(profile_name)
-        if profile is None:
-            raise ValueError(f"Profile not found: {profile_name}")
+        template = self.get_character_template(template_name)
+        if template is None:
+            raise ValueError(f"Character template not found: {template_name}")
 
         char_id = "char_" + secrets.token_hex(8)
-        
-        # Resolve mcp_servers: profile has names, manifest has full configs
-        mcp_configs: list[dict] = []
-        if profile.mcp_servers and self._manifest_config:
-            for srv_name in profile.mcp_servers:
-                for srv in self._manifest_config.mcp_servers:
-                    if srv.name == srv_name:
-                        cfg: dict = {"name": srv.name}
-                        if srv.command:
-                            cfg["command"] = srv.command
-                        if srv.args:
-                            cfg["args"] = srv.args
-                        if srv.env:
-                            cfg["env"] = srv.env
-                        if srv.cwd:
-                            cfg["cwd"] = srv.cwd
-                        mcp_configs.append(cfg)
-                        break
-        
+
         char = Character(
             id=char_id,
-            profile_name=profile.name,
-            name=name if name is not None else profile.name,
-            adapter=profile.adapter,
-            model=profile.model,
-            permission_mode=profile.permission_mode,
-            system_prompt=profile.system_prompt,
-            mcp_mode=profile.mcp_mode,
-            mcp_servers=mcp_configs,
+            name=name if name is not None else template.name,
             memory_db_path=str(self._memory_dir / f"{char_id}.sqlite"),
-            memory_dir=profile.memory_dir,
+            memory_dir=template.memory_dir,
             created_at=datetime.now(timezone.utc).isoformat(),
-            role=profile.role,
         )
 
         if auto_index and char.memory_dir:

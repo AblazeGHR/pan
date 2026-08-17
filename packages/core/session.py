@@ -33,7 +33,8 @@ class Session:
     permission_mode: str | None = None
     role: str = "default"  # Pan-internal boundary role (e.g. "meta-agent"), default "default"
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
-    character_id: str | None = None   # bound character ID (for memory + system_prompt)
+    character_id: str | None = None   # bound character ID (for memory + assets)
+    session_template: str | None = None  # session_template name this session was configured with (None = built-in default)
     system_prompt: str | None = None  # injected at Worker spawn
     game_id: str | None = None        # RuleWhisper game identifier for MCP tool calls
     raw_usage: dict | None = None
@@ -115,6 +116,7 @@ class Session:
             "role": self.role,
             "adapter_config": self.adapter_config,
             "character_id": self.character_id,
+            "session_template": self.session_template,
             "system_prompt": self.system_prompt,
             "game_id": self.game_id,
             "raw_usage": self.raw_usage,
@@ -147,6 +149,7 @@ def create(name: str, model: str | None = None,
            workdir: str = "",
            history: list[dict] | None = None,
            character_id: str | None = None,
+           session_template: str | None = None,
            system_prompt: str | None = None,
            game_id: str | None = None,
            # backward-compat kwargs (migrated to adapter_config)
@@ -174,6 +177,7 @@ def create(name: str, model: str | None = None,
         role=role,
         adapter_config=ac,
         character_id=character_id,
+        session_template=session_template,
         system_prompt=system_prompt,
         game_id=game_id,
         raw_usage=raw_usage,

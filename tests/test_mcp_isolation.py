@@ -163,7 +163,7 @@ def test_api_claim_missing_params(monkeypatch):
     _cleanup()
 
 
-# ── role propagation: character → session params ──
+# ── role propagation: session_template → session params ──
 
 def test_build_session_params_propagates_role(monkeypatch):
     import packages.web.server as srv
@@ -171,7 +171,7 @@ def test_build_session_params_propagates_role(monkeypatch):
     cm = CharacterManager()
     cm.load_manifest(["packages/mcp/manifest.json"])
     monkeypatch.setattr(srv, "_character_manager", cm)
-    params = srv._build_session_params({"name": "ma", "characterId": "meta-agent"})
+    params = srv._build_session_params({"name": "ma", "sessionTemplate": "meta-agent"})
     assert params.get("role") == "meta-agent"
 
 
@@ -179,7 +179,7 @@ def test_build_session_params_no_role_default(monkeypatch):
     import packages.web.server as srv
     monkeypatch.setattr(srv, "_character_manager", None)
     params = srv._build_session_params({"name": "plain"})
-    assert params.get("role") is None  # create() defaults to "default"
+    assert params.get("role") == "default"  # built-in default template
 
 
 # ── MCP isolation helpers ──

@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -191,27 +192,34 @@ class TestSessionGameId:
 
 
 # ------------------------------------------------------------------ #
-#  Character mcp_servers
+#  SessionTemplate mcp_servers (moved from Character)
 # ------------------------------------------------------------------ #
 
-class TestCharacterMCPServers:
+class TestSessionTemplateMCPServers:
     def test_mcp_servers_field_default(self):
-        from packages.core.character import Character
-        c = Character(id="char_test", profile_name="p", name="n")
-        assert c.mcp_servers == []
+        from packages.core.manifest_loader import SessionTemplate
+        t = SessionTemplate(name="t")
+        assert t.mcp_servers == []
 
-    def test_mcp_servers_roundtrip(self):
-        from packages.core.character import Character
-        c = Character(
-            id="char_test",
-            profile_name="p",
-            name="n",
-            mcp_servers=[{"name": "rw", "command": "python"}],
-        )
-        d = c.to_dict()
-        assert d["mcp_servers"] == [{"name": "rw", "command": "python"}]
-        c2 = Character.from_dict(d)
-        assert c2.mcp_servers == [{"name": "rw", "command": "python"}]
+    def test_mcp_servers_parsed_from_manifest(self):
+        from packages.core.manifest_loader import load_manifests
+        import json as _json
+        tmp = tempfile.mkdtemp(prefix="pan-mcp-tpl-")
+        try:
+            manifest = {
+                "session_templates": [
+                    {"name": "ma", "mcp_mode": "always", "mcp_servers": ["pan"]}
+                ],
+                "mcp_servers": [],
+                "command_routes": [],
+            }
+            p = Path(tmp) / "manifest.json"
+            p.write_text(_json.dumps(manifest), encoding="utf-8")
+            cfg = load_manifests([str(p)])
+            assert cfg.session_templates[0].mcp_servers == ["pan"]
+            assert cfg.session_templates[0].mcp_locked is True
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 # ------------------------------------------------------------------ #

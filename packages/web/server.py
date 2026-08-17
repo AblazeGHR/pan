@@ -25,6 +25,7 @@ from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
 from packages.core.config import load_config
 from packages.core.character import CharacterManager
+from packages.core.manifest_loader import SessionTemplate
 
 # ── logging ──
 
@@ -64,8 +65,8 @@ async def lifespan(app: FastAPI):
     _character_manager = CharacterManager(str(DATA_DIR))
     try:
         _character_manager.load_manifest(plugin_paths)
-        profiles = _character_manager.list_profiles()
-        _log(f"[Pan] Loaded {len(profiles)} character profiles from manifest")
+        templates = _character_manager.list_session_templates()
+        _log(f"[Pan] Loaded {len(templates)} session templates from manifest")
     except Exception as e:
         _log(f"[Pan] Character manifest not loaded: {e}")
     
@@ -213,6 +214,7 @@ def _session_to_api(s: sess.Session):
         "model": s.model or config.get("model") or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         "role": s.role,
+        "sessionTemplate": s.session_template,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
         "maxThinkingTokens": ac.get("max_thinking_tokens"),
@@ -236,13 +238,13 @@ def _session_to_api(s: sess.Session):
 
 
 def _get_mcp_locked_state(s) -> bool | None:
-    """Check if MCP toggle is locked for this session's character profile."""
-    if not s.character_id or _character_manager is None:
+    """Check if MCP toggle is locked for this session's session_template."""
+    if _character_manager is None or not s.session_template:
         return None
     try:
-        char = _character_manager.get_character(s.character_id)
-        if char and char.mcp_mode:
-            return char.mcp_mode in ("always", "never")
+        template = _character_manager.get_session_template(s.session_template)
+        if template and template.mcp_mode in ("always", "never"):
+            return True
     except Exception:
         pass
     return None
@@ -322,18 +324,44 @@ def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
 
 
 def _build_session_params(data: dict) -> dict:
-    """Extract session creation parameters from request data, with defaults."""
+    """Extract session creation parameters from request data, with defaults.
+
+    Session config (system_prompt / adapter / model / permission_mode /
+    mcp_mode / mcp_servers / role) comes from a session_template — either the
+    explicit ``sessionTemplate`` name or the built-in ``default`` template
+    (config.json session config). ``characterId`` only binds memory/assets.
+    """
     adapter_name = data.get("adapter") or "cbc"
     a = get_adapter(adapter_name)
     config = load_config().get(adapter_name, {})
     name = data.get("name", "default")
     workdir_name = data.get("workdir") or name
-    
+
+    # Resolve session_template: explicit name → manifest template; else default.
+    template_name = data.get("sessionTemplate") or data.get("session_template") or None
+    template = None
+    if template_name and _character_manager is not None:
+        template = _character_manager.get_session_template(template_name)
+
+    if template is None:
+        # Built-in default session_template = config.json session config.
+        template = SessionTemplate(
+            name="default",
+            adapter=adapter_name,
+            model=config.get("model") or a.default_model,
+            permission_mode=config.get("permission_mode"),
+            system_prompt="",
+            mcp_mode="optional",
+            mcp_servers=[],
+            role="default",
+        )
+        template_name = None  # don't record an explicit name for the default
+
     params = {
         "name": name,
-        "adapter": adapter_name,
-        "model": data.get("model") or config.get("model") or a.default_model,
-        "permission_mode": data.get("permissionMode") or config.get("permission_mode") or None,
+        "adapter": template.adapter,
+        "model": data.get("model") or template.model or config.get("model") or a.default_model,
+        "permission_mode": data.get("permissionMode") or template.permission_mode or config.get("permission_mode") or None,
         "workdir": str(_resolve_workdir(workdir_name)),
         "adapter_config": {
             "always_thinking_enabled": data.get("alwaysThinkingEnabled", config.get("always_thinking_enabled", False)),
@@ -341,47 +369,63 @@ def _build_session_params(data: dict) -> dict:
             "max_thinking_tokens": data.get("maxThinkingTokens") or None,
             "mcp_enabled": data.get("mcpEnabled", MCP_DEFAULT_ENABLED),
         },
+        "session_template": template_name,
+        "role": template.role,
+        "system_prompt": template.system_prompt,
     }
     # Optional worker execution mode ("stream" | "oneshot"); validated later
     # by _apply_output_mode. Unset = automatic (existing behaviour).
     if "outputMode" in data and data.get("outputMode") not in (None, ""):
         params["adapter_config"]["output_mode"] = data["outputMode"]
-    
-    # If characterId is set, override adapter/model/permission_mode/system_prompt from character
+
+    # MCP servers come from the template (names → full configs).
+    if template.mcp_servers:
+        params["adapter_config"]["mcp_servers"] = _resolve_mcp_server_configs(template.mcp_servers)
+    # mcp_mode lock: "always"/"never" override the toggle default.
+    if template.mcp_mode == "always":
+        params["adapter_config"]["mcp_enabled"] = True
+    elif template.mcp_mode == "never":
+        params["adapter_config"]["mcp_enabled"] = False
+
+    # Character binding: memory/assets only (no session config from character).
     character_id = data.get("characterId")
     if character_id and _character_manager is not None:
         char = _character_manager.get_character(character_id)
         if char is None:
-            # characterId may be a profile name (e.g. "meta-agent") rather than a
-            # persisted character id — instantiate the profile on first use.
+            # characterId may be a character_template name (e.g. "coc-keeper")
+            # rather than a persisted character id — instantiate on first use.
             try:
                 char = _character_manager.create_character(character_id)
             except ValueError:
                 char = None
         if char:
-            if not data.get("adapter"):
-                params["adapter"] = char.adapter
-            if not data.get("model"):
-                params["model"] = char.model
-            if not data.get("permissionMode"):
-                params["permission_mode"] = char.permission_mode
             params["character_id"] = char.id
-            params["role"] = char.role
-            params["system_prompt"] = char.system_prompt
-            # Always pass mcp_servers so config is available if user toggles MCP on
-            if char.mcp_servers is not None and len(char.mcp_servers) > 0:
-                params["adapter_config"]["mcp_servers"] = char.mcp_servers
-            # Set mcp_enabled based on profile's mcp_mode
-            if char.mcp_mode == "always":
-                params["adapter_config"]["mcp_enabled"] = True
-            elif char.mcp_mode == "never":
-                params["adapter_config"]["mcp_enabled"] = False
-            elif char.mcp_mode == "optional":
-                # Start in stream mode, user can toggle later
-                if "mcp_enabled" not in params["adapter_config"]:
-                    params["adapter_config"]["mcp_enabled"] = False
-    
+
     return params
+
+
+def _resolve_mcp_server_configs(server_names) -> list[dict]:
+    """Resolve MCP server names to full configs from the manifest table."""
+    if _character_manager is None or _character_manager._manifest_config is None:
+        raise ValueError("MCP manifest not loaded")
+    configs: list[dict] = []
+    for name in server_names:
+        for srv in _character_manager._manifest_config.mcp_servers:
+            if srv.name == name:
+                cfg: dict = {"name": srv.name}
+                if srv.command:
+                    cfg["command"] = srv.command
+                if srv.args:
+                    cfg["args"] = srv.args
+                if srv.env:
+                    cfg["env"] = srv.env
+                if srv.cwd:
+                    cfg["cwd"] = srv.cwd
+                configs.append(cfg)
+                break
+        else:
+            raise ValueError(f"Unknown MCP server: {name!r}")
+    return configs
 
 
 def _safe_adapter(adapter_name: str):
@@ -428,53 +472,32 @@ def _apply_session_updates(s: sess.Session, data: dict):
 def _apply_mcp_servers(s: sess.Session, server_names) -> None:
     """Set session mcp_servers by manifest server names (e.g. ["pan"]).
 
-    Resolves names to full configs via the character manager's manifest table
-    (same as create_character). Accepts a list of names, or None/[] to clear.
+    Resolves names to full configs via the character manager's manifest table.
+    Accepts a list of names, or None/[] to clear.
     """
     if server_names in (None, [], ""):
         s.set_adapter_field("mcp_servers", [])
         return
     if not isinstance(server_names, list):
         raise ValueError("mcpServers must be a list of server names")
-    if _character_manager is None or _character_manager._manifest_config is None:
-        raise ValueError("MCP manifest not loaded")
-    configs: list[dict] = []
-    for name in server_names:
-        found = False
-        for srv in _character_manager._manifest_config.mcp_servers:
-            if srv.name == name:
-                cfg: dict = {"name": srv.name}
-                if srv.command:
-                    cfg["command"] = srv.command
-                if srv.args:
-                    cfg["args"] = srv.args
-                if srv.env:
-                    cfg["env"] = srv.env
-                if srv.cwd:
-                    cfg["cwd"] = srv.cwd
-                configs.append(cfg)
-                found = True
-                break
-        if not found:
-            raise ValueError(f"Unknown MCP server: {name!r}")
-    s.set_adapter_field("mcp_servers", configs)
+    s.set_adapter_field("mcp_servers", _resolve_mcp_server_configs(server_names))
 
 
 def _apply_mcp_enabled(s: sess.Session, enable: bool):
-    """Apply mcpEnabled toggle, respecting profile mcp_mode lock.
+    """Apply mcpEnabled toggle, respecting session_template mcp_mode lock.
 
     No broad `except Exception: pass` here — swallowing non-ValueError
-    exceptions bypassed the always/never lock (#12). If the character lookup
+    exceptions bypassed the always/never lock (#12). If the template lookup
     raises, that's a real error and should surface.
     """
-    if s.character_id and _character_manager is not None:
-        char = _character_manager.get_character(s.character_id)
-        if char:
-            if char.mcp_mode == "always" and not enable:
-                raise ValueError(f"MCP is locked to 'always' for profile '{char.profile_name}'. Cannot disable.")
-            if char.mcp_mode == "never" and enable:
-                raise ValueError(f"MCP is locked to 'never' for profile '{char.profile_name}'. Cannot enable.")
-            if char.mcp_mode == "always":
+    if s.session_template and _character_manager is not None:
+        template = _character_manager.get_session_template(s.session_template)
+        if template:
+            if template.mcp_mode == "always" and not enable:
+                raise ValueError(f"MCP is locked to 'always' for session template '{template.name}'. Cannot disable.")
+            if template.mcp_mode == "never" and enable:
+                raise ValueError(f"MCP is locked to 'never' for session template '{template.name}'. Cannot enable.")
+            if template.mcp_mode == "always":
                 # Already enabled, no-op
                 s.set_adapter_field("mcp_enabled", True)
                 return
@@ -1860,22 +1883,26 @@ def _get_memory_manager(character_id: str):
 
 @app.get("/api/characters/profiles")
 async def api_characters_profiles():
-    """List available character profiles from manifest."""
+    """List available session templates from manifest (legacy endpoint path).
+
+    Semantically this endpoint lists session_templates (the former "profiles"),
+    which now describe session config rather than characters.
+    """
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
-    profiles = _character_manager.list_profiles()
+    templates = _character_manager.list_session_templates()
     return {
-        "profiles": [
+        "sessionTemplates": [
             {
-                "name": p.name,
-                "adapter": p.adapter,
-                "model": p.model,
-                "mcpServers": list(p.mcp_servers or []),
-                "system_prompt_preview": p.system_prompt[:100] + "..." if len(p.system_prompt) > 100 else p.system_prompt,
+                "name": t.name,
+                "adapter": t.adapter,
+                "model": t.model,
+                "mcpServers": list(t.mcp_servers or []),
+                "system_prompt_preview": t.system_prompt[:100] + "..." if len(t.system_prompt) > 100 else t.system_prompt,
             }
-            for p in profiles
+            for t in templates
         ],
-        "total": len(profiles),
+        "total": len(templates),
     }
 
 
@@ -1903,15 +1930,15 @@ async def api_manifest_command_routes():
 
 @app.post("/api/characters")
 async def api_characters_create(data: dict):
-    """Create a new character from a manifest profile."""
+    """Create a new character from a manifest character_template."""
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
-    profile_name = data.get("profile_name", "")
-    if not profile_name:
-        return {"error": "profile_name is required"}
+    template_name = data.get("template_name", "")
+    if not template_name:
+        return {"error": "template_name is required"}
     try:
         char = _character_manager.create_character(
-            profile_name=profile_name,
+            template_name=template_name,
             name=data.get("name"),
             auto_index=True,
         )
@@ -1919,11 +1946,9 @@ async def api_characters_create(data: dict):
         return {"error": str(e)}
     return {
         "id": char.id,
-        "profile_name": char.profile_name,
         "name": char.name,
-        "adapter": char.adapter,
-        "model": char.model,
-        "system_prompt_preview": char.system_prompt[:100] + "..." if len(char.system_prompt) > 100 else char.system_prompt,
+        "memory_db_path": char.memory_db_path,
+        "memory_dir": char.memory_dir,
         "created_at": char.created_at,
     }
 
@@ -1936,13 +1961,7 @@ async def api_characters_list():
     chars = _character_manager.list_characters()
     return {
         "characters": [
-            {
-                "id": c.id,
-                "profile_name": c.profile_name,
-                "name": c.name,
-                "adapter": c.adapter,
-                "model": c.model,
-            }
+            {"id": c.id, "name": c.name}
             for c in chars
         ],
         "total": len(chars),
@@ -1968,11 +1987,7 @@ async def api_characters_get(character_id: str):
         pass
     return {
         "id": char.id,
-        "profile_name": char.profile_name,
         "name": char.name,
-        "adapter": char.adapter,
-        "model": char.model,
-        "system_prompt": char.system_prompt,
         "memory_db_path": char.memory_db_path,
         "memory_dir": char.memory_dir,
         "memory_stats": {"files": mem_stats.files, "chunks": mem_stats.chunks} if mem_stats else None,

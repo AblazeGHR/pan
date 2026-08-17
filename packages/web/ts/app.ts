@@ -78,7 +78,7 @@ interface ApiGenericResponse {
   takeoverCommand?: string;
 }
 
-interface CharacterProfile {
+interface SessionTemplate {
   name: string;
   adapter?: string;
   model?: string;
@@ -86,8 +86,8 @@ interface CharacterProfile {
   system_prompt_preview?: string;
 }
 
-interface ApiProfilesResponse {
-  profiles?: CharacterProfile[];
+interface ApiSessionTemplatesResponse {
+  sessionTemplates?: SessionTemplate[];
   error?: string;
 }
 
@@ -1506,8 +1506,8 @@ function _doCreateSession(name: string, workdir: string | null, adapter?: string
   const body: Record<string, string> = { name: name, adapter: adp };
   if (workdir) body.workdir = workdir;
   const profileSel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
-  const characterId = profileSel ? profileSel.value : '';
-  if (characterId) body.characterId = characterId;
+  const sessionTemplate = profileSel ? profileSel.value : '';
+  if (sessionTemplate) body.sessionTemplate = sessionTemplate;
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1811,24 +1811,24 @@ function _populateNewSessionAdapterSelect(): void {
   sel.value = currentAdapter || 'cbc';
 }
 
-/** Fetch character profiles (GET /api/characters/profiles). Resolves to the
- *  profile array; resolves to [] on failure so callers stay simple. */
-function _fetchProfiles(): Promise<CharacterProfile[]> {
+/** Fetch session templates (GET /api/characters/profiles). Resolves to the
+ *  template array; resolves to [] on failure so callers stay simple. */
+function _fetchSessionTemplates(): Promise<SessionTemplate[]> {
   return fetch('/api/characters/profiles')
     .then((r: Response) => r.json())
-    .then((data: ApiProfilesResponse) => data.profiles || [])
+    .then((data: ApiSessionTemplatesResponse) => data.sessionTemplates || [])
     .catch(function () { return []; });
 }
 
-/** Populate the Profile selector in the new-session modal. First option is
- *  "（无 Profile）" (value ""), then one option per profile labelled
- *  "name (model) [MCP]" ([MCP] when the profile ships mcpServers). */
+/** Populate the session-template selector in the new-session modal. First
+ *  option is "（无模板）" (value ""), then one option per template labelled
+ *  "name (model) [MCP]" ([MCP] when the template ships mcpServers). */
 function _populateNewSessionProfileSelect(): void {
   const sel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
   if (!sel) return;
-  sel.innerHTML = '<option value="">（无 Profile）</option>';
-  _fetchProfiles().then((profiles: CharacterProfile[]) => {
-    profiles.forEach((p: CharacterProfile) => {
+  sel.innerHTML = '<option value="">（无模板）</option>';
+  _fetchSessionTemplates().then((templates: SessionTemplate[]) => {
+    templates.forEach((p: SessionTemplate) => {
       const opt = document.createElement('option');
       opt.value = p.name;
       let label = p.name + ' (' + (p.model || '?') + ')';
