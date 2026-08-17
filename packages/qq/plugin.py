@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
+import websockets
 from nonebot import get_driver, on_message
 from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, MessageEvent, PrivateMessageEvent
 
@@ -33,6 +34,7 @@ def _default_port():
         return 8767
 
 PAN_URL = os.getenv("PAN_URL", f"http://127.0.0.1:{_default_port()}")
+_WS_URL = os.getenv("PAN_WS_URL", PAN_URL.replace("http://", "ws://", 1) + "/ws/agent")
 POLL_INTERVAL = 1.5
 MAX_POLL_TIME = 120
 
@@ -134,6 +136,13 @@ _sessions: dict[str, "BridgeSession"] = {}
 _pending: dict[str, asyncio.Event] = {}
 _poll_tasks: dict[str, asyncio.Task] = {}
 
+# ── WebSocket push state ──
+# session_id → last consumed result taskSeq. Shared by the WS handler and the
+# poll fallback so neither re-delivers a result already resolved (replay/dup).
+_consumed_seq: dict[str, int] = {}
+_ws_task: asyncio.Task | None = None
+_ws_connected = asyncio.Event()  # set while subscribed to /ws/agent
+
 
 @dataclass
 class BridgeSession:
@@ -192,18 +201,50 @@ async def _patch(path: str, data: dict = None) -> dict:
         return {"error": str(e)}
 
 
-# ── polling ──
+# ── result delivery: WS push (primary) + poll (fallback) ──
+#
+# Primary path subscribes to /ws/agent worker.result events → real-time delivery
+# (replaces the old 1.5s HTTP polling). `_poll_result` is kept as a fallback
+# that only hits HTTP while the WS is disconnected, so a WS outage degrades to
+# the previous polling behavior instead of dropping replies.
+#
+# Subscription strategy: we subscribe server-side to *all* worker.result events
+# and filter locally via `_pending` (sessions with an active waiter). Sessions
+# are created lazily per QQ chat, so a server-side sessionIds filter would need
+# a resubscribe on every session creation; local filtering is equivalent and
+# simpler. `_consumed_seq` dedupes replays / duplicates across WS and poll.
+
+def _set_pending(session_id: str) -> None:
+    """Resolve the pending waiter for session_id, if any."""
+    evt = _pending.get(session_id)
+    if evt and not evt.is_set():
+        evt.set()
+
 
 async def _poll_result(session_id: str, session_key: str):
+    """Poll fallback — only does HTTP while the WS push is unavailable."""
     session = _sessions.get(session_key)
     if not session:
         return
 
     start = time.time()
-    last_ts = session.last_result_ts
+    start_ts = session.last_result_ts
 
-    while time.time() - start < MAX_POLL_TIME:
+    while True:
         await asyncio.sleep(POLL_INTERVAL)
+
+        evt = _pending.get(session_id)
+        if evt is None or evt.is_set():
+            return  # resolved by WS push, or waiter already gone
+
+        # WS is live — it owns delivery; never force-resolve early here.
+        if _ws_connected.is_set():
+            continue
+
+        # WS down: enforce the polling ceiling, then degrade gracefully.
+        if time.time() - start >= MAX_POLL_TIME:
+            _set_pending(session_id)
+            return
 
         try:
             data = await _get(f"/api/sessions/{session_id}")
@@ -213,35 +254,97 @@ async def _poll_result(session_id: str, session_key: str):
             # worker gone (server restart / worker crash) — stop early
             if not data.get("workerId"):
                 print(f"[QQ Bridge] Session {session_id} worker gone, stop polling")
-                evt = _pending.get(session_id)
-                if evt:
-                    evt.set()
+                _set_pending(session_id)
                 return
 
             # worker error state — stop early
             if data.get("workerStatus") == "error":
                 print(f"[QQ Bridge] Session {session_id} worker error, stop polling")
-                evt = _pending.get(session_id)
-                if evt:
-                    evt.set()
+                _set_pending(session_id)
                 return
 
             lr = data.get("lastResult") or {}
-
             new_ts = lr.get("timestamp", "") if lr else ""
-            if new_ts and new_ts != last_ts:
-                session.last_result_ts = new_ts
-                evt = _pending.get(session_id)
-                if evt:
-                    evt.set()
-                return
+            new_seq = lr.get("taskSeq") if lr else None
+
+            if isinstance(new_seq, int):
+                # seq-based: only newer results resolve the waiter
+                if new_seq > _consumed_seq.get(session_id, 0):
+                    _consumed_seq[session_id] = new_seq
+                    if new_ts:
+                        session.last_result_ts = new_ts
+                    _set_pending(session_id)
+                    return
+            else:
+                # legacy data without taskSeq: fall back to timestamp change
+                if new_ts and new_ts != start_ts:
+                    session.last_result_ts = new_ts
+                    _set_pending(session_id)
+                    return
 
         except Exception:
             await asyncio.sleep(2)
 
-    evt = _pending.get(session_id)
-    if evt:
-        evt.set()
+
+# ── WebSocket push ──
+
+def _handle_ws_result(ev: dict) -> None:
+    """Handle a worker.result event (sync: only dict ops + Event.set)."""
+    session_id = ev.get("sessionId")
+    if not session_id:
+        return
+    seq = ev.get("taskSeq")
+    if isinstance(seq, int):
+        if seq <= _consumed_seq.get(session_id, 0):
+            return  # replay / duplicate — already consumed
+        _consumed_seq[session_id] = seq
+    _set_pending(session_id)
+
+
+async def _agent_ws_loop() -> None:
+    """Persistent /ws/agent subscription with 5s reconnect backoff.
+
+    Core restart rebuilds per-connection subscription state, so we re-subscribe
+    on every connect, then send a `reconnect` catch-up for sessions with active
+    waiters — the server replays the latest done result for each, covering
+    results that landed while the WS was down.
+    """
+    while True:
+        try:
+            async with websockets.connect(_WS_URL, close_timeout=2) as ws:
+                await ws.send(json.dumps({
+                    "type": "subscribe",
+                    "eventTypes": ["worker.result"],
+                }))
+                pending_ids = list(_pending.keys())
+                if pending_ids:
+                    await ws.send(json.dumps({
+                        "type": "reconnect",
+                        "sessionIds": pending_ids,
+                    }))
+                _ws_connected.set()
+                print(f"[QQ Bridge] WS connected: {_WS_URL}")
+                async for raw in ws:
+                    try:
+                        ev = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if ev.get("type") == "worker.result":
+                        _handle_ws_result(ev)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[QQ Bridge] WS disconnected ({type(e).__name__}: {e}), reconnect in 5s")
+        finally:
+            _ws_connected.clear()
+        await asyncio.sleep(5)
+
+
+def _ensure_ws_task() -> None:
+    """Lazily start the WS subscription loop (idempotent)."""
+    global _ws_task
+    if _ws_task is None or _ws_task.done():
+        _ws_task = asyncio.create_task(_agent_ws_loop())
 
 
 async def _ensure_session(scope_id: str, scope: str = "user") -> str | None:
@@ -277,6 +380,11 @@ async def _ensure_session(scope_id: str, scope: str = "user") -> str | None:
                     last_result_ts=lr.get("timestamp", ""),
                 )
                 _sessions[session_key] = bridge
+                # Seed the consumed cursor so WS/poll won't re-deliver the
+                # session's existing last result as if it were new.
+                seq = lr.get("taskSeq") if lr else None
+                if isinstance(seq, int):
+                    _consumed_seq[sess_data["id"]] = max(_consumed_seq.get(sess_data["id"], 0), seq)
                 if not bridge.worker_id:
                     result = await _post("/api/spawn", {"sessionId": bridge.session_id})
                     if "error" not in result:
@@ -307,6 +415,7 @@ async def _ensure_session(scope_id: str, scope: str = "user") -> str | None:
 
 
 async def _send_and_wait(text: str, scope_id: str, scope: str = "user") -> str:
+    _ensure_ws_task()
     session_id = await _ensure_session(scope_id, scope)
     if not session_id:
         return "[Pan] cannot create session"
@@ -347,6 +456,12 @@ async def _send_and_wait(text: str, scope_id: str, scope: str = "user") -> str:
     data = await _get(f"/api/sessions/{session_id}")
     if "error" in data:
         return "[Pan] cannot get response"
+
+    # keep the cached ts fresh so the poll fallback doesn't re-detect an old
+    # result for the next message
+    session = _sessions.get(session_key)
+    if session and lr and lr.get("timestamp"):
+        session.last_result_ts = lr.get("timestamp", "")
 
     # prefer lastResult.result — cbc sometimes only gives final text in result event
     lr = data.get("lastResult") or {}
@@ -446,6 +561,7 @@ driver = get_driver()
 
 @driver.on_startup
 async def _startup():
+    _ensure_ws_task()
     try:
         data = await _get("/api/models")
         models = data.get("models", [])
@@ -465,9 +581,14 @@ async def _startup():
 
 @driver.on_shutdown
 async def _shutdown():
+    global _ws_task
     for task in list(_poll_tasks.values()):
         task.cancel()
     if _poll_tasks:
         await asyncio.gather(*_poll_tasks.values(), return_exceptions=True)
+    if _ws_task:
+        _ws_task.cancel()
+        await asyncio.gather(_ws_task, return_exceptions=True)
+        _ws_task = None
     if _client:
         await _client.aclose()
