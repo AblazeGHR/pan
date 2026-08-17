@@ -42,14 +42,24 @@ class MockProcess:
         self.returncode = returncode
         self.pid = pid
         self.stdin = AsyncMock()
-        self.stdout = self._async_iter(hold_open)
+        self._hold_open = hold_open
+        self.stdout = self
 
-    async def _async_iter(self, hold_open: bool):
-        for e in self._events:
-            yield e
-        if hold_open:
+    async def readline(self):
+        if self._events:
+            return self._events.pop(0)
+        if self._hold_open:
             # simulate long-running CLI: block forever (no EOF)
             await asyncio.Event().wait()
+        return b""
+
+    async def read(self, n=-1):
+        # 分块读兼容：一次返回一个事件行（含换行）；EOF 返回 b""
+        if self._events:
+            return self._events.pop(0)
+        if self._hold_open:
+            await asyncio.Event().wait()
+        return b""
 
 
 def _setup_session():

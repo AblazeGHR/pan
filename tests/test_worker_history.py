@@ -69,13 +69,20 @@ class MockProcess:
         self.returncode = None
         self.pid = pid
         self.stdin = AsyncMock()
-        self.stdout = self._async_iter()
+        self.stdout = self
 
-    async def _async_iter(self):
-        for e in self._events:
-            yield e
+    async def readline(self):
+        if self._events:
+            return self._events.pop(0)
         # EOF — _read_stdout will then see returncode None (still alive)
         # but in real cbc EOF means exit. For tests we control returncode.
+        return b""
+
+    async def read(self, n=-1):
+        # 分块读兼容：一次返回一个事件行（含换行）；EOF 返回 b""
+        if self._events:
+            return self._events.pop(0)
+        return b""
 
     def kill(self):
         self.returncode = -9

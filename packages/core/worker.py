@@ -307,10 +307,44 @@ def _use_oneshot_mcp(s: _sess.Session | None) -> bool:
 
 # ── stdout reader ──
 
+
+async def _iter_stdout_lines(w: Worker):
+    """分块读取 worker stdout，按换行切分产出完整行。
+
+    替代 ``readline()``：Windows asyncio 管道上，超大单行（如 Read 大文件的
+    tool result，几百 KB ~ MB）会让 readline 永久挂起（Pan 卡死根因）。分块
+    read(65536) + 自切行不依赖单次读完一行；超过 _STDOUT_MAX_LINE 的行截断为
+    占位，避免大行占满 history 上下文。
+    """
+    _STDOUT_MAX_LINE = 256 * 1024  # 单行上限 256KB，超出截断
+    buf = b""
+    while True:
+        try:
+            chunk = await asyncio.wait_for(w.process.stdout.read(65536), timeout=60)
+        except asyncio.TimeoutError:
+            _log.warning("[Worker %s] stdout 读取超时（cbc 静默），继续等待", w.worker_id)
+            w.last_activity = time.monotonic()
+            continue
+        if not chunk:
+            break  # EOF
+        buf += chunk
+        while b"\n" in buf:
+            line, buf = buf.split(b"\n", 1)
+            if len(line) > _STDOUT_MAX_LINE:
+                line = line[:_STDOUT_MAX_LINE] + b" ... [tool result truncated]"
+            yield line
+    if buf:
+        yield buf  # 最后一行无换行（EOF 残留）
+
+
 async def _read_stdout(w: Worker):
     adapter = w.adapter
     s = None  # bound even if stdout yields no parseable event (EOF check below)
-    async for line in w.process.stdout:
+    # 分块读取 stdout（read 65536 + 按换行切分），避免大 tool result 单行在
+    # Windows asyncio 管道上挂起（Pan 卡死根因）；大行截断占位（_iter_stdout_lines）。
+    line_count = 0
+    async for line in _iter_stdout_lines(w):
+        line_count += 1
         line_str = line.decode("utf-8", errors="replace").rstrip("\n")
         if not line_str:
             continue
