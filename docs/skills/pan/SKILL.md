@@ -7,7 +7,7 @@ description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 M
 
 Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通过 Pan MCP 工具调度多个 CLI Worker 进程（cbc/kimi），每个 Worker 拥有独立的会话（Session）和记忆（workdir）。
 
-> **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/plans&overviews/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——改内容先改主源，再复制到副本保持同步。MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
+> **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/archive/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——改内容先改主源，再复制到副本保持同步。MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
 
 ## 0. 快速开始（30 秒冷启动）
 
@@ -531,7 +531,7 @@ A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`
 
 ## 13. skill 维护规范
 
-> 本 skill 是**项目维护的重点内容**（立项 `docs/plans&overviews/Pan冷启动Agent编排skill立项.md` §二·5），随代码演进，变更走 git PR/提交与代码同轨。以下规范不仅适用于本 skill，也适用于所有**文档/手册类任务**。
+> 本 skill 是**项目维护的重点内容**（立项 `docs/archive/Pan冷启动Agent编排skill立项.md` §二·5），随代码演进，变更走 git PR/提交与代码同轨。以下规范不仅适用于本 skill，也适用于所有**文档/手册类任务**。
 
 ### 13.1 自包含可验证：编写与验证闭环
 
@@ -555,7 +555,7 @@ A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`
 
 ## 关联文档
 
-- `docs/plans&overviews/Pan冷启动Agent编排skill立项.md` — 本 skill 的立项依据
+- `docs/archive/Pan冷启动Agent编排skill立项.md` — 本 skill 的立项依据
 - `docs/plans&overviews/Worker监督与事件驱动模式.md` — 监督/盯梢实战、完成通知二选一
 - `docs/cbc-mcp-踩坑记录.md` — MCP 接入过程、/ws/agent 订阅协议、deferred 判定
 - `packages/web/server.py` — HTTP API 与 /ws/agent 实现（单一事实源）

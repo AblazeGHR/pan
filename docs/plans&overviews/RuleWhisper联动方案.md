@@ -8,7 +8,7 @@
 
 ## 一、概念体系（Pan 侧五个核心层级）
 
-> **术语更新（2026-08-17）**：`Profile` 已拆分为 `session_template`（session 配置）+ `character_template`（character 创建模板），详见 `Character概念分层重构立项.md`。下表为目标态；当前代码仍用旧名 `Profile`，实施迁移后同步。
+> **术语更新（2026-08-17）**：`Profile` 已拆分为 `session_template`（session 配置）+ `character_template`（character 创建模板），详见 `docs/archive/Character概念分层重构立项.md`。下表为目标态；当前代码仍用旧名 `Profile`，实施迁移后同步。
 
 | 概念 | 定义 | 谁管 |
 |------|------|------|
