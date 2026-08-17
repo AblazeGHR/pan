@@ -1,7 +1,9 @@
 # Profile 权限字段 + Meta-Agent 管理被管 Session — 立项
 
-> 状态：立项阶段（决策已定，**不改代码**） | 创建：2026-08-16
-> 目标：给 Profile 增加权限字段；meta-agent 的 session 多出"管理的 session"；被管 session done 后把报告推入 meta-agent 消息队列，等其 idle 后消费。
+> 状态：已实施（2026-08-17，见 `阶段计划与进度.md` P4）；其中「role 权限字段」决策已被 `Role字段取消与能力字段拆解立项.md` 取代 | 创建：2026-08-16
+> 目标：给 Profile 增加权限字段；meta-agent 的 session 多出"管理的 session"；被管 session done 后把报告推入 meta-agent 消息队列，等其 idle 后消费。（其中「role 权限字段」已取消，见下方术语更新）
+>
+> **术语更新（2026-08-17）**：本文的 `Profile` 在 `Character概念分层重构立项.md` 中改名为 `session_template`。**`role` 字段已被取消**——拆解为能力字段（`restrict_to_managed` / `can_claim_unmanaged` / `auto_claim_created`，见 `Role字段取消与能力字段拆解立项.md`），本文 4.1 的「role 权限字段」决策被取代。本文「Profile」一律读作「session_template」。
 
 ---
 
@@ -17,7 +19,7 @@ meta-agent 通过 MCP 工具（`worker_spawn` / `worker_task` / `worker_handoff`
 
 ## 二、目标
 
-1. 给 Profile 增加 **`role` 权限字段**（单枚举，所有 profile 都可声明，meta-agent 只是取值之一，默认 `default`）。
+1. 给 Profile 增加 **`role` 权限字段**（单枚举，所有 profile 都可声明，meta-agent 只是取值之一，默认 `default`）。（**已废弃**：role 拆为能力字段，见顶部术语更新）
 2. **内部边界**：`role` 是 Pan 内部管理边界，不透传 CLI。**后续借它改 MCP**：禁止 meta-agent 触碰不属于它的 session。
 3. meta-agent 的 session 多出 **"管理的 session"** 字段（结构化归属）。
 4. 被管 session **done 后**把报告推入 **meta-agent 的消息队列**，等 meta-agent **idle 后消费**（形式与 handoff 报告类似）。
@@ -65,7 +67,7 @@ meta-agent 通过 MCP 工具（`worker_spawn` / `worker_task` / `worker_handoff`
 
 ## 四、已定决策
 
-### 4.1 role 权限字段
+### 4.1 role 权限字段（已被 `Role字段取消与能力字段拆解立项.md` 取代，见顶部术语更新）
 
 - **命名/语义**：`role`（单字段枚举）。所有 profile 都可声明，meta-agent 只是取值之一，**默认值 `default`**。
 - **内部边界**：不透传 CLI，是 Pan 内部管理边界。
@@ -181,7 +183,7 @@ meta-agent 通过 `worker_send`（`packages/mcp/server.py:311`）向被管 sessi
 
 ## 六、任务拆解（若立项通过）
 
-- [ ] `role` 字段：Profile / Character / Session + manifest 声明 + 下放（manifest_loader / character / session / server 透传），默认 `default`
+- [x] ~~`role` 字段~~ **废弃**：role 已取消，拆为能力字段（见 `Role字段取消与能力字段拆解立项.md`）
 - [ ] 归属：`managed`（列表）+ `managed_by`（反查），双向落盘，创建/接管时写入，API 暴露，删除清理
 - [ ] 报告入队（订阅制）：`_consumer` 完成路径复用，`managed_by` 存在**且 meta-agent 已订阅该 session 报告**才 append 入落盘队列，对齐 handoff 格式
 - [ ] 报告订阅：`Session.report_subscriptions`（落盘）+ MCP 工具 `report_subscribe`/`report_unsubscribe`
@@ -191,6 +193,6 @@ meta-agent 通过 `worker_send`（`packages/mcp/server.py:311`）向被管 sessi
 - [ ] handoff 演进：`worker_handoff` 标记 deprecated（注释 + MCP description），`Worker.queue` 改名，seq 配对不动
 - [ ] MA 消息前缀：`mcp_args()` 注入 `PAN_AGENT_SESSION_ID/TITLE` env，`worker_send` 拼接 `////by agent : ...` 前缀
 - [ ] mcp-config 收敛：`mcp_args()` 改写 `data/mcp-configs/<session_id>.mcp.json`（不再写 workdir），session 删除清理
-- [ ] MCP 隔离（后续）：借 `role` + `managed` 禁止 meta-agent 触碰非其管理的 session
+- [ ] MCP 隔离（后续）：借能力字段（`restrict_to_managed` 等）+ `managed` 禁止触碰非其管理的 session
 - [ ] 未来队列编辑（后续）：API 暴露真源 `queue_pending` 的查看/修改/排序/拼接，改后发信号重取
 - [ ] 测试 + 文档更新（MCP 工具、SKILL.md、本立项收尾）

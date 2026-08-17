@@ -2,6 +2,8 @@
 
 > 背景：`mcp_enabled`（布尔）是冗余的"纸面开关"，`mcp_servers` 才是真正决定 MCP 启用的字段。
 > 状态：立项阶段（仅记录设计考量，**不改代码**）| 创建：2026-08-17
+>
+> **关联更新（2026-08-17）**：`mcp_mode`/`mcp_servers` 在 `Character概念分层重构立项.md` 中从 character 迁移到 `session_template`。本文「character → mcp_mode/mcp_servers」的现状描述，迁移后改为「session_template → mcp_mode/mcp_servers」，决定链语义不变。
 
 ---
 

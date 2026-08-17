@@ -6,14 +6,17 @@
 
 ---
 
-## 一、概念体系（Pan 侧四个核心层级）
+## 一、概念体系（Pan 侧五个核心层级）
+
+> **术语更新（2026-08-17）**：`Profile` 已拆分为 `session_template`（session 配置）+ `character_template`（character 创建模板），详见 `Character概念分层重构立项.md`。下表为目标态；当前代码仍用旧名 `Profile`，实施迁移后同步。
 
 | 概念 | 定义 | 谁管 |
 |------|------|------|
-| **profile** | Character 创建模板。声明 adapter / model / mcp_servers / system_prompt。 | manifest.json `profiles[]` |
-| **character** | 独立机器人实例，由 profile 创建。有唯一记忆，可持多个 session。同一 profile 可创建多个同规格的 character，各自记忆独立。 | Pan 管理 |
-| **session** | character 下的一个对话房间（绑 group_id），消息历史属于 session。session 内需要计算时才 spawn Worker，Worker 无状态无个性。 | Pan 管理 |
-| **Worker** | 纯计算进程（cbc/kimi 子进程），依附于 session，仅承载 LLM 推理。**无状态、无个性**——identity/memory 在 character，上下文在 session。 | Pan spawn，透明 |
+| **session_template** | session 配置模板。声明 adapter / model / mcp_servers / system_prompt / mcp_mode。 | manifest.json `session_templates[]` |
+| **character_template** | character 创建模板。声明 bootstrap 资产 + 初始记忆 + 引用的 session_template(s)。**不含 system_prompt**。 | manifest.json `character_templates[]` |
+| **character** | 独立持久实体，由 character_template 创建。拥有唯一记忆 + 资产，可持多个 session（共享记忆/资产）。自身无 prompt，复用 session_template 获得 session 配置。 | Pan 管理 |
+| **session** | 一次对话房间（绑 group_id），消息历史属于 session。可选绑定 character、可选指定 session_template（不选则用 config.json 默认配置）。需要计算时才 spawn Worker，Worker 无状态无个性。 | Pan 管理 |
+| **Worker** | 纯计算进程（cbc/kimi 子进程），依附于 session，仅承载 LLM 推理。**无状态、无个性**——identity/memory/资产在 character，上下文在 session。 | Pan spawn，透明 |
 
 ---
 
@@ -51,7 +54,7 @@ Pan 已有 QQ Bot 通道（`packages/qq/plugin.py`）和 Worker 管理能力（c
 
 ## 四、核心原则：Pan 通用化
 
-Pan 的 `config.json` / `plugin.py` **不出现任何 RuleWhisper 的字面量**（`.rc`、`coc-keeper`、`src.server.mcp` 等）。一切领域约定由 RuleWhisper 的 `manifest.json` 声明，Pan 只是一个通用加载器，负责 profile → character → session → Worker 的生命周期管理。
+Pan 的 `config.json` / `plugin.py` **不出现任何 RuleWhisper 的字面量**（`.rc`、`coc-keeper`、`src.server.mcp` 等）。一切领域约定由 RuleWhisper 的 `manifest.json` 声明，Pan 只是一个通用加载器，负责 character_template → character → session → Worker 的生命周期管理（session 配置走 session_template）。
 
 **接入一个新项目只需**：项目方写一份 `manifest.json` → Pan 的 `config.json` 加一行引用。未来 DND 骰娘、Fate 规则引擎同理——写 manifest、加引用，不改 Pan 代码。
 
