@@ -17,7 +17,7 @@ Tools exposed:
     - model_list: List available AI models
     - report_subscribe: Subscribe to completion reports of a managed session
     - report_unsubscribe: Unsubscribe from completion reports of a managed session
-    - pan_handbook: Return the full Pan orchestration handbook (reads .codebuddy/skills/pan/SKILL.md)
+    - pan_handbook: Return the full Pan orchestration handbook (reads docs/skills/pan/SKILL.md)
 
 Environment variables:
     PAN_API_URL: Pan API base URL (default: http://127.0.0.1:8768)
@@ -188,7 +188,8 @@ def session_create(
         permission_mode: Permission mode ("bypassPermissions", "acceptEdits", "default", "plan")
         workdir: Workdir name, resolved under data/workdirs/. Defaults to session name.
 
-    调用链：workdir 默认 data/workdirs/<name>（Pan 外目录用绝对路径）。
+    调用链（编排主链第 1 步·创建）：返回的 `id` 即后续所有请求的 `session_id` 入参，
+    记下它再 `worker_assign` 派发任务。workdir 默认 data/workdirs/<name>（Pan 外目录用绝对路径）。
     完整编排流程见 /pan skill。
     """
     body: dict = {"name": name, "adapter": adapter}
@@ -224,6 +225,9 @@ def session_get(session_id: str, limit: int = 0) -> dict:
             set, history is truncated to the latest `limit` entries and
             historyTruncated/historyTotal markers are added.
 
+    调用链（编排主链第 3 步·查结果）：读 lastResult.status——"done" 取 result，
+    "error" 读错误排查；完成后 `session_delete` 收尾。巡检用 limit 截断
+    （如 limit=15），避免全量 history 撑爆工具输出。
     完整编排流程见 /pan skill。
     """
     denied = _check_access(session_id)
@@ -246,6 +250,8 @@ def session_delete(session_id: str) -> dict:
     Args:
         session_id: Session ID to delete
 
+    调用链（编排主链第 4 步·收尾）：删除 session 并 kill worker；
+    workdir 磁盘目录残留，批量删除用 HTTP POST /api/sessions/batch-delete。
     完整编排流程见 /pan skill。
     """
     denied = _check_access(session_id)
@@ -533,7 +539,9 @@ def worker_assign(session_id: str, text: str) -> dict:
         session_id: Session ID to run the task on
         text: Task text / prompt
 
-    调用链：完成信号经 /ws/agent 的 worker.result 事件推送，或轮询 session_get 取结果。
+    调用链（编排主链第 2 步·派发）：立即返回 queued（worker 自动 spawn）；
+    完成信号经 /ws/agent 的 worker.result 事件推送，或轮询 session_get 到
+    lastResult.status=="done"。完成后 `session_delete` 收尾。
     完整编排流程见 /pan skill。
     """
     # 派任务即接管：meta-agent 首次 assign 目标 session 时自动建立 managed 关系
@@ -595,21 +603,24 @@ def model_list(adapter: str = "cbc") -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Pan handbook (single source of truth: .codebuddy/skills/pan/SKILL.md)
+# Pan handbook (single source of truth: docs/skills/pan/SKILL.md)
 # ---------------------------------------------------------------------------
 
 def _pan_skill_path() -> str:
     """Locate the pan skill handbook file (single source of truth).
 
-    Resolves from the module location (packages/mcp/server.py → project root),
-    falling back to the current working directory. An explicit PAN_SKILL_PATH
-    env override wins over both.
+    Main source: docs/skills/pan/SKILL.md at the project root (git versioned),
+    resolved from the module location (packages/mcp/server.py → project root).
+    Falls back to the .codebuddy copy (CodeBuddy editor loads skill from there),
+    then to the current working directory. An explicit PAN_SKILL_PATH env
+    override wins over all candidates.
     """
     if env := os.environ.get("PAN_SKILL_PATH"):
         return env
+    project_root = Path(__file__).resolve().parent.parent.parent
     candidates = [
-        Path(__file__).resolve().parent.parent.parent
-        / ".codebuddy" / "skills" / "pan" / "SKILL.md",
+        project_root / "docs" / "skills" / "pan" / "SKILL.md",
+        project_root / ".codebuddy" / "skills" / "pan" / "SKILL.md",
         Path(".codebuddy") / "skills" / "pan" / "SKILL.md",
     ]
     for c in candidates:
@@ -622,11 +633,13 @@ def _pan_skill_path() -> str:
 def pan_handbook() -> dict:
     """Return the full Pan orchestration handbook.
 
-    Reads .codebuddy/skills/pan/SKILL.md live and returns its raw content
-    (single source of truth — nothing is duplicated here). Covers the
+    Reads docs/skills/pan/SKILL.md (the single source of truth) live and
+    returns its raw content — nothing is duplicated here. Covers the
     orchestration workflow, HTTP API cheat sheet, gotchas and conventions
     (workdir, watchdog, handoff idempotency, ////by agent prefix, ...).
 
+    调用链：接线完成后若不清楚编排流程，先调本工具拿手册，再按主链
+    session_create → worker_assign → session_get → session_delete 执行。
     完整编排流程见 /pan skill。
     """
     path = _pan_skill_path()

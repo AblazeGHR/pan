@@ -1,11 +1,11 @@
 """Tests for the pan_handbook MCP tool and tool-description call-chain guidance.
 
 Covers:
-    - pan_handbook reads .codebuddy/skills/pan/SKILL.md (single source of truth)
+    - pan_handbook reads docs/skills/pan/SKILL.md (single source of truth)
     - PAN_SKILL_PATH override / missing-file error path
     - every MCP tool's docstring ends with the /pan skill pointer
-    - the three tools with extra call-chain guidance (session_create /
-      worker_assign / worker_send) carry the required phrases
+    - the four main-chain tools (session_create / worker_assign / session_get /
+      session_delete) carry step-numbered call-chain guidance
 """
 
 import sys
@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import packages.mcp.server as mcp_server
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SKILL_PATH = PROJECT_ROOT / ".codebuddy" / "skills" / "pan" / "SKILL.md"
+SKILL_PATH = PROJECT_ROOT / "docs" / "skills" / "pan" / "SKILL.md"
 
 # All tools exposed by the Pan MCP server.
 TOOLS = [
@@ -93,3 +93,22 @@ class TestDescriptionCallChain:
     def test_worker_send_agent_prefix(self):
         doc = mcp_server.worker_send.__doc__
         assert "////by agent" in doc
+
+    def test_session_create_chain_points_to_assign(self):
+        doc = mcp_server.session_create.__doc__
+        assert "worker_assign" in doc
+        assert "session_id" in doc
+
+    def test_worker_assign_chain_queued_and_next(self):
+        doc = mcp_server.worker_assign.__doc__
+        assert "queued" in doc
+        assert "session_delete" in doc
+
+    def test_session_get_chain_result_read(self):
+        doc = mcp_server.session_get.__doc__
+        assert "lastResult.status" in doc
+        assert "session_delete" in doc
+
+    def test_session_delete_chain_cleanup(self):
+        doc = mcp_server.session_delete.__doc__
+        assert "batch-delete" in doc
