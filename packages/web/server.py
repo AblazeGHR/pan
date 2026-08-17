@@ -497,9 +497,17 @@ def _open_terminal(cmd: str, cwd: str | Path) -> int:
     """Open a new terminal window running `cmd` in `cwd` (cross-platform)."""
     cwd = str(cwd) if cwd else str(Path.cwd())
     if sys.platform == "win32":
+        # Strip terminal-capability vars inherited from a POSIX parent (e.g.
+        # Git Bash sets TERM=xterm-256color). Left in place, cbc's ink TUI
+        # mis-detects the console as a Unix terminal and renders black & white.
+        env = dict(os.environ)
+        env.pop("TERM", None)
+        env.pop("NO_COLOR", None)
+        env.pop("COLORTERM", None)
         proc = subprocess.Popen(
             ["powershell.exe", "-NoExit", "-Command", cmd],
             cwd=cwd,
+            env=env,
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
         return proc.pid
