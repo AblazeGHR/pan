@@ -124,7 +124,7 @@ def _check_access(session_id, claim=False):
 ## 八、关联
 
 - `Character概念分层重构立项.md` —— 能力字段属 session_template 层，下放不经 character，依赖其 `_build_session_params` 改造
-- `Profile权限字段与MetaAgent管理Session立项.md` —— 原 4.1「role 权限字段」决策被本立项取代
+- `docs/archive/Profile权限字段与MetaAgent管理Session立项.md` —— 原 4.1「role 权限字段」决策被本立项取代
 - `MCP启用单一事实源收敛立项.md` —— 三字段与 `mcp_servers`/`managed` 同为 session 配置，共同决定 MCP 管理边界
 
 ---

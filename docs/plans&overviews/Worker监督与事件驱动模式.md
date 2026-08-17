@@ -94,7 +94,7 @@ MCP 是**请求-响应式**，无法主动推送事件给调用方。worker.resu
 
 ### 4.3 并入 meta-agent 报告机制（同源统一，推荐）
 
-Profile 立项（`Profile权限字段与MetaAgent管理Session立项.md` 4.3）的 **queue_pending 报告**本质也是"subagent 完成 → 通知 MA"：
+Profile 立项（`docs/archive/Profile权限字段与MetaAgent管理Session立项.md` 4.3）的 **queue_pending 报告**本质也是"subagent 完成 → 通知 MA"：
 - **外部协调者**（CodeBuddy 会话）→ `/ws/agent` 事件驱动（本模式）
 - **meta-agent 内部** → `queue_pending` 落盘报告 + 全局 watchdog 消费（立项中）
 
@@ -137,5 +137,5 @@ Profile 立项（`Profile权限字段与MetaAgent管理Session立项.md` 4.3）�
 
 ## 关联文档
 
-- `docs/plans&overviews/Profile权限字段与MetaAgent管理Session立项.md` — queue_pending 报告机制（4.3）
+- `docs/archive/Profile权限字段与MetaAgent管理Session立项.md` — queue_pending 报告机制（4.3）
 - `docs/cbc-mcp-踩坑记录.md` — /ws/agent 订阅协议（事件过滤、consumed_seq）

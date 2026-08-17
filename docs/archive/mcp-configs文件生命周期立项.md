@@ -134,5 +134,5 @@
 ## 关联文档
 
 - `docs/cbc-mcp-踩坑记录.md` — `--mcp-config` 只接受文件路径（JSON 字符串不生效，踩坑 #4）
-- `docs/plans&overviews/Profile权限字段与MetaAgent管理Session立项.md` — 4.9 mcp-config 收敛
+- `docs/archive/Profile权限字段与MetaAgent管理Session立项.md` — 4.9 mcp-config 收敛
 - `docs/plans&overviews/MCP启用单一事实源收敛立项.md` — 相邻的 MCP 配置收敛

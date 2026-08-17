@@ -102,5 +102,5 @@ Session 当前用三个字段决定 MCP 行为：
 ## 关联文档
 
 - `docs/阶段计划与进度.md` — 遗留待办 L2（config.example mcp 段）
-- `docs/plans&overviews/Profile权限字段与MetaAgent管理Session立项.md` — mcp_mode/manifest 语义
+- `docs/archive/Profile权限字段与MetaAgent管理Session立项.md` — mcp_mode/manifest 语义
 - `docs/plans&overviews/立项任务执行顺序规划.md` — 执行规划

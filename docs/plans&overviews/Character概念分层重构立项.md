@@ -125,6 +125,6 @@ data/
 - [x] `目标与范围.md` §5.4 API 端点 + §5.6「profiles（character 模板）」表述
 - [x] `MCP启用单一事实源收敛立项.md` §二/§四——mcp_mode/mcp_servers 从 character 移到 session_template
 - [x] `阶段计划与进度.md` §1.1「Character/Profile | profile → character → memory」
-- [x] `Profile权限字段与MetaAgent管理Session立项.md`——role 字段取消 + 术语（见 `Role字段取消与能力字段拆解立项.md`）
+- [x] `docs/archive/Profile权限字段与MetaAgent管理Session立项.md`——role 字段取消 + 术语（见 `Role字段取消与能力字段拆解立项.md`）
 
 ---
