@@ -1,11 +1,11 @@
-"""Tests for MCP isolation (立项 4.1 role + 4.2 managed).
+"""Tests for MCP isolation (立项 4.1 能力字段 + 4.2 managed).
 
-- Session.role field roundtrip (default "default")
+- Session capability fields roundtrip (default False)
 - session.claim() / session.release() bidirectional managed relationship
-- HTTP POST /api/claim (meta-agent gate, already-managed refusal)
-- MCP tools: meta-agent restricted to its managed list; auto-claim on first
-  touch (worker_spawn/worker_assign/...); default-role unrestricted
-- role propagation from character into session creation
+- HTTP POST /api/claim (can_claim_unmanaged gate, already-managed refusal)
+- MCP tools: restrict_to_managed caller limited to its managed list;
+  can_claim_unmanaged auto-claims on first touch; unrestricted caller passes
+- capability propagation from session_template into session creation
 """
 
 import asyncio
@@ -36,33 +36,44 @@ def _noop_save(s):
     pass
 
 
-# ── Session.role field ──
+# ── Session capability fields ──
 
-def test_session_role_default():
+def test_session_capabilities_default():
     s = _sess.Session(id="ses_x", name="x")
-    assert s.role == "default"
+    assert s.restrict_to_managed is False
+    assert s.can_claim_unmanaged is False
+    assert s.auto_claim_created is False
 
 
-def test_session_role_roundtrip():
-    s = _sess.Session(id="ses_ma", name="ma", role="meta-agent")
+def test_session_capabilities_roundtrip():
+    s = _sess.Session(id="ses_ma", name="ma",
+                      restrict_to_managed=True,
+                      can_claim_unmanaged=True,
+                      auto_claim_created=True)
     d = s.to_dict()
-    assert d["role"] == "meta-agent"
+    assert d["restrict_to_managed"] is True
+    assert d["can_claim_unmanaged"] is True
+    assert d["auto_claim_created"] is True
     s2 = _sess.Session._from_data(dict(d))
-    assert s2.role == "meta-agent"
+    assert s2.restrict_to_managed is True
+    assert s2.can_claim_unmanaged is True
+    assert s2.auto_claim_created is True
 
 
-def test_session_role_legacy_data_absent():
-    """Old JSON without the role field → default."""
+def test_session_capabilities_legacy_data_absent():
+    """Old JSON without capability fields → default False."""
     data = {"id": "ses_x", "name": "x"}
     s = _sess.Session._from_data(data)
-    assert s.role == "default"
+    assert s.restrict_to_managed is False
+    assert s.can_claim_unmanaged is False
+    assert s.auto_claim_created is False
 
 
 # ── session.claim() / release() ──
 
 def test_claim_sets_bidirectional():
     _cleanup()
-    mgr = _setup_session("ses_mgr", role="meta-agent")
+    mgr = _setup_session("ses_mgr")
     child = _setup_session("ses_child")
     err = _sess.claim("ses_mgr", "ses_child")
     assert err is None
@@ -73,7 +84,7 @@ def test_claim_sets_bidirectional():
 
 def test_claim_idempotent():
     _cleanup()
-    mgr = _setup_session("ses_mgr", role="meta-agent")
+    mgr = _setup_session("ses_mgr")
     child = _setup_session("ses_child", managed_by="ses_mgr")
     mgr.managed = ["ses_child"]
     err = _sess.claim("ses_mgr", "ses_child")
@@ -85,7 +96,7 @@ def test_claim_idempotent():
 
 def test_claim_refuses_foreign_manager():
     _cleanup()
-    mgr = _setup_session("ses_mgr", role="meta-agent")
+    mgr = _setup_session("ses_mgr")
     child = _setup_session("ses_child", managed_by="ses_other")
     err = _sess.claim("ses_mgr", "ses_child")
     assert err is not None and "managed by ses_other" in err
@@ -96,7 +107,7 @@ def test_claim_refuses_foreign_manager():
 
 def test_claim_missing_sessions():
     _cleanup()
-    _setup_session("ses_mgr", role="meta-agent")
+    _setup_session("ses_mgr")
     assert "not found" in _sess.claim("ses_mgr", "ses_nope")
     assert "not found" in _sess.claim("ses_nope", "ses_mgr")
     _cleanup()
@@ -104,7 +115,7 @@ def test_claim_missing_sessions():
 
 def test_release_cleans_manager():
     _cleanup()
-    mgr = _setup_session("ses_mgr", role="meta-agent")
+    mgr = _setup_session("ses_mgr")
     child = _setup_session("ses_child", managed_by="ses_mgr")
     mgr.managed = ["ses_child"]
     err = _sess.release("ses_child")
@@ -116,15 +127,15 @@ def test_release_cleans_manager():
 
 # ── HTTP /api/claim endpoint ──
 
-def test_api_claim_requires_meta_agent(monkeypatch):
+def test_api_claim_requires_can_claim_unmanaged(monkeypatch):
     import packages.web.server as srv
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
-    _setup_session("ses_mgr", role="default")
+    _setup_session("ses_mgr")  # can_claim_unmanaged defaults False
     _setup_session("ses_child")
     r = asyncio.run(srv.api_claim({"managerId": "ses_mgr", "sessionId": "ses_child"}))
     assert r.get("ok") is False
-    assert r["error"]["code"] == "not_meta_agent"
+    assert r["error"]["code"] == "cannot_claim_unmanaged"
     assert _sess.get("ses_child").managed_by is None
     _cleanup()
 
@@ -133,7 +144,7 @@ def test_api_claim_success(monkeypatch):
     import packages.web.server as srv
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
-    mgr = _setup_session("ses_mgr", role="meta-agent")
+    mgr = _setup_session("ses_mgr", can_claim_unmanaged=True)
     _setup_session("ses_child")
     r = asyncio.run(srv.api_claim({"managerId": "ses_mgr", "sessionId": "ses_child"}))
     assert r.get("ok") is True
@@ -146,7 +157,7 @@ def test_api_claim_refuses_foreign(monkeypatch):
     import packages.web.server as srv
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
-    _setup_session("ses_mgr", role="meta-agent")
+    _setup_session("ses_mgr", can_claim_unmanaged=True)
     _setup_session("ses_child", managed_by="ses_other")
     r = asyncio.run(srv.api_claim({"managerId": "ses_mgr", "sessionId": "ses_child"}))
     assert r.get("ok") is False
@@ -163,23 +174,27 @@ def test_api_claim_missing_params(monkeypatch):
     _cleanup()
 
 
-# ── role propagation: session_template → session params ──
+# ── capability propagation: session_template → session params ──
 
-def test_build_session_params_propagates_role(monkeypatch):
+def test_build_session_params_propagates_capabilities(monkeypatch):
     import packages.web.server as srv
     from packages.core.character import CharacterManager
     cm = CharacterManager()
     cm.load_manifest(["packages/mcp/manifest.json"])
     monkeypatch.setattr(srv, "_character_manager", cm)
     params = srv._build_session_params({"name": "ma", "sessionTemplate": "meta-agent"})
-    assert params.get("role") == "meta-agent"
+    assert params.get("restrict_to_managed") is True
+    assert params.get("can_claim_unmanaged") is True
+    assert params.get("auto_claim_created") is True
 
 
-def test_build_session_params_no_role_default(monkeypatch):
+def test_build_session_params_capabilities_default(monkeypatch):
     import packages.web.server as srv
     monkeypatch.setattr(srv, "_character_manager", None)
     params = srv._build_session_params({"name": "plain"})
-    assert params.get("role") == "default"  # built-in default template
+    assert params.get("restrict_to_managed") is False
+    assert params.get("can_claim_unmanaged") is False
+    assert params.get("auto_claim_created") is False
 
 
 # ── MCP isolation helpers ──
@@ -187,8 +202,8 @@ def test_build_session_params_no_role_default(monkeypatch):
 class _FakeAPI:
     """Routing fake for packages.mcp.server._api.
 
-    `sessions` maps session id → API dict (id/role/managed/managedBy).
-    Claims mutate the dicts in place; returns a queued result for task tools.
+    `sessions` maps session id → API dict (id/restrictToManaged/canClaimUnmanaged/
+    autoClaimCreated/managed/managedBy). Claims mutate the dicts in place.
     """
 
     def __init__(self, sessions, allow_claim=True):
@@ -227,18 +242,20 @@ class _FakeAPI:
 
 
 def _ma_session(managed=None, sid="ses_ma"):
-    return {sid: {"id": sid, "role": "meta-agent", "managed": list(managed or [])}}
+    return {sid: {"id": sid, "restrictToManaged": True, "canClaimUnmanaged": True,
+                  "autoClaimCreated": True, "managed": list(managed or [])}}
 
 
 def _default_session(sid="ses_default", managed=None):
-    return {sid: {"id": sid, "role": "default", "managed": list(managed or [])}}
+    return {sid: {"id": sid, "restrictToManaged": False, "canClaimUnmanaged": False,
+                  "autoClaimCreated": False, "managed": list(managed or [])}}
 
 
 def test_mcp_meta_agent_can_read_managed(monkeypatch):
     _cleanup()
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
-        "ses_child": {"id": "ses_child", "role": "default", "managedBy": "ses_ma"},
+        "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
@@ -252,7 +269,7 @@ def test_mcp_meta_agent_denied_unmanaged_read(monkeypatch):
     _cleanup()
     fake = _FakeAPI({
         **_ma_session(managed=["ses_ok"]),
-        "ses_other": {"id": "ses_other", "role": "default", "managedBy": None},
+        "ses_other": {"id": "ses_other", "managedBy": None},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
@@ -268,7 +285,7 @@ def test_mcp_meta_agent_denied_foreign_managed(monkeypatch):
     _cleanup()
     fake = _FakeAPI({
         **_ma_session(managed=[]),
-        "ses_other": {"id": "ses_other", "role": "default", "managedBy": "ses_rival"},
+        "ses_other": {"id": "ses_other", "managedBy": "ses_rival"},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
@@ -282,7 +299,7 @@ def test_mcp_meta_agent_assign_autoclaims(monkeypatch):
     _cleanup()
     fake = _FakeAPI({
         **_ma_session(managed=[]),
-        "ses_new": {"id": "ses_new", "role": "default", "managedBy": None},
+        "ses_new": {"id": "ses_new", "managedBy": None},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
@@ -298,7 +315,7 @@ def test_mcp_meta_agent_spawn_autoclaims(monkeypatch):
     _cleanup()
     fake = _FakeAPI({
         **_ma_session(managed=[]),
-        "ses_existing": {"id": "ses_existing", "role": "default", "managedBy": None},
+        "ses_existing": {"id": "ses_existing", "managedBy": None},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
@@ -309,11 +326,11 @@ def test_mcp_meta_agent_spawn_autoclaims(monkeypatch):
     _cleanup()
 
 
-def test_mcp_default_role_unrestricted(monkeypatch):
+def test_mcp_unrestricted_session_reads_any(monkeypatch):
     _cleanup()
     fake = _FakeAPI({
         **_default_session(managed=[]),
-        "ses_any": {"id": "ses_any", "role": "default", "managedBy": None},
+        "ses_any": {"id": "ses_any", "managedBy": None},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_default")
@@ -326,7 +343,7 @@ def test_mcp_no_identity_unrestricted(monkeypatch):
     _cleanup()
     monkeypatch.delenv("PAN_AGENT_SESSION_ID", raising=False)
     fake = _FakeAPI({
-        "ses_any": {"id": "ses_any", "role": "default", "managedBy": None},
+        "ses_any": {"id": "ses_any", "managedBy": None},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     r = mcp_server.session_get("ses_any")
@@ -338,7 +355,7 @@ def test_mcp_report_subscribe_autoclaims(monkeypatch):
     _cleanup()
     fake = _FakeAPI({
         **_ma_session(managed=[]),
-        "ses_child": {"id": "ses_child", "role": "default", "managedBy": None},
+        "ses_child": {"id": "ses_child", "managedBy": None},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
@@ -350,26 +367,26 @@ def test_mcp_report_subscribe_autoclaims(monkeypatch):
 
 
 if __name__ == "__main__":
-    test_session_role_default()
-    test_session_role_roundtrip()
-    test_session_role_legacy_data_absent()
+    test_session_capabilities_default()
+    test_session_capabilities_roundtrip()
+    test_session_capabilities_legacy_data_absent()
     test_claim_sets_bidirectional()
     test_claim_idempotent()
     test_claim_refuses_foreign_manager()
     test_claim_missing_sessions()
     test_release_cleans_manager()
-    test_api_claim_requires_meta_agent()
+    test_api_claim_requires_can_claim_unmanaged()
     test_api_claim_success()
     test_api_claim_refuses_foreign()
     test_api_claim_missing_params()
-    test_build_session_params_propagates_role()
-    test_build_session_params_no_role_default()
+    test_build_session_params_propagates_capabilities()
+    test_build_session_params_capabilities_default()
     test_mcp_meta_agent_can_read_managed()
     test_mcp_meta_agent_denied_unmanaged_read()
     test_mcp_meta_agent_denied_foreign_managed()
     test_mcp_meta_agent_assign_autoclaims()
     test_mcp_meta_agent_spawn_autoclaims()
-    test_mcp_default_role_unrestricted()
+    test_mcp_unrestricted_session_reads_any()
     test_mcp_no_identity_unrestricted()
     test_mcp_report_subscribe_autoclaims()
     print("\n=== ALL MCP ISOLATION TESTS PASSED ===")

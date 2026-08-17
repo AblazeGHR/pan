@@ -31,7 +31,9 @@ class Session:
     adapter: str = "cbc"   # CLI adapter name, default "cbc"
     model: str | None = None
     permission_mode: str | None = None
-    role: str = "default"  # Pan-internal boundary role (e.g. "meta-agent"), default "default"
+    restrict_to_managed: bool = False  # operations on other sessions gated by `managed`
+    can_claim_unmanaged: bool = False  # may claim an unclaimed session into `managed`
+    auto_claim_created: bool = False   # sessions this session creates are auto-claimed
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
     character_id: str | None = None   # bound character ID (for memory + assets)
     session_template: str | None = None  # session_template name this session was configured with (None = built-in default)
@@ -113,7 +115,9 @@ class Session:
             "adapter": self.adapter,
             "model": self.model,
             "permission_mode": self.permission_mode,
-            "role": self.role,
+            "restrict_to_managed": self.restrict_to_managed,
+            "can_claim_unmanaged": self.can_claim_unmanaged,
+            "auto_claim_created": self.auto_claim_created,
             "adapter_config": self.adapter_config,
             "character_id": self.character_id,
             "session_template": self.session_template,
@@ -141,7 +145,6 @@ _cache: dict[str, Session] = {}
 
 def create(name: str, model: str | None = None,
            permission_mode: str | None = None,
-           role: str = "default",
            adapter: str = "cbc",
            adapter_config: dict | None = None,
            raw_usage: dict | None = None,
@@ -152,6 +155,9 @@ def create(name: str, model: str | None = None,
            session_template: str | None = None,
            system_prompt: str | None = None,
            game_id: str | None = None,
+           restrict_to_managed: bool = False,
+           can_claim_unmanaged: bool = False,
+           auto_claim_created: bool = False,
            # backward-compat kwargs (migrated to adapter_config)
            cli_session_id: str | None = None,
            always_thinking_enabled: bool = False,
@@ -174,7 +180,9 @@ def create(name: str, model: str | None = None,
         adapter=adapter,
         model=model,
         permission_mode=permission_mode,
-        role=role,
+        restrict_to_managed=restrict_to_managed,
+        can_claim_unmanaged=can_claim_unmanaged,
+        auto_claim_created=auto_claim_created,
         adapter_config=ac,
         character_id=character_id,
         session_template=session_template,

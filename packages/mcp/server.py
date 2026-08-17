@@ -77,15 +77,16 @@ def _strip_usage(result: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# MCP isolation (立项 4.1 role + 4.2 managed): meta-agent 只能操作它管理的 session
+# MCP isolation (立项 4.1 能力字段 + 4.2 managed): 受 restrict_to_managed 约束的
+# session 只能操作它管理的 session
 # ---------------------------------------------------------------------------
 
 def _caller_identity() -> dict | None:
-    """Return the calling agent's session info (id/role/managed) or None.
+    """Return the calling agent's session info (id/capabilities/managed) or None.
 
     Identity comes from PAN_AGENT_SESSION_ID (4.8 injection). Returns None when
     the env var is absent or the session can't be resolved — callers then run
-    unrestricted (external coordinators, default-role sessions).
+    unrestricted (external coordinators, sessions without restriction).
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     if not sid:
@@ -97,26 +98,30 @@ def _caller_identity() -> dict | None:
 
 
 def _check_access(session_id: str, claim: bool = False) -> dict | None:
-    """Enforce meta-agent isolation on a target session.
+    """Enforce managed-session isolation on a target session.
 
     Rules:
-    - No caller identity or caller role != "meta-agent" → allowed.
-    - meta-agent operating on its own session → allowed.
+    - No caller identity → allowed.
+    - Caller operating on its own session → allowed.
+    - Caller not restricted (restrictToManaged false) → allowed.
     - Target in caller's managed list → allowed.
-    - Otherwise, if `claim` is True, attempt to claim via POST /api/claim
-      (succeeds only if the session is unclaimed or already this manager's).
+    - Otherwise, if `claim` is True and caller canClaimUnmanaged, attempt to
+      claim via POST /api/claim (succeeds only if the session is unclaimed or
+      already this manager's).
     - Otherwise → permission denied (ok:false + error).
 
     Returns None when allowed, or an error dict when denied.
     """
     caller = _caller_identity()
-    if not caller or caller.get("role") != "meta-agent":
+    if not caller:
         return None
     if session_id == caller.get("id"):
         return None
+    if not caller.get("restrictToManaged"):
+        return None
     if session_id in (caller.get("managed") or []):
         return None
-    if claim:
+    if claim and caller.get("canClaimUnmanaged"):
         # 先看目标 session：不存在 → 放行（让下游工具报 not found）
         target = _api("GET", f"/api/sessions/{session_id}")
         if not isinstance(target, dict) or target.get("error"):
@@ -125,8 +130,8 @@ def _check_access(session_id: str, claim: bool = False) -> dict | None:
         if tmb and tmb != caller["id"]:
             return {"ok": False, "error": {
                 "code": "permission_denied",
-                "message": f"meta-agent session {caller['id']} can only operate sessions it "
-                           f"manages; {session_id} is managed by {tmb}"}}
+                "message": f"session {caller['id']} is restricted to its managed sessions; "
+                           f"{session_id} is managed by {tmb}"}}
         # 未归属或已归属本 manager → claim（幂等）
         res = _api("POST", "/api/claim", {"managerId": caller["id"], "sessionId": session_id})
         if isinstance(res, dict) and res.get("ok"):
@@ -136,18 +141,18 @@ def _check_access(session_id: str, claim: bool = False) -> dict | None:
             msg = res["error"].get("message", msg)
         return {"ok": False, "error": {
             "code": "permission_denied",
-            "message": f"meta-agent session {caller['id']} can only operate sessions it "
-                       f"manages; {session_id}: {msg}"}}
+            "message": f"session {caller['id']} is restricted to its managed sessions; "
+                       f"{session_id}: {msg}"}}
     return {"ok": False, "error": {
         "code": "permission_denied",
-        "message": f"meta-agent session {caller['id']} can only operate sessions it "
-                   f"manages; {session_id} is not in its managed list"}}
+        "message": f"session {caller['id']} is restricted to its managed sessions; "
+                   f"{session_id} is not in its managed list"}}
 
 
 def _auto_claim(session_id: str) -> None:
-    """Auto-claim a newly created session for the calling meta-agent (best-effort)."""
+    """Auto-claim a newly created session for the caller when autoClaimCreated (best-effort)."""
     caller = _caller_identity()
-    if caller and caller.get("role") == "meta-agent" and session_id:
+    if caller and caller.get("autoClaimCreated") and session_id:
         _api("POST", "/api/claim", {"managerId": caller["id"], "sessionId": session_id})
 
 

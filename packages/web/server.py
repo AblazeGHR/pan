@@ -213,7 +213,9 @@ def _session_to_api(s: sess.Session):
         "cliSessionId": s.cli_session_id,
         "model": s.model or config.get("model") or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
-        "role": s.role,
+        "restrictToManaged": s.restrict_to_managed,
+        "canClaimUnmanaged": s.can_claim_unmanaged,
+        "autoClaimCreated": s.auto_claim_created,
         "sessionTemplate": s.session_template,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
@@ -327,9 +329,9 @@ def _build_session_params(data: dict) -> dict:
     """Extract session creation parameters from request data, with defaults.
 
     Session config (system_prompt / adapter / model / permission_mode /
-    mcp_mode / mcp_servers / role) comes from a session_template — either the
-    explicit ``sessionTemplate`` name or the built-in ``default`` template
-    (config.json session config). ``characterId`` only binds memory/assets.
+    mcp_mode / mcp_servers / capability flags) comes from a session_template —
+    either the explicit ``sessionTemplate`` name or the built-in ``default``
+    template (config.json session config). ``characterId`` only binds memory/assets.
     """
     adapter_name = data.get("adapter") or "cbc"
     a = get_adapter(adapter_name)
@@ -353,7 +355,6 @@ def _build_session_params(data: dict) -> dict:
             system_prompt="",
             mcp_mode="optional",
             mcp_servers=[],
-            role="default",
         )
         template_name = None  # don't record an explicit name for the default
 
@@ -370,7 +371,9 @@ def _build_session_params(data: dict) -> dict:
             "mcp_enabled": data.get("mcpEnabled", MCP_DEFAULT_ENABLED),
         },
         "session_template": template_name,
-        "role": template.role,
+        "restrict_to_managed": template.restrict_to_managed,
+        "can_claim_unmanaged": template.can_claim_unmanaged,
+        "auto_claim_created": template.auto_claim_created,
         "system_prompt": template.system_prompt,
     }
     # Optional worker execution mode ("stream" | "oneshot"); validated later
@@ -992,7 +995,9 @@ async def api_branch_session(session_id: str, data: dict):
         character_id=s.character_id,
         system_prompt=s.system_prompt,
         adapter_config=new_adapter_config,
-        role=s.role,
+        restrict_to_managed=s.restrict_to_managed,
+        can_claim_unmanaged=s.can_claim_unmanaged,
+        auto_claim_created=s.auto_claim_created,
     )
 
     await broadcast({
@@ -1298,7 +1303,7 @@ async def api_claim(data: dict):
     Body: {"managerId": <manager session id>, "sessionId": <managed session id>}
 
     效果：manager.managed += [sessionId]，session.managed_by = managerId。
-    约束：manager 的 role 必须是 "meta-agent"；session 若已有其他 manager 则拒绝。
+    约束：manager 需具备 can_claim_unmanaged 能力；session 若已有其他 manager 则拒绝。
     """
     manager_id = (data.get("managerId") or "").strip()
     session_id = (data.get("sessionId") or "").strip()
@@ -1311,10 +1316,10 @@ async def api_claim(data: dict):
         return {"ok": False, "error": {
             "code": "manager_not_found",
             "message": f"Manager session {manager_id} not found"}}
-    if manager.role != "meta-agent":
+    if not manager.can_claim_unmanaged:
         return {"ok": False, "error": {
-            "code": "not_meta_agent",
-            "message": f"Manager session {manager_id} role is '{manager.role}', not 'meta-agent'"}}
+            "code": "cannot_claim_unmanaged",
+            "message": f"Manager session {manager_id} cannot claim unmanaged sessions"}}
     err = sess.claim(manager_id, session_id)
     if err:
         return {"ok": False, "error": {

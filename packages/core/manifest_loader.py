@@ -53,7 +53,10 @@ class SessionTemplate:
     mcp_mode: str = "optional"    # "always" | "optional" | "never"
     mcp_servers: list[str] = field(default_factory=list)
     source_manifest: str = ""      # Which manifest.json defined this template
-    role: str = "default"          # Pan-internal boundary role (e.g. "meta-agent"), default "default"
+    # Self-explanatory capability flags (replaces the opaque `role` enum):
+    restrict_to_managed: bool = False   # operations on other sessions are gated by `managed`
+    can_claim_unmanaged: bool = False   # may claim an unclaimed session into `managed`
+    auto_claim_created: bool = False    # sessions this session creates are auto-claimed
 
     @property
     def mcp_locked(self) -> bool:
@@ -190,7 +193,9 @@ def _parse_session_template(raw: dict, plugin_dir: str) -> SessionTemplate:
         system_prompt=sp,
         mcp_servers=list(raw.get("mcp_servers", [])),
         source_manifest=plugin_dir,
-        role=raw.get("role", "default"),
+        restrict_to_managed=bool(raw.get("restrict_to_managed", False)),
+        can_claim_unmanaged=bool(raw.get("can_claim_unmanaged", False)),
+        auto_claim_created=bool(raw.get("auto_claim_created", False)),
     )
 
 

@@ -99,10 +99,21 @@ class TestCharacter:
 
 class TestManifestTemplates:
     def test_session_template_roundtrip(self):
-        t = SessionTemplate(name="t", system_prompt="hi", mcp_servers=["pan"], role="meta-agent")
+        t = SessionTemplate(name="t", system_prompt="hi", mcp_servers=["pan"],
+                            restrict_to_managed=True, can_claim_unmanaged=True,
+                            auto_claim_created=True)
         assert t.mcp_locked is False  # mcp_mode default "optional"
         assert t.mcp_servers == ["pan"]
-        assert t.role == "meta-agent"
+        assert t.restrict_to_managed is True
+        assert t.can_claim_unmanaged is True
+        assert t.auto_claim_created is True
+        assert not hasattr(t, "role")
+
+    def test_session_template_capabilities_default_false(self):
+        t = SessionTemplate(name="t")
+        assert t.restrict_to_managed is False
+        assert t.can_claim_unmanaged is False
+        assert t.auto_claim_created is False
 
     def test_character_template_roundtrip(self):
         t = CharacterTemplate(name="c", session_templates=["t"], memory_dir="m")
