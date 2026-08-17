@@ -26,9 +26,10 @@ _log = logging.getLogger(__name__)
 
 # ── Worker 生命周期配置（启动时读取一次，缓存）──
 
-_WORKER_TIMEOUT_SEC: float = 300.0  # 静默超时：无输出超过该值 → kill
-_WORKER_IDLE_SEC: float = 300.0     # 空闲回收：idle 超时 → kill
-_WATCHDOG_TICK_SEC: float = 30.0    # watchdog 检查间隔
+_WORKER_TIMEOUT_SEC: float = 300.0       # 静默超时：queued 无输出 / MCP 读取超时超过该值 → kill
+_WORKER_TASK_TIMEOUT_SEC: float = 1800.0  # stream running 任务运行时长上限：超此值判定卡死
+_WORKER_IDLE_SEC: float = 300.0          # 空闲回收：idle 超时 → kill
+_WATCHDOG_TICK_SEC: float = 30.0         # watchdog 检查间隔
 
 # 可被 server 启动时覆盖（测试也可直接赋值）
 _DEFAULTS_INITIALIZED = False
@@ -39,10 +40,17 @@ def load_worker_config():
 
     由 server 启动时调用一次（lifespan）；直接使用 core 的场景也会在
     首次 create_worker 前惰性初始化。
+
+    - timeout_sec：静默超时（queued 无输出 / MCP 读取超时），默认 300。
+    - task_timeout_sec：stream running 任务运行时长上限，默认 1800。
+      与 timeout_sec 语义分离：长思考/大文件读取会长时间无 stdout 输出，
+      若用「无输出时长」判定 running 会误杀；此处用「任务运行时长」。
+    - idle_sec：空闲回收，默认 300。
     """
-    global _WORKER_TIMEOUT_SEC, _WORKER_IDLE_SEC, _DEFAULTS_INITIALIZED
+    global _WORKER_TIMEOUT_SEC, _WORKER_TASK_TIMEOUT_SEC, _WORKER_IDLE_SEC, _DEFAULTS_INITIALIZED
     cfg = load_config().get("worker", {})
     _WORKER_TIMEOUT_SEC = float(cfg.get("timeout_sec", 300))
+    _WORKER_TASK_TIMEOUT_SEC = float(cfg.get("task_timeout_sec", 1800))
     _WORKER_IDLE_SEC = float(cfg.get("idle_sec", 300))
     _DEFAULTS_INITIALIZED = True
 
@@ -129,6 +137,7 @@ class Worker:
     pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
     # ── 活性探测（watchdog 用）──
     last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
+    _task_started_at: float = 0.0  # time.monotonic；stream 任务开始处理（status→running）时记录，watchdog 据此判定「任务运行时长」超时
     # ── 任务序号（result 与 task 配对用）──
     _task_counter: int = 0   # 已分配的任务序号（send_task 入队时自增）
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
@@ -602,7 +611,8 @@ async def _watchdog(w: Worker):
     """周期性检查 worker 活性，超时/空闲则 kill。
 
     - stream 模式（w.process 非 None）：
-      - running/queued：持续无输出超 _WORKER_TIMEOUT_SEC → 判定卡死 → kill
+      - running：任务运行时长（_task_started_at 起算）超 _WORKER_TASK_TIMEOUT_SEC → 判定卡死 → kill
+      - queued：持续无输出（last_activity 起算）超 _WORKER_TIMEOUT_SEC → 判定卡死 → kill
       - idle：任务完成且长时间无新任务 → 空闲回收 → kill
     - MCP one-shot 模式（w.process 为 None）：
       - 只做 idle 回收（超时已由 _consumer_mcp 读取超时承担，running 不干预）
@@ -657,11 +667,24 @@ async def _watchdog(w: Worker):
                 return
             continue
 
-        # stream 模式：超时 + 空闲回收
-        if w.status in ("running", "queued") and idle_for > _WORKER_TIMEOUT_SEC:
+        # stream 模式：running 用任务运行时长判定，queued 用静默时长判定，idle 空闲回收
+        if w.status == "running":
+            # 任务运行时长 = 当前时间 - 任务开始处理时刻（_consumer_stream 进入 running 时记录）。
+            # 不用 last_activity（无输出时长）：长思考/大文件读取会长时间无 stdout 输出，
+            # 若按无输出判定会被误杀。真卡死的任务会一直跑下去，最终超过任务时长上限。
+            task_run_for = time.monotonic() - w._task_started_at
+            if task_run_for > _WORKER_TASK_TIMEOUT_SEC:
+                _log.warning(
+                    "[Worker %s] watchdog kill: reason=task_timeout mode=stream status=%s "
+                    "task_run_for=%.0fs task_timeout_threshold=%.0fs branch=stream_task_timeout",
+                    w.worker_id, w.status, task_run_for, _WORKER_TASK_TIMEOUT_SEC,
+                )
+                await kill_worker(w.worker_id)
+                return
+        elif w.status == "queued" and idle_for > _WORKER_TIMEOUT_SEC:
             _log.warning(
                 "[Worker %s] watchdog kill: reason=timeout mode=stream status=%s "
-                "idle_for=%.0fs timeout_threshold=%.0fs branch=stream_timeout",
+                "idle_for=%.0fs timeout_threshold=%.0fs branch=stream_queued_timeout",
                 w.worker_id, w.status, idle_for, _WORKER_TIMEOUT_SEC,
             )
             await kill_worker(w.worker_id)
@@ -761,6 +784,10 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
         _resolve_result_waiter(w.worker_id, "error", "Worker process dead")
         return
 
+    # 任务运行时长起算点：进入 running 即开始计时（watchdog 据此判定卡死）。
+    # 区别于 last_activity（无输出时长）：长思考/大文件读取会长时间无 stdout，
+    # 用「任务运行时长」作为 running 超时判据，避免误杀静默思考中的任务。
+    w._task_started_at = time.monotonic()
     w.status = "running"
 
     data = w.adapter.encode_user_message(text)

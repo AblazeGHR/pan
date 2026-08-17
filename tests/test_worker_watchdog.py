@@ -32,7 +32,7 @@ def _setup_session(sid="ses_test"):
     return s
 
 
-def _setup_worker(session_id, status="idle", last_activity=None):
+def _setup_worker(session_id, status="idle", last_activity=None, task_started_at=None):
     w = worker.Worker(
         worker_id="worker-test",
         session_id=session_id,
@@ -42,6 +42,7 @@ def _setup_worker(session_id, status="idle", last_activity=None):
         pending_signal=asyncio.Queue(),
         _replaying=False,
         last_activity=last_activity if last_activity is not None else time.monotonic(),
+        _task_started_at=task_started_at if task_started_at is not None else time.monotonic(),
     )
     w.process.returncode = None
     worker.workers[w.worker_id] = w
@@ -64,7 +65,7 @@ async def _run_watchdog(w, ticks=5):
 # ── tests ──
 
 def test_timeout_kills_running_worker():
-    """running worker silent past timeout → killed."""
+    """running worker past task-duration timeout (task_started_at old) → killed."""
     _cleanup()
     killed = []
 
@@ -73,9 +74,9 @@ def test_timeout_kills_running_worker():
         return None
 
     worker._WATCHDOG_TICK_SEC = 0.01
-    worker._WORKER_TIMEOUT_SEC = 0.1
+    worker._WORKER_TASK_TIMEOUT_SEC = 0.1
     worker._WORKER_IDLE_SEC = 999
-    w = _setup_worker(_setup_session().id, status="running", last_activity=0.0)
+    w = _setup_worker(_setup_session().id, status="running", task_started_at=0.0)
 
     orig_kill = worker.kill_worker
     worker.kill_worker = fake_kill
@@ -85,6 +86,7 @@ def test_timeout_kills_running_worker():
         worker.kill_worker = orig_kill
         worker._WATCHDOG_TICK_SEC = 30.0
         worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_TASK_TIMEOUT_SEC = 1800.0
         worker._WORKER_IDLE_SEC = 300.0
 
     assert killed == [w.worker_id], f"running worker not killed: {killed}"
@@ -92,7 +94,11 @@ def test_timeout_kills_running_worker():
 
 
 def test_active_running_worker_not_killed():
-    """running worker with recent activity (last_activity=now) → not killed."""
+    """running worker that just started (task_started_at=now) → not killed.
+
+    长思考/大文件读取场景：任务运行时长尚未超 task_timeout，即使无 stdout 输出
+    也不应被杀（区别于旧的「无输出时长」判定）。
+    """
     _cleanup()
     killed = []
 
@@ -101,9 +107,9 @@ def test_active_running_worker_not_killed():
         return None
 
     worker._WATCHDOG_TICK_SEC = 0.01
-    worker._WORKER_TIMEOUT_SEC = 0.1
+    worker._WORKER_TASK_TIMEOUT_SEC = 0.1
     worker._WORKER_IDLE_SEC = 999
-    w = _setup_worker(_setup_session().id, status="running")  # last_activity=now
+    w = _setup_worker(_setup_session().id, status="running")  # task_started_at=now
 
     orig_kill = worker.kill_worker
     worker.kill_worker = fake_kill
@@ -113,9 +119,40 @@ def test_active_running_worker_not_killed():
         worker.kill_worker = orig_kill
         worker._WATCHDOG_TICK_SEC = 30.0
         worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_TASK_TIMEOUT_SEC = 1800.0
         worker._WORKER_IDLE_SEC = 300.0
 
     assert killed == [], f"active running worker wrongly killed: {killed}"
+    _cleanup()
+
+
+def test_queued_worker_timeout_killed():
+    """queued worker silent past timeout_sec → killed (queued 静默超时保留)."""
+    _cleanup()
+    killed = []
+
+    async def fake_kill(worker_id):
+        killed.append(worker_id)
+        return None
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TIMEOUT_SEC = 0.1
+    worker._WORKER_TASK_TIMEOUT_SEC = 999
+    worker._WORKER_IDLE_SEC = 999
+    w = _setup_worker(_setup_session().id, status="queued", last_activity=0.0)
+
+    orig_kill = worker.kill_worker
+    worker.kill_worker = fake_kill
+    try:
+        asyncio.run(_run_watchdog(w))
+    finally:
+        worker.kill_worker = orig_kill
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_TASK_TIMEOUT_SEC = 1800.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert killed == [w.worker_id], f"queued worker not killed: {killed}"
     _cleanup()
 
 
@@ -390,6 +427,7 @@ def test_consumer_mcp_refreshes_last_activity_on_idle(monkeypatch, tmp_path):
 if __name__ == "__main__":
     test_timeout_kills_running_worker()
     test_active_running_worker_not_killed()
+    test_queued_worker_timeout_killed()
     test_idle_worker_reclaimed()
     test_held_worker_skipped()
     test_watchdog_exits_when_worker_removed()
