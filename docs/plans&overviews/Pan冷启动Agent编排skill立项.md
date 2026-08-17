@@ -1,7 +1,7 @@
 # Pan 冷启动 Agent 上手 Skill — 立项
 
 > 背景：让一个没有对话上下文、只有 MCP 工具 + skill 的新 agent 快速掌握 Pan 编排（尽量用 MCP，灵活用 HTTP API）。
-> 状态：立项阶段（仅记录考量，**不改代码**） | 创建：2026-08-16
+> 状态：立项阶段（仅记录考量，**不改代码**） | 创建：2026-08-16 | **D1/D2 完成：2026-08-17**（SKILL.md 审校完善 + 监督脚本 `monitor_workers.py` 入库验证）
 
 ---
 
@@ -77,18 +77,18 @@ MCP 内返回操作手册全文，供"只认 MCP 习惯、不主动调 skill"的
 
 ## 四、待决策
 
-1. **C 做不做**：价值在可发现性，实现成本极低（读 SKILL.md）。建议做。
+1. **C 做不做**：价值在可发现性，实现成本极低（读 SKILL.md）。建议做。**✅ 已实现（2026-08-17）**：`pan_handbook` MCP 工具已在 `packages/mcp/server.py`（读 SKILL.md 实时返回），D1 审校时发现并写入 SKILL.md §7。
 2. **skill 触发词**：`/pan`（编排手册）与 `/pan-monitor`（监督）是否合适。
 3. **附属脚本位置**：`.codebuddy/skills/pan/scripts/` 还是 `packages/` 下由 skill 引用。
 4. **B 的改动面**：改 MCP 工具 description 属代码改动，需同步测试/文档。
 
 ## 五、任务拆解（若立项通过）
 
-- [ ] A：扩写 `.codebuddy/skills/pan/SKILL.md`（编排工作流 + API 速查 + 坑与约定 + 监督模板）
-- [ ] A：**完成通知二选一说明**——skill 手册明确 `Monitor + /ws/agent`（外部协调）与 `report_subscribe`（meta-agent 内部）互斥，同用会重复通知，指导按场景选一
-- [ ] A：监督脚本 `monitor_worker.py` 迁入 skill 目录并文档化
+- [x] A：扩写 `.codebuddy/skills/pan/SKILL.md`（编排工作流 + API 速查 + 坑与约定 + 监督模板）✅ 2026-08-17
+- [x] A：**完成通知二选一说明**——skill 手册明确 `Monitor + /ws/agent`（外部协调）与 `report_subscribe`（meta-agent 内部）互斥，同用会重复通知，指导按场景选一 ✅ 2026-08-17
+- [x] A：监督脚本 `monitor_worker.py` 迁入 skill 目录并文档化 ✅ 2026-08-17（`.codebuddy/skills/pan/scripts/monitor_workers.py`，py_compile 通过）
 - [ ] B：逐工具补 description 调用链引导（`packages/mcp/server.py`），指向 `/pan` skill
-- [ ] C：`pan_handbook` MCP 工具（读 SKILL.md 返回）
+- [x] C：`pan_handbook` MCP 工具（读 SKILL.md 返回）✅ 已实现（D1 审校确认）
 - [ ] 验证：冷启动 agent 测试（无上下文，仅 MCP+skill，完成一次编排）
 - [ ] 文档更新（踩坑记录/Worker监督文档引用 skill）
 

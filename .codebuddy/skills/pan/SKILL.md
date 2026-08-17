@@ -14,6 +14,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（meta-agent 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
    - **项目级 `.mcp.json` 发现路径**：工具是 deferred 的 → `ToolSearch`（查询词 `pan`/`mcp`）→ `DeferExecuteTool` 调用。
+   - **拿手册**：MCP 工具 `pan_handbook()` 直接返回本文件全文（§7「其他」）——接线完成后若不清楚编排流程，先调它再动手。
    - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3.2 / §12.2 G9）。
 2. 编排主链路：`session_create → worker_assign → 盯梢（worker.result）→ session_get 查结果 → session_delete 收尾`。
 3. 完成通知**二选一**（详见 §3，同用会重复通知）：
@@ -50,7 +51,7 @@ session_create → worker_spawn → worker_assign / handoff → 盯梢 → 查�
 ```
 1. 为每个任务创建/复用 session
    session_create(name="fix-h1", adapter="cbc", model="hy3")
-   → 返回 session_id: "ses_abc123..."
+   → 返回 id: "ses_abc123..."（后续请求体的 session_id / MCP 的 session_id 用它，§5.2 G6）
 
 2. 异步分派（立即返回，不阻塞）
    worker_assign(session_id="ses_a...", text="任务A")
@@ -150,6 +151,8 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 
 `queue_pending` 是**落盘真源**，`pending_signal` 只是唤醒信号（§9.6）。报告可跨进程重启恢复。
 
+> **订阅即接管**：`report_subscribe` 同时把目标 session 归为调用方（meta-agent）管理（自动 claim，见 `packages/mcp/server.py`）；`report_unsubscribe` 仅能退订**自己管理**的 session。外部协调者走 `/ws/agent` 订阅**不会**建立 managed 关系——这是内部报告路径与外部广播路径的一个重要区别。
+
 ## 4. 盯梢模板：monitor_workers.py
 
 **监督脚本**（随 skill 目录维护，`.codebuddy/skills/pan/scripts/monitor_workers.py`）：
@@ -185,7 +188,7 @@ Monitor(command="python .codebuddy/skills/pan/scripts/monitor_workers.py", persi
 
 **为什么脚本中转，不直接用 Monitor 的 `ws` 模式**：Monitor 的 `ws` 模式**拒绝连接私有/内部地址**（`127.0.0.1`/`localhost` 都被拒）——CodeBuddy 的 WebSocket 安全限制。所以用 `command` 模式跑 python 脚本，由脚本连本机 WS（无此限制），再经 stdout 中转给 Monitor。
 
-依赖：`websockets` 库（Pan 的 `.venv` 已含）。
+依赖：`websockets` 库（Pan 服务 `.venv` 已含，如 `D:/project/pan-test/.venv`；缺失时先 `pip install websockets`）。
 
 ## 5. HTTP API 速查（MCP 覆盖不到的）
 
@@ -196,7 +199,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | 方法 | URL | Body / 参数 | 返回 |
 |------|-----|------------|------|
 | `POST` | `/api/sessions/batch-delete` | `{"sessionIds": ["ses_a", "ses_b"]}` | `{"deleted": 2}`（含 kill worker） |
-| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改 `mcpEnabled`/`outputMode` 时带 `requireRestart: true`（需 worker_kill + worker_spawn 生效） |
+| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改进程相关字段（model/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，**idle worker 自动 respawn 生效、running worker 回 idle 时自动重启**——无需手动 kill+spawn（想立即生效仍可手动 worker_kill + worker_spawn） |
 | `POST` | `/api/sessions/{id}/rename` | `{"name": "new-name"}` | `{"sessionId","name","status":"renamed"}` |
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定） |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<meta-agent session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}` |
@@ -232,7 +235,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `DELETE` | `/api/sessions/{id}` | —（无 body） | `{"sessionId","status":"deleted"}` |
 
 字段说明：
-- `POST /api/sessions`：`name` **必填**且全局唯一（不能含空格、≤64 字符）；其余字段均可省略。`adapter` 默认 `cbc`；`workdir` 默认取 name（相对基准见 §9.1）；`permissionMode` 默认取 config；`characterId` 会给定时覆盖 adapter/model/permissionMode（见 `packages/web/server.py` `_build_session_params`）。
+- `POST /api/sessions`：`name` 省略默认 `'default'`（建议始终显式命名），且全局唯一（不能含空格、≤64 字符）；其余字段均可省略。`adapter` 默认 `cbc`；`workdir` 默认取 name（相对基准见 §9.1）；`permissionMode` 默认取 config；`characterId` 会给定时覆盖 adapter/model/permissionMode（见 `packages/web/server.py` `_build_session_params`）。
 - `POST /api/spawn`：已有 worker 会**先 kill 再新建**（一个 session 一个 worker）；`sessionId` 省略时等同 create+spawn（body 同 create 字段）。
 - `POST /api/assign`：`sessionId`、`text` **均必填**；缺参返回 `{"ok":false,"error":{...}}`。worker 不存在时自动 spawn。完成异步经 `worker.result` 事件 / `lastResult` 返回。
 - `DELETE /api/sessions/{id}`：删除 session 并 kill 其 worker。
@@ -299,7 +302,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?` | 创建会话。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§9.1） |
 | `session_list` | (无) | 列出所有会话及 worker 状态（轮询兜底用） |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
-| `session_update` | `session_id`, 各设置项 | PATCH 封装；改 mcpEnabled 需 respawn worker |
+| `session_update` | `session_id`, 各设置项 | PATCH 封装；改进程相关配置（model/effort/thinking/MCP/outputMode）时 **idle worker 自动 respawn 生效**、running worker 回 idle 时自动重启（§5 PATCH） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_history` | `session_id`, `limit?`, `before?` | 分页历史 |
 
@@ -308,7 +311,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?`, `workdir?` | 生成 worker；给 name 则先建 session。已有 worker 会先 kill（一个 session 一个 worker） |
-| `worker_task` | `session_id?`, `worker_id?`, `text` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn |
+| `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn；`source` 默认 `"agent"` |
 | `worker_handoff` | `session_id`, `text`, `timeout?`, `task_id?` | **[DEPRECATED]** 同步阻塞。串行依赖/严格同步返回值才用；传 `task_id` 幂等重试（§9.4） |
 | `worker_assign` | `session_id`, `text` | **异步分派**（并行 fan-out 用）：立即返回 queued，完成经 `worker.result` 事件回调 |
 | `worker_send` | `worker_id`, `text` | 向已有 worker 发消息（多轮协作）；Pan 内 session 自动加 `////by agent` 前缀（§9.5） |
@@ -327,6 +330,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `model_list` | `adapter?` | 列出可用模型 |
+| `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§12 完全一致 |
 
 ## 8. 状态判断
 
@@ -443,7 +447,7 @@ A: 默认 10 分钟。复杂任务传更大 `timeout`；超时后结果仍可能
 A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `worker_spawn` 或 `worker_assign`，自动重建。
 
 **Q: 想切换模型？**
-A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model 后重启 worker（不能热切换运行中 Worker）。
+A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model——idle worker 自动 respawn 生效，running worker 回 idle 时自动重启（不能热切换运行中的 Worker）。
 
 **Q: MCP 工具连不上 Pan？**
 A: `PAN_API_URL` / `PAN_WS_URL` 端口要指向实际运行的 port（本分支 8767，MCP 默认 8768）。MCP server 用 `--pan-url` 或环境变量覆盖。
