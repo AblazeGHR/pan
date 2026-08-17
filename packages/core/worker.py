@@ -126,6 +126,7 @@ class Worker:
     pending_signal: asyncio.Queue | None = None
     _replaying: bool = False  # true during cbc --resume event replay
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
+    pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
     # ── 活性探测（watchdog 用）──
     last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
     # ── 任务序号（result 与 task 配对用）──
@@ -342,6 +343,7 @@ async def _read_stdout(w: Worker):
             if w._replaying:
                 w._replaying = False
                 w.status = "idle"
+                _maybe_restart_pending(w)
                 continue
 
             # taskSeq 统一用 _current_seq（_consumer 取出 item 时已从 handoff
@@ -403,6 +405,7 @@ async def _read_stdout(w: Worker):
                 }
             w._current_task_id = None
             w.status = "idle"
+            _maybe_restart_pending(w)
             continue
 
         # replay 期间不广播 stream 事件
@@ -857,6 +860,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
         w.last_activity = time.monotonic()
         w.status = "idle"
+        _maybe_restart_pending(w)
         return
 
     # Track in-flight process so kill_worker can terminate it (see #3).
@@ -1019,6 +1023,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     # 重置，任务耗时会被算进 idle 时长，刚忙完就可能被 watchdog 立即回收。
     w.last_activity = time.monotonic()
     w.status = "idle"
+    _maybe_restart_pending(w)
     task_seq = w._current_seq
     await _bcast({
         "type": "worker.result",
@@ -1284,6 +1289,34 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
             })
         except Exception as bcast_err:
             _log.warning("[Worker %s] BG cleanup bcast error: %r", worker_id, bcast_err)
+
+
+def _maybe_restart_pending(w: Worker) -> None:
+    """Worker 回到 idle 时若标记了 pending_restart，异步 respawn 让配置变更生效。
+
+    在 worker 置 idle 的各路径调用；仅 pending_restart 时触发，其他情况为无操作。
+    """
+    if w.pending_restart and w.process is not None:
+        w.pending_restart = False
+        _log.info("[Worker %s] 配置变更：idle 后 respawn", w.worker_id)
+        asyncio.create_task(_respawn_worker(w))
+
+
+async def _respawn_worker(w: Worker) -> None:
+    """kill 当前进程 + 重新 spawn（resume 上下文），用于进程相关配置变更后生效。"""
+    sid, wid = w.session_id, w.worker_id
+    try:
+        await kill_worker(wid)
+    except Exception as e:
+        _log.warning("[Worker %s] respawn kill 异常: %s", wid, e)
+    try:
+        result = await create_worker(sid)
+        if isinstance(result, Worker):
+            _log.info("[Worker %s] respawn 完成 -> %s", wid, result.worker_id)
+        else:
+            _log.warning("[Worker %s] respawn 失败: %s", wid, result)
+    except Exception as e:
+        _log.error("[Worker %s] respawn 异常: %s", wid, e)
 
 
 async def _spawn_process(session_id: str,

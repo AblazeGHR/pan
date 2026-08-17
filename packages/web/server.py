@@ -392,6 +392,14 @@ def _safe_adapter(adapter_name: str):
         return get_adapter("cbc")
 
 
+# 进程相关字段：修改后影响 worker 进程（cbc 启动参数/执行模式），需要 respawn 才生效。
+# 不含 name 等纯元数据字段。
+_PROCESS_AFFECTING_FIELDS = {
+    "model", "permissionMode", "alwaysThinkingEnabled", "effort",
+    "maxThinkingTokens", "mcpEnabled", "mcpServers", "outputMode",
+}
+
+
 def _apply_session_updates(s: sess.Session, data: dict):
     """Apply model/mode/thinking/effort fields from data to a Session (in-place)."""
     if "model" in data:
@@ -836,6 +844,17 @@ async def api_update_session(session_id: str, data: dict):
         "sessionId": s.id,
     })
     result = _session_to_api(s)
+    # 进程相关字段变更（model/effort/thinking/MCP 等）：idle worker 立即
+    # respawn 让新配置生效；running worker 标记 pending_restart，回 idle 时
+    # 自动 respawn（worker._maybe_restart_pending）。
+    if any(k in data for k in _PROCESS_AFFECTING_FIELDS):
+        w = worker.find_worker_by_session(session_id)
+        if w:
+            if w.status == "idle" and w.process is not None:
+                asyncio.create_task(worker._respawn_worker(w))
+            else:
+                w.pending_restart = True
+            require_restart = True
     if require_restart:
         result["requireRestart"] = True
     return result
