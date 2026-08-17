@@ -7,13 +7,14 @@ description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 M
 
 Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通过 Pan MCP 工具调度多个 CLI Worker 进程（cbc/kimi），每个 Worker 拥有独立的会话（Session）和记忆（workdir）。
 
-> **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/plans&overviews/Pan冷启动Agent编排skill立项.md`）。内容与代码同步演进；MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
+> **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/plans&overviews/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——改内容先改主源，再复制到副本保持同步。MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
 
 ## 0. 快速开始（30 秒冷启动）
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（meta-agent 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
    - **项目级 `.mcp.json` 发现路径**：工具是 deferred 的 → `ToolSearch`（查询词 `pan`/`mcp`）→ `DeferExecuteTool` 调用。
+   - **拿手册**：MCP 工具 `pan_handbook()` 直接返回本文件全文（§7「其他」）——接线完成后若不清楚编排流程，先调它再动手。
    - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3.2 / §12.2 G9）。
 2. 编排主链路：`session_create → worker_assign → 盯梢（worker.result）→ session_get 查结果 → session_delete 收尾`。
 3. 完成通知**二选一**（详见 §3，同用会重复通知）：
@@ -50,7 +51,7 @@ session_create → worker_spawn → worker_assign / handoff → 盯梢 → 查�
 ```
 1. 为每个任务创建/复用 session
    session_create(name="fix-h1", adapter="cbc", model="hy3")
-   → 返回 session_id: "ses_abc123..."
+   → 返回 id: "ses_abc123..."（后续请求体的 session_id / MCP 的 session_id 用它，§5.2 G6）
 
 2. 异步分派（立即返回，不阻塞）
    worker_assign(session_id="ses_a...", text="任务A")
@@ -88,6 +89,8 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 3. worker_assign(session_id="ses_abc...", text="继续之前的话题...")
 ```
 
+任务文本的写法（取决于 `cliSessionId` 有无上下文，见 §2.6）。
+
 ### 2.4 检查状态
 
 ```
@@ -106,6 +109,19 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 ```
 
 **及时清理**：不再需要的 session 用 delete 释放进程与磁盘；watchdog 只回收进程，不删 session。
+
+### 2.6 派发规范：worker 无记忆，session 有记忆
+
+**记忆模型**：Worker 是**临时进程**——每次 spawn 都是全新进程，**无记忆**；Session 是**持久化容器**——保存 `history` + `cliSessionId`。重新 spawn 时 adapter 检测到 `cliSessionId` 非空即传 `cbc --resume <cliSessionId>`（`packages/core/adapters/cbc/adapter.py` `resume_args`），cbc 从 transcript（JSONL）恢复**完整上下文**（原任务描述、进度、历史对话都在）。session 的记忆来自持久化，不来自 worker。
+
+**派发判定**：派发任务前先 `session_get(session_id)` 查 **`cliSessionId`** 字段：
+
+| `cliSessionId` | 含义 | 任务文本写法 |
+|----------------|------|-------------|
+| **非空** | worker 将 `--resume` 恢复已有完整上下文 | **一律用简短指令**（追加任务 / 恢复中断 / 串行下一步 / 追问修正）：指出现有上下文里要做什么即可，**不要重发完整任务描述**——上下文已有原任务与进度，重发浪费 token，且措辞差异可能让 worker 误判为新任务/新要求 |
+| **为空 / null** | 新 session 或 worker 从未建立，worker 无上下文 | **任务描述必须自包含**：背景 / 目标 / 涉及文件（相对 workdir）/ 边界 / 验收标准 |
+
+- 与 §2.3 的关系：§2.3 解决「找 session + spawn」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`worker_spawn`（`workerStatus` 为 null 时）→ 简短指令。
 
 ## 3. 完成通知：二选一（互斥，勿同用）
 
@@ -150,21 +166,26 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 
 `queue_pending` 是**落盘真源**，`pending_signal` 只是唤醒信号（§9.6）。报告可跨进程重启恢复。
 
+> **订阅即接管**：`report_subscribe` 同时把目标 session 归为调用方（meta-agent）管理（自动 claim，见 `packages/mcp/server.py`）；`report_unsubscribe` 仅能退订**自己管理**的 session。外部协调者走 `/ws/agent` 订阅**不会**建立 managed 关系——这是内部报告路径与外部广播路径的一个重要区别。
+
 ## 4. 盯梢模板：monitor_workers.py
 
-**监督脚本**（随 skill 目录维护，`.codebuddy/skills/pan/scripts/monitor_workers.py`）：
+**监督脚本**（随项目维护，`packages/scripts/monitor_workers.py`）——**双通道**：
+
+1. **WS 事件**（实时）：订阅 `worker.result`（正常完成）**和** `worker.zombie`（意外死亡 / watchdog 回收 / 进程退出）——worker 意外丢失对协调者可见。
+2. **健康检查**（防「假 running」，每 30s 一次）：轮询 HTTP `GET /api/sessions/{id}` + 检查 transcript 文件 mtime（`~/.codebuddy/projects/<d-project-<workdir>/*.jsonl`，即 workdir 绝对路径 slug 化后的项目目录）。Pan 报 `running` 但 session `updatedAt` 与 transcript **均**超过 3 分钟无更新 → 输出一行 `STALE`（假 running / 卡死）。**去重冷却**：STALE 只在进入卡死时输出一次；恢复活跃后输出 `RECOVERED`，若再次卡死会再次 STALE。
 
 ```bash
-python .codebuddy/skills/pan/scripts/monitor_workers.py
-# 通过 PAN_WS_URL 环境变量指定端口（默认 ws://127.0.0.1:8768/ws/agent）
-PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python .codebuddy/skills/pan/scripts/monitor_workers.py
-# 按 sessionId 过滤订阅（只盯自己派发的 session，避免其他 session 的完成事件打扰）
-PAN_SESSION_IDS=ses_a,ses_b python .codebuddy/skills/pan/scripts/monitor_workers.py
+# 用 Pan 服务 .venv 的 python 运行（已含 websockets）
+python packages/scripts/monitor_workers.py
+# 通过 PAN_WS_URL 环境变量指定端口（默认 ws://127.0.0.1:8768/ws/agent；HTTP 基址自动由它推导）
+PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python packages/scripts/monitor_workers.py
+# 按 sessionId 过滤订阅与健康检查（只盯自己派发的 session，避免其他 session 的事件打扰）
+PAN_SESSION_IDS=ses_a,ses_b python packages/scripts/monitor_workers.py
 ```
 
-行为：
-- 订阅 `worker.result`（正常完成）**和** `worker.zombie`（意外死亡 / watchdog 回收 / 进程退出）——worker 意外丢失对协调者可见。
-- **`PAN_SESSION_IDS` 按 session 过滤**（逗号分隔）；省略 = 订阅所有。**实践：派发 worker 后用 `PAN_SESSION_IDS` 只订阅自己派发的 session**——否则同一服务上其他协调者/测试 session 的完成事件会频繁唤醒你（噪音）。
+- **`PAN_SESSION_IDS` 按 session 过滤**（逗号分隔）；省略 = 订阅/检查所有。**实践：派发 worker 后用 `PAN_SESSION_IDS` 只订阅自己派发的 session**——否则同一服务上其他协调者/测试 session 的事件会频繁唤醒你（噪音）。
+- 健康检查可选环境变量：`PAN_API_URL`（HTTP 基址，默认由 `PAN_WS_URL` 推导）、`PAN_HEALTH_INTERVAL`（检查间隔，默认 30s）、`PAN_STALE_AFTER`（静默阈值，默认 180s）。
 - 每事件输出一行（flush），一行一事件，兼容 Monitor 增量输出协议：
 
 ```
@@ -172,20 +193,22 @@ MONITOR_CONNECTED
 MONITOR_SUBSCRIBED
 DONE session=ses_... status=done worker=worker-1
 DIE  session=ses_... worker=worker-2 returncode=1
+STALE session=ses_... worker=worker-3 status=running stale_for=220s   # 假 running：3 分钟无任何活动
+RECOVERED session=ses_... worker=worker-3 status=running              # 恢复活跃
 MONITOR_DISCONNECTED: ...   # 断线自动 5s 后重连
 ```
 
 **Monitor 启动**（CodeBuddy Monitor 工具，command 模式）：
 
 ```
-Monitor(command="python .codebuddy/skills/pan/scripts/monitor_workers.py", persistent=true)
+Monitor(command="python packages/scripts/monitor_workers.py", persistent=true)
 ```
 
 每次脚本输出一行 → Monitor 唤醒协调者（秒级感知，替代 5 分钟轮询）。
 
 **为什么脚本中转，不直接用 Monitor 的 `ws` 模式**：Monitor 的 `ws` 模式**拒绝连接私有/内部地址**（`127.0.0.1`/`localhost` 都被拒）——CodeBuddy 的 WebSocket 安全限制。所以用 `command` 模式跑 python 脚本，由脚本连本机 WS（无此限制），再经 stdout 中转给 Monitor。
 
-依赖：`websockets` 库（Pan 的 `.venv` 已含）。
+依赖：`websockets` 库（Pan 服务 `.venv` 已含，如 `D:/project/Pan/.venv`；缺失时先 `pip install websockets`）。
 
 ## 5. HTTP API 速查（MCP 覆盖不到的）
 
@@ -196,7 +219,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | 方法 | URL | Body / 参数 | 返回 |
 |------|-----|------------|------|
 | `POST` | `/api/sessions/batch-delete` | `{"sessionIds": ["ses_a", "ses_b"]}` | `{"deleted": 2}`（含 kill worker） |
-| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改 `mcpEnabled`/`outputMode` 时带 `requireRestart: true`（需 worker_kill + worker_spawn 生效） |
+| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改进程相关字段（model/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，**idle worker 自动 respawn 生效、running worker 回 idle 时自动重启**——无需手动 kill+spawn（想立即生效仍可手动 worker_kill + worker_spawn） |
 | `POST` | `/api/sessions/{id}/rename` | `{"name": "new-name"}` | `{"sessionId","name","status":"renamed"}` |
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定） |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<meta-agent session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}` |
@@ -232,7 +255,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `DELETE` | `/api/sessions/{id}` | —（无 body） | `{"sessionId","status":"deleted"}` |
 
 字段说明：
-- `POST /api/sessions`：`name` **必填**且全局唯一（不能含空格、≤64 字符）；其余字段均可省略。`adapter` 默认 `cbc`；`workdir` 默认取 name（相对基准见 §9.1）；`permissionMode` 默认取 config；`characterId` 会给定时覆盖 adapter/model/permissionMode（见 `packages/web/server.py` `_build_session_params`）。
+- `POST /api/sessions`：`name` 省略默认 `'default'`（建议始终显式命名），且全局唯一（不能含空格、≤64 字符）；其余字段均可省略。`adapter` 默认 `cbc`；`workdir` 默认取 name（相对基准见 §9.1）；`permissionMode` 默认取 config；`characterId` 会给定时覆盖 adapter/model/permissionMode（见 `packages/web/server.py` `_build_session_params`）。
 - `POST /api/spawn`：已有 worker 会**先 kill 再新建**（一个 session 一个 worker）；`sessionId` 省略时等同 create+spawn（body 同 create 字段）。
 - `POST /api/assign`：`sessionId`、`text` **均必填**；缺参返回 `{"ok":false,"error":{...}}`。worker 不存在时自动 spawn。完成异步经 `worker.result` 事件 / `lastResult` 返回。
 - `DELETE /api/sessions/{id}`：删除 session 并 kill 其 worker。
@@ -299,7 +322,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?` | 创建会话。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§9.1） |
 | `session_list` | (无) | 列出所有会话及 worker 状态（轮询兜底用） |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
-| `session_update` | `session_id`, 各设置项 | PATCH 封装；改 mcpEnabled 需 respawn worker |
+| `session_update` | `session_id`, 各设置项 | PATCH 封装；改进程相关配置（model/effort/thinking/MCP/outputMode）时 **idle worker 自动 respawn 生效**、running worker 回 idle 时自动重启（§5 PATCH） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_history` | `session_id`, `limit?`, `before?` | 分页历史 |
 
@@ -308,7 +331,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?`, `workdir?` | 生成 worker；给 name 则先建 session。已有 worker 会先 kill（一个 session 一个 worker） |
-| `worker_task` | `session_id?`, `worker_id?`, `text` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn |
+| `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn；`source` 默认 `"agent"` |
 | `worker_handoff` | `session_id`, `text`, `timeout?`, `task_id?` | **[DEPRECATED]** 同步阻塞。串行依赖/严格同步返回值才用；传 `task_id` 幂等重试（§9.4） |
 | `worker_assign` | `session_id`, `text` | **异步分派**（并行 fan-out 用）：立即返回 queued，完成经 `worker.result` 事件回调 |
 | `worker_send` | `worker_id`, `text` | 向已有 worker 发消息（多轮协作）；Pan 内 session 自动加 `////by agent` 前缀（§9.5） |
@@ -327,6 +350,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `model_list` | `adapter?` | 列出可用模型 |
+| `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§12 完全一致 |
 
 ## 8. 状态判断
 
@@ -443,7 +467,7 @@ A: 默认 10 分钟。复杂任务传更大 `timeout`；超时后结果仍可能
 A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `worker_spawn` 或 `worker_assign`，自动重建。
 
 **Q: 想切换模型？**
-A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model 后重启 worker（不能热切换运行中 Worker）。
+A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model——idle worker 自动 respawn 生效，running worker 回 idle 时自动重启（不能热切换运行中的 Worker）。
 
 **Q: MCP 工具连不上 Pan？**
 A: `PAN_API_URL` / `PAN_WS_URL` 端口要指向实际运行的 port（本分支 8767，MCP 默认 8768）。MCP server 用 `--pan-url` 或环境变量覆盖。
@@ -502,6 +526,30 @@ A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`
 5. 读 `lastResult.result`。
 6. `session_delete(session_id)` 收尾（注意 G11 workdir 残留）。
 7. **避免**全量 `session_list`（G8）；状态巡检用 `worker_list` + 定向 `session_get`。
+
+---
+
+## 13. skill 维护规范
+
+> 本 skill 是**项目维护的重点内容**（立项 `docs/plans&overviews/Pan冷启动Agent编排skill立项.md` §二·5），随代码演进，变更走 git PR/提交与代码同轨。以下规范不仅适用于本 skill，也适用于所有**文档/手册类任务**。
+
+### 13.1 自包含可验证：编写与验证闭环
+
+- **文档/手册任务必须"自包含可验证"**：写的人**模拟目标用户完整走一遍再交付**，不能只写完就交付。
+- 目标用户画像（本 skill）：冷启动 agent——**无对话上下文、只有 MCP 工具 + skill**，不会主动去读代码。
+- 编写流程：
+  1. 按手册从零走一遍主链路（本 skill 即 §0 快速开始 → §2 编排链路 → §3 完成通知 → §7 收尾）；
+  2. 走不通 / 有歧义处 = 手册缺口，补完**再走一遍**（闭环）；
+  3. 交付前核对："用户**不读代码**能否完成？"——凡"先 Read 代码才能继续"的表述都是缺口（反例：G1，手册原只说"见 server.py"）。
+- 手册内容禁止只引用代码文件而不给关键结论（参数表 / 返回格式 / 状态语义必须落字）。
+- 验证闭环作为变更验收项：冷启动 agent 测试（仅 MCP + skill、无上下文完成一次编排，立项 §二·5「验证」）。
+
+### 13.2 SKILL.md 双份管理
+
+- **主源**：`docs/skills/pan/SKILL.md`（**git 版本控制**，随代码变更走 PR/提交）。
+- **同步副本**：`.codebuddy/skills/pan/SKILL.md`（CodeBuddy 编辑器加载 skill 用，**不进 git**）。
+- **改内容先改主源，再复制到副本保持同步**——只改副本会让主源落后，下次 checkout/合并会把改动冲掉。
+- 内容变化触发同步：MCP 工具 / HTTP API / workdir 约定 / 编排流程变更时，两处一并更新（本文件 §0 头注）。
 
 ---
 
