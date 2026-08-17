@@ -89,6 +89,8 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 3. worker_assign(session_id="ses_abc...", text="继续之前的话题...")
 ```
 
+任务文本的写法（首次自包含 vs 恢复简短继续）见 §2.6。
+
 ### 2.4 检查状态
 
 ```
@@ -107,6 +109,20 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 ```
 
 **及时清理**：不再需要的 session 用 delete 释放进程与磁盘；watchdog 只回收进程，不删 session。
+
+### 2.6 派发规范：首次派发 vs 恢复中断任务
+
+派发任务文本前，先 `session_get(session_id)` 看 **`cliSessionId`** 字段，决定任务文本怎么写：
+
+| 情形 | 判定（`cliSessionId`） | 任务文本写法 |
+|------|----------------------|-------------|
+| **首次派发** | 为空 / `null`（新 session，或从未 spawn 过） | **必须自包含**：背景 / 目标 / 涉及文件 / 边界 / 验收标准。worker 是全新 transcript，没有任何上下文可依赖 |
+| **恢复中断任务** | 已有值（之前 spawn 过，cbc 记录过 session id） | **简短「继续完成之前任务」指令**即可（如 `"继续完成之前的任务，汇报进度"`）。**不要重发完整任务描述** |
+
+- **恢复的机制**：spawn 时 adapter 检测到 `cliSessionId` 会传 `cbc --resume <cliSessionId>`（`packages/core/adapters/cbc/adapter.py` `resume_args`），cbc 从 transcript（JSONL）恢复**全部上下文**——原任务描述、已完成进度、历史对话都在。所以恢复场景重发完整任务描述是**多余且有害**的：浪费 token，且措辞差异可能让 worker 误判为新任务/新要求。
+- **首次派发自包含清单**（任务文本建议含）：背景（为什么做）、目标（做什么/产出什么）、涉及文件（路径相对 workdir）、边界（不要做什么/约束）、验收标准（怎么算完成）。
+- **混合场景**：首次派发到新 session 用自包含文本；该 session 之后中断恢复，一律走「简短继续」。
+- 与 §2.3 的关系：§2.3 解决「找 session + spawn」，本小节解决「任务文本怎么写」——恢复中断任务时两者一起用：`worker_spawn`（`workerStatus` 为 null 时）→ 简短继续指令。
 
 ## 3. 完成通知：二选一（互斥，勿同用）
 
