@@ -962,6 +962,19 @@ async def api_branch_session(session_id: str, data: dict):
     return _session_to_api(new_s)
 
 
+def _cleanup_mcp_config(session_id: str) -> None:
+    """S3：session 删除后清理 data/mcp-configs/<session_id>.mcp.json。
+
+    cbc 运行期间持续读取该文件（mcp-configs 生命周期立项），但 session
+    删除后不再需要，避免残留。文件不存在时静默跳过。
+    """
+    p = DATA_DIR / "mcp-configs" / f"{session_id}.mcp.json"
+    try:
+        p.unlink(missing_ok=True)
+    except OSError as e:
+        _log.warning("[mcp-config] 清理失败 %s: %s", p, e)
+
+
 @app.delete("/api/sessions/{session_id}")
 async def api_delete_session(session_id: str):
     """Delete a session and its worker if running."""
@@ -972,6 +985,7 @@ async def api_delete_session(session_id: str):
             worker.cleanup_worker_background(w.worker_id, w.session_id)
         )
     sess.delete(session_id)
+    _cleanup_mcp_config(session_id)
     await broadcast({
         "type": "session.deleted",
         "sessionId": session_id,
@@ -995,6 +1009,7 @@ async def api_batch_delete_sessions(data: dict):
                 worker.cleanup_worker_background(w.worker_id, w.session_id)
             )
         sess.delete(sid)
+        _cleanup_mcp_config(sid)
         deleted += 1
 
     await broadcast({
