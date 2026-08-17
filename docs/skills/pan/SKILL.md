@@ -7,7 +7,7 @@ description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 M
 
 Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通过 Pan MCP 工具调度多个 CLI Worker 进程（cbc/kimi），每个 Worker 拥有独立的会话（Session）和记忆（workdir）。
 
-> **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/plans&overviews/Pan冷启动Agent编排skill立项.md`）。内容与代码同步演进；MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
+> **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/plans&overviews/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——改内容先改主源，再复制到副本保持同步。MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
 
 ## 0. 快速开始（30 秒冷启动）
 
@@ -170,19 +170,22 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 
 ## 4. 盯梢模板：monitor_workers.py
 
-**监督脚本**（随 skill 目录维护，`.codebuddy/skills/pan/scripts/monitor_workers.py`）：
+**监督脚本**（随项目维护，`packages/scripts/monitor_workers.py`）——**双通道**：
+
+1. **WS 事件**（实时）：订阅 `worker.result`（正常完成）**和** `worker.zombie`（意外死亡 / watchdog 回收 / 进程退出）——worker 意外丢失对协调者可见。
+2. **健康检查**（防「假 running」，每 30s 一次）：轮询 HTTP `GET /api/sessions/{id}` + 检查 transcript 文件 mtime（`~/.codebuddy/projects/<d-project-<workdir>/*.jsonl`，即 workdir 绝对路径 slug 化后的项目目录）。Pan 报 `running` 但 session `updatedAt` 与 transcript **均**超过 3 分钟无更新 → 输出一行 `STALE`（假 running / 卡死）。**去重冷却**：STALE 只在进入卡死时输出一次；恢复活跃后输出 `RECOVERED`，若再次卡死会再次 STALE。
 
 ```bash
-python .codebuddy/skills/pan/scripts/monitor_workers.py
-# 通过 PAN_WS_URL 环境变量指定端口（默认 ws://127.0.0.1:8768/ws/agent）
-PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python .codebuddy/skills/pan/scripts/monitor_workers.py
-# 按 sessionId 过滤订阅（只盯自己派发的 session，避免其他 session 的完成事件打扰）
-PAN_SESSION_IDS=ses_a,ses_b python .codebuddy/skills/pan/scripts/monitor_workers.py
+# 用 Pan 服务 .venv 的 python 运行（已含 websockets）
+python packages/scripts/monitor_workers.py
+# 通过 PAN_WS_URL 环境变量指定端口（默认 ws://127.0.0.1:8768/ws/agent；HTTP 基址自动由它推导）
+PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python packages/scripts/monitor_workers.py
+# 按 sessionId 过滤订阅与健康检查（只盯自己派发的 session，避免其他 session 的事件打扰）
+PAN_SESSION_IDS=ses_a,ses_b python packages/scripts/monitor_workers.py
 ```
 
-行为：
-- 订阅 `worker.result`（正常完成）**和** `worker.zombie`（意外死亡 / watchdog 回收 / 进程退出）——worker 意外丢失对协调者可见。
-- **`PAN_SESSION_IDS` 按 session 过滤**（逗号分隔）；省略 = 订阅所有。**实践：派发 worker 后用 `PAN_SESSION_IDS` 只订阅自己派发的 session**——否则同一服务上其他协调者/测试 session 的完成事件会频繁唤醒你（噪音）。
+- **`PAN_SESSION_IDS` 按 session 过滤**（逗号分隔）；省略 = 订阅/检查所有。**实践：派发 worker 后用 `PAN_SESSION_IDS` 只订阅自己派发的 session**——否则同一服务上其他协调者/测试 session 的事件会频繁唤醒你（噪音）。
+- 健康检查可选环境变量：`PAN_API_URL`（HTTP 基址，默认由 `PAN_WS_URL` 推导）、`PAN_HEALTH_INTERVAL`（检查间隔，默认 30s）、`PAN_STALE_AFTER`（静默阈值，默认 180s）。
 - 每事件输出一行（flush），一行一事件，兼容 Monitor 增量输出协议：
 
 ```
@@ -190,20 +193,22 @@ MONITOR_CONNECTED
 MONITOR_SUBSCRIBED
 DONE session=ses_... status=done worker=worker-1
 DIE  session=ses_... worker=worker-2 returncode=1
+STALE session=ses_... worker=worker-3 status=running stale_for=220s   # 假 running：3 分钟无任何活动
+RECOVERED session=ses_... worker=worker-3 status=running              # 恢复活跃
 MONITOR_DISCONNECTED: ...   # 断线自动 5s 后重连
 ```
 
 **Monitor 启动**（CodeBuddy Monitor 工具，command 模式）：
 
 ```
-Monitor(command="python .codebuddy/skills/pan/scripts/monitor_workers.py", persistent=true)
+Monitor(command="python packages/scripts/monitor_workers.py", persistent=true)
 ```
 
 每次脚本输出一行 → Monitor 唤醒协调者（秒级感知，替代 5 分钟轮询）。
 
 **为什么脚本中转，不直接用 Monitor 的 `ws` 模式**：Monitor 的 `ws` 模式**拒绝连接私有/内部地址**（`127.0.0.1`/`localhost` 都被拒）——CodeBuddy 的 WebSocket 安全限制。所以用 `command` 模式跑 python 脚本，由脚本连本机 WS（无此限制），再经 stdout 中转给 Monitor。
 
-依赖：`websockets` 库（Pan 服务 `.venv` 已含，如 `D:/project/pan-test/.venv`；缺失时先 `pip install websockets`）。
+依赖：`websockets` 库（Pan 服务 `.venv` 已含，如 `D:/project/Pan/.venv`；缺失时先 `pip install websockets`）。
 
 ## 5. HTTP API 速查（MCP 覆盖不到的）
 
