@@ -122,6 +122,13 @@
     "idle_sec": 300
   },
 
+  "mcp": {
+    "_字段说明": {
+      "enabled_default": "已废弃（MCP 启用单一事实源收敛后不再读取）：MCP 启用由 session 的 mcp_servers 非空决定（非空即启用），本键保留仅作历史兼容记录，改它无效果"
+    },
+    "enabled_default": true
+  },
+
   "logging": {
     "_字段说明": {
       "level": "日志级别：DEBUG/INFO/WARNING/ERROR（默认 INFO）",

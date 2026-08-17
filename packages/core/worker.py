@@ -574,6 +574,10 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     """订阅制报告入队：session 完成 → 若被其 managed_by 订阅，报告 append 到
     manager 的落盘队列 queue_pending，并唤醒 manager 的 consumer。
 
+    **done / error 都入队（决策保留，遗留待办 L6）**：协调者（manager）需要
+    知道失败——失败是编排的必要信息（重试/排查），不能只报成功。若后续只想报
+    done，在此按 status 过滤即可。
+
     未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
     """
     s = _sess.get(session_id)
