@@ -4,7 +4,8 @@
       "name": "default",
       "adapter": "cbc",
       "model": "deepseek-v4-flash",
-      "mcp_mode": "optional",
+      "mcp_mode": "always",
+      "mcp_servers": ["pan"],
       "system_prompt": "你是一个有用的AI助手。使用中文回复。",
       "permission_mode": "bypassPermissions"
     },

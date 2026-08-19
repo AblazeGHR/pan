@@ -1,14 +1,4 @@
 {
-  "name": "pan-mcp",
-  "description": "Pan MCP Server - wraps Pan's HTTP API as MCP tools for agent consumption",
-  "mcp_servers": [
-    {
-      "name": "pan",
-      "command": "${PLUGIN_DIR}/../../.venv/Scripts/python",
-      "args": ["-m", "packages.mcp.server"],
-      "cwd": "${PLUGIN_DIR}/../.."
-    }
-  ],
   "session_templates": [
     {
       "name": "pan-operator",
@@ -43,6 +33,15 @@
       ],
       "mcp_servers": ["pan"],
       "permission_mode": "bypassPermissions"
+    }
+  ],
+  "character_templates": [],
+  "mcp_servers": [
+    {
+      "name": "pan",
+      "command": "${PLUGIN_DIR}/../../.venv/Scripts/python",
+      "args": ["-m", "packages.mcp.server"],
+      "cwd": "${PLUGIN_DIR}/../.."
     }
   ],
   "command_routes": []
