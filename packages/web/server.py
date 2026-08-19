@@ -346,14 +346,15 @@ def _build_session_params(data: dict) -> dict:
 
     if template is None:
         # Built-in default session_template = config.json session config.
+        # 默认 stream + MCP：注入 `pan` MCP server（输出模式自动走 stream+MCP）。
         template = SessionTemplate(
             name="default",
             adapter=adapter_name,
             model=config.get("model") or a.default_model,
             permission_mode=config.get("permission_mode"),
             system_prompt="",
-            mcp_mode="optional",
-            mcp_servers=[],
+            mcp_mode="always",
+            mcp_servers=["pan"],
         )
         template_name = None  # don't record an explicit name for the default
 
@@ -383,7 +384,13 @@ def _build_session_params(data: dict) -> dict:
     # mcp_mode decides injection: "always" injects; "optional"/"never" start
     # without servers (optional templates toggle via PATCH mcpServers).
     if template.mcp_mode == "always" and template.mcp_servers:
-        params["adapter_config"]["mcp_servers"] = _resolve_mcp_server_configs(template.mcp_servers)
+        try:
+            params["adapter_config"]["mcp_servers"] = _resolve_mcp_server_configs(template.mcp_servers)
+        except ValueError:
+            # 默认 MCP server 未注册（manifest 未加载/缺失）→ 降级为无 MCP，
+            # 不能因默认 MCP 缺失阻塞建 session。
+            _log(f"默认 MCP server {template.mcp_servers} 未解析，降级为无 MCP")
+            params["adapter_config"]["mcp_servers"] = []
 
     # Character binding: memory/assets only (no session config from character).
     character_id = data.get("characterId")
