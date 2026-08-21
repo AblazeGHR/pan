@@ -68,4 +68,4 @@
 
 - `docs/plans&overviews/Worker监督与事件驱动模式.md` — Monitor 实战与完成通知二选一
 - `docs/plans&overviews/Pan冷启动Agent编排skill立项.md` — skill 对监督模式的描述
-- `docs/pan-test-分支质量审查-2026-08-15.md` — /ws/agent 订阅协议
+- `docs/阶段计划与进度.md` — 原 `docs/pan-test-分支质量审查-2026-08-15.md`（/ws/agent 订阅协议审查）已整合删除，协议细节见 `docs/cbc-mcp-踩坑记录.md`

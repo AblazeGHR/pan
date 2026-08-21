@@ -484,7 +484,7 @@ A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`
 
 ## 12. 冷启动实测记录与待补充清单（D5）
 
-> 立项 D5 要求同时验证 **HTTP 路径** 与 **MCP 路径**。下表 G1–G7 为 `docs/plans&overviews/冷启动Agent编排实测报告.md` 中 HTTP 路径实测结果；**MCP 路径实测（2026-08-17）见下方「MCP 路径实测」小节**，并据此更新 G2/G5、新增 G8–G12。
+> 立项 D5 要求同时验证 **HTTP 路径** 与 **MCP 路径**。下表 G1–G7 为 `docs/archive/冷启动Agent编排实测报告.md` 中 HTTP 路径实测结果；**MCP 路径实测（2026-08-17）见下方「MCP 路径实测」小节**，并据此更新 G2/G5、新增 G8–G12。
 
 ### 12.1 HTTP 路径实测缺口（原 D5）
 
