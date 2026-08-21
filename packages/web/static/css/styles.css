@@ -1028,6 +1028,31 @@ body {
   color: #f85149;
 }
 
+.queue-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 批量拼接发送勾选框 */
+.queue-batch-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #8b949e;
+  font-size: .7rem;
+  user-select: none;
+}
+.queue-batch-label:hover {
+  color: #e6edf3;
+}
+.queue-batch-label input[type="checkbox"] {
+  margin: 0;
+  accent-color: #58a6ff;
+  cursor: pointer;
+}
+
 .queue-row {
   display: flex;
   align-items: center;
