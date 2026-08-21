@@ -1821,12 +1821,12 @@ function _fetchSessionTemplates(): Promise<SessionTemplate[]> {
 }
 
 /** Populate the session-template selector in the new-session modal. First
- *  option is "（无模板）" (value ""), then one option per template labelled
+ *  option is "无 session template" (value ""), then one option per template labelled
  *  "name (model) [MCP]" ([MCP] when the template ships mcpServers). */
 function _populateNewSessionProfileSelect(): void {
   const sel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
   if (!sel) return;
-  sel.innerHTML = '<option value="">（无模板）</option>';
+  sel.innerHTML = '<option value="">无 session template</option>';
   _fetchSessionTemplates().then((templates: SessionTemplate[]) => {
     templates.forEach((p: SessionTemplate) => {
       const opt = document.createElement('option');

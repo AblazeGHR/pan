@@ -561,21 +561,37 @@ async def _consumer(w: Worker):
 
 # ── 订阅制报告消费（立项 4.3）──
 
-_REPORT_SEP = "─────"  # 报告拼接分隔线
-
-
 def _format_report_batch(reports: list[dict]) -> str:
-    """积压报告原样拼接：每条 report dict 序列化 + 显眼分隔线 + 来源标注。
+    """积压报告拼接为可读文本：`@@@@by agent : {sessionId} | {title}` 抬头 + 每字段一行。
 
     报告形状对齐 handoff：{"status","result","sessionId","taskId","workerId"}。
+    title 取被管 session 的 name（`_sess.get(session_id).name`），session 不存在则回退 unknown。
+    result 值单独成行、去引号、保留多行原文；None → null。
     """
+    def _field_value(v) -> str:
+        if v is None:
+            return "null"
+        return str(v)
+
     parts = []
     for r in reports:
-        src = r.get("sessionId") or r.get("workerId") or "unknown"
-        parts.append(
-            f"{_REPORT_SEP} 子任务报告（来源 sessionId={src}）{_REPORT_SEP}\n"
-            f"{json.dumps(r, ensure_ascii=False)}"
-        )
+        sid = r.get("sessionId") or ""
+        title = "unknown"
+        if sid:
+            sess = _sess.get(sid)
+            if sess and sess.name:
+                title = sess.name
+        src = sid or r.get("workerId") or "unknown"
+        lines = [
+            f"@@@@by agent : {src} | {title}",
+            f"status: {_field_value(r.get('status'))}",
+            "result:",
+            _field_value(r.get("result")),
+            f"sessionId: {_field_value(r.get('sessionId'))}",
+            f"taskId: {_field_value(r.get('taskId'))}",
+            f"workerId: {_field_value(r.get('workerId'))}",
+        ]
+        parts.append("\n".join(lines))
     return "\n\n".join(parts)
 
 
