@@ -42,6 +42,12 @@
       "command": "${PLUGIN_DIR}/../../.venv/Scripts/python",
       "args": ["-m", "packages.mcp.server"],
       "cwd": "${PLUGIN_DIR}/../.."
+    },
+    {
+      "name": "pan-qq",
+      "command": "${PLUGIN_DIR}/../../.venv/Scripts/python",
+      "args": ["-m", "packages.qq.mcp"],
+      "cwd": "${PLUGIN_DIR}/../.."
     }
   ],
   "command_routes": []

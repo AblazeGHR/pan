@@ -7,6 +7,13 @@ Usage:
   1. Start NapCat (QQ protocol gateway)
   2. Start Pan Core: python main.py
   3. Start this bot: cd packages/qq && python bot.py
+
+QQ bot HTTP API（挂载在 NoneBot fastapi driver server_app，默认 127.0.0.1:8080，
+供独立 MCP server packages/qq/mcp.py 经 PAN_QQ_API_URL 调用）:
+  POST /api/qq/send        body {target_type: private|group, target_id, text}
+  GET  /api/qq/history     ?target_id=&limit= → {target_id, messages:[{role,text,time}]}
+  GET  /api/qq/recent_contacts               → NapCat get_recent_contact（best-effort）
+消息记录按 target_id 落盘到 data/qq_history/<target_id>.json（user/assistant 双侧）。
 """
 
 from __future__ import annotations
@@ -504,6 +511,10 @@ async def handle_message(bot: Bot, event: MessageEvent):
     if not text:
         return
 
+    # 落盘用户消息（按 target_id：私聊 user_id / 群 group_id），供 HTTP API
+    # GET /api/qq/history 与 MCP 工具 qq_read_conversation 读取。
+    await _append_history(scope_id, "user", text)
+
     # Lazy-load command routes on first use (lets the bot start before Core
     # if needed). Hits are forwarded straight to the manifest-declared HTTP
     # target — 0 LLM tokens, millisecond latency.
@@ -530,6 +541,8 @@ async def handle_message(bot: Bot, event: MessageEvent):
         except Exception as e:
             response = f"[Pan] command route error: {type(e).__name__}: {e}"
 
+        await _append_history(scope_id, "assistant", response)
+
         MAX_LEN = 1500
         if len(response) <= MAX_LEN:
             await bot.send(event, response)
@@ -543,6 +556,8 @@ async def handle_message(bot: Bot, event: MessageEvent):
     await bot.send(event, "processing, please wait...")
 
     response = await _send_and_wait(text, scope_id, scope=scope)
+
+    await _append_history(scope_id, "assistant", response)
 
     MAX_LEN = 1500
     if len(response) <= MAX_LEN:
@@ -592,3 +607,178 @@ async def _shutdown():
         _ws_task = None
     if _client:
         await _client.aclose()
+
+
+# ── QQ bot HTTP API（方案 A：独立 MCP server 精细驱动 QQ）──
+#
+# 在 NoneBot 的 FastAPI server_app 上挂载内部 HTTP API，供独立 MCP server
+# （packages/qq/mcp.py）经 PAN_QQ_API_URL 调用。消息记录按 target_id
+# （私聊 user_id / 群 group_id）落盘到 data/qq_history/<target_id>.json，
+# 供 history API 与 qq_read_conversation 读取。NapCat 的 get_recent_contact
+# 只能取缓存近期联系人，可靠历史以本文件为准。
+
+_HISTORY_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "qq_history"
+_HISTORY_MAX_ENTRIES = 500
+_history_lock = asyncio.Lock()
+
+# 最新可用的 bot 实例（NoneBot on_bot_connect 维护），API 发送用。
+_active_bot: Bot | None = None
+
+
+@driver.on_bot_connect
+async def _on_bot_connect(bot: Bot) -> None:
+    global _active_bot
+    _active_bot = bot
+    print(f"[QQ Bridge] bot connected: {bot.self_id}")
+
+
+@driver.on_bot_disconnect
+async def _on_bot_disconnect(bot: Bot) -> None:
+    global _active_bot
+    if _active_bot is bot:
+        _active_bot = None
+    print(f"[QQ Bridge] bot disconnected: {bot.self_id}")
+
+
+def _history_path(target_id: str) -> Path:
+    """Sanitized history file path for a target_id (user_id / group_id).
+
+    Only alphanumerics / ``-_`` survive, so a hostile target_id can't escape
+    the history dir via ``..``.
+    """
+    safe = "".join(c for c in str(target_id) if c.isalnum() or c in "-_")
+    return _HISTORY_DIR / f"{safe}.json"
+
+
+async def _load_history(target_id: str) -> list[dict]:
+    """Load a target's on-disk conversation log (list of {role,text,time})."""
+    try:
+        data = json.loads(_history_path(target_id).read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+async def _append_history(target_id: str, role: str, text: str) -> None:
+    """Append one message to a target's conversation log (role: user/assistant)."""
+    if not text:
+        return
+    async with _history_lock:
+        messages = await _load_history(target_id)
+        messages.append({
+            "role": role,
+            "text": text,
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+        if len(messages) > _HISTORY_MAX_ENTRIES:
+            messages = messages[-_HISTORY_MAX_ENTRIES:]
+        _HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+        _history_path(target_id).write_text(
+            json.dumps(messages, ensure_ascii=False, indent=1),
+            encoding="utf-8",
+        )
+
+
+async def _get_active_bot() -> Bot:
+    if _active_bot is None:
+        raise RuntimeError("QQ bot 未连接（NapCat/NoneBot 尚未建立连接）")
+    return _active_bot
+
+
+async def api_send(target_type: str, target_id: str | int, text: str) -> dict:
+    """Send a QQ message via the active bot. Returns {ok, message_id} or error.
+
+    调用链（HTTP POST /api/qq/send）：body {target_type, target_id, text} →
+    ``bot.call_api("send_private_msg"/"send_group_msg", message=text)`` → NapCat
+    发送。text 支持 OneBot CQ 码（如 "[CQ:face,id=1]"、图片 URL）。发送成功后
+    以 assistant 角色落盘，供 qq_read_conversation 读回。
+    """
+    if target_type not in ("private", "group"):
+        return {"ok": False, "error": {
+            "code": "invalid_target_type",
+            "message": "target_type 必须是 'private' 或 'group'"}}
+    try:
+        target_id_int = int(target_id)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": {
+            "code": "invalid_target_id",
+            "message": f"target_id 必须是 QQ 号/群号，got {target_id!r}"}}
+    if not text:
+        return {"ok": False, "error": {
+            "code": "empty_text", "message": "text 不能为空"}}
+    try:
+        bot = await _get_active_bot()
+    except RuntimeError as e:
+        return {"ok": False, "error": {"code": "bot_not_connected", "message": str(e)}}
+
+    api = "send_private_msg" if target_type == "private" else "send_group_msg"
+    params = {"user_id": target_id_int} if target_type == "private" else {"group_id": target_id_int}
+    try:
+        result = await bot.call_api(api, **params, message=text)
+    except Exception as e:
+        return {"ok": False, "error": {
+            "code": "send_failed",
+            "message": f"{type(e).__name__}: {e}"}}
+
+    # 落盘本次主动发送（assistant 角色），保持对话上下文完整
+    await _append_history(str(target_id_int), "assistant", text)
+    if isinstance(result, dict):
+        return {"ok": True, "message_id": result.get("message_id")}
+    return {"ok": True, "message_id": result}
+
+
+async def api_history(target_id: str, limit: int = 30) -> dict:
+    """Read a target's on-disk conversation log, newest-last, capped at limit."""
+    if limit is None or limit <= 0:
+        limit = _HISTORY_MAX_ENTRIES
+    messages = await _load_history(str(target_id))
+    messages = messages[-min(limit, _HISTORY_MAX_ENTRIES):]
+    return {"target_id": str(target_id), "messages": messages}
+
+
+async def api_recent_contacts() -> dict:
+    """List recent QQ contacts/groups via NapCat get_recent_contact (best-effort).
+
+    NapCat 部分版本不支持该扩展 API；失败时返回 ok:false，不视为致命错误。
+    """
+    try:
+        bot = await _get_active_bot()
+    except RuntimeError as e:
+        return {"ok": False, "error": {"code": "bot_not_connected", "message": str(e)}}
+    try:
+        result = await bot.call_api("get_recent_contact")
+    except Exception as e:
+        return {"ok": False, "error": {
+            "code": "unsupported",
+            "message": f"{type(e).__name__}: {e}（NapCat 不支持 get_recent_contact）"}}
+    if isinstance(result, dict):
+        return {"ok": True, "contacts": result.get("data", result)}
+    return {"ok": True, "contacts": result}
+
+
+def _register_qq_api(app) -> None:
+    """Mount QQ bot HTTP API routes on the given FastAPI app (NoneBot server_app)."""
+    @app.post("/api/qq/send")
+    async def _route_qq_send(body: dict):
+        return await api_send(
+            body.get("target_type", ""),
+            body.get("target_id"),
+            body.get("text", ""),
+        )
+
+    @app.get("/api/qq/history")
+    async def _route_qq_history(target_id: str, limit: int = 30):
+        return await api_history(target_id, limit)
+
+    @app.get("/api/qq/recent_contacts")
+    async def _route_qq_recent_contacts():
+        return await api_recent_contacts()
+
+
+# 仅在 fastapi driver 下挂载（nonebot2[fastapi] 默认 driver 即 fastapi）。
+# getattr 兜底让本模块在非 fastapi driver / 单元测试环境下也能导入。
+server_app = getattr(driver, "server_app", None)
+if server_app is not None:
+    _register_qq_api(server_app)
+    print("[QQ Bridge] QQ HTTP API mounted on driver server_app")
+

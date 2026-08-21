@@ -36,6 +36,13 @@
       "memory_dir": "data/characters/coc-keeper-coldstart/memory"
     }
   ],
-  "mcp_servers": [],
+  "mcp_servers": [
+    {
+      "name": "pan-qq",
+      "command": "${PLUGIN_DIR}/.venv/Scripts/python",
+      "args": ["-m", "packages.qq.mcp"],
+      "cwd": "${PLUGIN_DIR}"
+    }
+  ],
   "command_routes": []
 }
