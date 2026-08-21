@@ -123,14 +123,16 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 
 - 与 §2.3 的关系：§2.3 解决「找 session + spawn」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`worker_spawn`（`workerStatus` 为 null 时）→ 简短指令。
 
-## 3. 完成通知：二选一（互斥，勿同用）
+## 3. 完成通知：二选一（互斥，勿同用）——**meta-agent 编排一律优先用「内部订阅」**
 
 两种完成通知路径**互斥，同用会重复通知**（立项 `Worker监督与事件驱动模式.md` §4.4）：
 
-| 通知方式 | 适用场景 | 机制 |
-|---------|---------|------|
-| **外部协调**（Monitor + `/ws/agent`） | 外部 CodeBuddy 会话盯梢 worker | 订阅 WS，`worker.result` / `worker.zombie` 事件，实时推送 |
-| **内部报告**（`report_subscribe` + `queue_pending`） | meta-agent 管理自己的 subagent | MCP `report_subscribe`/`report_unsubscribe`，完成时报告入 meta-agent 的**落盘队列** `queue_pending`，唤醒其 consumer |
+| 通知方式 | 适用场景 | 机制 | 优先级 |
+|---------|---------|------|--------|
+| **外部协调**（Monitor + `/ws/agent`） | 外部 CodeBuddy 会话盯梢 worker | 订阅 WS，`worker.result` / `worker.zombie` 事件，实时推送 | 备选 |
+| **内部报告**（`report_subscribe` + `queue_pending`） | meta-agent 管理自己的 subagent | MCP `report_subscribe`/`report_unsubscribe`，完成时报告入 meta-agent 的**落盘队列** `queue_pending`，唤醒其 consumer | **首选** |
+
+> **优先级约定**：meta-agent 管理 subagent 时**一律优先使用「内部报告」（`report_subscribe`）**——异步、落盘可恢复（跨服务重启不丢）、跨协调者、不依赖外部会话；它是主链路的一部分（`session_create → worker_assign → report_subscribe 等完成 → session_get → session_delete`）。外部 Monitor + `/ws/agent` 仅当确实需要**外部**（非 meta-agent）实时盯梢时才用。
 
 - **外部协调者监听 `worker.result` 时，meta-agent 不应再订阅该 session 的报告（反之亦然）。**
 - 报告推送是**订阅制（opt-in）**：未订阅不 append `queue_pending`，只保留 `worker.result` 广播供外部用。
@@ -141,7 +143,9 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 
 见 §4 监督模板 `monitor_workers.py`。
 
-### 3.2 meta-agent 内部：report_subscribe + queue_pending
+### 3.2 meta-agent 内部：report_subscribe + queue_pending（**首选**）
+
+meta-agent 编排 worker 时**默认走本小节**：`session_create → worker_assign → report_subscribe`（或先订阅再 assign），完成后报告自动入 `queue_pending` 推送给你，不需要 Monitor/轮询。
 
 **前置条件（G5 实测 2026-08-17，不满足则本路径直接失效，退回 §5 轮询）**：
 

@@ -171,10 +171,18 @@ def test_format_report_batch():
         {"status": "error", "result": "boom", "sessionId": "ses_child", "taskId": "t2", "workerId": "worker-1"},
     ]
     text = worker._format_report_batch(reports)
-    assert "ses_child" in text          # source annotated
-    assert '"result": "r1"' in text     # verbatim JSON
-    assert worker._REPORT_SEP in text   # visible separator
-    assert text.count(worker._REPORT_SEP) >= 2
+    # 抬头：@@@@by agent + 来源 sessionId（title 取自被管 session.name，测试顺序/环境不同可能非 unknown，不断言其具体值）
+    assert "@@@@by agent : ses_child" in text
+    # 每字段一行，非 JSON dict
+    assert "status: done" in text
+    assert "result:\nr1" in text
+    assert "sessionId: ses_child" in text
+    assert "workerId: worker-1" in text
+    # 不再输出 JSON dict 形状（无引号键 / 无大括号包裹）
+    assert '"status":' not in text
+    assert '{"' not in text
+    # 两条报告之间空行分隔
+    assert "\n\n" in text
 
 
 def test_consumer_drains_reports_as_one_message(monkeypatch):
