@@ -169,6 +169,16 @@ let _renderedFor: { sessionId: string | null; tailRole: string; tailContent: str
   tailContent: '',
 };
 
+// Worker state known from WebSocket events (more timely than the HTTP
+// /api/sessions snapshot). `refreshSessions()` merges these over the snapshot
+// so a stale fetch response never reverts the status indicator / sidebar dot.
+// `_wsWorkerTs` records when each event arrived so we only override the
+// snapshot when the WS update is newer than the in-flight fetch.
+const _wsWorkerState: Map<string, { workerId: string | null; status: string | null }> = new Map();
+const _wsWorkerTs: Map<string, number> = new Map();
+/** Timestamp when the currently in-flight /api/sessions fetch started. */
+let _refreshStartedAt = 0;
+
 /** Tail used for the render guard: last non-system message.
  *  Local-only system messages (e.g. "[DONE] Task completed") never appear in
  *  the server-side history, so comparing them would defeat the guard and
@@ -199,6 +209,21 @@ function _shouldRenderMessages(sessionId: string | null, history: Message[]): bo
     _renderedFor.tailRole === tail.role &&
     _renderedFor.tailContent === tail.content
   );
+}
+
+/** True when the server-reported history is a prefix of what is already
+ *  rendered locally (currentHistory). Local-only trailing messages — the
+ *  optimistically added user message that the server hasn't persisted yet
+ *  (spawn / resume-replay window), and "[DONE]" system notices — are expected
+ *  and must not trigger a full rebuild that would wipe them from the DOM. */
+function _isServerHistoryPrefix(serverHistory: Message[]): boolean {
+  if (serverHistory.length > currentHistory.length) return false;
+  for (let i = 0; i < serverHistory.length; i++) {
+    const s = serverHistory[i];
+    const c = currentHistory[i];
+    if (!c || s.role !== c.role || s.content !== c.content) return false;
+  }
+  return true;
 }
 
 // ── Markdown / LaTeX rendering ──
@@ -343,6 +368,9 @@ function _applyWorkerUpdate(
 ): void {
   if (!sessionId) return;
 
+  _wsWorkerState.set(sessionId, { workerId: workerId ?? null, status });
+  _wsWorkerTs.set(sessionId, Date.now());
+
   for (let i = 0; i < modelData.length; i++) {
     if (modelData[i].id === sessionId) {
       modelData[i].workerId = workerId?? undefined;
@@ -394,11 +422,32 @@ function refreshSessions(): void {
   if (listEl.children.length === 0) {
     listEl.innerHTML = '<div class="sidebar-loading">Loading...</div>';
   }
+  _refreshStartedAt = Date.now();
   fetch('/api/sessions')
     .then((r: Response) => r.json())
     .then((data: ApiSessionsResponse) => {
       if (version !== _refreshVersion) return;
       modelData = data.sessions || [];
+      // A WebSocket worker update that arrived while the fetch was in flight is
+      // newer than this snapshot — re-apply it so the status indicator /
+      // sidebar dot don't revert to a stale value (spawn, status change,
+      // destroy, crash).
+      _wsWorkerTs.forEach((ts, sid) => {
+        if (ts < _refreshStartedAt) return;
+        const wsState = _wsWorkerState.get(sid);
+        if (!wsState) return;
+        const s = modelData.find((x: Session) => x.id === sid);
+        if (!s) return;
+        s.workerStatus = wsState.status;
+        s.workerId = wsState.workerId ?? undefined;
+      });
+      // Prune WS state for sessions that no longer exist
+      _wsWorkerTs.forEach((_, sid) => {
+        if (!modelData.find((x: Session) => x.id === sid)) {
+          _wsWorkerTs.delete(sid);
+          _wsWorkerState.delete(sid);
+        }
+      });
       renderSessionList();
       const matched = modelData.find((s: Session) => s.id === currentSessionId);
       if (!matched) {
@@ -406,18 +455,30 @@ function refreshSessions(): void {
         currentWorkerId = null;
         showEmpty();
       } else {
-        currentWorkerId = matched.workerId?? null;
+        const curSid = currentSessionId as string;
+        const wsTs = _wsWorkerTs.get(curSid);
+        const wsNewer = wsTs !== undefined && wsTs >= _refreshStartedAt;
+        // Only overwrite the WS-synced worker id when the snapshot is newer
+        if (!wsNewer) currentWorkerId = matched.workerId?? null;
         const chatNameEl = document.getElementById('chatName')!;
         if (chatNameEl.style.display !== 'none') {
-          // Skip full rebuild if the tail of the server's history is already
-          // rendered. Local DOM may contain more older messages; rebuilding
-          // would throw them away.
-          if (_shouldRenderMessages(currentSessionId, matched.history || [])) {
-            renderMessages(matched.history || []);
+          if (_shouldRenderMessages(curSid, matched.history || [])) {
+            // The server snapshot may lag behind what we already rendered
+            // locally (optimistic user message during spawn / resume replay).
+            // Rebuild only when the server reports content we don't have yet;
+            // when the snapshot is just a prefix, the DOM is already correct.
+            if (!_isServerHistoryPrefix(matched.history || [])) {
+              renderMessages(matched.history || []);
+            }
           }
         }
       }
-      if (currentSessionId) updateTopBar();
+      if (currentSessionId) {
+        const wsTs = _wsWorkerTs.get(currentSessionId);
+        // Skip the snapshot-based top bar refresh if a WebSocket worker update
+        // already synced it while the fetch was in flight.
+        if (wsTs === undefined || wsTs < _refreshStartedAt) updateTopBar();
+      }
     })
     .catch(function () {
       console.warn('[refreshSessions] fetch failed, network issue');
@@ -1082,6 +1143,11 @@ function addMessage(role: string, content: string): void {
   currentHistory.push({ role: role, content: content });
   _recordRenderedFor(currentSessionId, currentHistory);
   if (role === 'thinking' || role === 'tool') _getUnread().add(content);
+  const el = document.getElementById('messages')!;
+  // First message on an empty session: drop the "No messages yet" placeholder
+  // so it doesn't linger above the optimistic message.
+  const empty = el.querySelector('.empty-chat');
+  if (empty) empty.remove();
   _renderMsgEl(role, content);
   scrollMessages();
 }
