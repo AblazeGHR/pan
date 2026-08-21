@@ -1889,6 +1889,8 @@ async def api_characters_profiles():
                 "adapter": t.adapter,
                 "model": t.model,
                 "mcpServers": list(t.mcp_servers or []),
+                "sourceManifest": t.source_manifest,
+                "sourceManifestLabel": t.source_manifest_label,
                 "system_prompt_preview": t.system_prompt[:100] + "..." if len(t.system_prompt) > 100 else t.system_prompt,
             }
             for t in templates

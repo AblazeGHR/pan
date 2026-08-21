@@ -4,16 +4,32 @@ import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
+import { fetchSessionTemplates } from '@/services/api';
+import type { SessionTemplate } from '@/types';
 
 interface NewSessionModalProps {
   open: boolean;
   onClose: () => void;
 }
 
+/** Readable manifest location for a template: prefer the backend-computed
+ *  short label (e.g. "packages/mcp/manifest.json"); fall back to the last
+ *  directory of the full path + "/manifest.json" when the label is missing. */
+function manifestLabel(t: SessionTemplate): string {
+  if (t.sourceManifestLabel) return t.sourceManifestLabel;
+  if (t.sourceManifest) {
+    const parts = t.sourceManifest.replace(/\\/g, '/').split('/').filter(Boolean);
+    return (parts[parts.length - 1] || '') + '/manifest.json';
+  }
+  return 'manifest.json';
+}
+
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [name, setName] = useState('');
   const [workdir, setWorkdir] = useState('');
   const [adapter, setAdapter] = useState('cbc');
+  const [sessionTemplate, setSessionTemplate] = useState('');
+  const [templates, setTemplates] = useState<SessionTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -23,14 +39,18 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const sessions = useSessionStore((s) => s.sessions);
   const showToast = useUIStore((s) => s.showToast);
 
-  // Load adapter list when modal opens
+  // Load adapter list + session templates when modal opens
   useEffect(() => {
     if (open) {
       loadAdapterList();
       setName('');
       setWorkdir('');
       setAdapter('cbc');
+      setSessionTemplate('');
       setSubmitting(false);
+      fetchSessionTemplates()
+        .then(setTemplates)
+        .catch(() => setTemplates([]));
       // Focus name input after render
       requestAnimationFrame(() => nameRef.current?.focus());
     }
@@ -45,7 +65,12 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       name.trim() || `session-${sessions.length + 1}`;
 
     try {
-      await createNewSession(finalName, workdir.trim() || null, adapter);
+      await createNewSession(
+        finalName,
+        workdir.trim() || null,
+        adapter,
+        sessionTemplate || undefined,
+      );
       onClose();
     } catch (err: unknown) {
       const message =
@@ -78,6 +103,30 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             ) : (
               <option value="cbc">cbc</option>
             )}
+          </select>
+        </label>
+
+        {/* Session template select */}
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-text-secondary">
+            Session Template{' '}
+            <span className="font-normal text-text-tertiary">
+              (optional)
+            </span>
+          </span>
+          <select
+            value={sessionTemplate}
+            onChange={(e) => setSessionTemplate(e.target.value)}
+            className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+          >
+            <option value="">None</option>
+            {templates.map((t) => (
+              <option key={t.name} value={t.name}>
+                {t.name} ({t.model || '?'})
+                {t.mcpServers && t.mcpServers.length > 0 ? ' [MCP]' : ''} (
+                {manifestLabel(t)})
+              </option>
+            ))}
           </select>
         </label>
 

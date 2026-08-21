@@ -37,6 +37,7 @@ interface SessionStore {
     name: string,
     workdir?: string | null,
     adapter?: string,
+    sessionTemplate?: string,
   ) => Promise<void>;
   removeSession: (id: string) => Promise<void>;
   batchRemoveSessions: () => Promise<void>;
@@ -189,7 +190,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  createNewSession: async (name, workdir, adapter) => {
+  createNewSession: async (name, workdir, adapter, sessionTemplate) => {
     const placeholder: Session = {
       id: `__pending_${name}`,
       name: '...',
@@ -206,7 +207,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
 
     try {
-      const session = await createSession(name, workdir, adapter);
+      const session = await createSession(name, workdir, adapter, sessionTemplate);
       set((s) => {
         const sessions = s.sessions.map((se) =>
           se.id === placeholder.id ? session : se,

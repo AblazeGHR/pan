@@ -8,6 +8,8 @@ import type {
   ApiConfigResponse,
   ApiAdaptersResponse,
   ApiBatchDeleteResponse,
+  SessionTemplate,
+  ApiSessionTemplatesResponse,
   CbcProject,
   CbcSessionItem,
   KimiWorkspace,
@@ -65,15 +67,25 @@ export async function createSession(
   name: string,
   workdir?: string | null,
   adapter?: string,
+  sessionTemplate?: string,
 ): Promise<Session> {
   const body: Record<string, string> = { name, adapter: adapter || 'cbc' };
   if (workdir) body.workdir = workdir;
+  if (sessionTemplate) body.sessionTemplate = sessionTemplate;
   const data = await request<ApiSessionResponse>(`${BASE}/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+export async function fetchSessionTemplates(): Promise<SessionTemplate[]> {
+  const data = await request<ApiSessionTemplatesResponse>(
+    `${BASE}/characters/profiles`,
+  );
+  if (data.error) throw new Error(data.error);
+  return data.sessionTemplates || [];
 }
 
 export async function patchSession(

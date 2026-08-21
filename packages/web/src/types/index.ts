@@ -96,6 +96,26 @@ export interface ApiSessionHistoryResponse {
   error?: string;
 }
 
+// ── Session template types ──
+
+export interface SessionTemplate {
+  name: string;
+  adapter?: string;
+  model?: string | null;
+  mcpServers?: string[];
+  /** Absolute path of the plugin dir whose manifest.json defined this template. */
+  sourceManifest?: string;
+  /** Short readable manifest label, e.g. "packages/mcp/manifest.json". */
+  sourceManifestLabel?: string;
+  system_prompt_preview?: string;
+}
+
+export interface ApiSessionTemplatesResponse {
+  sessionTemplates?: SessionTemplate[];
+  total?: number;
+  error?: string;
+}
+
 // ── Adapter types ──
 
 export interface PermissionMode {

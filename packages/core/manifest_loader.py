@@ -68,6 +68,25 @@ class SessionTemplate:
         """True if MCP should be enabled by default for this template."""
         return self.mcp_mode == "always"
 
+    @property
+    def source_manifest_label(self) -> str:
+        """Readable short label of the defining manifest for UI display.
+
+        Relative to the repo root when the manifest lives inside it
+        (``packages/mcp/manifest.json``); otherwise just the last directory
+        plus ``manifest.json`` (``pan_plugin/manifest.json``). The repo-root
+        manifest itself collapses to ``manifest.json``.
+        """
+        if not self.source_manifest:
+            return ""
+        src = Path(self.source_manifest).resolve()
+        try:
+            parts = list(src.relative_to(REPO_ROOT).parts)
+        except ValueError:
+            parts = [src.name]
+        parts.append("manifest.json")
+        return "/".join(parts)
+
 
 @dataclass
 class CharacterTemplate:

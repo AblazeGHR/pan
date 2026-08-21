@@ -83,6 +83,8 @@ interface SessionTemplate {
   adapter?: string;
   model?: string;
   mcpServers?: string[];
+  sourceManifest?: string;
+  sourceManifestLabel?: string;
   system_prompt_preview?: string;
 }
 
@@ -1924,7 +1926,8 @@ function _fetchSessionTemplates(): Promise<SessionTemplate[]> {
 
 /** Populate the session-template selector in the new-session modal. First
  *  option is "无 session template" (value ""), then one option per template labelled
- *  "name (model) [MCP]" ([MCP] when the template ships mcpServers). */
+ *  "name (model) [MCP] (manifest.json)" ([MCP] when the template ships mcpServers;
+ *  the trailing "manifest.json" pinpoints which manifest defined it). */
 function _populateNewSessionProfileSelect(): void {
   const sel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
   if (!sel) return;
@@ -1935,10 +1938,23 @@ function _populateNewSessionProfileSelect(): void {
       opt.value = p.name;
       let label = p.name + ' (' + (p.model || '?') + ')';
       if (p.mcpServers && p.mcpServers.length > 0) label += ' [MCP]';
+      label += ' (' + _manifestLabel(p) + ')';
       opt.textContent = label;
       sel.appendChild(opt);
     });
   });
+}
+
+/** Readable manifest location for a template: prefer the backend-computed
+ *  short label (e.g. "packages/mcp/manifest.json"); fall back to the last
+ *  directory of the full path + "/manifest.json" when the label is missing. */
+function _manifestLabel(p: SessionTemplate): string {
+  if (p.sourceManifestLabel) return p.sourceManifestLabel;
+  if (p.sourceManifest) {
+    const parts = p.sourceManifest.replace(/\\/g, '/').split('/').filter(Boolean);
+    return (parts[parts.length - 1] || '') + '/manifest.json';
+  }
+  return 'manifest.json';
 }
 
 /** Load the list of adapters and populate the new-session select. */
