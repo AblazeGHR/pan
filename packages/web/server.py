@@ -248,14 +248,17 @@ def _session_to_api(s: sess.Session):
 def _session_summary(s: sess.Session) -> dict:
     """Lean session dict for list summaries (A1: no history / usage).
 
-    Fields: id/name/adapter/workerStatus/updatedAt/managedBy — used by
-    GET /api/sessions?summary=1 for agent context budgeting.
+    Fields: id/name/adapter/cliSessionId/workerStatus/updatedAt/managedBy —
+    used by GET /api/sessions?summary=1 for agent context budgeting.
+    cliSessionId lets MCP session_import locate the session that a reimport
+    would overwrite (§8.2).
     """
     w = worker.find_worker_by_session(s.id)
     return {
         "id": s.id,
         "name": s.name,
         "adapter": s.adapter,
+        "cliSessionId": s.cli_session_id,
         "workerStatus": w.status if w else None,
         "updatedAt": s.updated_at,
         "managedBy": s.managed_by,
@@ -348,7 +351,7 @@ def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
     return target
 
 
-def _build_session_params(data: dict) -> dict:
+def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
     """Extract session creation parameters from request data, with defaults.
 
     Session config (system_prompt / adapter / model / permission_mode /
@@ -356,6 +359,10 @@ def _build_session_params(data: dict) -> dict:
     session_template —
     either the explicit ``sessionTemplate`` name or the built-in ``default``
     template (config.json session config). ``characterId`` only binds memory/assets.
+
+    ``resolve_workdir=False`` skips creating a workdir under data/workdirs/ —
+    used by the import endpoints whose sessions keep the external project /
+    workspace path as workdir instead.
     """
     adapter_name = data.get("adapter") or "cbc"
     a = get_adapter(adapter_name)
@@ -413,7 +420,7 @@ def _build_session_params(data: dict) -> dict:
         "adapter": template.adapter,
         "model": data.get("model") or template.model or config.get("model") or a.default_model,
         "permission_mode": data.get("permissionMode") or template.permission_mode or config.get("permission_mode") or None,
-        "workdir": str(_resolve_workdir(workdir_name)),
+        "workdir": str(_resolve_workdir(workdir_name)) if resolve_workdir else "",
         "adapter_config": {
             "always_thinking_enabled": data.get("alwaysThinkingEnabled", config.get("always_thinking_enabled", False)),
             "effort": data.get("effort") or config.get("effort", ""),
@@ -1547,7 +1554,7 @@ async def api_cbc_sessions_import(data: dict):
                 })
             finally:
                 w._replaying = False
-            return _session_to_api(existing)
+            return {**_session_to_api(existing), "reimported": True}
         w = worker.find_worker_by_session(existing.id)
         if w:
             await worker.kill_worker(w.worker_id)
@@ -1560,13 +1567,29 @@ async def api_cbc_sessions_import(data: dict):
             "type": "session.updated",
             "sessionId": existing.id,
         })
-        return _session_to_api(existing)
+        return {**_session_to_api(existing), "reimported": True}
 
     name = (
         data.get("name", "")
         or cbc_sessions.get_session_title(session_id, project_dir=project_dir, cwd=cwd)
         or f"cbc-{session_id[:8]}"
     )
+
+    # 模板/能力字段：复用 _build_session_params 模板解析（显式 > 模板 > 默认），
+    # 使导入的会话能带 model / permission_mode / MCP / pan_access。
+    # workdir 刻意保留外部项目路径（cwd），不落 data/workdirs/<name>。
+    try:
+        params = _build_session_params(
+            {
+                "adapter": "cbc",
+                "name": name,
+                "sessionTemplate": data.get("sessionTemplate"),
+                **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
+            },
+            resolve_workdir=False,
+        )
+    except ValueError as e:
+        return {"error": f"Failed to apply session template: {e}"}
 
     s = sess.create(
         name=name,
@@ -1575,6 +1598,11 @@ async def api_cbc_sessions_import(data: dict):
         raw_usage=raw_usage,
         total_usage=total_usage,
         workdir=cwd,
+        model=params.get("model"),
+        permission_mode=params.get("permission_mode"),
+        session_template=params.get("session_template"),
+        pan_access=params.get("pan_access"),
+        adapter_config=params.get("adapter_config"),
     )
 
     await broadcast({
@@ -1648,7 +1676,7 @@ async def api_kimi_sessions_import(data: dict):
                 })
             finally:
                 w._replaying = False
-            return _session_to_api(existing)
+            return {**_session_to_api(existing), "reimported": True}
         w = worker.find_worker_by_session(existing.id)
         if w:
             await worker.kill_worker(w.worker_id)
@@ -1661,13 +1689,28 @@ async def api_kimi_sessions_import(data: dict):
             "type": "session.updated",
             "sessionId": existing.id,
         })
-        return _session_to_api(existing)
+        return {**_session_to_api(existing), "reimported": True}
 
     name = (
         data.get("name", "")
         or kimi_sessions.get_session_title(session_id, cwd)
         or f"kimi-{session_id[:8]}"
     )
+
+    # 模板/能力字段：复用 _build_session_params 模板解析（显式 > 模板 > 默认）。
+    # workdir 刻意保留 workspace root（cwd），不落 data/workdirs/<name>。
+    try:
+        params = _build_session_params(
+            {
+                "adapter": "kimi",
+                "name": name,
+                "sessionTemplate": data.get("sessionTemplate"),
+                **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
+            },
+            resolve_workdir=False,
+        )
+    except ValueError as e:
+        return {"error": f"Failed to apply session template: {e}"}
 
     s = sess.create(
         name=name,
@@ -1677,6 +1720,11 @@ async def api_kimi_sessions_import(data: dict):
         raw_usage=raw_usage,
         total_usage=total_usage,
         workdir=cwd,
+        model=params.get("model"),
+        permission_mode=params.get("permission_mode"),
+        session_template=params.get("session_template"),
+        pan_access=params.get("pan_access"),
+        adapter_config=params.get("adapter_config"),
     )
 
     await broadcast({
