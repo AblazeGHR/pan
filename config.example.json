@@ -113,6 +113,13 @@
     "status_port": 8769
   },
 
+  "qq": {
+    "_字段说明": {
+      "mode": "QQ 桥接模式（packages/qq/plugin.py 读取）：mirror=收到消息自动建 session 并回复（默认）；selective=消息只进 inbox+history 不自动回复，由 meta-agent 经 MCP（qq_read_inbox/qq_send_message）选择性处理。也可用环境变量 PAN_QQ_MODE 覆盖。"
+    },
+    "mode": "mirror"
+  },
+
   "worker": {
     "_字段说明": {
       "timeout_sec": "静默超时（秒）：running/queued 状态下持续无 stdout 输出超过该值时 kill（默认 300）",

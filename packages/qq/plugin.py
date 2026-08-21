@@ -57,15 +57,28 @@ MAX_POLL_TIME = 120
 
 # ── mode switch ──
 
+def _load_config() -> dict:
+    """Read config.json at the project root; empty dict on failure."""
+    try:
+        path = Path(__file__).resolve().parent.parent.parent / "config.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 def _qq_mode() -> str:
     """Return the QQ bridge mode: "mirror" (default) or "selective".
 
-    PAN_QQ_MODE=selective 时开启监听/选择性发送：QQ 消息只进 inbox（待处理
-    队列）与 history，不建 session / 不 spawn / 不自动回复；由 meta-agent 经
-    MCP 工具 qq_read_inbox → 决策 → qq_send_message 决定回不回、回什么。
+    配置来源优先级：config.json 的 ``qq.mode``（推荐，如 ``{"qq": {"mode": "selective"}}``）
+    > 环境变量 ``PAN_QQ_MODE`` > 默认 "mirror"。
+
+    selective 时开启监听/选择性发送：QQ 消息只进 inbox（待处理队列）与 history，
+    不建 session / 不 spawn / 不自动回复；由 meta-agent 经 MCP 工具
+    qq_read_inbox → 决策 → qq_send_message 决定回不回、回什么。
     非法值回退 mirror，保证现状兼容。
     """
-    mode = os.getenv("PAN_QQ_MODE", "mirror").strip().lower()
+    cfg_mode = (_load_config().get("qq") or {}).get("mode", "")
+    mode = os.getenv("PAN_QQ_MODE", cfg_mode).strip().lower()
     return mode if mode in ("mirror", "selective") else "mirror"
 
 # ── command routes (QQ prefix → external HTTP API, bypasses LLM) ──
