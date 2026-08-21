@@ -23,6 +23,11 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 
+# The three capability flags live nested under ``pan_access``. Manifest files
+# may still declare them as top-level fields; _parse_session_template migrates.
+_PAN_ACCESS_KEYS = ("restrict_to_managed", "can_claim_unmanaged", "auto_claim_created")
+
+
 # ------------------------------------------------------------------ #
 #  Data types
 # ------------------------------------------------------------------ #
@@ -53,10 +58,9 @@ class SessionTemplate:
     mcp_mode: str = "optional"    # "always" | "optional" | "never"
     mcp_servers: list[str] = field(default_factory=list)
     source_manifest: str = ""      # Which manifest.json defined this template
-    # Self-explanatory capability flags (replaces the opaque `role` enum):
-    restrict_to_managed: bool = False   # operations on other sessions are gated by `managed`
-    can_claim_unmanaged: bool = False   # may claim an unclaimed session into `managed`
-    auto_claim_created: bool = False    # sessions this session creates are auto-claimed
+    # Self-explanatory capability flags (replaces the opaque `role` enum),
+    # nested under ``pan_access``; readable via the flat properties below.
+    pan_access: dict = field(default_factory=dict)
 
     @property
     def mcp_locked(self) -> bool:
@@ -67,6 +71,33 @@ class SessionTemplate:
     def mcp_default(self) -> bool:
         """True if MCP should be enabled by default for this template."""
         return self.mcp_mode == "always"
+
+    @property
+    def restrict_to_managed(self) -> bool:
+        """Operations on other sessions are gated by `managed`."""
+        return bool(self.pan_access.get("restrict_to_managed", False))
+
+    @restrict_to_managed.setter
+    def restrict_to_managed(self, value: bool):
+        self.pan_access["restrict_to_managed"] = bool(value)
+
+    @property
+    def can_claim_unmanaged(self) -> bool:
+        """May claim an unclaimed session into `managed`."""
+        return bool(self.pan_access.get("can_claim_unmanaged", False))
+
+    @can_claim_unmanaged.setter
+    def can_claim_unmanaged(self, value: bool):
+        self.pan_access["can_claim_unmanaged"] = bool(value)
+
+    @property
+    def auto_claim_created(self) -> bool:
+        """Sessions this session creates are auto-claimed."""
+        return bool(self.pan_access.get("auto_claim_created", False))
+
+    @auto_claim_created.setter
+    def auto_claim_created(self, value: bool):
+        self.pan_access["auto_claim_created"] = bool(value)
 
     @property
     def source_manifest_label(self) -> str:
@@ -212,6 +243,15 @@ def _parse_session_template(raw: dict, plugin_dir: str) -> SessionTemplate:
     if isinstance(sp, list):
         sp = "\n".join(sp)
 
+    # Capability flags: nested ``pan_access`` (canonical), or legacy top-level
+    # keys from pre-refactor manifests. Explicit nested values win.
+    pa = dict(raw.get("pan_access", {}) or {})
+    for key in _PAN_ACCESS_KEYS:
+        if key in pa:
+            pa[key] = bool(pa[key])
+        else:
+            pa[key] = bool(raw.get(key, False))
+
     return SessionTemplate(
         name=raw.get("name", ""),
         adapter=raw.get("adapter", "cbc"),
@@ -221,9 +261,7 @@ def _parse_session_template(raw: dict, plugin_dir: str) -> SessionTemplate:
         system_prompt=sp,
         mcp_servers=list(raw.get("mcp_servers", [])),
         source_manifest=plugin_dir,
-        restrict_to_managed=bool(raw.get("restrict_to_managed", False)),
-        can_claim_unmanaged=bool(raw.get("can_claim_unmanaged", False)),
-        auto_claim_created=bool(raw.get("auto_claim_created", False)),
+        pan_access=pa,
     )
 
 

@@ -1915,10 +1915,10 @@ function _populateNewSessionAdapterSelect(): void {
   sel.value = currentAdapter || 'cbc';
 }
 
-/** Fetch session templates (GET /api/characters/profiles). Resolves to the
+/** Fetch session templates (GET /api/session-templates). Resolves to the
  *  template array; resolves to [] on failure so callers stay simple. */
 function _fetchSessionTemplates(): Promise<SessionTemplate[]> {
-  return fetch('/api/characters/profiles')
+  return fetch('/api/session-templates')
     .then((r: Response) => r.json())
     .then((data: ApiSessionTemplatesResponse) => data.sessionTemplates || [])
     .catch(function () { return []; });

@@ -100,8 +100,9 @@ class TestCharacter:
 class TestManifestTemplates:
     def test_session_template_roundtrip(self):
         t = SessionTemplate(name="t", system_prompt="hi", mcp_servers=["pan"],
-                            restrict_to_managed=True, can_claim_unmanaged=True,
-                            auto_claim_created=True)
+                            pan_access={"restrict_to_managed": True,
+                                       "can_claim_unmanaged": True,
+                                       "auto_claim_created": True})
         assert t.mcp_locked is False  # mcp_mode default "optional"
         assert t.mcp_servers == ["pan"]
         assert t.restrict_to_managed is True

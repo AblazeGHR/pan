@@ -24,16 +24,19 @@ def _new_id() -> str:
     return "ses_" + secrets.token_hex(8)
 
 
-@dataclass
+# The three capability flags are stored nested under ``pan_access``. Old JSON
+# wrote them as top-level fields; migration lives in _from_data / __post_init__.
+_PAN_ACCESS_KEYS = ("restrict_to_managed", "can_claim_unmanaged", "auto_claim_created")
+
+
+@dataclass(init=False)
 class Session:
     id: str
     name: str
     adapter: str = "cbc"   # CLI adapter name, default "cbc"
     model: str | None = None
     permission_mode: str | None = None
-    restrict_to_managed: bool = False  # operations on other sessions gated by `managed`
-    can_claim_unmanaged: bool = False  # may claim an unclaimed session into `managed`
-    auto_claim_created: bool = False   # sessions this session creates are auto-claimed
+    pan_access: dict = field(default_factory=dict)  # capability flags, nested (restrict_to_managed/can_claim_unmanaged/auto_claim_created)
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
     character_id: str | None = None   # bound character ID (for memory + assets)
     session_template: str | None = None  # session_template name this session was configured with (None = built-in default)
@@ -65,6 +68,94 @@ class Session:
         else:
             self.adapter_config.pop("cli_session_id", None)
 
+    def __init__(self, id: str, name: str, adapter: str = "cbc",
+                 model: str | None = None, permission_mode: str | None = None,
+                 pan_access: dict | None = None,
+                 restrict_to_managed: bool | None = None,
+                 can_claim_unmanaged: bool | None = None,
+                 auto_claim_created: bool | None = None,
+                 adapter_config: dict | None = None,
+                 character_id: str | None = None,
+                 session_template: str | None = None,
+                 system_prompt: str | None = None,
+                 game_id: str | None = None,
+                 raw_usage: dict | None = None,
+                 total_usage: dict | None = None,
+                 workdir: str = "",
+                 history: list[dict] | None = None,
+                 last_result: dict | None = None,
+                 created_at: str = "",
+                 updated_at: str = "",
+                 managed: list[str] | None = None,
+                 managed_by: str | None = None,
+                 queue_pending: list | None = None,
+                 report_subscriptions=None):
+        """Manual init so legacy top-level capability kwargs still construct.
+
+        ``pan_access`` is the single source of truth for the three capability
+        flags; the old flat kwargs (``restrict_to_managed`` etc.) are merged in
+        for backward compatibility and win over a pre-built ``pan_access``.
+        """
+        self.id = id
+        self.name = name
+        self.adapter = adapter
+        self.model = model
+        self.permission_mode = permission_mode
+        pa = dict(pan_access) if pan_access else {}
+        if restrict_to_managed is not None:
+            pa["restrict_to_managed"] = restrict_to_managed
+        if can_claim_unmanaged is not None:
+            pa["can_claim_unmanaged"] = can_claim_unmanaged
+        if auto_claim_created is not None:
+            pa["auto_claim_created"] = auto_claim_created
+        self.pan_access = pa
+        self.adapter_config = adapter_config if adapter_config is not None else {}
+        self.character_id = character_id
+        self.session_template = session_template
+        self.system_prompt = system_prompt
+        self.game_id = game_id
+        self.raw_usage = raw_usage
+        self.total_usage = total_usage
+        self.workdir = workdir
+        self.history = history if history is not None else []
+        self.last_result = last_result
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.managed = managed if managed is not None else []
+        self.managed_by = managed_by
+        self.queue_pending = queue_pending if queue_pending is not None else []
+        self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
+        self.__post_init__()
+
+    # ── pan_access convenience accessors (capability flags) ──
+
+    @property
+    def restrict_to_managed(self) -> bool:
+        """Operations on other sessions are gated by `managed`."""
+        return bool(self.pan_access.get("restrict_to_managed", False))
+
+    @restrict_to_managed.setter
+    def restrict_to_managed(self, value: bool):
+        self.pan_access["restrict_to_managed"] = bool(value)
+
+    @property
+    def can_claim_unmanaged(self) -> bool:
+        """May claim an unclaimed session into `managed`."""
+        return bool(self.pan_access.get("can_claim_unmanaged", False))
+
+    @can_claim_unmanaged.setter
+    def can_claim_unmanaged(self, value: bool):
+        self.pan_access["can_claim_unmanaged"] = bool(value)
+
+    @property
+    def auto_claim_created(self) -> bool:
+        """Sessions this session creates are auto-claimed."""
+        return bool(self.pan_access.get("auto_claim_created", False))
+
+    @auto_claim_created.setter
+    def auto_claim_created(self, value: bool):
+        self.pan_access["auto_claim_created"] = bool(value)
+
     def adapter_field(self, key: str, default=None):
         """Read a value from adapter_config."""
         return self.adapter_config.get(key, default)
@@ -84,6 +175,16 @@ class Session:
         # 落盘 JSON 里 set 序列化为 list → 读回时还原
         if isinstance(self.report_subscriptions, (list, tuple)):
             self.report_subscriptions = set(self.report_subscriptions)
+        # pan_access: normalize to a dict with all three capability keys,
+        # defaulting to False. Migrate legacy top-level instance attrs (old
+        # JSON / old constructor paths) into the nested dict.
+        pa = self.pan_access if isinstance(self.pan_access, dict) else {}
+        for key in _PAN_ACCESS_KEYS:
+            legacy = self.__dict__.pop(key, None)
+            if legacy is not None:
+                pa[key] = legacy
+            pa.setdefault(key, False)
+        self.pan_access = pa
         # migrate any legacy top-level fields that ended up on the instance
         # (from Session(**data) with old JSON having cbc_session_id, etc.)
         _migrate_legacy_fields(self)
@@ -94,6 +195,8 @@ class Session:
 
         Pops legacy adapter-specific fields from data and puts
         them into adapter_config before constructing the instance.
+        Old top-level capability fields are migrated into nested pan_access
+        (and the old keys removed) so pre-refactor JSON keeps loading.
         """
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
@@ -105,6 +208,12 @@ class Session:
             val = data.pop(old_key, None)
             if val is not None and val != "" and val is not False:
                 ac[new_key] = val
+        # Migrate legacy top-level capability fields into nested pan_access.
+        pa = dict(data.pop("pan_access", {}) or {})
+        for key in _PAN_ACCESS_KEYS:
+            if key in data:
+                pa[key] = data.pop(key)
+        data["pan_access"] = pa
         data["adapter_config"] = ac
         return cls(**data)
 
@@ -115,9 +224,7 @@ class Session:
             "adapter": self.adapter,
             "model": self.model,
             "permission_mode": self.permission_mode,
-            "restrict_to_managed": self.restrict_to_managed,
-            "can_claim_unmanaged": self.can_claim_unmanaged,
-            "auto_claim_created": self.auto_claim_created,
+            "pan_access": dict(self.pan_access),
             "adapter_config": self.adapter_config,
             "character_id": self.character_id,
             "session_template": self.session_template,
@@ -155,6 +262,7 @@ def create(name: str, model: str | None = None,
            session_template: str | None = None,
            system_prompt: str | None = None,
            game_id: str | None = None,
+           pan_access: dict | None = None,
            restrict_to_managed: bool = False,
            can_claim_unmanaged: bool = False,
            auto_claim_created: bool = False,
@@ -174,15 +282,19 @@ def create(name: str, model: str | None = None,
     if max_thinking_tokens and "max_thinking_tokens" not in ac:
         ac["max_thinking_tokens"] = max_thinking_tokens
 
+    # pan_access: explicit nested dict wins; legacy flat kwargs fill gaps.
+    pa = dict(pan_access) if pan_access else {}
+    pa.setdefault("restrict_to_managed", restrict_to_managed)
+    pa.setdefault("can_claim_unmanaged", can_claim_unmanaged)
+    pa.setdefault("auto_claim_created", auto_claim_created)
+
     s = Session(
         id=_new_id(),
         name=name,
         adapter=adapter,
         model=model,
         permission_mode=permission_mode,
-        restrict_to_managed=restrict_to_managed,
-        can_claim_unmanaged=can_claim_unmanaged,
-        auto_claim_created=auto_claim_created,
+        pan_access=pa,
         adapter_config=ac,
         character_id=character_id,
         session_template=session_template,

@@ -212,6 +212,13 @@ def _session_to_api(s: sess.Session):
         "cliSessionId": s.cli_session_id,
         "model": s.model or config.get("model") or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
+        # Canonical nested capability object; the flat keys below are kept as
+        # deprecated aliases so old HTTP consumers keep working.
+        "panAccess": {
+            "restrictToManaged": s.restrict_to_managed,
+            "canClaimUnmanaged": s.can_claim_unmanaged,
+            "autoClaimCreated": s.auto_claim_created,
+        },
         "restrictToManaged": s.restrict_to_managed,
         "canClaimUnmanaged": s.can_claim_unmanaged,
         "autoClaimCreated": s.auto_claim_created,
@@ -328,7 +335,8 @@ def _build_session_params(data: dict) -> dict:
     """Extract session creation parameters from request data, with defaults.
 
     Session config (system_prompt / adapter / model / permission_mode /
-    mcp_mode / mcp_servers / capability flags) comes from a session_template —
+    mcp_mode / mcp_servers / pan_access capability flags) comes from a
+    session_template —
     either the explicit ``sessionTemplate`` name or the built-in ``default``
     template (config.json session config). ``characterId`` only binds memory/assets.
     """
@@ -358,6 +366,31 @@ def _build_session_params(data: dict) -> dict:
         )
         template_name = None  # don't record an explicit name for the default
 
+    # Capability flags: template values are the baseline; an explicit request
+    # ``panAccess`` (or legacy flat body fields) overrides them.
+    # Priority: explicit field > sessionTemplate template value > default.
+    pan_access = {
+        "restrict_to_managed": template.restrict_to_managed,
+        "can_claim_unmanaged": template.can_claim_unmanaged,
+        "auto_claim_created": template.auto_claim_created,
+    }
+    req_pa = data.get("panAccess")
+    if isinstance(req_pa, dict):
+        for req_key, pa_key in [
+            ("restrictToManaged", "restrict_to_managed"),
+            ("canClaimUnmanaged", "can_claim_unmanaged"),
+            ("autoClaimCreated", "auto_claim_created"),
+        ]:
+            if req_key in req_pa:
+                pan_access[pa_key] = bool(req_pa[req_key])
+    for req_key, pa_key in [
+        ("restrictToManaged", "restrict_to_managed"),
+        ("canClaimUnmanaged", "can_claim_unmanaged"),
+        ("autoClaimCreated", "auto_claim_created"),
+    ]:
+        if req_key in data:  # legacy flat body fields (backward compat)
+            pan_access[pa_key] = bool(data[req_key])
+
     params = {
         "name": name,
         "adapter": template.adapter,
@@ -370,10 +403,9 @@ def _build_session_params(data: dict) -> dict:
             "max_thinking_tokens": data.get("maxThinkingTokens") or None,
         },
         "session_template": template_name,
-        "restrict_to_managed": template.restrict_to_managed,
-        "can_claim_unmanaged": template.can_claim_unmanaged,
-        "auto_claim_created": template.auto_claim_created,
-        "system_prompt": template.system_prompt,
+        "pan_access": pan_access,
+        "system_prompt": data.get("systemPrompt") or template.system_prompt,
+        "game_id": data.get("gameId") or None,
     }
     # Optional worker execution mode ("stream" | "oneshot"); validated later
     # by _apply_output_mode. Unset = automatic (existing behaviour).
@@ -981,9 +1013,7 @@ async def api_branch_session(session_id: str, data: dict):
         character_id=s.character_id,
         system_prompt=s.system_prompt,
         adapter_config=new_adapter_config,
-        restrict_to_managed=s.restrict_to_managed,
-        can_claim_unmanaged=s.can_claim_unmanaged,
-        auto_claim_created=s.auto_claim_created,
+        pan_access=dict(s.pan_access),
     )
 
     await broadcast({
@@ -1872,9 +1902,9 @@ def _get_memory_manager(character_id: str):
 # ── Character API ──
 
 
-@app.get("/api/characters/profiles")
-async def api_characters_profiles():
-    """List available session templates from manifest (legacy endpoint path).
+@app.get("/api/session-templates")
+async def api_session_templates():
+    """List available session templates from manifest.
 
     Semantically this endpoint lists session_templates (the former "profiles"),
     which now describe session config rather than characters.
@@ -1892,11 +1922,26 @@ async def api_characters_profiles():
                 "sourceManifest": t.source_manifest,
                 "sourceManifestLabel": t.source_manifest_label,
                 "system_prompt_preview": t.system_prompt[:100] + "..." if len(t.system_prompt) > 100 else t.system_prompt,
+                "panAccess": {
+                    "restrictToManaged": t.restrict_to_managed,
+                    "canClaimUnmanaged": t.can_claim_unmanaged,
+                    "autoClaimCreated": t.auto_claim_created,
+                },
             }
             for t in templates
         ],
         "total": len(templates),
     }
+
+
+@app.get("/api/characters/profiles")
+async def api_characters_profiles():
+    """Deprecated alias for GET /api/session-templates (backward compat).
+
+    Old callers hitting the historical ``/api/characters/profiles`` path get
+    the same response; new code should use ``/api/session-templates``.
+    """
+    return await api_session_templates()
 
 
 @app.get("/api/manifest/command-routes")

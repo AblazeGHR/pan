@@ -81,12 +81,35 @@ def _strip_usage(result: dict) -> dict:
 # session 只能操作它管理的 session
 # ---------------------------------------------------------------------------
 
+# Capability flags: canonical nested ``panAccess`` (camelCase keys) on the
+# session API; legacy top-level keys are the fallback for older servers.
+_PAN_ACCESS_API_FIELDS = (
+    ("restrictToManaged", "restrictToManaged"),
+    ("canClaimUnmanaged", "canClaimUnmanaged"),
+    ("autoClaimCreated", "autoClaimCreated"),
+)
+
+
+def _caller_pan_access(caller: dict) -> dict:
+    """Capability flags of a caller dict (nested ``panAccess``, default {}).
+
+    ``_caller_identity`` normalizes the nested key in place, so this is just a
+    defensive accessor for callers that may carry a raw / legacy-shaped dict.
+    """
+    pa = caller.get("panAccess")
+    return pa if isinstance(pa, dict) else {}
+
+
 def _caller_identity() -> dict | None:
     """Return the calling agent's session info (id/capabilities/managed) or None.
 
     Identity comes from PAN_AGENT_SESSION_ID (4.8 injection). Returns None when
     the env var is absent or the session can't be resolved — callers then run
     unrestricted (external coordinators, sessions without restriction).
+
+    Capability flags live under ``panAccess`` (nested, F-schema). For servers
+    that still emit the legacy top-level flags they are normalized here, so
+    callers can always read them from ``panAccess``.
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     if not sid:
@@ -94,6 +117,15 @@ def _caller_identity() -> dict | None:
     result = _api("GET", f"/api/sessions/{sid}")
     if not isinstance(result, dict) or result.get("error") or "id" not in result:
         return None
+    result = dict(result)
+    pa = result.get("panAccess")
+    if not isinstance(pa, dict):
+        # legacy server response: capability flags at top level
+        pa = {}
+        for pa_key, legacy_key in _PAN_ACCESS_API_FIELDS:
+            if legacy_key in result:
+                pa[pa_key] = result[legacy_key]
+    result["panAccess"] = pa
     return result
 
 
@@ -117,11 +149,12 @@ def _check_access(session_id: str, claim: bool = False) -> dict | None:
         return None
     if session_id == caller.get("id"):
         return None
-    if not caller.get("restrictToManaged"):
+    pa = _caller_pan_access(caller)
+    if not pa.get("restrictToManaged"):
         return None
     if session_id in (caller.get("managed") or []):
         return None
-    if claim and caller.get("canClaimUnmanaged"):
+    if claim and pa.get("canClaimUnmanaged"):
         # 先看目标 session：不存在 → 放行（让下游工具报 not found）
         target = _api("GET", f"/api/sessions/{session_id}")
         if not isinstance(target, dict) or target.get("error"):
@@ -152,7 +185,7 @@ def _check_access(session_id: str, claim: bool = False) -> dict | None:
 def _auto_claim(session_id: str) -> None:
     """Auto-claim a newly created session for the caller when autoClaimCreated (best-effort)."""
     caller = _caller_identity()
-    if caller and caller.get("autoClaimCreated") and session_id:
+    if caller and _caller_pan_access(caller).get("autoClaimCreated") and session_id:
         _api("POST", "/api/claim", {"managerId": caller["id"], "sessionId": session_id})
 
 
@@ -178,6 +211,11 @@ def session_create(
     model: str | None = None,
     permission_mode: str | None = None,
     workdir: str | None = None,
+    session_template: str | None = None,
+    character_id: str | None = None,
+    system_prompt: str | None = None,
+    game_id: str | None = None,
+    pan_access: dict | None = None,
 ) -> dict:
     """Create a new session (persistent conversation container).
 
@@ -187,6 +225,19 @@ def session_create(
         model: AI model name (e.g. "hy3", "deepseek-v4-flash")
         permission_mode: Permission mode ("bypassPermissions", "acceptEdits", "default", "plan")
         workdir: Workdir name, resolved under data/workdirs/. Defaults to session name.
+        session_template: Session template name from the manifest (e.g.
+            "meta-agent"). The template supplies defaults for model /
+            permission_mode / system_prompt / MCP / capability flags.
+        character_id: Bind a character (memory/assets) to the session.
+        system_prompt: Override the session system prompt.
+        game_id: RuleWhisper game binding.
+        pan_access: Capability flags dict, keys: restrictToManaged /
+            canClaimUnmanaged / autoClaimCreated (all default False).
+
+    Priority (explicit field > sessionTemplate template value > default):
+    arguments explicitly passed here override the session_template's values,
+    which in turn override built-in defaults (model / permission_mode also
+    fall back to the adapter's config.json settings).
 
     调用链（编排主链第 1 步·创建）：返回的 `id` 即后续所有请求的 `session_id` 入参，
     记下它再 `worker_assign` 派发任务。workdir 默认 data/workdirs/<name>（Pan 外目录用绝对路径）。
@@ -199,6 +250,16 @@ def session_create(
         body["permissionMode"] = permission_mode
     if workdir:
         body["workdir"] = workdir
+    if session_template:
+        body["sessionTemplate"] = session_template
+    if character_id:
+        body["characterId"] = character_id
+    if system_prompt:
+        body["systemPrompt"] = system_prompt
+    if game_id:
+        body["gameId"] = game_id
+    if pan_access:
+        body["panAccess"] = pan_access
     result = _strip_usage(_api("POST", "/api/sessions", body))
     # meta-agent 创建的 session 自动归其管理（立项 4.2）
     if isinstance(result, dict) and result.get("id"):

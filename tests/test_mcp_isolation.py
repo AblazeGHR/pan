@@ -47,13 +47,13 @@ def test_session_capabilities_default():
 
 def test_session_capabilities_roundtrip():
     s = _sess.Session(id="ses_ma", name="ma",
-                      restrict_to_managed=True,
-                      can_claim_unmanaged=True,
-                      auto_claim_created=True)
+                      pan_access={"restrict_to_managed": True,
+                                  "can_claim_unmanaged": True,
+                                  "auto_claim_created": True})
     d = s.to_dict()
-    assert d["restrict_to_managed"] is True
-    assert d["can_claim_unmanaged"] is True
-    assert d["auto_claim_created"] is True
+    assert d["pan_access"]["restrict_to_managed"] is True
+    assert d["pan_access"]["can_claim_unmanaged"] is True
+    assert d["pan_access"]["auto_claim_created"] is True
     s2 = _sess.Session._from_data(dict(d))
     assert s2.restrict_to_managed is True
     assert s2.can_claim_unmanaged is True
@@ -183,18 +183,18 @@ def test_build_session_params_propagates_capabilities(monkeypatch):
     cm.load_manifest(["packages/mcp/manifest.json"])
     monkeypatch.setattr(srv, "_character_manager", cm)
     params = srv._build_session_params({"name": "ma", "sessionTemplate": "meta-agent"})
-    assert params.get("restrict_to_managed") is True
-    assert params.get("can_claim_unmanaged") is True
-    assert params.get("auto_claim_created") is True
+    assert params["pan_access"]["restrict_to_managed"] is True
+    assert params["pan_access"]["can_claim_unmanaged"] is True
+    assert params["pan_access"]["auto_claim_created"] is True
 
 
 def test_build_session_params_capabilities_default(monkeypatch):
     import packages.web.server as srv
     monkeypatch.setattr(srv, "_character_manager", None)
     params = srv._build_session_params({"name": "plain"})
-    assert params.get("restrict_to_managed") is False
-    assert params.get("can_claim_unmanaged") is False
-    assert params.get("auto_claim_created") is False
+    assert params["pan_access"]["restrict_to_managed"] is False
+    assert params["pan_access"]["can_claim_unmanaged"] is False
+    assert params["pan_access"]["auto_claim_created"] is False
 
 
 # ── MCP isolation helpers ──
@@ -242,12 +242,19 @@ class _FakeAPI:
 
 
 def _ma_session(managed=None, sid="ses_ma"):
-    return {sid: {"id": sid, "restrictToManaged": True, "canClaimUnmanaged": True,
+    return {sid: {"id": sid,
+                  "panAccess": {"restrictToManaged": True, "canClaimUnmanaged": True,
+                                "autoClaimCreated": True},
+                  # deprecated flat aliases (server still emits these)
+                  "restrictToManaged": True, "canClaimUnmanaged": True,
                   "autoClaimCreated": True, "managed": list(managed or [])}}
 
 
 def _default_session(sid="ses_default", managed=None):
-    return {sid: {"id": sid, "restrictToManaged": False, "canClaimUnmanaged": False,
+    return {sid: {"id": sid,
+                  "panAccess": {"restrictToManaged": False, "canClaimUnmanaged": False,
+                                "autoClaimCreated": False},
+                  "restrictToManaged": False, "canClaimUnmanaged": False,
                   "autoClaimCreated": False, "managed": list(managed or [])}}
 
 

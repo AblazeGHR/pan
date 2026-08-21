@@ -82,7 +82,7 @@ export async function createSession(
 
 export async function fetchSessionTemplates(): Promise<SessionTemplate[]> {
   const data = await request<ApiSessionTemplatesResponse>(
-    `${BASE}/characters/profiles`,
+    `${BASE}/session-templates`,
   );
   if (data.error) throw new Error(data.error);
   return data.sessionTemplates || [];
