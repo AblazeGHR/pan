@@ -317,17 +317,19 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 
 > 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。
 >
-> **巡检慎用 `session_list`**：无过滤参数、返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§12.2 G8）。改用 `worker_list` + 定向 `session_get(session_id, limit=15)`。
+> **巡检优先 `session_list(summary=true)`**：旧版 `session_list` 返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§12.2 G8）。**现在 `session_list(summary=true)` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），用于巡检/查归属**；确认某个 session 详情再用 `session_get(session_id, limit=15)`。查"自己管了哪些"直接用 `session_managed()`。
 
 ### 会话管理
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
-| `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?` | 创建会话。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§9.1） |
-| `session_list` | (无) | 列出所有会话及 worker 状态（轮询兜底用） |
+| `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?`, `session_template?`, `character_id?`, `system_prompt?`, `game_id?`, `pan_access?` | 创建会话。`session_template` 用模板创建；`pan_access` 传能力字段 dict（`restrict_to_managed`/`can_claim_unmanaged`/`auto_claim_created`）；显式字段 > 模板值 > 默认值。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§9.1） |
+| `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
+| `session_managed` | (无) | 返回调用者管理的 session 摘要 `[{id, name, workerStatus, updatedAt}]`（需 `PAN_AGENT_SESSION_ID`） |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
 | `session_update` | `session_id`, 各设置项 | PATCH 封装；改进程相关配置（model/effort/thinking/MCP/outputMode）时 **idle worker 自动 respawn 生效**、running worker 回 idle 时自动重启（§5 PATCH） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
+| `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查） |
 | `session_history` | `session_id`, `limit?`, `before?` | 分页历史 |
 
 ### Worker 管理
@@ -337,7 +339,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?`, `workdir?` | 生成 worker；给 name 则先建 session。已有 worker 会先 kill（一个 session 一个 worker） |
 | `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn；`source` 默认 `"agent"` |
 | `worker_handoff` | `session_id`, `text`, `timeout?`, `task_id?` | **[DEPRECATED]** 同步阻塞。串行依赖/严格同步返回值才用；传 `task_id` 幂等重试（§9.4） |
-| `worker_assign` | `session_id`, `text` | **异步分派**（并行 fan-out 用）：立即返回 queued，完成经 `worker.result` 事件回调 |
+| `worker_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out 用）：立即返回 queued，完成经 `worker.result` 事件回调。传 `task_id` 幂等（同 taskId 重发不双跑，见 §9.4） |
 | `worker_send` | `worker_id`, `text` | 向已有 worker 发消息（多轮协作）；Pan 内 session 自动加 `////by agent` 前缀（§9.5） |
 | `worker_kill` | `worker_id` | 终止 worker 进程（session 保留） |
 | `worker_list` | (无) | 列出所有运行中 worker |
@@ -348,6 +350,8 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 |------|------|------|
 | `report_subscribe` | `session_id` | 订阅被管理 session 的完成报告（需 `PAN_AGENT_SESSION_ID` 环境变量，仅 Pan 内 session 生效） |
 | `report_unsubscribe` | `session_id` | 取消订阅 |
+
+> **zombie 通知**：被管 session 的 worker **异常死亡**（running/queued 状态被 watchdog 回收或进程崩溃/EOF）时，也会向你的 `queue_pending` 推一条报告：`{"status":"error","type":"zombie","sessionId","workerId","result":"worker died: <原因>"}`——可据此感知 worker 意外丢失（正常完成后的 idle 回收**不**报 zombie）。报告拼接时 `type` 字段单独一行。
 
 ### 其他
 
