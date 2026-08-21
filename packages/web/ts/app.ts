@@ -754,7 +754,13 @@ const RENDER_CHUNK = 30;
 
 function isNearBottom(): boolean {
   const el = document.getElementById('messages')!;
-  return el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_BOTTOM_THRESHOLD;
+  const last = el.lastElementChild;
+  if (!last) return true;
+  // Measure from real element geometry instead of scrollHeight:
+  // content-visibility:auto skips layout for off-screen messages, so
+  // scrollHeight underestimates the true content height and makes the
+  // distance to the bottom look smaller than it is (false near-bottom).
+  return last.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom <= SCROLL_BOTTOM_THRESHOLD;
 }
 
 function scrollMessages(): void {
@@ -766,23 +772,55 @@ function scrollMessages(): void {
 }
 
 function updateScrollToBottomBtn(): void {
-  const el = document.getElementById('messages')!;
   const btn = document.getElementById('scrollBottomBtn') as HTMLButtonElement;
   if (!btn) return;
-  btn.style.display = isNearBottom() || el.scrollHeight <= el.clientHeight? 'none' : '';
+  btn.style.display = isNearBottom() ? 'none' : '';
 }
+
+// Guards against overlapping alignment loops from rapid scrollToBottom calls
+// (e.g. streaming) — a newer call supersedes any in-flight one.
+let _scrollToBottomVersion = 0;
 
 function scrollToBottom(): void {
   const el = document.getElementById('messages')!;
-  // content-visibility:auto skips layout for off-screen messages, which
-  // underestimates scrollHeight.  Temporarily force full layout, read the
-  // true height, then restore so the performance optimization stays on.
-  el.classList.add('no-cv');
-  // Force reflow so the browser recalculates layout with real heights.
-  void el.offsetHeight;
-  el.scrollTop = el.scrollHeight;
-  el.classList.remove('no-cv');
-  updateScrollToBottomBtn();
+  const last = el.lastElementChild;
+  if (!last) {
+    el.scrollTop = el.scrollHeight;
+    updateScrollToBottomBtn();
+    return;
+  }
+  const version = ++_scrollToBottomVersion;
+  let guard = 0;
+  let prevTop = el.scrollTop;
+  const align = (): void => {
+    if (version !== _scrollToBottomVersion) return; // superseded
+    const target = el.lastElementChild;
+    if (!target) { updateScrollToBottomBtn(); return; }
+    // scrollIntoView scrolls from real element geometry, so it lands on the
+    // true bottom even though content-visibility:auto makes scrollHeight and
+    // element positions unreliable.  The first pass may target an estimated
+    // position before the last message is laid out; the browser re-layouts
+    // shortly after (setTimeout, not rAF, so it also runs when no frames are
+    // being produced).  Keep re-aligning (bounded) until the scroll position
+    // settles AND the last message actually sits at the bottom edge.
+    target.scrollIntoView({ block: 'end' });
+    setTimeout(() => {
+      if (version !== _scrollToBottomVersion) return;
+      const t = el.lastElementChild;
+      if (!t) { updateScrollToBottomBtn(); return; }
+      const cur = el.scrollTop;
+      const gap = el.getBoundingClientRect().bottom - t.getBoundingClientRect().bottom;
+      const moving = Math.abs(cur - prevTop) > 2;
+      const misaligned = Math.abs(gap) > 2;
+      if ((moving || misaligned) && guard++ < 8) {
+        prevTop = cur;
+        align();
+      } else {
+        updateScrollToBottomBtn();
+      }
+    }, 16);
+  };
+  align();
 }
 
 // ── Messages ──
@@ -1098,14 +1136,12 @@ function _appendToolMessage(content: string): void {
       '<span class="unread-badge"></span>';
     (lastGroup.querySelector('.tool-group-header') as HTMLElement).innerHTML = headerHtml;
     lastGroup.setAttribute('data-tool-contents', JSON.stringify(allTools.map(function (m: Message) { return m.content; })));
-    scrollMessages();
     return;
   }
   // start a new tool-group
   _currentToolGroupStart = currentHistory.length - 1;
   const wrapper = _createToolGroupEl([{ role: 'tool', content: content }]);
   el.appendChild(wrapper);
-  scrollMessages();
 }
 
 function appendResult(d: StreamEvent): void {
