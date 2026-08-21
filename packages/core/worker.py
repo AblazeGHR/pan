@@ -142,6 +142,7 @@ class Worker:
     _task_counter: int = 0   # 已分配的任务序号（send_task 入队时自增）
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
+    _zombie_reported: bool = False  # 异常死亡 zombie 报告是否已推送（防 watchdog/EOF 双路径重复）
 
 
 workers: dict[str, Worker] = {}
@@ -465,6 +466,11 @@ async def _read_stdout(w: Worker):
     code = w.process.returncode if w.process else "unknown"
     _log.info("[Worker %s] %s 进程退出，返回码 %s", w.worker_id, adapter.name, code)
 
+    # B2: 进程退出检测路径 — 任务进行中（running/queued）异常退出/崩溃 → 向被管
+    # manager 推送 zombie 报告。正常完成后的退出（status 已回 idle）由
+    # _enqueue_zombie_report 内部判定跳过——done/error 报告完成时已推送。
+    await _enqueue_zombie_report(w, f"process exited (returncode={code})")
+
     # 如果已经通过 result event 收到正常输出（last_result 有内容且非 error），
     # 不要覆盖。某些 CLI 退出时返回非零码（如 kimi 的 0xC0000409）但回复已完整。
     if code != 0 and w.status == "idle" and s and s.last_result and s.last_result.get("status") != "error":
@@ -585,6 +591,11 @@ def _format_report_batch(reports: list[dict]) -> str:
         lines = [
             f"@@@@by agent : {src} | {title}",
             f"status: {_field_value(r.get('status'))}",
+        ]
+        # B2: zombie 报告带 type 标记，manager 可在拼装消息中区分异常死亡
+        if r.get("type"):
+            lines.append(f"type: {_field_value(r.get('type'))}")
+        lines += [
             "result:",
             _field_value(r.get("result")),
             f"sessionId: {_field_value(r.get('sessionId'))}",
@@ -623,13 +634,17 @@ async def _consume_pending_reports(w: Worker, s):
 
 
 async def _enqueue_report(session_id: str, status: str, result: str,
-                          task_id: str | None, worker_id: str):
+                          task_id: str | None, worker_id: str,
+                          report_type: str | None = None):
     """订阅制报告入队：session 完成 → 若被其 managed_by 订阅，报告 append 到
     manager 的落盘队列 queue_pending，并唤醒 manager 的 consumer。
 
     **done / error 都入队（决策保留，遗留待办 L6）**：协调者（manager）需要
     知道失败——失败是编排的必要信息（重试/排查），不能只报成功。若后续只想报
     done，在此按 status 过滤即可。
+
+    report_type：附加的语义标记（如 "zombie"）。非 None 时在报告 dict 里写入
+    "type" 字段，供 manager 区分异常死亡与正常完成。
 
     未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
     """
@@ -642,13 +657,16 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     if session_id not in (manager.report_subscriptions or set()):
         return
 
-    manager.queue_pending.append({
+    item = {
         "status": status,
         "result": result,
         "sessionId": session_id,
         "taskId": task_id,
         "workerId": worker_id,
-    })
+    }
+    if report_type is not None:
+        item["type"] = report_type
+    manager.queue_pending.append(item)
     await _sess.save_async(manager)
 
     # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
@@ -659,6 +677,28 @@ async def _enqueue_report(session_id: str, status: str, result: str,
         mw.last_activity = time.monotonic()
         # 信号只唤醒、不承载正文（立项 4.3/4.7：正文在落盘 queue_pending）
         await mw.pending_signal.put({"type": "report_signal"})
+
+
+async def _enqueue_zombie_report(w: Worker, reason: str) -> None:
+    """被管 session 的 worker 异常死亡 → 向 manager 推送 zombie 报告（B2）。
+
+    复用 _enqueue_report 的订阅判定（仅 manager 已订阅该 session 才入队）与
+    唤醒逻辑；报告形状为 ``{"status": "error", "type": "zombie", ...}``。
+
+    **关键语义**：只有任务进行中（status == running/queued）被判定异常死亡才
+    报 zombie——watchdog 卡死/超时回收（task_timeout / queued 超时）、进程崩溃
+    /异常退出（进程退出检测路径）都落在 running/queued 上；正常完成后的 idle
+    回收不报（done/error 报告在完成时已推送）。与 watchdog 的判定对齐。
+
+    _zombie_reported 标记防止 watchdog kill 路径与进程退出检测路径竞态双报。
+    """
+    if w.status not in ("running", "queued"):
+        return
+    if w._zombie_reported:
+        return
+    w._zombie_reported = True
+    await _enqueue_report(w.session_id, "error", f"worker died: {reason}",
+                          w._current_task_id, w.worker_id, report_type="zombie")
 
 
 # ── watchdog：超时 / 空闲回收 ──
@@ -736,6 +776,9 @@ async def _watchdog(w: Worker):
                     "task_run_for=%.0fs task_timeout_threshold=%.0fs branch=stream_task_timeout",
                     w.worker_id, w.status, task_run_for, _WORKER_TASK_TIMEOUT_SEC,
                 )
+                # B2: 异常死亡（running 卡死超时）→ 向被管 manager 推送 zombie 报告
+                await _enqueue_zombie_report(
+                    w, f"task timeout (running {task_run_for:.0f}s > {_WORKER_TASK_TIMEOUT_SEC:.0f}s)")
                 await kill_worker(w.worker_id)
                 return
         elif w.status == "queued" and idle_for > _WORKER_TIMEOUT_SEC:
@@ -744,6 +787,9 @@ async def _watchdog(w: Worker):
                 "idle_for=%.0fs timeout_threshold=%.0fs branch=stream_queued_timeout",
                 w.worker_id, w.status, idle_for, _WORKER_TIMEOUT_SEC,
             )
+            # B2: 异常死亡（queued 静默超时）→ 向被管 manager 推送 zombie 报告
+            await _enqueue_zombie_report(
+                w, f"queued timeout (no output for {idle_for:.0f}s)")
             await kill_worker(w.worker_id)
             return
         if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
@@ -752,6 +798,8 @@ async def _watchdog(w: Worker):
                 "idle_for=%.0fs idle_threshold=%.0fs branch=stream_idle_reclaim",
                 w.worker_id, w.status, idle_for, _WORKER_IDLE_SEC,
             )
+            # B2: idle 回收是「正常完成后的回收」——done/error 报告完成时已推送，
+            # 不报 zombie（与 watchdog 判定对齐）
             await kill_worker(w.worker_id)
             return
 
@@ -1728,20 +1776,47 @@ async def handoff(session_id: str, text: str, source: str = "agent",
     return result
 
 
-async def assign(session_id: str, text: str, source: str = "agent") -> dict:
+async def assign(session_id: str, text: str, source: str = "agent",
+                 task_id: str | None = None) -> dict:
     """异步分派：确保 worker 存在 → 发任务 → 立即返回 queued。
 
     完成时通过 worker.result 事件（配合 /ws/agent subscribe）回调。
     适用于并行 fan-out。
+
+    task_id 幂等（复用 handoff 的 taskId 注册表 _task_status + TTL 惰性清理）：
+    同一 taskId 重发不重复入队（防双跑）。若该 taskId 已存在：
+    - 已完成（done/error）→ 返回缓存结果（status/result）
+    - 进行中 → 返回 {"status": "pending", "taskId": ...}，不重复入队
+    用于超时后安全重试 / 并发去重。不带 task_id 行为不变。
     """
+    # 惰性清理过期条目（TTL），防止注册表长期运行无界增长（H2 泄漏）
+    _prune_task_status()
+    # taskId 幂等检查
+    if task_id is not None and task_id in _task_status:
+        existing = _task_status[task_id]
+        if existing["status"] in ("done", "error"):
+            return dict(existing)
+        return {"status": "pending", "taskId": task_id}
+
     w, err = await _ensure_worker(session_id)
     if err:
         return {"status": "error", "result": err}
 
-    send_err = await send_task(w.worker_id, text, source=source)
+    if task_id is not None:
+        _task_status[task_id] = {"status": "pending", "workerId": w.worker_id,
+                                 "taskId": task_id, "ts": time.monotonic()}
+
+    send_err = await send_task(w.worker_id, text, source=source, task_id=task_id)
     if send_err:
+        if task_id is not None:
+            _task_status[task_id] = {"status": "error", "result": send_err,
+                                     "taskId": task_id, "ts": time.monotonic()}
         return {"status": "error", "result": send_err}
-    return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
+
+    result = {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
+    if task_id is not None:
+        result["taskId"] = task_id
+    return result
 
 
 async def send(worker_id: str, text: str, source: str = "agent") -> dict:

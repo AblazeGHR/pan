@@ -527,7 +527,7 @@ def worker_handoff(session_id: str, text: str, timeout: float = 600.0,
 
 
 @mcp.tool()
-def worker_assign(session_id: str, text: str) -> dict:
+def worker_assign(session_id: str, text: str, task_id: str | None = None) -> dict:
     """Dispatch a task asynchronously and return immediately.
 
     Async orchestration primitive: returns {"status": "queued", ...}
@@ -535,9 +535,16 @@ def worker_assign(session_id: str, text: str) -> dict:
     subscribe to /ws/agent with eventTypes=["worker.result"] to catch it.
     Use for parallel fan-out.
 
+    Idempotency: pass the same `task_id` when retrying a task (e.g. after a
+    timeout or network error) — the server won't re-enqueue if that taskId is
+    already known. It returns the cached result if already completed, or
+    {"status": "pending", "taskId": ...} if still in flight. Prevents
+    double-execution of the same task.
+
     Args:
         session_id: Session ID to run the task on
         text: Task text / prompt
+        task_id: Optional caller-supplied idempotency key (uuid-like string)
 
     调用链（编排主链第 2 步·派发）：立即返回 queued（worker 自动 spawn）；
     完成信号经 /ws/agent 的 worker.result 事件推送，或轮询 session_get 到
@@ -548,7 +555,10 @@ def worker_assign(session_id: str, text: str) -> dict:
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
-    return _api("POST", "/api/assign", {"sessionId": session_id, "text": text})
+    body = {"sessionId": session_id, "text": text}
+    if task_id:
+        body["taskId"] = task_id
+    return _api("POST", "/api/assign", body)
 
 
 @mcp.tool()

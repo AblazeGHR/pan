@@ -309,6 +309,122 @@ def test_mcp_running_worker_not_timeout_killed():
     _cleanup()
 
 
+# ── watchdog zombie 报告（B2）──
+
+async def _noop_save_async(s):
+    pass
+
+
+def _setup_managed_pair():
+    """被管+订阅的 session 对：(child managed_by mgr, mgr 订阅 child)。"""
+    child = _setup_session(sid="ses_child")
+    child.managed_by = "ses_mgr"
+    mgr = _setup_session(sid="ses_mgr")
+    mgr.report_subscriptions = {"ses_child"}
+    return child, mgr
+
+
+def test_watchdog_task_timeout_reports_zombie(monkeypatch):
+    """watchdog running 卡死超时 kill → 被管+订阅 session 收到 zombie 报告。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _, mgr = _setup_managed_pair()
+    killed = []
+
+    async def fake_kill(worker_id):
+        killed.append(worker_id)
+        return None
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TASK_TIMEOUT_SEC = 0.1
+    worker._WORKER_IDLE_SEC = 999
+    w = _setup_worker("ses_child", status="running", task_started_at=0.0)
+
+    orig_kill = worker.kill_worker
+    worker.kill_worker = fake_kill
+    try:
+        asyncio.run(_run_watchdog(w))
+    finally:
+        worker.kill_worker = orig_kill
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_TASK_TIMEOUT_SEC = 1800.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert killed == [w.worker_id], f"running worker not killed: {killed}"
+    assert len(mgr.queue_pending) == 1, f"zombie report missing: {mgr.queue_pending}"
+    r = mgr.queue_pending[0]
+    assert r["status"] == "error" and r["type"] == "zombie"
+    assert "task timeout" in r["result"]
+    _cleanup()
+
+
+def test_watchdog_queued_timeout_reports_zombie(monkeypatch):
+    """watchdog queued 静默超时 kill → zombie 报告。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _, mgr = _setup_managed_pair()
+    killed = []
+
+    async def fake_kill(worker_id):
+        killed.append(worker_id)
+        return None
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TIMEOUT_SEC = 0.1
+    worker._WORKER_TASK_TIMEOUT_SEC = 999
+    worker._WORKER_IDLE_SEC = 999
+    w = _setup_worker("ses_child", status="queued", last_activity=0.0)
+
+    orig_kill = worker.kill_worker
+    worker.kill_worker = fake_kill
+    try:
+        asyncio.run(_run_watchdog(w))
+    finally:
+        worker.kill_worker = orig_kill
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_TASK_TIMEOUT_SEC = 1800.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert killed == [w.worker_id], f"queued worker not killed: {killed}"
+    assert len(mgr.queue_pending) == 1, f"zombie report missing: {mgr.queue_pending}"
+    assert mgr.queue_pending[0]["type"] == "zombie"
+    assert "queued timeout" in mgr.queue_pending[0]["result"]
+    _cleanup()
+
+
+def test_watchdog_idle_reclaim_no_zombie(monkeypatch):
+    """watchdog idle 回收 → 不报 zombie（正常完成后的回收）。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _, mgr = _setup_managed_pair()
+    killed = []
+
+    async def fake_kill(worker_id):
+        killed.append(worker_id)
+        return None
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TIMEOUT_SEC = 999
+    worker._WORKER_IDLE_SEC = 0.1
+    w = _setup_worker("ses_child", status="idle", last_activity=0.0)
+
+    orig_kill = worker.kill_worker
+    worker.kill_worker = fake_kill
+    try:
+        asyncio.run(_run_watchdog(w))
+    finally:
+        worker.kill_worker = orig_kill
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert killed == [w.worker_id], f"idle worker not reclaimed: {killed}"
+    assert mgr.queue_pending == [], "idle reclaim must NOT report zombie"
+    _cleanup()
+
+
 def test_watchdog_self_cancel_regression():
     """Watchdog must reclaim worker via REAL kill_worker (not a stub).
 
@@ -433,6 +549,9 @@ if __name__ == "__main__":
     test_watchdog_exits_when_worker_removed()
     test_mcp_idle_worker_reclaimed()
     test_mcp_running_worker_not_timeout_killed()
+    test_watchdog_task_timeout_reports_zombie()
+    test_watchdog_queued_timeout_reports_zombie()
+    test_watchdog_idle_reclaim_no_zombie()
     test_watchdog_self_cancel_regression()
     test_consumer_mcp_refreshes_last_activity_on_idle()
     print("\n=== ALL WATCHDOG TESTS PASSED ===")
