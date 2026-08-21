@@ -116,6 +116,12 @@ class ManifestConfig:
 #  Loader
 # ------------------------------------------------------------------ #
 
+# Repo-root anchor: packages/core/manifest_loader.py → repo root.
+# Relative plugin_manifests are rebased here (not CWD), so starting Pan from
+# any working directory still finds them (跨设备移植：消除 CWD 依赖).
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
 def load_manifests(plugin_paths: list[str]) -> ManifestConfig:
     """Load and merge manifest.json files from multiple plugin directories.
 
@@ -123,12 +129,15 @@ def load_manifests(plugin_paths: list[str]) -> ManifestConfig:
     - A directory containing `manifest.json` (e.g. ``D:/project/RuleWhisper/pan_plugin``)
     - A path to a `.json` file directly
 
+    Relative paths are resolved against the repo root, not the process CWD.
     Later-loaded entries override earlier ones by name (dedup).
     """
     config = ManifestConfig()
 
     for raw_path in plugin_paths:
         p = Path(raw_path)
+        if not p.is_absolute():
+            p = REPO_ROOT / p
         if not p.exists():
             log.warning("Plugin path not found, skipping: %s", raw_path)
             continue

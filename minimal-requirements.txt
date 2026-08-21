@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+websockets
+psutil
+mcp==1.28.1
+pytest

@@ -58,7 +58,7 @@ async def main():
         print(f"[Remote] unsupported provider: {provider}")
         sys.exit(1)
 
-    local_port = int(config.get("port", 8767))
+    local_port = int(config.get("port", 8768))
     quick = remote_cfg.get("quick_tunnel", True)
     config_path = remote_cfg.get("config_path") or None
     binary_path = remote_cfg.get("binary_path") or None

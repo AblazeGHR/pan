@@ -1,8 +1,23 @@
+# ── 核心依赖（与 minimal-requirements.txt 一致）──
 fastapi
 uvicorn
 websockets
 psutil
-openai>=1.0.0
-watchdog>=4.0.0
-llama-cpp-python>=0.3.0
 mcp==1.28.1
+pytest
+
+# ── 可选功能依赖（启用对应功能需要）──
+# Memory 向量检索默认 provider
+sentence-transformers
+# Memory 文件监控（自动索引 .md 变更）
+watchdog>=4.0.0
+# Memory OpenAI embeddings provider（需 OPENAI_API_KEY）
+openai>=1.0.0
+# Memory 本地 GGUF embeddings provider
+llama-cpp-python>=0.3.0
+# Memory 中文分词（提升 FTS5 检索质量）
+jieba
+# Memory 批量向量评分加速
+numpy
+# Memory token 估算
+tiktoken

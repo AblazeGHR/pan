@@ -29,9 +29,9 @@ def _default_port():
     try:
         config_path = Path(__file__).resolve().parent.parent.parent / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
-        return config.get("port", 8767)
+        return config.get("port", 8768)
     except Exception:
-        return 8767
+        return 8768
 
 PAN_URL = os.getenv("PAN_URL", f"http://127.0.0.1:{_default_port()}")
 _WS_URL = os.getenv("PAN_WS_URL", PAN_URL.replace("http://", "ws://", 1) + "/ws/agent")

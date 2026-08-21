@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest",
-    "gen:api": "openapi-typescript http://localhost:8767/api/openapi.json -o src/types/api.d.ts",
+    "gen:api": "openapi-typescript http://localhost:8768/api/openapi.json -o src/types/api.d.ts",
     "analyze": "vite-bundle-visualizer"
   },
   "dependencies": {

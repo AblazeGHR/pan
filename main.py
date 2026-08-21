@@ -21,7 +21,7 @@ if __name__ == "__main__":
     if env_port is not None:
         port = int(env_port)
     else:
-        port = load_config().get("port", 8767)
+        port = load_config().get("port", 8768)
 
     _log.info("Pan starting on %s:%s", host, port)
 

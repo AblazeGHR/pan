@@ -13,7 +13,7 @@ $cfConfig = $null
 if (Test-Path $cfgPath) {
     try {
         $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
-        # Port precedence matches main.py: PAN_PORT env > config.json "port" > 8767
+        # Port precedence matches main.py: PAN_PORT env > config.json "port" > 8768
         if ($env:PAN_PORT) {
             $port = $env:PAN_PORT
         } elseif ($cfg.port) {
@@ -26,7 +26,7 @@ if (Test-Path $cfgPath) {
     } catch { }
 }
 
-if (-not $port) { $port = 8767 }
+if (-not $port) { $port = 8768 }
 
 # Fallback cf config path: PAN_CF_CONFIG env > user-profile default
 if (-not $cfConfig) {
