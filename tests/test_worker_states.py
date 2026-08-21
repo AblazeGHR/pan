@@ -207,6 +207,68 @@ def test_eof_normal_exit_still_zombie():
     _cleanup()
 
 
+def test_eof_reports_zombie_for_running(monkeypatch):
+    """B2: running 中进程异常退出（EOF 检测路径）→ 被管+订阅 session 收到 zombie 报告。"""
+    _cleanup()
+
+    async def noop_save(s):
+        pass
+
+    monkeypatch.setattr(_sess, "save_async", noop_save)
+    child = _sess.Session(id="ses_child", name="child")
+    child.managed_by = "ses_mgr"
+    _sess._cache["ses_child"] = child
+    mgr = _sess.Session(id="ses_mgr", name="mgr")
+    mgr.report_subscriptions = {"ses_child"}
+    _sess._cache["ses_mgr"] = mgr
+
+    w = _setup_worker("ses_child", status="running")
+    w.process = MockProcess([], returncode=1)
+
+    async def run():
+        await worker._read_stdout(w)
+
+    asyncio.run(run())
+
+    assert len(mgr.queue_pending) == 1, f"zombie report missing: {mgr.queue_pending}"
+    r = mgr.queue_pending[0]
+    assert r["status"] == "error" and r["type"] == "zombie"
+    assert "process exited" in r["result"]
+    assert r["sessionId"] == "ses_child"
+    assert w.worker_id not in worker.workers, "zombie worker not removed from dict"
+    print("PASS: EOF for running worker reports zombie to managed manager")
+    _cleanup()
+
+
+def test_eof_idle_no_zombie_report(monkeypatch):
+    """B2: idle 状态进程退出（正常完成后的退出）→ 不报 zombie。"""
+    _cleanup()
+
+    async def noop_save(s):
+        pass
+
+    monkeypatch.setattr(_sess, "save_async", noop_save)
+    child = _sess.Session(id="ses_child", name="child")
+    child.managed_by = "ses_mgr"
+    _sess._cache["ses_child"] = child
+    mgr = _sess.Session(id="ses_mgr", name="mgr")
+    mgr.report_subscriptions = {"ses_child"}
+    _sess._cache["ses_mgr"] = mgr
+
+    w = _setup_worker("ses_child", status="idle")
+    w.process = MockProcess([], returncode=1)
+
+    async def run():
+        await worker._read_stdout(w)
+
+    asyncio.run(run())
+
+    assert mgr.queue_pending == [], "idle exit must NOT report zombie"
+    assert w.worker_id not in worker.workers
+    print("PASS: idle exit does not report zombie")
+    _cleanup()
+
+
 def test_create_worker_stream_starts_idle(monkeypatch):
     """create_worker (stream mode) → initial status "idle".
 
@@ -251,4 +313,6 @@ if __name__ == "__main__":
     test_init_event_extracts_metadata_only()
     test_eof_sets_zombie_and_removes()
     test_eof_normal_exit_still_zombie()
+    test_eof_reports_zombie_for_running()
+    test_eof_idle_no_zombie_report()
     print("\n=== ALL STATE TESTS PASSED ===")

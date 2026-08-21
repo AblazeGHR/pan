@@ -10,6 +10,7 @@
 
 import asyncio
 import sys
+import time
 from pathlib import Path
 
 # Make packages importable
@@ -176,6 +177,143 @@ def test_assign_returns_queued():
     # task is actually queued on the worker
     assert w.pending_signal.qsize() == 1, f"task not queued, qsize={w.pending_signal.qsize()}"
     print("PASS: assign returns queued")
+    _cleanup()
+
+
+# ── assign taskId 幂等（B3）──
+
+def test_assign_task_id_queued_and_registered():
+    """assign 带 task_id → queued + taskId 已登记 pending。"""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "assign-task-1"
+
+    async def scenario():
+        return await worker.assign(s.id, "job", task_id=tid)
+
+    result = asyncio.run(scenario())
+
+    assert result["status"] == "queued", f"got {result}"
+    assert result["taskId"] == tid
+    assert worker._task_status[tid]["status"] == "pending", worker._task_status
+    assert w.pending_signal.qsize() == 1
+    print("PASS: assign with taskId queues and registers pending")
+    _cleanup()
+
+
+def test_assign_task_id_idempotent_pending():
+    """同一 taskId 进行中重复 assign → 返回 pending，不重复入队（防双跑）。"""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "assign-task-2"
+
+    async def scenario():
+        r1 = await worker.assign(s.id, "job", task_id=tid)
+        r2 = await worker.assign(s.id, "job", task_id=tid)
+        return r1, r2
+
+    r1, r2 = asyncio.run(scenario())
+
+    assert r1["status"] == "queued", f"got {r1}"
+    assert r2["status"] == "pending", f"got {r2}"
+    assert r2["taskId"] == tid
+    assert w.pending_signal.qsize() == 1, f"task re-enqueued: qsize={w.pending_signal.qsize()}"
+    print("PASS: assign taskId idempotent while pending")
+    _cleanup()
+
+
+def test_assign_task_id_idempotent_after_complete():
+    """已完成 taskId 重复 assign → 返回缓存结果，不重复入队。"""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "assign-task-3"
+
+    async def scenario():
+        r1 = await worker.assign(s.id, "job", task_id=tid)
+        # 模拟完成路径：worker.py 完成时把 _task_status 更新为 done
+        worker._task_status[tid] = {"status": "done", "result": "the answer",
+                                    "workerId": w.worker_id, "taskId": tid,
+                                    "ts": time.monotonic()}
+        r2 = await worker.assign(s.id, "job", task_id=tid)
+        return r1, r2
+
+    r1, r2 = asyncio.run(scenario())
+
+    assert r1["status"] == "queued", f"got {r1}"
+    assert r2["status"] == "done" and r2["result"] == "the answer", f"got {r2}"
+    assert w.pending_signal.qsize() == 1, f"task re-enqueued: qsize={w.pending_signal.qsize()}"
+    print("PASS: assign taskId idempotent after complete")
+    _cleanup()
+
+
+def test_assign_task_id_error_after_send_failure(monkeypatch):
+    """send_task 失败 → taskId 标 error，重试返回确定性 error。"""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "assign-task-4"
+    orig_send = worker.send_task
+
+    async def fake_send(worker_id, text, source="agent", seq=None, task_id=None):
+        return "Worker process dead"
+
+    worker.send_task = fake_send
+    try:
+        async def scenario():
+            return await worker.assign(s.id, "job", task_id=tid)
+        result = asyncio.run(scenario())
+    finally:
+        worker.send_task = orig_send
+
+    assert result["status"] == "error", f"got {result}"
+    assert worker._task_status[tid]["status"] == "error"
+    print("PASS: assign taskId marked error on send failure")
+    _cleanup()
+
+
+def test_assign_task_id_ttl_prunes():
+    """过期 taskId 条目 → prune 后视为不存在 → 重新入队执行。"""
+    _cleanup()
+    s = _setup_session()
+    w = _setup_worker(s.id)
+    tid = "assign-task-ttl"
+    orig_ttl = worker._TASK_STATUS_TTL_SEC
+    worker._TASK_STATUS_TTL_SEC = 0.001
+    try:
+        async def scenario():
+            await worker.assign(s.id, "job", task_id=tid)
+            assert tid in worker._task_status
+            worker._task_status[tid]["ts"] = 0.0  # 人为调旧，模拟超 TTL
+            r2 = await worker.assign(s.id, "job", task_id=tid)
+            return w.pending_signal.qsize(), r2
+        qsize, r2 = asyncio.run(scenario())
+    finally:
+        worker._TASK_STATUS_TTL_SEC = orig_ttl
+
+    assert qsize == 2, f"expired entry not pruned/re-enqueued: qsize={qsize}"
+    assert r2["status"] == "queued", f"got {r2}"
+    print("PASS: assign taskId TTL prunes expired entries")
+    _cleanup()
+
+
+def test_assign_no_task_id_unchanged():
+    """不带 task_id → 行为不变：queued、无 taskId 字段、不进注册表。"""
+    _cleanup()
+    s = _setup_session()
+    _setup_worker(s.id)
+
+    async def scenario():
+        return await worker.assign(s.id, "job")
+
+    result = asyncio.run(scenario())
+
+    assert result["status"] == "queued", f"got {result}"
+    assert "taskId" not in result
+    assert worker._task_status == {}, "no task_id → no registry entry"
+    print("PASS: assign without taskId unchanged")
     _cleanup()
 
 
@@ -450,6 +588,12 @@ if __name__ == "__main__":
     test_handoff_timeout()
     test_handoff_dead_worker_resolves_error()
     test_assign_returns_queued()
+    test_assign_task_id_queued_and_registered()
+    test_assign_task_id_idempotent_pending()
+    test_assign_task_id_idempotent_after_complete()
+    test_assign_task_id_error_after_send_failure()
+    test_assign_task_id_ttl_prunes()
+    test_assign_no_task_id_unchanged()
     test_send_to_existing_worker()
     test_send_unknown_worker_errors()
     test_ensure_worker_autospawns()

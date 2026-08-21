@@ -163,6 +163,178 @@ def test_enqueue_report_error_status_also_enqueued(monkeypatch):
     _cleanup()
 
 
+# ── zombie 报告（B2）──
+
+def test_enqueue_report_with_type_zombie(monkeypatch):
+    """report_type="zombie" → 报告 dict 含 type: zombie 字段。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _setup_session("ses_child", managed_by="ses_mgr")
+    mgr = _setup_session("ses_mgr")
+    mgr.report_subscriptions = {"ses_child"}
+
+    async def scenario():
+        await worker._enqueue_report("ses_child", "error", "worker died: test",
+                                     "task-1", "worker-1", report_type="zombie")
+
+    asyncio.run(scenario())
+
+    assert mgr.queue_pending[0] == {
+        "status": "error",
+        "type": "zombie",
+        "result": "worker died: test",
+        "sessionId": "ses_child",
+        "taskId": "task-1",
+        "workerId": "worker-1",
+    }
+    _cleanup()
+
+
+def test_enqueue_zombie_report_running(monkeypatch):
+    """running 状态异常死亡 → zombie 报告入队到被订阅 manager。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _setup_session("ses_child", managed_by="ses_mgr")
+    mgr = _setup_session("ses_mgr")
+    mgr.report_subscriptions = {"ses_child"}
+    w = worker.Worker(worker_id="worker-1", session_id="ses_child",
+                      adapter=CbcAdapter(), status="running", process=None,
+                      pending_signal=asyncio.Queue())
+    worker.workers["worker-1"] = w
+
+    async def scenario():
+        await worker._enqueue_zombie_report(w, "task timeout (running 300s)")
+
+    asyncio.run(scenario())
+
+    assert len(mgr.queue_pending) == 1
+    r = mgr.queue_pending[0]
+    assert r["status"] == "error"
+    assert r["type"] == "zombie"
+    assert r["result"] == "worker died: task timeout (running 300s)"
+    assert r["sessionId"] == "ses_child"
+    assert r["workerId"] == "worker-1"
+    _cleanup()
+
+
+def test_enqueue_zombie_report_queued(monkeypatch):
+    """queued 状态异常死亡 → zombie 报告入队。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _setup_session("ses_child", managed_by="ses_mgr")
+    mgr = _setup_session("ses_mgr")
+    mgr.report_subscriptions = {"ses_child"}
+    w = worker.Worker(worker_id="worker-1", session_id="ses_child",
+                      adapter=CbcAdapter(), status="queued", process=None,
+                      pending_signal=asyncio.Queue())
+    worker.workers["worker-1"] = w
+
+    async def scenario():
+        await worker._enqueue_zombie_report(w, "queued timeout (no output for 300s)")
+
+    asyncio.run(scenario())
+
+    assert len(mgr.queue_pending) == 1
+    assert mgr.queue_pending[0]["type"] == "zombie"
+    assert "queued timeout" in mgr.queue_pending[0]["result"]
+    _cleanup()
+
+
+def test_enqueue_zombie_report_idle_not_reported(monkeypatch):
+    """idle 状态（正常完成后的空闲回收）→ 不报 zombie。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _setup_session("ses_child", managed_by="ses_mgr")
+    mgr = _setup_session("ses_mgr")
+    mgr.report_subscriptions = {"ses_child"}
+    w = worker.Worker(worker_id="worker-1", session_id="ses_child",
+                      adapter=CbcAdapter(), status="idle", process=None,
+                      pending_signal=asyncio.Queue())
+    worker.workers["worker-1"] = w
+
+    async def scenario():
+        await worker._enqueue_zombie_report(w, "idle reclaim")
+
+    asyncio.run(scenario())
+
+    assert mgr.queue_pending == [], "idle reclaim must NOT report zombie"
+    _cleanup()
+
+
+def test_enqueue_zombie_report_unsubscribed(monkeypatch):
+    """manager 未订阅该 session → 不推送 zombie。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _setup_session("ses_child", managed_by="ses_mgr")
+    mgr = _setup_session("ses_mgr")  # no subscription
+    w = worker.Worker(worker_id="worker-1", session_id="ses_child",
+                      adapter=CbcAdapter(), status="running", process=None,
+                      pending_signal=asyncio.Queue())
+    worker.workers["worker-1"] = w
+
+    async def scenario():
+        await worker._enqueue_zombie_report(w, "task timeout")
+
+    asyncio.run(scenario())
+
+    assert mgr.queue_pending == [], "unsubscribed session must NOT receive zombie"
+    _cleanup()
+
+
+def test_enqueue_zombie_report_no_managed_by(monkeypatch):
+    """无 managed_by 的独立 session → 不推送 zombie。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    standalone = _setup_session("ses_standalone")
+    w = worker.Worker(worker_id="worker-1", session_id="ses_standalone",
+                      adapter=CbcAdapter(), status="running", process=None,
+                      pending_signal=asyncio.Queue())
+    worker.workers["worker-1"] = w
+
+    async def scenario():
+        await worker._enqueue_zombie_report(w, "task timeout")
+
+    asyncio.run(scenario())
+
+    assert standalone.queue_pending == [], "no managed_by → no zombie"
+    _cleanup()
+
+
+def test_enqueue_zombie_report_sent_once(monkeypatch):
+    """同一 worker 的 zombie 只报一次（防 watchdog/EOF 双路径重复）。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    _setup_session("ses_child", managed_by="ses_mgr")
+    mgr = _setup_session("ses_mgr")
+    mgr.report_subscriptions = {"ses_child"}
+    w = worker.Worker(worker_id="worker-1", session_id="ses_child",
+                      adapter=CbcAdapter(), status="running", process=None,
+                      pending_signal=asyncio.Queue())
+    worker.workers["worker-1"] = w
+
+    async def scenario():
+        await worker._enqueue_zombie_report(w, "task timeout")
+        await worker._enqueue_zombie_report(w, "process exited (returncode=1)")
+
+    asyncio.run(scenario())
+
+    assert len(mgr.queue_pending) == 1, f"zombie reported twice: {mgr.queue_pending}"
+    assert "task timeout" in mgr.queue_pending[0]["result"]
+    _cleanup()
+
+
+def test_format_report_batch_with_type():
+    """zombie 报告在拼装文本中带 type 行。"""
+    reports = [
+        {"status": "error", "type": "zombie", "result": "worker died: task timeout",
+         "sessionId": "ses_child", "taskId": "t1", "workerId": "worker-1"},
+    ]
+    text = worker._format_report_batch(reports)
+    assert "type: zombie" in text
+    assert "worker died: task timeout" in text
+    assert "status: error" in text
+
+
 # ── consumption concatenation ──
 
 def test_format_report_batch():
@@ -382,6 +554,31 @@ def test_mcp_report_tools_require_identity(monkeypatch):
     assert "PAN_AGENT_SESSION_ID" in r1.get("error", {}).get("message", "")
 
 
+def test_mcp_worker_assign_task_id_forwarded(monkeypatch):
+    """worker_assign 带 task_id → /api/assign body 透传 taskId；不带 → 无 taskId。"""
+    import packages.mcp.server as mcp_server
+    captured = {}
+
+    def fake_api(method, path, body=None, timeout=30.0):
+        captured["method"] = method
+        captured["path"] = path
+        captured["body"] = body
+        return {"status": "queued", "workerId": "worker-1", "sessionId": "ses_child"}
+
+    monkeypatch.setattr(mcp_server, "_api", fake_api)
+    monkeypatch.delenv("PAN_AGENT_SESSION_ID", raising=False)
+
+    r1 = mcp_server.worker_assign("ses_child", "task", task_id="task-abc")
+    assert captured["path"] == "/api/assign"
+    assert captured["body"] == {"sessionId": "ses_child", "text": "task", "taskId": "task-abc"}
+    assert r1["status"] == "queued"
+
+    r2 = mcp_server.worker_assign("ses_child", "task")
+    assert captured["body"] == {"sessionId": "ses_child", "text": "task"}
+    assert "taskId" not in captured["body"]
+    assert r2["status"] == "queued"
+
+
 if __name__ == "__main__":
     test_report_subscriptions_roundtrip()
     test_report_subscriptions_default_empty()
@@ -391,6 +588,14 @@ if __name__ == "__main__":
     test_enqueue_report_no_managed_by()
     test_enqueue_report_wakes_manager_consumer()
     test_enqueue_report_error_status_also_enqueued()
+    test_enqueue_report_with_type_zombie()
+    test_enqueue_zombie_report_running()
+    test_enqueue_zombie_report_queued()
+    test_enqueue_zombie_report_idle_not_reported()
+    test_enqueue_zombie_report_unsubscribed()
+    test_enqueue_zombie_report_no_managed_by()
+    test_enqueue_zombie_report_sent_once()
+    test_format_report_batch_with_type()
     test_format_report_batch()
     test_consumer_drains_reports_as_one_message()
     test_consumer_report_signal_no_pending_is_noop()
@@ -401,4 +606,5 @@ if __name__ == "__main__":
     test_mcp_report_subscribe()
     test_mcp_report_unsubscribe()
     test_mcp_report_tools_require_identity()
+    test_mcp_worker_assign_task_id_forwarded()
     print("\n=== ALL REPORT SUBSCRIPTION TESTS PASSED ===")
