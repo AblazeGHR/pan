@@ -6,6 +6,7 @@ Usage:
 
 Tools exposed:
     - session_create: Create a new session (optional workdir)
+    - session_import: Import an external cbc/kimi session or list what's importable
     - session_list: List all sessions (optional lean summary mode)
     - session_managed: List the caller's managed sessions (summary)
     - session_get: Get session details (optional history limit)
@@ -33,6 +34,7 @@ import os
 import urllib.request
 import urllib.error
 from pathlib import Path
+from urllib.parse import urlencode
 
 from mcp.server.fastmcp import FastMCP
 
@@ -191,6 +193,39 @@ def _auto_claim(session_id: str) -> None:
         _api("POST", "/api/claim", {"managerId": caller["id"], "sessionId": session_id})
 
 
+def _reimport_precheck(cli_session_id: str) -> dict | None:
+    """Deny reimport when a restricted caller would overwrite an unmanaged session.
+
+    A reimport (same cli_session_id already present as a Pan session) overwrites
+    that session in place. For callers restricted to managed sessions the
+    target must be in the caller's managed list — otherwise refuse (§8.2).
+    The target is located cheaply via GET /api/sessions?summary=1, which now
+    carries cliSessionId. No match → pure new import → allowed.
+
+    Returns None when allowed, or an error dict when denied.
+    """
+    caller = _caller_identity()
+    if not caller:
+        return None
+    if not _caller_pan_access(caller).get("restrictToManaged"):
+        return None
+    result = _api("GET", "/api/sessions?summary=1")
+    sessions = result.get("sessions") if isinstance(result, dict) else None
+    if not isinstance(sessions, list):
+        return None  # 无法枚举 → 交给后端 import-guard 兜底
+    managed_ids = set(caller.get("managed") or [])
+    for s in sessions:
+        if (isinstance(s, dict)
+                and s.get("cliSessionId") == cli_session_id
+                and s.get("id") not in managed_ids):
+            return {"ok": False, "error": {
+                "code": "permission_denied",
+                "message": f"session {caller['id']} is restricted to its managed sessions; "
+                           f"reimport of cli_session_id {cli_session_id} would overwrite "
+                           f"session {s.get('id')} which it does not manage"}}
+    return None
+
+
 def _worker_session_id(worker_id: str) -> str | None:
     """Resolve a worker_id to its session_id via /api/list (or None)."""
     result = _api("GET", "/api/list")
@@ -270,14 +305,135 @@ def session_create(
 
 
 @mcp.tool()
+def session_import(
+    action: str,
+    adapter: str = "cbc",
+    project_dir: str | None = None,
+    cwd: str | None = None,
+    query: str | None = None,
+    limit: int = 30,
+    session_id: str | None = None,
+    name: str | None = None,
+    session_template: str | None = None,
+    pan_access: dict | None = None,
+) -> dict:
+    """Import an external cbc/kimi session into Pan, or list what's importable.
+
+    Args:
+        action: "list_projects" (cbc) / "list_workspaces" (kimi) /
+            "list_sessions" / "import"
+        adapter: Source adapter ("cbc" or "kimi")
+        project_dir: cbc project dir name (from list_projects)
+        cwd: Absolute path — kimi requires the workspace root; cbc accepts it
+            in place of project_dir
+        query: Title filter for cbc list_sessions
+        limit: Pagination hint (backend caps at max_sessions_shown)
+        session_id: External session id to import (required for action="import")
+        name: Override imported session name
+        session_template: Session template to apply (model / permission_mode /
+            MCP / pan_access defaults; explicit fields still override template)
+        pan_access: Capability flags {restrictToManaged, canClaimUnmanaged,
+            autoClaimCreated}
+
+    调用链（导入历史会话）：
+    1. session_import(action="list_projects") 或 (action="list_workspaces") 发现可导入来源；
+    2. session_import(action="list_sessions", project_dir=...) 按项目/工作区列出候选会话；
+    3. session_import(action="import", session_id=..., project_dir=.../cwd=...,
+       name?/session_template?/pan_access?) 导入成 Pan session —— 仅建 session 不
+       spawn worker；workdir 为外部项目路径。同一 cli_session_id 重复导入 = reimport，
+       覆盖原 Pan session 历史（受限 caller 只能覆盖自己管理的）。
+    4. 接编排主链：report_subscribe（订阅完成报告）→ worker_assign（派发任务）→
+       session_get（查结果）→ session_delete（收尾）。完整编排流程见 /pan skill。
+    """
+    if action not in ("list_projects", "list_workspaces", "list_sessions", "import"):
+        return {"ok": False, "error": {
+            "code": "invalid_action",
+            "message": "action must be one of list_projects / list_workspaces / "
+                       f"list_sessions / import, got {action!r}"}}
+
+    if action == "list_projects":
+        return _strip_usage(_api("GET", "/api/cbc/projects"))
+
+    if action == "list_workspaces":
+        return _strip_usage(_api("GET", "/api/kimi/workspaces"))
+
+    if action == "list_sessions":
+        qs: list[tuple[str, str]] = []
+        if adapter == "cbc":
+            if not project_dir and not cwd:
+                return {"ok": False, "error": {
+                    "code": "missing_params",
+                    "message": "project_dir (or cwd) is required for cbc list_sessions"}}
+            if project_dir:
+                qs.append(("project_dir", project_dir))
+            if cwd:
+                qs.append(("cwd", cwd))
+            if query:
+                qs.append(("q", query))
+            path = "/api/cbc/sessions"
+        else:
+            if not cwd:
+                return {"ok": False, "error": {
+                    "code": "missing_params",
+                    "message": "cwd (workspace root) is required for kimi list_sessions"}}
+            qs.append(("cwd", cwd))
+            path = "/api/kimi/sessions"
+        suffix = "?" + urlencode(qs) if qs else ""
+        return _strip_usage(_api("GET", path + suffix))
+
+    # action == "import"
+    if not session_id:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "session_id is required for import"}}
+    if adapter == "kimi" and not cwd:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "cwd (workspace root) is required for kimi import"}}
+
+    # reimport 预检（§8.2）：受限 caller 只能覆盖自己管理的 session
+    denied = _reimport_precheck(session_id)
+    if denied:
+        return denied
+
+    body: dict = {"session_id": session_id}
+    if adapter == "cbc":
+        path = "/api/cbc/sessions/import"
+        if project_dir:
+            body["project_dir"] = project_dir
+        if cwd:
+            body["cwd"] = cwd
+    else:
+        path = "/api/kimi/sessions/import"
+        if cwd:
+            body["cwd"] = cwd
+    if name:
+        body["name"] = name
+    if session_template:
+        body["sessionTemplate"] = session_template
+    if pan_access:
+        body["panAccess"] = pan_access
+
+    # 导入解析可能较慢（大 history），放宽 _api 超时
+    result = _strip_usage(_api("POST", path, body, timeout=120.0))
+    if isinstance(result, dict) and result.get("id"):
+        history = result.pop("history", None)
+        result["historyCount"] = len(history) if isinstance(history, list) else 0
+        result["reimportedExisting"] = bool(result.pop("reimported", False))
+        result["imported"] = True
+        _auto_claim(result["id"])
+    return result
+
+
+@mcp.tool()
 def session_list(summary: bool = False) -> list[dict] | dict:
     """List all sessions with their worker status.
 
     Args:
         summary: When True, return only lean fields
-            [{id, name, adapter, workerStatus, updatedAt, managedBy}] — no
-            history/usage. Backed by the backend ?summary=1 endpoint so the
-            full payload is never transferred (context 预算友好).
+            [{id, name, adapter, cliSessionId, workerStatus, updatedAt,
+            managedBy}] — no history/usage. Backed by the backend ?summary=1
+            endpoint so the full payload is never transferred (context 预算友好).
 
     默认返回全量（含 history，最多 50 条截断）。summary=True 适合巡检/编排前的
     状态扫查；单 session 明细用 session_get。
