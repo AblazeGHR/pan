@@ -3,6 +3,7 @@ import { wsClient } from '@/services/ws';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useQueueStore } from '@/stores/queueStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
@@ -111,6 +112,15 @@ function handleWorkerUpdate(
   });
   const workerStore = useWorkerStore.getState();
   workerStore.updateWorker(e.sessionId, e.workerId ?? null, status);
+
+  // 队列自动发送：worker 变 idle 且属于当前 session → 发送队首 1 条
+  // （发送后 worker 变 queued/running，不再是 idle，天然防重复；result→idle 再取下一条）
+  if (
+    status === 'idle' &&
+    e.sessionId === useSessionStore.getState().currentSessionId
+  ) {
+    useQueueStore.getState().flush();
+  }
 }
 
 function appendEvent(event: StreamEvent['event']): void {

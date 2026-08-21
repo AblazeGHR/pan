@@ -230,6 +230,27 @@ export interface ApiBatchDeleteResponse {
   error?: string;
 }
 
+// ── Send queue types (aligns with vanilla ts/app.ts QueuedMessage) ──
+
+export interface QueuedMessage {
+  id: string; // 唯一标识（重排/编辑/删除的 key）
+  text: string; // 原文（渲染时单行截断，存全文）
+  createdAt: number; // 入队时间戳
+  status: 'pending'; // 首版恒 pending，预留扩展
+}
+
+/** 编辑中的队列项（先从队列取出，避免被自动 flush 发出）。 */
+export interface QueuedEdit {
+  id: string;
+  /** 编辑框当前值（持久化，刷新恢复编辑态）。 */
+  text: string;
+  /** 编辑前的原文（Esc 取消 / 保存为空时恢复）。 */
+  originalText: string;
+  /** 原队列位置（Enter 保存后插回原位置）。 */
+  index: number;
+  createdAt: number;
+}
+
 // ── UI types ──
 
 export interface ToastMessage {

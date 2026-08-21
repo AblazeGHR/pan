@@ -3,8 +3,10 @@ import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
+import { useQueueStore } from '@/stores/queueStore';
+import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { wsClient } from '@/services/ws';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
 const PILL_CLASS =
@@ -184,6 +186,16 @@ export function InputRow() {
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { startWorker } = useWorkerStore();
   const { showToast } = useUIStore();
+  const enqueue = useQueueStore((s) => s.enqueue);
+  const panelOpen = useQueueStore((s) => s.panelOpen);
+  const togglePanel = useQueueStore((s) => s.togglePanel);
+  // 队列计数（含编辑中的一条）：原始值比较，selector 稳定
+  const queueCount = useQueueStore((s) => {
+    if (!currentSessionId) return 0;
+    const q = s.queues[currentSessionId];
+    const e = s.edits[currentSessionId];
+    return (q ? q.length : 0) + (e ? 1 : 0);
+  });
 
   // ── Adapter settings ──
   const config = useAdapterStore((s) => s.getConfig());
@@ -228,7 +240,14 @@ export function InputRow() {
 
       const session = currentSession;
       if (session?.workerStatus === 'running' || session?.workerStatus === 'held') {
-        showToast('Worker is busy');
+        // worker 忙：不再拒绝，改为入队（空闲后自动逐条/拼接发送）；入队不上屏
+        const ok = enqueue(text);
+        if (ok) {
+          if (inputRef.current) {
+            inputRef.current.value = '';
+          }
+          setInputDraft(currentSessionId, '');
+        }
         return;
       }
 
@@ -278,6 +297,7 @@ export function InputRow() {
       addMessage,
       startWorker,
       setInputDraft,
+      enqueue,
     ],
   );
 
@@ -296,6 +316,9 @@ export function InputRow() {
 
   return (
     <div className="border-t border-border-default bg-bg-primary">
+      {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
+      <SendQueuePanel />
+
       {/* Toolbar row */}
       {hasToolbar && (
         <div className="flex items-center gap-1.5 px-3 pt-2 pb-0">
@@ -325,6 +348,36 @@ export function InputRow() {
 
       {/* Textarea + Send row */}
       <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
+        {/* ^ 队列开关：非空时高亮 + 角标 */}
+        <div className="relative shrink-0 self-start mt-0.5">
+          <button
+            onClick={togglePanel}
+            title={
+              queueCount > 0
+                ? `发送队列（${queueCount} 条待发）`
+                : '发送队列'
+            }
+            aria-label="发送队列"
+            className={`flex h-9 w-9 items-center justify-center rounded border transition-colors ${
+              panelOpen || queueCount > 0
+                ? 'border-accent/50 bg-accent/10 text-accent'
+                : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+            }`}
+          >
+            <ChevronUp
+              size={16}
+              className={`transition-transform duration-200 ${
+                panelOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {queueCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">
+              {queueCount > 99 ? '99+' : queueCount}
+            </span>
+          )}
+        </div>
+
         <textarea
           ref={inputRef}
           id="chatInput"
