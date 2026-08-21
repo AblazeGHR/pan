@@ -13,6 +13,7 @@ Tools exposed:
     - qq_send_message: 向 QQ 私聊/群聊发送消息（text 支持 OneBot CQ 码）
     - qq_read_conversation: 读取某 QQ 会话的落盘对话记录（本地持久化）
     - qq_list_contacts: 列出最近的 QQ 联系人/群（NapCat get_recent_contact，best-effort）
+    - qq_read_inbox: 读取某 QQ 会话的待处理消息队列（selective 模式专用）
 
 Environment variables:
     PAN_QQ_API_URL: QQ bot HTTP API base URL (default: http://127.0.0.1:8080)
@@ -124,6 +125,37 @@ async def qq_list_contacts() -> dict:
     其它工具。完整历史请用 qq_read_conversation 读落盘记录。
     """
     return await _api("GET", "/api/qq/recent_contacts")
+
+
+@mcp.tool()
+async def qq_read_inbox(target_id: str | int, limit: int = 30, consume: bool = False) -> dict:
+    """读取某 QQ 会话的待处理消息（inbox），selective 模式（PAN_QQ_MODE=selective）
+    下由编排者（meta-agent/worker）消费。
+
+    selective 模式：QQ 收到的消息**不自动回复**，而是进入待处理队列（inbox），
+    等待编排者决定。典型编排流程：
+      1. 用本工具读某 target 的 inbox（consume=False 先看，不删除）；
+      2. 结合 qq_read_conversation 读该会话历史，决策：忽略 / 回复 / 路由到别的
+         流程；
+      3. 需要回复时用 qq_send_message(target_type, target_id, text) 发送。
+    决策完成后应带 consume=True 再读一次（消费即删），避免同一批消息被重复处理。
+
+    Args:
+        target_id: 会话标识 —— 私聊用 QQ 号，群聊用群号（与 qq_send_message 一致）
+        limit: 最多读取多少条（默认 30，最大 500；旧消息在前，FIFO）
+        consume: True 时读取后从 inbox 队列删除（消费即删）
+
+    调用链：本工具 → GET {PAN_QQ_API_URL}/api/qq/inbox?target_id=&limit=&consume= →
+    packages/qq/plugin.py 读 data/qq_inbox/<target_id>.json。
+    返回 {"target_id": ..., "messages": [{id, text, time}, ...]}。
+    """
+    if limit <= 0:
+        limit = 30
+    return await _api("GET", "/api/qq/inbox", {
+        "target_id": str(target_id),
+        "limit": min(limit, 500),
+        "consume": 1 if consume else 0,
+    })
 
 
 def main():

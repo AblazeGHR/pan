@@ -10,10 +10,19 @@ Usage:
 
 QQ bot HTTP API（挂载在 NoneBot fastapi driver server_app，默认 127.0.0.1:8080，
 供独立 MCP server packages/qq/mcp.py 经 PAN_QQ_API_URL 调用）:
-  POST /api/qq/send        body {target_type: private|group, target_id, text}
-  GET  /api/qq/history     ?target_id=&limit= → {target_id, messages:[{role,text,time}]}
-  GET  /api/qq/recent_contacts               → NapCat get_recent_contact（best-effort）
+  POST   /api/qq/send       body {target_type: private|group, target_id, text}
+  GET    /api/qq/history    ?target_id=&limit= → {target_id, messages:[{role,text,time}]}
+  GET    /api/qq/recent_contacts               → NapCat get_recent_contact（best-effort）
+  GET    /api/qq/inbox      ?target_id=&limit=&consume= → {target_id, messages:[{id,text,time}]}
+  DELETE /api/qq/inbox      ?target_id= → 清空该 target 的 inbox
 消息记录按 target_id 落盘到 data/qq_history/<target_id>.json（user/assistant 双侧）。
+
+双模式（PAN_QQ_MODE）:
+  mirror    默认。收到 QQ 消息 → 绑定 session → 派发 worker → 自动回复（现状兼容）。
+  selective 监听/选择性发送。QQ 消息只写 history + data/qq_inbox/<target_id>.json
+            （待处理队列），不建 session、不 spawn、不自动回复；由 meta-agent 经
+            MCP 工具 qq_read_inbox（读 inbox）→ 决策 → qq_send_message（回复）。
+            command-routes（绕过 LLM 的确定路由）在两种模式下都立即执行。
 """
 
 from __future__ import annotations
@@ -44,6 +53,20 @@ PAN_URL = os.getenv("PAN_URL", f"http://127.0.0.1:{_default_port()}")
 _WS_URL = os.getenv("PAN_WS_URL", PAN_URL.replace("http://", "ws://", 1) + "/ws/agent")
 POLL_INTERVAL = 1.5
 MAX_POLL_TIME = 120
+
+
+# ── mode switch ──
+
+def _qq_mode() -> str:
+    """Return the QQ bridge mode: "mirror" (default) or "selective".
+
+    PAN_QQ_MODE=selective 时开启监听/选择性发送：QQ 消息只进 inbox（待处理
+    队列）与 history，不建 session / 不 spawn / 不自动回复；由 meta-agent 经
+    MCP 工具 qq_read_inbox → 决策 → qq_send_message 决定回不回、回什么。
+    非法值回退 mirror，保证现状兼容。
+    """
+    mode = os.getenv("PAN_QQ_MODE", "mirror").strip().lower()
+    return mode if mode in ("mirror", "selective") else "mirror"
 
 # ── command routes (QQ prefix → external HTTP API, bypasses LLM) ──
 
@@ -515,6 +538,13 @@ async def handle_message(bot: Bot, event: MessageEvent):
     # GET /api/qq/history 与 MCP 工具 qq_read_conversation 读取。
     await _append_history(scope_id, "user", text)
 
+    # selective 模式：消息进入 inbox（待处理队列），不自动回复；由 meta-agent
+    # 经 MCP 工具 qq_read_inbox → 决策 → qq_send_message 决定回不回、回什么。
+    # 注意：command-route 消息同样会入 inbox（消息已在别处自动回复，编排者可
+    # 结合 history 判断），见下方 command route 分支。
+    if _qq_mode() == "selective":
+        await _append_inbox(scope_id, scope, text)
+
     # Lazy-load command routes on first use (lets the bot start before Core
     # if needed). Hits are forwarded straight to the manifest-declared HTTP
     # target — 0 LLM tokens, millisecond latency.
@@ -553,20 +583,24 @@ async def handle_message(bot: Bot, event: MessageEvent):
                 await asyncio.sleep(0.5)
         return
 
-    await bot.send(event, "processing, please wait...")
+    # mirror 模式（默认）：绑定 session → 派发 worker → 自动回复（现状兼容）。
+    # selective 模式：消息已入 inbox + history，此处不 _ensure_session / 不
+    # spawn / 不 _send_and_wait / 不自动回复，直接结束。
+    if _qq_mode() != "selective":
+        await bot.send(event, "processing, please wait...")
 
-    response = await _send_and_wait(text, scope_id, scope=scope)
+        response = await _send_and_wait(text, scope_id, scope=scope)
 
-    await _append_history(scope_id, "assistant", response)
+        await _append_history(scope_id, "assistant", response)
 
-    MAX_LEN = 1500
-    if len(response) <= MAX_LEN:
-        await bot.send(event, response)
-    else:
-        for i in range(0, len(response), MAX_LEN):
-            chunk = response[i : i + MAX_LEN]
-            await bot.send(event, chunk)
-            await asyncio.sleep(0.5)
+        MAX_LEN = 1500
+        if len(response) <= MAX_LEN:
+            await bot.send(event, response)
+        else:
+            for i in range(0, len(response), MAX_LEN):
+                chunk = response[i : i + MAX_LEN]
+                await bot.send(event, chunk)
+                await asyncio.sleep(0.5)
 
 
 # ── lifecycle hooks ──
@@ -679,6 +713,103 @@ async def _append_history(target_id: str, role: str, text: str) -> None:
         )
 
 
+# ── inbox（selective 模式待处理队列）──
+#
+# selective 模式（PAN_QQ_MODE=selective）下，QQ 收到的消息不自动回复，而是按
+# target_id（私聊 user_id / 群 group_id）追加到 data/qq_inbox/<target_id>.json
+# 待处理队列，由 meta-agent 经 MCP 工具 qq_read_inbox / GET /api/qq/inbox 读取
+# 并决定是否回复（消费即删）。路径消毒 / 锁 / 上限沿用 qq_history 的实现。
+
+_INBOX_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "qq_inbox"
+_INBOX_MAX_ENTRIES = 500
+_inbox_lock = asyncio.Lock()
+
+
+def _inbox_path(target_id: str) -> Path:
+    """Sanitized inbox file path for a target_id — same rule as qq_history."""
+    safe = "".join(c for c in str(target_id) if c.isalnum() or c in "-_")
+    return _INBOX_DIR / f"{safe}.json"
+
+
+async def _load_inbox(target_id: str) -> list[dict]:
+    """Load a target's pending inbox queue (list of {id,target_id,scope,role,text,time})."""
+    try:
+        data = json.loads(_inbox_path(target_id).read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+async def _append_inbox(target_id: str, scope: str, text: str) -> None:
+    """Append one pending QQ message to a target's inbox (selective mode).
+
+    Scope is "user" (private) or "group"; role is always "user" — inbox 只收
+    上行 QQ 消息，编排者的回复经 api_send 走 history，不回流 inbox。
+    """
+    if not text:
+        return
+    async with _inbox_lock:
+        messages = await _load_inbox(target_id)
+        messages.append({
+            "id": f"{int(time.time() * 1000)}-{len(messages)}",
+            "target_id": target_id,
+            "scope": scope,
+            "role": "user",
+            "text": text,
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+        if len(messages) > _INBOX_MAX_ENTRIES:
+            messages = messages[-_INBOX_MAX_ENTRIES:]
+        _INBOX_DIR.mkdir(parents=True, exist_ok=True)
+        _inbox_path(target_id).write_text(
+            json.dumps(messages, ensure_ascii=False, indent=1),
+            encoding="utf-8",
+        )
+
+
+async def api_inbox(target_id: str, limit: int = 30, consume: bool = False) -> dict:
+    """Read a target's pending inbox messages, oldest first.
+
+    consume=True → 读取后即从队列删除（消费即删，落盘回写），避免编排者重复处理。
+    返回 {target_id, messages: [{id, text, time}]}。
+    """
+    target_id = str(target_id)
+    if limit is None or limit <= 0:
+        limit = _INBOX_MAX_ENTRIES
+    async with _inbox_lock:
+        messages = await _load_inbox(target_id)
+        take = messages[:limit]
+        if consume:
+            messages = messages[limit:]
+            _INBOX_DIR.mkdir(parents=True, exist_ok=True)
+            _inbox_path(target_id).write_text(
+                json.dumps(messages, ensure_ascii=False, indent=1),
+                encoding="utf-8",
+            )
+    return {
+        "target_id": target_id,
+        "messages": [
+            {"id": m.get("id"), "text": m.get("text"), "time": m.get("time")}
+            for m in take
+        ],
+    }
+
+
+async def api_inbox_clear(target_id: str) -> dict:
+    """Delete a target's inbox file (clear all pending messages)."""
+    target_id = str(target_id)
+    async with _inbox_lock:
+        try:
+            p = _inbox_path(target_id)
+            if p.exists():
+                p.unlink()
+            return {"ok": True, "target_id": target_id, "cleared": True}
+        except OSError as e:
+            return {"ok": False, "error": {
+                "code": "clear_failed",
+                "message": f"{type(e).__name__}: {e}"}}
+
+
 async def _get_active_bot() -> Bot:
     if _active_bot is None:
         raise RuntimeError("QQ bot 未连接（NapCat/NoneBot 尚未建立连接）")
@@ -773,6 +904,14 @@ def _register_qq_api(app) -> None:
     @app.get("/api/qq/recent_contacts")
     async def _route_qq_recent_contacts():
         return await api_recent_contacts()
+
+    @app.get("/api/qq/inbox")
+    async def _route_qq_inbox(target_id: str, limit: int = 30, consume: int = 0):
+        return await api_inbox(target_id, limit, bool(consume))
+
+    @app.delete("/api/qq/inbox")
+    async def _route_qq_inbox_clear(target_id: str):
+        return await api_inbox_clear(target_id)
 
 
 # 仅在 fastapi driver 下挂载（nonebot2[fastapi] 默认 driver 即 fastapi）。
