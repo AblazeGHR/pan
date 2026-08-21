@@ -1,12 +1,16 @@
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
-import { MessageSquare, Folder, Monitor, MoreVertical } from 'lucide-react';
+import { MessageSquare, Folder, Monitor, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface SessionItemProps {
   session: Session;
   isActive: boolean;
   isSelected?: boolean;
   multiSelectMode?: boolean;
+  /** Show a collapse/expand chevron (used for manager groups with children). */
+  expandable?: boolean;
+  expanded?: boolean;
+  onToggleChildren?: (e: React.MouseEvent) => void;
   onSelect?: () => void;
   onMenu?: (e: React.MouseEvent) => void;
 }
@@ -48,6 +52,9 @@ export function SessionItem({
   isActive,
   isSelected = false,
   multiSelectMode = false,
+  expandable = false,
+  expanded = true,
+  onToggleChildren,
   onSelect,
   onMenu,
 }: SessionItemProps) {
@@ -130,6 +137,19 @@ export function SessionItem({
           )}
         </div>
       </div>
+
+      {!multiSelectMode && !isPending && expandable && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleChildren?.(e);
+          }}
+          className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
+          title={expanded ? 'Collapse group' : 'Expand group'}
+        >
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+      )}
 
       {!multiSelectMode && !isPending && (
         <button

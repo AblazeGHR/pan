@@ -47,7 +47,7 @@ export function Sidebar() {
     toggleSidebar,
     showToast,
     groupBy,
-    setGroupBy,
+    cycleGroupBy,
     searchQuery,
     setSearchQuery,
     sortBy,
@@ -93,18 +93,23 @@ export function Sidebar() {
     return () => document.removeEventListener('mousedown', handler);
   }, [showImportDropdown]);
 
-  // Group keys for collapse-all (mirrors SessionList workdir grouping)
+  // Group keys for collapse-all (mirrors SessionList workdir/manager grouping)
   const groupKeys = useMemo(() => {
-    if (groupBy !== 'workdir') return [] as string[];
-    const keys = new Set<string>();
-    for (const s of sessions) {
-      if (s.workdir) {
-        keys.add(s.workdir.replace(/\\/g, '/').replace(/\/$/, ''));
-      } else {
-        keys.add('__no_workdir');
+    if (groupBy === 'workdir') {
+      const keys = new Set<string>();
+      for (const s of sessions) {
+        if (s.workdir) {
+          keys.add(s.workdir.replace(/\\/g, '/').replace(/\/$/, ''));
+        } else {
+          keys.add('__no_workdir');
+        }
       }
+      return [...keys];
     }
-    return [...keys];
+    if (groupBy === 'manager') {
+      return sessions.map((s) => s.id);
+    }
+    return [] as string[];
   }, [sessions, groupBy]);
 
   const handleBatchDelete = () => {
@@ -329,17 +334,20 @@ export function Sidebar() {
               <ArrowUpDown size={14} />
             </button>
             <button
-              onClick={() => setGroupBy(groupBy === 'workdir' ? 'none' : 'workdir')}
-              className={`p-1 rounded transition-colors ${
-                groupBy === 'workdir'
+              onClick={cycleGroupBy}
+              className={`flex items-center gap-1 p-1 rounded transition-colors ${
+                groupBy !== 'none'
                   ? 'text-accent bg-accent/10'
                   : 'text-text-tertiary hover:text-text-primary'
               }`}
-              title={`${groupBy === 'workdir' ? 'Disable' : 'Enable'} workdir grouping`}
+              title={`Group by ${groupBy === 'workdir' ? 'manager' : groupBy === 'manager' ? 'none' : 'dir'} (click to cycle)`}
             >
               <Layers size={14} />
+              <span className="text-[10px] leading-none">
+                {groupBy === 'workdir' ? 'dir' : groupBy === 'manager' ? 'manager' : 'off'}
+              </span>
             </button>
-            {groupBy === 'workdir' && (
+            {(groupBy === 'workdir' || groupBy === 'manager') && (
               <button
                 onClick={() =>
                   collapsedGroups.size > 0 ? expandAllGroups() : collapseAllGroups(groupKeys)
