@@ -272,13 +272,23 @@ def release(session_id: str) -> str | None:
     """Remove the managed relationship pointing at session_id.
 
     Called when a session is deleted: the managing session's `managed` list is
-    cleaned up so it doesn't reference a deleted session (立项 待实现 #3).
+    cleaned up so it doesn't reference a deleted session (立项 #3), and every
+    other session's `report_subscriptions` is purged of session_id so no
+    session keeps subscribing to a deleted session's completion reports
+    (B1 残留清理).
 
     Returns None on success, or an error message string.
     """
+    # 订阅残留清理：任何其它 session 的 report_subscriptions 不得引用被删 id
+    for s in list_all():
+        if s.id == session_id:
+            continue
+        if session_id in s.report_subscriptions:
+            s.report_subscriptions.discard(session_id)
+            save(s)
     target = get(session_id)
     if target is None:
-        return None  # nothing to clean up
+        return None  # nothing else to clean up
     manager_id = target.managed_by
     if not manager_id:
         return None

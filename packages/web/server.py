@@ -238,6 +238,23 @@ def _session_to_api(s: sess.Session):
     }
 
 
+def _session_summary(s: sess.Session) -> dict:
+    """Lean session dict for list summaries (A1: no history / usage).
+
+    Fields: id/name/adapter/workerStatus/updatedAt/managedBy — used by
+    GET /api/sessions?summary=1 for agent context budgeting.
+    """
+    w = worker.find_worker_by_session(s.id)
+    return {
+        "id": s.id,
+        "name": s.name,
+        "adapter": s.adapter,
+        "workerStatus": w.status if w else None,
+        "updatedAt": s.updated_at,
+        "managedBy": s.managed_by,
+    }
+
+
 def _get_mcp_locked_state(s) -> bool | None:
     """Check if MCP toggle is locked for this session's session_template."""
     if _character_manager is None or not s.session_template:
@@ -775,9 +792,17 @@ async def ws_agent_endpoint(ws: WebSocket):
 # ── Session API ──
 
 @app.get("/api/sessions")
-async def api_list_sessions():
-    """List all sessions (includes worker status if active)."""
+async def api_list_sessions(summary: int = 0):
+    """List all sessions (includes worker status if active).
+
+    summary=1 → lean payload [{id, name, adapter, workerStatus, updatedAt,
+    managedBy}] without history/usage (供 MCP session_list(summary=true) 等
+    轻量巡检，避免全量传输再过滤). Default stays the full payload for
+    backward compatibility.
+    """
     sessions = sess.list_all()
+    if summary:
+        return {"sessions": [_session_summary(s) for s in sessions]}
     result = []
     for s in sessions:
         api = _session_to_api(s)
@@ -1011,7 +1036,7 @@ def _cleanup_mcp_config(session_id: str) -> None:
 @app.delete("/api/sessions/{session_id}")
 async def api_delete_session(session_id: str):
     """Delete a session and its worker if running."""
-    sess.release(session_id)  # 清理 managed 关系（立项 待实现 #3）
+    sess.release(session_id)  # 清理 managed 关系 + 各 manager 的 report 订阅残留（B1）
     w = worker.find_worker_by_session(session_id)
     if w:
         asyncio.create_task(
@@ -1035,7 +1060,7 @@ async def api_batch_delete_sessions(data: dict):
 
     deleted = 0
     for sid in session_ids:
-        sess.release(sid)  # 清理 managed 关系
+        sess.release(sid)  # 清理 managed 关系 + 各 manager 的 report 订阅残留（B1）
         w = worker.find_worker_by_session(sid)
         if w:
             asyncio.create_task(
