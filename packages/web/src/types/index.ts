@@ -18,6 +18,8 @@ export interface Session {
   workdir?: string;
   workerStatus?: string | null;
   workerId?: string | null;
+  /** Id of the managing (parent) session; absent/null means unmanaged. */
+  managedBy?: string | null;
   history: Message[];
   historyTruncated?: boolean;
   historyTotal?: number;

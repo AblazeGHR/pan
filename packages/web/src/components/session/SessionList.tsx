@@ -14,6 +14,74 @@ function stripPrefix(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/$/, '');
 }
 
+// ── Manager grouping (tree) ──
+
+interface ManagerNode {
+  session: Session;
+  children: ManagerNode[];
+}
+
+/**
+ * Build a forest from sessions by `managedBy`. Each node's children are the
+ * sessions it manages. Cycles (degenerate data) are broken by promoting the
+ * offending node to a root so rendering never recurses infinitely.
+ */
+function buildManagerTree(sessions: Session[]): ManagerNode[] {
+  const nodeMap = new Map<string, ManagerNode>();
+  for (const s of sessions) {
+    nodeMap.set(s.id, { session: s, children: [] });
+  }
+
+  // Parent edge per session (only when the manager exists in this list).
+  const parentOf = new Map<string, string>();
+  for (const s of sessions) {
+    const p = s.managedBy;
+    if (p && p !== s.id && nodeMap.has(p)) {
+      parentOf.set(s.id, p);
+    }
+  }
+
+  // Break cycles: if walking parent links from a node revisits it, the node
+  // is on a managedBy cycle — drop its parent edge so it becomes a root.
+  for (const id of [...parentOf.keys()]) {
+    const seen = new Set<string>();
+    let cur: string | undefined = id;
+    while (cur) {
+      if (seen.has(cur)) {
+        parentOf.delete(id);
+        break;
+      }
+      seen.add(cur);
+      cur = parentOf.get(cur);
+    }
+  }
+
+  for (const s of sessions) {
+    const p = parentOf.get(s.id);
+    if (p) {
+      const parent = nodeMap.get(p);
+      if (parent) parent.children.push(nodeMap.get(s.id)!);
+    }
+  }
+
+  return sessions
+    .filter((s) => !parentOf.has(s.id))
+    .map((s) => nodeMap.get(s.id)!);
+}
+
+/** All descendant ids of a tree node (excluding the node itself). */
+function collectDescendantIds(node: ManagerNode): string[] {
+  const ids: string[] = [];
+  const walk = (n: ManagerNode) => {
+    for (const c of n.children) {
+      ids.push(c.session.id);
+      walk(c);
+    }
+  };
+  walk(node);
+  return ids;
+}
+
 export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps) {
   const sessions = useSessionStore((s) => s.sessions);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
@@ -22,9 +90,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const selectSession = useSessionStore((s) => s.selectSession);
   const toggleSelection = useSessionStore((s) => s.toggleSelection);
 
-  const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse } = useUIStore();
+  const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse, addCollapsedGroups, removeCollapsedGroups } =
+    useUIStore();
 
-  const { filtered, grouped } = useMemo(() => {
+  const { filtered, grouped, managerTree } = useMemo(() => {
     let filtered = [...sessions];
 
     if (searchQuery.trim()) {
@@ -80,8 +149,22 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       }
     }
 
-    return { filtered, grouped: groups };
+    const managerTree = groupBy === 'manager' ? buildManagerTree(filtered) : [];
+
+    return { filtered, grouped: groups, managerTree };
   }, [sessions, searchQuery, sortBy, groupBy]);
+
+  // Recursive collapse/expand: collapsing a manager node also collapses every
+  // descendant; expanding it expands the whole subtree (same for un-collapse).
+  const handleToggleManagerNode = (node: ManagerNode) => {
+    const ids = [node.session.id, ...collectDescendantIds(node)];
+    const isCollapsed = collapsedGroups.has(node.session.id);
+    if (isCollapsed) {
+      removeCollapsedGroups(ids);
+    } else {
+      addCollapsedGroups(ids);
+    }
+  };
 
   if (sessions.length === 0) {
     return (
@@ -102,6 +185,33 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       <div className="flex flex-col items-center justify-center py-8 px-4 gap-2">
         <p className="text-sm text-text-tertiary">No matching sessions</p>
         <p className="text-xs text-text-tertiary">Try a different search term</p>
+      </div>
+    );
+  }
+
+  if (groupBy === 'manager' && managerTree.length > 0) {
+    return (
+      <div className="flex flex-col">
+        {managerTree.map((node) => (
+          <ManagerNodeView
+            key={node.session.id}
+            node={node}
+            currentSessionId={currentSessionId}
+            selectedIds={selectedIds}
+            multiSelectMode={multiSelectMode}
+            collapsedGroups={collapsedGroups}
+            onSelect={(id) => {
+              if (multiSelectMode) {
+                toggleSelection(id);
+              } else if (!id.startsWith('__pending_')) {
+                selectSession(id);
+                onSessionClick?.(id);
+              }
+            }}
+            onMenu={(e, id) => onSessionMenu?.(e, id)}
+            onToggle={handleToggleManagerNode}
+          />
+        ))}
       </div>
     );
   }
@@ -161,6 +271,73 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           onMenu={(e) => onSessionMenu?.(e, session.id)}
         />
       ))}
+    </div>
+  );
+}
+
+interface ManagerNodeViewProps {
+  node: ManagerNode;
+  currentSessionId: string | null;
+  selectedIds: Set<string>;
+  multiSelectMode: boolean;
+  collapsedGroups: Set<string>;
+  onSelect: (id: string) => void;
+  onMenu?: (e: React.MouseEvent, id: string) => void;
+  onToggle: (node: ManagerNode) => void;
+}
+
+/**
+ * Recursive render of one manager-group node. The node renders as a normal
+ * SessionItem (its name + status dot double as the group header) plus a
+ * collapse chevron when it manages children. Children render indented below.
+ */
+function ManagerNodeView({
+  node,
+  currentSessionId,
+  selectedIds,
+  multiSelectMode,
+  collapsedGroups,
+  onSelect,
+  onMenu,
+  onToggle,
+}: ManagerNodeViewProps) {
+  const session = node.session;
+  const hasChildren = node.children.length > 0;
+  const collapsed = collapsedGroups.has(session.id);
+
+  return (
+    <div>
+      <SessionItem
+        session={session}
+        isActive={session.id === currentSessionId}
+        isSelected={selectedIds.has(session.id)}
+        multiSelectMode={multiSelectMode}
+        expandable={hasChildren && !multiSelectMode}
+        expanded={!collapsed}
+        onToggleChildren={(e) => {
+          e.stopPropagation();
+          onToggle(node);
+        }}
+        onSelect={() => onSelect(session.id)}
+        onMenu={(e) => onMenu?.(e, session.id)}
+      />
+      {hasChildren && !collapsed && (
+        <div className="ml-3 border-l border-border-muted">
+          {node.children.map((child) => (
+            <ManagerNodeView
+              key={child.session.id}
+              node={child}
+              currentSessionId={currentSessionId}
+              selectedIds={selectedIds}
+              multiSelectMode={multiSelectMode}
+              collapsedGroups={collapsedGroups}
+              onSelect={onSelect}
+              onMenu={onMenu}
+              onToggle={onToggle}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

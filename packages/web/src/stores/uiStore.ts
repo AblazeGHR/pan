@@ -40,7 +40,8 @@ function persistSidebarCollapsed(c: boolean) {
 function loadGroupBy(): GroupMode {
   try {
     const v = localStorage.getItem('pan:groupBy');
-    return v === 'workdir' ? 'workdir' : 'none';
+    if (v === 'workdir' || v === 'manager') return v;
+    return 'none';
   } catch {
     return 'none';
   }
@@ -73,7 +74,7 @@ function persistSortBy(mode: SortMode) {
 
 // ── Store ──
 
-export type GroupMode = 'none' | 'workdir';
+export type GroupMode = 'none' | 'workdir' | 'manager';
 export type SortMode = 'recent' | 'name';
 export type Theme = 'dark' | 'light';
 
@@ -115,11 +116,14 @@ interface UIStore {
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
   setGroupBy: (mode: GroupMode) => void;
+  cycleGroupBy: () => void;
   setSearchQuery: (q: string) => void;
   setSortBy: (mode: SortMode) => void;
   toggleGroupCollapse: (key: string) => void;
   collapseAllGroups: (keys: string[]) => void;
   expandAllGroups: () => void;
+  addCollapsedGroups: (ids: string[]) => void;
+  removeCollapsedGroups: (ids: string[]) => void;
   toggleFilesCollapsed: () => void;
   toggleTheme: () => void;
 }
@@ -183,6 +187,14 @@ export const useUIStore = create<UIStore>((set, get) => ({
     persistGroupBy(mode);
   },
 
+  // Cycle grouping mode: workdir → manager → none → workdir ...
+  cycleGroupBy: () => {
+    const order: GroupMode[] = ['workdir', 'manager', 'none'];
+    const next = order[(order.indexOf(get().groupBy) + 1) % order.length]!;
+    set({ groupBy: next });
+    persistGroupBy(next);
+  },
+
   setSearchQuery: (q) => {
     set({ searchQuery: q });
   },
@@ -210,6 +222,23 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   expandAllGroups: () => {
     set({ collapsedGroups: new Set() });
+  },
+
+  // Additive/removal collapse for recursive manager-group toggling.
+  addCollapsedGroups: (ids) => {
+    set((s) => {
+      const next = new Set(s.collapsedGroups);
+      for (const id of ids) next.add(id);
+      return { collapsedGroups: next };
+    });
+  },
+
+  removeCollapsedGroups: (ids) => {
+    set((s) => {
+      const next = new Set(s.collapsedGroups);
+      for (const id of ids) next.delete(id);
+      return { collapsedGroups: next };
+    });
   },
 
   toggleFilesCollapsed: () => {
