@@ -410,3 +410,30 @@ body {
 .tui-mode code {
   background: var(--color-bg-secondary);
 }
+
+/* ── Send queue panel ── */
+
+/* 新入队的行淡入（key 稳定的行复用 DOM 节点，不会重播动画） */
+.queue-row-in {
+  animation: queue-row-in 0.18s ease-out;
+}
+
+@keyframes queue-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 队列列表细滚动条 */
+.queue-list-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.queue-list-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 3px;
+}
