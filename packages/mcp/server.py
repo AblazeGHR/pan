@@ -6,10 +6,12 @@ Usage:
 
 Tools exposed:
     - session_create: Create a new session (optional workdir)
-    - session_list: List all sessions
+    - session_list: List all sessions (optional lean summary mode)
+    - session_managed: List the caller's managed sessions (summary)
     - session_get: Get session details (optional history limit)
     - session_update: Update session settings (model/effort/mcp etc.)
     - session_delete: Delete a session
+    - session_batch_delete: Delete multiple sessions at once
     - worker_spawn: Spawn a worker for a session
     - worker_task: Send a task to a worker
     - worker_kill: Kill a worker
@@ -268,12 +270,62 @@ def session_create(
 
 
 @mcp.tool()
-def session_list() -> dict:
+def session_list(summary: bool = False) -> list[dict] | dict:
     """List all sessions with their worker status.
+
+    Args:
+        summary: When True, return only lean fields
+            [{id, name, adapter, workerStatus, updatedAt, managedBy}] — no
+            history/usage. Backed by the backend ?summary=1 endpoint so the
+            full payload is never transferred (context 预算友好).
+
+    默认返回全量（含 history，最多 50 条截断）。summary=True 适合巡检/编排前的
+    状态扫查；单 session 明细用 session_get。
+    完整编排流程见 /pan skill。
+    """
+    if summary:
+        result = _api("GET", "/api/sessions?summary=1")
+        if isinstance(result, dict) and isinstance(result.get("sessions"), list):
+            return result["sessions"]
+        return result
+    return _strip_usage(_api("GET", "/api/sessions"))
+
+
+@mcp.tool()
+def session_managed() -> list[dict] | dict:
+    """List the calling session's managed sessions as a summary.
+
+    Returns [{id, name, workerStatus, updatedAt}] for each session in the
+    caller's managed list, resolved via _caller_identity and fetched through
+    the backend ?summary=1 endpoint (then filtered by the caller's managed ids).
+
+    Semantics:
+    - No caller identity (PAN_AGENT_SESSION_ID unset or unresolvable) → error
+      {"ok": false, "error": {code: "missing_identity", ...}} — can't determine
+      who "the caller" is, so no managed list can be resolved.
+    - Caller not restricted to managed (restrictToManaged false) → [] — there
+      is no managed boundary to report; use session_list for the full view.
+    - Otherwise → the managed sessions summary, or [] when the list is empty.
 
     完整编排流程见 /pan skill。
     """
-    return _strip_usage(_api("GET", "/api/sessions"))
+    caller = _caller_identity()
+    if not caller:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set or unresolvable — "
+                       "session_managed requires a caller identity"}}
+    if not caller.get("restrictToManaged"):
+        return []
+    managed_ids = caller.get("managed") or []
+    if not managed_ids:
+        return []
+    result = _api("GET", "/api/sessions?summary=1")
+    sessions = result.get("sessions") if isinstance(result, dict) else None
+    if not isinstance(sessions, list):
+        return result  # backend error passthrough
+    by_id = {s.get("id"): s for s in sessions if isinstance(s, dict) and s.get("id")}
+    return [by_id[sid] for sid in managed_ids if sid in by_id]
 
 
 @mcp.tool()
@@ -319,6 +371,35 @@ def session_delete(session_id: str) -> dict:
     if denied:
         return denied
     return _api("DELETE", f"/api/sessions/{session_id}")
+
+
+@mcp.tool()
+def session_batch_delete(session_ids: list[str]) -> dict:
+    """Delete multiple sessions at once (kill workers, purge references).
+
+    Maps to the existing backend POST /api/sessions/batch-delete. Each target
+    session is access-checked (managed isolation) before any deletion; the
+    backend also purges each deleted id from other sessions' report_subscriptions
+    and managers' managed lists (B1).
+
+    Args:
+        session_ids: List of session IDs to delete (e.g. ["ses_a", "ses_b"])
+
+    Returns:
+        {"deleted": n} on success, or an error dict.
+
+    批量收尾用：多个一次性会话一次删完（比逐个 session_delete 省轮次）。
+    完整编排流程见 /pan skill。
+    """
+    if not session_ids:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "session_ids is required"}}
+    for sid in session_ids:
+        denied = _check_access(sid)
+        if denied:
+            return denied
+    return _api("POST", "/api/sessions/batch-delete", {"sessionIds": session_ids})
 
 
 @mcp.tool()
