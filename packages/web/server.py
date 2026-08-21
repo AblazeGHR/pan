@@ -1273,13 +1273,17 @@ async def api_handoff(data: dict):
 
 @app.post("/api/assign")
 async def api_assign(data: dict):
-    """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。"""
+    """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。
+
+    taskId 可选：带 taskId 时走幂等语义（同 taskId 重发不双跑），见 worker.assign。
+    """
     session_id = data.get("sessionId")
     text = data.get("text")
     if not session_id or not text:
         return {"ok": False, "error": {"code": "missing_params",
                                        "message": "sessionId and text are required"}}
-    return await worker.assign(session_id, text, source="agent")
+    task_id = data.get("taskId")
+    return await worker.assign(session_id, text, source="agent", task_id=task_id)
 
 
 @app.post("/api/report-subscribe")
