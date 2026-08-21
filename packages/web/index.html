@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Pan</title>
-<link rel="stylesheet" href="/static/css/styles.css?v=14">
+<link rel="stylesheet" href="/static/css/styles.css?v=15">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
 </head>
@@ -73,7 +73,16 @@
 
   <button id="scrollBottomBtn" onclick="scrollToBottom()" style="display:none" title="Scroll to bottom">▼</button>
 
+  <div id="queuePanel">
+    <div class="queue-header">
+      <span class="queue-title">待发送 (<span id="queueCount">0</span>)</span>
+      <button id="queueClearBtn" onclick="clearQueue()">清空</button>
+    </div>
+    <div id="queueList"></div>
+  </div>
+
   <div id="inputRow">
+    <button type="button" id="queueToggleBtn" onclick="toggleQueuePanel()" title="发送队列">^<span id="queueBadge" class="queue-badge" hidden></span></button>
     <input id="chatInput" placeholder="Type a message…" onkeydown="if(event.key==='Enter')send()">
     <span id="mobileWorkerDot" class="s-dot offline"></span>
     <button type="button" onclick="send()"><span style="pointer-events:none">Send</span></button>
@@ -146,6 +155,6 @@
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script src="/static/js/app.js?v=14"></script>
+<script src="/static/js/app.js?v=15"></script>
 </body>
 </html>

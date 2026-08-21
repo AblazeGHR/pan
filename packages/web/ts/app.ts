@@ -119,6 +119,14 @@ interface SyncedSettings {
   effort: string;
 }
 
+/** 客户端发送队列项（localStorage 按 sessionId 持久化）。 */
+interface QueuedMessage {
+  id: string;        // 唯一标识（重排/编辑/删除的 key）
+  text: string;      // 原文（渲染时单行截断，存全文）
+  createdAt: number; // 入队时间戳
+  status: 'pending'; // 首版恒 pending，预留扩展
+}
+
 // ── State ──
 
 let availableAdapters: string[] = [];
@@ -152,6 +160,13 @@ let _historyLoadEnd: number = 0;
  *  rather than user scroll-up; signals the callback to scroll to bottom. */
 let _loadOlderToBottom: boolean = false;
 const _inputDrafts: Map<string, string> = new Map();
+/** 发送队列：localStorage key 前缀 + 每 session 上限 */
+const _QUEUE_KEY_PREFIX = 'pan.sendQueue.';
+const _QUEUE_MAX = 50;
+/** 内存镜像：按 sessionId 隔离，随 storage 读写同步 */
+const _queueCache: Map<string, QueuedMessage[]> = new Map();
+/** 当前正在发送的队列项 id（防 idle 事件重复触发导致同一条被发两次） */
+let _queueSendingId: string | null = null;
 /** Per-session set of unread thinking/tool content hashes */
 const _sessionUnread: Map<string, Set<string>> = new Map();
 
@@ -383,6 +398,11 @@ function _applyWorkerUpdate(
   if (sessionId === currentSessionId) {
     currentWorkerId = workerId?? null;
     updateTopBar();
+  }
+  // 队列自动发送：worker 变 idle 且当前 session 队列非空 → 发送队首 1 条
+  // （发送后 worker 变 queued/running，不再是 idle，天然防重复；result→idle 再取下一条）
+  if (status === 'idle' && sessionId === currentSessionId) {
+    flushQueue();
   }
   // In-place sidebar dot update (avoid full list rebuild flicker)
   const list = document.getElementById('sessionList');
@@ -662,6 +682,10 @@ function selectSession(id: string): void {
   renderSessionList();
   updateTopBar();
   renderMessages(s.history || []);
+  // 切换 session：从 localStorage 恢复该会话的发送队列并尝试自动发送
+  renderQueuePanel();
+  updateQueueBadge();
+  flushQueue();
   // Restore input draft for this session
   input.value = _inputDrafts.get(id) || '';
   const settingsBtn = document.getElementById('settingsBtn')!;
@@ -804,6 +828,14 @@ function showEmpty(): void {
   (document.getElementById('settingsPanel')!).className = '';
   (document.getElementById('messages')!).innerHTML =
     '<div class="empty-chat">Select a session to start</div>';
+  // 无会话时收起发送队列面板、重置角标与滚动按钮位置
+  const qp = document.getElementById('queuePanel');
+  if (qp) qp.classList.remove('open');
+  const qBtn = document.getElementById('queueToggleBtn');
+  if (qBtn) qBtn.classList.remove('open');
+  updateQueueBadge();
+  const scrollBtn = document.getElementById('scrollBottomBtn');
+  if (scrollBtn) scrollBtn.style.bottom = '70px';
   currentHistory = [];
   _recordRenderedFor(currentSessionId, currentHistory);
   toolGroupOpen = false;
@@ -1506,34 +1538,316 @@ function killWorker(): void {
     });
 }
 
+// ── Send queue (client-side, localStorage per session) ──
+
+function _genQueueId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function loadQueue(sessionId: string): QueuedMessage[] {
+  try {
+    const raw = localStorage.getItem(_QUEUE_KEY_PREFIX + sessionId);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(function (x: unknown): x is Record<string, unknown> {
+        return !!x && typeof x === 'object' && typeof (x as Record<string, unknown>).text === 'string';
+      })
+      .map(function (x): QueuedMessage {
+        const anyX = x as Record<string, unknown>;
+        return {
+          id: typeof anyX.id === 'string' ? anyX.id : _genQueueId(),
+          text: String(anyX.text),
+          createdAt: typeof anyX.createdAt === 'number' ? anyX.createdAt : Date.now(),
+          status: 'pending',
+        };
+      })
+      .slice(0, _QUEUE_MAX);
+  } catch (e) {
+    return [];
+  }
+}
+
+function getQueue(sessionId: string): QueuedMessage[] {
+  let q = _queueCache.get(sessionId);
+  if (q) return q;
+  q = loadQueue(sessionId);
+  _queueCache.set(sessionId, q);
+  return q;
+}
+
+function persistQueue(sessionId: string, queue: QueuedMessage[]): void {
+  _queueCache.set(sessionId, queue.slice());
+  try {
+    localStorage.setItem(_QUEUE_KEY_PREFIX + sessionId, JSON.stringify(queue));
+  } catch (e) {
+    console.warn('[sendQueue] persist failed', e);
+  }
+}
+
+/** 删除 session 对应的队列存储（session 删除时清理孤儿 key）。 */
+function _removeQueueStorage(sessionId: string): void {
+  _queueCache.delete(sessionId);
+  try {
+    localStorage.removeItem(_QUEUE_KEY_PREFIX + sessionId);
+  } catch (e) { /* ignore */ }
+}
+
+/** 入队：trim 校验 → 上限校验 → push → 持久化 → 刷新面板/角标。
+ *  入队不上屏（不调用 addMessage），避免"已发"假象。 */
+function enqueueMessage(text: string): void {
+  if (!currentSessionId) return;
+  const sid = currentSessionId;
+  const queue = getQueue(sid);
+  if (queue.length >= _QUEUE_MAX) {
+    toast('发送队列已满（上限 ' + _QUEUE_MAX + ' 条）');
+    return;
+  }
+  const item: QueuedMessage = {
+    id: _genQueueId(),
+    text: text,
+    createdAt: Date.now(),
+    status: 'pending',
+  };
+  queue.push(item);
+  persistQueue(sid, queue);
+  const input = document.getElementById('chatInput') as HTMLInputElement;
+  input.value = '';
+  _inputDrafts.delete(sid);
+  renderQueuePanel();
+  updateQueueBadge();
+  toast('已加入发送队列（' + queue.length + ' 条待发）');
+}
+
+function removeQueued(id: string): void {
+  if (!currentSessionId) return;
+  const sid = currentSessionId;
+  const queue = getQueue(sid);
+  const idx = queue.findIndex(function (x) { return x.id === id; });
+  if (idx < 0) return;
+  queue.splice(idx, 1);
+  persistQueue(sid, queue);
+  renderQueuePanel();
+  updateQueueBadge();
+  toast('已从发送队列删除');
+}
+
+function editQueued(id: string, text: string): void {
+  if (!currentSessionId) return;
+  const sid = currentSessionId;
+  const queue = getQueue(sid);
+  const item = queue.find(function (x) { return x.id === id; });
+  if (!item) return;
+  item.text = text;
+  persistQueue(sid, queue);
+  renderQueuePanel();
+  updateQueueBadge();
+}
+
+/** 重排：↑(-1) / ↓(+1) 与相邻项 swap；提到队首且 worker 空闲 → 立即触发发送。 */
+function moveQueued(id: string, delta: number): void {
+  if (!currentSessionId) return;
+  const sid = currentSessionId;
+  const queue = getQueue(sid);
+  const idx = queue.findIndex(function (x) { return x.id === id; });
+  if (idx < 0) return;
+  const target = idx + delta;
+  if (target < 0 || target >= queue.length) return;
+  const tmp = queue[idx];
+  queue[idx] = queue[target];
+  queue[target] = tmp;
+  persistQueue(sid, queue);
+  renderQueuePanel();
+  updateQueueBadge();
+  if (target === 0) flushQueue();
+}
+
+function clearQueue(): void {
+  if (!currentSessionId) return;
+  persistQueue(currentSessionId, []);
+  renderQueuePanel();
+  updateQueueBadge();
+  toast('已清空发送队列');
+}
+
+/** 面板开关：class 控制显隐；打开时渲染 + 把滚动按钮上移避免遮挡。 */
+function toggleQueuePanel(): void {
+  const panel = document.getElementById('queuePanel');
+  if (!panel) return;
+  const btn = document.getElementById('queueToggleBtn');
+  const open = panel.classList.toggle('open');
+  if (btn) btn.classList.toggle('open', open);
+  if (open) renderQueuePanel();
+  const scrollBtn = document.getElementById('scrollBottomBtn');
+  if (scrollBtn) {
+    scrollBtn.style.bottom = open ? (78 + panel.offsetHeight) + 'px' : '70px';
+  }
+}
+
+/** 更新 ^ 按钮角标：队列非空时显示数量 + 高亮。 */
+function updateQueueBadge(): void {
+  const btn = document.getElementById('queueToggleBtn');
+  if (!btn) return;
+  const queue = currentSessionId ? getQueue(currentSessionId) : [];
+  btn.classList.toggle('has-queue', queue.length > 0);
+  btn.title = queue.length > 0 ? '发送队列（' + queue.length + ' 条待发）' : '发送队列';
+  const badge = document.getElementById('queueBadge');
+  if (badge) {
+    badge.textContent = String(queue.length);
+    badge.hidden = queue.length === 0;
+  }
+}
+
+/** 渲染面板行列表：单行截断 + title 全文 + hover 操作按钮（✎ ↑ ↓ 🗑）。 */
+function renderQueuePanel(): void {
+  const listEl = document.getElementById('queueList');
+  if (!listEl) return;
+  const countEl = document.getElementById('queueCount');
+  const clearBtn = document.getElementById('queueClearBtn');
+  const queue = currentSessionId ? getQueue(currentSessionId) : [];
+  if (countEl) countEl.textContent = String(queue.length);
+  if (clearBtn) clearBtn.style.display = queue.length > 0 ? '' : 'none';
+  listEl.innerHTML = '';
+  if (queue.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'queue-empty';
+    empty.textContent = '队列为空';
+    listEl.appendChild(empty);
+    updateQueueBadge();
+    return;
+  }
+  queue.forEach(function (item, index) {
+    const row = document.createElement('div');
+    row.className = 'queue-row';
+    row.dataset.id = item.id;
+
+    const text = document.createElement('span');
+    text.className = 'queue-text';
+    text.textContent = item.text;
+    text.title = item.text; // hover 显示全文
+    row.appendChild(text);
+
+    const actions = document.createElement('span');
+    actions.className = 'queue-actions';
+
+    const btnEdit = document.createElement('button');
+    btnEdit.type = 'button'; btnEdit.className = 'q-btn'; btnEdit.textContent = '\u270E'; btnEdit.title = '编辑';
+    const btnUp = document.createElement('button');
+    btnUp.type = 'button'; btnUp.className = 'q-btn'; btnUp.textContent = '\u2191'; btnUp.title = '上移';
+    btnUp.disabled = index === 0;
+    const btnDown = document.createElement('button');
+    btnDown.type = 'button'; btnDown.className = 'q-btn'; btnDown.textContent = '\u2193'; btnDown.title = '下移';
+    btnDown.disabled = index === queue.length - 1;
+    const btnDel = document.createElement('button');
+    btnDel.type = 'button'; btnDel.className = 'q-btn q-btn-danger'; btnDel.textContent = '\uD83D\uDDD1'; btnDel.title = '删除';
+
+    btnEdit.addEventListener('click', function (e) { e.stopPropagation(); startEditQueued(item.id); });
+    btnUp.addEventListener('click', function (e) { e.stopPropagation(); moveQueued(item.id, -1); });
+    btnDown.addEventListener('click', function (e) { e.stopPropagation(); moveQueued(item.id, 1); });
+    btnDel.addEventListener('click', function (e) { e.stopPropagation(); removeQueued(item.id); });
+
+    actions.appendChild(btnEdit);
+    actions.appendChild(btnUp);
+    actions.appendChild(btnDown);
+    actions.appendChild(btnDel);
+    row.appendChild(actions);
+    listEl.appendChild(row);
+  });
+  updateQueueBadge();
+}
+
+/** 进入行内编辑态：该行替换为 textarea，Enter 保存 / Esc 取消。 */
+function startEditQueued(id: string): void {
+  if (!currentSessionId) return;
+  const sid = currentSessionId;
+  const queue = getQueue(sid);
+  const item = queue.find(function (x) { return x.id === id; });
+  if (!item) return;
+  const listEl = document.getElementById('queueList');
+  if (!listEl) return;
+  // 先重绘，清掉可能存在的其它编辑态
+  renderQueuePanel();
+  const row = listEl.querySelector<HTMLElement>('.queue-row[data-id="' + id + '"]');
+  if (!row) return;
+  const ta = document.createElement('textarea');
+  ta.className = 'queue-edit';
+  ta.value = item.text;
+  ta.rows = 2;
+  row.innerHTML = '';
+  row.appendChild(ta);
+  row.classList.add('editing');
+  ta.focus();
+  const end = ta.value.length;
+  ta.setSelectionRange(end, end);
+  let handled = false;
+  ta.addEventListener('keydown', function (e) {
+    if (handled) return;
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handled = true;
+      const newText = ta.value.trim();
+      if (newText) editQueued(id, newText);
+      else renderQueuePanel();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handled = true;
+      renderQueuePanel();
+    }
+  });
+}
+
+/** 自动发送队首 1 条（串行）：worker idle / offline（可 spawn）时取队首发送，
+ *  发送成功后 shift 队首并持久化；失败（WS closed / spawn 失败 / held）保留队首待重试。
+ *  `_queueSendingId` 防同一条在异步窗口内被 idle 事件重复触发两次。 */
+function flushQueue(): void {
+  if (!currentSessionId) return;
+  const sid = currentSessionId;
+  const queue = getQueue(sid);
+  if (queue.length === 0) return;
+  if (_queueSendingId) return; // 已有 1 条在发送中，等下一次 idle 事件
+  const s = modelData.find(function (x) { return x.id === sid; });
+  const status = s ? (s.workerStatus || 'offline') : 'offline';
+  if (status === 'held') return; // takeover：服务端硬拒，跳过自动发送
+  if (status !== 'idle' && status !== 'offline') return; // queued/running/…：等 idle 事件
+  const head = queue[0];
+  _queueSendingId = head.id;
+  _sendText(head.text, function (ok) {
+    _queueSendingId = null;
+    if (!ok) return; // 发送失败：保留队首待下次重试
+    if (currentSessionId === sid) addMessage('user', head.text);
+    const q = getQueue(sid);
+    // 按 id 精确删除已发送项：即使发送在途期间用户重排/删除了其它项也不误删
+    const sentIdx = q.findIndex(function (x) { return x.id === head.id; });
+    if (sentIdx >= 0) {
+      q.splice(sentIdx, 1);
+      persistQueue(sid, q);
+    }
+    if (currentSessionId === sid) renderQueuePanel();
+    updateQueueBadge();
+  });
+}
+
 // ── Send message ──
 
-function send(): void {
-  const input = document.getElementById('chatInput') as HTMLInputElement;
-  const text = input.value.trim();
-  if (!currentSessionId) {
-    toast('Select a session first');
-    return;
-  }
-  if (!text) return;
-  const s = modelData.find((x: Session) => x.id === currentSessionId);
-  if (s && (s.workerStatus === 'running' || s.workerStatus === 'held')) {
-    toast('Worker is busy');
-    return;
-  }
-  input.value = '';
-  _inputDrafts.delete(currentSessionId);
-
-  addMessage('user', text);
+/** 发送单条文本：封装原有 spawn/settings/doSend 链路，send() 与 flush 共用。
+ *  消息真正发出（WS 已投递）后回调 onSent(true)；失败（WS closed / spawn / settings）回调 onSent(false)。
+ *  注意：此函数不清理输入框，避免 flush 时误清用户正在输入的草稿。 */
+function _sendText(text: string, onSent: (ok: boolean) => void): void {
+  const sid = currentSessionId;
 
   function doSend(): void {
     const msg = JSON.stringify({
       type: 'user_inject',
-      sessionId: currentSessionId,
+      sessionId: sid,
       text: text,
     });
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(msg);
+      onSent(true);
       return;
     }
     if (ws.readyState === WebSocket.CONNECTING) {
@@ -1541,16 +1855,18 @@ function send(): void {
       ws.addEventListener('open', function handler() {
         ws.removeEventListener('open', handler);
         ws.send(msg);
+        onSent(true);
       }, { once: true } as any);
       return;
     }
     // CLOSED or CLOSING — give up
     toast('Connection lost. Please refresh the page.');
+    onSent(false);
   }
 
   if (!currentWorkerId) {
     const body: Record<string, unknown> = {
-      sessionId: currentSessionId,
+      sessionId: sid,
     };
     if (hasPendingChanges()) {
       Object.assign(body, _buildSettingsBody());
@@ -1564,10 +1880,15 @@ function send(): void {
       .then((d: ApiGenericResponse) => {
         if (d.error) {
           toast('Spawn failed: ' + d.error);
+          onSent(false);
           return;
         }
-        currentWorkerId = d.workerId?? null;
+        currentWorkerId = d.workerId ?? null;
         doSend();
+      })
+      .catch(function () {
+        toast('Spawn failed: network error');
+        onSent(false);
       });
     return;
   }
@@ -1581,14 +1902,40 @@ function send(): void {
     })
       .then((r: Response) => r.json())
       .then((d: ApiGenericResponse) => {
-        if (d.error) { toast(d.error); return; }
+        if (d.error) { toast(d.error); onSent(false); return; }
         markSettingsApplied();
         doSend();
+      })
+      .catch(function () {
+        toast('Failed to apply settings: network error');
+        onSent(false);
       });
     return;
   }
 
   doSend();
+}
+
+function send(): void {
+  const input = document.getElementById('chatInput') as HTMLInputElement;
+  const text = input.value.trim();
+  if (!currentSessionId) {
+    toast('Select a session first');
+    return;
+  }
+  if (!text) return;
+  const s = modelData.find((x: Session) => x.id === currentSessionId);
+  if (s && (s.workerStatus === 'running' || s.workerStatus === 'held')) {
+    // worker 忙：不再拒绝，改为入队（空闲后自动逐条发送）
+    enqueueMessage(text);
+    return;
+  }
+  input.value = '';
+  _inputDrafts.delete(currentSessionId);
+  const sid = currentSessionId;
+  _sendText(text, function (ok) {
+    if (ok && currentSessionId === sid) addMessage('user', text);
+  });
 }
 
 // ── New Session (modal) ──
@@ -1669,6 +2016,7 @@ function deleteSession(id: string): void {
   if (!confirm('Delete session ' + id.slice(0, 12) + '\u2026?')) return;
   // Optimistic UI: remove immediately, recover on failure
   modelData = modelData.filter(function (s) { return s.id !== id; });
+  _removeQueueStorage(id);
   if (currentSessionId === id) {
     currentSessionId = null;
     currentWorkerId = null;
@@ -1724,6 +2072,7 @@ function batchDeleteSelected(): void {
   if (!confirm('Delete ' + ids.length + ' selected session(s)?')) return;
 
   modelData = modelData.filter(function (s: Session) { return !_selectedIds.has(s.id); });
+  _selectedIds.forEach(function (id) { _removeQueueStorage(id); });
   ids.forEach(function (id) {
     if (currentSessionId === id) { currentSessionId = null; currentWorkerId = null; showEmpty(); }
   });
@@ -1982,6 +2331,10 @@ function init(): void {
     });
 
   refreshSessions();
+
+  // 发送队列面板初始状态（默认折叠）
+  renderQueuePanel();
+  updateQueueBadge();
 
   // Lazy-load older messages on scroll (throttled; skip during render/load).
   let _scrollTimer: ReturnType<typeof setTimeout> | null = null;
