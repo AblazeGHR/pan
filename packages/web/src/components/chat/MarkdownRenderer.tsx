@@ -48,7 +48,7 @@ function CopyButton({ codeText }: { codeText: string }) {
   );
 }
 
-function DiffLines({ codeText, ...rest }: { codeText: string; [key: string]: unknown }) {
+function DiffLines({ codeText, node: _node, ...rest }: { codeText: string; node?: unknown; [key: string]: unknown }) {
   return (
     <pre className="p-3 overflow-x-auto m-0">
       <code className="text-xs font-mono leading-relaxed block" {...rest}>
@@ -70,7 +70,12 @@ function DiffLines({ codeText, ...rest }: { codeText: string; [key: string]: unk
   );
 }
 
-function CodeBlock({ className, children, ...props }: CodeProps) {
+function CodeBlock({
+  className,
+  children,
+  node: _node,
+  ...props
+}: CodeProps) {
   const isInPre = useContext(PreContext);
   // Support hyphenated language names (e.g. "shell-session")
   const match = /language-([\w-]+)/.exec(className || '');

@@ -136,8 +136,17 @@ body {
 .prose-kimi h4 { font-size: 16px; font-weight: 600; line-height: 1.25; margin: 0.85em 0 0.35em; color: var(--color-text-secondary); }
 .prose-kimi p { margin: 0.8rem 0; }
 .prose-kimi blockquote { margin: 0.5em 0; padding: 4px 12px; border-left: 3px solid var(--color-border-default); color: var(--color-text-secondary); }
-.prose-kimi ul, .prose-kimi ol { padding-left: 1.4em; margin: 0.6em 0; }
+/* Tailwind v4 preflight resets list-style to none; restore markers so
+   `-` / `1.` items actually render a bullet/number. */
+.prose-kimi ul { list-style: disc; padding-left: 1.4em; margin: 0.6em 0; }
+.prose-kimi ol { list-style: decimal; padding-left: 1.4em; margin: 0.6em 0; }
+.prose-kimi ul ul { list-style: circle; }
+.prose-kimi ul ul ul { list-style: square; }
 .prose-kimi li { margin: 0.3em 0; }
+/* GFM task lists — the checkbox replaces the bullet marker */
+.prose-kimi ul.contains-task-list { list-style: none; }
+.prose-kimi li.task-list-item { list-style: none; }
+.prose-kimi li.task-list-item > input[type="checkbox"] { margin: 0 0.4em 0 0; }
 .prose-kimi hr { border: none; border-top: 1px solid var(--color-border-default); margin: 0.8em 0; }
 .prose-kimi a { color: #1783ff; text-decoration: none; }
 .prose-kimi a:hover { text-decoration: underline; }
@@ -194,6 +203,53 @@ body {
 }
 [data-theme="light"] .prose-kimi pre { background: #f3f5f8; }
 [data-theme="dark"] .prose-kimi pre { background: #282828; }
+
+/* ── hljs theme adaptation ──
+   MarkdownRenderer imports highlight.js/styles/github-dark.css unconditionally.
+   In light mode that forces dark token colors (e.g. #ff7b72, #79c0ff) on light
+   backgrounds (TUI mode overrides the code background to bg-secondary), which
+   is unreadable. Scope the github-light palette under [data-theme="light"]. */
+[data-theme="light"] .hljs { color: #24292e; background: #ffffff; }
+[data-theme="light"] .hljs-doctag,
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-meta .hljs-keyword,
+[data-theme="light"] .hljs-template-tag,
+[data-theme="light"] .hljs-template-variable,
+[data-theme="light"] .hljs-type,
+[data-theme="light"] .hljs-variable.language_ { color: #d73a49; }
+[data-theme="light"] .hljs-title,
+[data-theme="light"] .hljs-title.class_,
+[data-theme="light"] .hljs-title.class_.inherited__,
+[data-theme="light"] .hljs-title.function_ { color: #6f42c1; }
+[data-theme="light"] .hljs-attr,
+[data-theme="light"] .hljs-attribute,
+[data-theme="light"] .hljs-literal,
+[data-theme="light"] .hljs-meta,
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-operator,
+[data-theme="light"] .hljs-variable,
+[data-theme="light"] .hljs-selector-attr,
+[data-theme="light"] .hljs-selector-class,
+[data-theme="light"] .hljs-selector-id { color: #005cc5; }
+[data-theme="light"] .hljs-regexp,
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-meta .hljs-string { color: #032f62; }
+[data-theme="light"] .hljs-built_in,
+[data-theme="light"] .hljs-symbol { color: #e36209; }
+[data-theme="light"] .hljs-comment,
+[data-theme="light"] .hljs-code,
+[data-theme="light"] .hljs-formula { color: #6a737d; }
+[data-theme="light"] .hljs-name,
+[data-theme="light"] .hljs-quote,
+[data-theme="light"] .hljs-selector-tag,
+[data-theme="light"] .hljs-selector-pseudo { color: #22863a; }
+[data-theme="light"] .hljs-subst { color: #24292e; }
+[data-theme="light"] .hljs-section { color: #005cc5; font-weight: bold; }
+[data-theme="light"] .hljs-bullet { color: #735c0f; }
+[data-theme="light"] .hljs-emphasis { color: #24292e; font-style: italic; }
+[data-theme="light"] .hljs-strong { color: #24292e; font-weight: bold; }
+[data-theme="light"] .hljs-addition { color: #22863a; background-color: #f0fff4; }
+[data-theme="light"] .hljs-deletion { color: #b31d28; background-color: #ffeef0; }
 
 /* ── Message entrance animations ── */
 

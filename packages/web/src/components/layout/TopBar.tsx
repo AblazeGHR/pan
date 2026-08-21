@@ -1,5 +1,7 @@
-import { useCurrentSession } from '@/stores/sessionStore';
+import { useEffect } from 'react';
+import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
+import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
@@ -16,10 +18,23 @@ import {
 
 export function TopBar() {
   const currentSession = useCurrentSession();
-  const currentWorkerId = useWorkerStore((s) => s.currentWorkerId);
+  const currentWorker = useWorkerStore((s) => s.currentWorker);
   const { showToast, toggleBubbleView, bubbleViewEnabled } = useUIStore();
-  const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
+  const { restart, startWorker, killCurrent, interrupt, takeover } =
+    useWorkerStore();
   const { isMobile } = useMediaQuery();
+
+  const config = useAdapterStore((s) => s.getConfig());
+  const loadConfig = useAdapterStore((s) => s.loadConfig);
+  const applySettings = useAdapterStore((s) => s.applySettings);
+  const { loadSessions } = useSessionStore();
+
+  // Load adapter config for the effort dropdown
+  useEffect(() => {
+    if (currentSession) {
+      loadConfig(currentSession.adapter || 'cbc');
+    }
+  }, [currentSession?.id, loadConfig]);
 
   if (!currentSession) {
     return (
@@ -32,6 +47,30 @@ export function TopBar() {
   }
 
   const status = currentSession.workerStatus || 'offline';
+
+  // Effective worker for the CURRENT session. Prefer the server-reported
+  // session.workerId (authoritative after page load); fall back to the live
+  // WS-tracked worker (workerStore keeps currentWorkerId synced per-session
+  // via refresh/syncToSession) only if it actually belongs to this session.
+  const effectiveWorkerId =
+    currentSession.workerId ||
+    (currentWorker && currentWorker.sessionId === currentSession.id
+      ? currentWorker.id
+      : null) ||
+    null;
+
+  const handleEffortChange = async (value: string) => {
+    if (!currentSession) return;
+    try {
+      await applySettings(currentSession.id, effectiveWorkerId || undefined, {
+        effort: value,
+      });
+      await loadSessions();
+      showToast(`Effort: ${value}`);
+    } catch (e) {
+      showToast((e as Error).message || 'Failed to set effort', 'error');
+    }
+  };
 
   const handleCopy = (text: string) => {
     navigator.clipboard
@@ -81,16 +120,36 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
+        {config?.supportedSettings?.includes('effort') &&
+          config.effortValues.length > 0 && (
+            <select
+              value={
+                currentSession.effort ||
+                config.effortValues[1] ||
+                config.effortValues[0] ||
+                ''
+              }
+              onChange={(e) => handleEffortChange(e.target.value)}
+              className="text-xs rounded-md border border-border-default bg-bg-tertiary text-text-primary px-1 py-1 focus:outline-none focus:border-accent"
+              title="Effort"
+            >
+              {config.effortValues.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          )}
         <span className="hidden md:inline text-xs text-text-tertiary mr-1">
           {status}
-          {currentWorkerId ? ` (${currentWorkerId})` : ' (no worker)'}
+          {effectiveWorkerId ? ` (${effectiveWorkerId})` : ' (no worker)'}
         </span>
-        {currentWorkerId && (
+        {effectiveWorkerId && (
           <>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => restart(currentWorkerId)}
+              onClick={() => restart(effectiveWorkerId)}
               title="Restart worker"
             >
               <RotateCw size={14} />
@@ -98,7 +157,7 @@ export function TopBar() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => interrupt(currentWorkerId)}
+              onClick={() => interrupt(effectiveWorkerId)}
               title="Interrupt"
             >
               <Ban size={14} />
@@ -108,7 +167,7 @@ export function TopBar() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  takeover(currentWorkerId)
+                  takeover(effectiveWorkerId)
                     .then(() =>
                       showToast('PowerShell opened for takeover'),
                     )
@@ -123,8 +182,8 @@ export function TopBar() {
               variant="ghost"
               size="sm"
               onClick={() => {
-                if (!confirm(`Kill worker ${currentWorkerId}?`)) return;
-                killCurrent(currentWorkerId).catch((e) =>
+                if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
+                killCurrent(effectiveWorkerId).catch((e) =>
                   showToast(e.message, 'error'),
                 );
               }}
@@ -134,12 +193,12 @@ export function TopBar() {
             </Button>
           </>
         )}
-        {!currentWorkerId && (
+        {!effectiveWorkerId && (
           <Button
             variant="primary"
             size="sm"
             onClick={() =>
-              restart(currentSession.id || '').catch((e) =>
+              startWorker(currentSession.id || '').catch((e) =>
                 showToast(e.message, 'error'),
               )
             }

@@ -12,7 +12,17 @@ export function SettingsPanel() {
   const toggleSettings = useUIStore((s) => s.toggleSettings);
   const showToast = useUIStore((s) => s.showToast);
   const session = useCurrentSession();
-  const currentWorkerId = useWorkerStore((s) => s.currentWorkerId);
+  const currentWorker = useWorkerStore((s) => s.currentWorker);
+
+  // Same per-session effective-worker logic as TopBar: prefer the
+  // server-reported session.workerId, fall back to the live WS-tracked worker
+  // only if it belongs to this session.
+  const effectiveWorkerId =
+    session?.workerId ||
+    (currentWorker && currentWorker.sessionId === session?.id
+      ? currentWorker.id
+      : null) ||
+    null;
 
   const config = useAdapterStore((s) => s.getConfig());
   const configReady = useAdapterStore((s) => s.configReady);
@@ -25,7 +35,8 @@ export function SettingsPanel() {
   const { isMobile } = useMediaQuery();
 
   // Worker actions
-  const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
+  const { restart, startWorker, killCurrent, interrupt, takeover } =
+    useWorkerStore();
 
   // Local form state
   const [model, setModel] = useState('');
@@ -121,7 +132,7 @@ export function SettingsPanel() {
     }
 
     try {
-      await applySettings(session.id, currentWorkerId || undefined, body);
+      await applySettings(session.id, effectiveWorkerId || undefined, body);
       const newBaseline: SyncedSettings = {
         model: getEffectiveModel(),
         permissionMode: supportsSetting(config, 'permissionMode') ? permissionMode : '',
@@ -264,23 +275,26 @@ export function SettingsPanel() {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  const workerId = currentWorkerId;
+                  const workerId = effectiveWorkerId;
                   if (workerId) {
                     restart(workerId).catch((e) => showToast(e.message, 'error'));
                   } else if (session?.id) {
-                    restart(session.id).catch((e) => showToast(e.message, 'error'));
+                    // No worker yet — spawn one (mirrors TopBar "Start").
+                    startWorker(session.id).catch((e) =>
+                      showToast(e.message, 'error'),
+                    );
                   }
                 }}
               >
                 ⟳ Restart
               </Button>
-              {currentWorkerId && (
+              {effectiveWorkerId && (
                 <>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() =>
-                      interrupt(currentWorkerId).catch((e) =>
+                      interrupt(effectiveWorkerId).catch((e) =>
                         showToast(e.message, 'error'),
                       )
                     }
@@ -292,7 +306,7 @@ export function SettingsPanel() {
                       variant="secondary"
                       size="sm"
                       onClick={() =>
-                        takeover(currentWorkerId)
+                        takeover(effectiveWorkerId)
                           .then(() =>
                             showToast('PowerShell opened for takeover'),
                           )
@@ -306,8 +320,8 @@ export function SettingsPanel() {
                     variant="danger"
                     size="sm"
                     onClick={() => {
-                      if (!confirm(`Kill worker ${currentWorkerId}?`)) return;
-                      killCurrent(currentWorkerId).catch((e) =>
+                      if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
+                      killCurrent(effectiveWorkerId).catch((e) =>
                         showToast(e.message, 'error'),
                       );
                     }}

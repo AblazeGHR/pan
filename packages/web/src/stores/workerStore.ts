@@ -9,6 +9,7 @@ import {
   takeoverWorker,
   listWorkers,
 } from '@/services/api';
+import { useSessionStore } from '@/stores/sessionStore';
 
 interface WorkerStore {
   workers: Record<string, WorkerInfo>;
@@ -28,6 +29,7 @@ interface WorkerStore {
     workerId: string | null,
     status: string | null,
   ) => void;
+  syncToSession: (sessionId: string | null) => void;
   refresh: () => Promise<void>;
 }
 
@@ -101,12 +103,25 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
       status: (status as WorkerInfo['status']) || 'offline',
     };
 
-    set((s) => ({
-      workers: { ...s.workers, [sessionId]: now },
-      currentWorkerId:
-        s.currentWorkerId === null && workerId
-          ? workerId
+    set((s) => {
+      // currentWorkerId tracks the worker of the *currently selected*
+      // session — set/clear it only for events belonging to that session,
+      // otherwise leave it untouched (another session's worker must not
+      // hijack the toolbar buttons).
+      const currentSessionId = useSessionStore.getState().currentSessionId;
+      const isCurrentSession = sessionId === currentSessionId;
+      return {
+        workers: { ...s.workers, [sessionId]: now },
+        currentWorkerId: isCurrentSession
+          ? workerId || null
           : s.currentWorkerId,
+      };
+    });
+  },
+
+  syncToSession: (sessionId) => {
+    set((s) => ({
+      currentWorkerId: sessionId ? s.workers[sessionId]?.id ?? null : null,
     }));
   },
 
@@ -122,8 +137,21 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
         };
       }
       set({ workers: map });
+      // Pre-existing workers (spawned before this page loaded) never fire a
+      // worker.spawned event — pick up the current session's worker here.
+      const sid = useSessionStore.getState().currentSessionId;
+      if (sid) get().syncToSession(sid);
     } catch {
       // ignore
     }
   },
 }));
+
+// Keep currentWorkerId in lockstep with the selected session. Worker events
+// and refresh() also sync, but the initial session selection (or switching)
+// happens through sessionStore.selectSession — this subscription covers it.
+useSessionStore.subscribe((state, prevState) => {
+  if (state.currentSessionId !== prevState.currentSessionId) {
+    useWorkerStore.getState().syncToSession(state.currentSessionId);
+  }
+});
