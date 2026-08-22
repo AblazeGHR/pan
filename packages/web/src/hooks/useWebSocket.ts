@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { wsClient } from '@/services/ws';
+import { fetchSession } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -77,13 +78,36 @@ export function useWebSocket() {
         });
       }
       handleWorkerUpdate(e, 'idle');
+      // 实时刷新该 session 的最新数据（lastResult/historyTotal/workerStatus），
+      // 否则侧边栏列表需手动刷新才更新（bug：worker.result 后无任何列表同步）。
+      // 用 fetchSession + updateFromServer 只替换列表项，不动 currentMessages，
+      // 避免打断当前会话的流式渲染状态。
+      const sid = e.sessionId;
+      if (!sid) return;
+      fetchSession(sid)
+        .then((fresh) => {
+          useSessionStore.getState().updateFromServer(sid, fresh);
+        })
+        .catch(() => {
+          // ignore — session may have been deleted between event and fetch
+        });
     }));
 
-    // Session events
+    // Session events — created/deleted 也需刷新列表（否则新 session 不出现、
+    // 删除的残留，需手动刷新才更新）
     unsubscribers.push(wsClient.on('session.renamed', () => {
       useSessionStore.getState().loadSessions();
     }));
     unsubscribers.push(wsClient.on('session.updated', () => {
+      useSessionStore.getState().loadSessions();
+    }));
+    unsubscribers.push(wsClient.on('session.created', () => {
+      useSessionStore.getState().loadSessions();
+    }));
+    unsubscribers.push(wsClient.on('session.deleted', () => {
+      useSessionStore.getState().loadSessions();
+    }));
+    unsubscribers.push(wsClient.on('sessions.deleted', () => {
       useSessionStore.getState().loadSessions();
     }));
 
