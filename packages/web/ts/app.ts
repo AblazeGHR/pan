@@ -25,6 +25,10 @@ interface Session {
   historyTotal?: number;
   lastResult?: Record<string, unknown> | null;
   totalUsage?: Record<string, number> | null;
+  managed?: string[];
+  managedBy?: string | null;
+  reportSubscriptions?: string[];
+  qqSubscriptions?: string[];
 }
 
 interface WorkerEventContent {
@@ -76,6 +80,32 @@ interface ApiGenericResponse {
   status?: string;
   cliSessionId?: string;
   takeoverCommand?: string;
+}
+
+/** Error detail for endpoints that return {ok:false, error:{code,message}}. */
+interface ApiErrorDetail {
+  code?: string | number;
+  message?: string;
+}
+
+/** Response shared by claim/unclaim/qq-subscribe style endpoints (error may be
+ *  either a plain string or the {code,message} object shape). */
+interface ApiOpResponse {
+  ok?: boolean;
+  error?: string | ApiErrorDetail;
+}
+
+/** QQ contact from GET /api/qq/contacts (chatType: 1=私聊, 2=群). */
+interface QqContact {
+  peerName: string;
+  peerUin: string;
+  chatType: number;
+}
+
+interface ApiQqContactsResponse {
+  ok?: boolean;
+  contacts?: QqContact[];
+  error?: string | ApiErrorDetail;
 }
 
 interface SessionTemplate {
@@ -188,6 +218,16 @@ interface QueuedEditPending {
 let _editingPending: QueuedEditPending | null = null;
 /** Per-session set of unread thinking/tool content hashes */
 const _sessionUnread: Map<string, Set<string>> = new Map();
+
+// ── Manage / Postbox modal state ──
+let _manageSessionId = '';
+let _manageFilter = '';
+let _manageShowAll = false;
+let _postboxSessionId = '';
+let _postboxFilter = '';
+let _postboxShowAll = false;
+let _postboxContacts: QqContact[] | null = null;
+let _postboxError = '';
 
 function _getUnread(): Set<string> {
   if (!currentSessionId) return new Set();
@@ -2367,6 +2407,8 @@ function toggleSessMenu(e: MouseEvent, id: string): void {
       ? '<div class="sess-menu-item" onclick="closeSessMenu();reimportSession(\'' + id + '\')">\u21BB Reimport</div>' +
         '<div class="sess-menu-item" onclick="closeSessMenu();branchSession(\'' + id + '\')">\u2442 Branch</div>'
       : '') +
+    '<div class="sess-menu-item" onclick="closeSessMenu();openManageModal(\'' + id + '\')">\u2699 Manage</div>' +
+    '<div class="sess-menu-item" onclick="closeSessMenu();openPostboxModal(\'' + id + '\')">\u2709 Postbox</div>' +
     '<div class="sess-menu-item" onclick="closeSessMenu();enterMultiSelect(\'' + id + '\')">\u2611 Select</div>' +
     '<div class="sess-menu-item sess-menu-danger" onclick="closeSessMenu();deleteSession(\'' + id + '\')">\u2715 Delete</div>';
 
@@ -2438,6 +2480,242 @@ function branchSession(id: string): void {
     .then((d: Session & ApiGenericResponse) => {
       if (d.error) { toast(d.error); return; }
       refreshSessions();
+    });
+}
+
+// ── Manage (pan_session managed relations) modal ──
+
+function openManageModal(id: string): void {
+  _manageSessionId = id;
+  _manageFilter = '';
+  _manageShowAll = false;
+  const search = document.getElementById('manageSearch') as HTMLInputElement;
+  if (search) search.value = '';
+  const heading = document.getElementById('manageHeading');
+  const s = modelData.find((x: Session) => x.id === id);
+  if (heading) heading.textContent = s ? 'Manage: ' + s.name : 'Manage';
+  renderManageList();
+  (document.getElementById('manageModal') as HTMLElement).classList.add('open');
+}
+
+function manageFilter(value: string): void {
+  _manageFilter = value;
+  renderManageList();
+}
+
+function manageShowAll(): void {
+  _manageShowAll = true;
+  renderManageList();
+}
+
+function renderManageList(): void {
+  const list = document.getElementById('manageList');
+  const showAllBtn = document.getElementById('manageShowAll') as HTMLElement;
+  if (!list) return;
+  const s = modelData.find((x: Session) => x.id === _manageSessionId);
+  if (!s) {
+    list.innerHTML = '<div class="manage-empty">Session not found.</div>';
+    if (showAllBtn) showAllBtn.style.display = 'none';
+    return;
+  }
+  const managedSet = new Set(s.managed || []);
+  const filter = _manageFilter.toLowerCase();
+  const candidates = modelData.filter(function (c: Session) {
+    if (c.id === s.id) return false;
+    if (c.id.indexOf('__pending_') === 0) return false;
+    if (!filter) return true;
+    return c.name.toLowerCase().indexOf(filter) >= 0 || c.id.toLowerCase().indexOf(filter) >= 0;
+  });
+  // Managed sessions first, then alphabetically by name
+  candidates.sort(function (a: Session, b: Session) {
+    const am = managedSet.has(a.id) ? 0 : 1;
+    const bm = managedSet.has(b.id) ? 0 : 1;
+    if (am !== bm) return am - bm;
+    return a.name.localeCompare(b.name);
+  });
+  const limit = _manageShowAll ? candidates.length : 20;
+  const shown = candidates.slice(0, limit);
+  if (showAllBtn) showAllBtn.style.display = (candidates.length > 20 && !_manageShowAll) ? '' : 'none';
+  if (shown.length === 0) {
+    list.innerHTML = '<div class="manage-empty">No candidate sessions.</div>';
+    return;
+  }
+  let html = '';
+  shown.forEach(function (c: Session) {
+    const checked = managedSet.has(c.id);
+    html += '<div class="manage-item">' +
+      '<label class="manage-label">' +
+      '<input type="checkbox"' + (checked ? ' checked' : '') +
+      ' onchange="toggleManaged(\'' + c.id + '\',this.checked)">' +
+      '<span class="manage-item-main">' + esc(c.name) + '</span>' +
+      '<span class="manage-item-sub">' + esc(c.id) + '</span>' +
+      '</label></div>';
+  });
+  list.innerHTML = html;
+}
+
+function toggleManaged(targetId: string, checked: boolean): void {
+  const url = checked ? '/api/claim' : '/api/unclaim';
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ managerId: _manageSessionId, sessionId: targetId }),
+  })
+    .then((r: Response) => r.json())
+    .then((d: ApiOpResponse) => {
+      if (d.ok === false || d.error) {
+        const msg = d.error && typeof d.error === 'object'
+          ? (d.error.message || 'Operation failed')
+          : (typeof d.error === 'string' ? d.error : 'Operation failed');
+        toast(msg);
+        refreshSessions();
+        renderManageList();
+        return;
+      }
+      // Optimistic local update so the list reflects the change immediately
+      const s = modelData.find((x: Session) => x.id === _manageSessionId);
+      if (s) {
+        const arr = s.managed ? s.managed.slice() : [];
+        const idx = arr.indexOf(targetId);
+        if (checked && idx < 0) arr.push(targetId);
+        if (!checked && idx >= 0) arr.splice(idx, 1);
+        s.managed = arr;
+      }
+      toast(checked ? 'Claimed session' : 'Unclaimed session');
+      renderManageList();
+      refreshSessions();
+    })
+    .catch(function () {
+      toast('Request failed');
+      refreshSessions();
+      renderManageList();
+    });
+}
+
+// ── Postbox (QQ inbox subscriptions) modal ──
+
+function openPostboxModal(id: string): void {
+  _postboxSessionId = id;
+  _postboxFilter = '';
+  _postboxShowAll = false;
+  _postboxContacts = null;
+  _postboxError = '';
+  const search = document.getElementById('postboxSearch') as HTMLInputElement;
+  if (search) search.value = '';
+  const heading = document.getElementById('postboxHeading');
+  const s = modelData.find((x: Session) => x.id === id);
+  if (heading) heading.textContent = s ? 'Postbox: ' + s.name : 'Postbox';
+  renderPostboxList();
+  (document.getElementById('postboxModal') as HTMLElement).classList.add('open');
+  fetch('/api/qq/contacts')
+    .then((r: Response) => r.json())
+    .then((d: ApiQqContactsResponse) => {
+      if (d.ok === false || d.error) {
+        _postboxError = d.error && typeof d.error === 'object'
+          ? (d.error.message || 'QQ plugin not connected')
+          : (typeof d.error === 'string' ? d.error : 'QQ plugin not connected');
+        _postboxContacts = null;
+        renderPostboxList();
+        return;
+      }
+      _postboxContacts = d.contacts || [];
+      _postboxError = '';
+      renderPostboxList();
+    })
+    .catch(function () {
+      _postboxError = 'Failed to load QQ contacts';
+      _postboxContacts = null;
+      renderPostboxList();
+    });
+}
+
+function postboxFilter(value: string): void {
+  _postboxFilter = value;
+  renderPostboxList();
+}
+
+function postboxShowAll(): void {
+  _postboxShowAll = true;
+  renderPostboxList();
+}
+
+function renderPostboxList(): void {
+  const list = document.getElementById('postboxList');
+  const showAllBtn = document.getElementById('postboxShowAll') as HTMLElement;
+  if (!list) return;
+  if (_postboxContacts === null) {
+    list.innerHTML = _postboxError
+      ? '<div class="manage-empty">' + esc(_postboxError) + '</div>'
+      : '<div class="manage-empty">Loading\u2026</div>';
+    if (showAllBtn) showAllBtn.style.display = 'none';
+    return;
+  }
+  const s = modelData.find((x: Session) => x.id === _postboxSessionId);
+  const subs = new Set(s ? s.qqSubscriptions || [] : []);
+  const filter = _postboxFilter.toLowerCase();
+  const candidates = _postboxContacts.filter(function (c: QqContact) {
+    if (!filter) return true;
+    return (c.peerName || '').toLowerCase().indexOf(filter) >= 0 ||
+      String(c.peerUin || '').toLowerCase().indexOf(filter) >= 0;
+  });
+  const limit = _postboxShowAll ? candidates.length : 20;
+  const shown = candidates.slice(0, limit);
+  if (showAllBtn) showAllBtn.style.display = (candidates.length > 20 && !_postboxShowAll) ? '' : 'none';
+  if (shown.length === 0) {
+    list.innerHTML = '<div class="manage-empty">No contacts.</div>';
+    return;
+  }
+  let html = '';
+  shown.forEach(function (c: QqContact) {
+    const targetType = c.chatType === 2 ? 'group' : 'user';
+    const key = targetType + ':' + c.peerUin;
+    const checked = subs.has(key);
+    const typeLabel = c.chatType === 2 ? 'group' : 'user';
+    html += '<div class="manage-item">' +
+      '<label class="manage-label">' +
+      '<input type="checkbox"' + (checked ? ' checked' : '') +
+      ' onchange="toggleQqSubscription(\'' + c.peerUin + '\',' + c.chatType + ',this.checked)">' +
+      '<span class="manage-item-main">' + esc(c.peerName || String(c.peerUin)) + '</span>' +
+      '<span class="manage-item-sub">' + esc(String(c.peerUin) + ' \u00b7 ' + typeLabel) + '</span>' +
+      '</label></div>';
+  });
+  list.innerHTML = html;
+}
+
+function toggleQqSubscription(peerUin: string, chatType: number, checked: boolean): void {
+  const targetType = chatType === 2 ? 'group' : 'user';
+  const url = checked ? '/api/qq/subscribe' : '/api/qq/unsubscribe';
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId: _postboxSessionId, target_type: targetType, target_id: peerUin }),
+  })
+    .then((r: Response) => r.json())
+    .then((d: ApiOpResponse) => {
+      if (d.error) {
+        toast(typeof d.error === 'string' ? d.error : (d.error.message || 'Operation failed'));
+        refreshSessions();
+        renderPostboxList();
+        return;
+      }
+      // Optimistic local update so the list reflects the change immediately
+      const s = modelData.find((x: Session) => x.id === _postboxSessionId);
+      if (s) {
+        const key = targetType + ':' + peerUin;
+        const arr = s.qqSubscriptions ? s.qqSubscriptions.slice() : [];
+        const idx = arr.indexOf(key);
+        if (checked && idx < 0) arr.push(key);
+        if (!checked && idx >= 0) arr.splice(idx, 1);
+        s.qqSubscriptions = arr;
+      }
+      toast(checked ? 'Subscribed' : 'Unsubscribed');
+      renderPostboxList();
+      refreshSessions();
+    })
+    .catch(function () {
+      toast('Request failed');
+      refreshSessions();
+      renderPostboxList();
     });
 }
 
@@ -2880,6 +3158,30 @@ function init(): void {
   nsWorkdirInput.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       nsCreateBtn.click();
+    }
+  });
+
+  // ── Manage Modal ──
+  const manageModal = document.getElementById('manageModal') as HTMLElement;
+  const closeManageModal = document.getElementById('closeManageModal') as HTMLElement;
+  closeManageModal.addEventListener('click', () => {
+    manageModal.classList.remove('open');
+  });
+  manageModal.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === manageModal) {
+      manageModal.classList.remove('open');
+    }
+  });
+
+  // ── Postbox Modal ──
+  const postboxModal = document.getElementById('postboxModal') as HTMLElement;
+  const closePostboxModal = document.getElementById('closePostboxModal') as HTMLElement;
+  closePostboxModal.addEventListener('click', () => {
+    postboxModal.classList.remove('open');
+  });
+  postboxModal.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === postboxModal) {
+      postboxModal.classList.remove('open');
     }
   });
 }

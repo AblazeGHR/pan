@@ -7,9 +7,13 @@ interface SessionMenuProps {
   session: Session;
   position: { x: number; y: number };
   onClose: () => void;
+  /** Open the "manage sessions" modal for this session (as manager). */
+  onManage?: (id: string) => void;
+  /** Open the "QQ postbox" subscription modal for this session. */
+  onPostbox?: (id: string) => void;
 }
 
-export function SessionMenu({ session, position, onClose }: SessionMenuProps) {
+export function SessionMenu({ session, position, onClose, onManage, onPostbox }: SessionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const { rename, removeSession, reimport, branch, toggleMultiSelect } =
     useSessionStore();
@@ -76,6 +80,16 @@ export function SessionMenu({ session, position, onClose }: SessionMenuProps) {
     toggleMultiSelect(session.id);
   };
 
+  const handleManage = () => {
+    onClose();
+    onManage?.(session.id);
+  };
+
+  const handlePostbox = () => {
+    onClose();
+    onPostbox?.(session.id);
+  };
+
   return (
     <div
       ref={menuRef}
@@ -104,6 +118,18 @@ export function SessionMenu({ session, position, onClose }: SessionMenuProps) {
           </button>
         </>
       )}
+      <button
+        onClick={handleManage}
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+      >
+        Manage
+      </button>
+      <button
+        onClick={handlePostbox}
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+      >
+        Postbox
+      </button>
       <button
         onClick={handleMultiSelect}
         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"

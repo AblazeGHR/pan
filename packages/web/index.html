@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Pan</title>
-<link rel="stylesheet" href="/static/css/styles.css?v=16">
+<link rel="stylesheet" href="/static/css/styles.css?v=17">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
 </head>
@@ -155,12 +155,42 @@
   </div>
 </div>
 
+<!-- Manage Modal -->
+<div id="manageModal">
+  <div class="ns-panel">
+    <div class="ns-header">
+      <span class="ns-heading" id="manageHeading">Manage</span>
+      <button id="closeManageModal" class="ns-close">&times;</button>
+    </div>
+    <div class="ns-body">
+      <input id="manageSearch" class="ns-input" type="text" placeholder="Filter by name / ID…" oninput="manageFilter(this.value)">
+      <div id="manageList" class="manage-list"><div class="manage-empty">Loading…</div></div>
+      <button id="manageShowAll" class="ns-create" style="display:none" onclick="manageShowAll()">Show all</button>
+    </div>
+  </div>
+</div>
+
+<!-- Postbox Modal -->
+<div id="postboxModal">
+  <div class="ns-panel">
+    <div class="ns-header">
+      <span class="ns-heading" id="postboxHeading">Postbox</span>
+      <button id="closePostboxModal" class="ns-close">&times;</button>
+    </div>
+    <div class="ns-body">
+      <input id="postboxSearch" class="ns-input" type="text" placeholder="Filter contacts…" oninput="postboxFilter(this.value)">
+      <div id="postboxList" class="manage-list"><div class="manage-empty">Loading…</div></div>
+      <button id="postboxShowAll" class="ns-create" style="display:none" onclick="postboxShowAll()">Show all</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script src="/static/js/app.js?v=16"></script>
+<script src="/static/js/app.js?v=17"></script>
 </body>
 </html>

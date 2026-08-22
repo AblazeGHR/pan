@@ -7,6 +7,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SessionList } from '@/components/session/SessionList';
 import { NewSessionModal } from '@/components/session/NewSessionModal';
 import { ImportModal } from '@/components/session/ImportModal';
+import { ManageModal } from '@/components/session/ManageModal';
+import { PostboxModal } from '@/components/session/PostboxModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
 import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
@@ -72,6 +74,8 @@ export function Sidebar() {
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [menuSession, setMenuSession] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [manageSessionId, setManageSessionId] = useState<string | null>(null);
+  const [postboxSessionId, setPostboxSessionId] = useState<string | null>(null);
   const importRef = useRef<HTMLDivElement>(null);
 
   // Init editor tree when on editor route and session changes
@@ -396,6 +400,8 @@ export function Sidebar() {
               session={sessions.find((s) => s.id === menuSession)!}
               position={menuPosition}
               onClose={() => setMenuSession(null)}
+              onManage={setManageSessionId}
+              onPostbox={setPostboxSessionId}
             />
           )}
         </>
@@ -520,6 +526,16 @@ export function Sidebar() {
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
         initialAdapter={importAdapter}
+      />
+      <ManageModal
+        open={!!manageSessionId}
+        onClose={() => setManageSessionId(null)}
+        sessionId={manageSessionId}
+      />
+      <PostboxModal
+        open={!!postboxSessionId}
+        onClose={() => setPostboxSessionId(null)}
+        sessionId={postboxSessionId}
       />
     </aside>
   );

@@ -419,6 +419,31 @@ def release(session_id: str) -> str | None:
     return None
 
 
+def unclaim(manager_id: str, session_id: str) -> str | None:
+    """Remove the managed relationship (manager_id → session_id).
+
+    Only the current manager may unclaim. Also purges the manager's
+    ``report_subscriptions`` for session_id (解除管理即退订完成报告).
+
+    Returns None on success, or an error message string.
+    """
+    manager = get(manager_id)
+    if manager is None:
+        return f"Manager session {manager_id} not found"
+    target = get(session_id)
+    if target is None:
+        return f"Session {session_id} not found"
+    if target.managed_by != manager_id:
+        return f"Session {session_id} is not managed by {manager_id}"
+    manager.report_subscriptions.discard(session_id)
+    if session_id in manager.managed:
+        manager.managed.remove(session_id)
+        save(manager)
+    target.managed_by = None
+    save(target)
+    return None
+
+
 _all_loaded: bool = False
 
 

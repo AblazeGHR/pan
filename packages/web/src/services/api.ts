@@ -22,6 +22,10 @@ import type {
   ApiFsWriteResponse,
   ApiFsGenericResponse,
   FsEntry,
+  ApiClaimResponse,
+  ApiQqContactsResponse,
+  ApiQqSubscribeResponse,
+  QqContact,
 } from '@/types';
 
 const BASE = '/api';
@@ -150,6 +154,80 @@ export async function branchSession(
   );
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+// ── Session management (claim / unclaim) ──
+
+export async function claimSession(
+  managerId: string,
+  sessionId: string,
+): Promise<ApiClaimResponse> {
+  const data = await request<ApiClaimResponse>(`${BASE}/claim`, {
+    method: 'POST',
+    body: JSON.stringify({ managerId, sessionId }),
+  });
+  if (data.ok === false) {
+    throw new Error(data.error?.message || 'Claim failed');
+  }
+  return data;
+}
+
+export async function unclaimSession(
+  managerId: string,
+  sessionId: string,
+): Promise<ApiClaimResponse> {
+  const data = await request<ApiClaimResponse>(`${BASE}/unclaim`, {
+    method: 'POST',
+    body: JSON.stringify({ managerId, sessionId }),
+  });
+  if (data.ok === false) {
+    throw new Error(data.error?.message || 'Unclaim failed');
+  }
+  return data;
+}
+
+// ── QQ postbox (subscribe inbox reminders) ──
+
+export async function qqSubscribe(
+  sessionId: string,
+  targetType: 'user' | 'group',
+  targetId: string,
+): Promise<ApiQqSubscribeResponse> {
+  const data = await request<ApiQqSubscribeResponse>(`${BASE}/qq/subscribe`, {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId,
+      target_type: targetType,
+      target_id: targetId,
+    }),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function qqUnsubscribe(
+  sessionId: string,
+  targetType: 'user' | 'group',
+  targetId: string,
+): Promise<ApiQqSubscribeResponse> {
+  const data = await request<ApiQqSubscribeResponse>(`${BASE}/qq/unsubscribe`, {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId,
+      target_type: targetType,
+      target_id: targetId,
+    }),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function fetchQqContacts(): Promise<QqContact[]> {
+  const data = await request<ApiQqContactsResponse>(`${BASE}/qq/contacts`);
+  if (data.ok === false) {
+    throw new Error(data.error?.message || 'Failed to load QQ contacts');
+  }
+  return data.contacts || [];
 }
 
 // ── Workers ──

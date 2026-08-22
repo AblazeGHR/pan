@@ -20,6 +20,12 @@ export interface Session {
   workerId?: string | null;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
   managedBy?: string | null;
+  /** Ids of sessions this session manages (claims as a meta-agent). */
+  managed?: string[];
+  /** Managed-session report subscriptions (ids this session gets reports from). */
+  reportSubscriptions?: string[];
+  /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
+  qqSubscriptions?: string[];
   history: Message[];
   historyTruncated?: boolean;
   historyTotal?: number;
@@ -88,6 +94,42 @@ export interface ApiGenericResponse {
   model?: string;
   takeoverPid?: number;
   reason?: string;
+}
+
+// ── Manage / QQ postbox types ──
+
+export interface ApiErrorInfo {
+  code: string | number;
+  message: string;
+}
+
+export interface ApiClaimResponse {
+  ok?: boolean;
+  managerId?: string;
+  sessionId?: string;
+  managed?: string[];
+  error?: ApiErrorInfo;
+}
+
+export interface QqContact {
+  peerName: string;
+  peerUin: string;
+  /** 1 = private chat (user), 2 = group chat. */
+  chatType: number;
+}
+
+export interface ApiQqContactsResponse {
+  ok?: boolean;
+  contacts?: QqContact[];
+  error?: ApiErrorInfo;
+}
+
+export interface ApiQqSubscribeResponse {
+  sessionId?: string;
+  qqTarget?: string;
+  subscribed?: boolean;
+  qqSubscriptions?: string[];
+  error?: string;
 }
 
 export interface ApiSessionHistoryResponse {

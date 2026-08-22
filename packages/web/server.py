@@ -17,6 +17,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import httpx
+
 from packages.core import worker
 from packages.core import session as sess
 from packages.core.adapters import get_adapter, list_adapters
@@ -236,6 +238,7 @@ def _session_to_api(s: sess.Session):
         "managed": s.managed,
         "managedBy": s.managed_by,
         "reportSubscriptions": sorted(s.report_subscriptions),
+        "qqSubscriptions": sorted(s.qq_subscriptions),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "mcpEnabled": bool(ac.get("mcp_servers")),
@@ -1426,6 +1429,30 @@ async def api_qq_notify(data: dict):
     return {"ok": True, "delivered": delivered}
 
 
+@app.get("/api/qq/contacts")
+async def api_qq_contacts():
+    """列出最近的 QQ 联系人/群（代理到 QQ 插件 recent_contacts）。
+
+    postbox 弹窗需要可选 QQ 会话列表。QQ 插件（packages/qq/plugin.py）在独立
+    端口（默认 8080，PAN_QQ_API_URL 可覆盖）暴露 GET /api/qq/recent_contacts，
+    此处代理转发，让前端统一走 Pan Core 同源 /api，避免跨域。
+    """
+    plugin_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(f"{plugin_url}/api/qq/recent_contacts")
+            r.raise_for_status()
+            return r.json()
+    except httpx.HTTPStatusError as e:
+        return {"ok": False, "error": {
+            "code": e.response.status_code,
+            "message": e.response.text[:300]}}
+    except httpx.HTTPError as e:
+        return {"ok": False, "error": {
+            "code": "connection_error",
+            "message": f"{type(e).__name__}: {e}"}}
+
+
 @app.post("/api/claim")
 async def api_claim(data: dict):
     """建立 managed 关系（双向落盘，立项 4.2）。
@@ -1460,6 +1487,35 @@ async def api_claim(data: dict):
         "managerId": manager_id,
         "sessionId": session_id,
         "managed": list(manager.managed),
+    }
+
+
+@app.post("/api/unclaim")
+async def api_unclaim(data: dict):
+    """解除 managed 关系（管理方主动解绑，不删除 session）。
+
+    Body: {"managerId": <manager session id>, "sessionId": <managed session id>}
+
+    效果：manager.managed 移除 sessionId，session.managed_by 置空，同时清理
+    manager.report_subscriptions 对该 session 的订阅（解除管理即退订报告）。
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "managerId and sessionId are required"}}
+    err = sess.unclaim(manager_id, session_id)
+    if err:
+        return {"ok": False, "error": {
+            "code": "unclaim_failed",
+            "message": err}}
+    manager = sess.get(manager_id)
+    return {
+        "ok": True,
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "managed": list(manager.managed) if manager else [],
     }
 
 
