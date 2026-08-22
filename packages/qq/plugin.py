@@ -556,7 +556,8 @@ async def handle_message(bot: Bot, event: MessageEvent):
     # 注意：command-route 消息同样会入 inbox（消息已在别处自动回复，编排者可
     # 结合 history 判断），见下方 command route 分支。
     if _qq_mode() == "selective":
-        await _append_inbox(scope_id, scope, text)
+        nickname = getattr(getattr(event, "sender", None), "nickname", "") or ""
+        await _append_inbox(scope_id, scope, text, nickname)
 
     # Lazy-load command routes on first use (lets the bot start before Core
     # if needed). Hits are forwarded straight to the manifest-declared HTTP
@@ -753,11 +754,14 @@ async def _load_inbox(target_id: str) -> list[dict]:
         return []
 
 
-async def _append_inbox(target_id: str, scope: str, text: str) -> None:
+async def _append_inbox(target_id: str, scope: str, text: str, nickname: str = "") -> None:
     """Append one pending QQ message to a target's inbox (selective mode).
 
     Scope is "user" (private) or "group"; role is always "user" — inbox 只收
     上行 QQ 消息，编排者的回复经 api_send 走 history，不回流 inbox。
+
+    落盘后 best-effort 通知 Pan Core（/api/qq/notify）：若该 QQ 会话被某个
+    Pan session 订阅（qq_subscriptions），订阅者会收到一条 `@@@@by qq` 提醒。
     """
     if not text:
         return
@@ -778,6 +782,37 @@ async def _append_inbox(target_id: str, scope: str, text: str) -> None:
             json.dumps(messages, ensure_ascii=False, indent=1),
             encoding="utf-8",
         )
+    await _notify_pan_inbox(scope, target_id, nickname, text)
+
+
+def _pan_core_url() -> str:
+    """Pan Core base URL：PAN_CORE_API_URL 环境变量优先，否则 config.json 的 port。"""
+    env_url = os.getenv("PAN_CORE_API_URL")
+    if env_url:
+        return env_url.rstrip("/")
+    port = (_load_config().get("port")) or 8768
+    return f"http://127.0.0.1:{port}"
+
+
+async def _notify_pan_inbox(scope: str, target_id: str, nickname: str, text: str) -> None:
+    """Best-effort 通知 Pan Core：QQ inbox 有新消息。
+
+    供 qq_subscriptions 订阅者（绑定该 QQ 会话的 Pan session）消费。仅当
+    Pan Core 可达时推送；失败只打印警告，不影响 inbox 落盘（通知是异步增强，
+    inbox 文件才是真源）。
+    """
+    try:
+        url = f"{_pan_core_url()}/api/qq/notify"
+        client = await _get_client()
+        await client.post(url, json={
+            "target_type": scope,
+            "target_id": str(target_id),
+            "nickname": nickname,
+            "text": text,
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    except Exception as e:
+        print(f"[QQ Bridge] notify Pan inbox failed: {type(e).__name__}: {e}")
 
 
 async def api_inbox(target_id: str, limit: int = 30, consume: bool = False) -> dict:

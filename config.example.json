@@ -115,8 +115,10 @@
 
   "qq": {
     "_字段说明": {
+      "enabled": "是否启动 QQ 模块（packages/qq/bot.py，NoneBot）：false 时 main.py 不启动 QQ bot（默认 true）。",
       "mode": "QQ 桥接模式（packages/qq/plugin.py 读取）：mirror=收到消息自动建 session 并回复（默认）；selective=消息只进 inbox+history 不自动回复，由 meta-agent 经 MCP（qq_read_inbox/qq_send_message）选择性处理。也可用环境变量 PAN_QQ_MODE 覆盖。"
     },
+    "enabled": true,
     "mode": "mirror"
   },
 

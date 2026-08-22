@@ -132,6 +132,7 @@ class Worker:
     # 消息真源是落盘 Session.queue_pending，本队列只放信号；真源迁移完成后
     # 普通任务也只放 item.id，正文由 _consumer 从真源按 id 拉取。
     pending_signal: asyncio.Queue | None = None
+    _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # true during cbc --resume event replay
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
     pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
@@ -338,6 +339,17 @@ async def _iter_stdout_lines(w: Worker):
         yield buf  # 最后一行无换行（EOF 残留）
 
 
+def _signal_task_done(w: Worker) -> None:
+    """标记当前 stream 任务完成，唤醒 _consumer_stream 的等待。
+
+    与 _consumer_stream 的 ev.wait() 配对：result 处理完成（或进程 EOF）时调用，
+    让 consumer 知道当前任务已结束、可以推进下一个排队任务。
+    """
+    ev = getattr(w, "_task_done", None)
+    if ev is not None:
+        ev.set()
+
+
 async def _read_stdout(w: Worker):
     adapter = w.adapter
     s = None  # bound even if stdout yields no parseable event (EOF check below)
@@ -388,6 +400,7 @@ async def _read_stdout(w: Worker):
             if w._replaying:
                 w._replaying = False
                 w.status = "idle"
+                _signal_task_done(w)
                 _maybe_restart_pending(w)
                 continue
 
@@ -450,6 +463,7 @@ async def _read_stdout(w: Worker):
                 }
             w._current_task_id = None
             w.status = "idle"
+            _signal_task_done(w)
             _maybe_restart_pending(w)
             continue
 
@@ -497,6 +511,8 @@ async def _read_stdout(w: Worker):
     # H2: worker 退出 → 名下 pending 的 taskId 标 error（防止"超时+crash"组合
     # 让同 taskId 重试永久卡 pending）
     _mark_worker_tasks_error(w.worker_id, f"worker exited (returncode={code})")
+    # 唤醒可能在 _consumer_stream 里等待任务完成的协程（EOF 时任务不会正常结束）
+    _signal_task_done(w)
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
@@ -581,6 +597,22 @@ def _format_report_batch(reports: list[dict]) -> str:
 
     parts = []
     for r in reports:
+        # QQ inbox 更新提醒（type=qq）：与 agent 汇报同通道（queue_pending +
+        # report_signal），但抬头/字段不同。
+        if r.get("type") == "qq":
+            qq_target = r.get("qqTarget") or ""
+            nickname = r.get("nickname") or ""
+            lines = [
+                f"@@@@by qq : {qq_target} | {nickname}",
+                f"targetType: {_field_value(r.get('targetType'))}",
+                f"targetId: {_field_value(r.get('targetId'))}",
+                f"nickname: {_field_value(r.get('nickname'))}",
+                "message:",
+                _field_value(r.get("text")),
+                f"time: {_field_value(r.get('time'))}",
+            ]
+            parts.append("\n".join(lines))
+            continue
         sid = r.get("sessionId") or ""
         title = "unknown"
         if sid:
@@ -671,12 +703,54 @@ async def _enqueue_report(session_id: str, status: str, result: str,
 
     # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
     # 信号只负责唤醒，不承载正文
-    mw = find_worker_by_session(s.managed_by)
+    await _wake_worker(s.managed_by)
+
+
+async def _wake_worker(session_id: str) -> None:
+    """唤醒某 session 的 worker consumer（若存活）。
+
+    信号只负责唤醒、不承载正文（立项 4.3/4.7：正文在落盘 queue_pending）。
+    worker 死亡时由全局 watchdog 负责 spawn 恢复（spawn 后若 queue_pending
+    非空自动补发信号）。
+    """
+    mw = find_worker_by_session(session_id)
     if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
         mw.last_activity = time.monotonic()
-        # 信号只唤醒、不承载正文（立项 4.3/4.7：正文在落盘 queue_pending）
         await mw.pending_signal.put({"type": "report_signal"})
+
+
+async def enqueue_qq_reminder(target_type: str, target_id: str,
+                              nickname: str = "", text: str = "",
+                              time_str: str = "") -> int:
+    """QQ inbox 更新提醒入队：所有订阅了该 QQ 会话的 session 各收到一条提醒。
+
+    镜像 report 汇报链路：提醒项 append 到订阅者 session 的落盘 queue_pending，
+    再唤醒其 worker consumer（report_signal）。无活 worker 时由全局 watchdog
+    自动 spawn 恢复。返回投递的订阅者数量。
+
+    提醒项格式：{"type": "qq", "qqTarget": "<scope>:<target_id>", ...}，
+    _format_report_batch 按 type=qq 分支渲染为 `@@@@by qq` 抬头。
+    """
+    target_key = f"{target_type}:{target_id}"
+    item = {
+        "type": "qq",
+        "qqTarget": target_key,
+        "targetType": target_type,
+        "targetId": str(target_id),
+        "nickname": nickname,
+        "text": text,
+        "time": time_str,
+    }
+    delivered = 0
+    for s in _sess.list_all():
+        if target_key not in (s.qq_subscriptions or set()):
+            continue
+        s.queue_pending.append(item)
+        await _sess.save_async(s)
+        await _wake_worker(s.id)
+        delivered += 1
+    return delivered
 
 
 async def _enqueue_zombie_report(w: Worker, reason: str) -> None:
@@ -906,6 +980,16 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
         "status": "running",
         "source": source,
     })
+
+    # 等待当前任务完成（result 事件 → _read_stdout 置 idle 并 set _task_done）后再返回。
+    # 不能轮询 status：status 在多协程间共享，result 处理中先置 done 后置 idle，旧任务
+    # result 协程的 idle 会覆盖新任务已设的 running，导致等待提前退出、多条消息同时在
+    # cbc 长驻进程管道里飞行，result 与 seq/taskId 错位、history 重复（实测复现）。
+    # 用独立 Event 标记"本次任务完成"，_consumer 才能串行推进下一个排队任务。
+    ev = getattr(w, "_task_done", None)
+    if ev is not None:
+        ev.clear()
+        await ev.wait()
 
 
 def _extract_cbc_error(output: bytes) -> str | None:
@@ -1273,6 +1357,7 @@ async def _create_worker(session_id: str) -> Worker | str:
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
+               _task_done=asyncio.Event(),
                _replaying=resuming)
     w.last_activity = time.monotonic()
     workers[worker_id] = w
@@ -1621,7 +1706,8 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
 
     new_w = Worker(worker_id=new_id, session_id=new_session_id,
                    adapter=w.adapter,
-                   status="idle", process=proc, pending_signal=asyncio.Queue())
+                   status="idle", process=proc, pending_signal=asyncio.Queue(),
+                   _task_done=asyncio.Event())
     # 注意：branch 不设 _replaying（与 create_worker/restart_worker 不同）。
     # branch 的新 session history 为空，需要从 cbc --resume --fork-session
     # 的重放中填入历史，所以走正常 append 路径。主路径的 session 已有

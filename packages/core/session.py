@@ -53,6 +53,7 @@ class Session:
     managed_by: str | None = None  # session id of the session managing this one
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
     report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
+    qq_subscriptions: set[str] = field(default_factory=set)  # QQ conversations this session subscribes to ("user:<qq>"/"group:<group_id>")
 
     # ── adapter_config convenience accessors ──
 
@@ -89,7 +90,8 @@ class Session:
                  managed: list[str] | None = None,
                  managed_by: str | None = None,
                  queue_pending: list | None = None,
-                 report_subscriptions=None):
+                 report_subscriptions=None,
+                 qq_subscriptions=None):
         """Manual init so legacy top-level capability kwargs still construct.
 
         ``pan_access`` is the single source of truth for the three capability
@@ -125,6 +127,7 @@ class Session:
         self.managed_by = managed_by
         self.queue_pending = queue_pending if queue_pending is not None else []
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
+        self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
         self.__post_init__()
 
     # ── pan_access convenience accessors (capability flags) ──
@@ -175,6 +178,8 @@ class Session:
         # 落盘 JSON 里 set 序列化为 list → 读回时还原
         if isinstance(self.report_subscriptions, (list, tuple)):
             self.report_subscriptions = set(self.report_subscriptions)
+        if isinstance(self.qq_subscriptions, (list, tuple)):
+            self.qq_subscriptions = set(self.qq_subscriptions)
         # pan_access: normalize to a dict with all three capability keys,
         # defaulting to False. Migrate legacy top-level instance attrs (old
         # JSON / old constructor paths) into the nested dict.
@@ -241,6 +246,7 @@ class Session:
             "managed_by": self.managed_by,
             "queue_pending": self.queue_pending,
             "report_subscriptions": sorted(self.report_subscriptions),
+            "qq_subscriptions": sorted(self.qq_subscriptions),
         }
 
 

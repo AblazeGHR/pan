@@ -1348,6 +1348,84 @@ async def api_report_unsubscribe(data: dict):
     }
 
 
+# ── QQ session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──
+
+
+@app.post("/api/qq/subscribe")
+async def api_qq_subscribe(data: dict):
+    """Pan session 订阅某 QQ 会话的 inbox 更新提醒（镜像 report-subscribe）。
+
+    Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
+           "target_id": <QQ 号 / 群号>}
+
+    订阅后，该 QQ 会话每次收到新消息（selective 模式入 inbox）都会推送一条
+    `@@@@by qq` 提醒到本 session 的落盘队列 queue_pending 并唤醒其 worker。
+    """
+    session_id = (data.get("sessionId") or "").strip()
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    if not session_id or not target_id or target_type not in ("user", "group"):
+        return {"error": "sessionId, target_type(user|group) and target_id are required"}
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    target_key = f"{target_type}:{target_id}"
+    s.qq_subscriptions.add(target_key)
+    sess.save(s)
+    return {
+        "sessionId": session_id,
+        "qqTarget": target_key,
+        "subscribed": True,
+        "qqSubscriptions": sorted(s.qq_subscriptions),
+    }
+
+
+@app.post("/api/qq/unsubscribe")
+async def api_qq_unsubscribe(data: dict):
+    """取消订阅某 QQ 会话的 inbox 更新提醒。"""
+    session_id = (data.get("sessionId") or "").strip()
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    if not session_id or not target_id or target_type not in ("user", "group"):
+        return {"error": "sessionId, target_type(user|group) and target_id are required"}
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    target_key = f"{target_type}:{target_id}"
+    s.qq_subscriptions.discard(target_key)
+    sess.save(s)
+    return {
+        "sessionId": session_id,
+        "qqTarget": target_key,
+        "subscribed": target_key in s.qq_subscriptions,
+        "qqSubscriptions": sorted(s.qq_subscriptions),
+    }
+
+
+@app.post("/api/qq/notify")
+async def api_qq_notify(data: dict):
+    """QQ 插件上报 inbox 更新（由 packages/qq/plugin.py 调用）。
+
+    Body: {"target_type": "user"|"group", "target_id": ..., "nickname": ...,
+           "text": ..., "time": ...}
+
+    找到所有订阅该 QQ 会话的 session，各推送一条 `@@@@by qq` 提醒到其
+    queue_pending 并唤醒 worker。返回投递数量。
+    """
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    if not target_id or target_type not in ("user", "group"):
+        return {"error": "target_type(user|group) and target_id are required"}
+    delivered = await worker.enqueue_qq_reminder(
+        target_type,
+        target_id,
+        nickname=(data.get("nickname") or ""),
+        text=(data.get("text") or ""),
+        time_str=(data.get("time") or ""),
+    )
+    return {"ok": True, "delivered": delivered}
+
+
 @app.post("/api/claim")
 async def api_claim(data: dict):
     """建立 managed 关系（双向落盘，立项 4.2）。

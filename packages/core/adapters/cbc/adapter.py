@@ -267,9 +267,10 @@ class CbcAdapter:
                 entry["cwd"] = srv["cwd"]
             if "env" in srv:
                 entry["env"] = srv["env"]
-            # pan server: inject MA session identity so worker_send can prefix
-            # agent-originated messages with the sending session (立项 4.8).
-            if name == "pan":
+            # pan / pan-qq server: inject MA session identity so MCP tools can
+            # act on behalf of this session (worker_send prefixes agent messages,
+            # qq_bind/qq_unbind subscribe its qq_subscriptions) (立项 4.8).
+            if name in ("pan", "pan-qq"):
                 env = dict(entry.get("env") or {})
                 env["PAN_AGENT_SESSION_ID"] = s.id
                 env["PAN_AGENT_SESSION_TITLE"] = s.name

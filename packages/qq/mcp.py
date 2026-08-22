@@ -14,11 +14,15 @@ Tools exposed:
     - qq_read_conversation: 读取某 QQ 会话的落盘对话记录（本地持久化）
     - qq_list_contacts: 列出最近的 QQ 联系人/群（NapCat get_recent_contact，best-effort）
     - qq_read_inbox: 读取某 QQ 会话的待处理消息队列（selective 模式专用）
+    - qq_bind: 绑定当前 Pan session 到 QQ 会话，订阅其 inbox 更新提醒
+    - qq_unbind: 解绑，停止 inbox 更新提醒
 
 Environment variables:
     PAN_QQ_API_URL: QQ bot HTTP API base URL (default: http://127.0.0.1:8080)
         8080 是 NoneBot fastapi driver 的默认端口；可在 packages/qq/bot.py
         运行环境里用 HOST/PORT 覆盖，届时这里也要同步改。
+    PAN_API_URL: Pan Core HTTP API base URL (default: http://127.0.0.1:8768)
+        qq_bind/qq_unbind 经它读写 Pan session 的 qq_subscriptions。
 """
 
 from __future__ import annotations
@@ -30,18 +34,21 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 _qq_api_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
+_pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768").rstrip("/")
 
 mcp = FastMCP("QQ")
 
 
-async def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
-    """Call the QQ bot HTTP API and return parsed JSON.
+async def _api(method: str, path: str, body: dict | None = None,
+               timeout: float = 30.0, base_url: str | None = None) -> dict:
+    """Call the target HTTP API and return parsed JSON.
 
-    HTTP 错误时尽力透传后端返回的 JSON（可能带 error 字段），连接失败返回
-    {ok: false, error: {code: connection_error, ...}}，与 packages/mcp/server.py
-    的 _api 错误约定保持一致。
+    base_url 默认用 QQ bot（_qq_api_url）；绑定类工具传入 Pan Core
+    （_pan_api_url）。HTTP 错误时尽力透传后端返回的 JSON（可能带 error 字段），
+    连接失败返回 {ok: false, error: {code: connection_error, ...}}，与
+    packages/mcp/server.py 的 _api 错误约定保持一致。
     """
-    url = f"{_qq_api_url}{path}"
+    url = f"{(base_url or _qq_api_url)}{path}"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             if method == "GET":
@@ -156,6 +163,66 @@ async def qq_read_inbox(target_id: str | int, limit: int = 30, consume: bool = F
         "limit": min(limit, 500),
         "consume": 1 if consume else 0,
     })
+
+
+@mcp.tool()
+async def qq_bind(target_type: str, target_id: str | int) -> dict:
+    """绑定当前 Pan session 到某 QQ 会话，订阅其 inbox 更新提醒。
+
+    绑定后，该 QQ 会话在 selective 模式下每收到新消息，本 session 的 queue_pending
+    都会收到一条 `@@@@by qq : <会话标识> | <昵称>` 提醒（含消息 summary），并唤醒
+    本 session 的 worker。镜像 report_subscribe 的订阅制，解绑用 qq_unbind。
+
+    Args:
+        target_type: "user"=私聊（对应 qq_send_message 的 private）/"group"=群聊
+        target_id: 目标 QQ 号（私聊）或群号（群聊）
+
+    仅 Pan 内 session 可用（需 PAN_AGENT_SESSION_ID 环境变量）。
+    调用链：本工具 → POST {PAN_API_URL}/api/qq/subscribe → Pan Core 在 session
+    落盘 qq_subscriptions。
+    """
+    manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not manager_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — qq_bind only works inside a Pan-managed session"}}
+    if target_type not in ("user", "group"):
+        return {"ok": False, "error": {
+            "code": "invalid_target_type",
+            "message": "target_type 必须是 'user'（私聊）或 'group'（群聊）"}}
+    return await _api("POST", "/api/qq/subscribe", {
+        "sessionId": manager_id,
+        "target_type": target_type,
+        "target_id": str(target_id),
+    }, base_url=_pan_api_url)
+
+
+@mcp.tool()
+async def qq_unbind(target_type: str, target_id: str | int) -> dict:
+    """解绑当前 Pan session 与某 QQ 会话的绑定，停止 inbox 更新提醒。
+
+    Args:
+        target_type: "user"=私聊 / "group"=群聊
+        target_id: 目标 QQ 号（私聊）或群号（群聊）
+
+    仅 Pan 内 session 可用（需 PAN_AGENT_SESSION_ID 环境变量）。
+    调用链：本工具 → POST {PAN_API_URL}/api/qq/unsubscribe → Pan Core 移除
+    session 落盘的 qq_subscriptions。
+    """
+    manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not manager_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — qq_unbind only works inside a Pan-managed session"}}
+    if target_type not in ("user", "group"):
+        return {"ok": False, "error": {
+            "code": "invalid_target_type",
+            "message": "target_type 必须是 'user'（私聊）或 'group'（群聊）"}}
+    return await _api("POST", "/api/qq/unsubscribe", {
+        "sessionId": manager_id,
+        "target_type": target_type,
+        "target_id": str(target_id),
+    }, base_url=_pan_api_url)
 
 
 def main():

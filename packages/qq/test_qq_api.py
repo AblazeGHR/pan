@@ -296,6 +296,8 @@ def _prepare_handle_test(tmp_path, monkeypatch, mode):
 
 def test_qq_mode_default_mirror(monkeypatch):
     monkeypatch.delenv("PAN_QQ_MODE", raising=False)
+    # 隔离用户 config.json（可能配了 qq.mode=selective），验证无配置时默认 mirror
+    monkeypatch.setattr(qq, "_load_config", lambda: {})
     assert qq._qq_mode() == "mirror"
 
 
@@ -386,7 +388,9 @@ def test_selective_command_route_still_executes(tmp_path, monkeypatch):
     _run(qq.handle_message(bot, FakeEvent("10001", ".test hello")))
     # command route 直连外部 HTTP、绕过 LLM → selective 下仍执行并回复
     assert bot.sent == ["processing, please wait...", "route-ok"]
-    assert client.posted == [("http://fake.local/route", {"text": "hello"})]
+    # 过滤 _append_inbox 触发的 Pan Core notify（best-effort），只断言路由调用
+    route_posts = [(u, b) for (u, b) in client.posted if not u.endswith("/api/qq/notify")]
+    assert route_posts == [("http://fake.local/route", {"text": "hello"})]
     # 记录 user + assistant 双侧 history
     hist = _run(qq.api_history("10001"))
     assert [h["role"] for h in hist["messages"]] == ["user", "assistant"]
@@ -444,3 +448,108 @@ def test_mcp_qq_read_inbox_defaults(monkeypatch):
     monkeypatch.setattr(qq_mcp, "_api", _fake_api)
     _run(qq_mcp.qq_read_inbox("10001"))
     assert captured["body"] == {"target_id": "10001", "limit": 30, "consume": 0}
+
+
+# ── QQ session 绑定（qq_bind/qq_unbind、提醒格式、session 字段）──
+
+
+def test_format_report_batch_qq_branch():
+    from packages.core import worker
+    item = {"type": "qq", "qqTarget": "user:1470993983", "targetType": "user",
+            "targetId": "1470993983", "nickname": "焕之", "text": "你好",
+            "time": "2026-08-22 01:00:00"}
+    formatted = worker._format_report_batch([item])
+    assert "@@@@by qq : user:1470993983 | 焕之" in formatted
+    assert "message:" in formatted and "你好" in formatted
+    assert "time: 2026-08-22 01:00:00" in formatted
+
+
+def test_format_report_batch_agent_branch_unchanged():
+    from packages.core import worker
+    item = {"status": "done", "result": "ok", "sessionId": "ses_x",
+            "taskId": "t1", "workerId": "w1"}
+    formatted = worker._format_report_batch([item])
+    assert formatted.startswith("@@@@by agent : ses_x")
+    assert "status: done" in formatted
+
+
+def test_qq_bind_missing_identity(monkeypatch):
+    monkeypatch.delenv("PAN_AGENT_SESSION_ID", raising=False)
+    from packages.qq import mcp as qq_mcp
+    r = _run(qq_mcp.qq_bind("user", "1470993983"))
+    assert r["ok"] is False
+    assert r["error"]["code"] == "missing_identity"
+
+
+def test_qq_unbind_missing_identity(monkeypatch):
+    monkeypatch.delenv("PAN_AGENT_SESSION_ID", raising=False)
+    from packages.qq import mcp as qq_mcp
+    r = _run(qq_mcp.qq_unbind("user", "1470993983"))
+    assert r["ok"] is False
+    assert r["error"]["code"] == "missing_identity"
+
+
+def test_qq_bind_invalid_target_type(monkeypatch):
+    monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_test")
+    from packages.qq import mcp as qq_mcp
+    r = _run(qq_mcp.qq_bind("guild", "1"))
+    assert r["ok"] is False
+    assert r["error"]["code"] == "invalid_target_type"
+
+
+def test_qq_bind_passes_identity_to_pan_core(monkeypatch):
+    monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_abc")
+    from packages.qq import mcp as qq_mcp
+    captured = {}
+
+    async def _fake_api(method, path, body=None, timeout=30.0, base_url=None):
+        captured["method"] = method
+        captured["path"] = path
+        captured["body"] = body
+        captured["base_url"] = base_url
+        return {"sessionId": "ses_abc", "qqTarget": "user:1470993983",
+                "subscribed": True, "qqSubscriptions": ["user:1470993983"]}
+
+    monkeypatch.setattr(qq_mcp, "_api", _fake_api)
+    result = _run(qq_mcp.qq_bind("user", "1470993983"))
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/api/qq/subscribe"
+    assert captured["body"] == {"sessionId": "ses_abc", "target_type": "user",
+                                "target_id": "1470993983"}
+    assert captured["base_url"] == qq_mcp._pan_api_url
+    assert result["subscribed"] is True
+
+
+def test_session_qq_subscriptions_roundtrip(monkeypatch, tmp_path):
+    from packages.core import session as sess
+    monkeypatch.setattr(sess, "SESSION_DIR", tmp_path / "sessions")
+    s = sess.create(name="test-qq-subs", model="deepseek-v4-flash")
+    s.qq_subscriptions.add("user:1470993983")
+    sess.save(s)
+    loaded = sess.get(s.id)
+    assert loaded.qq_subscriptions == {"user:1470993983"}
+    sess.delete(s.id)
+
+
+def test_enqueue_qq_reminder_delivers_to_subscribers(monkeypatch, tmp_path):
+    import types
+    from packages.core import session as sess
+    from packages.core import worker
+    monkeypatch.setattr(sess, "SESSION_DIR", tmp_path / "sessions")
+    sub = sess.create(name="sub", model="m")
+    other = sess.create(name="other", model="m")
+    sub.qq_subscriptions.add("user:1470993983")
+    # 隔离 worker 视角的 session store，只含测试 session（避免读真实落盘）
+    monkeypatch.setattr(worker, "_sess", types.SimpleNamespace(
+        list_all=lambda: [sub, other],
+        save_async=lambda s: asyncio.sleep(0),
+    ))
+    delivered = _run(worker.enqueue_qq_reminder(
+        "user", "1470993983", nickname="焕之", text="你好", time_str="t"))
+    assert delivered == 1
+    assert len(sub.queue_pending) == 1
+    item = sub.queue_pending[0]
+    assert item["type"] == "qq"
+    assert item["qqTarget"] == "user:1470993983"
+    assert item["nickname"] == "焕之" and item["text"] == "你好"
+    assert other.queue_pending == []
