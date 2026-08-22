@@ -38,13 +38,13 @@ Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，
 
 ## 👔 Meta-Agent：让 AI 自己当项目经理
 
-Meta-Agent 不是某个特殊的程序，而是一个**角色**——任何一方（CodeBuddy、你的脚本、甚至另一个 Pan 会话）只要满足三个条件，就能扮演"主管"：
+Meta-Agent 不是某个特殊的程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件，就能扮演"主管"：
 
 1. **能发指令**：通过 MCP 工具（17 个现成工具：`worker_spawn` / `worker_assign` / `worker_send` / `worker_kill` …）或 HTTP API；
 2. **能收情报**：通过 WebSocket 订阅事件流（`worker.result` / `worker.status` / `worker.crashed` …）；
 3. **有身份**：Pan 记录是谁在指挥，并对 Worker 做隔离，防止越权。
 
-于是你可以让 CodeBuddy 自己当主管，只说一句：**"把这几个方向拆给 3 个 worker 并行调研，汇总成一份报告给我"**——剩下的拆解、派发、回收、汇总，主管自己完成。
+于是你可以让任意一个 Agent CLI 来当主管（CodeBuddy、Codex、OpenCode…都行），只说一句：**"把这几个方向拆给 3 个 worker 并行调研，汇总成一份报告给我"**——剩下的拆解、派发、回收、汇总，主管自己完成。
 
 ## 🎯 一个入口，管理你的一切任务
 
@@ -131,7 +131,7 @@ handoff(W1: 写技术方案) → 拿到方案 → handoff(W2: 写代码) → 拿
 - **Memory 子系统** — SQLite + FTS5 + embedding 混合检索；知识文件索引、运行中自动注入；embedding 多 provider（sentence-transformers 默认 / openai / ollama / llama.cpp GGUF）；jieba 中文分词、watchdog 文件监控、批量向量评分。
 - **MCP Server** — 17 个工具（session / worker / report / model / handbook），带 MCP 隔离检查与 `////by agent` 来源前缀；支持 stdio / SSE / streamable-http。
 - **多通道接入** — Web（Dashboard + HTTP/WS API）、QQ（NoneBot2 + OneBot v11）、Remote（Cloudflare Tunnel）、Meta-Agent（WS + MCP）。
-- **CLI Adapter 抽象** — `cbc`（stream-json 协议 + one-shot MCP）、`kimi`；会话导入（cbc / kimi 历史导入）。
+- **CLI Adapter 抽象** — `cbc`（CodeBuddy CLI，stream-json 协议 + one-shot MCP）、`kimi`；可扩展任意 Agent CLI（Codex、OpenCode 等）；会话导入（cbc / kimi 历史导入）。
 - **文件系统 API** — session workdir 内 list / read / write / rename / delete，带路径逃逸校验。
 
 ---
@@ -381,7 +381,7 @@ model_list / pan_handbook
 
 ### Meta-Agent（MCP）
 
-`.codebuddy/mcp.json` 已配置 Pan MCP server（stdio）：`python -m packages.mcp.server`。
+`.codebuddy/mcp.json` 已配置 Pan MCP server（stdio）：`python -m packages.mcp.server`。其他 Agent CLI（Codex、OpenCode 等）同样可以通过 MCP / WS 协议接入。
 
 ### QQ Bridge
 
@@ -410,7 +410,7 @@ python -m packages.remote
 
 ```
          Meta-Agent                   人类                    远程访问
-    (CodeBuddy / MCP)           (Dashboard)            (Cloudflare Tunnel)
+    (Agent CLI / MCP)           (Dashboard)            (Cloudflare Tunnel)
           │                          │                          │
    /ws/agent + MCP tools       /ws + HTTP              公网 URL + WS
     （事件流 + 命令）          （观察 + 注入 + 接管）      （Dashboard / QQ Bot 外部接入）
