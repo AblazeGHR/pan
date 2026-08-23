@@ -147,6 +147,30 @@ describe('sessionStore refresh staleness guards', () => {
     expect(s.workerId).toBe('w1');
   });
 
+  it('keeps idle set right before a refresh over a transient done snapshot', async () => {
+    // Mirrors the worker.result path: handleWorkerUpdate sets idle, then a
+    // (debounced) refresh starts; its snapshot lands in the backend's transient
+    // "done" window and must not override the local idle.
+    useSessionStore.setState({
+      sessions: [mk('A', 'A', { workerStatus: 'running' })],
+      currentSessionId: null,
+    });
+    act(() => {
+      useSessionStore.getState().updateSession('A', { workerStatus: 'idle' });
+    });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().loadSessions();
+    });
+    await act(async () => {
+      resolveNextFetch([mk('A', 'A', { workerStatus: 'done', history: [] })]);
+      await promise!;
+    });
+
+    expect(useSessionStore.getState().sessions[0]?.workerStatus).toBe('idle');
+  });
+
   it('discards an older in-flight refresh superseded by a newer one', async () => {
     useSessionStore.setState({ sessions: [], currentSessionId: null });
 

@@ -364,6 +364,10 @@ def claim(manager_id: str, session_id: str) -> str | None:
 
     Establishes: manager.managed += [session_id], session.managed_by = manager_id.
 
+    Claim 建立 managed 关系时默认自动 report_subscribe：manager.report_subscriptions
+    自动加入 session_id，使该 manager 收到目标 session 的完成报告（done/error）。
+    仅当确实新增了 managed 条目或首次订阅时才 save(manager)（set.add 幂等）。
+
     Refuses (returns an error string) if the target session is already managed
     by a different session. No-op success when the relationship already holds.
 
@@ -377,8 +381,14 @@ def claim(manager_id: str, session_id: str) -> str | None:
         return f"Session {session_id} not found"
     if target.managed_by and target.managed_by != manager_id:
         return f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"
+    changed = False
     if session_id not in manager.managed:
         manager.managed.append(session_id)
+        changed = True
+    if session_id not in manager.report_subscriptions:
+        manager.report_subscriptions.add(session_id)
+        changed = True
+    if changed:
         save(manager)
     if target.managed_by != manager_id:
         target.managed_by = manager_id

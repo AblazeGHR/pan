@@ -174,18 +174,18 @@ meta-agent 编排 worker 时**默认走本小节**：`session_create → worker_
 
 ## 4. 盯梢模板：monitor_workers.py
 
-**监督脚本**（随项目维护，`packages/scripts/monitor_workers.py`）——**双通道**：
+**监督脚本**（随项目维护，`packages/mcp/monitor_workers.py`）——**双通道**：
 
 1. **WS 事件**（实时）：订阅 `worker.result`（正常完成）**和** `worker.zombie`（意外死亡 / watchdog 回收 / 进程退出）——worker 意外丢失对协调者可见。
 2. **健康检查**（防「假 running」，每 30s 一次）：轮询 HTTP `GET /api/sessions/{id}` + 检查 transcript 文件 mtime（`~/.codebuddy/projects/<d-project-<workdir>/*.jsonl`，即 workdir 绝对路径 slug 化后的项目目录）。Pan 报 `running` 但 session `updatedAt` 与 transcript **均**超过 3 分钟无更新 → 输出一行 `STALE`（假 running / 卡死）。**去重冷却**：STALE 只在进入卡死时输出一次；恢复活跃后输出 `RECOVERED`，若再次卡死会再次 STALE。
 
 ```bash
 # 用 Pan 服务 .venv 的 python 运行（已含 websockets）
-python packages/scripts/monitor_workers.py
+python packages/mcp/monitor_workers.py
 # 通过 PAN_WS_URL 环境变量指定端口（默认 ws://127.0.0.1:8768/ws/agent；HTTP 基址自动由它推导）
-PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python packages/scripts/monitor_workers.py
+PAN_WS_URL=ws://127.0.0.1:8767/ws/agent python packages/mcp/monitor_workers.py
 # 按 sessionId 过滤订阅与健康检查（只盯自己派发的 session，避免其他 session 的事件打扰）
-PAN_SESSION_IDS=ses_a,ses_b python packages/scripts/monitor_workers.py
+PAN_SESSION_IDS=ses_a,ses_b python packages/mcp/monitor_workers.py
 ```
 
 - **`PAN_SESSION_IDS` 按 session 过滤**（逗号分隔）；省略 = 订阅/检查所有。**实践：派发 worker 后用 `PAN_SESSION_IDS` 只订阅自己派发的 session**——否则同一服务上其他协调者/测试 session 的事件会频繁唤醒你（噪音）。
@@ -205,7 +205,7 @@ MONITOR_DISCONNECTED: ...   # 断线自动 5s 后重连
 **Monitor 启动**（CodeBuddy Monitor 工具，command 模式）：
 
 ```
-Monitor(command="python packages/scripts/monitor_workers.py", persistent=true)
+Monitor(command="python packages/mcp/monitor_workers.py", persistent=true)
 ```
 
 每次脚本输出一行 → Monitor 唤醒协调者（秒级感知，替代 5 分钟轮询）。
@@ -330,6 +330,8 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 |------|------|------|
 | `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?`, `session_template?`, `character_id?`, `system_prompt?`, `game_id?`, `pan_access?` | 创建会话。`session_template` 用模板创建；`pan_access` 传能力字段 dict（`restrict_to_managed`/`can_claim_unmanaged`/`auto_claim_created`）；显式字段 > 模板值 > 默认值。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§9.1） |
 | `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 cbc/kimi 历史会话**。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → worker_assign → session_get` |
+
+> **复用已删除的 Pan session（2026-08-23 实测）**：Pan session 被 `session_delete`/`batch_delete` 删掉后，其底层 **CLI 会话（`~/.codebuddy/projects/` 或 `data/workdirs/<name>/`）仍保留**。可 `session_import(action="list_projects")` 找到对应 project_dir → `list_sessions` 找到该会话 → `import` 恢复成新 Pan session（含全部历史上下文）。**节省资源**：不用重建后重新探索/初始化，尤其适合「worker 已完成任务但需继续排查/跟进」的场景——把刚删的 worker session 恢复后继续派活，worker 带着全部上下文直接上手。
 | `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
 | `session_managed` | (无) | 返回调用者管理的 session 摘要 `[{id, name, workerStatus, updatedAt}]`（需 `PAN_AGENT_SESSION_ID`） |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
@@ -466,6 +468,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 10. **不依赖长驻 Worker**：watchdog 自动回收空闲 worker，用完即走，下次调用自动重建。
 11. **workdir 用绝对路径指 Pan 外目录**：多 worker 共改一个项目时，让所有 session 指向同一 workdir。
 12. **错误重试**：返回 `error` 时先查原因（session_get 的 lastResult / worker.zombie 事件），修复后重发。
+13. **复用已删除的 session（session_import）**：Pan session 删除后其 CLI 会话仍保留，用 `session_import(list_projects → list_sessions → import)` 恢复完整上下文复用（§7 会话管理说明）——省去重建后重新探索/初始化，尤其适合「worker 完成但需继续排查/跟进」的场景。清理时 `batch_delete` 的 session 都走这条回收路径，不浪费上下文。
 
 ## 11. 常见问题
 

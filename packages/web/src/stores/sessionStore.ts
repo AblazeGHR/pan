@@ -124,13 +124,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       set((s) => {
         // Merge the snapshot with locally-fresher workerStatus/workerId: WS
-        // worker events that landed while this fetch was in flight are newer
-        // than the snapshot — don't let a stale snapshot revert the card's
-        // status dot (mirrors legacy `_wsWorkerTs` re-apply).
+        // worker events that landed at/after this fetch began are newer than
+        // the snapshot — don't let a stale snapshot revert the card's status
+        // dot (mirrors legacy `_wsWorkerTs` re-apply). `>=` also protects the
+        // result path, where handleWorkerUpdate sets idle immediately before a
+        // refresh starts, so the backend's transient "done"/"error" status
+        // can't override the local idle WorkerDot.
         const merged = sessions.map((sess) => {
           const sid = sess.id;
           const cur = s.sessions.find((x) => x.id === sid);
-          if (cur && (wsTouchedSeq[sid] ?? 0) > touchSeqAtStart) {
+          if (cur && (wsTouchedSeq[sid] ?? 0) >= touchSeqAtStart) {
             return {
               ...sess,
               workerStatus: cur.workerStatus ?? sess.workerStatus,

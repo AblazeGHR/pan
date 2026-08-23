@@ -1319,7 +1319,8 @@ async def api_report_subscribe(data: dict):
     # 软约束：已有归属且不属于该 manager → 拒绝（防止越权订阅）
     if target.managed_by and target.managed_by != manager_id:
         return {"error": f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"}
-    # 订阅即接管：建立 managed 关系（双向落盘，立项 4.2）
+    # 订阅即接管：建立 managed 关系（双向落盘，立项 4.2）。
+    # claim 内部已自动 report_subscribe；此处 add 幂等，保留作防御性兜底。
     sess.claim(manager_id, session_id)
     manager.report_subscriptions.add(session_id)
     sess.save(manager)
@@ -1477,6 +1478,7 @@ async def api_claim(data: dict):
         return {"ok": False, "error": {
             "code": "cannot_claim_unmanaged",
             "message": f"Manager session {manager_id} cannot claim unmanaged sessions"}}
+    # claim 已自动 report_subscribe（manager.report_subscriptions 加入 session_id）
     err = sess.claim(manager_id, session_id)
     if err:
         return {"ok": False, "error": {
@@ -1487,6 +1489,7 @@ async def api_claim(data: dict):
         "managerId": manager_id,
         "sessionId": session_id,
         "managed": list(manager.managed),
+        "reportSubscriptions": sorted(manager.report_subscriptions),
     }
 
 

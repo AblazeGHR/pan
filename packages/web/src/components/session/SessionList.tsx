@@ -339,15 +339,20 @@ function ManagerNodeView({
         onMenu={(e) => onMenu?.(e, session.id)}
       />
       {hasChildren && !collapsed && (
-        <div className="ml-3 border-l border-border-muted">
+        <div className="ml-3 border-l border-text-tertiary">
           {node.children.map((child) => (
             <div key={child.session.id} className="relative">
               {/* Tree connector: horizontal tick from the left guide into this
                   child row (├─ style), making the parent→child ownership
-                  visually explicit. */}
+                  visually explicit. `top-1/2 -translate-y-1/2` centers it on
+                  the card row (aligned with the WorkerDot, which is vertically
+                  centered via SessionItem's `items-center`), instead of a
+                  hardcoded offset. Color uses text-tertiary — visible in both
+                  light (#8e96a1) and dark (#6e7681) themes, unlike the
+                  near-invisible border-muted. */}
               <span
                 aria-hidden
-                className="pointer-events-none absolute -left-3 top-[0.875rem] h-px w-6 bg-border-muted"
+                className="pointer-events-none absolute -left-3 top-1/2 -translate-y-1/2 h-px w-6 bg-text-tertiary"
               />
               <ManagerNodeView
                 node={child}

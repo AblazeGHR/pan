@@ -9,6 +9,22 @@ import {
 } from '@/stores/adapterStore';
 import type { StreamEvent } from '@/types';
 
+// ── Debounced full-list refresh (mirrors legacy app.ts scheduleRefreshSessions) ──
+// WS events can burst (rapid task completions, session updates); firing a full
+// /api/sessions fetch for every one of them re-renders the whole sidebar list
+// per event and — worse — the snapshot can land in the backend's transient
+// "done"/"error" status window before `w.status` is reset to "idle", which
+// would override the locally-set idle WorkerDot. Coalescing to one fetch 300ms
+// after the last event keeps the UI snappy and lets the backend status settle.
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleRefreshSessions(): void {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    useSessionStore.getState().loadSessions();
+  }, 300);
+}
+
 /**
  * Connects to WebSocket and routes events to Zustand stores.
  * Uses store.getState() for callbacks so React components re-render
@@ -78,29 +94,28 @@ export function useWebSocket() {
       }
       handleWorkerUpdate(e, 'idle');
       // 实时刷新侧边栏列表（lastResult / historyTotal / workerStatus 等卡片
-      // 数据），否则任务完成后卡片需手动刷新才更新。loadSessions() 自带
-      // stale-snapshot 防护：不会用过期的全量快照覆盖流式渲染中的
-      // currentMessages（prefix guard），也不会回退比快照更新的 WS 状态
-      // 或 per-session 抓取（touch guards）。
-      useSessionStore.getState().loadSessions();
+      // 数据）。防抖合并为单次全量抓取：既避免每个任务完成都触发整列表重渲染
+      // 造成的滞涩，也避开了后端「done→idle」的瞬态窗口（否则快照可能把已置为
+      // idle 的指示灯回退成灰色）。指示灯本身已由 handleWorkerUpdate 同步更新。
+      scheduleRefreshSessions();
     }));
 
     // Session events — created/deleted 也需刷新列表（否则新 session 不出现、
-    // 删除的残留，需手动刷新才更新）
+    // 删除的残留，需手动刷新才更新）。同样防抖合并。
     unsubscribers.push(wsClient.on('session.renamed', () => {
-      useSessionStore.getState().loadSessions();
+      scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('session.updated', () => {
-      useSessionStore.getState().loadSessions();
+      scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('session.created', () => {
-      useSessionStore.getState().loadSessions();
+      scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('session.deleted', () => {
-      useSessionStore.getState().loadSessions();
+      scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('sessions.deleted', () => {
-      useSessionStore.getState().loadSessions();
+      scheduleRefreshSessions();
     }));
 
     // Error

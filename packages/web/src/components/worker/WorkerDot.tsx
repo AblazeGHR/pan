@@ -7,6 +7,7 @@ const statusColors: Record<string, string> = {
   idle: 'bg-success',
   running: 'bg-accent',
   held: 'bg-warning',
+  error: 'bg-danger',
   offline: 'bg-text-tertiary',
 };
 
