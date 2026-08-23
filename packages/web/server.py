@@ -255,8 +255,21 @@ def _session_summary(s: sess.Session) -> dict:
     used by GET /api/sessions?summary=1 for agent context budgeting.
     cliSessionId lets MCP session_import locate the session that a reimport
     would overwrite (§8.2).
+
+    Since 2026-08-23: also exposes lastMessage / historyTotal / totalUsage so
+    the React sidebar can be driven entirely by summary=1 (no per-session
+    history download for hidden sessions). lastMessage is the last history
+    item's text truncated to 200 chars (no full message bodies).
     """
     w = worker.find_worker_by_session(s.id)
+    a = get_adapter(s.adapter)
+    config = load_config().get(s.adapter, {})
+    ac = s.adapter_config
+    last_text = ""
+    if s.history:
+        last = s.history[-1]
+        if isinstance(last, dict):
+            last_text = str(last.get("content") or "")[:200]
     return {
         "id": s.id,
         "name": s.name,
@@ -265,6 +278,15 @@ def _session_summary(s: sess.Session) -> dict:
         "workerStatus": w.status if w else None,
         "updatedAt": s.updated_at,
         "managedBy": s.managed_by,
+        "lastMessage": last_text,
+        "historyTotal": len(s.history),
+        "totalUsage": s.total_usage,
+        # 设置字段（供前端列表/InputRow 显示真实值，避免未打开设置弹窗时回退默认）
+        "model": s.model or config.get("model") or a.default_model,
+        "permissionMode": s.permission_mode or config.get("permission_mode") or None,
+        "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
+        "effort": ac.get("effort") or config.get("effort", ""),
+        "workdir": s.workdir,
     }
 
 

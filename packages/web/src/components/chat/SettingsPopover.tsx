@@ -1,10 +1,11 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useCurrentSession, useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { Button } from '@/components/ui/Button';
-import type { AdapterConfig, PermissionMode } from '@/types';
+import { fetchSession } from '@/services/api';
+import type { AdapterConfig, PermissionMode, Session } from '@/types';
 
 interface SettingsPopoverProps {
   open: boolean;
@@ -35,6 +36,29 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
   const applySettings = useAdapterStore((s) => s.applySettings);
   const { loadSessions } = useSessionStore();
 
+  // The sidebar list is summary=1 driven and does NOT carry model /
+  // permissionMode / alwaysThinkingEnabled / effort — fetch the full session
+  // on open so the editor shows the real values (on-demand detail, same as
+  // Manage/Postbox). The settings fields are also merged into the store so the
+  // toolbar pills / effort select reflect them too.
+  const [detailSession, setDetailSession] = useState<Session | null>(null);
+  useEffect(() => {
+    if (!open || !session?.id) return;
+    setDetailSession(null);
+    fetchSession(session.id)
+      .then((full) => {
+        setDetailSession(full);
+        useSessionStore.getState().updateSession(full.id, {
+          model: full.model ?? undefined,
+          permissionMode: full.permissionMode ?? undefined,
+          alwaysThinkingEnabled: full.alwaysThinkingEnabled,
+          effort: full.effort,
+          workdir: full.workdir,
+        });
+      })
+      .catch(() => setDetailSession(null));
+  }, [open, session?.id]);
+
   // Same per-session effective-worker logic as TopBar/SettingsPanel.
   const effectiveWorkerId =
     session?.workerId ||
@@ -50,6 +74,8 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
         await applySettings(session.id, effectiveWorkerId || undefined, {
           [key]: value,
         });
+        // Reflect the change locally so the select/checkbox stays in sync.
+        setDetailSession((d) => (d ? { ...d, [key]: value } : d));
         await loadSessions();
       } catch (e) {
         showToast((e as Error).message || 'Failed', 'error');
@@ -71,8 +97,12 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
 
   if (!open || !session || !config) return null;
 
+  // Prefer the on-demand full session when loaded; fall back to the store's
+  // (summary) session for id / workerStatus etc.
+  const s = detailSession ?? session;
+
   const models = config.models || [];
-  const currentModel = session.model || config.defaultModel;
+  const currentModel = s.model || config.defaultModel;
   const modelOptions = models.includes(currentModel)
     ? models
     : [currentModel, ...models];
@@ -82,7 +112,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
   const showEffort =
     showThinking &&
     supportsSetting(config, 'effort') &&
-    session.alwaysThinkingEnabled;
+    !!s.alwaysThinkingEnabled;
   const effortValues = config.effortValues || [];
 
   return (
@@ -113,7 +143,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
             Permission Mode
           </label>
           <select
-            value={session.permissionMode || config.defaultPermissionMode}
+            value={s.permissionMode || config.defaultPermissionMode}
             onChange={(e) => applySetting('permissionMode', e.target.value)}
             className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
           >
@@ -132,7 +162,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
           <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
             <input
               type="checkbox"
-              checked={session.alwaysThinkingEnabled}
+              checked={!!s.alwaysThinkingEnabled}
               onChange={(e) =>
                 applySetting('alwaysThinkingEnabled', e.target.checked)
               }
@@ -144,9 +174,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
             <label className="flex items-center gap-1.5 text-xs text-text-secondary">
               <span className="whitespace-nowrap">Effort</span>
               <select
-                value={
-                  session.effort || effortValues[1] || effortValues[0] || ''
-                }
+                value={s.effort || effortValues[1] || effortValues[0] || ''}
                 onChange={(e) => applySetting('effort', e.target.value)}
                 className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
               >

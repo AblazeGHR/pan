@@ -59,9 +59,15 @@ export function SessionItem({
   onMenu,
 }: SessionItemProps) {
   const isPending = session.id.startsWith('__pending_');
+  // Preview comes from the summary endpoint's lastMessage (the list carries no
+  // history now); fall back to the last local history message when present.
   const messages = session.history || [];
   const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-  const previewText = lastMsg ? stripMarkdown(lastMsg.content) : '';
+  const previewText = session.lastMessage
+    ? stripMarkdown(session.lastMessage)
+    : lastMsg
+      ? stripMarkdown(lastMsg.content)
+      : '';
   const preview = previewText
     ? previewText.length > 50
       ? previewText.slice(0, 50) + '...'

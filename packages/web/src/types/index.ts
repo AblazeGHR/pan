@@ -29,6 +29,8 @@ export interface Session {
   history: Message[];
   historyTruncated?: boolean;
   historyTotal?: number;
+  /** Last history message text (summary=1 endpoint, truncated ~200 chars). */
+  lastMessage?: string;
   lastResult?: Record<string, unknown> | null;
   totalUsage?: Record<string, number> | null;
   createdAt?: string;

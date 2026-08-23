@@ -96,9 +96,11 @@ export function TopBar() {
             {bubbleViewEnabled ? <MessageSquare size={16} /> : <Monitor size={16} />}
           </button>
         </div>
-        <span className="hidden md:inline text-xs text-text-tertiary">
-          {currentSession.model || '?'}
-        </span>
+        {currentSession.model && (
+          <span className="hidden md:inline text-xs text-text-tertiary">
+            {currentSession.model}
+          </span>
+        )}
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">
           <span
             className="cursor-pointer hover:text-text-primary"

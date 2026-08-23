@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { fetchQqContacts, qqSubscribe, qqUnsubscribe } from '@/services/api';
-import type { QqContact } from '@/types';
+import {
+  fetchQqContacts,
+  qqSubscribe,
+  qqUnsubscribe,
+  fetchSession,
+} from '@/services/api';
+import type { QqContact, Session } from '@/types';
 import { Search } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
@@ -39,6 +44,9 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // Full session fetched on open — the list is summary=1 driven and does not
+  // carry `qqSubscriptions`.
+  const [detailSession, setDetailSession] = useState<Session | null>(null);
 
   // Fetch QQ contacts + reset on open
   useEffect(() => {
@@ -47,6 +55,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
     setShowAll(false);
     setBusyKey(null);
     setLoadError(null);
+    setDetailSession(null);
     setLoading(true);
     fetchQqContacts()
       .then((list) => setContacts(list))
@@ -56,14 +65,19 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
         ),
       )
       .finally(() => setLoading(false));
-  }, [open]);
+    if (sessionId) {
+      fetchSession(sessionId)
+        .then((full) => setDetailSession(full))
+        .catch(() => setDetailSession(null));
+    }
+  }, [open, sessionId]);
 
-  const sessionIdValue = session?.id ?? null;
+  const sessionIdValue = session?.id ?? sessionId ?? null;
 
   // Live set of subscription keys for this session.
   const subscribedKeys = useMemo(
-    () => new Set<string>(session?.qqSubscriptions ?? []),
-    [session],
+    () => new Set<string>(detailSession?.qqSubscriptions ?? []),
+    [detailSession],
   );
 
   const filtered = useMemo(() => {

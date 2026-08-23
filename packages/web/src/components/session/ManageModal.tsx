@@ -7,8 +7,10 @@ import {
   unclaimSession,
   reportSubscribe,
   reportUnsubscribe,
+  fetchSession,
 } from '@/services/api';
-import { Search } from 'lucide-react';
+import type { Session } from '@/types';
+import { Search, Star, Check, Bell } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
 
@@ -36,30 +38,38 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Full session fetched on open — the sidebar list is summary=1 driven and
+  // does NOT carry `managed` / `reportSubscriptions`, so we pull them on demand
+  // (and only for the session whose modal is open).
+  const [detailSession, setDetailSession] = useState<Session | null>(null);
 
-  // Reset on open
+  // Reset on open + fetch the full session (managed / reportSubscriptions).
   useEffect(() => {
-    if (open) {
+    if (open && sessionId) {
       setQuery('');
       setShowAll(false);
       setBusyId(null);
+      setDetailSession(null);
+      fetchSession(sessionId)
+        .then((full) => setDetailSession(full))
+        .catch(() => setDetailSession(null));
     }
-  }, [open]);
+  }, [open, sessionId]);
 
-  const managerId = session?.id ?? null;
+  const managerId = detailSession?.id ?? session?.id ?? null;
 
   // Live set of sessions this manager already claims.
   const managedIds = useMemo(
-    () => new Set<string>(session?.managed ?? []),
-    [session],
+    () => new Set<string>(detailSession?.managed ?? []),
+    [detailSession],
   );
 
   // Live set of sessions this manager subscribes to completion reports.
   // (Claim auto-subscribes on the backend, so these usually overlap with
   // `managed` — the subscribe checkbox independently controls them.)
   const subscribedIds = useMemo(
-    () => new Set<string>(session?.reportSubscriptions ?? []),
-    [session],
+    () => new Set<string>(detailSession?.reportSubscriptions ?? []),
+    [detailSession],
   );
 
   // Candidate sessions: everything except the manager itself, pending
@@ -153,7 +163,8 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
         {managerId && (
           <>
             <div className="text-xs text-text-secondary">
-              {session?.name || 'Untitled'} manages the sessions checked below.
+              {detailSession?.name || session?.name || 'Untitled'} manages the
+              sessions checked below.
             </div>
 
             {/* Search */}
@@ -188,57 +199,74 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
                   No matching sessions
                 </div>
               )}
-              {visible.map((c) => (
-                <label
-                  key={c.id}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors hover:bg-bg-tertiary ${
-                    busyId !== null ? 'pointer-events-none opacity-70' : ''
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={managedIds.has(c.id)}
-                    disabled={busyId !== null}
-                    onChange={(e) => toggle(c.id, e.target.checked)}
-                    className="accent-accent shrink-0"
-                    title={
-                      managedIds.has(c.id)
-                        ? 'Uncheck to stop managing'
-                        : 'Check to manage (also subscribes to reports)'
-                    }
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-text-primary truncate">
-                      {c.name || 'Untitled'}
+              {visible.map((c) => {
+                const isManaged = managedIds.has(c.id);
+                const isSubscribed = subscribedIds.has(c.id);
+                return (
+                  <div
+                    key={c.id}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                      busyId !== null ? 'pointer-events-none opacity-70' : ''
+                    }`}
+                  >
+                    {/* Manage button: gray "Manage" → blue "Managed" when active */}
+                    <button
+                      type="button"
+                      onClick={() => toggle(c.id, !isManaged)}
+                      disabled={busyId !== null}
+                      title={
+                        isManaged
+                          ? 'Click to stop managing'
+                          : 'Click to manage (also subscribes to reports)'
+                      }
+                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                        isManaged
+                          ? 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                      }`}
+                    >
+                      {isManaged ? <Check size={12} /> : <Star size={12} />}
+                      {isManaged ? 'Managed' : 'Manage'}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-text-primary truncate">
+                        {c.name || 'Untitled'}
+                      </div>
+                      <div className="text-[11px] text-text-tertiary truncate">
+                        {c.id}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-text-tertiary truncate">
-                      {c.id}
-                    </div>
+                    {c.adapter && (
+                      <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
+                        {c.adapter}
+                      </span>
+                    )}
+                    {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSubscribe(c.id, !isSubscribed)}
+                      disabled={busyId !== null}
+                      title={
+                        isSubscribed
+                          ? 'Click to unsubscribe from reports'
+                          : 'Click to subscribe to completion reports'
+                      }
+                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                        isSubscribed
+                          ? 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                      }`}
+                    >
+                      {isSubscribed ? (
+                        <Check size={12} />
+                      ) : (
+                        <Bell size={12} />
+                      )}
+                      {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                    </button>
                   </div>
-                  {c.adapter && (
-                    <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
-                      {c.adapter}
-                    </span>
-                  )}
-                  {managedIds.has(c.id) && (
-                    <span className="shrink-0 rounded bg-accent/15 px-1.5 py-px text-[10px] font-medium text-accent">
-                      managed
-                    </span>
-                  )}
-                  <input
-                    type="checkbox"
-                    checked={subscribedIds.has(c.id)}
-                    disabled={busyId !== null}
-                    onChange={(e) => toggleSubscribe(c.id, e.target.checked)}
-                    className="accent-accent shrink-0"
-                    title={
-                      subscribedIds.has(c.id)
-                        ? 'Unsubscribe from completion reports'
-                        : 'Subscribe to completion reports'
-                    }
-                  />
-                </label>
-              ))}
+                );
+              })}
             </div>
 
             {/* Show-all toggle */}

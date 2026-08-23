@@ -44,8 +44,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 
 // ── Sessions ──
 
-export async function fetchSessions(): Promise<Session[]> {
-  const data = await request<ApiSessionsResponse>(`${BASE}/sessions`);
+export async function fetchSessions(summary = false): Promise<Session[]> {
+  const url = summary ? `${BASE}/sessions?summary=1` : `${BASE}/sessions`;
+  const data = await request<ApiSessionsResponse>(url);
   if (data.error) throw new Error(data.error);
   return data.sessions || [];
 }

@@ -124,7 +124,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const touchSeqAtStart = get()._touchSeq;
     set({ _loadSeq: loadSeq });
     try {
-      const sessions = await fetchSessions();
+      // summary=1: lean list (no per-session history download). Card preview
+      // comes from `lastMessage`, count from `historyTotal`; the selected
+      // session's messages are loaded by selectSession via fetchSessionHistory.
+      const sessions = await fetchSessions(true);
       if (get()._loadSeq !== loadSeq) return; // superseded by a newer refresh
       const { currentSessionId, currentMessages } = get();
       const wsTouchedSeq = get()._sessionWsTouchedSeq;
@@ -140,11 +143,27 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const merged = sessions.map((sess) => {
           const sid = sess.id;
           const cur = s.sessions.find((x) => x.id === sid);
-          if (cur && (wsTouchedSeq[sid] ?? 0) >= touchSeqAtStart) {
+          if (!cur) return sess;
+          if ((wsTouchedSeq[sid] ?? 0) >= touchSeqAtStart) {
             return {
               ...sess,
               workerStatus: cur.workerStatus ?? sess.workerStatus,
               workerId: cur.workerId ?? sess.workerId,
+            };
+          }
+          // summary=1 omits the per-session settings — keep the current
+          // session's known values (loaded on demand via the settings popover)
+          // across refreshes so the pills / effort select don't flip to
+          // defaults.
+          if (sid === currentSessionId && cur.model) {
+            return {
+              ...sess,
+              model: sess.model ?? cur.model,
+              permissionMode: sess.permissionMode ?? cur.permissionMode,
+              alwaysThinkingEnabled:
+                sess.alwaysThinkingEnabled ?? cur.alwaysThinkingEnabled,
+              effort: sess.effort || cur.effort || '',
+              workdir: sess.workdir ?? cur.workdir,
             };
           }
           return sess;
@@ -235,6 +254,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         get().currentMessages,
         serverHistory,
       );
+      // Keep the card preview in sync with the freshly-fetched history tail.
+      const lastServerMsg = serverHistory[serverHistory.length - 1];
+      const lastMessage = lastServerMsg
+        ? String(lastServerMsg.content).slice(0, 200)
+        : '';
       set((s) => ({
         sessions: s.sessions.map((x) =>
           x.id === id
@@ -243,6 +267,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 history: serverHistory,
                 historyTruncated: data.hasMore,
                 historyTotal: data.total,
+                lastMessage,
               }
             : x,
         ),
@@ -506,6 +531,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ...x,
           history: bounded,
           historyTotal,
+          // Card preview is summary-driven (lastMessage); keep it in sync with
+          // the in-place append so the sidebar updates immediately.
+          lastMessage:
+            typeof result === 'string'
+              ? result.slice(0, 200)
+              : x.lastMessage ?? '',
           lastResult: {
             status,
             result: result ?? '',
