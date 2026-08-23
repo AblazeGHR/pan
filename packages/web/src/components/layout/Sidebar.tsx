@@ -12,6 +12,7 @@ import { PostboxModal } from '@/components/session/PostboxModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
 import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
+import { AppSettingsPopover } from './AppSettingsPopover';
 import { Button } from '@/components/ui/Button';
 import {
   MessageSquare,
@@ -77,6 +78,7 @@ export function Sidebar() {
   const [manageSessionId, setManageSessionId] = useState<string | null>(null);
   const [postboxSessionId, setPostboxSessionId] = useState<string | null>(null);
   const importRef = useRef<HTMLDivElement>(null);
+  const [showAppSettings, setShowAppSettings] = useState(false);
 
   // Init editor tree when on editor route and session changes
   useEffect(() => {
@@ -183,6 +185,21 @@ export function Sidebar() {
 
         <div className="flex-1" />
 
+        <div data-app-settings className="relative">
+          <button
+            onClick={() => setShowAppSettings((v) => !v)}
+            className="text-text-tertiary hover:text-text-primary p-1.5 rounded transition-colors"
+            title="App settings"
+          >
+            <Settings size={18} />
+          </button>
+          <AppSettingsPopover
+            open={showAppSettings}
+            onClose={() => setShowAppSettings(false)}
+            placement="right"
+          />
+        </div>
+
         <button
           onClick={toggleTheme}
           className="text-text-tertiary hover:text-text-primary p-1.5 rounded transition-colors"
@@ -209,6 +226,19 @@ export function Sidebar() {
             <div className="flex items-center justify-between mb-2">
               <h1 className="text-lg font-bold text-text-primary">Pan</h1>
               <div className="flex items-center gap-0.5">
+                <div data-app-settings className="relative">
+                  <button
+                    onClick={() => setShowAppSettings((v) => !v)}
+                    className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                    title="App settings"
+                  >
+                    <Settings size={16} />
+                  </button>
+                  <AppSettingsPopover
+                    open={showAppSettings}
+                    onClose={() => setShowAppSettings(false)}
+                  />
+                </div>
                 <button
                   onClick={toggleTheme}
                   className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
@@ -415,6 +445,19 @@ export function Sidebar() {
             <div className="flex items-center justify-between mb-2">
               <h1 className="text-lg font-bold text-text-primary">Pan</h1>
               <div className="flex items-center gap-0.5">
+                <div data-app-settings className="relative">
+                  <button
+                    onClick={() => setShowAppSettings((v) => !v)}
+                    className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
+                    title="App settings"
+                  >
+                    <Settings size={16} />
+                  </button>
+                  <AppSettingsPopover
+                    open={showAppSettings}
+                    onClose={() => setShowAppSettings(false)}
+                  />
+                </div>
                 <button
                   onClick={toggleTheme}
                   className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"

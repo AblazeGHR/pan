@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import type { Session } from '@/types';
 import { FolderOpen } from 'lucide-react';
@@ -92,6 +93,20 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
   const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse, addCollapsedGroups, removeCollapsedGroups, pruneCollapsedGroups } =
     useUIStore();
+  const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
+
+  // Default grouping: adopt the app-settings default as long as the user has
+  // never manually picked a grouping (nothing persisted to pan:groupBy AND the
+  // store is still at its untouched 'none'). Manual switches persist to
+  // pan:groupBy and take precedence thereafter. The sync deliberately does NOT
+  // persist, so each app entry re-reads the latest default until the user
+  // groups manually.
+  useLayoutEffect(() => {
+    const ui = useUIStore.getState();
+    if (localStorage.getItem('pan:groupBy') === null && ui.groupBy === 'none') {
+      useUIStore.setState({ groupBy: defaultGroupBy });
+    }
+  }, [defaultGroupBy]);
 
   // Keep collapsedGroups consistent with the live tree: drop stale keys left
   // behind by session placeholders (`__pending_*`) or deleted sessions so a
