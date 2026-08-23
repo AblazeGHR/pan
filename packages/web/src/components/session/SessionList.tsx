@@ -339,11 +339,12 @@ function ManagerNodeView({
         onMenu={(e) => onMenu?.(e, session.id)}
       />
       {hasChildren && !collapsed && (
-        <div className="ml-3 border-l border-text-tertiary">
-          {node.children.map((child) => (
+        <div className="ml-3" data-tree-children>
+          {node.children.map((child, idx) => (
             <ManagerChildView
               key={child.session.id}
               child={child}
+              isLast={idx === node.children.length - 1}
               currentSessionId={currentSessionId}
               selectedIds={selectedIds}
               multiSelectMode={multiSelectMode}
@@ -361,6 +362,9 @@ function ManagerNodeView({
 
 interface ManagerChildViewProps {
   child: ManagerNode;
+  /** True when this child is the last sibling — its vertical guide ends with a
+   *  └ corner instead of continuing to the next sibling (├). */
+  isLast: boolean;
   currentSessionId: string | null;
   selectedIds: Set<string>;
   multiSelectMode: boolean;
@@ -371,21 +375,23 @@ interface ManagerChildViewProps {
 }
 
 /**
- * One manager child: its own SessionItem row wrapped with the tree-connector
- * tick, followed by the child's own children container (recursively). The tick
- * lives in a `relative` wrapper that wraps ONLY this child's row, so
- * `top-1/2 -translate-y-1/2` centers it on this row (aligned with the WorkerDot)
- * even when the child itself is a manager with a deeper subtree.
+ * One manager child rendered as a classic tree corner (├ / └):
+ *  - A vertical guide segment at `left-0` (= the children container's left
+ *    edge). Non-last children draw it across the WHOLE root div (row + their
+ *    own deeper subtree) so the guide stays continuous through nested levels
+ *    down to the next sibling; the last child draws it only down to its row
+ *    center, forming the └ corner.
+ *  - A horizontal tick at the row's vertical center, turning right from the
+ *    guide into the card (`top-1/2 -translate-y-1/2`, row wrapper is relative
+ *    and wraps ONLY this row, so the centering holds at any nesting depth).
  *
- * Geometry: the children container has `ml-3 border-l`, so its border sits
- * 12px right of the parent row and the child wrapper starts 1px past it
- * (13px). `-left-px` starts the tick exactly at that border (no overhang to
- * the left of the vertical guide) and `w-3` (12px) ends it 1px before the
- * SessionItem's WorkerDot — so it never covers the indicator, at any nesting
- * level (each level's border/tick are at its own increasing x position).
+ * The row wrapper's `pl-3` indents the card 12px past the guide, so the tick
+ * (w-3 = 12px) spans guide → card left edge without covering the WorkerDot
+ * (which sits 12px further inside the card's own px-3 padding).
  */
 function ManagerChildView({
   child,
+  isLast,
   currentSessionId,
   selectedIds,
   multiSelectMode,
@@ -399,12 +405,30 @@ function ManagerChildView({
   const collapsed = collapsedGroups.has(session.id);
 
   return (
-    <div>
-      {/* Own row + tree connector tick */}
-      <div className="relative">
+    <div className="relative">
+      {/* Vertical guide: non-last children continue below their subtree. */}
+      {!isLast && (
         <span
           aria-hidden
-          className="pointer-events-none absolute -left-px top-1/2 -translate-y-1/2 h-px w-3 bg-text-tertiary"
+          data-tree-guide
+          className="pointer-events-none absolute left-0 top-0 bottom-0 w-px bg-text-secondary/70"
+        />
+      )}
+      {/* Own row + corner connector */}
+      <div className="relative pl-3">
+        {/* Last child: └ corner — guide stops at this row's center. */}
+        {isLast && (
+          <span
+            aria-hidden
+            data-tree-guide
+            className="pointer-events-none absolute left-0 top-0 h-1/2 w-px bg-text-secondary/70"
+          />
+        )}
+        {/* Horizontal tick (corner turn) at the row's vertical center. */}
+        <span
+          aria-hidden
+          data-tree-tick
+          className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 h-px w-3 bg-text-secondary/70"
         />
         <SessionItem
           session={session}
@@ -423,11 +447,12 @@ function ManagerChildView({
       </div>
       {/* The child's own children */}
       {hasChildren && !collapsed && (
-        <div className="ml-3 border-l border-text-tertiary">
-          {child.children.map((grandchild) => (
+        <div className="ml-3" data-tree-children>
+          {child.children.map((grandchild, idx) => (
             <ManagerChildView
               key={grandchild.session.id}
               child={grandchild}
+              isLast={idx === child.children.length - 1}
               currentSessionId={currentSessionId}
               selectedIds={selectedIds}
               multiSelectMode={multiSelectMode}

@@ -45,7 +45,7 @@ describe('SessionList manager grouping', () => {
 
     // Nesting: two indented child containers — C wraps level-1 (B), which
     // wraps level-2 (A). D renders standalone (no children container).
-    const nested = container.querySelectorAll('.ml-3.border-l');
+    const nested = container.querySelectorAll('[data-tree-children]');
     expect(nested.length).toBe(2);
     const level1 = nested[0] as HTMLElement;
     const level2 = nested[1] as HTMLElement;
