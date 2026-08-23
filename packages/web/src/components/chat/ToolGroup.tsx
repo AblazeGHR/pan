@@ -133,7 +133,7 @@ export function ToolGroup({ items }: ToolGroupProps) {
   };
 
   return (
-    <div className="border border-border-default rounded-lg bg-bg-secondary mb-3">
+    <div className="tool-group border border-border-default rounded-lg bg-bg-secondary mb-3">
       {/* Group Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}

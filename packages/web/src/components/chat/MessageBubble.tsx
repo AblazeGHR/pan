@@ -37,7 +37,7 @@ export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) 
   // Thinking blocks get their own component
   if (role === 'thinking') {
     return (
-      <div className={mt}>
+      <div className={`${mt} px-3 sm:px-6 lg:px-8`}>
         <ThinkingBlock message={message} />
       </div>
     );
@@ -118,7 +118,7 @@ interface MessageDisplayItemProps {
 export function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItemProps) {
   if ('type' in item && item.type === 'tool_group') {
     return (
-      <div className={marginTopClass('tool', prevRole)}>
+      <div className={`${marginTopClass('tool', prevRole)} px-3 sm:px-6 lg:px-8`}>
         <ToolGroup items={(item as { items: Message[] }).items} />
       </div>
     );

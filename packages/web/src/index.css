@@ -448,7 +448,9 @@ body {
   padding-left: 10px;
 }
 
-.msg.tool {
+/* Tool group gets the orange left bar (the outer collapsible block); inner
+   .msg.tool rows stay bar-less so the orange bar isn't doubled. */
+.tool-group {
   border-left: 3px solid #ffa657;
 }
 
