@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -128,9 +129,9 @@ class Worker:
     _stdout_task: asyncio.Task | None = None
     _consume_task: asyncio.Task | None = None
     _watchdog_task: asyncio.Task | None = None
-    # 唤醒信号通道（内存），语义按立项 4.3/4.7 收窄为"只唤醒、不承载正文"：
-    # 消息真源是落盘 Session.queue_pending，本队列只放信号；真源迁移完成后
-    # 普通任务也只放 item.id，正文由 _consumer 从真源按 id 拉取。
+    # 唤醒信号通道（内存，语义按立项 4.3/4.7/L4 收窄为"只唤醒、不承载正文"）：
+    # 消息真源是落盘 Session.queue_pending，本队列只放信号——report_signal
+    # （报告批量消费）与 task_signal（携带 item.id，正文按 id 从真源拉取）。
     pending_signal: asyncio.Queue | None = None
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # true during cbc --resume event replay
@@ -549,10 +550,22 @@ async def _consumer(w: Worker):
                 await _consume_pending_reports(w, s)
             continue
 
-        text = item["text"]
-        source = item.get("source", "agent")
-        w._current_seq = item.get("seq")
-        w._current_task_id = item.get("taskId")
+        # 任务唤醒信号（L4 落盘）：正文在落盘 queue_pending，按 id 消费单个 task
+        if item.get("type") == "task_signal":
+            task = await _consume_pending_task(w, item.get("id"))
+            if task is None:
+                continue  # 信号重复 / item 已被消费 / 会话消失 → 跳过
+            text = task["text"]
+            source = task.get("source", "agent")
+            w._current_seq = task.get("seq")
+            w._current_task_id = task.get("taskId")
+        else:
+            # 直接入队消息（无 type）：send_task 落盘迁移前的完整 item 形态
+            # （兼容测试直连 pending_signal.put 的完整 item）
+            text = item["text"]
+            source = item.get("source", "agent")
+            w._current_seq = item.get("seq")
+            w._current_task_id = item.get("taskId")
 
         # resume replay 进行中：等待 replay 播完再处理，避免把 replay 事件
         # 误当新事件记录（history 重复）。replay 由 _read_stdout 在 result
@@ -642,10 +655,15 @@ async def _consume_pending_reports(w: Worker, s):
     """从落盘 queue_pending 取全部积压报告，拼接为一条消息交给模型处理。
 
     消费即删（清空后立即回写），与"落盘真源 + 内存信号"一致。
+    L4 落盘：任务消息（type=="task"）与报告共存于同一队列；此处**只消费报告**，
+    task item 保留在队列中由 task_signal 按 id 消费，互不误删。
     """
-    reports = s.queue_pending
-    s.queue_pending = []
+    reports = [it for it in s.queue_pending if it.get("type") != "task"]
+    s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
     await _sess.save_async(s)
+    if not reports:
+        # 队列里只剩 task item（报告已被其他信号消费）→ 不发空消息
+        return
     text = _format_report_batch(reports)
 
     # 报告不是 handoff 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
@@ -663,6 +681,32 @@ async def _consume_pending_reports(w: Worker, s):
         await _consumer_mcp(w, injected_text, "report", s)
     else:
         await _consumer_stream(w, injected_text, "report", s)
+
+
+async def _consume_pending_task(w: Worker, task_id: str | None) -> dict | None:
+    """从落盘 queue_pending 按 id 取出一个任务 item（消费即删，L4 落盘）。
+
+    任务消息持久化在 Session.queue_pending（落盘真源），pending_signal 只放
+    task_signal 唤醒信号。本函数按信号携带的 id 在队列中定位任务正文，取出后
+    立即移除并落盘，返回 item；信号重复 / item 已被消费 / 会话消失 → None。
+
+    与 _consume_pending_reports 的互斥：task（type=="task"）与 report item
+    共存于同一队列；_consume_pending_reports 只消费 report（跳过 task），
+    本函数只消费单个 task，互不误删。
+    """
+    s = _session(w)
+    if not s:
+        _log.warning("[Worker %s] task_signal: session %s not found",
+                     w.worker_id, w.session_id)
+        return None
+    for i, it in enumerate(s.queue_pending):
+        if it.get("type") == "task" and it.get("id") == task_id:
+            task = s.queue_pending.pop(i)
+            await _sess.save_async(s)
+            return task
+    _log.warning("[Worker %s] task_signal: task id=%s not found in queue_pending (len=%d)",
+                 w.worker_id, task_id, len(s.queue_pending))
+    return None
 
 
 async def _enqueue_report(session_id: str, status: str, result: str,
@@ -1284,6 +1328,30 @@ async def _session_spawn_lock(session_id: str) -> asyncio.Lock:
     return _spawn_locks.setdefault(session_id, asyncio.Lock())
 
 
+def _recover_pending_signals(w: Worker, s) -> None:
+    """spawn/重启后恢复消费：把落盘 queue_pending 的积压项转成唤醒信号。
+
+    L4 落盘：任务与报告都持久化在 Session.queue_pending（落盘真源），worker
+    死亡/回收后消息不丢。新 worker 的 consumer 启动后需要信号才知道有积压——
+    每个 task item 发一个 task_signal（带 id），有 report item 再补发一个
+    report_signal。pending_signal 是新队列，直接 put_nowait（无界队列不阻塞）。
+
+    调用时机：create_worker 在 system_prompt 注入**之前**（避免对注入任务重复
+    发信号）、_restart_tasks 重建 consumer 后。
+    """
+    pending = s.queue_pending
+    if not pending:
+        return
+    has_report = False
+    for it in pending:
+        if it.get("type") == "task":
+            w.pending_signal.put_nowait({"type": "task_signal", "id": it.get("id")})
+        else:
+            has_report = True
+    if has_report:
+        w.pending_signal.put_nowait({"type": "report_signal"})
+
+
 async def create_worker(session_id: str) -> Worker | str:
     """Spawn a CLI process for the given Session UUID.
 
@@ -1381,6 +1449,12 @@ async def _create_worker(session_id: str) -> Worker | str:
 
     await _sess.save_async(s)
 
+    # L4 落盘恢复：把本次 spawn 前已积压的落盘 queue_pending 转成唤醒信号——
+    # 每个 task item 发 task_signal（带 id），有 report item 再补发 report_signal。
+    # 必须放在 system_prompt 注入**之前**：注入会往 queue_pending 追加新 task 并
+    # 自带 task_signal，先做恢复可避免对同一 item 重复发信号。
+    _recover_pending_signals(w, s)
+
     # Inject system_prompt
     # - Pure stream (no MCP): injected as a separate first message (existing).
     # - With MCP (one-shot or stream+MCP): skipped here — injected via
@@ -1392,11 +1466,6 @@ async def _create_worker(session_id: str) -> Worker | str:
         await send_task(worker_id, s.system_prompt, source="system_prompt")
     elif s.system_prompt:
         _log.info("[Worker %s] MCP mode: system_prompt injected via --system-prompt", worker_id)
-
-    # 订阅制报告：落盘 queue_pending 有积压（上次 worker 死亡/回收未消费）
-    # → 发唤醒信号，_consumer 批量消费（立项 4.3 防死亡丢消息）
-    if s.queue_pending:
-        await w.pending_signal.put({"type": "report_signal"})
 
     return w
 
@@ -1582,6 +1651,11 @@ async def _restart_tasks(w: Worker):
     if not _DEFAULTS_INITIALIZED:
         load_worker_config()
     w._watchdog_task = asyncio.create_task(_watchdog(w))
+    # L4 落盘恢复：新 consumer 的信号队列是新建的，旧信号已随旧队列丢弃——
+    # 重新对落盘 queue_pending 积压发信号，避免重启/换进程时丢任务与报告。
+    s = _session(w)
+    if s:
+        _recover_pending_signals(w, s)
 
 
 async def restart_worker(worker_id: str) -> str | None:
@@ -1761,10 +1835,25 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
         seq = w._task_counter
 
     w.last_activity = time.monotonic()
-    # 唤醒信号：真源（落盘 queue_pending）迁移完成前暂以完整 item 入队
-    # （_consumer 仍需 text/seq/taskId 配对）；迁移后本队列只放 item.id
-    # （立项 4.3/4.7）。
-    await w.pending_signal.put({"text": text, "source": source, "seq": seq, "taskId": task_id})
+
+    # L4 落盘改造：任务 item 持久化到 session.queue_pending（落盘真源），
+    # pending_signal 只放 task_signal 唤醒信号（携带 item.id），正文由 _consumer
+    # 按 id 从真源拉取——worker 死亡/回收后任务不丢，重启后由 create_worker /
+    # 全局 watchdog 自动恢复消费。
+    item = {
+        "type": "task",
+        "id": uuid.uuid4().hex,
+        "text": text,
+        "source": source,
+        "seq": seq,
+        "taskId": task_id,
+    }
+    s = _session(w)
+    if s is None:
+        return f"Session {w.session_id} not found"
+    s.queue_pending.append(item)
+    await _sess.save_async(s)
+    await w.pending_signal.put({"type": "task_signal", "id": item["id"]})
 
     # queued：任务已入队、consumer 尚未取出。若队列前面还有任务，保持 queued 直到轮到它。
     if w.status in ("idle", "queued"):

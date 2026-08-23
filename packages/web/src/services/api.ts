@@ -23,6 +23,7 @@ import type {
   ApiFsGenericResponse,
   FsEntry,
   ApiClaimResponse,
+  ApiReportSubscribeResponse,
   ApiQqContactsResponse,
   ApiQqSubscribeResponse,
   QqContact,
@@ -183,6 +184,38 @@ export async function unclaimSession(
   if (data.ok === false) {
     throw new Error(data.error?.message || 'Unclaim failed');
   }
+  return data;
+}
+
+// ── Report subscription (meta-agent subscribes to managed-session reports) ──
+
+export async function reportSubscribe(
+  managerId: string,
+  sessionId: string,
+): Promise<ApiReportSubscribeResponse> {
+  const data = await request<ApiReportSubscribeResponse>(
+    `${BASE}/report-subscribe`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ managerId, sessionId }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function reportUnsubscribe(
+  managerId: string,
+  sessionId: string,
+): Promise<ApiReportSubscribeResponse> {
+  const data = await request<ApiReportSubscribeResponse>(
+    `${BASE}/report-unsubscribe`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ managerId, sessionId }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
   return data;
 }
 

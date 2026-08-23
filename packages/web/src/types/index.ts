@@ -111,6 +111,14 @@ export interface ApiClaimResponse {
   error?: ApiErrorInfo;
 }
 
+export interface ApiReportSubscribeResponse {
+  managerId?: string;
+  sessionId?: string;
+  subscribed?: boolean;
+  reportSubscriptions?: string[];
+  error?: string;
+}
+
 export interface QqContact {
   peerName: string;
   peerUin: string;

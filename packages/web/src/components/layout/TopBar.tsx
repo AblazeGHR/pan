@@ -14,13 +14,12 @@ import {
   Ban,
   Download,
   X,
-  Settings,
 } from 'lucide-react';
 
 export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
-  const { showToast, toggleBubbleView, bubbleViewEnabled, settingsOpen, toggleSettings } =
+  const { showToast, toggleBubbleView, bubbleViewEnabled } =
     useUIStore();
   const { restart, startWorker, killCurrent, interrupt, takeover } =
     useWorkerStore();
@@ -208,16 +207,6 @@ export function TopBar() {
             Start
           </Button>
         )}
-        {/* Gear — opens the session SettingsPanel (mirrors vanilla's ⚙ hint) */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleSettings}
-          title="Session settings"
-          className={settingsOpen ? 'text-accent' : ''}
-        >
-          <Settings size={14} />
-        </Button>
       </div>
     </div>
   );

@@ -370,9 +370,13 @@ def claim(manager_id: str, session_id: str) -> str | None:
 
     Refuses (returns an error string) if the target session is already managed
     by a different session. No-op success when the relationship already holds.
+    Refuses self-claim (manager_id == session_id): a session cannot manage or
+    subscribe to itself.
 
     Returns None on success, or an error message string on refusal.
     """
+    if manager_id == session_id:
+        return f"Cannot claim itself ({session_id})"
     manager = get(manager_id)
     if manager is None:
         return f"Manager session {manager_id} not found"
@@ -434,9 +438,12 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
 
     Only the current manager may unclaim. Also purges the manager's
     ``report_subscriptions`` for session_id (解除管理即退订完成报告).
+    Refuses self-unclaim (manager_id == session_id, defensive).
 
     Returns None on success, or an error message string.
     """
+    if manager_id == session_id:
+        return f"Cannot unclaim itself ({session_id})"
     manager = get(manager_id)
     if manager is None:
         return f"Manager session {manager_id} not found"

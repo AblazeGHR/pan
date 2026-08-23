@@ -1310,6 +1310,9 @@ async def api_report_subscribe(data: dict):
     session_id = (data.get("sessionId") or "").strip()
     if not manager_id or not session_id:
         return {"error": "managerId and sessionId are required"}
+    # 禁止自订阅：meta-agent 不能订阅自己（自管理/自订阅无意义且会自我唤醒）
+    if manager_id == session_id:
+        return {"error": f"Cannot subscribe to itself ({session_id})"}
     manager = sess.get(manager_id)
     if not manager:
         return {"error": f"Manager session {manager_id} not found"}

@@ -40,13 +40,13 @@ export function Modal({ open, onClose, title, children, className = '', size = '
   return createPortal(
     <div
       ref={overlayRef}
-      className="modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/50"
+      className="modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
     >
       <div
-        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full mx-4 max-h-[85vh] flex flex-col overflow-hidden ${sizeClasses[size]} ${className}`}
+        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-h-[85vh] flex flex-col overflow-hidden ${sizeClasses[size]} ${className}`}
       >
         {title && (
           <div className="flex items-center justify-between border-b border-border-default px-4 py-3">

@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { claimSession, unclaimSession } from '@/services/api';
+import {
+  claimSession,
+  unclaimSession,
+  reportSubscribe,
+  reportUnsubscribe,
+} from '@/services/api';
 import { Search } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
@@ -46,6 +51,14 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   // Live set of sessions this manager already claims.
   const managedIds = useMemo(
     () => new Set<string>(session?.managed ?? []),
+    [session],
+  );
+
+  // Live set of sessions this manager subscribes to completion reports.
+  // (Claim auto-subscribes on the backend, so these usually overlap with
+  // `managed` — the subscribe checkbox independently controls them.)
+  const subscribedIds = useMemo(
+    () => new Set<string>(session?.reportSubscriptions ?? []),
     [session],
   );
 
@@ -104,8 +117,32 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
     }
   };
 
+  const toggleSubscribe = async (targetId: string, checked: boolean) => {
+    if (!managerId || busyId) return;
+    setBusyId(targetId);
+    const target = sessions.find((s) => s.id === targetId);
+    const label = target?.name || targetId;
+    try {
+      if (checked) {
+        await reportSubscribe(managerId, targetId);
+        showToast(`Subscribed to "${label}" reports`);
+      } else {
+        await reportUnsubscribe(managerId, targetId);
+        showToast(`Unsubscribed from "${label}" reports`);
+      }
+      await loadSessions();
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : 'Subscribe failed',
+        'error',
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
-    <Modal open={open} onClose={onClose} title="Manage Sessions" size="md">
+    <Modal open={open} onClose={onClose} title="Manage Sessions" size="lg">
       <div className="flex flex-col gap-3">
         {!managerId && (
           <div className="py-6 text-center text-sm text-text-tertiary">
@@ -139,7 +176,8 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
 
             <div className="flex items-center justify-between text-[11px] text-text-tertiary">
               <span>
-                {managedIds.size} managed &middot; {filtered.length} available
+                {managedIds.size} managed &middot; {subscribedIds.size}{' '}
+                subscribed &middot; {filtered.length} available
               </span>
             </div>
 
@@ -163,6 +201,11 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
                     disabled={busyId !== null}
                     onChange={(e) => toggle(c.id, e.target.checked)}
                     className="accent-accent shrink-0"
+                    title={
+                      managedIds.has(c.id)
+                        ? 'Uncheck to stop managing'
+                        : 'Check to manage (also subscribes to reports)'
+                    }
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-text-primary truncate">
@@ -177,6 +220,23 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
                       {c.adapter}
                     </span>
                   )}
+                  {managedIds.has(c.id) && (
+                    <span className="shrink-0 rounded bg-accent/15 px-1.5 py-px text-[10px] font-medium text-accent">
+                      managed
+                    </span>
+                  )}
+                  <input
+                    type="checkbox"
+                    checked={subscribedIds.has(c.id)}
+                    disabled={busyId !== null}
+                    onChange={(e) => toggleSubscribe(c.id, e.target.checked)}
+                    className="accent-accent shrink-0"
+                    title={
+                      subscribedIds.has(c.id)
+                        ? 'Unsubscribe from completion reports'
+                        : 'Subscribe to completion reports'
+                    }
+                  />
                 </label>
               ))}
             </div>

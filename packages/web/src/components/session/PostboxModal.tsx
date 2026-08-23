@@ -102,7 +102,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="QQ Postbox" size="md">
+    <Modal open={open} onClose={onClose} title="QQ Postbox" size="lg">
       <div className="flex flex-col gap-3">
         {!sessionIdValue && (
           <div className="py-6 text-center text-sm text-text-tertiary">
