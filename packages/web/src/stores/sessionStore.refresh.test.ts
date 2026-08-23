@@ -195,4 +195,54 @@ describe('sessionStore refresh staleness guards', () => {
     });
     expect(useSessionStore.getState().sessions.map((s) => s.id)).toEqual(['B']);
   });
+
+  it('carries the last-known workerId across a summary refresh while the worker is alive', async () => {
+    // summary=1 omits workerId (server.py `_session_summary`) — a session whose
+    // worker is alive (workerStatus present) must keep resolving its workerId
+    // after a plain list refresh.
+    useSessionStore.setState({
+      sessions: [mk('A', 'A', { workerStatus: 'idle', workerId: 'w1' })],
+      currentSessionId: null,
+    });
+    // Bump _touchSeq with an unrelated session update so this fetch does NOT
+    // take the WS-touch fast path (wsTouchedSeq['A'] < touchSeqAtStart).
+    act(() => {
+      useSessionStore.getState().updateSession('B', { workerStatus: 'idle' });
+    });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().loadSessions();
+    });
+    await act(async () => {
+      // Snapshot mirrors summary=1: workerStatus present, workerId absent.
+      resolveNextFetch([mk('A', 'A', { workerStatus: 'idle', history: [] })]);
+      await promise!;
+    });
+
+    expect(useSessionStore.getState().sessions[0]?.workerId).toBe('w1');
+  });
+
+  it('drops workerId once the server stops reporting a live worker', async () => {
+    // After a kill/crash the summary flips workerStatus to null — the stale
+    // workerId must not keep the worker-action buttons alive.
+    useSessionStore.setState({
+      sessions: [mk('A', 'A', { workerStatus: 'idle', workerId: 'w1' })],
+      currentSessionId: null,
+    });
+    act(() => {
+      useSessionStore.getState().updateSession('B', { workerStatus: 'idle' });
+    });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().loadSessions();
+    });
+    await act(async () => {
+      resolveNextFetch([mk('A', 'A', { workerStatus: null, history: [] })]);
+      await promise!;
+    });
+
+    expect(useSessionStore.getState().sessions[0]?.workerId).toBeFalsy();
+  });
 });

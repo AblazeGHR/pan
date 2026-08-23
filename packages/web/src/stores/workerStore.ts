@@ -11,6 +11,25 @@ import {
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 
+/** Resolve the worker whose id equals currentWorkerId. `workers` is keyed by
+ *  sessionId (one worker per session), so indexing `workers[currentWorkerId]`
+ *  (a workerId) would always miss — scan the values instead.
+ *
+ *  NOTE: this must be maintained as explicit state (not a Zustand getter):
+ *  v5 `setState` rebuilds the state object via Object.assign, which copies the
+ *  getter's *value from the previous state* and then freezes it — a getter
+ *  never sees fresh state after the first set. */
+function findWorker(
+  workers: Record<string, WorkerInfo>,
+  workerId: string | null,
+): WorkerInfo | null {
+  if (!workerId) return null;
+  for (const w of Object.values(workers)) {
+    if (w.id === workerId) return w;
+  }
+  return null;
+}
+
 interface WorkerStore {
   workers: Record<string, WorkerInfo>;
   currentWorkerId: string | null;
@@ -33,31 +52,25 @@ interface WorkerStore {
   refresh: () => Promise<void>;
 }
 
-export const useWorkerStore = create<WorkerStore>((set, get) => ({
+export const useWorkerStore = create<WorkerStore>((set) => ({
   workers: {},
   currentWorkerId: null,
-
-  get currentWorker() {
-    const { currentWorkerId, workers } = get();
-    return currentWorkerId ? workers[currentWorkerId] ?? null : null;
-  },
+  currentWorker: null,
 
   startWorker: async (sessionId, settings) => {
     try {
       const result = await spawnWorker(sessionId, settings);
       const workerId = result.workerId;
       if (workerId) {
-        set({ currentWorkerId: workerId });
-        set((s) => ({
-          workers: {
-            ...s.workers,
-            [sessionId]: {
-              id: workerId,
-              sessionId,
-              status: 'idle',
-            },
-          },
-        }));
+        set((s) => {
+          const worker: WorkerInfo = { id: workerId, sessionId, status: 'idle' };
+          const workers = { ...s.workers, [sessionId]: worker };
+          return {
+            currentWorkerId: workerId,
+            workers,
+            currentWorker: findWorker(workers, workerId),
+          };
+        });
       }
     } catch (e) {
       throw e;
@@ -67,7 +80,7 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
   killCurrent: async (workerId) => {
     try {
       await killWorker(workerId);
-      set({ currentWorkerId: null });
+      set({ currentWorkerId: null, currentWorker: null });
     } catch (e) {
       throw e;
     }
@@ -110,19 +123,28 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
       // hijack the toolbar buttons).
       const currentSessionId = useSessionStore.getState().currentSessionId;
       const isCurrentSession = sessionId === currentSessionId;
+      const workers = { ...s.workers, [sessionId]: now };
+      const currentWorkerId = isCurrentSession
+        ? workerId || null
+        : s.currentWorkerId;
       return {
-        workers: { ...s.workers, [sessionId]: now },
-        currentWorkerId: isCurrentSession
-          ? workerId || null
-          : s.currentWorkerId,
+        workers,
+        currentWorkerId,
+        currentWorker: findWorker(workers, currentWorkerId),
       };
     });
   },
 
   syncToSession: (sessionId) => {
-    set((s) => ({
-      currentWorkerId: sessionId ? s.workers[sessionId]?.id ?? null : null,
-    }));
+    set((s) => {
+      const currentWorkerId = sessionId
+        ? s.workers[sessionId]?.id ?? null
+        : null;
+      return {
+        currentWorkerId,
+        currentWorker: findWorker(s.workers, currentWorkerId),
+      };
+    });
   },
 
   refresh: async () => {
@@ -136,11 +158,15 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
           status: w.status as WorkerInfo['status'],
         };
       }
-      set({ workers: map });
       // Pre-existing workers (spawned before this page loaded) never fire a
       // worker.spawned event — pick up the current session's worker here.
       const sid = useSessionStore.getState().currentSessionId;
-      if (sid) get().syncToSession(sid);
+      const currentWorkerId = sid ? map[sid]?.id ?? null : null;
+      set({
+        workers: map,
+        currentWorkerId,
+        currentWorker: findWorker(map, currentWorkerId),
+      });
     } catch {
       // ignore
     }

@@ -151,6 +151,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               workerId: cur.workerId ?? sess.workerId,
             };
           }
+          // summary=1 omits workerId (server.py `_session_summary`) — carry the
+          // last-known value forward so the toolbar / worker actions keep
+          // resolving the worker after a plain list refresh. Only when the
+          // server still reports a live worker (workerStatus present): once the
+          // worker is killed/crashed the summary flips workerStatus to null,
+          // and a dead workerId must not keep the action buttons alive.
+          const carryWorkerId =
+            cur.workerId && sess.workerStatus ? cur.workerId : sess.workerId;
           // summary=1 omits the per-session settings — keep the current
           // session's known values (loaded on demand via the settings popover)
           // across refreshes so the pills / effort select don't flip to
@@ -164,9 +172,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 sess.alwaysThinkingEnabled ?? cur.alwaysThinkingEnabled,
               effort: sess.effort || cur.effort || '',
               workdir: sess.workdir ?? cur.workdir,
+              workerId: carryWorkerId,
             };
           }
-          return sess;
+          return carryWorkerId ? { ...sess, workerId: carryWorkerId } : sess;
         });
         return { sessions: merged };
       });
