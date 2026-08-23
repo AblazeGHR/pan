@@ -8,7 +8,7 @@ interface ChatLayoutProps {
 
 export function ChatLayout({ children }: ChatLayoutProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       <TopBar />
       <div className="flex-1 min-h-0 overflow-hidden">
         {children}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { SessionItem } from './SessionItem';
@@ -90,8 +90,25 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const selectSession = useSessionStore((s) => s.selectSession);
   const toggleSelection = useSessionStore((s) => s.toggleSelection);
 
-  const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse, addCollapsedGroups, removeCollapsedGroups } =
+  const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse, addCollapsedGroups, removeCollapsedGroups, pruneCollapsedGroups } =
     useUIStore();
+
+  // Keep collapsedGroups consistent with the live tree: drop stale keys left
+  // behind by session placeholders (`__pending_*`) or deleted sessions so a
+  // newly-joined manager group toggles immediately without a refresh.
+  useEffect(() => {
+    if (groupBy !== 'manager' && groupBy !== 'workdir') return;
+    const valid = new Set<string>();
+    if (groupBy === 'manager') {
+      for (const s of sessions) valid.add(s.id);
+    } else {
+      for (const s of sessions) {
+        if (s.workdir) valid.add(stripPrefix(s.workdir));
+      }
+      valid.add('__no_workdir');
+    }
+    pruneCollapsedGroups(valid);
+  }, [sessions, groupBy, pruneCollapsedGroups]);
 
   const { filtered, grouped, managerTree } = useMemo(() => {
     let filtered = [...sessions];
@@ -324,17 +341,25 @@ function ManagerNodeView({
       {hasChildren && !collapsed && (
         <div className="ml-3 border-l border-border-muted">
           {node.children.map((child) => (
-            <ManagerNodeView
-              key={child.session.id}
-              node={child}
-              currentSessionId={currentSessionId}
-              selectedIds={selectedIds}
-              multiSelectMode={multiSelectMode}
-              collapsedGroups={collapsedGroups}
-              onSelect={onSelect}
-              onMenu={onMenu}
-              onToggle={onToggle}
-            />
+            <div key={child.session.id} className="relative">
+              {/* Tree connector: horizontal tick from the left guide into this
+                  child row (├─ style), making the parent→child ownership
+                  visually explicit. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -left-3 top-[0.875rem] h-px w-6 bg-border-muted"
+              />
+              <ManagerNodeView
+                node={child}
+                currentSessionId={currentSessionId}
+                selectedIds={selectedIds}
+                multiSelectMode={multiSelectMode}
+                collapsedGroups={collapsedGroups}
+                onSelect={onSelect}
+                onMenu={onMenu}
+                onToggle={onToggle}
+              />
+            </div>
           ))}
         </div>
       )}

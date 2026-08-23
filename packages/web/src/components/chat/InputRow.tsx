@@ -315,7 +315,7 @@ export function InputRow() {
   const hasToolbar = currentSession && (showModelPill || showPermPill || showThinking);
 
   return (
-    <div className="border-t border-border-default bg-bg-primary">
+    <div className="shrink-0 w-full border-t border-border-default bg-bg-primary">
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
       <SendQueuePanel />
 

@@ -9,7 +9,7 @@ export default function ChatView() {
 
   return (
     <ChatLayout>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full min-h-0">
         <ChatMessages />
         <InputRow />
       </div>

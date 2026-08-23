@@ -29,6 +29,17 @@ interface SessionStore {
   sessionUnread: Record<string, Set<string>>;
   rendering: boolean;
 
+  // ── Internal staleness guards ──
+  // Incremented on every loadSessions() start so an older in-flight response
+  // can never overwrite a newer refresh.
+  _loadSeq: number;
+  // Global monotonic touch counter; per-session snapshots of it let
+  // loadSessions() skip reverting workerStatus/workerId that WS events
+  // freshened while its own HTTP request was in flight.
+  _touchSeq: number;
+  // sessionId → touchSeq of the last workerStatus/workerId update (WS events).
+  _sessionWsTouchedSeq: Record<string, number>;
+
   // Actions
   loadSessions: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
@@ -48,7 +59,6 @@ interface SessionStore {
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
   updateSession: (id: string, data: Partial<Session>) => void;
-  updateFromServer: (id: string, session: Session) => void;
   toggleMultiSelect: (id?: string) => void;
   toggleSelection: (id: string) => void;
   exitMultiSelect: () => void;
@@ -64,6 +74,25 @@ interface SessionStore {
 // (via useSyncExternalStore) triggers infinite re-renders → React #185.
 const EMPTY_UNREAD_SET: Set<string> = new Set();
 
+/** True when the server-reported history is a prefix of the locally-rendered
+ *  history (element-wise by role+content). A stale snapshot during streaming
+ *  is exactly this — the backend persists each streamed block slightly after
+ *  broadcasting it, so its history lags what we already show locally. Blindly
+ *  overwriting `currentMessages` with such a prefix would wipe the in-flight
+ *  assistant reply. Mirrors the legacy frontend's `_isServerHistoryPrefix`. */
+function isServerHistoryPrefix(
+  localHistory: Message[],
+  serverHistory: Message[],
+): boolean {
+  if (serverHistory.length > localHistory.length) return false;
+  for (let i = 0; i < serverHistory.length; i++) {
+    const s = serverHistory[i];
+    const c = localHistory[i];
+    if (!s || !c || s.role !== c.role || s.content !== c.content) return false;
+  }
+  return true;
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   currentSessionId: null,
@@ -76,23 +105,64 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   inputDrafts: {},
   sessionUnread: {},
   rendering: false,
+  _loadSeq: 0,
+  _touchSeq: 0,
+  _sessionWsTouchedSeq: {},
 
   loadSessions: async () => {
+    // Reserve this refresh's sequence + snapshot the touch counter so a stale
+    // in-flight response can neither overwrite a newer refresh nor revert
+    // sessions that were locally freshened while the request was in flight.
+    const loadSeq = get()._loadSeq + 1;
+    const touchSeqAtStart = get()._touchSeq;
+    set({ _loadSeq: loadSeq });
     try {
       const sessions = await fetchSessions();
-      const { currentSessionId } = get();
-      set({ sessions });
-      // Restore current session messages after refresh
+      if (get()._loadSeq !== loadSeq) return; // superseded by a newer refresh
+      const { currentSessionId, currentMessages } = get();
+      const wsTouchedSeq = get()._sessionWsTouchedSeq;
+
+      set((s) => {
+        // Merge the snapshot with locally-fresher workerStatus/workerId: WS
+        // worker events that landed while this fetch was in flight are newer
+        // than the snapshot — don't let a stale snapshot revert the card's
+        // status dot (mirrors legacy `_wsWorkerTs` re-apply).
+        const merged = sessions.map((sess) => {
+          const sid = sess.id;
+          const cur = s.sessions.find((x) => x.id === sid);
+          if (cur && (wsTouchedSeq[sid] ?? 0) > touchSeqAtStart) {
+            return {
+              ...sess,
+              workerStatus: cur.workerStatus ?? sess.workerStatus,
+              workerId: cur.workerId ?? sess.workerId,
+            };
+          }
+          return sess;
+        });
+        return { sessions: merged };
+      });
+
+      // Restore current session messages after refresh — but NEVER clobber the
+      // live-rendered messages with a stale snapshot. While streaming, the
+      // server history is a prefix of what we already show locally (the
+      // backend persists each block slightly after broadcasting it), so a
+      // blind overwrite would wipe the in-flight assistant reply (bug: needs
+      // a manual refresh to reappear).
       if (currentSessionId) {
         const found = sessions.find((s) => s.id === currentSessionId);
         if (found) {
+          const serverHistory = found.history || [];
+          const keepLocal = isServerHistoryPrefix(
+            currentMessages,
+            serverHistory,
+          );
           set({
-            currentMessages: found.history || [],
+            currentMessages: keepLocal ? currentMessages : serverHistory,
             hasMoreMessages: !!found.historyTruncated,
             historyLoadEnd: Math.max(
               0,
-              (found.historyTotal ?? (found.history || []).length) -
-                (found.history || []).length,
+              (found.historyTotal ?? serverHistory.length) -
+                serverHistory.length,
             ),
           });
         } else {
@@ -209,15 +279,28 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       const session = await createSession(name, workdir, adapter, sessionTemplate);
       set((s) => {
-        const sessions = s.sessions.map((se) =>
-          se.id === placeholder.id ? session : se,
+        // Drop the placeholder first — a concurrent loadSessions() (e.g. from
+        // a WS event) may have overwritten `sessions` while the create call was
+        // in flight, so the placeholder may no longer be present. Blindly using
+        // .map() would then fail to insert the real session and it would not
+        // appear until a later reload/refresh.
+        const withoutPlaceholder = s.sessions.filter(
+          (se) => se.id !== placeholder.id,
         );
+        // Only append the real session if a concurrent reload didn't already
+        // bring it in (avoids a duplicate row).
+        const sessions = withoutPlaceholder.some((se) => se.id === session.id)
+          ? withoutPlaceholder
+          : [...withoutPlaceholder, session];
+        // A concurrent loadSessions() also resets currentSessionId to null
+        // when it can't find the client-only placeholder in the server list —
+        // treat that as "still the newly created session" so the selection
+        // lands on the real session.
+        const wasCurrent =
+          s.currentSessionId === placeholder.id || s.currentSessionId === null;
         return {
           sessions,
-          currentSessionId:
-            s.currentSessionId === placeholder.id
-              ? session.id
-              : s.currentSessionId,
+          currentSessionId: wasCurrent ? session.id : s.currentSessionId,
         };
       });
     } catch (e) {
@@ -341,18 +424,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   updateSession: (id: string, data: Partial<Session>) => {
+    const touchSeq = get()._touchSeq + 1;
     set((s) => ({
       sessions: s.sessions.map((session) =>
         session.id === id ? { ...session, ...data } : session,
       ),
-    }));
-  },
-
-  updateFromServer: (id: string, serverSession: Session) => {
-    set((s) => ({
-      sessions: s.sessions.map((session) =>
-        session.id === id ? serverSession : session,
-      ),
+      _touchSeq: touchSeq,
+      _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [id]: touchSeq },
     }));
   },
 

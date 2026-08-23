@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -31,7 +32,12 @@ export function Modal({ open, onClose, title, children, className = '', size = '
 
   if (!open) return null;
 
-  return (
+  // Render through a portal to <body>. The modals are opened from the sidebar,
+  // whose mobile container uses `transform` (translateX) — a transformed
+  // ancestor becomes the containing block for `position: fixed` descendants,
+  // which would otherwise clamp the overlay to the sidebar width and squash
+  // the content into a vertical line.
+  return createPortal(
     <div
       ref={overlayRef}
       className="modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/50"
@@ -56,6 +62,7 @@ export function Modal({ open, onClose, title, children, className = '', size = '
         )}
         <div className="p-4 overflow-y-auto flex-1">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -98,7 +98,7 @@ export function ChatMessages() {
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div
         ref={parentRef}
-        className={`flex-1 overflow-auto ${!bubbleViewEnabled ? 'tui-mode' : ''}`}
+        className={`flex-1 min-h-0 overflow-auto ${!bubbleViewEnabled ? 'tui-mode' : ''}`}
       >
         <div
           style={{

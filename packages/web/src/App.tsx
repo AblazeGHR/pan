@@ -46,17 +46,18 @@ function Layout() {
 
   return (
     <div
-      className="h-screen bg-bg-primary text-text-primary overflow-hidden"
+      className="h-screen supports-[height:100dvh]:h-dvh bg-bg-primary text-text-primary overflow-hidden"
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto 0 minmax(0,1fr) 0 auto',
       }}
     >
-      {/* Mobile hamburger button */}
-      {isMobile && (
+      {/* Mobile hamburger button — hidden while the sidebar is open so it
+          doesn't float above the overlay/sidebar and block the view. */}
+      {isMobile && !sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="fixed top-2 left-2 z-50 rounded bg-bg-tertiary border border-border-default p-1.5 text-text-primary"
+          className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] left-2 z-50 rounded bg-bg-tertiary border border-border-default p-1.5 text-text-primary"
           title="Toggle sidebar"
         >
           ☰
@@ -93,7 +94,7 @@ function Layout() {
 
       {/* Main content — grid column 3 */}
       <main
-        className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-10' : ''}`}
+        className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-[calc(env(safe-area-inset-top)+2.5rem)]' : ''}`}
         style={{ gridColumn: '3' }}
       >
         <Outlet />

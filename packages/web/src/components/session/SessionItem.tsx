@@ -1,6 +1,6 @@
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
-import { MessageSquare, Folder, Monitor, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
+import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface SessionItemProps {
   session: Session;
@@ -158,9 +158,9 @@ export function SessionItem({
             onMenu?.(e);
           }}
           className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
-          title="Session menu"
+          title="Session actions"
         >
-          <MoreVertical size={14} />
+          <Settings size={14} />
         </button>
       )}
     </div>

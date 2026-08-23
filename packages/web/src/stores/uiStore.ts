@@ -124,6 +124,10 @@ interface UIStore {
   expandAllGroups: () => void;
   addCollapsedGroups: (ids: string[]) => void;
   removeCollapsedGroups: (ids: string[]) => void;
+  /** Drop collapsed keys that no longer correspond to a live group/session
+   *  (e.g. stale `__pending_*` placeholders or deleted sessions), keeping the
+   *  set consistent with the current tree. */
+  pruneCollapsedGroups: (validKeys: Set<string>) => void;
   toggleFilesCollapsed: () => void;
   toggleTheme: () => void;
 }
@@ -237,6 +241,22 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set((s) => {
       const next = new Set(s.collapsedGroups);
       for (const id of ids) next.delete(id);
+      return { collapsedGroups: next };
+    });
+  },
+
+  pruneCollapsedGroups: (validKeys) => {
+    set((s) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const k of s.collapsedGroups) {
+        if (validKeys.has(k)) {
+          next.add(k);
+        } else {
+          changed = true;
+        }
+      }
+      if (!changed) return {};
       return { collapsedGroups: next };
     });
   },

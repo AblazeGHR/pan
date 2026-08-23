@@ -1,6 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import {
+  Pencil,
+  RotateCcw,
+  GitBranch,
+  Settings,
+  Mail,
+  ListChecks,
+  Trash2,
+} from 'lucide-react';
 import type { Session } from '@/types';
 
 interface SessionMenuProps {
@@ -98,49 +107,56 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox }:
     >
       <button
         onClick={handleRename}
-        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
       >
+        <Pencil size={12} className="text-text-tertiary shrink-0" />
         Rename
       </button>
       {session.cliSessionId && (
         <>
           <button
             onClick={handleReimport}
-            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
           >
+            <RotateCcw size={12} className="text-text-tertiary shrink-0" />
             Reimport
           </button>
           <button
             onClick={handleBranch}
-            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
           >
+            <GitBranch size={12} className="text-text-tertiary shrink-0" />
             Branch
           </button>
         </>
       )}
       <button
         onClick={handleManage}
-        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
       >
+        <Settings size={12} className="text-text-tertiary shrink-0" />
         Manage
       </button>
       <button
         onClick={handlePostbox}
-        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
       >
+        <Mail size={12} className="text-text-tertiary shrink-0" />
         Postbox
       </button>
       <button
         onClick={handleMultiSelect}
-        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
       >
+        <ListChecks size={12} className="text-text-tertiary shrink-0" />
         Select
       </button>
       <div className="border-t border-border-muted my-1" />
       <button
         onClick={handleDelete}
-        className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-danger/10 transition-colors"
+        className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-danger/10 transition-colors flex items-center gap-2"
       >
+        <Trash2 size={12} className="shrink-0" />
         Delete
       </button>
     </div>

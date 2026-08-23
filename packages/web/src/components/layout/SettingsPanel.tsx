@@ -5,6 +5,7 @@ import { useWorkerStore } from '@/stores/workerStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { Button } from '@/components/ui/Button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import type { SyncedSettings, SettingsBody, PermissionMode } from '@/types';
 
 export function SettingsPanel() {
@@ -46,6 +47,8 @@ export function SettingsPanel() {
   const [alwaysThinking, setAlwaysThinking] = useState(false);
   const [effort, setEffort] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
+  // Mobile: "Worker 操作" collapsible section (default collapsed)
+  const [workerOpen, setWorkerOpen] = useState(false);
 
   // Load adapter config when panel opens or session changes
   useEffect(() => {
@@ -157,8 +160,72 @@ export function SettingsPanel() {
   const showThinking = supportsSetting(config, 'thinking');
   const showEffort = showThinking && supportsSetting(config, 'effort') && alwaysThinking;
 
+  // Worker action buttons — shared by the desktop section (always visible) and
+  // the mobile collapsible "Worker 操作" section.
+  const workerActions = (
+    <div className="flex flex-col gap-1.5">
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => {
+          const workerId = effectiveWorkerId;
+          if (workerId) {
+            restart(workerId).catch((e) => showToast(e.message, 'error'));
+          } else if (session?.id) {
+            // No worker yet — spawn one (mirrors TopBar "Start").
+            startWorker(session.id).catch((e) =>
+              showToast(e.message, 'error'),
+            );
+          }
+        }}
+      >
+        ⟳ Restart
+      </Button>
+      {effectiveWorkerId && (
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              interrupt(effectiveWorkerId).catch((e) =>
+                showToast(e.message, 'error'),
+              )
+            }
+          >
+            ⊘ Interrupt
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              takeover(effectiveWorkerId)
+                .then(() =>
+                  showToast('PowerShell opened for takeover'),
+                )
+                .catch((e) => showToast(e.message, 'error'))
+            }
+          >
+            ⤓ Takeover
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
+              killCurrent(effectiveWorkerId).catch((e) =>
+                showToast(e.message, 'error'),
+              );
+            }}
+          >
+            ✕ Kill
+          </Button>
+        </>
+      )}
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-bg-primary p-4 pt-14 md:relative md:inset-auto md:z-auto md:border-t md:border-border-default md:bg-bg-secondary md:p-4" role="region">
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-bg-primary p-4 pt-[calc(env(safe-area-inset-top)+3.5rem)] md:relative md:inset-auto md:z-auto md:border-t md:border-border-default md:bg-bg-secondary md:p-4" role="region">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-text-primary">Settings</h3>
         <Button variant="ghost" size="sm" onClick={toggleSettings}>
@@ -221,9 +288,9 @@ export function SettingsPanel() {
               </div>
             )}
 
-            {/* Thinking */}
+            {/* Thinking + Effort (effort sits inline, next to thinking) */}
             {showThinking && (
-              <div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
                   <input
                     type="checkbox"
@@ -233,22 +300,20 @@ export function SettingsPanel() {
                   />
                   Always Thinking
                 </label>
-              </div>
-            )}
-
-            {/* Effort */}
-            {showEffort && effortValues.length > 0 && (
-              <div>
-                <label className="block text-xs text-text-secondary mb-1">Effort</label>
-                <select
-                  value={effort}
-                  onChange={(e) => setEffort(e.target.value)}
-                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
-                >
-                  {effortValues.map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
+                {showEffort && effortValues.length > 0 && (
+                  <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+                    <span className="whitespace-nowrap">Effort</span>
+                    <select
+                      value={effort}
+                      onChange={(e) => setEffort(e.target.value)}
+                      className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                    >
+                      {effortValues.map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </div>
             )}
 
@@ -267,70 +332,36 @@ export function SettingsPanel() {
 
           {/* Right column: Worker actions */}
           <div className={isMobile ? 'pt-2 border-t border-border-muted' : ''}>
-            <h4 className="text-xs font-semibold text-text-secondary mb-2">
-              Worker
-            </h4>
-            <div className="flex flex-col gap-1.5">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  const workerId = effectiveWorkerId;
-                  if (workerId) {
-                    restart(workerId).catch((e) => showToast(e.message, 'error'));
-                  } else if (session?.id) {
-                    // No worker yet — spawn one (mirrors TopBar "Start").
-                    startWorker(session.id).catch((e) =>
-                      showToast(e.message, 'error'),
-                    );
-                  }
-                }}
-              >
-                ⟳ Restart
-              </Button>
-              {effectiveWorkerId && (
-                <>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() =>
-                      interrupt(effectiveWorkerId).catch((e) =>
-                        showToast(e.message, 'error'),
-                      )
-                    }
-                  >
-                    ⊘ Interrupt
-                  </Button>
-                  {!isMobile && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() =>
-                        takeover(effectiveWorkerId)
-                          .then(() =>
-                            showToast('PowerShell opened for takeover'),
-                          )
-                          .catch((e) => showToast(e.message, 'error'))
-                      }
-                    >
-                      ⤓ Takeover
-                    </Button>
+            {isMobile ? (
+              /* Mobile: collapsible "Worker 操作" (default collapsed) */
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setWorkerOpen((v) => !v)}
+                  aria-expanded={workerOpen}
+                  className="flex w-full items-center justify-between py-1 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  <span className="flex items-center gap-1">
+                    <SlidersHorizontal size={12} />
+                    Worker 操作
+                  </span>
+                  {workerOpen ? (
+                    <ChevronUp size={12} />
+                  ) : (
+                    <ChevronDown size={12} />
                   )}
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => {
-                      if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
-                      killCurrent(effectiveWorkerId).catch((e) =>
-                        showToast(e.message, 'error'),
-                      );
-                    }}
-                  >
-                    ✕ Kill
-                  </Button>
-                </>
-              )}
-            </div>
+                </button>
+                {workerOpen && <div className="mt-1">{workerActions}</div>}
+              </div>
+            ) : (
+              /* Desktop: always visible */
+              <>
+                <h4 className="text-xs font-semibold text-text-secondary mb-2">
+                  Worker
+                </h4>
+                {workerActions}
+              </>
+            )}
           </div>
         </div>
       )}
