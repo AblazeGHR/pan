@@ -163,6 +163,20 @@ function handleWorkerUpdate(
   }
 }
 
+/** Python `json.dumps(input, separators=(',',':'), ensure_ascii=True)` 兼容的
+ *  序列化。后端 cbc adapter 落盘 tool_use 内容用 Python json.dumps（默认
+ *  ensure_ascii=True，中文/emoji 转义为小写 \uXXXX），而 JS `JSON.stringify`
+ *  不转义非 ASCII——同一 tool 消息前后端内容不一致会让 isServerHistoryPrefix
+ *  误判（→ loadSessions 全量重建时把刚发的乐观用户消息抹掉，长历史会话更易
+ *  触发）。此处按 Python 规则补转义；键序两端同源、均按插入序，其余转义规则
+ *  JSON.stringify 与 json.dumps 一致（代理对也逐半转义，与 Python 相同）。 */
+function pyJsonDumps(value: unknown): string {
+  return JSON.stringify(value).replace(
+    /[\u007f-\uffff]/g,
+    (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'),
+  );
+}
+
 function appendEvent(event: StreamEvent['event']): void {
   if (!event) return;
   const t = event.type;
@@ -184,7 +198,7 @@ function appendEvent(event: StreamEvent['event']): void {
         });
       } else if (b.type === 'tool_use') {
         const c =
-          (b.name || '') + '(' + JSON.stringify(b.input || {}) + ')';
+          (b.name || '') + '(' + pyJsonDumps(b.input || {}) + ')';
         store.markUnread(c);
         store.addMessage({ role: 'tool', content: c });
       }
