@@ -15,14 +15,28 @@ function Layout() {
   const navigate = useNavigate();
 
   // Track the real CSS-pixel viewport height so the app fills exactly the
-  // visible area. `100vh`/`100dvh` can resolve a few px too large at
-  // fractional zoom levels (90%/125%), pushing the bottom (send box / last
-  // message) below the visible viewport and making the page scroll.
+  // visible area. `window.innerHeight` alone can report the layout viewport a
+  // few px TALLER than the actual painted area at fractional zoom (90%/125%) —
+  // the bottom (send box / last message) then falls below the viewport. Taking
+  // the min with `visualViewport.height` (the truly-visible height) keeps the
+  // root never larger than what's actually on screen.
   const [viewportH, setViewportH] = useState<number | undefined>(() =>
-    typeof window !== 'undefined' ? window.innerHeight : undefined,
+    typeof window !== 'undefined'
+      ? Math.min(
+          window.innerHeight,
+          window.visualViewport?.height ?? window.innerHeight,
+        )
+      : undefined,
   );
   useEffect(() => {
-    const update = () => setViewportH(window.innerHeight);
+    const update = () => {
+      setViewportH(
+        Math.min(
+          window.innerHeight,
+          window.visualViewport?.height ?? window.innerHeight,
+        ),
+      );
+    };
     update();
     window.addEventListener('resize', update);
     const vv = window.visualViewport;
@@ -70,6 +84,7 @@ function Layout() {
         height: viewportH,
         display: 'grid',
         gridTemplateColumns: 'auto 0 minmax(0,1fr) 0 auto',
+        gridTemplateRows: 'minmax(0, 1fr)',
       }}
     >
       {/* Mobile hamburger button — hidden while the sidebar is open so it
@@ -114,7 +129,7 @@ function Layout() {
 
       {/* Main content — grid column 3 */}
       <main
-        className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-[calc(env(safe-area-inset-top)+0.5rem)]' : ''}`}
+        className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden ${isMobile ? 'pt-[calc(env(safe-area-inset-top)+0.5rem)]' : ''}`}
         style={{ gridColumn: '3' }}
       >
         <Outlet />
