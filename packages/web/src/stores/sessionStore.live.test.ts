@@ -59,10 +59,12 @@ function resolveNextHistory(r: HistoryFetch): void {
 function resetStore(): void {
   useSessionStore.setState({
     sessions: [],
+    sessionsLoading: false,
     currentSessionId: null,
     currentMessages: [],
     hasMoreMessages: false,
     historyLoading: false,
+    initialLoading: false,
     historyLoadEnd: 0,
     _loadSeq: 0,
     _touchSeq: 0,
@@ -180,6 +182,42 @@ describe('sessionStore selectSession fetches fresh history on entry', () => {
 
     expect(useSessionStore.getState().currentSessionId).toBe('B');
     expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([]);
+  });
+
+  it('flags initialLoading while the fresh-history fetch is in flight for an empty snapshot', async () => {
+    // summary=1 snapshot carries no per-session history → messages empty at
+    // entry, initialLoading must be true so the chat pane spins instead of
+    // showing the "no messages" empty state.
+    useSessionStore.setState({ sessions: [mk('A', 'A', { history: [] })] });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().selectSession('A');
+    });
+    expect(useSessionStore.getState().initialLoading).toBe(true);
+
+    // Fresh history resolves → loading ends.
+    await act(async () => {
+      resolveNextHistory({ history: [], total: 0, hasMore: false, start: 0 });
+      await promise!;
+    });
+    expect(useSessionStore.getState().initialLoading).toBe(false);
+  });
+
+  it('clears initialLoading when the fresh-history fetch fails', async () => {
+    historyShouldReject = true;
+    useSessionStore.setState({ sessions: [mk('A', 'A', { history: [] })] });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().selectSession('A');
+    });
+    expect(useSessionStore.getState().initialLoading).toBe(true);
+
+    await act(async () => {
+      await promise!;
+    });
+    expect(useSessionStore.getState().initialLoading).toBe(false);
   });
 });
 

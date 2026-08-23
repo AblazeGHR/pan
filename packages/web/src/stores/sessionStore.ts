@@ -18,10 +18,16 @@ import {
 interface SessionStore {
   // State
   sessions: Session[];
+  sessionsLoading: boolean;
   currentSessionId: string | null;
   currentMessages: Message[];
   hasMoreMessages: boolean;
   historyLoading: boolean;
+  /** 首次进入 session 时拉取 fresh history 的进行中标志。summary=1 快照不带
+   *  每条 history，selectSession 后 currentMessages 短暂为空——此时应显示转圈
+   *  loading，而非「无消息」空态。与 historyLoading（loadOlderMessages 用）
+   *  区分开：selectSession 故意不置 historyLoading=true（见下方注释）。 */
+  initialLoading: boolean;
   historyLoadEnd: number;
   multiSelectMode: boolean;
   selectedIds: Set<string>;
@@ -102,10 +108,12 @@ function isServerHistoryPrefix(
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
+  sessionsLoading: false,
   currentSessionId: null,
   currentMessages: [],
   hasMoreMessages: false,
   historyLoading: false,
+  initialLoading: false,
   historyLoadEnd: 0,
   multiSelectMode: false,
   selectedIds: new Set(),
@@ -122,7 +130,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // sessions that were locally freshened while the request was in flight.
     const loadSeq = get()._loadSeq + 1;
     const touchSeqAtStart = get()._touchSeq;
-    set({ _loadSeq: loadSeq });
+    set({ _loadSeq: loadSeq, sessionsLoading: true });
     try {
       // summary=1: lean list (no per-session history download). Card preview
       // comes from `lastMessage`, count from `historyTotal`; the selected
@@ -208,11 +216,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             currentSessionId: null,
             currentMessages: [],
             hasMoreMessages: false,
+            initialLoading: false,
           });
         }
       }
     } catch {
       console.warn('[sessionStore] loadSessions failed');
+    } finally {
+      // 只有最新的刷新请求拥有 sessionsLoading 标志：被更新请求取代的旧响应
+      // 在 finally 里不能清掉新请求的转圈状态（否则刷新瞬间 sidebar 闪烁）。
+      if (get()._loadSeq === loadSeq) set({ sessionsLoading: false });
     }
   },
 
@@ -243,6 +256,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         0,
         (session.historyTotal ?? loaded) - loaded,
       ),
+      // summary=1 快照不带每 session 的 history → 快照为空时，在下方 fresh
+      // history 拉取期间 chat 面板应显示转圈 loading，而不是「无消息」空态。
+      initialLoading: loaded === 0,
     });
 
     // 进入 session 后立即拉服务端最新历史替换快照。React 的快照只靠防抖
@@ -255,7 +271,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         0,
         50,
       );
-      if (get().currentSessionId !== id) return; // 用户已切走，丢弃过期结果
+      if (get().currentSessionId !== id) {
+        // 用户已切走，丢弃过期结果。若当前已无选中 session（如该 session 在
+        // 请求期间被删除），不会有后续 selectSession 重置 initialLoading——
+        // 这里兜底清掉，避免 chat 面板一直停在转圈。
+        if (!get().currentSessionId) set({ initialLoading: false });
+        return;
+      }
       const serverHistory = data.history || [];
       // 流式窗口防护：若服务端历史只是本地已渲染消息的前缀（部分块尚未
       // 落盘），保留本地，避免把正在流式的回复抹掉。
@@ -283,9 +305,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         currentMessages: keepLocal ? s.currentMessages : serverHistory,
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
+        initialLoading: false,
       }));
     } catch {
-      // 网络失败：保留快照（上方已 set），不阻塞切换
+      // 网络失败：保留快照（上方已 set），不阻塞切换。同样清掉
+      // initialLoading——否则「空快照 + 拉取失败」会让 chat 面板一直转圈。
+      if (get().currentSessionId === id || !get().currentSessionId) {
+        set({ initialLoading: false });
+      }
       console.warn('[sessionStore] selectSession fresh-history fetch failed', id);
     }
   },
@@ -356,6 +383,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({
       sessions: [...s.sessions, placeholder],
       currentSessionId: placeholder.id,
+      // 新 session 没有 history 需要拉取——清掉可能残留的 initialLoading，
+      // 否则空历史的新会话会一直显示转圈而非空态。
+      initialLoading: false,
     }));
 
     try {
@@ -383,11 +413,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         return {
           sessions,
           currentSessionId: wasCurrent ? session.id : s.currentSessionId,
+          initialLoading: false,
         };
       });
     } catch (e) {
       set((s) => ({
         sessions: s.sessions.filter((se) => se.id !== placeholder.id),
+        initialLoading: false,
       }));
       throw e;
     }
@@ -481,6 +513,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ),
         currentSessionId:
           s.currentSessionId === id ? newSession.id : s.currentSessionId,
+        initialLoading: false,
       }));
     } catch (e) {
       throw e;

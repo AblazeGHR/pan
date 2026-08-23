@@ -3,7 +3,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { SessionItem } from './SessionItem';
 import type { Session } from '@/types';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Loader2 } from 'lucide-react';
 
 interface SessionListProps {
   onSessionClick?: (id: string) => void;
@@ -84,6 +84,7 @@ function collectDescendantIds(node: ManagerNode): string[] {
 
 export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps) {
   const sessions = useSessionStore((s) => s.sessions);
+  const sessionsLoading = useSessionStore((s) => s.sessionsLoading);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const multiSelectMode = useSessionStore((s) => s.multiSelectMode);
   const selectedIds = useSessionStore((s) => s.selectedIds);
@@ -182,6 +183,19 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       addCollapsedGroups(ids);
     }
   };
+
+  // Initial list fetch in flight + nothing to show yet → spinner, so an account
+  // that does have sessions never flashes the "No sessions yet" empty state.
+  // When sessions are already populated (a background refresh), keep rendering
+  // the list instead of replacing it with a spinner.
+  if (sessionsLoading && sessions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4 gap-3">
+        <Loader2 size={24} className="animate-spin text-text-tertiary" />
+        <p className="text-sm text-text-tertiary">Loading sessions...</p>
+      </div>
+    );
+  }
 
   if (sessions.length === 0) {
     return (

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { SessionList } from './SessionList';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -88,6 +88,34 @@ describe('SessionList manager grouping', () => {
 
     const { container } = render(<SessionList />);
     expect(container.querySelectorAll('.ml-3.border-l').length).toBe(0);
+    expect(container.textContent).toContain('A');
+    expect(container.textContent).toContain('B');
+  });
+
+  it('shows a spinner instead of the empty state while sessions are loading, then the empty state after', () => {
+    // Initial list fetch in flight → spinner, no "No sessions yet" empty state.
+    useSessionStore.setState({ sessions: [], sessionsLoading: true });
+    const { container, queryByText } = render(<SessionList />);
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    expect(queryByText('No sessions yet')).toBeNull();
+
+    // Fetch resolves, list is genuinely empty → empty state appears.
+    act(() => {
+      useSessionStore.setState({ sessionsLoading: false });
+    });
+    expect(container.querySelector('.animate-spin')).toBeNull();
+    expect(container.textContent).toContain('No sessions yet');
+  });
+
+  it('keeps rendering the populated list during a background refresh', () => {
+    useSessionStore.setState({
+      sessions: [mk('A', 'A'), mk('B', 'B')],
+      sessionsLoading: true,
+      currentSessionId: null,
+    });
+    const { container } = render(<SessionList />);
+    // sessions already loaded → no spinner, list stays visible.
+    expect(container.querySelector('.animate-spin')).toBeNull();
     expect(container.textContent).toContain('A');
     expect(container.textContent).toContain('B');
   });

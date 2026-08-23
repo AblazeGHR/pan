@@ -55,10 +55,12 @@ describe('sessionStore refresh staleness guards', () => {
     pendingFetches = [];
     useSessionStore.setState({
       sessions: [],
+      sessionsLoading: false,
       currentSessionId: null,
       currentMessages: [],
       hasMoreMessages: false,
       historyLoading: false,
+      initialLoading: false,
       historyLoadEnd: 0,
       _loadSeq: 0,
       _touchSeq: 0,
@@ -244,5 +246,47 @@ describe('sessionStore refresh staleness guards', () => {
     });
 
     expect(useSessionStore.getState().sessions[0]?.workerId).toBeFalsy();
+  });
+
+  it('toggles sessionsLoading while the list fetch is in flight', async () => {
+    useSessionStore.setState({ sessions: [], currentSessionId: null });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().loadSessions();
+    });
+    expect(useSessionStore.getState().sessionsLoading).toBe(true);
+
+    await act(async () => {
+      resolveNextFetch([mk('A', 'A')]);
+      await promise!;
+    });
+    expect(useSessionStore.getState().sessionsLoading).toBe(false);
+  });
+
+  it('does not let a superseded refresh clear the newer request`s sessionsLoading', async () => {
+    useSessionStore.setState({ sessions: [], currentSessionId: null });
+
+    let p1: Promise<void>;
+    let p2: Promise<void>;
+    act(() => {
+      p1 = useSessionStore.getState().loadSessions();
+      p2 = useSessionStore.getState().loadSessions();
+    });
+    expect(useSessionStore.getState().sessionsLoading).toBe(true);
+
+    // Newer refresh resolves first → loading ends.
+    await act(async () => {
+      resolveFetchAt(1, [mk('B', 'B')]);
+      await p2!;
+    });
+    expect(useSessionStore.getState().sessionsLoading).toBe(false);
+
+    // The superseded response resolving afterwards must not flip it back on.
+    await act(async () => {
+      resolveFetchAt(0, [mk('A', 'A')]);
+      await p1!;
+    });
+    expect(useSessionStore.getState().sessionsLoading).toBe(false);
   });
 });
