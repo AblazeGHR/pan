@@ -1,8 +1,10 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
+import { filterVisibleMessages } from './messageFilter';
 import { ArrowDown, Loader2 } from 'lucide-react';
 const SCROLL_BOTTOM_THRESHOLD = 120;
 
@@ -15,9 +17,24 @@ export function ChatMessages() {
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const bubbleViewEnabled = useUIStore((s) => s.bubbleViewEnabled);
+  const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
+  const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
+  const showQQ = useAppSettingsStore((s) => s.showQQ);
+
+  // Frontend-only display filter — currentMessages in the store is never
+  // mutated; hidden messages reappear when their toggle is switched back on.
+  const visibleMessages = useMemo(
+    () =>
+      filterVisibleMessages(currentMessages, {
+        showMetaAgent,
+        showTaskAgent,
+        showQQ,
+      }),
+    [currentMessages, showMetaAgent, showTaskAgent, showQQ],
+  );
 
   // Group messages: consecutive tool messages become ToolGroup
-  const grouped = groupMessages(currentMessages);
+  const grouped = groupMessages(visibleMessages);
 
   const virtualizer = useVirtualizer({
     count: grouped.length,
