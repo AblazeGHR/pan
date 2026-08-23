@@ -339,7 +339,7 @@ function ManagerNodeView({
         onMenu={(e) => onMenu?.(e, session.id)}
       />
       {hasChildren && !collapsed && (
-        <div className="ml-3" data-tree-children>
+        <div className="ml-0" data-tree-children>
           {node.children.map((child, idx) => (
             <ManagerChildView
               key={child.session.id}

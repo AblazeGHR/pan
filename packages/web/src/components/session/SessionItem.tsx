@@ -76,8 +76,10 @@ export function SessionItem({
 
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-border-default transition-colors ${
-        isActive ? 'bg-bg-tertiary' : 'bg-bg-secondary hover:bg-bg-tertiary/60'
+      className={`flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-border-default border-l-[3px] transition-colors ${
+        isActive
+          ? 'bg-bg-tertiary border-l-accent'
+          : 'bg-bg-secondary hover:bg-bg-tertiary/60 border-l-text-tertiary/50'
       } ${isPending ? 'opacity-50' : ''}`}
       onClick={handleClick}
     >

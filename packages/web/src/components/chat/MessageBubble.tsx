@@ -59,11 +59,12 @@ export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) 
     );
   }
 
-  // User messages — Kimi-style: left-aligned, neutral grey bubble, rounded-2xl
+  // User messages — vanilla TUI style: full-width green box (3px green left
+  // bar + green top/bottom separator + ">" prefix), styled via .msg.user CSS.
   if (role === 'user') {
     return (
       <div className={`${mt} px-3 sm:px-6 lg:px-8`}>
-        <div className="msg user w-fit max-w-[85%] rounded-2xl bg-bg-secondary/50 border border-border-default/60 px-4 py-3 text-sm">
+        <div className="msg user w-full text-sm">
           <MarkdownRenderer content={message.content} className="text-sm" />
         </div>
       </div>

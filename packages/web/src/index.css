@@ -411,6 +411,47 @@ body {
   background: var(--color-bg-secondary);
 }
 
+/* ── Role-based left color bars (vanilla TUI replication) ──
+   Applies to the bubble view too: every message block carries a 3px
+   role-colored bar on its left edge (user green, assistant gray, thinking
+   purple, tool orange), mirroring styles.css's `#messages.tui-mode .msg.*`. */
+
+.msg.assistant {
+  border-left: 3px solid var(--color-text-secondary);
+  padding-left: 10px;
+}
+
+/* Vanilla user green box: green left bar + full-width separator lines + ">" */
+.msg.user {
+  border-left: 3px solid var(--color-success);
+  border-top: 1px solid var(--color-success);
+  border-bottom: 1px solid var(--color-success);
+  padding: 8px 16px 8px 28px;
+  width: 100%;
+  margin: 6px 0;
+  position: relative;
+}
+
+.msg.user::before {
+  content: '>';
+  position: absolute;
+  left: 4px;
+  top: 7px;
+  color: var(--color-success);
+  font-weight: bold;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.thinking {
+  border-left: 3px solid #c084fc;
+  padding-left: 10px;
+}
+
+.msg.tool {
+  border-left: 3px solid #ffa657;
+}
+
 /* ── Send queue panel ── */
 
 /* 新入队的行淡入（key 稳定的行复用 DOM 节点，不会重播动画） */
