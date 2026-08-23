@@ -23,7 +23,6 @@ export function CommandPalette() {
   const selectSession = useSessionStore((s) => s.selectSession);
   const createNewSession = useSessionStore((s) => s.createNewSession);
   const {
-    toggleSettings,
     toggleTheme,
     showToast,
   } = useUIStore();
@@ -68,7 +67,6 @@ export function CommandPalette() {
 
     // Settings
     result.push(
-      { id: 'set-model', label: 'Settings', detail: 'Open session settings', group: 'Settings', action: toggleSettings },
       { id: 'set-theme', label: 'Toggle Theme', detail: 'Switch dark/light mode', group: 'Settings', action: toggleTheme },
       { id: 'set-group', label: 'Toggle Sidebar', detail: 'Collapse/expand sidebar', group: 'Settings', action: () => {
         useUIStore.getState().toggleSidebar();
@@ -76,7 +74,7 @@ export function CommandPalette() {
     );
 
     return result;
-  }, [sessions, navigate, selectSession, createNewSession, toggleSettings, toggleTheme, showToast]);
+  }, [sessions, navigate, selectSession, createNewSession, toggleTheme, showToast]);
 
   // Filter by query
   const filtered = useMemo(() => {

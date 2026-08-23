@@ -1,5 +1,4 @@
 import { TopBar } from './TopBar';
-import { SettingsPanel } from './SettingsPanel';
 import type { ReactNode } from 'react';
 
 interface ChatLayoutProps {
@@ -13,7 +12,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       <div className="flex-1 min-h-0 overflow-hidden">
         {children}
       </div>
-      <SettingsPanel />
     </div>
   );
 }

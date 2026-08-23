@@ -96,7 +96,6 @@ function persistTheme(t: Theme) {
 }
 
 interface UIStore {
-  settingsOpen: boolean;
   toastQueue: ToastMessage[];
   bubbleViewEnabled: boolean;
   sidebarWidth: number;
@@ -108,8 +107,6 @@ interface UIStore {
   filesCollapsed: boolean;
   theme: Theme;
 
-  toggleSettings: () => void;
-  closeSettings: () => void;
   showToast: (message: string, type?: ToastMessage['type']) => void;
   dismissToast: (id: string) => void;
   toggleBubbleView: () => void;
@@ -135,7 +132,6 @@ interface UIStore {
 let toastCounter = 0;
 
 export const useUIStore = create<UIStore>((set, get) => ({
-  settingsOpen: false,
   toastQueue: [],
   bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
@@ -146,14 +142,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
   collapsedGroups: new Set<string>(),
   filesCollapsed: false,
   theme: loadTheme(),
-
-  toggleSettings: () => {
-    set((s) => ({ settingsOpen: !s.settingsOpen }));
-  },
-
-  closeSettings: () => {
-    set({ settingsOpen: false });
-  },
 
   showToast: (message, type = 'info') => {
     const id = `toast-${++toastCounter}`;

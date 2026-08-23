@@ -94,7 +94,7 @@ function Layout() {
 
       {/* Main content — grid column 3 */}
       <main
-        className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-[calc(env(safe-area-inset-top)+2.5rem)]' : ''}`}
+        className={`flex-1 flex flex-col min-w-0 overflow-hidden ${isMobile ? 'pt-[calc(env(safe-area-inset-top)+0.5rem)]' : ''}`}
         style={{ gridColumn: '3' }}
       >
         <Outlet />

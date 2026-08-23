@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
+import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { wsClient } from '@/services/ws';
 import { ChevronDown, ChevronUp, Settings } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
@@ -185,7 +186,8 @@ export function InputRow() {
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { startWorker } = useWorkerStore();
-  const { showToast, toggleSettings } = useUIStore();
+  const { showToast } = useUIStore();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
@@ -312,23 +314,45 @@ export function InputRow() {
   const showModelPill = supportsSetting(config, 'model');
   const showPermPill = supportsSetting(config, 'permissionMode');
   const showThinking = supportsSetting(config, 'thinking');
-  // Effort only makes sense with thinking enabled (mirrors SettingsPanel).
+  // Effort only makes sense with thinking enabled (mirrors SettingsPopover).
   const showEffort =
     showThinking &&
     supportsSetting(config, 'effort') &&
     !!currentSession?.alwaysThinkingEnabled;
   const effortValues = config?.effortValues || [];
-  const hasToolbar = currentSession && (showModelPill || showPermPill || showThinking);
 
   return (
     <div className="shrink-0 w-full border-t border-border-default bg-bg-primary">
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
       <SendQueuePanel />
 
-      {/* Toolbar row */}
-      {hasToolbar && (
+      {/* Toolbar row — settings gear (leftmost) + quick pills.
+          The ModelPill is desktop-only: on mobile the model is picked inside
+          the upward-expanding settings popover. */}
+      {currentSession && (
         <div className="flex items-center gap-1.5 px-3 pt-2 pb-0">
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div
+            data-settings-popover
+            className="relative shrink-0"
+          >
+            <button
+              onClick={() => setSettingsOpen((v) => !v)}
+              title="Session settings"
+              aria-label="Session settings"
+              className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
+                settingsOpen
+                  ? 'border-accent/50 bg-accent/10 text-accent'
+                  : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+              }`}
+            >
+              <Settings size={14} />
+            </button>
+            <SettingsPopover
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+            />
+          </div>
+          <div className="hidden md:flex">
             <ModelPill
               sessionModel={currentSession.model || ''}
               defaultModel={config?.defaultModel || ''}
@@ -336,52 +360,43 @@ export function InputRow() {
               show={showModelPill}
               onApply={applySetting}
             />
-            <PermissionPill
-              sessionMode={currentSession.permissionMode || null}
-              defaultMode={config?.defaultPermissionMode || ''}
-              modes={config?.permissionModes || []}
-              show={showPermPill}
-              onApply={applySetting}
-            />
-            <ThinkingToggle
-              enabled={currentSession.alwaysThinkingEnabled}
-              show={showThinking}
-              onApply={applySetting}
-            />
-            {showEffort && effortValues.length > 0 && (
-              <select
-                value={
-                  currentSession.effort ||
-                  effortValues[1] ||
-                  effortValues[0] ||
-                  ''
-                }
-                onChange={(e) => applySetting('effort', e.target.value)}
-                className="rounded-md border border-border-default bg-bg-tertiary px-1 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
-                title="Effort"
-              >
-                {effortValues.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
+          <PermissionPill
+            sessionMode={currentSession.permissionMode || null}
+            defaultMode={config?.defaultPermissionMode || ''}
+            modes={config?.permissionModes || []}
+            show={showPermPill}
+            onApply={applySetting}
+          />
+          <ThinkingToggle
+            enabled={currentSession.alwaysThinkingEnabled}
+            show={showThinking}
+            onApply={applySetting}
+          />
+          {showEffort && effortValues.length > 0 && (
+            <select
+              value={
+                currentSession.effort ||
+                effortValues[1] ||
+                effortValues[0] ||
+                ''
+              }
+              onChange={(e) => applySetting('effort', e.target.value)}
+              className="rounded-md border border-border-default bg-bg-tertiary px-1 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
+              title="Effort"
+            >
+              {effortValues.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
       {/* Textarea + Send row */}
       <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
-        {/* ⚙ 会话设置入口（发送框最左端，移动端同样显示） */}
-        <button
-          onClick={toggleSettings}
-          title="Session settings"
-          aria-label="Session settings"
-          className="shrink-0 flex h-9 w-9 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
-        >
-          <Settings size={16} />
-        </button>
         {/* ^ 队列开关：非空时高亮 + 角标 */}
         <div className="relative shrink-0 self-start mt-0.5">
           <button

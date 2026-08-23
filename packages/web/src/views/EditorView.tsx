@@ -49,7 +49,7 @@ export default function EditorView() {
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-bg-primary">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-default bg-bg-secondary/50">
+      <div className="flex items-center gap-2 pl-10 md:pl-3 pr-3 py-1.5 border-b border-border-default bg-bg-secondary/50">
         <span className="text-xs text-text-secondary truncate">
           {currentSession.name}
         </span>
