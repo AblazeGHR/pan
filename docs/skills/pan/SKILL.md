@@ -338,6 +338,12 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `session_update` | `session_id`, 各设置项 | PATCH 封装；改进程相关配置（model/effort/thinking/MCP/outputMode）时 **idle worker 自动 respawn 生效**、running worker 回 idle 时自动重启（§5 PATCH） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查） |
+| `session_claim` | `session_id` | 当前 agent（`PAN_AGENT_SESSION_ID`）认领会话，建立 managed 关系（立项 4.2）。**claim 自动 report_subscribe**（后端实现）。走 `POST /api/claim`（带 `_check_access(claim=True)` 隔离检查）；目标已被他人管理则拒绝。需 `PAN_AGENT_SESSION_ID` |
+| `session_claim_many` | `session_ids` | 批量认领：逐个处理，返回 `{"ok": true, "claimed": [...], "failed": [{"sessionId", "error"}]}`，单个失败不影响其余 |
+| `session_unclaim` | `session_id` | 当前 agent 解除对会话的 managed 关系（自动退订报告，后端实现）。走 `POST /api/unclaim`（带 `_check_access` 隔离检查，受限 caller 只能解绑自己管理的）；仅当前 manager 可解绑。需 `PAN_AGENT_SESSION_ID` |
+| `session_unclaim_many` | `session_ids` | 批量解绑：语义同 `session_claim_many`，返回 `unclaimed`/`failed` 列表 |
+| `session_qq_subscribe` | `target_type`, `target_id` | 给当前 agent session 订阅某 QQ 会话的 inbox 更新提醒（`@@@@by qq` 提醒入 `queue_pending`，§9.6）。走 `POST /api/qq/subscribe`，body sessionId=自己（无需 `_check_access`，但需 `PAN_AGENT_SESSION_ID`）。`target_type` 仅 `"user"`/`"group"`；`target_id` 为 QQ 号/群号（转 str） |
+| `session_qq_unsubscribe` | `target_type`, `target_id` | 退订 QQ inbox 更新提醒，走 `POST /api/qq/unsubscribe`，参数同上 |
 | `session_history` | `session_id`, `limit?`, `before?` | 分页历史 |
 
 ### Worker 管理
@@ -349,6 +355,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `worker_handoff` | `session_id`, `text`, `timeout?`, `task_id?` | **[DEPRECATED]** 同步阻塞。串行依赖/严格同步返回值才用；传 `task_id` 幂等重试（§9.4） |
 | `worker_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out 用）：立即返回 queued，完成经 `worker.result` 事件回调。传 `task_id` 幂等（同 taskId 重发不双跑，见 §9.4） |
 | `worker_send` | `worker_id`, `text` | 向已有 worker 发消息（多轮协作）；Pan 内 session 自动加 `////by agent` 前缀（§9.5） |
+| `worker_send_force` | `worker_id`, `text` | **强制推送** = restart + send：目标 worker 卡死/忙/连接异常导致普通 `worker_send` 无法送达时兜底。先重启 worker 进程再发消息，保证送达；自动加 `////by agent` 前缀（§9.5），restart/send 任一失败返回后端错误 |
 | `worker_kill` | `worker_id` | 终止 worker 进程（session 保留） |
 | `worker_list` | (无) | 列出所有运行中 worker |
 

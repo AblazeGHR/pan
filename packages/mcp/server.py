@@ -13,13 +13,20 @@ Tools exposed:
     - session_update: Update session settings (model/effort/mcp etc.)
     - session_delete: Delete a session
     - session_batch_delete: Delete multiple sessions at once
+    - session_claim: Claim a session for the calling agent (managed relationship)
+    - session_claim_many: Batch-claim multiple sessions
+    - session_unclaim: Unclaim a session from the calling agent
+    - session_unclaim_many: Batch-unclaim multiple sessions
     - worker_spawn: Spawn a worker for a session
     - worker_task: Send a task to a worker
     - worker_kill: Kill a worker
+    - worker_send_force: Force-push a message to a worker (restart + send, fallback when worker_send can't deliver)
     - session_history: Get paginated conversation history
     - model_list: List available AI models
     - report_subscribe: Subscribe to completion reports of a managed session
     - report_unsubscribe: Unsubscribe from completion reports of a managed session
+    - session_qq_subscribe: Subscribe the calling session to a QQ chat's inbox reminders
+    - session_qq_unsubscribe: Unsubscribe the calling session from a QQ chat's inbox reminders
     - pan_handbook: Return the full Pan orchestration handbook (reads docs/skills/pan/SKILL.md)
 
 Environment variables:
@@ -559,6 +566,126 @@ def session_batch_delete(session_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def session_claim(session_id: str) -> dict:
+    """Claim a session for the calling agent (establish managed relationship).
+
+    Establishes manager.managed += [session_id] / session.managed_by =
+    manager_id (立项 4.2). Claim 自动 report_subscribe：本 agent 会收到该
+    session 的完成报告（后端已实现）。目标若已被其他 manager 认领则拒绝。
+
+    Args:
+        session_id: Session ID to claim
+
+    调用链：走 POST /api/claim（带 _check_access(claim=True) 隔离检查：
+    受限 caller 可自动 claim 无主/自己可认领的 session；不受限 caller 放行后
+    工具显式调 POST /api/claim 返回统一结果，幂等）。claim 后即建立 managed
+    关系并订阅完成报告，可直接 worker_assign 派活。完整编排流程见 /pan skill。
+    """
+    manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not manager_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — claim tools only work inside a Pan-managed meta-agent session"}}
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
+    return _api("POST", "/api/claim",
+                {"managerId": manager_id, "sessionId": session_id})
+
+
+@mcp.tool()
+def session_claim_many(session_ids: list[str]) -> dict:
+    """Batch-claim multiple sessions (per-item isolation, partial success).
+
+    Each session is processed independently through session_claim — a single
+    failure (permission denied / already managed by someone else / not found)
+    doesn't block the rest.
+
+    Args:
+        session_ids: List of session IDs to claim (e.g. ["ses_a", "ses_b"])
+
+    Returns:
+        {"ok": True, "claimed": [...], "failed": [{"sessionId": ..., "error": ...}]}
+
+    批量接管用：多个一次性会话一次性建立 managed 关系（比逐个 session_claim
+    省轮次）。完整编排流程见 /pan skill。
+    """
+    if not session_ids:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "session_ids is required"}}
+    claimed: list[str] = []
+    failed: list[dict] = []
+    for sid in session_ids:
+        result = session_claim(sid)
+        if isinstance(result, dict) and result.get("ok"):
+            claimed.append(sid)
+        else:
+            err = result.get("error") if isinstance(result, dict) else result
+            failed.append({"sessionId": sid, "error": err})
+    return {"ok": True, "claimed": claimed, "failed": failed}
+
+
+@mcp.tool()
+def session_unclaim(session_id: str) -> dict:
+    """Release the calling agent's managed relationship with a session.
+
+    Removes session from the caller's managed list and clears the session's
+    managed_by (auto-unsubscribes completion reports, backend已实现). Only the
+    current manager may unclaim — the backend validates that.
+
+    Args:
+        session_id: Session ID to unclaim
+
+    调用链：走 POST /api/unclaim（带 _check_access 隔离检查：受限 caller 只能
+    解除自己 managed 列表内的 session）。unclaim 不删除 session，仅解除管理。
+    完整编排流程见 /pan skill。
+    """
+    manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not manager_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — unclaim tools only work inside a Pan-managed meta-agent session"}}
+    denied = _check_access(session_id)
+    if denied:
+        return denied
+    return _api("POST", "/api/unclaim",
+                {"managerId": manager_id, "sessionId": session_id})
+
+
+@mcp.tool()
+def session_unclaim_many(session_ids: list[str]) -> dict:
+    """Batch-unclaim multiple sessions (per-item isolation, partial success).
+
+    Each session is processed independently through session_unclaim — a single
+    failure doesn't block the rest.
+
+    Args:
+        session_ids: List of session IDs to unclaim (e.g. ["ses_a", "ses_b"])
+
+    Returns:
+        {"ok": True, "unclaimed": [...], "failed": [{"sessionId": ..., "error": ...}]}
+
+    批量收尾用：多个一次性会话一次解除 managed 关系（比逐个 session_unclaim
+    省轮次）。完整编排流程见 /pan skill。
+    """
+    if not session_ids:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "session_ids is required"}}
+    unclaimed: list[str] = []
+    failed: list[dict] = []
+    for sid in session_ids:
+        result = session_unclaim(sid)
+        if isinstance(result, dict) and result.get("ok"):
+            unclaimed.append(sid)
+        else:
+            err = result.get("error") if isinstance(result, dict) else result
+            failed.append({"sessionId": sid, "error": err})
+    return {"ok": True, "unclaimed": unclaimed, "failed": failed}
+
+
+@mcp.tool()
 def session_update(
     session_id: str,
     model: str | None = None,
@@ -686,6 +813,62 @@ def report_unsubscribe(session_id: str) -> dict:
         return denied
     return _api("POST", "/api/report-unsubscribe",
                 {"managerId": manager_id, "sessionId": session_id})
+
+
+# ---------------------------------------------------------------------------
+# QQ inbox subscription tools (inbox 更新提醒，镜像 report-subscribe 链路)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def session_qq_subscribe(target_type: str, target_id: str) -> dict:
+    """Subscribe the calling session to a QQ chat's inbox update reminders.
+
+    After subscribing, every new message from that QQ chat (selective mode,
+    delivered to inbox) pushes a `@@@@by qq` reminder to the calling session's
+    queue_pending and wakes its worker.
+
+    Args:
+        target_type: "user" (私聊) or "group" (群聊) — only these two are
+            accepted (backend validates)
+        target_id: QQ 号 / 群号 (passed as str; the backend needs a string
+            for its .strip() handling)
+
+    调用链：走 POST /api/qq/subscribe（操作 caller 自己的 session，body
+    sessionId = PAN_AGENT_SESSION_ID，无需 _check_access，但需环境变量）。
+    完整编排流程见 /pan skill。
+    """
+    session_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not session_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — qq subscribe tools only work inside a Pan-managed meta-agent session"}}
+    return _api("POST", "/api/qq/subscribe",
+                {"sessionId": session_id, "target_type": target_type,
+                 "target_id": str(target_id)})
+
+
+@mcp.tool()
+def session_qq_unsubscribe(target_type: str, target_id: str) -> dict:
+    """Unsubscribe the calling session from a QQ chat's inbox update reminders.
+
+    Args:
+        target_type: "user" (私聊) or "group" (群聊) — only these two are
+            accepted (backend validates)
+        target_id: QQ 号 / 群号 (passed as str; the backend needs a string
+            for its .strip() handling)
+
+    调用链：走 POST /api/qq/unsubscribe（操作 caller 自己的 session，body
+    sessionId = PAN_AGENT_SESSION_ID，无需 _check_access，但需环境变量）。
+    完整编排流程见 /pan skill。
+    """
+    session_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not session_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — qq subscribe tools only work inside a Pan-managed meta-agent session"}}
+    return _api("POST", "/api/qq/unsubscribe",
+                {"sessionId": session_id, "target_type": target_type,
+                 "target_id": str(target_id)})
 
 
 # ---------------------------------------------------------------------------
@@ -891,6 +1074,48 @@ def worker_send(worker_id: str, text: str) -> dict:
         denied = _check_access(target_sid, claim=True)
         if denied:
             return denied
+    return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
+
+
+@mcp.tool()
+def worker_send_force(worker_id: str, text: str) -> dict:
+    """Force-push a message to a worker: restart the worker, then send.
+
+    强制推送 = restart + send：目标 worker 卡死 / 忙 / 连接异常导致普通
+    worker_send 消息无法送达时的兜底。先调用 restart 端点终止并重新 spawn
+    worker 进程，再发送消息，保证消息能送达。
+
+    When this MCP server runs inside a Pan-managed session (env injected by
+    adapter.mcp_args() for the "pan" server), the text is prefixed with the
+    sending agent's identity — identical to ``worker_send``:
+
+        ////by agent : {PAN_AGENT_SESSION_ID} | {PAN_AGENT_SESSION_TITLE}
+        {text}
+
+    Args:
+        worker_id: Worker ID (e.g. "worker-1")
+        text: Task text / prompt
+
+    调用链：隔离检查（与 worker_send 一致）→ POST /api/worker/{worker_id}/restart
+    → POST /api/task（自动拼接 ////by agent 前缀）。restart 或 send 任一失败
+    均返回含后端 error 信息的错误 dict，不吞错。
+    完整编排流程见 /pan skill。
+    """
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    title = os.environ.get("PAN_AGENT_SESSION_TITLE")
+    if sid or title:
+        text = f"////by agent : {sid} | {title}\n{text}"
+    # 向被管 session 的 worker 强制推送即接管（与 worker_send 一致）
+    target_sid = _worker_session_id(worker_id)
+    if target_sid:
+        denied = _check_access(target_sid, claim=True)
+        if denied:
+            return denied
+    # 1) 重启 worker 进程（失败直接返回后端错误）
+    result = _api("POST", f"/api/worker/{worker_id}/restart")
+    if not isinstance(result, dict) or result.get("error"):
+        return result
+    # 2) 发送消息（与 worker_send 相同）
     return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
 
 
