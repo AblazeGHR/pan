@@ -14,6 +14,25 @@ function Layout() {
   const theme = useUIStore((s) => s.theme);
   const navigate = useNavigate();
 
+  // Track the real CSS-pixel viewport height so the app fills exactly the
+  // visible area. `100vh`/`100dvh` can resolve a few px too large at
+  // fractional zoom levels (90%/125%), pushing the bottom (send box / last
+  // message) below the visible viewport and making the page scroll.
+  const [viewportH, setViewportH] = useState<number | undefined>(() =>
+    typeof window !== 'undefined' ? window.innerHeight : undefined,
+  );
+  useEffect(() => {
+    const update = () => setViewportH(window.innerHeight);
+    update();
+    window.addEventListener('resize', update);
+    const vv = window.visualViewport;
+    if (vv) vv.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      vv?.removeEventListener('resize', update);
+    };
+  }, []);
+
   // Close sidebar on mobile when switching out of mobile
   useEffect(() => {
     if (!isMobile) setSidebarOpen(false);
@@ -48,6 +67,7 @@ function Layout() {
     <div
       className="h-screen supports-[height:100dvh]:h-dvh bg-bg-primary text-text-primary overflow-hidden"
       style={{
+        height: viewportH,
         display: 'grid',
         gridTemplateColumns: 'auto 0 minmax(0,1fr) 0 auto',
       }}

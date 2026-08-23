@@ -10,6 +10,14 @@
   --safe-left: env(safe-area-inset-left, 0px);
 }
 
+/* The app root is a full-viewport grid; never let the document scroll, so a
+   fractional-zoom dvh rounding error can't push content below the viewport. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 /* ── Design tokens ── */
 
 @theme {

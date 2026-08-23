@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useDetailStore } from '@/stores/detailStore';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
@@ -22,14 +21,12 @@ export function ThinkingBlock({ message }: ThinkingBlockProps) {
     }
   }, [isOpen, hasUnread, message.content]);
 
+  // Toggle ONLY the inline expand/collapse. Previously this also opened the
+  // right-side DetailPanel, which resized the main grid column and made the
+  // virtualized message list reflow — the chat scroll jumped instead of the
+  // block toggling.
   const toggle = () => {
-    const detail = useDetailStore.getState();
-    if (detail.detailTarget?.content === message.content) {
-      detail.closeDetail(); // toggle off
-    } else {
-      detail.openDetail({ type: 'thinking', content: message.content, title: 'Thinking' });
-    }
-    setIsOpen(!isOpen);
+    setIsOpen((v) => !v);
   };
 
   return (
