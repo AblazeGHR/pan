@@ -135,19 +135,37 @@ _MOBILE_UA_RE = re.compile(
 )
 
 
+async def _send_ws(ws: WebSocket, data: dict):
+    """单个客户端发送（带 2s 超时）；超时/失败由 broadcast 统一剔除。
+
+    慢客户端（TCP 缓冲满）2s 内不消费即断开，防止阻塞 broadcast → 卡死
+    所有 _read_stdout / worker（实测 Edge 后台标签页）。
+    """
+    await asyncio.wait_for(ws.send_json(data), timeout=2)
+
+
 async def broadcast(data: dict):
+    """向 dashboard（ws_clients）+ agent（agent_clients）广播。
+
+    A4 并行化：asyncio.gather 并发发送，慢客户端只拖自己的 2s 超时，不再串行
+    拖累全部客户端（此前一个 TCP 缓冲满的客户端让整个 broadcast 卡 2s×N）。
+    死连接在 gather 后统一剔除。
+    """
     dead = set()
-    for ws in list(ws_clients):
-        try:
-            # 发送超时：慢客户端（TCP 缓冲满）2s 内不消费即断开，防止阻塞
-            # broadcast → 卡死所有 _read_stdout / worker（实测 Edge 后台标签页）。
-            await asyncio.wait_for(ws.send_json(data), timeout=2)
-        except Exception:
-            dead.add(ws)
+    clients = list(ws_clients)
+    if clients:
+        results = await asyncio.gather(
+            *[_send_ws(ws, data) for ws in clients],
+            return_exceptions=True,
+        )
+        for ws, exc in zip(clients, results):
+            if exc is not None:
+                dead.add(ws)
     ws_clients.difference_update(dead)
-    dead_a = set()
+
     etype = data.get("type", "")
     data_session_id = data.get("sessionId")
+    targets: list[WebSocket] = []
     for ws in list(agent_clients):
         sub = agent_subscriptions.setdefault(ws, AgentSubscription())
         # 事件类型过滤
@@ -156,16 +174,24 @@ async def broadcast(data: dict):
         # worker.result 按 sessionId 过滤（若订阅了特定 session 列表）
         if etype == "worker.result" and sub.session_ids and data_session_id not in sub.session_ids:
             continue
-        try:
-            await asyncio.wait_for(ws.send_json(data), timeout=2)
-        except Exception:
-            dead_a.add(ws)
-            continue
-        # 记录已消费的 result 序号（重连补发用）——发送成功后才推进
-        if etype == "worker.result" and data_session_id:
-            seq = data.get("taskSeq")
-            if isinstance(seq, int):
-                sub.consumed_seq[data_session_id] = max(sub.consumed_seq.get(data_session_id, 0), seq)
+        targets.append(ws)
+    dead_a = set()
+    if targets:
+        results = await asyncio.gather(
+            *[_send_ws(ws, data) for ws in targets],
+            return_exceptions=True,
+        )
+        for ws, exc in zip(targets, results):
+            if exc is not None:
+                dead_a.add(ws)
+                continue
+            # 记录已消费的 result 序号（重连补发用）——发送成功后才推进
+            if etype == "worker.result" and data_session_id:
+                seq = data.get("taskSeq")
+                if isinstance(seq, int):
+                    sub = agent_subscriptions.get(ws)
+                    if sub is not None:
+                        sub.consumed_seq[data_session_id] = max(sub.consumed_seq.get(data_session_id, 0), seq)
     agent_clients.difference_update(dead_a)
 
 

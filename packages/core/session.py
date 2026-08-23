@@ -336,8 +336,10 @@ def get(session_id: str) -> Session | None:
 def _save_sync(s: Session):
     s.updated_at = datetime.now().isoformat()
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    # A1 紧凑序列化：separators=(",",":") 去掉缩进空格，大 history 全量写盘更快。
+    # 与 indent=2 在语义上完全等价（JSON 标准无视空白），落盘文件变小、解析不变。
     _path(s.id).write_text(
-        json.dumps(s.to_dict(), ensure_ascii=False, indent=2),
+        json.dumps(s.to_dict(), ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8")
     _cache[s.id] = s
 

@@ -145,6 +145,13 @@ class Worker:
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
     _zombie_reported: bool = False  # 异常死亡 zombie 报告是否已推送（防 watchdog/EOF 双路径重复）
+    # ── 流式块防抖落盘（A1）──
+    _hist_dirty: bool = False          # 有未落盘的 history 块（append 只标记，不逐块 save）
+    _hist_block_count: int = 0         # 本次批量累计的块数（达上限提前落盘）
+    _hist_force_flush: bool = False    # result/退出路径强制立即落盘标记
+    _hist_wake_count: int = 0          # 未消费的「提前落盘」唤醒计数（权威信号，防 ev.set 被 clear 冲掉）
+    _hist_flush_event: asyncio.Event | None = None  # 防抖唤醒（仅作阻塞唤醒；计数为准）
+    _hist_save_task: asyncio.Task | None = None     # 防抖落盘任务（单写者）
 
 
 workers: dict[str, Worker] = {}
@@ -351,6 +358,104 @@ def _signal_task_done(w: Worker) -> None:
         ev.set()
 
 
+# ── 流式块防抖落盘（A1）──
+# save 是 O(history) 全量序列化（实测 1295 条 ≈ 8ms/次 vs 新会话 0.76ms）。逐块
+# save 是热路径最大浪费。改为：assistant 块 append 只标记 dirty，由单一防抖任务
+# 批量落盘（500ms 窗口 / 每 _STREAM_SAVE_MAX_BLOCKS 块，先到者）；result 处理、
+# worker 退出 / kill / 重启前强制 flush，保证不丢。防抖任务为单写者，串行落盘
+# 避免并发写盘竞态（多个流式块并行 append 时 save 合并）。
+
+_STREAM_SAVE_DEBOUNCE_SEC: float = 0.5    # 防抖窗口：窗口内合并多次 append
+_STREAM_SAVE_MAX_BLOCKS: int = 20         # 或累计块数达上限 → 提前落盘（长流不至于久不落盘）
+
+
+def _mark_history_dirty(w: Worker) -> None:
+    """流式块 append 后标记待落盘（同步，不阻塞事件循环）。
+
+    合并并发 append：已有防抖任务则不重复创建（save 合并）；块数达上限提前
+    唤醒防抖任务立即落盘。唤醒用「计数 _hist_wake_count（权威）+ 事件（阻塞唤醒）」，
+    等待前 set 的唤醒不会被防抖任务的 ev.clear() 冲掉。
+    """
+    w._hist_dirty = True
+    w._hist_block_count += 1
+    ev = w._hist_flush_event
+    if ev is None:
+        ev = w._hist_flush_event = asyncio.Event()
+    if w._hist_save_task is None or w._hist_save_task.done():
+        w._hist_save_task = asyncio.create_task(_flush_history_loop(w))
+    if w._hist_block_count >= _STREAM_SAVE_MAX_BLOCKS:
+        w._hist_wake_count += 1
+        ev.set()
+
+
+async def _flush_history_loop(w: Worker) -> None:
+    """防抖落盘循环：单写者串行落盘，避免写盘竞态。
+
+    - 窗口超时（_STREAM_SAVE_DEBOUNCE_SEC 无新块）→ 落盘当前 dirty 块
+    - 块数达上限（_mark_history_dirty 唤醒）→ 提前落盘
+    - _flush_history_now 置 force（result/退出路径）→ 立即落盘后退出
+    """
+    ev = w._hist_flush_event
+    if ev is None:
+        ev = w._hist_flush_event = asyncio.Event()
+    try:
+        while True:
+            force = w._hist_force_flush
+            if force:
+                w._hist_force_flush = False
+            else:
+                if w._hist_wake_count > 0:
+                    # 等待前先消费积压唤醒（防止等待前已 set 的事件被下方 clear 冲掉）
+                    w._hist_wake_count -= 1
+                else:
+                    ev.clear()
+                    try:
+                        await asyncio.wait_for(ev.wait(), timeout=_STREAM_SAVE_DEBOUNCE_SEC)
+                    except asyncio.TimeoutError:
+                        pass
+                    if w._hist_wake_count > 0:
+                        w._hist_wake_count -= 1
+                force = w._hist_force_flush
+                if force:
+                    w._hist_force_flush = False
+            s = _session(w)
+            if s is not None and (w._hist_dirty or force):
+                w._hist_dirty = False
+                w._hist_block_count = 0
+                await _sess.save_async(s)
+            if force:
+                break
+    finally:
+        w._hist_save_task = None
+
+
+async def _flush_history_now(w: Worker) -> None:
+    """立即落盘（result 处理 / worker 退出 / kill / 重启前调用），保证缓冲块不丢。
+
+    单写者协作：若防抖任务在跑，置 force + 唤醒并 shield 等待其落完（由该任务完成
+    落盘），避免与它并发写同一文件；无防抖任务则直接落盘。调用方被取消时 shield
+    保护防抖任务继续落盘，取消仍向上传播（不吞 CancelledError）。
+    """
+    if w._hist_flush_event is None:
+        w._hist_flush_event = asyncio.Event()
+    w._hist_force_flush = True
+    task = w._hist_save_task
+    if task is not None and not task.done():
+        w._hist_flush_event.set()
+        await asyncio.shield(task)  # 防抖任务独立完成落盘；调用方取消照常传播
+        return
+    s = _session(w)
+    if s is None:
+        w._hist_force_flush = False
+        w._hist_dirty = False
+        w._hist_block_count = 0
+        return
+    w._hist_dirty = False
+    w._hist_block_count = 0
+    w._hist_force_flush = False
+    await _sess.save_async(s)
+
+
 async def _read_stdout(w: Worker):
     adapter = w.adapter
     s = None  # bound even if stdout yields no parseable event (EOF check below)
@@ -389,7 +494,8 @@ async def _read_stdout(w: Worker):
             if s:
                 for b in adapter.extract_assistant_blocks(event):
                     s.history.append(b)
-                await _sess.save_async(s)
+                # A1 防抖：append 只标记 dirty，由防抖任务批量落盘（不逐块全量 save）
+                _mark_history_dirty(w)
 
         # 任务完成 → 保存 Session + last_result
         if adapter.is_result_event(event):
@@ -437,7 +543,9 @@ async def _read_stdout(w: Worker):
                     prev_credit = prev_total.get("credit", 0) if prev_total else 0
                     new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
                     _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
-                await _sess.save_async(s)
+                # A1 result 立即落盘：同时 flush 防抖缓冲的流式块 + last_result，
+                # 由单写者防抖任务（若在跑）完成，避免双写竞态。
+                await _flush_history_now(w)
 
             # taskSeq 已在上方（last_result 补存处）统一用 _current_seq。
             task_seq = w._current_seq
@@ -464,6 +572,13 @@ async def _read_stdout(w: Worker):
                 }
             w._current_task_id = None
             w.status = "idle"
+            # A3：idle 过渡即时广播（前端此前靠 result 推断，存在延迟）
+            await _bcast({
+                "type": "worker.status",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "status": "idle",
+            })
             _signal_task_done(w)
             _maybe_restart_pending(w)
             continue
@@ -514,6 +629,9 @@ async def _read_stdout(w: Worker):
     _mark_worker_tasks_error(w.worker_id, f"worker exited (returncode={code})")
     # 唤醒可能在 _consumer_stream 里等待任务完成的协程（EOF 时任务不会正常结束）
     _signal_task_done(w)
+    # A1 崩溃安全：进程退出前 flush 防抖缓冲的流式块（若仍有未落盘内容）
+    if w._hist_dirty:
+        await _flush_history_now(w)
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
@@ -1426,6 +1544,7 @@ async def _create_worker(session_id: str) -> Worker | str:
                adapter=adapter,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
                _task_done=asyncio.Event(),
+               _hist_flush_event=asyncio.Event(),
                _replaying=resuming)
     w.last_activity = time.monotonic()
     workers[worker_id] = w
@@ -1540,6 +1659,9 @@ async def kill_worker(worker_id: str) -> str | None:
     _resolve_result_waiter(worker_id, "error", "worker killed")
     # H2: worker 被杀 → 名下 pending 的 taskId 标 error（防止幂等重试永久卡 pending）
     _mark_worker_tasks_error(worker_id, "worker killed")
+    # A1 崩溃安全：kill 前 flush 防抖缓冲的流式块
+    if w._hist_dirty:
+        await _flush_history_now(w)
 
     workers.pop(worker_id, None)
     await _bcast({
@@ -1568,6 +1690,9 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
             w._stdout_task.cancel()
         await _kill_process_tree(w)
         await _kill_takeover_terminal(w)
+        # A1 崩溃安全：清理前 flush 防抖缓冲的流式块
+        if w._hist_dirty:
+            await _flush_history_now(w)
     except Exception as exc:
         _log.warning("[Worker %s] BG cleanup error: %r", worker_id, exc)
     finally:
@@ -1637,6 +1762,9 @@ async def _spawn_process(session_id: str,
 
 
 async def _restart_tasks(w: Worker):
+    # A1 崩溃安全：重启前先 flush 防抖缓冲的流式块（换进程后 resume 依赖已落盘内容）
+    if w._hist_dirty:
+        await _flush_history_now(w)
     if w._watchdog_task:
         w._watchdog_task.cancel()
     if w._stdout_task:
@@ -1781,7 +1909,8 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     new_w = Worker(worker_id=new_id, session_id=new_session_id,
                    adapter=w.adapter,
                    status="idle", process=proc, pending_signal=asyncio.Queue(),
-                   _task_done=asyncio.Event())
+                   _task_done=asyncio.Event(),
+                   _hist_flush_event=asyncio.Event())
     # 注意：branch 不设 _replaying（与 create_worker/restart_worker 不同）。
     # branch 的新 session history 为空，需要从 cbc --resume --fork-session
     # 的重放中填入历史，所以走正常 append 路径。主路径的 session 已有
@@ -2057,6 +2186,9 @@ async def shutdown_all():
             w._consume_task.cancel()
         if w._stdout_task:
             w._stdout_task.cancel()
+        # A1 崩溃安全：关闭前 flush 防抖缓冲的流式块
+        if w._hist_dirty:
+            await _flush_history_now(w)
         await _kill_process_tree(w)
         await _kill_takeover_terminal(w)
     workers.clear()
