@@ -326,128 +326,134 @@ export function InputRow() {
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
       <SendQueuePanel />
 
-      {/* Toolbar row — settings gear (leftmost) + quick pills.
-          The ModelPill is desktop-only: on mobile the model is picked inside
-          the upward-expanding settings popover. */}
-      {currentSession && (
-        <div className="flex items-center gap-1.5 px-3 pt-2 pb-0">
-          <div
-            data-settings-popover
-            className="relative shrink-0"
-          >
-            <button
-              onClick={() => setSettingsOpen((v) => !v)}
-              title="Session settings"
-              aria-label="Session settings"
-              className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
-                settingsOpen
-                  ? 'border-accent/50 bg-accent/10 text-accent'
-                  : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-              }`}
-            >
-              <Settings size={14} />
-            </button>
-            <SettingsPopover
-              open={settingsOpen}
-              onClose={() => setSettingsOpen(false)}
-            />
-          </div>
-          <div className="hidden md:flex">
-            <ModelPill
-              sessionModel={currentSession.model || ''}
-              defaultModel={config?.defaultModel || ''}
-              models={config?.models || []}
-              show={showModelPill}
-              onApply={applySetting}
-            />
-          </div>
-          <PermissionPill
-            sessionMode={currentSession.permissionMode || null}
-            defaultMode={config?.defaultPermissionMode || ''}
-            modes={config?.permissionModes || []}
-            show={showPermPill}
-            onApply={applySetting}
-          />
-          <ThinkingToggle
-            enabled={currentSession.alwaysThinkingEnabled}
-            show={showThinking}
-            onApply={applySetting}
-          />
-          {showEffort && effortValues.length > 0 && (
-            <select
-              value={
-                currentSession.effort ||
-                effortValues[1] ||
-                effortValues[0] ||
-                ''
-              }
-              onChange={(e) => applySetting('effort', e.target.value)}
-              className="rounded-md border border-border-default bg-bg-tertiary px-1 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
-              title="Effort"
-            >
-              {effortValues.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-
-      {/* Textarea + Send row */}
+      {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
+          右侧内容列：pill 行（ModelPill 仅桌面显示，移动端 model 只在设置弹窗中）+ textarea/Send 行。 */}
       <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
-        {/* ^ 队列开关：非空时高亮 + 角标 */}
-        <div className="relative shrink-0 self-start mt-0.5">
-          <button
-            onClick={togglePanel}
-            title={
-              queueCount > 0
-                ? `发送队列（${queueCount} 条待发）`
-                : '发送队列'
-            }
-            aria-label="发送队列"
-            className={`flex h-9 w-9 items-center justify-center rounded border transition-colors ${
-              panelOpen || queueCount > 0
-                ? 'border-accent/50 bg-accent/10 text-accent'
-                : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
-            }`}
-          >
-            <ChevronUp
-              size={16}
-              className={`transition-transform duration-200 ${
-                panelOpen ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-          {queueCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">
-              {queueCount > 99 ? '99+' : queueCount}
-            </span>
+        {/* 左列竖排：gear 在上、^ 在下，gap-1 紧挨 */}
+        <div className="flex flex-col gap-1 shrink-0 self-start">
+          {currentSession && (
+            <div data-settings-popover className="relative">
+              <button
+                onClick={() => setSettingsOpen((v) => !v)}
+                title="Session settings"
+                aria-label="Session settings"
+                className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
+                  settingsOpen
+                    ? 'border-accent/50 bg-accent/10 text-accent'
+                    : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                }`}
+              >
+                <Settings size={14} />
+              </button>
+              <SettingsPopover
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+              />
+            </div>
           )}
+          {/* ^ 队列开关：非空时高亮 + 角标 */}
+          <div className="relative">
+            <button
+              onClick={togglePanel}
+              title={
+                queueCount > 0
+                  ? `发送队列（${queueCount} 条待发）`
+                  : '发送队列'
+              }
+              aria-label="发送队列"
+              className={`flex h-9 w-9 items-center justify-center rounded border transition-colors ${
+                panelOpen || queueCount > 0
+                  ? 'border-accent/50 bg-accent/10 text-accent'
+                  : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+              }`}
+            >
+              <ChevronUp
+                size={16}
+                className={`transition-transform duration-200 ${
+                  panelOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {queueCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">
+                {queueCount > 99 ? '99+' : queueCount}
+              </span>
+            )}
+          </div>
         </div>
 
-        <textarea
-          ref={inputRef}
-          id="chatInput"
-          placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-          rows={2}
-          enterKeyHint="send"
-          inputMode="text"
-          autoCapitalize="sentences"
-          className="flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent"
-          onChange={(e) => {
-            if (currentSessionId) setInputDraft(currentSessionId, e.target.value);
-          }}
-          onKeyDown={handleKeyDown}
-        />
-        <div className="flex flex-col gap-1 items-end">
-          <button
-            onClick={() => handleSend(inputRef.current?.value || '')}
-            className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
-          >
-            Send
-          </button>
+        {/* 右侧内容列 */}
+        <div className="flex-1 min-w-0 flex flex-col gap-2">
+          {currentSession && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="hidden md:flex">
+                <ModelPill
+                  sessionModel={currentSession.model || ''}
+                  defaultModel={config?.defaultModel || ''}
+                  models={config?.models || []}
+                  show={showModelPill}
+                  onApply={applySetting}
+                />
+              </div>
+              <PermissionPill
+                sessionMode={currentSession.permissionMode || null}
+                defaultMode={config?.defaultPermissionMode || ''}
+                modes={config?.permissionModes || []}
+                show={showPermPill}
+                onApply={applySetting}
+              />
+              <ThinkingToggle
+                enabled={currentSession.alwaysThinkingEnabled}
+                show={showThinking}
+                onApply={applySetting}
+              />
+              {showEffort && effortValues.length > 0 && (
+                <select
+                  value={
+                    currentSession.effort ||
+                    effortValues[1] ||
+                    effortValues[0] ||
+                    ''
+                  }
+                  onChange={(e) => applySetting('effort', e.target.value)}
+                  className="rounded-md border border-border-default bg-bg-tertiary px-1 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
+                  title="Effort"
+                >
+                  {effortValues.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Textarea + Send row */}
+          <div className="flex gap-2">
+            <textarea
+              ref={inputRef}
+              id="chatInput"
+              placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+              rows={2}
+              enterKeyHint="send"
+              inputMode="text"
+              autoCapitalize="sentences"
+              className="flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent"
+              onChange={(e) => {
+                if (currentSessionId) setInputDraft(currentSessionId, e.target.value);
+              }}
+              onKeyDown={handleKeyDown}
+            />
+            <div className="flex flex-col gap-1 items-end">
+              <button
+                onClick={() => handleSend(inputRef.current?.value || '')}
+                className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
+              >
+                Send
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

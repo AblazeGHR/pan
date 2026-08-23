@@ -1,7 +1,5 @@
-import { useEffect } from 'react';
-import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
+import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
-import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
@@ -25,18 +23,6 @@ export function TopBar() {
     useWorkerStore();
   const { isMobile } = useMediaQuery();
 
-  const config = useAdapterStore((s) => s.getConfig());
-  const loadConfig = useAdapterStore((s) => s.loadConfig);
-  const applySettings = useAdapterStore((s) => s.applySettings);
-  const { loadSessions } = useSessionStore();
-
-  // Load adapter config for the effort dropdown
-  useEffect(() => {
-    if (currentSession) {
-      loadConfig(currentSession.adapter || 'cbc');
-    }
-  }, [currentSession?.id, loadConfig]);
-
   if (!currentSession) {
     return (
       <div className="flex items-center justify-between px-4 py-2 border-b border-border-default bg-bg-primary">
@@ -59,19 +45,6 @@ export function TopBar() {
       ? currentWorker.id
       : null) ||
     null;
-
-  const handleEffortChange = async (value: string) => {
-    if (!currentSession) return;
-    try {
-      await applySettings(currentSession.id, effectiveWorkerId || undefined, {
-        effort: value,
-      });
-      await loadSessions();
-      showToast(`Effort: ${value}`);
-    } catch (e) {
-      showToast((e as Error).message || 'Failed to set effort', 'error');
-    }
-  };
 
   const handleCopy = (text: string) => {
     navigator.clipboard
@@ -123,26 +96,6 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        {config?.supportedSettings?.includes('effort') &&
-          config.effortValues.length > 0 && (
-            <select
-              value={
-                currentSession.effort ||
-                config.effortValues[1] ||
-                config.effortValues[0] ||
-                ''
-              }
-              onChange={(e) => handleEffortChange(e.target.value)}
-              className="text-xs rounded-md border border-border-default bg-bg-tertiary text-text-primary px-1 py-1 focus:outline-none focus:border-accent"
-              title="Effort"
-            >
-              {config.effortValues.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          )}
         <span className="hidden md:inline text-xs text-text-tertiary mr-1">
           {status}
           {effectiveWorkerId ? ` (${effectiveWorkerId})` : ' (no worker)'}
