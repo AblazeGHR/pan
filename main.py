@@ -2,10 +2,14 @@
 """Pan — entry point."""
 
 import atexit
+import json
 import logging
 import os
+import socket
 import subprocess
+import threading
 from pathlib import Path
+from urllib.parse import urlparse
 
 from packages.web.server import app
 
@@ -18,6 +22,8 @@ _QQ_PID_FILE = _PROJECT_ROOT / "data" / "qq_bot.pid"
 # NoneBot 依赖装在 miniforge（项目 .venv 没有），故 QQ bot 用独立解释器。
 # 可用环境变量 PAN_QQ_PYTHON 覆盖。
 _QQ_DEFAULT_PYTHON = r"E:\software\miniforge\python.exe"
+# QQ bot 启动宽限期：spawn 后在此窗口内退出即视为"快速崩溃"，Pan Core 不受影响。
+_QQ_STARTUP_GRACE_SEC = 2.0
 
 _qq_proc: subprocess.Popen | None = None
 
@@ -29,6 +35,67 @@ def _is_pid_alive(pid: int) -> bool:
         return True
     except OSError:
         return False
+
+
+def _napcat_reachable(timeout: float = 1.0) -> bool:
+    """TCP-probe the NapCat OneBot WS endpoint(s) from packages/qq/.env (best-effort).
+
+    Returns True when at least one configured forward-WS host accepts a
+    connection. Returns True (no degradation) when the endpoint is unknown —
+    e.g. missing/unparseable ONEBOT_WS_URLS — because then bot.py has no
+    NapCat dependency to degrade on. Never raises; failures mean "unreachable".
+    """
+    try:
+        env_text = (_QQ_DIR / ".env").read_text(encoding="utf-8")
+    except OSError:
+        return True
+    for line in env_text.splitlines():
+        line = line.strip()
+        if not line.startswith("ONEBOT_WS_URLS="):
+            continue
+        try:
+            urls = json.loads(line.split("=", 1)[1].strip())
+        except (ValueError, json.JSONDecodeError):
+            return True
+        if not urls:
+            return True
+        for url in urls:
+            try:
+                p = urlparse(url)
+                host, port = p.hostname, p.port or (443 if p.scheme == "wss" else 80)
+                with socket.create_connection((host, port), timeout=timeout):
+                    return True
+            except OSError:
+                continue
+        return False
+    return True
+
+
+def _qq_health_check() -> None:
+    """Background check right after spawn: detect fast crash / NapCat unreachable.
+
+    Runs on a daemon thread so Pan Core startup is never blocked. Only logs:
+    the QQ module is a child process, its failure must not look like a Pan
+    startup failure.
+    """
+    proc = _qq_proc
+    if proc is None:
+        return
+    try:
+        proc.wait(timeout=_QQ_STARTUP_GRACE_SEC)
+    except subprocess.TimeoutExpired:
+        # 子进程存活：NapCat 不可达时提示降级（bot.py 会自行每 3s 重试）。
+        if not _napcat_reachable():
+            _log.warning(
+                "[Pan] NapCat unreachable — QQ module runs degraded "
+                "(bot.py retries the OneBot WS connection every 3s)"
+            )
+        return
+    _log.warning(
+        "[Pan] QQ bot exited during startup (code %s) — QQ module degraded, "
+        "Pan Core continues without QQ",
+        proc.returncode,
+    )
 
 
 def _stop_qq_bot() -> None:
@@ -82,6 +149,8 @@ def _spawn_qq_bot() -> None:
         return
     _QQ_PID_FILE.write_text(str(_qq_proc.pid), encoding="utf-8")
     _log.info("[Pan] QQ bot started (pid %s, %s)", _qq_proc.pid, python)
+    # 后台健康检查：快速崩溃 / NapCat 不可达 → 只打降级日志，不阻塞 Pan Core。
+    threading.Thread(target=_qq_health_check, name="qq-health-check", daemon=True).start()
 
 
 if __name__ == "__main__":
