@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { wsClient } from '@/services/ws';
+import { fetchSessionHistory } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -7,7 +8,7 @@ import { useQueueStore } from '@/stores/queueStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
-import type { StreamEvent } from '@/types';
+import type { StreamEvent, Message } from '@/types';
 
 // ── Debounced full-list refresh (mirrors legacy app.ts scheduleRefreshSessions) ──
 // WS events can burst (rapid task completions, session updates); firing a full
@@ -79,6 +80,18 @@ export function useWebSocket() {
     // Worker status update
     unsubscribers.push(wsClient.on('worker.status', (e: StreamEvent) => {
       handleWorkerUpdate(e, e.status ?? 'idle');
+      // agent 编排消息实时同步：meta-agent 的 worker_send（////by agent 前缀）
+      // 注入的 user 消息只在服务端 s.history 落盘，WS 从不广播（只广播 assistant
+      // 回复的 worker.stream / 完成的 worker.result），前端对自己的发送有乐观追加、
+      // 对 agent 注入没有 → 切走再切回才显示。任务开始 running 时（source 已带
+      // 进广播）拉一次历史把缺的 user 消息并入 currentMessages。
+      if (
+        e.status === 'running' &&
+        (e.source === 'agent' || e.source === 'report') &&
+        e.sessionId === useSessionStore.getState().currentSessionId
+      ) {
+        syncAgentInjectedMessage();
+      }
     }));
 
     // Stream events (real-time message chunks)
@@ -204,4 +217,74 @@ function appendEvent(event: StreamEvent['event']): void {
       }
     }
   }
+}
+
+// ── Agent 注入消息实时同步 ──
+// meta-agent 的 worker_send / 订阅报告会把 user 消息写进服务端 s.history，但 WS
+// 只广播 assistant 回复（worker.stream）与完成（worker.result）——user 消息前端
+// 无实时来源，切走再切回（selectSession fetch 历史）才显示。这里在 agent/report
+// 任务开始 running 时拉一次最近历史，把服务端有、本地缺的 user 消息并入。
+let agentSyncInFlight = false;
+function syncAgentInjectedMessage(): void {
+  const sid = useSessionStore.getState().currentSessionId;
+  if (!sid || agentSyncInFlight) return;
+  agentSyncInFlight = true;
+  fetchSessionHistory(sid, 0, 50)
+    .then((data) => {
+      const store = useSessionStore.getState();
+      if (store.currentSessionId !== sid) return; // 用户已切走，丢弃过期结果
+      const merged = mergeServerMessages(store.currentMessages, data.history || []);
+      if (merged !== store.currentMessages) {
+        useSessionStore.setState({ currentMessages: merged });
+      }
+    })
+    .catch(() => {
+      // 拉取失败：保留本地，agent 消息仍会随下次切 session 出现
+    })
+    .finally(() => {
+      agentSyncInFlight = false;
+    });
+}
+
+/** 把服务端历史里本地缺失的消息并入本地（幂等），同时保留本地已在流式的
+ *  assistant 块（服务端落盘滞后）。无变化时返回原引用，避免多余重渲染。 */
+function mergeServerMessages(
+  local: Message[],
+  server: Message[],
+): Message[] {
+  if (server.length === 0) return local;
+  // 最长公共前缀：服务端在分叉点之前与本地一致
+  let k = 0;
+  while (
+    k < local.length &&
+    k < server.length &&
+    local[k]!.role === server[k]!.role &&
+    local[k]!.content === server[k]!.content
+  ) {
+    k++;
+  }
+  // 服务端历史是本地前缀 → 服务端没有本地没有的消息（流式中）→ 不动
+  if (k === server.length) return local;
+  const serverTail = server.slice(k);
+  const localTail = local.slice(k);
+  // 本地尾部中已被服务端新段覆盖的部分（流式块已落盘 + 新 user 消息），按
+  // 「本地前缀 == 服务端后缀」判定，插入后不重复。
+  let overlap = 0;
+  for (let n = 1; n <= Math.min(localTail.length, serverTail.length); n++) {
+    let match = true;
+    for (let i = 0; i < n; i++) {
+      const a = localTail[i]!;
+      const b = serverTail[serverTail.length - n + i]!;
+      if (a.role !== b.role || a.content !== b.content) {
+        match = false;
+        break;
+      }
+    }
+    if (match) overlap = n;
+  }
+  return [
+    ...local.slice(0, k),
+    ...serverTail,
+    ...localTail.slice(overlap),
+  ];
 }

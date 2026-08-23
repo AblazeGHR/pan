@@ -31,6 +31,16 @@ vi.mock('@/services/ws', () => ({
   },
 }));
 
+// Mock the history fetch so agent-injected-message sync tests can control what
+// the server "has persisted" (the injected user message lives only server-side).
+const apiMock = vi.hoisted(() => ({
+  fetchSessionHistory: vi.fn(),
+}));
+
+vi.mock('@/services/api', () => ({
+  fetchSessionHistory: apiMock.fetchSessionHistory,
+}));
+
 function msg(role: string, content: string): Message {
   return { role, content };
 }
@@ -60,6 +70,8 @@ describe('useWebSocket worker.result wiring', () => {
       currentMessages: [],
       hasMoreMessages: false,
       historyLoading: false,
+      initialLoading: false,
+      sessionsLoading: false,
       historyLoadEnd: 0,
       _loadSeq: 0,
       _touchSeq: 0,
@@ -166,5 +178,203 @@ describe('useWebSocket worker.result wiring', () => {
     expect(msgs[0]?.content).toBe(
       'Bash({"command":"ls \\u4e2d\\u6587\\u76ee\\u5f55","path":"\\u6570\\u636e/\\u6587\\u4ef6.txt"})',
     );
+  });
+});
+
+describe('useWebSocket agent-injected message sync', () => {
+  beforeEach(() => {
+    for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
+    apiMock.fetchSessionHistory.mockReset();
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [],
+      total: 0,
+      hasMore: false,
+      start: 0,
+    });
+    useSessionStore.setState({
+      sessions: [mk('A', 'A', { history: [msg('user', 'u0')] })],
+      currentSessionId: 'A',
+      currentMessages: [msg('user', 'u0')],
+      hasMoreMessages: false,
+      historyLoading: false,
+      initialLoading: false,
+      sessionsLoading: false,
+      historyLoadEnd: 0,
+      _loadSeq: 0,
+      _touchSeq: 0,
+      _sessionWsTouchedSeq: {},
+    });
+  });
+
+  /** 触发事件并 flush 微任务（syncAgentInjectedMessage 的 fetch promise 链）。 */
+  async function flushTrigger(type: string, e: unknown): Promise<void> {
+    await act(async () => {
+      wsMock.trigger(type, e);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+
+  it('merges the agent-injected user message into currentMessages on running + source=agent', async () => {
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        msg('user', 'u0'),
+        msg('user', '////by agent : S | title\ninstruct'),
+      ],
+      total: 2,
+      hasMore: false,
+      start: 0,
+    });
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'agent',
+    });
+
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledWith('A', 0, 50);
+    const msgs = useSessionStore.getState().currentMessages;
+    expect(msgs.map((m) => m.content)).toEqual([
+      'u0',
+      '////by agent : S | title\ninstruct',
+    ]);
+  });
+
+  it('does not sync for user-originated tasks', async () => {
+    renderHook(() => useWebSocket());
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'user',
+    });
+
+    expect(apiMock.fetchSessionHistory).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['u0']);
+  });
+
+  it('does not sync when the event targets a non-current session', async () => {
+    renderHook(() => useWebSocket());
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'B',
+      workerId: 'w1',
+      status: 'running',
+      source: 'agent',
+    });
+
+    expect(apiMock.fetchSessionHistory).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['u0']);
+  });
+
+  it('keeps in-flight streamed blocks when the server snapshot lags (diverged tail)', async () => {
+    // 本地已流式出 a1，但服务端尚未落盘 → 服务端历史 = [u0, agentMsg]。
+    renderHook(() => useWebSocket());
+    useSessionStore.setState({
+      currentMessages: [msg('user', 'u0'), msg('assistant', 'a1')],
+    });
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [msg('user', 'u0'), msg('user', '////by agent : S | title\ninstruct')],
+      total: 2,
+      hasMore: false,
+      start: 0,
+    });
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'agent',
+    });
+
+    const msgs = useSessionStore.getState().currentMessages;
+    expect(msgs.map((m) => m.content)).toEqual([
+      'u0',
+      '////by agent : S | title\ninstruct',
+      'a1',
+    ]);
+  });
+
+  it('does not duplicate streamed blocks already persisted on the server', async () => {
+    // 本地 a1 已同时被服务端落盘 → 服务端历史 = [u0, agentMsg, a1]，合并不应双份 a1。
+    renderHook(() => useWebSocket());
+    useSessionStore.setState({
+      currentMessages: [msg('user', 'u0'), msg('assistant', 'a1')],
+    });
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        msg('user', 'u0'),
+        msg('user', '////by agent : S | title\ninstruct'),
+        msg('assistant', 'a1'),
+      ],
+      total: 3,
+      hasMore: false,
+      start: 0,
+    });
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'agent',
+    });
+
+    const msgs = useSessionStore.getState().currentMessages;
+    expect(msgs.map((m) => m.content)).toEqual([
+      'u0',
+      '////by agent : S | title\ninstruct',
+      'a1',
+    ]);
+  });
+
+  it('is idempotent across repeated running events for the same task', async () => {
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        msg('user', 'u0'),
+        msg('user', '////by agent : S | title\ninstruct'),
+      ],
+      total: 2,
+      hasMore: false,
+      start: 0,
+    });
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        msg('user', 'u0'),
+        msg('user', '////by agent : S | title\ninstruct'),
+      ],
+      total: 2,
+      hasMore: false,
+      start: 0,
+    });
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'agent',
+    });
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'agent',
+    });
+
+    const msgs = useSessionStore.getState().currentMessages;
+    expect(msgs).toHaveLength(2);
+    expect(msgs.map((m) => m.content)).toEqual([
+      'u0',
+      '////by agent : S | title\ninstruct',
+    ]);
   });
 });
