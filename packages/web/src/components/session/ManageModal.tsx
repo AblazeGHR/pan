@@ -116,6 +116,28 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
         await unclaimSession(managerId, targetId);
         showToast(`Stopped managing "${label}"`);
       }
+      // Optimistic local update: managedIds/subscribedIds derive from the
+      // detailSession snapshot fetched on open, and loadSessions is summary=1
+      // (no managed/reportSubscriptions) — without this the buttons stay stale
+      // even though the backend already applied the change. Claim auto-subscribes
+      // and unclaim auto-unsubscribes (server-side), so both sets move together.
+      setDetailSession((d) => {
+        if (!d) return d;
+        const managed = new Set(d.managed ?? []);
+        const subs = new Set(d.reportSubscriptions ?? []);
+        if (checked) {
+          managed.add(targetId);
+          subs.add(targetId);
+        } else {
+          managed.delete(targetId);
+          subs.delete(targetId);
+        }
+        return {
+          ...d,
+          managed: [...managed],
+          reportSubscriptions: [...subs],
+        };
+      });
       await loadSessions();
     } catch (e) {
       showToast(
@@ -140,6 +162,14 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
         await reportUnsubscribe(managerId, targetId);
         showToast(`Unsubscribed from "${label}" reports`);
       }
+      // Optimistic local update so the button + header count reflect immediately.
+      setDetailSession((d) => {
+        if (!d) return d;
+        const subs = new Set(d.reportSubscriptions ?? []);
+        if (checked) subs.add(targetId);
+        else subs.delete(targetId);
+        return { ...d, reportSubscriptions: [...subs] };
+      });
       await loadSessions();
     } catch (e) {
       showToast(
@@ -209,6 +239,19 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
                       busyId !== null ? 'pointer-events-none opacity-70' : ''
                     }`}
                   >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-text-primary truncate">
+                        {c.name || 'Untitled'}
+                      </div>
+                      <div className="text-[11px] text-text-tertiary truncate">
+                        {c.id}
+                      </div>
+                    </div>
+                    {c.adapter && (
+                      <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
+                        {c.adapter}
+                      </span>
+                    )}
                     {/* Manage button: gray "Manage" → blue "Managed" when active */}
                     <button
                       type="button"
@@ -228,19 +271,6 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
                       {isManaged ? <Check size={12} /> : <Star size={12} />}
                       {isManaged ? 'Managed' : 'Manage'}
                     </button>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-text-primary truncate">
-                        {c.name || 'Untitled'}
-                      </div>
-                      <div className="text-[11px] text-text-tertiary truncate">
-                        {c.id}
-                      </div>
-                    </div>
-                    {c.adapter && (
-                      <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
-                        {c.adapter}
-                      </span>
-                    )}
                     {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
                     <button
                       type="button"

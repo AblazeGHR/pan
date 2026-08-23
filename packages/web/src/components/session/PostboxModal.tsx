@@ -9,7 +9,7 @@ import {
   fetchSession,
 } from '@/services/api';
 import type { QqContact, Session } from '@/types';
-import { Search } from 'lucide-react';
+import { Search, Bell, Check } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
 
@@ -104,6 +104,16 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
         await qqUnsubscribe(sessionIdValue, targetType, c.peerUin);
         showToast(`Unsubscribed from "${c.peerName}"`);
       }
+      // Optimistic local update: subscribedKeys derives from detailSession
+      // (fetched once on open) — without this the checkbox/button would stay
+      // stale until the modal is reopened.
+      setDetailSession((d) => {
+        if (!d) return d;
+        const subs = new Set(d.qqSubscriptions ?? []);
+        if (checked) subs.add(key);
+        else subs.delete(key);
+        return { ...d, qqSubscriptions: [...subs] };
+      });
       await loadSessions();
     } catch (e) {
       showToast(
@@ -187,22 +197,16 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                   )}
                   {visible.map((c) => {
                     const key = contactKey(c);
+                    const isSubscribed = subscribedKeys.has(key);
                     return (
-                      <label
+                      <div
                         key={key}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors hover:bg-bg-tertiary ${
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
                           busyKey !== null
                             ? 'pointer-events-none opacity-70'
                             : ''
                         }`}
                       >
-                        <input
-                          type="checkbox"
-                          checked={subscribedKeys.has(key)}
-                          disabled={busyKey !== null}
-                          onChange={(e) => toggle(c, e.target.checked)}
-                          className="accent-accent shrink-0"
-                        />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-text-primary truncate">
                             {c.peerName || 'Unknown'}
@@ -214,7 +218,30 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                         <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
                           {c.chatType === 2 ? 'group' : 'user'}
                         </span>
-                      </label>
+                        {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
+                        <button
+                          type="button"
+                          onClick={() => toggle(c, !isSubscribed)}
+                          disabled={busyKey !== null}
+                          title={
+                            isSubscribed
+                              ? 'Click to unsubscribe from inbox updates'
+                              : 'Click to subscribe to inbox updates'
+                          }
+                          className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                            isSubscribed
+                              ? 'border-accent/50 bg-accent/10 text-accent'
+                              : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                          }`}
+                        >
+                          {isSubscribed ? (
+                            <Check size={12} />
+                          ) : (
+                            <Bell size={12} />
+                          )}
+                          {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
