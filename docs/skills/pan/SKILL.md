@@ -20,7 +20,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 3. 完成通知**二选一**（详见 §3，同用会重复通知）：
    - 外部协调（CodeBuddy 会话）：`Monitor` + `/ws/agent` 订阅 `worker.result`/`worker.zombie`；
    - meta-agent 内部：MCP `report_subscribe` → 报告落到自己 `queue_pending` 队列。
-4. 端口约定：本分支（基于 pan-test）默认 **8767**；MCP server 默认连 **8768**（踩坑 #11）。端口不符时用 `PAN_API_URL` / `PAN_WS_URL` 覆盖。
+4. 端口约定：main 分支默认 **8768**（test 分支 8767）；MCP server 默认连 `PAN_API_URL`（8768）。**关键**：MCP server 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务**同实例**（§3.2 三对齐），否则 `report_subscribe` / `qq_bind` 失效（§12.2 G9）。端口不符时用 `PAN_API_URL` / `PAN_WS_URL` 覆盖。
 
 ## 1. 核心概念
 
@@ -216,7 +216,7 @@ Monitor(command="python packages/scripts/monitor_workers.py", persistent=true)
 
 ## 5. HTTP API 速查（MCP 覆盖不到的）
 
-Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`（本分支默认 **8767**；`config.json` 的 `port` 字段，`PAN_PORT` 环境变量可覆盖）。全部返回 JSON；错误通常返回 `{"error": "..."}`。
+Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`（main 分支默认 **8768**、test 分支 8767；`config.json` 的 `port` 字段，`PAN_PORT` 环境变量可覆盖）。全部返回 JSON；错误通常返回 `{"error": "..."}`。
 
 > 以下端点覆盖冷启动最常用操作：**批量删除 / rename / branch 无 MCP 工具**，需 HTTP 直调；PATCH / report-subscribe / 轮询虽有 MCP 工具，这里列出 HTTP 形态供直调（`curl` / urllib）与排查：
 
@@ -228,6 +228,9 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定） |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<meta-agent session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}` |
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}` |
+| `POST` | `/api/unclaim` | `{"managerId": "...", "sessionId": "..."}` | 解除 managed 关系（同时退订该 session 报告）；MCP 无独立工具（claim 由 report_subscribe 自动建立） |
+| `POST` | `/api/qq/subscribe` | `{"sessionId": "...", "target_type": "user"/"group", "target_id": "..."}` | Pan session 订阅某 QQ 会话 inbox 提醒（`@@@@by qq` 推送到 queue_pending）；等价 MCP 工具 `qq_bind`（pan-qq server） |
+| `POST` | `/api/qq/unsubscribe` | 同上 | 退订（等价 `qq_unbind`） |
 | `GET` | `/api/sessions` | — | `{"sessions": [...]}`（history 截断为最近 50 条，带 `historyTruncated`/`historyTotal`）——**轮询用** |
 | `GET` | `/api/sessions/{id}` | — | 单个 session 完整（含 `lastResult`、`workerStatus`、`managedBy`、`reportSubscriptions`） |
 | `GET` | `/api/sessions/{id}/history` | `?limit=50&before=<index>` | `{"history", "total", "hasMore", "start"}` 分页轮询 |
@@ -239,7 +242,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 **轮询放弃/超时策略（G7）**：
 - **结束条件**：`lastResult.status` 变为 `done`（读 `result`）或 `error`（读 `result` 排查）→ 停止轮询。
 - **放弃条件一（worker 已死）**：轮询中发现 `workerStatus` 变 `null` 且 `lastResult.status` 仍是 `queued`/`running` → watchdog 已回收或进程已死，任务不会继续 → 停止本轮，`worker_spawn` 后重新 assign（或查 `worker.zombie` 确认死因）。
-- **放弃条件二（超时预算）**：为每轮任务设总预算。静默超时默认 300s（`config.example.json`）、运行环境实测 1200s——**轮询超过静默超时上限没有意义**：worker 要么已产出结果，要么已被 watchdog 判定卡死 kill。简单任务预算 60–120s；复杂任务预算取 `worker.timeout_sec`（§9.3）+ 余量。到点仍无结果且 worker 存活 → 停止盲目轮询，先查卡死原因（静默/大文件读取，§9.3 坑 A/B）再决定重发。
+- **放弃条件二（超时预算）**：为每轮任务设总预算。stream running 卡死判定基于**任务运行时长**（`worker.task_timeout_sec` 默认 1800s，§9.3），queued 静默超时 300s（`config.example.json`）、运行环境 config.json 实测 1200s——**轮询超过任务时长上限没有意义**：worker 要么已产出结果，要么已被 watchdog 判定卡死 kill。简单任务预算 60–120s；复杂任务预算取 `worker.task_timeout_sec` + 余量。到点仍无结果且 worker 存活 → 停止盲目轮询，先查卡死原因再决定重发。
 - 首选仍是 WS 订阅 / `report_subscribe`：秒级且 `worker.zombie` 第一时间感知异常，轮询只是没有订阅时的兜底。
 
 > **Windows curl 内联 UTF-8 JSON 的坑（G4）**：Windows 下 `curl -d '{"text":"中文…"}'` 内联中文 body 会报 `{"detail":"There was an error parsing the body"}`——终端默认编码（GBK/cp936）或 shell 引号转义导致请求体非 UTF-8。对策（实测可行）：
@@ -318,12 +321,15 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 > 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。
 >
 > **巡检优先 `session_list(summary=true)`**：旧版 `session_list` 返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§12.2 G8）。**现在 `session_list(summary=true)` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），用于巡检/查归属**；确认某个 session 详情再用 `session_get(session_id, limit=15)`。查"自己管了哪些"直接用 `session_managed()`。
+>
+> **pan-qq 独立 MCP（2026-08-22 起）**：QQ 能力不在本 server。`packages/qq/mcp.py`（manifest `mcp_servers` 加 `pan-qq`）提供 6 个工具：`qq_send_message` / `qq_read_conversation` / `qq_list_contacts` / `qq_read_inbox` / `qq_bind` / `qq_unbind`。selective 模式下 meta-agent 用它做 QQ 选择性收发与 inbox 订阅——`qq_bind` 后该 QQ 会话新消息会以 `@@@@by qq` 提醒推入你的 `queue_pending`（§9.6）。SMA session template 已默认挂载 pan-qq。
 
 ### 会话管理
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?`, `session_template?`, `character_id?`, `system_prompt?`, `game_id?`, `pan_access?` | 创建会话。`session_template` 用模板创建；`pan_access` 传能力字段 dict（`restrict_to_managed`/`can_claim_unmanaged`/`auto_claim_created`）；显式字段 > 模板值 > 默认值。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§9.1） |
+| `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 cbc/kimi 历史会话**。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → worker_assign → session_get` |
 | `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
 | `session_managed` | (无) | 返回调用者管理的 session 摘要 `[{id, name, workerStatus, updatedAt}]`（需 `PAN_AGENT_SESSION_ID`） |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
@@ -401,13 +407,13 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 
 | 条件 | 行为 | 默认 / 本分支实测 |
 |------|------|------------------|
-| `running`/`queued` 持续**无任何 stdout 输出**超过 `worker.timeout_sec` | 判定卡死 → kill（等待中的 handoff 收到 error） | `config.example.json` 默认 **300s**；运行环境实测 **1200s** |
+| stream `running` **任务运行时长**超过 `worker.task_timeout_sec` | 判定卡死 → kill（等待中的 handoff 收到 error） | 默认 **1800s**（2026-08-17 起与静默超时分离，长思考/大文件读取不再被误杀） |
+| `queued` 持续**无任何 stdout 输出**超过 `worker.timeout_sec` | 静默超时 → kill | 默认 **300s**；运行环境 config.json 实测 **1200s** |
 | `idle` 持续超过 `worker.idle_sec` | 空闲回收 → kill（session 保留） | **300s** |
 | `held`（takeover）/ `zombie` | **跳过**，不回收 | — |
 
-- `last_activity` 每次 stdout 有事件即刷新——**长任务只要持续输出就不会被误杀**，超时只针对"进程活着但完全静默"的卡死。
-- **坑 A：长思考误杀**。深度推理（thinking 阶段长时间无输出）可能超过 `timeout_sec` 被当卡死 kill。对策：调大 `timeout_sec`（实测 1200s），或把任务拆小。
-- **坑 B：大文件读取**。单次读超大文件耗时久且无输出，同样触发静默超时。对策：**分段读大文件**（按行/按偏移分批），每段产生输出刷新 `last_activity`。
+- `last_activity` 每次 stdout 有事件即刷新；stream `running` 的卡死判定基于**任务运行时长**（`_task_started_at` 起算）而非静默时长——**长思考 / 大文件读取不会触发超时**，只有任务整体超时才判卡死。
+- **坑 A（历史）**：旧版静默超时（无输出即 kill）会误杀深度推理/大文件读取；2026-08-17 已改为任务运行时长判定（L1 修复），现只须关注任务总时长是否超出预算。仍建议复杂任务拆小、读大文件分段。
 - 回收后 `workerStatus` 变 `null`，session 数据完好；下次 `worker_spawn`/`worker_assign` 自动重建并恢复上下文。
 - MCP one-shot 模式由读取超时承担（同一 `timeout_sec`），watchdog 只做 idle 回收。
 - **全局 watchdog**（服务级，生命周期=Pan）：周期扫描"落盘队列 `queue_pending` 非空但没有活 worker 的 session"，自动 `create_worker` 恢复——自愈（立项 4.4）。
@@ -436,11 +442,12 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 - 每个 Worker 有一个内存 `pending_signal`（asyncio.Queue），consumer 循环阻塞在它上面。
 - **普通任务**：入队 `{text, source, seq, taskId}` → consumer 取出 → 执行。
 - **报告信号**：入队 `{"type":"report_signal"}` ——**只负责唤醒**，报告正文在 meta-agent 的**落盘队列** `Session.queue_pending`（真源）。consumer 被唤醒后从落盘队列批量拉取，拼接成一条消息（`─────` 分隔 + 来源标注）处理，消费即删。
+- **QQ 提醒信号（2026-08-22 起）**：`/api/qq/notify` 被 QQ 插件调用后，`enqueue_qq_reminder` 对所有订阅了该 QQ 会话的 session append `{"type":"qq","qqTarget":...}` 到其 `queue_pending` 并唤醒（同一 `report_signal` 通道）——即订阅者 worker 会收到 `@@@@by qq` 抬头提醒（镜像 report 链路，见 §3.2）。
 - 落盘真源 + 内存信号：服务重启不丢报告；全局 watchdog 看到 `queue_pending` 非空无活 worker 会自动拉起。
 
 ### 9.7 其他约定
 
-- **端口**：本分支（pan-test 基线）`port` **8767**；`main` 分支 8768。MCP server 默认 `PAN_API_URL=http://127.0.0.1:8768` ——**换分支/换端口必查**，否则 `[WinError 10061] 连接被拒`（踩坑 #11）。
+- **端口**：`main` 分支默认 **8768**；test 分支 8767。MCP server 默认 `PAN_API_URL=http://127.0.0.1:8768` ——**MCP 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务一致**，否则 `[WinError 10061] 连接被拒`（踩坑 #11）或 report_subscribe / qq_bind 失效（§12.2 G9）。
 - **API 无鉴权、绑 loopback**（127.0.0.1）——不要在非本机环境暴露端口。
 - **MCP deferred 判定**：工具搜不到 ≠ 未连接。`ToolSearch` 搜得到 = deferred（`.mcp.json` 路径）；搜不到 = 未连接（多半 `--mcp-config` 没传或 cwd 错）。`--mcp-config` 路径下工具应直接可见。
 - **带 character 的 session 首次任务**会被 memory 加载阻塞（embedding 首次加载 + 网络重试），可配 `memory.enabled: false` 或依赖 15s 超时降级（踩坑 #12）。
@@ -454,7 +461,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 5. **完成通知二选一**：外部协调 Monitor+/ws/agent，内部 report_subscribe——同用会重复通知。
 6. **订阅可限定 session**：subscribe 传 `sessionIds` 减少无关唤醒；断线后 `reconnect` 补发未消费结果。
 7. **一个 Session 一个任务**：避免混多个不相关任务（taskSeq/result 配对依赖此约束）。
-8. **长任务防误杀**：持续输出或调大 `worker.timeout_sec`；读大文件分段读。
+8. **长任务防误杀**：stream running 卡死判定基于任务运行时长（`worker.task_timeout_sec`，默认 1800s）——长思考/大文件读取不会被静默超时误杀；仍建议复杂任务拆小、读大文件分段。
 9. **及时清理**：`session_delete` / `batch-delete` 释放资源；watchdog 只回收进程不删 session。
 10. **不依赖长驻 Worker**：watchdog 自动回收空闲 worker，用完即走，下次调用自动重建。
 11. **workdir 用绝对路径指 Pan 外目录**：多 worker 共改一个项目时，让所有 session 指向同一 workdir。
@@ -478,7 +485,7 @@ A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `worke
 A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model——idle worker 自动 respawn 生效，running worker 回 idle 时自动重启（不能热切换运行中的 Worker）。
 
 **Q: MCP 工具连不上 Pan？**
-A: `PAN_API_URL` / `PAN_WS_URL` 端口要指向实际运行的 port（本分支 8767，MCP 默认 8768）。MCP server 用 `--pan-url` 或环境变量覆盖。
+A: `PAN_API_URL` / `PAN_WS_URL` 端口要指向实际运行的 port（main 分支 8768，MCP 默认 8768）。MCP server 用 `--pan-url` 或环境变量覆盖。
 
 **Q: worker.result 事件没收到？**
 A: 确认已 `subscribe` 且 `eventTypes` 含 `worker.result`（默认只订阅它）；订阅了 `sessionIds` 过滤时确认 session 在列表内；断线后发 `reconnect` 补发。

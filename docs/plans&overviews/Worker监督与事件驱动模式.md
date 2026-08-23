@@ -30,7 +30,7 @@ CodeBuddy Monitor 工具（command 模式 + persistent）
 
 ### 关键实现
 
-**脚本**（`data/scripts/monitor_workers.py`）：
+**脚本**（`packages/scripts/monitor_workers.py`，已随 Pan 代码库维护）：
 ```python
 async with websockets.connect("ws://127.0.0.1:8768/ws/agent") as ws:
     await ws.send(json.dumps({"type": "subscribe",
@@ -47,7 +47,7 @@ async with websockets.connect("ws://127.0.0.1:8768/ws/agent") as ws:
 
 **启动**（Monitor 工具）：
 ```
-Monitor(command="python data/scripts/monitor_workers.py", persistent=true)
+Monitor(command="python packages/scripts/monitor_workers.py", persistent=true)
 ```
 每次脚本输出一行 → Monitor 唤醒协调者。
 
@@ -69,7 +69,7 @@ Monitor 的 `ws` 模式**拒绝连接私有/内部地址**（`127.0.0.1`/`localh
 把脚本参数化，供任意协调场景复用：
 
 ```bash
-python data/scripts/monitor_worker.py \
+python packages/scripts/monitor_workers.py \
   --sessions ses_a,ses_b \        # 只关心特定 session（默认全部）
   --events worker.result \         # 事件类型过滤（默认 worker.result）
   --format one-line                # 输出格式（供 Monitor 解析）
@@ -96,7 +96,7 @@ MCP 是**请求-响应式**，无法主动推送事件给调用方。worker.resu
 
 Profile 立项（`docs/archive/Profile权限字段与MetaAgent管理Session立项.md` 4.3）的 **queue_pending 报告**本质也是"subagent 完成 → 通知 MA"：
 - **外部协调者**（CodeBuddy 会话）→ `/ws/agent` 事件驱动（本模式）
-- **meta-agent 内部** → `queue_pending` 落盘报告 + 全局 watchdog 消费（立项中）
+- **meta-agent 内部** → `queue_pending` 落盘报告 + 全局 watchdog 消费（✅ **已实现 2026-08-17**：`report_subscribe`/`report_unsubscribe` + 落盘队列 + 全局 watchdog 自愈）
 
 两者**同源**（worker.result 广播已存在），未来可统一：
 - worker 完成时既有 `worker.result` 广播（供外部），也 append `queue_pending` 报告（供 meta-agent）
@@ -122,16 +122,16 @@ Profile 立项（`docs/archive/Profile权限字段与MetaAgent管理Session立�
 
 ## 五、自动化模板（落地路径）
 
-1. **脚本入库**：`data/scripts/monitor_worker.py` 参数化后随 Pan 代码库维护（data/ 已 gitignore？需确认——若 gitignore 则放 `packages/core/scripts/` 或工具目录）
-2. **skill 包装**：`/pan-monitor` 命令模板化启动
-3. **文档化**：本文件 + SKILL.md 引用
-4. **与 meta-agent 报告统一**：在 Profile 立项实现时，把 `/ws/agent` 事件与 `queue_pending` 报告归一到同一"完成通知"概念
+1. ✅ **脚本入库**：`packages/scripts/monitor_workers.py` 已随 Pan 代码库维护（含 WS 事件订阅 + 30s 健康检查 `STALE`/`RECOVERED`，见 SKILL.md §4）
+2. **skill 包装**：`/pan-monitor` 命令模板化启动（未做，SKILL.md §4 已给出直接用法）
+3. ✅ **文档化**：本文件 + SKILL.md 引用
+4. ✅ **与 meta-agent 报告统一**：Profile 立项实现时把 `/ws/agent` 事件与 `queue_pending` 报告归一为"完成通知"二选一（§4.4 已成型，report_subscribe 已落地）
 
 ## 六、待决策
 
-1. 脚本入库位置（data/scripts/ 是否 gitignore，还是移 `packages/` 下）
-2. 是否做 skill 包装（`/pan-monitor`）
-3. 是否在 Profile 立项里把"完成通知"统一建模（/ws/agent 事件 + queue_pending 报告双通道）
+1. ✅ 脚本入库位置 → 已定 `packages/scripts/`（2026-08-17 落位）
+2. 是否做 skill 包装（`/pan-monitor`）→ 未做（SKILL.md §4 提供直接用法，暂不包装）
+3. ✅ "完成通知"统一建模 → 已定型：外部 `/ws/agent` 与内部 report_subscribe 二选一（§4.4 + SKILL.md §3）
 
 ---
 

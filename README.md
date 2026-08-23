@@ -40,7 +40,7 @@ Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，
 
 Meta-Agent 不是某个特殊的程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件，就能扮演"主管"：
 
-1. **能发指令**：通过 MCP 工具（17 个现成工具：`worker_spawn` / `worker_assign` / `worker_send` / `worker_kill` …）或 HTTP API；
+1. **能发指令**：通过 MCP 工具（20 个现成工具：`worker_spawn` / `worker_assign` / `worker_send` / `worker_kill` …）或 HTTP API；
 2. **能收情报**：通过 WebSocket 订阅事件流（`worker.result` / `worker.status` / `worker.crashed` …）；
 3. **有身份**：Pan 记录是谁在指挥，并对 Worker 做隔离，防止越权。
 
@@ -124,13 +124,13 @@ handoff(W1: 写技术方案) → 拿到方案 → handoff(W2: 写代码) → 拿
 ## 功能总览
 
 - **Worker 生命周期管理** — 双模式：`stream`（长驻会话，可挂载 MCP）与 `one-shot MCP`（一次性任务）；支持 spawn / task / kill / restart / branch / interrupt / takeover / rename / settings / settings 更新。
-- **Watchdog 自愈** — worker 级：静默超时 kill（`worker.timeout_sec`，默认 300s）、空闲回收（`worker.idle_sec`，默认 300s），held/zombie 跳过；全局级：落盘队列自愈（进程异常死亡后自动重建 worker）。
-- **Session 管理** — 持久化 `ses_<16hex>`，独立于 Worker 生命周期；CRUD、历史分页、分支（fork）、批量删除。
-- **编排 API** — `handoff`（同步阻塞 + taskId 幂等）、`assign`（异步派发）、`report-subscribe`（订阅制报告推送）、`claim`（managed 关系绑定）。
+- **Watchdog 自愈** — worker 级：stream running 按任务运行时长判定卡死（`worker.task_timeout_sec`，默认 1800s）、queued 静默超时（`worker.timeout_sec`，默认 300s）、空闲回收（`worker.idle_sec`，默认 300s），held/zombie 跳过；全局级：落盘队列自愈（进程异常死亡后自动重建 worker）。
+- **Session 管理** — 持久化 `ses_<16hex>`，独立于 Worker 生命周期；CRUD、历史分页、分支（fork）、批量删除、QQ 会话订阅（`qq_subscriptions`）。
+- **编排 API** — `handoff`（同步阻塞 + taskId 幂等）、`assign`（异步派发）、`report-subscribe`（订阅制报告推送）、`claim` / `unclaim`（managed 关系绑定 / 解绑）。
 - **Character / Profile 框架** — `manifest.json`（或外部 `plugin_manifests`）声明模板 → 创建带独立记忆库的 Character 实例。
 - **Memory 子系统** — SQLite + FTS5 + embedding 混合检索；知识文件索引、运行中自动注入；embedding 多 provider（sentence-transformers 默认 / openai / ollama / llama.cpp GGUF）；jieba 中文分词、watchdog 文件监控、批量向量评分。
-- **MCP Server** — 17 个工具（session / worker / report / model / handbook），带 MCP 隔离检查与 `////by agent` 来源前缀；支持 stdio / SSE / streamable-http。
-- **多通道接入** — Web（Dashboard + HTTP/WS API）、QQ（NoneBot2 + OneBot v11）、Remote（Cloudflare Tunnel）、Meta-Agent（WS + MCP）。
+- **MCP Server** — 20 个工具（session / worker / report / model / handbook，含 `session_import` 历史会话导入），带 MCP 隔离检查与 `////by agent` 来源前缀；支持 stdio / SSE / streamable-http。另有独立 `pan-qq` MCP server（`packages/qq/mcp.py`，6 个 QQ 工具）。
+- **多通道接入** — Web（Dashboard + HTTP/WS API）、QQ（NoneBot2 + OneBot v11；`mirror` 全量镜像 / `selective` 选择性发送双模式 + pan-qq MCP）、Remote（Cloudflare Tunnel）、Meta-Agent（WS + MCP）。
 - **CLI Adapter 抽象** — `cbc`（CodeBuddy CLI，stream-json 协议 + one-shot MCP）、`kimi`；可扩展任意 Agent CLI（Codex、OpenCode 等）；会话导入（cbc / kimi 历史导入）。
 - **文件系统 API** — session workdir 内 list / read / write / rename / delete，带路径逃逸校验。
 
@@ -158,19 +158,19 @@ Pan/
 │   │   ├── memory/            Memory 子系统（SQLite + FTS5 + embedding 混合检索）
 │   │   └── adapters/          CLI Adapter（cbc / kimi）
 │   ├── web/                  Web 通道（FastAPI + WebSocket + Dashboard）
-│   │   ├── server.py          FastAPI 路由 + WebSocket（51 个 HTTP 端点）
+│   │   ├── server.py          FastAPI 路由 + WebSocket（56 个 HTTP 端点）
 │   │   ├── ts/                Legacy TypeScript 源码（→ static/）
 │   │   ├── static/            Legacy 编译产物 + CSS（gitignored）
 │   │   ├── src/               React SPA 源码（开发主力）
 │   │   ├── dist/              Vite 构建产物（gitignored）
 │   │   └── package.json
-│   ├── qq/                   QQ 通道（NoneBot2 桥接 + 独立 requirements.txt）
+│   ├── qq/                   QQ 通道（NoneBot2 桥接 + pan-qq MCP server + 独立 requirements.txt）
 │   ├── remote/               远程通道（Cloudflare Tunnel + 状态服务）
-│   ├── mcp/                  MCP Server（17 个工具，可独立启动）
+│   ├── mcp/                  MCP Server（20 个工具，可独立启动）
 │   └── scripts/              运维脚本（monitor_workers.py 等）
 ├── scripts/                   启动/停止/隧道/预提交脚本
 ├── docs/                      文档（全部纳入 git 跟踪；archive/ 为历史存档）
-├── tests/                     测试（17 个文件，覆盖 worker / mcp / memory / character / adapter）
+├── tests/                     测试（18 个文件，覆盖 worker / mcp / memory / character / adapter / session_import）
 └── data/                      运行时数据（gitignored：sessions / characters / memory / workdirs / logs）
 ```
 
@@ -253,20 +253,23 @@ pnpm dev              # 开发模式：Vite HMR + 代理到后端
 | `cbc.model` | `deepseek-v4-flash` | cbc 模型（flash/pro/hy3/glm/kimi 等，见 example） |
 | `cbc.permission_mode` | `bypassPermissions` | cbc 权限模式 |
 | `kimi.model` | `kimi-code/kimi-for-coding` | kimi 模型 |
-| `worker.timeout_sec` | 300 | 静默超时 kill 秒数 |
+| `worker.timeout_sec` | 300 | queued 静默超时 / MCP 读取超时 kill 秒数 |
+| `worker.task_timeout_sec` | 1800 | stream running 任务运行时长上限（长思考/大文件读取不误杀） |
 | `worker.idle_sec` | 300 | 空闲回收秒数 |
+| `qq.enabled` | true | 是否启动 QQ bot（main.py 按此统一 spawn/终止 `packages/qq/bot.py`） |
+| `qq.mode` | `mirror` | QQ 桥接模式：`mirror` 全量镜像自动回复 / `selective` 选择性发送（消息只进 inbox，由 meta-agent 经 pan-qq MCP 决策） |
 | `remote` | enabled=false | Cloudflare Tunnel 配置（quick_tunnel / config_path / status_port=8769） |
 | `logging` | INFO / data/logs/pan.log | 日志级别、轮转、控制台输出 |
 | `plugin_manifests` | `["manifest.json"]` | 外部 Character profiles 清单 |
 | `mcp.enabled_default` | 已废弃 | MCP 启用由 session 的 `mcp_servers` 非空决定，此键无效果 |
 
-**环境变量**：`PAN_PORT`（覆盖端口）、`PAN_HOST`（默认 127.0.0.1）、`PAN_URL`（QQ Bridge 用）、`PAN_API_URL`（MCP server 用，默认 `http://127.0.0.1:8768`）。
+**环境变量**：`PAN_PORT`（覆盖端口）、`PAN_HOST`（默认 127.0.0.1）、`PAN_URL`（QQ Bridge 用）、`PAN_API_URL`（MCP server 用，默认 `http://127.0.0.1:8768`）、`PAN_QQ_API_URL`（pan-qq MCP 用，默认 `http://127.0.0.1:8080`）、`PAN_QQ_PYTHON`（QQ bot 解释器，默认 miniforge）、`PAN_QQ_MODE`（覆盖 `qq.mode`）。
 
 ---
 
 ## API 一览
 
-### HTTP（`packages/web/server.py`，51 个端点）
+### HTTP（`packages/web/server.py`，56 个端点）
 
 **Session 管理**
 
@@ -306,6 +309,16 @@ POST   /api/assign                    → 异步派发任务
 POST   /api/report-subscribe          → 订阅 Worker 报告
 POST   /api/report-unsubscribe        → 退订报告
 POST   /api/claim                     → 绑定 managed 关系
+POST   /api/unclaim                   → 解除 managed 关系（同时退订报告）
+```
+
+**QQ 绑定（2026-08-22 新增，镜像 report-subscribe 订阅制）**
+
+```
+POST   /api/qq/subscribe              → Pan session 订阅某 QQ 会话 inbox 更新提醒
+POST   /api/qq/unsubscribe            → 取消订阅
+POST   /api/qq/notify                 → QQ 插件上报 inbox 更新（推 `@@@@by qq` 提醒给订阅者）
+GET    /api/qq/contacts               → 最近 QQ 联系人/群（代理到 QQ 插件 recent_contacts）
 ```
 
 **Character / Memory**
@@ -358,14 +371,16 @@ WS   /ws/agent       Meta-Agent：subscribe（按 eventTypes/sessionIds 过滤+�
 
 广播事件：`worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`、`session.created` / `session.updated` / `session.renamed` / `session.deleted` / `sessions.deleted`、`error`。
 
-### MCP Server（`packages/mcp/server.py`，17 个工具）
+### MCP Server（`packages/mcp/server.py`，20 个工具）
 
 ```
-session_create / session_list / session_get / session_delete / session_update / session_history
+session_create / session_import / session_list / session_managed / session_get / session_delete / session_batch_delete / session_update / session_history
 report_subscribe / report_unsubscribe
 worker_spawn / worker_task / worker_kill / worker_list / worker_handoff(已弃用) / worker_assign / worker_send
 model_list / pan_handbook
 ```
+
+另有独立 **pan-qq MCP server**（`packages/qq/mcp.py`，6 个工具）：`qq_send_message` / `qq_read_conversation` / `qq_list_contacts` / `qq_read_inbox` / `qq_bind` / `qq_unbind`。由 manifest 的 `mcp_servers` 挂载（`pan-qq`），selective 模式下 meta-agent 用它做 QQ 选择性收发。
 
 启动方式：`python -m packages.mcp.server --transport stdio|sse|streamable-http [--port 9740]`（默认 stdio，API 地址取 `PAN_API_URL`）。
 
@@ -385,13 +400,14 @@ model_list / pan_handbook
 
 ### QQ Bridge
 
-依赖见 `packages/qq/requirements.txt`（nonebot2 + onebot-adapter-onebot + httpx）。启动顺序：
+依赖见 `packages/qq/requirements.txt`（nonebot2 + onebot-adapter-onebot + httpx）。启动：
 
 1. NapCat（正向 WS 服务端，端口 3001）
-2. `python main.py`
-3. `cd packages/qq && python bot.py`（NoneBot2 自带 8080 服务，不对外）
+2. `python main.py`（或 `scripts/start_pan.bat`）——**main.py 按 `config.json` 的 `qq.enabled` 自动 spawn / 终止 QQ bot**（`packages/qq/bot.py`，PID 写入 `data/qq_bot.pid`），无需手动启动。QQ bot 是 main.py 的子进程，随主服务一起停止。
 
-命令路由由 `manifest.json` 的 `command_routes` 声明。
+> 注意：QQ bot 运行在 **miniforge 解释器**（`E:\software\miniforge\python.exe`，NoneBot 未装在项目 .venv），可用 `PAN_QQ_PYTHON` 覆盖。
+
+QQ 命令路由由 `manifest.json` 的 `command_routes` 声明（plugin.py 按前缀匹配直发 HTTP API，不走 LLM）；`qq.mode` 控制 `mirror`（全量镜像自动回复，默认）/ `selective`（消息只进 inbox，由 meta-agent 经 pan-qq MCP 决策回复）。
 
 ### Remote（Cloudflare Tunnel）
 
@@ -442,7 +458,9 @@ python -m packages.remote
 - **Remote Tunnel 机制**：公网域名 = `remote.config_path` 指向的 yml 的 `ingress.hostname`；暴露端口 = `config.port`；由 `scripts/start_cf.ps1` 读取 config.json 注入临时 yml，**不依赖 `remote.enabled` 字段**。
 - **前端双源 of truth**：legacy 源码 `packages/web/ts/app.ts`，`static/js/app.js` 是其编译产物（gitignored），**改完必须从项目根 `npx tsc`**；React 源码 `packages/web/src/`，产物 `dist/`（gitignored），**改完必须 `cd packages/web && pnpm build`**。pre-commit（`git config core.hooksPath scripts`）会同时校验两者。
 - **worker 双模式判定**：`stream` 长驻（可挂载 MCP，cbc ≥ 2.137.0 的 stream-json 已支持 MCP）；`one-shot MCP` 仅在 `output_mode=oneshot` 时启用。`worker_handoff` 已弃用，用 `worker_assign` / `worker_send` 替代。
+- **worker 超时语义（2026-08-17 区分）**：stream running 按**任务运行时长**判定卡死（`worker.task_timeout_sec`，默认 1800s），queued 用静默超时（`worker.timeout_sec`，默认 300s）——长思考 / 大文件读取不再被静默超时误杀。
+- **QQ bot 进程管理（2026-08-22）**：main.py 按 `config.json` 的 `qq.enabled` 统一 spawn / 终止 QQ bot（写 `data/qq_bot.pid`）；`scripts/start_pan.bat` 只启 main.py（QQ bot 是其子进程），`scripts/stop_pan.bat` 精确树杀 + 命令行兜底，不再全局杀 python.exe。
 - **Memory 依赖与降级**：minimal 依赖不含 ML 链。启用 Memory 前需 `sentence-transformers`（web 端默认 provider）。各可选库缺失时懒加载 + ImportError 兜底自动降级，不影响 Core 启动；但 `jieba` 缺失会显著降低中文检索质量。
 - **Python 版本**：仓库无版本声明文件（无 pyproject.toml / .python-version），实际运行环境为 Python 3.14.5。
 - **worktree 无独立 .venv**：在 git worktree 里测试/运行时，统一使用主仓库的 `D:/project/Pan/.venv`。
-- **测试现状**：`tests/` 17 个文件，覆盖 worker 生命周期（states/watchdog/global_watchdog/primitives/history/output_mode/cli_session_binding）、MCP（integration/isolation/handbook/agent_subscription/report_subscription）、memory（chunker/search）、character/manifest_loader、adapter（kimi/cbc_import_guard）。运行 `python -m pytest tests/ -q`。
+- **测试现状**：`tests/` 18 个文件，覆盖 worker 生命周期（states/watchdog/global_watchdog/primitives/history/output_mode/cli_session_binding）、MCP（integration/isolation/handbook/agent_subscription/report_subscription）、memory（chunker/search）、character/manifest_loader、adapter（kimi/cbc_import_guard）、session_import。运行 `python -m pytest tests/ -q`。

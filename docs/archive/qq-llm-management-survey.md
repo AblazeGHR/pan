@@ -1,6 +1,13 @@
 # 面向 LLM 的 QQ 管理机器人框架/插件调研 —— 与 Pan 配合评估
 
-> 调研日期：2026-08-22 ｜ 状态：调研文档，非实现计划
+> 调研日期：2026-08-22 ｜ 状态：**调研文档（已归档）——推荐方案已实现**
+>
+> **2026-08-23 归档注记**：本调研推荐的**方案 A（继续 NoneBot2，升级 `packages/qq/plugin.py`）已全部实现**（commit `d9c13b4`/`5d706db`/`b76ccd1`/`27f4f42`）：
+> - selective 模式（`config.json -> qq.mode`，消息只进 inbox 不自动回复）——对应调研 §5.1；
+> - 独立 pan-qq MCP server（`packages/qq/mcp.py`：`qq_send_message` / `qq_read_conversation` / `qq_list_contacts` / `qq_read_inbox` / `qq_bind` / `qq_unbind`）；
+> - QQ session 绑定 + inbox 推送（`qq_subscriptions` + `@@@@by qq` 提醒，镜像 report_subscribe）。
+>
+> 富媒体发送（§5.2）、全事件上行（§5.3）、反向控制（§5.4）为后续增强方向，尚未实现。调研结论仍具参考价值（协议端选型 NapCat、方案 C 为长期演化方向），归档保留。
 > 范围：QQ 协议层（NapCat/LLOneBot/go-cqhttp/Lagrange/Mirai）+ LLM 机器人框架（NoneBot2/Koishi/AstrBot/LangBot 等）+ 与 Pan 的配合方案
 > 信息源：各项目 GitHub 仓库 / Releases / 官方文档，见文末附录
 

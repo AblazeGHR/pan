@@ -1,7 +1,9 @@
 # 设计：消息发送队列（vanilla 前端优先）
 
-> 状态：设计方案（不实现）｜适用路由：`/`（vanilla，`packages/web/ts/app.ts`）
+> 状态：**已实现（2026-08-21 ~ 08-22）**——vanilla（commit `68859d1`、`4d99dc6`）与 React（commit `236d672`）两侧均已落地。
+> 适用路由：`/`（vanilla，`packages/web/ts/app.ts`）与 `/react/*`（React `src/components/chat/SendQueuePanel.tsx`）。
 > 目标：聊天输入框加 `^` 按钮 → 展开"待发送消息队列"面板；每条支持删除 / 编辑 / 向上 / 向下。
+> 实现形态：客户端队列（localStorage `pan.sendQueue.<sessionId>` 持久化），服务端零改动；服务端队列为远期混合方向，尚未实现。
 
 ---
 

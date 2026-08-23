@@ -1,8 +1,9 @@
 # 设计文档：`session_import` MCP 工具（导入历史会话）
 
-- 状态：方案设计（未实现）
+- 状态：**已实现（2026-08-21 设计 → 已合入 main，commit `401446a`）**
 - 日期：2026-08-21
 - 范围：`packages/mcp/server.py` 新增工具；`packages/web/server.py` 少量扩展
+- 实现要点：四 action 工具（`list_projects` / `list_workspaces` / `list_sessions` / `import`）已落地于 `packages/mcp/server.py:308`；后端两个 import 端点已支持 `sessionTemplate` / `panAccess`（复用 `_build_session_params`）；`_session_summary` 已含 `cliSessionId` 供 reimport 预检；import 超时放宽到 120s。详见 §11「后续实现步骤」勾选状态。
 
 ## 1. 背景与目标
 
@@ -273,21 +274,23 @@ Args:
 
 ## 11. 后续实现步骤
 
+> 已全部实现（2026-08-23 核对代码确认）。
+
 后端（`packages/web/server.py`）：
 
-1. import 端点（cbc + kimi）body 支持 `sessionTemplate` / `panAccess`，新建分支复用 `_build_session_params` 模板解析（§8.1）。
-2. `_session_summary` 增加 `cliSessionId` 字段，供 reimport 预检（§8.2）。
-3. （可选）import 端点补 `_check_session_name` 校验。
+1. ✅ import 端点（cbc + kimi）body 支持 `sessionTemplate` / `panAccess`，新建分支复用 `_build_session_params` 模板解析（§8.1，server.py:1712-1721 / 1834-1842）。
+2. ✅ `_session_summary` 增加 `cliSessionId` 字段，供 reimport 预检（§8.2，server.py:251-264）。
+3. ⚠️ （可选）import 端点补 `_check_session_name` 校验——**未做**，名字唯一性仍依赖调用方显式传 `name`。
 
 MCP（`packages/mcp/server.py`）：
 
-4. 新增 `session_import` 工具（四 action 分发，import 放宽 `_api` timeout）。
-5. reimport 预检逻辑（受限 caller + cliSessionId 定位，§8.2）。
-6. import 成功后 `_auto_claim(result["id"])`。
-7. 更新 `docs/skills/pan/SKILL.md`：工具清单表 + 新增「导入历史会话」小节；`packages/mcp/server.py` 模块 docstring 的 Tools exposed 列表同步。
+4. ✅ 新增 `session_import` 工具（四 action 分发，import 放宽 `_api` timeout=120s，server.py:308-424）。
+5. ✅ reimport 预检逻辑（受限 caller + cliSessionId 定位，§8.2，`_reimport_precheck`）。
+6. ✅ import 成功后 `_auto_claim(result["id"])`。
+7. ✅ 更新 `docs/skills/pan/SKILL.md`：工具清单表 + 新增「导入历史会话」小节（2026-08-23 文档维护补齐）；`packages/mcp/server.py` 模块 docstring 的 Tools exposed 列表同步。
 
-## 12. 未决问题
+## 12. 未决问题（已决）
 
-- `session_template` 由 import 端点支持（推荐）还是 MCP 层 `session_update` 补丁（过渡）？
-- 是否需要 `action="browse"`（文件树浏览，覆盖大量项目场景）？
-- 导入会话名是否强制唯一/无空格校验（对齐 session_create）？
+- ✅ `session_template` 由 import 端点支持（§8.1 推荐方案）——已落地，无需 MCP 层 `session_update` 补丁过渡。
+- ❓ 是否需要 `action="browse"`（文件树浏览，覆盖大量项目场景）？——未实现，量大时仍走 `GET /api/cbc/browse`（HTTP 直调）。
+- ⚠️ 导入会话名是否强制唯一/无空格校验（对齐 session_create）？——未做，见步骤 3。

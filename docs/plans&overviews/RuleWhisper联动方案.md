@@ -2,7 +2,7 @@
 
 > 从设计提案到 Phase 1 实施手册的统一文档。关联（RuleWhisper 仓库）：`docs/Pan联动实施方案.md`。
 >
-> **状态（2026-08 更新）**：**Manifest Loader / Profile / Character / Memory / MCP 注入已全部落地并合入 main**（`packages/core/manifest_loader.py`、`character.py`、`memory/`，feature/memory 分支）。尚待实现：**QQ 前缀命令路由**（manifest `command_routes` 直发 HTTP API，当前 plugin.py 全走 LLM 路径）与**群级 game_id 绑定**。
+> **状态（2026-08-23 更新）**：**Manifest Loader / Profile / Character / Memory / MCP 注入已全部落地并合入 main**（`packages/core/manifest_loader.py`、`character.py`、`memory/`，feature/memory 分支）；**QQ 前缀命令路由**（plugin.py `_match_command_route` 遍历 manifest `command_routes` 直发 HTTP API，不走 LLM）与**群级 game_id 绑定**（`_resolve_game_id` / `_sync_session_game_id`）也于 2026-08-22 实现（随 selective 模式一并落地）。当前 `manifest.json` 内置 `command_routes: []`（RuleWhisper 外部 manifest 提供路由），详见下方 §六。
 
 ---
 
@@ -121,7 +121,7 @@ def _mcp_args(self, servers: list[dict]) -> list[str]:
 
 ## 六、Phase 1：联调（QQ 群内全链路）
 
-> **当前状态**：LLM 链路（自然语言 → coc-keeper character → MCP 工具）已通过 API/CLI 端到端验证。**QQ 前缀命令路由（6.1 的 command_routes 直发）尚未实现** —— 当前 `plugin.py` 对群内所有消息一律走 LLM 路径（`_send_and_wait`）；群级 Session 绑定（`scope: "user" | "group"`）已实现，但 game_id 绑定（7.1）未做。
+> **当前状态（2026-08-23）**：LLM 链路（自然语言 → coc-keeper character → MCP 工具）已通过 API/CLI 端到端验证；**QQ 前缀命令路由（6.1 的 command_routes 直发）已实现**（plugin.py `_match_command_route`，按前缀长度降序匹配，命中 → HTTP 直发目标，0 LLM token）；群级 Session 绑定（`scope: "user" | "group"`）已实现；**game_id 绑定（7.1）已实现**（`_resolve_game_id` / `_sync_session_game_id`，best-effort 同步到 session 的 `gameId`）。下方 6.3 冒烟测试清单为外部联调验收项，需在有 RuleWhisper 插件 + 群环境的机器上验证。
 
 目标：群内消息按 manifest 声明的 `command_routes` 路由，自然语言走 LLM（自动用 RuleWhisper MCP）。
 

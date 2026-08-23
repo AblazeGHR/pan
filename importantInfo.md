@@ -26,6 +26,7 @@
 
 1. NapCat（先启动，保持后台）
 2. Pan：`python main.py`（或 `scripts/start_pan.bat`）
-3. QQ Bridge：`cd packages/qq && python bot.py`
 
+> **QQ Bridge 无需手动启动**：main.py 按 `config.json` 的 `qq.enabled`（默认 true）自动 spawn `packages/qq/bot.py` 子进程（PID 写 `data/qq_bot.pid`），随主服务一起停止。QQ bot 运行在 miniforge 解释器（NoneBot 未装在项目 .venv），可用环境变量 `PAN_QQ_PYTHON` 覆盖。
+>
 > QQ Bridge 默认端口从 `config.json` 的 `port` 字段读取，可用环境变量 `PAN_URL` 覆盖。
