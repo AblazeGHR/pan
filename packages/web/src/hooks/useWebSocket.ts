@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { wsClient } from '@/services/ws';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -31,13 +31,15 @@ function scheduleRefreshSessions(): void {
  * when subscribed state changes.
  */
 export function useWebSocket() {
-  const started = useRef(false);
-
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-
     wsClient.connect();
+
+    // 初始加载兜底：StrictMode dev 下 effect 会 setup→cleanup→setup 重跑，
+    // open 处理器被注销后再注册，而 wsClient.connect() 幂等（首个 setup 已
+    // 发起连接，重跑时不再触发新 open）——这里显式刷新一次，保证会话列表
+    // 始终加载，且 WS 在重挂载前已连接时（HMR/切路由回来）也能拿到最新数据。
+    useSessionStore.getState().loadSessions();
+    useWorkerStore.getState().refresh();
 
     // Capture every unsubscribe so remounts don't accumulate duplicate
     // handlers on the singleton wsClient.
@@ -62,13 +64,17 @@ export function useWebSocket() {
       handleWorkerUpdate(e, 'idle'),
     ));
 
-    // Worker destroyed / crashed
-    unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) =>
-      handleWorkerUpdate(e, null),
-    ));
-    unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) =>
-      handleWorkerUpdate(e, null),
-    ));
+    // Worker destroyed / crashed — 除就地更新状态点外触发防抖全量兜底：
+    // 崩溃/销毁是低频事件，且流式片段已逐块落盘，刷新让列表吸收已持久化的
+    // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
+    unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
+      handleWorkerUpdate(e, null);
+      scheduleRefreshSessions();
+    }));
+    unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
+      handleWorkerUpdate(e, null);
+      scheduleRefreshSessions();
+    }));
 
     // Worker status update
     unsubscribers.push(wsClient.on('worker.status', (e: StreamEvent) => {
@@ -93,6 +99,9 @@ export function useWebSocket() {
         });
       }
       handleWorkerUpdate(e, 'idle');
+      // 就地更新该 session 卡片（lastResult + 结果文本追加 + historyTotal），
+      // 不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新。
+      if (e.sessionId) sessionStore.applyResultToSession(e.sessionId, e);
       // 实时刷新侧边栏列表（lastResult / historyTotal / workerStatus 等卡片
       // 数据）。防抖合并为单次全量抓取：既避免每个任务完成都触发整列表重渲染
       // 造成的滞涩，也避开了后端「done→idle」的瞬态窗口（否则快照可能把已置为

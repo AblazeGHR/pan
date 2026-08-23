@@ -59,6 +59,13 @@ interface SessionStore {
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
   updateSession: (id: string, data: Partial<Session>) => void;
+  /** 就地更新某 session 卡片：追加结果文本到 history + lastResult + historyTotal，
+   *  不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新（镜像 vanilla
+   *  `_applyWorkerUpdate` 的就地更新路径）。 */
+  applyResultToSession: (
+    id: string,
+    e: { status?: string; result?: string },
+  ) => void;
   toggleMultiSelect: (id?: string) => void;
   toggleSelection: (id: string) => void;
   exitMultiSelect: () => void;
@@ -209,6 +216,44 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         (session.historyTotal ?? loaded) - loaded,
       ),
     });
+
+    // 进入 session 后立即拉服务端最新历史替换快照。React 的快照只靠防抖
+    // loadSessions 刷新，可能滞后或（在 _loadSeq 超驰/事件丢失时）过期——
+    // 这正是「vanilla 已更新、React 进入的对话历史还是旧的」的根因。
+    // vanilla 因每个 worker 事件都触发 refreshSessions，快照几乎总是新的。
+    try {
+      const data: ApiSessionHistoryResponse = await fetchSessionHistory(
+        id,
+        0,
+        50,
+      );
+      if (get().currentSessionId !== id) return; // 用户已切走，丢弃过期结果
+      const serverHistory = data.history || [];
+      // 流式窗口防护：若服务端历史只是本地已渲染消息的前缀（部分块尚未
+      // 落盘），保留本地，避免把正在流式的回复抹掉。
+      const keepLocal = isServerHistoryPrefix(
+        get().currentMessages,
+        serverHistory,
+      );
+      set((s) => ({
+        sessions: s.sessions.map((x) =>
+          x.id === id
+            ? {
+                ...x,
+                history: serverHistory,
+                historyTruncated: data.hasMore,
+                historyTotal: data.total,
+              }
+            : x,
+        ),
+        currentMessages: keepLocal ? s.currentMessages : serverHistory,
+        hasMoreMessages: data.hasMore,
+        historyLoadEnd: data.start,
+      }));
+    } catch {
+      // 网络失败：保留快照（上方已 set），不阻塞切换
+      console.warn('[sessionStore] selectSession fresh-history fetch failed', id);
+    }
   },
 
   loadOlderMessages: async () => {
@@ -435,6 +480,41 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       _touchSeq: touchSeq,
       _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [id]: touchSeq },
     }));
+  },
+
+  applyResultToSession: (id, e) => {
+    const status = e.status === 'error' ? 'error' : 'done';
+    const result = e.result;
+    set((s) => {
+      const sessions = s.sessions.map((x) => {
+        if (x.id !== id) return x;
+        const history = (x.history || []).slice();
+        let historyTotal = x.historyTotal ?? history.length;
+        // 镜像后端 _read_stdout 的去重：结果文本若已是最后一条 assistant 则
+        // 不重复追加（防止流式末尾块 + result 文本双份）。
+        if (typeof result === 'string' && result.trim()) {
+          const last = history[history.length - 1];
+          if (!(last && last.role === 'assistant' && last.content === result)) {
+            history.push({ role: 'assistant', content: result });
+            historyTotal += 1;
+          }
+        }
+        // 防内存膨胀：就地追加可能脱离服务端 last-50，这里封顶；全量兜底
+        // loadSessions 会把 history 纠正为服务端最新 tail。
+        const bounded = history.length > 500 ? history.slice(-500) : history;
+        return {
+          ...x,
+          history: bounded,
+          historyTotal,
+          lastResult: {
+            status,
+            result: result ?? '',
+            timestamp: new Date().toISOString(),
+          },
+        };
+      });
+      return { sessions };
+    });
   },
 
   toggleMultiSelect: (initId?: string) => {
