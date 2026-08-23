@@ -341,30 +341,101 @@ function ManagerNodeView({
       {hasChildren && !collapsed && (
         <div className="ml-3 border-l border-text-tertiary">
           {node.children.map((child) => (
-            <div key={child.session.id} className="relative">
-              {/* Tree connector: horizontal tick from the left guide into this
-                  child row (├─ style), making the parent→child ownership
-                  visually explicit. `top-1/2 -translate-y-1/2` centers it on
-                  the card row (aligned with the WorkerDot, which is vertically
-                  centered via SessionItem's `items-center`), instead of a
-                  hardcoded offset. Color uses text-tertiary — visible in both
-                  light (#8e96a1) and dark (#6e7681) themes, unlike the
-                  near-invisible border-muted. */}
-              <span
-                aria-hidden
-                className="pointer-events-none absolute -left-3 top-1/2 -translate-y-1/2 h-px w-6 bg-text-tertiary"
-              />
-              <ManagerNodeView
-                node={child}
-                currentSessionId={currentSessionId}
-                selectedIds={selectedIds}
-                multiSelectMode={multiSelectMode}
-                collapsedGroups={collapsedGroups}
-                onSelect={onSelect}
-                onMenu={onMenu}
-                onToggle={onToggle}
-              />
-            </div>
+            <ManagerChildView
+              key={child.session.id}
+              child={child}
+              currentSessionId={currentSessionId}
+              selectedIds={selectedIds}
+              multiSelectMode={multiSelectMode}
+              collapsedGroups={collapsedGroups}
+              onSelect={onSelect}
+              onMenu={onMenu}
+              onToggle={onToggle}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ManagerChildViewProps {
+  child: ManagerNode;
+  currentSessionId: string | null;
+  selectedIds: Set<string>;
+  multiSelectMode: boolean;
+  collapsedGroups: Set<string>;
+  onSelect: (id: string) => void;
+  onMenu?: (e: React.MouseEvent, id: string) => void;
+  onToggle: (node: ManagerNode) => void;
+}
+
+/**
+ * One manager child: its own SessionItem row wrapped with the tree-connector
+ * tick, followed by the child's own children container (recursively). The tick
+ * lives in a `relative` wrapper that wraps ONLY this child's row, so
+ * `top-1/2 -translate-y-1/2` centers it on this row (aligned with the WorkerDot)
+ * even when the child itself is a manager with a deeper subtree.
+ *
+ * Geometry: the children container has `ml-3 border-l`, so its border sits
+ * 12px right of the parent row and the child wrapper starts 1px past it
+ * (13px). `-left-px` starts the tick exactly at that border (no overhang to
+ * the left of the vertical guide) and `w-3` (12px) ends it 1px before the
+ * SessionItem's WorkerDot — so it never covers the indicator, at any nesting
+ * level (each level's border/tick are at its own increasing x position).
+ */
+function ManagerChildView({
+  child,
+  currentSessionId,
+  selectedIds,
+  multiSelectMode,
+  collapsedGroups,
+  onSelect,
+  onMenu,
+  onToggle,
+}: ManagerChildViewProps) {
+  const session = child.session;
+  const hasChildren = child.children.length > 0;
+  const collapsed = collapsedGroups.has(session.id);
+
+  return (
+    <div>
+      {/* Own row + tree connector tick */}
+      <div className="relative">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -left-px top-1/2 -translate-y-1/2 h-px w-3 bg-text-tertiary"
+        />
+        <SessionItem
+          session={session}
+          isActive={session.id === currentSessionId}
+          isSelected={selectedIds.has(session.id)}
+          multiSelectMode={multiSelectMode}
+          expandable={hasChildren && !multiSelectMode}
+          expanded={!collapsed}
+          onToggleChildren={(e) => {
+            e.stopPropagation();
+            onToggle(child);
+          }}
+          onSelect={() => onSelect(session.id)}
+          onMenu={(e) => onMenu?.(e, session.id)}
+        />
+      </div>
+      {/* The child's own children */}
+      {hasChildren && !collapsed && (
+        <div className="ml-3 border-l border-text-tertiary">
+          {child.children.map((grandchild) => (
+            <ManagerChildView
+              key={grandchild.session.id}
+              child={grandchild}
+              currentSessionId={currentSessionId}
+              selectedIds={selectedIds}
+              multiSelectMode={multiSelectMode}
+              collapsedGroups={collapsedGroups}
+              onSelect={onSelect}
+              onMenu={onMenu}
+              onToggle={onToggle}
+            />
           ))}
         </div>
       )}
