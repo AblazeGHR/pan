@@ -132,4 +132,39 @@ describe('useWebSocket worker.result wiring', () => {
     expect(s?.workerStatus).toBeUndefined();
     expect(s?.history.map((m) => m.content)).toEqual(['u1']);
   });
+
+  it('renders streamed tool content with backend-compatible ASCII escaping', () => {
+    // 后端 cbc adapter 用 Python json.dumps(ensure_ascii=True) 落盘 tool 内容
+    // （中文转小写 \uXXXX），前端 appendEvent 必须一致，否则 isServerHistoryPrefix
+    // 误判 → loadSessions 全量重建把乐观用户消息抹掉。
+    renderHook(() => useWebSocket());
+    useSessionStore.setState({ currentSessionId: 'A' });
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'assistant',
+          message: {
+            content: [
+              {
+                type: 'tool_use',
+                name: 'Bash',
+                input: { command: 'ls 中文目录', path: '数据/文件.txt' },
+              },
+            ],
+          },
+        },
+      });
+    });
+
+    const msgs = useSessionStore.getState().currentMessages;
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]?.role).toBe('tool');
+    expect(msgs[0]?.content).toBe(
+      'Bash({"command":"ls \\u4e2d\\u6587\\u76ee\\u5f55","path":"\\u6570\\u636e/\\u6587\\u4ef6.txt"})',
+    );
+  });
 });

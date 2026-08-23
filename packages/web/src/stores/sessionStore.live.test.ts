@@ -30,12 +30,13 @@ interface HistoryFetch {
 
 let pendingHistory: Array<(r: HistoryFetch) => void> = [];
 let historyShouldReject = false;
+let serverSessions: Session[] = [];
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
   return {
     ...actual,
-    fetchSessions: vi.fn(async () => []),
+    fetchSessions: vi.fn(async () => serverSessions),
     fetchSessionHistory: vi.fn(
       (_id: string, _before: number, _limit: number) =>
         new Promise<HistoryFetch>((resolve, reject) => {
@@ -179,6 +180,41 @@ describe('sessionStore selectSession fetches fresh history on entry', () => {
 
     expect(useSessionStore.getState().currentSessionId).toBe('B');
     expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([]);
+  });
+});
+
+describe('sessionStore keeps the optimistic user message under a lagging snapshot', () => {
+  beforeEach(() => {
+    serverSessions = [];
+    resetStore();
+  });
+
+  it('does not drop the just-sent message when the server history lags it', async () => {
+    // 长历史会话：history 含中文 tool 消息（后端 Python json.dumps 转义）。
+    // 用户刚发 u1（乐观上屏），后端 save 慢，快照还没有 u1——loadSessions
+    // 的 prefix 守卫必须判定服务端是本地前缀而保留本地（用户消息不「暂时消失」）。
+    const toolContent =
+      'Bash({"command":"ls \\u4e2d\\u6587\\u76ee\\u5f55","path":"\\u6570\\u636e/\\u6587\\u4ef6.txt"})';
+    const local = [msg('tool', toolContent), msg('user', 'u1')];
+    // 服务端快照：与本地 tool 内容一致（前端已改为 Python 兼容转义），但没有 u1。
+    serverSessions = [
+      mk('A', 'A', { history: [msg('tool', toolContent)], historyTotal: 1 }),
+    ];
+    useSessionStore.setState({
+      sessions: [mk('A', 'A', { history: [msg('tool', toolContent)] })],
+      currentSessionId: 'A',
+      currentMessages: local,
+    });
+
+    await act(async () => {
+      await useSessionStore.getState().loadSessions();
+    });
+
+    const { currentMessages } = useSessionStore.getState();
+    expect(currentMessages.map((m) => m.content)).toEqual([
+      toolContent,
+      'u1',
+    ]);
   });
 });
 
