@@ -2129,7 +2129,9 @@ async def api_takeover(worker_id: str):
 
     try:
         w.takeover_pid = _open_terminal(
-            " ".join(adapter_cmd),
+            # 逐参数引号转义：system_prompt 通常含空格/换行，裸 join 会把其后半
+            # 段拆成额外参数，导致 takeover 终端 cbc 启动失败（takeover 修复）。
+            subprocess.list2cmdline(adapter_cmd),
             s.workdir or Path.cwd(),
         )
     except FileNotFoundError:
@@ -2141,7 +2143,9 @@ async def api_takeover(worker_id: str):
         "workerId": worker_id,
         "sessionId": w.session_id,
         "cliSessionId": s.cli_session_id,
-        "takeoverCommand": " ".join(adapter_cmd),
+        # list2cmdline 逐参数引号转义（同 /takeover）：system_prompt 含空格时
+        # 裸 join 的命令无法直接粘贴执行（takeover 修复）。
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
         "takeoverPid": w.takeover_pid,
         "status": "takeover started",
     }
@@ -2172,7 +2176,9 @@ async def api_takeover_command(worker_id: str):
         "workerId": worker_id,
         "sessionId": w.session_id,
         "cliSessionId": s.cli_session_id,
-        "takeoverCommand": " ".join(adapter_cmd),
+        # list2cmdline 逐参数引号转义（同 /takeover）：system_prompt 含空格时
+        # 裸 join 的命令无法直接粘贴执行（takeover 修复）。
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
     }
 
 

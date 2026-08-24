@@ -307,6 +307,59 @@ def test_create_worker_stream_starts_idle(monkeypatch):
     _cleanup()
 
 
+def test_create_worker_injects_system_prompt_only_for_fresh_session(monkeypatch):
+    """system_prompt 注入去重：全新会话首次 spawn 注入一次；已 resume/fork 会话不注入。
+
+    修复：fork 会话同时继承 system_prompt + cli_session_id，create_worker 若再以
+    消息注入 system_prompt，会把 system_prompt 当作一条 user 消息塞进对话——
+    fork 首句话前 / takeover 恢复后重复出现系统提示词（worker.py _create_worker
+    注入守卫）。本测试锁定两种路径的行为。
+    """
+    _cleanup()
+    sent_calls = []
+
+    async def fake_spawn(session_id, adapter, extra_args=None):
+        return MockProcess([], returncode=None, hold_open=True)
+
+    async def fake_send(worker_id, text, source="agent"):
+        sent_calls.append((text, source))
+        return None
+
+    async def fake_save(sess):
+        return None
+
+    monkeypatch.setattr(worker, "_spawn_process", fake_spawn)
+    monkeypatch.setattr(worker, "send_task", fake_send)
+    monkeypatch.setattr(_sess, "save_async", fake_save)
+
+    # 1) 全新会话（无 cli_session_id）→ 注入 system_prompt 消息
+    s = _setup_session()
+    s.system_prompt = "You are a test assistant."
+    s.adapter_config = {}
+    w1 = asyncio.run(worker.create_worker(s.id))
+    assert isinstance(w1, worker.Worker), f"create_worker failed: {w1}"
+    assert any(src == "system_prompt" for _, src in sent_calls), \
+        "fresh session 首次 spawn 必须注入 system_prompt"
+    for t in (w1._stdout_task, w1._consume_task, w1._watchdog_task):
+        if t:
+            t.cancel()
+    _cleanup()
+
+    # 2) fork/resume 会话（cli_session_id 已存在）→ 不重复注入
+    sent_calls.clear()
+    s2 = _setup_session()
+    s2.system_prompt = "You are a test assistant."
+    s2.adapter_config = {"cli_session_id": "forked-cli-1"}
+    w2 = asyncio.run(worker.create_worker(s2.id))
+    assert isinstance(w2, worker.Worker), f"create_worker failed: {w2}"
+    assert not any(src == "system_prompt" for _, src in sent_calls), \
+        "fork/resume 会话不应重复注入 system_prompt"
+    for t in (w2._stdout_task, w2._consume_task, w2._watchdog_task):
+        if t:
+            t.cancel()
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_send_task_sets_queued()
     test_send_task_does_not_override_running()
@@ -315,4 +368,5 @@ if __name__ == "__main__":
     test_eof_normal_exit_still_zombie()
     test_eof_reports_zombie_for_running()
     test_eof_idle_no_zombie_report()
+    test_create_worker_injects_system_prompt_only_for_fresh_session()
     print("\n=== ALL STATE TESTS PASSED ===")

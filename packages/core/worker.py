@@ -1593,11 +1593,18 @@ async def _create_worker(session_id: str) -> Worker | str:
     #   --system-prompt at spawn / in _consumer_mcp, because a separate first
     #   message biases the LLM into pure roleplay and prevents it from
     #   discovering MCP tools via ToolSearch.
-    if s.system_prompt and not mcp_on:
-        _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
-        await send_task(worker_id, s.system_prompt, source="system_prompt")
-    elif s.system_prompt:
-        _log.info("[Worker %s] MCP mode: system_prompt injected via --system-prompt", worker_id)
+    # - 注入去重（fork/takeover 修复）：只对「全新会话」（尚无 cli_session_id）
+    #   首次 spawn 注入。cli_session_id 已存在 = 会话已 resume/fork，system_prompt
+    #   已由 cbc JSONL（模型侧上下文）承载，再以消息注入会把 system_prompt 当作
+    #   一条 user 消息塞进对话——表现为 fork 首句话前 / takeover 恢复后重复出现
+    #   系统提示词。与 _spawn_process(MCP) / _consumer_mcp 的 `not s.cli_session_id`
+    #   守卫保持一致。
+    if s.system_prompt and not s.cli_session_id:
+        if not mcp_on:
+            _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
+            await send_task(worker_id, s.system_prompt, source="system_prompt")
+        else:
+            _log.info("[Worker %s] MCP mode: system_prompt injected via --system-prompt", worker_id)
 
     return w
 
