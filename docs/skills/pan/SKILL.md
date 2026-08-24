@@ -354,7 +354,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn；`source` 默认 `"agent"` |
 | `worker_handoff` | `session_id`, `text`, `timeout?`, `task_id?` | **[DEPRECATED]** 同步阻塞。串行依赖/严格同步返回值才用；传 `task_id` 幂等重试（§9.4） |
 | `worker_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out 用）：立即返回 queued，完成经 `worker.result` 事件回调。传 `task_id` 幂等（同 taskId 重发不双跑，见 §9.4） |
-| `worker_send` | `worker_id`, `text` | 向已有 worker 发消息（多轮协作）；Pan 内 session 自动加 `////by agent` 前缀（§9.5） |
+| `worker_send` | `worker_id`, `text` | 向已有 worker 发消息（多轮协作）；**仅用于非即时补充**：消息排队送达，worker 空闲（当前任务完成后）才处理，不打断进行中的任务；需打断/立即生效用 `worker_send_force`；Pan 内 session 自动加 `////by agent` 前缀（§9.5） |
 | `worker_send_force` | `worker_id`, `text` | **强制推送** = restart + send：目标 worker 卡死/忙/连接异常导致普通 `worker_send` 无法送达时兜底；**也用于需要打断 worker 当前执行的时效性消息**（如操作约束、危险操作警告）——restart 后立即送达，不等当前任务排完。先重启 worker 进程再发消息，保证送达；自动加 `////by agent` 前缀（§9.5），restart/send 任一失败返回后端错误 |
 | `worker_kill` | `worker_id` | 终止 worker 进程（session 保留） |
 | `worker_list` | (无) | 列出所有运行中 worker |

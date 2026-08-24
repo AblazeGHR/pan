@@ -1046,6 +1046,11 @@ def worker_assign(session_id: str, text: str, task_id: str | None = None) -> dic
 def worker_send(worker_id: str, text: str) -> dict:
     """Send a message to an existing live worker (multi-turn collaboration).
 
+    **仅用于非即时发送**：消息入队排队，目标 worker 空闲（当前任务完成后）才处理，
+    不打断进行中的任务。
+    若消息需要 worker 立即响应或打断当前执行（如操作约束、方向变更、紧急指令）
+    → 必须用 `worker_send_force`（restart+send）。
+
     Completion is delivered via the worker.result event. If the worker
     is dead, returns an error (spawn it again first).
 
@@ -1084,6 +1089,8 @@ def worker_send_force(worker_id: str, text: str) -> dict:
     强制推送 = restart + send：目标 worker 卡死 / 忙 / 连接异常导致普通
     worker_send 消息无法送达时的兜底。先调用 restart 端点终止并重新 spawn
     worker 进程，再发送消息，保证消息能送达。
+    需要打断或立即送达的时效性消息（操作约束、方向变更、紧急指令）直接用它；
+    仅补充信息、可排队等待的用 `worker_send`。
 
     When this MCP server runs inside a Pan-managed session (env injected by
     adapter.mcp_args() for the "pan" server), the text is prefixed with the
