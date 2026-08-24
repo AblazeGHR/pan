@@ -32,12 +32,15 @@ class FakeBot:
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
         self.api_result = {"message_id": 12345}
+        # Per-API result overrides (merged recent_contacts tests use this).
+        self.api_results: dict[str, object] = {}
 
     async def call_api(self, api: str, **kwargs):
         self.calls.append((api, kwargs))
-        if isinstance(self.api_result, Exception):
-            raise self.api_result
-        return self.api_result
+        result = self.api_results.get(api, self.api_result)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 def _run(coro):
@@ -180,21 +183,90 @@ def test_send_records_outgoing_assistant_message(tmp_path):
         qq._active_bot = None
 
 
-# ── recent contacts (best-effort) ──
+# ── recent contacts (best-effort merged list) ──
 
-def test_recent_contacts_passthrough():
+def test_recent_contacts_merges_full_lists():
+    """近期会话 + 完整好友/群 合并去重：近期优先、异常条目剔除、备注/昵称兜底。"""
     bot = FakeBot()
-    bot.api_result = [{"user_id": 10001, "nickname": "alice"}]
+    bot.api_results = {
+        "get_recent_contact": [
+            {"chatType": 1, "peerUin": "10001", "peerName": "recent-name", "remark": "备注A"},
+            {"chatType": 2, "peerUin": "20001", "peerName": "recent-group"},
+            # 异常条目：chatType 非 1/2、peerUin "0" → 剔除
+            {"chatType": 8, "peerUin": "0", "peerName": ""},
+            {"chatType": 7, "peerUin": "0", "peerName": "某频道"},
+        ],
+        "get_friend_list": [
+            {"user_id": 10001, "nickname": "alice", "remark": ""},
+            {"user_id": 10002, "nickname": "bob", "remark": "同学B"},
+        ],
+        "get_group_list": [
+            {"group_id": 20001, "group_name": "group-a"},
+            {"group_id": 20002, "group_name": "group-b"},
+        ],
+    }
     qq._active_bot = bot
     try:
         result = _run(qq.api_recent_contacts())
         assert result["ok"] is True
-        assert result["contacts"][0]["user_id"] == 10001
+        contacts = result["contacts"]
+        by_uin = {c["peerUin"]: c for c in contacts}
+        # 近期优先 + 完整列表补齐 + 去重（10001/20001 仅出现一次）
+        assert [c["peerUin"] for c in contacts] == ["10001", "20001", "10002", "20002"]
+        # 近期会话保留其 peerName；私聊名称兜底用 remark 或 nickname
+        assert by_uin["10001"]["peerName"] == "recent-name"
+        assert by_uin["10001"]["chatType"] == 1
+        assert by_uin["20001"]["peerName"] == "recent-group"
+        assert by_uin["20001"]["chatType"] == 2
+        # 非近期好友：remark 优先于 nickname
+        assert by_uin["10002"]["peerName"] == "同学B"
+        assert by_uin["20002"]["peerName"] == "group-b"
+        # 字段契约：peerUin/peerName/chatType
+        assert set(contacts[0]) == {"peerUin", "peerName", "chatType"}
+        # 调用了三个 API
+        assert [a for a, _ in bot.calls] == [
+            "get_recent_contact", "get_friend_list", "get_group_list"]
+    finally:
+        qq._active_bot = None
+
+
+def test_recent_contacts_missing_name_falls_back_to_uin():
+    bot = FakeBot()
+    bot.api_results = {
+        "get_recent_contact": [],
+        "get_friend_list": [{"user_id": 10001, "nickname": "", "remark": ""}],
+        "get_group_list": [{"group_id": 20001, "group_name": ""}],
+    }
+    qq._active_bot = bot
+    try:
+        result = _run(qq.api_recent_contacts())
+        assert result["ok"] is True
+        by_uin = {c["peerUin"]: c for c in result["contacts"]}
+        assert by_uin["10001"]["peerName"] == "10001"  # 兜底显示 QQ 号
+        assert by_uin["20001"]["peerName"] == "20001"
+    finally:
+        qq._active_bot = None
+
+
+def test_recent_contacts_recent_fails_still_lists():
+    """get_recent_contact 不受支持时回退为完整好友/群列表，仍返回 ok:true。"""
+    bot = FakeBot()
+    bot.api_results = {
+        "get_recent_contact": RuntimeError("API not found"),
+        "get_friend_list": [{"user_id": 10001, "nickname": "alice", "remark": ""}],
+        "get_group_list": [],
+    }
+    qq._active_bot = bot
+    try:
+        result = _run(qq.api_recent_contacts())
+        assert result["ok"] is True
+        assert result["contacts"][0]["peerUin"] == "10001"
     finally:
         qq._active_bot = None
 
 
 def test_recent_contacts_unsupported():
+    """全部列表都失败且无数据 → ok:false（unsupported）。"""
     bot = FakeBot()
     bot.api_result = RuntimeError("API not found")
     qq._active_bot = bot

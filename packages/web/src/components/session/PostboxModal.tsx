@@ -80,14 +80,29 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
     [detailSession],
   );
 
+  // 仅保留可订阅的条目：peerUin 非空非 "0"、chatType 为私聊(1)/群(2)。
+  // 后端已清洗（合并 recent + friend/group 列表），此处双保险避免 Unknown/q号0
+  // 条目进入搜索与展示。
+  const validContacts = useMemo(
+    () =>
+      contacts.filter(
+        (c) =>
+          c.peerUin &&
+          c.peerUin !== '0' &&
+          (c.chatType === 1 || c.chatType === 2),
+      ),
+    [contacts],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return contacts;
-    return contacts.filter(
+    if (!q) return validContacts;
+    return validContacts.filter(
       (c) =>
-        c.peerName.toLowerCase().includes(q) || c.peerUin.includes(q),
+        (c.peerName || '').toLowerCase().includes(q) ||
+        c.peerUin.includes(q),
     );
-  }, [contacts, query]);
+  }, [validContacts, query]);
 
   const visible = showAll ? filtered : filtered.slice(0, SHOW_LIMIT);
 
@@ -155,13 +170,13 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
             )}
 
             {/* Empty (no error) */}
-            {!loading && !loadError && contacts.length === 0 && (
+            {!loading && !loadError && validContacts.length === 0 && (
               <div className="py-6 text-center text-sm text-text-tertiary">
                 No QQ contacts available
               </div>
             )}
 
-            {!loading && !loadError && contacts.length > 0 && (
+            {!loading && !loadError && validContacts.length > 0 && (
               <>
                 {/* Search */}
                 <div className="relative">

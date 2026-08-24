@@ -124,12 +124,13 @@ async def qq_read_conversation(target_id: str | int, limit: int = 30) -> dict:
 
 @mcp.tool()
 async def qq_list_contacts() -> dict:
-    """列出最近的 QQ 联系人/群（NapCat get_recent_contact，best-effort）。
+    """列出可联系的 QQ 会话（近期会话 + 完整好友/群，合并去重）。
 
     调用链：本工具 → GET {PAN_QQ_API_URL}/api/qq/recent_contacts → NoneBot 经
-    bot.call_api("get_recent_contact") → NapCat。仅返回缓存中的近期会话，用于
-    发现"该找谁发消息"；NapCat 版本不支持该扩展 API 时返回 ok:false，不影响
-    其它工具。完整历史请用 qq_read_conversation 读落盘记录。
+    bot.call_api 合并 get_recent_contact / get_friend_list / get_group_list。
+    返回全部好友与群（peerUin/peerName/chatType，chatType 1=私聊 2=群），用于
+    发现"该找谁发消息"；异常条目（peerUin 空/0、系统/临时会话）已剔除。
+    NapCat 完全不可用时返回 ok:false，不影响其它工具。
     """
     return await _api("GET", "/api/qq/recent_contacts")
 

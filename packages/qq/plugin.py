@@ -12,7 +12,7 @@ QQ bot HTTP API（挂载在 NoneBot fastapi driver server_app，默认 127.0.0.1
 供独立 MCP server packages/qq/mcp.py 经 PAN_QQ_API_URL 调用）:
   POST   /api/qq/send       body {target_type: private|group, target_id, text}
   GET    /api/qq/history    ?target_id=&limit= → {target_id, messages:[{role,text,time}]}
-  GET    /api/qq/recent_contacts               → NapCat get_recent_contact（best-effort）
+  GET    /api/qq/recent_contacts               → 近期会话 + 完整好友/群 合并列表
   GET    /api/qq/inbox      ?target_id=&limit=&consume= → {target_id, messages:[{id,text,time}]}
   DELETE /api/qq/inbox      ?target_id= → 清空该 target 的 inbox
 消息记录按 target_id 落盘到 data/qq_history/<target_id>.json（user/assistant 双侧）。
@@ -915,24 +915,133 @@ async def api_history(target_id: str, limit: int = 30) -> dict:
     return {"target_id": str(target_id), "messages": messages}
 
 
-async def api_recent_contacts() -> dict:
-    """List recent QQ contacts/groups via NapCat get_recent_contact (best-effort).
+# chatType 值（NapCat get_recent_contact）：1=私聊/好友，2=群聊；其它
+# （临时会话/陌生人/系统会话/频道等，peerUin 常为 "0"）不可订阅，合并时忽略。
+_CHAT_FRIEND = 1
+_CHAT_GROUP = 2
 
-    NapCat 部分版本不支持该扩展 API；失败时返回 ok:false，不视为致命错误。
+
+def _clean_peer_uin(value) -> str | None:
+    """Normalize a peer uin（QQ 号/群号）to a non-empty numeric string.
+
+    Return None for missing / "0" placeholders（系统/临时会话等无真实号码）。
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s or s == "0":
+        return None
+    return s
+
+
+def _api_result_list(result) -> list:
+    """Extract a list from a call_api result (already-unwrapped list or dict).
+
+    NoneBot OneBot v11 的 call_api 返回响应 data 字段；部分扩展 API 版本会再包
+    一层 dict，这里做兼容。
+    """
+    if isinstance(result, list):
+        return result
+    if isinstance(result, dict):
+        data = result.get("data")
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            nested = data.get("data")
+            if isinstance(nested, list):
+                return nested
+    return []
+
+
+async def api_recent_contacts() -> dict:
+    """List QQ contacts: recent conversations merged with full friend/group lists.
+
+    NapCat 的 get_recent_contact 只返回缓存中的近期会话（实测上限约 51 条，
+    置顶/最近优先），会漏掉绝大多数好友与群，导致前端检索/绑定不到非置顶会话。
+    这里合并 get_friend_list / get_group_list 并去重，保证完整会话列表可用。
+    字段统一映射为 peerUin/peerName/chatType；peerUin 空/"0"、chatType 非
+    1/2 的异常条目剔除；名称缺失时兜底显示 QQ 号。
+
+    单列表失败不致命：get_recent_contact 不受支持时仍返回完整好友/群列表；
+    仅当 bot 未连接或全部列表为空时才返回 ok:false。
     """
     try:
         bot = await _get_active_bot()
     except RuntimeError as e:
         return {"ok": False, "error": {"code": "bot_not_connected", "message": str(e)}}
-    try:
-        result = await bot.call_api("get_recent_contact")
-    except Exception as e:
+
+    async def _call(api: str, params: dict | None = None):
+        try:
+            return await bot.call_api(api, **(params or {})), None
+        except Exception as e:  # best-effort per API
+            return None, f"{type(e).__name__}: {e}"
+
+    # 1) 近期会话（best-effort；带 count 尽量多取以保序优先，不支持则重试无参）
+    recent_items: list = []
+    recent_err: str | None = None
+    result, err = await _call("get_recent_contact", {"count": 50})
+    if err:
+        result, err = await _call("get_recent_contact")
+    if err:
+        recent_err = err
+    else:
+        recent_items = _api_result_list(result)
+
+    # 2) 完整好友/群列表（补全缺失名称 + 补齐非近期会话）
+    friends: dict[str, str] = {}
+    result, _ = await _call("get_friend_list")
+    for f in _api_result_list(result):
+        uin = _clean_peer_uin(f.get("user_id"))
+        if uin is None:
+            continue
+        name = (f.get("remark") or "").strip() or (f.get("nickname") or "").strip()
+        friends[uin] = name
+
+    groups: dict[str, str] = {}
+    result, _ = await _call("get_group_list")
+    for g in _api_result_list(result):
+        gid = _clean_peer_uin(g.get("group_id"))
+        if gid is None:
+            continue
+        groups[gid] = (g.get("group_name") or "").strip()
+
+    # 3) 合并去重：近期优先 → 好友 → 群
+    merged: list[dict] = []
+    seen: set[tuple[int, str]] = set()
+
+    def _add(chat_type: int, uin: str, name: str) -> None:
+        key = (chat_type, uin)
+        if key in seen:
+            return
+        seen.add(key)
+        merged.append({
+            "peerUin": uin,
+            "peerName": name or uin,  # 兜底：无名时显示 QQ 号，避免前端 "Unknown"
+            "chatType": chat_type,
+        })
+
+    for it in recent_items:
+        chat_type = it.get("chatType")
+        if chat_type not in (_CHAT_FRIEND, _CHAT_GROUP):
+            continue  # 临时会话/陌生人/系统会话等不可订阅
+        uin = _clean_peer_uin(it.get("peerUin"))
+        if uin is None:
+            continue
+        name = (it.get("peerName") or "").strip() or (it.get("remark") or "").strip()
+        if not name:
+            name = friends.get(uin) if chat_type == _CHAT_FRIEND else groups.get(uin)
+        _add(chat_type, uin, name or "")
+
+    for uin, name in friends.items():
+        _add(_CHAT_FRIEND, uin, name)
+    for gid, name in groups.items():
+        _add(_CHAT_GROUP, gid, name)
+
+    if not merged and recent_err:
         return {"ok": False, "error": {
             "code": "unsupported",
-            "message": f"{type(e).__name__}: {e}（NapCat 不支持 get_recent_contact）"}}
-    if isinstance(result, dict):
-        return {"ok": True, "contacts": result.get("data", result)}
-    return {"ok": True, "contacts": result}
+            "message": f"{recent_err}（get_recent_contact 不可用且无好友/群数据）"}}
+    return {"ok": True, "contacts": merged}
 
 
 def _register_qq_api(app) -> None:
