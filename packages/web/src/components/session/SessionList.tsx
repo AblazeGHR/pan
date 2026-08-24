@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
@@ -89,8 +89,6 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const multiSelectMode = useSessionStore((s) => s.multiSelectMode);
   const selectedIds = useSessionStore((s) => s.selectedIds);
-  const selectSession = useSessionStore((s) => s.selectSession);
-  const toggleSelection = useSessionStore((s) => s.toggleSelection);
 
   const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse, addCollapsedGroups, removeCollapsedGroups, pruneCollapsedGroups } =
     useUIStore();
@@ -187,17 +185,43 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     return { filtered, grouped: groups, managerTree };
   }, [sessions, searchQuery, sortBy, groupBy]);
 
+  // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
+  // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
+  // 避免把易变的状态放进依赖数组导致回调每渲染都变。
+  const handleSelect = useCallback(
+    (id: string) => {
+      const store = useSessionStore.getState();
+      if (store.multiSelectMode) {
+        store.toggleSelection(id);
+      } else if (!id.startsWith('__pending_')) {
+        store.selectSession(id);
+        onSessionClick?.(id);
+      }
+    },
+    [onSessionClick],
+  );
+
+  const handleMenu = useCallback(
+    (e: React.MouseEvent, id: string) => {
+      onSessionMenu?.(e, id);
+    },
+    [onSessionMenu],
+  );
+
   // Recursive collapse/expand: collapsing a manager node also collapses every
   // descendant; expanding it expands the whole subtree (same for un-collapse).
-  const handleToggleManagerNode = (node: ManagerNode) => {
-    const ids = [node.session.id, ...collectDescendantIds(node)];
-    const isCollapsed = collapsedGroups.has(node.session.id);
-    if (isCollapsed) {
-      removeCollapsedGroups(ids);
-    } else {
-      addCollapsedGroups(ids);
-    }
-  };
+  const handleToggleManagerNode = useCallback(
+    (node: ManagerNode) => {
+      const ids = [node.session.id, ...collectDescendantIds(node)];
+      const isCollapsed = collapsedGroups.has(node.session.id);
+      if (isCollapsed) {
+        removeCollapsedGroups(ids);
+      } else {
+        addCollapsedGroups(ids);
+      }
+    },
+    [collapsedGroups, removeCollapsedGroups, addCollapsedGroups],
+  );
 
   // Initial list fetch in flight + nothing to show yet → spinner, so an account
   // that does have sessions never flashes the "No sessions yet" empty state.
@@ -246,15 +270,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             selectedIds={selectedIds}
             multiSelectMode={multiSelectMode}
             collapsedGroups={collapsedGroups}
-            onSelect={(id) => {
-              if (multiSelectMode) {
-                toggleSelection(id);
-              } else if (!id.startsWith('__pending_')) {
-                selectSession(id);
-                onSessionClick?.(id);
-              }
-            }}
-            onMenu={(e, id) => onSessionMenu?.(e, id)}
+            onSelect={handleSelect}
+            onMenu={handleMenu}
             onToggle={handleToggleManagerNode}
           />
         ))}
@@ -280,15 +297,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
                 isActive={session.id === currentSessionId}
                 isSelected={selectedIds.has(session.id)}
                 multiSelectMode={multiSelectMode}
-                onSelect={() => {
-                  if (multiSelectMode) {
-                    toggleSelection(session.id);
-                  } else if (!session.id.startsWith('__pending_')) {
-                    selectSession(session.id);
-                    onSessionClick?.(session.id);
-                  }
-                }}
-                onMenu={(e) => onSessionMenu?.(e, session.id)}
+                onSelect={handleSelect}
+                onMenu={handleMenu}
               />
             ))}
           </GroupSection>
@@ -306,15 +316,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           isActive={session.id === currentSessionId}
           isSelected={selectedIds.has(session.id)}
           multiSelectMode={multiSelectMode}
-          onSelect={() => {
-            if (multiSelectMode) {
-              toggleSelection(session.id);
-            } else if (!session.id.startsWith('__pending_')) {
-              selectSession(session.id);
-              onSessionClick?.(session.id);
-            }
-          }}
-          onMenu={(e) => onSessionMenu?.(e, session.id)}
+          onSelect={handleSelect}
+          onMenu={handleMenu}
         />
       ))}
     </div>
@@ -364,8 +367,8 @@ function ManagerNodeView({
           e.stopPropagation();
           onToggle(node);
         }}
-        onSelect={() => onSelect(session.id)}
-        onMenu={(e) => onMenu?.(e, session.id)}
+        onSelect={onSelect}
+        onMenu={onMenu}
       />
       {hasChildren && !collapsed && (
         <div className="ml-0" data-tree-children>
@@ -470,8 +473,8 @@ function ManagerChildView({
             e.stopPropagation();
             onToggle(child);
           }}
-          onSelect={() => onSelect(session.id)}
-          onMenu={(e) => onMenu?.(e, session.id)}
+          onSelect={onSelect}
+          onMenu={onMenu}
         />
       </div>
       {/* The child's own children */}

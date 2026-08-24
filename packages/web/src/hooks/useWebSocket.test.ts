@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -376,5 +376,131 @@ describe('useWebSocket agent-injected message sync', () => {
       'u0',
       '////by agent : S | title\ninstruct',
     ]);
+  });
+});
+
+describe('useWebSocket worker.stream lastMessage preview', () => {
+  beforeEach(() => {
+    for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
+    useSessionStore.setState({
+      sessions: [
+        mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
+        mk('A', 'A', { history: [msg('user', 'u0')] }),
+      ],
+      currentSessionId: 'A',
+      currentMessages: [],
+      hasMoreMessages: false,
+      historyLoading: false,
+      initialLoading: false,
+      sessionsLoading: false,
+      historyLoadEnd: 0,
+      _loadSeq: 0,
+      _touchSeq: 0,
+      _sessionWsTouchedSeq: {},
+    });
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function streamText(sessionId: string, text: string): void {
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId,
+        workerId: 'w1',
+        event: {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text }] },
+        },
+      });
+    });
+  }
+
+  function lastMessageOf(id: string): string | undefined {
+    return useSessionStore
+      .getState()
+      .sessions.find((x) => x.id === id)?.lastMessage;
+  }
+
+  it('updates a background session card lastMessage on stream text', () => {
+    renderHook(() => useWebSocket());
+    streamText('B', 'Hello world');
+
+    expect(lastMessageOf('B')).toBe('Hello world');
+    // 非当前 session 的流式事件不污染消息区
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('truncates the card preview to 200 chars', () => {
+    renderHook(() => useWebSocket());
+    const long = 'x'.repeat(500);
+    streamText('B', long);
+    expect(lastMessageOf('B')).toBe(long.slice(0, 200));
+  });
+
+  it('throttles lastMessage updates within 500ms, flushing the latest text', () => {
+    renderHook(() => useWebSocket());
+
+    streamText('B', 'a');
+    expect(lastMessageOf('B')).toBe('a'); // 首个事件立即 flush
+
+    // 500ms 窗口内的事件合并，未到点不更新卡片
+    vi.advanceTimersByTime(100);
+    streamText('B', 'ab');
+    vi.advanceTimersByTime(100);
+    streamText('B', 'abc');
+    expect(lastMessageOf('B')).toBe('a');
+
+    // 到点 → 尾随 timer flush 最新文本
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(lastMessageOf('B')).toBe('abc');
+  });
+
+  it('skips stream events without text content', () => {
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'B',
+        workerId: 'w1',
+        event: {
+          type: 'assistant',
+          message: { content: [{ type: 'thinking', thinking: 'hmm' }] },
+        },
+      });
+    });
+    expect(lastMessageOf('B')).toBeUndefined();
+  });
+
+  it('result wins over a pending throttled stream preview', () => {
+    renderHook(() => useWebSocket());
+
+    streamText('B', 'first');
+    expect(lastMessageOf('B')).toBe('first');
+
+    vi.advanceTimersByTime(100);
+    streamText('B', 'pending-stream'); // 排了尾随 timer
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result',
+        sessionId: 'B',
+        workerId: 'w1',
+        status: 'done',
+        result: 'final-result',
+      });
+    });
+    expect(lastMessageOf('B')).toBe('final-result');
+
+    // 迟到的节流 timer 不得覆盖 result
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(lastMessageOf('B')).toBe('final-result');
   });
 });

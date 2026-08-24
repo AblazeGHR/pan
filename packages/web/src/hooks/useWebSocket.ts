@@ -8,7 +8,7 @@ import { useQueueStore } from '@/stores/queueStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
-import type { StreamEvent, Message } from '@/types';
+import type { StreamEvent, WorkerEvent, Message } from '@/types';
 
 // ── Debounced full-list refresh (mirrors legacy app.ts scheduleRefreshSessions) ──
 // WS events can burst (rapid task completions, session updates); firing a full
@@ -46,6 +46,60 @@ export function useWebSocket() {
     // handlers on the singleton wsClient.
     const unsubscribers: Array<() => void> = [];
 
+    // ── 流式 lastMessage 卡片预览（throttle）──
+    // worker.stream 对每个回复块广播一次；除当前 session 消息区外，侧边栏所有
+    // session 的卡片预览也要实时跟随。为不因每个 chunk 都更新 store 而拖累列表，
+    // 按 session 做 500ms 节流：窗口内合并到最新文本，到点 flush 一次。result 落地
+    // 时取消 pending，保证最终 lastMessage 以 result 为准（节流 timer 不会迟到
+    // 覆盖 result）。状态放 effect 闭包里，卸载即清，StrictMode 重挂载不残留。
+    const STREAM_PREVIEW_THROTTLE_MS = 500;
+    const streamPreviewPending = new Map<string, string>(); // sessionId → 最新待 flush 文本
+    const streamPreviewLastFlush = new Map<string, number>(); // sessionId → 上次 flush 时间戳
+    const streamPreviewTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    const flushStreamPreview = (sessionId: string, now: number): void => {
+      const text = streamPreviewPending.get(sessionId);
+      if (text === undefined) return;
+      useSessionStore.getState().updateSession(sessionId, {
+        lastMessage: text.slice(0, 200),
+      });
+      streamPreviewPending.delete(sessionId);
+      streamPreviewLastFlush.set(sessionId, now);
+    };
+
+    const throttledLastMessageUpdate = (
+      sessionId: string,
+      text: string,
+    ): void => {
+      // 保留最新文本，窗口内合并
+      streamPreviewPending.set(sessionId, text);
+      const now = Date.now();
+      const last = streamPreviewLastFlush.get(sessionId) ?? 0;
+      if (now - last >= STREAM_PREVIEW_THROTTLE_MS) {
+        flushStreamPreview(sessionId, now);
+      } else if (!streamPreviewTimers.has(sessionId)) {
+        // 距上次 flush 未满 500ms → 排一个尾随 timer，到点 flush 最新文本
+        const delay = STREAM_PREVIEW_THROTTLE_MS - (now - last);
+        streamPreviewTimers.set(
+          sessionId,
+          setTimeout(() => {
+            streamPreviewTimers.delete(sessionId);
+            flushStreamPreview(sessionId, Date.now());
+          }, delay),
+        );
+      }
+    };
+
+    const cancelStreamPreview = (sessionId: string): void => {
+      streamPreviewPending.delete(sessionId);
+      const timer = streamPreviewTimers.get(sessionId);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        streamPreviewTimers.delete(sessionId);
+      }
+      streamPreviewLastFlush.delete(sessionId);
+    };
+
     // Open handler — refresh sessions on connect
     unsubscribers.push(wsClient.on('open', () => {
       useSessionStore.getState().loadSessions();
@@ -69,10 +123,12 @@ export function useWebSocket() {
     // 崩溃/销毁是低频事件，且流式片段已逐块落盘，刷新让列表吸收已持久化的
     // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
+      if (e.sessionId) cancelStreamPreview(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
+      if (e.sessionId) cancelStreamPreview(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
@@ -96,9 +152,13 @@ export function useWebSocket() {
 
     // Stream events (real-time message chunks)
     unsubscribers.push(wsClient.on('worker.stream', (e: StreamEvent) => {
+      if (!e.sessionId || !e.event) return;
       const store = useSessionStore.getState();
-      if (e.sessionId !== store.currentSessionId || !e.event) return;
-      appendEvent(e.event);
+      // 消息区：仅当前 session 追加（原有逻辑，保留）
+      if (e.sessionId === store.currentSessionId) appendEvent(e.event);
+      // 卡片预览：所有 session 就地 throttle 更新 lastMessage（无文本事件跳过）
+      const text = extractStreamText(e.event);
+      if (text) throttledLastMessageUpdate(e.sessionId, text);
     }));
 
     // Result event
@@ -111,6 +171,10 @@ export function useWebSocket() {
           content: `[${status.toUpperCase()}] Task completed`,
         });
       }
+      // 流式预览节流：result 为最终 lastMessage，先清掉该 session 未 flush 的
+      // pending 文本与尾随 timer，防止其迟到覆盖 result（applyResultToSession
+      // 紧接着以 result 写入 lastMessage）。
+      if (e.sessionId) cancelStreamPreview(e.sessionId);
       handleWorkerUpdate(e, 'idle');
       // 就地更新该 session 卡片（lastResult + 结果文本追加 + historyTotal），
       // 不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新。
@@ -149,6 +213,11 @@ export function useWebSocket() {
       // Don't disconnect on unmount — connection is managed by singleton.
       // But DO remove handlers so a remount re-registers cleanly.
       unsubscribers.forEach((unsub) => unsub());
+      // 卸载时清掉流式预览节流 timer，避免迟到 flush 更新卸载后的 store
+      for (const timer of streamPreviewTimers.values()) clearTimeout(timer);
+      streamPreviewTimers.clear();
+      streamPreviewPending.clear();
+      streamPreviewLastFlush.clear();
     };
   }, []);
 }
@@ -188,6 +257,20 @@ function pyJsonDumps(value: unknown): string {
     /[\u007f-\uffff]/g,
     (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'),
   );
+}
+
+/** 从 worker.stream 的 assistant 事件提取最新文本块（卡片 lastMessage 预览）。
+ *  镜像 appendEvent 的 event.message.content 结构：每个 text 块在消息区各成一条
+ *  assistant 消息，预览取最后一个 text 块即「最新消息」。非 assistant 事件或无
+ *  text 块 → 返回 null（跳过，不更新卡片）。 */
+function extractStreamText(event: WorkerEvent): string | null {
+  if (event.type !== 'assistant') return null;
+  const content = event.message?.content || [];
+  let text = '';
+  for (const block of content) {
+    if (block.type === 'text' && block.text) text = block.text;
+  }
+  return text || null;
 }
 
 function appendEvent(event: StreamEvent['event']): void {

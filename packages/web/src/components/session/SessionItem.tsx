@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight } from 'lucide-react';
@@ -11,8 +12,9 @@ interface SessionItemProps {
   expandable?: boolean;
   expanded?: boolean;
   onToggleChildren?: (e: React.MouseEvent) => void;
-  onSelect?: () => void;
-  onMenu?: (e: React.MouseEvent) => void;
+  /** id 由组件内部回传，父级可传稳定引用（配合 React.memo 避免无关卡片重渲染）。 */
+  onSelect?: (id: string) => void;
+  onMenu?: (e: React.MouseEvent, id: string) => void;
 }
 
 function shortWorkdir(workdir?: string): string {
@@ -47,7 +49,7 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-export function SessionItem({
+export const SessionItem = memo(function SessionItem({
   session,
   isActive,
   isSelected = false,
@@ -77,7 +79,7 @@ export function SessionItem({
 
   const handleClick = () => {
     if (isPending) return;
-    onSelect?.();
+    onSelect?.(session.id);
   };
 
   return (
@@ -95,7 +97,7 @@ export function SessionItem({
           checked={isSelected}
           onChange={(e) => {
             e.stopPropagation();
-            onSelect?.();
+            onSelect?.(session.id);
           }}
           className="shrink-0 accent-accent"
         />
@@ -163,7 +165,7 @@ export function SessionItem({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onMenu?.(e);
+            onMenu?.(e, session.id);
           }}
           className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
           title="Session actions"
@@ -173,4 +175,4 @@ export function SessionItem({
       )}
     </div>
   );
-}
+});

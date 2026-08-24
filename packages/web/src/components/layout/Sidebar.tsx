@@ -134,12 +134,15 @@ export function Sidebar() {
     );
   }, [sessions.length, showToast]);
 
-  const handleSessionMenu = (e: React.MouseEvent, id: string) => {
+  // useCallback：SessionList 的 SessionItem 是 React.memo，onSessionMenu 必须
+  // 引用稳定（依赖的 setMenuPosition/setMenuSession 均为稳定 setter），否则每次
+  // Sidebar 重渲染（如任意 session 卡片流式更新）都会让所有 item 的回调变化 → memo 失效。
+  const handleSessionMenu = useCallback((e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setMenuPosition({ x: rect.right + 4, y: rect.top });
     setMenuSession(id);
-  };
+  }, []);
 
   // ── Nav rail (collapsed mode, desktop only) ──
 
