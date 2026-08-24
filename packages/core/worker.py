@@ -700,8 +700,11 @@ async def _consumer(w: Worker):
         if s:
             injected_text = await _maybe_inject_memory(s, text)
             s.history.append({"role": "user", "content": injected_text})
-            await _sess.save_async(s)
             text = injected_text
+        # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_mcp）：在
+        # running 广播 + 写 cbc stdin 之后立即持久化，发送时指示灯不再被全量
+        # O(history) 序列化阻塞（方案 1）。崩溃窗口 = 写 stdin → 落盘 毫秒级，
+        # 最坏丢一条刚发送未落盘的用户消息（可接受范围）。
 
         # 选择执行模式：one-shot MCP（每次任务新开进程）vs stream（长驻，可带 MCP）
         use_mcp = _use_oneshot_mcp(s)
@@ -1143,6 +1146,14 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
         "source": source,
     })
 
+    # 用户消息后置落盘（方案 1）：先广播 running + 写 stdin，再全量落盘——指示灯
+    # 与 cbc 消息送达不再被 O(history) 序列化阻塞。崩溃窗口 = 写 stdin → 落盘
+    # 毫秒级，最坏丢一条刚发送未落盘的用户消息。重取 session 避免把已删除会话
+    # 写回复活（#10 模式，同 _consumer_mcp 的输出处理处）。
+    sess = _session(w)
+    if sess:
+        await _sess.save_async(sess)
+
     # 等待当前任务完成（result 事件 → _read_stdout 置 idle 并 set _task_done）后再返回。
     # 不能轮询 status：status 在多协程间共享，result 处理中先置 done 后置 idle，旧任务
     # result 协程的 idle 会覆盖新任务已设的 running，导致等待提前退出、多条消息同时在
@@ -1250,6 +1261,14 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
 
     # Track in-flight process so kill_worker can terminate it (see #3).
     w._mcp_proc = proc
+
+    # 用户消息后置落盘（方案 1）：one-shot 进程已携带 prompt spawn，视为送达，
+    # 随后立即持久化——running 广播与 spawn 不被全量落盘阻塞；崩溃语义与 stream
+    # 路径一致（最坏丢一条刚发送未落盘的用户消息）。重取 session 避免写回复活
+    # 已删除会话（#10 模式）。
+    sess = _session(w)
+    if sess:
+        await _sess.save_async(sess)
 
     # Collect output
     output = b""
