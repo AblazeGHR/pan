@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core import worker, session as _sess
 from packages.core.adapters import CbcAdapter
+from packages.core.worker import Worker
 
 
 # ── fixtures ──

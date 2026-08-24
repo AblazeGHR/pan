@@ -8,16 +8,86 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import secrets
+import threading
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 
 SESSION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sessions"
 
+# 增量持久化（方案 4）：history 落盘到独立的 <id>.history.jsonl 追加文件，
+# 不再每次全量重写主文件。主文件只含元数据 + 尾部 history（供人工查看/旧读者
+# 兼容），jsonl 存在时加载一律以 jsonl 为 history 权威来源。
+_MAIN_HISTORY_TAIL = 20          # 主文件内保留的尾部 history 条数（常量开销）
+_SAVE_LOCK = threading.Lock()    # 跨线程写锁：save_async(to_thread) 并发时防双写
+
 
 def _path(session_id: str) -> Path:
     return SESSION_DIR / f"{session_id}.json"
+
+
+def _history_path(session_id: str) -> Path:
+    return SESSION_DIR / f"{session_id}.history.jsonl"
+
+
+def _encode_line(item: dict) -> bytes:
+    return (json.dumps(item, ensure_ascii=False, separators=(",", ":"))
+            + "\n").encode("utf-8")
+
+
+def _write_jsonl(path: Path, items: list[dict]):
+    """整文件重写（截断 + 全量写入），迁移 / force_full / 首次创建时用。"""
+    with open(path, "wb") as f:
+        for it in items:
+            f.write(_encode_line(it))
+        f.flush()
+
+
+def _append_jsonl(path: Path, items: list[dict]):
+    """追加写（r+b 定位到末尾），写后 flush——热路径只追加，O(new entries)。
+
+    崩溃恢复：文件不以换行结尾（上次 append 中断的半行）时先补一个换行，
+    避免后续新记录粘在损坏半行上一起丢。ab 模式不支持读（无法探测末字节），
+    故用 r+b：seek 到末尾后顺序写即等价于追加。
+    """
+    if not items:
+        return
+    try:
+        f = open(path, "r+b")
+    except FileNotFoundError:
+        _write_jsonl(path, items)  # 首次创建：无既有半行风险
+        return
+    with f:
+        f.seek(0, 2)
+        size = f.tell()
+        if size > 0:
+            f.seek(size - 1)
+            if f.read(1) != b"\n":
+                f.write(b"\n")
+        for it in items:
+            f.write(_encode_line(it))
+        f.flush()
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    """读 jsonl 追加文件。损坏行（崩溃半行）跳过、其后的有效行继续读取，
+    最大程度恢复已提交记录。"""
+    out: list[dict] = []
+    try:
+        with open(path, "rb") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    out.append(json.loads(line.decode("utf-8")))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    continue
+    except OSError:
+        pass
+    return out
 
 
 def _new_id() -> str:
@@ -316,6 +386,36 @@ def create(name: str, model: str | None = None,
     return s
 
 
+def _meta_signature(s: Session) -> str:
+    """元数据（不含 history / updated_at）的稳定签名。
+
+    用于判断主文件是否需要重写：history append 不改变元数据 → 跳过主文件写。
+    """
+    meta = s.to_dict()
+    meta.pop("history", None)
+    meta.pop("updated_at", None)
+    return repr(meta)
+
+
+def _from_data_with_history(sid: str, data: dict) -> Session:
+    """从主文件 data 构造 Session，并用 <id>.history.jsonl 合并 history。
+
+    兼容新旧两种格式：
+    - 旧格式（history 内嵌主文件）：无 jsonl → history 取 data["history"]；
+    - 新格式（增量）：jsonl 存在 → history 以 jsonl 为准（可能比主文件新）。
+    同时设置进程内增量游标 s._hist_persisted（已在 jsonl 中的条数）。
+    """
+    s = Session._from_data(data)
+    _migrate_legacy_fields(s)
+    _migrate_session_usage(s)
+    hist_path = _history_path(sid)
+    if hist_path.exists():
+        s.history = _read_jsonl(hist_path)
+    s._hist_persisted = len(s.history)
+    s._last_meta_sig = _meta_signature(s)
+    return s
+
+
 def get(session_id: str) -> Session | None:
     if session_id in _cache:
         return _cache[session_id]
@@ -324,29 +424,67 @@ def get(session_id: str) -> Session | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        s = Session._from_data(data)
-        _migrate_legacy_fields(s)
-        _migrate_session_usage(s)
+        s = _from_data_with_history(session_id, data)
         _cache[session_id] = s
         return s
     except (json.JSONDecodeError, OSError):
         return None
 
 
-def _save_sync(s: Session):
-    s.updated_at = datetime.now().isoformat()
+def _save_sync(s: Session, force_full: bool = False):
+    """落盘 Session。热路径只做增量：
+
+    - history 追加（自 s._hist_persisted 起的未落盘条目）到 <id>.history.jsonl；
+    - 主文件仅在元数据变化（或首次 / 迁移 / force_full）时重写——纯 history
+      append 不碰主文件，彻底消除 O(history) 全量序列化。
+
+    force_full=True（首次创建 / 迁移 / history 整体替换）时整重写 jsonl。
+    进程内内存 history 是权威，落盘是镜像；_hist_persisted 记录已镜像条数。
+    """
+    s.updated_at = datetime.now().isoformat()  # 内存总是新鲜（API 读内存）
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
-    # A1 紧凑序列化：separators=(",",":") 去掉缩进空格，大 history 全量写盘更快。
-    # 与 indent=2 在语义上完全等价（JSON 标准无视空白），落盘文件变小、解析不变。
-    _path(s.id).write_text(
-        json.dumps(s.to_dict(), ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8")
-    _cache[s.id] = s
+    meta_sig = _meta_signature(s)
+    hist_path = _history_path(s.id)
+    with _SAVE_LOCK:
+        start = getattr(s, "_hist_persisted", 0)
+        if not isinstance(start, int) or start < 0:
+            start = 0
+        # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
+        # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
+        if force_full or start > len(s.history) or not hist_path.exists():
+            _write_jsonl(hist_path, s.history)
+        else:
+            _append_jsonl(hist_path, s.history[start:])
+        s._hist_persisted = len(s.history)
+
+        # 元数据变化 → 重写主文件（元数据 + 尾部 history，常量序列化开销）。
+        # 写临时文件 + os.replace 原子替换：主文件写一半崩溃也不会损坏
+        # （history 真源在 jsonl，主文件只是元数据镜像 + 存在标记）。
+        if force_full or meta_sig != getattr(s, "_last_meta_sig", None):
+            d = s.to_dict()
+            d["history"] = s.history[-_MAIN_HISTORY_TAIL:]
+            main_path = _path(s.id)
+            tmp_path = main_path.with_suffix(".json.tmp")
+            tmp_path.write_text(
+                json.dumps(d, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8")
+            os.replace(tmp_path, main_path)
+            s._last_meta_sig = meta_sig
+        _cache[s.id] = s
 
 
 def save(s: Session):
     """Sync save (for low-frequency server API calls)."""
     _save_sync(s)
+
+
+def save_full(s: Session):
+    """全量重写（主文件 + 完整 history jsonl）。
+
+    用于 history 被整体替换而非追加的路径（reimport 覆盖 / 导入），
+    避免增量游标把新 history 的头部误当作已落盘而跳过。
+    """
+    _save_sync(s, force_full=True)
 
 
 async def save_async(s: Session):
@@ -358,6 +496,9 @@ def delete(session_id: str):
     path = _path(session_id)
     if path.exists():
         path.unlink()
+    hist_path = _history_path(session_id)
+    if hist_path.exists():
+        hist_path.unlink()
     _cache.pop(session_id, None)
 
 
@@ -478,9 +619,7 @@ def list_all() -> list[Session]:
                         # 不覆盖已缓存的 Session（worker 可能在 _read_stdout
                         # 里 append 了 history 但还没 save，磁盘版本更旧）
                         if sid and sid not in _cache:
-                            s = Session._from_data(data)
-                            _migrate_legacy_fields(s)
-                            _migrate_session_usage(s)
+                            s = _from_data_with_history(sid, data)
                             _cache[sid] = s
                     except (json.JSONDecodeError, OSError):
                         pass
