@@ -1,9 +1,6 @@
 import { create } from 'zustand';
 import type { GroupMode } from '@/stores/uiStore';
-
-// ── localStorage helpers ──
-
-const STORAGE_KEY = 'pan:appSettings';
+import { fetchUiSettings, updateUiSettings } from '@/services/api';
 
 export interface AppSettings {
   /** Default session-list grouping (mirrors uiStore GroupMode options). */
@@ -23,76 +20,101 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showQQ: true,
 };
 
-function loadSettings(): AppSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SETTINGS };
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    return {
-      defaultGroupBy:
-        parsed.defaultGroupBy === 'workdir' || parsed.defaultGroupBy === 'manager'
-          ? parsed.defaultGroupBy
-          : DEFAULT_SETTINGS.defaultGroupBy,
-      showMetaAgent:
-        typeof parsed.showMetaAgent === 'boolean'
-          ? parsed.showMetaAgent
-          : DEFAULT_SETTINGS.showMetaAgent,
-      showTaskAgent:
-        typeof parsed.showTaskAgent === 'boolean'
-          ? parsed.showTaskAgent
-          : DEFAULT_SETTINGS.showTaskAgent,
-      showQQ:
-        typeof parsed.showQQ === 'boolean'
-          ? parsed.showQQ
-          : DEFAULT_SETTINGS.showQQ,
-    };
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
-}
-
-function persistSettings(s: AppSettings) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  } catch {
-    // no-op
-  }
+/**
+ * Validate a raw (possibly partial / malformed) settings object, falling back
+ * to defaults for missing or wrong-typed fields. Used both when the backend
+ * load lands and defensively against any garbage in config.json.
+ */
+export function sanitizeSettings(
+  raw: Record<string, unknown> | null | undefined,
+): AppSettings {
+  const parsed = raw && typeof raw === 'object' ? raw : {};
+  return {
+    defaultGroupBy:
+      parsed.defaultGroupBy === 'workdir' || parsed.defaultGroupBy === 'manager'
+        ? parsed.defaultGroupBy
+        : DEFAULT_SETTINGS.defaultGroupBy,
+    showMetaAgent:
+      typeof parsed.showMetaAgent === 'boolean'
+        ? parsed.showMetaAgent
+        : DEFAULT_SETTINGS.showMetaAgent,
+    showTaskAgent:
+      typeof parsed.showTaskAgent === 'boolean'
+        ? parsed.showTaskAgent
+        : DEFAULT_SETTINGS.showTaskAgent,
+    showQQ:
+      typeof parsed.showQQ === 'boolean'
+        ? parsed.showQQ
+        : DEFAULT_SETTINGS.showQQ,
+  };
 }
 
 interface AppSettingsStore extends AppSettings {
+  /** True once the initial GET finished (success or failure). */
+  loaded: boolean;
   setDefaultGroupBy: (mode: GroupMode) => void;
   setShowMetaAgent: (v: boolean) => void;
   setShowTaskAgent: (v: boolean) => void;
   setShowQQ: (v: boolean) => void;
   /** Reset every field to its default and persist. */
   resetSettings: () => void;
+  /** Fetch the persisted ui object from config.json into the store. */
+  loadSettings: () => Promise<void>;
 }
 
-export const useAppSettingsStore = create<AppSettingsStore>((set, get) => ({
-  ...loadSettings(),
+export const useAppSettingsStore = create<AppSettingsStore>((set) => {
+  // Race guard: if the user changes a setting while the initial GET is still
+  // in flight, the (possibly stale) server response must not clobber it.
+  // Re-armed at the start of every load, so a later load still applies.
+  let dirty = false;
 
-  setDefaultGroupBy: (mode) => {
-    set({ defaultGroupBy: mode });
-    persistSettings(get());
-  },
+  const persist = (patch: Partial<AppSettings>) => {
+    dirty = true;
+    void updateUiSettings(patch).catch(() => {
+      // Best-effort writeback: a backend failure is non-fatal, the in-memory
+      // value stays for the current session and is retried next change.
+    });
+  };
 
-  setShowMetaAgent: (v) => {
-    set({ showMetaAgent: v });
-    persistSettings(get());
-  },
+  return {
+    ...DEFAULT_SETTINGS,
+    loaded: false,
 
-  setShowTaskAgent: (v) => {
-    set({ showTaskAgent: v });
-    persistSettings(get());
-  },
+    loadSettings: async () => {
+      dirty = false;
+      try {
+        const ui = await fetchUiSettings();
+        if (!dirty) set(sanitizeSettings(ui));
+      } catch {
+        // Backend unreachable → keep defaults for this session.
+      } finally {
+        set({ loaded: true });
+      }
+    },
 
-  setShowQQ: (v) => {
-    set({ showQQ: v });
-    persistSettings(get());
-  },
+    setDefaultGroupBy: (mode) => {
+      set({ defaultGroupBy: mode });
+      persist({ defaultGroupBy: mode });
+    },
 
-  resetSettings: () => {
-    set({ ...DEFAULT_SETTINGS });
-    persistSettings(get());
-  },
-}));
+    setShowMetaAgent: (v) => {
+      set({ showMetaAgent: v });
+      persist({ showMetaAgent: v });
+    },
+
+    setShowTaskAgent: (v) => {
+      set({ showTaskAgent: v });
+      persist({ showTaskAgent: v });
+    },
+
+    setShowQQ: (v) => {
+      set({ showQQ: v });
+      persist({ showQQ: v });
+    },
+
+    resetSettings: () => {
+      set({ ...DEFAULT_SETTINGS });
+      persist({ ...DEFAULT_SETTINGS });
+    },
+  };
+});

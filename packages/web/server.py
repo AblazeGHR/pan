@@ -25,7 +25,7 @@ from packages.core.adapters import get_adapter, list_adapters
 from packages.core.adapters.cbc import sessions as cbc_sessions
 from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
-from packages.core.config import load_config
+from packages.core.config import load_config, read_config_file, save_config
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 
@@ -1224,6 +1224,36 @@ async def api_list_adapters():
         ],
         "default": "cbc",
     }
+
+
+# ── App settings (config.json ui) ──
+
+@app.get("/api/settings/ui")
+async def api_get_settings_ui():
+    """Return the app-settings ``ui`` object (merged with defaults).
+
+    Backs the React ``appSettingsStore``. config.json's ``ui`` object is the
+    single source of truth for these display-level settings, shared across
+    browsers/sessions (previously they lived in browser localStorage).
+    """
+    return load_config().get("ui") or {}
+
+
+@app.put("/api/settings/ui")
+async def api_put_settings_ui(data: dict):
+    """Merge partial/full ui settings into config.json's ``ui`` object.
+
+    Body may carry any subset of the ui fields; provided keys are merged over
+    the current values (defaults fill the rest) and persisted atomically.
+    Unknown keys are stored as-is for forward compatibility. Returns the full
+    merged ui object.
+    """
+    ui = dict(load_config().get("ui") or {})
+    ui.update(data)
+    raw = read_config_file()
+    raw["ui"] = ui
+    save_config(raw)
+    return ui
 
 
 # ── Spawn ──

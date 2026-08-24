@@ -536,3 +536,21 @@ export async function deleteFs(
   if (data.error) throw new Error(data.error);
   return data;
 }
+
+// ── App settings (config.json ui) ──
+
+export async function fetchUiSettings(): Promise<Record<string, unknown>> {
+  const data = await request<Record<string, unknown>>(`${BASE}/settings/ui`);
+  return data || {};
+}
+
+export async function updateUiSettings(
+  patch: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const data = await request<Record<string, unknown>>(`${BASE}/settings/ui`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+  if (data.error) throw new Error(String(data.error));
+  return data;
+}

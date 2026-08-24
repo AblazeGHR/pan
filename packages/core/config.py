@@ -2,6 +2,7 @@
 
 import copy
 import json
+import os
 from pathlib import Path
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config.json"
@@ -65,6 +66,18 @@ DEFAULT_CONFIG: dict = {
         "binary_path": "",
         "status_port": 8769,
     },
+    # 前端 App 设置（config.json 为单一真源，跨浏览器/会话一致）。
+    # 由 GET/PUT /api/settings/ui 读写，前端 appSettingsStore 消费。
+    "ui": {
+        # 会话列表默认分组方式
+        "defaultGroupBy": "none",
+        # 是否显示 meta-agent（////by agent）消息
+        "showMetaAgent": True,
+        # 是否显示 task-agent（@@@@by agent）消息
+        "showTaskAgent": True,
+        # 是否显示 QQ（@@@@by qq）注入消息
+        "showQQ": True,
+    },
 }
 
 
@@ -86,3 +99,39 @@ def _deep_merge(base: dict, override: dict) -> dict:
         else:
             result[k] = v
     return result
+
+
+def read_config_file() -> dict:
+    """Read the raw on-disk config.json WITHOUT merging defaults.
+
+    Returns {} when the file is missing or not a JSON object — callers that
+    want to preserve the exact file contents while updating a single top-level
+    key (e.g. the settings API) should read through here and write back with
+    save_config().
+    """
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_config(config: dict) -> None:
+    """Persist `config` to config.json atomically (tmp + os.replace).
+
+    The dict is written exactly as given — pass a merged ``load_config()``
+    result to materialize every default, or a raw on-disk dict (from
+    ``read_config_file()``) to change only the keys you touched. Writing to a
+    temp file then ``os.replace``-ing it in means a crash mid-write never
+    corrupts config.json.
+    """
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = CONFIG_FILE.with_suffix(".json.tmp")
+    tmp_path.write_text(
+        json.dumps(config, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(tmp_path, CONFIG_FILE)
