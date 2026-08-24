@@ -1735,7 +1735,9 @@ async def api_cbc_sessions_import(data: dict):
                 existing.history = history
                 existing.raw_usage = raw_usage
                 existing.total_usage = total_usage
-                sess.save(existing)
+                # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
+                # 头部误判为已落盘而跳过）
+                sess.save_full(existing)
                 await broadcast({
                     "type": "session.updated",
                     "sessionId": existing.id,
@@ -1750,7 +1752,7 @@ async def api_cbc_sessions_import(data: dict):
         existing.raw_usage = raw_usage
         existing.total_usage = total_usage
         existing.last_result = None
-        sess.save(existing)
+        sess.save_full(existing)
         await broadcast({
             "type": "session.updated",
             "sessionId": existing.id,
@@ -1857,7 +1859,8 @@ async def api_kimi_sessions_import(data: dict):
                 existing.history = history
                 existing.raw_usage = raw_usage
                 existing.total_usage = total_usage
-                sess.save(existing)
+                # history 整体替换 → 全量重写 jsonl（同 cbc reimport）
+                sess.save_full(existing)
                 await broadcast({
                     "type": "session.updated",
                     "sessionId": existing.id,
@@ -1872,7 +1875,7 @@ async def api_kimi_sessions_import(data: dict):
         existing.raw_usage = raw_usage
         existing.total_usage = total_usage
         existing.last_result = None
-        sess.save(existing)
+        sess.save_full(existing)
         await broadcast({
             "type": "session.updated",
             "sessionId": existing.id,
