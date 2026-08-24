@@ -230,6 +230,80 @@ def test_import_bad_template_degrades_to_no_mcp(monkeypatch):
     _cleanup()
 
 
+def test_import_writes_dual_files_on_disk(monkeypatch):
+    """导入必须生成双文件格式：<id>.json + <id>.history.jsonl（首存走全量 jsonl）。"""
+    _cleanup()
+    session_dir = _fresh_session_dir()
+    sid = "dual-import-0001"
+    jsonl = _write_cbc_jsonl(sid, [
+        {"type": "message", "role": "user", "sessionId": sid,
+         "content": [{"type": "text", "text": "m1"}], "timestamp": 1},
+        {"type": "message", "role": "assistant", "sessionId": sid,
+         "content": [{"type": "text", "text": "m2"}], "timestamp": 2},
+    ])
+
+    with patch.object(server, "broadcast", new=AsyncMock()), \
+         patch("packages.core.adapters.cbc.sessions._resolve_session_file",
+               return_value=jsonl):
+        resp = asyncio.run(server.api_cbc_sessions_import(
+            {"session_id": sid, "cwd": "D:/tmp/dual"}))
+
+    assert "error" not in resp, resp
+    s = _sess.get(resp["id"])
+    # 双文件都生成，且 jsonl 是完整 history 真源（不依赖主文件尾部快照）
+    assert _sess._path(s.id).exists(), "导入后应生成 <id>.json"
+    assert _sess._history_path(s.id).exists(), "导入后应生成 <id>.history.jsonl"
+    # parse_cbc_history 会规范化消息为 {role, content}；jsonl 应与内存 history 逐条一致
+    assert _sess._read_jsonl(_sess._history_path(s.id)) == s.history
+    assert [h.get("content") for h in s.history] == ["m1", "m2"]
+    # 冷启动重载（清缓存）history 完整
+    _cleanup()
+    _sess.SESSION_DIR = session_dir
+    s2 = _sess.get(resp["id"])
+    assert s2 is not None and len(s2.history) == 2
+    _cleanup()
+
+
+def test_reimport_rewrites_jsonl_full(monkeypatch):
+    """reimport（覆盖已有 session）必须 save_full 全量重写 jsonl，
+    不能增量 append——否则新 history 头部会被误判为已落盘而跳过。"""
+    _cleanup()
+    session_dir = _fresh_session_dir()
+    sid = "dual-reimport-0001"
+    jsonl1 = _write_cbc_jsonl(sid, [
+        {"type": "message", "role": "user", "sessionId": sid,
+         "content": [{"type": "text", "text": "old"}], "timestamp": 1},
+    ])
+    with patch.object(server, "broadcast", new=AsyncMock()), \
+         patch("packages.core.adapters.cbc.sessions._resolve_session_file",
+               return_value=jsonl1):
+        resp = asyncio.run(server.api_cbc_sessions_import(
+            {"session_id": sid, "cwd": "D:/tmp/ri"}))
+    sid_new = resp["id"]
+    assert len(_sess._read_jsonl(_sess._history_path(sid_new))) == 1
+
+    # 外部 session 追加了新消息 → reimport 整体覆盖
+    jsonl2 = _write_cbc_jsonl(sid, [
+        {"type": "message", "role": "user", "sessionId": sid,
+         "content": [{"type": "text", "text": "new-a"}], "timestamp": 2},
+        {"type": "message", "role": "assistant", "sessionId": sid,
+         "content": [{"type": "text", "text": "new-b"}], "timestamp": 3},
+    ])
+    with patch.object(server, "broadcast", new=AsyncMock()), \
+         patch("packages.core.adapters.cbc.sessions._resolve_session_file",
+               return_value=jsonl2):
+        resp2 = asyncio.run(server.api_cbc_sessions_import(
+            {"session_id": sid, "cwd": "D:/tmp/ri"}))
+
+    assert "error" not in resp2, resp2
+    assert resp2["reimported"] is True
+    assert resp2["id"] == sid_new  # 原地覆盖
+    lines = _sess._read_jsonl(_sess._history_path(sid_new))
+    assert len(lines) == 2, f"reimport 后 jsonl 应为全量 2 条，got {len(lines)}"
+    assert [l.get("content") for l in lines] == ["new-a", "new-b"]
+    _cleanup()
+
+
 # ══════════════════════════════════════════════════════════════════════════ #
 #  MCP: session_import action dispatch                                       #
 # ══════════════════════════════════════════════════════════════════════════ #

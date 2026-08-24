@@ -159,6 +159,51 @@ def test_append_tail_kept_main_file_constant(tmp_path, monkeypatch):
     _cleanup()
 
 
+def test_delete_removes_both_json_and_jsonl(tmp_path, monkeypatch):
+    """双文件格式下 delete 必须同时删除 <id>.json 与 <id>.history.jsonl，
+    避免 jsonl 成为孤儿残留（旧实现只删单文件）。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="delme")
+    sid = s.id
+    for i in range(30):  # 超过尾部阈值，确保 jsonl 成为唯一完整 history 真源
+        s.history.append({"role": "user", "content": f"d{i}"})
+        _sess.save(s)
+    assert _sess._path(sid).exists()
+    assert _sess._history_path(sid).exists()
+    assert len(_jsonl_lines(sid)) == 30
+
+    _sess.delete(sid)
+    assert not _sess._path(sid).exists(), "delete 后 <id>.json 应被移除"
+    assert not _sess._history_path(sid).exists(), "delete 后 <id>.history.jsonl 应被移除"
+    # 孤儿 jsonl 不应再被 list_all / get 看到
+    assert _sess.get(sid) is None
+    assert sid not in {x.id for x in _sess.list_all()}
+    # 幂等：重复 delete 不报错
+    _sess.delete(sid)
+    _cleanup()
+
+
+def test_delete_legacy_json_only_no_crash(tmp_path, monkeypatch):
+    """旧格式 session（只有 <id>.json、无 jsonl）delete 正常清理且不报错。"""
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    legacy = {
+        "id": "ses_legacy_del", "name": "legacy", "adapter": "cbc",
+        "history": [{"role": "user", "content": "old1"}],
+        "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00",
+    }
+    (session_dir / "ses_legacy_del.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+    assert _sess.get("ses_legacy_del") is not None
+    _sess.delete("ses_legacy_del")
+    assert not (session_dir / "ses_legacy_del.json").exists()
+    assert _sess.get("ses_legacy_del") is None
+    _cleanup()
+
+
 # ══════════════════════════════════════════════════════════════════════════ #
 #  新旧格式混合加载                                                           #
 # ══════════════════════════════════════════════════════════════════════════ #
@@ -293,6 +338,73 @@ def test_concurrent_save_async_no_duplication(tmp_path, monkeypatch):
     expected = [{"role": "user", "content": f"c{i}"} for i in range(20)]
     assert s2.history == expected
     assert len(_jsonl_lines(sid)) == 20
+    _cleanup()
+
+
+def test_queue_ops_do_not_scale_with_history(tmp_path, monkeypatch):
+    """send_task append / _consume_pending pop 只写小主文件，不被 history 拖累。
+
+    设计要点：热路径 3 次 save 有 2 次是 queue 操作——queue 独立在 json 后，
+    queue 变更只写元数据+队列（KB 级），history 走 jsonl 追加互不干扰。
+    """
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+
+    def make(n):
+        s = _sess.Session(id=f"ses_q_{n}", name="q", adapter="cbc")
+        s.history = [{"role": "user", "content": f"m{i}", "extra": "x" * 120}
+                     for i in range(n)]
+        s._hist_persisted = n
+        _sess._write_jsonl(_sess._history_path(s.id), s.history)
+        return s
+
+    small, big = make(10), make(5000)
+
+    def queue_append_ms(s, reps=7):
+        times = []
+        for i in range(reps):
+            s.queue_pending.append({"type": "task", "id": f"t{i}", "text": "x" * 200})
+            t0 = time.perf_counter()
+            _sess.save(s)
+            times.append((time.perf_counter() - t0) * 1000)
+        return sorted(times)[reps // 2]
+
+    def queue_pop_ms(s, reps=7):
+        times = []
+        for _ in range(reps):
+            s.queue_pending.pop(0)
+            t0 = time.perf_counter()
+            _sess.save(s)
+            times.append((time.perf_counter() - t0) * 1000)
+        return sorted(times)[reps // 2]
+
+    a_small, a_big = queue_append_ms(small), queue_append_ms(big)
+    p_small, p_big = queue_pop_ms(small), queue_pop_ms(big)
+    print(f"\n    queue append: hist10={a_small:.3f}ms hist5000={a_big:.3f}ms; "
+          f"queue pop: hist10={p_small:.3f}ms hist5000={p_big:.3f}ms")
+    # queue 操作耗时与 history 规模无关（旧实现下 5000 条会被全量序列化拖到 ~3ms+）
+    assert a_big < a_small * 5 + 0.5, \
+        f"queue append should not scale with history: {a_small:.3f}→{a_big:.3f}ms"
+    assert p_big < p_small * 5 + 0.5, \
+        f"queue pop should not scale with history: {p_small:.3f}→{p_big:.3f}ms"
+    # jsonl 不受 queue 操作影响（行数不变 = history 未被序列化）
+    assert len(_jsonl_lines(big.id)) == 5000
+
+    # 正确性：queue_pending 落盘 + 冷启动重载完整，history 不受影响
+    s3 = _sess.create(name="q3")
+    s3.history.append({"role": "user", "content": "h1"})
+    _sess.save(s3)
+    s3.queue_pending = [{"type": "task", "id": "t1", "text": "go"}]
+    _sess.save(s3)
+    sid3 = s3.id
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    r = _sess.get(sid3)
+    assert r.queue_pending == [{"type": "task", "id": "t1", "text": "go"}]
+    assert r.history == [{"role": "user", "content": "h1"}]
+    assert len(_jsonl_lines(sid3)) == 1
     _cleanup()
 
 
