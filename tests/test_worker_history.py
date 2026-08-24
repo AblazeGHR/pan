@@ -217,39 +217,44 @@ def test_replay_events_not_broadcast():
     _cleanup()
 
 
-def test_user_message_during_replay_waits_then_appends():
-    """User sends message during replay: consumer waits for replay, then appends.
+def test_user_message_processed_immediately_even_with_replaying_flag():
+    """Legacy `_replaying=True` no longer blocks message processing.
 
-    This is the race fixed in this commit — before, _consumer unconditionally
-    cleared _replaying, so in-flight replay events were recorded as new history
-    (history doubled). Now it waits until _read_stdout finishes replay (clears
-    _replaying on the result event) before processing the message.
+    worker-resume-replay conclusion: cbc does NOT replay stdout history when
+    stdin has a prompt (ResumeReplay skipped, hasPrompt=true), and Pan spawns
+    with stdin=PIPE without writing/closing during the wait — so the old
+    10s replay-wait loop in _consumer was pure dead time (every task waited
+    the full 10s). The wait loop was removed: the consumer writes the message
+    to cbc stdin immediately; the first result is the task result.
     """
     _cleanup()
     original = [
         {"role": "user", "content": "old q"},
         {"role": "assistant", "content": "old a"},
     ]
-    # Copy — s.history will be the same list object, mutations would affect original
     original_snapshot = [dict(m) for m in original]
     s = _setup_session(history=original)
     w = _setup_worker(s.id, replaying=True)
 
+    class _StdinMock:
+        """sync write + async drain (mirrors asyncio StreamWriter protocol)."""
+        def write(self, data):
+            return None
+
+        async def drain(self):
+            return None
+
+    w.process = MockProcess([])  # returncode None → consumer proceeds
+    w.process.stdin = _StdinMock()
+
     async def scenario():
         await w.pending_signal.put({"text": "new q", "source": "agent"})
         task = asyncio.create_task(worker._consumer(w))
-        # replay 进行中：消息不应被处理，_replaying 保持 True
-        await asyncio.sleep(0.1)
-        assert w._replaying is True, "consumer should wait while replaying"
-        assert s.history[-1] == {"role": "assistant", "content": "old a"}, \
-            f"message should not be processed during replay: {s.history}"
-        # 模拟 replay 结束（_read_stdout 在 result 事件清 _replaying）
-        w._replaying = False
-        # 等待 consumer 唤醒并处理（覆盖 0.5s sleep 周期）
+        # 不再等待 replay：消息立即处理（旧行为会 sleep(0.5) 轮询等待）
         for _ in range(30):
             if s.history[-1] == {"role": "user", "content": "new q"}:
                 break
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.02)
         task.cancel()
         try:
             await task
@@ -258,13 +263,12 @@ def test_user_message_during_replay_waits_then_appends():
 
     asyncio.run(scenario())
 
-    # User message appended after replay finished
+    # User message appended immediately, history not doubled
     assert s.history[-1] == {"role": "user", "content": "new q"}, \
         f"user message not appended: {s.history}"
-    # Original history preserved (compare against snapshot, not the live list)
     assert s.history[:2] == original_snapshot, \
         f"original history lost: {s.history[:2]} vs {original_snapshot}"
-    print("PASS: user message during replay waits then appends")
+    print("PASS: user message processed immediately (no replay wait)")
     _cleanup()
 
 

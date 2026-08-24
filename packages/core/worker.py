@@ -134,7 +134,7 @@ class Worker:
     # （报告批量消费）与 task_signal（携带 item.id，正文按 id 从真源拉取）。
     pending_signal: asyncio.Queue | None = None
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
-    _replaying: bool = False  # true during cbc --resume event replay
+    _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
     pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
     # ── 活性探测（watchdog 用）──
@@ -685,16 +685,13 @@ async def _consumer(w: Worker):
             w._current_seq = item.get("seq")
             w._current_task_id = item.get("taskId")
 
-        # resume replay 进行中：等待 replay 播完再处理，避免把 replay 事件
-        # 误当新事件记录（history 重复）。replay 由 _read_stdout 在 result
-        # 事件时把 _replaying 置 False 结束。
-        # 超时上限：transcript 若不含 result 事件（如任务被 kill 时未完成），
-        # replay 不会自然结束——10s 后强制结束 replay 继续处理，防止消息死等。
-        _replay_wait_until = time.monotonic() + 10
-        while w._replaying and w.process is not None and time.monotonic() < _replay_wait_until:
-            await asyncio.sleep(0.5)
-
-        w._replaying = False
+        # resume replay 等待已删除（worker-resume-replay 结论）：cbc 在 stdin 有
+        # prompt 时不向外重放 stdout 历史（executeStreamMode 日志 ResumeReplay
+        # skipped (hasPrompt=true)），而 Pan 的 spawn 是 stdin=PIPE 且等待期不写
+        # 不关——此前 _replaying 永不自然结束，这里每个任务都白等满 10s。
+        # 现在消息立即进 _consumer_stream 写 stdin，首个 result 即任务结果。
+        # （若未来某个 cbc 版本在 EOF 型 stdin 下真重放，_read_stdout 的
+        # _replaying 分支仍保留作死代码兜底。）
 
         s = _session(w)
         if s:
@@ -1542,7 +1539,6 @@ async def _create_worker(session_id: str) -> Worker | str:
     if use_mcp:
         # One-shot MCP mode: no long-running process, consumer spawns per-task
         proc = None
-        resuming = False
     else:
         # Stream mode: spawn long-running process.
         # If MCP is configured (mcp_on, output_mode="stream"), the process is
@@ -1557,14 +1553,12 @@ async def _create_worker(session_id: str) -> Worker | str:
         proc = await _spawn_process(session_id, adapter=adapter, extra_args=extra_args)
         if isinstance(proc, str):
             return proc
-        resuming = bool(s.cli_session_id) and adapter.supports_resume
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
                _task_done=asyncio.Event(),
-               _hist_flush_event=asyncio.Event(),
-               _replaying=resuming)
+               _hist_flush_event=asyncio.Event())
     w.last_activity = time.monotonic()
     workers[worker_id] = w
 
@@ -1835,9 +1829,9 @@ async def restart_worker(worker_id: str) -> str | None:
         return f"Spawn failed ({w.session_id}): {proc}"
     w.process = proc
     w.status = "idle"
-    # if session has cli_session_id, --resume was used → enter replay mode
-    s = _sess.get(w.session_id)
-    w._replaying = bool(s and s.cli_session_id) and w.adapter.supports_resume
+    # resume 不再置 _replaying（worker-resume-replay 结论）：cbc stdin 有 prompt
+    # 时不重放 stdout 历史，首个 result 即任务结果；若仍置 True，_read_stdout
+    # 会把首个 result 当 replay 结束丢弃（L507-512 continue）→ 任务永不完成。
     await _restart_tasks(w)
 
     s = _session(w)
@@ -1930,10 +1924,12 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
                    status="idle", process=proc, pending_signal=asyncio.Queue(),
                    _task_done=asyncio.Event(),
                    _hist_flush_event=asyncio.Event())
-    # 注意：branch 不设 _replaying（与 create_worker/restart_worker 不同）。
-    # branch 的新 session history 为空，需要从 cbc --resume --fork-session
-    # 的重放中填入历史，所以走正常 append 路径。主路径的 session 已有
-    # 完整 history（磁盘 ground truth），replay 期间跳过 append 避免重复。
+    # 注意：branch 不设 _replaying（与 create_worker/restart_worker 一致，现全局恒
+    # False）。原注释假设"cbc --resume --fork-session 会把父会话历史重放到 stdout
+    # 供 branch 空 history 填充"——worker-resume-replay 实测 fork+prompt **不重放**
+    # （stdin 有 prompt → ResumeReplay skipped），该假设不成立。父上下文实际由 cbc
+    # 内部 fork 的 JSONL 承载（模型侧完整）；Pan 侧新 session 的 history 只记录新
+    # 回合（父历史不回填 → 展示层缺父回合，属既有局限，非模型上下文缺陷）。
     workers[new_id] = new_w
     new_w.last_activity = time.monotonic()
     new_w._stdout_task = asyncio.create_task(_read_stdout(new_w))
