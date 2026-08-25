@@ -466,7 +466,7 @@ def _save_sync(s: Session, force_full: bool = False):
             main_path = _path(s.id)
             tmp_path = main_path.with_suffix(".json.tmp")
             tmp_path.write_text(
-                json.dumps(d, ensure_ascii=False, separators=(",", ":")),
+                json.dumps(d, ensure_ascii=False, indent=2),
                 encoding="utf-8")
             os.replace(tmp_path, main_path)
             s._last_meta_sig = meta_sig
