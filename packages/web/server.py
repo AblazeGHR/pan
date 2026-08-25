@@ -1562,7 +1562,9 @@ async def api_claim(data: dict):
     Body: {"managerId": <manager session id>, "sessionId": <managed session id>}
 
     效果：manager.managed += [sessionId]，session.managed_by = managerId。
-    约束：manager 需具备 can_claim_unmanaged 能力；session 若已有其他 manager 则拒绝。
+    约束：session 若已有其他 manager 则拒绝。can_claim_unmanaged 能力限制仅由
+    MCP 层（packages/mcp/server.py _check_access）实施；本端点（web/前端途径）
+    不检查 pan_access——前端 manage 调整拥有最高权限。
     """
     manager_id = (data.get("managerId") or "").strip()
     session_id = (data.get("sessionId") or "").strip()
@@ -1575,10 +1577,8 @@ async def api_claim(data: dict):
         return {"ok": False, "error": {
             "code": "manager_not_found",
             "message": f"Manager session {manager_id} not found"}}
-    if not manager.can_claim_unmanaged:
-        return {"ok": False, "error": {
-            "code": "cannot_claim_unmanaged",
-            "message": f"Manager session {manager_id} cannot claim unmanaged sessions"}}
+    # 不检查 manager.can_claim_unmanaged：pan_access 限制只由 MCP 层实施，
+    # web/前端途径拥有最高权限（前端 manage 调整不受限）。
     # claim 已自动 report_subscribe（manager.report_subscriptions 加入 session_id）
     err = sess.claim(manager_id, session_id)
     if err:
