@@ -157,17 +157,24 @@ class CodexAdapter:
         return []
 
     def permission_mode_args(self, s: Session) -> list[str]:
-        """权限模式 → codex exec 真实 flag。
+        """权限模式 → codex exec 参数（fresh 与 resume 均生效）。
 
-        - ""（default）：沿用 codex/config.toml 默认（无 flag）；
-        - "bypass"：--dangerously-bypass-approvals-and-sandbox（headless 自动化默认）；
-        - "approve"：--approve-for-me（workspace-write sandbox + 自动审批）。
+        - ""（default）：沿用 codex/config.toml 默认（无参数）；
+        - "bypass"：--dangerously-bypass-approvals-and-sandbox（headless 自动化默认；
+          实测 `codex exec resume` 同样接受该 flag）；
+        - "approve"：-c 覆盖 sandbox_mode="workspace-write" + approval_policy="never"
+          （等效 --approve-for-me 的 workspace-write sandbox + 自动审批）。**不用**
+          --approve-for-me flag，因为实测 `codex exec resume` 不接受该 flag（报
+          unexpected argument）；-c 覆盖 fresh/resume 通用——这是任务 B 的关键：
+          用户中途改 permission_mode 后，后续 resume 显式传当前模式的 -c 覆盖，
+          而非依赖 thread 持久化的旧配置。
         """
         mode = s.permission_mode or self.default_permission_mode
         if mode == "bypass":
             return ["--dangerously-bypass-approvals-and-sandbox"]
         if mode == "approve":
-            return ["--approve-for-me"]
+            return ["-c", _c_override("sandbox_mode", "workspace-write"),
+                    "-c", _c_override("approval_policy", "never")]
         return []
 
     def resume_args(self, s: Session) -> list[str]:

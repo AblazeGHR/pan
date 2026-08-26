@@ -94,8 +94,12 @@ def test_permission_mode_args():
     s = _session()
     opts = a.permission_mode_args(s)
     assert "--dangerously-bypass-approvals-and-sandbox" in opts
+    # approve：不用 --approve-for-me（resume 不支持），改 -c 覆盖等效配置
     s2 = _session(permission_mode="approve")
-    assert a.permission_mode_args(s2) == ["--approve-for-me"]
+    assert a.permission_mode_args(s2) == [
+        "-c", 'sandbox_mode="workspace-write"',
+        "-c", 'approval_policy="never"',
+    ]
     s3 = _session(permission_mode="")
     # default_permission_mode=bypass 兜底
     assert a.permission_mode_args(s3) == ["--dangerously-bypass-approvals-and-sandbox"]
@@ -252,26 +256,39 @@ def test_build_codex_args_fresh():
 
 
 def test_build_codex_args_resume_filters_non_c_flags():
-    opts = ["-c", 'model="m"', "--dangerously-bypass-approvals-and-sandbox", "--approve-for-me"]
+    # approve 模式权限已改为 -c 覆盖；bypass 的 flag 是 resume 支持的，应保留
+    opts = [
+        "-c", 'model="m"',
+        "-c", 'sandbox_mode="workspace-write"',
+        "-c", 'approval_policy="never"',
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--approve-for-me",  # 已不用；若残留应被丢弃（resume 不支持）
+    ]
     args = codex_wrapper._build_codex_args(
         "node", "codex.js", "continue", "thread_01a0", opts, "C:/work",
     )
     assert "exec" in args
     assert "resume" in args
     assert "thread_01a0" in args
-    # resume 只透传 -c 覆盖，丢弃一次性 flag 与 -C（exec resume 不接受 -C）
-    assert "--dangerously-bypass-approvals-and-sandbox" not in args
+    # resume 保留 -c 覆盖 + bypass flag；丢弃 --approve-for-me 与 -C（resume 不支持）
     assert "--approve-for-me" not in args
     assert "-C" not in args
     assert "--skip-git-repo-check" in args
+    assert "--dangerously-bypass-approvals-and-sandbox" in args
     assert '-c' in args and 'model="m"' in args
-    print("PASS: build_codex_args resume filters non -c flags and -C")
+    assert 'sandbox_mode="workspace-write"' in args
+    assert 'approval_policy="never"' in args
+    print("PASS: build_codex_args resume keeps -c + bypass, drops unsupported flags")
 
 
 def test_filter_resume_opts():
     assert codex_wrapper._filter_resume_opts(
         ["-c", 'a="1"', "--flag", "-c", 'b="2"']
     ) == ["-c", 'a="1"', "-c", 'b="2"']
+    # bypass flag 保留（resume 支持），其它一次性 flag 丢弃
+    assert codex_wrapper._filter_resume_opts(
+        ["--dangerously-bypass-approvals-and-sandbox", "--approve-for-me", "-c", 'x="1"']
+    ) == ["--dangerously-bypass-approvals-and-sandbox", "-c", 'x="1"']
     print("PASS: _filter_resume_opts")
 
 
