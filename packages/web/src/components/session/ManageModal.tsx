@@ -8,11 +8,38 @@ import {
   reportSubscribe,
   reportUnsubscribe,
   fetchSession,
+  patchSession,
 } from '@/services/api';
-import type { Session } from '@/types';
-import { Search, Star, Check, Bell } from 'lucide-react';
+import type { PanAccess, Session } from '@/types';
+import { Search, Star, Check, Bell, Unlink } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
+
+const PAN_ACCESS_ROWS: {
+  key: keyof PanAccess;
+  label: string;
+  hint: string;
+  desc: string;
+}[] = [
+  {
+    key: 'restrictToManaged',
+    label: 'Restrict to managed',
+    hint: 'restrict_to_managed',
+    desc: 'Over MCP this agent may only operate on sessions it manages.',
+  },
+  {
+    key: 'canClaimUnmanaged',
+    label: 'Can claim unmanaged',
+    hint: 'can_claim_unmanaged',
+    desc: 'Over MCP this agent may claim sessions that have no manager yet.',
+  },
+  {
+    key: 'autoClaimCreated',
+    label: 'Auto-claim created',
+    hint: 'auto_claim_created',
+    desc: 'Over MCP sessions created by this agent are claimed automatically.',
+  },
+];
 
 interface ManageModalProps {
   open: boolean;
@@ -21,10 +48,73 @@ interface ManageModalProps {
   sessionId: string | null;
 }
 
+function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="border-b border-border-muted pb-1">
+      <div className="text-xs font-semibold text-text-primary">{title}</div>
+      <div className="text-[11px] text-text-tertiary">{subtitle}</div>
+    </div>
+  );
+}
+
+function SwitchRow({
+  label,
+  hint,
+  desc,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  desc: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-start justify-between gap-3 rounded px-2.5 py-2 text-left transition-colors hover:bg-bg-tertiary disabled:opacity-60 disabled:pointer-events-none"
+    >
+      <span className="min-w-0">
+        <span className="block text-xs text-text-primary">
+          {label}
+          <span className="ml-1.5 text-[10px] text-text-tertiary font-mono">
+            {hint}
+          </span>
+        </span>
+        <span className="block text-[11px] text-text-tertiary mt-0.5">
+          {desc}
+        </span>
+      </span>
+      <span
+        className={`relative inline-flex w-8 h-[18px] shrink-0 rounded-full transition-colors ${
+          checked ? 'bg-accent' : 'bg-bg-hover'
+        }`}
+      >
+        <span
+          className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-[14px]' : 'translate-x-0'
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 /**
- * Manage (claim / unclaim) pan_session relationships. The managing session
- * checks sessions to claim; unchecking unclaims. Both call the backend and
- * then reload the session list so `managed` / `managedBy` stay in sync.
+ * Session relationship + capability modal, split into three sections:
+ *   1. "Managed by"  — who manages this session (and how to break the link).
+ *   2. "Manages"     — claim / unclaim + report subscriptions of other sessions.
+ *   3. "Pan Access"  — MCP-only capability flags (persisted via PATCH).
+ * All mutations hit the backend and then reload the session list so
+ * `managed` / `managedBy` stay in sync.
  */
 export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   const sessions = useSessionStore((s) => s.sessions);
@@ -38,17 +128,22 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [savingFlag, setSavingFlag] = useState<keyof PanAccess | null>(null);
   // Full session fetched on open — the sidebar list is summary=1 driven and
-  // does NOT carry `managed` / `reportSubscriptions`, so we pull them on demand
-  // (and only for the session whose modal is open).
+  // does NOT carry `managed` / `reportSubscriptions` / `panAccess`, so we pull
+  // them on demand (and only for the session whose modal is open).
   const [detailSession, setDetailSession] = useState<Session | null>(null);
 
-  // Reset on open + fetch the full session (managed / reportSubscriptions).
+  // Reset on open + fetch the full session (managed / reportSubscriptions /
+  // managedBy / panAccess).
   useEffect(() => {
     if (open && sessionId) {
       setQuery('');
       setShowAll(false);
       setBusyId(null);
+      setCancelBusy(false);
+      setSavingFlag(null);
       setDetailSession(null);
       fetchSession(sessionId)
         .then((full) => setDetailSession(full))
@@ -57,6 +152,19 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   }, [open, sessionId]);
 
   const managerId = detailSession?.id ?? session?.id ?? null;
+
+  // The detail snapshot is the live source once fetched (we patch it locally
+  // after each mutation); before that fall back to the summary list entry.
+  const managedBy = detailSession
+    ? detailSession.managedBy ?? null
+    : session?.managedBy ?? null;
+  const managedByLabel = useMemo(() => {
+    if (!managedBy) return null;
+    const m = sessions.find((s) => s.id === managedBy);
+    return m ? m.name || 'Untitled' : null;
+  }, [managedBy, sessions]);
+
+  const panAccess: PanAccess = detailSession?.panAccess ?? {};
 
   // Live set of sessions this manager already claims.
   const managedIds = useMemo(
@@ -102,6 +210,47 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   }, [candidates, query]);
 
   const visible = showAll ? filtered : filtered.slice(0, SHOW_LIMIT);
+
+  // Break the incoming manage link. The backend only checks that the passed
+  // managerId matches this session's current manager — it does not require the
+  // manager itself to be the caller, so the managed session can detach.
+  const cancelManagedBy = async () => {
+    if (!managerId || !managedBy || cancelBusy) return;
+    setCancelBusy(true);
+    try {
+      await unclaimSession(managedBy, managerId);
+      setDetailSession((d) => (d ? { ...d, managedBy: null } : d));
+      showToast(`No longer managed by "${managedByLabel || managedBy}"`);
+      await loadSessions();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Unclaim failed', 'error');
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+
+  const togglePanAccess = async (key: keyof PanAccess, next: boolean) => {
+    if (!managerId || savingFlag) return;
+    setSavingFlag(key);
+    // Send only the toggled flag — the backend patches it in place and leaves
+    // the other two capability flags untouched.
+    const patch: PanAccess = {};
+    patch[key] = next;
+    try {
+      const updated = await patchSession(managerId, { panAccess: patch });
+      setDetailSession((d) => {
+        if (!d) return d;
+        const merged: PanAccess = { ...(d.panAccess ?? {}), ...patch };
+        return { ...d, panAccess: updated.panAccess ?? merged };
+      });
+      const label = PAN_ACCESS_ROWS.find((r) => r.key === key)?.label ?? key;
+      showToast(`${label} ${next ? 'enabled' : 'disabled'}`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Update failed', 'error');
+    } finally {
+      setSavingFlag(null);
+    }
+  };
 
   const toggle = async (targetId: string, checked: boolean) => {
     if (!managerId || busyId) return;
@@ -182,8 +331,8 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Manage Sessions" size="lg">
-      <div className="flex flex-col gap-3">
+    <Modal open={open} onClose={onClose} title="Manage Sessions" size="xl">
+      <div className="flex flex-col gap-5">
         {!managerId && (
           <div className="py-6 text-center text-sm text-text-tertiary">
             Session not found
@@ -192,122 +341,186 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
 
         {managerId && (
           <>
-            <div className="text-xs text-text-secondary">
-              {detailSession?.name || session?.name || 'Untitled'} manages the
-              sessions checked below.
-            </div>
-
-            {/* Search */}
-            <div className="relative">
-              <Search
-                size={12}
-                className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
+            {/* ── Section 1: Managed by ── */}
+            <section className="flex flex-col gap-2">
+              <SectionHeader
+                title="Managed by / 被谁管理"
+                subtitle="The manager (parent) session that claimed this session."
               />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setShowAll(false);
-                }}
-                placeholder="Search sessions by name or ID..."
-                className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-text-tertiary">
-              <span>
-                {managedIds.size} managed &middot; {subscribedIds.size}{' '}
-                subscribed &middot; {filtered.length} available
-              </span>
-            </div>
-
-            {/* Candidate list */}
-            <div className="max-h-72 overflow-y-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
-              {visible.length === 0 && (
-                <div className="py-4 text-center text-sm text-text-tertiary">
-                  No matching sessions
-                </div>
-              )}
-              {visible.map((c) => {
-                const isManaged = managedIds.has(c.id);
-                const isSubscribed = subscribedIds.has(c.id);
-                return (
-                  <div
-                    key={c.id}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
-                      busyId !== null ? 'pointer-events-none opacity-70' : ''
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2">
+                <div className="flex-1 min-w-0">
+                  {managedBy ? (
+                    <>
                       <div className="text-sm text-text-primary truncate">
-                        {c.name || 'Untitled'}
+                        {managedByLabel || managedBy}
                       </div>
                       <div className="text-[11px] text-text-tertiary truncate">
-                        {c.id}
+                        {managedBy}
                       </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-text-tertiary">
+                      Unmanaged / 未托管
                     </div>
-                    {c.adapter && (
-                      <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
-                        {c.adapter}
-                      </span>
-                    )}
-                    {/* Manage button: gray "Manage" → blue "Managed" when active */}
-                    <button
-                      type="button"
-                      onClick={() => toggle(c.id, !isManaged)}
-                      disabled={busyId !== null}
-                      title={
-                        isManaged
-                          ? 'Click to stop managing'
-                          : 'Click to manage (also subscribes to reports)'
-                      }
-                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
-                        isManaged
-                          ? 'border-accent/50 bg-accent/10 text-accent'
-                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                      }`}
-                    >
-                      {isManaged ? <Check size={12} /> : <Star size={12} />}
-                      {isManaged ? 'Managed' : 'Manage'}
-                    </button>
-                    {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
-                    <button
-                      type="button"
-                      onClick={() => toggleSubscribe(c.id, !isSubscribed)}
-                      disabled={busyId !== null}
-                      title={
-                        isSubscribed
-                          ? 'Click to unsubscribe from reports'
-                          : 'Click to subscribe to completion reports'
-                      }
-                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
-                        isSubscribed
-                          ? 'border-accent/50 bg-accent/10 text-accent'
-                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                      }`}
-                    >
-                      {isSubscribed ? (
-                        <Check size={12} />
-                      ) : (
-                        <Bell size={12} />
-                      )}
-                      {isSubscribed ? 'Subscribed' : 'Subscribe'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                  )}
+                </div>
+                {managedBy && (
+                  <button
+                    type="button"
+                    onClick={cancelManagedBy}
+                    disabled={cancelBusy}
+                    title="Break the manage link (this session becomes unmanaged)"
+                    className="shrink-0 inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60 disabled:pointer-events-none"
+                  >
+                    <Unlink size={12} />
+                    取消被管理 / Cancel manage by
+                  </button>
+                )}
+              </div>
+            </section>
 
-            {/* Show-all toggle */}
-            {!showAll && filtered.length > SHOW_LIMIT && (
-              <button
-                onClick={() => setShowAll(true)}
-                className="w-full text-xs text-accent hover:underline py-1 text-center transition-colors"
-              >
-                Show all ({filtered.length})
-              </button>
-            )}
+            {/* ── Section 2: Manages ── */}
+            <section className="flex flex-col gap-2">
+              <SectionHeader
+                title="Manages / 管理谁"
+                subtitle={`${
+                  detailSession?.name || session?.name || 'Untitled'
+                } manages the sessions marked below; Subscribe controls completion reports.`}
+              />
+
+              {/* Search */}
+              <div className="relative">
+                <Search
+                  size={12}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
+                />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setShowAll(false);
+                  }}
+                  placeholder="Search sessions by name or ID..."
+                  className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-text-tertiary">
+                <span>
+                  {managedIds.size} managed &middot; {subscribedIds.size}{' '}
+                  subscribed &middot; {filtered.length} available
+                </span>
+              </div>
+
+              {/* Candidate list */}
+              <div className="max-h-56 overflow-y-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
+                {visible.length === 0 && (
+                  <div className="py-4 text-center text-sm text-text-tertiary">
+                    No matching sessions
+                  </div>
+                )}
+                {visible.map((c) => {
+                  const isManaged = managedIds.has(c.id);
+                  const isSubscribed = subscribedIds.has(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                        busyId !== null ? 'pointer-events-none opacity-70' : ''
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-text-primary truncate">
+                          {c.name || 'Untitled'}
+                        </div>
+                        <div className="text-[11px] text-text-tertiary truncate">
+                          {c.id}
+                        </div>
+                      </div>
+                      {c.adapter && (
+                        <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
+                          {c.adapter}
+                        </span>
+                      )}
+                      {/* Manage button: gray "Manage" → blue "Managed" when active */}
+                      <button
+                        type="button"
+                        onClick={() => toggle(c.id, !isManaged)}
+                        disabled={busyId !== null}
+                        title={
+                          isManaged
+                            ? 'Click to stop managing'
+                            : 'Click to manage (also subscribes to reports)'
+                        }
+                        className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                          isManaged
+                            ? 'border-accent/50 bg-accent/10 text-accent'
+                            : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                        }`}
+                      >
+                        {isManaged ? <Check size={12} /> : <Star size={12} />}
+                        {isManaged ? 'Managed' : 'Manage'}
+                      </button>
+                      {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
+                      <button
+                        type="button"
+                        onClick={() => toggleSubscribe(c.id, !isSubscribed)}
+                        disabled={busyId !== null}
+                        title={
+                          isSubscribed
+                            ? 'Click to unsubscribe from reports'
+                            : 'Click to subscribe to completion reports'
+                        }
+                        className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                          isSubscribed
+                            ? 'border-accent/50 bg-accent/10 text-accent'
+                            : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                        }`}
+                      >
+                        {isSubscribed ? (
+                          <Check size={12} />
+                        ) : (
+                          <Bell size={12} />
+                        )}
+                        {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Show-all toggle */}
+              {!showAll && filtered.length > SHOW_LIMIT && (
+                <button
+                  onClick={() => setShowAll(true)}
+                  className="w-full text-xs text-accent hover:underline py-1 text-center transition-colors"
+                >
+                  Show all ({filtered.length})
+                </button>
+              )}
+            </section>
+
+            {/* ── Section 3: Pan Access ── */}
+            <section className="flex flex-col gap-2">
+              <SectionHeader
+                title="Pan Access / MCP 权限"
+                subtitle="Capability flags for the MCP path only — manage actions from this UI are never restricted."
+              />
+              <div className="rounded border border-border-muted bg-bg-primary p-1 divide-y divide-border-muted">
+                {PAN_ACCESS_ROWS.map((row) => (
+                  <SwitchRow
+                    key={row.key}
+                    label={row.label}
+                    hint={row.hint}
+                    desc={row.desc}
+                    checked={Boolean(panAccess[row.key])}
+                    disabled={savingFlag !== null || detailSession === null}
+                    onChange={(v) => togglePanAccess(row.key, v)}
+                  />
+                ))}
+              </div>
+            </section>
           </>
         )}
       </div>

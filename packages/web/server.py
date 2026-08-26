@@ -570,6 +570,8 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
     if "mcpServers" in data:
         _apply_mcp_servers(s, data["mcpServers"])
+    if "panAccess" in data:
+        _apply_pan_access(s, data["panAccess"])
     if "outputMode" in data:
         _apply_output_mode(s, data["outputMode"])
     if "gameId" in data:
@@ -577,6 +579,26 @@ def _apply_session_updates(s: sess.Session, data: dict):
         # plugin to bind a RuleWhisper game_id to a group-scoped session so
         # LLM-driven MCP tool calls can pass it through.
         s.game_id = data["gameId"] or None
+
+
+_PAN_ACCESS_FIELDS = (
+    ("restrictToManaged", "restrict_to_managed"),
+    ("canClaimUnmanaged", "can_claim_unmanaged"),
+    ("autoClaimCreated", "auto_claim_created"),
+)
+
+
+def _apply_pan_access(s: sess.Session, body) -> None:
+    """Patch the session's capability flags from a camelCase ``panAccess`` dict.
+
+    Only keys present in ``body`` are touched — a partial dict leaves the other
+    flags alone (no whole-object overwrite, no back-filling of missing keys).
+    """
+    if not isinstance(body, dict):
+        raise ValueError("panAccess must be an object of capability flags")
+    for req_key, pa_key in _PAN_ACCESS_FIELDS:
+        if req_key in body:
+            s.pan_access[pa_key] = bool(body[req_key])
 
 
 def _apply_mcp_servers(s: sess.Session, server_names) -> None:

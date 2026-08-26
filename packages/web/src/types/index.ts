@@ -5,6 +5,16 @@ export interface Message {
   content: string;
 }
 
+/** MCP-only capability flags (backend `pan_access`, camelCase over HTTP). */
+export interface PanAccess {
+  /** MCP callers may only act on sessions they manage. */
+  restrictToManaged?: boolean;
+  /** MCP callers may claim sessions that have no manager yet. */
+  canClaimUnmanaged?: boolean;
+  /** Sessions created through MCP are auto-claimed by the creator. */
+  autoClaimCreated?: boolean;
+}
+
 export interface Session {
   id: string;
   name: string;
@@ -26,6 +36,8 @@ export interface Session {
   reportSubscriptions?: string[];
   /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
   qqSubscriptions?: string[];
+  /** MCP capability flags; only present on the full (non-summary) endpoint. */
+  panAccess?: PanAccess;
   history: Message[];
   historyTruncated?: boolean;
   historyTotal?: number;
@@ -328,6 +340,8 @@ export interface SettingsBody {
   permissionMode?: string;
   alwaysThinkingEnabled?: boolean;
   effort?: string;
+  /** Partial patch — only the given flags are updated server-side. */
+  panAccess?: PanAccess;
 }
 
 // ── File-system types ──
