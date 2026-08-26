@@ -61,8 +61,8 @@ describe('InputRow send queue wiring', () => {
     expect(q.length).toBe(1);
     expect(q[0]?.text).toBe('queued msg');
     expect((textarea as HTMLTextAreaElement).value).toBe('');
-    // 不上屏
-    expect(useSessionStore.getState().currentMessages.length).toBe(0);
+    // 入队即上屏（乐观）：与直接发送一致，用户按 Enter 立即看到自己的消息
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['queued msg']);
 
     // ^ 按钮角标显示 1（面板头部的计数也在 DOM 中，用 getAllByText）
     expect(screen.getAllByText('1').length).toBeGreaterThan(0);
