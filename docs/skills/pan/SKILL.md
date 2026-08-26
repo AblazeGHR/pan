@@ -28,7 +28,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 |------|------|
 | **Session** | 持久化的对话容器，包含 history、model、adapter、workdir 等配置。独立于 Worker 生命周期。 |
 | **Worker** | 临时的 CLI 子进程（cbc/kimi/opencode），绑定到一个 Session。可被 kill、回收、重建。 |
-| **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）、`kimi`（Kimi CLI）、`opencode`（OpenCode CLI）等。**adapter 列表持续增加（claude / codex 正在适配中）——以实际为准**：用 `model_list` 或查注册表 `packages/core/adapters/__init__.py` 确认当前可用 adapter |
+| **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）、`kimi`（Kimi CLI）、`opencode`（OpenCode CLI）、`claude`（Claude Code CLI）、`codex`（OpenAI Codex CLI）——五个已内置注册。**adapter 列表持续增加——以实际为准**：用 `model_list` 或查注册表 `packages/core/adapters/__init__.py` 确认当前可用 adapter |
 | **Model** | AI 模型名称，如 `hy3`、`deepseek-v4-flash` |
 | **workdir** | Session 的工作目录，也是 Worker 进程的 `cwd`（见 §9.1） |
 | **taskSeq** | 每个任务的序号；`worker.result` 事件用它配对任务与结果、做重连补发游标 |
