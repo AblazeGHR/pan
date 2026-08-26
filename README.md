@@ -59,7 +59,7 @@ Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，
 
 Meta-Agent 不是某个特殊的程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件，就能扮演"主管"：
 
-1. **能发指令**：通过 MCP 工具（20 个现成工具：`worker_spawn` / `worker_assign` / `worker_send` / `session_handoff` …）或 HTTP API；
+1. **能发指令**：通过 MCP 工具（27 个现成工具：`worker_spawn` / `worker_assign` / `worker_send` / `session_handoff` …）或 HTTP API；
 2. **能收情报**：通过 WebSocket 订阅事件流（`worker.result` / `worker.status` / `worker.crashed` …），或订阅制报告落盘到自己的收件箱；
 3. **有身份**：Pan 记录是谁在指挥，并对 Worker 做隔离，防止越权。
 
@@ -200,7 +200,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 | 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | React SPA（`/react/`，主开发）+ 旧版 Vanilla 双轨共存，`frontend` 配置控制路由分配（`coexist` / `react` / `legacy`） |
 | 💬 **QQ Bridge** | NapCat / LLOneBot | OneBot 11 网关**插件化**：两个通道只是 `QQChannel` 的薄子类，业务层零改动（`packages/qq/channels/`）；`mirror` 全量镜像 / `selective` 选择性发送双模式 |
 | 🌐 **Remote** | Cloudflare Tunnel | 一键暴露到公网，出门在外也能管 |
-| 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | 让任意 Agent CLI 当主管：20 个 MCP 工具 + 事件流订阅，Meta-Agent 的接入通道 |
+| 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | 让任意 Agent CLI 当主管：27 个 MCP 工具 + 事件流订阅，Meta-Agent 的接入通道 |
 
 ### QQ 通道插件化：换网关不换业务
 
@@ -208,7 +208,7 @@ QQ 接入被抽象为一个可切换的**通道（Channel）**：`QQChannel` 接
 
 ### 会话级 MCP：工具随会话走
 
-每个 Session 可挂载自己的 MCP Server，配置由 adapter 在 spawn 时自动写入 `data/mcp-configs/<session_id>.mcp.json` 并注入（cbc 走 `--mcp-config`，kimi 自动写项目级 `.kimi-code/mcp.json`）——**工具是会话级的，不是全局的**。内置 `pan`（20 个编排工具）与 `pan-qq`（6 个 QQ 工具，`packages/qq/mcp.py`）两个 MCP server。
+每个 Session 可挂载自己的 MCP Server，配置由 adapter 在 spawn 时自动写入 `data/mcp-configs/<session_id>.mcp.json` 并注入（cbc 走 `--mcp-config`，kimi 自动写项目级 `.kimi-code/mcp.json`）——**工具是会话级的，不是全局的**。内置 `pan`（27 个编排工具）与 `pan-qq`（6 个 QQ 工具，`packages/qq/mcp.py`）两个 MCP server。
 
 ---
 
@@ -234,7 +234,7 @@ QQ 接入被抽象为一个可切换的**通道（Channel）**：`QQChannel` 接
 - **编排 API** — `assign`（异步派发 + taskId 幂等）、`report-subscribe`（订阅制报告推送 + 落盘收件箱）、`claim` / `unclaim`（managed 关系绑定 / 解绑）。（阻塞式 `handoff` 已于 2026-08-26 移除，串行依赖同样走 assign + report_subscribe。）
 - **Character / Profile 框架** — `manifest.json`（或外部 `plugin_manifests`）声明模板 → 创建带独立记忆库的 Character 实例。
 - **Memory 子系统** — SQLite + FTS5 + embedding 混合检索；知识文件索引、运行中自动注入；embedding 多 provider（sentence-transformers 默认 / openai / ollama / llama.cpp GGUF）；jieba 中文分词、watchdog 文件监控、批量向量评分。
-- **MCP Server** — 20 个工具（session / worker / report / model / handbook，含 `session_import` 历史会话导入、`session_handoff` 替身交接），带 MCP 隔离检查与 `////by agent` 来源前缀；支持 stdio / SSE / streamable-http。另有独立 `pan-qq` MCP server（`packages/qq/mcp.py`，6 个 QQ 工具）。
+- **MCP Server** — 27 个工具（session / worker / report / model / handbook，含 `session_import` 历史会话导入、`session_handoff` 替身交接），带 MCP 隔离检查与 `////by agent` 来源前缀；支持 stdio / SSE / streamable-http。另有独立 `pan-qq` MCP server（`packages/qq/mcp.py`，6 个 QQ 工具）。
 - **多通道接入** — Web（Dashboard + HTTP/WS API，React SPA + Legacy 双轨）、QQ（NoneBot2 + OneBot v11；**NapCat / LLOneBot 通道插件化**；`mirror` 全量镜像 / `selective` 选择性发送双模式 + pan-qq MCP）、Remote（Cloudflare Tunnel）、Meta-Agent（WS + MCP）。
 - **会话导入** — cbc / kimi / opencode 历史会话导入（`session_import`）；Pan 会话删除后底层 CLI 会话仍保留，可随时恢复复用（省去重新探索/初始化）。
 - **文件系统 API** — session workdir 内 list / read / write / rename / delete，带路径逃逸校验。
@@ -264,7 +264,7 @@ Pan/
 │   │   ├── memory/            Memory 子系统（SQLite + FTS5 + embedding 混合检索）
 │   │   └── adapters/          CLI Adapter 协议 + 注册表（cbc / kimi / opencode）
 │   ├── web/                  Web 通道（FastAPI + WebSocket + Dashboard）
-│   │   ├── server.py          FastAPI 路由 + WebSocket（56 个 HTTP 端点）
+│   │   ├── server.py          FastAPI 路由 + WebSocket（69 个 HTTP 端点）
 │   │   ├── ts/                Legacy TypeScript 源码（→ static/）
 │   │   ├── static/            Legacy 编译产物 + CSS（gitignored）
 │   │   ├── src/               React SPA 源码（开发主力）
@@ -272,7 +272,7 @@ Pan/
 │   │   └── package.json
 │   ├── qq/                   QQ 通道（NoneBot2 桥接 + channels/ 通道插件化 + pan-qq MCP server）
 │   ├── remote/               远程通道（Cloudflare Tunnel + 状态服务）
-│   ├── mcp/                  MCP Server（20 个工具，可独立启动）
+│   ├── mcp/                  MCP Server（27 个工具，可独立启动）
 │   └── scripts/              运维脚本（monitor_workers.py 等）
 ├── scripts/                   启动/停止/隧道/预提交脚本
 ├── docs/                      文档（全部纳入 git 跟踪；archive/ 为历史存档）
@@ -378,7 +378,7 @@ pnpm dev              # 开发模式：Vite HMR + 代理到后端
 
 ## API 一览
 
-### HTTP（`packages/web/server.py`，56 个端点）
+### HTTP（`packages/web/server.py`，69 个端点）
 
 **Session 管理**
 
@@ -481,7 +481,7 @@ WS   /ws/agent       Meta-Agent：subscribe（按 eventTypes/sessionIds 过滤+�
 
 广播事件：`worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`、`session.created` / `session.updated` / `session.renamed` / `session.deleted` / `sessions.deleted`、`error`。
 
-### MCP Server（`packages/mcp/server.py`，20 个工具）
+### MCP Server（`packages/mcp/server.py`，27 个工具）
 
 ```
 session_create / session_import / session_list / session_managed / session_get / session_delete / session_batch_delete / session_handoff / session_update / session_history
