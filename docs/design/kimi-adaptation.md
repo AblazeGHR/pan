@@ -77,8 +77,11 @@ list_cbc_projects / list_cbc_sessions / browse_cbc_tree / parse_cbc_history / ge
 - `[models."<alias>"]`（provider/model/max_context_size/capabilities）→ supported_models 来源；当前含 `moonshot-cn/kimi-k2.7-code`、`moonshot-cn/kimi-k2.6`
 
 ### MCP 机制
-- kimi 通过 **mcp.json** 配置 MCP server（用户级 `~/.kimi-code/mcp.json`、项目级 `<workdir>/.kimi/mcp.json`？，同名条目项目级覆盖用户级），TUI 内 `/mcp-config` 交互管理。当前用户级 mcp.json 不存在。
+- kimi 通过 **mcp.json** 配置 MCP server（用户级 `~/.kimi-code/mcp.json`、项目级 `<workdir>/.kimi-code/mcp.json`？，同名条目项目级覆盖用户级），TUI 内 `/mcp-config` 交互管理。当前用户级 mcp.json 不存在。
+- **folder-trust 门禁**：project 级 MCP 需文件夹信任应答；`-p` 非交互模式无法应答 → 静默跳过。用户级 MCP 不受此门禁约束。
+- **`KIMI_CODE_HOME` 环境变量**可重定向 kimi 整个用户目录（含 config.toml + mcp.json），重定向后的目录等价「用户级」，可绕过 folder-trust（见 §4.5 方案 C）。
 - 官方文档：https://www.kimi.com/code/docs/kimi-code-cli/customization/mcp.html
+- 全量调研见 `docs/design/kimi-mcp-solution.md`。
 
 ### wire.jsonl 事件模型（`<session>/agents/main/wire.jsonl`）
 - `metadata`（protocol_version）
@@ -116,16 +119,19 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 - 若 stdout 事件带 model/modelAlias 字段 → 直接从事件提取。
 - 若没有 → `extract_model` 保持返回 None，model 由两处兜底：① session 创建时用户显式指定；② enrich 时从 usage.record 的 model 字段回填（此时已知真实消费模型）。
 
-### 4.5 MCP（G4）
-- kimi 无 `--mcp-config`，MCP 靠 mcp.json 文件。Pan 的 `data/mcp-configs/<sid>.mcp.json` 机制对 kimi 不适用。
-- **配置位置（已确认）**：kimi 读项目级 `<workdir>/.kimi-code/mcp.json`（wrapper 的 cwd 决定 workspace 归属）。Pan adapter 已实现 `write_kimi_mcp_json(s)` 幂等写该文件（`mcp_args` 保持返回 []，在 `build_spawn_args` 前调用），写入后经 `kimi -p` 启动可观察到 mcp.json 被正确生成。
-- **E2E 结论（2026-08-26，hy3 验证）**：**kimi `-p` 模式下 pan MCP 工具不可用（限制）**。
-  - 证据：`mcpEnabled=True`，`.kimi-code/mcp.json` 被正确写入（含 pan server 的 stdio 启动命令）；但一次真实 `-p` live turn 拉取的 `history` 中 `tool blocks = 0`，模型没有、也无法调用任何 pan 工具。
-  - 根因：kimi 的 project MCP 受 **文件夹信任（folder-trust）门禁** 约束。`-p` 是非交互模式，信任提示无法被应答（无 TTY、无 trust prompt 通道），故 project 级 MCP server 不会注册到会话工具集——即使 mcp.json 存在且格式正确。
-  - 对比：opencode `run` 模式无此信任门禁，project MCP 直接加载可用（见 opencode-adaptation.md §4.5）。
-- **决策**：
-  - kimi 的 `write_kimi_mcp_json` 保留（文件写入正确，交互式/已信任 workspace 场景下可用），但**前端对 kimi 会话的 `mcp_servers` 配置应默认隐藏 + 提示「-p 非交互模式不加载 project MCP」**，避免用户误以为 pan 工具可用。
-  - 若要 kimi 真正用上 pan MCP，需走可交互的信任确认路径（或在已信任 workspace 内启动），属于后续升级项，不在本轮 autofill 范围。
+### 4.5 MCP（G4）— 方案 C：KIMI_CODE_HOME 隔离 + data 统一管理（2026-08-26 实现，hy3）
+- kimi 无 `--mcp-config`，MCP 靠 mcp.json 文件。Pan 的 `data/mcp-configs/<sid>.mcp.json` 机制对 kimi 不适用（kimi 不接受该参数）。
+- **根因（已验证）**：kimi `-p` 模式下 project MCP（`<workdir>/.kimi-code/mcp.json`）受 **文件夹信任（folder-trust）门禁** 约束——非交互模式无法应答信任提示，project 级 MCP 被静默跳过（`tool blocks = 0`）。用户级 `~/.kimi-code/mcp.json` 不受此门禁约束（见 `kimi-mcp-solution.md` 全量调研）。
+- **方案 C 实现**：用 `KIMI_CODE_HOME` 环境变量把 kimi 的整个用户目录重定向到 Pan 托管的隔离目录。该目录下放入 `config.toml`（从真实 `~/.kimi-code/config.toml` 拷贝）+ `mcp.json`（含 pan/pan-qq server 的 stdio 启动命令 + `PAN_AGENT_SESSION_ID/TITLE` 注入）。重定向后该目录等价于「用户级」，从而**绕过 folder-trust 门禁**，pan MCP 在 `-p` 模式可用。
+- **配置统一到 data/（模仿 cbc 的 `data/mcp-configs` 理念）**：
+  - 隔离 HOME 根：`DATA_DIR / "kimi-homes"`，每会话一个子目录 `data/kimi-homes/<session_id>/`（含 `config.toml` + `mcp.json`）。
+  - 生成逻辑：`KimiAdapter._prepare_kimi_home(s)`（`adapter.py`）——`build_mcp_servers(s)` 为空则返回 `None`（无 MCP 会话不加 `--kimi-home`）；否则建目录、拷贝 config.toml、写 mcp.json、把路径回填 `s.adapter_config["kimi_home_dir"]`。
+  - `mcp_args(s)` 返回 `["--kimi-home", <home>]`（wrapper 新增 `--kimi-home` 参数）。
+  - `wrapper.py`：`_main_loop(kimi_home=...)` 在 `subprocess.Popen` 的 `env` 中注入 `KIMI_CODE_HOME=kimi_home`，整条 kimi 子进程链都读该隔离 HOME。
+  - **注意**：`KIMI_CODE_HOME` 重定向的是 kimi 整个用户目录，因此 `sessions.py` 的 enrich/历史/ fork/ rename 读取（session_index、usage、title）也必须读该隔离 HOME，否则 enrich/history 会断。已通过 `kimi_home` 参数贯穿所有 sessions 函数实现。
+- **清理**：`server.py` 在 `api_delete_session` / `api_batch_delete_sessions` 中调 `_cleanup_kimi_home(sid)`，删除 `data/kimi-homes/<sid>`。
+- **project 级 `write_kimi_mcp_json` 保留**：交互式/已信任 workspace 场景仍可用（文件写入正确），与方案 C 不冲突；方案 C 是 `-p` 非交互主路径的解法。
+- **验证**：worker 级集成测试 `scripts/kimi-mcp-probe/06_integration_wrapper.py` PASS——kimi 在 `KIMI_CODE_HOME` 隔离下成功加载 mcp.json 并调用 pan 工具（`tool_seen_in_stream=True, marker_created=True`）。
 
 ### 4.6 supported_settings / 权限 / thinking（G6）
 - kimi 无 `--thinking` / `--effort` 参数（在 config.toml `[thinking]` 配置）。`thinking_args`/`effort_args` 返回 [] 合理。
@@ -159,7 +165,7 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 - [ ] adapter.py：takeover_command 用 _KIMI_PATH（§4.9）
 - [ ] adapter.py：supports_resume=True + 注释澄清（§4.8）
 - [ ] adapter.py：permission_mode_args 实测决定（§4.6）
-- [ ] adapter.py：mcp_args/write_kimi_mcp_json（§4.5）
+- [x] adapter.py：mcp_args（§4.5 方案 C，KIMI_CODE_HOME 隔离 + data/kimi-homes 统一管理）；write_kimi_mcp_json 保留
 - [ ] wrapper.py：session_id 兜底提取、stderr 透传、健壮性（§4.7）
 - [ ] sessions.py：write_custom_title（§4.10）
 - [ ] server.py：rename 端点对 kimi 调用 write_custom_title（§4.10）

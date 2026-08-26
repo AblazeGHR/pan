@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -1057,7 +1058,10 @@ async def api_rename_session(session_id: str, data: dict):
         provider = _sessions_provider(s.adapter)
         if provider is not None:
             try:
-                provider.write_custom_title(s.cli_session_id, new_name, s.workdir or None)
+                provider.write_custom_title(
+                    s.cli_session_id, new_name, s.workdir or None,
+                    kimi_home=s.adapter_config.get("kimi_home_dir"),
+                )
             except Exception as e:
                 print(f"[rename] {s.adapter} write_custom_title failed: {e}")
 
@@ -1165,6 +1169,21 @@ def _cleanup_mcp_config(session_id: str) -> None:
         _log.warning("[mcp-config] 清理失败 %s: %s", p, e)
 
 
+def _cleanup_kimi_home(session_id: str) -> None:
+    """S3：session 删除后清理 data/kimi-homes/<session_id>/ 隔离 HOME（方案 C）。
+
+    kimi MCP 会话的整个用户目录（config.toml + mcp.json + kimi 自身写入的
+    sessions/、session_index.jsonl 等）都在该隔离目录内，删除 session 时一并
+    清理，避免 data/ 残留。目录不存在时静默跳过。
+    """
+    p = DATA_DIR / "kimi-homes" / session_id
+    try:
+        if p.exists():
+            shutil.rmtree(p)
+    except OSError as e:
+        _log.warning("[kimi-home] 清理失败 %s: %s", p, e)
+
+
 @app.delete("/api/sessions/{session_id}")
 async def api_delete_session(session_id: str):
     """Delete a session and its worker if running."""
@@ -1176,6 +1195,7 @@ async def api_delete_session(session_id: str):
         )
     sess.delete(session_id)
     _cleanup_mcp_config(session_id)
+    _cleanup_kimi_home(session_id)
     await broadcast({
         "type": "session.deleted",
         "sessionId": session_id,
@@ -1200,6 +1220,7 @@ async def api_batch_delete_sessions(data: dict):
             )
         sess.delete(sid)
         _cleanup_mcp_config(sid)
+        _cleanup_kimi_home(sid)
         deleted += 1
 
     await broadcast({

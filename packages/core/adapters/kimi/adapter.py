@@ -10,14 +10,21 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from ...session import Session
-from ..mcp import write_mcp_json
+from ...session import SESSION_DIR, Session
+from ..mcp import build_mcp_servers, write_mcp_json
 
 _log = logging.getLogger(__name__)
+
+# Pan 统一管理 kimi 隔离 HOME：data/kimi-homes/<session_id>/（方案 C，见
+# docs/design/kimi-mcp-solution.md）。每会话一个独立目录承载 config.toml + mcp.json，
+# 经 wrapper 以 KIMI_CODE_HOME 注入 kimi 子进程——绕过 folder-trust 且零污染真实
+# ~/.kimi-code（与 cbc 的 data/mcp-configs 同一哲学：adapter 配置收敛到 Pan data/）。
+KIMI_HOME_ROOT = SESSION_DIR.parent / "kimi-homes"
 
 
 def _parse_kimi_models_from_toml() -> list[str]:
@@ -178,7 +185,8 @@ class KimiAdapter:
         try:
             from . import sessions as kimi_sessions
             new_id = kimi_sessions.fork_kimi_session(
-                s.cli_session_id, s.name, workdir=s.workdir or None
+                s.cli_session_id, s.name, workdir=s.workdir or None,
+                kimi_home=s.adapter_config.get("kimi_home_dir"),
             )
             s.cli_session_id = new_id
         except Exception as exc:
@@ -202,15 +210,53 @@ class KimiAdapter:
         return []
 
     def mcp_args(self, s: Session) -> list[str]:
-        """kimi 无 --mcp-config 参数；MCP 通过项目级 mcp.json 注入。
+        """MCP 注入（方案 C：KIMI_CODE_HOME 隔离 HOME）。
 
-        本方法返回空列表（无 CLI flag），但顺带把 session 的 mcp_servers 写入
-        <workdir>/.kimi-code/mcp.json，kimi 在 cwd==workdir 的会话启动时自动加载
-        （官方文档确认的路径与格式）。幂等写，build_spawn_args / _consumer_mcp
-        调用本方法时触发（§4.5）。
+        kimi 无 `--mcp-config` 参数；项目级 mcp.json 受 folder-trust 门禁拦截
+        （非交互 `-p` 无法应答信任提示，实测 project MCP 不注册，见 §4.5 / 调研文档）。
+
+        本方法在会话配置了 mcp_servers 时，于 data/kimi-homes/<session_id>/ 准备
+        隔离 HOME（拷贝真实 config.toml + 写 mcp.json），并以 `--kimi-home` 交给
+        wrapper，由 wrapper 以 `KIMI_CODE_HOME` 环境变量注入 kimi 子进程。隔离
+        HOME 对 kimi 而言即「用户级」，天然绕过信任门禁（实测验证）。
+
+        无 mcp_servers 时不生成 HOME，返回 []（走原路径，使用真实用户目录）。
+        返回的是 wrapper 的 `--kimi-home` 参数；kimi 本身无 MCP CLI flag。
+
+        项目级 write_kimi_mcp_json 保留给交互/已信任场景，此处不调用。
         """
-        self.write_kimi_mcp_json(s)
-        return []
+        home = self._prepare_kimi_home(s)
+        if home is None:
+            return []
+        return ["--kimi-home", str(home)]
+
+    def _prepare_kimi_home(self, s: Session) -> Path | None:
+        """准备 data/kimi-homes/<session_id>/ 隔离 HOME。
+
+        包含：
+          a. 拷贝 ~/.kimi-code/config.toml（provider + api_key，只读，绝不写回真实目录）；
+          b. 写 mcp.json（user-level 格式，含 pan/pan-qq 身份注入）。
+        路径记录到 s.adapter_config["kimi_home_dir"] 供清理与 enrich 读取。
+        无 mcp_servers 返回 None；写入失败返回 None（降级为无 MCP）。幂等。
+        """
+        servers = build_mcp_servers(s)
+        if not servers:
+            return None
+        home = KIMI_HOME_ROOT / s.id
+        try:
+            home.mkdir(parents=True, exist_ok=True)
+            # (a) 拷贝真实 config.toml（含 api_key）—— 仅读取，绝不写回 ~/.kimi-code
+            src = Path.home() / ".kimi-code" / "config.toml"
+            if src.is_file():
+                shutil.copy(src, home / "config.toml")
+            # (b) 写 mcp.json（隔离 HOME 内即用户级，绕过 folder-trust）
+            write_mcp_json(home / "mcp.json", s)
+            s.set_adapter_field("kimi_home_dir", str(home))
+            _log.info("[KimiAdapter] prepared isolated kimi home -> %s", home)
+            return home
+        except OSError as e:
+            _log.warning("[KimiAdapter] failed to prepare kimi home for %s: %s", s.id, e)
+            return None
 
     def write_kimi_mcp_json(self, s: Session) -> None:
         """Write project-level mcp.json so kimi auto-loads Pan's MCP servers.
@@ -379,7 +425,10 @@ def _read_kimi_new_entries(s: Session) -> list[dict] | None:
     # 短暂延迟，等待 kimi 完成 wire.jsonl 写入（解决时序竞态，cbc 同款 sleep）。
     time.sleep(0.3)
 
-    all_entries = kimi_sessions.get_raw_usage(s.cli_session_id, s.workdir or None)
+    all_entries = kimi_sessions.get_raw_usage(
+        s.cli_session_id, s.workdir or None,
+        kimi_home=s.adapter_config.get("kimi_home_dir"),
+    )
     if not all_entries:
         return None
 

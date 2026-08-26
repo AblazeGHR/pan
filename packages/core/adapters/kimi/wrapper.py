@@ -106,8 +106,15 @@ def _stdin_reader(message_queue: Queue, shutdown_event: threading.Event) -> None
 
 def _main_loop(kimi_path: str, model: str | None,
                initial_session_id: str | None,
-               cwd: str | None) -> int:
-    """主循环：从队列取消息，逐条调用 Kimi。"""
+               cwd: str | None,
+               kimi_home: str | None = None) -> int:
+    """主循环：从队列取消息，逐条调用 Kimi。
+
+    *kimi_home*：若提供，则在其指向的隔离 HOME 目录内准备 config.toml + mcp.json，
+    并以 ``KIMI_CODE_HOME`` 环境变量注入每条 kimi 子进程——使 kimi 加载该 HOME 内的
+    用户级 mcp.json（绕过 folder-trust，方案 C）。隔离 HOME 由 adapter 在
+    data/kimi-homes/<session_id>/ 生成（见 kimi/adapter.py）。
+    """
     session_id = initial_session_id
     message_queue: Queue = Queue()
     shutdown_event = threading.Event()
@@ -134,12 +141,20 @@ def _main_loop(kimi_path: str, model: str | None,
             if session_id:
                 args.extend(["-S", session_id])
 
+            # 注入隔离 HOME：KIMI_CODE_HOME 让本务 kimi 子进程把该目录当作
+            # 用户目录，从而加载其中的用户级 mcp.json（绕过 folder-trust）。
+            # 保留其余继承的环境变量。
+            env = dict(os.environ)
+            if kimi_home:
+                env["KIMI_CODE_HOME"] = kimi_home
+
             try:
                 proc = subprocess.Popen(
                     args,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     cwd=cwd or None,
+                    env=env,
                 )
             except FileNotFoundError:
                 _write_stdout_line(json.dumps({
@@ -210,6 +225,7 @@ def main() -> int:
     parser.add_argument("--kimi-path", required=True)
     parser.add_argument("--model", default=None)
     parser.add_argument("--session-id", default=None)
+    parser.add_argument("--kimi-home", default=None)
     args = parser.parse_args()
 
     cwd = os.environ.get("PAN_KIMI_CWD") or os.environ.get("CLICONDUCTOR_KIMI_CWD") or os.getcwd()
@@ -218,6 +234,7 @@ def main() -> int:
         model=args.model,
         initial_session_id=args.session_id,
         cwd=cwd,
+        kimi_home=args.kimi_home,
     )
 
 
