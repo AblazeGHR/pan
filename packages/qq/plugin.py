@@ -36,8 +36,11 @@ from pathlib import Path
 
 import httpx
 import websockets
-from nonebot import get_driver, on_message
-from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, MessageEvent, PrivateMessageEvent
+from nonebot import get_driver
+from nonebot.adapters.onebot.v11 import Bot
+
+from packages.qq.channels import QQChannel, QQMessage
+from packages.qq import channels as _qq_channels
 
 # ── config ──
 
@@ -525,27 +528,33 @@ async def _send_and_wait(text: str, scope_id: str, scope: str = "user") -> str:
     return "[Pan] no response"
 
 
-# ── message handler ──
+# ── message handler（通道抽象：业务层只认 QQMessage）──
 
-_msg_handler = on_message()
+async def _send_chunks(target_type: str, target_id: str, text: str) -> None:
+    """经当前通道把文本按 1500 字切片发送（command-route 与 mirror 回复共用）。"""
+    ch = get_channel()
+    MAX_LEN = 1500
+    if len(text) <= MAX_LEN:
+        await ch.send(target_type, target_id, text)
+        return
+    for i in range(0, len(text), MAX_LEN):
+        chunk = text[i : i + MAX_LEN]
+        await ch.send(target_type, target_id, chunk)
+        await asyncio.sleep(0.5)
 
 
-@_msg_handler.handle()
-async def handle_message(bot: Bot, event: MessageEvent):
-    if isinstance(event, GroupMessageEvent):
-        bot_qq = int(bot.self_id)
-        if bot_qq not in [seg.data.get("qq", 0) for seg in event.message if seg.type == "at"]:
-            return
-        scope = "group"
-        scope_id = str(event.group_id)
-    else:
-        scope = "user"
-        scope_id = str(event.get_user_id())
+async def handle_qq_message(msg: QQMessage) -> None:
+    """业务层入站消息处理（通道无关）。
 
-    text = event.get_plaintext().strip()
-
+    由通道的 on_message hook 把 OneBot event 归一化为 QQMessage 后调用。群消息的
+    @-bot 过滤已在通道 hook 内完成，这里收到的已是应当处理的消息。发送一律经
+    ``get_channel().send(...)``，切换 NapCat / LLOneBot 不改本函数。
+    """
+    text = msg.text
     if not text:
         return
+    scope, scope_id = msg.scope, msg.scope_id
+    target_type = msg.target_type()
 
     # 落盘用户消息（按 target_id：私聊 user_id / 群 group_id），供 HTTP API
     # GET /api/qq/history 与 MCP 工具 qq_read_conversation 读取。
@@ -556,8 +565,7 @@ async def handle_message(bot: Bot, event: MessageEvent):
     # 注意：command-route 消息同样会入 inbox（消息已在别处自动回复，编排者可
     # 结合 history 判断），见下方 command route 分支。
     if _qq_mode() == "selective":
-        nickname = getattr(getattr(event, "sender", None), "nickname", "") or ""
-        await _append_inbox(scope_id, scope, text, nickname)
+        await _append_inbox(scope_id, scope, text, msg.sender_nickname)
 
     # Lazy-load command routes on first use (lets the bot start before Core
     # if needed). Hits are forwarded straight to the manifest-declared HTTP
@@ -569,7 +577,7 @@ async def handle_message(bot: Bot, event: MessageEvent):
     match = _match_command_route(text)
     if match:
         target, body = match
-        await bot.send(event, "processing, please wait...")
+        await get_channel().send(target_type, scope_id, "processing, please wait...")
         try:
             client = await _get_client()
             r = await client.post(target, json={"text": body})
@@ -586,40 +594,54 @@ async def handle_message(bot: Bot, event: MessageEvent):
             response = f"[Pan] command route error: {type(e).__name__}: {e}"
 
         await _append_history(scope_id, "assistant", response)
-
-        MAX_LEN = 1500
-        if len(response) <= MAX_LEN:
-            await bot.send(event, response)
-        else:
-            for i in range(0, len(response), MAX_LEN):
-                chunk = response[i : i + MAX_LEN]
-                await bot.send(event, chunk)
-                await asyncio.sleep(0.5)
+        await _send_chunks(target_type, scope_id, response)
         return
 
     # mirror 模式（默认）：绑定 session → 派发 worker → 自动回复（现状兼容）。
     # selective 模式：消息已入 inbox + history，此处不 _ensure_session / 不
     # spawn / 不 _send_and_wait / 不自动回复，直接结束。
     if _qq_mode() != "selective":
-        await bot.send(event, "processing, please wait...")
+        await get_channel().send(target_type, scope_id, "processing, please wait...")
 
         response = await _send_and_wait(text, scope_id, scope=scope)
 
         await _append_history(scope_id, "assistant", response)
-
-        MAX_LEN = 1500
-        if len(response) <= MAX_LEN:
-            await bot.send(event, response)
-        else:
-            for i in range(0, len(response), MAX_LEN):
-                chunk = response[i : i + MAX_LEN]
-                await bot.send(event, chunk)
-                await asyncio.sleep(0.5)
+        await _send_chunks(target_type, scope_id, response)
 
 
 # ── lifecycle hooks ──
 
 driver = get_driver()
+
+# ── QQ 通道（插件化/配置化）：按 config.json qq.channel 选择 NapCat / LLOneBot ──
+#
+# bot.py 会先构造并 stash 通道（含正确的 ws_urls）；若 plugin 被单独 import（单测），
+# 这里自建一个默认 napcat 通道。业务层经 get_channel() 取得当前通道实例，发送 / 取
+# 联系人全部走通道抽象，切换通道不改业务逻辑。
+
+_channel: "QQChannel | None" = None
+
+
+def get_channel() -> QQChannel:
+    """返回当前 QQ 通道实例（惰性创建；优先复用 bot.py stash 的通道）。"""
+    global _channel
+    if _channel is None:
+        stashed = _qq_channels.get_active_channel()
+        if stashed is not None:
+            _channel = stashed
+        else:
+            name, ws, token = _qq_channels.build_channel_spec(_load_config().get("qq"))
+            _channel = _qq_channels.create_channel(
+                name, ws, token, bot_fallback=lambda: _active_bot
+            )
+            _qq_channels.set_active_channel(_channel)
+    return _channel
+
+
+# 绑定 NoneBot driver（注册 on_bot_connect / on_message）+ 注册业务消息回调
+_channel = get_channel()
+_channel.bind(driver)
+_channel.on_message(handle_qq_message)
 
 
 @driver.on_startup
@@ -858,52 +880,20 @@ async def api_inbox_clear(target_id: str) -> dict:
                 "message": f"{type(e).__name__}: {e}"}}
 
 
-async def _get_active_bot() -> Bot:
-    if _active_bot is None:
-        raise RuntimeError("QQ bot 未连接（NapCat/NoneBot 尚未建立连接）")
-    return _active_bot
-
-
 async def api_send(target_type: str, target_id: str | int, text: str) -> dict:
-    """Send a QQ message via the active bot. Returns {ok, message_id} or error.
+    """发送一条 QQ 消息（走当前通道抽象）。返回 {ok, message_id} 或错误。
 
     调用链（HTTP POST /api/qq/send）：body {target_type, target_id, text} →
-    ``bot.call_api("send_private_msg"/"send_group_msg", message=text)`` → NapCat
-    发送。text 支持 OneBot CQ 码（如 "[CQ:face,id=1]"、图片 URL）。发送成功后
-    以 assistant 角色落盘，供 qq_read_conversation 读回。
+    当前 QQChannel.send(...) → 网关（NapCat / LLOneBot）发送。text 支持 OneBot
+    CQ 码（如 "[CQ:face,id=1]"、图片 URL）。发送成功后以 assistant 角色落盘，
+    供 qq_read_conversation 读回。校验（target_type / target_id / 空文本）与
+    wire 发送都在通道内完成。
     """
-    if target_type not in ("private", "group"):
-        return {"ok": False, "error": {
-            "code": "invalid_target_type",
-            "message": "target_type 必须是 'private' 或 'group'"}}
-    try:
-        target_id_int = int(target_id)
-    except (TypeError, ValueError):
-        return {"ok": False, "error": {
-            "code": "invalid_target_id",
-            "message": f"target_id 必须是 QQ 号/群号，got {target_id!r}"}}
-    if not text:
-        return {"ok": False, "error": {
-            "code": "empty_text", "message": "text 不能为空"}}
-    try:
-        bot = await _get_active_bot()
-    except RuntimeError as e:
-        return {"ok": False, "error": {"code": "bot_not_connected", "message": str(e)}}
-
-    api = "send_private_msg" if target_type == "private" else "send_group_msg"
-    params = {"user_id": target_id_int} if target_type == "private" else {"group_id": target_id_int}
-    try:
-        result = await bot.call_api(api, **params, message=text)
-    except Exception as e:
-        return {"ok": False, "error": {
-            "code": "send_failed",
-            "message": f"{type(e).__name__}: {e}"}}
-
-    # 落盘本次主动发送（assistant 角色），保持对话上下文完整
-    await _append_history(str(target_id_int), "assistant", text)
-    if isinstance(result, dict):
-        return {"ok": True, "message_id": result.get("message_id")}
-    return {"ok": True, "message_id": result}
+    result = await get_channel().send(target_type, target_id, text)
+    # 发送成功才落盘本次主动发送（assistant 角色），保持对话上下文完整
+    if result.get("ok"):
+        await _append_history(str(target_id), "assistant", text)
+    return result
 
 
 async def api_history(target_id: str, limit: int = 30) -> dict:
@@ -915,133 +905,16 @@ async def api_history(target_id: str, limit: int = 30) -> dict:
     return {"target_id": str(target_id), "messages": messages}
 
 
-# chatType 值（NapCat get_recent_contact）：1=私聊/好友，2=群聊；其它
-# （临时会话/陌生人/系统会话/频道等，peerUin 常为 "0"）不可订阅，合并时忽略。
-_CHAT_FRIEND = 1
-_CHAT_GROUP = 2
-
-
-def _clean_peer_uin(value) -> str | None:
-    """Normalize a peer uin（QQ 号/群号）to a non-empty numeric string.
-
-    Return None for missing / "0" placeholders（系统/临时会话等无真实号码）。
-    """
-    if value is None:
-        return None
-    s = str(value).strip()
-    if not s or s == "0":
-        return None
-    return s
-
-
-def _api_result_list(result) -> list:
-    """Extract a list from a call_api result (already-unwrapped list or dict).
-
-    NoneBot OneBot v11 的 call_api 返回响应 data 字段；部分扩展 API 版本会再包
-    一层 dict，这里做兼容。
-    """
-    if isinstance(result, list):
-        return result
-    if isinstance(result, dict):
-        data = result.get("data")
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            nested = data.get("data")
-            if isinstance(nested, list):
-                return nested
-    return []
-
-
 async def api_recent_contacts() -> dict:
-    """List QQ contacts: recent conversations merged with full friend/group lists.
+    """列出 QQ 联系人：近期会话合并完整好友/群（经当前通道抽象）。
 
-    NapCat 的 get_recent_contact 只返回缓存中的近期会话（实测上限约 51 条，
-    置顶/最近优先），会漏掉绝大多数好友与群，导致前端检索/绑定不到非置顶会话。
-    这里合并 get_friend_list / get_group_list 并去重，保证完整会话列表可用。
-    字段统一映射为 peerUin/peerName/chatType；peerUin 空/"0"、chatType 非
-    1/2 的异常条目剔除；名称缺失时兜底显示 QQ 号。
-
-    单列表失败不致命：get_recent_contact 不受支持时仍返回完整好友/群列表；
-    仅当 bot 未连接或全部列表为空时才返回 ok:false。
+    调用链：GET /api/qq/recent_contacts → 当前 QQChannel.recent_contacts() →
+    网关 call_api 合并 get_recent_contact / get_friend_list / get_group_list。
+    字段统一映射为 peerUin/peerName/chatType；peerUin 空/"0"、chatType 非 1/2 的
+    异常条目剔除；名称缺失时兜底显示 QQ 号。单列表失败不致命；bot 未连接或全空
+    才 ok:false。合并逻辑在通道内（OneBot 通用），切换通道不改行为。
     """
-    try:
-        bot = await _get_active_bot()
-    except RuntimeError as e:
-        return {"ok": False, "error": {"code": "bot_not_connected", "message": str(e)}}
-
-    async def _call(api: str, params: dict | None = None):
-        try:
-            return await bot.call_api(api, **(params or {})), None
-        except Exception as e:  # best-effort per API
-            return None, f"{type(e).__name__}: {e}"
-
-    # 1) 近期会话（best-effort；带 count 尽量多取以保序优先，不支持则重试无参）
-    recent_items: list = []
-    recent_err: str | None = None
-    result, err = await _call("get_recent_contact", {"count": 50})
-    if err:
-        result, err = await _call("get_recent_contact")
-    if err:
-        recent_err = err
-    else:
-        recent_items = _api_result_list(result)
-
-    # 2) 完整好友/群列表（补全缺失名称 + 补齐非近期会话）
-    friends: dict[str, str] = {}
-    result, _ = await _call("get_friend_list")
-    for f in _api_result_list(result):
-        uin = _clean_peer_uin(f.get("user_id"))
-        if uin is None:
-            continue
-        name = (f.get("remark") or "").strip() or (f.get("nickname") or "").strip()
-        friends[uin] = name
-
-    groups: dict[str, str] = {}
-    result, _ = await _call("get_group_list")
-    for g in _api_result_list(result):
-        gid = _clean_peer_uin(g.get("group_id"))
-        if gid is None:
-            continue
-        groups[gid] = (g.get("group_name") or "").strip()
-
-    # 3) 合并去重：近期优先 → 好友 → 群
-    merged: list[dict] = []
-    seen: set[tuple[int, str]] = set()
-
-    def _add(chat_type: int, uin: str, name: str) -> None:
-        key = (chat_type, uin)
-        if key in seen:
-            return
-        seen.add(key)
-        merged.append({
-            "peerUin": uin,
-            "peerName": name or uin,  # 兜底：无名时显示 QQ 号，避免前端 "Unknown"
-            "chatType": chat_type,
-        })
-
-    for it in recent_items:
-        chat_type = it.get("chatType")
-        if chat_type not in (_CHAT_FRIEND, _CHAT_GROUP):
-            continue  # 临时会话/陌生人/系统会话等不可订阅
-        uin = _clean_peer_uin(it.get("peerUin"))
-        if uin is None:
-            continue
-        name = (it.get("peerName") or "").strip() or (it.get("remark") or "").strip()
-        if not name:
-            name = friends.get(uin) if chat_type == _CHAT_FRIEND else groups.get(uin)
-        _add(chat_type, uin, name or "")
-
-    for uin, name in friends.items():
-        _add(_CHAT_FRIEND, uin, name)
-    for gid, name in groups.items():
-        _add(_CHAT_GROUP, gid, name)
-
-    if not merged and recent_err:
-        return {"ok": False, "error": {
-            "code": "unsupported",
-            "message": f"{recent_err}（get_recent_contact 不可用且无好友/群数据）"}}
-    return {"ok": True, "contacts": merged}
+    return await get_channel().recent_contacts()
 
 
 def _register_qq_api(app) -> None:
