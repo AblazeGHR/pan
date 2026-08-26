@@ -829,6 +829,9 @@ def compute_total_usage(raw_usage: dict | None) -> dict | None:
     返回 {"prompt_tokens": int, "cache_hit_tokens": int, "cache_miss_tokens": int,
           "completion_tokens": int, "credit": float}
     或 None（raw_usage 为空时）。
+
+    credit 同时兼容 "credit"（cbc/kimi）与 "cost"（claude/opencode）两种
+    rawUsage 键名——各 adapter 对「金额」字段命名不统一，聚合处收敛到 credit。
     """
     if not raw_usage:
         return None
@@ -840,7 +843,7 @@ def compute_total_usage(raw_usage: dict | None) -> dict | None:
         total["cache_hit_tokens"] += ru.get("prompt_cache_hit_tokens", 0)
         total["cache_miss_tokens"] += ru.get("prompt_cache_miss_tokens", 0)
         total["completion_tokens"] += ru.get("completion_tokens", 0)
-        total["credit"] += ru.get("credit", 0)
+        total["credit"] += ru.get("credit", 0) + ru.get("cost", 0)
     return total
 
 

@@ -1267,7 +1267,11 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
 
         t = event.get("type", "")
         if t == "result":
-            result_text = event.get("result", "")
+            # 走 adapter.extract_result_text 而非裸取 result 字段：claude 在该方法内
+            # 把 result 事件的 usage+cost 暂存到 _PENDING_RESULT_USAGE（result 事件是
+            # cost 唯一权威来源），供下方 enrich_after_result 取用。返回文本与裸取
+            # 完全一致（cbc/claude 均返回 event.get("result")），不改变结果语义。
+            result_text = adapter.extract_result_text(event) or ""
         elif t == "system" and event.get("subtype") == "init":
             cli_session_id = event.get("session_id")
         elif t == "assistant":
@@ -1342,6 +1346,22 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         "timestamp": datetime.now().isoformat(),
         "taskSeq": w._current_seq,
     }
+    # 用量/credit 落账：与 stream 路径（_read_stdout）同构——补调
+    # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
+    # oneshot 之前漏调，导致 cbc 不记 credit、claude（仅 oneshot）完全不记
+    # usage/cost（result 事件的 usage 已在上方由 extract_result_text 暂存）。
+    enrichment = None
+    try:
+        enrichment = adapter.enrich_after_result(s)
+    except Exception:
+        pass
+    if enrichment:
+        prev_total = s.total_usage
+        s.raw_usage = _sess.accumulate_raw_usage(s.raw_usage, enrichment)
+        s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        prev_credit = prev_total.get("credit", 0) if prev_total else 0
+        new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
+        _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
     await _sess.save_async(s)
 
     # Broadcast assistant events as worker.stream so the frontend displays the
