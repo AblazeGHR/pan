@@ -37,12 +37,17 @@
         "默认值": "",
         "可选值": ["", "none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"],
         "说明": "仅 always_thinking_enabled=true 时生效；空值表示不传递 --effort 参数"
+      },
+      "models": {
+        "默认值": [],
+        "说明": "建议不填写，将自动识别可用模型（cbc --help 解析）；填写代表限制可用模型。例: [\"my-model-1\", \"my-model-2\"]"
       }
     },
     "model": "deepseek-v4-flash",
     "permission_mode": "bypassPermissions",
     "always_thinking_enabled": false,
-    "effort": ""
+    "effort": "",
+    "models": []
   },
 
   "kimi": {
@@ -68,7 +73,7 @@
       },
       "models": {
         "默认值": [],
-        "说明": "可用模型列表（空=用内置默认值）。例: [\"my-model-1\", \"my-model-2\"]"
+        "说明": "建议不填写，将自动识别可用模型（kimi config.toml 解析）；填写代表限制可用模型。例: [\"my-model-1\", \"my-model-2\"]"
       }
     },
     "model": "moonshot-cn/kimi-k2.6",
