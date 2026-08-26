@@ -48,11 +48,10 @@
   "kimi": {
     "_字段说明": {
       "model": {
-        "默认值": "kimi-code/kimi-for-coding",
+        "默认值": "moonshot-cn/kimi-k2.6",
         "可选值": [
-          "kimi-code/kimi-for-coding",
-          "kimi-code/kimi-for-coding-highspeed",
-          "kimi-code/k3"
+          "moonshot-cn/kimi-k2.6",
+          "moonshot-cn/kimi-k2.7-code"
         ]
       },
       "permission_mode": {
@@ -72,7 +71,7 @@
         "说明": "可用模型列表（空=用内置默认值）。例: [\"my-model-1\", \"my-model-2\"]"
       }
     },
-    "model": "kimi-code/kimi-for-coding",
+    "model": "moonshot-cn/kimi-k2.6",
     "models": [],
     "permission_mode": "",
     "always_thinking_enabled": false,

@@ -252,7 +252,7 @@ pnpm dev              # 开发模式：Vite HMR + 代理到后端
 | `frontend` | `coexist` | `coexist` / `react` / `legacy` |
 | `cbc.model` | `deepseek-v4-flash` | cbc 模型（flash/pro/hy3/glm/kimi 等，见 example） |
 | `cbc.permission_mode` | `bypassPermissions` | cbc 权限模式 |
-| `kimi.model` | `kimi-code/kimi-for-coding` | kimi 模型 |
+| `kimi.model` | `moonshot-cn/kimi-k2.6` | kimi 模型 |
 | `worker.timeout_sec` | 300 | queued 静默超时 / MCP 读取超时 kill 秒数 |
 | `worker.task_timeout_sec` | 1800 | stream running 任务运行时长上限（长思考/大文件读取不误杀） |
 | `worker.idle_sec` | 300 | 空闲回收秒数 |
