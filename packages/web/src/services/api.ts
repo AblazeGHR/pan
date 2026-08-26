@@ -14,6 +14,7 @@ import type {
   CbcSessionItem,
   KimiWorkspace,
   KimiSessionItem,
+  OpencodeSessionItem,
   SettingsBody,
   WorkerItem,
   ApiWorkerListResponse,
@@ -71,15 +72,32 @@ export async function fetchSessionHistory(
   return data;
 }
 
+export interface CreateSessionSettings {
+  model?: string;
+  permissionMode?: string;
+  alwaysThinkingEnabled?: boolean;
+  effort?: string;
+  outputMode?: string;
+}
+
 export async function createSession(
   name: string,
   workdir?: string | null,
   adapter?: string,
   sessionTemplate?: string,
+  settings?: CreateSessionSettings,
 ): Promise<Session> {
-  const body: Record<string, string> = { name, adapter: adapter || 'cbc' };
+  const body: Record<string, unknown> = { name, adapter: adapter || 'cbc' };
   if (workdir) body.workdir = workdir;
   if (sessionTemplate) body.sessionTemplate = sessionTemplate;
+  // Per-adapter settings (backend _create_session applies them). Sent only
+  // when provided so the server-side adapter default still applies otherwise.
+  if (settings?.model) body.model = settings.model;
+  if (settings?.permissionMode) body.permissionMode = settings.permissionMode;
+  if (typeof settings?.alwaysThinkingEnabled === 'boolean')
+    body.alwaysThinkingEnabled = settings.alwaysThinkingEnabled;
+  if (settings?.effort) body.effort = settings.effort;
+  if (settings?.outputMode) body.outputMode = settings.outputMode;
   const data = await request<ApiSessionResponse>(`${BASE}/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -386,6 +404,7 @@ export async function fetchAdapterConfig(
       'thinking',
       'effort',
     ],
+    executionModes: data.executionModes || ['stream'],
   };
 }
 
@@ -459,6 +478,32 @@ export async function importKimiSession(
   return data;
 }
 
+// ── Import: opencode ──
+
+export async function fetchOpencodeSessions(
+  cwd: string,
+): Promise<OpencodeSessionItem[]> {
+  const data = await request<{ sessions: OpencodeSessionItem[] }>(
+    `${BASE}/opencode/sessions?cwd=${encodeURIComponent(cwd)}`,
+  );
+  return data.sessions || [];
+}
+
+export async function importOpencodeSession(
+  sessionId: string,
+  cwd: string,
+): Promise<Session> {
+  const data = await request<ApiSessionResponse>(
+    `${BASE}/opencode/sessions/import`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId, cwd }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 // ── Reimport ──
 
 export async function reimportSession(
@@ -470,7 +515,9 @@ export async function reimportSession(
   const url =
     adapter === 'kimi'
       ? `${BASE}/kimi/sessions/import`
-      : `${BASE}/cbc/sessions/import`;
+      : adapter === 'opencode'
+        ? `${BASE}/opencode/sessions/import`
+        : `${BASE}/cbc/sessions/import`;
   const body: Record<string, string> = { session_id: cliSessionId };
   if (workdir) body.cwd = workdir;
   const data = await request<ApiSessionResponse>(url, {

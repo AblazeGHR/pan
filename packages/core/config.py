@@ -53,6 +53,17 @@ DEFAULT_CONFIG: dict = {
         "always_thinking_enabled": False,
         "effort": "",
     },
+    "opencode": {
+        # 默认模型（provider/model）。可选值见 adapter.py 的 supported_models
+        # （`opencode models` 解析 > 内置）。无配置时回退 opencode/big-pickle（免费、无需 key）。
+        "model": "opencode/big-pickle",
+        # 默认权限模式：""（沿用 opencode.json 配置）| "auto"（--auto 绕过 ask）
+        "permission_mode": "",
+        # 默认是否开启 thinking 显示（--thinking）
+        "always_thinking_enabled": False,
+        # 默认 reasoning effort（--variant）："" | minimal | low | medium | high | max
+        "effort": "",
+    },
     # 前端模式："coexist"（默认，/ 旧前端 + /react/ React）、"react"（/ React）、"legacy"（仅旧前端）
     "frontend": "coexist",
     # 服务端口（环境变量 PAN_PORT 可覆盖）

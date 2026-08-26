@@ -11,6 +11,7 @@ import subprocess
 import time
 from pathlib import Path
 from ...session import SESSION_DIR, Session
+from ..mcp import write_mcp_json
 
 _log = logging.getLogger(__name__)
 
@@ -48,6 +49,11 @@ class CbcAdapter:
     """
 
     name = "cbc"
+
+    # 执行模式（adapter-architecture P1 建议 4 / adapter-p1-oneshot.md）：
+    # cbc 同时支持 stream 长驻（原生 stdin/stdout）与 oneshot 逐任务短进程
+    # （prompt 作末参，配合 --mcp-config）。故声明两种。
+    execution_modes = ["stream", "oneshot"]
 
     # 内置兜底默认值（config.json 不存在时使用）
     _DEFAULT_MODEL = "deepseek-v4-flash"
@@ -232,6 +238,30 @@ class CbcAdapter:
             args.extend(extra_args)
         return args
 
+    def oneshot_args(self, s: Session, text: str) -> list[str]:
+        """One-shot 执行 argv（替代 worker 原 _consumer_mcp 的 cbc 特定拼装）。
+
+        用于 worker 通用 ``_consumer_oneshot``：逐任务 spawn 一个 cbc ``-p``
+        短进程，prompt 作末参，``--mcp-config`` 才能生效（与
+        ``--input-format stream-json`` 互斥）。逐元素对齐旧 ``_consumer_mcp``
+        拼装（见 docs/design/adapter-p1-oneshot.md §1）。
+
+        注意：跳过 ``thinking_args``（``--settings`` 会破坏 MCP init，旧路径
+        同样跳过）；``--system-prompt`` 仅首条（``cli_session_id`` 捕获前）注入，
+        之后靠 ``--resume`` 延续上下文。
+        """
+        args = list(self.base_args_stream())   # 无 --input-format stream-json
+        args.extend(self.model_args(s))
+        args.extend(self.permission_mode_args(s))
+        args.extend(self.effort_args(s))
+        if s.cli_session_id and self.supports_resume:
+            args.extend(self.resume_args(s))
+        args.extend(self.mcp_args(s))          # 写入 data/mcp-configs/<id>.mcp.json 并返回 --mcp-config
+        if s.system_prompt and not s.cli_session_id:
+            args.extend(["--system-prompt", s.system_prompt])
+        args.append(text)
+        return args
+
     def mcp_args(self, s: Session) -> list[str]:
         """Write data/mcp-configs/<session_id>.mcp.json and return --mcp-config arg.
 
@@ -250,46 +280,17 @@ class CbcAdapter:
         For the "pan" server, the MA session identity is injected into its env
         (PAN_AGENT_SESSION_ID / PAN_AGENT_SESSION_TITLE) so the MCP server's
         worker_send tool can tag agent-originated messages (立项 4.8).
+        描述符构造与注入由 adapters/mcp.py 共享 helper 收敛（P0-1）。
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
             return []
 
-        mcp_servers: dict[str, dict] = {}
-        for srv in servers:
-            name = srv.get("name", "unnamed")
-            entry: dict = {}
-            if "command" in srv:
-                entry["command"] = srv["command"]
-            if "args" in srv:
-                entry["args"] = srv["args"]
-            if "cwd" in srv:
-                entry["cwd"] = srv["cwd"]
-            if "env" in srv:
-                entry["env"] = srv["env"]
-            # pan / pan-qq server: inject MA session identity so MCP tools can
-            # act on behalf of this session (worker_send prefixes agent messages,
-            # qq_bind/qq_unbind subscribe its qq_subscriptions) (立项 4.8).
-            if name in ("pan", "pan-qq"):
-                env = dict(entry.get("env") or {})
-                env["PAN_AGENT_SESSION_ID"] = s.id
-                env["PAN_AGENT_SESSION_TITLE"] = s.name
-                entry["env"] = env
-            # Always set type to stdio for reliable cbc discovery
-            entry.setdefault("type", "stdio")
-            mcp_servers[name] = entry
-
-        # Pan-internal config: loaded via the explicit --mcp-config arg below.
-        # NOTE (2026-08-16): we deliberately do NOT write <workdir>/.mcp.json —
-        # without -d, cbc discovers it as a project MCP server, registers pan as
-        # project-scope with "Needs approval"/"Failed to connect" (when command is
-        # a bare name), and that registration blocks the explicit --mcp-config
-        # connection. Config lives in data/mcp-configs/ (立项 4.9): writable,
-        # controllable, cleanable.
         mcp_json_path = MCP_CONFIG_DIR / f"{s.id}.mcp.json"
-        MCP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(mcp_json_path, "w", encoding="utf-8") as f:
-            json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
+        # 描述符构造（含 pan/pan-qq 身份注入、type=stdio）由共享 helper 收敛
+        # （adapter-architecture P0-1）；未配置/写失败时返回 None → 无 MCP flag。
+        if write_mcp_json(mcp_json_path, s) is None:
+            return []
 
         return ["--mcp-config", str(mcp_json_path)]
 
@@ -360,16 +361,20 @@ class CbcAdapter:
         mangles). The terminal is opened with cwd=<workdir> (see
         _open_terminal), so cbc resolves its project dir from the process CWD —
         passing -d here actually *breaks* resume when CWD differs (JSONL lives
-        under the CWD-derived project). Re-applies --system-prompt since
-        --resume alone won't re-inject it.
+        under the CWD-derived project).
+
+        Does NOT re-inject --system-prompt: takeover only resumes an existing
+        session (cli_session_id is already set), whose system prompt is carried
+        by cbc's native context storage (JSONL). system_prompt is injected only
+        once, at first spawn of a fresh session (no cli_session_id) — re-injecting
+        on takeover would duplicate the system prompt as a user message after
+        resume.
         """
         if not s.cli_session_id:
             return []
         cmd = self._resolve_cbc_argv()
         cmd.append("--resume")
         cmd.append(s.cli_session_id)
-        if s.system_prompt:
-            cmd.extend(["--system-prompt", s.system_prompt])
         return cmd
 
     # ── enrich ──

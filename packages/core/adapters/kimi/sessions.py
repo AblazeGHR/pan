@@ -31,13 +31,30 @@ def _load_workspaces() -> dict[str, dict]:
         return {}
 
 
-def _load_session_index() -> list[dict]:
-    """Return list of session index entries from session_index.jsonl."""
-    if not _SESSION_INDEX_FILE.exists():
+def _kimi_dir(kimi_home: str | None = None) -> Path:
+    """Resolve the kimi user-dir.
+
+    Defaults to the real ``~/.kimi-code``. When *kimi_home* is provided (an
+    isolated Pan-managed home, see kimi-mcp-solution.md §方案 C), all kimi state
+    is read from there instead — required because ``KIMI_CODE_HOME`` redirects
+    kimi's *entire* user dir, so session/wire data no longer lives under the
+    real ``~/.kimi-code``.
+    """
+    return Path(kimi_home) if kimi_home else _KIMI_DIR
+
+
+def _load_session_index(kimi_home: str | None = None) -> list[dict]:
+    """Return list of session index entries from session_index.jsonl.
+
+    Reads ``<kimi_home>/session_index.jsonl`` when *kimi_home* is set, otherwise
+    the real ``~/.kimi-code/session_index.jsonl``.
+    """
+    index_file = _kimi_dir(kimi_home) / "session_index.jsonl"
+    if not index_file.exists():
         return []
     entries: list[dict] = []
     try:
-        with open(_SESSION_INDEX_FILE, encoding="utf-8") as f:
+        with open(index_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -246,20 +263,23 @@ def _event_to_block(event: dict) -> dict | None:
     return None
 
 
-def parse_kimi_history(session_id: str, workdir: str | None = None) -> list[dict]:
+def parse_kimi_history(session_id: str, workdir: str | None = None,
+                        kimi_home: str | None = None) -> list[dict]:
     """Parse Kimi session wire.jsonl into Pan history format.
 
     session_id: full Kimi session id, e.g. session_xxxxxxxx-xxxx-...
     workdir: optional workDir to locate the session
+    kimi_home: isolated Pan-managed kimi home (KIMI_CODE_HOME); when set, state
+        is read from there instead of the real ~/.kimi-code.
 
     Returns list of {"role": str, "content": str} blocks.
     """
     # Locate session dir from index
-    index = _load_session_index()
+    index = _load_session_index(kimi_home)
     session_dir: Path | None = None
     for entry in index:
         if entry.get("sessionId") == session_id:
-            if workdir and not _same_path(entry.get("workDir", ""), workdir):
+            if workdir and not kimi_home and not _same_path(entry.get("workDir", ""), workdir):
                 continue
             session_dir = Path(entry.get("sessionDir"))
             break
@@ -275,16 +295,21 @@ def parse_kimi_history(session_id: str, workdir: str | None = None) -> list[dict
     return history
 
 
-def get_raw_usage(session_id: str, workdir: str | None = None) -> list[dict]:
+def get_raw_usage(session_id: str, workdir: str | None = None,
+                  kimi_home: str | None = None) -> list[dict]:
     """Extract usage records from a Kimi session.
 
     Returns list of dicts: {"model": str, "rawUsage": dict, "timestamp": str}
+
+    *kimi_home*: isolated Pan-managed kimi home (KIMI_CODE_HOME). When set,
+    state is read from there; *workdir* filtering is skipped (the home is
+    already scoped to this one session).
     """
-    index = _load_session_index()
+    index = _load_session_index(kimi_home)
     session_dir: Path | None = None
     for entry in index:
         if entry.get("sessionId") == session_id:
-            if workdir and not _same_path(entry.get("workDir", ""), workdir):
+            if workdir and not kimi_home and not _same_path(entry.get("workDir", ""), workdir):
                 continue
             session_dir = Path(entry.get("sessionDir"))
             break
@@ -313,13 +338,18 @@ def get_raw_usage(session_id: str, workdir: str | None = None) -> list[dict]:
     return usage_entries
 
 
-def get_session_title(session_id: str, workdir: str | None = None) -> str:
-    """Return the title stored in state.json for a Kimi session."""
-    index = _load_session_index()
+def get_session_title(session_id: str, workdir: str | None = None,
+                      kimi_home: str | None = None) -> str:
+    """Return the title stored in state.json for a Kimi session.
+
+    *kimi_home*: isolated Pan-managed kimi home; when set, state is read from
+    there instead of the real ~/.kimi-code.
+    """
+    index = _load_session_index(kimi_home)
     session_dir: Path | None = None
     for entry in index:
         if entry.get("sessionId") == session_id:
-            if workdir and not _same_path(entry.get("workDir", ""), workdir):
+            if workdir and not kimi_home and not _same_path(entry.get("workDir", ""), workdir):
                 continue
             session_dir = Path(entry.get("sessionDir"))
             break
@@ -327,6 +357,38 @@ def get_session_title(session_id: str, workdir: str | None = None) -> str:
         return ""
     state = _read_state(session_dir)
     return state.get("title", "")
+
+
+def write_custom_title(session_id: str, title: str, workdir: str | None = None,
+                       kimi_home: str | None = None) -> None:
+    """Write a custom title into a Kimi session's state.json.
+
+    Sets state.json ``title`` and ``isCustomTitle=true`` so the rename persists
+    in Kimi's own storage — mirrors cbc's write_custom_title (which appends a
+    custom-title event to the JSONL). Used by server.api_rename_session for
+    kimi sessions (G7).
+
+    *kimi_home*: isolated Pan-managed kimi home; when set, state is read from
+    there instead of the real ~/.kimi-code.
+    """
+    session_dir = _find_session_dir(session_id, workdir, kimi_home)
+    if not session_dir:
+        return
+    state_path = session_dir / "state.json"
+    if not state_path.exists():
+        return
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    state["title"] = title
+    state["isCustomTitle"] = True
+    try:
+        state_path.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
+        pass
 
 
 def _resolve_workspace_id_for_cwd(cwd: str) -> str | None:
@@ -346,12 +408,39 @@ def list_kimi_sessions_for_cwd(cwd: str) -> list[dict]:
     return list_kimi_sessions(project_cwd=str(Path(cwd).resolve()))
 
 
-def _find_session_dir(session_id: str, workdir: str | None = None) -> Path | None:
-    """Locate Kimi session directory by session id."""
-    index = _load_session_index()
+# ── SessionsProvider 统一接口（adapter-architecture P0-2）──
+# 与 cbc/opencode 的 sessions 模块对齐协议命名，供 server 按 adapter 名统一调用。
+# 旧命名函数（list_kimi_sessions / fork_kimi_session 等）保留，供既有调用点使用。
+
+
+def list_sessions(cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：列 kimi 会话（cwd 即 workDir 过滤语义）。"""
+    if cwd:
+        return list_kimi_sessions(project_cwd=str(Path(cwd).resolve()))
+    return list_kimi_sessions()
+
+
+def parse_history(session_id: str, cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：解析 kimi session 历史。"""
+    return parse_kimi_history(session_id, cwd)
+
+
+def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
+    """SessionsProvider：fork kimi session（目录复制 + 注册新 session）。"""
+    return fork_kimi_session(parent_id, name, cwd)
+
+
+def _find_session_dir(session_id: str, workdir: str | None = None,
+                      kimi_home: str | None = None) -> Path | None:
+    """Locate Kimi session directory by session id.
+
+    *kimi_home*: isolated Pan-managed kimi home; when set, the index is read
+    from there and *workdir* filtering is skipped.
+    """
+    index = _load_session_index(kimi_home)
     for entry in index:
         if entry.get("sessionId") == session_id:
-            if workdir and not _same_path(entry.get("workDir", ""), workdir):
+            if workdir and not kimi_home and not _same_path(entry.get("workDir", ""), workdir):
                 continue
             sdir = Path(entry.get("sessionDir", ""))
             if sdir.exists():
@@ -359,7 +448,8 @@ def _find_session_dir(session_id: str, workdir: str | None = None) -> Path | Non
     return None
 
 
-def fork_kimi_session(parent_id: str, name: str, workdir: str | None = None) -> str:
+def fork_kimi_session(parent_id: str, name: str, workdir: str | None = None,
+                      kimi_home: str | None = None) -> str:
     """Fork a Kimi session by copying its directory and registering the new session.
 
     This is a best-effort implementation: Kimi CLI does not expose a stable
@@ -367,8 +457,12 @@ def fork_kimi_session(parent_id: str, name: str, workdir: str | None = None) -> 
     then be resumed with `kimi -S <new_session_id>`.
 
     Returns the new Kimi session id.
+
+    *kimi_home*: isolated Pan-managed kimi home; when set, the parent session is
+    located there (required for MCP-enabled sessions whose state lives under the
+    isolated home, not the real ~/.kimi-code).
     """
-    parent_dir = _find_session_dir(parent_id, workdir)
+    parent_dir = _find_session_dir(parent_id, workdir, kimi_home)
     if not parent_dir:
         raise FileNotFoundError(f"Parent Kimi session not found: {parent_id}")
 

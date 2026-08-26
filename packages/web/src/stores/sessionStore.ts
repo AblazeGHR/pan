@@ -55,6 +55,13 @@ interface SessionStore {
     workdir?: string | null,
     adapter?: string,
     sessionTemplate?: string,
+    settings?: {
+      model?: string;
+      permissionMode?: string;
+      alwaysThinkingEnabled?: boolean;
+      effort?: string;
+      outputMode?: string;
+    },
   ) => Promise<void>;
   removeSession: (id: string) => Promise<void>;
   batchRemoveSessions: () => Promise<void>;
@@ -369,15 +376,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  createNewSession: async (name, workdir, adapter, sessionTemplate) => {
+  createNewSession: async (name, workdir, adapter, sessionTemplate, settings) => {
     const placeholder: Session = {
       id: `__pending_${name}`,
       name: '...',
       adapter: adapter || 'cbc',
-      model: null,
-      permissionMode: null,
-      alwaysThinkingEnabled: false,
-      effort: '',
+      model: settings?.model ?? null,
+      permissionMode: settings?.permissionMode ?? null,
+      alwaysThinkingEnabled: settings?.alwaysThinkingEnabled ?? false,
+      effort: settings?.effort || '',
       history: [],
     };
     set((s) => ({
@@ -389,7 +396,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
 
     try {
-      const session = await createSession(name, workdir, adapter, sessionTemplate);
+      const session = await createSession(
+        name,
+        workdir,
+        adapter,
+        sessionTemplate,
+        settings,
+      );
       set((s) => {
         // Drop the placeholder first — a concurrent loadSessions() (e.g. from
         // a WS event) may have overwritten `sessions` while the create call was

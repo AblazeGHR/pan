@@ -54,6 +54,23 @@ class CliAdapter(Protocol):
         """该 adapter 支持的设置项标识列表（如 model, permissionMode, thinking, effort）。"""
         ...
 
+    @property
+    def execution_modes(self) -> list[str]:
+        """Worker 对该 adapter 的可用"驱动方式"（见 docs/design/adapter-p1-oneshot.md）。
+
+        取值子集：
+        - ``"stream"``：worker 起一个常驻进程，跨消息复用 stdin/stdout；
+        - ``"oneshot"``：worker 逐任务 spawn 一个一次性进程，prompt 作末参。
+
+        语义边界（关键）：这是 **worker 与 adapter 之间的传输契约**，描述
+        worker 如何驱动 adapter，而非 adapter 内部 CLI 是否"一次性"。
+        kimi/opencode 用 wrapper 长驻，worker 只走 stream，故声明 ``["stream"]``；
+        其 wrapper 内部再调 CLI 的一次性语义对 worker 透明，不在此暴露。
+        只有 worker 会直接 spawn 短进程的 adapter（如 cbc）才声明 ``"oneshot"``。
+        默认实现返回 ``["stream"]``（最保守；所有 adapter 至少支持 stream）。
+        """
+        ...
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]: ...
@@ -72,6 +89,19 @@ class CliAdapter(Protocol):
 
     def build_spawn_args(self, s: Session,
                          extra_args: list[str] | None = None) -> list[str]: ...
+
+    def oneshot_args(self, s: Session, text: str) -> list[str]:
+        """构建一次性执行的完整 argv（仅当 ``"oneshot"`` in execution_modes）。
+
+        把 worker 原 ``_consumer_mcp`` 里 cbc 特定的拼装（base_args_stream →
+        model/permission/effort/resume/mcp_args → ``--system-prompt``（仅首条）→
+        prompt 作末参）搬进 adapter。worker 的通用 oneshot consumer 只负责：
+        ``oneshot_args`` → spawn（无 stdin）→ 收集 stdout → 走既有 ``parse_event``
+        事件模型。
+
+        不在 ``execution_modes`` 中的 adapter 返回 ``[]``（不会被调用，防御兜底）。
+        """
+        ...
 
     # ── stdin 消息编码 ──
 
@@ -112,3 +142,39 @@ class CliAdapter(Protocol):
         cbc: 读 JSONL 最新一条 assistant message 的 raw_usage。
         """
         ...
+
+
+class SessionsProvider(Protocol):
+    """adapter 原生 session 存储的统一读写接口（adapter-architecture P0-2）。
+
+    cbc / kimi / opencode 的 ``<adapter>/sessions.py`` 各自实现了同一组能力
+    （列 session / 解析历史 / usage / 标题 / fork），但命名签名不统一，导致
+    server.py 按 adapter 硬分派 import/branch/rename。本协议定义统一方法名与
+    签名，实现者是各 sessions **模块**（module 而非类），提供同名函数即可。
+    server 按 adapter 名取 provider，每新增一个 adapter 只需在
+    ``adapters/__init__.py`` 注册其 sessions 模块，无需再写分派逻辑。
+
+    统一约定：
+    - ``cwd``：工作目录上下文。cbc 即 project_cwd（自动 sanitize 到项目目录）、
+      kimi/opencode 即 workdir。None 表示不限定/全量（各实现的默认语义）。
+
+    可选能力（非协议必需，用 hasattr/getattr 探测）：
+    - ``session_exists(session_id, cwd) -> bool``：import 时的存在性防御
+      （cbc/opencode 提供；kimi 不提供则跳过 guard，保持旧行为）。
+    - ``project_dir_to_path(project_dir) -> str | None``：cbc 独有，把 cbc
+      项目目录名解析回真实路径（旧 /api/cbc/sessions/import 契约）。
+    - ``browse_cbc_tree / list_cbc_projects / list_kimi_workspaces`` 等适配器
+      独有能力保留在各自模块，由旧端点直接调用。
+    """
+
+    def list_sessions(self, cwd: str | None = None) -> list[dict]: ...
+
+    def parse_history(self, session_id: str, cwd: str | None = None) -> list[dict]: ...
+
+    def get_raw_usage(self, session_id: str, cwd: str | None = None) -> list[dict]: ...
+
+    def get_session_title(self, session_id: str, cwd: str | None = None) -> str: ...
+
+    def write_custom_title(self, session_id: str, title: str, cwd: str | None = None) -> None: ...
+
+    def fork_session(self, parent_id: str, name: str, cwd: str | None = None) -> str: ...

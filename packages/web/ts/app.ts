@@ -14,6 +14,7 @@ interface Session {
   permissionMode?: string | null;
   alwaysThinkingEnabled: boolean;
   effort: string;
+  outputMode?: string | null;
   maxThinkingTokens?: number;
   workdir?: string;
   workerStatus?: string | null;
@@ -130,6 +131,7 @@ interface AdapterConfig {
   permissionModes: {value: string; label: string}[];
   defaultPermissionMode: string;
   supportedSettings: string[];
+  executionModes?: string[];
 }
 
 interface ApiConfigResponse {
@@ -140,6 +142,7 @@ interface ApiConfigResponse {
   permissionModes: {value: string; label: string}[];
   defaultPermissionMode?: string;
   supportedSettings?: string[];
+  executionModes?: string[];
 }
 
 interface SyncedSettings {
@@ -147,6 +150,7 @@ interface SyncedSettings {
   permissionMode: string;
   alwaysThinkingEnabled: boolean;
   effort: string;
+  outputMode: string;
 }
 
 /** 客户端发送队列项（localStorage 按 sessionId 持久化）。 */
@@ -164,6 +168,16 @@ const adapterConfigs: Map<string, AdapterConfig> = new Map();
 let currentAdapter: string = 'cbc';
 let _adapterConfigReady: boolean = false;
 
+// Friendly display labels for known adapters in selects (fallback: raw name).
+const ADAPTER_LABELS: Record<string, string> = {
+  cbc: 'cbc (CodeBuddy CLI)',
+  kimi: 'kimi (Kimi CLI)',
+  opencode: 'opencode',
+};
+function adapterLabel(name: string): string {
+  return ADAPTER_LABELS[name] || name;
+}
+
 // Cached config getters for the currently selected adapter
 function allModels(): string[] { return adapterConfigs.get(currentAdapter)?.models || []; }
 function defaultModel(): string { return adapterConfigs.get(currentAdapter)?.defaultModel || 'deepseek-v4-flash'; }
@@ -172,6 +186,10 @@ function permissionModes(): {value: string; label: string}[] { return adapterCon
 function defaultPermissionMode(): string { return adapterConfigs.get(currentAdapter)?.defaultPermissionMode || ''; }
 function supportedSettings(): string[] { return adapterConfigs.get(currentAdapter)?.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort']; }
 function supportsSetting(name: string): boolean { return supportedSettings().indexOf(name) >= 0; }
+/** Worker execution modes for the current adapter: ["stream"] or ["stream","oneshot"]. */
+function executionModes(): string[] { return adapterConfigs.get(currentAdapter)?.executionModes || ['stream']; }
+/** True when the adapter exposes more than one execution mode (needs the Output Mode selector). */
+function hasMultipleExecModes(): boolean { return executionModes().length > 1; }
 
 let currentSessionId: string | null = null;
 let currentWorkerId: string | null = null;
@@ -607,6 +625,16 @@ interface KimiSessionItem {
   updatedAt: string;
 }
 
+interface OpencodeSessionItem {
+  session_id: string;
+  title: string;
+  workDir: string;
+  createdAt: string;
+  updatedAt: string;
+  message_count: number;
+  model: string;
+}
+
 async function fetchCbcProjects(): Promise<CbcProject[]> {
   const resp = await fetch('/api/cbc/projects');
   const data = await resp.json();
@@ -642,6 +670,21 @@ async function fetchKimiSessions(cwd: string): Promise<KimiSessionItem[]> {
 
 async function importKimiSession(sessionId: string, cwd: string): Promise<any> {
   const resp = await fetch('/api/kimi/sessions/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, cwd: cwd }),
+  });
+  return await resp.json();
+}
+
+async function fetchOpencodeSessions(cwd: string): Promise<OpencodeSessionItem[]> {
+  const resp = await fetch(`/api/opencode/sessions?cwd=${encodeURIComponent(cwd)}`);
+  const data = await resp.json();
+  return data.sessions || [];
+}
+
+async function importOpencodeSession(sessionId: string, cwd: string): Promise<any> {
+  const resp = await fetch('/api/opencode/sessions/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, cwd: cwd }),
@@ -1371,6 +1414,11 @@ function syncPanelFromServer(): void {
     (document.getElementById('settingEffort') as HTMLSelectElement).value =
       effortValues().indexOf(s.effort) >= 0 ? s.effort: (effortValues()[1] || effortValues()[0] || '');
   }
+  if (hasMultipleExecModes()) {
+    const modes = executionModes();
+    const om = s.outputMode || (modes.indexOf('stream') >= 0 ? 'stream' : modes[0]);
+    (document.getElementById('settingOutputMode') as HTMLSelectElement).value = om;
+  }
   (document.getElementById('effortGroup')!).style.display =
     (supportsSetting('thinking') && supportsSetting('effort') && s.alwaysThinkingEnabled && effortValues().length > 0) ? '' : 'none';
 
@@ -1386,6 +1434,9 @@ function syncPanelFromServer(): void {
     effort: supportsSetting('effort')
       ? (document.getElementById('settingEffort') as HTMLSelectElement).value
       : '',
+    outputMode: hasMultipleExecModes()
+      ? (document.getElementById('settingOutputMode') as HTMLSelectElement).value
+      : '',
   };
   updateSetButtonVisibility();
 }
@@ -1400,6 +1451,8 @@ function hasPendingChanges(): boolean {
       (document.getElementById('settingThinking') as HTMLInputElement).checked !== lastSyncedSettings.alwaysThinkingEnabled) return true;
   if (supportsSetting('effort') &&
       (document.getElementById('settingEffort') as HTMLSelectElement).value !== lastSyncedSettings.effort) return true;
+  if (hasMultipleExecModes() &&
+      (document.getElementById('settingOutputMode') as HTMLSelectElement).value !== lastSyncedSettings.outputMode) return true;
   return false;
 }
 
@@ -1479,6 +1532,8 @@ function _buildSettingsBody(): Record<string, unknown> {
     body.alwaysThinkingEnabled = (document.getElementById('settingThinking') as HTMLInputElement).checked;
   if (supportsSetting('effort'))
     body.effort = (document.getElementById('settingEffort') as HTMLSelectElement).value;
+  if (hasMultipleExecModes())
+    body.outputMode = (document.getElementById('settingOutputMode') as HTMLSelectElement).value;
   return body;
 }
 
@@ -1503,6 +1558,7 @@ function markSettingsApplied(): void {
     permissionMode: supportsSetting('permissionMode') ? (document.getElementById('settingMode') as HTMLSelectElement).value : '',
     alwaysThinkingEnabled: supportsSetting('thinking') ? (document.getElementById('settingThinking') as HTMLInputElement).checked : false,
     effort: supportsSetting('effort') ? (document.getElementById('settingEffort') as HTMLSelectElement).value : '',
+    outputMode: hasMultipleExecModes() ? (document.getElementById('settingOutputMode') as HTMLSelectElement).value : '',
   };
   updateSetButtonVisibility();
 }
@@ -2231,6 +2287,12 @@ function _doCreateSession(name: string, workdir: string | null, adapter?: string
   const profileSel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
   const sessionTemplate = profileSel ? profileSel.value : '';
   if (sessionTemplate) body.sessionTemplate = sessionTemplate;
+  // Output Mode: only sent when the chosen adapter exposes multiple modes.
+  if (nsExecModes.length > 1) {
+    const omSel = document.getElementById('nsOutputModeSelect') as HTMLSelectElement;
+    const om = omSel ? omSel.value : '';
+    if (om) body.outputMode = om;
+  }
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2276,6 +2338,8 @@ function newSession(): void {
   workdirInput.value = '';
   _populateNewSessionAdapterSelect();
   _populateNewSessionProfileSelect();
+  const nsAdapter = (document.getElementById('nsAdapterSelect') as HTMLSelectElement)?.value || 'cbc';
+  _loadNsAdapterConfig(nsAdapter);
   modal.classList.add('open');
   nameInput.focus();
 }
@@ -2733,6 +2797,7 @@ function loadAdapterConfig(adapterName: string): void {
         permissionModes: data.permissionModes || [],
         defaultPermissionMode: data.defaultPermissionMode || '',
         supportedSettings: data.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'],
+        executionModes: data.executionModes || ['stream'],
       };
       adapterConfigs.set(adapterName, cfg);
       currentAdapter = adapterName;
@@ -2740,6 +2805,7 @@ function loadAdapterConfig(adapterName: string): void {
       buildModelSelect();
       buildModeSelect();
       buildEffortSelect();
+      buildOutputModeSelect();
       updateSettingsVisibility();
       if (document.getElementById('settingsPanel')!.classList.contains('open'))
         syncPanelFromServer();
@@ -2754,10 +2820,13 @@ function updateSettingsVisibility(): void {
   const modeGroup = document.getElementById('modeGroup') as HTMLElement;
   const thinkingGroup = document.getElementById('thinkingGroup') as HTMLElement;
   const effortGroup = document.getElementById('effortGroup') as HTMLElement;
+  const outputModeGroup = document.getElementById('outputModeGroup') as HTMLElement;
   if (modeGroup) modeGroup.style.display = supportsSetting('permissionMode') ? '' : 'none';
   if (thinkingGroup) thinkingGroup.style.display = supportsSetting('thinking') ? '' : 'none';
   // Effort only visible when BOTH thinking and effort are supported
   if (effortGroup) effortGroup.style.display = (supportsSetting('thinking') && supportsSetting('effort')) ? '' : 'none';
+  // Output Mode only shown when the adapter exposes more than one execution mode
+  if (outputModeGroup) outputModeGroup.style.display = hasMultipleExecModes() ? '' : 'none';
 }
 
 /** Populate the Agent CLI selector in the new-session modal. */
@@ -2768,7 +2837,7 @@ function _populateNewSessionAdapterSelect(): void {
   availableAdapters.forEach((a: string) => {
     const opt = document.createElement('option');
     opt.value = a;
-    opt.textContent = a;
+    opt.textContent = adapterLabel(a);
     sel.appendChild(opt);
   });
   sel.value = currentAdapter || 'cbc';
@@ -2814,6 +2883,55 @@ function _manifestLabel(p: SessionTemplate): string {
     return (parts[parts.length - 1] || '') + '/manifest.json';
   }
   return 'manifest.json';
+}
+
+/** Execution modes for the adapter currently selected in the new-session
+ *  modal (kept separate from the global currentAdapter to avoid disturbing
+ *  the settings panel). */
+let nsExecModes: string[] = ['stream'];
+
+/** Load execution modes for the adapter chosen in the new-session modal and
+ *  (re)build its Output Mode select. Single-mode adapters keep the field hidden. */
+function _ensureNsMcpHint(): void {
+  if (document.getElementById('nsMcpHint')) return;
+  const prof = document.getElementById('nsProfileSelect');
+  if (!prof || !prof.parentElement) return;
+  const p = document.createElement('p');
+  p.id = 'nsMcpHint';
+  p.className = 'ns-hint';
+  p.textContent = 'kimi 的 MCP 通过隔离目录 data/kimi-homes 自动加载（KIMI_CODE_HOME），无需信任文件夹。';
+  p.style.display = 'none';
+  prof.parentElement.insertBefore(p, prof.nextSibling);
+}
+
+function _loadNsAdapterConfig(adapter: string): void {
+  _ensureNsMcpHint();
+  const hint = document.getElementById('nsMcpHint') as HTMLElement | null;
+  if (hint) hint.style.display = adapter === 'kimi' ? '' : 'none';
+  fetch('/api/adapter/config?adapter=' + encodeURIComponent(adapter))
+    .then((r: Response) => r.json())
+    .then((data: ApiConfigResponse) => {
+      nsExecModes = data.executionModes || ['stream'];
+      buildNsOutputModeSelect();
+    })
+    .catch(function () {
+      nsExecModes = ['stream'];
+      buildNsOutputModeSelect();
+    });
+}
+
+function buildNsOutputModeSelect(): void {
+  const wrap = document.getElementById('nsOutputModeWrap') as HTMLElement;
+  const sel = document.getElementById('nsOutputModeSelect') as HTMLSelectElement;
+  if (!wrap || !sel) return;
+  sel.innerHTML = '';
+  nsExecModes.forEach((m: string) => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  wrap.style.display = nsExecModes.length > 1 ? '' : 'none';
 }
 
 /** Load the list of adapters and populate the new-session select. */
@@ -2897,6 +3015,27 @@ function init(): void {
   const importSessionListEl = document.getElementById('importSessionList') as HTMLDivElement;
   const importSessionCountEl = document.getElementById('importSessionCount') as HTMLDivElement;
 
+  // Static HTML only exposes cbc/kimi — inject the opencode option + filter UI here.
+  {
+    const opt = document.createElement('option');
+    opt.value = 'opencode';
+    opt.textContent = 'opencode';
+    importAdapterSelect.appendChild(opt);
+
+    const container = document.createElement('div');
+    container.id = 'opencodeImportFilters';
+    container.className = 'im-select';
+    container.style.display = 'none';
+    container.innerHTML = `
+      <label class="im-label">cwd</label>
+      <input id="opencodeCwdInput" type="text" class="im-cwd-input" placeholder="/path/to/project" />
+      <button id="opencodeLoadBtn" class="btn">Load</button>
+    `;
+    kimiImportFilters.parentElement!.insertBefore(container, importSessionListEl);
+  }
+  const opencodeImportFilters = document.getElementById('opencodeImportFilters') as HTMLDivElement;
+  let opencodeCwd = '';
+
   let allProjects: CbcProject[] = [];
   let currentProjectDir = '';
 
@@ -2928,7 +3067,8 @@ function init(): void {
   function switchImportAdapter(adapter: string): void {
     const isCbc = adapter === 'cbc';
     cbcImportFilters.style.display = isCbc ? '' : 'none';
-    kimiImportFilters.style.display = isCbc ? 'none' : '';
+    kimiImportFilters.style.display = adapter === 'kimi' ? '' : 'none';
+    opencodeImportFilters.style.display = adapter === 'opencode' ? '' : 'none';
     importSessionListEl.innerHTML = '<div class="im-loading">Loading\u2026</div>';
     importSessionCountEl.textContent = '';
 
@@ -2949,7 +3089,7 @@ function init(): void {
           cbcDriveSelect.innerHTML = '<option value="">Failed</option>';
           importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">Error: ${esc(e.message)}</div>`;
         });
-    } else {
+    } else if (adapter === 'kimi') {
       kimiWorkspaceSelect.innerHTML = '<option value="">Loading...</option>';
       fetchKimiWorkspaces()
         .then((workspaces: KimiWorkspace[]) => {
@@ -2965,7 +3105,31 @@ function init(): void {
           kimiWorkspaceSelect.innerHTML = '<option value="">Failed</option>';
           importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">Error: ${esc(e.message)}</div>`;
         });
+    } else if (adapter === 'opencode') {
+      loadOpencodeSessions();
     }
+  }
+
+  function loadOpencodeSessions(): void {
+    opencodeCwd = (document.getElementById('opencodeCwdInput') as HTMLInputElement).value.trim();
+    importSessionListEl.innerHTML = '<div class="im-loading">Loading...</div>';
+    fetchOpencodeSessions(opencodeCwd)
+      .then((sessions: OpencodeSessionItem[]) => renderOpencodeSessions(sessions))
+      .catch((e: any) => {
+        importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">Error: ${esc(e.message)}</div>`;
+      });
+  }
+
+  function renderOpencodeSessions(sessions: OpencodeSessionItem[]): void {
+    importSessionCountEl.textContent = sessions.length ? `${sessions.length} session(s) found` : '';
+    importSessionListEl.innerHTML = sessions.map((s: OpencodeSessionItem) => {
+      const ts = s.updatedAt ? new Date(s.updatedAt).toLocaleString() : '';
+      return `<div class="im-item" data-adapter="opencode" data-sid="${esc(s.session_id)}" data-cwd="${esc(s.workDir)}">
+        <div class="im-title">${esc(s.title || 'Untitled')}</div>
+        <div class="im-meta">${s.message_count} msgs · ${esc(s.model || '?')} · ${esc(ts)}</div>
+      </div>`;
+    }).join('');
+    attachImportItemHandlers();
   }
 
   function buildDriveSelect(): void {
@@ -3055,6 +3219,9 @@ function init(): void {
         if (adapter === 'kimi') {
           const cwd = el.dataset['cwd'] || '';
           result = await importKimiSession(sid, cwd);
+        } else if (adapter === 'opencode') {
+          const cwd = el.dataset['cwd'] || '';
+          result = await importOpencodeSession(sid, cwd);
         } else {
           const pd = el.dataset['pd'] || '';
           result = await importCbcSession(sid, pd);
@@ -3101,6 +3268,11 @@ function init(): void {
       .catch((e: Error) => { importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">${esc(e.message)}</div>`; });
   });
 
+  (document.getElementById('opencodeLoadBtn') as HTMLButtonElement).addEventListener('click', loadOpencodeSessions);
+  (document.getElementById('opencodeCwdInput') as HTMLInputElement).addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') loadOpencodeSessions();
+  });
+
   cbcProjectSelect.addEventListener('change', () => {
     currentProjectDir = cbcProjectSelect.value;
     if (!currentProjectDir) return;
@@ -3135,6 +3307,11 @@ function init(): void {
     if (e.target === newSessionModal) {
       newSessionModal.classList.remove('open');
     }
+  });
+  // When the chosen adapter changes, refresh the Output Mode options
+  // (single-mode adapters hide the field entirely).
+  (document.getElementById('nsAdapterSelect') as HTMLSelectElement).addEventListener('change', (e: Event) => {
+    _loadNsAdapterConfig((e.target as HTMLSelectElement).value);
   });
   nsCreateBtn.addEventListener('click', () => {
     let name = nsNameInput.value.trim();
@@ -3226,6 +3403,18 @@ function buildEffortSelect(): void {
     const opt = document.createElement('option');
     opt.value = v;
     opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+function buildOutputModeSelect(): void {
+  const sel = document.getElementById('settingOutputMode') as HTMLSelectElement;
+  if (!sel) return;
+  sel.innerHTML = '';
+  executionModes().forEach((m: string) => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
     sel.appendChild(opt);
   });
 }

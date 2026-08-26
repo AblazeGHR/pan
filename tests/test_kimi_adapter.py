@@ -27,9 +27,9 @@ def test_adapter_metadata():
     a = _adapter()
     assert a.name == "kimi"
     assert len(a.supported_models) > 0
-    # supports_resume=False means Kimi won't replay history events on resume,
-    # so worker.py should NOT skip assistant events.
-    assert a.supports_resume is False
+    # Kimi supports resume (replays history events on resume), so worker.py
+    # skips assistant events to avoid duplication.
+    assert a.supports_resume is True
     # fork is implemented via file copy since Kimi CLI has no stable --fork flag.
     assert a.supports_fork is True
     print("PASS: adapter metadata")

@@ -61,6 +61,11 @@
       <select id="settingEffort" onchange="updateSetButtonVisibility()"></select>
     </span>
     <div class="sep"></div>
+    <div id="outputModeGroup" style="display:none">
+      <label for="settingOutputMode">Output Mode</label>
+      <select id="settingOutputMode" onchange="updateSetButtonVisibility()"></select>
+    </div>
+    <div class="sep"></div>
     <button id="applySettingsBtn" class="btn btn-p" style="display:none" onclick="applySettings()">Apply Settings</button>
     <div class="sep"></div>
     <button class="btn" onclick="restartWorker()">Restart</button>
@@ -112,6 +117,10 @@
         <option value="cbc">cbc (CodeBuddy)</option>
         <option value="kimi">kimi (Kimi Code)</option>
       </select>
+      <div id="nsOutputModeWrap" style="display:none">
+        <label class="ns-label" for="nsOutputModeSelect">Output Mode</label>
+        <select id="nsOutputModeSelect" class="ns-select"></select>
+      </div>
       <label class="ns-label" for="nsProfileSelect">Session Template</label>
       <select id="nsProfileSelect" class="ns-select">
         <option value="">无 session template</option>

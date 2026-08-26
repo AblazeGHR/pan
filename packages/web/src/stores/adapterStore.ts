@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type {
   AdapterConfig,
   AdapterInfo,
+  ApiGenericResponse,
+  Session,
   SyncedSettings,
   SettingsBody,
 } from '@/types';
@@ -29,7 +31,7 @@ interface AdapterStore {
     sessionId: string,
     workerId?: string | null,
     settings?: SettingsBody,
-  ) => Promise<void>;
+  ) => Promise<Session | ApiGenericResponse>;
   updateSyncedSettings: (settings: SyncedSettings) => void;
   hasPendingChanges: (current: SyncedSettings) => boolean;
 }
@@ -73,12 +75,12 @@ export const useAdapterStore = create<AdapterStore>((set, get) => ({
   },
 
   applySettings: async (sessionId, workerId, settings) => {
-    if (!settings) return;
+    if (!settings) return {} as ApiGenericResponse;
 
     if (workerId) {
-      await workerSettings(workerId, settings);
+      return await workerSettings(workerId, settings);
     } else {
-      await patchSession(sessionId, settings);
+      return await patchSession(sessionId, settings);
     }
   },
 
