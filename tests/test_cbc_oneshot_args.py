@@ -131,6 +131,31 @@ def test_execution_modes_declared():
     print("PASS execution_modes declared correctly")
 
 
+def test_takeover_command_no_system_prompt_reinject():
+    """takeover resumes an existing session; it must NOT re-inject --system-prompt.
+
+    Fix: system_prompt is injected only at first spawn of a fresh session (no
+    cli_session_id). Re-injecting on takeover would duplicate the system prompt
+    as a user message after --resume.
+    """
+    s = _make_session(
+        cli_session_id="existing-cbc-id",
+        system_prompt="You are a helpful assistant. Use Chinese.",
+    )
+    cmd = CbcAdapter().takeover_command(s)
+    assert "--system-prompt" not in cmd, f"takeover must not inject --system-prompt: {cmd}"
+    # takeover should still resume the existing session
+    assert "--resume" in cmd and "existing-cbc-id" in cmd
+    print("PASS takeover_command does not re-inject --system-prompt")
+
+
+def test_takeover_command_empty_without_cli_session_id():
+    """takeover requires an existing cli_session_id; fresh session returns []."""
+    s = _make_session(system_prompt="You are helpful.")
+    assert CbcAdapter().takeover_command(s) == []
+    print("PASS takeover_command empty when no cli_session_id")
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

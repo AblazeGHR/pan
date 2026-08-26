@@ -2141,8 +2141,8 @@ async def api_takeover(worker_id: str):
 
     try:
         w.takeover_pid = _open_terminal(
-            # 逐参数引号转义：system_prompt 通常含空格/换行，裸 join 会把其后半
-            # 段拆成额外参数，导致 takeover 终端 cbc 启动失败（takeover 修复）。
+            # 逐参数引号转义：takeover 命令含 --resume <cli_session_id>，裸 join
+            # 会把其特殊字符拆成额外参数，导致 takeover 终端 cbc 启动失败。
             subprocess.list2cmdline(adapter_cmd),
             s.workdir or Path.cwd(),
         )
@@ -2157,6 +2157,8 @@ async def api_takeover(worker_id: str):
         "cliSessionId": s.cli_session_id,
         # list2cmdline 逐参数引号转义（同 /takeover）：system_prompt 含空格时
         # 裸 join 的命令无法直接粘贴执行（takeover 修复）。
+        # list2cmdline 逐参数引号转义（同 /takeover）：takeover 命令含 --resume
+        # <cli_session_id>，裸 join 的命令无法直接粘贴执行。
         "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
         "takeoverPid": w.takeover_pid,
         "status": "takeover started",
@@ -2188,8 +2190,8 @@ async def api_takeover_command(worker_id: str):
         "workerId": worker_id,
         "sessionId": w.session_id,
         "cliSessionId": s.cli_session_id,
-        # list2cmdline 逐参数引号转义（同 /takeover）：system_prompt 含空格时
-        # 裸 join 的命令无法直接粘贴执行（takeover 修复）。
+        # list2cmdline 逐参数引号转义（同 /takeover）：takeover 命令含 --resume
+        # <cli_session_id>，裸 join 的命令无法直接粘贴执行。
         "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
     }
 

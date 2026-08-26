@@ -361,16 +361,20 @@ class CbcAdapter:
         mangles). The terminal is opened with cwd=<workdir> (see
         _open_terminal), so cbc resolves its project dir from the process CWD —
         passing -d here actually *breaks* resume when CWD differs (JSONL lives
-        under the CWD-derived project). Re-applies --system-prompt since
-        --resume alone won't re-inject it.
+        under the CWD-derived project).
+
+        Does NOT re-inject --system-prompt: takeover only resumes an existing
+        session (cli_session_id is already set), whose system prompt is carried
+        by cbc's native context storage (JSONL). system_prompt is injected only
+        once, at first spawn of a fresh session (no cli_session_id) — re-injecting
+        on takeover would duplicate the system prompt as a user message after
+        resume.
         """
         if not s.cli_session_id:
             return []
         cmd = self._resolve_cbc_argv()
         cmd.append("--resume")
         cmd.append(s.cli_session_id)
-        if s.system_prompt:
-            cmd.extend(["--system-prompt", s.system_prompt])
         return cmd
 
     # ── enrich ──
