@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import httpx
@@ -443,7 +443,11 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
         template = SessionTemplate(
             name="default",
             adapter=adapter_name,
-            model=config.get("model") or a.default_model,
+            # Same stale-model guard as the params below: only adopt the config
+            # model when it's in the adapter's selectable list.
+            model=(config.get("model")
+                   if config.get("model") in a.supported_models else None)
+            or a.default_model,
             permission_mode=config.get("permission_mode"),
             system_prompt="",
             mcp_mode="always",
@@ -478,8 +482,18 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
 
     params = {
         "name": name,
-        "adapter": template.adapter,
-        "model": data.get("model") or template.model or config.get("model") or a.default_model,
+        # User's explicit adapter wins, then the template's (a no-adapter
+        # template parses to ""), else default "cbc". Fix: previously the user
+        # selection was ignored — `template.adapter or "cbc"` overwrote a
+        # chosen adapter (e.g. kimi) with "cbc" when the template had none.
+        "adapter": data.get("adapter") or template.adapter or "cbc",
+        # config.json may still hold a stale/invalid model (e.g. the old
+        # kimi-code/kimi-for-coding); only adopt it when it's actually in the
+        # adapter's selectable model list, else fall back to the adapter's
+        # (already validated) default.
+        "model": data.get("model") or template.model
+        or (config.get("model") if config.get("model") in a.supported_models else None)
+        or a.default_model,
         "permission_mode": data.get("permissionMode") or template.permission_mode or config.get("permission_mode") or None,
         "workdir": str(_resolve_workdir(workdir_name)) if resolve_workdir else "",
         "adapter_config": {
@@ -534,6 +548,7 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
 
 def _resolve_mcp_server_configs(server_names) -> list[dict]:
     """Resolve MCP server names to full configs from the manifest table."""
+    _ensure_manifest_fresh()
     if _character_manager is None or _character_manager._manifest_config is None:
         raise ValueError("MCP manifest not loaded")
     configs: list[dict] = []
@@ -712,12 +727,11 @@ async def favicon():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    # react / coexist → serve React SPA at root（dist 存在时）
+    # react / coexist → redirect root to /react/ so the React SPA basename
+    # ("/react") matches the URL path and actually renders. Serving index.html
+    # directly at "/" left the router with a non-matching basename → blank.
     if FRONTEND_MODE in ("react", "coexist") and REACT_DIST_EXISTS:
-        return HTMLResponse(
-            content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
-            headers={"Cache-Control": "no-cache"},
-        )
+        return RedirectResponse("/react/", status_code=307)
 
     # legacy 模式（或 dist 缺失）→ Vanilla，保留移动端分流
     ua = request.headers.get("user-agent", "")
@@ -895,15 +909,6 @@ async def ws_agent_endpoint(ws: WebSocket):
                         "status": result.status,
                         "model": s.model,
                     })
-
-            elif msg_type == "handoff":
-                session_id = msg.get("sessionId")
-                text = msg.get("text")
-                if not session_id or not text:
-                    await ws.send_json({"type": "error", "message": "sessionId and text required"})
-                    continue
-                result = await worker.handoff(session_id, text, source="agent")
-                await ws.send_json({"type": "handoff.result", **result})
 
             elif msg_type == "assign":
                 session_id = msg.get("sessionId")
@@ -1185,6 +1190,55 @@ async def api_branch_session(session_id: str, data: dict):
     return _session_to_api(new_s)
 
 
+@app.post("/api/sessions/{session_id}/handoff")
+async def api_session_handoff(session_id: str, data: dict):
+    """替身交接（session_handoff v1）：创建孪生 session B 接替 A。
+
+    Body: {"handoffPrompt": <必填，A 的 agent 编写的交接简报>,
+           "copySettings": bool (默认 true), "adapter"?, "model"?,
+           "permissionMode"?}
+
+    行为见 ``sess.handoff_session``：关系网接替 + B 自动 manage A + 可选设置
+    复制（不含 system_prompt）+ B.system_prompt = handoffPrompt 与 A 原
+    system_prompt 拼接 + 重命名（A → "(archive) <原名>"，B → "<原名>"）。
+    """
+    handoff_prompt = (data.get("handoffPrompt") or "").strip()
+    if not handoff_prompt:
+        return {"error": "handoffPrompt is required — 由 session A 的 agent 编写交接简报"}
+    copy_settings = data.get("copySettings", True)
+    if not isinstance(copy_settings, bool):
+        copy_settings = True
+    adapter = data.get("adapter")
+    model = data.get("model")
+    permission_mode = data.get("permissionMode")
+    if not copy_settings and not adapter:
+        return {"error": "adapter is required when copySettings is false"}
+    result = sess.handoff_session(
+        session_id, handoff_prompt,
+        copy_settings=copy_settings, adapter=adapter, model=model,
+        permission_mode=permission_mode,
+    )
+    if isinstance(result, str):
+        return {"error": result}
+    a, b = result
+    await broadcast({
+        "type": "session.renamed",
+        "sessionId": a.id,
+        "oldName": b.name,  # A 原名 == B 现名
+        "newName": a.name,
+    })
+    await broadcast({
+        "type": "session.created",
+        "sessionId": b.id,
+        "name": b.name,
+    })
+    return {
+        "ok": True,
+        "archivedSession": _session_to_api(a),
+        "session": _session_to_api(b),
+    }
+
+
 def _cleanup_mcp_config(session_id: str) -> None:
     """S3：session 删除后清理 data/mcp-configs/<session_id>.mcp.json。
 
@@ -1437,23 +1491,6 @@ async def api_task(data: dict):
     }
 
 
-@app.post("/api/handoff")
-async def api_handoff(data: dict):
-    """同步等待：发任务并阻塞直到 worker 返回结果（默认 10min 超时）。
-
-    支持 task_id 幂等：重发同一 taskId 不重复入队（超时后安全重试）。
-    """
-    session_id = data.get("sessionId")
-    text = data.get("text")
-    if not session_id or not text:
-        return {"ok": False, "error": {"code": "missing_params",
-                                       "message": "sessionId and text are required"}}
-    timeout = data.get("timeout", 600)
-    task_id = data.get("taskId")
-    return await worker.handoff(session_id, text, source="agent",
-                                timeout=float(timeout), task_id=task_id)
-
-
 @app.post("/api/assign")
 async def api_assign(data: dict):
     """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。
@@ -1476,7 +1513,7 @@ async def api_report_subscribe(data: dict):
     Body: {"managerId": <meta-agent session id>, "sessionId": <managed session id>}
 
     订阅后，该 managed session 每次完成（done/error）都会把报告 append 到
-    meta-agent 的落盘队列 queue_pending（对齐 handoff 格式）。
+    meta-agent 的落盘队列 queue_pending（报告形状 {status,result,sessionId,taskId,workerId}）。
     未订阅则只保留现有 worker.result 广播。
     """
     manager_id = (data.get("managerId") or "").strip()
@@ -2269,6 +2306,24 @@ def _get_memory_manager(character_id: str):
 # ── Character API ──
 
 
+def _ensure_manifest_fresh() -> None:
+    """Hot-reload the manifest if any manifest file changed on disk.
+
+    Cheap on the hot path: only ``stat``s files (no read / parse). A full
+    re-read + re-parse + atomic config swap happens *only* when the newest
+    mtime advanced or the set of manifest files changed. Any failure is
+    swallowed (and already logged inside the manager) so a request never 500s
+    on a broken manifest.
+    """
+    if _character_manager is None:
+        return
+    try:
+        if _character_manager.manifest_changed():
+            _character_manager.reload_manifest()
+    except Exception:
+        _log("[Pan] Manifest hot-reload check failed (non-fatal)")
+
+
 @app.get("/api/session-templates")
 async def api_session_templates():
     """List available session templates from manifest.
@@ -2278,6 +2333,7 @@ async def api_session_templates():
     """
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
     templates = _character_manager.list_session_templates()
     return {
         "sessionTemplates": [
@@ -2314,6 +2370,7 @@ async def api_mcp_servers():
     """
     if _character_manager is None or _character_manager._manifest_config is None:
         return {"servers": [], "loaded": False}
+    _ensure_manifest_fresh()
     servers = [
         {
             "name": srv.name,
@@ -2335,6 +2392,35 @@ async def api_characters_profiles():
     return await api_session_templates()
 
 
+@app.post("/api/manifest/reload")
+async def api_manifest_reload():
+    """Force a manifest hot-reload.
+
+    Idempotent: calling it repeatedly just reloads the same files and returns
+    the same counts. Returns the number of loaded templates/servers/routes so
+    the caller can confirm the new state. On failure it returns the last good
+    counts and ``reloaded: false`` (the previous config is kept).
+    """
+    if _character_manager is None:
+        return {"error": "Character manager not initialized", "reloaded": False}
+    config = _character_manager.reload_manifest()
+    if config is None:
+        return {
+            "reloaded": False,
+            "sessionTemplates": 0,
+            "mcpServers": 0,
+            "characters": 0,
+            "commandRoutes": 0,
+        }
+    return {
+        "reloaded": True,
+        "sessionTemplates": len(config.session_templates),
+        "mcpServers": len(config.mcp_servers),
+        "characters": len(config.character_templates),
+        "commandRoutes": len(config.command_routes),
+    }
+
+
 @app.get("/api/manifest/command-routes")
 async def api_manifest_command_routes():
     """List QQ Bot command routes from loaded manifests.
@@ -2347,6 +2433,7 @@ async def api_manifest_command_routes():
     """
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
     routes = _character_manager.list_command_routes()
     return {
         "routes": [
@@ -2362,6 +2449,7 @@ async def api_characters_create(data: dict):
     """Create a new character from a manifest character_template."""
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
     template_name = data.get("template_name", "")
     if not template_name:
         return {"error": "template_name is required"}

@@ -19,7 +19,6 @@ from packages.core.adapters import CbcAdapter
 
 def _cleanup():
     worker.workers.clear()
-    worker._result_waiters.clear()
     worker._task_status.clear()
     worker._spawn_locks.clear()  # per-session asyncio.Lock 绑定事件循环，测试间需清掉
     _sess._cache.clear()

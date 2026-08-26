@@ -69,7 +69,7 @@ function ModelPill({
         <ChevronDown size={12} />
       </button>
       {open && (
-        <div className="absolute bottom-full mb-1 left-0 min-w-[160px] rounded-md border border-border-default bg-bg-primary shadow-lg z-30">
+        <div className="absolute bottom-full mb-1 left-0 min-w-[160px] max-h-64 overflow-y-auto rounded-md border border-border-default bg-bg-primary shadow-lg z-30">
           {models.map((m) => (
             <div
               key={m}
@@ -320,6 +320,19 @@ export function InputRow() {
     supportsSetting(config, 'effort') &&
     !!currentSession?.alwaysThinkingEnabled;
   const effortValues = config?.effortValues || [];
+  // opencode's effort list starts with "" (unset sentinel); filter it out so
+  // the dropdown never renders a blank <option>, and surface it as a clear
+  // "默认" placeholder instead.
+  const validEffortValues = effortValues.filter(
+    (v) => v && String(v).trim() !== '',
+  );
+  const hadEmptyEffort = effortValues.length !== validEffortValues.length;
+  const currentEffort =
+    currentSession?.effort && currentSession.effort.trim() !== ''
+      ? currentSession.effort
+      : hadEmptyEffort
+        ? ''
+        : validEffortValues[0] ?? '';
 
   return (
     <div className="shrink-0 w-full border-t border-border-default bg-bg-primary">
@@ -407,19 +420,15 @@ export function InputRow() {
                 show={showThinking}
                 onApply={applySetting}
               />
-              {showEffort && effortValues.length > 0 && (
+              {showEffort && validEffortValues.length > 0 && (
                 <select
-                  value={
-                    currentSession.effort ||
-                    effortValues[1] ||
-                    effortValues[0] ||
-                    ''
-                  }
+                  value={currentEffort}
                   onChange={(e) => applySetting('effort', e.target.value)}
                   className="rounded-md border border-border-default bg-bg-tertiary px-1 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
                   title="Effort"
                 >
-                  {effortValues.map((v) => (
+                  {hadEmptyEffort && <option value="">默认</option>}
+                  {validEffortValues.map((v) => (
                     <option key={v} value={v}>
                       {v}
                     </option>

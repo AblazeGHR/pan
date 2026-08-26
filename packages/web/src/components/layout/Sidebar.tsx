@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -71,13 +71,10 @@ export function Sidebar() {
   // Local state
   const [showNewModal, setShowNewModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [importAdapter, setImportAdapter] = useState<'cbc' | 'kimi'>('cbc');
-  const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [menuSession, setMenuSession] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [manageSessionId, setManageSessionId] = useState<string | null>(null);
   const [postboxSessionId, setPostboxSessionId] = useState<string | null>(null);
-  const importRef = useRef<HTMLDivElement>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
 
   // Init editor tree when on editor route and session changes
@@ -86,18 +83,6 @@ export function Sidebar() {
       useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
     }
   }, [isEditorRoute, currentSession?.id, currentSession?.workdir]);
-
-  // Close import dropdown on outside click
-  useEffect(() => {
-    if (!showImportDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (importRef.current && !importRef.current.contains(e.target as Node)) {
-        setShowImportDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showImportDropdown]);
 
   // Group keys for collapse-all (mirrors SessionList workdir/manager grouping)
   const groupKeys = useMemo(() => {
@@ -301,40 +286,14 @@ export function Sidebar() {
               >
                 <Settings size={14} />
               </Button>
-              <div ref={importRef} className="relative">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowImportDropdown(!showImportDropdown)}
-                  title="Import session"
-                >
-                  <Import size={14} />
-                </Button>
-                {showImportDropdown && (
-                  <div className="absolute left-0 top-full mt-1 z-20 bg-bg-tertiary border border-border-default rounded-md shadow-lg py-1 min-w-[140px]">
-                    <button
-                      className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20"
-                      onClick={() => {
-                        setImportAdapter('cbc');
-                        setShowImportDropdown(false);
-                        setShowImportModal(true);
-                      }}
-                    >
-                      Import from cbc
-                    </button>
-                    <button
-                      className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20"
-                      onClick={() => {
-                        setImportAdapter('kimi');
-                        setShowImportDropdown(false);
-                        setShowImportModal(true);
-                      }}
-                    >
-                      Import from kimi
-                    </button>
-                  </div>
-                )}
-              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowImportModal(true)}
+                title="Import session"
+              >
+                <Import size={14} />
+              </Button>
             </div>
           </div>
 
@@ -560,7 +519,6 @@ export function Sidebar() {
       <ImportModal
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
-        initialAdapter={importAdapter}
       />
       <ManageModal
         open={!!manageSessionId}

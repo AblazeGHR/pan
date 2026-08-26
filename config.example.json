@@ -22,8 +22,9 @@
           "glm-5.2", "glm-5.1", "glm-5.0", "glm-5.0-turbo", "glm-5v-turbo", "glm-4.7",
           "minimax-m3-pay", "minimax-m2.7",
           "kimi-k2.7", "kimi-k2.6",
-          "hy3"
-        ]
+          "hy3","所有可用模型"
+        ],
+        "说明":"cbc使用的默认模型"
       },
       "permission_mode": {
         "默认值": "bypassPermissions",
@@ -37,22 +38,26 @@
         "默认值": "",
         "可选值": ["", "none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"],
         "说明": "仅 always_thinking_enabled=true 时生效；空值表示不传递 --effort 参数"
+      },
+      "models": {
+        "默认值": [],
+        "说明": "建议不填写，将自动识别可用模型（cbc --help 解析）；填写代表限制可用模型。例: [\"my-model-1\", \"my-model-2\"]"
       }
     },
     "model": "deepseek-v4-flash",
     "permission_mode": "bypassPermissions",
     "always_thinking_enabled": false,
-    "effort": ""
+    "effort": "",
+    "models": []
   },
 
   "kimi": {
     "_字段说明": {
       "model": {
-        "默认值": "kimi-code/kimi-for-coding",
+        "默认值": "moonshot-cn/kimi-k2.6",
         "可选值": [
-          "kimi-code/kimi-for-coding",
-          "kimi-code/kimi-for-coding-highspeed",
-          "kimi-code/k3"
+          "moonshot-cn/kimi-k2.6",
+          "moonshot-cn/kimi-k2.7-code"
         ]
       },
       "permission_mode": {
@@ -69,10 +74,10 @@
       },
       "models": {
         "默认值": [],
-        "说明": "可用模型列表（空=用内置默认值）。例: [\"my-model-1\", \"my-model-2\"]"
+        "说明": "建议不填写，将自动识别可用模型（kimi config.toml 解析）；填写代表限制可用模型。例: [\"my-model-1\", \"my-model-2\"]"
       }
     },
-    "model": "kimi-code/kimi-for-coding",
+    "model": "moonshot-cn/kimi-k2.6",
     "models": [],
     "permission_mode": "",
     "always_thinking_enabled": false,

@@ -31,7 +31,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 | **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）或 `kimi`（Kimi CLI） |
 | **Model** | AI 模型名称，如 `hy3`、`deepseek-v4-flash` |
 | **workdir** | Session 的工作目录，也是 Worker 进程的 `cwd`（见 §9.1） |
-| **taskSeq** | 每个任务的序号；`worker.result` 事件用它配对等待中的 handoff、做重连补发游标 |
+| **taskSeq** | 每个任务的序号；`worker.result` 事件用它配对任务与结果、做重连补发游标 |
 
 关键规则：
 - Session 是持久化的——kill/回收 Worker 不会删除 Session 数据。
@@ -43,7 +43,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 ## 2. 编排工作流（全景）
 
 ```
-session_create → worker_spawn → worker_assign / handoff → 盯梢 → 查结果 → 收尾
+session_create → worker_spawn → worker_assign → 盯梢 → 查结果 → 收尾
 ```
 
 ### 2.1 并行 fan-out（推荐主流程：assign + 订阅 result）
@@ -69,17 +69,9 @@ session_create → worker_spawn → worker_assign / handoff → 盯梢 → 查�
 
 **不需要手动轮询**。assign 之后 worker 会自动 spawn（如果该 session 无活 worker）。
 
-### 2.2 串行依赖步骤（handoff，DEPRECATED 但保留）
+### 2.2 串行依赖步骤（worker_handoff 已移除）
 
-> `worker_handoff` / `/api/handoff` 已标 **DEPRECATED**（立项 4.7）："等"应是 meta-agent 的默认 idle 状态，而非阻塞调用。仅当确需严格同步返回时使用；**新编排一律 assign + report_subscribe**。详见 §9.4。
-
-```
-worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_id="t1")
-→ 阻塞直到完成，返回 {"status":"done","result":"...","workerId":"..."}
-```
-
-- 默认 10 分钟超时；超时返回 `{"status":"pending"/"error","result":"handoff timed out after 600s"}`。
-- **幂等**：超时后用**同一个 task_id** 重发——已完成返回缓存结果，进行中不重复入队（防双跑）。
+> `worker_handoff` 与 `POST /api/handoff` 已于 2026-08-26 **彻底移除并归档**（原为立项 4.7 弃用的阻塞原语）。串行依赖同样用 `worker_assign` + `report_subscribe`（§3.2）：派发后订阅完成报告，报告入你的落盘队列 `queue_pending` 即「串行下一步」的信号——"等"是 meta-agent 的默认 idle 状态，而非阻塞调用。派发带 `task_id` 幂等（§9.4）。
 
 ### 2.3 在已有会话上继续对话
 
@@ -122,6 +114,27 @@ worker_handoff(session_id="ses_abc...", text="串行任务", timeout=600, task_i
 | **为空 / null** | 新 session 或 worker 从未建立，worker 无上下文 | **任务描述必须自包含**：背景 / 目标 / 涉及文件（相对 workdir）/ 边界 / 验收标准 |
 
 - 与 §2.3 的关系：§2.3 解决「找 session + spawn」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`worker_spawn`（`workerStatus` 为 null 时）→ 简短指令。
+
+### 2.7 替身交接（session_handoff）：精简上下文 / 切换 adapter
+
+> 场景：当前 session（A）上下文过大需要精简，或想中途切换 adapter（普通 session **不能**中途切换 adapter）。A 保留为可阅读上下文（归档重命名 `(archive) <原名>`），创建孪生 session B 接管 A 的名字与全部 pan 关系网。
+
+```
+session_handoff(session_id="ses_a...",
+                handoff_prompt="【必填】A 的 agent 编写的交接简报：现状、重点、重要开发习惯、原 system_prompt 内容、上下文精华……",
+                copy_settings=true,          # 1:1 复制 A 的设置（不含 system_prompt）
+                adapter="kimi", model=..., permission_mode=...)   # 切换 adapter 时传
+→ {"ok": true, "archivedSession": {...}, "session": {...B...}}
+```
+
+行为要点（session_handoff v1）：
+1. **关系网接替（自动、必然）**：B.managed = A.managed，A 的子会话 `managed_by` 改 B；A 的 `report_subscriptions`、QQ postbox 绑定（`session_qq_subscribe` 的 inbox 提醒）全部转移给 B。A 若曾被某 manager 管理，B 接替 A 在该 manager 下的位置。
+2. **B 自动 manage A**：B.managed 追加 A，A.managed_by = B——A 归档为 B 的被管理会话，B 收到 A 的完成报告（可 `session_get(A)` 持续读取旧上下文）。
+3. **设置复制**：`copy_settings=true` 复制 adapter / adapter_config / model / permission_mode / session_template / pan_access / mcp_servers 等，**明确不含 system_prompt**，且 `cli_session_id` 清空（B 是全新会话，不继承 A 的 CLI 上下文与 history——精简上下文的关键）；`false` 用默认设置（此时**必须**显式传 `adapter`）。
+4. **B.system_prompt = handoff_prompt 与 A 原 system_prompt 拼接**（分「交接上下文 / 原 system prompt」两节）。
+5. **重命名**：A → `(archive) <原名>`，B → `<原名>`；A 的原关系网解除。
+
+交接后 B 即可 `worker_assign` 派活；切换 adapter 的典型用法：`copy_settings=false + adapter="kimi" + handoff_prompt=...`。
 
 ## 3. 完成通知：二选一（互斥，勿同用）——**meta-agent 编排一律优先用「内部订阅」**
 
@@ -226,6 +239,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改进程相关字段（model/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，**idle worker 自动 respawn 生效、running worker 回 idle 时自动重启**——无需手动 kill+spawn（想立即生效仍可手动 worker_kill + worker_spawn） |
 | `POST` | `/api/sessions/{id}/rename` | `{"name": "new-name"}` | `{"sessionId","name","status":"renamed"}` |
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定） |
+| `POST` | `/api/sessions/{id}/handoff` | `{"handoffPrompt": "...", "copySettings": true, "adapter"?: "...", "model"?: "...", "permissionMode"?: "..."}` | **替身交接**：创建孪生 session B 接替 A（§2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填 |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<meta-agent session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}` |
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}` |
 | `POST` | `/api/unclaim` | `{"managerId": "...", "sessionId": "..."}` | 解除 managed 关系（同时退订该 session 报告）；MCP 无独立工具（claim 由 report_subscribe 自动建立） |
@@ -267,7 +281,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 - `POST /api/assign`：`sessionId`、`text` **均必填**；缺参返回 `{"ok":false,"error":{...}}`。worker 不存在时自动 spawn。完成异步经 `worker.result` 事件 / `lastResult` 返回。
 - `DELETE /api/sessions/{id}`：删除 session 并 kill 其 worker。
 
-其余端点（`POST /api/task`、`POST /api/handoff`、`POST /api/kill/{worker_id}`、`GET /api/list`）均有对应 MCP 工具，冷启动用 MCP 即可；HTTP 形态见 `packages/web/server.py`。
+其余端点（`POST /api/task`、`POST /api/kill/{worker_id}`、`GET /api/list`）均有对应 MCP 工具，冷启动用 MCP 即可；HTTP 形态见 `packages/web/server.py`。
 
 ### 5.2 字段命名映射（id vs sessionId，snake_case vs camelCase）
 
@@ -284,7 +298,7 @@ HTTP JSON body 用 **camelCase**，MCP 工具参数用 **snake_case**——同�
 | MCP servers | — | `mcpServers` | `mcp_servers` |
 | 工作目录 | `workdir` | `workdir` | `workdir`（两边一致） |
 
-**G6 要点**：`POST /api/sessions` 返回的 `id` 与后续所有请求体的 `sessionId` 是**同一个值**（`ses_...`）。响应字段叫 `id`，但 spawn/assign/task/handoff 的 body 一律用 `sessionId`（MCP 里是 `session_id`）——不要照抄响应字段名传请求。
+**G6 要点**：`POST /api/sessions` 返回的 `id` 与后续所有请求体的 `sessionId` 是**同一个值**（`ses_...`）。响应字段叫 `id`，但 spawn/assign/task 的 body 一律用 `sessionId`（MCP 里是 `session_id`）——不要照抄响应字段名传请求。
 
 **MCP server 自身**：`python -m packages.mcp.server`（stdio）；`--pan-url` / `PAN_API_URL` 覆盖 API 基址；`--transport sse --port 9740` 走 SSE。manifest：`packages/mcp/manifest.json`。
 
@@ -311,7 +325,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `worker.spawned` | `sessionId, workerId, name, status, model` | worker 生成 |
 | `session.created/updated/renamed/deleted` | `sessionId, name?...` | session 生命周期 |
 | `sessions.deleted` | `sessionIds` | 批量删除 |
-| `handoff.result` / `assign.result` / `send.result` | 含 `status/result` | WS 主动调用（type=handoff/assign/send）的同步应答 |
+| `assign.result` / `send.result` | 含 `status/result` | WS 主动调用（type=assign/send）的同步应答 |
 | `subscribed` / `error` | — | 协议握手 / 错误 |
 
 订阅状态：每个连接独立维护 `consumed_seq`（每 session 已消费的 result 序号），重连补发据此推进。**订阅可限定 session**：只收关心的 session，减少无关唤醒。
@@ -338,6 +352,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `session_update` | `session_id`, 各设置项 | PATCH 封装；改进程相关配置（model/effort/thinking/MCP/outputMode）时 **idle worker 自动 respawn 生效**、running worker 回 idle 时自动重启（§5 PATCH） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查） |
+| `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 它与 A 原 system_prompt 拼接；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
 | `session_claim` | `session_id` | 当前 agent（`PAN_AGENT_SESSION_ID`）认领会话，建立 managed 关系（立项 4.2）。**claim 自动 report_subscribe**（后端实现）。走 `POST /api/claim`（带 `_check_access(claim=True)` 隔离检查）；目标已被他人管理则拒绝。需 `PAN_AGENT_SESSION_ID` |
 | `session_claim_many` | `session_ids` | 批量认领：逐个处理，返回 `{"ok": true, "claimed": [...], "failed": [{"sessionId", "error"}]}`，单个失败不影响其余 |
 | `session_unclaim` | `session_id` | 当前 agent 解除对会话的 managed 关系（自动退订报告，后端实现）。走 `POST /api/unclaim`（带 `_check_access` 隔离检查，受限 caller 只能解绑自己管理的）；仅当前 manager 可解绑。需 `PAN_AGENT_SESSION_ID` |
@@ -352,7 +367,6 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 |------|------|------|
 | `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?`, `workdir?` | 生成 worker；给 name 则先建 session。已有 worker 会先 kill（一个 session 一个 worker） |
 | `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn；`source` 默认 `"agent"` |
-| `worker_handoff` | `session_id`, `text`, `timeout?`, `task_id?` | **[DEPRECATED]** 同步阻塞。串行依赖/严格同步返回值才用；传 `task_id` 幂等重试（§9.4） |
 | `worker_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out 用）：立即返回 queued，完成经 `worker.result` 事件回调。传 `task_id` 幂等（同 taskId 重发不双跑，见 §9.4） |
 | `worker_send` | `worker_id`, `text` | 向已有 worker 发消息（多轮协作）；**仅用于非即时补充**：消息排队送达，worker 空闲（当前任务完成后）才处理，不打断进行中的任务；需打断/立即生效用 `worker_send_force`；Pan 内 session 自动加 `////by agent` 前缀（§9.5） |
 | `worker_send_force` | `worker_id`, `text` | **强制推送** = restart + send：目标 worker 卡死/忙/连接异常导致普通 `worker_send` 无法送达时兜底；**也用于需要打断 worker 当前执行的时效性消息**（如操作约束、危险操作警告）——restart 后立即送达，不等当前任务排完。先重启 worker 进程再发消息，保证送达；自动加 `////by agent` 前缀（§9.5），restart/send 任一失败返回后端错误 |
@@ -385,7 +399,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `"running"` | Worker 执行中 | 继续等，**不要重复提交** |
 | `"done"` | 任务完成 | 读 `result` 字段 |
 | `"error"` | 任务失败 | 读 `result` 字段取错误 |
-| `"pending"` | handoff 超时后任务仍在跑 | 用同 task_id 重试或 session_get 补查 |
+| `"pending"` | 同 task_id 的任务仍在进行中（assign 幂等返回） | 用同 task_id 重试或 session_get 补查 |
 
 `session_list` 的 `workerStatus`：
 - `"queued"` / `"running"` / `"idle"`（可发任务）/ `"error"` / `"held"` / `"zombie"`（跳过回收）
@@ -416,7 +430,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 
 | 条件 | 行为 | 默认 / 本分支实测 |
 |------|------|------------------|
-| stream `running` **任务运行时长**超过 `worker.task_timeout_sec` | 判定卡死 → kill（等待中的 handoff 收到 error） | 默认 **1800s**（2026-08-17 起与静默超时分离，长思考/大文件读取不再被误杀） |
+| stream `running` **任务运行时长**超过 `worker.task_timeout_sec` | 判定卡死 → kill | 默认 **1800s**（2026-08-17 起与静默超时分离，长思考/大文件读取不再被误杀） |
 | `queued` 持续**无任何 stdout 输出**超过 `worker.timeout_sec` | 静默超时 → kill | 默认 **300s**；运行环境 config.json 实测 **1200s** |
 | `idle` 持续超过 `worker.idle_sec` | 空闲回收 → kill（session 保留） | **300s** |
 | `held`（takeover）/ `zombie` | **跳过**，不回收 | — |
@@ -427,12 +441,11 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 - MCP one-shot 模式由读取超时承担（同一 `timeout_sec`），watchdog 只做 idle 回收。
 - **全局 watchdog**（服务级，生命周期=Pan）：周期扫描"落盘队列 `queue_pending` 非空但没有活 worker 的 session"，自动 `create_worker` 恢复——自愈（立项 4.4）。
 
-### 9.4 handoff deprecated → 用 assign + report_subscribe
+### 9.4 taskId 幂等（assign）——worker_handoff 已移除
 
-- `worker_handoff`（MCP）与 `POST /api/handoff` 已标 **DEPRECATED**（立项 4.7）。新编排用 `worker_assign` + `report_subscribe`（§3.2）。
-- 理由："等"应是 meta-agent 的默认 idle 状态，而非阻塞调用；阻塞会占用协调者、易被中断。
-- 若确需严格同步返回（串行依赖），仍可用：默认 `timeout=600s`；超时返回 `{"status":"pending"/"error"}`。
-- **幂等**：`task_id` 是幂等键——超时后**同 task_id 重发**：已完成 → 返回缓存结果；进行中 → 不重复入队（防双跑）。taskId 注册表有 TTL 惰性清理。
+- `worker_handoff`（MCP）与 `POST /api/handoff` 已于 **2026-08-26 彻底移除**（原为立项 4.7 弃用后归档）。串行依赖与并行 fan-out 一律 `worker_assign` + `report_subscribe`（§3.2）。
+- 理由（原立项 4.7）："等"应是 meta-agent 的默认 idle 状态，而非阻塞调用；阻塞会占用协调者、易被中断。
+- **幂等**：`worker_assign` 的 `task_id` 是幂等键——重发同 task_id：已完成 → 返回缓存结果；进行中 → 返回 `{"status":"pending",...}` 不重复入队（防双跑）。taskId 注册表有 TTL 惰性清理。
 
 ### 9.5 `////by agent` 前缀
 
@@ -444,7 +457,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 ```
 
 - 用途：目标 worker 区分"meta-agent 编排消息"与真实用户消息。
-- 编排时注意：目标 worker 收到带该前缀的消息应识别为编排指令；`worker_assign`/`worker_handoff` 不发此前缀（只有 `worker_send` 拼）。
+- 编排时注意：目标 worker 收到带该前缀的消息应识别为编排指令；`worker_assign` 不发此前缀（只有 `worker_send` 拼）。
 - **时效性选择规则**：普通补充信息/线索 → `worker_send`（排队送达，worker 空闲时处理）；**需要打断当前执行的时效性消息**（如操作约束、危险操作警告）→ `worker_send_force`（restart+send，立即生效，不等当前任务完成）。
 
 ### 9.6 pending_signal 队列（+ 落盘 queue_pending）
@@ -466,8 +479,8 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 
 1. **先查后做**：`session_list()` 了解当前状态再操作。
 2. **命名规范**：Session 名短横线连接、有语义（`fix-h1`、`debug-auth`）；同名不可重复。
-3. **并行 fan-out 用 `worker_assign` + 订阅 `worker.result`（或 `report_subscribe`）**，不要逐个 handoff 串行。
-4. **串行依赖才用 `worker_handoff`**（DEPRECATED），超时重试带**同一个 `task_id`**。
+3. **并行 fan-out 用 `worker_assign` + 订阅 `worker.result`（或 `report_subscribe`）**；串行依赖同样走 assign + report_subscribe（§2.2/§9.4）。
+4. **上下文过大 / 要切 adapter 用 `session_handoff`**（§2.7）：替身交接创建孪生 session B 接替 A，A 归档可读。
 5. **完成通知二选一**：外部协调 Monitor+/ws/agent，内部 report_subscribe——同用会重复通知。
 6. **订阅可限定 session**：subscribe 传 `sessionIds` 减少无关唤醒；断线后 `reconnect` 补发未消费结果。
 7. **一个 Session 一个任务**：避免混多个不相关任务（taskSeq/result 配对依赖此约束）。
@@ -486,14 +499,11 @@ A: Worker 崩溃/已回收。`worker_spawn(session_id=...)` 重新生成（自�
 **Q: worker_task 后长时间无回复？**
 A: 检查 `workerStatus`——`"idle"` 说明任务已完成但结果未读取，`session_get` 即可；`"running"` 且静默超时可能已被 watchdog 回收。
 
-**Q: handoff 超时了？**
-A: 默认 10 分钟。复杂任务传更大 `timeout`；超时后结果仍可能稍后到达——带**同一 `task_id`** 重发（幂等，防双跑），或 `session_get` 补查。
+**Q: 想切换模型？**
+A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model——idle worker 自动 respawn 生效，running worker 回 idle 时自动重启（不能热切换运行中的 Worker）。
 
 **Q: Worker 被 watchdog 回收了？**
 A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `worker_spawn` 或 `worker_assign`，自动重建。
-
-**Q: 想切换模型？**
-A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model——idle worker 自动 respawn 生效，running worker 回 idle 时自动重启（不能热切换运行中的 Worker）。
 
 **Q: MCP 工具连不上 Pan？**
 A: `PAN_API_URL` / `PAN_WS_URL` 端口要指向实际运行的 port（main 分支 8768，MCP 默认 8768）。MCP server 用 `--pan-url` 或环境变量覆盖。
@@ -586,4 +596,4 @@ A: 检查：目标 session 是否有 `managed_by`、是否已 `report_subscribe`
 - `docs/cbc-mcp-踩坑记录.md` — MCP 接入过程、/ws/agent 订阅协议、deferred 判定
 - `packages/web/server.py` — HTTP API 与 /ws/agent 实现（单一事实源）
 - `packages/mcp/server.py` — MCP 工具实现（`_api` 与各工具）
-- `packages/core/worker.py` — watchdog / handoff / assign / 报告队列实现
+- `packages/core/worker.py` — watchdog / assign / 报告队列实现

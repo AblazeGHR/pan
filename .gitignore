@@ -39,6 +39,8 @@ prompt.md
 # config
 config.json
 .mcp.json
+# opencode adapter 运行时写入的项目级 MCP 配置（spawn opencode 会话时生成）
+opencode.json
 # compiled from ts/app.ts — do not edit directly
 packages/web/static/js/app.js
 packages/web/static/js/app.js.map

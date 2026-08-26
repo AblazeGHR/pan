@@ -32,9 +32,9 @@ TOOLS = [
     mcp_server.worker_task,
     mcp_server.worker_kill,
     mcp_server.worker_list,
-    mcp_server.worker_handoff,
     mcp_server.worker_assign,
     mcp_server.worker_send,
+    mcp_server.session_handoff,
     mcp_server.model_list,
     mcp_server.pan_handbook,
 ]
@@ -54,7 +54,7 @@ class TestPanHandbook:
     def test_returns_meaningful_content(self):
         result = mcp_server.pan_handbook()
         assert "# Pan" in result["content"]
-        assert "worker_handoff" in result["content"]
+        assert "session_handoff" in result["content"]
         assert "watchdog" in result["content"]
 
     def test_env_override(self, monkeypatch, tmp_path):
