@@ -164,6 +164,16 @@ const adapterConfigs: Map<string, AdapterConfig> = new Map();
 let currentAdapter: string = 'cbc';
 let _adapterConfigReady: boolean = false;
 
+// Friendly display labels for known adapters in selects (fallback: raw name).
+const ADAPTER_LABELS: Record<string, string> = {
+  cbc: 'cbc (CodeBuddy CLI)',
+  kimi: 'kimi (Kimi CLI)',
+  opencode: 'opencode',
+};
+function adapterLabel(name: string): string {
+  return ADAPTER_LABELS[name] || name;
+}
+
 // Cached config getters for the currently selected adapter
 function allModels(): string[] { return adapterConfigs.get(currentAdapter)?.models || []; }
 function defaultModel(): string { return adapterConfigs.get(currentAdapter)?.defaultModel || 'deepseek-v4-flash'; }
@@ -2768,7 +2778,7 @@ function _populateNewSessionAdapterSelect(): void {
   availableAdapters.forEach((a: string) => {
     const opt = document.createElement('option');
     opt.value = a;
-    opt.textContent = a;
+    opt.textContent = adapterLabel(a);
     sel.appendChild(opt);
   });
   sel.value = currentAdapter || 'cbc';

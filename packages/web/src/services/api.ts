@@ -69,15 +69,30 @@ export async function fetchSessionHistory(
   return data;
 }
 
+export interface CreateSessionSettings {
+  model?: string;
+  permissionMode?: string;
+  alwaysThinkingEnabled?: boolean;
+  effort?: string;
+}
+
 export async function createSession(
   name: string,
   workdir?: string | null,
   adapter?: string,
   sessionTemplate?: string,
+  settings?: CreateSessionSettings,
 ): Promise<Session> {
-  const body: Record<string, string> = { name, adapter: adapter || 'cbc' };
+  const body: Record<string, unknown> = { name, adapter: adapter || 'cbc' };
   if (workdir) body.workdir = workdir;
   if (sessionTemplate) body.sessionTemplate = sessionTemplate;
+  // Per-adapter settings (backend _create_session applies them). Sent only
+  // when provided so the server-side adapter default still applies otherwise.
+  if (settings?.model) body.model = settings.model;
+  if (settings?.permissionMode) body.permissionMode = settings.permissionMode;
+  if (typeof settings?.alwaysThinkingEnabled === 'boolean')
+    body.alwaysThinkingEnabled = settings.alwaysThinkingEnabled;
+  if (settings?.effort) body.effort = settings.effort;
   const data = await request<ApiSessionResponse>(`${BASE}/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),
