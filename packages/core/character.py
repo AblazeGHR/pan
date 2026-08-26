@@ -17,6 +17,7 @@ import json
 import logging
 import secrets
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -98,6 +99,17 @@ class CharacterManager:
         self._manifest_mtime_snapshot: float = 0.0
         self._manifest_file_count: int = 0
 
+        # Throttle for the cheap stat-only change check: avoid re-statting the
+        # manifest files on every request in a high-frequency burst. The stat
+        # result is cached for ``_manifest_check_ttl`` seconds. A forced reload
+        # via ``reload_manifest()`` (e.g. POST /api/manifest/reload) ALWAYS
+        # re-reads and is NOT subject to this window, so a deterministic
+        # refresh path always exists even within the throttle window.
+        self._manifest_check_ttl: float = 1.0
+        self._cached_mtime: float = 0.0
+        self._cached_count: int = 0
+        self._cached_check_ts: float = 0.0
+
     # ------------------------------------------------------------------ #
     #  Manifest
     # ------------------------------------------------------------------ #
@@ -137,14 +149,29 @@ class CharacterManager:
         self._manifest_mtime_snapshot, self._manifest_file_count = (
             self._manifest_state()
         )
+        # Invalidate the throttle cache so the next change-check re-stats
+        # (the file set / mtime just changed under our feet).
+        self._cached_check_ts = 0.0
 
     def manifest_changed(self) -> bool:
         """True if any resolved manifest file changed since the last load.
 
         Cheap: only ``stat``s files (no read/parse). True when the newest mtime
         advanced OR the set of resolved files changed (add/remove a manifest).
+
+        Throttled: within ``_manifest_check_ttl`` seconds of the previous
+        check we reuse the last stat result instead of re-statting. This is
+        purely an optimisation — ``reload_manifest()`` (the manual /
+        deterministic refresh) never goes through this window.
         """
-        mtime, count = self._manifest_state()
+        now = time.monotonic()
+        if self._cached_check_ts and (now - self._cached_check_ts) < self._manifest_check_ttl:
+            mtime, count = self._cached_mtime, self._cached_count
+        else:
+            mtime, count = self._manifest_state()
+            self._cached_mtime, self._cached_count, self._cached_check_ts = (
+                mtime, count, now,
+            )
         return (
             mtime > self._manifest_mtime_snapshot
             or count != self._manifest_file_count
