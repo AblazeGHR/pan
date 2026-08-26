@@ -172,6 +172,37 @@ class ManifestConfig:
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
+def resolve_manifest_files(plugin_paths: list[str]) -> list[Path]:
+    """Resolve *plugin_paths* to the concrete manifest.json files they point at.
+
+    Mirrors the path-resolution logic that ``load_manifests`` uses, but only
+    returns the (deduplicated, existence-filtered) list of files so callers can
+    ``stat`` them for change detection without re-parsing. Entries that do not
+    exist are skipped — matching ``load_manifests``' skip-on-missing behaviour.
+
+    This is the single source of truth for "which files does a given
+    ``plugin_paths`` resolve to", so hot-reload can stat exactly the files that
+    were loaded (no drift between load and change-detection).
+    """
+    files: list[Path] = []
+    seen: set[Path] = set()
+    for raw_path in plugin_paths:
+        p = Path(raw_path)
+        if not p.is_absolute():
+            p = REPO_ROOT / p
+        if not p.exists():
+            continue
+        manifest_path = p if p.suffix == ".json" else p / "manifest.json"
+        if not manifest_path.exists():
+            continue
+        resolved = manifest_path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        files.append(resolved)
+    return files
+
+
 def load_manifests(plugin_paths: list[str]) -> ManifestConfig:
     """Load and merge manifest.json files from multiple plugin directories.
 
@@ -184,19 +215,7 @@ def load_manifests(plugin_paths: list[str]) -> ManifestConfig:
     """
     config = ManifestConfig()
 
-    for raw_path in plugin_paths:
-        p = Path(raw_path)
-        if not p.is_absolute():
-            p = REPO_ROOT / p
-        if not p.exists():
-            log.warning("Plugin path not found, skipping: %s", raw_path)
-            continue
-
-        manifest_path = p if p.suffix == ".json" else p / "manifest.json"
-        if not manifest_path.exists():
-            log.warning("No manifest.json at %s, skipping", raw_path)
-            continue
-
+    for manifest_path in resolve_manifest_files(plugin_paths):
         try:
             data = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
