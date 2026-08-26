@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import nonebot  # noqa: E402
+import pytest  # noqa: E402
 
 nonebot.init()
 
@@ -32,6 +33,41 @@ from packages.qq.channels import (  # noqa: E402
 
 def _run(coro):
     return asyncio.run(coro)
+
+
+# ── 全局通道状态隔离 ──
+#
+# 本模块会修改进程级的 QQ 通道单例（packages.qq.channels._ACTIVE 经
+# set_active_channel()，以及 packages.qq.plugin 的 _channel / _active_bot）。其中
+# test_plugin_channel_send_goes_through_active_channel 直接对 get_channel() 返回的
+# 通道实例设置 _bot（FakeBot），该实例被 stash 进 _ACTIVE / _channel，测试后未还原。
+# 若本文件先于 test_qq_api 运行，被污染的通道（_bot 已被占用）会泄漏给 test_qq_api：
+# 其 recent_contacts / send 测试依赖 _resolve_bot() 在无 _bot 时回退到 _active_bot，
+# 但污染通道的 _bot 已非空 → 拿到错误 bot → 断言失败。
+#
+# 用模块级 autouse fixture 在模块前后保存并恢复这些全局单例，保证本模块运行后
+# 不留下污染（与 test_qq_api 共享 get_channel()）。导入 plugin 时 get_channel() 已
+# 把 import-time 通道（_bot=None）缓存进 _ACTIVE / _channel，保存的即此干净状态。
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _isolate_qq_channel_state():
+    """Save and restore the process-wide QQ channel singletons so this module
+    leaves no polluted channel behind for test_qq_api (which shares get_channel())."""
+    saved_active = ch.get_active_channel()
+    saved_channel = qq._channel
+    saved_active_bot = qq._active_bot
+    saved_bot = (
+        getattr(saved_channel, "_bot", None) if saved_channel is not None else None
+    )
+    try:
+        yield
+    finally:
+        ch.set_active_channel(saved_active)
+        qq._channel = saved_channel
+        qq._active_bot = saved_active_bot
+        if saved_channel is not None:
+            saved_channel._bot = saved_bot
 
 
 # ── FakeBot / FakeEvent ──
