@@ -22,8 +22,9 @@
           "glm-5.2", "glm-5.1", "glm-5.0", "glm-5.0-turbo", "glm-5v-turbo", "glm-4.7",
           "minimax-m3-pay", "minimax-m2.7",
           "kimi-k2.7", "kimi-k2.6",
-          "hy3"
-        ]
+          "hy3","所有可用模型"
+        ],
+        "说明":"cbc使用的默认模型"
       },
       "permission_mode": {
         "默认值": "bypassPermissions",
