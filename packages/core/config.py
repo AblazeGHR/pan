@@ -64,6 +64,17 @@ DEFAULT_CONFIG: dict = {
         # 默认 reasoning effort（--variant）："" | minimal | low | medium | high | max
         "effort": "",
     },
+    "codex": {
+        # 默认模型。可选值见 adapter.py 的 supported_models；
+        # 不填时自动识别（读 ~/.codex/config.toml 的 model，否则内置兜底）。
+        "model": "deepseek-ai/DeepSeek-V4-Flash",
+        # 可选模型白名单（填=限制可选项，不填=自动识别）
+        "models": [],
+        # 默认权限模式：""（沿用 codex config）| "bypass"（--dangerously-bypass-approvals-and-sandbox）| "approve"（--approve-for-me）
+        "permission_mode": "bypass",
+        # 默认 reasoning effort（-c model_reasoning_effort）："" | low | medium | high
+        "effort": "",
+    },
     # 前端模式："coexist"（默认，/ 旧前端 + /react/ React）、"react"（/ React）、"legacy"（仅旧前端）
     "frontend": "coexist",
     # 服务端口（环境变量 PAN_PORT 可覆盖）
