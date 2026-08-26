@@ -25,6 +25,7 @@ from packages.core.adapters import get_adapter, list_adapters
 from packages.core.adapters.cbc import sessions as cbc_sessions
 from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
+from packages.core.adapters.opencode import sessions as opencode_sessions
 from packages.core.config import load_config, read_config_file, save_config
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
@@ -1040,6 +1041,12 @@ async def api_rename_session(session_id: str, data: dict):
         except Exception as e:
             print(f"[rename] kimi write_custom_title failed: {e}")
 
+    if s.adapter == "opencode" and s.cli_session_id:
+        try:
+            opencode_sessions.write_custom_title(s.cli_session_id, new_name, s.workdir or None)
+        except Exception as e:
+            print(f"[rename] opencode write_custom_title failed: {e}")
+
     await broadcast({
         "type": "session.renamed",
         "sessionId": s.id,
@@ -1078,6 +1085,11 @@ async def api_branch_session(session_id: str, data: dict):
             new_cli_id = kimi_sessions.fork_kimi_session(
                 s.cli_session_id, name, cwd or None,
             )
+        elif s.adapter == "opencode":
+            # OpenCode has no headless --fork; duplicate session rows in SQLite.
+            new_cli_id = opencode_sessions.fork_opencode_session(
+                s.cli_session_id, name, cwd or None,
+            )
         else:
             new_cli_id = cbc_sessions.fork_cbc_session(
                 s.cli_session_id, name, cwd or None,
@@ -1091,6 +1103,9 @@ async def api_branch_session(session_id: str, data: dict):
         if s.adapter == "kimi":
             history = kimi_sessions.parse_kimi_history(new_cli_id, cwd or None)
             raw_usage_entries = kimi_sessions.get_raw_usage(new_cli_id, cwd or None)
+        elif s.adapter == "opencode":
+            history = opencode_sessions.parse_opencode_history(new_cli_id, cwd or None)
+            raw_usage_entries = opencode_sessions.get_raw_usage(new_cli_id, cwd or None)
         else:
             history = cbc_sessions.parse_cbc_history(new_cli_id, cwd)
             raw_usage_entries = cbc_sessions.get_raw_usage(new_cli_id, cwd)
@@ -1983,6 +1998,108 @@ async def api_kimi_sessions_import(data: dict):
         "sessionId": s.id,
         "name": s.name,
     })
+
+    return _session_to_api(s)
+
+
+# ── OpenCode import ──
+
+@app.get("/api/opencode/sessions")
+async def api_opencode_sessions(cwd: str = ""):
+    """List OpenCode sessions available for import (read from SQLite DB)."""
+    sessions = opencode_sessions.list_opencode_sessions(cwd or None)
+    return {"sessions": sessions, "total": len(sessions)}
+
+
+@app.post("/api/opencode/sessions/import")
+async def api_opencode_sessions_import(data: dict):
+    """Import an OpenCode session into Pan (Session only, no worker spawned)."""
+    session_id = data.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    workdir = data.get("workdir") or data.get("cwd") or str(Path.cwd())
+
+    try:
+        history = opencode_sessions.parse_opencode_history(session_id, workdir)
+        raw_usage_entries = opencode_sessions.get_raw_usage(session_id, workdir)
+    except Exception as e:
+        return {"error": f"Failed to parse OpenCode session history: {e}"}
+
+    # import-guard：确认 OpenCode 侧 session 真实存在（防止坏 id 污染导入）
+    all_sessions = opencode_sessions.list_opencode_sessions()
+    if not any(x["session_id"] == session_id for x in all_sessions):
+        return {"error": f"OpenCode session {session_id} not found; refusing to import"}
+
+    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
+    total_usage = sess.compute_total_usage(raw_usage)
+
+    # Dedup by cli_session_id
+    existing = None
+    for s in sess.list_all():
+        if s.cli_session_id == session_id and s.adapter == "opencode":
+            existing = s
+            break
+
+    if existing:
+        w = worker.find_alive_worker_by_session(existing.id)
+        if w:
+            w._replaying = True
+            try:
+                existing.history = history
+                existing.raw_usage = raw_usage
+                existing.total_usage = total_usage
+                sess.save_full(existing)
+                await broadcast({"type": "session.updated", "sessionId": existing.id})
+            finally:
+                w._replaying = False
+            return {**_session_to_api(existing), "reimported": True}
+        w = worker.find_worker_by_session(existing.id)
+        if w:
+            await worker.kill_worker(w.worker_id)
+        existing.history = history
+        existing.raw_usage = raw_usage
+        existing.total_usage = total_usage
+        existing.last_result = None
+        sess.save_full(existing)
+        await broadcast({"type": "session.updated", "sessionId": existing.id})
+        return {**_session_to_api(existing), "reimported": True}
+
+    name = (
+        data.get("name", "")
+        or opencode_sessions.get_session_title(session_id, workdir)
+        or f"opencode-{session_id[:8]}"
+    )
+
+    try:
+        params = _build_session_params(
+            {
+                "adapter": "opencode",
+                "name": name,
+                "sessionTemplate": data.get("sessionTemplate"),
+                **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
+            },
+            resolve_workdir=False,
+        )
+    except ValueError as e:
+        return {"error": f"Failed to apply session template: {e}"}
+
+    s = sess.create(
+        name=name,
+        adapter="opencode",
+        cli_session_id=session_id,
+        history=history,
+        raw_usage=raw_usage,
+        total_usage=total_usage,
+        workdir=workdir,
+        model=params.get("model") or (raw_usage_entries[0].get("model") if raw_usage_entries else None),
+        permission_mode=params.get("permission_mode"),
+        session_template=params.get("session_template"),
+        pan_access=params.get("pan_access"),
+        adapter_config=params.get("adapter_config"),
+    )
+
+    await broadcast({"type": "session.created", "sessionId": s.id, "name": s.name})
 
     return _session_to_api(s)
 
