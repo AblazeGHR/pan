@@ -32,12 +32,14 @@ def _write_stdout_line(text: str) -> None:
 
 
 def _filter_resume_opts(opts: list[str]) -> list[str]:
-    """续接（resume）时只保留 ``-c`` 类配置覆盖，丢弃一次性 flag。
+    """续接（resume）时保留 ``-c`` 配置覆盖与审批/权限 flag，丢弃其它一次性 flag。
 
-    resume 沿用 thread 已存的 model / approval / sandbox 配置，无需重复传
-    ``--model``（已改为 -c model=）/ ``--dangerously-bypass-*`` / ``--approve-for-me``。
-    这些一次性 flag 在 exec resume 子命令下可能不被接受，且 thread 已记住，故丢弃，
-    仅保留 ``-c <value>`` 对（mcp_servers / model_reasoning_effort / model 等覆盖）。
+    resume 沿用 thread 已存的 model / cwd 配置，无需重复传 ``--model``（已改为
+    ``-c model=``）/ ``-C``；但审批 flag 必须重传：thread 存的 approval_mode="never"
+    是 bypass flag 落库的结果，resume 不重传时 codex 以 never 策略**拒绝 MCP 工具
+    调用**（实测报 "MCP tool call requires approval, but approval policy is never"）。
+    实测 ``codex exec resume`` 接受 ``--dangerously-bypass-approvals-and-sandbox``
+    与 ``--approve-for-me``（不可重复，故原样透传即可）。
     """
     out: list[str] = []
     i = 0
@@ -50,6 +52,9 @@ def _filter_resume_opts(opts: list[str]) -> list[str]:
                 i += 2
             else:
                 i += 1
+        elif a in ("--dangerously-bypass-approvals-and-sandbox", "--approve-for-me"):
+            out.append(a)
+            i += 1
         else:
             i += 1
     return out

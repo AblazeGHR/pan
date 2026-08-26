@@ -264,9 +264,10 @@ def test_build_codex_args_resume_filters_non_c_flags():
     assert "exec" in args
     assert "resume" in args
     assert "thread_01a0" in args
-    # resume 只透传 -c 覆盖，丢弃一次性 flag 与 -C（exec resume 不接受 -C）
-    assert "--dangerously-bypass-approvals-and-sandbox" not in args
-    assert "--approve-for-me" not in args
+    # resume 透传 -c 覆盖 + 审批 flag（thread 存 approval_mode="never"，不重传则
+    # codex 拒绝 MCP 工具调用），丢弃 -C（exec resume 不接受）与其它一次性 flag
+    assert "--dangerously-bypass-approvals-and-sandbox" in args
+    assert "--approve-for-me" in args
     assert "-C" not in args
     assert "--skip-git-repo-check" in args
     assert '-c' in args and 'model="m"' in args
