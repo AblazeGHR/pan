@@ -101,11 +101,7 @@ class OpencodeAdapter:
 
     @property
     def _OPENCODE_PATH(self) -> str:
-        env = os.environ.get("PAN_OPENCODE_PATH")
-        if env:
-            return env
-        which = shutil.which("opencode")
-        return which or "opencode"
+        return _resolve_opencode_path()
 
     @property
     def _wrapper_path(self) -> str:
@@ -375,6 +371,10 @@ class OpencodeAdapter:
     def takeover_command(self, s: Session) -> list[str]:
         if not s.cli_session_id:
             return []
+        # opencode 接管 = 交互式 TUI 续接会话，用**顶层** `--session <id>`（见
+        # `opencode --help`：`opencode [project]` 默认启动 TUI，`--session` 为顶层
+        # "session id to continue" 选项）。不要加 `run` 子命令——`opencode run`
+        # 是一次性（非交互）执行，会忽略后续交互，不适合接管。
         return [self._OPENCODE_PATH, "--session", s.cli_session_id]
 
     # ── enrich ──
@@ -453,11 +453,65 @@ def _strip_jsonc(text: str) -> str:
     return out
 
 
+def _resolve_opencode_path() -> str:
+    """解析 opencode 可执行文件路径，避开 npm 的 `.CMD` shim。
+
+    Windows 下 ``shutil.which("opencode")`` 返回 ``opencode.CMD``（npm shim）。
+    把它传给 subprocess 会经由 ``cmd.exe /c`` 启动，cmd.exe 用系统 ANSI 代码页
+    重新切分命令行，导致非 ASCII 参数（如中文 text）被乱码化——opencode run 收到
+    乱码后无 stdout，worker 读取超时，会话卡在 running。
+
+    这里把 shim 解析为真实可执行文件
+    （``<npm-global>/node_modules/opencode-ai/bin/opencode.exe``），参数经
+    CreateProcess 原样传给 opencode，不再经过 cmd.exe 二次解析。
+
+    优先级：``PAN_OPENCODE_PATH`` 环境变量 > 解析真实 exe > 回退 ``shutil.which``。
+    """
+    env = os.environ.get("PAN_OPENCODE_PATH")
+    if env:
+        return env
+    which = shutil.which("opencode")
+    if not which:
+        return "opencode"
+    resolved = _resolve_opencode_exe_from_shim(which)
+    if resolved:
+        return resolved
+    return which
+
+
+def _resolve_opencode_exe_from_shim(shim_path: str) -> str | None:
+    """将由 `.CMD`/`.bat` shim 解析出真实 opencode 可执行文件。
+
+    npm shim 布局：``<dir>/opencode.CMD`` 与
+    ``<dir>/node_modules/opencode-ai/bin/opencode[.exe]`` 相邻。命中返回真实 exe
+    路径，否则返回 ``None``（调用方回退到 shim 本身）。
+
+    对齐 cbc adapter 的 ``_resolve_cbc_argv``：先查确定的包目录，再 glob 兜底。
+    opencode 为原生二进制（非 node 脚本），故直接返回 exe，无需 ``node <entry>``。
+    """
+    if not shim_path.lower().endswith((".cmd", ".bat")):
+        # 已是真实可执行文件（如 Linux/macOS 下的 bin 软链），无需解析
+        return None
+    shim_dir = os.path.dirname(os.path.abspath(shim_path))
+    bin_name = "opencode.exe" if sys.platform == "win32" else "opencode"
+    import glob as _glob
+    candidates = [
+        os.path.join(shim_dir, "node_modules", "opencode-ai", "bin", bin_name),
+    ]
+    candidates += _glob.glob(
+        os.path.join(shim_dir, "node_modules", "*", "bin", "opencode*")
+    )
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return None
+
+
 def _parse_models_from_opencode() -> list[str]:
     """解析 `opencode models` 输出（每行一个 provider/model）。"""
     try:
         r = subprocess.run(
-            [shutil.which("opencode") or "opencode", "models"],
+            [_resolve_opencode_path(), "models"],
             capture_output=True, text=True, timeout=15,
         )
     except Exception:
