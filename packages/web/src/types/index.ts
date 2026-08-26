@@ -257,6 +257,16 @@ export interface KimiSessionItem {
   updatedAt: string;
 }
 
+export interface OpencodeSessionItem {
+  session_id: string;
+  title: string;
+  workDir: string;
+  createdAt: string;
+  updatedAt: string;
+  message_count: number;
+  model: string;
+}
+
 export interface ApiCbcProjectsResponse {
   projects: CbcProject[];
 }
@@ -273,6 +283,11 @@ export interface ApiKimiWorkspacesResponse {
 
 export interface ApiKimiSessionsResponse {
   sessions: KimiSessionItem[];
+}
+
+export interface ApiOpencodeSessionsResponse {
+  sessions: OpencodeSessionItem[];
+  total?: number;
 }
 
 // ── Worker types ──

@@ -14,6 +14,7 @@ import type {
   CbcSessionItem,
   KimiWorkspace,
   KimiSessionItem,
+  OpencodeSessionItem,
   SettingsBody,
   WorkerItem,
   ApiWorkerListResponse,
@@ -467,6 +468,32 @@ export async function importKimiSession(
   return data;
 }
 
+// ── Import: opencode ──
+
+export async function fetchOpencodeSessions(
+  cwd: string,
+): Promise<OpencodeSessionItem[]> {
+  const data = await request<{ sessions: OpencodeSessionItem[] }>(
+    `${BASE}/opencode/sessions?cwd=${encodeURIComponent(cwd)}`,
+  );
+  return data.sessions || [];
+}
+
+export async function importOpencodeSession(
+  sessionId: string,
+  cwd: string,
+): Promise<Session> {
+  const data = await request<ApiSessionResponse>(
+    `${BASE}/opencode/sessions/import`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId, cwd }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 // ── Reimport ──
 
 export async function reimportSession(
@@ -478,7 +505,9 @@ export async function reimportSession(
   const url =
     adapter === 'kimi'
       ? `${BASE}/kimi/sessions/import`
-      : `${BASE}/cbc/sessions/import`;
+      : adapter === 'opencode'
+        ? `${BASE}/opencode/sessions/import`
+        : `${BASE}/cbc/sessions/import`;
   const body: Record<string, string> = { session_id: cliSessionId };
   if (workdir) body.cwd = workdir;
   const data = await request<ApiSessionResponse>(url, {

@@ -625,6 +625,16 @@ interface KimiSessionItem {
   updatedAt: string;
 }
 
+interface OpencodeSessionItem {
+  session_id: string;
+  title: string;
+  workDir: string;
+  createdAt: string;
+  updatedAt: string;
+  message_count: number;
+  model: string;
+}
+
 async function fetchCbcProjects(): Promise<CbcProject[]> {
   const resp = await fetch('/api/cbc/projects');
   const data = await resp.json();
@@ -660,6 +670,21 @@ async function fetchKimiSessions(cwd: string): Promise<KimiSessionItem[]> {
 
 async function importKimiSession(sessionId: string, cwd: string): Promise<any> {
   const resp = await fetch('/api/kimi/sessions/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, cwd: cwd }),
+  });
+  return await resp.json();
+}
+
+async function fetchOpencodeSessions(cwd: string): Promise<OpencodeSessionItem[]> {
+  const resp = await fetch(`/api/opencode/sessions?cwd=${encodeURIComponent(cwd)}`);
+  const data = await resp.json();
+  return data.sessions || [];
+}
+
+async function importOpencodeSession(sessionId: string, cwd: string): Promise<any> {
+  const resp = await fetch('/api/opencode/sessions/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, cwd: cwd }),
@@ -2975,6 +3000,27 @@ function init(): void {
   const importSessionListEl = document.getElementById('importSessionList') as HTMLDivElement;
   const importSessionCountEl = document.getElementById('importSessionCount') as HTMLDivElement;
 
+  // Static HTML only exposes cbc/kimi — inject the opencode option + filter UI here.
+  {
+    const opt = document.createElement('option');
+    opt.value = 'opencode';
+    opt.textContent = 'opencode';
+    importAdapterSelect.appendChild(opt);
+
+    const container = document.createElement('div');
+    container.id = 'opencodeImportFilters';
+    container.className = 'im-select';
+    container.style.display = 'none';
+    container.innerHTML = `
+      <label class="im-label">cwd</label>
+      <input id="opencodeCwdInput" type="text" class="im-cwd-input" placeholder="/path/to/project" />
+      <button id="opencodeLoadBtn" class="btn">Load</button>
+    `;
+    kimiImportFilters.parentElement!.insertBefore(container, importSessionListEl);
+  }
+  const opencodeImportFilters = document.getElementById('opencodeImportFilters') as HTMLDivElement;
+  let opencodeCwd = '';
+
   let allProjects: CbcProject[] = [];
   let currentProjectDir = '';
 
@@ -3006,7 +3052,8 @@ function init(): void {
   function switchImportAdapter(adapter: string): void {
     const isCbc = adapter === 'cbc';
     cbcImportFilters.style.display = isCbc ? '' : 'none';
-    kimiImportFilters.style.display = isCbc ? 'none' : '';
+    kimiImportFilters.style.display = adapter === 'kimi' ? '' : 'none';
+    opencodeImportFilters.style.display = adapter === 'opencode' ? '' : 'none';
     importSessionListEl.innerHTML = '<div class="im-loading">Loading\u2026</div>';
     importSessionCountEl.textContent = '';
 
@@ -3027,7 +3074,7 @@ function init(): void {
           cbcDriveSelect.innerHTML = '<option value="">Failed</option>';
           importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">Error: ${esc(e.message)}</div>`;
         });
-    } else {
+    } else if (adapter === 'kimi') {
       kimiWorkspaceSelect.innerHTML = '<option value="">Loading...</option>';
       fetchKimiWorkspaces()
         .then((workspaces: KimiWorkspace[]) => {
@@ -3043,7 +3090,31 @@ function init(): void {
           kimiWorkspaceSelect.innerHTML = '<option value="">Failed</option>';
           importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">Error: ${esc(e.message)}</div>`;
         });
+    } else if (adapter === 'opencode') {
+      loadOpencodeSessions();
     }
+  }
+
+  function loadOpencodeSessions(): void {
+    opencodeCwd = (document.getElementById('opencodeCwdInput') as HTMLInputElement).value.trim();
+    importSessionListEl.innerHTML = '<div class="im-loading">Loading...</div>';
+    fetchOpencodeSessions(opencodeCwd)
+      .then((sessions: OpencodeSessionItem[]) => renderOpencodeSessions(sessions))
+      .catch((e: any) => {
+        importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">Error: ${esc(e.message)}</div>`;
+      });
+  }
+
+  function renderOpencodeSessions(sessions: OpencodeSessionItem[]): void {
+    importSessionCountEl.textContent = sessions.length ? `${sessions.length} session(s) found` : '';
+    importSessionListEl.innerHTML = sessions.map((s: OpencodeSessionItem) => {
+      const ts = s.updatedAt ? new Date(s.updatedAt).toLocaleString() : '';
+      return `<div class="im-item" data-adapter="opencode" data-sid="${esc(s.session_id)}" data-cwd="${esc(s.workDir)}">
+        <div class="im-title">${esc(s.title || 'Untitled')}</div>
+        <div class="im-meta">${s.message_count} msgs · ${esc(s.model || '?')} · ${esc(ts)}</div>
+      </div>`;
+    }).join('');
+    attachImportItemHandlers();
   }
 
   function buildDriveSelect(): void {
@@ -3133,6 +3204,9 @@ function init(): void {
         if (adapter === 'kimi') {
           const cwd = el.dataset['cwd'] || '';
           result = await importKimiSession(sid, cwd);
+        } else if (adapter === 'opencode') {
+          const cwd = el.dataset['cwd'] || '';
+          result = await importOpencodeSession(sid, cwd);
         } else {
           const pd = el.dataset['pd'] || '';
           result = await importCbcSession(sid, pd);
@@ -3177,6 +3251,11 @@ function init(): void {
     fetchKimiSessions(currentKimiCwd)
       .then((sessions: KimiSessionItem[]) => renderKimiSessions(sessions))
       .catch((e: Error) => { importSessionListEl.innerHTML = `<div class="im-loading" style="color:#f85149">${esc(e.message)}</div>`; });
+  });
+
+  (document.getElementById('opencodeLoadBtn') as HTMLButtonElement).addEventListener('click', loadOpencodeSessions);
+  (document.getElementById('opencodeCwdInput') as HTMLInputElement).addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') loadOpencodeSessions();
   });
 
   cbcProjectSelect.addEventListener('change', () => {
