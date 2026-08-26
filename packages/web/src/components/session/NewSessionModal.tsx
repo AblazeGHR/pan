@@ -39,6 +39,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [permissionMode, setPermissionMode] = useState('');
   const [alwaysThinkingEnabled, setAlwaysThinkingEnabled] = useState(false);
   const [effort, setEffort] = useState('');
+  const [outputMode, setOutputMode] = useState('');
   const [sessionTemplate, setSessionTemplate] = useState('');
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +66,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setPermissionMode('');
       setAlwaysThinkingEnabled(false);
       setEffort('');
+      setOutputMode('');
       setSessionTemplate('');
       setSubmitting(false);
       loadConfig('cbc');
@@ -86,6 +88,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     setPermissionMode(config.defaultPermissionMode || '');
     setAlwaysThinkingEnabled(false);
     setEffort(config.effortValues?.[1] || config.effortValues?.[0] || '');
+    // Only pre-select an Output Mode when the adapter exposes multiple modes;
+    // single-mode adapters (kimi/opencode) never offer the switch.
+    const execModes = config.executionModes || ['stream'];
+    setOutputMode(execModes.length > 1 ? (execModes[0] || 'stream') : '');
   }, [config]);
 
   const handleAdapterChange = (next: string) => {
@@ -113,6 +119,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           permissionMode: permissionMode || undefined,
           alwaysThinkingEnabled,
           effort: effort || undefined,
+          outputMode: outputMode || undefined,
         },
       );
       onClose();
@@ -133,6 +140,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     : [currentModel, ...models];
   const modes = config?.permissionModes || [];
   const effortValues = config?.effortValues || [];
+  const execModes = config?.executionModes || ['stream'];
+  const showOutputMode = execModes.length > 1;
 
   return (
     <Modal open={open} onClose={onClose} title="New Session" size="lg">
@@ -235,6 +244,26 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                 </label>
               )}
           </div>
+        )}
+
+        {/* Output Mode — only adapters with >1 execution mode offer the switch */}
+        {showOutputMode && (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-text-secondary">
+              Output Mode
+            </span>
+            <select
+              value={outputMode || execModes[0] || 'stream'}
+              onChange={(e) => setOutputMode(e.target.value)}
+              className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+            >
+              {execModes.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
 
         {/* Session template select */}

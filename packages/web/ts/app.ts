@@ -14,6 +14,7 @@ interface Session {
   permissionMode?: string | null;
   alwaysThinkingEnabled: boolean;
   effort: string;
+  outputMode?: string | null;
   maxThinkingTokens?: number;
   workdir?: string;
   workerStatus?: string | null;
@@ -130,6 +131,7 @@ interface AdapterConfig {
   permissionModes: {value: string; label: string}[];
   defaultPermissionMode: string;
   supportedSettings: string[];
+  executionModes?: string[];
 }
 
 interface ApiConfigResponse {
@@ -140,6 +142,7 @@ interface ApiConfigResponse {
   permissionModes: {value: string; label: string}[];
   defaultPermissionMode?: string;
   supportedSettings?: string[];
+  executionModes?: string[];
 }
 
 interface SyncedSettings {
@@ -147,6 +150,7 @@ interface SyncedSettings {
   permissionMode: string;
   alwaysThinkingEnabled: boolean;
   effort: string;
+  outputMode: string;
 }
 
 /** 客户端发送队列项（localStorage 按 sessionId 持久化）。 */
@@ -182,6 +186,10 @@ function permissionModes(): {value: string; label: string}[] { return adapterCon
 function defaultPermissionMode(): string { return adapterConfigs.get(currentAdapter)?.defaultPermissionMode || ''; }
 function supportedSettings(): string[] { return adapterConfigs.get(currentAdapter)?.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort']; }
 function supportsSetting(name: string): boolean { return supportedSettings().indexOf(name) >= 0; }
+/** Worker execution modes for the current adapter: ["stream"] or ["stream","oneshot"]. */
+function executionModes(): string[] { return adapterConfigs.get(currentAdapter)?.executionModes || ['stream']; }
+/** True when the adapter exposes more than one execution mode (needs the Output Mode selector). */
+function hasMultipleExecModes(): boolean { return executionModes().length > 1; }
 
 let currentSessionId: string | null = null;
 let currentWorkerId: string | null = null;
@@ -1381,6 +1389,11 @@ function syncPanelFromServer(): void {
     (document.getElementById('settingEffort') as HTMLSelectElement).value =
       effortValues().indexOf(s.effort) >= 0 ? s.effort: (effortValues()[1] || effortValues()[0] || '');
   }
+  if (hasMultipleExecModes()) {
+    const modes = executionModes();
+    const om = s.outputMode || (modes.indexOf('stream') >= 0 ? 'stream' : modes[0]);
+    (document.getElementById('settingOutputMode') as HTMLSelectElement).value = om;
+  }
   (document.getElementById('effortGroup')!).style.display =
     (supportsSetting('thinking') && supportsSetting('effort') && s.alwaysThinkingEnabled && effortValues().length > 0) ? '' : 'none';
 
@@ -1396,6 +1409,9 @@ function syncPanelFromServer(): void {
     effort: supportsSetting('effort')
       ? (document.getElementById('settingEffort') as HTMLSelectElement).value
       : '',
+    outputMode: hasMultipleExecModes()
+      ? (document.getElementById('settingOutputMode') as HTMLSelectElement).value
+      : '',
   };
   updateSetButtonVisibility();
 }
@@ -1410,6 +1426,8 @@ function hasPendingChanges(): boolean {
       (document.getElementById('settingThinking') as HTMLInputElement).checked !== lastSyncedSettings.alwaysThinkingEnabled) return true;
   if (supportsSetting('effort') &&
       (document.getElementById('settingEffort') as HTMLSelectElement).value !== lastSyncedSettings.effort) return true;
+  if (hasMultipleExecModes() &&
+      (document.getElementById('settingOutputMode') as HTMLSelectElement).value !== lastSyncedSettings.outputMode) return true;
   return false;
 }
 
@@ -1489,6 +1507,8 @@ function _buildSettingsBody(): Record<string, unknown> {
     body.alwaysThinkingEnabled = (document.getElementById('settingThinking') as HTMLInputElement).checked;
   if (supportsSetting('effort'))
     body.effort = (document.getElementById('settingEffort') as HTMLSelectElement).value;
+  if (hasMultipleExecModes())
+    body.outputMode = (document.getElementById('settingOutputMode') as HTMLSelectElement).value;
   return body;
 }
 
@@ -1513,6 +1533,7 @@ function markSettingsApplied(): void {
     permissionMode: supportsSetting('permissionMode') ? (document.getElementById('settingMode') as HTMLSelectElement).value : '',
     alwaysThinkingEnabled: supportsSetting('thinking') ? (document.getElementById('settingThinking') as HTMLInputElement).checked : false,
     effort: supportsSetting('effort') ? (document.getElementById('settingEffort') as HTMLSelectElement).value : '',
+    outputMode: hasMultipleExecModes() ? (document.getElementById('settingOutputMode') as HTMLSelectElement).value : '',
   };
   updateSetButtonVisibility();
 }
@@ -2241,6 +2262,12 @@ function _doCreateSession(name: string, workdir: string | null, adapter?: string
   const profileSel = document.getElementById('nsProfileSelect') as HTMLSelectElement;
   const sessionTemplate = profileSel ? profileSel.value : '';
   if (sessionTemplate) body.sessionTemplate = sessionTemplate;
+  // Output Mode: only sent when the chosen adapter exposes multiple modes.
+  if (nsExecModes.length > 1) {
+    const omSel = document.getElementById('nsOutputModeSelect') as HTMLSelectElement;
+    const om = omSel ? omSel.value : '';
+    if (om) body.outputMode = om;
+  }
   fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2286,6 +2313,8 @@ function newSession(): void {
   workdirInput.value = '';
   _populateNewSessionAdapterSelect();
   _populateNewSessionProfileSelect();
+  const nsAdapter = (document.getElementById('nsAdapterSelect') as HTMLSelectElement)?.value || 'cbc';
+  _loadNsAdapterConfig(nsAdapter);
   modal.classList.add('open');
   nameInput.focus();
 }
@@ -2743,6 +2772,7 @@ function loadAdapterConfig(adapterName: string): void {
         permissionModes: data.permissionModes || [],
         defaultPermissionMode: data.defaultPermissionMode || '',
         supportedSettings: data.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'],
+        executionModes: data.executionModes || ['stream'],
       };
       adapterConfigs.set(adapterName, cfg);
       currentAdapter = adapterName;
@@ -2750,6 +2780,7 @@ function loadAdapterConfig(adapterName: string): void {
       buildModelSelect();
       buildModeSelect();
       buildEffortSelect();
+      buildOutputModeSelect();
       updateSettingsVisibility();
       if (document.getElementById('settingsPanel')!.classList.contains('open'))
         syncPanelFromServer();
@@ -2764,10 +2795,13 @@ function updateSettingsVisibility(): void {
   const modeGroup = document.getElementById('modeGroup') as HTMLElement;
   const thinkingGroup = document.getElementById('thinkingGroup') as HTMLElement;
   const effortGroup = document.getElementById('effortGroup') as HTMLElement;
+  const outputModeGroup = document.getElementById('outputModeGroup') as HTMLElement;
   if (modeGroup) modeGroup.style.display = supportsSetting('permissionMode') ? '' : 'none';
   if (thinkingGroup) thinkingGroup.style.display = supportsSetting('thinking') ? '' : 'none';
   // Effort only visible when BOTH thinking and effort are supported
   if (effortGroup) effortGroup.style.display = (supportsSetting('thinking') && supportsSetting('effort')) ? '' : 'none';
+  // Output Mode only shown when the adapter exposes more than one execution mode
+  if (outputModeGroup) outputModeGroup.style.display = hasMultipleExecModes() ? '' : 'none';
 }
 
 /** Populate the Agent CLI selector in the new-session modal. */
@@ -2824,6 +2858,40 @@ function _manifestLabel(p: SessionTemplate): string {
     return (parts[parts.length - 1] || '') + '/manifest.json';
   }
   return 'manifest.json';
+}
+
+/** Execution modes for the adapter currently selected in the new-session
+ *  modal (kept separate from the global currentAdapter to avoid disturbing
+ *  the settings panel). */
+let nsExecModes: string[] = ['stream'];
+
+/** Load execution modes for the adapter chosen in the new-session modal and
+ *  (re)build its Output Mode select. Single-mode adapters keep the field hidden. */
+function _loadNsAdapterConfig(adapter: string): void {
+  fetch('/api/adapter/config?adapter=' + encodeURIComponent(adapter))
+    .then((r: Response) => r.json())
+    .then((data: ApiConfigResponse) => {
+      nsExecModes = data.executionModes || ['stream'];
+      buildNsOutputModeSelect();
+    })
+    .catch(function () {
+      nsExecModes = ['stream'];
+      buildNsOutputModeSelect();
+    });
+}
+
+function buildNsOutputModeSelect(): void {
+  const wrap = document.getElementById('nsOutputModeWrap') as HTMLElement;
+  const sel = document.getElementById('nsOutputModeSelect') as HTMLSelectElement;
+  if (!wrap || !sel) return;
+  sel.innerHTML = '';
+  nsExecModes.forEach((m: string) => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  wrap.style.display = nsExecModes.length > 1 ? '' : 'none';
 }
 
 /** Load the list of adapters and populate the new-session select. */
@@ -3146,6 +3214,11 @@ function init(): void {
       newSessionModal.classList.remove('open');
     }
   });
+  // When the chosen adapter changes, refresh the Output Mode options
+  // (single-mode adapters hide the field entirely).
+  (document.getElementById('nsAdapterSelect') as HTMLSelectElement).addEventListener('change', (e: Event) => {
+    _loadNsAdapterConfig((e.target as HTMLSelectElement).value);
+  });
   nsCreateBtn.addEventListener('click', () => {
     let name = nsNameInput.value.trim();
     if (!name) {
@@ -3236,6 +3309,18 @@ function buildEffortSelect(): void {
     const opt = document.createElement('option');
     opt.value = v;
     opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+function buildOutputModeSelect(): void {
+  const sel = document.getElementById('settingOutputMode') as HTMLSelectElement;
+  if (!sel) return;
+  sel.innerHTML = '';
+  executionModes().forEach((m: string) => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
     sel.appendChild(opt);
   });
 }

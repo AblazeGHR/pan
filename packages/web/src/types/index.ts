@@ -31,6 +31,8 @@ export interface Session {
   historyTotal?: number;
   /** Last history message text (summary=1 endpoint, truncated ~200 chars). */
   lastMessage?: string;
+  /** Explicit worker execution mode for this session: "stream" / "oneshot" / null(unset). */
+  outputMode?: string | null;
   lastResult?: Record<string, unknown> | null;
   totalUsage?: Record<string, number> | null;
   createdAt?: string;
@@ -99,6 +101,8 @@ export interface ApiGenericResponse {
   model?: string;
   takeoverPid?: number;
   reason?: string;
+  /** Backend signals the change requires a worker restart/respawn to take effect. */
+  requireRestart?: boolean;
 }
 
 // ── Manage / QQ postbox types ──
@@ -187,6 +191,8 @@ export interface AdapterConfig {
   permissionModes: PermissionMode[];
   defaultPermissionMode: string;
   supportedSettings: string[];
+  /** Worker 对该 adapter 的可用驱动方式：["stream"] 或 ["stream","oneshot"]。 */
+  executionModes?: string[];
 }
 
 export interface ApiConfigResponse {
@@ -197,6 +203,7 @@ export interface ApiConfigResponse {
   permissionModes: PermissionMode[];
   defaultPermissionMode?: string;
   supportedSettings?: string[];
+  executionModes?: string[];
 }
 
 export interface AdapterInfo {
@@ -328,6 +335,8 @@ export interface SettingsBody {
   permissionMode?: string;
   alwaysThinkingEnabled?: boolean;
   effort?: string;
+  /** Worker execution mode; empty string clears (→ adapter default). */
+  outputMode?: string;
 }
 
 // ── File-system types ──

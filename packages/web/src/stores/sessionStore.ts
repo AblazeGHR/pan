@@ -60,6 +60,7 @@ interface SessionStore {
       permissionMode?: string;
       alwaysThinkingEnabled?: boolean;
       effort?: string;
+      outputMode?: string;
     },
   ) => Promise<void>;
   removeSession: (id: string) => Promise<void>;

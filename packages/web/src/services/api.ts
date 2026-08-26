@@ -74,6 +74,7 @@ export interface CreateSessionSettings {
   permissionMode?: string;
   alwaysThinkingEnabled?: boolean;
   effort?: string;
+  outputMode?: string;
 }
 
 export async function createSession(
@@ -93,6 +94,7 @@ export async function createSession(
   if (typeof settings?.alwaysThinkingEnabled === 'boolean')
     body.alwaysThinkingEnabled = settings.alwaysThinkingEnabled;
   if (settings?.effort) body.effort = settings.effort;
+  if (settings?.outputMode) body.outputMode = settings.outputMode;
   const data = await request<ApiSessionResponse>(`${BASE}/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -391,6 +393,7 @@ export async function fetchAdapterConfig(
       'thinking',
       'effort',
     ],
+    executionModes: data.executionModes || ['stream'],
   };
 }
 

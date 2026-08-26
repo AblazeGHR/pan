@@ -71,12 +71,24 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
     async (key: string, value: unknown) => {
       if (!session) return;
       try {
-        await applySettings(session.id, effectiveWorkerId || undefined, {
-          [key]: value,
-        });
+        const res = await applySettings(
+          session.id,
+          effectiveWorkerId || undefined,
+          { [key]: value },
+        );
         // Reflect the change locally so the select/checkbox stays in sync.
         setDetailSession((d) => (d ? { ...d, [key]: value } : d));
         await loadSessions();
+        // Process-affecting settings (output_mode / model / mcp …) require a
+        // worker restart to take effect. When a worker is NOT running the
+        // backend flags `requireRestart`; surface it so the user knows the
+        // change applies on next spawn / when the worker goes idle.
+        if ((res as { requireRestart?: boolean }).requireRestart) {
+          showToast(
+            '配置已保存，worker 将在下次空闲时重启以生效（或手动重启）',
+            'info',
+          );
+        }
       } catch (e) {
         showToast((e as Error).message || 'Failed', 'error');
       }
@@ -114,6 +126,13 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
     supportsSetting(config, 'effort') &&
     !!s.alwaysThinkingEnabled;
   const effortValues = config.effortValues || [];
+  // Output Mode selector is shown only when the adapter exposes more than one
+  // execution mode (e.g. cbc: ["stream","oneshot"]). Single-mode adapters
+  // (kimi/opencode: ["stream"]) never render it — they cannot switch.
+  const execModes = config.executionModes || ['stream'];
+  const showOutputMode = execModes.length > 1;
+  const currentOutputMode =
+    s.outputMode ?? (execModes.includes('stream') ? 'stream' : execModes[0]);
 
   return (
     <div
@@ -186,6 +205,26 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
               </select>
             </label>
           )}
+        </div>
+      )}
+
+      {/* Output Mode (execution mode): only adapters with >1 mode offer it */}
+      {showOutputMode && (
+        <div>
+          <label className="block text-xs text-text-secondary mb-1">
+            Output Mode
+          </label>
+          <select
+            value={currentOutputMode}
+            onChange={(e) => applySetting('outputMode', e.target.value)}
+            className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+          >
+            {execModes.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
