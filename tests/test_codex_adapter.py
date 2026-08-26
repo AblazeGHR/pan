@@ -292,10 +292,11 @@ def test_filter_resume_opts():
     assert codex_wrapper._filter_resume_opts(
         ["-c", 'a="1"', "--flag", "-c", 'b="2"']
     ) == ["-c", 'a="1"', "-c", 'b="2"']
-    # bypass flag 保留（resume 支持），其它一次性 flag 丢弃
+    # 审批 flag 保留（resume 实测接受；thread 存 approval_mode="never"，不重传
+    # 则 codex 拒绝 MCP 工具调用），其它一次性 flag 丢弃
     assert codex_wrapper._filter_resume_opts(
         ["--dangerously-bypass-approvals-and-sandbox", "--approve-for-me", "-c", 'x="1"']
-    ) == ["--dangerously-bypass-approvals-and-sandbox", "-c", 'x="1"']
+    ) == ["--dangerously-bypass-approvals-and-sandbox", "--approve-for-me", "-c", 'x="1"']
     print("PASS: _filter_resume_opts")
 
 
