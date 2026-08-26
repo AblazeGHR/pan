@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
+import { nextSessionDefaultName } from '@/utils/sessionName';
 import { fetchSessionTemplates } from '@/services/api';
 import type { SessionTemplate } from '@/types';
 
@@ -106,7 +107,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     setSubmitting(true);
 
     const finalName =
-      name.trim() || `session-${sessions.length + 1}`;
+      name.trim() || nextSessionDefaultName(sessions);
 
     try {
       await createNewSession(
@@ -226,7 +227,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={`session-${sessions.length + 1}`}
+            placeholder={nextSessionDefaultName(sessions)}
             className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
           />
         </label>
