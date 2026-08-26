@@ -23,12 +23,15 @@ from .opencode import OpencodeAdapter
 from .opencode import sessions as opencode_sessions
 from .claude import ClaudeAdapter
 from .claude import sessions as claude_sessions
+from .codex import CodexAdapter
+from .codex import sessions as codex_sessions
 
 # 启动时注册内置 adapter
 register("cbc", CbcAdapter())
 register("kimi", KimiAdapter())
 register("opencode", OpencodeAdapter())
 register("claude", ClaudeAdapter())
+register("codex", CodexAdapter())
 
 # 启动时注册 sessions provider（P0-2：server 按 adapter 名统一调用，
 # 无需为每个 adapter 写 import/branch/rename 分派）。
@@ -36,6 +39,7 @@ register_sessions_provider("cbc", cbc_sessions)
 register_sessions_provider("kimi", kimi_sessions)
 register_sessions_provider("opencode", opencode_sessions)
 register_sessions_provider("claude", claude_sessions)
+register_sessions_provider("codex", codex_sessions)
 
 __all__ = [
     "CliAdapter",
@@ -51,4 +55,5 @@ __all__ = [
     "KimiAdapter",
     "OpencodeAdapter",
     "ClaudeAdapter",
+    "CodexAdapter",
 ]
