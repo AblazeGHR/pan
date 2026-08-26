@@ -51,7 +51,12 @@ class SessionTemplate:
     bootstrap data (memory/assets live on CharacterTemplate).
     """
     name: str
-    adapter: str = "cbc"
+    # Empty string means "adapter not specified by the manifest" — the caller
+    # (e.g. session creation) falls back to the default adapter ("cbc"). This
+    # deliberately differs from a template that *explicitly* sets
+    # ``adapter: "cbc"``: the frontend unlocks the adapter selector only when
+    # the value is empty/None (falsy).
+    adapter: str = ""
     model: str | None = None
     permission_mode: str | None = None
     system_prompt: str = ""
@@ -273,7 +278,10 @@ def _parse_session_template(raw: dict, plugin_dir: str) -> SessionTemplate:
 
     return SessionTemplate(
         name=raw.get("name", ""),
-        adapter=raw.get("adapter", "cbc"),
+        # ``raw.get("adapter") or ""`` distinguishes "not specified" (→ "")
+        # from an explicit adapter name. Empty string lets the caller fall back
+        # to the default adapter; a non-empty value locks the adapter.
+        adapter=raw.get("adapter") or "",
         model=raw.get("model"),
         mcp_mode=raw.get("mcp_mode", "optional"),
         permission_mode=raw.get("permission_mode"),
