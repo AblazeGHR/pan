@@ -404,16 +404,6 @@ function CbcSection({
   importingId,
   onImport,
 }: CbcSectionProps) {
-  // Front-end path filter: narrow the session list by the session's
-  // project_dir (cbc sessions are scoped to a project, so this is the path).
-  const [pathFilter, setPathFilter] = useState('');
-  const pathFilterTrim = pathFilter.trim();
-  const visibleSessions = pathFilterTrim
-    ? cbcSessions.filter((s) =>
-        s.project_dir.toLowerCase().includes(pathFilterTrim.toLowerCase()),
-      )
-    : cbcSessions;
-
   return (
     <>
       {/* Loading */}
@@ -501,33 +491,12 @@ function CbcSection({
           </div>
         )}
 
-      {/* Front-end path filter */}
-      {selectedProject && !cbcLoading && cbcSessions.length > 0 && (
-        <input
-          type="text"
-          value={pathFilter}
-          onChange={(e) => setPathFilter(e.target.value)}
-          placeholder="Filter by path (project_dir)…"
-          className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
-        />
-      )}
-
-      {/* No sessions match the path filter */}
-      {selectedProject &&
-        !cbcLoading &&
-        cbcSessions.length > 0 &&
-        visibleSessions.length === 0 && (
-          <div className="py-2 text-center text-sm text-text-tertiary">
-            No sessions match “{pathFilterTrim}”
-          </div>
-        )}
-
       {/* Session list */}
       {selectedProject &&
         !cbcLoading &&
-        visibleSessions.length > 0 && (
+        cbcSessions.length > 0 && (
           <div className="max-h-64 overflow-y-auto space-y-1 rounded border border-border-muted bg-bg-primary p-1">
-            {visibleSessions.map((item) => (
+            {cbcSessions.map((item) => (
               <CbcSessionItemRow
                 key={item.session_id}
                 item={item}
@@ -612,15 +581,6 @@ function KimiSection({
   importingId,
   onImport,
 }: KimiSectionProps) {
-  // Front-end path filter: narrow the session list by the session's workDir.
-  const [pathFilter, setPathFilter] = useState('');
-  const pathFilterTrim = pathFilter.trim();
-  const visibleSessions = pathFilterTrim
-    ? kimiSessions.filter((s) =>
-        s.workDir.toLowerCase().includes(pathFilterTrim.toLowerCase()),
-      )
-    : kimiSessions;
-
   return (
     <>
       {/* Loading */}
@@ -683,33 +643,12 @@ function KimiSection({
           </div>
         )}
 
-      {/* Front-end path filter */}
-      {selectedWorkspace && !kimiLoading && kimiSessions.length > 0 && (
-        <input
-          type="text"
-          value={pathFilter}
-          onChange={(e) => setPathFilter(e.target.value)}
-          placeholder="Filter by path (workDir)…"
-          className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
-        />
-      )}
-
-      {/* No sessions match the path filter */}
-      {selectedWorkspace &&
-        !kimiLoading &&
-        kimiSessions.length > 0 &&
-        visibleSessions.length === 0 && (
-          <div className="py-2 text-center text-sm text-text-tertiary">
-            No sessions match “{pathFilterTrim}”
-          </div>
-        )}
-
       {/* Session list */}
       {selectedWorkspace &&
         !kimiLoading &&
-        visibleSessions.length > 0 && (
+        kimiSessions.length > 0 && (
           <div className="max-h-64 overflow-y-auto space-y-1 rounded border border-border-muted bg-bg-primary p-1">
-            {visibleSessions.map((item) => (
+            {kimiSessions.map((item) => (
               <KimiSessionItemRow
                 key={item.session_id}
                 item={item}
