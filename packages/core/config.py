@@ -55,8 +55,8 @@ DEFAULT_CONFIG: dict = {
     },
     "opencode": {
         # 默认模型（provider/model）。可选值见 adapter.py 的 supported_models
-        # （`opencode models` 解析 > 内置）。无配置时回退 opencode/deepseek-v4-flash-free。
-        "model": "opencode/deepseek-v4-flash-free",
+        # （`opencode models` 解析 > 内置）。无配置时回退 opencode/big-pickle（免费、无需 key）。
+        "model": "opencode/big-pickle",
         # 默认权限模式：""（沿用 opencode.json 配置）| "auto"（--auto 绕过 ask）
         "permission_mode": "",
         # 默认是否开启 thinking 显示（--thinking）

@@ -160,16 +160,33 @@ headless 可测（无需 API）。**假定**：opencode 从 `session`/`message`/
 ### 4.8 takeover（G11）
 `takeover_command` → `[_OPENCODE_PATH, "--session", s.cli_session_id]`（TUI）。
 
-### 4.9 测试环境阻塞（重要，照实记录）
-- `MOONSHOT_API_KEY` 存在（len 51）但实测 **401 Invalid Authentication**（无效/过期）。
-- `opencode/deepseek-v4-flash-free` 免费模型本次实测 **400 "Model is unavailable"**（此前曾有成功会话）。
-- 故**无任何 provider 可跑通成功回合**：无法用真实模型验证 assistant/result 成功事件解析。
-- 适配器实现本身**不依赖可用 key**（仅 spawn CLI），故实现可推进。
-- 可验证范围（独立端口/不碰服务）：
-  1. `opencode run` 通过 wrapper 被 spawn，error 事件被正确解析 → 合成 result(is_error)（**已端到端实测**：2026-08-26 用真实 `opencode.CMD` 跑通，stdout 转发 `{"type":"error",...}` 并合成 `{"role":"result","is_error":true,"result":"[opencode APIError] Invalid Authentication"}`，EOF 后 wrapper 自退出 exit 0）。
-  2. sessions.py 直读 SQLite：list/parse/usage/fork **已实测通过**（本地库 3 条会话，parse 出 user/thinking/assistant 块，fork 复制行并写 parent_id，rename 生效）。
-- **未验证**：成功回合的 `text`/`reasoning`/`tool_use` 解析与 enrich 回填，需待有效 key/可用免费模型后复测。
-- 修复记录：wrapper 初版在 stdin EOF 后不退出（主循环阻塞在 `message_queue.get()`），已让 `_stdin_reader` 在 EOF 时入队 `None` 哨兵，主循环收到后退出（仅增强健壮性，不影响运行时 Pan 主动 kill 行为）。
+### 4.9 免费模型实测结论（阻塞已解除，2026-08-26 复测）
+
+**结论：opencode 网关免费模型（`opencode/*` 前缀）无需用户 API key 即可正常使用**，网关侧处理鉴权，实测 `cost:0`。原 §4.9 阻塞源于误用了一个**当时不可用**的 free 模型（`deepseek-v4-flash-free`），而非 opencode 适配或免费额度本身有问题。
+
+实测清单（均带 timeout，环境 Windows，`opencode` v1.18.23，路径解析为 `opencode.CMD`）：
+
+| 模型 | `opencode run "1+1" --format json` | 说明 |
+|------|------|------|
+| `opencode/big-pickle` | ✅ "2" | **可用，已设为默认模型** |
+| `opencode/mimo-v2.5-free` | ✅ "2" | 可用 |
+| `opencode/nemotron-3-ultra-free` | ✅ "2"（含 reasoning tokens） | 可用 |
+| `opencode/deepseek-v4-flash-free` | ❌ 服务端 500 "Unexpected server error" | **不可用**（原默认，已替换） |
+| `opencode/north-mini-code-free` | ❌ 401 "Model north-mini-code-free is not supported" | 不可用 |
+| `opencode/hy3-free`、`opencode/muse-spark-1.2-contributor-free`、`opencode/nemotron-3.5-lightning-free`、`opencode/x-preview-f-free` | 未逐一 run（列于 `opencode models`，属免费池） | 待按需复测 |
+
+- 注：`gpt-5-mini-free` / `gemini-2.0-flash-free` 不在本网关 `opencode models` 清单内，不选用。
+- `opencode models` 解析出的免费池比手写内置列表更大；`supported_models` 优先取 CLI 解析，故前端模型下拉会随网关自动更新。
+
+**默认模型调整**：`adapter.py` `_DEFAULT_MODEL` 与 `config.py` `opencode.model` 均改为 `opencode/big-pickle`（原 `deepseek-v4-flash-free` 不可用）。`_BUILTIN_MODELS` 重排为可用 free 模型在前。
+
+**成功回合端到端复验（独立跑 wrapper，未起服务、不碰 8768/8080/NapCat）**：
+1. `opencode/big-pickle` 跑通完整链路：wrapper spawn → 流式 `text` 事件 → 合成 `{"role":"result",...}`。
+2. `text`/`reasoning`/`tool_use` 事件解析均验证：plain 回合 `block_roles=['assistant']`、result_text='2'；`--thinking` 回合 `block_roles=['thinking','assistant']`（reasoning 事件正确归 thinking）；`tool_use` 事件归 `role:tool`（craft 事件验证 `Bash(ls)\n→ file.txt`）。
+3. `enrich_after_result` 从 SQLite 回填：返回 `model="opencode/big-pickle"` + `rawUsage{prompt_tokens,completion_tokens,cache_read_tokens,cost:0.0}`，并回填 `s.model`。说明 streaming 事件无 model 字段、由 DB 聚合用量回补的假设成立。
+4. `MOONSHOT_API_KEY` 仍 401（无效/过期），但 opencode 免费模型链路已完全不依赖它。
+
+- 历史修复记录：wrapper 初版在 stdin EOF 后不退出（主循环阻塞在 `message_queue.get()`），已让 `_stdin_reader` 在 EOF 时入队 `None` 哨兵，主循环收到后退出（仅增强健壮性，不影响运行时 Pan 主动 kill 行为）。
 
 ## 5. 任务分解
 
@@ -188,14 +205,14 @@ headless 可测（无需 API）。**假定**：opencode 从 `session`/`message`/
 - [x] 静态：import OpencodeAdapter，协议方法齐备（`python -c` 校验）
 - [x] wrapper 管道：spawn wrapper → 写 stdin 消息 → 收合成 result(is_error=true)（验证 error 事件解析，已端到端实测）
 - [x] sessions.py：list/parse/usage/fork 直读 SQLite 验证（headless）
-- [ ] 成功回合解析：待有效 API key/可用免费模型后复测（已知阻塞，见 §4.9）
+- [x] 成功回合解析：已用 `opencode/big-pickle` 免费模型端到端复测通过（见 §4.9）
 
 ### T3 提交
 - [ ] `git add` + `commit`（feat(opencode): ...）
 - [ ] 报告（经 Pan 订阅自动送达，无需 SendMessage）
 
 ## 6. 风险与边界
-- 成功事件解析依赖 cheatsheet + DB 推断，未经真实成功回合验证（§4.9 阻塞）。
+- 成功事件解析已用 `opencode/big-pickle` 免费模型经真实成功回合验证（`text`/`reasoning`/`tool_use` 解析 + SQLite enrich 回填均通过，见 §4.9）。
 - fork 经 DB 复制，假定 opencode 从 `session/message/part` 恢复；若还需 `event` 溯源行，需补。
 - 仅改本 worktree（feat/cli-adapters）；不动 D:/project/Pan；不碰 8768/8080/NapCat；测试用 8793/8794。
 - 共享文件（server.py / config.py / __init__.py）编辑前必 `git status`/`diff`，保留 kimi 改动，仅追加 opencode。

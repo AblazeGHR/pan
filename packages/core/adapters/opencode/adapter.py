@@ -19,10 +19,15 @@ from ...session import Session
 
 _log = logging.getLogger(__name__)
 
+# opencode/* 前缀 = opencode 网关免费模型（无需用户 API key，gateway 处理鉴权）。
+# 实测可用（2026-08-26）：big-pickle、mimo-v2.5-free、nemotron-3-ultra-free。
+# 实测不可用：deepseek-v4-flash-free（gateway 服务端 500 "Unexpected server error"）、
+#             north-mini-code-free（"Model ... is not supported" 401）。
 _BUILTIN_MODELS = [
-    "opencode/deepseek-v4-flash-free",
+    "opencode/big-pickle",
     "opencode/mimo-v2.5-free",
     "opencode/nemotron-3-ultra-free",
+    "opencode/deepseek-v4-flash-free",
     "opencode/north-mini-code-free",
     "moonshotai/kimi-k2.6",
     "moonshotai/kimi-k2.7-code",
@@ -35,7 +40,7 @@ class OpencodeAdapter:
 
     name = "opencode"
 
-    _DEFAULT_MODEL = "opencode/deepseek-v4-flash-free"
+    _DEFAULT_MODEL = "opencode/big-pickle"
     _DEFAULT_PERMISSION_MODE = ""
     _DEFAULT_ALWAYS_THINKING_ENABLED = False
     _DEFAULT_EFFORT = ""
