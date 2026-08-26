@@ -8,6 +8,12 @@ interface ModelSelectProps {
   /** 选中某个模型时回调（选中即生效，由调用方决定交互语义）。 */
   onChange: (value: string) => void;
   className?: string;
+  /** 覆盖按钮样式。默认是 settings 里的 combobox 样式；聊天输入区的 ModelPill
+   *  传 PILL_CLASS 以保持 pill 外观。 */
+  buttonClassName?: string;
+  /** 覆盖下拉菜单定位/尺寸。默认向下展开（`top-full mt-1 w-full`）；
+   *  ModelPill 传向上展开（`bottom-full mb-1`）以保持原交互。 */
+  menuClassName?: string;
 }
 
 /**
@@ -27,11 +33,19 @@ export function ModelSelect({
   options,
   onChange,
   className = '',
+  buttonClassName,
+  menuClassName,
 }: ModelSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const buttonClass =
+    buttonClassName ??
+    'flex w-full items-center justify-between gap-1 truncate rounded border border-border-default bg-bg-tertiary px-2 py-1 text-left text-xs text-text-primary hover:bg-bg-hover';
+  const menuClass =
+    menuClassName ?? 'absolute left-0 top-full z-40 mt-1 w-full';
 
   // 当前值不在 options 中时插入顶部，保证历史模型始终可选中/可显示。
   const allOptions = options.includes(value) ? options : [value, ...options];
@@ -74,7 +88,7 @@ export function ModelSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         title={value}
-        className="flex w-full items-center justify-between gap-1 truncate rounded border border-border-default bg-bg-tertiary px-2 py-1 text-left text-xs text-text-primary hover:bg-bg-hover"
+        className={buttonClass}
       >
         <span className="truncate">{value || '…'}</span>
         <span className="shrink-0 text-text-tertiary" aria-hidden>
@@ -83,7 +97,9 @@ export function ModelSelect({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-40 mt-1 w-full rounded border border-border-default bg-bg-secondary shadow-xl">
+        <div
+          className={`${menuClass} rounded border border-border-default bg-bg-secondary shadow-xl`}
+        >
           <input
             ref={inputRef}
             value={query}
