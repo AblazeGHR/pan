@@ -15,6 +15,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from ...session import Session
+from ..mcp import write_mcp_json
 
 _log = logging.getLogger(__name__)
 
@@ -215,44 +216,13 @@ class KimiAdapter:
         MCP 工具不会注册——属已知限制，需在 TUI 中 `Trust this folder` 或用户级
         ~/.kimi-code/mcp.json 兜底。
         """
-        servers = s.adapter_config.get("mcp_servers")
-        if not servers or not s.workdir:
+        if not s.workdir:
             return
-        mcp_servers: dict[str, dict] = {}
-        for srv in servers:
-            name = srv.get("name", "unnamed")
-            entry: dict = {}
-            if "command" in srv:
-                entry["command"] = srv["command"]
-            if "args" in srv:
-                entry["args"] = srv["args"]
-            if "url" in srv:
-                entry["url"] = srv["url"]
-            if "transport" in srv:
-                entry["transport"] = srv["transport"]
-            if "cwd" in srv:
-                entry["cwd"] = srv["cwd"]
-            if "env" in srv:
-                entry["env"] = srv["env"]
-            if "headers" in srv:
-                entry["headers"] = srv["headers"]
-            # pan / pan-qq server：注入 MA session 身份，使 MCP 工具可代表本会话
-            # 动作（worker_send 给 agent 消息打标，qq_bind/qq_unbind 订阅其 qq）。
-            if name in ("pan", "pan-qq"):
-                env = dict(entry.get("env") or {})
-                env["PAN_AGENT_SESSION_ID"] = s.id
-                env["PAN_AGENT_SESSION_TITLE"] = s.name
-                entry["env"] = env
-            entry.setdefault("type", "stdio")
-            mcp_servers[name] = entry
         path = Path(s.workdir) / ".kimi-code" / "mcp.json"
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
+        # 描述符构造与幂等写由 adapters/mcp.py 共享 helper 收敛（P0-1）。
+        mcp_servers = write_mcp_json(path, s)
+        if mcp_servers:
             _log.info("[KimiAdapter] wrote mcp.json (%d servers) -> %s", len(mcp_servers), path)
-        except OSError as e:
-            _log.warning("[KimiAdapter] failed to write mcp.json at %s: %s", path, e)
 
     # ── stdin 消息编码 ──
 

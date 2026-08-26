@@ -357,3 +357,28 @@ def fork_opencode_session(parent_id: str, name: str, workdir: str | None = None)
         return new_id
     finally:
         con.close()
+
+
+# ── SessionsProvider 统一接口（adapter-architecture P0-2）──
+# 与 cbc/kimi 的 sessions 模块对齐协议命名，供 server 按 adapter 名统一调用。
+# 旧命名函数（list_opencode_sessions / fork_opencode_session 等）保留。
+
+
+def list_sessions(cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：列 opencode 会话（cwd 即 directory 过滤语义）。"""
+    return list_opencode_sessions(cwd)
+
+
+def parse_history(session_id: str, cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：解析 opencode session 历史。"""
+    return parse_opencode_history(session_id, cwd)
+
+
+def session_exists(session_id: str, cwd: str | None = None) -> bool:
+    """SessionsProvider 可选能力：session 是否真实存在于 SQLite（import guard）。"""
+    return any(x["session_id"] == session_id for x in list_opencode_sessions())
+
+
+def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
+    """SessionsProvider：fork opencode session（复制 DB 行 + parent_id 指向）。"""
+    return fork_opencode_session(parent_id, name, cwd)
