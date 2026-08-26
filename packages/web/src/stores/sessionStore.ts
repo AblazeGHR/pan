@@ -390,6 +390,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({
       sessions: [...s.sessions, placeholder],
       currentSessionId: placeholder.id,
+      // 新建会话的聊天面板必须立刻清空旧 session 的消息：currentMessages
+      // 不会被下方 set 自动重置，若不在此清空，左侧卡片已切到新 session 但
+      // 聊天区仍渲染旧 session 内容，需反复切换才刷新（bug 1）。
+      currentMessages: [],
       // 新 session 没有 history 需要拉取——清掉可能残留的 initialLoading，
       // 否则空历史的新会话会一直显示转圈而非空态。
       initialLoading: false,
@@ -426,6 +430,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         return {
           sessions,
           currentSessionId: wasCurrent ? session.id : s.currentSessionId,
+          // 真实 session 就绪后，聊天区同步为新 session 的历史（新建为空）。
+          // 否则 currentMessages 仍残留上一 session 的内容（bug 1）。
+          // 仅当创建流程仍是当前选中时才覆盖——若用户中途切走，保持其当前
+          // session 的消息不变，避免把别的 session 的消息区清空。
+          currentMessages: wasCurrent ? session.history || [] : s.currentMessages,
           initialLoading: false,
         };
       });

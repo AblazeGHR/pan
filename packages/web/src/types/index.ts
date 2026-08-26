@@ -61,16 +61,27 @@ export interface WorkerEventContent {
   type: string;
   text?: string;
   thinking?: string;
+  /** kimi: 思考块用 `type: 'think'` + `think` 字段（cbc 用 thinking）。 */
+  think?: string;
   name?: string;
   input?: Record<string, unknown>;
 }
 
 export interface WorkerEvent {
   type: string;
+  /** kimi: stream-json 事件以 role 标识（assistant/thinking/result/meta），
+   *  纯文本 assistant 事件没有 type 字段。 */
+  role?: string;
   subtype?: string;
   message?: {
     content?: WorkerEventContent[];
   };
+  /** kimi: content 可为纯字符串或块数组（cbc 走 message.content）。 */
+  content?: string | WorkerEventContent[];
+  /** kimi: `type:'content.part'` 事件的增量块。 */
+  part?: { type?: string } & Record<string, unknown>;
+  /** kimi: tool_calls（function call）。 */
+  tool_calls?: Array<{ function?: { name?: string; arguments?: string } }>;
   session_id?: string;
   model?: string;
   is_error?: boolean;

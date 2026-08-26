@@ -259,16 +259,77 @@ function pyJsonDumps(value: unknown): string {
   );
 }
 
+/** 把 worker.stream 的 assistant 事件规整为 `{role, content}` 块列表。
+ *  兼容两种事件形状（与后端各 adapter 的 extract_assistant_blocks 语义对齐）：
+ *  - cbc：{type:'assistant', message:{content:[{type:'text',text}...]}}
+ *  - kimi：{role:'assistant', content: 字符串|块数组}、
+ *          {type:'content.part', role:'assistant', part:{type,text}}、
+ *          以及 tool_calls —— kimi 事件以 role 标识、可无 type 字段，
+ *          此前前端只认 type==='assistant' 导致 kimi 流式/完成后均不渲染。 */
+function extractBlocks(
+  event: WorkerEvent,
+): Array<{ role: string; content: string }> {
+  const blocks: Array<{ role: string; content: string }> = [];
+  const role = event.role ?? event.type;
+  if (role !== 'assistant' && role !== 'thinking') return blocks;
+
+  // cbc: message.content；kimi: content（纯字符串或块数组）
+  const content = event.message?.content ?? event.content;
+  if (typeof content === 'string') {
+    blocks.push({
+      role: role === 'thinking' ? 'thinking' : 'assistant',
+      content,
+    });
+  } else if (Array.isArray(content)) {
+    for (const b of content) {
+      if (!b || typeof b !== 'object') continue;
+      if (b.type === 'text') {
+        blocks.push({ role: 'assistant', content: b.text || '' });
+      } else if (b.type === 'thinking' || b.type === 'think') {
+        blocks.push({
+          role: 'thinking',
+          content: b.thinking ?? b.think ?? '',
+        });
+      } else if (b.type === 'tool_use') {
+        const c =
+          (b.name || '') + '(' + pyJsonDumps(b.input || {}) + ')';
+        blocks.push({ role: 'tool', content: c });
+      }
+    }
+  }
+
+  // kimi content.part 增量块：{type:'content.part', part:{type:'text', text}}
+  if (blocks.length === 0 && event.type === 'content.part') {
+    const part = (event.part ?? {}) as Record<string, unknown>;
+    const ptype = String(part.type ?? '');
+    const text = String(part[ptype] ?? '').trim();
+    if (text) {
+      blocks.push({
+        role: ptype === 'think' ? 'thinking' : 'assistant',
+        content: text,
+      });
+    }
+  }
+
+  // kimi tool_calls：{tool_calls:[{function:{name, arguments}}]}
+  for (const tc of event.tool_calls ?? []) {
+    const fn = tc?.function ?? {};
+    blocks.push({
+      role: 'tool',
+      content: `${fn.name ?? '?'}(${fn.arguments ?? '{}'})`,
+    });
+  }
+
+  return blocks;
+}
+
 /** 从 worker.stream 的 assistant 事件提取最新文本块（卡片 lastMessage 预览）。
- *  镜像 appendEvent 的 event.message.content 结构：每个 text 块在消息区各成一条
- *  assistant 消息，预览取最后一个 text 块即「最新消息」。非 assistant 事件或无
- *  text 块 → 返回 null（跳过，不更新卡片）。 */
+ *  每个 text 块在消息区各成一条 assistant 消息，预览取最后一个 text 块即
+ *  「最新消息」。无 text 块（thinking/tool/meta 等）→ 返回 null。 */
 function extractStreamText(event: WorkerEvent): string | null {
-  if (event.type !== 'assistant') return null;
-  const content = event.message?.content || [];
   let text = '';
-  for (const block of content) {
-    if (block.type === 'text' && block.text) text = block.text;
+  for (const b of extractBlocks(event)) {
+    if (b.role === 'assistant' && b.content) text = b.content;
   }
   return text || null;
 }
@@ -280,24 +341,15 @@ function appendEvent(event: StreamEvent['event']): void {
   if (t === 'result') return;
 
   const store = useSessionStore.getState();
-
-  if (t === 'assistant') {
-    const content = event.message?.content || [];
-    for (const b of content) {
-      if (b.type === 'text') {
-        store.addMessage({ role: 'assistant', content: b.text || '' });
-      } else if (b.type === 'thinking') {
-        store.markUnread(b.thinking || '');
-        store.addMessage({
-          role: 'thinking',
-          content: b.thinking || '',
-        });
-      } else if (b.type === 'tool_use') {
-        const c =
-          (b.name || '') + '(' + pyJsonDumps(b.input || {}) + ')';
-        store.markUnread(c);
-        store.addMessage({ role: 'tool', content: c });
-      }
+  for (const b of extractBlocks(event)) {
+    if (b.role === 'assistant') {
+      store.addMessage({ role: 'assistant', content: b.content });
+    } else if (b.role === 'thinking') {
+      store.markUnread(b.content);
+      store.addMessage({ role: 'thinking', content: b.content });
+    } else if (b.role === 'tool') {
+      store.markUnread(b.content);
+      store.addMessage({ role: 'tool', content: b.content });
     }
   }
 }
