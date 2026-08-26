@@ -126,6 +126,17 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
     supportsSetting(config, 'effort') &&
     !!s.alwaysThinkingEnabled;
   const effortValues = config.effortValues || [];
+  // opencode's effort list starts with "" (unset sentinel); filter it out so
+  // the dropdown never renders a blank <option>, and surface it as a clear
+  // "默认" placeholder instead.
+  const validEffortValues = effortValues.filter((v) => v && String(v).trim() !== '');
+  const hadEmpty = effortValues.length !== validEffortValues.length;
+  const currentEffort =
+    s.effort && s.effort.trim() !== ''
+      ? s.effort
+      : hadEmpty
+        ? ''
+        : validEffortValues[0] ?? '';
   // Output Mode selector is shown only when the adapter exposes more than one
   // execution mode (e.g. cbc: ["stream","oneshot"]). Single-mode adapters
   // (kimi/opencode: ["stream"]) never render it — they cannot switch.
@@ -145,7 +156,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
         <select
           value={currentModel}
           onChange={(e) => applySetting('model', e.target.value)}
-          className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+          className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary max-h-64 overflow-y-auto"
         >
           {modelOptions.map((m) => (
             <option key={m} value={m}>
@@ -189,15 +200,16 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
             />
             Always Thinking
           </label>
-          {showEffort && effortValues.length > 0 && (
+          {showEffort && validEffortValues.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-text-secondary">
               <span className="whitespace-nowrap">Effort</span>
               <select
-                value={s.effort || effortValues[1] || effortValues[0] || ''}
+                value={currentEffort}
                 onChange={(e) => applySetting('effort', e.target.value)}
                 className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
               >
-                {effortValues.map((v) => (
+                {hadEmpty && <option value="">默认</option>}
+                {validEffortValues.map((v) => (
                   <option key={v} value={v}>
                     {v}
                   </option>

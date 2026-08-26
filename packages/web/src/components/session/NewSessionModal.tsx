@@ -5,7 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { fetchSessionTemplates } from '@/services/api';
-import type { SessionTemplate, AdapterConfig } from '@/types';
+import type { SessionTemplate } from '@/types';
 
 interface NewSessionModalProps {
   open: boolean;
@@ -24,21 +24,12 @@ function manifestLabel(t: SessionTemplate): string {
   return 'manifest.json';
 }
 
-/** True when the selected adapter exposes a given setting (per-adapter
- *  capability, consumed from /api/adapter/config). */
-function supportsSetting(config: AdapterConfig | null, name: string): boolean {
-  return !!config?.supportedSettings?.includes(name);
-}
 
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [name, setName] = useState('');
   const [workdir, setWorkdir] = useState('');
   const [adapter, setAdapter] = useState('cbc');
-  // Linked settings that follow the selected adapter's config.
-  const [model, setModel] = useState('');
-  const [permissionMode, setPermissionMode] = useState('');
-  const [alwaysThinkingEnabled, setAlwaysThinkingEnabled] = useState(false);
-  const [effort, setEffort] = useState('');
+  // Output mode follows the selected adapter's config.
   const [outputMode, setOutputMode] = useState('');
   const [sessionTemplate, setSessionTemplate] = useState('');
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
@@ -55,6 +46,11 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const sessions = useSessionStore((s) => s.sessions);
   const showToast = useUIStore((s) => s.showToast);
 
+  // A template may pin its own adapter (manifest `adapter` field). When the
+  // selected template carries an adapter, the adapter selector is locked to it.
+  const selectedTemplate = templates.find((t) => t.name === sessionTemplate);
+  const lockedAdapter = selectedTemplate?.adapter || null;
+
   // Load adapter list + default config + session templates when modal opens.
   useEffect(() => {
     if (open) {
@@ -62,10 +58,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setName('');
       setWorkdir('');
       setAdapter('cbc');
-      setModel('');
-      setPermissionMode('');
-      setAlwaysThinkingEnabled(false);
-      setEffort('');
       setOutputMode('');
       setSessionTemplate('');
       setSubmitting(false);
@@ -84,10 +76,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // overwritten, which is acceptable — the config drives the canonical options.
   useEffect(() => {
     if (!config) return;
-    setModel(config.defaultModel || '');
-    setPermissionMode(config.defaultPermissionMode || '');
-    setAlwaysThinkingEnabled(false);
-    setEffort(config.effortValues?.[1] || config.effortValues?.[0] || '');
     // Only pre-select an Output Mode when the adapter exposes multiple modes;
     // single-mode adapters (kimi/opencode) never offer the switch.
     const execModes = config.executionModes || ['stream'];
@@ -96,8 +84,20 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const handleAdapterChange = (next: string) => {
     setAdapter(next);
-    // Fetch + cache this adapter's config so model/permission/effort update.
+    // Fetch + cache this adapter's config so the Output Mode options update.
     void loadConfig(next);
+  };
+
+  // When the user picks a template that pins an adapter, lock the adapter
+  // selector to that adapter and surface a toast. Picking a template without
+  // an adapter (or "None") releases the lock and the selector becomes editable.
+  const handleTemplateChange = (value: string) => {
+    setSessionTemplate(value);
+    const tpl = templates.find((t) => t.name === value);
+    if (tpl?.adapter) {
+      setAdapter(tpl.adapter);
+      showToast(`已选择带 adapter 的 template（${tpl.adapter}），adapter 已锁定`, 'info');
+    }
   };
 
   const handleSubmit = async (e?: FormEvent) => {
@@ -115,10 +115,9 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         adapter,
         sessionTemplate || undefined,
         {
-          model: model || undefined,
-          permissionMode: permissionMode || undefined,
-          alwaysThinkingEnabled,
-          effort: effort || undefined,
+          // model / permissionMode / alwaysThinkingEnabled / effort are no
+          // longer exposed at creation time — the backend applies its defaults
+          // and the user can change them later via the session settings.
           outputMode: outputMode || undefined,
         },
       );
@@ -132,14 +131,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
   };
 
-  // Model select options: ensure the current value is always present.
-  const models = config?.models || [];
-  const currentModel = model || config?.defaultModel || '';
-  const modelOptions = models.includes(currentModel)
-    ? models
-    : [currentModel, ...models];
-  const modes = config?.permissionModes || [];
-  const effortValues = config?.effortValues || [];
   const execModes = config?.executionModes || ['stream'];
   const showOutputMode = execModes.length > 1;
 
@@ -154,7 +145,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           <select
             value={adapter}
             onChange={(e) => handleAdapterChange(e.target.value)}
-            className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+            disabled={!!lockedAdapter}
+            className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
             {adapters.length > 0 ? (
               adapters.map((a) => (
@@ -165,86 +157,14 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             ) : (
               <option value="cbc">cbc</option>
             )}
+            {lockedAdapter &&
+              !adapters.some((a) => a.name === lockedAdapter) && (
+                <option key={lockedAdapter} value={lockedAdapter}>
+                  {lockedAdapter}
+                </option>
+              )}
           </select>
         </label>
-
-        {/* Model — follows the selected adapter's config (supportedSettings) */}
-        {supportsSetting(config, 'model') && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">
-              Model
-            </span>
-            <select
-              value={currentModel}
-              onChange={(e) => setModel(e.target.value)}
-              className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
-            >
-              {modelOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {/* Permission Mode — follows the selected adapter's config */}
-        {supportsSetting(config, 'permissionMode') && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-secondary">
-              Permission Mode
-            </span>
-            <select
-              value={permissionMode || config?.defaultPermissionMode || ''}
-              onChange={(e) => setPermissionMode(e.target.value)}
-              className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
-            >
-              {modes.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {/* Thinking + Effort — follows the selected adapter's config */}
-        {supportsSetting(config, 'thinking') && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                checked={alwaysThinkingEnabled}
-                onChange={(e) => setAlwaysThinkingEnabled(e.target.checked)}
-                className="rounded border-border-default bg-bg-tertiary"
-              />
-              Always Thinking
-            </label>
-            {supportsSetting(config, 'effort') &&
-              effortValues.length > 0 &&
-              alwaysThinkingEnabled && (
-                <label className="flex items-center gap-1.5 text-xs text-text-secondary">
-                  <span className="whitespace-nowrap">Effort</span>
-                  <select
-                    value={
-                      effort ||
-                      effortValues[1] ||
-                      effortValues[0] ||
-                      ''
-                    }
-                    onChange={(e) => setEffort(e.target.value)}
-                    className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
-                  >
-                    {effortValues.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-          </div>
-        )}
 
         {/* Output Mode — only adapters with >1 execution mode offer the switch */}
         {showOutputMode && (
@@ -276,7 +196,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           </span>
           <select
             value={sessionTemplate}
-            onChange={(e) => setSessionTemplate(e.target.value)}
+            onChange={(e) => handleTemplateChange(e.target.value)}
             className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
           >
             <option value="">None</option>
