@@ -90,4 +90,23 @@ describe('ModelSelect', () => {
     });
     expect(screen.getByText('无匹配模型')).toBeTruthy();
   });
+
+  it('applies custom buttonClassName / menuClassName overrides', () => {
+    render(
+      <ModelSelect
+        value="m1"
+        options={['m1', 'm2']}
+        onChange={() => {}}
+        buttonClassName="btn-custom-pill"
+        menuClassName="menu-custom-upward"
+      />,
+    );
+    const btn = screen.getByRole('button');
+    expect(btn.className).toContain('btn-custom-pill');
+    // 覆盖生效：默认 combobox 按钮样式被替换掉
+    expect(btn.className).not.toContain('justify-between');
+    fireEvent.click(btn);
+    // 菜单用自定义定位 class
+    expect(document.querySelector('.menu-custom-upward')).toBeTruthy();
+  });
 });
