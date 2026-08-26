@@ -50,7 +50,38 @@ def _forward_and_collect(stdout, session_id: str | None) -> tuple[str | None, st
         elif role == "assistant" and event.get("content"):
             last_assistant_text = event["content"]
 
+        # G8 兜底：任何携带 session_id 字段的事件都尝试提取（除 resume_hint 外，
+        # 未来 kimi 版本若从其它 meta/result 事件暴露 session_id 也能兜住）。
+        sid = event.get("session_id")
+        if sid:
+            session_id = sid
+
     return session_id, last_assistant_text
+
+
+def _stderr_pump(stderr, label: str, collected: list[str]) -> None:
+    """将 kimi 子进程的 stderr 透传到 wrapper 的 stderr，并收集到 ``collected``。
+
+    worker 把 wrapper 的 stderr 合并进 stdout（stderr=STDOUT），因此这些行会进入
+    Pan 日志/存储；它们不是合法 stream-json，worker.parse_event 返回 None 会被跳过，
+    不会污染事件流。用于排查 kimi 崩溃（如 0xC0000409）。
+
+    ``collected`` 收集原始行，供主循环在 kimi 异常退出时拼错误信息（避免再用
+    ``proc.communicate()`` 与本条线程并发读同一根 pipe —— Windows 上并发读会抛
+    ``OSError: [Errno 22]`` 且互相抢占导致数据丢失）。
+    """
+    try:
+        for line_b in stderr:
+            text = line_b.decode("utf-8", errors="replace").rstrip("\n")
+            if not text:
+                continue
+            collected.append(text)
+            sys.stderr.buffer.write(
+                f"[kimi stderr][{label}] {text}\n".encode("utf-8", errors="replace")
+            )
+            sys.stderr.buffer.flush()
+    except (ValueError, OSError):
+        pass
 
 
 def _stdin_reader(message_queue: Queue, shutdown_event: threading.Event) -> None:
@@ -125,13 +156,23 @@ def _main_loop(kimi_path: str, model: str | None,
                 }, ensure_ascii=False))
                 continue
 
+            # G8 stderr 透传：后台线程把 kimi stderr 泵到 wrapper stderr（→ Pan 日志），
+            # 同时收集原始行供错误分支复用（不调用 proc.communicate()，避免与本条
+            # 线程并发读同一根 pipe 触发 Windows OSError）。
+            stderr_lines: list[str] = []
+            pump = threading.Thread(
+                target=_stderr_pump, args=(proc.stderr, text[:20], stderr_lines),
+                daemon=True,
+            )
+            pump.start()
+
             new_session_id, last_text = _forward_and_collect(proc.stdout, session_id)
             session_id = new_session_id or session_id
-            _, stderr_bytes = proc.communicate()
             proc.wait()
+            pump.join(timeout=2.0)
 
             if proc.returncode != 0 and not last_text:
-                stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip() if stderr_bytes else ""
+                stderr_text = "\n".join(stderr_lines).strip()
                 msg = f"kimi exited with code {proc.returncode}"
                 if stderr_text:
                     msg += f": {stderr_text}"

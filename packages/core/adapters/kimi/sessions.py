@@ -329,6 +329,34 @@ def get_session_title(session_id: str, workdir: str | None = None) -> str:
     return state.get("title", "")
 
 
+def write_custom_title(session_id: str, title: str, workdir: str | None = None) -> None:
+    """Write a custom title into a Kimi session's state.json.
+
+    Sets state.json ``title`` and ``isCustomTitle=true`` so the rename persists
+    in Kimi's own storage — mirrors cbc's write_custom_title (which appends a
+    custom-title event to the JSONL). Used by server.api_rename_session for
+    kimi sessions (G7).
+    """
+    session_dir = _find_session_dir(session_id, workdir)
+    if not session_dir:
+        return
+    state_path = session_dir / "state.json"
+    if not state_path.exists():
+        return
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    state["title"] = title
+    state["isCustomTitle"] = True
+    try:
+        state_path.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
 def _resolve_workspace_id_for_cwd(cwd: str) -> str | None:
     """Find Kimi workspace id for a given filesystem path."""
     workspaces = _load_workspaces()

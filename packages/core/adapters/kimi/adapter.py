@@ -7,11 +7,16 @@ Kimi 的 `-p/--prompt` 模式是一次性进程，因此通过 wrapper.py 包装
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 from ...session import Session
+
+_log = logging.getLogger(__name__)
 
 
 def _parse_kimi_models_from_toml() -> list[str]:
@@ -92,7 +97,11 @@ class KimiAdapter:
         KimiAdapter._cached_models = self._BUILTIN_MODELS
         return KimiAdapter._cached_models
 
-    supports_resume = False  # Kimi -S 恢复上下文但不重放历史事件
+    # kimi `-S <id>` 恢复上下文但不重放历史事件（与 cbc --resume 的差异：
+    # cbc 续写 JSONL 且 worker 在 one-shot MCP 路径 resume；kimi 仅恢复对话
+    # 上下文，无 init 事件回放）。语义上等价于 cbc resume，故置 True 让 worker
+    # 在 one-shot MCP 路径 resume，stream 路径由 wrapper 自己 -S（§4.8）。
+    supports_resume = True
     supports_fork = True  # 通过文件复制实现 fork
     effort_values = ["low", "high", "max"]
     permission_modes = [
@@ -103,8 +112,11 @@ class KimiAdapter:
     ]
     default_permission_mode = ""
 
-    # wrapper 使用 `kimi -p` 一次性 prompt 模式，该模式下不支持 -y/--auto/--plan
-    # 等权限参数，也不支持 thinking/effort 命令行参数，因此前端只展示 model。
+    # wrapper 使用 `kimi -p` 一次性 prompt 模式。实测（2026-08-25）：`-p` 与
+    # `-y`/`--auto`/`--plan` 均互斥——kimi 直接报错
+    # "Cannot combine --prompt with --yolo/--auto/--plan"，故 -p 模式下权限参数
+    # 不可用；thinking/effort 也无 CLI 参数（在 config.toml 全局配置）。
+    # 前端只展示 model 设置（§4.6）。
     supported_settings = ["model"]
 
     @property
@@ -138,7 +150,9 @@ class KimiAdapter:
         return []
 
     def permission_mode_args(self, s: Session) -> list[str]:
-        # Kimi 的 -y/--auto/--plan 不能和 -p 同时使用
+        # Kimi 的 -y/--auto/--plan 不能和 -p 同时使用：实测 kimi 报错
+        # "Cannot combine --prompt with --yolo/--auto/--plan"。wrapper 走 -p
+        # 一次性模式，权限参数一律不可用，返回空（§4.6）。
         return []
 
     def resume_args(self, s: Session) -> list[str]:
@@ -177,8 +191,68 @@ class KimiAdapter:
         return args
 
     def mcp_args(self, s: Session) -> list[str]:
-        """MCP servers are configured in ~/.codebuddy/mcp.json (user-level)."""
+        """kimi 无 --mcp-config 参数；MCP 通过项目级 mcp.json 注入。
+
+        本方法返回空列表（无 CLI flag），但顺带把 session 的 mcp_servers 写入
+        <workdir>/.kimi-code/mcp.json，kimi 在 cwd==workdir 的会话启动时自动加载
+        （官方文档确认的路径与格式）。幂等写，build_spawn_args / _consumer_mcp
+        调用本方法时触发（§4.5）。
+        """
+        self.write_kimi_mcp_json(s)
         return []
+
+    def write_kimi_mcp_json(self, s: Session) -> None:
+        """Write project-level mcp.json so kimi auto-loads Pan's MCP servers.
+
+        kimi 没有 --mcp-config flag；MCP server 来自 `<workdir>/.kimi-code/mcp.json`
+        （项目级，官方文档 https://www.kimi.com/code/docs/kimi-code-cli/customization/mcp.html
+        确认）。kimi 在 cwd==workdir 的会话启动时会自动读取该文件，因此在 spawn 前
+        写入即可让 pan / pan-qq server 生效。mcp_args() 返回 []（无 CLI flag），
+        只负责触发本写入。
+
+        NOTE（信任边界）：项目级 MCP 仅对「受信任文件夹」启用。若 workdir 未被信任，
+        kimi 在 -p（非交互）模式下无法应答信任提示，可能跳过该项目 mcp.json。此时
+        MCP 工具不会注册——属已知限制，需在 TUI 中 `Trust this folder` 或用户级
+        ~/.kimi-code/mcp.json 兜底。
+        """
+        servers = s.adapter_config.get("mcp_servers")
+        if not servers or not s.workdir:
+            return
+        mcp_servers: dict[str, dict] = {}
+        for srv in servers:
+            name = srv.get("name", "unnamed")
+            entry: dict = {}
+            if "command" in srv:
+                entry["command"] = srv["command"]
+            if "args" in srv:
+                entry["args"] = srv["args"]
+            if "url" in srv:
+                entry["url"] = srv["url"]
+            if "transport" in srv:
+                entry["transport"] = srv["transport"]
+            if "cwd" in srv:
+                entry["cwd"] = srv["cwd"]
+            if "env" in srv:
+                entry["env"] = srv["env"]
+            if "headers" in srv:
+                entry["headers"] = srv["headers"]
+            # pan / pan-qq server：注入 MA session 身份，使 MCP 工具可代表本会话
+            # 动作（worker_send 给 agent 消息打标，qq_bind/qq_unbind 订阅其 qq）。
+            if name in ("pan", "pan-qq"):
+                env = dict(entry.get("env") or {})
+                env["PAN_AGENT_SESSION_ID"] = s.id
+                env["PAN_AGENT_SESSION_TITLE"] = s.name
+                entry["env"] = env
+            entry.setdefault("type", "stdio")
+            mcp_servers[name] = entry
+        path = Path(s.workdir) / ".kimi-code" / "mcp.json"
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
+            _log.info("[KimiAdapter] wrote mcp.json (%d servers) -> %s", len(mcp_servers), path)
+        except OSError as e:
+            _log.warning("[KimiAdapter] failed to write mcp.json at %s: %s", path, e)
 
     # ── stdin 消息编码 ──
 
@@ -204,6 +278,11 @@ class KimiAdapter:
         return event.get("session_id")
 
     def extract_model(self, event: dict) -> str | None:
+        # 实测（2026-08-25）：kimi stream-json stdout 事件只有
+        # meta(system.version) / assistant / meta(session.resume_hint)，
+        # 均不含 model/modelAlias 字段。model 由两处兜底：
+        # ① session 创建时用户显式指定；② enrich 时从 usage.record 的 model 回填
+        # （见 enrich_after_result）。故此处固定返回 None。
         return None
 
     def is_assistant_event(self, event: dict) -> bool:
@@ -269,10 +348,83 @@ class KimiAdapter:
     def takeover_command(self, s: Session) -> list[str]:
         if not s.cli_session_id:
             return []
-        return ["kimi", "-S", s.cli_session_id]
+        # 用绝对路径 _KIMI_PATH（Windows 下 PATH 不一定有 kimi，裸 "kimi" 会失败）。
+        return [self._KIMI_PATH, "-S", s.cli_session_id]
 
     # ── enrich ──
 
     def enrich_after_result(self, s: Session) -> list[dict] | None:
-        """Kimi 的 usage 记录在 wire.jsonl 中，暂不从文件系统读取。"""
+        """从 kimi 原生 wire.jsonl 读取本轮新增的 usage.record 条目（G2）。
+
+        增量游标：用 usage.record 自带的递增 `time`（epoch ms）。Session 通过
+        adapter_config["kimi_last_usage_ts"] 记录上次游标位置，只返回 time 大于
+        游标的条目，然后推进游标。同时用最新 usage.record 的 model 回填 s.model
+        （stdout 事件不含 model 字段，见 extract_model）。
+
+        返回 list[dict]（cbc 同构：{"model","rawUsage","timestamp"}），或 None。
+        """
+        if not s.cli_session_id:
+            return None
+        try:
+            return _read_kimi_new_entries(s)
+        except Exception:
+            _log.debug("kimi enrich_after_result failed", exc_info=True)
+            return None
+
+
+# ── enrich helpers（G2，参照 cbc._read_jsonl_new_entries 结构）──
+
+
+def _iso_to_ms(iso: str) -> int | None:
+    """Convert an ISO-8601 UTC timestamp string back to epoch ms (or None)."""
+    if not iso:
         return None
+    try:
+        dt = datetime.fromisoformat(iso)
+        return int(dt.timestamp() * 1000)
+    except (ValueError, OSError):
+        return None
+
+
+def _read_kimi_new_entries(s: Session) -> list[dict] | None:
+    """Return all NEW usage.record entries since the last enrichment.
+
+    Uses a time cursor (usage.record's own increasing `time`, epoch ms) stored
+    in ``s.adapter_config["kimi_last_usage_ts"]``. Returns only entries newer
+    than the cursor, then advances the cursor. Also backfills ``s.model`` from
+    the latest usage.record (stdout carries no model field — see extract_model).
+    """
+    from . import sessions as kimi_sessions
+
+    # 短暂延迟，等待 kimi 完成 wire.jsonl 写入（解决时序竞态，cbc 同款 sleep）。
+    time.sleep(0.3)
+
+    all_entries = kimi_sessions.get_raw_usage(s.cli_session_id, s.workdir or None)
+    if not all_entries:
+        return None
+
+    last_ts = s.adapter_config.get("kimi_last_usage_ts", 0) or 0
+    new_entries: list[dict] = []
+    max_ts = last_ts
+    for entry in all_entries:
+        ts_ms = _iso_to_ms(entry.get("timestamp", ""))
+        if ts_ms is None:
+            continue
+        if ts_ms > last_ts:
+            new_entries.append(entry)
+        if ts_ms > max_ts:
+            max_ts = ts_ms
+
+    # 推进游标（仅当确实看到更大的时间戳，避免把 0 写回清空游标）
+    if max_ts > last_ts:
+        s.set_adapter_field("kimi_last_usage_ts", max_ts)
+
+    # 用最新 usage.record 的 model 回填 s.model（stdout 无 model 字段）
+    if not s.model:
+        for entry in reversed(all_entries):
+            m = entry.get("model")
+            if m:
+                s.model = m
+                break
+
+    return new_entries if new_entries else None

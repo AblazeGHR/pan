@@ -1030,6 +1030,16 @@ async def api_rename_session(session_id: str, data: dict):
     old_name = s.name
     s.name = new_name
     sess.save(s)
+
+    # G7: 把重命名持久化进 adapter 原生存储。kimi 的标题写在 state.json
+    # （title/isCustomTitle），需显式回写；cbc 的标题在 fork 时已写入，这里
+    # 仅对 kimi 补这一路径。
+    if s.adapter == "kimi" and s.cli_session_id:
+        try:
+            kimi_sessions.write_custom_title(s.cli_session_id, new_name, s.workdir or None)
+        except Exception as e:
+            print(f"[rename] kimi write_custom_title failed: {e}")
+
     await broadcast({
         "type": "session.renamed",
         "sessionId": s.id,
