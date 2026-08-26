@@ -381,3 +381,49 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
 - [ ] 步骤 1/2/3 各有对应验证（单测 + 端到端对照）通过。
 - [ ] `pnpm build` 与 `npx tsc --noEmit` 通过。
 - [ ] kimi/opencode 回归测试通过（零行为变化）。
+
+---
+
+## 11. 实现记录（2026-08-26 后端阶段一）
+
+> 阶段一仅落地后端（协议 + worker + server + 单测 + 文档）。前端（§6 步骤 4/5）
+> 留待另一 worker（fe-adapter-entry）收敛后做，见阶段二。
+
+### 11.1 已提交改动（commit 见 git log）
+
+- **协议层** `packages/core/adapters/base.py`：
+  - `CliAdapter` 新增 `execution_modes` 属性（默认 `["stream"]`）与 `oneshot_args(s, text)` 方法（默认返回 `[]`）。
+  - 新增 `packages/core/adapters/resolution.py: resolve_execution_mode(adapter, s)`，合并 `adapter.execution_modes` 与 `session.output_mode` 为实际模式（非法/未设置 → 默认；多模式优先 `"stream"`）。`adapters/__init__.py` 导出。
+- **cbc** `packages/core/adapters/cbc/adapter.py`：
+  - `execution_modes = ["stream", "oneshot"]`；实现 `oneshot_args`（base_args_stream + model/permission/effort/resume/mcp_args + `--system-prompt`（仅首条）+ prompt 末参），逐元素对齐旧 `_consumer_mcp` 拼装。
+- **kimi / opencode**：`execution_modes = ["stream"]`；`oneshot_args` 返回 `[]`（防御兜底，永不进入 oneshot 路径）。
+- **worker** `packages/core/worker.py`：
+  - 删除 `_use_oneshot_mcp` 判定矩阵。
+  - `_consumer_mcp` → 通用 `_consumer_oneshot`（argv 来自 `adapter.oneshot_args`；移除 `hasattr(base_args_stream|mcp_args)` 探测；错误提取改 `getattr(adapter, "extract_oneshot_error", _extract_cbc_error)` 兜底）。保留 `_consumer_mcp` 为 deprecated 别名（调用 `_consumer_oneshot`）以兼容既有测试。
+  - `_consumer` 与 report consumer 改用 `resolve_execution_mode` 分派。
+  - `_create_worker`：`mode == "oneshot"` → 不 spawn 长驻进程、不起 `_read_stdout`；system_prompt 注入按 mode 守卫（oneshot 由 `oneshot_args` 逐任务注入）。
+- **server** `packages/web/server.py`：
+  - `/api/adapter/config` 与 `_session_to_api` 暴露 `executionModes`。
+  - `_apply_output_mode` 校验 `mode ∈ adapter.execution_modes`（越界 → `ValueError`）；`_build_session_params` 创建时同样校验（越界 → `ValueError`，`api_create_session` 捕获返回 `{"error": ...}`）。
+
+### 11.2 验证结果
+
+- 新增单测 `tests/test_cbc_oneshot_args.py`：逐元素比对 `CbcAdapter.oneshot_args` 与旧 `_consumer_mcp` argv 拼装（覆盖 有/无 mcp、system_prompt、resume、effort/permission、prompt 末参位置），全部通过；并断言三个 adapter 的 `execution_modes` 声明正确。
+- `tests/test_worker_output_mode.py`：原 `_use_oneshot_mcp` 矩阵测试改为 `resolve_execution_mode` 测试，**明确覆盖新语义**——`output_mode="oneshot"` 无 MCP 现在解析为 `oneshot`（旧语义为 stream）。新增 one-shot-only adapter 的 clamp 与 `_apply_output_mode` 拒绝 stream 测试。
+- 回归：`tests/test_worker_cli_session_binding.py`（4 项，走 `_consumer_mcp` 别名）、`tests/test_worker_watchdog.py`（13 项）全部通过；全量 `tests/` 仅 1 项预存失败 `test_kimi_adapter.py::test_adapter_metadata`（`assert kimi.supports_resume is False`，但 kimi 已提交值为 `True`，与本方案无关，未改动 kimi 的 `supports_resume`）。
+
+### 11.3 三路径行为核对（cbc）
+
+| 路径 | 触发条件（resolve_execution_mode） | 行为 |
+|---|---|---|
+| stream 无 MCP | 无 mcp / output_mode unset/stream | 长驻进程 + stdin 流式（不变） |
+| stream + MCP | 有 mcp + output_mode unset/stream | 长驻进程 + `--mcp-config`（不变） |
+| oneshot + MCP | 有 mcp + output_mode=="oneshot" | 每任务 spawn 短进程（argv 来自 `oneshot_args`，不变） |
+| **oneshot 无 MCP（新增）** | 无 mcp + output_mode=="oneshot" | 每任务 spawn 短进程（cbc 原生合法；旧语义会降级 stream，现已解耦） |
+
+kimi/opencode：始终 `mode=="stream"`，零行为变化。
+
+### 11.4 阶段二（前端）前置条件
+
+`fe-adapter-entry` 正在改 `packages/web/src/`（NewSessionModal / api.ts / sessionStore / ts/app.ts）。阶段一**未触碰任何前端文件**。开始前需 `git status` 确认其前端改动已提交，避免冲突。本阶段后端已为前端准备好：`/api/adapter/config` 与 `session` 响应均含 `executionModes`，前端据此渲染 Output Mode 选择器即可（详见 §6）。
+

@@ -45,6 +45,11 @@ class KimiAdapter:
 
     name = "kimi"
 
+    # 执行模式（adapter-p1-oneshot.md）：kimi 用 wrapper 长驻，worker 只走
+    # stream；wrapper 内部逐条 `kimi -p` 的一次性语义对 worker 透明，故不暴露
+    # oneshot。oneshot_args 不会被调用，返回 [] 作为防御兜底。
+    execution_modes = ["stream"]
+
     _DEFAULT_MODEL = "kimi-code/kimi-for-coding"
     _DEFAULT_PERMISSION_MODE = ""
     _DEFAULT_ALWAYS_THINKING_ENABLED = False
@@ -190,6 +195,11 @@ class KimiAdapter:
         if extra_args:
             args.extend(extra_args)
         return args
+
+    def oneshot_args(self, s: Session, text: str) -> list[str]:
+        # kimi 的 worker 驱动方式只有 stream（wrapper 长驻），never 进入 oneshot
+        # 路径，故返回 []（防御兜底，详见 execution_modes 注释）。
+        return []
 
     def mcp_args(self, s: Session) -> list[str]:
         """kimi 无 --mcp-config 参数；MCP 通过项目级 mcp.json 注入。

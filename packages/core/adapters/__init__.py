@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from .base import CliAdapter, SessionsProvider
+from .resolution import resolve_execution_mode
 from .registry import (
     register,
     get_adapter,
@@ -41,6 +42,7 @@ __all__ = [
     "register_sessions_provider",
     "get_sessions_provider",
     "list_sessions_providers",
+    "resolve_execution_mode",
     "CbcAdapter",
     "KimiAdapter",
     "OpencodeAdapter",

@@ -50,6 +50,11 @@ class CbcAdapter:
 
     name = "cbc"
 
+    # 执行模式（adapter-architecture P1 建议 4 / adapter-p1-oneshot.md）：
+    # cbc 同时支持 stream 长驻（原生 stdin/stdout）与 oneshot 逐任务短进程
+    # （prompt 作末参，配合 --mcp-config）。故声明两种。
+    execution_modes = ["stream", "oneshot"]
+
     # 内置兜底默认值（config.json 不存在时使用）
     _DEFAULT_MODEL = "deepseek-v4-flash"
     _DEFAULT_PERMISSION_MODE = "bypassPermissions"
@@ -231,6 +236,30 @@ class CbcAdapter:
         args.extend(self.mcp_args(s))
         if extra_args:
             args.extend(extra_args)
+        return args
+
+    def oneshot_args(self, s: Session, text: str) -> list[str]:
+        """One-shot 执行 argv（替代 worker 原 _consumer_mcp 的 cbc 特定拼装）。
+
+        用于 worker 通用 ``_consumer_oneshot``：逐任务 spawn 一个 cbc ``-p``
+        短进程，prompt 作末参，``--mcp-config`` 才能生效（与
+        ``--input-format stream-json`` 互斥）。逐元素对齐旧 ``_consumer_mcp``
+        拼装（见 docs/design/adapter-p1-oneshot.md §1）。
+
+        注意：跳过 ``thinking_args``（``--settings`` 会破坏 MCP init，旧路径
+        同样跳过）；``--system-prompt`` 仅首条（``cli_session_id`` 捕获前）注入，
+        之后靠 ``--resume`` 延续上下文。
+        """
+        args = list(self.base_args_stream())   # 无 --input-format stream-json
+        args.extend(self.model_args(s))
+        args.extend(self.permission_mode_args(s))
+        args.extend(self.effort_args(s))
+        if s.cli_session_id and self.supports_resume:
+            args.extend(self.resume_args(s))
+        args.extend(self.mcp_args(s))          # 写入 data/mcp-configs/<id>.mcp.json 并返回 --mcp-config
+        if s.system_prompt and not s.cli_session_id:
+            args.extend(["--system-prompt", s.system_prompt])
+        args.append(text)
         return args
 
     def mcp_args(self, s: Session) -> list[str]:

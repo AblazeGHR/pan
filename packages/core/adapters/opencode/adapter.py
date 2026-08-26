@@ -40,6 +40,11 @@ class OpencodeAdapter:
 
     name = "opencode"
 
+    # 执行模式（adapter-p1-oneshot.md）：opencode 用 wrapper 长驻，worker 只走
+    # stream（与 kimi 同形）；wrapper 内部逐条 `opencode run` 的一次性语义对
+    # worker 透明，故不暴露 oneshot。oneshot_args 不会被调用，返回 [] 兜底。
+    execution_modes = ["stream"]
+
     _DEFAULT_MODEL = "opencode/big-pickle"
     _DEFAULT_PERMISSION_MODE = ""
     _DEFAULT_ALWAYS_THINKING_ENABLED = False
@@ -153,6 +158,11 @@ class OpencodeAdapter:
         if extra_args:
             args.extend(extra_args)
         return args
+
+    def oneshot_args(self, s: Session, text: str) -> list[str]:
+        # opencode 的 worker 驱动方式只有 stream（wrapper 长驻），never 进入
+        # oneshot 路径，故返回 []（防御兜底，详见 execution_modes 注释）。
+        return []
 
     # ── stdin 消息编码 ──
 

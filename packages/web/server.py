@@ -271,6 +271,7 @@ def _session_to_api(s: sess.Session):
         "mcpEnabled": bool(ac.get("mcp_servers")),
         "mcpLocked": _get_mcp_locked_state(s),
         "outputMode": ac.get("output_mode"),
+        "executionModes": list(a.execution_modes),
         "gameId": s.game_id,
     }
 
@@ -483,10 +484,16 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
         "system_prompt": data.get("systemPrompt") or template.system_prompt,
         "game_id": data.get("gameId") or None,
     }
-    # Optional worker execution mode ("stream" | "oneshot"); validated later
-    # by _apply_output_mode. Unset = automatic (existing behaviour).
-    if "outputMode" in data and data.get("outputMode") not in (None, ""):
-        params["adapter_config"]["output_mode"] = data["outputMode"]
+    # Optional worker execution mode ("stream" | "oneshot"); validated against
+    # the adapter's execution_modes. Unset/"auto" = automatic (existing behaviour).
+    raw_mode = data.get("outputMode")
+    if raw_mode not in (None, "", "auto"):
+        allowed = list(a.execution_modes)
+        if raw_mode not in allowed:
+            raise ValueError(
+                f"outputMode must be one of {allowed} for adapter '{a.name}', got {raw_mode!r}"
+            )
+        params["adapter_config"]["output_mode"] = raw_mode
 
     # MCP servers come from the template (names → full configs).
     # mcp_mode decides injection: "always" injects; "optional"/"never" start
@@ -613,13 +620,21 @@ def _apply_output_mode(s: sess.Session, mode):
     - "stream": long-running stream-json process; if MCP is also enabled,
       the process is spawned with --mcp-config (stream + MCP, cbc >= 2.137.0).
     - "oneshot": per-task one-shot cbc process (legacy MCP path).
-    - None/"" clears the field -> automatic (existing behaviour: MCP -> oneshot).
+    - None/""/"auto" clears the field -> automatic (按 adapter 默认解析，
+      见 packages/core/adapters/resolution.py:resolve_execution_mode)。
+
+    校验：mode 必须 ∈ 该 adapter 的 execution_modes，否则拒绝（避免"不可能"的
+    配置，如给 one-shot-only adapter 设 stream）。adapter-architecture P1 建议 4。
     """
     if mode in (None, "", "auto"):
         s.adapter_config.pop("output_mode", None)
         return
-    if mode not in _VALID_OUTPUT_MODES:
-        raise ValueError(f"outputMode must be one of {list(_VALID_OUTPUT_MODES)}, got {mode!r}")
+    a = get_adapter(s.adapter)
+    allowed = list(getattr(a, "execution_modes", _VALID_OUTPUT_MODES))
+    if mode not in allowed:
+        raise ValueError(
+            f"outputMode must be one of {allowed} for adapter '{a.name}', got {mode!r}"
+        )
     s.set_adapter_field("output_mode", mode)
 
 
@@ -928,7 +943,10 @@ async def api_list_sessions(summary: int = 0):
 @app.post("/api/sessions")
 async def api_create_session(data: dict):
     """Create a new Session (no worker spawned)."""
-    params = _build_session_params(data)
+    try:
+        params = _build_session_params(data)
+    except ValueError as e:
+        return {"error": str(e)}
     name = params["name"]
     err = _check_session_name(name)
     if err:
@@ -1211,6 +1229,7 @@ async def api_adapter_config(adapter: str = "cbc"):
         "permissionModes": a.permission_modes,
         "defaultPermissionMode": a.default_permission_mode,
         "supportedSettings": getattr(a, "supported_settings", ["model", "permissionMode", "thinking", "effort"]),
+        "executionModes": list(a.execution_modes),
     }
 
 

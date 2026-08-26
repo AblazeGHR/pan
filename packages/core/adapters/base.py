@@ -54,6 +54,23 @@ class CliAdapter(Protocol):
         """该 adapter 支持的设置项标识列表（如 model, permissionMode, thinking, effort）。"""
         ...
 
+    @property
+    def execution_modes(self) -> list[str]:
+        """Worker 对该 adapter 的可用"驱动方式"（见 docs/design/adapter-p1-oneshot.md）。
+
+        取值子集：
+        - ``"stream"``：worker 起一个常驻进程，跨消息复用 stdin/stdout；
+        - ``"oneshot"``：worker 逐任务 spawn 一个一次性进程，prompt 作末参。
+
+        语义边界（关键）：这是 **worker 与 adapter 之间的传输契约**，描述
+        worker 如何驱动 adapter，而非 adapter 内部 CLI 是否"一次性"。
+        kimi/opencode 用 wrapper 长驻，worker 只走 stream，故声明 ``["stream"]``；
+        其 wrapper 内部再调 CLI 的一次性语义对 worker 透明，不在此暴露。
+        只有 worker 会直接 spawn 短进程的 adapter（如 cbc）才声明 ``"oneshot"``。
+        默认实现返回 ``["stream"]``（最保守；所有 adapter 至少支持 stream）。
+        """
+        ...
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]: ...
@@ -72,6 +89,19 @@ class CliAdapter(Protocol):
 
     def build_spawn_args(self, s: Session,
                          extra_args: list[str] | None = None) -> list[str]: ...
+
+    def oneshot_args(self, s: Session, text: str) -> list[str]:
+        """构建一次性执行的完整 argv（仅当 ``"oneshot"`` in execution_modes）。
+
+        把 worker 原 ``_consumer_mcp`` 里 cbc 特定的拼装（base_args_stream →
+        model/permission/effort/resume/mcp_args → ``--system-prompt``（仅首条）→
+        prompt 作末参）搬进 adapter。worker 的通用 oneshot consumer 只负责：
+        ``oneshot_args`` → spawn（无 stdin）→ 收集 stdout → 走既有 ``parse_event``
+        事件模型。
+
+        不在 ``execution_modes`` 中的 adapter 返回 ``[]``（不会被调用，防御兜底）。
+        """
+        ...
 
     # ── stdin 消息编码 ──
 

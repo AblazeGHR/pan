@@ -19,7 +19,7 @@ from pathlib import Path
 import psutil
 
 from . import session as _sess
-from .adapters import get_adapter, CliAdapter
+from .adapters import get_adapter, CliAdapter, resolve_execution_mode
 from .config import load_config
 
 _log = logging.getLogger(__name__)
@@ -300,19 +300,6 @@ def _mcp_configured(s: _sess.Session | None) -> bool:
     MCP 是叠加属性：与 worker 的执行模式（output_mode）独立。
     """
     return bool(s and s.adapter_config.get("mcp_servers"))
-
-
-def _use_oneshot_mcp(s: _sess.Session | None) -> bool:
-    """是否走 one-shot MCP 模式（每次任务新开 cbc 进程 + --mcp-config）。
-
-    判定矩阵（三条通道）：
-    - 无 MCP（mcp_servers 缺失）→ False：stream 长驻（无 MCP）
-    - 有 MCP 且 output_mode 未设置 / == "stream" → False：stream 长驻 + MCP（cbc ≥ 2.137.0，默认）
-    - 有 MCP 且 output_mode == "oneshot" → True：one-shot（显式指定才走）
-    """
-    if not _mcp_configured(s):
-        return False
-    return s.adapter_config.get("output_mode") == "oneshot"
 
 
 # ── stdout reader ──
@@ -640,7 +627,7 @@ async def _read_stdout(w: Worker):
 # ── consumer ──
 
 async def _consumer(w: Worker):
-    """Consumer loop. Three execution modes (selected by _use_oneshot_mcp):
+    """Consumer loop. Two execution modes (selected by resolve_execution_mode):
 
     - Stream mode (default, no MCP): long-running cbc process with
       --input-format stream-json. Each message is written to stdin.
@@ -698,16 +685,17 @@ async def _consumer(w: Worker):
             injected_text = await _maybe_inject_memory(s, text)
             s.history.append({"role": "user", "content": injected_text})
             text = injected_text
-        # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_mcp）：在
+        # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_oneshot）：在
         # running 广播 + 写 cbc stdin 之后立即持久化，发送时指示灯不再被全量
         # O(history) 序列化阻塞（方案 1）。崩溃窗口 = 写 stdin → 落盘 毫秒级，
         # 最坏丢一条刚发送未落盘的用户消息（可接受范围）。
 
-        # 选择执行模式：one-shot MCP（每次任务新开进程）vs stream（长驻，可带 MCP）
-        use_mcp = _use_oneshot_mcp(s)
+        # 选择执行模式：oneshot（每次任务新开进程）vs stream（长驻，可带 MCP）。
+        # 由 adapter.execution_modes + session.output_mode 决定（去 cbc 化）。
+        mode = resolve_execution_mode(w.adapter, s)
 
-        if use_mcp:
-            await _consumer_mcp(w, text, source, s)
+        if mode == "oneshot":
+            await _consumer_oneshot(w, text, source, s)
         else:
             await _consumer_stream(w, text, source, s)
 
@@ -794,9 +782,9 @@ async def _consume_pending_reports(w: Worker, s):
     s.history.append({"role": "user", "content": injected_text})
     await _sess.save_async(s)
 
-    use_mcp = _use_oneshot_mcp(s)
-    if use_mcp:
-        await _consumer_mcp(w, injected_text, "report", s)
+    mode = resolve_execution_mode(w.adapter, s)
+    if mode == "oneshot":
+        await _consumer_oneshot(w, injected_text, "report", s)
     else:
         await _consumer_stream(w, injected_text, "report", s)
 
@@ -948,7 +936,7 @@ async def _watchdog(w: Worker):
       - queued：持续无输出（last_activity 起算）超 _WORKER_TIMEOUT_SEC → 判定卡死 → kill
       - idle：任务完成且长时间无新任务 → 空闲回收 → kill
     - MCP one-shot 模式（w.process 为 None）：
-      - 只做 idle 回收（超时已由 _consumer_mcp 读取超时承担，running 不干预）
+      - 只做 idle 回收（超时已由 _consumer_oneshot 读取超时承担，running 不干预）
     - held（takeover 模式）/ zombie：跳过，不回收
     触发 kill 时先 resolve 等待中的 handoff（error），再回收进程。
 
@@ -1146,7 +1134,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     # 用户消息后置落盘（方案 1）：先广播 running + 写 stdin，再全量落盘——指示灯
     # 与 cbc 消息送达不再被 O(history) 序列化阻塞。崩溃窗口 = 写 stdin → 落盘
     # 毫秒级，最坏丢一条刚发送未落盘的用户消息。重取 session 避免把已删除会话
-    # 写回复活（#10 模式，同 _consumer_mcp 的输出处理处）。
+    # 写回复活（#10 模式，同 _consumer_oneshot 的输出处理处）。
     sess = _session(w)
     if sess:
         await _sess.save_async(sess)
@@ -1185,12 +1173,15 @@ def _extract_cbc_error(output: bytes) -> str | None:
     return None
 
 
-async def _consumer_mcp(w: Worker, text: str, source: str, s):
-    """One-shot MCP mode: spawn new cbc process per message with --mcp-config.
+async def _consumer_oneshot(w: Worker, text: str, source: str, s):
+    """One-shot mode: 每任务 spawn 一个一次性进程（prompt 作末参）。
 
-    Uses --resume to maintain conversation continuity across messages.
-    The cbc process runs as a one-shot (-p mode) with the prompt as a CLI arg,
-    which allows --mcp-config to work (incompatible with --input-format stream-json).
+    argv 由 ``adapter.oneshot_args(s, text)`` 提供（cbc 实现；kimi/opencode 因
+    ``execution_modes == ["stream"]`` 永不进入此路径）。stdout 收集后用既有
+    ``adapter.parse_event`` 事件模型解析。取代旧 ``_consumer_mcp`` 的 cbc 特定
+    拼装与 ``hasattr`` 探测（adapter-architecture P1 建议 4）。
+
+    详见 docs/design/adapter-p1-oneshot.md §4。
     """
     w.status = "running"
     await _bcast({
@@ -1203,40 +1194,28 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
 
     adapter = w.adapter
 
-    # Build args without --input-format stream-json (required for MCP to work)
-    args = adapter.base_args_stream() if hasattr(adapter, 'base_args_stream') else adapter.base_args()
-    args.extend(adapter.model_args(s))
-    args.extend(adapter.permission_mode_args(s))
-    if hasattr(adapter, 'effort_args'):
-        args.extend(adapter.effort_args(s))
-    # NOTE: skip --settings in MCP mode (breaks MCP init)
-    # see thinking_args() — skip it here since we're in base_args_stream() path
+    # argv 全部来自 adapter（去 cbc 化）：无 --input-format stream-json，
+    # --resume / --mcp-config / --system-prompt（仅首条）/ prompt 末参。
+    args = adapter.oneshot_args(s, text) if hasattr(adapter, "oneshot_args") else []
+    if not args:
+        # 防御：adapter 不支持 oneshot 却进入此路径（不应发生，resolve 已 gate）。
+        _log.error(
+            "[Worker %s] oneshot_args 返回空 argv（adapter=%s 不支持 oneshot？）；跳过本次任务",
+            w.worker_id, getattr(adapter, "name", "?"),
+        )
+        if s:
+            s.last_result = {
+                "status": "error",
+                "result": "adapter 不支持 oneshot 执行模式",
+                "timestamp": datetime.now().isoformat(),
+            }
+            await _sess.save_async(s)
+        w.last_activity = time.monotonic()
+        w.status = "idle"
+        _maybe_restart_pending(w)
+        return
 
-    # --resume: cbc natively maintains conversation history in
-    # ~/.codebuddy/projects/d-project-Pan-memory/<session-id>.jsonl.
-    # When cli_session_id is set (saved from init event), cbc picks up
-    # the full context including MCP tool discovery state.
-    if s.cli_session_id and adapter.supports_resume:
-        args.extend(adapter.resume_args(s))
-
-    # MCP config
-    if hasattr(adapter, 'mcp_args'):
-        args.extend(adapter.mcp_args(s))
-    # No -d: create_subprocess_exec(cwd=s.workdir) below already makes cbc treat
-    # the workdir as its project dir (JSONL + resume). MCP connection comes
-    # from --mcp-config above (tested 2026-08-16: -d is redundant).
-
-    # System prompt: pass via --system-prompt (override) so cbc injects it as a
-    # real system message. --append-system-prompt is NOT honored by the model;
-    # and text\n---\nprompt concatenation reads as ordinary user text.
-    # Only inject on the first message of a session (before cli_session_id is
-    # captured); --resume carries the model's context afterwards.
-    if s.system_prompt and not s.cli_session_id:
-        args.extend(["--system-prompt", s.system_prompt])
-    # Prompt as last argument
-    args.append(text)
-
-    _log.info("[Worker %s] MCP one-shot spawn (full args): %s", w.worker_id, " ".join(repr(a) for a in args))
+    _log.info("[Worker %s] one-shot spawn (full args): %s", w.worker_id, " ".join(repr(a) for a in args))
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -1246,7 +1225,7 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
             stderr=asyncio.subprocess.STDOUT,
         )
     except Exception as e:
-        _log.error("[Worker %s] MCP spawn failed: %s", w.worker_id, e)
+        _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
         if s:
             s.last_result = {"status": "error", "result": f"MCP spawn failed: {e}", "timestamp": datetime.now().isoformat()}
             await _sess.save_async(s)
@@ -1392,7 +1371,10 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
         # cbc exits 0 even when it fails (e.g. --resume targets a session that
         # no longer exists). Surface the structured error instead of a silent
         # "(no output)" so a broken cli_session_id binding is visible.
-        cbc_error = _extract_cbc_error(output)
+        # 错误提取可插拔：adapter 提供 extract_oneshot_error 则优先使用，
+        # 否则回退 cbc 的通用启发式（adapter-architecture P1 建议 4 可选收尾）。
+        extract_err = getattr(adapter, "extract_oneshot_error", _extract_cbc_error)
+        cbc_error = extract_err(output)
         status, result = "error", cbc_error or "(no output)"
     else:
         status, result = (
@@ -1449,6 +1431,15 @@ async def _consumer_mcp(w: Worker, text: str, source: str, s):
     w._current_task_id = None
 
 
+async def _consumer_mcp(w: Worker, text: str, source: str, s):
+    """Deprecated alias for _consumer_oneshot.
+
+    cbc 特定拼装已搬入 CbcAdapter.oneshot_args（adapter-architecture P1 建议 4）。
+    保留别名以兼容既有测试；下个 PR 删除。
+    """
+    return await _consumer_oneshot(w, text, source, s)
+
+
 # ── lifecycle ──
 
 # spawn 防重复（立项 4.5）：同一 session 的并发 create_worker 通过 per-session
@@ -1495,7 +1486,7 @@ async def create_worker(session_id: str) -> Worker | str:
     已有活 worker 时直接复用现有 Worker，不重复创建（任何 session 不应被重复
     spawn worker）。显式重启场景（/api/spawn 等）会先 kill 再进入本函数，不受影响。
 
-    Three execution modes (see _use_oneshot_mcp):
+    Three execution modes (see resolve_execution_mode):
     - Stream mode (default, no MCP): long-running process with --input-format stream-json.
     - Stream + MCP mode: long-running process spawned with --mcp-config
       (adapter_config.output_mode == "stream", requires cbc >= 2.137.0).
@@ -1534,10 +1525,11 @@ async def _create_worker(session_id: str) -> Worker | str:
     worker_id = await _next_worker_id()
 
     mcp_on = _mcp_configured(s)
-    use_mcp = _use_oneshot_mcp(s)
+    mode = resolve_execution_mode(adapter, s)
 
-    if use_mcp:
-        # One-shot MCP mode: no long-running process, consumer spawns per-task
+    if mode == "oneshot":
+        # One-shot mode: no long-running process, consumer spawns per-task
+        # (no stdin). See docs/design/adapter-p1-oneshot.md.
         proc = None
     else:
         # Stream mode: spawn long-running process.
@@ -1547,7 +1539,7 @@ async def _create_worker(session_id: str) -> Worker | str:
         extra_args = None
         if mcp_on and s.system_prompt and not s.cli_session_id:
             # stream+MCP: inject system_prompt via --system-prompt (same as
-            # one-shot MCP) instead of a separate first message, avoiding the
+            # one-shot) instead of a separate first message, avoiding the
             # roleplay trap (see cbc-mcp-踩坑记录.md #13).
             extra_args = ["--system-prompt", s.system_prompt]
         proc = await _spawn_process(session_id, adapter=adapter, extra_args=extra_args)
@@ -1562,7 +1554,7 @@ async def _create_worker(session_id: str) -> Worker | str:
     w.last_activity = time.monotonic()
     workers[worker_id] = w
 
-    if not use_mcp:
+    if mode != "oneshot":
         w._stdout_task = asyncio.create_task(_read_stdout(w))
     # watchdog 两种模式都启用：stream 做超时+空闲回收，MCP 只做空闲回收
     if not _DEFAULTS_INITIALIZED:
@@ -1590,21 +1582,24 @@ async def _create_worker(session_id: str) -> Worker | str:
     # Inject system_prompt
     # - Pure stream (no MCP): injected as a separate first message (existing).
     # - With MCP (one-shot or stream+MCP): skipped here — injected via
-    #   --system-prompt at spawn / in _consumer_mcp, because a separate first
+    #   --system-prompt at spawn / in _consumer_oneshot, because a separate first
     #   message biases the LLM into pure roleplay and prevents it from
     #   discovering MCP tools via ToolSearch.
     # - 注入去重（fork/takeover 修复）：只对「全新会话」（尚无 cli_session_id）
     #   首次 spawn 注入。cli_session_id 已存在 = 会话已 resume/fork，system_prompt
     #   已由 cbc JSONL（模型侧上下文）承载，再以消息注入会把 system_prompt 当作
     #   一条 user 消息塞进对话——表现为 fork 首句话前 / takeover 恢复后重复出现
-    #   系统提示词。与 _spawn_process(MCP) / _consumer_mcp 的 `not s.cli_session_id`
-    #   守卫保持一致。
+    #   系统提示词。与 stream 路径的 `not s.cli_session_id` 守卫保持一致。
+    # - oneshot 模式：system_prompt 由 CbcAdapter.oneshot_args 在每轮任务里
+    #   以 --system-prompt 注入（仅首条），此处不再注入，避免重复。
     if s.system_prompt and not s.cli_session_id:
-        if not mcp_on:
+        if mode == "oneshot":
+            _log.info("[Worker %s] oneshot mode: system_prompt 由 oneshot_args 逐任务注入", worker_id)
+        elif not mcp_on:
             _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
             await send_task(worker_id, s.system_prompt, source="system_prompt")
         else:
-            _log.info("[Worker %s] MCP mode: system_prompt injected via --system-prompt", worker_id)
+            _log.info("[Worker %s] MCP stream mode: system_prompt injected via --system-prompt", worker_id)
 
     return w
 

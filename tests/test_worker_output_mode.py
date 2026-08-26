@@ -1,12 +1,15 @@
-"""Tests for worker output_mode (three execution channels).
+"""Tests for worker output_mode (execution mode selection).
 
-Covers the mode-selection matrix in worker.py (_mcp_configured /
-_use_oneshot_mcp) and the API validation helper in server.py (_apply_output_mode).
+Covers resolve_execution_mode (merges adapter.execution_modes +
+session.output_mode) and the API validation helper in server.py
+(_apply_output_mode).
 
-Channels:
-- No MCP  -> stream (long-running, no MCP)           [existing]
-- MCP + output_mode="stream"   -> stream + MCP        [new, cbc >= 2.137.0]
-- MCP + output_mode unset/"oneshot" -> one-shot MCP   [existing]
+For cbc (execution_modes = ["stream","oneshot"]):
+- No MCP, output_mode unset -> stream (default)
+- MCP, output_mode unset -> stream (default)
+- MCP + output_mode="oneshot" -> oneshot
+- MCP + output_mode="stream" -> stream (+MCP)
+- output_mode="oneshot" (no MCP) -> oneshot  (NEW: no longer requires MCP)
 """
 
 import sys
@@ -16,6 +19,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core import worker
 from packages.core import session as _sess
+from packages.core.adapters import resolve_execution_mode, get_adapter
+
+
+class _FakeAdapter:
+    """Minimal adapter stub carrying only execution_modes (for clamp tests)."""
+
+    def __init__(self, modes):
+        self.name = "fake"
+        self.execution_modes = modes
 
 
 def _cleanup():
@@ -55,40 +67,56 @@ def test_mcp_configured_ignores_mcp_enabled():
     assert worker._mcp_configured(s) is True
 
 
-# ── _use_oneshot_mcp (decision matrix) ──
+# ── resolve_execution_mode (merges adapter.execution_modes + output_mode) ──
 
 
-def test_no_servers_goes_stream():
+def test_no_servers_unset_goes_stream():
     s = _session()
-    assert worker._use_oneshot_mcp(s) is False
+    assert resolve_execution_mode(get_adapter("cbc"), s) == "stream"
 
 
 def test_mcp_without_output_mode_goes_stream():
-    """MCP configured, output_mode unset -> stream + MCP (default since 2026-08-17)."""
+    """MCP configured, output_mode unset -> stream (default since 2026-08-17)."""
     s = _session(mcp_servers=[{"name": "pan"}])
-    assert worker._use_oneshot_mcp(s) is False
+    assert resolve_execution_mode(get_adapter("cbc"), s) == "stream"
 
 
 def test_mcp_with_explicit_oneshot_goes_oneshot():
     s = _session(mcp_servers=[{"name": "pan"}], output_mode="oneshot")
-    assert worker._use_oneshot_mcp(s) is True
+    assert resolve_execution_mode(get_adapter("cbc"), s) == "oneshot"
 
 
 def test_mcp_with_stream_output_mode_goes_stream():
-    """New channel: stream + MCP."""
+    """stream + MCP channel."""
     s = _session(mcp_servers=[{"name": "pan"}], output_mode="stream")
-    assert worker._use_oneshot_mcp(s) is False
+    assert resolve_execution_mode(get_adapter("cbc"), s) == "stream"
 
 
 def test_stream_without_mcp_stays_stream():
     s = _session(output_mode="stream")
-    assert worker._use_oneshot_mcp(s) is False
+    assert resolve_execution_mode(get_adapter("cbc"), s) == "stream"
 
 
-def test_oneshot_without_mcp_stays_stream():
-    """output_mode="oneshot" without MCP is meaningless -> stream."""
+def test_oneshot_without_mcp_goes_oneshot():
+    """NEW semantics: output_mode="oneshot" no longer requires MCP configured."""
     s = _session(output_mode="oneshot")
-    assert worker._use_oneshot_mcp(s) is False
+    assert resolve_execution_mode(get_adapter("cbc"), s) == "oneshot"
+
+
+def test_invalid_output_mode_clamps_to_stream():
+    s = _session(mcp_servers=[{"name": "pan"}], output_mode="bogus")
+    assert resolve_execution_mode(get_adapter("cbc"), s) == "stream"
+
+
+def test_oneshot_only_adapter_clamps_stream_to_oneshot():
+    s = _session(output_mode="stream")
+    # one-shot-only adapter: stream unsupported -> clamp to its only mode
+    assert resolve_execution_mode(_FakeAdapter(["oneshot"]), s) == "oneshot"
+
+
+def test_oneshot_only_adapter_explicit_oneshot():
+    s = _session(output_mode="oneshot")
+    assert resolve_execution_mode(_FakeAdapter(["oneshot"]), s) == "oneshot"
 
 
 # ── _apply_output_mode (server.py helper) ──
@@ -130,3 +158,23 @@ def test_apply_output_mode_clear():
 
 def test_apply_output_mode_auto_clears():
     assert _apply("auto") is None
+
+
+def test_apply_output_mode_oneshot_only_rejects_stream():
+    """one-shot-only adapter must reject a stream request (validation 400)."""
+    from packages.web import server as srv
+    s = _sess.Session(
+        id="ses_test", name="test", model="test-model", adapter="fake"
+    )
+    fake = _FakeAdapter(["oneshot"])
+    orig = srv.get_adapter
+    srv.get_adapter = lambda name: fake
+    try:
+        try:
+            srv._apply_output_mode(s, "stream")
+        except ValueError as e:
+            assert "stream" in str(e) or "execution" in str(e).lower()
+        else:
+            raise AssertionError("expected ValueError for stream on oneshot-only adapter")
+    finally:
+        srv.get_adapter = orig
