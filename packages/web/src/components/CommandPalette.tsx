@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { nextSessionDefaultName } from '@/utils/sessionName';
 import { Search } from 'lucide-react';
 
 interface PaletteAction {
@@ -40,7 +41,7 @@ export function CommandPalette() {
     // Session
     result.push(
       { id: 'sess-new', label: 'New Session', detail: 'Create a new session', group: 'Session', action: () => {
-        createNewSession(`session-${sessions.length + 1}`).catch((e) =>
+        createNewSession(nextSessionDefaultName(sessions)).catch((e) =>
           showToast(e.message || 'Creation failed', 'error'),
         );
       }},
