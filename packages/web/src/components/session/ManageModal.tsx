@@ -8,9 +8,10 @@ import {
   reportSubscribe,
   reportUnsubscribe,
   fetchSession,
+  fetchMcpServers,
   patchSession,
 } from '@/services/api';
-import type { PanAccess, Session } from '@/types';
+import type { McpServerInfo, PanAccess, Session } from '@/types';
 import { Search, Star, Check, Bell, Unlink } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
@@ -130,6 +131,12 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [savingFlag, setSavingFlag] = useState<keyof PanAccess | null>(null);
+  // Catalog of all manifest-declared MCP servers (for the multi-select list).
+  const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([]);
+  // True when the manifest catalog could not be loaded (empty + loaded:false).
+  const [mcpCatalogLoaded, setMcpCatalogLoaded] = useState(false);
+  // Busy flag scoped to the MCP section's save calls.
+  const [savingMcp, setSavingMcp] = useState(false);
   // Full session fetched on open — the sidebar list is summary=1 driven and
   // does NOT carry `managed` / `reportSubscriptions` / `panAccess`, so we pull
   // them on demand (and only for the session whose modal is open).
@@ -145,9 +152,22 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
       setCancelBusy(false);
       setSavingFlag(null);
       setDetailSession(null);
+      setMcpServers([]);
+      setMcpCatalogLoaded(false);
+      setSavingMcp(false);
       fetchSession(sessionId)
         .then((full) => setDetailSession(full))
         .catch(() => setDetailSession(null));
+      // Pull the full MCP server catalog (independent of the session fetch).
+      fetchMcpServers()
+        .then((list) => {
+          setMcpServers(list);
+          setMcpCatalogLoaded(true);
+        })
+        .catch(() => {
+          setMcpServers([]);
+          setMcpCatalogLoaded(false);
+        });
     }
   }, [open, sessionId]);
 
@@ -251,6 +271,39 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
       setSavingFlag(null);
     }
   };
+
+  // Live set of MCP server names currently enabled for this session.
+  const enabledMcp = useMemo(
+    () => new Set<string>(detailSession?.mcpServers ?? []),
+    [detailSession],
+  );
+
+  // Toggle one MCP server in/out of the session's enabled set and persist the
+  // full name list. Empty list clears them (backend supports [] / null).
+  const toggleMcpServer = async (name: string, checked: boolean) => {
+    if (!managerId || savingMcp || mcpLocked) return;
+    const next = new Set(enabledMcp);
+    if (checked) next.add(name);
+    else next.delete(name);
+    const names = [...next];
+    setSavingMcp(true);
+    try {
+      const updated = await patchSession(managerId, { mcpServers: names });
+      setDetailSession((d) => {
+        if (!d) return d;
+        return { ...d, mcpServers: updated.mcpServers ?? names };
+      });
+      showToast(
+        checked ? `Enabled MCP server "${name}"` : `Disabled MCP server "${name}"`,
+      );
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Update failed', 'error');
+    } finally {
+      setSavingMcp(false);
+    }
+  };
+
+  const mcpLocked = detailSession?.mcpLocked === true;
 
   const toggle = async (targetId: string, checked: boolean) => {
     if (!managerId || busyId) return;
@@ -520,6 +573,64 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
                   />
                 ))}
               </div>
+            </section>
+
+            {/* ── Section 4: MCP Server ── */}
+            <section className="flex flex-col gap-2">
+              <SectionHeader
+                title="MCP Server / MCP 服务"
+                subtitle="Select MCP servers from the manifest for this session; worker restarts with the change applied."
+              />
+              {mcpLocked ? (
+                <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary">
+                  MCP is locked by the session template (always/never) — selection disabled.
+                </div>
+              ) : (
+                <div className="rounded border border-border-muted bg-bg-primary p-1 space-y-0.5">
+                  {!mcpCatalogLoaded && mcpServers.length === 0 && (
+                    <div className="py-3 text-center text-[11px] text-text-tertiary">
+                      Loading MCP servers…
+                    </div>
+                  )}
+                  {mcpCatalogLoaded && mcpServers.length === 0 && (
+                    <div className="py-4 text-center text-sm text-text-tertiary">
+                      No MCP servers available (manifest not loaded)
+                    </div>
+                  )}
+                  {mcpServers.map((srv) => {
+                    const checked = enabledMcp.has(srv.name);
+                    return (
+                      <label
+                        key={srv.name}
+                        className={`flex items-start gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                          savingMcp ? 'pointer-events-none opacity-70' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 shrink-0 accent-accent"
+                          checked={checked}
+                          disabled={savingMcp || detailSession === null}
+                          onChange={(e) =>
+                            toggleMcpServer(srv.name, e.target.checked)
+                          }
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm text-text-primary">
+                            {srv.name}
+                          </span>
+                          {srv.command && (
+                            <span className="block text-[11px] text-text-tertiary font-mono truncate">
+                              {srv.command}
+                              {srv.cwd ? ` · cwd: ${srv.cwd}` : ''}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </>
         )}

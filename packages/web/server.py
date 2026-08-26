@@ -269,6 +269,13 @@ def _session_to_api(s: sess.Session):
         "workerId": w.worker_id if w else None,
         "mcpEnabled": bool(ac.get("mcp_servers")),
         "mcpLocked": _get_mcp_locked_state(s),
+        # Currently-enabled MCP server names (extracted from the adapter_config
+        # mcp_servers list of config dicts, each carrying a "name" key).
+        "mcpServers": [
+            c.get("name")
+            for c in (ac.get("mcp_servers") or [])
+            if isinstance(c, dict) and c.get("name")
+        ],
         "outputMode": ac.get("output_mode"),
         "gameId": s.game_id,
     }
@@ -2278,6 +2285,30 @@ async def api_session_templates():
         ],
         "total": len(templates),
     }
+
+
+@app.get("/api/mcp/servers")
+async def api_mcp_servers():
+    """List all available MCP servers from the manifest.
+
+    Returns the full catalog of MCP servers declared across plugin manifests
+    (deduplicated/merged). Used by the Manage modal's "MCP Server" section to
+    let the user multi-select which servers a session enables.
+
+    Does NOT expose `env` (may contain secrets). If the manifest is not loaded
+    yet, returns an empty list with `loaded: false` instead of a 500.
+    """
+    if _character_manager is None or _character_manager._manifest_config is None:
+        return {"servers": [], "loaded": False}
+    servers = [
+        {
+            "name": srv.name,
+            "command": srv.command,
+            "cwd": srv.cwd,
+        }
+        for srv in _character_manager._manifest_config.mcp_servers
+    ]
+    return {"servers": servers, "loaded": True}
 
 
 @app.get("/api/characters/profiles")

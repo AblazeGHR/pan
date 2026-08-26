@@ -38,6 +38,12 @@ export interface Session {
   qqSubscriptions?: string[];
   /** MCP capability flags; only present on the full (non-summary) endpoint. */
   panAccess?: PanAccess;
+  /** Whether MCP was ever enabled for this session (mcp_servers non-empty). */
+  mcpEnabled?: boolean;
+  /** True when the session template locks MCP on/off (always/never mode). */
+  mcpLocked?: boolean | null;
+  /** Names of MCP servers currently enabled for this session. */
+  mcpServers?: string[];
   history: Message[];
   historyTruncated?: boolean;
   historyTotal?: number;
@@ -182,6 +188,12 @@ export interface SessionTemplate {
 export interface ApiSessionTemplatesResponse {
   sessionTemplates?: SessionTemplate[];
   total?: number;
+  error?: string;
+}
+
+export interface ApiMcpServersResponse {
+  servers?: McpServerInfo[];
+  loaded?: boolean;
   error?: string;
 }
 
@@ -342,6 +354,15 @@ export interface SettingsBody {
   effort?: string;
   /** Partial patch — only the given flags are updated server-side. */
   panAccess?: PanAccess;
+  /** Names of MCP servers to enable (empty array clears them). */
+  mcpServers?: string[];
+}
+
+/** A single MCP server declared in the manifest (no secrets exposed). */
+export interface McpServerInfo {
+  name: string;
+  command?: string | null;
+  cwd?: string | null;
 }
 
 // ── File-system types ──

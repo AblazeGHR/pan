@@ -27,6 +27,8 @@ import type {
   ApiQqContactsResponse,
   ApiQqSubscribeResponse,
   QqContact,
+  McpServerInfo,
+  ApiMcpServersResponse,
 } from '@/types';
 
 const BASE = '/api';
@@ -92,6 +94,14 @@ export async function fetchSessionTemplates(): Promise<SessionTemplate[]> {
   );
   if (data.error) throw new Error(data.error);
   return data.sessionTemplates || [];
+}
+
+export async function fetchMcpServers(): Promise<McpServerInfo[]> {
+  const data = await request<ApiMcpServersResponse>(`${BASE}/mcp/servers`);
+  // `loaded: false` means the manifest isn't loaded yet — return empty rather
+  // than throwing, so the modal can show an explanatory empty state.
+  if (!data.loaded) return [];
+  return data.servers || [];
 }
 
 export async function patchSession(

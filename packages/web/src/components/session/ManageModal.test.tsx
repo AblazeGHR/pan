@@ -10,7 +10,7 @@ import {
 } from '@testing-library/react';
 import { ManageModal } from './ManageModal';
 import { useSessionStore } from '@/stores/sessionStore';
-import type { Session } from '@/types';
+import type { McpServerInfo, Session } from '@/types';
 
 const apiMock = vi.hoisted(() => ({
   fetchSession: vi.fn(),
@@ -18,6 +18,7 @@ const apiMock = vi.hoisted(() => ({
   unclaimSession: vi.fn(async () => ({ ok: true })),
   reportSubscribe: vi.fn(async () => ({})),
   reportUnsubscribe: vi.fn(async () => ({})),
+  fetchMcpServers: vi.fn(async (): Promise<McpServerInfo[]> => []),
   patchSession: vi.fn(),
 }));
 
@@ -34,7 +35,7 @@ function mk(id: string, name: string, extra?: Partial<Session>): Session {
   };
 }
 
-/** Section order matches the modal: 0 = Managed by, 1 = Manages, 2 = Pan Access. */
+/** Section order matches the modal: 0 = Managed by, 1 = Manages, 2 = Pan Access, 3 = MCP Server. */
 function section(i: number) {
   const el = document.querySelectorAll('section')[i];
   return within(el as HTMLElement);
@@ -125,5 +126,56 @@ describe('ManageModal', () => {
         .getByRole('switch', { name: 'Can claim unmanaged' })
         .getAttribute('aria-checked'),
     ).toBe('true');
+  });
+
+  it('saves the enabled MCP server names via patchSession', async () => {
+    apiMock.fetchSession.mockResolvedValue(
+      mk('s1', 'Child', { managed: [], reportSubscriptions: [], mcpServers: [] }),
+    );
+    apiMock.fetchMcpServers.mockResolvedValue([
+      { name: 'pan', command: 'node pan.js' },
+      { name: 'git', command: 'node git.js' },
+    ]);
+    apiMock.patchSession.mockImplementation(async (_id, body) =>
+      mk('s1', 'Child', { mcpServers: (body as { mcpServers?: string[] }).mcpServers }),
+    );
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    // Wait for the catalog to render, then toggle "pan" on.
+    const panLabel = await screen.findByText('pan');
+    const panInput = panLabel.closest('label')!.querySelector('input')!;
+    expect((panInput as HTMLInputElement).checked).toBe(false);
+
+    fireEvent.click(panInput);
+    await waitFor(() =>
+      expect(apiMock.patchSession).toHaveBeenCalledWith('s1', {
+        mcpServers: ['pan'],
+      }),
+    );
+    // Optimistic + server echo: the checkbox reflects enabled state.
+    await waitFor(() =>
+      expect((panInput as HTMLInputElement).checked).toBe(true),
+    );
+  });
+
+  it('disables MCP selection when the template locks it (mcpLocked)', async () => {
+    apiMock.fetchSession.mockResolvedValue(
+      mk('s1', 'Child', {
+        managed: [],
+        reportSubscriptions: [],
+        mcpServers: ['pan'],
+        mcpLocked: true,
+      }),
+    );
+    apiMock.fetchMcpServers.mockResolvedValue([
+      { name: 'pan', command: 'node pan.js' },
+    ]);
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    // Locked state shows the notice and no server checkboxes.
+    await screen.findByText(/MCP is locked by the session template/);
+    expect(screen.queryByRole('checkbox')).toBeNull();
   });
 });
