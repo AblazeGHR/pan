@@ -424,6 +424,23 @@ def fork_codex_session(parent_id: str, name: str, workdir: str | None = None) ->
             )
             hcon.commit()
 
+        # 物化新 rollout：codex resume 依赖 rollout 文件（新路径必须存在，且其
+        # session_meta 必须属于新线程）。复制父 rollout 并重写其中的父 thread id
+        # （完整 UUID，实测仅出现在 session_meta.session_id/id 与 event_msg.thread_id
+        # 字段），否则首次 resume 报 "no rollout found for thread id ..." 或
+        # "session metadata ... belongs to thread ..."。best-effort：复制失败不阻塞
+        # fork（后续 resume 时由 codex 报错）。
+        src_rollout = _rollout_full_path(parent.get("rollout_path"))
+        if src_rollout is not None:
+            try:
+                new_rollout.parent.mkdir(parents=True, exist_ok=True)
+                payload = src_rollout.read_text(encoding="utf-8")
+                if parent_id in payload:
+                    payload = payload.replace(parent_id, new_id)
+                new_rollout.write_text(payload, encoding="utf-8")
+            except OSError:
+                pass
+
         # 记录 fork 父子关系（best-effort；部分版本无此表/状态枚举差异，失败忽略）
         try:
             scon.execute(
