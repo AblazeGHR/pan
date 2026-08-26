@@ -113,12 +113,18 @@ def test_mcp_args_builds_inline_overrides():
         "type": "stdio",
         "command": "node",
         "args": ["D:/pan-mcp-server.js"],
+        "cwd": "D:/pan",
         "env": {"FOO": "bar"},
     }]})
     opts = a.mcp_args(s)
     joined = " ".join(opts)
     assert 'mcp_servers.pan.command="node"' in joined
-    assert 'mcp_servers.pan.args=["node", "D:/pan-mcp-server.js"]' in joined
+    # args 是「不含 command」的参数列表（对齐 codex mcp add 原生格式；把 command
+    # 塞进 args 首位会导致 codex 执行 `exe exe -m ...` → MCP 握手失败）
+    assert 'mcp_servers.pan.args=["D:/pan-mcp-server.js"]' in joined
+    # cwd 必须透传，否则 codex 从 session workdir 启动 server（`-m packages.mcp.server`
+    # 在 workdir 下 ModuleNotFoundError → 握手即断开）
+    assert 'mcp_servers.pan.cwd="D:/pan"' in joined
     # pan server 注入 MA session 身份
     assert 'mcp_servers.pan.env.PAN_AGENT_SESSION_ID="ses_test"' in joined
     assert 'mcp_servers.pan.env.PAN_AGENT_SESSION_TITLE="test"' in joined
@@ -373,14 +379,18 @@ def _build_fake_codex_dir(tmp: Path) -> tuple[Path, Path, Path]:
     hcon.commit()
     hcon.close()
 
-    # rollout（token_count usage）
+    # rollout（session_meta 含 thread id + token_count usage）
     rollout.write_text(
-        json.dumps({"type": "event_msg", "timestamp": "2026-08-26T00:00:10Z",
-                    "payload": {"type": "token_count", "info": {
-                        "total_token_usage": {
-                            "input_tokens": 100, "cached_input_tokens": 50,
-                            "cache_write_input_tokens": 5, "output_tokens": 20,
-                            "reasoning_output_tokens": 7, "total_tokens": 120}}}}) + "\n",
+        json.dumps({"timestamp": "2026-08-26T00:00:00Z", "ordinal": 0,
+                    "type": "session_meta",
+                    "payload": {"session_id": "thread_abc", "id": "thread_abc",
+                                "context_window": {"window_id": "thread_abc-ctx"}}}) + "\n"
+        + json.dumps({"type": "event_msg", "timestamp": "2026-08-26T00:00:10Z",
+                      "payload": {"type": "token_count", "info": {
+                          "total_token_usage": {
+                              "input_tokens": 100, "cached_input_tokens": 50,
+                              "cache_write_input_tokens": 5, "output_tokens": 20,
+                              "reasoning_output_tokens": 7, "total_tokens": 120}}}}) + "\n",
         encoding="utf-8",
     )
     return state, hist, tmp / "sessions"
@@ -437,6 +447,19 @@ def test_sessions_provider_e2e():
         listed = [s for s in codex_sessions.list_sessions() if s["session_id"] == new_id]
         assert len(listed) == 1
         assert listed[0]["parent_id"] == "thread_abc"
+
+        # fork 物化 rollout：新路径存在、session_meta 已重写为新 thread id（否则
+        # codex 首次 resume 报 "no rollout found" / "belongs to thread ..."）。
+        scon = sqlite3.connect(f"file:{state}?mode=ro", uri=True)
+        rp = scon.execute(
+            "SELECT rollout_path FROM threads WHERE id=?", (new_id,)
+        ).fetchone()[0]
+        scon.close()
+        assert Path(rp).is_file(), "fork must materialize a rollout file"
+        meta = json.loads(Path(rp).read_text(encoding="utf-8").splitlines()[0])
+        assert meta["payload"]["id"] == new_id
+        assert meta["payload"]["session_id"] == new_id
+        assert Path(rp).read_text(encoding="utf-8").find("thread_abc") == -1
         print("PASS: sessions provider e2e (fake ~/.codex)")
 
 

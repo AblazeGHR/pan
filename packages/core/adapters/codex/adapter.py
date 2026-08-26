@@ -243,11 +243,22 @@ class CodexAdapter:
                 cmd = entry.get("command")
                 args = list(entry.get("args") or [])
                 if cmd:
-                    cargs = [cmd, *args]
+                    # codex 的 mcp_servers.<name>.args 是「不含 command」的参数列表
+                    # （实测 `codex mcp add` 写入：command="<exe>", args=["-m", ...]）。
+                    # 若把 command 也塞进 args 首位，codex 会执行 `exe exe -m ...`，
+                    # MCP server 以 SyntaxError 退出 → handshake "connection closed"。
                     opts.append("-c")
                     opts.append(_c_override(f"mcp_servers.{name}.command", cmd))
-                    opts.append("-c")
-                    opts.append(_c_override(f"mcp_servers.{name}.args", cargs))
+                    if args:
+                        opts.append("-c")
+                        opts.append(_c_override(f"mcp_servers.{name}.args", list(args)))
+            # MCP server 的 cwd（manifest 声明，如 pan → D:\project\pan-test）必须随
+            # `-c mcp_servers.<name>.cwd=...` 透传；否则 codex 从 session workdir 启动
+            # server，`-m packages.mcp.server` 会 ModuleNotFoundError → 握手即断开。
+            cwd = entry.get("cwd")
+            if cwd:
+                opts.append("-c")
+                opts.append(_c_override(f"mcp_servers.{name}.cwd", cwd))
             for k, v in env.items():
                 opts.append("-c")
                 opts.append(_c_override(f"mcp_servers.{name}.env.{k}", v))
