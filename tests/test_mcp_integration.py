@@ -156,15 +156,27 @@ class TestCbcMCPArgs:
 
 
 class TestKimiMCPArgs:
-    def test_mcp_args_empty(self):
-        """Kimi configures MCP at user-level (~/.codebuddy/mcp.json), not CLI."""
+    def test_mcp_args_kimi_home(self):
+        """kimi 经 KIMI_CODE_HOME 隔离 HOME 加载 MCP（方案 C）：有 mcp_servers 时
+        mcp_args 返回 --kimi-home <dir> 且隔离 HOME 生成；无 mcp_servers 返回 []。"""
         adapter = KimiAdapter()
         s = _make_session(mcp_servers=[{
             "name": "rw",
             "command": "python",
             "args": ["-m", "src.server.mcp"],
         }])
-        assert adapter.mcp_args(s) == []
+        args = adapter.mcp_args(s)
+        assert args and args[0] == "--kimi-home" and len(args) == 2
+        home_dir = args[1]
+        # 隔离 HOME 已生成（mcp.json + config.toml）
+        assert (Path(home_dir) / "mcp.json").exists()
+        assert (Path(home_dir) / "config.toml").exists()
+        # 无 mcp_servers → []（走原路径，使用真实用户目录）
+        s2 = _make_session()
+        assert adapter.mcp_args(s2) == []
+        # 清理隔离 HOME（测试残留）
+        import shutil
+        shutil.rmtree(home_dir, ignore_errors=True)
 
 
 # ------------------------------------------------------------------ #
