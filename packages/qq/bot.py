@@ -1,85 +1,69 @@
-"""Pan QQ Channel entry point — start NoneBot2 and load QQ plugin.
+"""Pan QQ Channel entry point — 按配置选择并启动 QQ 通道（NapCat / LLOneBot）。
 
-NapCat 不可达时自动降级：NoneBot OneBot 适配器对正向 WS 连接失败会每 3 秒重试
-（进程不会退出），此处在此基础上补充清晰的降级/恢复日志与状态标记。
+通道化之前这里硬编码 NapCat 正向 WS 连接 + 3 秒重试降级。现在：
+    - 读 config.json 的 qq.channel（缺省 "napcat"，向后兼容）
+    - 读各通道连接参数（ws_urls / token），环境变量 ONEBOT_WS_URLS /
+      ONEBOT_ACCESS_TOKEN 优先，其次 config 的 qq.<channel>.ws_urls / token
+    - 把 ws_urls 注入 ONEBOT_WS_URLS 环境变量，让 NoneBot OneBot v11 适配器连到
+      对应网关（NapCat / LLOneBot 都是 OneBot 11 网关，wire 层一致）
+    - 构造并 stash 通道实例，再 load_plugin("plugin")，plugin 复用同一实例
+    - 网关不可达时由通道层打降级日志，适配器每 3s 重试，进程保持存活
+
+通道选择/连接的具体差异（端口、token、降级文案）全部封装在
+packages/qq/channels/* 中，本文件只做「读配置 → 注入 env → 建通道 → 启动」。
 """
 
-import socket
-from urllib.parse import urlparse
+import json
+import os
+from pathlib import Path
 
 from nonebot.adapters.onebot.v11 import Adapter as OneBotAdapter
-from nonebot.adapters.onebot.v11.config import Config as OneBotConfig
 import nonebot
-from nonebot import get_plugin_config
+from nonebot import get_driver
 
-# Mixed driver: fastapi serves the QQ HTTP API (server_app) while websockets
-# provides the OneBot v11 WS *client* connection to NapCat. Without the WS
-# driver, OneBot V11 cannot receive/send messages (仅 fastapi 不支持 WS client).
-nonebot.init(driver="~fastapi+~websockets")
-driver = nonebot.get_driver()
-driver.register_adapter(OneBotAdapter)
-
-_DEGRADED_MSG = "[QQ] NapCat 未连接，QQ 模块降级运行（进程保持存活，每 3s 自动重试连接）"
-_DEGRADED_DISCONNECT_MSG = "[QQ] NapCat 连接断开，QQ 模块降级运行（继续每 3s 自动重试）"
-_RECOVERED_MSG = "[QQ] NapCat 连接恢复，QQ 模块正常运行"
-_napcat_connected = False
+from packages.qq import channels as _channels
 
 
-def _onebot_ws_urls() -> list[str]:
-    """OneBot 正向 WS 目标地址（ONEBOT_WS_URLS / .env 配置，如 ws://127.0.0.1:3001）。"""
-    cfg = get_plugin_config(OneBotConfig)
-    return [str(u) for u in cfg.onebot_ws_urls]
-
-
-def _tcp_reachable(url: str, timeout: float = 1.0) -> bool:
-    """Cheap TCP connect test for a ws(s):// URL — True if host:port accepts a connection."""
+def _load_qq_config() -> dict:
+    """Read config.json at the project root; empty dict on failure."""
     try:
-        p = urlparse(url)
-        port = p.port or (443 if p.scheme == "wss" else 80)
-        with socket.create_connection((p.hostname, port), timeout=timeout):
-            return True
-    except OSError:
-        return False
+        path = Path(__file__).resolve().parent.parent.parent / "config.json"
+        return json.loads(path.read_text(encoding="utf-8")).get("qq") or {}
+    except Exception:
+        return {}
 
 
-def _mark_connected() -> None:
-    global _napcat_connected
-    if not _napcat_connected:
-        _napcat_connected = True
-        print(_RECOVERED_MSG)
+def _inject_onebot_env(name: str, ws_urls: list[str], token: str | None) -> None:
+    """把通道的连接参数注入 NoneBot OneBot 适配器读取的环境变量。
 
-
-def _mark_disconnected() -> None:
-    global _napcat_connected
-    if _napcat_connected:
-        _napcat_connected = False
-        print(_DEGRADED_DISCONNECT_MSG)
-
-
-@driver.on_startup
-async def _napcat_startup_check() -> None:
-    """启动时预检 NapCat 可达性；不可达则打降级日志（适配器会持续每 3s 重试）。
-
-    在 on_startup 阶段（早于适配器 on_ready 的首次 WS 连接）执行，先于
-    适配器的 ERROR 日志给出清晰的降级标记。未配置正向 WS 地址时无 NapCat
-    依赖，跳过。
+    仅当用户未显式设置时才覆盖，尊重手动 .env 配置。
     """
-    urls = _onebot_ws_urls()
-    if not urls:
-        return
-    if not any(_tcp_reachable(u) for u in urls):
-        print(_DEGRADED_MSG)
+    if os.getenv("ONEBOT_WS_URLS") is None:
+        os.environ["ONEBOT_WS_URLS"] = json.dumps(ws_urls)
+    if token and os.getenv("ONEBOT_ACCESS_TOKEN") is None:
+        os.environ["ONEBOT_ACCESS_TOKEN"] = token
+    print(f"[QQ] 启动通道 '{name}'，OneBot WS: {ws_urls}")
 
 
-@driver.on_bot_connect
-async def _on_bot_connect(bot) -> None:
-    _mark_connected()
+def main() -> None:
+    qq_cfg = _load_qq_config()
+    name, ws_urls, token = _channels.build_channel_spec(qq_cfg)
+    _inject_onebot_env(name, ws_urls, token)
+
+    # Mixed driver: fastapi serves the QQ HTTP API (server_app) while websockets
+    # provides the OneBot v11 WS *client* connection to the gateway. Without the
+    # WS driver, OneBot V11 cannot receive/send messages (仅 fastapi 不支持 WS client).
+    nonebot.init(driver="~fastapi+~websockets")
+    driver = get_driver()
+    driver.register_adapter(OneBotAdapter)
+
+    # 构造通道并 stash：plugin 复用同一实例（避免重复创建 / 配置不一致）
+    channel = _channels.create_channel(name, ws_urls, token)
+    _channels.set_active_channel(channel)
+
+    nonebot.load_plugin("plugin")
+    nonebot.run()
 
 
-@driver.on_bot_disconnect
-async def _on_bot_disconnect(bot) -> None:
-    _mark_disconnected()
-
-
-nonebot.load_plugin("plugin")
-nonebot.run()
+if __name__ == "__main__":
+    main()

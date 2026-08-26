@@ -37,18 +37,12 @@ def _is_pid_alive(pid: int) -> bool:
         return False
 
 
-def _napcat_reachable(timeout: float = 1.0) -> bool:
-    """TCP-probe the NapCat OneBot WS endpoint(s) from packages/qq/.env (best-effort).
-
-    Returns True when at least one configured forward-WS host accepts a
-    connection. Returns True (no degradation) when the endpoint is unknown —
-    e.g. missing/unparseable ONEBOT_WS_URLS — because then bot.py has no
-    NapCat dependency to degrade on. Never raises; failures mean "unreachable".
-    """
+def _qq_ws_urls_from_env() -> list[str]:
+    """Read ONEBOT_WS_URLS from packages/qq/.env (best-effort)."""
     try:
         env_text = (_QQ_DIR / ".env").read_text(encoding="utf-8")
     except OSError:
-        return True
+        return []
     for line in env_text.splitlines():
         line = line.strip()
         if not line.startswith("ONEBOT_WS_URLS="):
@@ -56,19 +50,55 @@ def _napcat_reachable(timeout: float = 1.0) -> bool:
         try:
             urls = json.loads(line.split("=", 1)[1].strip())
         except (ValueError, json.JSONDecodeError):
-            return True
-        if not urls:
-            return True
-        for url in urls:
-            try:
-                p = urlparse(url)
-                host, port = p.hostname, p.port or (443 if p.scheme == "wss" else 80)
-                with socket.create_connection((host, port), timeout=timeout):
-                    return True
-            except OSError:
-                continue
-        return False
-    return True
+            return []
+        return list(urls) if isinstance(urls, (list, tuple)) else [urls]
+    return []
+
+
+def _qq_ws_urls_from_config() -> list[str]:
+    """Read the active channel's WS URLs from config.json's qq section.
+
+    Used when packages/qq/.env has no ONEBOT_WS_URLS (the new config-driven
+    channel path). Picks qq.<channel>.ws_urls based on qq.channel, falling back
+    to the legacy qq.ws_url field.
+    """
+    try:
+        from packages.core.config import load_config
+
+        qq = load_config().get("qq") or {}
+    except Exception:
+        return []
+    name = (qq.get("channel") or "napcat").strip().lower()
+    sub = qq.get(name) or {}
+    ws = sub.get("ws_urls")
+    if isinstance(ws, str):
+        ws = [ws]
+    if not ws and qq.get("ws_url"):
+        ws = [qq["ws_url"]]
+    return list(ws) if ws else []
+
+
+def _napcat_reachable(timeout: float = 1.0) -> bool:
+    """TCP-probe the active QQ channel's OneBot WS endpoint(s) (best-effort).
+
+    Reads WS URLs from packages/qq/.env (ONEBOT_WS_URLS) first, then falls back
+    to config.json's qq.<channel>.ws_urls (the new config-driven channel path).
+    Returns True when at least one configured forward-WS host accepts a
+    connection, or when no endpoint is configured (no degradation to report).
+    Never raises; failures mean "unreachable".
+    """
+    urls = _qq_ws_urls_from_env() or _qq_ws_urls_from_config()
+    if not urls:
+        return True
+    for url in urls:
+        try:
+            p = urlparse(url)
+            host, port = p.hostname, p.port or (443 if p.scheme == "wss" else 80)
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _qq_health_check() -> None:

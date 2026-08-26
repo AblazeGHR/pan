@@ -19,9 +19,8 @@ import nonebot  # noqa: E402
 # calls get_driver() at import time and mounts routes on server_app).
 nonebot.init()
 
-from nonebot.adapters.onebot.v11 import GroupMessageEvent  # noqa: E402
-
 from packages.qq import plugin as qq  # noqa: E402
+from packages.qq.channels import QQMessage  # noqa: E402
 
 
 class FakeBot:
@@ -280,58 +279,9 @@ def test_recent_contacts_unsupported():
 
 # ── selective mode / inbox（PAN_QQ_MODE=selective）──
 
-class FakeEvent:
-    """Minimal MessageEvent stand-in for handle_message tests (private scope)."""
-
-    def __init__(self, user_id, text):
-        self._user_id = user_id
-        self._text = text
-
-    def get_user_id(self):
-        return self._user_id
-
-    def get_plaintext(self):
-        return self._text
-
-
-class _FakeSeg:
-    def __init__(self, type_, data):
-        self.type = type_
-        self.data = data
-
-
-class FakeGroupEvent(GroupMessageEvent):
-    """Real GroupMessageEvent stand-in; only fires handle_message when @ bot.
-
-    Built via model_construct so pydantic skips field validation — only the
-    fields handle_message touches (group_id / message) are populated.
-    """
-
-    def __init__(self, group_id, text, at_bot=True):
-        seg = _FakeSeg(
-            "at" if at_bot else "text",
-            {"qq": int(FakeBot.self_id)} if at_bot else {"text": text},
-        )
-        inst = GroupMessageEvent.model_construct(group_id=group_id, message=[seg])
-        object.__setattr__(self, "__dict__", dict(inst.__dict__))
-        object.__setattr__(self, "_text", text)
-
-    def get_user_id(self):
-        return "12345"
-
-    def get_plaintext(self):
-        return self._text
-
-
-class FakeBotWithSend(FakeBot):
-    """FakeBot + bot.send() recording for handle_message tests."""
-
-    def __init__(self):
-        super().__init__()
-        self.sent = []
-
-    async def send(self, event, message):
-        self.sent.append(message)
+# 业务层只认 QQMessage（通道已把 OneBot event 归一化）；群消息 @-bot 过滤在通道
+# hook 内完成，见 packages/qq/test_channels.py。这里用 QQMessage 直接驱动
+# handle_qq_message，收发经当前通道抽象（FakeBot 经 channel._bot 注入）。
 
 
 class FakeRouteResponse:
@@ -356,14 +306,19 @@ class FakeRouteClient:
 
 
 def _prepare_handle_test(tmp_path, monkeypatch, mode):
-    """Common setup for handle_message tests: isolated dirs, clean state, env."""
+    """Common setup for handle_qq_message tests: isolated dirs, clean state, env.
+
+    把 FakeBot 注入当前通道（channel._bot），使 handle_qq_message 经通道抽象收发。
+    """
     qq._HISTORY_DIR = tmp_path / "hist"
     qq._INBOX_DIR = tmp_path / "inbox"
     qq._sessions.clear()
     qq._command_routes_loaded = True
     qq._command_routes = []
     monkeypatch.setenv("PAN_QQ_MODE", mode)
-    return FakeBotWithSend()
+    bot = FakeBot()
+    qq.get_channel()._bot = bot
+    return bot
 
 
 def test_qq_mode_default_mirror(monkeypatch):
@@ -382,9 +337,9 @@ def test_qq_mode_selective_and_invalid(monkeypatch):
 
 def test_selective_writes_inbox_and_history_no_reply(tmp_path, monkeypatch):
     bot = _prepare_handle_test(tmp_path, monkeypatch, "selective")
-    _run(qq.handle_message(bot, FakeEvent("10001", "你好")))
-    # 不自动回复
-    assert bot.sent == []
+    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text="你好")))
+    # selective 模式不自动回复（收发经通道，这里不应调用 send）
+    assert bot.calls == []
     # 不建 session / 不 spawn（_sessions 保持空）
     assert qq._sessions == {}
     # 消息进 inbox（含 id/text/time）
@@ -401,20 +356,16 @@ def test_selective_writes_inbox_and_history_no_reply(tmp_path, monkeypatch):
 
 def test_selective_group_at_message_goes_inbox(tmp_path, monkeypatch):
     bot = _prepare_handle_test(tmp_path, monkeypatch, "selective")
-    _run(qq.handle_message(bot, FakeGroupEvent("20002", "群聊测试")))
-    assert bot.sent == []
+    _run(qq.handle_qq_message(QQMessage(scope="group", scope_id="20002", text="群聊测试")))
+    assert bot.calls == []
     inbox = _run(qq.api_inbox("20002"))
     assert [m["text"] for m in inbox["messages"]] == ["群聊测试"]
     hist = _run(qq.api_history("20002"))
     assert [h["role"] for h in hist["messages"]] == ["user"]
 
 
-def test_selective_group_without_at_ignored(tmp_path, monkeypatch):
-    bot = _prepare_handle_test(tmp_path, monkeypatch, "selective")
-    _run(qq.handle_message(bot, FakeGroupEvent("20002", "不 @ 不处理", at_bot=False)))
-    assert bot.sent == []
-    assert _run(qq.api_inbox("20002"))["messages"] == []
-    assert _run(qq.api_history("20002"))["messages"] == []
+# 群消息 @-bot 过滤已在通道 hook（OneBotChannel._on_message）内完成，见
+# packages/qq/test_channels.py 的 test_on_message_group_requires_at_bot。
 
 
 def test_inbox_consume_deletes_all(tmp_path):
@@ -457,9 +408,12 @@ def test_selective_command_route_still_executes(tmp_path, monkeypatch):
         return client
 
     monkeypatch.setattr(qq, "_get_client", _fake_client)
-    _run(qq.handle_message(bot, FakeEvent("10001", ".test hello")))
+    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text=".test hello")))
     # command route 直连外部 HTTP、绕过 LLM → selective 下仍执行并回复
-    assert bot.sent == ["processing, please wait...", "route-ok"]
+    # processing 提示 + route-ok 均经通道 send（call_api）发出
+    assert [c[0] for c in bot.calls] == ["send_private_msg", "send_private_msg"]
+    assert bot.calls[0][1]["message"] == "processing, please wait..."
+    assert bot.calls[1][1]["message"] == "route-ok"
     # 过滤 _append_inbox 触发的 Pan Core notify（best-effort），只断言路由调用
     route_posts = [(u, b) for (u, b) in client.posted if not u.endswith("/api/qq/notify")]
     assert route_posts == [("http://fake.local/route", {"text": "hello"})]
@@ -478,9 +432,11 @@ def test_mirror_mode_behavior_unchanged(tmp_path, monkeypatch):
         return "mirror reply"
 
     monkeypatch.setattr(qq, "_send_and_wait", _fake_send_and_wait)
-    _run(qq.handle_message(bot, FakeEvent("10001", "你好")))
-    # 自动回复（现状兼容）
-    assert bot.sent == ["processing, please wait...", "mirror reply"]
+    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text="你好")))
+    # 自动回复（现状兼容），经通道 send（call_api）
+    assert [c[0] for c in bot.calls] == ["send_private_msg", "send_private_msg"]
+    assert bot.calls[0][1]["message"] == "processing, please wait..."
+    assert bot.calls[1][1]["message"] == "mirror reply"
     assert called == [("你好", "10001", "user")]
     # mirror 模式不写 inbox
     assert _run(qq.api_inbox("10001"))["messages"] == []
