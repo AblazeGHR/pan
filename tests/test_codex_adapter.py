@@ -19,6 +19,7 @@ from packages.core.adapters.codex import adapter as codex_adapter
 from packages.core.adapters.codex import sessions as codex_sessions
 from packages.core.adapters.codex import wrapper as codex_wrapper
 from packages.core import session as _sess
+import packages.core.config as core_config
 
 
 def _adapter() -> CodexAdapter:
@@ -422,6 +423,98 @@ def test_sessions_provider_e2e():
         print("PASS: sessions provider e2e (fake ~/.codex)")
 
 
+# ── model_catalog_json 解析（任务 C）──
+
+
+def _reset_models_cache():
+    CodexAdapter._cached_models = None
+    CodexAdapter._models_cached_at = 0.0
+
+
+def _fake_codex_home(tmp_path: Path, catalog_models: list[dict] | None = None) -> Path:
+    """构造 fake ~/.codex：config.toml 指向 cc-switch catalog + 可选 catalog 文件。"""
+    home = tmp_path / "codex-home"
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "config.toml").write_text(
+        'model_catalog_json = "cc-switch-model-catalog.json"\nmodel = "deepseek-ai/DeepSeek-V4-Flash"\n',
+        encoding="utf-8",
+    )
+    if catalog_models is not None:
+        (home / "cc-switch-model-catalog.json").write_text(
+            json.dumps({"models": catalog_models}), encoding="utf-8"
+        )
+    return home
+
+
+def test_parse_models_from_catalog(monkeypatch, tmp_path):
+    home = _fake_codex_home(tmp_path, [
+        {"slug": "a/b", "display_name": "a/b"},
+        {"display_name": "c/d"},          # 无 slug → 回退 display_name
+        {"slug": "a/b"},                  # 重复 → 去重
+        {},                               # 无标识 → 跳过
+    ])
+    monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+    assert codex_adapter._parse_models_from_catalog() == ["a/b", "c/d"]
+    # 文件缺失 → []（容错）
+    monkeypatch.setattr(codex_adapter, "_codex_home", lambda: tmp_path / "no-such-home")
+    assert codex_adapter._parse_models_from_catalog() == []
+    # config.toml 无 model_catalog_json → []（容错）
+    home2 = _fake_codex_home(tmp_path, [{"slug": "x/y"}])
+    (home2 / "config.toml").write_text("model = \"m\"\n", encoding="utf-8")
+    monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home2)
+    assert codex_adapter._parse_models_from_catalog() == []
+    # catalog 文件 JSON 损坏 → []（容错）
+    (home2 / "cc-switch-model-catalog.json").write_text("{broken", encoding="utf-8")
+    (home2 / "config.toml").write_text('model_catalog_json = "cc-switch-model-catalog.json"\n', encoding="utf-8")
+    assert codex_adapter._parse_models_from_catalog() == []
+    print("PASS: _parse_models_from_catalog (dedupe + fallback + fault tolerance)")
+
+
+def test_supported_models_catalog_priority(monkeypatch, tmp_path):
+    _reset_models_cache()
+    try:
+        home = _fake_codex_home(tmp_path, [{"slug": "cat/a"}, {"slug": "cat/b"}])
+        monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+        a = _adapter()
+        # 无白名单 → catalog 解析
+        monkeypatch.setattr(core_config, "load_config", lambda: {"codex": {}})
+        assert a.supported_models == ["cat/a", "cat/b"]
+        # 白名单优先于 catalog
+        _reset_models_cache()
+        monkeypatch.setattr(core_config, "load_config",
+                            lambda: {"codex": {"models": ["wl/m1"]}})
+        assert a.supported_models == ["wl/m1"]
+        # catalog 缺失 → 内置默认
+        _reset_models_cache()
+        monkeypatch.setattr(core_config, "load_config", lambda: {"codex": {}})
+        monkeypatch.setattr(codex_adapter, "_codex_home", lambda: tmp_path / "nohome")
+        assert a.supported_models == ["deepseek-ai/DeepSeek-V4-Flash"]
+    finally:
+        _reset_models_cache()
+    print("PASS: supported_models priority (whitelist > catalog > default)")
+
+
+def test_supported_models_ttl_cache(monkeypatch, tmp_path):
+    _reset_models_cache()
+    try:
+        home = _fake_codex_home(tmp_path, [{"slug": "cat/a"}])
+        monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+        monkeypatch.setattr(core_config, "load_config", lambda: {"codex": {}})
+        a = _adapter()
+        assert a.supported_models == ["cat/a"]
+        # TTL 内修改 catalog → 不生效（缓存）
+        (home / "cc-switch-model-catalog.json").write_text(
+            json.dumps({"models": [{"slug": "new/x"}]}), encoding="utf-8"
+        )
+        assert a.supported_models == ["cat/a"]
+        # 模拟 TTL 过期 → 自动重拉
+        CodexAdapter._models_cached_at = 0.0
+        assert a.supported_models == ["new/x"]
+    finally:
+        _reset_models_cache()
+    print("PASS: supported_models TTL cache (5min, expired -> re-pull)")
+
+
 if __name__ == "__main__":
     test_adapter_metadata()
     test_shim_resolution()
@@ -442,6 +535,9 @@ if __name__ == "__main__":
     test_build_codex_args_fresh()
     test_build_codex_args_resume_filters_non_c_flags()
     test_filter_resume_opts()
+    test_parse_models_from_catalog()
+    test_supported_models_catalog_priority()
+    test_supported_models_ttl_cache()
     test_item_to_block_mapping()
     test_norm_path()
     test_sessions_provider_e2e()

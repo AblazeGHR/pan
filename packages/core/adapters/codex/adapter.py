@@ -29,6 +29,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
 from ...session import Session
 from ..mcp import build_mcp_servers
@@ -71,23 +72,37 @@ class CodexAdapter:
     def default_permission_mode(self) -> str:
         return self._codex_config.get("permission_mode", "bypass")
 
+    # 模型列表 TTL 缓存（对齐 opencode 思路，5 分钟超时自动重拉）
+    _MODELS_TTL_SEC = 300.0
     _cached_models: list[str] | None = None  # class-level cache
+    _models_cached_at: float = 0.0
 
     @property
     def supported_models(self) -> list[str]:
-        """模型列表：config.json 显式配置 > 单默认模型（自动识别）。
+        """模型列表（优先级）：config.codex.models 白名单 > model_catalog_json 解析 > 内置默认。
 
-        codex CLI 无稳定的 ``models`` 子命令（help 未列出），故不尝试 CLI 解析；
-        仅当 config.codex.models 非空时采用，否则回落到 default_model 单元素列表。
+        - config.codex.models：显式白名单（填=限制可选项）；
+        - ~/.codex/config.toml 的 model_catalog_json（cc-switch 生成的模型目录文件）：
+          解析其 ``models[].slug``（回退 ``display_name``）得到完整模型列表；
+        - 兜底：default_model 单元素列表。
+        结果按 TTL 缓存 5 分钟（超时自动重拉），避免每次请求都读文件/解析。
         """
-        if CodexAdapter._cached_models is not None:
+        now = time.monotonic()
+        if (CodexAdapter._cached_models is not None
+                and now - CodexAdapter._models_cached_at < CodexAdapter._MODELS_TTL_SEC):
             return CodexAdapter._cached_models
         models = self._codex_config.get("models")
         if isinstance(models, list) and len(models) > 0:
-            CodexAdapter._cached_models = [str(m) for m in models]
-            return CodexAdapter._cached_models
-        CodexAdapter._cached_models = [self.default_model]
-        return CodexAdapter._cached_models
+            result = [str(m) for m in models]
+        else:
+            catalog_models = _parse_models_from_catalog()
+            if catalog_models:
+                result = catalog_models
+            else:
+                result = [self.default_model]
+        CodexAdapter._cached_models = result
+        CodexAdapter._models_cached_at = now
+        return result
 
     supports_resume = True
     supports_fork = True
@@ -464,16 +479,69 @@ def _codex_js_from_shim(shim_path: str) -> str | None:
     return None
 
 
-def _read_codex_config_toml_model() -> str:
-    """从 ~/.codex/config.toml 读取 model 字段（不填=自动识别的兜底来源）。"""
-    toml_path = Path.home() / ".codex" / "config.toml"
+def _codex_home() -> Path:
+    """codex 用户目录（CODEX_HOME 默认 ~/.codex）。抽成函数便于单测 monkeypatch。"""
+    return Path.home() / ".codex"
+
+
+def _config_toml_text() -> str:
+    """读取 ~/.codex/config.toml 全文（缺失/读取失败返回 ""）。"""
+    toml_path = _codex_home() / "config.toml"
     if not toml_path.is_file():
         return ""
     try:
-        text = toml_path.read_text(encoding="utf-8")
+        return toml_path.read_text(encoding="utf-8")
     except OSError:
         return ""
-    m = re.search(r'^\s*model\s*=\s*"([^"]+)"', text, re.MULTILINE)
+
+
+def _read_codex_config_toml_model() -> str:
+    """从 ~/.codex/config.toml 读取 model 字段（不填=自动识别的兜底来源）。"""
+    m = re.search(r'^\s*model\s*=\s*"([^"]+)"', _config_toml_text(), re.MULTILINE)
     if m:
         return m.group(1)
     return ""
+
+
+def _model_catalog_path() -> Path | None:
+    """解析 config.toml 的 model_catalog_json 路径（cc-switch 模型目录文件）。
+
+    相对路径以 ~/.codex/（CODEX_HOME）为基准；文件缺失返回 None。
+    """
+    m = re.search(r'^\s*model_catalog_json\s*=\s*"([^"]+)"', _config_toml_text(), re.MULTILINE)
+    if not m:
+        return None
+    raw = m.group(1)
+    p = Path(raw)
+    if not p.is_absolute():
+        p = _codex_home() / p
+    return p if p.is_file() else None
+
+
+def _parse_models_from_catalog() -> list[str]:
+    """从 cc-switch model_catalog_json 解析可用模型列表（容错）。
+
+    文件结构：``{"models": [{"slug": "provider/model", "display_name": ...}, ...]}``
+    （实测 2026-08-27，slug 与 display_name 均为完整模型标识）。逐项取 slug
+    （回退 display_name），去重保序；缺失/解析失败返回 []（调用方回退默认）。
+    """
+    p = _model_catalog_path()
+    if p is None:
+        return []
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    models = data.get("models") if isinstance(data, dict) else None
+    if not isinstance(models, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        ident = str(m.get("slug") or m.get("display_name") or "").strip()
+        if ident and ident not in seen:
+            seen.add(ident)
+            out.append(ident)
+    return out
