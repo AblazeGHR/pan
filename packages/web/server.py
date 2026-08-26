@@ -478,7 +478,10 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
 
     params = {
         "name": name,
-        "adapter": template.adapter,
+        # A template with no ``adapter`` field parses to "" (distinct from an
+        # explicit "cbc"). Fall back to the default adapter here so behaviour
+        # is unchanged: an unspecified adapter → "cbc".
+        "adapter": template.adapter or "cbc",
         "model": data.get("model") or template.model or config.get("model") or a.default_model,
         "permission_mode": data.get("permissionMode") or template.permission_mode or config.get("permission_mode") or None,
         "workdir": str(_resolve_workdir(workdir_name)) if resolve_workdir else "",
