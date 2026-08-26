@@ -30,5 +30,7 @@ export default tseslint.config(
       ],
     },
   },
-  prettier.configs.disable,
+  // eslint-config-prettier 9.x：默认导出即 flat config 对象（仅关掉与 Prettier
+  // 冲突的规则）；旧 API `prettier.configs.disable` 已被移除，直接使用默认导出。
+  prettier,
 );
