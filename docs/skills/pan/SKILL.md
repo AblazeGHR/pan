@@ -1,11 +1,11 @@
 ---
 name: pan
-description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理会话（session）和 Worker 进程（cbc/kimi）。当需要创建会话、并行派发 worker、订阅完成通知、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。
+description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理会话（session）和 Worker 进程（cbc/kimi/opencode 等多 CLI adapter）。当需要创建会话、并行派发 worker、订阅完成通知、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。
 ---
 
 # Pan — CLI Agent 编排中间层（冷启动操作手册）
 
-Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通过 Pan MCP 工具调度多个 CLI Worker 进程（cbc/kimi），每个 Worker 拥有独立的会话（Session）和记忆（workdir）。
+Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通过 Pan MCP 工具调度多个 CLI Worker 进程（cbc / kimi / opencode 等多 adapter，持续增加中），每个 Worker 拥有独立的会话（Session）和记忆（workdir）。
 
 > **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/archive/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——改内容先改主源，再复制到副本保持同步。MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
 
@@ -27,8 +27,8 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 | 概念 | 说明 |
 |------|------|
 | **Session** | 持久化的对话容器，包含 history、model、adapter、workdir 等配置。独立于 Worker 生命周期。 |
-| **Worker** | 临时的 CLI 子进程（cbc/kimi），绑定到一个 Session。可被 kill、回收、重建。 |
-| **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）或 `kimi`（Kimi CLI） |
+| **Worker** | 临时的 CLI 子进程（cbc/kimi/opencode），绑定到一个 Session。可被 kill、回收、重建。 |
+| **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）、`kimi`（Kimi CLI）、`opencode`（OpenCode CLI）等。**adapter 列表持续增加（claude / codex 正在适配中）——以实际为准**：用 `model_list` 或查注册表 `packages/core/adapters/__init__.py` 确认当前可用 adapter |
 | **Model** | AI 模型名称，如 `hy3`、`deepseek-v4-flash` |
 | **workdir** | Session 的工作目录，也是 Worker 进程的 `cwd`（见 §9.1） |
 | **taskSeq** | 每个任务的序号；`worker.result` 事件用它配对任务与结果、做重连补发游标 |
@@ -343,7 +343,7 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?`, `session_template?`, `character_id?`, `system_prompt?`, `game_id?`, `pan_access?` | 创建会话。`session_template` 用模板创建；`pan_access` 传能力字段 dict（`restrict_to_managed`/`can_claim_unmanaged`/`auto_claim_created`）；显式字段 > 模板值 > 默认值。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§9.1） |
-| `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 cbc/kimi 历史会话**。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → worker_assign → session_get` |
+| `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 CLI 历史会话**（cbc 项目 / kimi 工作区 / opencode 会话，adapter 以实际为准）。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → worker_assign → session_get` |
 
 > **复用已删除的 Pan session（2026-08-23 实测）**：Pan session 被 `session_delete`/`batch_delete` 删掉后，其底层 **CLI 会话（`~/.codebuddy/projects/` 或 `data/workdirs/<name>/`）仍保留**。可 `session_import(action="list_projects")` 找到对应 project_dir → `list_sessions` 找到该会话 → `import` 恢复成新 Pan session（含全部历史上下文）。**节省资源**：不用重建后重新探索/初始化，尤其适合「worker 已完成任务但需继续排查/跟进」的场景——把刚删的 worker session 恢复后继续派活，worker 带着全部上下文直接上手。
 | `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
