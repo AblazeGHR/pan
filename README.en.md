@@ -4,14 +4,184 @@
 
 **English · [中文](./README.md)**
 
-Pan is a **CLI Agent orchestration platform**. Built on a Supervisor/Worker architecture, one "Meta-Agent" supervisor directs multiple Workers (each an independently running CLI Agent session) through MCP tools and WebSocket event streams. Each Worker works in its own git worktree, and you can command the platform from a web dashboard, QQ, a public tunnel, or any Agent CLI — and you can always watch, interrupt, or take over any Worker's terminal.
+Spend 30 seconds to see Pan's selling points and typical workflows first; the full feature / configuration / API reference is in the [Table of Contents](#table-of-contents) below.
 
-- **Tech stack**: Python + FastAPI + WebSocket + SQLite (FTS5 full-text search) + optional embedding-based vector search; frontend is dual-track: React (primary development) + Vanilla JS (stable fallback).
+---
+
+## 💡 Why choose Pan (differentiation in 30 seconds)
+
+Monolithic AI coding assistants are "one-to-one": you say one thing, it does one thing, then you stare at each other. **Pan lets you talk to a single Meta-Agent and command an entire team of AI workers at the same time.**
+
+| Problem you want to solve | Pan's answer |
+|---------------------------|--------------|
+| **Parallel tasks**: driving several modules / projects at once by juggling multiple terminal windows | 👔 **Meta-Agent auto-decomposes and dispatches**: whether and how to split is decided by the orchestration methodology; multiple Workers work in parallel, each in its own git worktree |
+| **Losing context when switching CLIs**: moving from assistant A to B loses all history — you start over from scratch | 🔁 **Session handoff (session_handoff)**: switch whenever you want; the new CLI takes over the whole relationship graph with a compact summary — the same task continues seamlessly across CLIs and saves context |
+| **Locked into one vendor**: model / assistant bound to one CLI ecosystem | 🔌 **Protocol-based multi-CLI adapters**: cbc / kimi / opencode / claude / codex supported; the cluster is unaware of the underlying CLI — write model rules to route tasks by type to the right adapter |
+| **AI has no memory**: re-explaining background and preferences every time | 🧠 **Memory + Character**: hybrid vector + full-text retrieval auto-injects relevant memory; persona stays the same identity across Sessions |
+| **AI hangs halfway**: process dies, runaway task with nobody watching | 🐕 **Watchdog self-healing**: hangs / quiet timeouts are cleaned up automatically; on abnormal process death the on-disk queue rebuilds the Worker and keeps going |
+| **Not at the computer**: want to command via QQ or check in remotely | 🚪 **Multi-channel command**: Web Dashboard / QQ / Cloudflare public tunnel / MCP — the same control plane from anywhere |
+
+## 🧭 What is it? (Three sentences)
+
+- 👔 **One supervisor (Meta-Agent)**: does no work itself; it hires, dispatches, listens, and accepts — like a project manager.
+- 🧑‍💻 **A team of workers (Worker)**: each Worker is an independently running AI session with its own memory, persona, and tools, working in its own git worktree without interfering with each other.
+- 🧍 **You stand in the middle**: like a factory director at the big control-room screen — you can see what every worker is doing, and interrupt, redirect, or take over any Worker's terminal yourself.
+
+Pan is that **control plane**: it manages processes, sessions, memory, and reporting, turning "many AIs working together" from "manually bouncing between terminal windows" into "a well-oiled pipeline".
+
+## 📖 Every concept in one table
+
+| Plain words | Technical concept | Description |
+|-------------|-------------------|-------------|
+| 👔 Project manager | **Meta-Agent / SMA** | No hands-on work; only dispatch: hire, assign, listen, accept |
+| 🧑‍💻 Full-time employee | **stream Worker** | A long-running AI session, available anytime for multi-turn conversations, can mount MCP tools |
+| 🧳 Freelancer for one job | **one-shot Worker** | One task spawns one process with a full toolbox, done and gone |
+| 🔌 Different tool brands | **CLI Adapter** | One protocol-based adapter per CLI Agent (cbc / kimi / opencode / claude / codex); switching doesn't touch business logic |
+| 🔁 A stand-in takes over your work | **session_handoff** | Creates a twin Session that takes over: relationship graph / report subscriptions / QQ bindings all transfer, with a compact summary |
+| 📤 "Take this, report when done" | **assign** | Asynchronous dispatch: fire and go do something else; a report arrives when done |
+| 📬 "Auto-assign work to you from now on" | **report-subscribe** | Subscription reporting: a finished Worker auto-delivers its report to the supervisor's inbox (persisted, never lost) |
+| 🔗 "You report to me now" | **claim** | Establishes a bidirectional supervisor ↔ worker binding |
+| 🌿 Fork a clone to try another path | **branch** | Forks an independent branch from an existing Session, inheriting model / memory / tools |
+| 🎛️ Boss grabs the keyboard | **takeover** | Takes an AI session back into a human terminal (restart + held) |
+| 🧠 Employee's long-term memory | **Memory** | Hybrid vector + full-text (FTS5) retrieval, auto-injected before work starts |
+| 🎭 An employee with personality | **Character** | Persona + dedicated memory store, keeping the same identity across Sessions |
+| 🐕 A supervisor who never sleeps | **Watchdog** | One per Worker: cleans up hangs / timeouts; the global level can also restock Workers |
+| 🖥️ Workshop monitoring screen | **Dashboard** | Watch every Worker's output live in the browser (React new + legacy dual-track) |
+| 💬 Command via QQ | **QQ Bridge** | Turns QQ messages into Worker commands; NapCat / LLOneBot channels are switchable |
+| 🌐 Remote office | **Remote** | Cloudflare Tunnel exposing the control plane to the public internet |
+
+## 👔 Meta-Agent orchestration: one boss for a whole AI team
+
+The Meta-Agent is not a special program but a **role** — any party (your Agent CLI, a script, or even another Pan session) can play the "supervisor" as long as it meets three conditions (can send commands, can receive intel, has an identity).
+
+In Pan, "parallel tasks" doesn't mean opening several terminal windows and stitching results together manually — it means one instruction decomposed into a parallel team of Workers. This is a real, runnable workflow:
+
+```
+You: develop modules 1/2/3 of project A in parallel, investigate a bug in project B, remind me about a meeting at 3pm.
+
+SMA (three decision questions → decompose → dispatch):
+├─ worker-a1 · project A · module 1 dev   (worktree-1)
+├─ worker-a2 · project A · module 2 dev   (worktree-2)
+├─ worker-a3 · project A · module 3 dev   (worktree-3)
+├─ worker-b1 · project B · bug investigation
+└─ worker-l1 · life · 3pm meeting reminder
+
+You (a moment later): report progress.
+→ SMA collects all results, trust-but-verify acceptance item by item, merges into one report.
+```
+
+Even better: the orchestration layer is **unaware** of the underlying CLI. "Which task goes to which CLI" is written into the SMA's model rules — e.g. "heavy work to cbc, lightweight research to kimi, writing to opencode" — with no changes to the cluster itself.
+
+> The full orchestration methodology (three decision questions / parallel dispatch / subscription-based reporting / trust-but-verify acceptance / consolidated delivery) and the built-in SMA template are in "[Meta-Agent Orchestration](#meta-agent-orchestration)" below.
+
+## 🔌 Multi-CLI adapters: use whichever you like
+
+Pan's Workers are not locked into any single CLI ecosystem — every CLI Agent has an adapter implementing the `CliAdapter` protocol, and the contract between a Worker and its adapter is uniform:
+
+- **Switch whenever you like**: hand different tasks to different CLIs (cbc / kimi / opencode / claude / codex); switching doesn't touch business logic, and session handoff keeps the context with you;
+- **Route by task type**: write SMA model rules to send "heavy work to cbc, lightweight research to kimi, writing to opencode" — zero cluster changes;
+- **Low cost to add a new CLI**: implement one `CliAdapter` protocol class (methods grouped into metadata / process spawn / message encoding / event parsing / takeover) + one registration line.
+
+Execution modes and integration details for each adapter are in "[Multi-CLI Adapters](#multi-cli-adapters)" below.
+
+## 🔁 Session handoff: switch CLIs, keep the context
+
+A normal Session **cannot switch adapters mid-way** — but in practice you'll want to: you're tired of this assistant, or that assistant is better at the task at hand. Pan's answer is **session_handoff**: create a twin Session to take over. One handoff does three things:
+
+- **The whole relationship graph transfers**: the new session takes over the managed relationship graph, `report_subscriptions`, and QQ postbox bindings — your AI team keeps reporting to the new session with nothing rebuilt;
+- **The old session stays readable**: the old session is auto-renamed to `(archive) <name>` and becomes a managed session of the new one — old context is always available;
+- **Only a compact summary travels**: handoff doesn't copy the full history, only a handoff brief — **avoiding long-session context bloat; the new session starts light**.
+
+> **Typical scenario**: session A is at hundreds of thousands of tokens and about to blow up → have A write a handoff brief → `session_handoff` creates a compact twin session B and the same task continues seamlessly; or simply switch CLIs, with the context summary following.
+
+## 🎯 One entry point for all your tasks
+
+You might be juggling several parallel subtasks of one project, progress on several projects, or even life chores (schedules, reminders, automation). To the Meta-Agent, these are all just **Worker processes that can be dispatched concurrently** — you don't have to watch each terminal separately:
+
+To you, it's one conversation from start to finish; to them, it's a team collaborating in parallel. And you always keep the final say — watch, interrupt, take over, whatever you like.
+
+## 📬 Managed subscriptions: an "AI inbox" per supervisor
+
+How do you collect results from dispatched tasks? Pan's answer is **subscription-based reporting + an on-disk queue** — turning "chasing each worker" into "auto-delivery":
+
+- **Subscribe means take over**: subscribing to a Session's reports also establishes the managed relation (claim) in one step — no two-step setup;
+- **Auto-delivery**: every time a managed Worker finishes (or errors), the report is auto-dropped into the supervisor's dedicated inbox (`queue_pending`) — no need to ask one by one;
+- **Persisted, never lost**: the inbox lives on disk — if the Meta-Agent disconnects mid-way, reports are still there after reconnecting;
+- **Clear ownership**: each Session belongs to one supervisor (`managed_by`) — whoever manages receives, a star topology at a glance, and nobody else can subscribe by privilege escalation.
+
+So for a supervisor, managing a bunch of tasks = managing one inbox: **dispatch → check the inbox → accept → merge and report**.
+
+## 🤝 Multi-agent collaboration: three typical workflows
+
+**① Parallel fan-out (one supervisor, many workers, all at once)**
+
+```mermaid
+sequenceDiagram
+    participant Meta as Supervisor (Meta-Agent)
+    participant A as Worker A
+    participant B as Worker B
+    participant C as Worker C
+    Meta->>A: assign research plan X
+    Meta->>B: assign research plan Y
+    Meta->>C: assign research plan Z
+    Note over A,C: three Workers work in parallel (own worktrees)
+    A-->>Meta: result report X
+    B-->>Meta: result report Y
+    C-->>Meta: result report Z
+    Meta->>Meta: merge three reports → deliver
+```
+
+**② Serial pipeline (one stage's output is the next stage's input)**
+
+```
+assign(W1: write tech spec) → subscribe report → get spec → assign(W2: write code) → get code → assign(W3: code review)
+```
+
+Each step waits for the previous stage's completion report — as controllable as a factory pipeline.
+
+**③ Long-term collaboration (a veteran team with memory)**
+
+Once Workers are given a Character (persona + memory store) and a Memory directory, Pan auto-injects relevant memory into the context at the start of every task — your AI team **remembers project context and your preferences** instead of starting from zero each time.
+
+## 🚪 Command from anywhere: the multi-channel matrix
+
+One control plane, four entrances, switch anytime:
+
+| Channel | Entry | Description |
+|---------|-------|-------------|
+| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | React SPA (`/react/`, primary dev) + legacy Vanilla dual-track; `frontend` config controls routing (`coexist` / `react` / `legacy`) |
+| 💬 **QQ Bridge** | NapCat / LLOneBot | **Pluggable** OneBot 11 gateways: both channels are thin subclasses of `QQChannel`; zero business-code changes; `mirror` full mirror / `selective` dual modes |
+| 🌐 **Remote** | Cloudflare Tunnel | Expose to the public internet in one click — manage it from outside |
+| 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | Let any Agent CLI act as the supervisor: MCP tools + event-stream subscription, the Meta-Agent access channel |
+
+> Startup / configuration / switching details for each channel are in "[Channels & Integrations](#channels--integrations)" below.
+
+## ✨ Why it's worth a try
+
+- 🛡️ **A self-healing control plane**: Worker hung? The Watchdog cleans up (quiet timeout / task-runtime timeout / idle reclamation); process died abnormally? The on-disk queue rebuilds the Worker and keeps going.
+- 📬 **Managed subscription inbox**: every supervisor has an on-disk inbox; managed Workers auto-deliver reports when done — dispatch and walk away, just check the inbox later.
+- 🔁 **Switch CLIs without losing context**: session handoff makes "switching to the Agent you like" a routine operation — the same task flows seamlessly between CLIs and saves context.
+- 🔌 **Not locked into any CLI ecosystem**: protocol-based adapters + cluster unawareness; adding a CLI is one registration line, and the Meta-Agent routes by model rules.
+- 🖐️ **Human and AI are equals**: you can interrupt, take over the terminal, fork a clone, or jump in yourself on any Worker.
+- 🧠 **Has memory and personality**: hybrid vector + full-text retrieval auto-injects; Character persona persists across Sessions.
+- 🚪 **Command across channels**: Dashboard, QQ, public tunnel, MCP — the same control plane from anywhere.
+- 🧩 **Can act as a "tool base"**: external domain projects can plug their service into Pan and have Pan's QQ Bot and Workers do the work (first case: RuleWhisper; `command_routes` in `manifest.json` lets QQ prefix commands forward directly to an external HTTP API, bypassing the LLM).
 
 ---
 
 ## Table of Contents
 
+- [💡 Why choose Pan (differentiation in 30 seconds)](#-why-choose-pan-differentiation-in-30-seconds)
+- [🧭 What is it? (Three sentences)](#-what-is-it-three-sentences)
+- [📖 Every concept in one table](#-every-concept-in-one-table)
+- [👔 Meta-Agent orchestration: one boss for a whole AI team](#-meta-agent-orchestration-one-boss-for-a-whole-ai-team)
+- [🔌 Multi-CLI adapters: use whichever you like](#-multi-cli-adapters-use-whichever-you-like)
+- [🔁 Session handoff: switch CLIs, keep the context](#-session-handoff-switch-clis-keep-the-context)
+- [🎯 One entry point for all your tasks](#-one-entry-point-for-all-your-tasks)
+- [📬 Managed subscriptions: an "AI inbox" per supervisor](#-managed-subscriptions-an-ai-inbox-per-supervisor)
+- [🤝 Multi-agent collaboration: three typical workflows](#-multi-agent-collaboration-three-typical-workflows)
+- [🚪 Command from anywhere: the multi-channel matrix](#-command-from-anywhere-the-multi-channel-matrix)
+- [✨ Why it's worth a try](#-why-its-worth-a-try)
 - [Introduction](#introduction)
 - [Features](#features)
 - [Core Concepts](#core-concepts)
@@ -30,6 +200,10 @@ Pan is a **CLI Agent orchestration platform**. Built on a Supervisor/Worker arch
 ---
 
 ## Introduction
+
+Pan is a **CLI Agent orchestration platform**. Built on a Supervisor/Worker architecture, one "Meta-Agent" supervisor directs multiple Workers (each an independently running CLI Agent session) through MCP tools and WebSocket event streams. Each Worker works in its own git worktree, and you can command the platform from a web dashboard, QQ, a public tunnel, or any Agent CLI — and you can always watch, interrupt, or take over any Worker's terminal.
+
+- **Tech stack**: Python + FastAPI + WebSocket + SQLite (FTS5 full-text search) + optional embedding-based vector search; frontend is dual-track: React (primary development) + Vanilla JS (stable fallback).
 
 Traditional one-to-one AI coding assistants work as "you say one thing, it does one thing." Pan upgrades this to **one-to-many**: you talk to a single supervisor, who orchestrates multiple Workers in parallel and consolidates the results into one deliverable for you.
 
