@@ -4,6 +4,7 @@ import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { Button } from '@/components/ui/Button';
+import { ModelSelect } from '@/components/ui/ModelSelect';
 import { fetchSession } from '@/services/api';
 import type { AdapterConfig, PermissionMode, Session } from '@/types';
 
@@ -150,20 +151,14 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
       data-settings-popover
       className="absolute bottom-full mb-1 left-0 z-30 w-72 max-h-[60vh] overflow-y-auto rounded-md border border-border-default bg-bg-primary shadow-xl p-3 space-y-3"
     >
-      {/* Model */}
+      {/* Model — ModelSelect 支持关键字过滤（opencode 几十上百个模型时可快速检索） */}
       <div>
         <label className="block text-xs text-text-secondary mb-1">Model</label>
-        <select
+        <ModelSelect
           value={currentModel}
-          onChange={(e) => applySetting('model', e.target.value)}
-          className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary max-h-64 overflow-y-auto"
-        >
-          {modelOptions.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+          options={modelOptions}
+          onChange={(v) => applySetting('model', v)}
+        />
       </div>
 
       {/* Permission Mode */}

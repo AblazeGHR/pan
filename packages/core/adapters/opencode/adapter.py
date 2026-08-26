@@ -21,6 +21,18 @@ from ..mcp import build_mcp_servers
 
 _log = logging.getLogger(__name__)
 
+# 模型列表缓存 TTL：opencode 模型列表经常变动（models.dev 源 / provider 上架
+# 下架），永久 class 级缓存会让列表只会在重启后才刷新。参考 worker.py
+# _TASK_STATUS_TTL_SEC / character.py _manifest_check_ttl 的先例，采用带过期
+# 时间的 TTL 缓存，超时后下次访问自动重新拉取。config.json 白名单同样走 TTL
+# （用户改配置后无需重启服务即可生效）。
+_MODEL_CACHE_TTL: float = 300.0  # 5 分钟
+
+# 模型行形态：provider[/org][/region/...]/model，任意段数（两段 provider/model、
+# 三段 provider/org/model、四段 provider/region/org/model 均合法）。
+# 段内字符取 models.dev 命名惯例：字母数字、`.`、`-`、`_`。
+_MODEL_LINE_RE = re.compile(r"^[\w.\-]+(?:/[\w.\-]+)+$")
+
 # opencode/* 前缀 = opencode 网关免费模型（无需用户 API key，gateway 处理鉴权）。
 # 实测可用（2026-08-26）：big-pickle、mimo-v2.5-free、nemotron-3-ultra-free。
 # 实测不可用：deepseek-v4-flash-free（gateway 服务端 500 "Unexpected server error"）、
@@ -67,23 +79,33 @@ class OpencodeAdapter:
         from ...config import load_config
         return load_config().get("opencode", {})
 
-    _cached_models: list[str] | None = None  # class-level cache
+    _cached_models: list[str] | None = None  # class-level cache（TTL）
+    _cached_models_ts: float = 0.0  # 最近一次填充/刷新的单调时钟时间戳
 
     @property
     def supported_models(self) -> list[str]:
-        """模型列表：config.json > `opencode models` 解析 > 内置默认值（缓存）。"""
-        if OpencodeAdapter._cached_models is not None:
+        """模型列表：config.json > `opencode models` 解析 > 内置默认值（TTL 缓存）。
+
+        缓存有效期 _MODEL_CACHE_TTL 秒；超时后下次访问自动重新拉取，避免
+        opencode 模型列表变动时需要重启服务才能刷新。
+        """
+        if OpencodeAdapter._cached_models is not None and (
+            time.monotonic() - OpencodeAdapter._cached_models_ts
+        ) < _MODEL_CACHE_TTL:
             return OpencodeAdapter._cached_models
+        OpencodeAdapter._cached_models = self._fetch_models()
+        OpencodeAdapter._cached_models_ts = time.monotonic()
+        return OpencodeAdapter._cached_models
+
+    def _fetch_models(self) -> list[str]:
+        """按优先级拉取模型列表：config.json 白名单 > CLI 自动识别 > 内置默认值。"""
         models = self._opencode_config.get("models")
         if isinstance(models, list) and len(models) > 0:
-            OpencodeAdapter._cached_models = [str(m) for m in models]
-            return OpencodeAdapter._cached_models
+            return [str(m) for m in models]
         cli_models = _parse_models_from_opencode()
         if cli_models:
-            OpencodeAdapter._cached_models = cli_models
-            return OpencodeAdapter._cached_models
-        OpencodeAdapter._cached_models = list(self._BUILTIN_MODELS)
-        return OpencodeAdapter._cached_models
+            return cli_models
+        return list(_BUILTIN_MODELS)
 
     supports_resume = True
     supports_fork = True
@@ -508,7 +530,15 @@ def _resolve_opencode_exe_from_shim(shim_path: str) -> str | None:
 
 
 def _parse_models_from_opencode() -> list[str]:
-    """解析 `opencode models` 输出（每行一个 provider/model）。"""
+    """解析 `opencode models` 输出（每行一个模型，形如 provider[/org]/model）。
+
+    支持任意段数的模型名：两段 provider/model（如 ``opencode/big-pickle``）、
+    三段 provider/org/model（如 ``siliconflow-cn/deepseek-ai/DeepSeek-R1``）、
+    四段 provider/region/org/model（如 ``siliconflow-cn/Pro/deepseek-ai/DeepSeek-R1``）。
+
+    杂行防御：跳过空行、注释行（# / // 开头）；分组标题/表头等含空格、冒号或
+    方括号的非模型形态行会被 _MODEL_LINE_RE 自然排除，不会被误收为模型。
+    """
     try:
         r = subprocess.run(
             [_resolve_opencode_path(), "models"],
@@ -518,12 +548,12 @@ def _parse_models_from_opencode() -> list[str]:
         return []
     out = (r.stdout or "") + (r.stderr or "")
     models: list[str] = []
-    import re
     for line in out.splitlines():
         line = line.strip()
         if not line:
             continue
-        # 形如 provider/model-id；跳过 provider 分组标题等
-        if re.match(r"^[\w.\-]+/[\w.\-]+$", line):
+        if line.startswith("#") or line.startswith("//"):
+            continue
+        if _MODEL_LINE_RE.match(line):
             models.append(line)
     return models
