@@ -296,6 +296,73 @@ def test_concurrent_save_async_no_duplication(tmp_path, monkeypatch):
     _cleanup()
 
 
+def test_queue_ops_do_not_scale_with_history(tmp_path, monkeypatch):
+    """send_task append / _consume_pending pop 只写小主文件，不被 history 拖累。
+
+    设计要点：热路径 3 次 save 有 2 次是 queue 操作——queue 独立在 json 后，
+    queue 变更只写元数据+队列（KB 级），history 走 jsonl 追加互不干扰。
+    """
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+
+    def make(n):
+        s = _sess.Session(id=f"ses_q_{n}", name="q", adapter="cbc")
+        s.history = [{"role": "user", "content": f"m{i}", "extra": "x" * 120}
+                     for i in range(n)]
+        s._hist_persisted = n
+        _sess._write_jsonl(_sess._history_path(s.id), s.history)
+        return s
+
+    small, big = make(10), make(5000)
+
+    def queue_append_ms(s, reps=7):
+        times = []
+        for i in range(reps):
+            s.queue_pending.append({"type": "task", "id": f"t{i}", "text": "x" * 200})
+            t0 = time.perf_counter()
+            _sess.save(s)
+            times.append((time.perf_counter() - t0) * 1000)
+        return sorted(times)[reps // 2]
+
+    def queue_pop_ms(s, reps=7):
+        times = []
+        for _ in range(reps):
+            s.queue_pending.pop(0)
+            t0 = time.perf_counter()
+            _sess.save(s)
+            times.append((time.perf_counter() - t0) * 1000)
+        return sorted(times)[reps // 2]
+
+    a_small, a_big = queue_append_ms(small), queue_append_ms(big)
+    p_small, p_big = queue_pop_ms(small), queue_pop_ms(big)
+    print(f"\n    queue append: hist10={a_small:.3f}ms hist5000={a_big:.3f}ms; "
+          f"queue pop: hist10={p_small:.3f}ms hist5000={p_big:.3f}ms")
+    # queue 操作耗时与 history 规模无关（旧实现下 5000 条会被全量序列化拖到 ~3ms+）
+    assert a_big < a_small * 5 + 0.5, \
+        f"queue append should not scale with history: {a_small:.3f}→{a_big:.3f}ms"
+    assert p_big < p_small * 5 + 0.5, \
+        f"queue pop should not scale with history: {p_small:.3f}→{p_big:.3f}ms"
+    # jsonl 不受 queue 操作影响（行数不变 = history 未被序列化）
+    assert len(_jsonl_lines(big.id)) == 5000
+
+    # 正确性：queue_pending 落盘 + 冷启动重载完整，history 不受影响
+    s3 = _sess.create(name="q3")
+    s3.history.append({"role": "user", "content": "h1"})
+    _sess.save(s3)
+    s3.queue_pending = [{"type": "task", "id": "t1", "text": "go"}]
+    _sess.save(s3)
+    sid3 = s3.id
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    r = _sess.get(sid3)
+    assert r.queue_pending == [{"type": "task", "id": "t1", "text": "go"}]
+    assert r.history == [{"role": "user", "content": "h1"}]
+    assert len(_jsonl_lines(sid3)) == 1
+    _cleanup()
+
+
 def test_worker_path_saves_incrementally_and_reloads(tmp_path, monkeypatch):
     """真实 worker 读取路径（init → 流式块 → result）→ 落盘 → 冷启动重载。"""
     _cleanup()
