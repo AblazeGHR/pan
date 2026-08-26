@@ -534,6 +534,7 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
 
 def _resolve_mcp_server_configs(server_names) -> list[dict]:
     """Resolve MCP server names to full configs from the manifest table."""
+    _ensure_manifest_fresh()
     if _character_manager is None or _character_manager._manifest_config is None:
         raise ValueError("MCP manifest not loaded")
     configs: list[dict] = []
@@ -2269,6 +2270,24 @@ def _get_memory_manager(character_id: str):
 # ── Character API ──
 
 
+def _ensure_manifest_fresh() -> None:
+    """Hot-reload the manifest if any manifest file changed on disk.
+
+    Cheap on the hot path: only ``stat``s files (no read / parse). A full
+    re-read + re-parse + atomic config swap happens *only* when the newest
+    mtime advanced or the set of manifest files changed. Any failure is
+    swallowed (and already logged inside the manager) so a request never 500s
+    on a broken manifest.
+    """
+    if _character_manager is None:
+        return
+    try:
+        if _character_manager.manifest_changed():
+            _character_manager.reload_manifest()
+    except Exception:
+        _log("[Pan] Manifest hot-reload check failed (non-fatal)")
+
+
 @app.get("/api/session-templates")
 async def api_session_templates():
     """List available session templates from manifest.
@@ -2278,6 +2297,7 @@ async def api_session_templates():
     """
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
     templates = _character_manager.list_session_templates()
     return {
         "sessionTemplates": [
@@ -2314,6 +2334,7 @@ async def api_mcp_servers():
     """
     if _character_manager is None or _character_manager._manifest_config is None:
         return {"servers": [], "loaded": False}
+    _ensure_manifest_fresh()
     servers = [
         {
             "name": srv.name,
@@ -2335,6 +2356,35 @@ async def api_characters_profiles():
     return await api_session_templates()
 
 
+@app.post("/api/manifest/reload")
+async def api_manifest_reload():
+    """Force a manifest hot-reload.
+
+    Idempotent: calling it repeatedly just reloads the same files and returns
+    the same counts. Returns the number of loaded templates/servers/routes so
+    the caller can confirm the new state. On failure it returns the last good
+    counts and ``reloaded: false`` (the previous config is kept).
+    """
+    if _character_manager is None:
+        return {"error": "Character manager not initialized", "reloaded": False}
+    config = _character_manager.reload_manifest()
+    if config is None:
+        return {
+            "reloaded": False,
+            "sessionTemplates": 0,
+            "mcpServers": 0,
+            "characters": 0,
+            "commandRoutes": 0,
+        }
+    return {
+        "reloaded": True,
+        "sessionTemplates": len(config.session_templates),
+        "mcpServers": len(config.mcp_servers),
+        "characters": len(config.character_templates),
+        "commandRoutes": len(config.command_routes),
+    }
+
+
 @app.get("/api/manifest/command-routes")
 async def api_manifest_command_routes():
     """List QQ Bot command routes from loaded manifests.
@@ -2347,6 +2397,7 @@ async def api_manifest_command_routes():
     """
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
     routes = _character_manager.list_command_routes()
     return {
         "routes": [
@@ -2362,6 +2413,7 @@ async def api_characters_create(data: dict):
     """Create a new character from a manifest character_template."""
     if _character_manager is None:
         return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
     template_name = data.get("template_name", "")
     if not template_name:
         return {"error": "template_name is required"}

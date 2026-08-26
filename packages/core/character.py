@@ -17,6 +17,7 @@ import json
 import logging
 import secrets
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -90,6 +91,25 @@ class CharacterManager:
         self._memory_managers_lock = threading.Lock()  # guards the dict (#32)
         self._manifest_config: ManifestConfig | None = None
 
+        # Hot-reload bookkeeping. ``_plugin_paths`` is the same list passed to
+        # ``load_manifest`` so ``reload_manifest`` can re-read the exact same
+        # files. The mtime snapshot + file count let us do a cheap stat-only
+        # change check (no file read / parse) on the hot path.
+        self._plugin_paths: list[str] = []
+        self._manifest_mtime_snapshot: float = 0.0
+        self._manifest_file_count: int = 0
+
+        # Throttle for the cheap stat-only change check: avoid re-statting the
+        # manifest files on every request in a high-frequency burst. The stat
+        # result is cached for ``_manifest_check_ttl`` seconds. A forced reload
+        # via ``reload_manifest()`` (e.g. POST /api/manifest/reload) ALWAYS
+        # re-reads and is NOT subject to this window, so a deterministic
+        # refresh path always exists even within the throttle window.
+        self._manifest_check_ttl: float = 1.0
+        self._cached_mtime: float = 0.0
+        self._cached_count: int = 0
+        self._cached_check_ts: float = 0.0
+
     # ------------------------------------------------------------------ #
     #  Manifest
     # ------------------------------------------------------------------ #
@@ -97,7 +117,120 @@ class CharacterManager:
     def load_manifest(self, plugin_paths: list[str]) -> ManifestConfig:
         from .manifest_loader import load_manifests
 
+        self._plugin_paths = list(plugin_paths)
         self._manifest_config = load_manifests(plugin_paths)
+        self._refresh_manifest_state()
+        return self._manifest_config
+
+    # --- manifest hot-reload ------------------------------------------- #
+
+    def _manifest_state(self) -> tuple[float, int]:
+        """Return ``(max_mtime, file_count)`` for the resolved manifest files.
+
+        Stat-only — does NOT read or parse any file. ``file_count`` lets us
+        detect additions/removals (a deleted newest file would otherwise lower
+        the max mtime and look "unchanged").
+        """
+        from .manifest_loader import resolve_manifest_files
+
+        if not self._plugin_paths:
+            return 0.0, 0
+        mtime = 0.0
+        files = resolve_manifest_files(self._plugin_paths)
+        for mf in files:
+            try:
+                mtime = max(mtime, mf.stat().st_mtime)
+            except OSError:
+                pass
+        return mtime, len(files)
+
+    def _refresh_manifest_state(self) -> None:
+        """Cache the current mtime + file count after a (re)load."""
+        self._manifest_mtime_snapshot, self._manifest_file_count = (
+            self._manifest_state()
+        )
+        # Invalidate the throttle cache so the next change-check re-stats
+        # (the file set / mtime just changed under our feet).
+        self._cached_check_ts = 0.0
+
+    def manifest_changed(self) -> bool:
+        """True if any resolved manifest file changed since the last load.
+
+        Cheap: only ``stat``s files (no read/parse). True when the newest mtime
+        advanced OR the set of resolved files changed (add/remove a manifest).
+
+        Throttled: within ``_manifest_check_ttl`` seconds of the previous
+        check we reuse the last stat result instead of re-statting. This is
+        purely an optimisation — ``reload_manifest()`` (the manual /
+        deterministic refresh) never goes through this window.
+        """
+        now = time.monotonic()
+        if self._cached_check_ts and (now - self._cached_check_ts) < self._manifest_check_ttl:
+            mtime, count = self._cached_mtime, self._cached_count
+        else:
+            mtime, count = self._manifest_state()
+            self._cached_mtime, self._cached_count, self._cached_check_ts = (
+                mtime, count, now,
+            )
+        return (
+            mtime > self._manifest_mtime_snapshot
+            or count != self._manifest_file_count
+        )
+
+    def _manifest_files_parse_ok(self) -> tuple[bool, list[str]]:
+        """``(ok, errors)`` — whether every resolved manifest currently parses.
+
+        Used by ``reload_manifest`` to abort and keep the old config when a
+        manifest is broken (instead of swapping in a partial/silent result).
+        """
+        from .manifest_loader import resolve_manifest_files
+
+        errors: list[str] = []
+        if not self._plugin_paths:
+            return True, errors
+        for mf in resolve_manifest_files(self._plugin_paths):
+            try:
+                json.loads(mf.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as exc:
+                errors.append(f"{mf}: {exc}")
+        return (len(errors) == 0), errors
+
+    def reload_manifest(self) -> ManifestConfig | None:
+        """Hot-reload the same ``plugin_paths``, atomically replacing config.
+
+        Re-reads + re-parses the manifest files and replaces the whole
+        ``_manifest_config`` in one assignment so every consumer (session
+        templates, mcp_servers, command_routes, character templates) stays
+        consistent. On failure (unreadable / unparseable manifest) the previous
+        config is preserved and the error logged — callers never see a crash or
+        a partial config.
+
+        Returns the (possibly unchanged) config.
+        """
+        if not self._plugin_paths:
+            # Nothing was ever loaded via paths; nothing to reload.
+            return self._manifest_config
+
+        ok, errors = self._manifest_files_parse_ok()
+        if not ok:
+            log.error(
+                "Manifest reload aborted — %d file(s) failed to parse; "
+                "keeping previous config: %s",
+                len(errors), errors,
+            )
+            return self._manifest_config
+
+        from .manifest_loader import load_manifests
+
+        try:
+            new_config = load_manifests(self._plugin_paths)
+        except Exception:
+            log.exception("Manifest reload failed; keeping previous config")
+            return self._manifest_config
+
+        # Atomic swap: replace the whole config object at once.
+        self._manifest_config = new_config
+        self._refresh_manifest_state()
         return self._manifest_config
 
     def list_session_templates(self) -> list[SessionTemplate]:
