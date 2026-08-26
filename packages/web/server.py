@@ -443,7 +443,11 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
         template = SessionTemplate(
             name="default",
             adapter=adapter_name,
-            model=config.get("model") or a.default_model,
+            # Same stale-model guard as the params below: only adopt the config
+            # model when it's in the adapter's selectable list.
+            model=(config.get("model")
+                   if config.get("model") in a.supported_models else None)
+            or a.default_model,
             permission_mode=config.get("permission_mode"),
             system_prompt="",
             mcp_mode="always",
@@ -478,11 +482,18 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
 
     params = {
         "name": name,
-        # A template with no ``adapter`` field parses to "" (distinct from an
-        # explicit "cbc"). Fall back to the default adapter here so behaviour
-        # is unchanged: an unspecified adapter → "cbc".
-        "adapter": template.adapter or "cbc",
-        "model": data.get("model") or template.model or config.get("model") or a.default_model,
+        # User's explicit adapter wins, then the template's (a no-adapter
+        # template parses to ""), else default "cbc". Fix: previously the user
+        # selection was ignored — `template.adapter or "cbc"` overwrote a
+        # chosen adapter (e.g. kimi) with "cbc" when the template had none.
+        "adapter": data.get("adapter") or template.adapter or "cbc",
+        # config.json may still hold a stale/invalid model (e.g. the old
+        # kimi-code/kimi-for-coding); only adopt it when it's actually in the
+        # adapter's selectable model list, else fall back to the adapter's
+        # (already validated) default.
+        "model": data.get("model") or template.model
+        or (config.get("model") if config.get("model") in a.supported_models else None)
+        or a.default_model,
         "permission_mode": data.get("permissionMode") or template.permission_mode or config.get("permission_mode") or None,
         "workdir": str(_resolve_workdir(workdir_name)) if resolve_workdir else "",
         "adapter_config": {

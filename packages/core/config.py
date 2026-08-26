@@ -48,7 +48,7 @@ DEFAULT_CONFIG: dict = {
         "console": True,
     },
     "kimi": {
-        "model": "kimi-code/kimi-for-coding",
+        "model": "moonshot-cn/kimi-k2.6",
         "permission_mode": "",
         "always_thinking_enabled": False,
         "effort": "",

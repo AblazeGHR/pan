@@ -57,14 +57,21 @@ class KimiAdapter:
     # oneshot。oneshot_args 不会被调用，返回 [] 作为防御兜底。
     execution_modes = ["stream"]
 
-    _DEFAULT_MODEL = "kimi-code/kimi-for-coding"
+    # 实际有效默认模型（~/.kimi-code/config.toml 的 default_model）。旧值
+    # kimi-code/kimi-for-coding 已不存在（不在 kimi 可选模型内）。
+    _DEFAULT_MODEL = "moonshot-cn/kimi-k2.6"
     _DEFAULT_PERMISSION_MODE = ""
     _DEFAULT_ALWAYS_THINKING_ENABLED = False
     _DEFAULT_EFFORT = ""
 
     @property
     def default_model(self) -> str:
-        return self._kimi_config.get("model", self._DEFAULT_MODEL)
+        # config.json 里的 model 可能是历史遗留的无效值（kimi-code/kimi-for-coding）。
+        # 仅当它确实在可选模型列表内才采用，否则回退到有效默认值。
+        model = self._kimi_config.get("model")
+        if model and model in self.supported_models:
+            return model
+        return self._DEFAULT_MODEL
 
     @property
     def default_permission_mode(self) -> str:
@@ -84,9 +91,8 @@ class KimiAdapter:
         return load_config().get("kimi", {})
 
     _BUILTIN_MODELS = [
-        "kimi-code/kimi-for-coding",
-        "kimi-code/kimi-for-coding-highspeed",
-        "kimi-code/k3",
+        "moonshot-cn/kimi-k2.6",
+        "moonshot-cn/kimi-k2.7-code",
     ]
 
     _cached_models: list[str] | None = None  # class-level cache
