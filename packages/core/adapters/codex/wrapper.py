@@ -32,16 +32,14 @@ def _write_stdout_line(text: str) -> None:
 
 
 def _filter_resume_opts(opts: list[str]) -> list[str]:
-    """resume 只透传 `codex exec resume` 支持的参数。
+    """续接（resume）时保留 ``-c`` 配置覆盖与审批/权限 flag，丢弃其它一次性 flag。
 
-    实测（2026-08-27）：resume 子命令接受 `-c` 覆盖、--model、
-    --dangerously-bypass-approvals-and-sandbox、--json、--skip-git-repo-check；
-    **不接受** --approve-for-me / -s/--sandbox / -C（报 unexpected argument）。
-
-    因此这里只保留 `-c <value>` 对与 --dangerously-bypass-approvals-and-sandbox，
-    丢弃其它一次性 flag。approve 模式的权限现已改为 -c 覆盖（见
-    adapter.permission_mode_args），走 -c 对保留；bypass 的 flag 也保留——这样
-    用户中途改 permission_mode 后，resume 显式传当前模式参数而非依赖 thread 旧配置。
+    resume 沿用 thread 已存的 model / cwd 配置，无需重复传 ``--model``（已改为
+    ``-c model=``）/ ``-C``；但审批 flag 必须重传：thread 存的 approval_mode="never"
+    是 bypass flag 落库的结果，resume 不重传时 codex 以 never 策略**拒绝 MCP 工具
+    调用**（实测报 "MCP tool call requires approval, but approval policy is never"）。
+    实测 ``codex exec resume`` 接受 ``--dangerously-bypass-approvals-and-sandbox``
+    与 ``--approve-for-me``（不可重复，故原样透传即可）。
     """
     out: list[str] = []
     i = 0
@@ -54,7 +52,7 @@ def _filter_resume_opts(opts: list[str]) -> list[str]:
                 i += 2
             else:
                 i += 1
-        elif a == "--dangerously-bypass-approvals-and-sandbox":
+        elif a in ("--dangerously-bypass-approvals-and-sandbox", "--approve-for-me"):
             out.append(a)
             i += 1
         else:
