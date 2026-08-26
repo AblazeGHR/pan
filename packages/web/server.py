@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import httpx
@@ -716,12 +716,11 @@ async def favicon():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    # react / coexist → serve React SPA at root（dist 存在时）
+    # react / coexist → redirect root to /react/ so the React SPA basename
+    # ("/react") matches the URL path and actually renders. Serving index.html
+    # directly at "/" left the router with a non-matching basename → blank.
     if FRONTEND_MODE in ("react", "coexist") and REACT_DIST_EXISTS:
-        return HTMLResponse(
-            content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
-            headers={"Cache-Control": "no-cache"},
-        )
+        return RedirectResponse("/react/", status_code=307)
 
     # legacy 模式（或 dist 缺失）→ Vanilla，保留移动端分流
     ua = request.headers.get("user-agent", "")
