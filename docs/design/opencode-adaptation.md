@@ -60,9 +60,20 @@ opencode 逐一对照见第 3 节。
 
 ### 2.3 opencode.json 配置（官方文档 opencode.ai/docs/config/）
 - 位置：`~/.config/opencode/opencode.json`（或 `.jsonc`）；项目根 `opencode.json` 覆盖全局。
+  **注意**：opencode 从 cwd 向上遍历到最近的 `.git` 根读取项目配置（非 git 目录则直接用 cwd）。
+  故项目级 `opencode.json` 必须落在 workdir 或其 git 根，否则 `opencode run` 不加载。
 - 段：`model`（默认模型 `provider/model`）、`small_model`、`provider.{name}.options.{apiKey,timeout,...}`、
-  `permission`（工具→模式映射，`*` 通配；文档示例值 `ask`/`deny`，无 `yolo`）、
-  `mcp.{name}.{type,url,enabled}`（按 server 名）。
+  `permission`（工具→模式映射，`*` 通配；文档示例值 `ask`/`deny`，无 `yolo`）。
+- **MCP 段格式（实测 opencode v1.18.23 权威）**：`mcp.{name}.{...}` 按 server 名：
+  - **本地 stdio**：`"type": "local"`（**不是** cbc/kimi 用的 `stdio`），命令用 **`command` 数组**（不含独立 `args` 键），
+    环境用 `"environment"`（**不是** `env`），可选 `"cwd"`、`"enabled": true`、`"timeout"`（默认 5000ms 取工具列表）。
+    ```json
+    {"mcp":{"pan":{"type":"local","command":["<venv>/python","-m","packages.mcp.server"],
+                  "cwd":"<repo>","environment":{"PAN_AGENT_SESSION_ID":"...","PAN_API_URL":"..."},"enabled":true}}}
+    ```
+  - **远程**：`"type": "remote"` + `"url"`，可选 `"headers"` / `"oauth"`。
+  - 用错 type（如 `stdio`）会触发 `Ignoring MCP config entry without type`，server 不注册。
+  - 实测 opencode **无信任提示阻塞**：项目级 mcp 在 `run` 模式直接加载（与 kimi -p 必须信任文件夹不同）。
 - 变量替换：`{env:VAR}` / `{file:path}`。
 - 环境变量：`OPENCODE_CONFIG`（自定义配置路径）、`OPENCODE_CONFIG_CONTENT`（**内联覆盖，除 managed 外最高优先**）、
   `OPENCODE_MODEL`。Provider API key 可用 `provider.x.options.apiKey={env:XXX}` 或标准环境变量（如 `ANTHROPIC_API_KEY`）。
@@ -100,7 +111,7 @@ opencode 逐一对照见第 3 节。
 | G5 | thinking | `--thinking`（显示） | `thinking_args` → `--thinking`（按 adapter_config.thinking） |
 | G6 | effort | `--variant <v>` | `effort_args` → `--variant <v>`（provider 特定） |
 | G7 | 权限 | 仅 `--auto` | `permission_mode_args` → `--auto`（mode=="auto"） |
-| G8 | MCP | `opencode.json` `mcp` 段，无 `--mcp-config` | 本轮 `mcp_args` 返回 []（见 §4.5，同 kimi 取舍） |
+| G8 | MCP | `opencode.json` `mcp` 段，无 `--mcp-config` | 已实现：spawn 前写项目级 `opencode.json`（含 pan mcp，§4.5），实测工具可用 |
 | G9 | stdin 编码 | 无 | wrapper 读 stdin JSON `{"text":...}`（对齐 kimi） |
 | G10 | stdout 解析 | JSONL `type` 事件 + 合成 result | `parse_event` + 系列提取；wrapper 合成 `result` |
 | G11 | takeover | TUI `opencode --session <id>` | `takeover_command` → `[opencode, "--session", id]` |
@@ -138,10 +149,27 @@ opencode `run` 无 stdin 长驻协议，故**不能**走 cbc 的 `--input-format
   仅返回更新的条目，然后推进游标（对齐 kimi 的 time 游标）。
 - model 回补：从 `session.model` JSON 取 `{id,providerID}` → 回填 `s.model`。
 
-### 4.5 MCP（G8）
-opencode 无 `--mcp-config`；MCP 来自 `opencode.json` 的 `mcp` 段（用户级/项目级）。
-本轮 `mcp_args` 返回 []（同 kimi 取舍 §4.5）——MCP 由用户 opencode.json 配置，不通过 Pan 注入。
-后续可写项目级 `opencode.json` 注入（待定）。
+### 4.5 MCP（G8）—— 已实现（2026-08-26）
+opencode 无 `--mcp-config`；MCP 来自 `opencode.json` 的 `mcp` 段。**本轮由 Pan 注入项目级 `opencode.json` 实现**（对齐 kimi 项目级 mcp.json 思路，原「待定」项落定）。
+
+实现（`packages/core/adapters/opencode/adapter.py`）：
+- `mcp_args(s)`：无 CLI flag（opencode 无 `--mcp-config`），返回 `[]` 但触发 `write_opencode_mcp_json(s)`。
+- `write_opencode_mcp_json(s)`：用共享 helper `build_mcp_servers(s)` 构造描述符（含 pan/pan-qq 的
+  `PAN_AGENT_SESSION_ID`/`PAN_AGENT_SESSION_TITLE` 注入、`type=stdio`），再映射为 opencode 的 `mcp` 段格式
+  （`stdio`→`local`，`command`+`args` 合并为 `command` 数组，`env`→`environment`，并透传 `PAN_API_URL`）；
+  写入位置取 workdir 向上最近的 `.git` 根（非 git 目录用 cwd）的 `opencode.json`/`opencode.jsonc`，
+  **合并**已有配置（仅更新 `mcp` 段，保留 model/provider 等），幂等；写入路径记录到
+  `adapter_config["opencode_mcp_config_path"]` 便于清理。
+- 触发时机：与 kimi `build_spawn_args` 调用 `mcp_args` 对齐（spawn 前）。
+
+E2E 验证结论（独立端口 8794，real pan MCP server）：
+- **opencode MCP 可用**：`opencode run` 直接加载项目 `opencode.json` 的 pan server，模型原生调用
+  `pan_session_list` 工具并拿到真实返回（会话计数）。`opencode.json` 由 adapter 自动写出。
+- **无信任提示阻塞**：与 kimi -p 不同，opencode `run` 模式直接加载项目级 mcp，无需交互式信任（已实测）。
+- **已知限制（非 MCP 本身）**：通过 Pan 服务 `handoff` 走 opencode worker wrapper 时，handoff 会超时
+  （即便不含 MCP 的纯 "say HELLO" 任务也超时）。该超时位于 worker/harness 层（本轮另有并行 worker 在改
+  `worker.py`/`base.py`），与 MCP 注入无关——MCP 工具可见/可用已由 `opencode run` 直跑确认。
+  建议后续在 worker 层修复 opencode stream 完成信号后再做服务内 handoff 复验。
 
 ### 4.6 supported_settings / 权限 / thinking / effort（G5/G6/G7）
 - `supported_settings = ["model","permissionMode","effort","thinking"]`。

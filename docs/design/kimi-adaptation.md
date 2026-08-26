@@ -118,11 +118,14 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 
 ### 4.5 MCP（G4）
 - kimi 无 `--mcp-config`，MCP 靠 mcp.json 文件。Pan 的 `data/mcp-configs/<sid>.mcp.json` 机制对 kimi 不适用。
-- **本轮方案**：kimi adapter 的 `mcp_args` 保持返回 []，但 `_mcp_configured`（worker.py）在 kimi 会话配置 mcp_servers 时应被正确处理：
-  - 方案一（本轮，推荐）：kimi 会话的 mcp_servers 写入项目级 mcp.json（待确认确切路径 `<workdir>/.kimi/mcp.json`），由 kimi 启动时自动加载。adapter 的 mcp_args 返回空即可，MCP 在 wrapper 的 `-p` 调用中天然生效。
-  - 方案二（后续）：禁用 kimi 的 MCP（前端 mcp_servers 配置对 kimi 隐藏）。
-- **决策**：本轮实现方案一——kimi adapter 增加 `write_kimi_mcp_json(s)`（幂等写项目级 mcp.json），mcp_args 保持返回 []，并在 build_spawn_args 前调用。worker.py 的 `_consumer_mcp` 对 kimi 走 stream 路径（`_use_oneshot_mcp` 判定不变，但 kimi 的 base_args 是 wrapper 长驻，天然支持）。
-- 需在实现时确认 mcp.json 的项目级路径与格式（官方文档）。若路径未知，退回方案二（mcp_servers 对 kimi 隐藏 + 前端提示）。
+- **配置位置（已确认）**：kimi 读项目级 `<workdir>/.kimi-code/mcp.json`（wrapper 的 cwd 决定 workspace 归属）。Pan adapter 已实现 `write_kimi_mcp_json(s)` 幂等写该文件（`mcp_args` 保持返回 []，在 `build_spawn_args` 前调用），写入后经 `kimi -p` 启动可观察到 mcp.json 被正确生成。
+- **E2E 结论（2026-08-26，hy3 验证）**：**kimi `-p` 模式下 pan MCP 工具不可用（限制）**。
+  - 证据：`mcpEnabled=True`，`.kimi-code/mcp.json` 被正确写入（含 pan server 的 stdio 启动命令）；但一次真实 `-p` live turn 拉取的 `history` 中 `tool blocks = 0`，模型没有、也无法调用任何 pan 工具。
+  - 根因：kimi 的 project MCP 受 **文件夹信任（folder-trust）门禁** 约束。`-p` 是非交互模式，信任提示无法被应答（无 TTY、无 trust prompt 通道），故 project 级 MCP server 不会注册到会话工具集——即使 mcp.json 存在且格式正确。
+  - 对比：opencode `run` 模式无此信任门禁，project MCP 直接加载可用（见 opencode-adaptation.md §4.5）。
+- **决策**：
+  - kimi 的 `write_kimi_mcp_json` 保留（文件写入正确，交互式/已信任 workspace 场景下可用），但**前端对 kimi 会话的 `mcp_servers` 配置应默认隐藏 + 提示「-p 非交互模式不加载 project MCP」**，避免用户误以为 pan 工具可用。
+  - 若要 kimi 真正用上 pan MCP，需走可交互的信任确认路径（或在已信任 workspace 内启动），属于后续升级项，不在本轮 autofill 范围。
 
 ### 4.6 supported_settings / 权限 / thinking（G6）
 - kimi 无 `--thinking` / `--effort` 参数（在 config.toml `[thinking]` 配置）。`thinking_args`/`effort_args` 返回 [] 合理。

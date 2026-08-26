@@ -10,12 +10,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 from ...session import Session
+from ..mcp import build_mcp_servers
 
 _log = logging.getLogger(__name__)
 
@@ -155,9 +157,141 @@ class OpencodeAdapter:
         args.extend(self.effort_args(s))
         args.extend(self.permission_mode_args(s))
         args.extend(self.resume_args(s))
+        args.extend(self.mcp_args(s))
         if extra_args:
             args.extend(extra_args)
         return args
+
+    def mcp_args(self, s: Session) -> list[str]:
+        """opencode 无 --mcp-config；MCP 来自 opencode.json 的 mcp 段（项目级）。
+
+        本方法返回空列表（无 CLI flag），但顺带把 session 的 mcp_servers 写入
+        <workdir 的 opencode.json 项目配置>（对齐 kimi 的项目级 mcp.json 思路，
+        §4.5 的「待定」项在此实现）。opencode run 以 cwd==workdir 启动时自动加载
+        该文件——opencode 从 cwd 向上找到最近 .git 根作为项目配置位置；非 git
+        目录直接用 cwd。
+
+        写文件由本方法触发（build_spawn_args 调用），时机与 kimi.write_kimi_mcp_json
+        对齐（spawn 前）。幂等写，未配置/写失败时返回 []（无 MCP flag）。
+        """
+        self.write_opencode_mcp_json(s)
+        return []
+
+    def write_opencode_mcp_json(self, s: Session) -> None:
+        """把 session 的 mcp_servers 写为 opencode 可加载的项目级 opencode.json。
+
+        描述符由共享 helper build_mcp_servers 构造（含 pan/pan-qq 的
+        PAN_AGENT_SESSION_ID/TITLE 注入、type=stdio），本方法再将其映射为 opencode
+        的 mcp 段格式：
+          - stdio/local → {"type":"local","command":[cmd,*args],"cwd":...,"environment":...,"enabled":true}
+          - remote/http/sse → {"type":...,"url":...,"headers":...,"environment":...,"enabled":true}
+
+        **合并而非覆盖**：读取已存在的 opencode.json(c)，仅更新 mcp 段并保留其它键
+        （model/provider/permission 等），避免破坏用户配置。JSONC（含 // 注释）做
+        容错解析；解析失败则备份原名后重新写入（best-effort）。写入路径记录到
+        adapter_config["opencode_mcp_config_path"] 以便后续清理。
+
+        NOTE（信任边界）：opencode 不像 kimi 需要 trust 提示——实测项目级 mcp 在
+        run 模式下直接加载，无交互式授权阻塞（见 E2E 验证报告）。
+        """
+        if not s.workdir:
+            return
+        mcp_servers = build_mcp_servers(s)
+        if not mcp_servers:
+            return
+
+        path = self._opencode_project_config_path(Path(s.workdir))
+        config = self._load_opencode_config(path)
+
+        oc_mcp: dict[str, dict] = {}
+        for name, entry in mcp_servers.items():
+            oc_mcp[name] = self._to_opencode_mcp_entry(entry)
+
+        config["mcp"] = {**config.get("mcp", {}), **oc_mcp}
+        config.setdefault("$schema", "https://opencode.ai/config.json")
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            _log.warning("[OpencodeAdapter] failed to write opencode.json at %s: %s", path, e)
+            return
+
+        s.set_adapter_field("opencode_mcp_config_path", str(path))
+        _log.info("[OpencodeAdapter] wrote opencode mcp config (%d servers) -> %s",
+                  len(oc_mcp), path)
+
+    @staticmethod
+    def _to_opencode_mcp_entry(entry: dict) -> dict:
+        """将 build_mcp_servers 的描述符映射为 opencode 的 mcp 段 entry。"""
+        etype = entry.get("type", "stdio")
+        # opencode 用 "local" 表示 stdio（命令数组，无独立 args 字段）
+        if etype in ("stdio", "local"):
+            cmd = entry.get("command")
+            args = list(entry.get("args") or [])
+            command = ([cmd, *args] if isinstance(cmd, str) else list(args))
+            out: dict = {"type": "local", "command": command, "enabled": True}
+            if entry.get("cwd"):
+                out["cwd"] = entry["cwd"]
+            env = dict(entry.get("env") or {})
+            # 透传 PAN_API_URL（若存在），确保 pan server 指向正确的 Pan 服务
+            pan_api_url = os.environ.get("PAN_API_URL")
+            if pan_api_url and "PAN_API_URL" not in env:
+                env["PAN_API_URL"] = pan_api_url
+            if env:
+                out["environment"] = env
+            return out
+        # remote / http / sse：透传 url/headers/env
+        out = {"type": etype, "enabled": True}
+        if entry.get("url"):
+            out["url"] = entry["url"]
+        if entry.get("headers"):
+            out["headers"] = entry["headers"]
+        if entry.get("env"):
+            out["environment"] = entry["env"]
+        return out
+
+    @staticmethod
+    def _opencode_project_config_path(workdir: Path) -> Path:
+        """opencode 项目配置位置：从 workdir 向上找最近的 .git 根；非 git 目录用 cwd。
+
+        opencode 启动时会从 cwd 向上遍历到最近的 .git 目录读取项目 opencode.json，
+        故写入该位置才能被 run 模式发现。返回路径沿用已存在的 .jsonc 扩展名，否则
+        用 .json（纯 JSON 也是合法 JSONC）。
+        """
+        cur = workdir.resolve()
+        root = cur
+        for parent in [cur, *cur.parents]:
+            if (parent / ".git").exists():
+                root = parent
+                break
+        jsonc = root / "opencode.jsonc"
+        if jsonc.exists():
+            return jsonc
+        return root / "opencode.json"
+
+    @staticmethod
+    def _load_opencode_config(path: Path) -> dict:
+        """容错读取 opencode 配置（支持 JSONC），解析失败则备份后返回空 dict。"""
+        if not path.exists():
+            return {}
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            return {}
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_strip_jsonc(text))
+            except json.JSONDecodeError:
+                _log.warning("[OpencodeAdapter] cannot parse %s, backing up and starting fresh", path)
+                try:
+                    path.rename(path.with_suffix(path.suffix + ".bak"))
+                except OSError:
+                    pass
+                return {}
 
     def oneshot_args(self, s: Session, text: str) -> list[str]:
         # opencode 的 worker 驱动方式只有 stream（wrapper 长驻），never 进入
@@ -299,6 +433,24 @@ class OpencodeAdapter:
         except Exception:
             _log.debug("opencode enrich_after_result failed", exc_info=True)
             return None
+
+
+def _strip_jsonc(text: str) -> str:
+    """极简 JSONC → JSON：去除 /* */ 块注释、// 行注释、尾随逗号。
+
+    仅用于 best-effort 解析用户已有的 opencode.jsonc；opencode 配置极少在字符串
+    内含 //，故按行剥离 // 足够。失败由调用方回退到备份+重写。
+    """
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    out_lines = []
+    for line in text.splitlines():
+        idx = line.find("//")
+        if idx != -1:
+            line = line[:idx]
+        out_lines.append(line)
+    out = "\n".join(out_lines)
+    out = re.sub(r",\s*([}\]])", r"\1", out)
+    return out
 
 
 def _parse_models_from_opencode() -> list[str]:
