@@ -76,14 +76,27 @@ def _stderr_pump(stderr, label: str) -> None:
 
 
 def _stdin_reader(message_queue: Queue, shutdown_event: threading.Event) -> None:
-    """后台线程：从 stdin 读取 JSON 消息并入队。"""
+    """后台线程：从 stdin 读取 JSON 消息并入队。
+
+    stdin 以**二进制**读取并按 UTF-8 显式解码，避免 Windows 下 TextIOWrapper
+    用系统 locale 编码（如 cp936/GBK）解码 UTF-8 字节，导致中文被乱码、
+    json.loads 失败、消息被静默丢弃。
+    """
+    f = sys.stdin
+    buf = getattr(f, "buffer", None) or f
     while not shutdown_event.is_set():
         try:
-            line = sys.stdin.readline()
+            line_b = buf.readline()
         except (ValueError, OSError):
             break
-        if not line:
+        if not line_b:
             break  # stdin closed (EOF) — signal main loop to exit
+        if isinstance(line_b, str):
+            line_b = line_b.encode("utf-8")
+        try:
+            line = line_b.decode("utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            continue
         line = line.strip()
         if not line:
             continue
@@ -140,8 +153,19 @@ def _main_loop(opencode_path: str, model: str | None, variant: str | None,
             )
 
             try:
+                # 关键修复：opencode 的 `--format json` 一次性模式仍会读取 stdin。
+                # 若继承 wrapper 的 stdin（来自 server 的长驻管道且保持打开），opencode
+                # 会一直等待 stdin EOF/输入而静默挂起——无任何 stdout/stderr 输出，表现为
+                # 会话卡 running、60s 超时、takeover 报 "no CLI session yet"。
+                # 显式置 stdin=DEVNULL 切断与 server 管道的连接（prompt 来自 CLI 参数，
+                # 不依赖 stdin）；close_fds 避免继承 server 的其它句柄（监听 socket 等）。
                 proc = subprocess.Popen(
-                    args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd or None
+                    args,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=cwd or None,
+                    close_fds=True,
                 )
             except FileNotFoundError:
                 _write_stdout_line(json.dumps({
