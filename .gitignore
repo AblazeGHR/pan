@@ -50,3 +50,8 @@ packages/qq/.env
 memory/char_*.sqlite
 memory/char_*.sqlite-shm
 memory/char_*.sqlite-wal
+
+# e2e 测试临时产物（本地调试用，不入库）
+_e2e_tmp/
+_pan_test.log
+_pan_codex_e2e*.log
