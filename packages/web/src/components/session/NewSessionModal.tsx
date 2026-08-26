@@ -290,6 +290,12 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           </select>
         </label>
 
+        {adapter === 'kimi' && (
+          <p className="-mt-2 text-[11px] leading-snug text-text-tertiary">
+            kimi 的 MCP 通过隔离目录 data/kimi-homes 自动加载（KIMI_CODE_HOME），无需信任文件夹。
+          </p>
+        )}
+
         {/* Session name */}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">

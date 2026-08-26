@@ -2892,7 +2892,22 @@ let nsExecModes: string[] = ['stream'];
 
 /** Load execution modes for the adapter chosen in the new-session modal and
  *  (re)build its Output Mode select. Single-mode adapters keep the field hidden. */
+function _ensureNsMcpHint(): void {
+  if (document.getElementById('nsMcpHint')) return;
+  const prof = document.getElementById('nsProfileSelect');
+  if (!prof || !prof.parentElement) return;
+  const p = document.createElement('p');
+  p.id = 'nsMcpHint';
+  p.className = 'ns-hint';
+  p.textContent = 'kimi 的 MCP 通过隔离目录 data/kimi-homes 自动加载（KIMI_CODE_HOME），无需信任文件夹。';
+  p.style.display = 'none';
+  prof.parentElement.insertBefore(p, prof.nextSibling);
+}
+
 function _loadNsAdapterConfig(adapter: string): void {
+  _ensureNsMcpHint();
+  const hint = document.getElementById('nsMcpHint') as HTMLElement | null;
+  if (hint) hint.style.display = adapter === 'kimi' ? '' : 'none';
   fetch('/api/adapter/config?adapter=' + encodeURIComponent(adapter))
     .then((r: Response) => r.json())
     .then((data: ApiConfigResponse) => {
