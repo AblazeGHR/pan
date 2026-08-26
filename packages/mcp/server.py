@@ -17,6 +17,7 @@ Tools exposed:
     - session_claim_many: Batch-claim multiple sessions
     - session_unclaim: Unclaim a session from the calling agent
     - session_unclaim_many: Batch-unclaim multiple sessions
+    - session_handoff: 替身交接——创建孪生 session B 接替 A（精简上下文/切换 adapter）
     - worker_spawn: Spawn a worker for a session
     - worker_task: Send a task to a worker
     - worker_kill: Kill a worker
@@ -566,6 +567,67 @@ def session_batch_delete(session_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def session_handoff(
+    session_id: str,
+    handoff_prompt: str,
+    copy_settings: bool = True,
+    adapter: str | None = None,
+    model: str | None = None,
+    permission_mode: str | None = None,
+) -> dict:
+    """替身交接：创建孪生 session B 接替 session A（精简上下文 / 切换 adapter）。
+
+    场景：A 的上下文过大需要精简，或 A 想中途切换 adapter（普通 session 不能
+    切）。A 保留为可阅读上下文（重命名为 `(archive) <原名>`），B 接管 A 的名字
+    与全部 pan 关系网，随后解除 A 的原关系网。
+
+    行为（session_handoff v1）：
+    1. **关系网接替（自动、必然）**：B.managed = A.managed，A 的子会话
+       managed_by 改 B；A 的 report_subscriptions、QQ postbox 绑定
+       （session_qq_subscribe 订阅的 inbox 提醒）全部转移给 B。
+    2. **B 自动 manage A**：B.managed 追加 A，A.managed_by = B——A 归档为 B 的
+       被管理会话，B 会收到 A 的完成报告（可据 A 的 lastResult 持续读取旧上下文）。
+    3. **可选设置复制**：copy_settings=true 时 1:1 复制 A 的 adapter、
+       adapter_config、model、permission_mode、session_template、pan_access、
+       mcp_servers 等（**明确不含 system_prompt**；cli_session_id 清空——B 是
+       全新会话，不继承 A 的 CLI 上下文）；false 时 B 用默认设置（此时必须显式
+       传 adapter，否则报错）。
+    4. **B 的 system_prompt = handoff_prompt 与 A 原 system_prompt 拼接**（分
+       「交接上下文 / 原 system prompt」两节）。
+    5. **重命名**：A → `(archive) <原名>`，B → `<原名>`。
+
+    Args:
+        session_id: 被交接的 session（A）id
+        handoff_prompt: 【必填】交接简报——由 session A 的 agent 编写，让 B 彻底
+            了解现状与重点（重要开发习惯、原 system_prompt 内容、现状、上下文
+            精华等）。将成为 B.system_prompt 的「交接上下文」部分。
+        copy_settings: 是否 1:1 复制 A 的设置（见上）。默认 true。
+        adapter: 切换 adapter 时传入（copy_settings=false 时必填）
+        model: 覆盖模型（copy_settings=true 时优先于复制值）
+        permission_mode: 覆盖权限模式
+
+    调用链：走 POST /api/sessions/{session_id}/handoff。切换 adapter 的典型
+    用法：copy_settings=false + adapter="kimi" + handoff_prompt=...。交接后
+    B 即可 worker_assign 派活；A 归档但可 session_get 读取。完整编排流程见 /pan skill。
+    """
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
+    if not copy_settings and not adapter:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "adapter is required when copy_settings is false"}}
+    body: dict = {"handoffPrompt": handoff_prompt, "copySettings": copy_settings}
+    if adapter:
+        body["adapter"] = adapter
+    if model:
+        body["model"] = model
+    if permission_mode:
+        body["permissionMode"] = permission_mode
+    return _api("POST", f"/api/sessions/{session_id}/handoff", body)
+
+
+@mcp.tool()
 def session_claim(session_id: str) -> dict:
     """Claim a session for the calling agent (establish managed relationship).
 
@@ -765,8 +827,8 @@ def report_subscribe(session_id: str) -> dict:
     """Subscribe to completion reports for a managed session.
 
     Opt-in report delivery (立项 4.3): after subscribing, every time the
-    managed session finishes a task (done/error) its report dict — aligned
-    with handoff format: status/result/sessionId/taskId/workerId — is appended
+    managed session finishes a task (done/error) its report dict — shape
+    {status/result/sessionId/taskId/workerId} — is appended
     to this meta-agent's persisted queue_pending and delivered as one batched
     message to this session's worker (concatenated with a visible separator
     when multiple reports accumulate). Unsubscribed sessions only keep the
@@ -969,45 +1031,6 @@ def worker_list() -> dict:
 
 
 @mcp.tool()
-def worker_handoff(session_id: str, text: str, timeout: float = 600.0,
-                   task_id: str | None = None) -> dict:
-    """[DEPRECATED] Send a task and BLOCK until the worker returns a result.
-
-    DEPRECATED (立项 4.7): prefer ``worker_assign`` + report subscription
-    (``report_subscribe``) instead. If you truly need to wait, "waiting" should
-    be your session's default idle state — dispatch asynchronously with
-    worker_assign, subscribe to the completion report, and consume it when it
-    arrives — not a blocking call that leaves your session busy or subject to
-    interruption. This tool is retained only for cases that require a strictly
-    blocking synchronous return value; it may be removed in the future. No
-    runtime warning is emitted (deprecation is documentation-level only).
-
-    Synchronous orchestration primitive: ensures a worker exists for the
-    session, sends the task, then waits for the worker.result event.
-    Returns the final result dict. Use for serial dependent steps.
-
-    Idempotency: pass the same `task_id` when retrying a timed-out handoff —
-    the server won't re-enqueue if that taskId is already known (returns its
-    status / existing result). Prevents double-execution of the same task.
-
-    Args:
-        session_id: Session ID to run the task on
-        text: Task text / prompt
-        timeout: Max seconds to wait for completion (default 600 / 10min)
-        task_id: Optional caller-supplied idempotency key (uuid-like string)
-
-    完整编排流程见 /pan skill。
-    """
-    denied = _check_access(session_id, claim=True)
-    if denied:
-        return denied
-    body = {"sessionId": session_id, "text": text, "timeout": timeout}
-    if task_id:
-        body["taskId"] = task_id
-    return _api("POST", "/api/handoff", body, timeout=timeout + 60)
-
-
-@mcp.tool()
 def worker_assign(session_id: str, text: str, task_id: str | None = None) -> dict:
     """Dispatch a task asynchronously and return immediately.
 
@@ -1176,7 +1199,7 @@ def pan_handbook() -> dict:
     Reads docs/skills/pan/SKILL.md (the single source of truth) live and
     returns its raw content — nothing is duplicated here. Covers the
     orchestration workflow, HTTP API cheat sheet, gotchas and conventions
-    (workdir, watchdog, handoff idempotency, ////by agent prefix, ...).
+    (workdir, watchdog, taskId idempotency, ////by agent prefix, ...).
 
     调用链：接线完成后若不清楚编排流程，先调本工具拿手册，再按主链
     session_create → worker_assign → session_get → session_delete 执行。

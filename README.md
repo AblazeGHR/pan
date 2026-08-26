@@ -102,10 +102,10 @@ sequenceDiagram
 **② 串行流水线（上一环的产出是下一环的输入）**
 
 ```
-handoff(W1: 写技术方案) → 拿到方案 → handoff(W2: 写代码) → 拿到代码 → handoff(W3: 代码 review)
+assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写代码) → 拿到代码 → assign(W3: 代码 review)
 ```
 
-每一步同步等待结果再走下一步，像工厂流水线一样可控。
+每一步等上一环的完成报告再走下一步，像工厂流水线一样可控。
 
 **③ 长期共事（带记忆的老团队）**
 
@@ -304,8 +304,7 @@ GET    /api/worker/{id}/takeover-command → 生成接管命令（不执行）
 **编排（4.2 / 4.3 / 4.7）**
 
 ```
-POST   /api/handoff                   → 同步阻塞派发（taskId 幂等）
-POST   /api/assign                    → 异步派发任务
+POST   /api/assign                    → 异步派发任务（taskId 幂等）
 POST   /api/report-subscribe          → 订阅 Worker 报告
 POST   /api/report-unsubscribe        → 退订报告
 POST   /api/claim                     → 绑定 managed 关系
@@ -374,9 +373,9 @@ WS   /ws/agent       Meta-Agent：subscribe（按 eventTypes/sessionIds 过滤+�
 ### MCP Server（`packages/mcp/server.py`，20 个工具）
 
 ```
-session_create / session_import / session_list / session_managed / session_get / session_delete / session_batch_delete / session_update / session_history
+session_create / session_import / session_list / session_managed / session_get / session_delete / session_batch_delete / session_handoff / session_update / session_history
 report_subscribe / report_unsubscribe
-worker_spawn / worker_task / worker_kill / worker_list / worker_handoff(已弃用) / worker_assign / worker_send
+worker_spawn / worker_task / worker_kill / worker_list / worker_assign / worker_send
 model_list / pan_handbook
 ```
 
@@ -457,7 +456,7 @@ python -m packages.remote
 - **端口速查**：Pan 主服务 8767（test）/ 8768（main）；Remote 状态 8769；NoneBot2 8080（不对外）；NapCat 3001。详见 `importantInfo.md`。
 - **Remote Tunnel 机制**：公网域名 = `remote.config_path` 指向的 yml 的 `ingress.hostname`；暴露端口 = `config.port`；由 `scripts/start_cf.ps1` 读取 config.json 注入临时 yml，**不依赖 `remote.enabled` 字段**。
 - **前端双源 of truth**：legacy 源码 `packages/web/ts/app.ts`，`static/js/app.js` 是其编译产物（gitignored），**改完必须从项目根 `npx tsc`**；React 源码 `packages/web/src/`，产物 `dist/`（gitignored），**改完必须 `cd packages/web && pnpm build`**。pre-commit（`git config core.hooksPath scripts`）会同时校验两者。
-- **worker 双模式判定**：`stream` 长驻（可挂载 MCP，cbc ≥ 2.137.0 的 stream-json 已支持 MCP）；`one-shot MCP` 仅在 `output_mode=oneshot` 时启用。`worker_handoff` 已弃用，用 `worker_assign` / `worker_send` 替代。
+- **worker 双模式判定**：`stream` 长驻（可挂载 MCP，cbc ≥ 2.137.0 的 stream-json 已支持 MCP）；`one-shot MCP` 仅在 `output_mode=oneshot` 时启用。派发用 `worker_assign` / `worker_send`（`worker_handoff` 已于 2026-08-26 移除）。
 - **worker 超时语义（2026-08-17 区分）**：stream running 按**任务运行时长**判定卡死（`worker.task_timeout_sec`，默认 1800s），queued 用静默超时（`worker.timeout_sec`，默认 300s）——长思考 / 大文件读取不再被静默超时误杀。
 - **QQ bot 进程管理（2026-08-22）**：main.py 按 `config.json` 的 `qq.enabled` 统一 spawn / 终止 QQ bot（写 `data/qq_bot.pid`）；`scripts/start_pan.bat` 只启 main.py（QQ bot 是其子进程），`scripts/stop_pan.bat` 精确树杀 + 命令行兜底，不再全局杀 python.exe。
 - **Memory 依赖与降级**：minimal 依赖不含 ML 链。启用 Memory 前需 `sentence-transformers`（web 端默认 provider）。各可选库缺失时懒加载 + ImportError 兜底自动降级，不影响 Core 启动；但 `jieba` 缺失会显著降低中文检索质量。

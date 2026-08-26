@@ -910,15 +910,6 @@ async def ws_agent_endpoint(ws: WebSocket):
                         "model": s.model,
                     })
 
-            elif msg_type == "handoff":
-                session_id = msg.get("sessionId")
-                text = msg.get("text")
-                if not session_id or not text:
-                    await ws.send_json({"type": "error", "message": "sessionId and text required"})
-                    continue
-                result = await worker.handoff(session_id, text, source="agent")
-                await ws.send_json({"type": "handoff.result", **result})
-
             elif msg_type == "assign":
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
@@ -1199,6 +1190,55 @@ async def api_branch_session(session_id: str, data: dict):
     return _session_to_api(new_s)
 
 
+@app.post("/api/sessions/{session_id}/handoff")
+async def api_session_handoff(session_id: str, data: dict):
+    """替身交接（session_handoff v1）：创建孪生 session B 接替 A。
+
+    Body: {"handoffPrompt": <必填，A 的 agent 编写的交接简报>,
+           "copySettings": bool (默认 true), "adapter"?, "model"?,
+           "permissionMode"?}
+
+    行为见 ``sess.handoff_session``：关系网接替 + B 自动 manage A + 可选设置
+    复制（不含 system_prompt）+ B.system_prompt = handoffPrompt 与 A 原
+    system_prompt 拼接 + 重命名（A → "(archive) <原名>"，B → "<原名>"）。
+    """
+    handoff_prompt = (data.get("handoffPrompt") or "").strip()
+    if not handoff_prompt:
+        return {"error": "handoffPrompt is required — 由 session A 的 agent 编写交接简报"}
+    copy_settings = data.get("copySettings", True)
+    if not isinstance(copy_settings, bool):
+        copy_settings = True
+    adapter = data.get("adapter")
+    model = data.get("model")
+    permission_mode = data.get("permissionMode")
+    if not copy_settings and not adapter:
+        return {"error": "adapter is required when copySettings is false"}
+    result = sess.handoff_session(
+        session_id, handoff_prompt,
+        copy_settings=copy_settings, adapter=adapter, model=model,
+        permission_mode=permission_mode,
+    )
+    if isinstance(result, str):
+        return {"error": result}
+    a, b = result
+    await broadcast({
+        "type": "session.renamed",
+        "sessionId": a.id,
+        "oldName": b.name,  # A 原名 == B 现名
+        "newName": a.name,
+    })
+    await broadcast({
+        "type": "session.created",
+        "sessionId": b.id,
+        "name": b.name,
+    })
+    return {
+        "ok": True,
+        "archivedSession": _session_to_api(a),
+        "session": _session_to_api(b),
+    }
+
+
 def _cleanup_mcp_config(session_id: str) -> None:
     """S3：session 删除后清理 data/mcp-configs/<session_id>.mcp.json。
 
@@ -1451,23 +1491,6 @@ async def api_task(data: dict):
     }
 
 
-@app.post("/api/handoff")
-async def api_handoff(data: dict):
-    """同步等待：发任务并阻塞直到 worker 返回结果（默认 10min 超时）。
-
-    支持 task_id 幂等：重发同一 taskId 不重复入队（超时后安全重试）。
-    """
-    session_id = data.get("sessionId")
-    text = data.get("text")
-    if not session_id or not text:
-        return {"ok": False, "error": {"code": "missing_params",
-                                       "message": "sessionId and text are required"}}
-    timeout = data.get("timeout", 600)
-    task_id = data.get("taskId")
-    return await worker.handoff(session_id, text, source="agent",
-                                timeout=float(timeout), task_id=task_id)
-
-
 @app.post("/api/assign")
 async def api_assign(data: dict):
     """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。
@@ -1490,7 +1513,7 @@ async def api_report_subscribe(data: dict):
     Body: {"managerId": <meta-agent session id>, "sessionId": <managed session id>}
 
     订阅后，该 managed session 每次完成（done/error）都会把报告 append 到
-    meta-agent 的落盘队列 queue_pending（对齐 handoff 格式）。
+    meta-agent 的落盘队列 queue_pending（报告形状 {status,result,sessionId,taskId,workerId}）。
     未订阅则只保留现有 worker.result 广播。
     """
     manager_id = (data.get("managerId") or "").strip()

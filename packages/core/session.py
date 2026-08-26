@@ -7,6 +7,7 @@ The ID format is ses_<16-hex-chars> (e.g. ses_a1b2c3d4e5f67890).
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import os
 import secrets
@@ -602,6 +603,142 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
     target.managed_by = None
     save(target)
     return None
+
+
+def handoff_session(
+    session_id: str,
+    handoff_prompt: str,
+    *,
+    copy_settings: bool = True,
+    adapter: str | None = None,
+    model: str | None = None,
+    permission_mode: str | None = None,
+) -> tuple[Session, Session] | str:
+    """替身交接（session_handoff v1）：创建孪生 session B 接替 session A。
+
+    用途：精简上下文（B 全新会话，不继承 A 的 history / cli_session_id），或
+    切换 adapter（普通 session 不能中途切 adapter）。
+
+    行为：
+    1. **关系网接替（自动、必然）**：B.managed = A.managed，A 的子会话
+       managed_by 改 B；A 的 report_subscriptions / QQ postbox 绑定（qq_subscriptions）
+       转移给 B；A 若曾被某 manager 管理，B 接替 A 在该 manager 下的位置。
+    2. **B 自动 manage A**：B.managed 追加 A，A.managed_by = B（A 归档为 B 的
+       被管理会话，B 订阅 A 的完成报告）。
+    3. **可选设置复制（copy_settings）**：true 时 1:1 复制 A 的设置（adapter、
+       adapter_config、model、permission_mode、session_template、pan_access、
+       mcp_servers 等，**明确不含 system_prompt**；cli_session_id 清空——B 是
+       全新会话）；false 时 B 用默认设置（此时调用方应显式传 adapter）。
+    4. **B.system_prompt = handoff_prompt（A 新写）与 A 原 system_prompt 拼接**，
+       用「交接上下文 / 原 system prompt」两个分节引导。
+    5. **重命名**：A → `(archive) <原名>`，B → `<原名>`。
+    6. **解除 A 的原关系网**：A.managed / report_subscriptions / qq_subscriptions
+       清空（A.managed_by 保留 = B，见第 2 条）。
+
+    Returns (A, B) on success, or an error message string.
+    """
+    a = get(session_id)
+    if a is None:
+        return f"Session {session_id} not found"
+    if not handoff_prompt or not handoff_prompt.strip():
+        return "handoff_prompt is required — session A 的 agent 必须编写交接简报"
+
+    orig_name = a.name
+    archive_name = f"(archive) {orig_name}"
+
+    # ── 1. 创建 B：可选 1:1 复制 A 的设置（不含 system_prompt）──
+    if copy_settings:
+        new_adapter = adapter or a.adapter
+        new_model = model or a.model
+        new_permission_mode = permission_mode or a.permission_mode
+        new_adapter_config = copy.deepcopy(a.adapter_config)
+        new_adapter_config.pop("cli_session_id", None)  # B 是全新会话，不继承 A 的 CLI 上下文
+        new_pan_access = copy.deepcopy(dict(a.pan_access))
+        new_character_id = a.character_id
+        new_template = a.session_template
+        new_game_id = a.game_id
+    else:
+        new_adapter = adapter or "cbc"
+        new_model = model
+        new_permission_mode = permission_mode
+        new_adapter_config = {}
+        new_pan_access = {}
+        new_character_id = None
+        new_template = None
+        new_game_id = None
+
+    # B 的 system_prompt = 交接 prompt（A 新写） + A 原 system_prompt 拼接
+    b_prompt = handoff_prompt.strip()
+    if a.system_prompt and a.system_prompt.strip():
+        b_prompt = (
+            "【交接上下文（由被交接 session A 的 agent 编写）】\n"
+            f"{b_prompt}\n\n"
+            "【原 session 的 system prompt】\n"
+            f"{a.system_prompt.strip()}"
+        )
+
+    b = create(
+        name=orig_name,
+        adapter=new_adapter,
+        model=new_model,
+        permission_mode=new_permission_mode,
+        adapter_config=new_adapter_config,
+        character_id=new_character_id,
+        session_template=new_template,
+        system_prompt=b_prompt,
+        game_id=new_game_id,
+        pan_access=new_pan_access,
+        workdir=a.workdir,
+    )
+
+    # ── 2. 关系网接替 ──
+    # 2a. A 的子会话 → 改由 B 管理
+    for child_id in list(a.managed):
+        child = get(child_id)
+        if child is not None:
+            child.managed_by = b.id
+            save(child)
+    b.managed = list(a.managed)
+
+    # 2b. B 自动 manage A（A 归档为 B 的被管理会话；B 订阅 A 的报告）
+    b.managed.append(a.id)
+    b.report_subscriptions = set(a.report_subscriptions)
+    b.report_subscriptions.add(a.id)
+
+    # 2c. A 的原父 manager → B 接替 A 的位置（A 曾被他人管理时）
+    parent_id = a.managed_by
+    if parent_id:
+        parent = get(parent_id)
+        if parent is not None:
+            if a.id in parent.managed:
+                parent.managed[parent.managed.index(a.id)] = b.id
+            if a.id in parent.report_subscriptions:
+                parent.report_subscriptions.discard(a.id)
+                parent.report_subscriptions.add(b.id)
+            save(parent)
+        b.managed_by = parent_id
+
+    # 2d. 其它会话对 A 的 report 订阅 → 改指向 B（一般即原父 manager，兜底全量扫）
+    for s in list_all():
+        if s.id in (a.id, b.id):
+            continue
+        if a.id in s.report_subscriptions:
+            s.report_subscriptions.discard(a.id)
+            s.report_subscriptions.add(b.id)
+            save(s)
+
+    # 2e. QQ postbox 绑定 → B
+    b.qq_subscriptions = set(a.qq_subscriptions)
+
+    # ── 3. 解除 A 的原关系网（A.managed_by 保留 = B，见 2b）──
+    a.managed = []
+    a.managed_by = b.id
+    a.report_subscriptions = set()
+    a.qq_subscriptions = set()
+    a.name = archive_name
+    save(a)
+    save(b)
+    return a, b
 
 
 _all_loaded: bool = False
