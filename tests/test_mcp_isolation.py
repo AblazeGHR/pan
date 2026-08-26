@@ -127,16 +127,18 @@ def test_release_cleans_manager():
 
 # ── HTTP /api/claim endpoint ──
 
-def test_api_claim_requires_can_claim_unmanaged(monkeypatch):
+def test_api_claim_without_can_claim_unmanaged_succeeds(monkeypatch):
+    """8c17ba4 起 /api/claim 移除 can_claim_unmanaged 限制（前端 manage 拥有最高权限）：
+    无该权限的 manager 也可 claim 无主 session。"""
     import packages.web.server as srv
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     _setup_session("ses_mgr")  # can_claim_unmanaged defaults False
     _setup_session("ses_child")
     r = asyncio.run(srv.api_claim({"managerId": "ses_mgr", "sessionId": "ses_child"}))
-    assert r.get("ok") is False
-    assert r["error"]["code"] == "cannot_claim_unmanaged"
-    assert _sess.get("ses_child").managed_by is None
+    assert r.get("ok") is True
+    assert r["managed"] == ["ses_child"]
+    assert _sess.get("ses_child").managed_by == "ses_mgr"
     _cleanup()
 
 
@@ -382,7 +384,7 @@ if __name__ == "__main__":
     test_claim_refuses_foreign_manager()
     test_claim_missing_sessions()
     test_release_cleans_manager()
-    test_api_claim_requires_can_claim_unmanaged()
+    test_api_claim_without_can_claim_unmanaged_succeeds()
     test_api_claim_success()
     test_api_claim_refuses_foreign()
     test_api_claim_missing_params()
