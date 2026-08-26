@@ -4,14 +4,184 @@
 
 **[English](./README.en.md) · 中文**
 
-Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Worker 架构下，一个「Meta-Agent 主管」通过 MCP 工具与 WebSocket 事件流，同时指挥多个 Worker（每个 Worker 是独立运行的 CLI Agent 会话）并行推进任务，每个 Worker 在独立的 git worktree 中工作。你可以在 Web Dashboard、QQ、公网隧道或任意 Agent CLI 上指挥它，也随时可以旁观、插话或接管某个 Worker 的终端。
+下面先用 30 秒看懂 Pan 的核心卖点与典型工作流；完整的功能 / 配置 / API 参考手册见下方[目录](#目录)。
 
-- **技术栈**：Python + FastAPI + WebSocket + SQLite（FTS5 全文检索）+ 可选 embedding 向量检索；前端为 React（开发主力）+ Vanilla JS（稳定备份）双轨。
+---
+
+## 💡 为什么选 Pan（30 秒看懂差异化）
+
+单体的 AI 编程助手是"一对一"的：你说一句，它干一件，然后大眼瞪小眼。**Pan 让你只跟一个 Meta-Agent 对话，就能同时指挥一整支 AI 工人团队。**
+
+| 你想解决的问题 | Pan 的答案 |
+|---------------|-----------|
+| **多任务并行**：同时推进几个模块/项目，手动切换多个终端窗口 | 👔 **Meta-Agent 自动拆解派活**：拆不拆、怎么拆，编排方法论替你判断；多个 Worker 在各自独立 git worktree 里并行干活 |
+| **换 CLI 就丢上下文**：从 A 助手切到 B 助手，历史对话全没了，重头再来 | 🔁 **替身交接（session_handoff）**：想换就换，新 CLI 接管整个关系网，精简摘要随行——同任务跨 CLI 无缝继续，还省上下文 |
+| **一个厂商锁死**：模型/助手被某个 CLI 生态绑定 | 🔌 **多 CLI 协议化适配**：cbc / kimi / opencode / claude / codex 已支持，集群对底层 CLI 无感知，写模型规则就能让 Meta-Agent 按任务类型路由到合适的 adapter |
+| **AI 没有记忆**：每次开工都要重新交代背景和偏好 | 🧠 **Memory + Character**：向量 + 全文混合检索，开工自动注入相关记忆；人设跨 Session 保持同一身份 |
+| **AI 干到一半卡死**：进程挂了、任务跑飞了没人管 | 🐕 **Watchdog 自愈**：卡死 / 静默超时自动清理；进程异常死亡，落盘队列自动重建 Worker 接着干 |
+| **人不在电脑前**：想用 QQ 遥控、公网远程查看 | 🚪 **多渠道指挥**：Web Dashboard / QQ / Cloudflare 公网隧道 / MCP，同一个调度台从哪儿都能进来 |
+
+## 🧭 它是做什么的？（三句话讲明白）
+
+- 👔 **一个主管（Meta-Agent）**：不亲自干活，负责招人、派活、听汇报、验收——像个项目经理。
+- 🧑‍💻 **一群工人（Worker）**：每个 Worker 是一个独立运行的 AI 会话，有自己的记忆、人设和工具，在**独立 git worktree** 里干活，互不干扰。
+- 🧍 **你站在中间**：像站在中控室大屏前的厂长——看得见每个工人在干嘛，随时可以插话、改派，或者直接接管某个 Worker 的终端自己上手。
+
+Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，让"多个 AI 一起干活"从「手动在多个终端窗口之间来回切换」变成「一条有条不紊的流水线」。
+
+## 📖 一张表看懂全部概念
+
+| 通俗说法 | 专业概念 | 说明 |
+|---------|---------|------|
+| 👔 项目经理 | **Meta-Agent / SMA** | 不干活，只调度：招人、派活、听汇报、验收 |
+| 🧑‍💻 全职员工 | **stream Worker** | 长驻的 AI 会话，随叫随到，可连续对话多轮，还能挂载 MCP 工具 |
+| 🧳 外包临时工 | **one-shot Worker** | 一次任务开一个新进程，自带全套工具箱，干完即走 |
+| 🔌 不同的工具品牌 | **CLI Adapter** | 每种 CLI Agent 一个协议化适配器（cbc / kimi / opencode / claude / codex），切换不改业务层 |
+| 🔁 替身接管你的工作 | **session_handoff** | 创建孪生 Session 接替旧会话：关系网 / 报告订阅 / QQ 绑定全移交，上下文精简摘要随行 |
+| 📤 "这事交给你了，干完汇报" | **assign** | 异步派发：发完就去忙别的，完工后收到报告 |
+| 📬 "以后有活自动派给你" | **report-subscribe** | 订阅制报告：工人完工后自动把报告投到主管的收件箱（落盘不丢） |
+| 🔗 "你归我管了" | **claim** | 建立主管 ↔ 工人的双向管理绑定 |
+| 🌿 复制一个分身去试另一条路 | **branch** | 从现有 Session fork 出独立分支，继承模型/记忆/工具，互不影响 |
+| 🎛️ 老板抢过键盘自己上 | **takeover** | 把 AI 会话夺回人类终端亲自接管（进程重启 + 置 held） |
+| 🧠 员工的长期记忆 | **Memory** | 向量 + 全文（FTS5）混合检索，开工前自动注入相关记忆 |
+| 🎭 有性格的老员工 | **Character** | 人设 + 独立记忆库，跨 Session 保持同一身份 |
+| 🐕 不睡觉的监工 | **Watchdog** | 每个 Worker 配一只：卡死 / 摸鱼超时自动清理；全局级还能自动补员 |
+| 🖥️ 工位监控大屏 | **Dashboard** | 网页实时围观每个 Worker 的输出（React 新版 + 旧版双轨） |
+| 💬 用 QQ 遥控 | **QQ Bridge** | 把 QQ 消息变成给 Worker 的指令；NapCat / LLOneBot 通道可切换 |
+| 🌐 远程办公室 | **Remote** | Cloudflare Tunnel，把调度台暴露到公网 |
+
+## 👔 Meta-Agent 编排：一支 AI 团队，一个主管
+
+Meta-Agent 不是某个特殊的程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件（能发指令、能收情报、有身份），就能扮演"主管"。
+
+在 Pan 里，"多任务并行"不是靠开多个终端窗口手动拼，而是把一条指令拆成一支并行 Worker 团队——这是真实可运行的工作流：
+
+```
+你：项目 A 的三个模块并行开发，项目 B 的 bug 查一下，下午 3 点提醒我开会。
+
+SMA（决策三问 → 拆解 → 派活）：
+├─ worker-a1 · 项目 A · 模块 1 开发   （worktree-1）
+├─ worker-a2 · 项目 A · 模块 2 开发   （worktree-2）
+├─ worker-a3 · 项目 A · 模块 3 开发   （worktree-3）
+├─ worker-b1 · 项目 B · 排查 bug
+└─ worker-l1 · 生活 · 3 点开会提醒
+
+你（过一会儿）：汇报进展。
+→ SMA 收回全部结果，trust-but-verify 逐项验收，汇总成一份报告。
+```
+
+更妙的是，编排层对底层 CLI **无感知**：「什么任务派给哪个 CLI」写进 SMA 的模型规则即可路由——例如"重活走 cbc、轻量调研走 kimi、写作走 opencode"，集群本身无需任何改动。
+
+> 完整的编排方法论（决策三问 / 并行派发 / 订阅制汇报 / trust-but-verify 验收 / 合并汇报）与内置 SMA 模板说明，见下文「[Meta-Agent 编排](#meta-agent-编排)」。
+
+## 🔌 多 CLI 适配：喜欢哪个用哪个
+
+Pan 的 Worker 不绑死在任何一个 CLI 生态里——每种 CLI Agent 对应一个实现 `CliAdapter` 协议的 adapter，Worker 与 Adapter 之间的契约统一：
+
+- **想换就换**：不同任务交给不同 CLI（cbc / kimi / opencode / claude / codex），切换不改业务层，替身交接让上下文随行；
+- **按任务类型路由**：写 SMA 的模型规则即可让"重活走 cbc、轻量调研走 kimi、写作走 opencode"，集群零改动；
+- **新 CLI 接入成本低**：实现一个 `CliAdapter` 协议类（元信息 / 进程启动 / 消息编码 / 事件解析 / 接管五组方法）+ 注册一行。
+
+各 adapter 的执行模式与接入细节见下文「[多 CLI 适配](#多-cli-适配)」。
+
+## 🔁 替身交接：切换 CLI Agent，上下文随行
+
+普通 Session **不能中途切换 adapter**——但现实中你会想换：这个助手用腻了、那个助手更擅长眼下这类任务。Pan 的答案是 **session_handoff（替身交接）**：创建孪生 Session 接替旧会话，一次交接完成三件事——
+
+- **关系网整体移交**：新会话接管旧的 managed 关系网、`report_subscriptions` 订阅、QQ postbox 绑定——你的 AI 团队继续向新会话汇报，无需重建任何东西；
+- **旧会话归档可读**：旧会话自动重命名为 `(archive) <原名>`，成为新会话的被管理会话，随时可读旧上下文；
+- **只带精简摘要**：交接不复制完整历史，只携带交接简报——**避免长会话上下文膨胀，新会话轻装上阵**。
+
+> **典型场景**：A 会话上下文已经几十万 token、继续对话要爆了 → 让 A 写一份交接简报 → `session_handoff` 生成精简的孪生会话 B，同一任务无缝继续；或者单纯想换个 CLI，历史上下文摘要随行。
+
+## 🎯 一个入口，管理你的一切任务
+
+你可能同时在忙的，是同一项目的几个并行子任务、几个不同项目的进展、甚至和生活相关的琐事（日程、提醒、自动化）。而对 Meta-Agent 来说，它们都只是**可以并发调度的 Worker 进程**——你不必分别盯着每个终端：
+
+对你来说，从头到尾只是一次对话；对它们来说，是一支并行协作的团队。而你随时保有最终指挥权——旁观、插话、接管，都可以。
+
+## 📬 Managed 订阅：每个主管一个"AI 收件箱"
+
+派出去的任务怎么收回结果？Pan 的答案是**订阅制 + 落盘队列**——把"逐个追问"变成"自动投递"：
+
+- **订阅即接管**：订阅一个 Session 报告的同时，托管关系（claim）也一并建立——一步到位，不用分两步操作；
+- **自动投递**：被托管的 Worker 每次完成（或出错），报告自动投进主管的专属收件箱（`queue_pending`），主管不用挨个去问；
+- **落盘不丢**：收件箱写在磁盘上——Meta-Agent 中途掉线，重连后报告还在，一条不漏；
+- **归属清晰**：每个 Session 只属于一个主管（`managed_by`），谁管的谁收，星形拓扑一目了然，别人也无法越权订阅。
+
+所以对主管来说，管理一堆任务 = 管理一个收件箱：**派活 → 回来看收件箱 → 验收 → 合并汇报**。
+
+## 🤝 多智能体协作：三种典型工作流
+
+**① 并行 fan-out（一个主管，多个工人，同时开工）**
+
+```mermaid
+sequenceDiagram
+    participant Meta as 主管 (Meta-Agent)
+    participant A as Worker A
+    participant B as Worker B
+    participant C as Worker C
+    Meta->>A: assign 调研方案 X
+    Meta->>B: assign 调研方案 Y
+    Meta->>C: assign 调研方案 Z
+    Note over A,C: 三个 Worker 并行工作（各自独立 worktree）
+    A-->>Meta: result 报告 X
+    B-->>Meta: result 报告 Y
+    C-->>Meta: result 报告 Z
+    Meta->>Meta: 汇总三份报告 → 交付
+```
+
+**② 串行流水线（上一环的产出是下一环的输入）**
+
+```
+assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写代码) → 拿到代码 → assign(W3: 代码 review)
+```
+
+每一步等上一环的完成报告再走下一步，像工厂流水线一样可控。
+
+**③ 长期共事（带记忆的老团队）**
+
+给 Worker 挂上 Character（人设 + 记忆库）和 Memory 目录后，每次开工 Pan 都会把相关记忆自动注入上下文——你的 AI 团队会**记住项目背景、记住你的偏好**，而不是每次都从零开始。
+
+## 🚪 从哪都能进来指挥：多渠道矩阵
+
+同一个调度台，四种入口，随时切换：
+
+| 通道 | 入口 | 说明 |
+|------|------|------|
+| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | React SPA（`/react/`，主开发）+ 旧版 Vanilla 双轨共存，`frontend` 配置控制路由分配（`coexist` / `react` / `legacy`） |
+| 💬 **QQ Bridge** | NapCat / LLOneBot | OneBot 11 网关**插件化**：两个通道只是 `QQChannel` 的薄子类，业务层零改动；`mirror` 全量镜像 / `selective` 选择性发送双模式 |
+| 🌐 **Remote** | Cloudflare Tunnel | 一键暴露到公网，出门在外也能管 |
+| 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | 让任意 Agent CLI 当主管：MCP 工具 + 事件流订阅，Meta-Agent 的接入通道 |
+
+> 各通道的启动 / 配置 / 切换细节，见下文「[通道与集成](#通道与集成)」。
+
+## ✨ 它凭什么值得一试
+
+- 🛡️ **自愈的调度台**：Worker 卡死？Watchdog 自动清理（静默超时 / 任务时长超时 / 空闲回收三档）；进程异常死亡？落盘队列会自动重建 Worker 接着干。
+- 📬 **Managed 订阅收件箱**：每个主管都有一个落盘收件箱，被托管的 Worker 完工自动投递报告——派完活不用盯，回来看一眼收件箱就行。
+- 🔁 **切换 CLI 不丢上下文**：替身交接让"换喜欢的 Agent"成为常态操作，同任务在不同 CLI 间无缝切换、节省上下文。
+- 🔌 **不绑死任何 CLI 生态**：协议化 adapter + 集群无感知，新 CLI 接入是注册一行的事，Meta-Agent 按模型规则路由。
+- 🖐️ **人与 AI 平等**：任何一个 Worker，你都能随时中断、接管终端、fork 分身，或者直接上手。
+- 🧠 **有记忆有性格**：Memory 向量 + 全文混合检索自动注入，Character 人设跨 Session 保持。
+- 🚪 **跨通道指挥**：Dashboard、QQ、公网隧道、MCP——同一个调度台，从哪儿都能进来管。
+- 🧩 **可当"工具底座"**：外部领域项目可以把服务接入 Pan，让 Pan 的 QQ Bot 和 Worker 替它打工（首个案例：RuleWhisper；`manifest.json` 的 `command_routes` 让 QQ 前缀命令直发外部 HTTP API，不走 LLM）。
 
 ---
 
 ## 目录
 
+- [💡 为什么选 Pan（30 秒看懂差异化）](#-为什么选-pan30-秒看懂差异化)
+- [🧭 它是做什么的？（三句话讲明白）](#-它是做什么的三句话讲明白)
+- [📖 一张表看懂全部概念](#-一张表看懂全部概念)
+- [👔 Meta-Agent 编排：一支 AI 团队，一个主管](#-meta-agent-编排一支-ai-团队一个主管)
+- [🔌 多 CLI 适配：喜欢哪个用哪个](#-多-cli-适配喜欢哪个用哪个)
+- [🔁 替身交接：切换 CLI Agent，上下文随行](#-替身交接切换-cli-agent上下文随行)
+- [🎯 一个入口，管理你的一切任务](#-一个入口管理你的一切任务)
+- [📬 Managed 订阅：每个主管一个"AI 收件箱"](#-managed-订阅每个主管一个ai-收件箱)
+- [🤝 多智能体协作：三种典型工作流](#-多智能体协作三种典型工作流)
+- [🚪 从哪都能进来指挥：多渠道矩阵](#-从哪都能进来指挥多渠道矩阵)
+- [✨ 它凭什么值得一试](#-它凭什么值得一试)
 - [简介](#简介)
 - [特性](#特性)
 - [核心概念](#核心概念)
@@ -30,6 +200,10 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 ---
 
 ## 简介
+
+Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Worker 架构下，一个「Meta-Agent 主管」通过 MCP 工具与 WebSocket 事件流，同时指挥多个 Worker（每个 Worker 是独立运行的 CLI Agent 会话）并行推进任务，每个 Worker 在独立的 git worktree 中工作。你可以在 Web Dashboard、QQ、公网隧道或任意 Agent CLI 上指挥它，也随时可以旁观、插话或接管某个 Worker 的终端。
+
+- **技术栈**：Python + FastAPI + WebSocket + SQLite（FTS5 全文检索）+ 可选 embedding 向量检索；前端为 React（开发主力）+ Vanilla JS（稳定备份）双轨。
 
 传统的一对一 AI 编程助手是「你说一句，它干一件」。Pan 把这种模式升级为**一对多**：你只跟一个主管对话，主管同时调度多个 Worker 并行干活，再汇总成一份结果回报给你。
 
