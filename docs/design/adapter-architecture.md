@@ -1,6 +1,6 @@
 # Pan CLI Adapter 抽象层架构研究
 
-> 状态：研究结论（纯研究，未改代码）
+> 状态：研究结论 + P0 三项落地中（P0-1 共享 MCP helper / P0-2 sessions provider / P0-3 本文 §8 模式差异表）
 > 日期：2026-08-26
 > 研究问题：adapter 抽象层是否应当增加/改变架构，以适应越来越多的 agent CLI（cbc / kimi / opencode / claude code / gemini cli / codex / aider）。
 > 范围：packages/core/adapters/base.py 协议、worker.py 消费逻辑、server.py 分发点、外部 CLI 调研。
@@ -150,3 +150,23 @@ cbc sessions（sessions.py）与 kimi sessions（sessions.py）**实现了几乎
 - **claude code 应作为下一个 adapter**，几乎复刻 CbcAdapter（路径换 `~/.claude/projects`、解析同名事件），预计半天到一天工作量，是检验单层协议的最便宜试金石。
 - aider 接入收益最低（无 resume/结构化输出），建议功能位（feat 列表）挂低优先级。
 - 同事在改 kimi adapter/server.py（本 worktree 未提交），上述重构建议应在 kimi 适配收敛后再落地，避免冲突。
+
+---
+
+## 8. Adapter 模式差异表（P0-3，约定层）
+
+协议外的「约定层」：每个 adapter 的执行模式 / 事件协议 / 存储 / resume/fork /
+MCP / enrich 的既有差异，接入新 CLI 前先对照本表。表格基于 2026-08-26 三个
+已落地 adapter 的代码现状（cbc=kimi=opencode 均已实现 CliAdapter 协议）。
+
+| 维度 | cbc | kimi | opencode |
+|---|---|---|---|
+| **执行模式** | stream 长驻（原生 stdin/stdout）+ one-shot MCP（`base_args_stream`，worker `_consumer_mcp`） | wrapper 长驻（wrapper.py 内逐条 `kimi -p`） | wrapper 长驻（wrapper.py 内逐条 `opencode run`） |
+| **事件协议** | stdin JSONL `{"type":"user","message":...}`；stdout stream-json（system.init/assistant/result/error） | wrapper stdin JSONL `{"text":text}`；`kimi -p --output-format stream-json`（meta/assistant/result + content.part，wrapper 转发/合成 result） | wrapper stdin JSONL `{"text":text}`；`opencode run --format json`（step_start/text/tool_use/step_finish/error，wrapper 合成 result） |
+| **session 存储** | JSONL：`~/.codebuddy/projects/<sanitized-cwd>/<sid>.jsonl`（+ `.meta.json`） | wire.jsonl：`~/.kimi-code/sessions/<ws>/session_*/agents/main/wire.jsonl` + `state.json`（`session_index.jsonl` 索引） | SQLite：`~/.local/share/opencode/opencode.db`（session/message/part 表，事件溯源） |
+| **resume / fork** | `--resume <id>` / `--fork-session`（JSONL 复制 + meta.json） | `-S <id>`（恢复上下文、不重放历史）/ 目录复制 + 注册新 session（无 native fork） | `--session <id>`（wrapper 持有并复用 sessionID）/ SQLite 行复制（parent_id 指向父） |
+| **MCP 落点** | Pan 自有 `data/mcp-configs/<sid>.mcp.json` + `--mcp-config` flag（不污染 workdir） | 项目级 `<workdir>/.kimi-code/mcp.json`（无 flag，启动自动加载） | 未接（`mcp_args` 返回 []；由用户 opencode.json `mcp` 段自行管理） |
+| **enrich 数据源** | JSONL assistant 事件 `providerData.rawUsage`（per-model request_count 游标） | wire.jsonl `usage.record`（model+usage，`time` epoch ms 游标） | SQLite `session.tokens_*/cost` 聚合（会话级快照差值游标） |
+| **MCP 注入 helper** | 共享 `adapters/mcp.py: write_mcp_json` + `--mcp-config` 返回 | 共享 `adapters/mcp.py: write_mcp_json`（返回 []） | 无 |
+| **sessions provider** | `cbc/sessions.py`（SessionsProvider 协议，含 `session_exists`/`project_dir_to_path` 可选能力） | `kimi/sessions.py`（协议函数，无 `session_exists` → import 跳过 guard） | `opencode/sessions.py`（协议函数，含 `session_exists`） |
+| **导入端点** | `/api/cbc/*`（薄包装）+ 通用 `/api/adapters/{adapter}/sessions[/import]` | 同上 | 同上 |

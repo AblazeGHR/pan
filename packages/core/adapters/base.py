@@ -112,3 +112,39 @@ class CliAdapter(Protocol):
         cbc: 读 JSONL 最新一条 assistant message 的 raw_usage。
         """
         ...
+
+
+class SessionsProvider(Protocol):
+    """adapter 原生 session 存储的统一读写接口（adapter-architecture P0-2）。
+
+    cbc / kimi / opencode 的 ``<adapter>/sessions.py`` 各自实现了同一组能力
+    （列 session / 解析历史 / usage / 标题 / fork），但命名签名不统一，导致
+    server.py 按 adapter 硬分派 import/branch/rename。本协议定义统一方法名与
+    签名，实现者是各 sessions **模块**（module 而非类），提供同名函数即可。
+    server 按 adapter 名取 provider，每新增一个 adapter 只需在
+    ``adapters/__init__.py`` 注册其 sessions 模块，无需再写分派逻辑。
+
+    统一约定：
+    - ``cwd``：工作目录上下文。cbc 即 project_cwd（自动 sanitize 到项目目录）、
+      kimi/opencode 即 workdir。None 表示不限定/全量（各实现的默认语义）。
+
+    可选能力（非协议必需，用 hasattr/getattr 探测）：
+    - ``session_exists(session_id, cwd) -> bool``：import 时的存在性防御
+      （cbc/opencode 提供；kimi 不提供则跳过 guard，保持旧行为）。
+    - ``project_dir_to_path(project_dir) -> str | None``：cbc 独有，把 cbc
+      项目目录名解析回真实路径（旧 /api/cbc/sessions/import 契约）。
+    - ``browse_cbc_tree / list_cbc_projects / list_kimi_workspaces`` 等适配器
+      独有能力保留在各自模块，由旧端点直接调用。
+    """
+
+    def list_sessions(self, cwd: str | None = None) -> list[dict]: ...
+
+    def parse_history(self, session_id: str, cwd: str | None = None) -> list[dict]: ...
+
+    def get_raw_usage(self, session_id: str, cwd: str | None = None) -> list[dict]: ...
+
+    def get_session_title(self, session_id: str, cwd: str | None = None) -> str: ...
+
+    def write_custom_title(self, session_id: str, title: str, cwd: str | None = None) -> None: ...
+
+    def fork_session(self, parent_id: str, name: str, cwd: str | None = None) -> str: ...

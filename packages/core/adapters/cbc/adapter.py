@@ -11,6 +11,7 @@ import subprocess
 import time
 from pathlib import Path
 from ...session import SESSION_DIR, Session
+from ..mcp import write_mcp_json
 
 _log = logging.getLogger(__name__)
 
@@ -250,46 +251,17 @@ class CbcAdapter:
         For the "pan" server, the MA session identity is injected into its env
         (PAN_AGENT_SESSION_ID / PAN_AGENT_SESSION_TITLE) so the MCP server's
         worker_send tool can tag agent-originated messages (立项 4.8).
+        描述符构造与注入由 adapters/mcp.py 共享 helper 收敛（P0-1）。
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
             return []
 
-        mcp_servers: dict[str, dict] = {}
-        for srv in servers:
-            name = srv.get("name", "unnamed")
-            entry: dict = {}
-            if "command" in srv:
-                entry["command"] = srv["command"]
-            if "args" in srv:
-                entry["args"] = srv["args"]
-            if "cwd" in srv:
-                entry["cwd"] = srv["cwd"]
-            if "env" in srv:
-                entry["env"] = srv["env"]
-            # pan / pan-qq server: inject MA session identity so MCP tools can
-            # act on behalf of this session (worker_send prefixes agent messages,
-            # qq_bind/qq_unbind subscribe its qq_subscriptions) (立项 4.8).
-            if name in ("pan", "pan-qq"):
-                env = dict(entry.get("env") or {})
-                env["PAN_AGENT_SESSION_ID"] = s.id
-                env["PAN_AGENT_SESSION_TITLE"] = s.name
-                entry["env"] = env
-            # Always set type to stdio for reliable cbc discovery
-            entry.setdefault("type", "stdio")
-            mcp_servers[name] = entry
-
-        # Pan-internal config: loaded via the explicit --mcp-config arg below.
-        # NOTE (2026-08-16): we deliberately do NOT write <workdir>/.mcp.json —
-        # without -d, cbc discovers it as a project MCP server, registers pan as
-        # project-scope with "Needs approval"/"Failed to connect" (when command is
-        # a bare name), and that registration blocks the explicit --mcp-config
-        # connection. Config lives in data/mcp-configs/ (立项 4.9): writable,
-        # controllable, cleanable.
         mcp_json_path = MCP_CONFIG_DIR / f"{s.id}.mcp.json"
-        MCP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with open(mcp_json_path, "w", encoding="utf-8") as f:
-            json.dump({"mcpServers": mcp_servers}, f, ensure_ascii=False, indent=2)
+        # 描述符构造（含 pan/pan-qq 身份注入、type=stdio）由共享 helper 收敛
+        # （adapter-architecture P0-1）；未配置/写失败时返回 None → 无 MCP flag。
+        if write_mcp_json(mcp_json_path, s) is None:
+            return []
 
         return ["--mcp-config", str(mcp_json_path)]
 

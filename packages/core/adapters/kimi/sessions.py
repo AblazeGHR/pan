@@ -374,6 +374,28 @@ def list_kimi_sessions_for_cwd(cwd: str) -> list[dict]:
     return list_kimi_sessions(project_cwd=str(Path(cwd).resolve()))
 
 
+# ── SessionsProvider 统一接口（adapter-architecture P0-2）──
+# 与 cbc/opencode 的 sessions 模块对齐协议命名，供 server 按 adapter 名统一调用。
+# 旧命名函数（list_kimi_sessions / fork_kimi_session 等）保留，供既有调用点使用。
+
+
+def list_sessions(cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：列 kimi 会话（cwd 即 workDir 过滤语义）。"""
+    if cwd:
+        return list_kimi_sessions(project_cwd=str(Path(cwd).resolve()))
+    return list_kimi_sessions()
+
+
+def parse_history(session_id: str, cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：解析 kimi session 历史。"""
+    return parse_kimi_history(session_id, cwd)
+
+
+def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
+    """SessionsProvider：fork kimi session（目录复制 + 注册新 session）。"""
+    return fork_kimi_session(parent_id, name, cwd)
+
+
 def _find_session_dir(session_id: str, workdir: str | None = None) -> Path | None:
     """Locate Kimi session directory by session id."""
     index = _load_session_index()

@@ -21,7 +21,7 @@ import httpx
 
 from packages.core import worker
 from packages.core import session as sess
-from packages.core.adapters import get_adapter, list_adapters
+from packages.core.adapters import get_adapter, list_adapters, get_sessions_provider
 from packages.core.adapters.cbc import sessions as cbc_sessions
 from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
@@ -1032,20 +1032,16 @@ async def api_rename_session(session_id: str, data: dict):
     s.name = new_name
     sess.save(s)
 
-    # G7: 把重命名持久化进 adapter 原生存储。kimi 的标题写在 state.json
-    # （title/isCustomTitle），需显式回写；cbc 的标题在 fork 时已写入，这里
-    # 仅对 kimi 补这一路径。
-    if s.adapter == "kimi" and s.cli_session_id:
-        try:
-            kimi_sessions.write_custom_title(s.cli_session_id, new_name, s.workdir or None)
-        except Exception as e:
-            print(f"[rename] kimi write_custom_title failed: {e}")
-
-    if s.adapter == "opencode" and s.cli_session_id:
-        try:
-            opencode_sessions.write_custom_title(s.cli_session_id, new_name, s.workdir or None)
-        except Exception as e:
-            print(f"[rename] opencode write_custom_title failed: {e}")
+    # G7: 把重命名持久化进 adapter 原生存储（按 provider 统一调用，P0-2）。
+    # kimi/opencode 显式回写 state.json / SQLite；cbc 追加 custom-title 事件
+    # （与 fork 时的写标题路径一致），三者均幂等安全。
+    if s.cli_session_id:
+        provider = _sessions_provider(s.adapter)
+        if provider is not None:
+            try:
+                provider.write_custom_title(s.cli_session_id, new_name, s.workdir or None)
+            except Exception as e:
+                print(f"[rename] {s.adapter} write_custom_title failed: {e}")
 
     await broadcast({
         "type": "session.renamed",
@@ -1078,37 +1074,22 @@ async def api_branch_session(session_id: str, data: dict):
         return {"error": err}
 
     # Fork via pure file operations — no CLI process spawned.
+    # 按 provider 统一调用（P0-2）：cbc=复制 JSONL、kimi=目录复制、
+    # opencode=SQLite 行复制，各自 fork_session 内部实现。
     cwd = s.workdir or ""
+    provider = _sessions_provider(s.adapter)
+    if provider is None:
+        return {"error": f"Unknown adapter: {s.adapter}"}
     try:
-        if s.adapter == "kimi":
-            # Kimi has no --fork flag; copy the session directory instead.
-            new_cli_id = kimi_sessions.fork_kimi_session(
-                s.cli_session_id, name, cwd or None,
-            )
-        elif s.adapter == "opencode":
-            # OpenCode has no headless --fork; duplicate session rows in SQLite.
-            new_cli_id = opencode_sessions.fork_opencode_session(
-                s.cli_session_id, name, cwd or None,
-            )
-        else:
-            new_cli_id = cbc_sessions.fork_cbc_session(
-                s.cli_session_id, name, cwd or None,
-            )
+        new_cli_id = provider.fork_session(s.cli_session_id, name, cwd or None)
     except FileNotFoundError as e:
         return {"error": str(e)}
     except Exception as e:
         return {"error": f"Fork failed: {e}"}
 
     try:
-        if s.adapter == "kimi":
-            history = kimi_sessions.parse_kimi_history(new_cli_id, cwd or None)
-            raw_usage_entries = kimi_sessions.get_raw_usage(new_cli_id, cwd or None)
-        elif s.adapter == "opencode":
-            history = opencode_sessions.parse_opencode_history(new_cli_id, cwd or None)
-            raw_usage_entries = opencode_sessions.get_raw_usage(new_cli_id, cwd or None)
-        else:
-            history = cbc_sessions.parse_cbc_history(new_cli_id, cwd)
-            raw_usage_entries = cbc_sessions.get_raw_usage(new_cli_id, cwd)
+        history = provider.parse_history(new_cli_id, cwd or None)
+        raw_usage_entries = provider.get_raw_usage(new_cli_id, cwd or None)
     except Exception as e:
         return {"error": f"Failed to parse forked session: {e}"}
 
@@ -1743,60 +1724,122 @@ async def api_cbc_browse(path: str = "", limit: int = 30, offset: int = 0, q: st
 @app.post("/api/cbc/sessions/import")
 async def api_cbc_sessions_import(data: dict):
     """Import a cbc session into Pan (Session only, no worker spawned)."""
+    return await _import_session(cbc_sessions, "cbc", data)
+
+
+# ── Kimi import ──
+
+@app.get("/api/kimi/workspaces")
+async def api_kimi_workspaces():
+    """List Kimi workspaces that have sessions."""
+    from packages.core.adapters.kimi import sessions as kimi_sessions
+    return {"workspaces": kimi_sessions.list_kimi_workspaces()}
+
+
+@app.get("/api/kimi/sessions")
+async def api_kimi_sessions(cwd: str = ""):
+    """List Kimi sessions for a workspace."""
+    from packages.core.adapters.kimi import sessions as kimi_sessions
+    return {"sessions": kimi_sessions.list_kimi_sessions_for_cwd(cwd)}
+
+
+@app.post("/api/kimi/sessions/import")
+async def api_kimi_sessions_import(data: dict):
+    """Import a Kimi session into Pan (Session only, no worker spawned)."""
+    return await _import_session(kimi_sessions, "kimi", data)
+
+
+# ── OpenCode import ──
+
+@app.get("/api/opencode/sessions")
+async def api_opencode_sessions(cwd: str = ""):
+    """List OpenCode sessions available for import (read from SQLite DB)."""
+    sessions = opencode_sessions.list_opencode_sessions(cwd or None)
+    return {"sessions": sessions, "total": len(sessions)}
+
+
+@app.post("/api/opencode/sessions/import")
+async def api_opencode_sessions_import(data: dict):
+    """Import an OpenCode session into Pan (Session only, no worker spawned)."""
+    return await _import_session(opencode_sessions, "opencode", data)
+
+
+# ── Generic adapter sessions (P0-2: SessionsProvider 统一分派) ──
+# 每新增一个 adapter，只要其在 adapters/__init__.py 注册了 sessions provider
+# （模块，提供 SessionsProvider 协议函数），以下通用路由即自动覆盖，server.py
+# 无需再写 import/branch/rename 分派。旧 /api/cbc|kimi|opencode/* 端点保留为
+# 薄包装（前端仍在用，见 app.ts / api.ts）。
+
+
+def _sessions_provider(adapter: str):
+    """按 adapter 名取 sessions provider；未注册返回 None。"""
+    try:
+        return get_sessions_provider(adapter)
+    except KeyError:
+        return None
+
+
+async def _import_session(provider, adapter: str, data: dict) -> dict:
+    """Import an adapter-native session into Pan（Session only，不 spawn worker）。
+
+    三个旧 import 端点（cbc/kimi/opencode）与通用 /api/adapters/{adapter}/sessions/import
+    共用此实现。行为差异由 provider 能力位承载：
+    - ``session_exists(session_id, cwd)``：可选；存在则启用 import-guard
+      （cbc/opencode 提供，kimi 不提供 → 保持旧的无 guard 行为）。
+    - ``project_dir_to_path(project_dir)``：可选；cbc 独有，把 cbc 项目目录名
+      解析回真实路径（旧 /api/cbc/sessions/import 契约）。
+    """
     session_id = data.get("session_id")
     if not session_id:
         return {"error": "session_id is required"}
 
-    project_dir = data.get("project_dir")
-    cwd = data.get("cwd") or str(Path.cwd())
+    cwd = data.get("cwd") or data.get("workdir") or str(Path.cwd())
 
-    if not data.get("cwd") and project_dir:
-        resolved = cbc_sessions.project_dir_to_path(project_dir)
-        if resolved:
-            cwd = resolved
+    # cbc 兼容：project_dir 直接给出且未显式传 cwd 时，解析为真实路径。
+    project_dir = data.get("project_dir")
+    if project_dir and not data.get("cwd") and not data.get("workdir"):
+        resolver = getattr(provider, "project_dir_to_path", None)
+        if resolver:
+            resolved = resolver(project_dir)
+            if resolved:
+                cwd = resolved
 
     try:
-        if project_dir:
-            history = cbc_sessions.parse_cbc_history(session_id, project_dir=project_dir)
-            raw_usage_entries = cbc_sessions.get_raw_usage(session_id, project_dir=project_dir)
-        else:
-            history = cbc_sessions.parse_cbc_history(session_id, cwd)
-            raw_usage_entries = cbc_sessions.get_raw_usage(session_id, cwd)
+        history = provider.parse_history(session_id, cwd)
+        raw_usage_entries = provider.get_raw_usage(session_id, cwd)
     except Exception as e:
         return {"error": f"Failed to parse session history: {e}"}
 
-    # 防御（#import-guard）：验证 cbc 侧 session 真实存在，防止孤儿/坏 id
-    # 污染导入。例如某 Pan session 的 cli_session_id 被错误指向一个不存在的
-    # cbc session，直接 import 会匹配到 existing 并清空其 history。
-    if project_dir:
-        session_path = cbc_sessions._resolve_session_file(session_id, project_dir=project_dir)
-    else:
-        session_path = cbc_sessions._resolve_session_file(session_id, cwd)
-    if session_path is None:
-        return {"error": f"CBC session {session_id} not found on disk; refusing to import"}
+    # 防御（#import-guard）：验证 adapter 侧 session 真实存在，防止孤儿/坏 id
+    # 污染导入（例如某 Pan session 的 cli_session_id 被错误指向不存在的 session，
+    # 直接 import 会匹配到 existing 并清空其 history）。
+    exists = getattr(provider, "session_exists", None)
+    if exists and not exists(session_id, cwd):
+        return {"error": f"{adapter} session {session_id} not found on disk; refusing to import"}
 
     raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
     total_usage = sess.compute_total_usage(raw_usage)
 
     # 信用验证：比对 raw_usage_entries 总和与 total_usage（调试用途，不阻断导入）
-    cbc_credit_sum = sum(
+    credit_sum = sum(
         e.get("rawUsage", {}).get("credit", 0) for e in raw_usage_entries
     )
     cli_credit = total_usage.get("credit", 0) if total_usage else 0
-    if abs(cbc_credit_sum - cli_credit) > 0.01:
-        _log(f"[WARN] import credit mismatch: cbc_sum={cbc_credit_sum:.2f} cli={cli_credit:.2f}")
+    if abs(credit_sum - cli_credit) > 0.01:
+        _log(f"[WARN] import credit mismatch ({adapter}): sum={credit_sum:.2f} cli={cli_credit:.2f}")
 
+    # Dedup by cli_session_id（限定同 adapter）
     existing = None
     for s in sess.list_all():
-        if s.cli_session_id == session_id:
+        if s.cli_session_id == session_id and s.adapter == adapter:
             existing = s
             break
 
-    # 防御（#import-guard）：匹配到已有 session 但 cbc 侧解析不出任何历史时，
-    # 拒绝用空历史覆盖，避免把已有会话数据清空。
+    # 防御（#import-guard）：匹配到已有 session 但解析不出任何历史时，拒绝用空
+    # 历史覆盖，避免把已有会话数据清空。
     if existing and not history:
         _log(f"[WARN] import {session_id}: history empty for existing session {existing.id}; refusing to overwrite")
-        return {"error": f"CBC session {session_id} has no parseable history; refusing to overwrite existing session {existing.id}"}
+        return {"error": f"{adapter} session {session_id} has no parseable history; refusing to overwrite existing session {existing.id}"}
 
     if existing:
         w = worker.find_alive_worker_by_session(existing.id)
@@ -1836,8 +1879,8 @@ async def api_cbc_sessions_import(data: dict):
 
     name = (
         data.get("name", "")
-        or cbc_sessions.get_session_title(session_id, project_dir=project_dir, cwd=cwd)
-        or f"cbc-{session_id[:8]}"
+        or provider.get_session_title(session_id, cwd)
+        or f"{adapter}-{session_id[:8]}"
     )
 
     # 模板/能力字段：复用 _build_session_params 模板解析（显式 > 模板 > 默认），
@@ -1846,7 +1889,7 @@ async def api_cbc_sessions_import(data: dict):
     try:
         params = _build_session_params(
             {
-                "adapter": "cbc",
+                "adapter": adapter,
                 "name": name,
                 "sessionTemplate": data.get("sessionTemplate"),
                 **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
@@ -1856,14 +1899,21 @@ async def api_cbc_sessions_import(data: dict):
     except ValueError as e:
         return {"error": f"Failed to apply session template: {e}"}
 
+    # model 兜底：模板未显式指定时回填原生存储里实际用过的模型
+    # （opencode 旧端点行为；cbc/kimi 顺带受益，无害）。
+    model = params.get("model") or (
+        raw_usage_entries[0].get("model") if raw_usage_entries else None
+    )
+
     s = sess.create(
         name=name,
+        adapter=adapter,
         cli_session_id=session_id,
         history=history,
         raw_usage=raw_usage,
         total_usage=total_usage,
         workdir=cwd,
-        model=params.get("model"),
+        model=model,
         permission_mode=params.get("permission_mode"),
         session_template=params.get("session_template"),
         pan_access=params.get("pan_access"),
@@ -1879,229 +1929,24 @@ async def api_cbc_sessions_import(data: dict):
     return _session_to_api(s)
 
 
-# ── Kimi import ──
-
-@app.get("/api/kimi/workspaces")
-async def api_kimi_workspaces():
-    """List Kimi workspaces that have sessions."""
-    from packages.core.adapters.kimi import sessions as kimi_sessions
-    return {"workspaces": kimi_sessions.list_kimi_workspaces()}
-
-
-@app.get("/api/kimi/sessions")
-async def api_kimi_sessions(cwd: str = ""):
-    """List Kimi sessions for a workspace."""
-    from packages.core.adapters.kimi import sessions as kimi_sessions
-    return {"sessions": kimi_sessions.list_kimi_sessions_for_cwd(cwd)}
-
-
-@app.post("/api/kimi/sessions/import")
-async def api_kimi_sessions_import(data: dict):
-    """Import a Kimi session into Pan (Session only, no worker spawned)."""
-    from packages.core.adapters.kimi import sessions as kimi_sessions
-
-    session_id = data.get("session_id")
-    if not session_id:
-        return {"error": "session_id is required"}
-
-    cwd = data.get("cwd") or str(Path.cwd())
-
-    try:
-        history = kimi_sessions.parse_kimi_history(session_id, cwd)
-        raw_usage_entries = kimi_sessions.get_raw_usage(session_id, cwd)
-    except Exception as e:
-        return {"error": f"Failed to parse Kimi session history: {e}"}
-
-    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
-    total_usage = sess.compute_total_usage(raw_usage)
-
-    # Dedup by cli_session_id
-    existing = None
-    for s in sess.list_all():
-        if s.cli_session_id == session_id and s.adapter == "kimi":
-            existing = s
-            break
-
-    if existing:
-        w = worker.find_alive_worker_by_session(existing.id)
-        if w:
-            # Worker process is alive — overwrite history atomically.
-            # _replaying=True prevents _read_stdout from appending during
-            # the race window (CLI writes to external store before stdout),
-            # which would otherwise duplicate agent-side messages.
-            w._replaying = True
-            try:
-                existing.history = history
-                existing.raw_usage = raw_usage
-                existing.total_usage = total_usage
-                # history 整体替换 → 全量重写 jsonl（同 cbc reimport）
-                sess.save_full(existing)
-                await broadcast({
-                    "type": "session.updated",
-                    "sessionId": existing.id,
-                })
-            finally:
-                w._replaying = False
-            return {**_session_to_api(existing), "reimported": True}
-        w = worker.find_worker_by_session(existing.id)
-        if w:
-            await worker.kill_worker(w.worker_id)
-        existing.history = history
-        existing.raw_usage = raw_usage
-        existing.total_usage = total_usage
-        existing.last_result = None
-        sess.save_full(existing)
-        await broadcast({
-            "type": "session.updated",
-            "sessionId": existing.id,
-        })
-        return {**_session_to_api(existing), "reimported": True}
-
-    name = (
-        data.get("name", "")
-        or kimi_sessions.get_session_title(session_id, cwd)
-        or f"kimi-{session_id[:8]}"
-    )
-
-    # 模板/能力字段：复用 _build_session_params 模板解析（显式 > 模板 > 默认）。
-    # workdir 刻意保留 workspace root（cwd），不落 data/workdirs/<name>。
-    try:
-        params = _build_session_params(
-            {
-                "adapter": "kimi",
-                "name": name,
-                "sessionTemplate": data.get("sessionTemplate"),
-                **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
-            },
-            resolve_workdir=False,
-        )
-    except ValueError as e:
-        return {"error": f"Failed to apply session template: {e}"}
-
-    s = sess.create(
-        name=name,
-        adapter="kimi",
-        cli_session_id=session_id,
-        history=history,
-        raw_usage=raw_usage,
-        total_usage=total_usage,
-        workdir=cwd,
-        model=params.get("model"),
-        permission_mode=params.get("permission_mode"),
-        session_template=params.get("session_template"),
-        pan_access=params.get("pan_access"),
-        adapter_config=params.get("adapter_config"),
-    )
-
-    await broadcast({
-        "type": "session.created",
-        "sessionId": s.id,
-        "name": s.name,
-    })
-
-    return _session_to_api(s)
-
-
-# ── OpenCode import ──
-
-@app.get("/api/opencode/sessions")
-async def api_opencode_sessions(cwd: str = ""):
-    """List OpenCode sessions available for import (read from SQLite DB)."""
-    sessions = opencode_sessions.list_opencode_sessions(cwd or None)
+@app.get("/api/adapters/{adapter}/sessions")
+async def api_adapter_sessions(adapter: str, cwd: str = ""):
+    """List adapter-native sessions available for import (generic)."""
+    provider = _sessions_provider(adapter)
+    if provider is None:
+        return {"error": f"Unknown adapter: {adapter}"}
+    cwd = cwd or str(Path.cwd())
+    sessions = provider.list_sessions(cwd)
     return {"sessions": sessions, "total": len(sessions)}
 
 
-@app.post("/api/opencode/sessions/import")
-async def api_opencode_sessions_import(data: dict):
-    """Import an OpenCode session into Pan (Session only, no worker spawned)."""
-    session_id = data.get("session_id")
-    if not session_id:
-        return {"error": "session_id is required"}
-
-    workdir = data.get("workdir") or data.get("cwd") or str(Path.cwd())
-
-    try:
-        history = opencode_sessions.parse_opencode_history(session_id, workdir)
-        raw_usage_entries = opencode_sessions.get_raw_usage(session_id, workdir)
-    except Exception as e:
-        return {"error": f"Failed to parse OpenCode session history: {e}"}
-
-    # import-guard：确认 OpenCode 侧 session 真实存在（防止坏 id 污染导入）
-    all_sessions = opencode_sessions.list_opencode_sessions()
-    if not any(x["session_id"] == session_id for x in all_sessions):
-        return {"error": f"OpenCode session {session_id} not found; refusing to import"}
-
-    raw_usage = sess.accumulate_raw_usage(None, raw_usage_entries)
-    total_usage = sess.compute_total_usage(raw_usage)
-
-    # Dedup by cli_session_id
-    existing = None
-    for s in sess.list_all():
-        if s.cli_session_id == session_id and s.adapter == "opencode":
-            existing = s
-            break
-
-    if existing:
-        w = worker.find_alive_worker_by_session(existing.id)
-        if w:
-            w._replaying = True
-            try:
-                existing.history = history
-                existing.raw_usage = raw_usage
-                existing.total_usage = total_usage
-                sess.save_full(existing)
-                await broadcast({"type": "session.updated", "sessionId": existing.id})
-            finally:
-                w._replaying = False
-            return {**_session_to_api(existing), "reimported": True}
-        w = worker.find_worker_by_session(existing.id)
-        if w:
-            await worker.kill_worker(w.worker_id)
-        existing.history = history
-        existing.raw_usage = raw_usage
-        existing.total_usage = total_usage
-        existing.last_result = None
-        sess.save_full(existing)
-        await broadcast({"type": "session.updated", "sessionId": existing.id})
-        return {**_session_to_api(existing), "reimported": True}
-
-    name = (
-        data.get("name", "")
-        or opencode_sessions.get_session_title(session_id, workdir)
-        or f"opencode-{session_id[:8]}"
-    )
-
-    try:
-        params = _build_session_params(
-            {
-                "adapter": "opencode",
-                "name": name,
-                "sessionTemplate": data.get("sessionTemplate"),
-                **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
-            },
-            resolve_workdir=False,
-        )
-    except ValueError as e:
-        return {"error": f"Failed to apply session template: {e}"}
-
-    s = sess.create(
-        name=name,
-        adapter="opencode",
-        cli_session_id=session_id,
-        history=history,
-        raw_usage=raw_usage,
-        total_usage=total_usage,
-        workdir=workdir,
-        model=params.get("model") or (raw_usage_entries[0].get("model") if raw_usage_entries else None),
-        permission_mode=params.get("permission_mode"),
-        session_template=params.get("session_template"),
-        pan_access=params.get("pan_access"),
-        adapter_config=params.get("adapter_config"),
-    )
-
-    await broadcast({"type": "session.created", "sessionId": s.id, "name": s.name})
-
-    return _session_to_api(s)
+@app.post("/api/adapters/{adapter}/sessions/import")
+async def api_adapter_sessions_import(adapter: str, data: dict):
+    """Import an adapter-native session into Pan (generic)."""
+    provider = _sessions_provider(adapter)
+    if provider is None:
+        return {"error": f"Unknown adapter: {adapter}"}
+    return await _import_session(provider, adapter, data)
 
 
 # ── Worker actions ──

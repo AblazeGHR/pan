@@ -602,6 +602,31 @@ def fork_cbc_session(parent_id: str, name: str, cwd: str | None = None) -> str:
     return new_id
 
 
+# ── SessionsProvider 统一接口（adapter-architecture P0-2）──
+# 与 kimi/opencode 的 sessions 模块对齐协议命名，供 server 按 adapter 名统一调用。
+# 旧命名函数（list_cbc_sessions / fork_cbc_session 等）保留，供既有调用点使用。
+
+
+def list_sessions(cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：列可恢复的 cbc 会话（cwd 即 project_cwd 语义）。"""
+    return list_cbc_sessions(cwd)
+
+
+def parse_history(session_id: str, cwd: str | None = None) -> list[dict]:
+    """SessionsProvider：解析 cbc session 历史。"""
+    return parse_cbc_history(session_id, cwd)
+
+
+def session_exists(session_id: str, cwd: str | None = None) -> bool:
+    """SessionsProvider 可选能力：session 是否真实存在于磁盘（import guard）。"""
+    return _resolve_session_file(session_id, cwd) is not None
+
+
+def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
+    """SessionsProvider：fork cbc session（复制 JSONL + 写 meta.json）。"""
+    return fork_cbc_session(parent_id, name, cwd)
+
+
 def _strip_html(text: str) -> str:
     """Remove HTML tags and system-reminder markers from text."""
     text = re.sub(r"<[^>]*>", "", text)
