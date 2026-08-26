@@ -32,7 +32,6 @@ class _FakeAdapter:
 
 def _cleanup():
     worker.workers.clear()
-    worker._result_waiters.clear()
     _sess._cache.clear()
     worker.set_broadcaster(None)
 

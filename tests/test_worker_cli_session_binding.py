@@ -74,7 +74,6 @@ def _setup_worker(session_id: str):
 
 def _cleanup():
     worker.workers.clear()
-    worker._result_waiters.clear()
     worker._task_status.clear()
     _sess._cache.clear()
     worker.set_broadcaster(None)

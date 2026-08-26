@@ -158,26 +158,20 @@ workers: dict[str, Worker] = {}
 
 _broadcast: callable = None
 
-# ── result waiters: 供 handoff（同步等待）在进程内捕获 worker.result ──
-# worker_id → {seq: asyncio.Future}；result 的 taskSeq 匹配对应 seq 的 waiter 才 resolve。
-# 多槽位（按 seq，A3 waiter 审查）：同一 worker 上可并发多个 handoff，各占一槽，
-# 不再被单槽位覆盖。
-_result_waiters: dict[str, dict[int, asyncio.Future]] = {}
-
 # ── task 幂等注册表: taskId → {"status", "workerId", "result"}
-# handoff 生成 taskId 入队时登记，result 时标记完成；Meta-Agent 重发带同一
+# assign 生成 taskId 入队时登记，result 时标记完成；Meta-Agent 重发带同一
 # taskId → 检测已存在则返回状态，不重复入队（防超时后双跑）
 _task_status: dict[str, dict] = {}
 
 # task 幂等注册表条目 TTL：条目超过该时长（无论 pending 还是已完成）在下次
-# handoff 访问注册表时被惰性清除，防止全局 dict 长期运行无界增长（H2 泄漏）。
+# assign 访问注册表时被惰性清除，防止全局 dict 长期运行无界增长（H2 泄漏）。
 _TASK_STATUS_TTL_SEC: float = 86400.0  # 24h
 
 
 def _prune_task_status() -> None:
     """惰性清除 _task_status 中超过 TTL 的过期条目。
 
-    注册表仅在 handoff 幂等检查处读取，故在 handoff 入口调用即可兜住泄漏。
+    注册表在 assign 幂等检查处读取，故在 assign 入口调用即可兜住泄漏。
     ts 缺失的旧条目视为永不超时，避免破坏升级前写入的数据。
     """
     cutoff = time.monotonic() - _TASK_STATUS_TTL_SEC
@@ -194,7 +188,7 @@ def _prune_task_status() -> None:
 def _mark_worker_tasks_error(worker_id: str, reason: str) -> int:
     """kill_worker / worker 退出路径：把该 worker 名下 status==pending 的 taskId 标 error。
 
-    handoff 超时后任务仍在跑；若此时 worker 被杀/崩溃，taskId 若停留在 pending，
+    任务超时后任务仍在跑；若此时 worker 被杀/崩溃，taskId 若停留在 pending，
     同 taskId 重试会被幂等注册表永久拦截、永不执行。标 error 后重试拿到确定性
     失败（H2 卡死修复）。
     """
@@ -208,41 +202,6 @@ def _mark_worker_tasks_error(worker_id: str, reason: str) -> int:
         _log.info("[Worker %s] _task_status: marked %d pending task(s) error (%s)",
                   worker_id, marked, reason)
     return marked
-
-
-def _resolve_result_waiter(worker_id: str, status: str, result: str,
-                           task_seq: int | None = None):
-    """当 worker 产生 result 时，resolve 正在等待该 worker 的 handoff future。
-
-    task_seq 传入时只匹配期望该序号的 waiter（避免拿到别的任务的结果）；
-    为 None 时强制 resolve（worker 被杀/崩溃场景，该 worker 上所有 waiter 全 error）。
-    """
-    waiters = _result_waiters.get(worker_id)
-    if not waiters:
-        return
-    if task_seq is None:
-        # 强制 resolve：worker 被杀/崩溃 → 所有等待中的 handoff 全部结束
-        _result_waiters.pop(worker_id, None)
-        for fut in list(waiters.values()):
-            if not fut.done():
-                fut.set_result({"status": status, "result": result})
-        return
-    fut = waiters.pop(task_seq, None)
-    if fut is None:
-        return  # 不是等待中的任务结果，保留其他 waiter
-    if not waiters:
-        _result_waiters.pop(worker_id, None)
-    if not fut.done():
-        fut.set_result({"status": status, "result": result})
-
-
-def _drop_result_waiter(worker_id: str, seq: int):
-    """移除某个 (worker, seq) 的 waiter；该 worker 无剩余 waiter 时清理外层 key。"""
-    waiters = _result_waiters.get(worker_id)
-    if waiters:
-        waiters.pop(seq, None)
-        if not waiters:
-            _result_waiters.pop(worker_id, None)
 
 
 def _kill_pid_tree(pid: int) -> None:
@@ -498,9 +457,9 @@ async def _read_stdout(w: Worker):
                 _maybe_restart_pending(w)
                 continue
 
-            # taskSeq 统一用 _current_seq（_consumer 取出 item 时已从 handoff
-            # 预分配的序号记录）。用 _result_count 会在中断/重启后与
-            # _task_counter 错位，导致 handoff waiter 永远匹配不上而悬挂超时。
+            # taskSeq 统一用 _current_seq（_consumer 取出 item 时记录）。用
+            # _result_count 会在中断/重启后与 _task_counter 错位，导致
+            # result 与 task 配对错乱。
             task_seq = w._current_seq
 
             if s:
@@ -545,7 +504,6 @@ async def _read_stdout(w: Worker):
                 "result": result_text,
                 "taskSeq": task_seq,
             })
-            _resolve_result_waiter(w.worker_id, w.status, result_text, task_seq=task_seq)
             # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
             await _enqueue_report(w.session_id, w.status, result_text, w._current_task_id, w.worker_id)
             # 幂等：完成对应 taskId（若有）
@@ -609,8 +567,6 @@ async def _read_stdout(w: Worker):
         "sessionId": w.session_id,
         "returncode": code,
     })
-    # 有 handoff 在等这个 worker → 立即 resolve 为错误，避免悬挂到超时
-    _resolve_result_waiter(w.worker_id, "error", f"worker exited (returncode={code})")
     # H2: worker 退出 → 名下 pending 的 taskId 标 error（防止"超时+crash"组合
     # 让同 taskId 重试永久卡 pending）
     _mark_worker_tasks_error(w.worker_id, f"worker exited (returncode={code})")
@@ -641,7 +597,7 @@ async def _consumer(w: Worker):
     ``Session.queue_pending``. On signal, all backlog reports are pulled from
     the source of truth, concatenated verbatim into ONE message (visible
     separator + source), and processed as a single message. Non-report
-    messages (handoff tasks / normal messages / system_prompt) stay single.
+    messages (assign tasks / normal messages / system_prompt) stay single.
     """
     while True:
         item = await w.pending_signal.get()
@@ -705,7 +661,7 @@ async def _consumer(w: Worker):
 def _format_report_batch(reports: list[dict]) -> str:
     """积压报告拼接为可读文本：`@@@@by agent : {sessionId} | {title}` 抬头 + 每字段一行。
 
-    报告形状对齐 handoff：{"status","result","sessionId","taskId","workerId"}。
+    报告形状：{"status","result","sessionId","taskId","workerId"}。
     title 取被管 session 的 name（`_sess.get(session_id).name`），session 不存在则回退 unknown。
     result 值单独成行、去引号、保留多行原文；None → null。
     """
@@ -772,7 +728,7 @@ async def _consume_pending_reports(w: Worker, s):
         return
     text = _format_report_batch(reports)
 
-    # 报告不是 handoff 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
+    # 报告不是 assign 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
     w._current_seq = None
     w._current_task_id = None
     w._replaying = False
@@ -938,7 +894,6 @@ async def _watchdog(w: Worker):
     - MCP one-shot 模式（w.process 为 None）：
       - 只做 idle 回收（超时已由 _consumer_oneshot 读取超时承担，running 不干预）
     - held（takeover 模式）/ zombie：跳过，不回收
-    触发 kill 时先 resolve 等待中的 handoff（error），再回收进程。
 
     每个动作（kill / 跳过）都写日志，记录 worker_id、idle_for、阈值
     （_WORKER_TIMEOUT_SEC / _WORKER_IDLE_SEC）与判定分支（branch=...），
@@ -1109,8 +1064,6 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
             "result": "Worker process dead",
             "taskSeq": w._current_seq,
         })
-        # worker 已死，任何等待它的 handoff 都应立刻返回 error
-        _resolve_result_waiter(w.worker_id, "error", "Worker process dead")
         return
 
     # 任务运行时长起算点：进入 running 即开始计时（watchdog 据此判定卡死）。
@@ -1416,7 +1369,6 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         "result": result,
         "taskSeq": task_seq,
     })
-    _resolve_result_waiter(w.worker_id, status, result, task_seq=task_seq)
     # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
     await _enqueue_report(w.session_id, status, result, w._current_task_id, w.worker_id)
     # 幂等：完成对应 taskId（若有）
@@ -1670,8 +1622,6 @@ async def kill_worker(worker_id: str) -> str | None:
     await _kill_process_tree(w)
     await _kill_takeover_terminal(w)
 
-    # 有 handoff 在等这个 worker → 立即 resolve 为错误
-    _resolve_result_waiter(worker_id, "error", "worker killed")
     # H2: worker 被杀 → 名下 pending 的 taskId 标 error（防止幂等重试永久卡 pending）
     _mark_worker_tasks_error(worker_id, "worker killed")
     # A1 崩溃安全：kill 前 flush 防抖缓冲的流式块
@@ -1975,7 +1925,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     if w.pending_signal is None:
         return "Worker signal queue not ready"
 
-    # 分配任务序号（handoff 预分配后传入，保证 waiter 与 item 一致）
+    # 分配任务序号（result 与 task 配对用；外部可预分配传入，保证 item.seq 与期望一致）
     if seq is None:
         w._task_counter += 1
         seq = w._task_counter
@@ -2013,7 +1963,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     return None
 
 
-# ── 编排原语：handoff / assign / send（供 Meta-Agent 调用） ──
+# ── 编排原语：assign / send（供 Meta-Agent 调用） ──
 
 
 async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
@@ -2027,76 +1977,6 @@ async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
     return w, None
 
 
-async def handoff(session_id: str, text: str, source: str = "agent",
-                  timeout: float = 600.0, task_id: str | None = None) -> dict:
-    """[DEPRECATED] 同步阻塞：确保 worker 存在 → 发任务 → 等待该任务对应的 result。
-
-    DEPRECATED（立项 4.7）：推荐改用 ``assign``（异步分派）+ 报告订阅消费。
-    理由：若确实需要等，meta-agent 不应处于 busy 或可能被插队的状态——"等"应是
-    meta-agent 的默认 idle 状态，而非一个阻塞调用动作。保留本函数仅服务确需
-    严格阻塞同步返回值的场景；未来可能整体移除。
-    标记粒度：代码注释 + MCP 工具 description，暂不加运行时警告。
-
-    预分配任务序号：waiter 只匹配该序号的 result，避免拿到队列中
-    其他任务的结果。超时（默认 10 分钟）返回 {"status": "error"}。
-    waiter 按 (worker, seq) 多槽位（dict[seq, Future]）：同一 worker 上并发
-    多个 handoff 互不覆盖，各自按自己的 seq resolve。
-
-    task_id 幂等：同一 taskId 重发不重复入队。若该 taskId 已存在：
-    - 已完成 → 返回已有结果
-    - 进行中 → 返回 {"status": "pending", "taskId":...}
-    用于超时后安全重试，避免双跑。
-    """
-    # 惰性清理过期条目（TTL），防止注册表长期运行无界增长（H2 泄漏）
-    _prune_task_status()
-    # taskId 幂等检查
-    if task_id is not None and task_id in _task_status:
-        existing = _task_status[task_id]
-        if existing["status"] in ("done", "error"):
-            return dict(existing)
-        return {"status": "pending", "taskId": task_id}
-
-    w, err = await _ensure_worker(session_id)
-    if err:
-        return {"status": "error", "result": err}
-
-    # 预分配序号：send_task 不再自增，保证 item.seq == waiter 期望的 seq
-    w._task_counter += 1
-    seq = w._task_counter
-
-    if task_id is not None:
-        _task_status[task_id] = {"status": "pending", "workerId": w.worker_id,
-                                 "taskId": task_id, "ts": time.monotonic()}
-
-    loop = asyncio.get_running_loop()
-    fut: asyncio.Future = loop.create_future()
-    _result_waiters.setdefault(w.worker_id, {})[seq] = fut
-
-    send_err = await send_task(w.worker_id, text, source=source, seq=seq, task_id=task_id)
-    if send_err:
-        _drop_result_waiter(w.worker_id, seq)
-        if task_id is not None:
-            _task_status[task_id] = {"status": "error", "result": send_err,
-                                     "taskId": task_id, "ts": time.monotonic()}
-        return {"status": "error", "result": send_err}
-
-    try:
-        result = await asyncio.wait_for(fut, timeout=timeout)
-    except asyncio.TimeoutError:
-        _drop_result_waiter(w.worker_id, seq)
-        # 超时：任务仍在队列中跑，返回 pending + taskId，Meta-Agent 稍后重试/查状态
-        if task_id is not None:
-            return {"status": "pending", "taskId": task_id,
-                    "workerId": w.worker_id, "result": f"handoff timed out after {timeout:.0f}s"}
-        return {"status": "error", "result": f"handoff timed out after {timeout:.0f}s"}
-    result["workerId"] = w.worker_id
-    if task_id is not None:
-        result["taskId"] = task_id
-        result["ts"] = time.monotonic()
-        _task_status[task_id] = dict(result)
-    return result
-
-
 async def assign(session_id: str, text: str, source: str = "agent",
                  task_id: str | None = None) -> dict:
     """异步分派：确保 worker 存在 → 发任务 → 立即返回 queued。
@@ -2104,7 +1984,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
     完成时通过 worker.result 事件（配合 /ws/agent subscribe）回调。
     适用于并行 fan-out。
 
-    task_id 幂等（复用 handoff 的 taskId 注册表 _task_status + TTL 惰性清理）：
+    task_id 幂等（复用 taskId 幂等注册表 _task_status + TTL 惰性清理）：
     同一 taskId 重发不重复入队（防双跑）。若该 taskId 已存在：
     - 已完成（done/error）→ 返回缓存结果（status/result）
     - 进行中 → 返回 {"status": "pending", "taskId": ...}，不重复入队
