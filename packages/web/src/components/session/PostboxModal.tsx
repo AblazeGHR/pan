@@ -20,7 +20,7 @@ interface PostboxModalProps {
   sessionId: string | null;
 }
 
-/** Subscription key as stored on the session, e.g. "user:1470993983". */
+/** Subscription key as stored on the session, e.g. "user:1234567890". */
 function contactKey(c: QqContact): string {
   return `${c.chatType === 2 ? 'group' : 'user'}:${c.peerUin}`;
 }
