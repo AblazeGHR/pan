@@ -1300,7 +1300,7 @@ def _cleanup_mcp_config(session_id: str) -> None:
     try:
         p.unlink(missing_ok=True)
     except OSError as e:
-        _log.warning("[mcp-config] 清理失败 %s: %s", p, e)
+        _log(f"[mcp-config] 清理失败 {p}: {e}")
 
 
 def _cleanup_kimi_home(session_id: str) -> None:
@@ -1315,7 +1315,7 @@ def _cleanup_kimi_home(session_id: str) -> None:
         if p.exists():
             shutil.rmtree(p)
     except OSError as e:
-        _log.warning("[kimi-home] 清理失败 %s: %s", p, e)
+        _log(f"[kimi-home] 清理失败 {p}: {e}")
 
 
 @app.delete("/api/sessions/{session_id}")

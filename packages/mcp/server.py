@@ -246,6 +246,18 @@ def _worker_session_id(worker_id: str) -> str | None:
     return None
 
 
+def _worker_unresolvable(worker_id: str) -> dict:
+    """Deny error for worker tools when _worker_session_id() returns None.
+
+    解析不到 session 就无法做隔离检查（受限 caller 不得操作任意 worker），
+    按 deny 处理（fail-safe），而不是跳过 _check_access 直接放行。
+    """
+    return {"ok": False, "error": {
+        "code": "worker_not_found",
+        "message": f"worker {worker_id} could not be resolved to a session; "
+                   "refusing to operate on it"}}
+
+
 # ---------------------------------------------------------------------------
 # Session management tools
 # ---------------------------------------------------------------------------
@@ -1022,10 +1034,11 @@ def worker_task(session_id: str | None = None, worker_id: str | None = None,
             return denied
     elif worker_id:
         sid = _worker_session_id(worker_id)
-        if sid:
-            denied = _check_access(sid, claim=True)
-            if denied:
-                return denied
+        if sid is None:
+            return _worker_unresolvable(worker_id)
+        denied = _check_access(sid, claim=True)
+        if denied:
+            return denied
     body: dict = {"text": text, "source": source}
     if worker_id:
         body["workerId"] = worker_id
@@ -1044,10 +1057,11 @@ def worker_kill(worker_id: str) -> dict:
     完整编排流程见 /pan skill。
     """
     sid = _worker_session_id(worker_id)
-    if sid:
-        denied = _check_access(sid)
-        if denied:
-            return denied
+    if sid is None:
+        return _worker_unresolvable(worker_id)
+    denied = _check_access(sid)
+    if denied:
+        return denied
     return _api("POST", f"/api/kill/{worker_id}")
 
 
@@ -1055,9 +1069,22 @@ def worker_kill(worker_id: str) -> dict:
 def worker_list() -> dict:
     """List all running workers.
 
+    受限 caller（restrictToManaged）仅能看到自己管理（managed + 自身
+    session）的 worker，避免枚举任意 worker 后绕过隔离检查。
+
     完整编排流程见 /pan skill。
     """
-    return _api("GET", "/api/list")
+    result = _api("GET", "/api/list")
+    caller = _caller_identity()
+    if caller and _caller_pan_access(caller).get("restrictToManaged"):
+        allowed = set(caller.get("managed") or []) | {caller.get("id")}
+        workers = result.get("workers") if isinstance(result, dict) else None
+        if isinstance(workers, list):
+            result["workers"] = [
+                w for w in workers
+                if isinstance(w, dict) and w.get("sessionId") in allowed
+            ]
+    return result
 
 
 @mcp.tool()
@@ -1128,10 +1155,11 @@ def worker_send(worker_id: str, text: str) -> dict:
         text = f"////by agent : {sid} | {title}\n{text}"
     # 向被管 session 的 worker 发消息即接管
     target_sid = _worker_session_id(worker_id)
-    if target_sid:
-        denied = _check_access(target_sid, claim=True)
-        if denied:
-            return denied
+    if target_sid is None:
+        return _worker_unresolvable(worker_id)
+    denied = _check_access(target_sid, claim=True)
+    if denied:
+        return denied
     return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
 
 
@@ -1167,10 +1195,11 @@ def worker_send_force(worker_id: str, text: str) -> dict:
         text = f"////by agent : {sid} | {title}\n{text}"
     # 向被管 session 的 worker 强制推送即接管（与 worker_send 一致）
     target_sid = _worker_session_id(worker_id)
-    if target_sid:
-        denied = _check_access(target_sid, claim=True)
-        if denied:
-            return denied
+    if target_sid is None:
+        return _worker_unresolvable(worker_id)
+    denied = _check_access(target_sid, claim=True)
+    if denied:
+        return denied
     # 1) 重启 worker 进程（失败直接返回后端错误）
     result = _api("POST", f"/api/worker/{worker_id}/restart")
     if not isinstance(result, dict) or result.get("error"):

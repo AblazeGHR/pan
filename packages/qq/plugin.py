@@ -506,11 +506,11 @@ async def _send_and_wait(text: str, scope_id: str, scope: str = "user") -> str:
     # keep the cached ts fresh so the poll fallback doesn't re-detect an old
     # result for the next message
     session = _sessions.get(session_key)
+    lr = data.get("lastResult") or {}
     if session and lr and lr.get("timestamp"):
         session.last_result_ts = lr.get("timestamp", "")
 
     # prefer lastResult.result — cbc sometimes only gives final text in result event
-    lr = data.get("lastResult") or {}
     result_text = lr.get("result", "") if lr else ""
     if isinstance(result_text, str) and result_text.strip():
         lines = [l for l in result_text.split("\n") if not l.startswith("🔧")]

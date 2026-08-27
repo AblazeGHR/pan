@@ -29,11 +29,15 @@ _qq_proc: subprocess.Popen | None = None
 
 
 def _is_pid_alive(pid: int) -> bool:
-    """Best-effort liveness check for a local PID (works on Windows too)."""
+    """Best-effort liveness check for a local PID (works on Windows too).
+
+    Windows 上 os.kill(pid, 0) 会直接 TerminateProcess（sig 即退出码），
+    必须用 psutil 探测（worker.py 已依赖 psutil）。
+    """
     try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
+        import psutil
+        return psutil.pid_exists(pid)
+    except ImportError:
         return False
 
 
