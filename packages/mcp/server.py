@@ -246,6 +246,17 @@ def _worker_session_id(worker_id: str) -> str | None:
     return None
 
 
+def _session_worker_id(session_id: str) -> str | None:
+    """Resolve a session_id to its current worker_id via /api/list (or None)."""
+    result = _api("GET", "/api/list")
+    if not isinstance(result, dict):
+        return None
+    for w in result.get("workers", []) if isinstance(result.get("workers"), list) else []:
+        if w.get("sessionId") == session_id:
+            return w.get("workerId")
+    return None
+
+
 def _worker_unresolvable(worker_id: str) -> dict:
     """Deny error for worker tools when _worker_session_id() returns None.
 
@@ -1123,16 +1134,20 @@ def worker_assign(session_id: str, text: str, task_id: str | None = None) -> dic
 
 
 @mcp.tool()
-def worker_send(worker_id: str, text: str) -> dict:
-    """Send a message to an existing live worker (multi-turn collaboration).
+def worker_send(worker_id: str | None = None, text: str = "",
+                session_id: str | None = None) -> dict:
+    """Send a message to an agent (multi-turn collaboration).
 
     **仅用于非即时发送**：消息入队排队，目标 worker 空闲（当前任务完成后）才处理，
     不打断进行中的任务。
     若消息需要 worker 立即响应或打断当前执行（如操作约束、方向变更、紧急指令）
     → 必须用 `worker_send_force`（restart+send）。
 
-    Completion is delivered via the worker.result event. If the worker
-    is dead, returns an error (spawn it again first).
+    Completion is delivered via the worker.result event.
+
+    寻址兼容（阶段 6）：worker_id 或 session_id 皆可（编排对象是 agent/session，
+    进程是顺带的）。传 session_id 且该 session 无活 worker 时**不报错**——消息入
+    该 session 的持久队列，由全局 watchdog 自动 spawn worker 后分发。
 
     When this MCP server runs inside a Pan-managed session (env injected by
     adapter.mcp_args() for the "pan" server), the text is prefixed with the
@@ -1143,35 +1158,52 @@ def worker_send(worker_id: str, text: str) -> dict:
         {text}
 
     Args:
-        worker_id: Worker ID (e.g. "worker-1")
+        worker_id: Worker ID (e.g. "worker-1"); 与 session_id 二选一
+        session_id: Session ID（无活 worker 时消息入队待投）
         text: Task text / prompt
 
-    调用链：发送时自动拼接 ////by agent 前缀（来源标记，区分 MA 编排消息）。
+    调用链：worker_id 路径 POST /api/task（行为不变）；session_id 路径
+    POST /api/send（无活 worker 时入队）。均自动拼接 ////by agent 前缀。
     完整编排流程见 /pan skill。
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     title = os.environ.get("PAN_AGENT_SESSION_TITLE")
     if sid or title:
         text = f"////by agent : {sid} | {title}\n{text}"
-    # 向被管 session 的 worker 发消息即接管
-    target_sid = _worker_session_id(worker_id)
-    if target_sid is None:
-        return _worker_unresolvable(worker_id)
-    denied = _check_access(target_sid, claim=True)
-    if denied:
-        return denied
-    return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
+    if worker_id:
+        # 旧路径：worker_id 寻址，行为不变
+        target_sid = _worker_session_id(worker_id)
+        if target_sid is None:
+            return _worker_unresolvable(worker_id)
+        denied = _check_access(target_sid, claim=True)
+        if denied:
+            return denied
+        return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
+    if session_id:
+        # 新路径：session（agent）寻址；无活 worker 由 /api/send 入队待投
+        denied = _check_access(session_id, claim=True)
+        if denied:
+            return denied
+        return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
+    return {"ok": False, "error": {
+        "code": "missing_params",
+        "message": "worker_id or session_id is required"}}
 
 
 @mcp.tool()
-def worker_send_force(worker_id: str, text: str) -> dict:
-    """Force-push a message to a worker: restart the worker, then send.
+def worker_send_force(worker_id: str | None = None, text: str = "",
+                      session_id: str | None = None) -> dict:
+    """Force-push a message to an agent: restart the worker, then send.
 
     强制推送 = restart + send：目标 worker 卡死 / 忙 / 连接异常导致普通
-    worker_send 消息无法送达时的兜底。先调用 restart 端点终止并重新 spawn
-    worker 进程，再发送消息，保证消息能送达。
+    worker_send 消息无法送达时的兜底。先终止并重新 spawn worker 进程，
+    再发送消息，保证消息能送达。
     需要打断或立即送达的时效性消息（操作约束、方向变更、紧急指令）直接用它；
     仅补充信息、可排队等待的用 `worker_send`。
+
+    寻址兼容（阶段 6）：worker_id 或 session_id 皆可。传 session_id 且该
+    session 无活 worker 时**不报错**——消息入该 session 的持久队列，由全局
+    watchdog 自动 spawn worker 后分发（「send = 写给 agent，进程是顺带的」）。
 
     When this MCP server runs inside a Pan-managed session (env injected by
     adapter.mcp_args() for the "pan" server), the text is prefixed with the
@@ -1181,31 +1213,88 @@ def worker_send_force(worker_id: str, text: str) -> dict:
         {text}
 
     Args:
-        worker_id: Worker ID (e.g. "worker-1")
+        worker_id: Worker ID (e.g. "worker-1"); 与 session_id 二选一
+        session_id: Session ID（无活 worker 时消息入队待投）
         text: Task text / prompt
 
-    调用链：隔离检查（与 worker_send 一致）→ POST /api/worker/{worker_id}/restart
-    → POST /api/task（自动拼接 ////by agent 前缀）。restart 或 send 任一失败
-    均返回含后端 error 信息的错误 dict，不吞错。
+    调用链：隔离检查（与 worker_send 一致）→ 有活 worker 时 restart 端点 +
+    POST /api/task；无活 worker 时 POST /api/send 入队（均自动拼接
+    ////by agent 前缀）。restart 或 send 任一失败均返回含后端 error 信息
+    的错误 dict，不吞错。
     完整编排流程见 /pan skill。
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     title = os.environ.get("PAN_AGENT_SESSION_TITLE")
     if sid or title:
         text = f"////by agent : {sid} | {title}\n{text}"
-    # 向被管 session 的 worker 强制推送即接管（与 worker_send 一致）
-    target_sid = _worker_session_id(worker_id)
-    if target_sid is None:
-        return _worker_unresolvable(worker_id)
-    denied = _check_access(target_sid, claim=True)
-    if denied:
-        return denied
-    # 1) 重启 worker 进程（失败直接返回后端错误）
-    result = _api("POST", f"/api/worker/{worker_id}/restart")
-    if not isinstance(result, dict) or result.get("error"):
-        return result
-    # 2) 发送消息（与 worker_send 相同）
-    return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
+    if worker_id:
+        # 旧路径：worker_id 寻址，行为不变
+        target_sid = _worker_session_id(worker_id)
+        if target_sid is None:
+            return _worker_unresolvable(worker_id)
+        denied = _check_access(target_sid, claim=True)
+        if denied:
+            return denied
+        # 1) 重启 worker 进程（失败直接返回后端错误）
+        result = _api("POST", f"/api/worker/{worker_id}/restart")
+        if not isinstance(result, dict) or result.get("error"):
+            return result
+        # 2) 发送消息（与 worker_send 相同）
+        return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
+    if session_id:
+        # 新路径：session（agent）寻址
+        denied = _check_access(session_id, claim=True)
+        if denied:
+            return denied
+        wid = _session_worker_id(session_id)
+        if wid is None:
+            # 无活 worker：restart 无从谈起 → 入持久队列，watchdog spawn 后分发
+            return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
+        result = _api("POST", f"/api/worker/{wid}/restart")
+        if not isinstance(result, dict) or result.get("error"):
+            return result
+        return _api("POST", "/api/task", {"workerId": wid, "text": text})
+    return {"ok": False, "error": {
+        "code": "missing_params",
+        "message": "worker_id or session_id is required"}}
+
+
+@mcp.tool()
+def worker_kill(worker_id: str | None = None, session_id: str | None = None) -> dict:
+    """Kill a worker process (session data persists).
+
+    寻址兼容（阶段 6）：worker_id 或 session_id 皆可。传 session_id 且该
+    session 无活 worker 时返回 ok（killed=false）——编排对象是 agent（session），
+    进程本就不存在，属无害 no-op。
+
+    Args:
+        worker_id: Worker ID to kill (e.g. "worker-1"); 与 session_id 二选一
+        session_id: Session ID（杀其当前 worker；无 worker 时 no-op）
+
+    完整编排流程见 /pan skill。
+    """
+    if worker_id:
+        # 旧路径：worker_id 寻址，行为不变
+        sid = _worker_session_id(worker_id)
+        if sid is None:
+            return _worker_unresolvable(worker_id)
+        denied = _check_access(sid)
+        if denied:
+            return denied
+        return _api("POST", f"/api/kill/{worker_id}")
+    if session_id:
+        denied = _check_access(session_id)
+        if denied:
+            return denied
+        wid = _session_worker_id(session_id)
+        if wid is None:
+            return {"ok": True, "sessionId": session_id, "workerId": None,
+                    "killed": False,
+                    "message": "no live worker for session; nothing to kill"}
+        return _api("POST", f"/api/kill/{wid}")
+    return {"ok": False, "error": {
+        "code": "missing_params",
+        "message": "worker_id or session_id is required"}}
 
 
 # ---------------------------------------------------------------------------

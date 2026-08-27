@@ -1542,6 +1542,36 @@ async def api_task(data: dict):
     }
 
 
+@app.post("/api/send")
+async def api_send(data: dict):
+    """向 session（agent）发消息（阶段 6 寻址兼容层）。
+
+    workerId / sessionId 皆可寻址（编排对象是 agent，进程是顺带的）。
+    sessionId 无活 worker 时**不报错**：消息入 Session.queue_pending
+    （type=task），由全局 watchdog spawn 后经 _recover_pending_signals
+    分发。force=true 时对活 worker 先 restart 再投递（worker_send_force 语义）。
+    隔离由 MCP 层实施（与 /api/claim 同约定），本端点不检查 pan_access。
+    """
+    worker_id = data.get("workerId")
+    session_id = data.get("sessionId")
+    text = data.get("text")
+    if not text:
+        return {"error": "text is required"}
+    if not worker_id and not session_id:
+        return {"error": "workerId or sessionId required"}
+    if worker_id and not session_id:
+        w = worker.get_worker(worker_id)
+        if not w:
+            return {"error": "Worker not found"}
+        session_id = w.session_id
+    result = await worker.send_session(session_id, text,
+                                       source=data.get("source", "agent"),
+                                       force=bool(data.get("force")))
+    if isinstance(result, dict) and result.get("status") == "error":
+        return {"error": result.get("result") or "send failed"}
+    return result
+
+
 @app.post("/api/assign")
 async def api_assign(data: dict):
     """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。
