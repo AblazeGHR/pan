@@ -151,7 +151,9 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     });
   }
 
-  /** 发送单条文本（封装 spawn + WS 投递）。WS 已投递 → onSent(true)。 */
+  /** 发送单条文本（封装 spawn + WS 投递）。WS 已投递 → onSent(true)；
+   *  未连接（CONNECTING/CLOSED，wsClient.send 返回 false）→ onSent(false)，
+   *  调用方（flush）保留队列项，等 WS 'open' 联动或下次 idle 事件重试。 */
   function sendText(sessionId: string, text: string, onSent: (ok: boolean) => void): void {
     const doSend = (): void => {
       const msg = { type: 'user_inject', sessionId, text };
@@ -159,7 +161,9 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         onSent(true);
         return;
       }
-      useUIStore.getState().showToast('Connection lost. Please refresh the page.', 'error');
+      useUIStore
+        .getState()
+        .showToast('未连接到服务器 — 消息已保留在发送队列，连接恢复后自动发送', 'error');
       onSent(false);
     };
 
@@ -540,4 +544,12 @@ useSessionStore.subscribe((state, prevState) => {
       useQueueStore.getState().removeSession(removedId);
     }
   }
+});
+
+// ── 联动：WS 连接建立时重试当前 session 的队列 ──
+// sendText 在 WS 未连接（CONNECTING/CLOSED）时收到 false 会保留队列项；这里补上
+// 「连接恢复 → 自动重发」的闭环，否则 flush 失败后只能等下一次 idle/切 session 才重试。
+
+wsClient.on('open', () => {
+  useQueueStore.getState().flush();
 });

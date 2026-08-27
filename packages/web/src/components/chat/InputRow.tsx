@@ -253,7 +253,11 @@ export function InputRow() {
         // No worker — spawn one
         try {
           await startWorker(currentSessionId);
-          wsClient.send(msg);
+          // spawn 等待窗口内 WS 可能仍在 CONNECTING（send 返回 false）——
+          // 不检查会把消息静默丢掉（聊天区已上屏但服务端从未收到）
+          if (!wsClient.send(msg)) {
+            showToast('Connection lost. Please refresh the page.', 'error');
+          }
         } catch (e) {
           showToast(
             'Spawn failed: ' + (e as Error).message,
