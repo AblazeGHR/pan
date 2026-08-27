@@ -1,5 +1,10 @@
 """Session store — persistent, UUID-keyed, independent of Worker lifecycle.
 
+概念模型（agent-naming 确立）：Session = Agent —— 即逻辑编排对象：持久身份
+（收件箱 queue_pending、agentLevel、managedBy 链）都在这里；Worker（worker.py）
+只是本 Session 名下临时的 CLI 进程实例，可随时重建。外部编排语义（MCP 的
+agent_* 工具、/api/send）以 Session 为寻址目标。
+
 Each session is stored as data/sessions/<id>.json.
 The ID format is ses_<16-hex-chars> (e.g. ses_a1b2c3d4e5f67890).
 """

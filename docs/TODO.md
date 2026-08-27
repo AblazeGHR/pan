@@ -34,7 +34,7 @@
 | R1 idle 覆盖边缘窗口 | stream `_read_stdout` 在队列仍有任务时置 idle，`idle_sec` 短时可能提前回收——低优确认 | 阶段计划与进度.md |
 | R2 补 3 个集成测试 | stream 端到端序号配对、reconnect 中途断线补发、「超时→kill→重试」幂等组合（修复均已落地，测试未补） | 阶段计划与进度.md |
 | 测试夹具用户名 | `tests/test_kimi_adapter.py:19` `KIMI_TEST_WORKDIR` 含本机用户名，其他机器跑测试失败（2026-08-27 核对仍存在） | 跨设备移植报告 / 阶段计划与进度.md |
-| opencode handoff 复验 | 原 worker_handoff 已移除；新 `worker_assign`/`session_handoff` 链路下 opencode stream 完成信号是否仍超时未复验 | design/opencode-adaptation.md |
+| opencode handoff 复验 | 原 worker_handoff 已移除；新 `agent_assign`（别名 worker_assign）/`session_handoff` 链路下 opencode stream 完成信号是否仍超时未复验 | design/opencode-adaptation.md |
 | opencode fork event 溯源 | fork 经 DB 复制，假定从 session/message/part 恢复；若还需 event 溯源行需补 | design/opencode-adaptation.md |
 | HTTP 全链路 sanity（kimi MCP） | 独立端口起 server 走 `/api/sessions`+`/api/spawn`+`/api/task` 链路未跑（worker 级集成已覆盖，低风险） | design/kimi-mcp-solution.md |
 

@@ -16,7 +16,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | 方法 | URL | Body / 参数 | 返回 |
 |------|-----|------------|------|
 | `POST` | `/api/sessions/batch-delete` | `{"sessionIds": ["ses_a", "ses_b"]}` | `{"deleted": 2}`（含 kill worker、清理其他 session 的 report_subscriptions/managed 引用）。**MCP 等价工具：`session_batch_delete`（已有，逐个过 managed 隔离检查）** |
-| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改进程相关字段（model/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，**idle worker 自动 respawn 生效、running worker 回 idle 时自动重启**——无需手动 kill+spawn（想立即生效仍可手动 worker_kill + worker_spawn）。**MCP 等价工具：`session_update`** |
+| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改进程相关字段（model/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，**idle worker 自动 respawn 生效、running worker 回 idle 时自动重启**——无需手动 kill+spawn（想立即生效仍可手动 agent_kill + agent_spawn（别名 worker_*））。**MCP 等价工具：`session_update`** |
 | `POST` | `/api/sessions/{id}/rename` | `{"name": "new-name"}` | `{"sessionId","name","status":"renamed"}`。**无 MCP 工具，需 HTTP 直调** |
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定）。**无 MCP 工具，需 HTTP 直调** |
 | `POST` | `/api/sessions/{id}/handoff` | `{"handoffPrompt": "...", "copySettings": true, "adapter"?: "...", "model"?: "...", "permissionMode"?: "..."}` | **替身交接**：创建孪生 session B 接替 A（见 SKILL.md §2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填 |
@@ -24,7 +24,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}`。等价 MCP 工具：`report_unsubscribe` |
 | `POST` | `/api/claim` | `{"managerId": "...", "sessionId": "..."}` | 认领会话建立 managed 关系（带 `_check_access(claim=True)` 隔离检查；目标已被他人管理则拒绝）。等价 MCP 工具：`session_claim`（claim 自动 report_subscribe） |
 | `POST` | `/api/unclaim` | `{"managerId": "...", "sessionId": "..."}` | 解除 managed 关系（同时退订该 session 报告）。等价 MCP 工具：`session_unclaim` |
-| `POST` | `/api/worker/{worker_id}/restart` | — | 终止并重新 spawn worker 进程。`worker_send_force`（MCP）内部走此端点 |
+| `POST` | `/api/worker/{worker_id}/restart` | — | 终止并重新 spawn worker 进程。`agent_send_force`（MCP，别名 worker_send_force）内部走此端点 |
 | `POST` | `/api/qq/subscribe` | `{"sessionId": "...", "target_type": "user"/"group", "target_id": "..."}` | Pan session 订阅某 QQ 会话 inbox 提醒（`@@@@by qq` 推送到 queue_pending）；等价 MCP 工具 `session_qq_subscribe`（pan server） |
 | `POST` | `/api/qq/unsubscribe` | 同上 | 退订（等价 `session_qq_unsubscribe`） |
 
@@ -106,5 +106,5 @@ Windows 下 `curl -d '{"text":"中文…"}'` 内联中文 body 会报 `{"detail"
 
 **放弃/超时策略**：
 - **结束条件**：`lastResult.status` 变为 `done`（读 `result`）或 `error`（读 `result` 排查）→ 停止轮询。
-- **放弃条件一（worker 已死）**：轮询中发现 `workerStatus` 变 `null` 且 `lastResult.status` 仍是 `queued`/`running` → watchdog 已回收或进程已死，任务不会继续 → 停止本轮，`worker_spawn` 后重新 assign。
+- **放弃条件一（worker 已死）**：轮询中发现 `workerStatus` 变 `null` 且 `lastResult.status` 仍是 `queued`/`running` → watchdog 已回收或进程已死，任务不会继续 → 停止本轮，`agent_spawn` 后重新 assign。
 - **放弃条件二（超时预算）**：为每轮任务设总预算。stream running 卡死判定基于**任务运行时长**（`worker.task_timeout_sec` 默认 1800s，见 SKILL.md §8.3），queued 静默超时 300s（`config.example.json`）、运行环境 config.json 实测 1200s——**轮询超过任务时长上限没有意义**：worker 要么已产出结果，要么已被 watchdog 判定卡死 kill。简单任务预算 60–120s；复杂任务预算取 `worker.task_timeout_sec` + 余量。到点仍无结果且 worker 存活 → 停止盲目轮询，先查卡死原因再决定重发。

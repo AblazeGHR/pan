@@ -1,7 +1,15 @@
-"""Worker — runtime cbc process management.
+"""Worker — runtime cbc/kimi/... CLI process management.
+
+概念模型（agent-naming 确立）：
+    Agent  = Session —— 逻辑编排对象（持久身份：收件箱 queue_pending /
+             agentLevel / managedBy 链，见 session.py）。投递/编排语义
+             （send/assign/report）都绑在它上面。
+    Worker = CLI 进程实例 —— 本模块管理的物理执行体：某个 Agent 名下的
+             临时 cbc/kimi/... 子进程。进程是顺带的：kill 即消失，可随时
+             重建（watchdog / pendingSpawn 自动补员）。
 
 Worker is ephemeral: kill it, the Worker is gone.
-All persistent data lives in Session (session.py).
+All persistent data lives in Session (session.py) — 即 Agent 的持久身份。
 """
 
 from __future__ import annotations
@@ -121,6 +129,15 @@ async def _maybe_inject_memory(s, text: str) -> str:
 
 @dataclass
 class Worker:
+    """One CLI process instance (physical executor) belonging to an Agent.
+
+    Agent = Session（编排对象，本类的 session_id 指向它）；Worker 只是该
+    Agent 当前活着的 CLI 子进程，随时可被 kill / 回收 / 重建。不要把
+    Worker 当持久实体——持久状态一律在 Session（queue_pending / history /
+    cliSessionId）。
+
+    字段说明：
+    """
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance

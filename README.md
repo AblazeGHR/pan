@@ -24,7 +24,7 @@
 ## 🧭 它是做什么的？（三句话讲明白）
 
 - 👔 **一个主管（Meta-Agent）**：不亲自干活，负责招人、派活、听汇报、验收——像个项目经理。
-- 🧑‍💻 **一群工人（Worker）**：每个 Worker 是一个独立运行的 AI 会话，有自己的记忆、人设和工具，在**独立 git worktree** 里干活，互不干扰。
+- 🧑‍💻 **一群工人（Agent/Worker）**：每个 Agent（= Session）是一个持久身份的 AI 会话，有自己的记忆、人设和工具，在**独立 git worktree** 里干活，互不干扰；Worker 是它的临时 CLI 进程实例（进程是顺带的，可随时重建）。
 - 🧍 **你站在中间**：像站在中控室大屏前的厂长——看得见每个工人在干嘛，随时可以插话、改派，或者直接接管某个 Worker 的终端自己上手。
 
 Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，让"多个 AI 一起干活"从「手动在多个终端窗口之间来回切换」变成「一条有条不紊的流水线」。
@@ -230,8 +230,8 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 
 | 概念 | 说明 |
 |------|------|
-| **Session** | 持久化的对话容器（`ses_<16hex>`），独立于 Worker 生命周期 |
-| **Worker** | 临时的 CLI Agent 子进程，绑定一个 Session；`stream` 长驻 / `one-shot` 一次性两种形态 |
+| **Agent = Session** | 逻辑编排对象：持久身份（`ses_<16hex>`），拥有收件箱 `queue_pending`、agentLevel、managedBy 链；投递/编排语义都绑在它上面。独立于 Worker 生命周期 |
+| **Worker** | 物理执行体：临时的 CLI 进程实例，属于某 Agent；`stream` 长驻 / `one-shot` 一次性两种形态，可随时 kill / 重建（进程是顺带的） |
 | **Meta-Agent（SMA）** | 主管角色：不亲自干活，只负责拆解、派活、听汇报、验收 |
 | **CLI Adapter** | 每种 CLI Agent 一个协议化适配器（cbc / kimi / opencode / claude / codex） |
 | **session_handoff** | 替身交接：创建孪生 Session 接替旧会话，关系网 / 订阅 / 报告随行 |
@@ -356,7 +356,7 @@ Worker 与具体 CLI 解耦：每种 CLI Agent 对应一个实现 `CliAdapter` �
 
 Meta-Agent 不是某个特殊程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件即可扮演「主管」：
 
-1. **能发指令**：通过 MCP 工具（如 `worker_spawn` / `worker_assign` / `worker_send` / `session_handoff`）或 HTTP API；
+1. **能发指令**：通过 MCP 工具（如 `agent_spawn` / `agent_assign` / `agent_send` / `session_handoff`，兼容别名 `worker_*`）或 HTTP API；
 2. **能收情报**：通过 WebSocket 订阅事件流（`worker.result` / `worker.status` / `worker.crashed`…），或订阅制报告落盘到自己的收件箱；
 3. **有身份**：Pan 记录谁在指挥，并对 Worker 做隔离防止越权。
 
@@ -367,7 +367,7 @@ Pan 内置 **SMA（Super Meta Agent）编排模板**（`manifest.json` 的 `sess
 SMA 的调度遵循一套方法论（固化在 `docs/skills/pan/SKILL.md`）：
 
 1. **决策三问**——先判断拆不拆：① 能真并行吗？② 拆了更快吗？③ 精度关键吗？任一不过 → 自己做；全过 → 并行派发；
-2. **并行派发**：`worker_assign` 异步分发到多个 Worker（各自独立 git worktree，避免提交冲突），立即返回不阻塞；
+2. **并行派发**：`agent_assign` 异步分发到多个 Agent（各自独立 git worktree，避免提交冲突），立即返回不阻塞；
 3. **订阅制汇报**：`report_subscribe` 把完成报告自动投进主管的落盘收件箱，掉线重连报告不丢；
 4. **trust-but-verify 验收**：合并汇报前逐项核对改动、跑测试验证；
 5. **合并汇报**：收回全部结果，汇总成一份交付。
@@ -571,13 +571,14 @@ Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部
 | `session_history` | 分页读取会话历史 |
 | `session_qq_subscribe` / `session_qq_unsubscribe` | 订阅 / 退订 QQ 会话 inbox 更新提醒（`@@@@by qq` 推送到收件箱） |
 | `report_subscribe` / `report_unsubscribe` | 订阅 / 退订被管会话的完成报告（自动投递到调用方收件箱，掉线不丢） |
-| `worker_spawn` | 为 Session 启动 worker 进程 |
-| `worker_task` | 给 worker 发任务（无 worker 自动 spawn，阻塞等结果） |
-| `worker_assign` | 异步派发任务，立即返回（编排首选） |
-| `worker_send` | 向存活 worker 追加消息（多轮协作，排队不打断） |
-| `worker_send_force` | 强制推送：重启 worker 再发（`worker_send` 送不到时的兜底） |
-| `worker_kill` | 终止 worker 进程（session 数据保留） |
-| `worker_list` | 列出运行中的 worker |
+| `agent_spawn` | 为 Agent（= Session）启动 worker 进程（一等工具） |
+| `agent_task` | 给 Agent 发任务（无活 worker 自动 spawn） |
+| `agent_assign` | 异步派发任务，立即返回（编排首选；taskId 幂等） |
+| `agent_send` | 向 Agent 发消息（多轮协作，排队不打断；无活 worker 入持久队列待投） |
+| `agent_send_force` | 强制推送：重启 worker 再发（`agent_send` 送不到时的兜底；无活 worker 直接入队） |
+| `agent_kill` | 终止 Agent 的 worker 进程（Agent 数据保留；无活 worker 时无害 no-op） |
+| `agent_list` | 列出全部 Agent（= Session 摘要，`session_list` 的别名） |
+| `worker_spawn` / `worker_task` / `worker_assign` / `worker_send` / `worker_send_force` / `worker_kill` / `worker_list` | **兼容别名（DEPRECATED）**：内部复用 `agent_*` 同一实现，建议改用 `agent_*`；仅 `worker_id` 进程寻址为别名独有遗留路径 |
 | `model_list` | 列出 adapter 可用模型 |
 | `pan_handbook` | 返回完整 Pan 编排手册（`docs/skills/pan/SKILL.md`） |
 
@@ -647,7 +648,7 @@ python -m packages.remote
 - **安全模型**：API 无鉴权，默认绑定 `127.0.0.1`（loopback）是有意为之。把 `PAN_HOST` 改成非 loopback 会把所有端点暴露到网络（`main.py` 启动时会告警）。安全重点在边界校验：workdir 路径逃逸校验、character_id 格式校验。
 - **端口速查**：Pan 主服务 8768（main）/ 8767（test）；Remote 状态 8769；NoneBot2 8080（不对外）；NapCat 3001 / LLOneBot 3002。
 - **Worker 超时语义**：stream running 按**任务运行时长**判定卡死（`worker.task_timeout_sec`，默认 1800s）；queued 用静默超时（`worker.timeout_sec`，默认 300s）——长思考 / 大文件读取不会被误杀。
-- **Worker 双模式**：`stream` 长驻（可挂载 MCP）；`one-shot` 一次性（仅 `output_mode=oneshot` 时启用）。派发统一走 `worker_assign` / `worker_send`（阻塞式 `worker_handoff` 已于 2026-08-26 移除，串行依赖同样走 assign + report_subscribe）。
+- **Worker 双模式**：`stream` 长驻（可挂载 MCP）；`one-shot` 一次性（仅 `output_mode=oneshot` 时启用）。派发统一走 `agent_assign` / `agent_send`（`worker_assign` / `worker_send` 为兼容别名；阻塞式 `worker_handoff` 已于 2026-08-26 移除，串行依赖同样走 assign + report_subscribe）。
 - **Memory 依赖与降级**：`minimal-requirements.txt` 不含 ML 链；启用向量检索需 `sentence-transformers`（web 端默认 embedding provider）。可选库缺失时懒加载 + ImportError 兜底自动降级，不影响 Core 启动；`jieba` 缺失会显著降低中文检索质量。
 - **QQ bot 进程管理**：main.py 按 `qq.enabled` 统一 spawn / 终止（写 `data/qq_bot.pid`）；`scripts/stop_pan.bat` 精确树杀，不全局杀 python.exe。
 - **worktree 无独立 .venv**：在 git worktree 里测试 / 运行时，统一使用主仓库的 `.venv`。

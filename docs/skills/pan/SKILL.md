@@ -1,11 +1,11 @@
 ---
 name: pan
-description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理会话（session）和 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发 worker、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。
+description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理 Agent（= Session，持久编排对象）及其 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发任务（agent_assign）、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。
 ---
 
 # Pan — CLI Agent 编排中间层（冷启动操作手册）
 
-Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通过 Pan MCP 工具调度多个 CLI Worker 进程（cbc / kimi / opencode / claude / codex 等多 adapter，持续增加中），每个 Worker 拥有独立的会话（Session）和记忆（workdir）。
+Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通过 Pan MCP 工具调度多个 CLI Agent（cbc / kimi / opencode / claude / codex 等多 adapter，持续增加中），每个 Agent 拥有独立的会话（Session）和记忆（workdir）；Worker 是它名下临时的 CLI 进程实例。
 
 > **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/archive/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——改内容先改主源，再复制到副本保持同步。MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
 >
@@ -18,7 +18,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
    - **项目级 `.mcp.json` 发现路径**：工具是 deferred 的 → `ToolSearch`（查询词 `pan`/`mcp`）→ `DeferExecuteTool` 调用。
    - **拿手册**：MCP 工具 `pan_handbook()` 直接返回本文件全文（§5「其他」）——接线完成后若不清楚编排流程，先调它再动手。
    - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3 / §10.2 G9）。
-2. 编排主链路：`session_create → report_subscribe（订阅）→ worker_assign → queue_pending 收完成报告 → session_get 查结果 → session_delete 收尾`。
+2. 编排主链路：`session_create → report_subscribe（订阅）→ agent_assign → queue_pending 收完成报告 → session_get 查结果 → session_delete 收尾`。
 3. **完成通知只有一条编排路径**：MCP `report_subscribe` → 报告落到自己的**落盘队列 `queue_pending`**（meta-agent 内部订阅，§3）。外部 WS 盯梢（`/ws/agent` / `monitor_workers.py`）仅**测试/排障/外部协调者**用，不是编排路径（§4）。
 4. 端口约定：main 分支默认 **8768**（test 分支 8767）；MCP server 默认连 `PAN_API_URL`（8768）。**关键**：MCP server 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务**同实例**（§3 三对齐），否则 `report_subscribe` / `qq_bind` 失效（§10.2 G9）。端口不符时用 `PAN_API_URL` 覆盖。
 
@@ -26,30 +26,32 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 
 | 概念 | 说明 |
 |------|------|
-| **Session** | 持久化的对话容器，包含 history、model、adapter、workdir 等配置。独立于 Worker 生命周期。 |
-| **Worker** | 临时的 CLI 子进程（cbc/kimi/opencode/claude/codex），绑定到一个 Session。可被 kill、回收、重建。 |
+| **Agent** | **逻辑编排对象 = Session**：持久身份（`ses_<16hex>`），拥有收件箱（`queue_pending`）、agentLevel、managedBy 链。投递/编排语义（`agent_assign` / `agent_send` / 报告投递）都绑在 Agent 上；进程是顺带的。 |
+| **Session** | 同 Agent（见上）：持久化的对话容器，包含 history、model、adapter、workdir 等配置。独立于 Worker 生命周期。 |
+| **Worker** | **物理执行体 = CLI 进程实例**：临时的 cbc/kimi/opencode/claude/codex 子进程，属于某 Agent。可被 kill、回收、随时重建（进程是顺带的）。 |
 | **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）、`kimi`（Kimi CLI）、`opencode`（OpenCode CLI）、`claude`（Claude Code CLI）、`codex`（OpenAI Codex CLI）——五个已内置注册。**adapter 列表持续增加——以实际为准**：用 `model_list` 或查注册表 `packages/core/adapters/__init__.py` 确认当前可用 adapter |
 | **Model** | AI 模型名称，如 `hy3`、`deepseek-v4-flash` |
 | **workdir** | Session 的工作目录，也是 Worker 进程的 `cwd`（见 §7.1） |
 | **taskSeq** | 每个任务的序号；用于配对任务与结果（完成报告里带 `taskId`） |
 
 关键规则：
+- **Agent = Session（编排对象），Worker = 进程（物理执行体）**：`agent_*` 工具以 session_id 寻址 Agent；无活进程也容忍（send 入队待投、kill 无害 no-op）。
 - Session 是持久化的——kill/回收 Worker 不会删除 Session 数据。
-- 一个 Session 同一时间只有一个 Worker（spawn 时若有旧 worker 先 kill）。
-- Worker 回复是异步的——`worker_assign` 返回 `queued`，随后 `report_subscribe` 订阅收完成报告，或 `session_get` 读取。
-- Worker 会被 watchdog 自动回收（空闲/静默超时），用前若 `workerStatus` 为 `null` 需重新 spawn。
+- 一个 Agent 同一时间只有一个 Worker（spawn 时若有旧 worker 先 kill）。
+- 回复是异步的——`agent_assign` 返回 `queued`，随后 `report_subscribe` 订阅收完成报告，或 `session_get` 读取。
+- Worker 会被 watchdog 自动回收（空闲/静默超时），用前若 `workerStatus` 为 `null` 需重新 `agent_spawn`（或直接 `agent_assign` 自动 spawn）。
 - 握手前提：`PAN_API_URL`（HTTP）必须指向实际运行端口。
 
 ## 2. 编排工作流（全景）
 
 ```
-session_create → report_subscribe → worker_assign → queue_pending 收报告 → 查结果 → 收尾
+session_create → report_subscribe → agent_assign → queue_pending 收报告 → 查结果 → 收尾
 ```
 
-### 2.1 并行 fan-out（推荐主流程：assign + report_subscribe）
+### 2.1 并行 fan-out（推荐主流程：agent_assign + report_subscribe）
 
 ```
-1. 为每个任务创建/复用 session
+1. 为每个任务创建/复用 session（= Agent）
    session_create(name="fix-h1", adapter="cbc", model="hy3")
    → 返回 id: "ses_abc123..."（后续请求体的 session_id / MCP 的 session_id 用它，字段映射见 references/http-api.md）
 
@@ -58,8 +60,8 @@ session_create → report_subscribe → worker_assign → queue_pending 收报�
    → {"subscribed": true, "reportSubscriptions": [...]}
 
 3. 异步分派（立即返回，不阻塞）
-   worker_assign(session_id="ses_a...", text="任务A")
-   worker_assign(session_id="ses_b...", text="任务B")
+   agent_assign(session_id="ses_a...", text="任务A")
+   agent_assign(session_id="ses_b...", text="任务B")
    → 都返回 {"status": "queued", "workerId": "...", "sessionId": "..."}
 
 4. worker 完成（done/error）→ 完成报告自动入你的落盘队列 queue_pending（§3）
@@ -69,29 +71,29 @@ session_create → report_subscribe → worker_assign → queue_pending 收报�
 6. 收尾：session_delete / session_batch_delete 释放资源（§2.5 / §5）
 ```
 
-**不需要手动轮询**。assign 之后 worker 会自动 spawn（如果该 session 无活 worker）。
+**不需要手动轮询**。agent_assign 之后 worker 会自动 spawn（如果该 Agent 无活 worker）。
 
 ### 2.2 串行依赖步骤（worker_handoff 已移除）
 
-> `worker_handoff` 与 `POST /api/handoff` 已于 2026-08-26 **彻底移除并归档**（原为立项 4.7 弃用的阻塞原语）。串行依赖同样用 `worker_assign` + `report_subscribe`（§3）：派发后订阅完成报告，报告入你的落盘队列 `queue_pending` 即「串行下一步」的信号——"等"是 meta-agent 的默认 idle 状态，而非阻塞调用。派发带 `task_id` 幂等（§7.4）。
+> `worker_handoff` 与 `POST /api/handoff` 已于 2026-08-26 **彻底移除并归档**（原为立项 4.7 弃用的阻塞原语）。串行依赖同样用 `agent_assign` + `report_subscribe`（§3）：派发后订阅完成报告，报告入你的落盘队列 `queue_pending` 即「串行下一步」的信号——"等"是 meta-agent 的默认 idle 状态，而非阻塞调用。派发带 `task_id` 幂等（§7.4）。
 
-### 2.3 在已有会话上继续对话（worker_assign / worker_send / worker_send_force）
+### 2.3 在已有会话上继续对话（agent_assign / agent_send / agent_send_force）
 
-三种向已有 session/worker 派活的方式，区别如下：
+三种向已有 Agent（= session）派活的方式，区别如下（`worker_assign` / `worker_send` / `worker_send_force` 为兼容别名，行为一致）：
 
 | 方式 | 目标 | 行为 | 适用 |
 |------|------|------|------|
-| `worker_assign(session_id, text, task_id?)` | 以 **session** 为目标派**新任务** | 异步分派，立即返回 queued；worker 自动 spawn（该 session 无活 worker 时）；完成经 `report_subscribe` 内部报告回调（§3）；传 `task_id` 幂等（§7.4） | **新任务 / 并行 fan-out / 幂等重试（默认首选）** |
-| `worker_send(worker_id, text)` | 向**已有活 worker** 发消息（多轮协作） | 消息排队，worker 空闲（当前任务完成后）才处理，**不打断**进行中任务；worker 已死会报错，需先 `worker_spawn` | 多轮追问 / 补充线索 / 不着急的后续指令（排队等待） |
-| `worker_send_force(worker_id, text)` | 向**已有活 worker** 强制送达 | **restart + send**：重启 worker 进程再发消息，立即生效，**打断**进行中任务 | 操作约束 / 方向变更 / 紧急指令 / worker 卡死·忙·连接异常时兜底 |
+| `agent_assign(session_id, text, task_id?)` | 以 **Agent** 为目标派**新任务** | 异步分派，立即返回 queued；worker 自动 spawn（无活 worker 时）；完成经 `report_subscribe` 内部报告回调（§3）；传 `task_id` 幂等（§7.4） | **新任务 / 并行 fan-out / 幂等重试（默认首选）** |
+| `agent_send(session_id, text)` | 向**已有 Agent** 发消息（多轮协作） | 消息排队，目标空闲（当前任务完成后）才处理，**不打断**进行中任务；**无活 worker 不报错**——入持久队列，watchdog 自动 spawn 后分发 | 多轮追问 / 补充线索 / 不着急的后续指令（排队等待） |
+| `agent_send_force(session_id, text)` | 向**已有 Agent** 强制送达 | **restart + send**：重启 worker 进程再发消息，立即生效，**打断**进行中任务；无活 worker 时直接入队不报错 | 操作约束 / 方向变更 / 紧急指令 / worker 卡死·忙·连接异常时兜底 |
 
 ```
-1. session_list()  → 找到目标 session_id 与 workerStatus
+1. agent_list()（= session_list）→ 找到目标 session_id 与 workerStatus
 2. 按需选择：
-   - 新任务 → worker_assign(session_id, text)      # worker 自动 spawn，无需手动 spawn
-   - 已有 worker 的补充指令 → worker_send(worker_id, text)      # 排队，不打断
-   - 需打断 / 紧急 / 卡死兜底 → worker_send_force(worker_id, text)   # restart+send，立即送达
-   - workerStatus 为 null（已回收/已死）→ 先 worker_spawn(session_id) 重建，再视情况 assign / send
+   - 新任务 → agent_assign(session_id, text)      # worker 自动 spawn，无需手动 spawn
+   - 补充指令 → agent_send(session_id, text)      # 排队，不打断；无活 worker 入队待投
+   - 需打断 / 紧急 / 卡死兜底 → agent_send_force(session_id, text)   # restart+send，立即送达
+   - workerStatus 为 null（已回收/已死）→ 先 agent_spawn(session_id) 重建，再视情况 assign / send
 ```
 
 任务文本的写法（取决于 `cliSessionId` 有无上下文，见 §2.6）。
@@ -125,7 +127,7 @@ session_create → report_subscribe → worker_assign → queue_pending 收报�
 | **非空** | worker 将 `--resume` 恢复已有完整上下文 | **一律用简短指令**（追加任务 / 恢复中断 / 串行下一步 / 追问修正）：指出现有上下文里要做什么即可，**不要重发完整任务描述**——上下文已有原任务与进度，重发浪费 token，且措辞差异可能让 worker 误判为新任务/新要求 |
 | **为空 / null** | 新 session 或 worker 从未建立，worker 无上下文 | **任务描述必须自包含**：背景 / 目标 / 涉及文件（相对 workdir）/ 边界 / 验收标准 |
 
-- 与 §2.3 的关系：§2.3 解决「找 session + 选择派活方式」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`worker_spawn`（`workerStatus` 为 null 时）→ 简短指令。
+- 与 §2.3 的关系：§2.3 解决「找 session + 选择派活方式」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`agent_spawn`（`workerStatus` 为 null 时）→ 简短指令。
 
 ### 2.7 替身交接（session_handoff）：精简上下文 / 切换 adapter
 
@@ -146,11 +148,11 @@ session_handoff(session_id="ses_a...",
 4. **B.system_prompt = handoff_prompt 与 A 原 system_prompt 拼接**（分「交接上下文 / 原 system prompt」两节）。
 5. **重命名**：A → `(archive) <原名>`，B → `<原名>`；A 的原关系网解除。
 
-交接后 B 即可 `worker_assign` 派活；切换 adapter 的典型用法：`copy_settings=false + adapter="kimi" + handoff_prompt=...`。
+交接后 B 即可 `agent_assign` 派活；切换 adapter 的典型用法：`copy_settings=false + adapter="kimi" + handoff_prompt=...`。
 
 ## 3. 完成通知：report_subscribe → queue_pending（meta-agent 内部订阅，唯一编排路径）
 
-meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `report_subscribe` 把目标 session 的完成报告（done/error）推送到你的**落盘队列** `queue_pending`，由 consumer 批量拼成一条消息唤醒你。主链路：`session_create → report_subscribe（订阅）→ worker_assign → queue_pending 等完成 → session_get → session_delete`（订阅在 assign 前或后均可）。
+meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `report_subscribe` 把目标 session 的完成报告（done/error）推送到你的**落盘队列** `queue_pending`，由 consumer 批量拼成一条消息唤醒你。主链路：`session_create → report_subscribe（订阅）→ agent_assign → queue_pending 等完成 → session_get → session_delete`（订阅在 assign 前或后均可）。
 
 > **为什么是唯一路径**：异步、落盘可恢复（跨服务重启不丢）、跨协调者、不依赖外部会话/WS。外部 WS 盯梢（`/ws/agent` / `monitor_workers.py`）不再作为编排路径——只供测试 / 排障 / 外部协调者使用（§4 → `references/ws-protocol.md`）。
 
@@ -163,7 +165,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | 服务端含 `report-subscribe` 路由 | 该端点较新；**运行中的服务可能落后于 MCP 工具版本** | `report_subscribe` 返回 `{"detail":"Not Found"}`（404，实测于 8768/main；本分支 `server.py` 已含）（§10.2 G10） |
 
 ```
-1. worker_assign 前先订阅（前置见上表）：
+1. agent_assign 前先订阅（前置见上表）：
    report_subscribe(session_id="ses_managed...")
    → {"subscribed": true, "reportSubscriptions": [...]}
 
@@ -188,7 +190,9 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 ## 5. 可用 MCP 工具
 
-> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 27 个工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。
+> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 35 个工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。
+>
+> **命名分层（agent-naming 确立）**：`agent_*` 是**一等工具**（编排对象 = Agent = Session，以 session_id 寻址，无活进程也容忍）；`worker_*` 是**兼容别名（DEPRECATED）**，内部委托同一实现，仅 `worker_id` 进程寻址为别名独有遗留路径——新代码一律用 `agent_*`。
 >
 > **巡检优先 `session_list(summary=true)`**：旧版 `session_list` 返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§10.2 G8）。**现在 `session_list(summary=true)` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），用于巡检/查归属**；确认某个 session 详情再用 `session_get(session_id, limit=15)`。查"自己管了哪些"直接用 `session_managed()`。
 >
@@ -199,7 +203,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?`, `session_template?`, `character_id?`, `system_prompt?`, `game_id?`, `pan_access?` | 创建会话。`session_template` 用模板创建；`pan_access` 传能力字段 dict（`restrict_to_managed`/`can_claim_unmanaged`/`auto_claim_created`）；显式字段 > 模板值 > 默认值。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§7.1） |
-| `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 CLI 历史会话**（cbc 项目 / kimi 工作区 / opencode 会话，adapter 以实际为准）。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → worker_assign → session_get` |
+| `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 CLI 历史会话**（cbc 项目 / kimi 工作区 / opencode 会话，adapter 以实际为准）。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → agent_assign → session_get` |
 | `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
 | `session_managed` | (无) | 返回调用者管理的 session 摘要 `[{id, name, workerStatus, updatedAt}]`（需 `PAN_AGENT_SESSION_ID`） |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
@@ -217,17 +221,31 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 > **复用已删除的 Pan session（2026-08-23 实测）**：Pan session 被 `session_delete`/`session_batch_delete` 删掉后，其底层 **CLI 会话（`~/.codebuddy/projects/` 或 `data/workdirs/<name>/`）仍保留**。可 `session_import(action="list_projects")` 找到对应 project_dir → `list_sessions` 找到该会话 → `import` 恢复成新 Pan session（含全部历史上下文）。**节省资源**：不用重建后重新探索/初始化，尤其适合「worker 已完成任务但需继续排查/跟进」的场景——把刚删的 worker session 恢复后继续派活，worker 带着全部上下文直接上手。
 
-### Worker 管理
+### Agent 编排（一等工具，优先用）
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
-| `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?`, `workdir?` | 生成 worker；给 name 则先建 session。已有 worker 会先 kill（一个 session 一个 worker） |
-| `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | 发任务（异步，返回 queued）；worker 不存在时自动 spawn；`source` 默认 `"agent"` |
-| `worker_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out / 新任务默认首选）：立即返回 queued，worker 自动 spawn；完成经 `report_subscribe` 内部报告回调（§3）/ `session_get` 读取。传 `task_id` 幂等（同 taskId 重发不双跑，见 §7.4） |
-| `worker_send` | `worker_id`, `text` | 向已有活 worker 发消息（多轮协作，§2.3）；**仅用于非即时补充**：消息排队送达，worker 空闲（当前任务完成后）才处理，不打断进行中的任务；需打断/立即生效用 `worker_send_force`；Pan 内 session 自动加 `////by agent` 前缀（§7.5）；worker 已死会报错（需先 `worker_spawn`） |
-| `worker_send_force` | `worker_id`, `text` | **强制推送** = restart + send（§2.3）：目标 worker 卡死/忙/连接异常导致普通 `worker_send` 无法送达时兜底；**也用于需要打断 worker 当前执行的时效性消息**（如操作约束、危险操作警告）——restart 后立即送达，不等当前任务排完。先重启 worker 进程再发消息，保证送达；自动加 `////by agent` 前缀（§7.5），restart/send 任一失败返回后端错误 |
-| `worker_kill` | `worker_id` | 终止 worker 进程（session 保留） |
-| `worker_list` | (无) | 列出所有运行中 worker |
+| `agent_spawn` | `session_id`, `adapter?`, `model?` | 为 Agent（= session）生成 worker 进程。已有 worker 会先 kill（一个 Agent 一个 worker） |
+| `agent_task` | `session_id`, `text`, `source?` | 发任务（异步，返回 queued）；无活 worker 自动 spawn；`source` 默认 `"agent"` |
+| `agent_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out / 新任务默认首选）：立即返回 queued，worker 自动 spawn；完成经 `report_subscribe` 内部报告回调（§3）/ `session_get` 读取。传 `task_id` 幂等（同 taskId 重发不双跑，见 §7.4） |
+| `agent_send` | `session_id`, `text` | 向 Agent 发消息（多轮协作，§2.3）；**仅用于非即时补充**：消息排队送达，不打断进行中任务；**无活 worker 不报错**——入持久队列（返回 `pendingSpawn=true`），watchdog 自动 spawn 后分发；需打断/立即生效用 `agent_send_force`；Pan 内 session 自动加 `////by agent` 前缀（§7.5） |
+| `agent_send_force` | `session_id`, `text` | **强制推送** = restart + send（§2.3）：卡死/忙/连接异常导致普通 `agent_send` 无法送达时兜底；**也用于需要打断当前执行的时效性消息**（操作约束、危险操作警告）；无活 worker 时直接入队不报错；自动加 `////by agent` 前缀（§7.5） |
+| `agent_kill` | `session_id` | 终止 Agent 的 worker 进程（Agent/session 数据保留）；**无活 worker 时无害 no-op**（返回 `killed=false`） |
+| `agent_list` | `summary?` | 列出全部 Agent（= session 摘要）；`session_list` 的别名，参数/返回一致 |
+
+### Worker 管理（兼容别名，DEPRECATED → agent_*）
+
+> 下表工具内部委托 `agent_*` 同一实现（session_id 寻址行为完全一致）；仅 **`worker_id` 进程寻址**为别名独有遗留路径。新代码一律用 `agent_*`。
+
+| 工具 | 参数 | 说明 |
+|------|------|------|
+| `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?`, `workdir?` | `agent_spawn` 别名（session_id 调用时）；`name` 直接建新 session 并 spawn 为遗留独有路径 |
+| `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | `agent_task` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径 |
+| `worker_assign` | `session_id`, `text`, `task_id?` | `agent_assign` 的精确别名（委托同一实现，契约一致） |
+| `worker_send` | `worker_id?`, `session_id?`, `text` | `agent_send` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径（worker 已死报 `worker_not_found`） |
+| `worker_send_force` | `worker_id?`, `session_id?`, `text` | `agent_send_force` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径 |
+| `worker_kill` | `worker_id?`, `session_id?` | `agent_kill` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径 |
+| `worker_list` | (无) | 列出所有**运行中的 worker 进程**（物理层面视图；编排巡检用 `agent_list`） |
 
 ### 报告订阅（meta-agent 内部）
 
@@ -257,9 +275,9 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | `"error"` | 任务失败 | 读 `result` 字段取错误 |
 | `"pending"` | 同 task_id 的任务仍在进行中（assign 幂等返回） | 用同 task_id 重试或 session_get 补查 |
 
-`session_list` 的 `workerStatus`：
+`session_list`（= `agent_list`）的 `workerStatus`：
 - `"queued"` / `"running"` / `"idle"`（可发任务）/ `"error"` / `"held"` / `"zombie"`（跳过回收）
-- `null` → 无 worker（watchdog 已回收或未 spawn，需 `worker_spawn`）
+- `null` → 无 worker（watchdog 已回收或未 spawn，需 `agent_spawn`，或直接 `agent_assign` 自动 spawn）
 
 ## 7. 坑与约定
 
@@ -293,19 +311,19 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 - `last_activity` 每次 stdout 有事件即刷新；stream `running` 的卡死判定基于**任务运行时长**（`_task_started_at` 起算）而非静默时长——**长思考 / 大文件读取不会触发超时**，只有任务整体超时才判卡死。
 - **坑 A（历史）**：旧版静默超时（无输出即 kill）会误杀深度推理/大文件读取；2026-08-17 已改为任务运行时长判定（L1 修复），现只须关注任务总时长是否超出预算。仍建议复杂任务拆小、读大文件分段。
-- 回收后 `workerStatus` 变 `null`，session 数据完好；下次 `worker_spawn`/`worker_assign` 自动重建并恢复上下文。
+- 回收后 `workerStatus` 变 `null`，session 数据完好；下次 `agent_spawn`/`agent_assign` 自动重建并恢复上下文。
 - MCP one-shot 模式由读取超时承担（同一 `timeout_sec`），watchdog 只做 idle 回收。
 - **全局 watchdog**（服务级，生命周期=Pan）：周期扫描"落盘队列 `queue_pending` 非空但没有活 worker 的 session"，自动 `create_worker` 恢复——自愈（立项 4.4）。
 
-### 7.4 taskId 幂等（assign）——worker_handoff 已移除
+### 7.4 taskId 幂等（agent_assign）——worker_handoff 已移除
 
-- `worker_handoff`（MCP）与 `POST /api/handoff` 已于 **2026-08-26 彻底移除**（原为立项 4.7 弃用后归档）。串行依赖与并行 fan-out 一律 `worker_assign` + `report_subscribe`（§3）。
+- `worker_handoff`（MCP）与 `POST /api/handoff` 已于 **2026-08-26 彻底移除**（原为立项 4.7 弃用后归档）。串行依赖与并行 fan-out 一律 `agent_assign`（别名 `worker_assign`）+ `report_subscribe`（§3）。
 - 理由（原立项 4.7）："等"应是 meta-agent 的默认 idle 状态，而非阻塞调用；阻塞会占用协调者、易被中断。
-- **幂等**：`worker_assign` 的 `task_id` 是幂等键——重发同 task_id：已完成 → 返回缓存结果；进行中 → 返回 `{"status":"pending",...}` 不重复入队（防双跑）。taskId 注册表有 TTL 惰性清理。
+- **幂等**：`agent_assign` 的 `task_id` 是幂等键——重发同 task_id：已完成 → 返回缓存结果；进行中 → 返回 `{"status":"pending",...}` 不重复入队（防双跑）。taskId 注册表有 TTL 惰性清理。
 
 ### 7.5 `////by agent` 前缀
 
-- `worker_send` / `worker_send_force` 在 Pan 内 session（环境注入 `PAN_AGENT_SESSION_ID`/`PAN_AGENT_SESSION_TITLE`）下发消息时自动加前缀（立项 4.8）：
+- `agent_send` / `agent_send_force`（兼容别名 `worker_send` / `worker_send_force`）在 Pan 内 session（环境注入 `PAN_AGENT_SESSION_ID`/`PAN_AGENT_SESSION_TITLE`）下发消息时自动加前缀（立项 4.8）：
 
 ```
 ////by agent : ses_xxx | session-title
@@ -313,8 +331,8 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 ```
 
 - 用途：目标 worker 区分"meta-agent 编排消息"与真实用户消息。
-- 编排时注意：目标 worker 收到带该前缀的消息应识别为编排指令；`worker_assign` 不发此前缀（只有 `worker_send` / `worker_send_force` 拼）。
-- **时效性选择规则**：普通补充信息/线索 → `worker_send`（排队送达，worker 空闲时处理）；**需要打断当前执行的时效性消息**（如操作约束、危险操作警告）→ `worker_send_force`（restart+send，立即生效，不等当前任务完成）。
+- 编排时注意：目标 worker 收到带该前缀的消息应识别为编排指令；`agent_assign` 不发此前缀（只有 `agent_send` / `agent_send_force` 拼）。
+- **时效性选择规则**：普通补充信息/线索 → `agent_send`（排队送达，空闲时处理）；**需要打断当前执行的时效性消息**（如操作约束、危险操作警告）→ `agent_send_force`（restart+send，立即生效，不等当前任务完成）。
 
 ### 7.6 pending_signal 队列（+ 落盘 queue_pending）
 
@@ -335,7 +353,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 1. **先查后做**：`session_list()` 了解当前状态再操作。
 2. **命名规范**：Session 名短横线连接、有语义（`fix-h1`、`debug-auth`）；同名不可重复。
-3. **并行 fan-out 用 `worker_assign` + `report_subscribe`**（§3）；串行依赖同样走 assign + report_subscribe（§2.2/§7.4）。
+3. **并行 fan-out 用 `agent_assign` + `report_subscribe`**（§3）；串行依赖同样走 assign + report_subscribe（§2.2/§7.4）。
 4. **上下文过大 / 要切 adapter 用 `session_handoff`**（§2.7）：替身交接创建孪生 session B 接替 A，A 归档可读。
 5. **完成通知走 `report_subscribe` → `queue_pending`**（内部订阅，§3）；外部 WS 盯梢仅测试/排障用（§4）。
 6. **订阅即接管**：`report_subscribe` 后完成报告自动入队；不想要时 `report_unsubscribe` 退订（仅自己管理的 session）。
@@ -349,17 +367,17 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 ## 9. 常见问题
 
-**Q: worker_task 返回 "Worker process dead"？**
-A: Worker 崩溃/已回收。`worker_spawn(session_id=...)` 重新生成（自动恢复上下文）。
+**Q: agent_task（或 worker_task）返回 "Worker process dead"？**
+A: Worker 崩溃/已回收。`agent_spawn(session_id=...)` 重新生成（自动恢复上下文）。
 
-**Q: worker_task 后长时间无回复？**
+**Q: agent_task 后长时间无回复？**
 A: 检查 `workerStatus`——`"idle"` 说明任务已完成但结果未读取，`session_get` 即可；`"running"` 且静默超时可能已被 watchdog 回收。
 
 **Q: 想切换模型？**
 A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model——idle worker 自动 respawn 生效，running worker 回 idle 时自动重启（不能热切换运行中的 Worker）。
 
 **Q: Worker 被 watchdog 回收了？**
-A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `worker_spawn` 或 `worker_assign`，自动重建。
+A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `agent_spawn` 或 `agent_assign`，自动重建。
 
 **Q: MCP 工具连不上 Pan？**
 A: `PAN_API_URL` 端口要指向实际运行的 port（main 分支 8768，MCP 默认 8768）。MCP server 用 `--pan-url` 或环境变量覆盖。
@@ -411,11 +429,11 @@ A: 检查 §3 前置条件：目标 session 是否有 `managed_by`、是否已 `
 1. 确认 MCP server 目标端口 = `PAN_AGENT_SESSION_ID` 所在端口（否则 G9/G10 命中，退回 references/http-api.md 的轮询兜底）。
 2. `session_create(name, adapter="cbc", model="hy3")` → 记下返回 `id`（= 后续 `session_id` 入参）。
 3. `report_subscribe(session_id)`（§3；若可用）。
-4. `worker_assign(session_id, text)` 立即返回 `queued`（自动 spawn，无需手动 `worker_spawn`；§2.1）。
+4. `agent_assign(session_id, text)` 立即返回 `queued`（自动 spawn，无需手动 `agent_spawn`；§2.1）。
 5. 等 `queue_pending` 完成报告（兜底：轮询 `session_get(session_id, limit=15)` 直到 `lastResult.status=="done"`，≤30s 内完成，按 §6 不重发）。
 6. 读 `lastResult.result`。
 7. `session_delete(session_id)` 收尾（注意 §7.1 G11 workdir 残留）。
-8. **避免**全量 `session_list`（G8）；状态巡检用 `worker_list` + 定向 `session_get`。
+8. **避免**全量 `session_list`（G8）；状态巡检用 `agent_list` + 定向 `session_get`。
 
 ---
 
