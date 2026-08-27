@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useEditorStore } from '@/stores/editorStore';
@@ -36,6 +36,7 @@ import {
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isEditorRoute = location.pathname === '/editor';
   const { isMobile } = useMediaQuery();
 
@@ -384,7 +385,15 @@ export function Sidebar() {
               session={sessions.find((s) => s.id === menuSession)!}
               position={menuPosition}
               onClose={() => setMenuSession(null)}
-              onManage={setManageSessionId}
+              onManage={(id) => {
+                if (isMobile) {
+                  // 移动端：关闭抽屉后进入整页 Manage（不再弹 Modal）
+                  useUIStore.getState().setMobileSidebarOpen(false);
+                  navigate(`/manage/${id}`);
+                } else {
+                  setManageSessionId(id);
+                }
+              }}
               onPostbox={setPostboxSessionId}
             />
           )}

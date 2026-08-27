@@ -100,6 +100,9 @@ interface UIStore {
   bubbleViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
+  /** Mobile drawer (hamburger) open state — store-backed so route changes /
+   *  other components (e.g. the session Manage page) can close it. */
+  mobileSidebarOpen: boolean;
   groupBy: GroupMode;
   searchQuery: string;
   sortBy: SortMode;
@@ -112,6 +115,7 @@ interface UIStore {
   toggleBubbleView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
+  setMobileSidebarOpen: (open: boolean) => void;
   setGroupBy: (mode: GroupMode) => void;
   cycleGroupBy: () => void;
   setSearchQuery: (q: string) => void;
@@ -136,6 +140,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
+  mobileSidebarOpen: false,
   groupBy: loadGroupBy(),
   searchQuery: '',
   sortBy: loadSortBy(),
@@ -172,6 +177,10 @@ export const useUIStore = create<UIStore>((set, get) => ({
     const next = !get().sidebarCollapsed;
     set({ sidebarCollapsed: next });
     persistSidebarCollapsed(next);
+  },
+
+  setMobileSidebarOpen: (open) => {
+    set({ mobileSidebarOpen: open });
   },
 
   setGroupBy: (mode) => {
