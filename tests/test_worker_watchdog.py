@@ -539,6 +539,86 @@ def test_consumer_mcp_refreshes_last_activity_on_idle(monkeypatch, tmp_path):
     _cleanup()
 
 
+def test_idle_reclaim_with_real_stdout_loop():
+    """回归（252c41d）：stdout 读超时分支不得刷新 last_activity。
+
+    真实组合：_read_stdout 循环（哑 stdout 永久静默，持续走 read timeout
+    分支）+ _watchdog，复现生产 spawn 后的并发结构。
+    旧行为：每 60s 读超时刷新一次 last_activity → idle_for 永远到不了
+    阈值 → idle 回收永不触发（且 queued 静默超时一并失效）。
+    修复后：last_activity 只由真实输出刷新；idle 超过 idle_sec 即被
+    真 kill_worker 回收。
+    """
+    _cleanup()
+    s = _setup_session()
+
+    class _HangingStdout:
+        """永不产出数据的哑 stdout：read 挂起直到被 wait_for 取消。"""
+
+        async def read(self, n):
+            await asyncio.Event().wait()  # 无 set 者 → 只能靠超时/取消离开
+
+    class FakeProc:
+        def __init__(self):
+            self.stdout = _HangingStdout()
+            self.returncode = None
+            self.pid = 424242
+
+    w = worker.Worker(
+        worker_id="worker-stdout-loop",
+        session_id=s.id,
+        adapter=CbcAdapter(),
+        status="idle",
+        process=FakeProc(),
+        pending_signal=asyncio.Queue(),
+        _replaying=False,
+        last_activity=time.monotonic(),  # 刚进入 idle（而非远古时间戳）
+    )
+    worker.workers[w.worker_id] = w
+
+    # Real kill_worker；仅 stub 进程树/终端 kill（同 self-cancel 回归测试）
+    orig_kpt = worker._kill_process_tree
+    orig_ktt = worker._kill_takeover_terminal
+    worker._kill_process_tree = AsyncMock()
+    worker._kill_takeover_terminal = AsyncMock()
+
+    worker._STDOUT_READ_TIMEOUT_SEC = 0.01  # 哑 stdout 立刻走读超时分支
+    worker._WATCHDOG_TICK_SEC = 0.02
+    worker._WORKER_TIMEOUT_SEC = 999
+    worker._WORKER_IDLE_SEC = 0.1
+
+    la_before = w.last_activity
+    try:
+        async def run():
+            # 生产组合：spawn 时同时启动 stdout 循环与 watchdog
+            w._stdout_task = asyncio.create_task(worker._read_stdout(w))
+            wd = asyncio.create_task(worker._watchdog(w))
+            await asyncio.sleep(0.5)  # 覆盖 ≥25 个 watchdog tick、≥50 次读超时
+            assert w.worker_id not in worker.workers, (
+                "idle worker with silent-but-live stdout loop was not reclaimed "
+                "(read-timeout branch must NOT refresh last_activity)"
+            )
+
+        asyncio.run(run())
+    finally:
+        if w._stdout_task:
+            w._stdout_task.cancel()
+        worker._kill_process_tree = orig_kpt
+        worker._kill_takeover_terminal = orig_ktt
+        worker._STDOUT_READ_TIMEOUT_SEC = 60.0
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    # 读取循环全程未刷新活性时间戳（刷新与否直接决定回收能否触发）
+    assert w.last_activity == la_before, (
+        f"last_activity was refreshed by the silent-stdout loop: "
+        f"{la_before} -> {w.last_activity}"
+    )
+    print("PASS: idle reclaim works with a real silent stdout loop")
+    _cleanup()
+
+
 if __name__ == "__main__":
     test_timeout_kills_running_worker()
     test_active_running_worker_not_killed()
@@ -553,4 +633,5 @@ if __name__ == "__main__":
     test_watchdog_idle_reclaim_no_zombie()
     test_watchdog_self_cancel_regression()
     test_consumer_mcp_refreshes_last_activity_on_idle()
+    test_idle_reclaim_with_real_stdout_loop()
     print("\n=== ALL WATCHDOG TESTS PASSED ===")

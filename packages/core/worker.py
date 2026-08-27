@@ -264,6 +264,13 @@ def _mcp_configured(s: _sess.Session | None) -> bool:
 # ── stdout reader ──
 
 
+# stdout 分块读超时：仅用于周期性把事件循环交还（可取消、可重试），
+# 属「cbc 静默」正常态 —— 超时不代表不活跃，不据此刷新 last_activity
+# （刷新会导致 stream worker 的 idle 回收 / queued 静默超时永不触发，
+# 回归来源 252c41d）。活性基准见 _read_stdout 的有效输出路径。
+_STDOUT_READ_TIMEOUT_SEC: float = 60.0
+
+
 async def _iter_stdout_lines(w: Worker):
     """分块读取 worker stdout，按换行切分产出完整行。
 
@@ -276,10 +283,16 @@ async def _iter_stdout_lines(w: Worker):
     buf = b""
     while True:
         try:
-            chunk = await asyncio.wait_for(w.process.stdout.read(65536), timeout=60)
+            chunk = await asyncio.wait_for(
+                w.process.stdout.read(65536), timeout=_STDOUT_READ_TIMEOUT_SEC)
         except asyncio.TimeoutError:
-            _log.warning("[Worker %s] stdout 读取超时（cbc 静默），继续等待", w.worker_id)
-            w.last_activity = time.monotonic()
+            # cbc 静默（长思考 / idle 等待新任务）是正常状态，不代表不活跃；
+            # last_activity 只由真实输出路径（_read_stdout 有效事件）与任务
+            # 入队刷新。此处若刷新会让 watchdog 的 idle/queued 判定永不触发。
+            _log.debug(
+                "[Worker %s] stdout 静默 %.0fs（read timeout），继续等待",
+                w.worker_id, _STDOUT_READ_TIMEOUT_SEC,
+            )
             continue
         if not chunk:
             break  # EOF
