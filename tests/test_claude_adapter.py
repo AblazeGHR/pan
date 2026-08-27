@@ -21,6 +21,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core.adapters import ClaudeAdapter
@@ -35,6 +37,13 @@ CLAUDE_PROBE_SESSION_ID = "3546578e-b946-483d-9907-d6bbf80c08c4"
 CLAUDE_PROBE_CWD = r"C:\Users\14709\AppData\Local\Temp\claude-probe"
 CLAUDE_PROBE_PROJECT_DIR = (
     Path.home() / ".claude" / "projects" / "C--Users-14709-AppData-Local-Temp-claude-probe"
+)
+
+# True skip (not print-and-return) so absent probe data is visible in the
+# pytest report instead of silently inflating the PASS count.
+PROBE_AVAILABLE = CLAUDE_PROBE_PROJECT_DIR.exists()
+_probe = pytest.mark.skipif(
+    not PROBE_AVAILABLE, reason="claude probe dir absent (machine-local data)"
 )
 
 
@@ -124,13 +133,10 @@ def test_resolve_shim_none_when_missing():
     print("PASS: resolve returns None when no real entry exists")
 
 
+@pytest.mark.skipif(shutil.which("claude") is None, reason="claude not on PATH")
 def test_runtime_argv_avoids_cmd_shim():
     """Integration: on a machine with claude installed, the resolved runtime
     argv prefix must NOT be the .CMD shim (which would garble Chinese args)."""
-    which = shutil.which("claude")
-    if not which:
-        print("SKIP: test_runtime_argv_avoids_cmd_shim (claude not on PATH)")
-        return
     argv = ClaudeAdapter()._claude_argv
     assert argv and argv[0]
     # the pitfall we must avoid: launching via cmd.exe through a .CMD shim
@@ -354,19 +360,15 @@ def test_takeover_command_empty_without_cli_id():
 
 # ── sessions provider (real probe, best-effort) ──
 
+@_probe
 def test_session_exists_probe():
-    if not CLAUDE_PROBE_PROJECT_DIR.exists():
-        print("SKIP: test_session_exists_probe (probe dir absent)")
-        return
     assert claude_sessions.session_exists(CLAUDE_PROBE_SESSION_ID, CLAUDE_PROBE_CWD) is True
     assert claude_sessions.session_exists("no-such-session-id", CLAUDE_PROBE_CWD) is False
     print("PASS: session_exists (probe)")
 
 
+@_probe
 def test_parse_history_probe():
-    if not CLAUDE_PROBE_PROJECT_DIR.exists():
-        print("SKIP: test_parse_history_probe (probe dir absent)")
-        return
     history = claude_sessions.parse_history(CLAUDE_PROBE_SESSION_ID, CLAUDE_PROBE_CWD)
     roles = [h["role"] for h in history]
     assert "user" in roles
@@ -376,10 +378,8 @@ def test_parse_history_probe():
     print("PASS: parse_history (probe)")
 
 
+@_probe
 def test_get_raw_usage_probe():
-    if not CLAUDE_PROBE_PROJECT_DIR.exists():
-        print("SKIP: test_get_raw_usage_probe (probe dir absent)")
-        return
     usage = claude_sessions.get_raw_usage(CLAUDE_PROBE_SESSION_ID, CLAUDE_PROBE_CWD)
     assert len(usage) >= 1
     entry = usage[0]
@@ -392,18 +392,14 @@ def test_get_raw_usage_probe():
     print(f"PASS: get_raw_usage (probe) model={entry['model']}")
 
 
+@_probe
 def test_get_session_title_probe():
-    if not CLAUDE_PROBE_PROJECT_DIR.exists():
-        print("SKIP: test_get_session_title_probe (probe dir absent)")
-        return
     assert claude_sessions.get_session_title(CLAUDE_PROBE_SESSION_ID, CLAUDE_PROBE_CWD) == "Pong"
     print("PASS: get_session_title (probe) == 'Pong'")
 
 
+@_probe
 def test_write_and_restore_custom_title_probe():
-    if not CLAUDE_PROBE_PROJECT_DIR.exists():
-        print("SKIP: test_write_and_restore_custom_title_probe (probe dir absent)")
-        return
     original = claude_sessions.get_session_title(CLAUDE_PROBE_SESSION_ID, CLAUDE_PROBE_CWD)
     try:
         claude_sessions.write_custom_title(
@@ -419,10 +415,8 @@ def test_write_and_restore_custom_title_probe():
     print("PASS: write_custom_title + restore (probe)")
 
 
+@_probe
 def test_fork_session_probe_and_cleanup():
-    if not CLAUDE_PROBE_PROJECT_DIR.exists():
-        print("SKIP: test_fork_session_probe_and_cleanup (probe dir absent)")
-        return
     new_id = claude_sessions.fork_session(
         CLAUDE_PROBE_SESSION_ID, "pan-fork-test", CLAUDE_PROBE_CWD)
     forked_path = CLAUDE_PROBE_PROJECT_DIR / f"{new_id}.jsonl"
@@ -439,10 +433,8 @@ def test_fork_session_probe_and_cleanup():
     print("PASS: fork_session (probe) + cleanup")
 
 
+@_probe
 def test_list_sessions_probe():
-    if not CLAUDE_PROBE_PROJECT_DIR.exists():
-        print("SKIP: test_list_sessions_probe (probe dir absent)")
-        return
     sessions = claude_sessions.list_sessions(CLAUDE_PROBE_CWD)
     assert any(s["session_id"] == CLAUDE_PROBE_SESSION_ID for s in sessions)
     print(f"PASS: list_sessions (probe) → {len(sessions)} session(s)")

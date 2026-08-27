@@ -9,6 +9,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core.adapters import KimiAdapter
@@ -16,7 +18,15 @@ from packages.core.adapters.kimi import sessions as kimi_sessions
 from packages.core import session as _sess
 
 
+# Machine-local: points at real recorded Kimi test-session data. Kept as-is
+# deliberately; the tests below do a real pytest.skip when the data is absent
+# (no fake greens) — see _kimi_data.
 KIMI_TEST_WORKDIR = "C:/Users/14709/AppData/Local/Temp/kimi-test"
+
+_kimi_data = pytest.mark.skipif(
+    not os.path.exists(KIMI_TEST_WORKDIR),
+    reason="kimi test workdir absent (machine-local data)",
+)
 
 
 def _adapter() -> KimiAdapter:
@@ -110,10 +120,8 @@ def test_result_event():
     print("PASS: result event")
 
 
+@_kimi_data
 def test_parse_kimi_history_from_test_session():
-    if not os.path.exists(KIMI_TEST_WORKDIR):
-        print("SKIP: parse_kimi_history (test workdir not found)")
-        return
     history = kimi_sessions.parse_kimi_history(
         "session_935960e0-ebae-4f92-9389-4f7bce1cb11b",
         workdir=KIMI_TEST_WORKDIR,
@@ -124,10 +132,8 @@ def test_parse_kimi_history_from_test_session():
     print("PASS: parse_kimi_history from test session")
 
 
+@_kimi_data
 def test_get_raw_usage_from_test_session():
-    if not os.path.exists(KIMI_TEST_WORKDIR):
-        print("SKIP: get_raw_usage (test workdir not found)")
-        return
     usage = kimi_sessions.get_raw_usage(
         "session_935960e0-ebae-4f92-9389-4f7bce1cb11b",
         workdir=KIMI_TEST_WORKDIR,
@@ -138,10 +144,8 @@ def test_get_raw_usage_from_test_session():
     print("PASS: get_raw_usage from test session")
 
 
+@_kimi_data
 def test_fork_kimi_session():
-    if not os.path.exists(KIMI_TEST_WORKDIR):
-        print("SKIP: fork_kimi_session (test workdir not found)")
-        return
     parent_id = "session_935960e0-ebae-4f92-9389-4f7bce1cb11b"
     new_id = kimi_sessions.fork_kimi_session(
         parent_id, "forked-test", workdir=KIMI_TEST_WORKDIR
