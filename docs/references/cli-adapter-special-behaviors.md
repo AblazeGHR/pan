@@ -3,10 +3,10 @@
 > Pan 各 CLI adapter（cbc / kimi / opencode / claude / codex）实战踩过的特殊行为与坑。
 > 每条 = 现象 + 根因 + 处理/规避 + 关联代码位置，供后续开发与排障直接查用，不必重复踩坑。
 >
-> 整理：2026-08-27（feat/cli-docs 分支）。
-> 说明：claude / codex adapter 的代码在**独立分支**（feat/claude-adapter、feat/codex-adapter）开发，
-> 本文件按这些分支的当前实现整理；opencode 的「模型 TTL 缓存 + 多段模型名」按
-> feat/opencode-models（5787937）整理。
+> 整理：2026-08-27。
+> 说明：claude / codex adapter 最初在独立分支（feat/claude-adapter、feat/codex-adapter）开发，
+> opencode 的「模型 TTL 缓存 + 多段模型名」在 feat/opencode-models（5787937）开发——
+> **这些分支均已合入 main（2026-08-27 核对）**，本文描述即 main 现状。
 
 ## 目录（各 CLI × 行为索引）
 
@@ -311,10 +311,9 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
   解析正则 `^[\w.\-]+(?:/[\w.\-]+)+$`（段内字符为字母数字、`.`、`-`、`_`），跳过 provider 分组标题。
   内置白名单标注实测可用/不可用（`opencode/deepseek-v4-flash-free` gateway 500、
   `opencode/north-mini-code-free` 401 均不可用）。
-- **缓存**：feat/opencode-models（5787937）加入 **TTL 缓存**（`_MODEL_CACHE_TTL = 300.0`，5 分钟，
-  `time.monotonic()` 判断过期，config 白名单同样走 TTL）；当前 main 分支为 class 级永久缓存。
-- **代码位置**：`opencode/adapter.py` `_parse_models_from_opencode`、`supported_models`
-  （TTL 实现见 feat/opencode-models 分支）。
+- **缓存**：TTL 缓存（`_MODEL_CACHE_TTL = 300.0`，5 分钟，`time.monotonic()` 判断过期，
+  config 白名单同样走 TTL；commit 5787937 已合入 main，取代早期 class 级永久缓存）。
+- **代码位置**：`opencode/adapter.py` `_parse_models_from_opencode`、`supported_models`。
 
 ### 4.4 MCP：项目级 `opencode.json(c)`
 
@@ -456,7 +455,7 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 ## 6. codex（OpenAI Codex CLI）
 
 > 以下 5 项为 2026-08-26 实战核实的**遗留问题清单**（其中 thread cwd 归一化优先记录）。
-> adapter 代码在 feat/codex-adapter 分支。
+> adapter 代码已合入 main（feat/codex-adapter 分支已合并）。
 
 ### 6.1 execution_modes = `["stream"]`（wrapper 长驻）
 
@@ -599,6 +598,5 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 - 执行模式设计：`docs/design/adapter-p1-oneshot.md`、`docs/design/adapter-architecture.md`
 - kimi MCP 方案 C：`docs/design/kimi-mcp-solution.md`；opencode 适配：`docs/design/opencode-adaptation.md`
 - cbc MCP defer 机制：`docs/references/cbc-mcp-defer-机制.md`、`docs/cbc-mcp-踩坑记录.md`
-- adapter 代码位置：`packages/core/adapters/<cli>/adapter.py`（cbc/kimi/opencode 在本仓库；
-  claude/codex 分别在 feat/claude-adapter、feat/codex-adapter 分支）
-- opencode 模型 TTL/多段名：feat/opencode-models 分支（commit 5787937）
+- adapter 代码位置：`packages/core/adapters/<cli>/adapter.py`（5 个 adapter 全部在本仓库 main）
+- opencode 模型 TTL/多段名：commit 5787937（已合入 main）

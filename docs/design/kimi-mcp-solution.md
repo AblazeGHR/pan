@@ -216,6 +216,6 @@ ACP（B）仅在 Pan MCP 改 HTTP/SSE 后可行；项目级 + 非交互不可用
 **未做（本轮范围外）**：
 - 方案 A（合并用户级 mcp.json）未作为代码落地，仅保留为设计兜底；当前实现仅方案 C。
 - HTTP API 全链路 sanity（独立端口起 Pan server 走 `/api/sessions`+`/api/spawn`+`/api/task` 确认 history tool blocks）未跑——worker 级集成已覆盖同一链路，API 层仅薄封装，风险低。
-- 前端对 kimi 会话 `mcp_servers` 的提示文案更新（§5 第 3 点）未做，留待前端 worker。
+- ~~前端对 kimi 会话 `mcp_servers` 的提示文案更新（§5 第 3 点）~~：**已完成（commit `99e4619`，2026-08-27 核对）**。
 
 **commit**：`feat(kimi): MCP via KIMI_CODE_HOME 隔离 + data 统一管理`。

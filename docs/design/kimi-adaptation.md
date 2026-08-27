@@ -159,31 +159,33 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 
 ## 5. 任务分解
 
+> **2026-08-27 核对**：T1/T2/T3 各项均已实现并合入 main（commit `1c75130` E2E verified 及后续修复），下方勾选已按代码现状回填。§6 的 opencode 适配也已完成（见 `docs/design/opencode-adaptation.md`）。
+
 ### T1 差距补齐（实现 worker，hy3）
-- [ ] adapter.py：extract_model（§4.4）
-- [ ] adapter.py：enrich_after_result（§4.3，含增量游标）
-- [ ] adapter.py：takeover_command 用 _KIMI_PATH（§4.9）
-- [ ] adapter.py：supports_resume=True + 注释澄清（§4.8）
-- [ ] adapter.py：permission_mode_args 实测决定（§4.6）
+- [x] adapter.py：extract_model（§4.4）
+- [x] adapter.py：enrich_after_result（§4.3，含增量游标）
+- [x] adapter.py：takeover_command 用 _KIMI_PATH（§4.9）
+- [x] adapter.py：supports_resume=True + 注释澄清（§4.8）
+- [x] adapter.py：permission_mode_args 实测决定（§4.6）
 - [x] adapter.py：mcp_args（§4.5 方案 C，KIMI_CODE_HOME 隔离 + data/kimi-homes 统一管理）；write_kimi_mcp_json 保留
-- [ ] wrapper.py：session_id 兜底提取、stderr 透传、健壮性（§4.7）
-- [ ] sessions.py：write_custom_title（§4.10）
-- [ ] server.py：rename 端点对 kimi 调用 write_custom_title（§4.10）
-- [ ] config.py：kimi 段确认（model 默认值、新字段如需）
+- [x] wrapper.py：session_id 兜底提取、stderr 透传、健壮性（§4.7）
+- [x] sessions.py：write_custom_title（§4.10）
+- [x] server.py：rename 端点对 kimi 调用 write_custom_title（§4.10）
+- [x] config.py：kimi 段确认（model 默认值 moonshot-cn/kimi-k2.6 等）
 
 ### T2 前端适配（同一 worker 或独立 worker）
-- [ ] React 前端：kimi adapter 的 settings 面板（supportedSettings 驱动，确认已通用）
-- [ ] legacy ts/app.ts：如需同步
-- [ ] import 对话框 kimi 入口确认（已存在 /api/kimi/*）
+- [x] React 前端：kimi adapter 的 settings 面板（supportedSettings 驱动，已通用）
+- [x] legacy ts/app.ts：已同步（流式事件渲染随 `render kimi streaming events` commit 修复）
+- [x] import 对话框 kimi 入口确认（/api/kimi/* 已存在）
 
 ### T3 测试验证（同一 worker，kimi-k2.6）
-- [ ] stream spawn：create session（adapter=kimi, model=moonshot-cn/kimi-k2.6）→ spawn → 发送任务 → 收 result
-- [ ] resume：第二轮任务带 cli_session_id，确认上下文延续
-- [ ] fork：branch 会话，确认目录复制 + 新 session_id
-- [ ] enrich：确认 raw_usage 累加、total_usage 更新
-- [ ] import：/api/kimi/sessions/import 导入真实 kimi 会话
-- [ ] stream-json 输出结构实测（model 字段存在性，§4.4）
-- [ ] 测试在 worktree 内独立端口进行，不碰运行中服务
+- [x] stream spawn：create session（adapter=kimi, model=moonshot-cn/kimi-k2.6）→ spawn → 发送任务 → 收 result
+- [x] resume：第二轮任务带 cli_session_id，确认上下文延续
+- [x] fork：branch 会话，确认目录复制 + 新 session_id
+- [x] enrich：确认 raw_usage 累加、total_usage 更新
+- [x] import：/api/kimi/sessions/import 导入真实 kimi 会话
+- [x] stream-json 输出结构实测（model 字段存在性，§4.4）
+- [x] 测试在 worktree 内独立端口进行，不碰运行中服务（tests/test_kimi_adapter.py 已随 main 维护）
 
 ## 6. 后续升级项（非本轮）
 
@@ -193,9 +195,7 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 - 产出：`docs/design/kimi-acp-adaptation.md` 后另起一轮。
 
 ### opencode 适配
-- 独立 CLI（sst/opencode），接入方式与 cbc/kimi 均不同（`opencode run` headless + TUI）。
-- 需独立调研：run 模式参数、--format、session 存储、MCP（opencode.json）、环境变量。
-- 产出入《opencode 适配设计文档》，另起一轮。
+- **已完成（2026-08 合入 main）**，产出 `docs/design/opencode-adaptation.md`。
 
 ## 7. 约束与边界
 - 只改本 worktree（feat/cli-adapters 分支），不动 D:/project/Pan。

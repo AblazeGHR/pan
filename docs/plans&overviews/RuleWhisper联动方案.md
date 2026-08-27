@@ -8,7 +8,7 @@
 
 ## 一、概念体系（Pan 侧五个核心层级）
 
-> **术语更新（2026-08-17）**：`Profile` 已拆分为 `session_template`（session 配置）+ `character_template`（character 创建模板），详见 `docs/archive/Character概念分层重构立项.md`。下表为目标态；当前代码仍用旧名 `Profile`，实施迁移后同步。
+> **术语更新（2026-08-17）**：`Profile` 已拆分为 `session_template`（session 配置）+ `character_template`（character 创建模板），详见 `docs/archive/Character概念分层重构立项.md`。**（2026-08-27 注：迁移已完成，代码已全面使用 `session_template`/`character_template` 新名，下表即现状。）**
 
 | 概念 | 定义 | 谁管 |
 |------|------|------|
@@ -314,4 +314,4 @@ QQ 消息 "短剑伤害"
 
 ---
 
-*创建：2026-07-22 · 最后更新：2026-08-11 · 状态：Loader/Character/Memory 已实施；QQ 前缀路由 + game_id 待实现*
+*创建：2026-07-22 · 最后更新：2026-08-27 · 状态：Loader/Character/Memory、QQ 前缀路由 + game_id 均已实施（路由 2026-08-22 实现，见文档头注）*

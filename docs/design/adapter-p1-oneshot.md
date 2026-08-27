@@ -1,7 +1,7 @@
 # Pan Adapter P1：执行模式（output_mode）显式化方案
 
-> 状态：设计方案（仅文档，未实现）
-> 日期：2026-08-26
+> 状态：**已实现（后端 + 前端，2026-08 合入 main，commit `275f7e2`）**——阶段一（协议/worker/server/单测）与阶段二（React 设置弹窗 Output Mode 选择器，`SettingsPopover.tsx` 按 `executionModes` 渲染）均已完成。本文保留为设计记录。
+> 日期：2026-08-26（08-27 更新状态）
 > 关联：docs/design/adapter-architecture.md §2（P1 建议 4）、§5、§8
 > 目标：把 worker.py 里 cbc 特定的执行模式判定（`_use_oneshot_mcp` 矩阵、`_consumer_mcp` 拼装、`hasattr(adapter,'base_args_stream'/'mcp_args')` 探测）收编进协议层，并让 session 的 output_mode 成为**显式、可持久化、前端可设置**的设置项；one-shot-only 的 adapter 在前端禁止切换到 stream。
 
@@ -424,6 +424,8 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
 kimi/opencode：始终 `mode=="stream"`，零行为变化。
 
 ### 11.4 阶段二（前端）前置条件
+
+**（2026-08-27 注：阶段二已完成**——`packages/web/src/components/SettingsPopover.tsx` 已按 `config.executionModes` 渲染 Output Mode 选择器。以下为当时的前置条件记录。**）**
 
 `fe-adapter-entry` 正在改 `packages/web/src/`（NewSessionModal / api.ts / sessionStore / ts/app.ts）。阶段一**未触碰任何前端文件**。开始前需 `git status` 确认其前端改动已提交，避免冲突。本阶段后端已为前端准备好：`/api/adapter/config` 与 `session` 响应均含 `executionModes`，前端据此渲染 Output Mode 选择器即可（详见 §6）。
 

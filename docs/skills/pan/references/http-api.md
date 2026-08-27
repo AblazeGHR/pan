@@ -38,6 +38,22 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `GET` | `/api/models` | `?adapter=cbc` | `{"models": [...], "default": "..."}` |
 | `GET` | `/api/adapters` | — | 注册的 adapter 与能力（supportsResume/supportsFork） |
 
+### 导入 / 设置 / Manifest（排查 / 维护用，2026-08-27 补录）
+
+| 方法 | URL | 说明 |
+|------|-----|------|
+| `GET` | `/api/cbc/projects` / `/api/cbc/sessions` / `/api/cbc/browse` / `POST /api/cbc/sessions/import` | cbc 会话导入四件套（等价 MCP 工具 `session_import`，优先用 MCP） |
+| `GET` | `/api/kimi/workspaces` / `/api/kimi/sessions` / `POST /api/kimi/sessions/import` | kimi 会话导入 |
+| `GET` | `/api/opencode/sessions` / `POST /api/opencode/sessions/import` | opencode 会话导入 |
+| `GET` / `POST` | `/api/adapters/{adapter}/sessions[/import]` | **通用导入端点**（claude/codex 等走此端点；各 adapter 的 sessions provider 化产物） |
+| `GET` / `PUT` | `/api/settings/ui` | 全局显示设置读写 |
+| `GET` | `/api/session-templates` | manifest 中的 Session 模板列表 |
+| `GET` | `/api/mcp/servers` | manifest 中可选 MCP Server 列表 |
+| `POST` | `/api/manifest/reload` | 强制热重载 manifest（新增/修改 session template 后立即生效） |
+| `GET` | `/api/manifest/command-routes` | QQ 前缀命令路由列表 |
+| `GET` | `/api/worker/{id}/takeover-command` | 生成终端接管命令 |
+| `POST` | `/api/qq/notify` / `GET /api/qq/contacts` | QQ 插件上报 inbox 更新 / 最近 QQ 联系人（QQ 通道内部使用） |
+
 ## 核心编排端点请求体（直调 / 排查用）
 
 冷启动主链路端点（对应 SKILL.md §2.1 流程）：

@@ -277,7 +277,7 @@ python main.py
 python -m pytest tests/ -q
 ```
 
-### React Frontend (in development)
+### React Frontend (primary development target)
 
 ```bash
 cd packages/web
@@ -290,9 +290,9 @@ The serving route is controlled by the `frontend` field in `config.json`:
 
 | `frontend` | Behavior |
 |------------|----------|
-| `coexist` (default) | `/` legacy frontend + `/react/` React SPA |
-| `react` | React takes over `/` |
-| `legacy` | Legacy frontend only |
+| `coexist` (default) | `/` 307-redirects to `/react/`; legacy frontend served at `/vanilla` |
+| `react` | React takes over `/` (no legacy entry) |
+| `legacy` | Legacy frontend only, `/` renders Vanilla directly |
 
 > The backend API/WS evolves for React first; if a backend change breaks the legacy frontend, patch `ts/app.ts` to follow — do not constrain backend changes.
 
@@ -330,11 +330,11 @@ The serving route is controlled by the `frontend` field in `config.json`:
 | `packages/core/` | Core module: process management + message routing + Memory + Adapters. All external modules talk to Core only over HTTP/WS APIs |
 | `packages/web/` | Web channel: FastAPI routes + WebSocket + Dashboard (69 HTTP endpoints) |
 | `packages/qq/` | QQ channel: NoneBot2 bridge + pluggable channels + pan-qq MCP |
-| `packages/mcp/` | MCP Server: 27 tools, can be started standalone |
+| `packages/mcp/` | MCP Server: orchestration toolset + pan-qq, can be started standalone |
 | `packages/remote/` | Cloudflare Tunnel remote channel |
 | `scripts/` | Start / stop / tunnel / pre-commit scripts |
 | `docs/` | Documentation (git-tracked; `docs/skills/pan/SKILL.md` is the single source of truth for orchestration knowledge) |
-| `tests/` | Tests (26 files) |
+| `tests/` | Tests (29 files) |
 
 ## Multi-CLI Adapters
 
@@ -346,7 +346,7 @@ Workers are decoupled from any specific CLI: each CLI Agent has an adapter imple
 | `kimi` | Kimi CLI | stream (long-running wrapper) | Calls `kimi -p` per message inside a wrapper |
 | `opencode` | OpenCode CLI | stream (long-running wrapper) | Calls `opencode run --format json` per message inside a wrapper |
 | `claude` | Claude Code CLI | one-shot | Calls `claude -p --output-format stream-json` per message; MCP injected via `--mcp-config` |
-| `codex` | OpenAI Codex CLI | stream (long-running wrapper) | Calls `codex exec --json` per message inside a wrapper; MCP injected inline via `~/.codex/config.toml` |
+| `codex` | OpenAI Codex CLI | stream (long-running wrapper) | Calls `codex exec --json` per message inside a wrapper; MCP injected inline via `-c mcp_servers.*` overrides (zero file pollution) |
 
 The companion `SessionsProvider` protocol (`packages/core/adapters/base.py`) unifies each CLI's native session storage (history / usage / title / fork) behind a single read/write interface. The server resolves the provider by adapter name, so adding a new CLI needs no per-CLI import / branch / rename dispatch logic (generic endpoint: `/api/adapters/{adapter}/sessions[/import]`).
 
@@ -507,6 +507,19 @@ POST   /api/cbc/sessions/import         → import a CBC Session
 GET    /api/kimi/workspaces             → Kimi Workspace list
 GET    /api/kimi/sessions               → Kimi Session list
 POST   /api/kimi/sessions/import        → import a Kimi Session
+GET    /api/opencode/sessions           → OpenCode Session list
+POST   /api/opencode/sessions/import    → import an OpenCode Session
+```
+
+**Settings / Manifest / Templates**
+
+```
+GET    /api/settings/ui                 → read global display settings
+PUT    /api/settings/ui                 → save global display settings
+GET    /api/session-templates           → session template list (manifest)
+GET    /api/mcp/servers                 → selectable MCP servers from manifest
+POST   /api/manifest/reload             → force manifest hot reload
+GET    /api/worker/{id}/takeover-command → generate a takeover command
 ```
 
 ### WebSocket
@@ -519,19 +532,9 @@ WS   /ws/agent     Meta-Agent: subscribe (filter by eventTypes / sessionIds + re
 
 Broadcast events: `worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`, `session.created` / `session.updated` / `session.renamed` / `session.deleted` / `sessions.deleted`, `error`.
 
-### MCP Server (`packages/mcp/server.py`, 27 tools)
+### MCP Server (`packages/mcp/server.py`)
 
-```
-session_create / session_import / session_list / session_managed / session_get /
-session_delete / session_batch_delete / session_handoff / session_claim /
-session_claim_many / session_unclaim / session_unclaim_many / session_update /
-session_history / session_qq_subscribe / session_qq_unsubscribe /
-report_subscribe / report_unsubscribe /
-worker_spawn / worker_task / worker_kill / worker_list / worker_assign /
-worker_send / worker_send_force / model_list / pan_handbook
-```
-
-There is also a standalone **pan-qq MCP server** (`packages/qq/mcp.py`, 6 tools): `qq_send_message` / `qq_read_conversation` / `qq_list_contacts` / `qq_read_inbox` / `qq_bind` / `qq_unbind`.
+The `pan` server (orchestration toolset — see the tool table under "[Calling Pan from External Agents](#calling-pan-from-external-agentsmeta-agent--mcp)") plus a standalone `pan-qq` server (QQ channel, `packages/qq/mcp.py`).
 
 Launch: `python -m packages.mcp.server --transport stdio|sse|streamable-http [--port 9740]` (default stdio; API address from `PAN_API_URL`).
 
@@ -539,13 +542,81 @@ Launch: `python -m packages.mcp.server --transport stdio|sse|streamable-http [--
 
 ### Web / Dashboard
 
-- `http://127.0.0.1:{port}` — legacy Dashboard; `/react/` — React Dashboard
+- `http://127.0.0.1:{port}` — 307-redirects to the React Dashboard `/react/` by default; the legacy Vanilla Dashboard is served at `/vanilla`
 - `ws://127.0.0.1:{port}/ws` — Dashboard WebSocket
 - `ws://127.0.0.1:{port}/ws/agent` — Meta-Agent WebSocket
 
-### Meta-Agent (MCP)
+### Calling Pan from External Agents (Meta-Agent / MCP)
 
-Pan ships a built-in `pan` MCP server (27 tools). Any Agent CLI can act as a Meta-Agent by connecting over the MCP protocol (stdio / SSE / streamable-http), or by connecting to the `/ws/agent` WebSocket directly to subscribe to the event stream and issue commands. See the launch instructions under "[MCP Server](#mcp-server-packagesmcpserverpy-27-tools)".
+Pan is not just for humans — **any external agent that speaks MCP (Model Context Protocol)** (CodeBuddy, Claude Code, custom script agents…) can take over Pan's full orchestration capabilities: session management, worker dispatch, report subscriptions, QQ inbox consumption, acting as the "Meta-Agent supervisor". You can also connect to the `/ws/agent` WebSocket directly to subscribe to the event stream.
+
+#### MCP tool reference
+
+**`pan` server** (`packages/mcp/server.py`, orchestration core):
+
+| Tool | Purpose |
+|------|---------|
+| `session_create` | Create a session (no worker spawned) |
+| `session_import` | Browse / import existing CLI sessions (actions: list_projects / list_workspaces / list_sessions / import) |
+| `session_list` | List all sessions (`summary=true` for compact output) |
+| `session_managed` | Summarize the calling session's managed sessions |
+| `manager_chain` | Return the calling session's manager chain 🚧 *being added (uncommitted)* |
+| `session_get` | Full session details incl. history and last result |
+| `session_update` | Update session settings (model / permissionMode / effort / MCP / outputMode…) |
+| `session_delete` | Delete a session and kill its worker |
+| `session_batch_delete` | Batch delete (kill workers, purge cross-session references) |
+| `session_handoff` | Twin handoff: spawn successor session B to take over A |
+| `session_claim` / `session_claim_many` | Claim session(s), establishing managed relations (auto-subscribes reports) |
+| `session_unclaim` / `session_unclaim_many` | Release managed relation(s) (also unsubscribes reports) |
+| `session_history` | Paginated conversation history |
+| `session_qq_subscribe` / `session_qq_unsubscribe` | Subscribe / unsubscribe QQ inbox reminders (`@@@@by qq`) |
+| `report_subscribe` / `report_unsubscribe` | Subscribe / unsubscribe completion reports (delivered to the caller's inbox, survives disconnects) |
+| `worker_spawn` | Spawn a worker process for a session |
+| `worker_task` | Send a task (auto-spawns; blocks until result) |
+| `worker_assign` | Dispatch a task asynchronously, returns immediately (orchestration-first choice) |
+| `worker_send` | Append a message to a live worker (queued, multi-turn) |
+| `worker_send_force` | Force-push: restart the worker, then send |
+| `worker_kill` | Kill a worker process (session data persists) |
+| `worker_list` | List running workers |
+| `model_list` | List available models for an adapter |
+| `pan_handbook` | Return the full Pan orchestration handbook (`docs/skills/pan/SKILL.md`) |
+
+**`pan-qq` server** (`packages/qq/mcp.py`, QQ channel):
+
+| Tool | Purpose |
+|------|---------|
+| `qq_send_message` | Send a message to a QQ chat (DM / group) |
+| `qq_read_conversation` | Read a QQ chat's history (local persistence, not framework cache) |
+| `qq_read_inbox` | Read a QQ chat's pending inbox messages (selective mode) |
+| `qq_list_contacts` | List reachable QQ chats (friends / groups merged) |
+| `qq_bind` / `qq_unbind` | Bind / unbind the current Pan session to a QQ chat (inbox update reminders) |
+
+#### How to connect
+
+**Option A — mount as a session's MCP server (recommended, auto-injected)**
+
+Create the session with `mcpServers: ["pan"]` (or use a template like SMA that ships with MCP). The adapter generates a session-scoped MCP config at spawn time and injects it automatically:
+
+- cbc / claude: writes `data/mcp-configs/<sid>.mcp.json`, appends `--mcp-config`
+- kimi: writes an isolated home (`data/kimi-homes/<sid>/`), loaded via `--kimi-home`
+- opencode: writes the project-level `opencode.json`
+- codex: inline `-c mcp_servers.*` overrides (zero file pollution)
+
+The spawn also sets `PAN_AGENT_SESSION_ID` / `PAN_AGENT_SESSION_TITLE` env vars — tools use them to identify the caller (managed-isolation checks, report delivery targets). **Alignment rule**: the Pan API address the MCP server talks to (`PAN_API_URL`, default `http://127.0.0.1:8768`) must point at the same Pan instance where that session lives.
+
+**Option B — standalone process (any MCP client)**
+
+```bash
+# stdio (local CLI clients, e.g. declared in .mcp.json / --mcp-config)
+PAN_API_URL=http://127.0.0.1:8768 python -m packages.mcp.server --transport stdio
+
+# SSE / streamable-http (remote or multi-client)
+python -m packages.mcp.server --transport sse --port 9740
+```
+
+A standalone process has no `PAN_AGENT_SESSION_ID`, so identity-dependent tools (`session_claim` / `report_subscribe` / `manager_chain`…) are unavailable; prefer Option A for full orchestration, optionally combined with the `/ws/agent` WebSocket.
+
+The orchestration methodology and field manual live in `docs/skills/pan/SKILL.md` (also retrievable via the `pan_handbook` tool).
 
 ### QQ Bridge
 

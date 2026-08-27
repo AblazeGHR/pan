@@ -1,14 +1,15 @@
 # Pan 前端 React 18 + Vite + Tailwind 重构方案
 
-> **状态：已实施（截至 2026-08-23）**。本文档为迁移方案原始记录；实际已落地的关键点：
-> - 双前端长期共存（`/` 旧 Vanilla + `/react/*` React SPA）——已实现，React 为开发主力；
+> **状态：已实施（截至 2026-08-23；2026-08-27 归档）**。本文档为迁移方案原始记录；实际已落地的关键点：
+> - 双前端长期共存——已实现，且 **React 已成为默认前端**：`/` 307 重定向到 `/react/`（coexist/react 模式且 dist 存在时），旧前端挂 `/vanilla`（取代本文写作时「`/` = Vanilla」的共存形态）；
 > - React 19 + Vite + Tailwind 4 + Zustand + react-markdown——已实现；
 > - `/react` 挂载 + SPA fallback + basename 配置——已实现（server.py `/react/{full_path:path}`）；
-> - 消息发送队列（`SendQueuePanel`）——已实现（见 `docs/design-message-queue.md`）；
+> - Monaco 编辑器——**已启用**（`packages/web/src/components/editor/`，本文下方「尚未启用」的表述已过期）；
+> - 消息发送队列（`SendQueuePanel`）——已实现（见 `docs/archive/design-message-queue.md`）；
 > - session 卡片 Manage / Postbox 弹窗（`/api/claim` `/api/unclaim` `/api/qq/subscribe|unsubscribe`）——2026-08-22 新增；
 > - `useWebSocket.ts` 实时更新（worker.result 后 `fetchSession` + `updateFromServer`，订阅 `session.created`/`deleted`）——2026-08-23 补齐。
 >
-> 下文中的「迁移顺序」等为历史规划，部分细节与现状略有出入（如 Monaco 编辑器模块尚未启用），以代码为准。
+> 下文中的「迁移顺序」「共存架构」「入口切换」等均为历史规划，与现状出入处以代码（`packages/web/server.py`）为准。
 
 ## 设计决策
 

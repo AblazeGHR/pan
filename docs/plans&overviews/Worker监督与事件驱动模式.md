@@ -30,7 +30,7 @@ CodeBuddy Monitor 工具（command 模式 + persistent）
 
 ### 关键实现
 
-**脚本**（`packages/scripts/monitor_workers.py`，已随 Pan 代码库维护）：
+**脚本**（`packages/mcp/monitor_workers.py`，已随 Pan 代码库维护）：
 ```python
 async with websockets.connect("ws://127.0.0.1:8768/ws/agent") as ws:
     await ws.send(json.dumps({"type": "subscribe",
@@ -47,7 +47,7 @@ async with websockets.connect("ws://127.0.0.1:8768/ws/agent") as ws:
 
 **启动**（Monitor 工具）：
 ```
-Monitor(command="python packages/scripts/monitor_workers.py", persistent=true)
+Monitor(command="python packages/mcp/monitor_workers.py", persistent=true)
 ```
 每次脚本输出一行 → Monitor 唤醒协调者。
 
@@ -69,7 +69,7 @@ Monitor 的 `ws` 模式**拒绝连接私有/内部地址**（`127.0.0.1`/`localh
 把脚本参数化，供任意协调场景复用：
 
 ```bash
-python packages/scripts/monitor_workers.py \
+python packages/mcp/monitor_workers.py \
   --sessions ses_a,ses_b \        # 只关心特定 session（默认全部）
   --events worker.result \         # 事件类型过滤（默认 worker.result）
   --format one-line                # 输出格式（供 Monitor 解析）
@@ -122,14 +122,14 @@ Profile 立项（`docs/archive/Profile权限字段与MetaAgent管理Session立�
 
 ## 五、自动化模板（落地路径）
 
-1. ✅ **脚本入库**：`packages/scripts/monitor_workers.py` 已随 Pan 代码库维护（含 WS 事件订阅 + 30s 健康检查 `STALE`/`RECOVERED`，见 SKILL.md §4）
+1. ✅ **脚本入库**：`packages/mcp/monitor_workers.py` 已随 Pan 代码库维护（含 WS 事件订阅 + 30s 健康检查 `STALE`/`RECOVERED`，见 SKILL.md §4）
 2. **skill 包装**：`/pan-monitor` 命令模板化启动（未做，SKILL.md §4 已给出直接用法）
 3. ✅ **文档化**：本文件 + SKILL.md 引用
 4. ✅ **与 meta-agent 报告统一**：Profile 立项实现时把 `/ws/agent` 事件与 `queue_pending` 报告归一为"完成通知"二选一（§4.4 已成型，report_subscribe 已落地）
 
 ## 六、待决策
 
-1. ✅ 脚本入库位置 → 已定 `packages/scripts/`（2026-08-17 落位）
+1. ✅ 脚本入库位置 → 已定 `packages/mcp/`（2026-08-17 落位）
 2. 是否做 skill 包装（`/pan-monitor`）→ 未做（SKILL.md §4 提供直接用法，暂不包装）
 3. ✅ "完成通知"统一建模 → 已定型：外部 `/ws/agent` 与内部 report_subscribe 二选一（§4.4 + SKILL.md §3）
 
