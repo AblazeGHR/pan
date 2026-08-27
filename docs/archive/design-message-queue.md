@@ -1,5 +1,7 @@
 # 设计：消息发送队列（vanilla 前端优先）
 
+> **⚠️ 勘误（2026-08-27）**：下文 §2.4「入队不上屏」已被后续实现推翻——commit `7c0e691` 改为**入队即上屏**（乐观上屏，与直接发送一致，修复队列消息发出后聊天窗口不显示）。以代码 `packages/web/src/stores/queueStore.ts` 为准。其余设计（localStorage 持久化、idle 自动 flush、上限 50）仍有效。
+>
 > 状态：**已实现（2026-08-21 ~ 08-22）**——vanilla（commit `68859d1`、`4d99dc6`）与 React（commit `236d672`）两侧均已落地。
 > 适用路由：`/`（vanilla，`packages/web/ts/app.ts`）与 `/react/*`（React `src/components/chat/SendQueuePanel.tsx`）。
 > 目标：聊天输入框加 `^` 按钮 → 展开"待发送消息队列"面板；每条支持删除 / 编辑 / 向上 / 向下。

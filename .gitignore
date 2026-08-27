@@ -55,3 +55,9 @@ memory/char_*.sqlite-wal
 _e2e_tmp/
 _pan_test.log
 _pan_codex_e2e*.log
+
+# Secrets / 本机绑定信息防误提交（注意：scripts/kimi-mcp-probe/*.log 历史上已被追踪，
+# gitignore 不影响已追踪文件，仅拦截新增）
+auth_token*
+*.env
+*.log

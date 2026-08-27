@@ -300,6 +300,11 @@ class TestWorkerSendPrefix:
         captured = {}
 
         def fake_api(method, path, body=None, timeout=30.0):
+            if method == "GET" and path == "/api/list":
+                # worker-1 可解析到 session（M18 后解析不到会按 deny 拒绝）
+                return {"ok": True,
+                        "workers": [{"workerId": "worker-1",
+                                     "sessionId": "ses_ma_1"}]}
             captured["path"] = path
             captured["body"] = body
             return {"ok": True}

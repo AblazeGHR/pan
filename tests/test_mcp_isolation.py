@@ -207,9 +207,10 @@ class _FakeAPI:
     autoClaimCreated/managed/managedBy). Claims mutate the dicts in place.
     """
 
-    def __init__(self, sessions, allow_claim=True):
+    def __init__(self, sessions, allow_claim=True, workers=None):
         self.sessions = sessions
         self.allow_claim = allow_claim
+        self.workers = workers if workers is not None else []
         self.calls = []
 
     def __call__(self, method, path, body=None, timeout=30.0):
@@ -234,7 +235,7 @@ class _FakeAPI:
             return {"ok": True, "managerId": body["managerId"],
                     "sessionId": body["sessionId"], "managed": list(mgr["managed"])}
         if method == "GET" and path == "/api/list":
-            return {"workers": []}
+            return {"workers": list(self.workers)}
         if path in ("/api/assign", "/api/task", "/api/spawn"):
             return {"ok": True, "status": "queued", "sessionId": body.get("sessionId")}
         if method == "DELETE":
@@ -371,6 +372,86 @@ def test_mcp_report_subscribe_autoclaims(monkeypatch):
     r = mcp_server.report_subscribe("ses_child")
     assert any(c[1] == "/api/claim" for c in fake.calls)
     assert fake.sessions["ses_child"]["managedBy"] == "ses_ma"
+    _cleanup()
+
+
+# ── M18: worker tools deny unresolvable workers; worker_list isolation ──
+
+_WORKERS = [
+    {"workerId": "worker-1", "sessionId": "ses_child"},
+    {"workerId": "worker-2", "sessionId": "ses_other"},
+]
+
+
+def test_mcp_worker_kill_denies_unresolvable_worker(monkeypatch):
+    """_worker_session_id → None 时按 deny 处理，不再跳过隔离检查直接放行。"""
+    _cleanup()
+    fake = _FakeAPI({**_ma_session(managed=["ses_child"])},
+                    workers=_WORKERS)
+    monkeypatch.setattr(mcp_server, "_api", fake)
+    monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
+    r = mcp_server.worker_kill("worker-nope")
+    assert r.get("ok") is False
+    assert r["error"]["code"] == "worker_not_found"
+    # 不允许在未过隔离检查的情况下触达 kill 端点
+    assert all("/api/kill/" not in c[1] for c in fake.calls)
+    _cleanup()
+
+
+def test_mcp_worker_kill_allowed_for_managed(monkeypatch):
+    """受限 caller 对 managed session 的 worker 操作仍放行（行为边界不变）。"""
+    _cleanup()
+    fake = _FakeAPI({
+        **_ma_session(managed=["ses_child"]),
+        "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
+    }, workers=_WORKERS)
+    monkeypatch.setattr(mcp_server, "_api", fake)
+    monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
+    r = mcp_server.worker_kill("worker-1")
+    assert any(c[1] == "/api/kill/worker-1" for c in fake.calls), r
+    _cleanup()
+
+
+def test_mcp_worker_send_force_denies_unresolvable_worker(monkeypatch):
+    _cleanup()
+    fake = _FakeAPI({**_ma_session(managed=["ses_child"])},
+                    workers=_WORKERS)
+    monkeypatch.setattr(mcp_server, "_api", fake)
+    monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
+    r = mcp_server.worker_send_force("worker-nope", "text")
+    assert r.get("ok") is False
+    assert r["error"]["code"] == "worker_not_found"
+    # 未过隔离检查不得 restart / send
+    assert all("/restart" not in c[1] for c in fake.calls)
+    assert all(not (c[1] == "/api/task") for c in fake.calls)
+    _cleanup()
+
+
+def test_mcp_worker_list_filters_for_restricted_caller(monkeypatch):
+    """受限 caller 的 worker_list 只看到 managed + 自身 session 的 worker。"""
+    _cleanup()
+    fake = _FakeAPI({
+        **_ma_session(managed=["ses_child"], sid="ses_ma"),
+        "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
+        "ses_other": {"id": "ses_other", "managedBy": None},
+    }, workers=_WORKERS + [{"workerId": "worker-3", "sessionId": "ses_ma"}])
+    monkeypatch.setattr(mcp_server, "_api", fake)
+    monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
+    r = mcp_server.worker_list()
+    ids = [w["workerId"] for w in r.get("workers", [])]
+    assert ids == ["worker-1", "worker-3"]
+    _cleanup()
+
+
+def test_mcp_worker_list_unrestricted_sees_all(monkeypatch):
+    """无身份 / 不受限 caller 的 worker_list 行为不变。"""
+    _cleanup()
+    fake = _FakeAPI({"ses_other": {"id": "ses_other", "managedBy": None}},
+                    workers=_WORKERS)
+    monkeypatch.setattr(mcp_server, "_api", fake)
+    monkeypatch.delenv("PAN_AGENT_SESSION_ID", raising=False)
+    r = mcp_server.worker_list()
+    assert [w["workerId"] for w in r["workers"]] == ["worker-1", "worker-2"]
     _cleanup()
 
 

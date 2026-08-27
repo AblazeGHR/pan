@@ -1,8 +1,0 @@
-{"role":"meta","type":"system.version","version":"0.38.0"}
-{"role":"assistant","tool_calls":[{"type":"function","id":"Skill_0","function":{"name":"Skill","arguments":"{\"skill\":\"pan\",\"args\":\"probe\"}"}}]}
-{"role":"tool","tool_call_id":"Skill_0","content":"Skill \"pan\" loaded inline. Follow its instructions."}
-{"role":"assistant","content":"The skill loaded, but it only provided instructions — it didn't actually execute a `pan_probe` tool. The Pan skill uses **deferred MCP tools** (not in my direct tool list), which must be discovered via `ToolSearch` and then called through `DeferExecuteTool`.\n\nLet me search for the tool and then execute it.","tool_calls":[{"type":"function","id":"Skill_1","function":{"name":"Skill","arguments":"{\"skill\":\"pan\",\"args\":\"ToolSearch pan_probe\"}"}}]}
-{"role":"tool","tool_call_id":"Skill_1","content":"Skill \"pan\" loaded inline. Follow its instructions."}
-{"role":"assistant","content":"The Pan skill doesn't expose a `pan_probe` tool — the available tools are `session_create`, `session_list`, `session_get`, `session_delete`, `session_history`, `worker_spawn`, `worker_task`, `worker_handoff`, `worker_assign`, `worker_send`, `worker_kill`, `worker_list`, and `model_list`.\n\nThere is no `pan_probe` tool in the Pan MCP namespace. If you meant a different tool (e.g., `session_list` to probe current state, or `model_list` to probe available models), let me know which one and I'll call it verbatim."}
-{"role":"meta","type":"session.resume_hint","session_id":"session_5b73247f-e654-41c5-ba71-75f302b7844a","command":"kimi -r session_5b73247f-e654-41c5-ba71-75f302b7844a","content":"To resume this session: kimi -r session_5b73247f-e654-41c5-ba71-75f302b7844a"}
-

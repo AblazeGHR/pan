@@ -130,7 +130,8 @@ class FakeGroupEvent:
         self.message = [
             _FakeSeg(
                 "at" if at_bot else "text",
-                {"qq": int(FakeBot.self_id)} if at_bot else {"text": text},
+                # OneBot v11 协议 At.data["qq"] 为字符串，锁契约防 int 回归
+                {"qq": str(FakeBot.self_id)} if at_bot else {"text": text},
             )
         ]
         self.sender = type("S", (), {"nickname": "grp"})()

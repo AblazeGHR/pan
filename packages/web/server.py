@@ -265,6 +265,7 @@ def _session_to_api(s: sess.Session):
         "updatedAt": s.updated_at,
         "managed": s.managed,
         "managedBy": s.managed_by,
+        "agentLevel": sess.agent_level(s.id),
         "reportSubscriptions": sorted(s.report_subscriptions),
         "qqSubscriptions": sorted(s.qq_subscriptions),
         "workerStatus": w.status if w else None,
@@ -287,7 +288,8 @@ def _session_to_api(s: sess.Session):
 def _session_summary(s: sess.Session) -> dict:
     """Lean session dict for list summaries (A1: no history / usage).
 
-    Fields: id/name/adapter/cliSessionId/workerStatus/updatedAt/managedBy —
+    Fields: id/name/adapter/cliSessionId/workerStatus/updatedAt/managedBy/
+    agentLevel —
     used by GET /api/sessions?summary=1 for agent context budgeting.
     cliSessionId lets MCP session_import locate the session that a reimport
     would overwrite (§8.2).
@@ -314,6 +316,7 @@ def _session_summary(s: sess.Session) -> dict:
         "workerStatus": w.status if w else None,
         "updatedAt": s.updated_at,
         "managedBy": s.managed_by,
+        "agentLevel": sess.agent_level(s.id),
         "lastMessage": last_text,
         "historyTotal": len(s.history),
         "totalUsage": s.total_usage,
@@ -1004,6 +1007,54 @@ async def api_get_session(session_id: str):
     return _session_to_api(s)
 
 
+@app.get("/api/sessions/{session_id}/managers")
+async def api_session_managers(session_id: str):
+    """Manager chain of a session, topmost first (level 1 = top).
+
+    Walks the managedBy chain upward from the session. Each entry carries
+    {level, id, name, workerStatus, lastResultStatus}:
+    - workerStatus: live worker status (None = no worker spawned)
+    - lastResultStatus: status of the session's last completed task
+      ("done"/"error"/...; None = never ran a task)
+
+    Edge cases:
+    - Dangling managedBy (manager deleted): the chain stops there — the
+      dangling id is not included (no info available about it).
+    - Cycles: a visited-set stops the walk on a repeated id.
+    - Unknown session_id → {"error": "Session not found"}.
+    - Session with no manager → {"managers": []}.
+    """
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    chain: list[sess.Session] = []
+    seen = {session_id}
+    cur = s
+    while True:
+        mb = cur.managed_by
+        if not mb or mb in seen:
+            break
+        manager = sess.get(mb)
+        if manager is None:
+            break  # dangling reference → chain ends here
+        seen.add(mb)
+        chain.append(manager)
+        cur = manager
+    managers = []
+    for i, m in enumerate(reversed(chain)):  # topmost first
+        w = worker.find_worker_by_session(m.id)
+        last_status = (m.last_result or {}).get("status") \
+            if isinstance(m.last_result, dict) else None
+        managers.append({
+            "level": i + 1,  # level 1 = topmost manager
+            "id": m.id,
+            "name": m.name,
+            "workerStatus": w.status if w else None,
+            "lastResultStatus": last_status,
+        })
+    return {"ok": True, "sessionId": session_id, "managers": managers}
+
+
 @app.get("/api/sessions/{session_id}/history")
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50):
     """Paginated session history for lazy-loading older messages."""
@@ -1249,7 +1300,7 @@ def _cleanup_mcp_config(session_id: str) -> None:
     try:
         p.unlink(missing_ok=True)
     except OSError as e:
-        _log.warning("[mcp-config] 清理失败 %s: %s", p, e)
+        _log(f"[mcp-config] 清理失败 {p}: {e}")
 
 
 def _cleanup_kimi_home(session_id: str) -> None:
@@ -1264,7 +1315,7 @@ def _cleanup_kimi_home(session_id: str) -> None:
         if p.exists():
             shutil.rmtree(p)
     except OSError as e:
-        _log.warning("[kimi-home] 清理失败 %s: %s", p, e)
+        _log(f"[kimi-home] 清理失败 {p}: {e}")
 
 
 @app.delete("/api/sessions/{session_id}")

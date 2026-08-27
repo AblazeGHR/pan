@@ -102,9 +102,11 @@ class OneBotChannel(QQChannel):
         # 群消息：OneBot v11 的 GroupMessageEvent.message_type == "group"
         # （用 message_type 而非 isinstance，便于测试与非标准 event 对象）
         if getattr(event, "message_type", None) == "group":
-            bot_qq = int(bot.self_id)
+            # OneBot v11 协议 At.data["qq"] 是字符串（NapCat 实发亦为 str），
+            # 两侧统一 str() 归一后比较，避免 int vs str 恒 False 漏掉所有 @
+            bot_qq = str(bot.self_id)
             at_qqs = [
-                seg.data.get("qq", 0)
+                str(seg.data.get("qq", ""))
                 for seg in getattr(event, "message", [])
                 if getattr(seg, "type", None) == "at"
             ]

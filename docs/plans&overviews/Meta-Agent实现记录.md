@@ -2,7 +2,7 @@
 
 > 记录 2026-08-14 pan-meta-agent 分支上 Meta-Agent 编排能力的实现过程、关键教训与待办。
 > 对应 `Meta-Agent与Worker通信机制设计立项.md` 的三条建议落地情况。
-> **历史记录（2026-08-23 注记）**：本文档是 2026-08-14 的实现快照（当时 MCP 工具 10 个）；此后工具已扩充至 20 个（含 `session_import`/`session_managed`/`session_batch_delete`）、完成通知已定型为 report_subscribe 订阅制，SKILL.md 是当前编排手册单一事实源。MCP 工具现状见 `docs/skills/pan/SKILL.md` §7。
+> **历史记录（2026-08-23 注记，08-27 更新数字）**：本文档是 2026-08-14 的实现快照（当时 MCP 工具 10 个）；此后工具已扩充至 **27 个**（含 `session_import`/`session_managed`/`session_batch_delete`/`session_handoff`/`worker_send_force` 等，另有 pan-qq MCP 6 个）、完成通知已定型为 report_subscribe 订阅制；旧 `worker_handoff` 已于 2026-08-26 移除（下文相关表述仅具历史价值）。SKILL.md 是当前编排手册单一事实源，MCP 工具现状见 `docs/skills/pan/SKILL.md` §7。
 
 ## 一、已实现能力（对应三建议）
 

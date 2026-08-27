@@ -1,8 +1,9 @@
 # OpenCode 适配设计文档
 
 > 目标：以 Pan 在 cbc 上实现的功能全集为基准，补齐 opencode (sst/opencode) 适配，使同一套 Pan 功能（spawn/resume/fork/takeover/enrich/import/MCP）由 opencode 驱动。
-> 状态：设计定稿，实现派发中。opencode 版本 `1.18.4`，本地安装 `PATH=/d/node_npm/node_global/opencode`，数据目录 `~/.local/share/opencode/`。
-> 日期：2026-08-26
+> 状态：**已实现并合入 main（2026-08-26 设计，commit `3b13c5b` / `4fcac4b` / `5787937`）**。opencode 实测版本 `1.18.23`（本文部分段落写作时为 `1.18.4`），本地安装 `PATH=/d/node_npm/node_global/opencode`，数据目录 `~/.local/share/opencode/`。
+> 日期：2026-08-26（08-27 更新状态）
+> 注：下文「仅改本 worktree（feat/cli-adapters）」的边界声明为写作时语境，该分支已合入 main。§4.5 的 handoff 超时限述基于已移除的 worker_handoff 机制（2026-08-26 移除），新 session_handoff 下的表现未复验。
 
 ## 1. cbc 功能基准（Pan 在 cbc 上已实现的全部能力）
 
@@ -166,10 +167,10 @@ E2E 验证结论（独立端口 8794，real pan MCP server）：
 - **opencode MCP 可用**：`opencode run` 直接加载项目 `opencode.json` 的 pan server，模型原生调用
   `pan_session_list` 工具并拿到真实返回（会话计数）。`opencode.json` 由 adapter 自动写出。
 - **无信任提示阻塞**：与 kimi -p 不同，opencode `run` 模式直接加载项目级 mcp，无需交互式信任（已实测）。
-- **已知限制（非 MCP 本身）**：通过 Pan 服务 `handoff` 走 opencode worker wrapper 时，handoff 会超时
+- **已知限制（非 MCP 本身；历史语境：基于已移除的 worker_handoff 机制）**：通过 Pan 服务 `handoff` 走 opencode worker wrapper 时，handoff 会超时
   （即便不含 MCP 的纯 "say HELLO" 任务也超时）。该超时位于 worker/harness 层（本轮另有并行 worker 在改
   `worker.py`/`base.py`），与 MCP 注入无关——MCP 工具可见/可用已由 `opencode run` 直跑确认。
-  建议后续在 worker 层修复 opencode stream 完成信号后再做服务内 handoff 复验。
+  原 worker_handoff 已于 2026-08-26 移除（commit `60e251b`），串行依赖改走 `worker_assign` + `session_handoff`；新链路下 opencode stream 完成信号是否仍超时**未复验**。
 
 ### 4.6 supported_settings / 权限 / thinking / effort（G5/G6/G7）
 - `supported_settings = ["model","permissionMode","effort","thinking"]`。
@@ -236,8 +237,8 @@ headless 可测（无需 API）。**假定**：opencode 从 `session`/`message`/
 - [x] 成功回合解析：已用 `opencode/big-pickle` 免费模型端到端复测通过（见 §4.9）
 
 ### T3 提交
-- [ ] `git add` + `commit`（feat(opencode): ...）
-- [ ] 报告（经 Pan 订阅自动送达，无需 SendMessage）
+- [x] `git add` + `commit`（feat(opencode): ...）——已合入 main（commit `4fcac4b`，2026-08-27 回填）
+- [x] 报告（经 Pan 订阅自动送达，无需 SendMessage）
 
 ## 6. 风险与边界
 - 成功事件解析已用 `opencode/big-pickle` 免费模型经真实成功回合验证（`text`/`reasoning`/`tool_use` 解析 + SQLite enrich 回填均通过，见 §4.9）。

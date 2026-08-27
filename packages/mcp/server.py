@@ -9,6 +9,7 @@ Tools exposed:
     - session_import: Import an external cbc/kimi session or list what's importable
     - session_list: List all sessions (optional lean summary mode)
     - session_managed: List the caller's managed sessions (summary)
+    - manager_chain: Return the caller's manager chain (upper-level managers)
     - session_get: Get session details (optional history limit)
     - session_update: Update session settings (model/effort/mcp etc.)
     - session_delete: Delete a session
@@ -243,6 +244,18 @@ def _worker_session_id(worker_id: str) -> str | None:
         if w.get("workerId") == worker_id:
             return w.get("sessionId")
     return None
+
+
+def _worker_unresolvable(worker_id: str) -> dict:
+    """Deny error for worker tools when _worker_session_id() returns None.
+
+    解析不到 session 就无法做隔离检查（受限 caller 不得操作任意 worker），
+    按 deny 处理（fail-safe），而不是跳过 _check_access 直接放行。
+    """
+    return {"ok": False, "error": {
+        "code": "worker_not_found",
+        "message": f"worker {worker_id} could not be resolved to a session; "
+                   "refusing to operate on it"}}
 
 
 # ---------------------------------------------------------------------------
@@ -490,6 +503,35 @@ def session_managed() -> list[dict] | dict:
         return result  # backend error passthrough
     by_id = {s.get("id"): s for s in sessions if isinstance(s, dict) and s.get("id")}
     return [by_id[sid] for sid in managed_ids if sid in by_id]
+
+
+@mcp.tool()
+def manager_chain() -> dict:
+    """Return the calling session's manager chain (all upper-level managers).
+
+    Returns {"ok": True, "sessionId": ..., "managers": [{level, id, name,
+    workerStatus, lastResultStatus}, ...]} ordered topmost first — level 1 is
+    the top of the chain, higher levels are closer to the caller (the direct
+    manager has the highest level). Fields per entry:
+    - workerStatus: live worker status ("running"/"idle"/...; None = no worker)
+    - lastResultStatus: status of the manager's last completed task
+      ("done"/"error"/...; None = never ran a task)
+
+    Edge cases: dangling managedBy (manager deleted) ends the chain; a session
+    with no manager returns an empty list.
+
+    Caller must be a Pan session (PAN_AGENT_SESSION_ID injected) — otherwise
+    {"ok": false, "error": {code: "missing_identity", ...}}.
+
+    完整编排流程见 /pan skill。
+    """
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not sid:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — manager_chain only "
+                       "works inside a Pan-managed session"}}
+    return _api("GET", f"/api/sessions/{sid}/managers")
 
 
 @mcp.tool()
@@ -992,10 +1034,11 @@ def worker_task(session_id: str | None = None, worker_id: str | None = None,
             return denied
     elif worker_id:
         sid = _worker_session_id(worker_id)
-        if sid:
-            denied = _check_access(sid, claim=True)
-            if denied:
-                return denied
+        if sid is None:
+            return _worker_unresolvable(worker_id)
+        denied = _check_access(sid, claim=True)
+        if denied:
+            return denied
     body: dict = {"text": text, "source": source}
     if worker_id:
         body["workerId"] = worker_id
@@ -1014,10 +1057,11 @@ def worker_kill(worker_id: str) -> dict:
     完整编排流程见 /pan skill。
     """
     sid = _worker_session_id(worker_id)
-    if sid:
-        denied = _check_access(sid)
-        if denied:
-            return denied
+    if sid is None:
+        return _worker_unresolvable(worker_id)
+    denied = _check_access(sid)
+    if denied:
+        return denied
     return _api("POST", f"/api/kill/{worker_id}")
 
 
@@ -1025,9 +1069,22 @@ def worker_kill(worker_id: str) -> dict:
 def worker_list() -> dict:
     """List all running workers.
 
+    受限 caller（restrictToManaged）仅能看到自己管理（managed + 自身
+    session）的 worker，避免枚举任意 worker 后绕过隔离检查。
+
     完整编排流程见 /pan skill。
     """
-    return _api("GET", "/api/list")
+    result = _api("GET", "/api/list")
+    caller = _caller_identity()
+    if caller and _caller_pan_access(caller).get("restrictToManaged"):
+        allowed = set(caller.get("managed") or []) | {caller.get("id")}
+        workers = result.get("workers") if isinstance(result, dict) else None
+        if isinstance(workers, list):
+            result["workers"] = [
+                w for w in workers
+                if isinstance(w, dict) and w.get("sessionId") in allowed
+            ]
+    return result
 
 
 @mcp.tool()
@@ -1098,10 +1155,11 @@ def worker_send(worker_id: str, text: str) -> dict:
         text = f"////by agent : {sid} | {title}\n{text}"
     # 向被管 session 的 worker 发消息即接管
     target_sid = _worker_session_id(worker_id)
-    if target_sid:
-        denied = _check_access(target_sid, claim=True)
-        if denied:
-            return denied
+    if target_sid is None:
+        return _worker_unresolvable(worker_id)
+    denied = _check_access(target_sid, claim=True)
+    if denied:
+        return denied
     return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
 
 
@@ -1137,10 +1195,11 @@ def worker_send_force(worker_id: str, text: str) -> dict:
         text = f"////by agent : {sid} | {title}\n{text}"
     # 向被管 session 的 worker 强制推送即接管（与 worker_send 一致）
     target_sid = _worker_session_id(worker_id)
-    if target_sid:
-        denied = _check_access(target_sid, claim=True)
-        if denied:
-            return denied
+    if target_sid is None:
+        return _worker_unresolvable(worker_id)
+    denied = _check_access(target_sid, claim=True)
+    if denied:
+        return denied
     # 1) 重启 worker 进程（失败直接返回后端错误）
     result = _api("POST", f"/api/worker/{worker_id}/restart")
     if not isinstance(result, dict) or result.get("error"):

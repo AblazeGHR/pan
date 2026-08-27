@@ -10,7 +10,7 @@ OneBot 11 实现，配置文件 ``data/config_<qq>.json`` 的 ``ob11.connect[]``
 
 注意：LLOneBot 与 NapCat 都是协议网关，需要各自独立登录的 QQ 账号。同一账号无法
 同时被两者登录，因此真实收发对接需为 LLOneBot 准备另一个 QQ 号（与运行中的 NapCat
-账号 1470993983 区分）。本仓库仅完成通道抽象、配置化与初始化验证。
+账号 1234567890 区分）。本仓库仅完成通道抽象、配置化与初始化验证。
 """
 
 from __future__ import annotations

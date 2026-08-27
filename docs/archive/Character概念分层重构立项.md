@@ -1,6 +1,6 @@
 # Character 概念分层重构 — 立项
 
-> 状态：立项阶段（决策已敲定，**不改代码**） | 创建：2026-08-17
+> 状态：**已实施（2026-08-17，Profile→session_template 改名 + character_template 新增均已合入 main；2026-08-27 归档补注）** | 创建：2026-08-17
 > 目标：拆开 `Profile` 身上过载的双重身份，把 character 重新定位为「拥有记忆 + 资产的持久实体」，session 的配置交给独立的 `session_template`。
 
 ---

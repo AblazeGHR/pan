@@ -222,7 +222,7 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 - **Managed 订阅收件箱**：订阅制报告落盘投递，主管「派完活回来看收件箱」，掉线重连不丢报告。
 - **Worker 生命周期自愈**：`stream` / `one-shot` 双执行模式；Watchdog 三档超时清理 + 落盘队列在进程异常死亡后自动重建 Worker。
 - **Memory + Character**：SQLite FTS5 + embedding 混合检索；人设（Character）与记忆库跨 Session 保持同一身份。
-- **会话级 MCP**：每个 Session 可挂载自己的 MCP Server；内置 `pan`（27 个编排工具）与 `pan-qq`（6 个 QQ 工具）两个 server。
+- **会话级 MCP**：每个 Session 可挂载自己的 MCP Server；内置 `pan`（编排工具集）与 `pan-qq`（QQ 工具集）两个 server。
 - **多渠道接入**：Web Dashboard（React + Legacy 双轨）、QQ Bridge（NapCat / LLOneBot 通道插件化）、Cloudflare Tunnel、任意 Agent CLI（WS + MCP）。
 - **会话导入**：cbc / kimi / opencode / claude / codex 历史会话可导入复用，免去重新探索与初始化。
 
@@ -277,7 +277,7 @@ python main.py
 python -m pytest tests/ -q
 ```
 
-### React 前端（开发中）
+### React 前端（主开发目标）
 
 ```bash
 cd packages/web
@@ -290,9 +290,9 @@ pnpm dev       # 开发模式：Vite HMR + 代理到后端
 
 | `frontend` | 行为 |
 |------------|------|
-| `coexist`（默认） | `/` 旧前端 + `/react/` React SPA |
-| `react` | React 接管 `/` |
-| `legacy` | 仅旧前端 |
+| `coexist`（默认） | `/` 307 重定向到 `/react/`；旧前端移至 `/vanilla` |
+| `react` | React 接管 `/`（无旧前端入口） |
+| `legacy` | 仅旧前端，`/` 直接渲染 Vanilla |
 
 > 后端 API/WS 优先为 React 演化；若后端变更破坏 legacy 前端，改 `ts/app.ts` 跟随，不约束后端。
 
@@ -330,11 +330,11 @@ pnpm dev       # 开发模式：Vite HMR + 代理到后端
 | `packages/core/` | Core 模块：进程管理 + 消息路由 + Memory + Adapter。所有外部模块仅通过 HTTP/WS API 与 Core 通信 |
 | `packages/web/` | Web 通道：FastAPI 路由 + WebSocket + Dashboard（69 个 HTTP 端点） |
 | `packages/qq/` | QQ 通道：NoneBot2 桥接 + 通道插件化 + pan-qq MCP |
-| `packages/mcp/` | MCP Server：27 个工具，可独立启动 |
+| `packages/mcp/` | MCP Server：编排工具集 + pan-qq，可独立启动 |
 | `packages/remote/` | Cloudflare Tunnel 远程通道 |
 | `scripts/` | 启动 / 停止 / 隧道 / 预提交脚本 |
 | `docs/` | 文档（git 跟踪；`docs/skills/pan/SKILL.md` 是编排知识单一事实源） |
-| `tests/` | 测试（26 个文件） |
+| `tests/` | 测试（29 个文件） |
 
 ## 多 CLI 适配
 
@@ -346,7 +346,7 @@ Worker 与具体 CLI 解耦：每种 CLI Agent 对应一个实现 `CliAdapter` �
 | `kimi` | Kimi CLI | stream（wrapper 长驻） | wrapper 内逐条 `kimi -p` |
 | `opencode` | OpenCode CLI | stream（wrapper 长驻） | wrapper 内逐条 `opencode run --format json` |
 | `claude` | Claude Code CLI | one-shot | 逐条 `claude -p --output-format stream-json`，MCP 经 `--mcp-config` 注入 |
-| `codex` | OpenAI Codex CLI | stream（wrapper 长驻） | wrapper 内逐条 `codex exec --json`，MCP 经 `~/.codex/config.toml` 内联注入 |
+| `codex` | OpenAI Codex CLI | stream（wrapper 长驻） | wrapper 内逐条 `codex exec --json`，MCP 经 `-c mcp_servers.*` 内联注入（零文件污染） |
 
 配套的 `SessionsProvider` 协议（`packages/core/adapters/base.py`）把各 CLI 的原生会话存储（历史 / usage / 标题 / fork）统一为同一套读写接口；server 按 adapter 名取 provider，新增一个 CLI 无需再写 import / branch / rename 的分派逻辑（`/api/adapters/{adapter}/sessions[/import]` 通用端点）。
 
@@ -356,7 +356,7 @@ Worker 与具体 CLI 解耦：每种 CLI Agent 对应一个实现 `CliAdapter` �
 
 Meta-Agent 不是某个特殊程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件即可扮演「主管」：
 
-1. **能发指令**：通过 MCP 工具（27 个，如 `worker_spawn` / `worker_assign` / `worker_send` / `session_handoff`）或 HTTP API；
+1. **能发指令**：通过 MCP 工具（如 `worker_spawn` / `worker_assign` / `worker_send` / `session_handoff`）或 HTTP API；
 2. **能收情报**：通过 WebSocket 订阅事件流（`worker.result` / `worker.status` / `worker.crashed`…），或订阅制报告落盘到自己的收件箱；
 3. **有身份**：Pan 记录谁在指挥，并对 Worker 做隔离防止越权。
 
@@ -507,6 +507,19 @@ POST   /api/cbc/sessions/import         → 导入 CBC Session
 GET    /api/kimi/workspaces             → Kimi Workspace 列表
 GET    /api/kimi/sessions               → Kimi Session 列表
 POST   /api/kimi/sessions/import        → 导入 Kimi Session
+GET    /api/opencode/sessions           → OpenCode Session 列表
+POST   /api/opencode/sessions/import    → 导入 OpenCode Session
+```
+
+**设置 / Manifest / 模板**
+
+```
+GET    /api/settings/ui                 → 读取全局显示设置
+PUT    /api/settings/ui                 → 保存全局显示设置
+GET    /api/session-templates           → Session 模板列表（manifest）
+GET    /api/mcp/servers                 → Manifest 中可选 MCP Server 列表
+POST   /api/manifest/reload             → 强制热重载 manifest
+GET    /api/worker/{id}/takeover-command → 生成 takeover 命令
 ```
 
 ### WebSocket
@@ -519,19 +532,9 @@ WS   /ws/agent     Meta-Agent：subscribe（按 eventTypes / sessionIds 过滤 +
 
 广播事件：`worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`、`session.created` / `session.updated` / `session.renamed` / `session.deleted` / `sessions.deleted`、`error`。
 
-### MCP Server（`packages/mcp/server.py`，27 个工具）
+### MCP Server（`packages/mcp/server.py`）
 
-```
-session_create / session_import / session_list / session_managed / session_get /
-session_delete / session_batch_delete / session_handoff / session_claim /
-session_claim_many / session_unclaim / session_unclaim_many / session_update /
-session_history / session_qq_subscribe / session_qq_unsubscribe /
-report_subscribe / report_unsubscribe /
-worker_spawn / worker_task / worker_kill / worker_list / worker_assign /
-worker_send / worker_send_force / model_list / pan_handbook
-```
-
-另有独立 **pan-qq MCP server**（`packages/qq/mcp.py`，6 个工具）：`qq_send_message` / `qq_read_conversation` / `qq_list_contacts` / `qq_read_inbox` / `qq_bind` / `qq_unbind`。
+`pan` server（编排工具集，工具表见「[外部 Agent 调用 Pan](#外部-agent-调用-panmeta-agent--mcp)」）+ 独立 `pan-qq` server（QQ 通道，`packages/qq/mcp.py`）。
 
 启动方式：`python -m packages.mcp.server --transport stdio|sse|streamable-http [--port 9740]`（默认 stdio，API 地址取 `PAN_API_URL`）。
 
@@ -539,13 +542,81 @@ worker_send / worker_send_force / model_list / pan_handbook
 
 ### Web / Dashboard
 
-- `http://127.0.0.1:{port}` — legacy Dashboard；`/react/` — React Dashboard
+- `http://127.0.0.1:{port}` — 默认 307 重定向到 React Dashboard `/react/`；旧版 Vanilla Dashboard 挂在 `/vanilla`
 - `ws://127.0.0.1:{port}/ws` — Dashboard WebSocket
 - `ws://127.0.0.1:{port}/ws/agent` — Meta-Agent WebSocket
 
-### Meta-Agent（MCP）
+### 外部 Agent 调用 Pan（Meta-Agent / MCP）
 
-Pan 内置 `pan` MCP server（27 个工具），任意 Agent CLI 通过 MCP 协议（stdio / SSE / streamable-http）接入即可扮演 Meta-Agent，也可以直接连 `/ws/agent` WebSocket 订阅事件流并下发命令。启动方式见「[MCP Server](#mcp-serverpackagesmcpserverpy27-个工具)」。
+Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部 agent**（CodeBuddy、Claude Code、自定义脚本 agent……）都可以接管 Pan 的完整编排能力：会话管理、worker 派发、报告订阅、QQ 收件箱消费，扮演「Meta-Agent 主管」角色。也可以直接连 `/ws/agent` WebSocket 订阅事件流。
+
+#### MCP 工具一览
+
+**`pan` server**（`packages/mcp/server.py`，编排核心）：
+
+| 工具 | 功能 |
+|------|------|
+| `session_create` | 创建 Session（只建会话，不启动 worker） |
+| `session_import` | 浏览 / 导入既有 CLI 会话（list_projects / list_workspaces / list_sessions / import 四个 action） |
+| `session_list` | 列出全部 Session（`summary=true` 返回摘要，避免全量 history） |
+| `session_managed` | 返回调用方管理的 Session 概要（归属巡检） |
+| `manager_chain` | 返回调用方的上级 manager 链 🚧 *新增中（未提交）* |
+| `session_get` | 获取单个 Session 完整详情（含 history 与最近 result） |
+| `session_update` | 更新会话设置（model / permissionMode / effort / MCP / outputMode 等） |
+| `session_delete` | 删除 Session 并 kill 其 worker |
+| `session_batch_delete` | 批量删除（kill worker、清理跨会话引用） |
+| `session_handoff` | 替身交接：创建孪生 Session B 接替 A（精简上下文 / 换 adapter） |
+| `session_claim` / `session_claim_many` | 认领会话建立 managed 关系（自动订阅报告；批量版逐项隔离） |
+| `session_unclaim` / `session_unclaim_many` | 解除 managed 关系（同时退订报告；批量版逐项隔离） |
+| `session_history` | 分页读取会话历史 |
+| `session_qq_subscribe` / `session_qq_unsubscribe` | 订阅 / 退订 QQ 会话 inbox 更新提醒（`@@@@by qq` 推送到收件箱） |
+| `report_subscribe` / `report_unsubscribe` | 订阅 / 退订被管会话的完成报告（自动投递到调用方收件箱，掉线不丢） |
+| `worker_spawn` | 为 Session 启动 worker 进程 |
+| `worker_task` | 给 worker 发任务（无 worker 自动 spawn，阻塞等结果） |
+| `worker_assign` | 异步派发任务，立即返回（编排首选） |
+| `worker_send` | 向存活 worker 追加消息（多轮协作，排队不打断） |
+| `worker_send_force` | 强制推送：重启 worker 再发（`worker_send` 送不到时的兜底） |
+| `worker_kill` | 终止 worker 进程（session 数据保留） |
+| `worker_list` | 列出运行中的 worker |
+| `model_list` | 列出 adapter 可用模型 |
+| `pan_handbook` | 返回完整 Pan 编排手册（`docs/skills/pan/SKILL.md`） |
+
+**`pan-qq` server**（`packages/qq/mcp.py`，QQ 通道）：
+
+| 工具 | 功能 |
+|------|------|
+| `qq_send_message` | 向指定 QQ 会话发消息（私聊 / 群聊） |
+| `qq_read_conversation` | 读取 QQ 会话对话记录（本地落盘，非框架缓存） |
+| `qq_read_inbox` | 读取 QQ 会话待处理消息（selective 模式下由编排者消费） |
+| `qq_list_contacts` | 列出可联系的 QQ 会话（好友 / 群合并去重） |
+| `qq_bind` / `qq_unbind` | 绑定 / 解绑当前 Pan session 到 QQ 会话（订阅其 inbox 更新提醒） |
+
+#### 接入方式
+
+**方式 A：作为 Session 的 MCP server 挂载（推荐，自动注入）**
+
+创建 session 时指定 `mcpServers: ["pan"]`（或使用自带 MCP 的模板如 SMA），adapter 在 spawn worker 时自动生成会话级 MCP 配置并注入，无需手工接线：
+
+- cbc / claude：写 `data/mcp-configs/<sid>.mcp.json`，spawn 参数追加 `--mcp-config`
+- kimi：写会话级隔离 home（`data/kimi-homes/<sid>/`），经 `--kimi-home` 加载
+- opencode：写项目级 `opencode.json`
+- codex：`-c mcp_servers.*` 内联注入（零文件污染）
+
+注入时同时带上 `PAN_AGENT_SESSION_ID` / `PAN_AGENT_SESSION_TITLE` 环境变量——MCP 工具据此识别调用方身份（managed 隔离判定、report 投递目标）。**注意三对齐**：MCP server 连接的 Pan API 地址（`PAN_API_URL`，默认 `http://127.0.0.1:8768`）必须与 `PAN_AGENT_SESSION_ID` 所在 Pan 实例一致。
+
+**方式 B：独立进程接入（任意 MCP 客户端）**
+
+```bash
+# stdio（本地 CLI 客户端，如在 .mcp.json / --mcp-config 里声明 command）
+PAN_API_URL=http://127.0.0.1:8768 python -m packages.mcp.server --transport stdio
+
+# SSE / streamable-http（远程或多客户端）
+python -m packages.mcp.server --transport sse --port 9740
+```
+
+独立进程没有 `PAN_AGENT_SESSION_ID`，依赖调用方身份的工具（`session_claim` / `report_subscribe` / `manager_chain` 等）不可用；完整编排体验建议走方式 A，或配合 `/ws/agent` WebSocket 使用。
+
+编排方法论与实战手册见 `docs/skills/pan/SKILL.md`（`pan_handbook` 工具可直接取用）。
 
 ### QQ Bridge
 

@@ -1,6 +1,0 @@
-{"role":"meta","type":"system.version","version":"0.38.0"}
-{"role":"assistant","tool_calls":[{"type":"function","id":"mcp__pan-probe__pan_probe_0","function":{"name":"mcp__pan-probe__pan_probe","arguments":"{}"}}]}
-{"role":"tool","tool_call_id":"mcp__pan-probe__pan_probe_0","content":"PAN_MCP_OK\n<mcp-structured-result>\n{\"structuredContent\":{\"result\":\"PAN_MCP_OK\"}}\n</mcp-structured-result>"}
-{"role":"assistant","content":"The tool returns exactly:\n\n```\nPAN_MCP_OK\n<mcp-structured-result>\n{\"structuredContent\":{\"result\":\"PAN_MCP_OK\"}}\n</mcp-structured-result>\n```"}
-{"role":"meta","type":"session.resume_hint","session_id":"session_c298b23e-8918-4e3a-8a36-ab545482a9e4","command":"kimi -r session_c298b23e-8918-4e3a-8a36-ab545482a9e4","content":"To resume this session: kimi -r session_c298b23e-8918-4e3a-8a36-ab545482a9e4"}
-

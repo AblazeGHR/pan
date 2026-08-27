@@ -432,6 +432,40 @@ def get(session_id: str) -> Session | None:
         return None
 
 
+def agent_level(session_id: str) -> int:
+    """Compute a session's agent level along its managedBy chain.
+
+    Level 1 = no manager (managedBy is None). Each resolvable hop upward
+    (session.managed_by → manager) adds 1, so a session managed by a level-1
+    session is level 2, and so on.
+
+    Edge cases:
+    - Dangling managedBy (manager session deleted): the chain stops there and
+      the session keeps the level reached so far (a broken link is treated as
+      the top of the chain).
+    - Cycles: a visited-set guards against managedBy loops (which claim()
+      prevents but old data might contain) — the walk stops when a manager id
+      repeats.
+    - Unknown session_id → 1.
+
+    Cost: O(depth) cache lookups per call (get() is an in-memory dict hit).
+    """
+    seen: set[str] = {session_id}
+    level = 1
+    cur = get(session_id)
+    while cur is not None:
+        mb = cur.managed_by
+        if not mb or mb in seen:
+            break
+        manager = get(mb)
+        if manager is None:
+            break  # dangling reference → treat as chain top
+        seen.add(mb)
+        level += 1
+        cur = manager
+    return level
+
+
 def _save_sync(s: Session, force_full: bool = False):
     """落盘 Session。热路径只做增量：
 

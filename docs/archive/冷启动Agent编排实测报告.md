@@ -1,6 +1,6 @@
 # 冷启动 Agent 编排实测报告（D5）
 
-> 对应立项：`docs/plans&overviews/Pan冷启动Agent编排skill立项.md` D5
+> 对应立项：`docs/archive/Pan冷启动Agent编排skill立项.md` D5（立项已于 2026-08 归档至同目录）
 > 分支：`test/coldstart`（基于 pan-test）｜日期：2026-08-17
 > 验证目标：一个只有 MCP + skill（无对话上下文）的 agent，能否仅凭 `.codebuddy/skills/pan/SKILL.md` + MCP 工具完成一次完整 Pan 编排。
 

@@ -23,8 +23,9 @@ Source: **`packages/web/src/main.tsx`** (TypeScript + React)
 
 | URL | Frontend | Status |
 |-----|----------|--------|
-| `/` | Legacy Vanilla | Stable backup |
+| `/` | React SPA | 307-redirects to `/react/` when `frontend` is `coexist`/`react` (default) and `dist/` exists |
 | `/react/*` | React SPA | Primary development target |
+| `/vanilla` | Legacy Vanilla | Stable backup |
 
 **Backend priority**: Backend API/WS evolves for React first. If backend changes break the legacy frontend, patch `ts/app.ts` to follow — do not constrain backend changes.
 
