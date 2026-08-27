@@ -9,6 +9,7 @@ Tools exposed:
     - session_import: Import an external cbc/kimi session or list what's importable
     - session_list: List all sessions (optional lean summary mode)
     - session_managed: List the caller's managed sessions (summary)
+    - manager_chain: Return the caller's manager chain (upper-level managers)
     - session_get: Get session details (optional history limit)
     - session_update: Update session settings (model/effort/mcp etc.)
     - session_delete: Delete a session
@@ -490,6 +491,35 @@ def session_managed() -> list[dict] | dict:
         return result  # backend error passthrough
     by_id = {s.get("id"): s for s in sessions if isinstance(s, dict) and s.get("id")}
     return [by_id[sid] for sid in managed_ids if sid in by_id]
+
+
+@mcp.tool()
+def manager_chain() -> dict:
+    """Return the calling session's manager chain (all upper-level managers).
+
+    Returns {"ok": True, "sessionId": ..., "managers": [{level, id, name,
+    workerStatus, lastResultStatus}, ...]} ordered topmost first — level 1 is
+    the top of the chain, higher levels are closer to the caller (the direct
+    manager has the highest level). Fields per entry:
+    - workerStatus: live worker status ("running"/"idle"/...; None = no worker)
+    - lastResultStatus: status of the manager's last completed task
+      ("done"/"error"/...; None = never ran a task)
+
+    Edge cases: dangling managedBy (manager deleted) ends the chain; a session
+    with no manager returns an empty list.
+
+    Caller must be a Pan session (PAN_AGENT_SESSION_ID injected) — otherwise
+    {"ok": false, "error": {code: "missing_identity", ...}}.
+
+    完整编排流程见 /pan skill。
+    """
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not sid:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID not set — manager_chain only "
+                       "works inside a Pan-managed session"}}
+    return _api("GET", f"/api/sessions/{sid}/managers")
 
 
 @mcp.tool()
