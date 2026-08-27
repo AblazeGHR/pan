@@ -19,10 +19,17 @@ Tools exposed:
     - session_unclaim: Unclaim a session from the calling agent
     - session_unclaim_many: Batch-unclaim multiple sessions
     - session_handoff: 替身交接——创建孪生 session B 接替 A（精简上下文/切换 adapter）
-    - worker_spawn: Spawn a worker for a session
-    - worker_task: Send a task to a worker
-    - worker_kill: Kill a worker
-    - worker_send_force: Force-push a message to a worker (restart + send, fallback when worker_send can't deliver)
+    - agent_spawn: Spawn a worker process (CLI) for an agent (= session)
+    - agent_task: Send a task to an agent (auto-spawns if no live worker)
+    - agent_assign: Async task dispatch to an agent, returns immediately (preferred)
+    - agent_send: Send a message to an agent (queued; no live worker → pending queue)
+    - agent_send_force: Force-push to an agent (restart + send; no live worker → queue)
+    - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
+    - agent_list: List all agents (= sessions) — alias of session_list
+    - worker_spawn / worker_task / worker_assign / worker_send / worker_send_force /
+      worker_kill / worker_list: DEPRECATED compat aliases — prefer agent_*.
+      Only worker_id addressing is alias-exclusive; session_id paths delegate
+      to the same implementation as agent_*.
     - session_history: Get paginated conversation history
     - model_list: List available AI models
     - report_subscribe: Subscribe to completion reports of a managed session
@@ -257,6 +264,20 @@ def _session_worker_id(session_id: str) -> str | None:
     return None
 
 
+def _agent_message_prefix(text: str) -> str:
+    """Prepend the ////by agent identity prefix when inside a Pan-managed session.
+
+    立项 4.8：Pan 内 session（adapter 注入 PAN_AGENT_SESSION_ID/TITLE）向其他
+    agent 发消息时标注发送者身份，目标 worker 据此区分编排消息与真实用户消息。
+    agent_send / agent_send_force 及其 worker_* 别名共用本实现。
+    """
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    title = os.environ.get("PAN_AGENT_SESSION_TITLE")
+    if sid or title:
+        return f"////by agent : {sid} | {title}\n{text}"
+    return text
+
+
 def _worker_unresolvable(worker_id: str) -> dict:
     """Deny error for worker tools when _worker_session_id() returns None.
 
@@ -309,7 +330,7 @@ def session_create(
     fall back to the adapter's config.json settings).
 
     调用链（编排主链第 1 步·创建）：返回的 `id` 即后续所有请求的 `session_id` 入参，
-    记下它再 `worker_assign` 派发任务。workdir 默认 data/workdirs/<name>（Pan 外目录用绝对路径）。
+    记下它再 `agent_assign`（兼容别名 `worker_assign`）派发任务。workdir 默认 data/workdirs/<name>（Pan 外目录用绝对路径）。
     完整编排流程见 /pan skill。
     """
     body: dict = {"name": name, "adapter": adapter}
@@ -374,8 +395,9 @@ def session_import(
        name?/session_template?/pan_access?) 导入成 Pan session —— 仅建 session 不
        spawn worker；workdir 为外部项目路径。同一 cli_session_id 重复导入 = reimport，
        覆盖原 Pan session 历史（受限 caller 只能覆盖自己管理的）。
-    4. 接编排主链：report_subscribe（订阅完成报告）→ worker_assign（派发任务）→
-       session_get（查结果）→ session_delete（收尾）。完整编排流程见 /pan skill。
+    4. 接编排主链：report_subscribe（订阅完成报告）→ agent_assign（派发任务，
+       兼容别名 worker_assign）→ session_get（查结果）→ session_delete（收尾）。
+       完整编排流程见 /pan skill。
     """
     if action not in ("list_projects", "list_workspaces", "list_sessions", "import"):
         return {"ok": False, "error": {
@@ -661,7 +683,8 @@ def session_handoff(
 
     调用链：走 POST /api/sessions/{session_id}/handoff。切换 adapter 的典型
     用法：copy_settings=false + adapter="kimi" + handoff_prompt=...。交接后
-    B 即可 worker_assign 派活；A 归档但可 session_get 读取。完整编排流程见 /pan skill。
+    B 即可 agent_assign（兼容别名 worker_assign）派活；A 归档但可 session_get 读取。
+    完整编排流程见 /pan skill。
     """
     denied = _check_access(session_id, claim=True)
     if denied:
@@ -694,7 +717,8 @@ def session_claim(session_id: str) -> dict:
     调用链：走 POST /api/claim（带 _check_access(claim=True) 隔离检查：
     受限 caller 可自动 claim 无主/自己可认领的 session；不受限 caller 放行后
     工具显式调 POST /api/claim 返回统一结果，幂等）。claim 后即建立 managed
-    关系并订阅完成报告，可直接 worker_assign 派活。完整编排流程见 /pan skill。
+    关系并订阅完成报告，可直接 agent_assign（兼容别名 worker_assign）派活。
+    完整编排流程见 /pan skill。
     """
     manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
     if not manager_id:
@@ -814,7 +838,7 @@ def session_update(
     """Update session-level settings without spawning a worker.
 
     Note: changing mcpServers makes the response include requireRestart: true —
-    the worker must be respawned (worker_kill + worker_spawn) for the change
+    the worker must be respawned (agent_kill + agent_spawn) for the change
     to take effect.
 
     Args:
@@ -987,24 +1011,228 @@ def session_qq_unsubscribe(target_type: str, target_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Worker management tools
+# Agent management tools（一等工具：编排对象 = Agent = Session）
+#
+# 概念模型（agent-naming 确立）：
+#   Agent  = Session —— 持久身份：收件箱（queue_pending）、agentLevel、managedBy
+#           链。meta-agent 编排的对象，投递/编排语义都绑在它上面。
+#   Worker = CLI 进程实例 —— 临时的 cbc/kimi/... 子进程，属于某 Agent，可随时
+#           重建；进程是顺带的。
+# agent_* 全部以 session_id 寻址（agent 寻址），无活进程也容忍：
+#   send/send_force 无活 worker → 入持久队列（pendingSpawn，全局 watchdog 自动
+#   spawn 后分发）；kill 无活 worker → 无害 no-op（killed=false）。
+# 返回形状沿用阶段 6 约定（queued/pendingSpawn/missing_params/worker_not_found）。
+# worker_* 是兼容别名（DEPRECATED），内部委托同一实现，不复制逻辑；仅 worker_id
+# 寻址路径为别名独有遗留能力。
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def agent_spawn(session_id: str, adapter: str = "cbc", model: str | None = None) -> dict:
+    """Spawn a worker process (CLI) for an agent (= session).
+
+    Agent 是编排对象（持久），worker 是它的临时 CLI 进程。已有 worker 会先
+    kill（一个 Agent 同一时间只有一个 worker 进程）。
+
+    Args:
+        session_id: Agent（= session）ID
+        adapter: CLI adapter（默认 "cbc"）
+        model: Model override
+
+    完整编排流程见 /pan skill。
+    """
+    # spawn 即接管：meta-agent 首次 spawn 某 agent 时自动建立 managed 关系
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
+    body: dict = {"sessionId": session_id, "adapter": adapter}
+    if model:
+        body["model"] = model
+    return _api("POST", "/api/spawn", body)
+
+
+@mcp.tool()
+def agent_task(session_id: str, text: str, source: str = "agent") -> dict:
+    """Send a task to an agent (auto-spawns a worker if it has none).
+
+    Args:
+        session_id: Agent（= session）ID
+        text: Task text / prompt
+        source: Source label (default "agent")
+
+    完整编排流程见 /pan skill。
+    """
+    # 派任务即接管（与 agent_assign 一致）
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
+    return _api("POST", "/api/task",
+                {"sessionId": session_id, "text": text, "source": source})
+
+
+@mcp.tool()
+def agent_assign(session_id: str, text: str, task_id: str | None = None) -> dict:
+    """Dispatch a task to an agent asynchronously and return immediately.
+
+    Async orchestration primitive: returns {"status": "queued", ...}
+    right away. Completion is delivered via the worker.result event —
+    subscribe to /ws/agent with eventTypes=["worker.result"] to catch it.
+    Use for parallel fan-out.
+
+    Idempotency: pass the same `task_id` when retrying a task (e.g. after a
+    timeout or network error) — the server won't re-enqueue if that taskId is
+    already known. It returns the cached result if already completed, or
+    {"status": "pending", "taskId": ...} if still in flight. Prevents
+    double-execution of the same task.
+
+    Args:
+        session_id: Agent（= session）ID to run the task on
+        text: Task text / prompt
+        task_id: Optional caller-supplied idempotency key (uuid-like string)
+
+    调用链（编排主链第 2 步·派发）：立即返回 queued（worker 自动 spawn）；
+    完成信号经 /ws/agent 的 worker.result 事件推送，或轮询 session_get 到
+    lastResult.status=="done"。完成后 `session_delete` 收尾。
+    完整编排流程见 /pan skill。
+    """
+    # 派任务即接管：meta-agent 首次 assign 目标 agent 时自动建立 managed 关系
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
+    body = {"sessionId": session_id, "text": text}
+    if task_id:
+        body["taskId"] = task_id
+    return _api("POST", "/api/assign", body)
+
+
+@mcp.tool()
+def agent_send(session_id: str, text: str = "") -> dict:
+    """Send a message to an agent (multi-turn collaboration).
+
+    **仅用于非即时发送**：消息入队排队，目标空闲（当前任务完成后）才处理，
+    不打断进行中的任务。
+    若消息需要立即响应或打断当前执行（如操作约束、方向变更、紧急指令）
+    → 必须用 `agent_send_force`（restart+send）。
+
+    无活 worker 时**不报错**——消息入该 agent 的持久队列（返回含
+    pendingSpawn=true），由全局 watchdog 自动 spawn worker 后分发
+    （「send = 写给 agent，进程是顺带的」）。
+
+    Pan 内 session 发送时自动加 ////by agent 身份前缀（立项 4.8）。
+
+    Args:
+        session_id: Agent（= session）ID
+        text: Task text / prompt
+
+    调用链：POST /api/send（无活 worker 时入队待投）。
+    完整编排流程见 /pan skill。
+    """
+    text = _agent_message_prefix(text)
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
+    return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
+
+
+@mcp.tool()
+def agent_send_force(session_id: str, text: str = "") -> dict:
+    """Force-push a message to an agent: restart the worker, then send.
+
+    强制推送 = restart + send：目标 worker 卡死 / 忙 / 连接异常导致普通
+    agent_send 消息无法送达时的兜底。先终止并重新 spawn worker 进程，
+    再发送消息，保证消息能送达。
+    需要打断或立即送达的时效性消息（操作约束、方向变更、紧急指令）直接用它；
+    仅补充信息、可排队等待的用 `agent_send`。
+
+    无活 worker 时**不报错**——restart 无从谈起，消息入该 agent 的持久队列，
+    由全局 watchdog 自动 spawn 后分发。
+
+    Pan 内 session 发送时自动加 ////by agent 身份前缀（立项 4.8）。
+
+    Args:
+        session_id: Agent（= session）ID
+        text: Task text / prompt
+
+    调用链：隔离检查 → 有活 worker 时 restart 端点 + POST /api/task；无活
+    worker 时 POST /api/send 入队。restart 或 send 任一失败均返回含后端
+    error 信息的错误 dict，不吞错。
+    完整编排流程见 /pan skill。
+    """
+    text = _agent_message_prefix(text)
+    denied = _check_access(session_id, claim=True)
+    if denied:
+        return denied
+    wid = _session_worker_id(session_id)
+    if wid is None:
+        # 无活 worker：restart 无从谈起 → 入持久队列，watchdog spawn 后分发
+        return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
+    result = _api("POST", f"/api/worker/{wid}/restart")
+    if not isinstance(result, dict) or result.get("error"):
+        return result
+    return _api("POST", "/api/task", {"workerId": wid, "text": text})
+
+
+@mcp.tool()
+def agent_kill(session_id: str) -> dict:
+    """Kill an agent's worker process (the agent itself and its data persist).
+
+    编排对象是 agent（session），进程本就可随时重建：目标无活 worker 时返回
+    ok（killed=false）——无害 no-op。
+
+    Args:
+        session_id: Agent（= session）ID（杀其当前 worker）
+
+    完整编排流程见 /pan skill。
+    """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
+    wid = _session_worker_id(session_id)
+    if wid is None:
+        return {"ok": True, "sessionId": session_id, "workerId": None,
+                "killed": False,
+                "message": "no live worker for agent; nothing to kill"}
+    return _api("POST", f"/api/kill/{wid}")
+
+
+@mcp.tool()
+def agent_list(summary: bool = False) -> list[dict] | dict:
+    """List all agents (= sessions) with their worker status.
+
+    Agent = Session：本工具即 session_list 的别名，按 agent 视角列出全部
+    会话摘要。Args/返回形状与 `session_list` 完全一致（summary=true 只返回
+    精简字段，context 预算友好）。
+
+    完整编排流程见 /pan skill。
+    """
+    return session_list(summary=summary)
+
+
+# ---------------------------------------------------------------------------
+# Worker tools（DEPRECATED 兼容别名 → agent_*；worker_id 寻址为遗留独有路径）
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
 def worker_spawn(session_id: str | None = None, name: str | None = None,
                  adapter: str = "cbc", model: str | None = None,
                  workdir: str | None = None) -> dict:
-    """Spawn a worker (CLI process) for a session. Creates session if name given.
+    """DEPRECATED alias — prefer agent_spawn(session_id, adapter, model).
+
+    Compat alias of `agent_spawn` for session_id calls (delegates to the same
+    implementation). Legacy extras kept for old callers: `name` creates a new
+    session and spawns its first worker; `workdir` only applies to that path.
 
     Args:
         session_id: Existing session ID to spawn worker for
-        name: Or create a new session with this name
+        name: Or create a new session with this name (legacy)
         adapter: CLI adapter (default "cbc")
         model: Model override
         workdir: Workdir for the new session (only used when name is given)
 
     完整编排流程见 /pan skill。
     """
+    if session_id and not name and not workdir:
+        # 委托一等实现，不复制逻辑
+        return agent_spawn(session_id=session_id, adapter=adapter, model=model)
     body: dict = {"adapter": adapter}
     if session_id:
         # spawn 即接管：meta-agent 首次 spawn 现有 session 时自动建立 managed 关系
@@ -1028,58 +1256,42 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
 @mcp.tool()
 def worker_task(session_id: str | None = None, worker_id: str | None = None,
                 text: str = "", source: str = "agent") -> dict:
-    """Send a task to a worker. Auto-spawns if session has no worker.
+    """DEPRECATED alias — prefer agent_task(session_id, text).
+
+    Compat alias of `agent_task` for session_id calls (delegates to the same
+    implementation). The legacy `worker_id` addressing path is kept here only.
 
     Args:
-        session_id: Session ID (finds worker by session if worker_id not given)
-        worker_id: Worker ID (e.g. "worker-1")
+        session_id: Session ID (delegates to agent_task)
+        worker_id: Worker ID (e.g. "worker-1") — legacy addressing
         text: Task text / prompt to send
         source: Source label (default "agent")
 
     完整编排流程见 /pan skill。
     """
-    if session_id:
-        # 派任务即接管（与 worker_assign 一致）
-        denied = _check_access(session_id, claim=True)
-        if denied:
-            return denied
-    elif worker_id:
+    if worker_id:
+        # 遗留路径：worker_id 寻址
         sid = _worker_session_id(worker_id)
         if sid is None:
             return _worker_unresolvable(worker_id)
         denied = _check_access(sid, claim=True)
         if denied:
             return denied
-    body: dict = {"text": text, "source": source}
-    if worker_id:
-        body["workerId"] = worker_id
+        return _api("POST", "/api/task",
+                    {"workerId": worker_id, "text": text, "source": source})
     if session_id:
-        body["sessionId"] = session_id
-    return _api("POST", "/api/task", body)
-
-
-@mcp.tool()
-def worker_kill(worker_id: str) -> dict:
-    """Kill a worker process (session data persists).
-
-    Args:
-        worker_id: Worker ID to kill (e.g. "worker-1")
-
-    完整编排流程见 /pan skill。
-    """
-    sid = _worker_session_id(worker_id)
-    if sid is None:
-        return _worker_unresolvable(worker_id)
-    denied = _check_access(sid)
-    if denied:
-        return denied
-    return _api("POST", f"/api/kill/{worker_id}")
+        return agent_task(session_id=session_id, text=text, source=source)
+    return {"ok": False, "error": {
+        "code": "missing_params",
+        "message": "session_id or worker_id is required"}}
 
 
 @mcp.tool()
 def worker_list() -> dict:
-    """List all running workers.
+    """List all running workers (physical CLI processes).
 
+    DEPRECATED for orchestration views — prefer `agent_list`（按 agent 即
+    session 视角列出，含无活进程的 agent）。本工具只看物理进程层面；
     受限 caller（restrictToManaged）仅能看到自己管理（managed + 自身
     session）的 worker，避免枚举任意 worker 后绕过隔离检查。
 
@@ -1100,78 +1312,49 @@ def worker_list() -> dict:
 
 @mcp.tool()
 def worker_assign(session_id: str, text: str, task_id: str | None = None) -> dict:
-    """Dispatch a task asynchronously and return immediately.
+    """DEPRECATED alias — prefer agent_assign(session_id, text, task_id).
 
-    Async orchestration primitive: returns {"status": "queued", ...}
-    right away. Completion is delivered via the worker.result event —
-    subscribe to /ws/agent with eventTypes=["worker.result"] to catch it.
-    Use for parallel fan-out.
-
-    Idempotency: pass the same `task_id` when retrying a task (e.g. after a
-    timeout or network error) — the server won't re-enqueue if that taskId is
-    already known. It returns the cached result if already completed, or
-    {"status": "pending", "taskId": ...} if still in flight. Prevents
-    double-execution of the same task.
-
-    Args:
-        session_id: Session ID to run the task on
-        text: Task text / prompt
-        task_id: Optional caller-supplied idempotency key (uuid-like string)
+    Exact compat alias of `agent_assign` (delegates to the same
+    implementation, identical contract). Async orchestration primitive:
+    returns {"status": "queued", ...} right away; completion is delivered
+    via the worker.result event — subscribe to /ws/agent with
+    eventTypes=["worker.result"] to catch it, or poll session_get until
+    lastResult.status=="done". Same `task_id` on retry is idempotent
+    (no double-run; returns cached result or {"status": "pending"}).
 
     调用链（编排主链第 2 步·派发）：立即返回 queued（worker 自动 spawn）；
-    完成信号经 /ws/agent 的 worker.result 事件推送，或轮询 session_get 到
-    lastResult.status=="done"。完成后 `session_delete` 收尾。
+    完成后 `session_delete` 收尾。
     完整编排流程见 /pan skill。
     """
-    # 派任务即接管：meta-agent 首次 assign 目标 session 时自动建立 managed 关系
-    denied = _check_access(session_id, claim=True)
-    if denied:
-        return denied
-    body = {"sessionId": session_id, "text": text}
-    if task_id:
-        body["taskId"] = task_id
-    return _api("POST", "/api/assign", body)
+    return agent_assign(session_id=session_id, text=text, task_id=task_id)
 
 
 @mcp.tool()
 def worker_send(worker_id: str | None = None, text: str = "",
                 session_id: str | None = None) -> dict:
-    """Send a message to an agent (multi-turn collaboration).
+    """DEPRECATED alias — prefer agent_send(session_id, text).
 
-    **仅用于非即时发送**：消息入队排队，目标 worker 空闲（当前任务完成后）才处理，
-    不打断进行中的任务。
-    若消息需要 worker 立即响应或打断当前执行（如操作约束、方向变更、紧急指令）
-    → 必须用 `worker_send_force`（restart+send）。
+    Compat alias of `agent_send` for session_id calls (delegates to the same
+    implementation: queued multi-turn message, no live worker → pending
+    queue with pendingSpawn=true). The legacy `worker_id` addressing path is
+    kept here only. Message is queued — the target handles it when idle,
+    never interrupting a running task; use `worker_send_force` /
+    `agent_send_force` to interrupt.
 
-    Completion is delivered via the worker.result event.
-
-    寻址兼容（阶段 6）：worker_id 或 session_id 皆可（编排对象是 agent/session，
-    进程是顺带的）。传 session_id 且该 session 无活 worker 时**不报错**——消息入
-    该 session 的持久队列，由全局 watchdog 自动 spawn worker 后分发。
-
-    When this MCP server runs inside a Pan-managed session (env injected by
-    adapter.mcp_args() for the "pan" server), the text is prefixed with the
-    sending agent's identity so the target worker can distinguish agent
-    orchestration from real user messages (立项 4.8):
-
-        ////by agent : {PAN_AGENT_SESSION_ID} | {PAN_AGENT_SESSION_TITLE}
-        {text}
+    When this MCP server runs inside a Pan-managed session, the text is
+    prefixed with the sending agent's identity (////by agent, 立项 4.8) —
+    identical to `agent_send`.
 
     Args:
-        worker_id: Worker ID (e.g. "worker-1"); 与 session_id 二选一
-        session_id: Session ID（无活 worker 时消息入队待投）
+        worker_id: Worker ID (e.g. "worker-1") — legacy addressing; 与 session_id 二选一
+        session_id: Session ID (delegates to agent_send)
         text: Task text / prompt
 
-    调用链：worker_id 路径 POST /api/task（行为不变）；session_id 路径
-    POST /api/send（无活 worker 时入队）。均自动拼接 ////by agent 前缀。
     完整编排流程见 /pan skill。
     """
-    sid = os.environ.get("PAN_AGENT_SESSION_ID")
-    title = os.environ.get("PAN_AGENT_SESSION_TITLE")
-    if sid or title:
-        text = f"////by agent : {sid} | {title}\n{text}"
     if worker_id:
-        # 旧路径：worker_id 寻址，行为不变
+        # 遗留路径：worker_id 寻址，行为不变
+        text = _agent_message_prefix(text)
         target_sid = _worker_session_id(worker_id)
         if target_sid is None:
             return _worker_unresolvable(worker_id)
@@ -1180,55 +1363,33 @@ def worker_send(worker_id: str | None = None, text: str = "",
             return denied
         return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
     if session_id:
-        # 新路径：session（agent）寻址；无活 worker 由 /api/send 入队待投
-        denied = _check_access(session_id, claim=True)
-        if denied:
-            return denied
-        return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
+        # 委托一等实现（////by agent 前缀在其内部拼接）
+        return agent_send(session_id=session_id, text=text)
     return {"ok": False, "error": {
         "code": "missing_params",
-        "message": "worker_id or session_id is required"}}
+        "message": "session_id or worker_id is required"}}
 
 
 @mcp.tool()
 def worker_send_force(worker_id: str | None = None, text: str = "",
                       session_id: str | None = None) -> dict:
-    """Force-push a message to an agent: restart the worker, then send.
+    """DEPRECATED alias — prefer agent_send_force(session_id, text).
 
-    强制推送 = restart + send：目标 worker 卡死 / 忙 / 连接异常导致普通
-    worker_send 消息无法送达时的兜底。先终止并重新 spawn worker 进程，
-    再发送消息，保证消息能送达。
-    需要打断或立即送达的时效性消息（操作约束、方向变更、紧急指令）直接用它；
-    仅补充信息、可排队等待的用 `worker_send`。
-
-    寻址兼容（阶段 6）：worker_id 或 session_id 皆可。传 session_id 且该
-    session 无活 worker 时**不报错**——消息入该 session 的持久队列，由全局
-    watchdog 自动 spawn worker 后分发（「send = 写给 agent，进程是顺带的」）。
-
-    When this MCP server runs inside a Pan-managed session (env injected by
-    adapter.mcp_args() for the "pan" server), the text is prefixed with the
-    sending agent's identity — identical to ``worker_send``:
-
-        ////by agent : {PAN_AGENT_SESSION_ID} | {PAN_AGENT_SESSION_TITLE}
-        {text}
+    Compat alias of `agent_send_force` for session_id calls (delegates to
+    the same implementation: restart + send; no live worker → pending
+    queue). The legacy `worker_id` addressing path is kept here only.
+    Identity prefix (////by agent) identical to `agent_send_force`.
 
     Args:
-        worker_id: Worker ID (e.g. "worker-1"); 与 session_id 二选一
-        session_id: Session ID（无活 worker 时消息入队待投）
+        worker_id: Worker ID (e.g. "worker-1") — legacy addressing; 与 session_id 二选一
+        session_id: Session ID (delegates to agent_send_force)
         text: Task text / prompt
 
-    调用链：隔离检查（与 worker_send 一致）→ 有活 worker 时 restart 端点 +
-    POST /api/task；无活 worker 时 POST /api/send 入队（均自动拼接
-    ////by agent 前缀）。restart 或 send 任一失败均返回含后端 error 信息
-    的错误 dict，不吞错。
     完整编排流程见 /pan skill。
     """
-    sid = os.environ.get("PAN_AGENT_SESSION_ID")
-    title = os.environ.get("PAN_AGENT_SESSION_TITLE")
-    if sid or title:
-        text = f"////by agent : {sid} | {title}\n{text}"
     if worker_id:
-        # 旧路径：worker_id 寻址，行为不变
+        # 遗留路径：worker_id 寻址，行为不变
+        text = _agent_message_prefix(text)
         target_sid = _worker_session_id(worker_id)
         if target_sid is None:
             return _worker_unresolvable(worker_id)
@@ -1239,42 +1400,31 @@ def worker_send_force(worker_id: str | None = None, text: str = "",
         result = _api("POST", f"/api/worker/{worker_id}/restart")
         if not isinstance(result, dict) or result.get("error"):
             return result
-        # 2) 发送消息（与 worker_send 相同）
+        # 2) 发送消息（与 agent_send 相同）
         return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
     if session_id:
-        # 新路径：session（agent）寻址
-        denied = _check_access(session_id, claim=True)
-        if denied:
-            return denied
-        wid = _session_worker_id(session_id)
-        if wid is None:
-            # 无活 worker：restart 无从谈起 → 入持久队列，watchdog spawn 后分发
-            return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
-        result = _api("POST", f"/api/worker/{wid}/restart")
-        if not isinstance(result, dict) or result.get("error"):
-            return result
-        return _api("POST", "/api/task", {"workerId": wid, "text": text})
+        return agent_send_force(session_id=session_id, text=text)
     return {"ok": False, "error": {
         "code": "missing_params",
-        "message": "worker_id or session_id is required"}}
+        "message": "session_id or worker_id is required"}}
 
 
 @mcp.tool()
 def worker_kill(worker_id: str | None = None, session_id: str | None = None) -> dict:
-    """Kill a worker process (session data persists).
+    """DEPRECATED alias — prefer agent_kill(session_id).
 
-    寻址兼容（阶段 6）：worker_id 或 session_id 皆可。传 session_id 且该
-    session 无活 worker 时返回 ok（killed=false）——编排对象是 agent（session），
-    进程本就不存在，属无害 no-op。
+    Compat alias of `agent_kill` for session_id calls (delegates to the same
+    implementation; no live worker → ok with killed=false). The legacy
+    `worker_id` addressing path is kept here only.
 
     Args:
-        worker_id: Worker ID to kill (e.g. "worker-1"); 与 session_id 二选一
-        session_id: Session ID（杀其当前 worker；无 worker 时 no-op）
+        worker_id: Worker ID to kill (e.g. "worker-1") — legacy addressing; 与 session_id 二选一
+        session_id: Session ID (delegates to agent_kill)
 
     完整编排流程见 /pan skill。
     """
     if worker_id:
-        # 旧路径：worker_id 寻址，行为不变
+        # 遗留路径：worker_id 寻址，行为不变
         sid = _worker_session_id(worker_id)
         if sid is None:
             return _worker_unresolvable(worker_id)
@@ -1283,18 +1433,10 @@ def worker_kill(worker_id: str | None = None, session_id: str | None = None) -> 
             return denied
         return _api("POST", f"/api/kill/{worker_id}")
     if session_id:
-        denied = _check_access(session_id)
-        if denied:
-            return denied
-        wid = _session_worker_id(session_id)
-        if wid is None:
-            return {"ok": True, "sessionId": session_id, "workerId": None,
-                    "killed": False,
-                    "message": "no live worker for session; nothing to kill"}
-        return _api("POST", f"/api/kill/{wid}")
+        return agent_kill(session_id)
     return {"ok": False, "error": {
         "code": "missing_params",
-        "message": "worker_id or session_id is required"}}
+        "message": "session_id or worker_id is required"}}
 
 
 # ---------------------------------------------------------------------------
