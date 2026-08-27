@@ -37,7 +37,7 @@ def _parse_models_from_cbc_help(argv_prefix: list[str] | None = None) -> list[st
     """
     try:
         cmd = (argv_prefix or ["cbc"]) + ["--help"]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=10)
     except Exception:
         return []
     output = r.stdout or r.stderr or ""

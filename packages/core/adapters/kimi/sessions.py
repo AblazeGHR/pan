@@ -19,6 +19,9 @@ _KIMI_DIR = Path.home() / ".kimi-code"
 _WORKSPACES_FILE = _KIMI_DIR / "workspaces.json"
 _SESSION_INDEX_FILE = _KIMI_DIR / "session_index.jsonl"
 
+# 平台分支开关（模块级常量，便于测试 monkeypatch 模拟另一平台）
+_IS_WINDOWS = os.name == "nt"
+
 
 def _load_workspaces() -> dict[str, dict]:
     """Return workspace_id -> workspace info from workspaces.json."""
@@ -102,11 +105,20 @@ def _read_state(session_dir: Path) -> dict:
 
 
 def _same_path(a: str, b: str) -> bool:
-    """Compare two filesystem paths ignoring slash direction and case."""
+    """Compare two filesystem paths ignoring slash direction (and case on Windows).
+
+    Windows：normcase（大小写不敏感 + / 归一为 \\，保持旧行为）。
+    POSIX：大小写敏感、原样比较（反斜杠是合法文件名字符）。
+    """
+    if _IS_WINDOWS:
+        try:
+            return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(str(Path(b).resolve()))
+        except OSError:
+            return os.path.normcase(a) == os.path.normcase(b)
     try:
-        return str(Path(a).resolve()).lower() == str(Path(b).resolve()).lower()
+        return str(Path(a).resolve()) == str(Path(b).resolve())
     except OSError:
-        return a.lower().replace("\\", "/") == b.lower().replace("\\", "/")
+        return os.path.normpath(str(a)) == os.path.normpath(str(b))
 
 
 def list_kimi_sessions(project_cwd: str | None = None) -> list[dict]:

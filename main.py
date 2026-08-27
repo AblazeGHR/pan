@@ -5,6 +5,7 @@ import atexit
 import json
 import logging
 import os
+import shutil
 import socket
 import subprocess
 import threading
@@ -21,7 +22,12 @@ _QQ_DIR = _QQ_BOT_PY.parent
 _QQ_PID_FILE = _PROJECT_ROOT / "data" / "qq_bot.pid"
 # NoneBot 依赖装在 miniforge（项目 .venv 没有），故 QQ bot 用独立解释器。
 # 可用环境变量 PAN_QQ_PYTHON 覆盖。
-_QQ_DEFAULT_PYTHON = r"E:\software\miniforge\python.exe"
+# Windows 默认 miniforge；POSIX 上该盘符路径无效，退回 PATH 里的 python3。
+_QQ_DEFAULT_PYTHON = (
+    r"E:\software\miniforge\python.exe"
+    if os.name == "nt"
+    else (shutil.which("python3") or "python3")
+)
 # QQ bot 启动宽限期：spawn 后在此窗口内退出即视为"快速崩溃"，Pan Core 不受影响。
 _QQ_STARTUP_GRACE_SEC = 2.0
 

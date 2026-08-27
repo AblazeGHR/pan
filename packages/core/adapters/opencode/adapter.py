@@ -542,7 +542,7 @@ def _parse_models_from_opencode() -> list[str]:
     try:
         r = subprocess.run(
             [_resolve_opencode_path(), "models"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", timeout=15,
         )
     except Exception:
         return []
