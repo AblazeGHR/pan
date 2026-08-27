@@ -13,6 +13,8 @@ vi.mock('@/services/ws', () => ({
   wsClient: {
     send: vi.fn(() => true),
     isOpen: true,
+    // queueStore 模块加载时会注册 wsClient.on('open', ...) 联动
+    on: vi.fn(),
   },
 }));
 

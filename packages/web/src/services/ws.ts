@@ -73,14 +73,10 @@ class WsClient {
       this.ws.send(JSON.stringify(data));
       return true;
     }
-    if (this.ws?.readyState === WebSocket.CONNECTING) {
-      const handler = () => {
-        this.ws?.send(JSON.stringify(data));
-        this.ws?.removeEventListener('open', handler);
-      };
-      this.ws?.addEventListener('open', handler, { once: true });
-      return true;
-    }
+    // CONNECTING/CLOSED 一律返回 false（不假成功）。旧实现在 CONNECTING 时把消息
+    // 挂到旧 socket 的 open 事件并返回 true——连接失败则 handler 随 socket 销毁，
+    // 消息静默丢失而调用方已按成功处理（H6）。调用方收到 false 应保留待重发状态；
+    // queueStore 在 'open' 事件时自动 flush 重试（见 queueStore.ts 底部联动）。
     return false;
   }
 

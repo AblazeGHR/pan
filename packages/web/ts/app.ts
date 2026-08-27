@@ -347,9 +347,15 @@ function renderMarkdown(text: string): string {
   t = t.replace(/\$([^$\n]+?)\$/g, (_, latex) => saveMath(latex, false));
 
   let html: string;
-  if (typeof (window as any).marked !== 'undefined') {
-    html = (window as any).marked.parse(t);
+  const _marked = (window as any).marked;
+  const _DOMPurify = (window as any).DOMPurify;
+  if (typeof _marked !== 'undefined' && typeof _DOMPurify !== 'undefined') {
+    // XSS 防线（H7）：worker 输出是不可信内容，marked 允许原始 HTML 直通，
+    // 输出必须经 DOMPurify 消毒后才能进 innerHTML（拦截 <script>、onerror 属性、
+    // javascript: 链接等）。数学占位符是纯文本，消毒不影响后续 KaTeX 渲染。
+    html = _DOMPurify.sanitize(_marked.parse(t));
   } else {
+    // sanitizer 缺失（CDN 加载失败）时降级为转义纯文本——绝不渲染未消毒 HTML
     html = esc(t).replace(/\n/g, '<br>');
   }
 
