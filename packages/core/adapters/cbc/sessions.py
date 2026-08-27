@@ -14,6 +14,9 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# 平台分支开关（模块级常量，便于测试 monkeypatch 模拟另一平台）
+_IS_WINDOWS = os.name == "nt"
+
 
 def _project_dir(project_cwd: str | None) -> Path:
     """Return the cbc project directory for a given working directory.
@@ -169,7 +172,8 @@ def list_cbc_projects(recent_days: int = 0, min_resume_bytes: int = 0) -> list[d
 def browse_cbc_tree(path: str = "", limit: int = 30, offset: int = 0, query: str = "") -> dict:
     """Browse cbc sessions in a file-explorer tree fashion.
 
-    path: "" = root (show drives), "D:" = drive, "D:\\PROJECT" = deeper.
+    path: "" = root. Windows: "D:" = drive, "D:\\PROJECT" = deeper（盘符制、
+    \\ 分隔、段名大写）。POSIX: "/home/user/proj"（绝对路径、/ 分隔、大小写敏感）。
     limit/offset: pagination for sessions at the current level.
     query: optional title filter.
 
@@ -180,9 +184,17 @@ def browse_cbc_tree(path: str = "", limit: int = 30, offset: int = 0, query: str
     if not all_projects:
         return {"breadcrumbs": [], "folders": [], "sessions": [], "total": 0, "has_more": False}
 
+    posix = not _IS_WINDOWS
+    sep = "/" if posix else "\\"
+
     # Normalize path and compute segments
-    path = path.strip().rstrip("\\")
-    path_parts = [p.upper() for p in path.split("\\") if p] if path else []
+    if posix:
+        # 归一为 "" 或 "/a/b" 形态（POSIX 树路径均为绝对路径）
+        path = "/" + "/".join(s for s in path.strip().split("/") if s) if path.strip() else ""
+        path_parts = [p for p in path.split("/") if p]
+    else:
+        path = path.strip().rstrip("\\")
+        path_parts = [p.upper() for p in path.split("\\") if p] if path else []
 
     # Group projects by path prefix and next segment
     # folder_key -> {name, path, session_count, project_dir (if exact match)}
@@ -190,19 +202,27 @@ def browse_cbc_tree(path: str = "", limit: int = 30, offset: int = 0, query: str
     exact_sessions: list[dict] = []  # sessions from projects at exactly this depth
 
     for pj in all_projects:
-        fp = (pj["path_hint"] or "").strip().rstrip("\\")
+        fp = (pj["path_hint"] or "").strip()
+        if posix:
+            fp = fp.rstrip("/")
+        else:
+            fp = fp.rstrip("\\")
         if not fp:
             continue
 
-        fp_upper = fp.upper()
-
         # Check if this project is under the current path
         if path:
-            if not fp_upper.startswith(path.upper()):
-                continue
-            remaining = fp[len(path):].lstrip("\\")
+            if posix:
+                # 前缀必须按路径段对齐：/a 不得误匹配 /ab
+                if fp != path and not fp.startswith(path + "/"):
+                    continue
+                remaining = fp[len(path):].lstrip("/")
+            else:
+                if not fp.upper().startswith(path.upper()):
+                    continue
+                remaining = fp[len(path):].lstrip("\\")
         else:
-            # Root level: group by drive (first segment)
+            # Root level: group by first segment (Windows: drive; POSIX: /xx)
             remaining = fp
 
         if not remaining:
@@ -214,11 +234,16 @@ def browse_cbc_tree(path: str = "", limit: int = 30, offset: int = 0, query: str
             exact_sessions.extend(session_list)
             continue
 
-        parts = remaining.split("\\")
-        first = parts[0].upper()
-
-        # Build folder key: current_path + first segment
-        folder_key = (path + "\\" + first).upper() if path else first
+        parts = remaining.split(sep)
+        if posix:
+            parts = [s for s in parts if s]  # 绝对路径 split 出前导空段
+            if not parts:
+                continue
+            first = parts[0]  # POSIX 大小写敏感，路径段保留原样
+            folder_key = path + "/" + first if path else "/" + first
+        else:
+            first = parts[0].upper()
+            folder_key = (path + "\\" + first).upper() if path else first
         init_kwargs = {"name": parts[0], "path": folder_key, "session_count": 0}
         folder_map.setdefault(folder_key, init_kwargs)
 
@@ -246,7 +271,10 @@ def browse_cbc_tree(path: str = "", limit: int = 30, offset: int = 0, query: str
     breadcrumbs = []
     cumulative = ""
     for i, part in enumerate(path_parts):
-        cumulative = (cumulative + "\\" + part) if cumulative else part
+        if posix:
+            cumulative = "/" + "/".join(path_parts[:i + 1])
+        else:
+            cumulative = (cumulative + "\\" + part) if cumulative else part
         breadcrumbs.append({"label": part, "path": cumulative})
 
     # Sort folders by name
@@ -269,14 +297,23 @@ def _parse_project_label(dir_name: str) -> tuple[str, str]:
     """
     cwd = _read_project_cwd(dir_name)
     if cwd:
-        drive = cwd[:2].upper()  # e.g. "D:"
-        # Short label: drive-relative path, or just last component
-        rel = cwd[3:]  # strip "D:\"
-        parts = rel.replace("\\", "/").rstrip("/").split("/")
-        short_label = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else rel)
-        return drive, short_label
+        if _IS_WINDOWS:
+            drive = cwd[:2].upper()  # e.g. "D:"
+            # Short label: drive-relative path, or just last component
+            rel = cwd[3:]  # strip "D:\"
+            parts = rel.replace("\\", "/").rstrip("/").split("/")
+            short_label = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else rel)
+            return drive, short_label
+        # POSIX：无盘符；short_label 取绝对路径最后两段（剥掉前导空段）
+        parts = cwd.replace("\\", "/").rstrip("/").split("/")
+        parts = [p for p in parts if p]
+        short_label = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else cwd)
+        return "", short_label
 
     # Fallback heuristic
+    if not _IS_WINDOWS:
+        # POSIX：无盘符；脱敏目录名是把 / 替换成 - 的有损产物，仅原样展示
+        return ("", dir_name)
     parts = dir_name.split("-")
     if not parts:
         return ("", dir_name)
@@ -299,9 +336,12 @@ def _project_dir_to_path(dir_name: str) -> str:
         return cwd
 
     # Fallback: heuristic reverse-engineering (lossy for paths containing '-')
-    parts = dir_name.split("-")
-    if not parts:
+    if not dir_name:
         return ""
+    if not _IS_WINDOWS:
+        # POSIX：无盘符；脱敏时前导 / 被剥离、/ 变 -，逆向补回（有损，仅 fallback）
+        return "/" + dir_name.replace("-", "/")
+    parts = dir_name.split("-")
     drive = parts[0] + ":"
     rest = "\\".join(parts[1:])
     return (drive + "\\" + rest).upper()

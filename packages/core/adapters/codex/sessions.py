@@ -30,6 +30,9 @@ _STATE_DB = _CODEX_DIR / "state_5.sqlite"
 _HISTORY_DB = _CODEX_DIR / "thread_history_1.sqlite"
 _SESSIONS_DIR = _CODEX_DIR / "sessions"
 
+# 平台分支开关（模块级常量，便于测试 monkeypatch 模拟另一平台）
+_IS_WINDOWS = os.name == "nt"
+
 
 # ── 连接与工具 ──
 
@@ -63,13 +66,19 @@ def _iso_ts(ts: int | None) -> str:
 
 
 def _norm_path(p) -> str:
-    """规范化路径用于 cwd 过滤：剥离 \\?\\ 长路径前缀、统一分隔符与大小写。"""
+    """规范化路径用于 cwd 过滤：剥离 \\?\\ 长路径前缀、统一分隔符与大小写。
+
+    Windows：casefold + 统一为反斜杠（NTFS 大小写不敏感、/ 与 \\ 等价）。
+    POSIX：仅 normpath（大小写敏感，且反斜杠是合法文件名字符，不可当分隔符替换）。
+    """
     s = str(p or "").replace("\\\\?\\", "").replace("\\?\\", "")
     try:
         s = os.path.normpath(s)
     except Exception:  # noqa: BLE001
         pass
-    return s.casefold().replace("/", "\\").rstrip("\\")
+    if _IS_WINDOWS:
+        return s.casefold().replace("/", "\\").rstrip("\\")
+    return s.rstrip("/")
 
 
 def _rollout_full_path(rollout_path: str | None) -> Path | None:

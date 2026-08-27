@@ -409,8 +409,8 @@ class Embedder:
             cache_dir = self._model_path  # Allow model_path as cache_dir for ST
             if not cache_dir:
                 cache_dir = _os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
-                # Default to D drive if available
-                if cache_dir.startswith("C:") or cache_dir.startswith("c:"):
+                # Windows only: default to D drive if available (POSIX 直接用 ~/.cache)
+                if _os.name == "nt" and (cache_dir.startswith("C:") or cache_dir.startswith("c:")):
                     alt = "D:/cache/huggingface"
                     if Path(alt).parent.exists():
                         cache_dir = alt
