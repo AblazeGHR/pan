@@ -2228,6 +2228,47 @@ async def send(worker_id: str, text: str, source: str = "agent") -> dict:
     return {"status": "queued", "workerId": worker_id, "sessionId": w.session_id}
 
 
+async def send_session(session_id: str, text: str, source: str = "agent",
+                       force: bool = False) -> dict:
+    """向 session（agent）发消息（阶段 6 寻址兼容）：编排对象是 agent，
+    worker（CLI 进程）是顺带的。
+
+    - 有活 worker（含 oneshot 注册，process 为 None）→ 常规投递；
+      force=True 先 restart 再投递（worker_send_force 语义）。
+    - 无活 worker（从未 spawn / 进程已死）→ **不报错**：消息入该 session 的
+      持久队列 queue_pending（type=task），由全局 watchdog（queue_pending
+      非空 && 无活 worker → create_worker）spawn 后经 _recover_pending_signals
+      补发 task_signal 分发——「send = 写给 agent」。
+    - held（takeover 模式）→ 透传错误，不吞错不入队。
+    """
+    w = find_worker_by_session(session_id)
+    alive = w is not None and (w.process is None or w.process.returncode is None)
+    if not alive:
+        s = _sess.get(session_id)
+        if not s:
+            return {"status": "error", "result": f"Session {session_id} not found"}
+        item = {
+            "type": "task",
+            "id": uuid.uuid4().hex,
+            "text": text,
+            "source": source,
+            "seq": None,
+            "taskId": None,
+        }
+        s.queue_pending.append(item)
+        await _sess.save_async(s)
+        return {"status": "queued", "workerId": None, "sessionId": session_id,
+                "pendingSpawn": True}
+    if force:
+        err = await restart_worker(w.worker_id)
+        if err:
+            return {"status": "error", "result": err}
+    send_err = await send_task(w.worker_id, text, source=source)
+    if send_err:
+        return {"status": "error", "result": send_err}
+    return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
+
+
 def get_worker(worker_id: str) -> Worker | None:
     return workers.get(worker_id)
 
