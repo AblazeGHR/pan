@@ -10,7 +10,8 @@ import { Outlet, useNavigate } from 'react-router-dom';
 
 function Layout() {
   const { isMobile } = useMediaQuery();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mobileSidebarOpen = useUIStore((s) => s.mobileSidebarOpen);
+  const setMobileSidebarOpen = useUIStore((s) => s.setMobileSidebarOpen);
   const theme = useUIStore((s) => s.theme);
   const navigate = useNavigate();
 
@@ -49,8 +50,8 @@ function Layout() {
 
   // Close sidebar on mobile when switching out of mobile
   useEffect(() => {
-    if (!isMobile) setSidebarOpen(false);
-  }, [isMobile]);
+    if (!isMobile) setMobileSidebarOpen(false);
+  }, [isMobile, setMobileSidebarOpen]);
 
   // Sync data-theme to <html>
   useEffect(() => {
@@ -89,9 +90,9 @@ function Layout() {
     >
       {/* Mobile hamburger button — hidden while the sidebar is open so it
           doesn't float above the overlay/sidebar and block the view. */}
-      {isMobile && !sidebarOpen && (
+      {isMobile && !mobileSidebarOpen && (
         <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
+          onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
           className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] left-2 z-50 rounded bg-bg-tertiary border border-border-default p-1.5 text-text-primary"
           title="Toggle sidebar"
         >
@@ -104,10 +105,10 @@ function Layout() {
           placed it above the <aside> (z-auto) within the z-40 stacking
           context — the gray backdrop covered the session list and blocked
           taps. */}
-      {isMobile && sidebarOpen && (
+      {isMobile && mobileSidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setMobileSidebarOpen(false)}
         />
       )}
 
@@ -116,7 +117,7 @@ function Layout() {
         className={`${
           isMobile
             ? `fixed inset-y-0 left-0 z-40 transform transition-transform duration-200 ${
-                sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
               }`
             : 'relative'
         }`}

@@ -19,6 +19,12 @@ _log = logging.getLogger(__name__)
 # 不再写 workdir/.codebuddy/mcp.json（workdir 可能在 Pan 外，写外部目录污染且可能不可写）。
 MCP_CONFIG_DIR = SESSION_DIR.parent / "mcp-configs"
 
+# 模型列表缓存 TTL：cbc CLI 侧模型经常变动（上架/下架），永久 class 级缓存会让
+# 列表只会在重启后才刷新。参考 opencode adapter _MODEL_CACHE_TTL / worker.py
+# _TASK_STATUS_TTL_SEC 的先例，采用带过期时间的 TTL 缓存，超时后下次访问自动
+# 重新拉取。config.json 白名单同样走 TTL（用户改配置后无需重启服务即可生效）。
+_MODEL_CACHE_TTL: float = 300.0  # 5 分钟
+
 
 def _parse_models_from_cbc_help(argv_prefix: list[str] | None = None) -> list[str]:
     """从 `cbc --help` 解析支持的模型列表（仅加载一次）。
@@ -91,26 +97,36 @@ class CbcAdapter:
         "custom-local:deepseek-v4-pro",
     ]
 
-    _cached_models: list[str] | None = None  # class-level cache
+    _cached_models: list[str] | None = None  # class-level cache（TTL）
+    _cached_models_ts: float = 0.0  # 最近一次填充/刷新的单调时钟时间戳
 
     @property
     def supported_models(self) -> list[str]:
-        """模型列表：config.json > cbc --help 解析 > 硬编码默认值（缓存）。"""
-        if CbcAdapter._cached_models is not None:
+        """模型列表：config.json > cbc --help 解析 > 内置默认值（TTL 缓存）。
+
+        缓存有效期 _MODEL_CACHE_TTL 秒；超时后下次访问自动重新拉取，cbc CLI 侧
+        模型变更或 config.json 白名单改动无需重启服务即可生效。
+        """
+        if CbcAdapter._cached_models is not None and (
+            time.monotonic() - CbcAdapter._cached_models_ts
+        ) < _MODEL_CACHE_TTL:
             return CbcAdapter._cached_models
+        CbcAdapter._cached_models = self._fetch_models()
+        CbcAdapter._cached_models_ts = time.monotonic()
+        return CbcAdapter._cached_models
+
+    def _fetch_models(self) -> list[str]:
+        """按优先级拉取模型列表：config.json 白名单 > `cbc --help` 解析 > 内置默认值。"""
         # 1. config.json 显式配置
         models = self._cbc_config.get("models")
         if isinstance(models, list) and len(models) > 0:
-            CbcAdapter._cached_models = [str(m) for m in models]
-            return CbcAdapter._cached_models
+            return [str(m) for m in models]
         # 2. 从 cbc --help 自动获取（用 node 解析的 argv，避免 .CMD shim 启动失败）
         cli_models = _parse_models_from_cbc_help(self._resolve_cbc_argv())
         if cli_models:
-            CbcAdapter._cached_models = cli_models
-            return CbcAdapter._cached_models
+            return cli_models
         # 3. 硬编码默认值
-        CbcAdapter._cached_models = self._BUILTIN_MODELS
-        return CbcAdapter._cached_models
+        return list(self._BUILTIN_MODELS)
     supports_resume = True
     supports_fork = True
     effort_values = ["none", "off", "auto", "low", "medium", "high", "xhigh", "max", "ultracode"]

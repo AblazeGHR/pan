@@ -6,6 +6,7 @@ import { useAdapterStore } from '@/stores/adapterStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
+import { ModelSelect } from '@/components/ui/ModelSelect';
 import { wsClient } from '@/services/ws';
 import { ChevronDown, ChevronUp, Settings } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
@@ -49,44 +50,19 @@ function ModelPill({
 }) {
   if (!show) return null;
 
-  const [open, setOpen] = useState(false);
   const current = sessionModel || defaultModel;
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-model-pill]')) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
+  // 复用带搜索过滤的 ModelSelect（与 SettingsPopover 保持一致），仅通过
+  // buttonClassName / menuClassName 适配 pill 外观与向上展开的交互。
   return (
     <div data-model-pill className="relative">
-      <button className={PILL_CLASS} onClick={() => setOpen(!open)}>
-        <span className="font-semibold">{current}</span>
-        <ChevronDown size={12} />
-      </button>
-      {open && (
-        <div className="absolute bottom-full mb-1 left-0 min-w-[160px] max-h-64 overflow-y-auto rounded-md border border-border-default bg-bg-primary shadow-lg z-30">
-          {models.map((m) => (
-            <div
-              key={m}
-              className={
-                DROPDOWN_ITEM +
-                (m === current ? ' bg-accent/10 text-accent' : '')
-              }
-              onClick={() => {
-                onApply('model', m);
-                setOpen(false);
-              }}
-            >
-              {m}
-            </div>
-          ))}
-        </div>
-      )}
+      <ModelSelect
+        value={current}
+        options={models}
+        onChange={(m) => onApply('model', m)}
+        buttonClassName={PILL_CLASS + ' font-semibold'}
+        menuClassName="absolute left-0 bottom-full mb-1 z-40 min-w-[160px] w-max"
+      />
     </div>
   );
 }

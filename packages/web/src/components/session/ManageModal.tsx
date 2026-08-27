@@ -49,6 +49,14 @@ interface ManageModalProps {
   sessionId: string | null;
 }
 
+interface ManageSessionsPanelProps {
+  /** When true, per-open state is reset and the full session + MCP catalog are
+   *  fetched. The modal passes its `open`; the full page always passes `true`. */
+  open: boolean;
+  /** Id of the managing session; its `managed` ids drive the checked state. */
+  sessionId: string | null;
+}
+
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="border-b border-border-muted pb-1">
@@ -86,13 +94,9 @@ function SwitchRow({
       <span className="min-w-0">
         <span className="block text-xs text-text-primary">
           {label}
-          <span className="ml-1.5 text-[10px] text-text-tertiary font-mono">
-            {hint}
-          </span>
+          <span className="ml-1.5 text-[10px] text-text-tertiary font-mono">{hint}</span>
         </span>
-        <span className="block text-[11px] text-text-tertiary mt-0.5">
-          {desc}
-        </span>
+        <span className="block text-[11px] text-text-tertiary mt-0.5">{desc}</span>
       </span>
       <span
         className={`relative inline-flex w-8 h-[18px] shrink-0 rounded-full transition-colors ${
@@ -110,20 +114,23 @@ function SwitchRow({
 }
 
 /**
- * Session relationship + capability modal, split into three sections:
+ * Session relationship + capability panel, split into three sections:
  *   1. "Managed by"  — who manages this session (and how to break the link).
  *   2. "Manages"     — claim / unclaim + report subscriptions of other sessions.
  *   3. "Pan Access"  — MCP-only capability flags (persisted via PATCH).
  * All mutations hit the backend and then reload the session list so
  * `managed` / `managedBy` stay in sync.
+ *
+ * Shared by the desktop ManageModal (popup) and the mobile full-page
+ * ManageView so both stay visually identical.
  */
-export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
+export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProps) {
   const sessions = useSessionStore((s) => s.sessions);
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const showToast = useUIStore((s) => s.showToast);
 
   const session = useSessionStore((s) =>
-    sessionId ? s.sessions.find((x) => x.id === sessionId) ?? null : null,
+    sessionId ? (s.sessions.find((x) => x.id === sessionId) ?? null) : null,
   );
 
   const [query, setQuery] = useState('');
@@ -176,8 +183,8 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   // The detail snapshot is the live source once fetched (we patch it locally
   // after each mutation); before that fall back to the summary list entry.
   const managedBy = detailSession
-    ? detailSession.managedBy ?? null
-    : session?.managedBy ?? null;
+    ? (detailSession.managedBy ?? null)
+    : (session?.managedBy ?? null);
   const managedByLabel = useMemo(() => {
     if (!managedBy) return null;
     const m = sessions.find((s) => s.id === managedBy);
@@ -187,10 +194,7 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
   const panAccess: PanAccess = detailSession?.panAccess ?? {};
 
   // Live set of sessions this manager already claims.
-  const managedIds = useMemo(
-    () => new Set<string>(detailSession?.managed ?? []),
-    [detailSession],
-  );
+  const managedIds = useMemo(() => new Set<string>(detailSession?.managed ?? []), [detailSession]);
 
   // Live set of sessions this manager subscribes to completion reports.
   // (Claim auto-subscribes on the backend, so these usually overlap with
@@ -224,8 +228,7 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
     const q = query.trim().toLowerCase();
     if (!q) return candidates;
     return candidates.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
+      (s) => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
     );
   }, [candidates, query]);
 
@@ -293,9 +296,7 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
         if (!d) return d;
         return { ...d, mcpServers: updated.mcpServers ?? names };
       });
-      showToast(
-        checked ? `Enabled MCP server "${name}"` : `Disabled MCP server "${name}"`,
-      );
+      showToast(checked ? `Enabled MCP server "${name}"` : `Disabled MCP server "${name}"`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Update failed', 'error');
     } finally {
@@ -342,10 +343,7 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
       });
       await loadSessions();
     } catch (e) {
-      showToast(
-        e instanceof Error ? e.message : 'Manage failed',
-        'error',
-      );
+      showToast(e instanceof Error ? e.message : 'Manage failed', 'error');
     } finally {
       setBusyId(null);
     }
@@ -374,267 +372,254 @@ export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
       });
       await loadSessions();
     } catch (e) {
-      showToast(
-        e instanceof Error ? e.message : 'Subscribe failed',
-        'error',
-      );
+      showToast(e instanceof Error ? e.message : 'Subscribe failed', 'error');
     } finally {
       setBusyId(null);
     }
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Manage Sessions" size="xl">
-      <div className="flex flex-col gap-5">
-        {!managerId && (
-          <div className="py-6 text-center text-sm text-text-tertiary">
-            Session not found
-          </div>
-        )}
+    <div className="flex flex-col gap-5">
+      {!managerId && (
+        <div className="py-6 text-center text-sm text-text-tertiary">Session not found</div>
+      )}
 
-        {managerId && (
-          <>
-            {/* ── Section 1: Managed by ── */}
-            <section className="flex flex-col gap-2">
-              <SectionHeader
-                title="Managed by / 被谁管理"
-                subtitle="The manager (parent) session that claimed this session."
-              />
-              <div className="flex items-center gap-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2">
-                <div className="flex-1 min-w-0">
-                  {managedBy ? (
-                    <>
-                      <div className="text-sm text-text-primary truncate">
-                        {managedByLabel || managedBy}
-                      </div>
-                      <div className="text-[11px] text-text-tertiary truncate">
-                        {managedBy}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-text-tertiary">
-                      Unmanaged / 未托管
+      {managerId && (
+        <>
+          {/* ── Section 1: Managed by ── */}
+          <section className="flex flex-col gap-2">
+            <SectionHeader
+              title="Managed by / 被谁管理"
+              subtitle="The manager (parent) session that claimed this session."
+            />
+            <div className="flex items-center gap-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2">
+              <div className="flex-1 min-w-0">
+                {managedBy ? (
+                  <>
+                    <div className="text-sm text-text-primary truncate">
+                      {managedByLabel || managedBy}
                     </div>
-                  )}
-                </div>
-                {managedBy && (
-                  <button
-                    type="button"
-                    onClick={cancelManagedBy}
-                    disabled={cancelBusy}
-                    title="Break the manage link (this session becomes unmanaged)"
-                    className="shrink-0 inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60 disabled:pointer-events-none"
-                  >
-                    <Unlink size={12} />
-                    取消被管理 / Cancel manage by
-                  </button>
+                    <div className="text-[11px] text-text-tertiary truncate">{managedBy}</div>
+                  </>
+                ) : (
+                  <div className="text-sm text-text-tertiary">Unmanaged / 未托管</div>
                 )}
               </div>
-            </section>
+              {managedBy && (
+                <button
+                  type="button"
+                  onClick={cancelManagedBy}
+                  disabled={cancelBusy}
+                  title="Break the manage link (this session becomes unmanaged)"
+                  className="shrink-0 inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60 disabled:pointer-events-none"
+                >
+                  <Unlink size={12} />
+                  取消被管理 / Cancel manage by
+                </button>
+              )}
+            </div>
+          </section>
 
-            {/* ── Section 2: Manages ── */}
-            <section className="flex flex-col gap-2">
-              <SectionHeader
-                title="Manages / 管理谁"
-                subtitle={`${
-                  detailSession?.name || session?.name || 'Untitled'
-                } manages the sessions marked below; Subscribe controls completion reports.`}
+          {/* ── Section 2: Manages ── */}
+          <section className="flex flex-col gap-2">
+            <SectionHeader
+              title="Manages / 管理谁"
+              subtitle={`${
+                detailSession?.name || session?.name || 'Untitled'
+              } manages the sessions marked below; Subscribe controls completion reports.`}
+            />
+
+            {/* Search */}
+            <div className="relative">
+              <Search
+                size={12}
+                className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
               />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setShowAll(false);
+                }}
+                placeholder="Search sessions by name or ID..."
+                className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
+              />
+            </div>
 
-              {/* Search */}
-              <div className="relative">
-                <Search
-                  size={12}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
-                />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setShowAll(false);
-                  }}
-                  placeholder="Search sessions by name or ID..."
-                  className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
-                />
-              </div>
+            <div className="flex items-center justify-between text-[11px] text-text-tertiary">
+              <span>
+                {managedIds.size} managed &middot; {subscribedIds.size} subscribed &middot;{' '}
+                {filtered.length} available
+              </span>
+            </div>
 
-              <div className="flex items-center justify-between text-[11px] text-text-tertiary">
-                <span>
-                  {managedIds.size} managed &middot; {subscribedIds.size}{' '}
-                  subscribed &middot; {filtered.length} available
-                </span>
-              </div>
-
-              {/* Candidate list */}
-              <div className="max-h-56 overflow-y-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
-                {visible.length === 0 && (
-                  <div className="py-4 text-center text-sm text-text-tertiary">
-                    No matching sessions
-                  </div>
-                )}
-                {visible.map((c) => {
-                  const isManaged = managedIds.has(c.id);
-                  const isSubscribed = subscribedIds.has(c.id);
-                  return (
-                    <div
-                      key={c.id}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
-                        busyId !== null ? 'pointer-events-none opacity-70' : ''
+            {/* Candidate list */}
+            <div className="max-h-56 overflow-y-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
+              {visible.length === 0 && (
+                <div className="py-4 text-center text-sm text-text-tertiary">
+                  No matching sessions
+                </div>
+              )}
+              {visible.map((c) => {
+                const isManaged = managedIds.has(c.id);
+                const isSubscribed = subscribedIds.has(c.id);
+                return (
+                  <div
+                    key={c.id}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                      busyId !== null ? 'pointer-events-none opacity-70' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-text-primary truncate">
+                        {c.name || 'Untitled'}
+                      </div>
+                      <div className="text-[11px] text-text-tertiary truncate">{c.id}</div>
+                    </div>
+                    {c.adapter && (
+                      <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
+                        {c.adapter}
+                      </span>
+                    )}
+                    {/* Manage button: gray "Manage" → blue "Managed" when active */}
+                    <button
+                      type="button"
+                      onClick={() => toggle(c.id, !isManaged)}
+                      disabled={busyId !== null}
+                      title={
+                        isManaged
+                          ? 'Click to stop managing'
+                          : 'Click to manage (also subscribes to reports)'
+                      }
+                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                        isManaged
+                          ? 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                       }`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-text-primary truncate">
-                          {c.name || 'Untitled'}
-                        </div>
-                        <div className="text-[11px] text-text-tertiary truncate">
-                          {c.id}
-                        </div>
-                      </div>
-                      {c.adapter && (
-                        <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
-                          {c.adapter}
-                        </span>
-                      )}
-                      {/* Manage button: gray "Manage" → blue "Managed" when active */}
-                      <button
-                        type="button"
-                        onClick={() => toggle(c.id, !isManaged)}
-                        disabled={busyId !== null}
-                        title={
-                          isManaged
-                            ? 'Click to stop managing'
-                            : 'Click to manage (also subscribes to reports)'
-                        }
-                        className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
-                          isManaged
-                            ? 'border-accent/50 bg-accent/10 text-accent'
-                            : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                        }`}
-                      >
-                        {isManaged ? <Check size={12} /> : <Star size={12} />}
-                        {isManaged ? 'Managed' : 'Manage'}
-                      </button>
-                      {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
-                      <button
-                        type="button"
-                        onClick={() => toggleSubscribe(c.id, !isSubscribed)}
-                        disabled={busyId !== null}
-                        title={
-                          isSubscribed
-                            ? 'Click to unsubscribe from reports'
-                            : 'Click to subscribe to completion reports'
-                        }
-                        className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
-                          isSubscribed
-                            ? 'border-accent/50 bg-accent/10 text-accent'
-                            : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                        }`}
-                      >
-                        {isSubscribed ? (
-                          <Check size={12} />
-                        ) : (
-                          <Bell size={12} />
+                      {isManaged ? <Check size={12} /> : <Star size={12} />}
+                      {isManaged ? 'Managed' : 'Manage'}
+                    </button>
+                    {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSubscribe(c.id, !isSubscribed)}
+                      disabled={busyId !== null}
+                      title={
+                        isSubscribed
+                          ? 'Click to unsubscribe from reports'
+                          : 'Click to subscribe to completion reports'
+                      }
+                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                        isSubscribed
+                          ? 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                      }`}
+                    >
+                      {isSubscribed ? <Check size={12} /> : <Bell size={12} />}
+                      {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Show-all toggle */}
+            {!showAll && filtered.length > SHOW_LIMIT && (
+              <button
+                onClick={() => setShowAll(true)}
+                className="w-full text-xs text-accent hover:underline py-1 text-center transition-colors"
+              >
+                Show all ({filtered.length})
+              </button>
+            )}
+          </section>
+
+          {/* ── Section 3: Pan Access ── */}
+          <section className="flex flex-col gap-2">
+            <SectionHeader
+              title="Pan Access / MCP 权限"
+              subtitle="Capability flags for the MCP path only — manage actions from this UI are never restricted."
+            />
+            <div className="rounded border border-border-muted bg-bg-primary p-1 divide-y divide-border-muted">
+              {PAN_ACCESS_ROWS.map((row) => (
+                <SwitchRow
+                  key={row.key}
+                  label={row.label}
+                  hint={row.hint}
+                  desc={row.desc}
+                  checked={Boolean(panAccess[row.key])}
+                  disabled={savingFlag !== null || detailSession === null}
+                  onChange={(v) => togglePanAccess(row.key, v)}
+                />
+              ))}
+            </div>
+          </section>
+
+          {/* ── Section 4: MCP Server ── */}
+          <section className="flex flex-col gap-2">
+            <SectionHeader
+              title="MCP Server / MCP 服务"
+              subtitle="Select MCP servers from the manifest for this session; worker restarts with the change applied."
+            />
+            {mcpLocked ? (
+              <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary">
+                MCP is locked by the session template (always/never) — selection disabled.
+              </div>
+            ) : (
+              <div className="rounded border border-border-muted bg-bg-primary p-1 space-y-0.5">
+                {!mcpCatalogLoaded && mcpServers.length === 0 && (
+                  <div className="py-3 text-center text-[11px] text-text-tertiary">
+                    Loading MCP servers…
+                  </div>
+                )}
+                {mcpCatalogLoaded && mcpServers.length === 0 && (
+                  <div className="py-4 text-center text-sm text-text-tertiary">
+                    No MCP servers available (manifest not loaded)
+                  </div>
+                )}
+                {mcpServers.map((srv) => {
+                  const checked = enabledMcp.has(srv.name);
+                  return (
+                    <label
+                      key={srv.name}
+                      className={`flex items-start gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                        savingMcp ? 'pointer-events-none opacity-70' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 shrink-0 accent-accent"
+                        checked={checked}
+                        disabled={savingMcp || detailSession === null}
+                        onChange={(e) => toggleMcpServer(srv.name, e.target.checked)}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm text-text-primary">{srv.name}</span>
+                        {srv.command && (
+                          <span className="block text-[11px] text-text-tertiary font-mono truncate">
+                            {srv.command}
+                            {srv.cwd ? ` · cwd: ${srv.cwd}` : ''}
+                          </span>
                         )}
-                        {isSubscribed ? 'Subscribed' : 'Subscribe'}
-                      </button>
-                    </div>
+                      </span>
+                    </label>
                   );
                 })}
               </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
 
-              {/* Show-all toggle */}
-              {!showAll && filtered.length > SHOW_LIMIT && (
-                <button
-                  onClick={() => setShowAll(true)}
-                  className="w-full text-xs text-accent hover:underline py-1 text-center transition-colors"
-                >
-                  Show all ({filtered.length})
-                </button>
-              )}
-            </section>
-
-            {/* ── Section 3: Pan Access ── */}
-            <section className="flex flex-col gap-2">
-              <SectionHeader
-                title="Pan Access / MCP 权限"
-                subtitle="Capability flags for the MCP path only — manage actions from this UI are never restricted."
-              />
-              <div className="rounded border border-border-muted bg-bg-primary p-1 divide-y divide-border-muted">
-                {PAN_ACCESS_ROWS.map((row) => (
-                  <SwitchRow
-                    key={row.key}
-                    label={row.label}
-                    hint={row.hint}
-                    desc={row.desc}
-                    checked={Boolean(panAccess[row.key])}
-                    disabled={savingFlag !== null || detailSession === null}
-                    onChange={(v) => togglePanAccess(row.key, v)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {/* ── Section 4: MCP Server ── */}
-            <section className="flex flex-col gap-2">
-              <SectionHeader
-                title="MCP Server / MCP 服务"
-                subtitle="Select MCP servers from the manifest for this session; worker restarts with the change applied."
-              />
-              {mcpLocked ? (
-                <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary">
-                  MCP is locked by the session template (always/never) — selection disabled.
-                </div>
-              ) : (
-                <div className="rounded border border-border-muted bg-bg-primary p-1 space-y-0.5">
-                  {!mcpCatalogLoaded && mcpServers.length === 0 && (
-                    <div className="py-3 text-center text-[11px] text-text-tertiary">
-                      Loading MCP servers…
-                    </div>
-                  )}
-                  {mcpCatalogLoaded && mcpServers.length === 0 && (
-                    <div className="py-4 text-center text-sm text-text-tertiary">
-                      No MCP servers available (manifest not loaded)
-                    </div>
-                  )}
-                  {mcpServers.map((srv) => {
-                    const checked = enabledMcp.has(srv.name);
-                    return (
-                      <label
-                        key={srv.name}
-                        className={`flex items-start gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
-                          savingMcp ? 'pointer-events-none opacity-70' : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 shrink-0 accent-accent"
-                          checked={checked}
-                          disabled={savingMcp || detailSession === null}
-                          onChange={(e) =>
-                            toggleMcpServer(srv.name, e.target.checked)
-                          }
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm text-text-primary">
-                            {srv.name}
-                          </span>
-                          {srv.command && (
-                            <span className="block text-[11px] text-text-tertiary font-mono truncate">
-                              {srv.command}
-                              {srv.cwd ? ` · cwd: ${srv.cwd}` : ''}
-                            </span>
-                          )}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </div>
+export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
+  return (
+    <Modal open={open} onClose={onClose} title="Manage Sessions" size="xl">
+      <ManageSessionsPanel open={open} sessionId={sessionId} />
     </Modal>
   );
 }

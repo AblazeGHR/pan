@@ -7,6 +7,7 @@ All persistent data lives in Session (session.py).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -264,6 +265,13 @@ def _mcp_configured(s: _sess.Session | None) -> bool:
 # ── stdout reader ──
 
 
+# stdout 分块读超时：仅用于周期性把事件循环交还（可取消、可重试），
+# 属「cbc 静默」正常态 —— 超时不代表不活跃，不据此刷新 last_activity
+# （刷新会导致 stream worker 的 idle 回收 / queued 静默超时永不触发，
+# 回归来源 252c41d）。活性基准见 _read_stdout 的有效输出路径。
+_STDOUT_READ_TIMEOUT_SEC: float = 60.0
+
+
 async def _iter_stdout_lines(w: Worker):
     """分块读取 worker stdout，按换行切分产出完整行。
 
@@ -276,10 +284,16 @@ async def _iter_stdout_lines(w: Worker):
     buf = b""
     while True:
         try:
-            chunk = await asyncio.wait_for(w.process.stdout.read(65536), timeout=60)
+            chunk = await asyncio.wait_for(
+                w.process.stdout.read(65536), timeout=_STDOUT_READ_TIMEOUT_SEC)
         except asyncio.TimeoutError:
-            _log.warning("[Worker %s] stdout 读取超时（cbc 静默），继续等待", w.worker_id)
-            w.last_activity = time.monotonic()
+            # cbc 静默（长思考 / idle 等待新任务）是正常状态，不代表不活跃；
+            # last_activity 只由真实输出路径（_read_stdout 有效事件）与任务
+            # 入队刷新。此处若刷新会让 watchdog 的 idle/queued 判定永不触发。
+            _log.debug(
+                "[Worker %s] stdout 静默 %.0fs（read timeout），继续等待",
+                w.worker_id, _STDOUT_READ_TIMEOUT_SEC,
+            )
             continue
         if not chunk:
             break  # EOF
@@ -611,15 +625,16 @@ async def _consumer(w: Worker):
                 await _consume_pending_reports(w, s)
             continue
 
-        # 任务唤醒信号（L4 落盘）：正文在落盘 queue_pending，按 id 消费单个 task
+        # 任务唤醒信号（L4 落盘）：正文在落盘 queue_pending，按 id 认领单个 task
+        claimed = None
         if item.get("type") == "task_signal":
-            task = await _consume_pending_task(w, item.get("id"))
-            if task is None:
+            claimed = await _claim_pending_task(w, item.get("id"))
+            if claimed is None:
                 continue  # 信号重复 / item 已被消费 / 会话消失 → 跳过
-            text = task["text"]
-            source = task.get("source", "agent")
-            w._current_seq = task.get("seq")
-            w._current_task_id = task.get("taskId")
+            text = claimed["text"]
+            source = claimed.get("source", "agent")
+            w._current_seq = claimed.get("seq")
+            w._current_task_id = claimed.get("taskId")
         else:
             # 直接入队消息（无 type）：send_task 落盘迁移前的完整 item 形态
             # （兼容测试直连 pending_signal.put 的完整 item）
@@ -628,32 +643,86 @@ async def _consumer(w: Worker):
             w._current_seq = item.get("seq")
             w._current_task_id = item.get("taskId")
 
-        # resume replay 等待已删除（worker-resume-replay 结论）：cbc 在 stdin 有
-        # prompt 时不向外重放 stdout 历史（executeStreamMode 日志 ResumeReplay
-        # skipped (hasPrompt=true)），而 Pan 的 spawn 是 stdin=PIPE 且等待期不写
-        # 不关——此前 _replaying 永不自然结束，这里每个任务都白等满 10s。
-        # 现在消息立即进 _consumer_stream 写 stdin，首个 result 即任务结果。
-        # （若未来某个 cbc 版本在 EOF 型 stdin 下真重放，_read_stdout 的
-        # _replaying 分支仍保留作死代码兜底。）
+        try:
+            # resume replay 等待已删除（worker-resume-replay 结论）：cbc 在 stdin 有
+            # prompt 时不向外重放 stdout 历史（executeStreamMode 日志 ResumeReplay
+            # skipped (hasPrompt=true)），而 Pan 的 spawn 是 stdin=PIPE 且等待期不写
+            # 不关——此前 _replaying 永不自然结束，这里每个任务都白等满 10s。
+            # 现在消息立即进 _consumer_stream 写 stdin，首个 result 即任务结果。
+            # （若未来某个 cbc 版本在 EOF 型 stdin 下真重放，_read_stdout 的
+            # _replaying 分支仍保留作死代码兜底。）
 
-        s = _session(w)
-        if s:
-            injected_text = await _maybe_inject_memory(s, text)
-            s.history.append({"role": "user", "content": injected_text})
-            text = injected_text
-        # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_oneshot）：在
-        # running 广播 + 写 cbc stdin 之后立即持久化，发送时指示灯不再被全量
-        # O(history) 序列化阻塞（方案 1）。崩溃窗口 = 写 stdin → 落盘 毫秒级，
-        # 最坏丢一条刚发送未落盘的用户消息（可接受范围）。
+            s = _session(w)
+            if s:
+                # 恢复对账（jsonl-先写崩溃窗口）：history 尾部已有该任务的投递
+                # 标记 → 已投递过，只做队列清除收敛（幂等，防双跑），不重复执行。
+                # 对账与进程死活无关，放在存活检查之前；只对认领项做——直接入队
+                # 消息（claimed=None）不经队列，无对账可言。
+                if claimed is not None and _delivery_mark_in_history(s, claimed):
+                    _log.info(
+                        "[Worker %s] task id=%s reconciliation: delivery mark already "
+                        "in history, skipping execution and clearing from queue_pending",
+                        w.worker_id, claimed.get("id"))
+                    s.queue_pending = [it for it in s.queue_pending if it is not claimed]
+                    try:
+                        await _sess.save_async(s)
+                    except Exception as e:
+                        _log.warning(
+                            "[Worker %s] queue_pending save after task reconciliation "
+                            "failed: %s", w.worker_id, e)
+                    continue
+                injected_text = await _maybe_inject_memory(s, text)
+                # 注入文本打投递标记行（只在注入时出现，恢复对账据此去重）；
+                # 直连消息（claimed=None）不经队列，无对账、不打标记
+                if claimed is not None:
+                    injected_text = f"{_delivery_mark_line(claimed)}\n{injected_text}"
+                text = injected_text
+                # 投递语义：注入期间进程死亡 → 中止，claimed item 留在
+                # queue_pending（finally 释放标记），respawn 后由
+                # _recover_pending_signals 重新分发。
+                if claimed is not None and not _process_alive(w):
+                    _log.warning(
+                        "[Worker %s] task id=%s aborted: process dead, "
+                        "kept in queue_pending", w.worker_id, claimed.get("id"))
+                    continue
+                if claimed is None:
+                    s.history.append({"role": "user", "content": injected_text})
+                else:
+                    # 原子消费（出队 = 移交成功的确认）：执行上下文记录
+                    # （history append）+ 从 queue_pending 移除，改同一份内存态后
+                    # **一次落盘**——崩溃在 save 前 = 两者都没写（重投）；save 后
+                    # = 两者都写了。save 失败回滚内存态，item 留队列可重投。
+                    old_queue = s.queue_pending
+                    s.history.append({"role": "user", "content": injected_text})
+                    s.queue_pending = [it for it in old_queue if it is not claimed]
+                    try:
+                        await _sess.save_async(s)
+                    except Exception as e:
+                        s.history.pop()
+                        s.queue_pending = old_queue
+                        _log.warning(
+                            "[Worker %s] task id=%s atomic save failed, "
+                            "kept in queue_pending: %s", w.worker_id,
+                            claimed.get("id"), e)
+                        continue
+            # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_oneshot）：在
+            # running 广播 + 写 cbc stdin 之后立即持久化，发送时指示灯不再被全量
+            # O(history) 序列化阻塞（方案 1）。崩溃窗口 = 写 stdin → 落盘 毫秒级，
+            # 最坏丢一条刚发送未落盘的用户消息（可接受范围）。
 
-        # 选择执行模式：oneshot（每次任务新开进程）vs stream（长驻，可带 MCP）。
-        # 由 adapter.execution_modes + session.output_mode 决定（去 cbc 化）。
-        mode = resolve_execution_mode(w.adapter, s)
+            # 选择执行模式：oneshot（每次任务新开进程）vs stream（长驻，可带 MCP）。
+            # 由 adapter.execution_modes + session.output_mode 决定（去 cbc 化）。
+            mode = resolve_execution_mode(w.adapter, s)
 
-        if mode == "oneshot":
-            await _consumer_oneshot(w, text, source, s)
-        else:
-            await _consumer_stream(w, text, source, s)
+            if mode == "oneshot":
+                await _consumer_oneshot(w, text, source, s)
+            else:
+                await _consumer_stream(w, text, source, s)
+        finally:
+            # 无论正常完成、中止还是异常/取消，都释放 in-flight 标记——item 是否
+            # 留在队列由「是否已确认出队」决定，标记只负责运行期去重。
+            if claimed is not None:
+                _inflight_task_ids.discard(claimed.get("id"))
 
 
 # ── 订阅制报告消费（立项 4.3）──
@@ -713,30 +782,119 @@ def _format_report_batch(reports: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _process_alive(w: Worker) -> bool:
+    """worker 进程存活检查：stream 模式看 cbc returncode；oneshot（process=None）视为存活。"""
+    return w.process is None or w.process.returncode is None
+
+
+# ── 投递标记与恢复对账（jsonl-先写顺序下的重复窗口封堵）──
+#
+# save 顺序：① jsonl(history) ② 主文件(queue_pending)。崩溃窗口：jsonl 已写、
+# 主文件未写 → history 有注入消息、队列项还在 → 重启 _recover_pending_signals
+# 重投 → 重复。兜底：注入时在文本里为每条队列项打 `[delivered: <key>]` 标记行
+# （只在注入时出现），消费前对账 history 尾部——标记已存在 → 该项已投递过，
+# 跳过执行并从队列清除（收敛），未命中 → 正常注入执行。
+
+# 对账扫描 history 尾部深度：标记只在注入时写入，重投对账发生在恢复后不久，
+# 尾部窗口足够；深度内未命中一律按未投递处理（宁可重复不丢）。
+_DELIVERY_SCAN_DEPTH: int = 50
+
+
+def _delivery_key(item: dict) -> str:
+    """队列项的投递标记 key。
+
+    task 用 item.id；report/qq 用 taskId（保留可读性）+ 内容指纹（同 taskId
+    不同内容不误判，taskId 缺失回退纯指纹）。指纹取排序 JSON 的 sha1 前 12 位，
+    json 往返（磁盘重载）后内容一致 → 指纹一致。
+    """
+    digest = hashlib.sha1(
+        json.dumps(item, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+    ).hexdigest()[:12]
+    if item.get("type") == "task":
+        return f"task:{item.get('id')}:{digest}"
+    tid = item.get("taskId")
+    return f"report:{tid if tid else 'anon'}:{digest}"
+
+
+def _delivery_mark_line(item: dict) -> str:
+    """注入文本中的投递标记行。"""
+    return f"[delivered: {_delivery_key(item)}]"
+
+
+def _delivery_mark_in_history(s, item: dict) -> bool:
+    """history 尾部是否已存在该队列项的投递标记（消费前对账）。"""
+    mark = _delivery_mark_line(item)
+    for h in s.history[-_DELIVERY_SCAN_DEPTH:]:
+        if mark in (h.get("content") or ""):
+            return True
+    return False
+
+
 async def _consume_pending_reports(w: Worker, s):
     """从落盘 queue_pending 取全部积压报告，拼接为一条消息交给模型处理。
 
-    消费即删（清空后立即回写），与"落盘真源 + 内存信号"一致。
+    投递语义（出队 = 移交成功的确认，原子落盘）：消费逻辑跑在 server 进程，
+    构造注入文本 → history append + 从 queue_pending 移除这批报告 → **同一次
+    save_async** 写盘（history 与 queue_pending 在同一 Session JSON，天然原子）。
+    崩溃在 save 前 = 两者都没写、报告可重投；save 后 = 两者都写了——既不丢
+    也不重复。save 失败（非崩溃）则回滚内存态，队列原样保留可重投。
+
+    消费前确认 worker 进程存活（CLI 子进程死 → 中止保留队列，由全局 watchdog
+    spawn 恢复后经 _recover_pending_signals 补发信号重投）。
+
     L4 落盘：任务消息（type=="task"）与报告共存于同一队列；此处**只消费报告**，
     task item 保留在队列中由 task_signal 按 id 消费，互不误删。
+
+    恢复对账：save 顺序 jsonl-先写 → 崩溃窗口内 history 已有标记、队列项仍在。
+    消费前逐条对账 history 尾部投递标记：已投递 → 跳过该条（防双跑）且从队列
+    清除（收敛）；未投递 → 注入执行，注入文本为每条报告打标记行。
     """
     reports = [it for it in s.queue_pending if it.get("type") != "task"]
-    s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
-    await _sess.save_async(s)
     if not reports:
         # 队列里只剩 task item（报告已被其他信号消费）→ 不发空消息
         return
-    text = _format_report_batch(reports)
+    undelivered = [it for it in reports if not _delivery_mark_in_history(s, it)]
+    if not undelivered:
+        # 全部已投递（jsonl-先写崩溃恢复）→ 只做队列清除收敛，不注入不执行
+        _log.info("[Worker %s] report reconciliation: %d already-delivered report(s) "
+                  "skipped and cleared from queue_pending", w.worker_id, len(reports))
+        s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
+        try:
+            await _sess.save_async(s)
+        except Exception as e:
+            _log.warning("[Worker %s] queue_pending save after report reconciliation failed: %s",
+                         w.worker_id, e)
+        return
+    text = "\n".join(_delivery_mark_line(it) for it in undelivered) + \
+        "\n\n" + _format_report_batch(undelivered)
 
     # 报告不是 assign 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
     w._current_seq = None
     w._current_task_id = None
     w._replaying = False
 
-    # 复用普通消息处理路径：记忆注入 → history append → 执行
     injected_text = await _maybe_inject_memory(s, text)
+    if not _process_alive(w):
+        _log.warning(
+            "[Worker %s] report consumption aborted: process dead, "
+            "%d report(s) kept in queue_pending", w.worker_id, len(undelivered))
+        return
+
+    # 原子消费：history + 出队先改同一份内存态，再一次落盘；失败回滚内存态
+    # （与磁盘保持一致，报告仍可重投）。本批报告全部移除：未投递项已注入
+    # （出队 = 移交确认），对账命中的已投递项一并清除（收敛）。
+    old_queue = s.queue_pending
     s.history.append({"role": "user", "content": injected_text})
-    await _sess.save_async(s)
+    s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
+    try:
+        await _sess.save_async(s)
+    except Exception as e:
+        s.history.pop()
+        s.queue_pending = old_queue
+        _log.warning(
+            "[Worker %s] report atomic save failed, %d report(s) kept in queue_pending: %s",
+            w.worker_id, len(undelivered), e)
+        return
 
     mode = resolve_execution_mode(w.adapter, s)
     if mode == "oneshot":
@@ -745,27 +903,41 @@ async def _consume_pending_reports(w: Worker, s):
         await _consumer_stream(w, injected_text, "report", s)
 
 
-async def _consume_pending_task(w: Worker, task_id: str | None) -> dict | None:
-    """从落盘 queue_pending 按 id 取出一个任务 item（消费即删，L4 落盘）。
+# 任务投递的 in-flight 标记（内存）：已认领、尚未确认出队的 task item id。
+# 防同一 id 被重复认领（重复信号 / 新旧 worker 消费者交叠窗口）。进程重启即清空，
+# 真源仍是落盘 queue_pending——标记只做运行期去重，不承载持久语义。
+_inflight_task_ids: set[str] = set()
 
-    任务消息持久化在 Session.queue_pending（落盘真源），pending_signal 只放
-    task_signal 唤醒信号。本函数按信号携带的 id 在队列中定位任务正文，取出后
-    立即移除并落盘，返回 item；信号重复 / item 已被消费 / 会话消失 → None。
+
+async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
+    """在落盘 queue_pending 中按 id 认领一个任务 item（只标记、不移除）。
+
+    投递语义（出队 = 移交成功的确认，原子落盘）：本函数只定位 item 并打
+    in-flight 标记；实际出队在 _consumer 中与「执行上下文记录（history append）」
+    合并为**同一次 save_async**（同一 Session JSON，天然原子）——崩溃在 save 前
+    = 两者都没写、任务可重投；save 后 = 两者都写了。save 失败（非崩溃）回滚
+    内存态，item 留在队列，respawn 后由 _recover_pending_signals 重新分发。
+
+    返回 item；信号重复 / item 不存在 / 已被消费 / 会话消失 → None。
 
     与 _consume_pending_reports 的互斥：task（type=="task"）与 report item
     共存于同一队列；_consume_pending_reports 只消费 report（跳过 task），
-    本函数只消费单个 task，互不误删。
+    本函数只按 id 认领单个 task，互不误删。
     """
     s = _session(w)
     if not s:
         _log.warning("[Worker %s] task_signal: session %s not found",
                      w.worker_id, w.session_id)
         return None
-    for i, it in enumerate(s.queue_pending):
+    for it in s.queue_pending:
         if it.get("type") == "task" and it.get("id") == task_id:
-            task = s.queue_pending.pop(i)
-            await _sess.save_async(s)
-            return task
+            if task_id in _inflight_task_ids:
+                _log.warning(
+                    "[Worker %s] task_signal: task id=%s already in-flight, "
+                    "skip duplicate claim", w.worker_id, task_id)
+                return None
+            _inflight_task_ids.add(task_id)
+            return it
     _log.warning("[Worker %s] task_signal: task id=%s not found in queue_pending (len=%d)",
                  w.worker_id, task_id, len(s.queue_pending))
     return None
@@ -1267,7 +1439,11 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
 
         t = event.get("type", "")
         if t == "result":
-            result_text = event.get("result", "")
+            # 走 adapter.extract_result_text 而非裸取 result 字段：claude 在该方法内
+            # 把 result 事件的 usage+cost 暂存到 _PENDING_RESULT_USAGE（result 事件是
+            # cost 唯一权威来源），供下方 enrich_after_result 取用。返回文本与裸取
+            # 完全一致（cbc/claude 均返回 event.get("result")），不改变结果语义。
+            result_text = adapter.extract_result_text(event) or ""
         elif t == "system" and event.get("subtype") == "init":
             cli_session_id = event.get("session_id")
         elif t == "assistant":
@@ -1342,6 +1518,22 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         "timestamp": datetime.now().isoformat(),
         "taskSeq": w._current_seq,
     }
+    # 用量/credit 落账：与 stream 路径（_read_stdout）同构——补调
+    # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
+    # oneshot 之前漏调，导致 cbc 不记 credit、claude（仅 oneshot）完全不记
+    # usage/cost（result 事件的 usage 已在上方由 extract_result_text 暂存）。
+    enrichment = None
+    try:
+        enrichment = adapter.enrich_after_result(s)
+    except Exception:
+        pass
+    if enrichment:
+        prev_total = s.total_usage
+        s.raw_usage = _sess.accumulate_raw_usage(s.raw_usage, enrichment)
+        s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        prev_credit = prev_total.get("credit", 0) if prev_total else 0
+        new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
+        _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
     await _sess.save_async(s)
 
     # Broadcast assistant events as worker.stream so the frontend displays the

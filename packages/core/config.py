@@ -53,6 +53,18 @@ DEFAULT_CONFIG: dict = {
         "always_thinking_enabled": False,
         "effort": "",
     },
+    "claude": {
+        # 默认模型。空字符串 = 不传 --model，由 claude 用其配置的默认模型
+        # （如 claude-opus-4-8）。显式设置后传给 `claude --model`。
+        "model": "",
+        # 默认权限模式："" | "default" | "acceptEdits" | "bypassPermissions" | "plan"。
+        # 非交互模式下默认 bypassPermissions 以避免权限确认挂起。
+        "permission_mode": "bypassPermissions",
+        # claude 在 -p + --verbose 下自动产出 thinking 块，无独立开关。
+        "always_thinking_enabled": False,
+        # 默认 reasoning effort（--effort）："" | low | medium | high | xhigh | max
+        "effort": "",
+    },
     "opencode": {
         # 默认模型（provider/model）。可选值见 adapter.py 的 supported_models
         # （`opencode models` 解析 > 内置）。无配置时回退 opencode/big-pickle（免费、无需 key）。

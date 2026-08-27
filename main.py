@@ -172,7 +172,14 @@ def _spawn_qq_bot() -> None:
 
     python = os.environ.get("PAN_QQ_PYTHON") or _QQ_DEFAULT_PYTHON
     try:
-        _qq_proc = subprocess.Popen([python, str(_QQ_BOT_PY)], cwd=str(_QQ_DIR))
+        # bot.py 顶层 `from packages.qq import ...` 需要项目根在 sys.path；
+        # cwd 是 packages/qq 且子进程不继承父进程 sys.path，必须显式注入
+        # PYTHONPATH，否则每次 spawn 都 ModuleNotFoundError 退出（code 1）。
+        _qq_proc = subprocess.Popen(
+            [python, str(_QQ_BOT_PY)],
+            cwd=str(_QQ_DIR),
+            env={**os.environ, "PYTHONPATH": str(_PROJECT_ROOT)},
+        )
     except Exception as e:  # noqa: BLE001
         _log.error("[Pan] QQ bot spawn failed: %s", e)
         _qq_proc = None

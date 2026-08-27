@@ -33,6 +33,15 @@ function setSession(workerStatus = 'running', workerId: string | null = 'w1') {
   });
 }
 
+/** 仅更新 worker 状态，保留 currentMessages（真实 app 中状态事件不会清空聊天区）。 */
+function setWorkerStatus(workerStatus: string, workerId: string | null = 'w1') {
+  useSessionStore.setState((s) => ({
+    sessions: s.sessions.map((x) =>
+      x.id === 's1' ? { ...x, workerStatus, workerId } : x,
+    ),
+  }));
+}
+
 function reset() {
   localStorage.clear();
   useSessionStore.setState({
@@ -46,15 +55,10 @@ function reset() {
   vi.mocked(wsClient.send).mockReturnValue(true);
 }
 
-function lastMsg(): string | undefined {
-  const msgs = useSessionStore.getState().currentMessages;
-  return msgs.length ? msgs[msgs.length - 1]?.content : undefined;
-}
-
 beforeEach(reset);
 
 describe('queueStore enqueue', () => {
-  it('adds an item when worker busy, persists to localStorage, does NOT touch messages', () => {
+  it('adds an item when worker busy, persists to localStorage, AND optimistically shows it in the chat', () => {
     setSession('running');
     const ok = useQueueStore.getState().enqueue('hello queue');
     expect(ok).toBe(true);
@@ -62,7 +66,10 @@ describe('queueStore enqueue', () => {
     expect(q.length).toBe(1);
     expect(q[0]?.text).toBe('hello queue');
     expect(q[0]?.status).toBe('pending');
-    expect(useSessionStore.getState().currentMessages.length).toBe(0);
+    // 与 InputRow 直接发送一致：入队即上屏（乐观），不等 worker idle 后 flush 才显示
+    const msgs = useSessionStore.getState().currentMessages;
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]).toMatchObject({ role: 'user', content: 'hello queue' });
     const raw = localStorage.getItem('pan.sendQueue.s1');
     expect(raw).toBeTruthy();
     expect(JSON.parse(raw as string)[0].text).toBe('hello queue');
@@ -83,18 +90,21 @@ describe('queueStore enqueue', () => {
 });
 
 describe('queueStore flush', () => {
-  it('auto-sends the head when worker idle, adds user message, removes the item', () => {
+  it('auto-sends the head when worker idle, keeps the optimistic chat message, removes the item (no duplicate)', () => {
     setSession('running');
     useQueueStore.getState().enqueue('one');
     useQueueStore.getState().enqueue('two');
     expect((useQueueStore.getState().queues['s1'] ?? []).length).toBe(2);
+    // 入队即上屏：两条乐观消息都在聊天里
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['one', 'two']);
 
-    setSession('idle');
+    setWorkerStatus('idle');
     useQueueStore.getState().flush();
     const q = useQueueStore.getState().queues['s1'] ?? [];
     expect(q.length).toBe(1);
     expect(q[0]?.text).toBe('two');
-    expect(lastMsg()).toBe('one');
+    // 'one' 已发送 → 不重复追加（入队时那条乐观消息就是它）
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['one', 'two']);
     expect(vi.mocked(wsClient.send)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(wsClient.send)).toHaveBeenCalledWith({
       type: 'user_inject',
@@ -103,16 +113,18 @@ describe('queueStore flush', () => {
     });
   });
 
-  it('keeps the head on send failure (WS closed)', () => {
+  it('keeps the head on send failure (WS closed); optimistic chat message stays', () => {
     setSession('running');
     useQueueStore.getState().enqueue('keep me');
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['keep me']);
     vi.mocked(wsClient.send).mockReturnValue(false);
-    setSession('idle');
+    setWorkerStatus('idle');
     useQueueStore.getState().flush();
     const q = useQueueStore.getState().queues['s1'] ?? [];
     expect(q.length).toBe(1);
     expect(q[0]?.text).toBe('keep me');
-    expect(useSessionStore.getState().currentMessages.length).toBe(0);
+    // 发送失败不撤乐观消息：聊天里保持入队时的样子（与直接发送失败一致）
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['keep me']);
   });
 
   it('does not flush while a single-flight send is in progress', () => {
@@ -129,24 +141,95 @@ describe('queueStore flush', () => {
 });
 
 describe('queueStore batch send', () => {
-  it('concatenates all messages into one when enabled', () => {
+  it('concatenates all messages into one when enabled (N optimistic rows collapse to one combined)', () => {
     setSession('running');
     useQueueStore.getState().enqueue('first');
     useQueueStore.getState().enqueue('second');
     useQueueStore.getState().toggleBatchSend(); // 开启（worker running，暂不发送）
     expect(useQueueStore.getState().batchSend['s1']).toBe(true);
     expect(localStorage.getItem('pan.sendQueue.batch.s1')).toBe('1');
+    // 入队即上屏：两条乐观消息
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['first', 'second']);
 
-    setSession('idle');
+    setWorkerStatus('idle');
     useQueueStore.getState().flush();
     expect((useQueueStore.getState().queues['s1'] ?? []).length).toBe(0);
-    expect(lastMsg()).toBe('first\n\nsecond');
+    // 批量发送后：N 条乐观消息替换为 1 条合并消息（与服务端一致，避免聊天里两条、
+    // 服务端一条的分叉）
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'first\n\nsecond',
+    ]);
     expect(vi.mocked(wsClient.send)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(wsClient.send)).toHaveBeenCalledWith({
       type: 'user_inject',
       sessionId: 's1',
       text: 'first\n\nsecond',
     });
+  });
+});
+
+describe('queueStore optimistic chat rows', () => {
+  it('remove() takes the optimistic chat message back out (no ghost)', () => {
+    setSession('running');
+    useQueueStore.getState().enqueue('first');
+    useQueueStore.getState().enqueue('second');
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'first',
+      'second',
+    ]);
+
+    const firstId = (useQueueStore.getState().queues['s1'] ?? [])[0]?.id as string;
+    useQueueStore.getState().remove(firstId);
+    expect((useQueueStore.getState().queues['s1'] ?? []).map((x) => x.text)).toEqual(['second']);
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['second']);
+  });
+
+  it('startEdit() removes the optimistic row; saveEdit() re-adds it with the edited text', () => {
+    setSession('running');
+    useQueueStore.getState().enqueue('first');
+    useQueueStore.getState().enqueue('second');
+    const secondId = (useQueueStore.getState().queues['s1'] ?? [])[1]?.id as string;
+
+    useQueueStore.getState().startEdit(secondId);
+    // 编辑中的条目不再「待发送」→ 乐观消息撤掉
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['first']);
+
+    useQueueStore.getState().updateEditDraft('second v2');
+    useQueueStore.getState().saveEdit();
+    // 保存重新入队 → 新的乐观消息（编辑后文本）
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'first',
+      'second v2',
+    ]);
+  });
+
+  it('cancelEdit() restores the optimistic row with the original text', () => {
+    setSession('running');
+    useQueueStore.getState().enqueue('first');
+    useQueueStore.getState().enqueue('second');
+    const secondId = (useQueueStore.getState().queues['s1'] ?? [])[1]?.id as string;
+
+    useQueueStore.getState().startEdit(secondId);
+    useQueueStore.getState().updateEditDraft('typo');
+    useQueueStore.getState().cancelEdit();
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'first',
+      'second',
+    ]);
+  });
+
+  it('clear() removes all optimistic rows', () => {
+    setSession('running');
+    useQueueStore.getState().enqueue('first');
+    useQueueStore.getState().enqueue('second');
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'first',
+      'second',
+    ]);
+
+    useQueueStore.getState().clear();
+    expect((useQueueStore.getState().queues['s1'] ?? []).length).toBe(0);
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 });
 
