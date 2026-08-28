@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -235,6 +236,7 @@ def _session_to_api(s: sess.Session):
     a = get_adapter(s.adapter)
     config = load_config().get(s.adapter, {})
     ac = s.adapter_config
+    mcp_lock_reason = _get_mcp_locked_state(s)
     return {
         "id": s.id,
         "name": s.name,
@@ -271,7 +273,8 @@ def _session_to_api(s: sess.Session):
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "mcpEnabled": bool(ac.get("mcp_servers")),
-        "mcpLocked": _get_mcp_locked_state(s),
+        "mcpLocked": mcp_lock_reason is not None,
+        "mcpLockReason": mcp_lock_reason,
         # Currently-enabled MCP server names (extracted from the adapter_config
         # mcp_servers list of config dicts, each carrying a "name" key).
         "mcpServers": [
@@ -329,14 +332,18 @@ def _session_summary(s: sess.Session) -> dict:
     }
 
 
-def _get_mcp_locked_state(s) -> bool | None:
-    """Check if MCP toggle is locked for this session's session_template."""
+def _get_mcp_locked_state(s) -> str | None:
+    """Return the MCP lock reason for this session's session_template.
+
+    Returns "always" / "never" when the template locks the MCP toggle,
+    None when unlocked (no template, optional mode, or lookup failure).
+    """
     if _character_manager is None or not s.session_template:
         return None
     try:
         template = _character_manager.get_session_template(s.session_template)
         if template and template.mcp_mode in ("always", "never"):
-            return True
+            return template.mcp_mode
     except Exception:
         pass
     return None
@@ -603,7 +610,8 @@ def _apply_session_updates(s: sess.Session, data: dict):
     if "maxThinkingTokens" in data:
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
     if "mcpServers" in data:
-        _apply_mcp_servers(s, data["mcpServers"])
+        # forceMcp:true（UI 强制解除模板锁确认后携带）跳过 always/never 校验。
+        _apply_mcp_servers(s, data["mcpServers"], force=bool(data.get("forceMcp")))
     if "panAccess" in data:
         _apply_pan_access(s, data["panAccess"])
     if "outputMode" in data:
@@ -635,15 +643,17 @@ def _apply_pan_access(s: sess.Session, body) -> None:
             s.pan_access[pa_key] = bool(body[req_key])
 
 
-def _apply_mcp_servers(s: sess.Session, server_names) -> None:
+def _apply_mcp_servers(s: sess.Session, server_names, force: bool = False) -> None:
     """Set session mcp_servers by manifest server names (e.g. ["pan"]).
 
     Resolves names to full configs via the character manager's manifest table.
     Accepts a list of names, or None/[] to clear. mcp_servers 非空即启用
     （单一事实源），mcp_mode 的 always/never 锁在此处强制执行。
+    force=True 跳过该锁（PATCH body 的 forceMcp:true 传入，UI 在用户
+    明确确认后用于强制解除 never 锁）。
     """
     enabling = server_names not in (None, [], "")
-    if s.session_template and _character_manager is not None:
+    if not force and s.session_template and _character_manager is not None:
         template = _character_manager.get_session_template(s.session_template)
         if template:
             if template.mcp_mode == "always" and not enabling:
@@ -1082,6 +1092,165 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     }
 
 
+# ── Agent queue (session.queue_pending, normalized view) ──
+#
+# queue_pending 是异构落盘队列：task 项（type=task，自带 uuid id）、report 项
+# （普通报告无 type 字段，zombie 报告 type=zombie）、qq 提醒项（type=qq）。
+# 这里序列化为统一的 AgentQueueItem 供前端 SendQueuePanel 渲染，不改存储结构。
+# report/qq 落盘项没有 id 字段 → 用 sha1(canonical json) 生成稳定 id（同内容
+# 幂等），DELETE 按 id 定位：先匹配原生 id，再回退内容 hash。
+
+_REPORT_TEXT_MAX = 200
+
+
+def _queue_item_id(item: dict) -> str:
+    """Stable id for a queue_pending item (task: own uuid; others: content hash)."""
+    if item.get("type") == "task" and item.get("id"):
+        return str(item["id"])
+    try:
+        canonical = json.dumps(item, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        canonical = repr(item)
+    return "sha1:" + hashlib.sha1(canonical.encode("utf-8")).hexdigest()
+
+
+def _serialize_queue_item(item) -> dict | None:
+    """queue_pending item → AgentQueueItem；无法识别的形状返回 None（跳过）。"""
+    if not isinstance(item, dict):
+        return None
+    t = item.get("type")
+    if t == "task":
+        return {
+            "id": _queue_item_id(item),
+            "kind": "task",
+            "text": item.get("text") if isinstance(item.get("text"), str) else "",
+            "createdAt": 0,
+            "source": item.get("source"),
+            "meta": {"seq": item.get("seq"), "taskId": item.get("taskId")},
+        }
+    if t == "qq":
+        return {
+            "id": _queue_item_id(item),
+            "kind": "qq",
+            "text": item.get("text") if isinstance(item.get("text"), str) else "",
+            "createdAt": 0,
+            "meta": {"qqTarget": item.get("qqTarget"), "time": item.get("time")},
+        }
+    # 非 task/qq 一律按 report 处理（普通报告无 type 字段、zombie 为 type=zombie），
+    # 与 worker 消费端分类（type != "task" 即报告）保持一致；完全无 result 的
+    # 畸形项跳过。
+    if "result" not in item and t is not None:
+        return None
+    result = item.get("result")
+    if isinstance(result, str):
+        text = result
+    elif result is None:
+        text = ""
+    else:
+        try:
+            text = json.dumps(result, ensure_ascii=False)
+        except (TypeError, ValueError):
+            text = repr(result)
+    if len(text) > _REPORT_TEXT_MAX:
+        text = text[:_REPORT_TEXT_MAX] + "…"
+    return {
+        "id": _queue_item_id(item),
+        "kind": "report",
+        "text": text,
+        "createdAt": 0,
+        "meta": {
+            "status": item.get("status"),
+            "taskId": item.get("taskId"),
+            "workerId": item.get("workerId"),
+        },
+    }
+
+
+def _session_queue_items(s) -> list[dict]:
+    items = []
+    for it in s.queue_pending or []:
+        si = _serialize_queue_item(it)
+        if si is not None:
+            items.append(si)
+    return items
+
+
+@app.get("/api/sessions/{session_id}/queue")
+async def api_session_queue(session_id: str):
+    """Normalized agent queue (session.queue_pending) for the frontend panel."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    return {"items": _session_queue_items(s)}
+
+
+@app.delete("/api/sessions/{session_id}/queue/{item_id}")
+async def api_session_queue_delete(session_id: str, item_id: str):
+    """Remove one item from the persisted queue by its normalized id."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    pending = s.queue_pending or []
+    target = None
+    # Pass 1: direct id match (task items carry their own uuid id).
+    for it in pending:
+        if isinstance(it, dict) and it.get("id") == item_id:
+            target = it
+            break
+    # Pass 2: content-hash fallback for report/qq items (no id field).
+    if target is None:
+        for it in pending:
+            if isinstance(it, dict) and _queue_item_id(it) == item_id:
+                target = it
+                break
+    if target is None:
+        return {"ok": False, "error": "not_found"}
+    s.queue_pending = [it for it in pending if it is not target]
+    await sess.save_async(s)
+    return {"ok": True}
+
+
+@app.patch("/api/sessions/{session_id}/queue/order")
+async def api_session_queue_order(session_id: str, data: dict):
+    """Reorder task items within the persisted queue (report/qq keep their slots).
+
+    Body: {"order": ["id1", ...]} — the relative order of task ids in `order`
+    becomes the new task sequence; tasks not mentioned keep their relative
+    order at the end of the task run. Returns the reordered normalized items.
+    """
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    order = data.get("order")
+    if not isinstance(order, list):
+        return {"error": "order (array of item ids) required"}
+    pending = list(s.queue_pending or [])
+    by_id: dict[str, dict] = {}
+    for it in pending:
+        if isinstance(it, dict) and it.get("type") == "task":
+            by_id.setdefault(_queue_item_id(it), it)
+    ordered: list[dict] = []
+    seen: set[int] = set()
+    for iid in order:
+        it = by_id.get(str(iid))
+        if it is not None and id(it) not in seen:
+            ordered.append(it)
+            seen.add(id(it))
+    for it in pending:  # tasks absent from `order` keep relative order at the end
+        if (isinstance(it, dict) and it.get("type") == "task"
+                and id(it) not in seen):
+            ordered.append(it)
+            seen.add(id(it))
+    task_iter = iter(ordered)
+    s.queue_pending = [
+        next(task_iter, it)
+        if isinstance(it, dict) and it.get("type") == "task" else it
+        for it in pending
+    ]
+    await sess.save_async(s)
+    return {"items": _session_queue_items(s)}
+
+
 @app.patch("/api/sessions/{session_id}")
 async def api_update_session(session_id: str, data: dict):
     """Update session-level settings without spawning a worker."""
@@ -1448,22 +1617,27 @@ async def api_put_settings_ui(data: dict):
 
 @app.post("/api/config/reload")
 async def api_config_reload(data: dict | None = None):
-    """Force a config.json hot-reload for adapter model caches + worker config.
+    """Force a config.json hot-reload (adapters / worker / plugin / memory).
 
-    config.json is re-read from disk on every load_config() call, but two
+    config.json is re-read from disk on every load_config() call, but a few
     things are read once and then cached: the adapters' class-level model-list
-    caches (codex/opencode/cbc with TTL, kimi/claude permanent) and worker.py's
-    module-level lifecycle timeouts. This endpoint invalidates both so edits
-    to config.json take effect without a server restart — same style as
-    POST /api/manifest/reload.
+    caches (codex/opencode/cbc with TTL, kimi/claude permanent), worker.py's
+    module-level lifecycle timeouts, worker.py's memory-injection switch
+    (``memory.enabled``), and the registered plugin manifest list
+    (``plugin_manifests``, fixed at lifespan). This endpoint invalidates all
+    of them so edits to config.json take effect without a server restart —
+    same style as POST /api/manifest/reload.
 
-    Body (optional): ``{"scope": "adapters" | "worker" | "all"}`` — default
-    "all". Idempotent: repeated calls just re-read the same config. Per-item
-    failures are collected into ``errors`` and reported with
-    ``reloaded: false`` instead of a 500.
+    Body (optional): ``{"scope": "adapters" | "worker" | "plugin" | "memory"
+    | "all"}`` — default "all". Idempotent: repeated calls just re-read the
+    same config. Per-item failures are collected into ``errors`` and reported
+    with ``reloaded: false`` instead of a 500. The response always carries
+    ``requiresRestart`` — fields that are startup-frozen by nature and can
+    never hot-apply (frontend route mounting, bound port, logging handlers,
+    the external remote tunnel process).
     """
     scope = (data or {}).get("scope") or "all"
-    if scope not in ("adapters", "worker", "all"):
+    if scope not in ("adapters", "worker", "plugin", "memory", "all"):
         return {"reloaded": False, "error": f"Unknown scope: {scope}"}
 
     result: dict = {"reloaded": True}
@@ -1497,6 +1671,40 @@ async def api_config_reload(data: dict | None = None):
             result["worker"] = worker.reload_worker_config()
         except Exception as e:
             errors.append(f"worker: {e}")
+
+    if scope in ("memory", "all"):
+        try:
+            result["memory"] = worker.reload_memory_config()
+        except Exception as e:
+            errors.append(f"memory: {e}")
+
+    if scope in ("plugin", "all"):
+        if _character_manager is None:
+            errors.append("plugin: character manager not initialized")
+        else:
+            before_paths = list(_character_manager._plugin_paths)
+            # Same default as lifespan: a missing key falls back to the
+            # repo-root manifest.json; an explicit [] clears all plugins.
+            new_paths = list(
+                load_config().get("plugin_manifests", ["manifest.json"])
+            )
+            cfg, plug_errors = _character_manager.reload_plugin_paths(new_paths)
+            plugin_entry: dict = {"before": before_paths, "after": new_paths}
+            if cfg is None:
+                # Aborted: previous paths + config kept by the manager.
+                plugin_entry["applied"] = False
+                plugin_entry["errors"] = plug_errors
+                errors.extend(f"plugin: {e}" for e in plug_errors)
+            else:
+                plugin_entry["applied"] = True
+                plugin_entry["sessionTemplates"] = len(cfg.session_templates)
+                plugin_entry["mcpServers"] = len(cfg.mcp_servers)
+                plugin_entry["characters"] = len(cfg.character_templates)
+                plugin_entry["commandRoutes"] = len(cfg.command_routes)
+            result["plugin"] = plugin_entry
+
+    # Startup-frozen fields a config.json edit can never hot-apply.
+    result["requiresRestart"] = ["frontend", "port", "logging", "remote"]
 
     if errors:
         result["reloaded"] = False
@@ -1722,20 +1930,25 @@ async def api_qq_subscribe(data: dict):
     """Pan session 订阅某 QQ 会话的 inbox 更新提醒（镜像 report-subscribe）。
 
     Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
-           "target_id": <QQ 号 / 群号>}
+           "target_id": <QQ 号 / 群号>, "bot_uin"?: <bot QQ 号>}
 
     订阅后，该 QQ 会话每次收到新消息（selective 模式入 inbox）都会推送一条
     `@@@@by qq` 提醒到本 session 的落盘队列 queue_pending 并唤醒其 worker。
+
+    bot_uin 可选（多账号）：订阅粒度为「某 bot 的某用户/群」，订阅键
+    `<type>:<id>@<bot_uin>`；缺省订阅键 `<type>:<id>`（不区分 bot，任何 bot
+    收到都提醒，兼容旧订阅）。
     """
     session_id = (data.get("sessionId") or "").strip()
     target_type = (data.get("target_type") or "").strip().lower()
     target_id = (data.get("target_id") or "").strip()
+    bot_uin = (data.get("bot_uin") or "").strip()
     if not session_id or not target_id or target_type not in ("user", "group"):
         return {"error": "sessionId, target_type(user|group) and target_id are required"}
     s = sess.get(session_id)
     if not s:
         return {"error": f"Session {session_id} not found"}
-    target_key = f"{target_type}:{target_id}"
+    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
     s.qq_subscriptions.add(target_key)
     sess.save(s)
     return {
@@ -1748,16 +1961,21 @@ async def api_qq_subscribe(data: dict):
 
 @app.post("/api/qq/unsubscribe")
 async def api_qq_unsubscribe(data: dict):
-    """取消订阅某 QQ 会话的 inbox 更新提醒。"""
+    """取消订阅某 QQ 会话的 inbox 更新提醒。
+
+    bot_uin 可选（多账号）：解绑 `<type>:<id>@<bot>` 订阅键；缺省解绑不区分
+    bot 的旧键 `<type>:<id>`。
+    """
     session_id = (data.get("sessionId") or "").strip()
     target_type = (data.get("target_type") or "").strip().lower()
     target_id = (data.get("target_id") or "").strip()
+    bot_uin = (data.get("bot_uin") or "").strip()
     if not session_id or not target_id or target_type not in ("user", "group"):
         return {"error": "sessionId, target_type(user|group) and target_id are required"}
     s = sess.get(session_id)
     if not s:
         return {"error": f"Session {session_id} not found"}
-    target_key = f"{target_type}:{target_id}"
+    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
     s.qq_subscriptions.discard(target_key)
     sess.save(s)
     return {
@@ -1773,10 +1991,11 @@ async def api_qq_notify(data: dict):
     """QQ 插件上报 inbox 更新（由 packages/qq/plugin.py 调用）。
 
     Body: {"target_type": "user"|"group", "target_id": ..., "nickname": ...,
-           "text": ..., "time": ...}
+           "text": ..., "time": ..., "bot_uin"?: <bot QQ 号>}
 
     找到所有订阅该 QQ 会话的 session，各推送一条 `@@@@by qq` 提醒到其
-    queue_pending 并唤醒 worker。返回投递数量。
+    queue_pending 并唤醒 worker。bot_uin 可选（多账号来源标注）：同时命中
+    不区分 bot 的旧订阅键与 `<type>:<id>@<bot>` 精确订阅键。返回投递数量。
     """
     target_type = (data.get("target_type") or "").strip().lower()
     target_id = (data.get("target_id") or "").strip()
@@ -1788,6 +2007,7 @@ async def api_qq_notify(data: dict):
         nickname=(data.get("nickname") or ""),
         text=(data.get("text") or ""),
         time_str=(data.get("time") or ""),
+        bot_uin=(data.get("bot_uin") or ""),
     )
     return {"ok": True, "delivered": delivered}
 
