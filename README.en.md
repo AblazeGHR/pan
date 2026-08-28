@@ -663,6 +663,14 @@ python -m packages.remote
 - Status service: `curl http://127.0.0.1:8769/status`
 - The public domain comes from `ingress.hostname` in the yml pointed to by `config_path`; the tunnel exposes the Pan main port (`config.port`)
 
+## ⚠️ Security Notice
+
+Before using Pan, be aware of these defaults and evaluate your own trust boundaries:
+
+- **Full-permission automation**: the default adapter template uses `permission_mode=bypassPermissions` — CLI agents execute commands / edit files without per-step approval. This is intentional for automated orchestration; use in a trusted environment and never green-light untrusted tasks.
+- **No authentication**: the Pan API has no authentication and binds to `127.0.0.1` (loopback) by default — **local use only**. Changing `PAN_HOST` exposes every endpoint to the network.
+- **Public exposure**: Remote (Cloudflare Tunnel) exposes the Pan main port to the public internet; evaluate the risk before enabling (it is likewise unauthenticated).
+
 ## Operational Notes
 
 - **Security model**: the API has no authentication and intentionally binds to `127.0.0.1` (loopback) by default. Setting `PAN_HOST` to a non-loopback address exposes every endpoint on the network (main.py warns on startup). Security focuses on boundary validation: workdir path-escape checks, character_id format checks.
@@ -694,4 +702,6 @@ python -m packages.remote
 
 ## License
 
-This repository does not currently include an open-source license file (LICENSE). Please contact the author to confirm the licensing terms before using, distributing, or modifying it.
+Pan is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**; see the [`LICENSE`](LICENSE) file for the full text.
+
+AGPL-3.0 is a strong copyleft license: modified or derivative works must be released under the same license, and even offering the software as a network service (SaaS) without distribution triggers the open-source obligation. Commercial use, modification, and distribution are all free of charge, subject to these terms.
