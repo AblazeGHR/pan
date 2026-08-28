@@ -270,6 +270,8 @@ Typical use cases:
 ## Quick Start
 
 > For the full guide (installation / operations / orchestration / API / configuration / troubleshooting), see the [User Manual](docs/USER_MANUAL.md).
+>
+> **Don't feel like reading the docs?** Once the service is up, create an `SMA(NoAdapter)` session and just ask it "how does Pan work?" — it will pull up the orchestration handbook (`pan_handbook`) and teach you live, with a walkthrough.
 
 ### Prerequisites
 

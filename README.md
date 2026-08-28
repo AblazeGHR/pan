@@ -270,6 +270,8 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 ## 快速开始
 
 > 完整使用指南（安装 / 操作 / 编排 / API / 配置 / 排障）见[用户手册](docs/USER_MANUAL.md)。
+>
+> **实在不想看文档？** 服务起来后，新建一个 `SMA(NoAdapter)` 会话，直接问它「怎么玩转 Pan？」——它会调出编排手册（`pan_handbook`）现场教你，边教边演示。
 
 ### 前置要求
 
