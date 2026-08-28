@@ -696,4 +696,6 @@ python -m packages.remote
 
 ## 许可证
 
-本仓库目前未附带开源许可证文件（LICENSE）。如需使用 / 分发 / 修改，请先与作者确认许可条款。
+Pan 采用 **GNU Affero General Public License v3.0（AGPL-3.0）** 授权，全文见 [`LICENSE`](LICENSE)。
+
+AGPL-3.0 是强 copyleft 许可证：修改或衍生作品必须以同一协议开源；即使不直接分发、仅通过网络服务（SaaS）对外提供，同样触发开源义务。商用、修改、分发均免费，但需遵守上述条款。

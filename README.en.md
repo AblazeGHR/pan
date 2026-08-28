@@ -694,4 +694,6 @@ python -m packages.remote
 
 ## License
 
-This repository does not currently include an open-source license file (LICENSE). Please contact the author to confirm the licensing terms before using, distributing, or modifying it.
+Pan is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**; see the [`LICENSE`](LICENSE) file for the full text.
+
+AGPL-3.0 is a strong copyleft license: modified or derivative works must be released under the same license, and even offering the software as a network service (SaaS) without distribution triggers the open-source obligation. Commercial use, modification, and distribution are all free of charge, subject to these terms.
