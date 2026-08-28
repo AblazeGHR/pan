@@ -2012,6 +2012,18 @@ async def api_qq_notify(data: dict):
     return {"ok": True, "delivered": delivered}
 
 
+# 复用 AsyncClient：避免每个代理请求新建连接（Windows 下 async httpx 首次
+# 初始化/连接池创建可达数秒，复用后仅首次有开销）。
+_qq_plugin_client: httpx.AsyncClient | None = None
+
+
+def _qq_plugin_client_get() -> httpx.AsyncClient:
+    global _qq_plugin_client
+    if _qq_plugin_client is None:
+        _qq_plugin_client = httpx.AsyncClient(timeout=5)
+    return _qq_plugin_client
+
+
 async def _qq_plugin_get(path: str, params: dict | None = None) -> dict:
     """GET 代理到 QQ 插件（packages/qq/plugin.py，PAN_QQ_API_URL，默认 8080）。
 
@@ -2020,10 +2032,9 @@ async def _qq_plugin_get(path: str, params: dict | None = None) -> dict:
     """
     plugin_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
     try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(f"{plugin_url}{path}", params=params)
-            r.raise_for_status()
-            return r.json()
+        r = await _qq_plugin_client_get().get(f"{plugin_url}{path}", params=params)
+        r.raise_for_status()
+        return r.json()
     except httpx.HTTPStatusError as e:
         try:
             body = e.response.json()
