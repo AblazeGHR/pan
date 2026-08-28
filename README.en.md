@@ -6,6 +6,8 @@
 
 Spend 30 seconds to see Pan's selling points and typical workflows first; the full feature / configuration / API reference is in the [Table of Contents](#table-of-contents) below.
 
+**Pan is not an all-or-nothing product — it is a spectrum of an extensible middleware layer**: used shallowly, it is a minimal "Session & Agent CLI manager"; used to its full depth, it is a complete, extensible "Agent cluster management & collaboration system + MCP tool layer" — and every depth in between can be enabled on demand (see "[Pan is a spectrum](#-pan-is-a-spectrum-scale-it-as-you-go)").
+
 ---
 
 ## 💡 Why choose Pan (differentiation in 30 seconds)
@@ -28,6 +30,23 @@ Monolithic AI coding assistants are "one-to-one": you say one thing, it does one
 - 🧍 **You stand in the middle**: like a factory director at the big control-room screen — you can see what every worker is doing, and interrupt, redirect, or take over any Worker's terminal yourself.
 
 Pan is that **control plane**: it manages processes, sessions, memory, and reporting, turning "many AIs working together" from "manually bouncing between terminal windows" into "a well-oiled pipeline".
+
+## 🌐 Pan is a spectrum: scale it as you go
+
+The orchestration, inbox, and session handoff you saw above are Pan's "deep end". But Pan **never demands you dive all the way in** — it is a continuously scalable middleware layer, and you can stop at any depth of the spectrum:
+
+| Depth | You can treat Pan as… | What this layer includes | Who it's for |
+|-------|----------------------|--------------------------|--------------|
+| 🟢 **Minimal** | **Session & Agent CLI manager** | Multi-session management (create / rename / branch / delete), multi-CLI adapters (cbc / kimi / opencode / claude / codex), historical session import, process start/stop and terminal takeover, Web Dashboard | Individual developers / small teams: just want one place to manage their AI CLI sessions |
+| 🟡 **Typical collaboration** | **Multi-agent collaboration control plane** | Everything above + Meta-Agent orchestration (assign / claim / report-subscribe), on-disk inbox, branch clones, Memory + Character (memory & persona), Watchdog self-healing | Heavy AI users: let AI share the load of multiple parallel tasks, with a team that "has memory and doesn't break" |
+| 🔴 **Full cluster** | **Agent cluster management & collaboration system + MCP tool layer** | Everything above + the SMA orchestration template and full methodology, a parallel Worker team (each in its own git worktree), session handoff (switch CLIs without losing context), multi-channel command (Web / QQ / Remote / MCP), any external Agent taking over orchestration via MCP | Advanced users / heavy automation: the AI team owns the whole workflow, and you only confirm decomposition and accept results |
+
+The two endpoints, in one sentence each:
+
+- **Shallow use**: open one Session with one CLI and Pan is a handy "Session & Agent CLI manager" — you never need to understand Meta-Agents, inboxes, or orchestration; they just wait for you in the background;
+- **Deep use**: create an SMA template session in one click — the Meta-Agent decomposes and dispatches, a team of Workers works in parallel, and reports are auto-delivered to an on-disk inbox — Pan becomes a full "Agent cluster management & collaboration system + MCP tool layer" that any MCP-capable external Agent can walk into as the supervisor.
+
+The key: **every tier builds on the one before it — depth is additive, not a different system.** If you use it as a session manager today and want orchestration tomorrow, you migrate nothing — you simply start using more tools. Every feature described below belongs to some layer of this spectrum: read as deep as you use.
 
 ## 📖 Every concept in one table
 
@@ -158,6 +177,7 @@ One control plane, four entrances, switch anytime:
 
 ## ✨ Why it's worth a try
 
+- 🌐 **A scalable spectrum**: shallow use is a "Session & Agent CLI manager"; deep use is an "Agent cluster management & collaboration system + MCP tool layer" — every depth is additive and on demand, never all-or-nothing.
 - 🛡️ **A self-healing control plane**: Worker hung? The Watchdog cleans up (quiet timeout / task-runtime timeout / idle reclamation); process died abnormally? The on-disk queue rebuilds the Worker and keeps going.
 - 📬 **Managed subscription inbox**: every supervisor has an on-disk inbox; managed Workers auto-deliver reports when done — dispatch and walk away, just check the inbox later.
 - 🔁 **Switch CLIs without losing context**: session handoff makes "switching to the Agent you like" a routine operation — the same task flows seamlessly between CLIs and saves context.
@@ -173,6 +193,7 @@ One control plane, four entrances, switch anytime:
 
 - [💡 Why choose Pan (differentiation in 30 seconds)](#-why-choose-pan-differentiation-in-30-seconds)
 - [🧭 What is it? (Three sentences)](#-what-is-it-three-sentences)
+- [🌐 Pan is a spectrum: scale it as you go](#-pan-is-a-spectrum-scale-it-as-you-go)
 - [📖 Every concept in one table](#-every-concept-in-one-table)
 - [👔 Meta-Agent orchestration: one boss for a whole AI team](#-meta-agent-orchestration-one-boss-for-a-whole-ai-team)
 - [🔌 Multi-CLI adapters: use whichever you like](#-multi-cli-adapters-use-whichever-you-like)
