@@ -462,6 +462,113 @@ A: 检查 §3 前置条件：目标 session 是否有 `managed_by`、是否已 `
 
 ---
 
+## 12. 创建 Session Template 指南
+
+> 目标读者：冷启动 agent / 普通用户——想给 Pan 加一个**可复用的会话模板**（预设 adapter / model / system_prompt / MCP / 权限），但**不读代码**。按本节走一遍即可在 `manifest.json` 里加模板并立即生效（验证闭环见 §11.1）。
+>
+> 模板在 `session_create` 里通过 `session_template="<name>"` 引用；它是创建一个 session 时的**配置基线**，优先级链条为「显式传入字段 > 模板值 > 系统默认值」（见 §12.5）。
+
+### 12.1 模板在哪定义
+
+模板写在 Pan 主服务的 `manifest.json` 里，位于顶层 **`session_templates`** 数组（每个元素是一个模板对象）。
+
+- **主文件**：Pan 仓库根的 `manifest.json`（即本仓库根；另见 §0 头注「单一事实源」）。如果你是通过 plugin 方式加载，则写在对应插件目录的 `manifest.json` 里，效果一致。
+- **兼容旧键 `profiles`**：早期版本用 `profiles` 当键名，加载器仍兼容——源码 `data.get("session_templates", data.get("profiles", []))`。**新模板一律用 `session_templates`**。
+- 模板按 `name` 去重；**重名则后者覆盖前者**（加载器打 warning）。`name` 即后续 `session_create(session_template="<name>")` 引用的键。
+
+### 12.2 字段说明
+
+每个模板对象的字段如下（`packages/core/manifest_loader.py` 的 `SessionTemplate` dataclass 为权威定义）：
+
+| 字段 | 类型 | 含义 | 缺省值 | 注意点 |
+|------|------|------|--------|--------|
+| `name` | str | 模板唯一名，被 `session_template` 引用 | 必填 | 重名则后者覆盖前者；`session_create` 不传 `session_template` 时**不会**自动套用名为 `default` 的模板（见 §12.5），要套用需显式传名 |
+| `adapter` | str | CLI 类型：`cbc`/`kimi`/`opencode`/`claude`/`codex` | `""`（空串=未指定） | **空串 ≠ 显式 `cbc`**：空串让前端解锁 adapter 选择器、由创建时回退默认 adapter（`cbc`）；显式写 `"cbc"` 会锁死该 adapter。想让用户自选 adapter 就留空串 |
+| `model` | str\|null | 模型名，如 `hy3`/`deepseek-v4-flash` | `null`（回退默认） | `null` 时走 session 创建默认 model |
+| `permission_mode` | str\|null | 权限模式（见 §12.3） | `null`（回退 adapter 默认 `bypassPermissions`） | 见合法值清单；聊天秘书类用 `"default"`（逐次审批）更安全 |
+| `system_prompt` | str | 注入 worker 的系统提示词 | `""` | 支持 `\n` 多行；也接受 JSON 数组（逐元素当一行拼接） |
+| `mcp_mode` | str | MCP 启用策略：`always`/`optional`/`never` | `"optional"` | `always`=创建即挂 MCP 且不可关；`optional`=默认可选；`never`=不挂且不可开。前端仅 `always`/`never` 锁死开关 |
+| `mcp_servers` | list[str] | 要挂载的 MCP server 名（需已在 manifest `mcp_servers` 声明） | `[]` | 如 `["pan"]` / `["pan","pan-qq"]`；名字不存在会被忽略 |
+| `pan_access` | dict | Pan 编排能力位（见下） | `{}`（全 false） | 三个布尔能力位，嵌套在 `pan_access` 下 |
+
+`pan_access` 的三个能力位（default 全 `false`，即受限普通 session）：
+
+| 能力位 | 含义 |
+|--------|------|
+| `restrict_to_managed` | `true` 时：只能操作 `managed` 关系网内的 session；`false` 时不受此限 |
+| `can_claim_unmanaged` | `true` 时：可认领（claim）尚未被管理的 session |
+| `auto_claim_created` | `true` 时：本 session 创建的新 session 自动归其管理 |
+
+> 早期 manifest 把这三个键写成**顶层**字段也能被加载器吸收（自动迁入 `pan_access`），但**新模板请老老实实写在 `pan_access` 内**。
+
+### 12.3 permission_mode 合法值
+
+取自 `packages/core/adapters/cbc/adapter.py` 的 `permission_modes`（cbc adapter 支持的全部值，其他 adapter 以实际为准）：
+
+| 值 | 含义 |
+|----|------|
+| `"default"` | 逐次审批（cbc 默认交互模式，需人工确认工具调用） |
+| `"acceptEdits"` | 自动接受文件编辑，其余仍需确认 |
+| `"bypassPermissions"` | 跳过权限检查（adapter 默认 `bypassPermissions`；编排/自动化 agent 常用） |
+| `"plan"` | plan 模式（只读规划，不执行变更） |
+| `"dontAsk"` | 不询问直接执行 |
+| `"auto"` | 自动模式 |
+
+> 不写 `permission_mode`（null）→ 回退到 adapter 的 `default_permission_mode`（cbc 为 `bypassPermissions`）。模板里若要更保守（如聊天秘书），显式写 `"default"`。
+
+### 12.4 创建后如何生效（热重载，不重启服务）
+
+改完 `manifest.json` **无需重启 Pan 服务**——调一次热重载即可：
+
+1. **热重载**：`POST /api/manifest/reload`（无 body）。返回 `{"reloaded": true, "sessionTemplates": N, "mcpServers": M, "characters": C, "commandRoutes": R}`——`sessionTemplates` 的 N 应包含你新加的模板数（现有 5 个 + 新增）。
+2. **验证**：`GET /api/session-templates`。返回 `{"sessionTemplates": [...], "total": N}`，每个元素含 `name` / `adapter` / `model` / `mcpServers` / `panAccess`（驼峰：`restrictToManaged`/`canClaimUnmanaged`/`autoClaimCreated`）/ `system_prompt_preview`。确认你的新模板 `name` 出现在列表里即生效。
+
+```bash
+# Windows / curl（内联中文 JSON 易报 body 解析错；这里无 body 故直接调。详见 references/http-api.md G4）
+curl -X POST http://127.0.0.1:8768/api/manifest/reload
+curl http://127.0.0.1:8768/api/session-templates
+```
+
+> 端口按 §0/§7.7：`main` 8768、`test` 8767，用 `PAN_API_URL` 或对应端口。API 无鉴权、绑 loopback（§7.7），不要在非本机暴露。
+
+### 12.5 如何使用模板
+
+`session_create` 传 `session_template="<name>"` 即套用该模板作为基线配置：
+
+- **优先级**（源码 `packages/web/server.py` `_build_session_params`，§11.1 自包含要求所列结论落字）：**调用时显式传入的字段 > 模板值 > 系统默认值**。例：模板设 `model="deepseek-v4-flash"`，但你 `session_create(session_template="qq-secretary-rosmontis", model="hy3")` 显式覆盖，则最终用 `hy3`。
+- **不传 `session_template` 时**：套用**内置默认模板**（来自 `config.json` 的 session 配置：adapter=`cbc`、model=config 默认、mcp_mode=`always` 挂 `pan`、无 system_prompt），**不是** manifest 里名为 `default` 的模板。要套用 manifest 中的具体模板（含名为 `default` 的）必须显式传 `session_template="<name>"`。
+- `pan_access` 能力位同理：模板值为基线，调用时显式 `pan_access` 覆盖。普通 session 默认全 false（受限）。
+- 模板与 `session_handoff` 的 `copy_settings=true` 兼容：交接会复制 `session_template` 引用等设置（§2.7）。
+
+### 12.6 完整示例：最小可用模板
+
+参考新加的 `qq-secretary-rosmontis`（2026-08-28）简化版，下面是一段**最小可用**模板——一个只挂 pan-qq、逐次审批的 QQ 聊天秘书：
+
+```json
+{
+  "name": "my-qq-bot",
+  "adapter": "cbc",
+  "model": "hy3",
+  "permission_mode": "default",
+  "mcp_mode": "always",
+  "mcp_servers": ["pan-qq"],
+  "system_prompt": "你是某人的聊天秘书，通过 QQ 交流，语气自然。可用工具：mcp__pan-qq__*（qq_send_message / qq_read_conversation / qq_list_contacts / qq_read_inbox / qq_bind / qq_unbind）。"
+}
+```
+
+把它加进 `manifest.json` 的 `session_templates` 数组，然后按 §12.4 热重载 + 验证。之后即可：
+
+```
+session_create(name="bot-1", session_template="my-qq-bot")
+# → 自动带 adapter=cbc / model=hy3 / permission_mode=default / 挂 pan-qq / 注入上面 system_prompt
+report_subscribe(session_id=...)   # 接 §3 完成通知链路
+agent_assign(session_id=..., text="...")  # 开始干活
+```
+
+> 想看真实完整版，直接读现有 `qq-secretary-rosmontis` 模板（`manifest.json` 内，含详尽人设与安全红线）——它是本指南示例的母本。
+
+---
+
 ## 关联文档
 
 - `docs/archive/Pan冷启动Agent编排skill立项.md` — 本 skill 的立项依据
