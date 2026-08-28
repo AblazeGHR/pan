@@ -19,6 +19,8 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
 
 const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
 
+type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
+
 function SwitchRow({
   label,
   hint,
@@ -93,6 +95,45 @@ function ReloadRow({
 }
 
 /**
+ * Render the plugin half of a config-reload result: path-list diff
+ * (added/removed manifests) + the freshly loaded template counts.
+ */
+function PluginResult({
+  plugin,
+}: {
+  plugin: NonNullable<ApiConfigReloadResponse['plugin']>;
+}) {
+  const beforeSet = new Set(plugin.before);
+  const afterSet = new Set(plugin.after);
+  const added = plugin.after.filter((p) => !beforeSet.has(p));
+  const removed = plugin.before.filter((p) => !afterSet.has(p));
+  const changed = added.length > 0 || removed.length > 0;
+  return (
+    <>
+      <div>
+        plugin manifests: {plugin.before.length} → {plugin.after.length}
+        {changed ? ' (changed)' : ''}
+      </div>
+      {added.map((p, i) => (
+        <div key={`added-${i}`} className="text-text-primary break-all">
+          + {p}
+        </div>
+      ))}
+      {removed.map((p, i) => (
+        <div key={`removed-${i}`} className="text-text-tertiary break-all">
+          − {p}
+        </div>
+      ))}
+      <div>
+        templates: {plugin.sessionTemplates ?? '?'} · servers:{' '}
+        {plugin.mcpServers ?? '?'} · characters: {plugin.characters ?? '?'} ·
+        routes: {plugin.commandRoutes ?? '?'}
+      </div>
+    </>
+  );
+}
+
+/**
  * Global app-settings modal. Desktop: centered card covering ~75% of the
  * viewport. Mobile: full-screen, edge-to-edge and scrollable. Reads/writes
  * appSettingsStore directly so changes take effect immediately.
@@ -114,15 +155,20 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     resetSettings,
   } = useAppSettingsStore();
 
-  const [reloadScope, setReloadScope] = useState<'adapters' | 'worker' | null>(
+  const [reloadScope, setReloadScope] = useState<ReloadScope | null>(null);
+  // Which section owns the current reloadResult/reloadError — each reload
+  // section renders the outcome under its own rows instead of cross-fading
+  // results between sections.
+  const [reloadSection, setReloadSection] = useState<'config' | 'other' | null>(
     null,
   );
   const [reloadResult, setReloadResult] =
     useState<ApiConfigReloadResponse | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
 
-  const handleReload = async (scope: 'adapters' | 'worker') => {
+  const handleReload = async (scope: ReloadScope) => {
     setReloadScope(scope);
+    setReloadSection(scope === 'plugin' || scope === 'memory' ? 'other' : 'config');
     setReloadResult(null);
     setReloadError(null);
     try {
@@ -233,12 +279,10 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             </div>
           </section>
 
-          {/* Configuration reload — POST /api/config/reload.
-              Candidates for future hot-reload coverage (not implemented):
-              - memory.enabled (worker._MEMORY_ENABLED is read once)
-              - logging.level (main.py reads once at startup)
-              Manifest already has its own endpoint (/api/manifest/reload);
-              ui settings are read live per request and need no reload. */}
+          {/* Configuration reload — POST /api/config/reload, original
+              scopes. plugin/memory live in the "Other hot-reload" section
+              below; ui settings are read live per request and need no
+              reload; frontend/port/logging/remote are startup-frozen. */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
               Configuration reload
@@ -257,12 +301,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 onClick={() => handleReload('worker')}
               />
             </div>
-            {reloadError && (
+            {reloadError && reloadSection === 'config' && (
               <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
                 {reloadError}
               </div>
             )}
-            {!reloadError && reloadResult && (
+            {!reloadError && reloadResult && reloadSection === 'config' && (
               <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
                 {reloadResult.adapters?.map((a) => (
                   <div key={a.name}>
@@ -287,6 +331,58 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             )}
             <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
               Applies config.json changes without restarting the server.
+            </p>
+          </section>
+
+          {/* Other hot-reload — newer POST /api/config/reload scopes.
+              plugin re-applies the plugin_manifests LIST from config.json,
+              so manifest files added to / removed from the list take effect
+              (/api/manifest/reload only re-reads the already-registered
+              files). memory re-reads the memory.enabled injection switch.
+              frontend / port / logging / remote stay startup-frozen. */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+              Other hot-reload
+            </h3>
+            <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+              <ReloadRow
+                label="Reload plugin manifests"
+                hint="plugin_manifests list in config.json (add/remove manifests)"
+                busy={reloadScope === 'plugin'}
+                onClick={() => handleReload('plugin')}
+              />
+              <ReloadRow
+                label="Reload memory config"
+                hint="memory.enabled injection switch"
+                busy={reloadScope === 'memory'}
+                onClick={() => handleReload('memory')}
+              />
+            </div>
+            {reloadError && reloadSection === 'other' && (
+              <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                {reloadError}
+              </div>
+            )}
+            {!reloadError && reloadResult && reloadSection === 'other' && (
+              <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
+                {reloadResult.plugin && <PluginResult plugin={reloadResult.plugin} />}
+                {reloadResult.memory && (
+                  <div>
+                    memory.enabled:{' '}
+                    {String(reloadResult.memory.before.enabled ?? '?')} →{' '}
+                    {String(reloadResult.memory.after.enabled ?? '?')}
+                    {reloadResult.memory.before.enabled !== undefined &&
+                    reloadResult.memory.before.enabled !==
+                      reloadResult.memory.after.enabled
+                      ? ' (changed)'
+                      : ''}
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+              frontend / port / logging / remote are startup-frozen and need a
+              server restart to apply.
             </p>
           </section>
 

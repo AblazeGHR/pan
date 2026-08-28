@@ -144,6 +144,9 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   const [mcpCatalogLoaded, setMcpCatalogLoaded] = useState(false);
   // Busy flag scoped to the MCP section's save calls.
   const [savingMcp, setSavingMcp] = useState(false);
+  // Force-release of a "never" template lock after user confirmation. Local
+  // to this modal-open only — reopening the modal re-arms the template lock.
+  const [mcpForced, setMcpForced] = useState(false);
   // Full session fetched on open — the sidebar list is summary=1 driven and
   // does NOT carry `managed` / `reportSubscriptions` / `panAccess`, so we pull
   // them on demand (and only for the session whose modal is open).
@@ -162,6 +165,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
       setMcpServers([]);
       setMcpCatalogLoaded(false);
       setSavingMcp(false);
+      setMcpForced(false);
       fetchSession(sessionId)
         .then((full) => setDetailSession(full))
         .catch(() => setDetailSession(null));
@@ -281,17 +285,30 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
     [detailSession],
   );
 
+  // Template lock state: mcpLockReason tells always ("locked ON") from never
+  // ("locked OFF"); null/undefined = no lock info. A "never" lock can be
+  // force-released after confirmation (mcpForced); while a template lock
+  // exists every MCP patch must carry forceMcp so the backend skips its
+  // always/never check.
+  const mcpLockReason = detailSession?.mcpLockReason ?? null;
+  const mcpLocked = detailSession?.mcpLocked === true;
+  const mcpForceUnlocked = mcpLocked && mcpLockReason === 'never' && mcpForced;
+  const mcpEditable = !mcpLocked || mcpForceUnlocked;
+
   // Toggle one MCP server in/out of the session's enabled set and persist the
   // full name list. Empty list clears them (backend supports [] / null).
   const toggleMcpServer = async (name: string, checked: boolean) => {
-    if (!managerId || savingMcp || mcpLocked) return;
+    if (!managerId || savingMcp || !mcpEditable) return;
     const next = new Set(enabledMcp);
     if (checked) next.add(name);
     else next.delete(name);
     const names = [...next];
     setSavingMcp(true);
     try {
-      const updated = await patchSession(managerId, { mcpServers: names });
+      const updated = await patchSession(
+        managerId,
+        mcpLocked ? { mcpServers: names, forceMcp: true } : { mcpServers: names },
+      );
       setDetailSession((d) => {
         if (!d) return d;
         return { ...d, mcpServers: updated.mcpServers ?? names };
@@ -304,7 +321,12 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
     }
   };
 
-  const mcpLocked = detailSession?.mcpLocked === true;
+  // Force-enable entry for a "never" template lock: confirm, then reveal the
+  // server list with patches carrying forceMcp (the lock itself stays armed).
+  const forceEnableMcp = () => {
+    if (!confirm('This template locks MCP off. Force-enable anyway?')) return;
+    setMcpForced(true);
+  };
 
   const toggle = async (targetId: string, checked: boolean) => {
     if (!managerId || busyId) return;
@@ -563,9 +585,26 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               title="MCP Server / MCP 服务"
               subtitle="Select MCP servers from the manifest for this session; worker restarts with the change applied."
             />
-            {mcpLocked ? (
-              <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary">
-                MCP is locked by the session template (always/never) — selection disabled.
+            {mcpLocked && !mcpForceUnlocked ? (
+              <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary flex items-center justify-between gap-2">
+                <span>
+                  {mcpLockReason === 'always'
+                    ? 'MCP is locked to ON by the session template — selection disabled.'
+                    : mcpLockReason === 'never'
+                      ? 'MCP is locked OFF by the session template — selection disabled.'
+                      : 'MCP is locked by the session template — selection disabled.'}
+                </span>
+                {mcpLockReason === 'never' && (
+                  <button
+                    type="button"
+                    onClick={forceEnableMcp}
+                    disabled={savingMcp}
+                    title="Bypass the template lock after confirmation"
+                    className="shrink-0 inline-flex items-center rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60 disabled:pointer-events-none"
+                  >
+                    Force enable
+                  </button>
+                )}
               </div>
             ) : (
               <div className="rounded border border-border-muted bg-bg-primary p-1 space-y-0.5">

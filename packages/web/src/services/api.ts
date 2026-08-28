@@ -31,6 +31,8 @@ import type {
   QqContact,
   McpServerInfo,
   ApiMcpServersResponse,
+  AgentQueueItem,
+  ApiSessionQueueResponse,
 } from '@/types';
 
 const BASE = '/api';
@@ -185,6 +187,47 @@ export async function branchSession(
   );
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+// ── Agent queue (session.queue_pending, normalized) ──
+
+export async function fetchSessionQueue(
+  sessionId: string,
+): Promise<AgentQueueItem[]> {
+  const data = await request<ApiSessionQueueResponse>(
+    `${BASE}/sessions/${sessionId}/queue`,
+  );
+  if (data.error) throw new Error(data.error);
+  return data.items || [];
+}
+
+export async function deleteSessionQueueItem(
+  sessionId: string,
+  itemId: string,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse & { ok?: boolean }>(
+    `${BASE}/sessions/${sessionId}/queue/${itemId}`,
+    { method: 'DELETE' },
+  );
+  if (data.ok === false || data.error) {
+    throw new Error(data.error || 'Delete failed');
+  }
+  return data;
+}
+
+export async function reorderSessionQueue(
+  sessionId: string,
+  order: string[],
+): Promise<AgentQueueItem[]> {
+  const data = await request<ApiSessionQueueResponse>(
+    `${BASE}/sessions/${sessionId}/queue/order`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ order }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data.items || [];
 }
 
 // ── Session management (claim / unclaim) ──
@@ -419,10 +462,12 @@ export async function fetchAdapters(): Promise<ApiAdaptersResponse> {
  * Force a config.json hot-reload without restarting the server.
  * scope "adapters": invalidate all adapters' model-list caches;
  * scope "worker": re-read worker lifecycle timeouts;
- * scope "all": both (server default).
+ * scope "plugin": reload the plugin_manifests list (add/remove manifests);
+ * scope "memory": re-read the memory.enabled injection switch;
+ * scope "all": everything above (server default).
  */
 export async function reloadConfig(
-  scope: 'adapters' | 'worker' | 'all',
+  scope: 'adapters' | 'worker' | 'plugin' | 'memory' | 'all',
 ): Promise<ApiConfigReloadResponse> {
   const data = await request<ApiConfigReloadResponse>(
     `${BASE}/config/reload`,

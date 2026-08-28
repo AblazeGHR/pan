@@ -42,6 +42,8 @@ export interface Session {
   mcpEnabled?: boolean;
   /** True when the session template locks MCP on/off (always/never mode). */
   mcpLocked?: boolean | null;
+  /** Why MCP is locked: "always" / "never"; null when unlocked. */
+  mcpLockReason?: "always" | "never" | null;
   /** Names of MCP servers currently enabled for this session. */
   mcpServers?: string[];
   history: Message[];
@@ -275,6 +277,21 @@ export interface ApiConfigReloadResponse {
     before: Partial<ApiConfigReloadWorkerValues>;
     after: Partial<ApiConfigReloadWorkerValues>;
   };
+  memory?: {
+    before: { enabled: boolean };
+    after: { enabled: boolean };
+  };
+  plugin?: {
+    before: string[];
+    after: string[];
+    applied: boolean;
+    sessionTemplates?: number;
+    mcpServers?: number;
+    characters?: number;
+    commandRoutes?: number;
+    errors?: string[];
+  };
+  requiresRestart?: string[];
   errors?: string[];
 }
 
@@ -390,6 +407,35 @@ export interface QueuedEdit {
   createdAt: number;
 }
 
+// ── Agent queue (backend session.queue_pending, normalized) ──
+
+export type AgentQueueKind = 'task' | 'report' | 'qq';
+
+/** 后端落盘队列 queue_pending 的归一化条目（task/report/qq 异构 → 统一形状）。 */
+export interface AgentQueueItem {
+  /** task 项为后端 uuid；report/qq 无 id 字段，由后端按内容 sha1 生成稳定 id。 */
+  id: string;
+  kind: AgentQueueKind;
+  text: string;
+  /** 落盘项无时间戳，恒为 0（预留）。 */
+  createdAt: number;
+  source?: string;
+  meta?: {
+    seq?: number;
+    taskId?: string;
+    status?: string;
+    workerId?: string;
+    qqTarget?: string;
+    time?: string;
+  };
+}
+
+export interface ApiSessionQueueResponse {
+  items: AgentQueueItem[];
+  error?: string;
+  ok?: boolean;
+}
+
 // ── UI types ──
 
 export interface ToastMessage {
@@ -414,6 +460,8 @@ export interface SettingsBody {
   panAccess?: PanAccess;
   /** Names of MCP servers to enable (empty array clears them). */
   mcpServers?: string[];
+  /** Force past the session template's always/never MCP lock (user confirmed). */
+  forceMcp?: boolean;
   /** Worker execution mode; empty string clears (→ adapter default). */
   outputMode?: string;
 }

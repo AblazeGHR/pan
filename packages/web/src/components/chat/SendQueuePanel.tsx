@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
-import type { QueuedMessage } from '@/types';
+import type { QueuedMessage, AgentQueueItem } from '@/types';
 import {
   Pencil,
   ArrowUp,
@@ -11,13 +11,19 @@ import {
   X,
   ClipboardList,
   Loader2,
+  Bot,
 } from 'lucide-react';
 
 // 稳定的空数组引用（避免 selector 每次返回新数组导致无限重渲染）
 const EMPTY_QUEUE: QueuedMessage[] = [];
+const EMPTY_AGENT_QUEUE: AgentQueueItem[] = [];
 
 const ROW_BTN =
   'rounded p-1 text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
+
+/** agent 队列行的 kind 徽章（agent task / agent report / agent qq）。 */
+const AGENT_BADGE =
+  'shrink-0 rounded border border-border-default bg-bg-tertiary px-1 py-px text-[10px] leading-tight text-text-secondary whitespace-nowrap';
 
 /**
  * 待发送队列面板：单行截断 + hover 操作（编辑/上移/下移/删除）、行内编辑、
@@ -46,7 +52,14 @@ export function SendQueuePanel() {
   const saveEdit = useQueueStore((s) => s.saveEdit);
   const cancelEdit = useQueueStore((s) => s.cancelEdit);
 
+  const agentQueue = useQueueStore((s) =>
+    currentSessionId ? s.agentQueues[currentSessionId] : undefined,
+  );
+  const removeAgentItem = useQueueStore((s) => s.removeAgentItem);
+  const moveAgentItem = useQueueStore((s) => s.moveAgentItem);
+
   const queueItems = queue ?? EMPTY_QUEUE;
+  const agentItems = agentQueue ?? EMPTY_AGENT_QUEUE;
 
   // 挂载 / session 切换时从 localStorage 恢复该 session 的队列并尝试自动发送
   useEffect(() => {
@@ -225,6 +238,65 @@ export function SendQueuePanel() {
               </div>
             )}
           </div>
+
+          {/* Agent queue group（只读展示 + 移动/删除，无编辑/批量/清空）。
+              agent 队列为空或尚未加载时不显示该组。 */}
+          {agentItems.length > 0 && (
+            <div className="mt-2">
+              <div className="flex items-center gap-1.5 pb-1.5">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+                  <Bot size={14} />
+                  Agent 队列
+                  <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none text-text-secondary">
+                    {agentItems.length}
+                  </span>
+                </span>
+              </div>
+              <div className="queue-list-scroll max-h-[25vh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary/60">
+                <div className="p-1">
+                  {agentItems.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors hover:bg-bg-hover"
+                    >
+                      <span className={AGENT_BADGE}>agent {item.kind}</span>
+                      <span
+                        className="flex-1 min-w-0 truncate text-text-primary"
+                        title={item.text}
+                      >
+                        {item.text}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
+                        <button
+                          className={ROW_BTN}
+                          disabled={index === 0}
+                          onClick={() => moveAgentItem(item.id, -1)}
+                          title="上移"
+                        >
+                          <ArrowUp size={12} />
+                        </button>
+                        <button
+                          className={ROW_BTN}
+                          disabled={index === agentItems.length - 1}
+                          onClick={() => moveAgentItem(item.id, 1)}
+                          title="下移"
+                        >
+                          <ArrowDown size={12} />
+                        </button>
+                        <button
+                          className={ROW_BTN + ' text-danger hover:bg-danger/10'}
+                          onClick={() => removeAgentItem(item.id)}
+                          title="删除（不确认）"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

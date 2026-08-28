@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { QueuedMessage, QueuedEdit } from '@/types';
+import type { QueuedMessage, QueuedEdit, AgentQueueItem } from '@/types';
+import {
+  fetchSessionQueue,
+  deleteSessionQueueItem,
+  reorderSessionQueue,
+} from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -117,9 +122,14 @@ interface QueueStore {
   panelOpen: boolean;
   /** 当前正在发送的队列项 id（批量拼接时为 '__batch__'）；null 表示空闲。 */
   sendingId: string | null;
+  /** Agent 落盘队列（session.queue_pending 归一化视图），每 session 一份。
+   *  undefined = 尚未加载；[] = 已加载且为空。 */
+  agentQueues: Record<string, AgentQueueItem[]>;
 
   /** session 切换 / 首次进入时从 localStorage 恢复。 */
   loadForSession: (sessionId: string | null) => void;
+  /** 拉取 agent 队列（GET /queue），写回 agentQueues[sessionId]。 */
+  loadAgentQueue: (sessionId: string) => Promise<void>;
   /** 入队（worker busy 时调用）；成功返回 true（已持久化 + 清输入框由调用方负责）。 */
   enqueue: (text: string) => boolean;
   remove: (id: string) => void;
@@ -136,6 +146,10 @@ interface QueueStore {
   flush: () => void;
   /** session 删除时清理孤儿 localStorage。 */
   removeSession: (sessionId: string) => void;
+  /** 删除 agent 队列项（调 DELETE API + 本地移除）。 */
+  removeAgentItem: (id: string) => Promise<void>;
+  /** 移动 agent 队列项（本地重排 + 调 reorder API）。 */
+  moveAgentItem: (id: string, delta: number) => Promise<void>;
 }
 
 export const useQueueStore = create<QueueStore>((set, get) => {
@@ -209,12 +223,25 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     batchSend: {},
     panelOpen: false,
     sendingId: null,
+    agentQueues: {},
 
     loadForSession: (sessionId) => {
       if (!sessionId) return;
       ensureLoaded(sessionId);
+      // 顺带拉取 agent 落盘队列（异步，不阻塞 flush）
+      void get().loadAgentQueue(sessionId);
       // 切换 session：尝试立即发送（覆盖"worker 恰好已 idle"的窗口）
       get().flush();
+    },
+
+    loadAgentQueue: async (sessionId) => {
+      try {
+        const items = await fetchSessionQueue(sessionId);
+        set((s) => ({ agentQueues: { ...s.agentQueues, [sessionId]: items } }));
+      } catch {
+        // 拉取失败（网络/会话已删）：保留旧值不动，面板按 undefined/旧值渲染；
+        // 下次 loadForSession 会重试。
+      }
     },
 
     enqueue: (text) => {
@@ -448,8 +475,60 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         delete edits[sessionId];
         const batchSend = { ...s.batchSend };
         delete batchSend[sessionId];
-        return { queues, edits, batchSend };
+        const agentQueues = { ...s.agentQueues };
+        delete agentQueues[sessionId];
+        return { queues, edits, batchSend, agentQueues };
       });
+    },
+
+    removeAgentItem: async (id) => {
+      const sid = useSessionStore.getState().currentSessionId;
+      if (!sid) return;
+      try {
+        await deleteSessionQueueItem(sid, id);
+      } catch (e) {
+        // not_found = 已被 worker 消费：以服务端为准刷新视图
+        if (e instanceof Error && e.message.includes('not_found')) {
+          void get().loadAgentQueue(sid);
+          return;
+        }
+        useUIStore
+          .getState()
+          .showToast('删除失败: ' + (e instanceof Error ? e.message : String(e)), 'error');
+        return;
+      }
+      set((s) => {
+        const cur = s.agentQueues[sid];
+        if (!cur) return {};
+        return {
+          agentQueues: { ...s.agentQueues, [sid]: cur.filter((x) => x.id !== id) },
+        };
+      });
+    },
+
+    moveAgentItem: async (id, delta) => {
+      const sid = useSessionStore.getState().currentSessionId;
+      if (!sid) return;
+      const cur = get().agentQueues[sid] ?? [];
+      const idx = cur.findIndex((x) => x.id === id);
+      if (idx < 0) return;
+      const target = idx + delta;
+      if (target < 0 || target >= cur.length) return;
+      const next = cur.slice();
+      // idx/target 均已通过 findIndex/边界校验，取值必然存在
+      const a = next[idx] as AgentQueueItem;
+      const b = next[target] as AgentQueueItem;
+      next[idx] = b;
+      next[target] = a;
+      set((s) => ({ agentQueues: { ...s.agentQueues, [sid]: next } }));
+      // 服务端只重排 task 项（report/qq 保持原落盘槽位）→ 用返回的权威顺序
+      // 回写本地，避免"task 跨过 report 移动"时本地视图与服务端语义漂移。
+      try {
+        const items = await reorderSessionQueue(sid, next.map((x) => x.id));
+        set((s) => ({ agentQueues: { ...s.agentQueues, [sid]: items } }));
+      } catch {
+        // 重排失败：保留本地顺序，下次 loadForSession 以服务端为准
+      }
     },
   };
 });
