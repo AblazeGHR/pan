@@ -33,7 +33,7 @@ interface EditorStore {
   saveFile: (repath?: string) => Promise<void>;
   renameFile: (from: string, to: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
-  downloadFile: (path: string, fileName: string) => Promise<void>;
+  downloadFile: (path: string) => void;
   setMdViewMode: (path: string, mode: 'edit' | 'preview' | 'split') => void;
 }
 
@@ -301,24 +301,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
-  downloadFile: async (path: string, fileName: string) => {
+  downloadFile: (path: string) => {
     const { sessionId } = get();
     if (!sessionId) return;
 
-    try {
-      const content = await readFile(sessionId, path);
-      const blob = new Blob([content], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      // show error
-    }
+    // Attachment download via backend (binary-safe, no size cap).
+    // Content-Disposition from server supplies the original filename.
+    const params = new URLSearchParams({ session_id: sessionId, path });
+    const a = document.createElement('a');
+    a.href = `/api/fs/read?${params.toString()}&download=1`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   },
 
   setMdViewMode: (path, mode) => {

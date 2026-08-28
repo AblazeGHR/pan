@@ -116,7 +116,7 @@ function FileTreeItem({
                 className="text-text-tertiary hover:text-text-primary p-0.5"
                 onClick={(e) => {
                   e.stopPropagation();
-                  downloadFile(node.path, node.name);
+                  downloadFile(node.path);
                 }}
                 title="Download"
               >

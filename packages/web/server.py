@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import shutil
@@ -3117,14 +3118,27 @@ async def api_fs_list(session_id: str, path: str = "", include_hidden: bool = Fa
 
 
 @app.get("/api/fs/read")
-async def api_fs_read(session_id: str, path: str = ""):
-    """Read file contents within the session's workdir."""
+async def api_fs_read(session_id: str, path: str = "", download: bool = False):
+    """Read file contents within the session's workdir.
+
+    download=False (default): JSON {content, size}, UTF-8 text, 5 MiB cap
+    (editor file-open path). download=True: binary attachment download via
+    FileResponse (streamed, no size cap, works for binary files too).
+    """
     try:
         target = _resolve_fs_path(session_id, path)
     except ValueError as e:
         return {"error": str(e)}
     if not target.is_file():
         return {"error": f"Not a file: {path!r}"}
+    if download:
+        # Sanitize: strip header-injection chars (CR/LF/quotes/control) —
+        # starlette itself quotes non-ASCII via RFC 5987.
+        safe_name = "".join(
+            c for c in target.name if ord(c) >= 32 and c not in '"\\'
+        ).strip() or "download"
+        media_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        return FileResponse(target, filename=safe_name, media_type=media_type)
     if target.stat().st_size > _MAX_FILE_BYTES:
         return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
     try:
