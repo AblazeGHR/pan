@@ -65,6 +65,28 @@ def load_worker_config():
     _DEFAULTS_INITIALIZED = True
 
 
+def reload_worker_config() -> dict:
+    """热重载 worker 生命周期配置（POST /api/config/reload 调用）。
+
+    重新执行 load_worker_config() 从盘上读 config.json 的 worker 字段，
+    刷新模块级缓存变量，使运行中的 server 不重启即应用新值。
+
+    返回新旧值对比（before/after），供端点向前端展示变化。
+    """
+    before = {
+        "timeout_sec": _WORKER_TIMEOUT_SEC,
+        "task_timeout_sec": _WORKER_TASK_TIMEOUT_SEC,
+        "idle_sec": _WORKER_IDLE_SEC,
+    }
+    load_worker_config()
+    after = {
+        "timeout_sec": _WORKER_TIMEOUT_SEC,
+        "task_timeout_sec": _WORKER_TASK_TIMEOUT_SEC,
+        "idle_sec": _WORKER_IDLE_SEC,
+    }
+    return {"before": before, "after": after}
+
+
 # ── Memory injection 开关（config.json -> memory.enabled）──
 # 默认开启（保持既有行为）；设 false 可完全跳过 embedding 记忆注入，
 # 避免首次加载 bge 模型 + huggingface 网络重试阻塞 worker 任务。

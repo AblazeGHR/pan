@@ -115,6 +115,16 @@ class CbcAdapter:
         CbcAdapter._cached_models_ts = time.monotonic()
         return CbcAdapter._cached_models
 
+    @classmethod
+    def invalidate_models_cache(cls) -> None:
+        """清空模型列表 TTL 缓存（POST /api/config/reload 热重载用）。
+
+        置空后下次访问 supported_models 立即重新拉取，config.json 白名单
+        改动无需等 TTL 过期或重启服务。
+        """
+        cls._cached_models = None
+        cls._cached_models_ts = 0.0
+
     def _fetch_models(self) -> list[str]:
         """按优先级拉取模型列表：config.json 白名单 > `cbc --help` 解析 > 内置默认值。"""
         # 1. config.json 显式配置

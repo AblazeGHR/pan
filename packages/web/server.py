@@ -1436,6 +1436,66 @@ async def api_put_settings_ui(data: dict):
     return ui
 
 
+# ── Config hot-reload ──
+
+@app.post("/api/config/reload")
+async def api_config_reload(data: dict | None = None):
+    """Force a config.json hot-reload for adapter model caches + worker config.
+
+    config.json is re-read from disk on every load_config() call, but two
+    things are read once and then cached: the adapters' class-level model-list
+    caches (codex/opencode/cbc with TTL, kimi/claude permanent) and worker.py's
+    module-level lifecycle timeouts. This endpoint invalidates both so edits
+    to config.json take effect without a server restart — same style as
+    POST /api/manifest/reload.
+
+    Body (optional): ``{"scope": "adapters" | "worker" | "all"}`` — default
+    "all". Idempotent: repeated calls just re-read the same config. Per-item
+    failures are collected into ``errors`` and reported with
+    ``reloaded: false`` instead of a 500.
+    """
+    scope = (data or {}).get("scope") or "all"
+    if scope not in ("adapters", "worker", "all"):
+        return {"reloaded": False, "error": f"Unknown scope: {scope}"}
+
+    result: dict = {"reloaded": True}
+    errors: list[str] = []
+
+    if scope in ("adapters", "all"):
+        adapters_out = []
+        for a in list_adapters():
+            entry: dict = {"name": a.name}
+            try:
+                entry["modelsBefore"] = len(a.supported_models)
+            except Exception as e:
+                entry["modelsBefore"] = None
+                errors.append(f"{a.name}: read before: {e}")
+            invalidate = getattr(a, "invalidate_models_cache", None)
+            if callable(invalidate):
+                try:
+                    invalidate()
+                except Exception as e:
+                    errors.append(f"{a.name}: invalidate: {e}")
+            try:
+                entry["modelsAfter"] = len(a.supported_models)
+            except Exception as e:
+                entry["modelsAfter"] = None
+                errors.append(f"{a.name}: read after: {e}")
+            adapters_out.append(entry)
+        result["adapters"] = adapters_out
+
+    if scope in ("worker", "all"):
+        try:
+            result["worker"] = worker.reload_worker_config()
+        except Exception as e:
+            errors.append(f"worker: {e}")
+
+    if errors:
+        result["reloaded"] = False
+        result["errors"] = errors
+    return result
+
+
 # ── Spawn ──
 
 @app.post("/api/spawn")

@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { reloadConfig } from '@/services/api';
+import type { ApiConfigReloadResponse } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
 
 interface AppSettingsModalProps {
@@ -14,6 +16,8 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
   { value: 'workdir', label: 'Working directory' },
   { value: 'manager', label: 'Manager' },
 ];
+
+const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
 
 function SwitchRow({
   label,
@@ -57,6 +61,37 @@ function SwitchRow({
   );
 }
 
+function ReloadRow({
+  label,
+  hint,
+  busy,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onClick}
+      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <span className="min-w-0">
+        <span className="block text-xs text-text-primary">{label}</span>
+        <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
+          {hint}
+        </span>
+      </span>
+      <span className="shrink-0 text-[11px] text-text-tertiary">
+        {busy ? 'Reloading…' : 'Reload'}
+      </span>
+    </button>
+  );
+}
+
 /**
  * Global app-settings modal. Desktop: centered card covering ~75% of the
  * viewport. Mobile: full-screen, edge-to-edge and scrollable. Reads/writes
@@ -78,6 +113,30 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setShowQQ,
     resetSettings,
   } = useAppSettingsStore();
+
+  const [reloadScope, setReloadScope] = useState<'adapters' | 'worker' | null>(
+    null,
+  );
+  const [reloadResult, setReloadResult] =
+    useState<ApiConfigReloadResponse | null>(null);
+  const [reloadError, setReloadError] = useState<string | null>(null);
+
+  const handleReload = async (scope: 'adapters' | 'worker') => {
+    setReloadScope(scope);
+    setReloadResult(null);
+    setReloadError(null);
+    try {
+      const r = await reloadConfig(scope);
+      setReloadResult(r);
+      if (!r.reloaded) {
+        setReloadError(r.errors?.join('; ') || 'Reload failed');
+      }
+    } catch (e) {
+      setReloadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReloadScope(null);
+    }
+  };
 
   // Close on Escape.
   useEffect(() => {
@@ -172,6 +231,63 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 onChange={setShowQQ}
               />
             </div>
+          </section>
+
+          {/* Configuration reload — POST /api/config/reload.
+              Candidates for future hot-reload coverage (not implemented):
+              - memory.enabled (worker._MEMORY_ENABLED is read once)
+              - logging.level (main.py reads once at startup)
+              Manifest already has its own endpoint (/api/manifest/reload);
+              ui settings are read live per request and need no reload. */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+              Configuration reload
+            </h3>
+            <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+              <ReloadRow
+                label="Reload adapters"
+                hint="Adapter model lists (config.json per-adapter models)"
+                busy={reloadScope === 'adapters'}
+                onClick={() => handleReload('adapters')}
+              />
+              <ReloadRow
+                label="Reload worker config"
+                hint="Worker timeout_sec / task_timeout_sec / idle_sec"
+                busy={reloadScope === 'worker'}
+                onClick={() => handleReload('worker')}
+              />
+            </div>
+            {reloadError && (
+              <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                {reloadError}
+              </div>
+            )}
+            {!reloadError && reloadResult && (
+              <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
+                {reloadResult.adapters?.map((a) => (
+                  <div key={a.name}>
+                    {a.name}: {a.modelsBefore ?? '?'} → {a.modelsAfter ?? '?'}{' '}
+                    models
+                  </div>
+                ))}
+                {reloadResult.worker &&
+                  WORKER_KEYS.map((k) => {
+                    const before = reloadResult.worker?.before[k];
+                    const after = reloadResult.worker?.after[k];
+                    return (
+                      <div key={k}>
+                        worker.{k}: {before ?? '?'} → {after ?? '?'}
+                        {before !== undefined && before !== after
+                          ? ' (changed)'
+                          : ''}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+            <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+              Applies config.json changes without restarting the server.
+            </p>
           </section>
 
           {/* Reset */}

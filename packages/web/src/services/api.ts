@@ -6,6 +6,7 @@ import type {
   ApiGenericResponse,
   AdapterConfig,
   ApiConfigResponse,
+  ApiConfigReloadResponse,
   ApiAdaptersResponse,
   ApiBatchDeleteResponse,
   SessionTemplate,
@@ -410,6 +411,28 @@ export async function fetchAdapterConfig(
 
 export async function fetchAdapters(): Promise<ApiAdaptersResponse> {
   return request<ApiAdaptersResponse>(`${BASE}/adapters`);
+}
+
+// ── Config hot-reload ──
+
+/**
+ * Force a config.json hot-reload without restarting the server.
+ * scope "adapters": invalidate all adapters' model-list caches;
+ * scope "worker": re-read worker lifecycle timeouts;
+ * scope "all": both (server default).
+ */
+export async function reloadConfig(
+  scope: 'adapters' | 'worker' | 'all',
+): Promise<ApiConfigReloadResponse> {
+  const data = await request<ApiConfigReloadResponse>(
+    `${BASE}/config/reload`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ scope }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
 }
 
 // ── Import: cbc ──

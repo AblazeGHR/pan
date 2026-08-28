@@ -253,6 +253,31 @@ export interface ApiAdaptersResponse {
   default: string;
 }
 
+// ── Config hot-reload ──
+
+export interface ApiConfigReloadAdapterEntry {
+  name: string;
+  modelsBefore?: number | null;
+  modelsAfter?: number | null;
+}
+
+export interface ApiConfigReloadWorkerValues {
+  timeout_sec: number;
+  task_timeout_sec: number;
+  idle_sec: number;
+}
+
+export interface ApiConfigReloadResponse {
+  reloaded: boolean;
+  error?: string;
+  adapters?: ApiConfigReloadAdapterEntry[];
+  worker?: {
+    before: Partial<ApiConfigReloadWorkerValues>;
+    after: Partial<ApiConfigReloadWorkerValues>;
+  };
+  errors?: string[];
+}
+
 // ── Import types ──
 
 export interface CbcProject {

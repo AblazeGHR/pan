@@ -116,6 +116,14 @@ class KimiAdapter:
         KimiAdapter._cached_models = self._BUILTIN_MODELS
         return KimiAdapter._cached_models
 
+    @classmethod
+    def invalidate_models_cache(cls) -> None:
+        """清空模型列表缓存（POST /api/config/reload 热重载用）。
+
+        kimi 缓存无 TTL（读一次不再刷新），热重载是唯一不重启的刷新途径。
+        """
+        cls._cached_models = None
+
     # kimi `-S <id>` 恢复上下文但不重放历史事件（与 cbc --resume 的差异：
     # cbc 续写 JSONL 且 worker 在 one-shot MCP 路径 resume；kimi 仅恢复对话
     # 上下文，无 init 事件回放）。语义上等价于 cbc resume，故置 True 让 worker

@@ -100,6 +100,14 @@ class ClaudeAdapter:
         ClaudeAdapter._cached_models = list(_BUILTIN_MODELS)
         return ClaudeAdapter._cached_models
 
+    @classmethod
+    def invalidate_models_cache(cls) -> None:
+        """清空模型列表缓存（POST /api/config/reload 热重载用）。
+
+        claude 缓存无 TTL（读一次不再刷新），热重载是唯一不重启的刷新途径。
+        """
+        cls._cached_models = None
+
     supports_resume = True
     supports_fork = True  # 经 JSONL 复制实现（见 sessions.fork_session）
     effort_values = ["", "low", "medium", "high", "xhigh", "max"]

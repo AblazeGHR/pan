@@ -104,6 +104,16 @@ class CodexAdapter:
         CodexAdapter._models_cached_at = now
         return result
 
+    @classmethod
+    def invalidate_models_cache(cls) -> None:
+        """清空模型列表 TTL 缓存（POST /api/config/reload 热重载用）。
+
+        置空后下次访问 supported_models 立即重新解析，config.json 白名单
+        改动无需等 TTL 过期或重启服务。
+        """
+        cls._cached_models = None
+        cls._models_cached_at = 0.0
+
     supports_resume = True
     supports_fork = True
     # codex reasoning effort（config: model_reasoning_effort）。空表示不覆盖。
