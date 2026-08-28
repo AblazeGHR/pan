@@ -29,6 +29,7 @@ SESSION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sessions
 # 兼容），jsonl 存在时加载一律以 jsonl 为 history 权威来源。
 _MAIN_HISTORY_TAIL = 20          # 主文件内保留的尾部 history 条数（常量开销）
 _SAVE_LOCK = threading.Lock()    # 跨线程写锁：save_async(to_thread) 并发时防双写
+_newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
 
 
 def _path(session_id: str) -> Path:
@@ -50,32 +51,48 @@ def _write_jsonl(path: Path, items: list[dict]):
         for it in items:
             f.write(_encode_line(it))
         f.flush()
+    _newline_terminated_jsonl.add(str(path))  # 全量写必然以 \n 结尾
 
 
 def _append_jsonl(path: Path, items: list[dict]):
-    """追加写（r+b 定位到末尾），写后 flush——热路径只追加，O(new entries)。
+    """追加写，写后 flush——热路径只追加，O(new entries)。
 
     崩溃恢复：文件不以换行结尾（上次 append 中断的半行）时先补一个换行，
-    避免后续新记录粘在损坏半行上一起丢。ab 模式不支持读（无法探测末字节），
-    故用 r+b：seek 到末尾后顺序写即等价于追加。
+    避免后续新记录粘在损坏半行上一起丢。ab 模式不支持读（无法探测末字节）。
+
+    性能：Windows 上"读末字节探测 + 写"两次 open 开销极大（实测 5-7ms），
+    而纯 ab 追加仅 0.3ms。故用进程内集合 _newline_terminated_jsonl 缓存
+    "文件已知以换行结尾"——本进程每次写入都带换行，正常路径无需重复探测。
+    冷路径（首次写 / 崩溃重启后 / 文件被外部改写）才探测一次并修复半行。
     """
     if not items:
         return
+    key = str(path)
+    if key in _newline_terminated_jsonl:
+        with open(path, "ab") as f:
+            for it in items:
+                f.write(_encode_line(it))
+            f.flush()
+        return
     try:
-        f = open(path, "r+b")
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            need_newline = False
+            if size > 0:
+                f.seek(size - 1)
+                need_newline = f.read(1) != b"\n"
     except FileNotFoundError:
         _write_jsonl(path, items)  # 首次创建：无既有半行风险
+        _newline_terminated_jsonl.add(key)
         return
-    with f:
-        f.seek(0, 2)
-        size = f.tell()
-        if size > 0:
-            f.seek(size - 1)
-            if f.read(1) != b"\n":
-                f.write(b"\n")
+    with open(path, "ab") as f:
+        if need_newline:
+            f.write(b"\n")
         for it in items:
             f.write(_encode_line(it))
         f.flush()
+    _newline_terminated_jsonl.add(key)
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -91,6 +108,9 @@ def _read_jsonl(path: Path) -> list[dict]:
                 try:
                     out.append(json.loads(line.decode("utf-8")))
                 except (json.JSONDecodeError, UnicodeDecodeError):
+                    # 损坏行 = 上次 append 崩溃留下的半行 → 文件不再以 \n 结尾，
+                    # 使 _append_jsonl 的"以换行结尾"缓存失效（下次写会重新探测补换行）。
+                    _newline_terminated_jsonl.discard(str(path))
                     continue
     except OSError:
         pass
@@ -564,6 +584,7 @@ def delete(session_id: str):
     if hist_path.exists():
         hist_path.unlink()
     _cache.pop(session_id, None)
+    _newline_terminated_jsonl.discard(str(hist_path))  # 文件已删，缓存作废
 
 
 def claim(manager_id: str, session_id: str) -> str | None:

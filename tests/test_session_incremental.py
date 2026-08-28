@@ -500,35 +500,52 @@ def test_perf_incremental_vs_full(tmp_path, monkeypatch):
         print(f"  {n:<5} {old_ms:8.3f} {new_ms:8.3f}  {speedup:6.1f}x"
               f"   {jsonl_kb:7.1f} {main_kb:7.1f}")
 
-    # 断言（抗测量抖动，用中位数 + 宽松阈值）：
+    # 断言（抗测量抖动，用中位数 + warmup + 宽松阈值）：
     # 1) 旧全量随 N 线性增长；增量基本持平（O(1) append，与 history 规模无关）
-    # 2) 5000 条时增量明显快于全量
-    s100 = _sess.Session(id="ses_chk_100", name="perf", adapter="cbc")
-    s100.history = [{"role": "user", "content": f"m{i}"} for i in range(100)]
-    s100._hist_persisted = 100
-    _sess._write_jsonl(_sess._history_path(s100.id), s100.history)
-    new100 = sorted(_new_incremental_save_ms(s100) for _ in range(7))[3]
-    old100 = sorted(_old_full_save_ms(s100, _sess._path(s100.id)) for _ in range(7))[3]
+    # 2) 大数据量时增量明显快于全量
+    # 测量稳健性（Windows / CI）：
+    # - 检查段用独立 session id，不复用上方循环的 ses_perf_5000——该主文件已被
+    #   循环反复全量写预热在 OS 页缓存里，会显著低估全量写成本（实测 4.3→1.6ms），
+    #   让 2x 断言余量缩到 ~1.5x，成为 flaky 来源。
+    # - big N 取 20000：全量成本转为由 CPU 侧 json.dumps 主导（与页缓存冷热无关），
+    #   与恒定的增量成本拉开 10x+ 余量；增量仍严格 O(1)。
+    # - 采样前各 warmup 一次：排除首次写（冷分配 / 首次元数据重写）的一次性尖峰。
+    def _warmed_median(fn, reps=7):
+        fn()  # warmup：路径落定、_last_meta_sig 就位，一次性开销不进采样
+        return sorted(fn() for _ in range(reps))[reps // 2]
 
-    s5k = _sess.Session(id="ses_perf_5000", name="perf", adapter="cbc")
-    s5k.history = [{"role": "user", "content": f"m{i}"} for i in range(5000)]
-    s5k._hist_persisted = 5000
-    _sess._write_jsonl(_sess._history_path(s5k.id), s5k.history)
-    new5k = sorted(_new_incremental_save_ms(s5k) for _ in range(7))[3]
-    old5k = sorted(_old_full_save_ms(s5k, _sess._path(s5k.id)) for _ in range(7))[3]
+    small_n, big_n = 100, 20000
+    s_small = _sess.Session(id=f"ses_chk_{small_n}", name="perf", adapter="cbc")
+    s_small.history = [{"role": "user", "content": f"m{i}",
+                        "extra": "x" * 120} for i in range(small_n)]
+    s_small._hist_persisted = small_n
+    _sess._write_jsonl(_sess._history_path(s_small.id), s_small.history)
+    new_small = _warmed_median(lambda: _new_incremental_save_ms(s_small))
+    old_small = _warmed_median(
+        lambda: _old_full_save_ms(s_small, _sess._path(s_small.id)))
 
-    assert old5k > 2 * old100, \
-        f"old full save should scale with N (100→5000), got {old100:.3f}→{old5k:.3f}ms"
-    assert new5k < 3 * new100, \
-        f"incremental append should stay ~flat, got {new100:.3f}→{new5k:.3f}ms"
-    assert new5k * 2 < old5k, \
-        f"expected >=2x speedup at 5000 entries, got {old5k:.3f} vs {new5k:.3f}ms"
-    print(f"    [check] 100→5000: old {old100:.3f}→{old5k:.3f}ms (scales), "
-          f"incr {new100:.3f}→{new5k:.3f}ms (flat); speedup@5000 = "
-          f"{old5k / new5k:.1f}x")
+    s_big = _sess.Session(id=f"ses_chk_{big_n}", name="perf", adapter="cbc")
+    s_big.history = [{"role": "user", "content": f"m{i}",
+                      "extra": "x" * 120} for i in range(big_n)]
+    s_big._hist_persisted = big_n
+    _sess._write_jsonl(_sess._history_path(s_big.id), s_big.history)
+    new_big = _warmed_median(lambda: _new_incremental_save_ms(s_big))
+    old_big = _warmed_median(
+        lambda: _old_full_save_ms(s_big, _sess._path(s_big.id)))
+
+    assert old_big > 2 * old_small, \
+        f"old full save should scale with N ({small_n}→{big_n}), " \
+        f"got {old_small:.3f}→{old_big:.3f}ms"
+    assert new_big < 3 * new_small, \
+        f"incremental append should stay ~flat, got {new_small:.3f}→{new_big:.3f}ms"
+    assert new_big * 2 < old_big, \
+        f"expected >=2x speedup at {big_n} entries, got {old_big:.3f} vs {new_big:.3f}ms"
+    print(f"    [check] {small_n}→{big_n}: old {old_small:.3f}→{old_big:.3f}ms "
+          f"(scales), incr {new_small:.3f}→{new_big:.3f}ms (flat); "
+          f"speedup@{big_n} = {old_big / new_big:.1f}x")
     # 新格式最终落盘：save_full 后主文件仍是元数据 + 尾部（常量），不是全量
-    _sess.save_full(s5k)
-    assert _sess._path(s5k.id).stat().st_size < 50 * 1024, \
+    _sess.save_full(s_big)
+    assert _sess._path(s_big.id).stat().st_size < 50 * 1024, \
         "main file should stay small (metadata + tail)"
     _cleanup()
 
