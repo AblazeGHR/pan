@@ -1714,6 +1714,7 @@ async def _create_worker(session_id: str) -> Worker | str:
         # One-shot mode: no long-running process, consumer spawns per-task
         # (no stdin). See docs/design/adapter-p1-oneshot.md.
         proc = None
+        spawn_injected = False
     else:
         # Stream mode: spawn long-running process.
         # If MCP is configured (mcp_on, output_mode="stream"), the process is
@@ -1760,10 +1761,13 @@ async def _create_worker(session_id: str) -> Worker | str:
 
     # Inject system_prompt
     # - Pure stream (no MCP): injected as a separate first message (existing).
-    # - With MCP (one-shot or stream+MCP): skipped here — injected via
-    #   --system-prompt at spawn / in _consumer_oneshot, because a separate first
-    #   message biases the LLM into pure roleplay and prevents it from
-    #   discovering MCP tools via ToolSearch.
+    # - With MCP (one-shot or stream+MCP with adapter support): skipped here —
+    #   injected via --system-prompt at spawn / in _consumer_oneshot, because a
+    #   separate first message biases the LLM into pure roleplay and prevents it
+    #   from discovering MCP tools via ToolSearch.
+    # - stream+MCP 但 adapter 不支持 spawn 注入（supports_spawn_system_prompt
+    #   为 False，见上方 spawn 块注释）：退化为首条消息注入——功能可用优先于
+    #   roleplay 风险。
     # - 注入去重（fork/takeover 修复）：只对「全新会话」（尚无 cli_session_id）
     #   首次 spawn 注入。cli_session_id 已存在 = 会话已 resume/fork，system_prompt
     #   已由 cbc JSONL（模型侧上下文）承载，再以消息注入会把 system_prompt 当作

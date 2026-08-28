@@ -61,6 +61,9 @@ class CbcAdapter:
     # （prompt 作末参，配合 --mcp-config）。故声明两种。
     execution_modes = ["stream", "oneshot"]
 
+    # cbc CLI 原生支持 --system-prompt（stream spawn 与 oneshot 路径均用）。
+    supports_spawn_system_prompt = True
+
     # 内置兜底默认值（config.json 不存在时使用）
     _DEFAULT_MODEL = "deepseek-v4-flash"
     _DEFAULT_PERMISSION_MODE = "bypassPermissions"
