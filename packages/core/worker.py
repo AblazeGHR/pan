@@ -689,10 +689,6 @@ async def _consumer(w: Worker):
                             "failed: %s", w.worker_id, e)
                     continue
                 injected_text = await _maybe_inject_memory(s, text)
-                # 注入文本打投递标记行（只在注入时出现，恢复对账据此去重）；
-                # 直连消息（claimed=None）不经队列，无对账、不打标记
-                if claimed is not None:
-                    injected_text = f"{_delivery_mark_line(claimed)}\n{injected_text}"
                 text = injected_text
                 # 投递语义：注入期间进程死亡 → 中止，claimed item 留在
                 # queue_pending（finally 释放标记），respawn 后由
@@ -702,15 +698,20 @@ async def _consumer(w: Worker):
                         "[Worker %s] task id=%s aborted: process dead, "
                         "kept in queue_pending", w.worker_id, claimed.get("id"))
                     continue
+                hist_entry = {"role": "user", "content": injected_text}
+                if claimed is not None:
+                    # 投递标记记为 history 条目元数据（不进消息正文，恢复对账据此
+                    # 去重）；直连消息（claimed=None）不经队列，无对账、不打标记
+                    hist_entry["delivered_keys"] = [_delivery_key(claimed)]
                 if claimed is None:
-                    s.history.append({"role": "user", "content": injected_text})
+                    s.history.append(hist_entry)
                 else:
                     # 原子消费（出队 = 移交成功的确认）：执行上下文记录
                     # （history append）+ 从 queue_pending 移除，改同一份内存态后
                     # **一次落盘**——崩溃在 save 前 = 两者都没写（重投）；save 后
                     # = 两者都写了。save 失败回滚内存态，item 留队列可重投。
                     old_queue = s.queue_pending
-                    s.history.append({"role": "user", "content": injected_text})
+                    s.history.append(hist_entry)
                     s.queue_pending = [it for it in old_queue if it is not claimed]
                     try:
                         await _sess.save_async(s)
@@ -808,8 +809,8 @@ def _process_alive(w: Worker) -> bool:
 #
 # save 顺序：① jsonl(history) ② 主文件(queue_pending)。崩溃窗口：jsonl 已写、
 # 主文件未写 → history 有注入消息、队列项还在 → 重启 _recover_pending_signals
-# 重投 → 重复。兜底：注入时在文本里为每条队列项打 `[delivered: <key>]` 标记行
-# （只在注入时出现），消费前对账 history 尾部——标记已存在 → 该项已投递过，
+# 重投 → 重复。兜底：注入时在 history 条目上记 `delivered_keys` 元数据（不进
+# 消息正文），消费前对账 history 尾部——条目元数据已含该项 key → 已投递过，
 # 跳过执行并从队列清除（收敛），未命中 → 正常注入执行。
 
 # 对账扫描 history 尾部深度：标记只在注入时写入，重投对账发生在恢复后不久，
@@ -833,16 +834,11 @@ def _delivery_key(item: dict) -> str:
     return f"report:{tid if tid else 'anon'}:{digest}"
 
 
-def _delivery_mark_line(item: dict) -> str:
-    """注入文本中的投递标记行。"""
-    return f"[delivered: {_delivery_key(item)}]"
-
-
 def _delivery_mark_in_history(s, item: dict) -> bool:
-    """history 尾部是否已存在该队列项的投递标记（消费前对账）。"""
-    mark = _delivery_mark_line(item)
+    """history 尾部是否已有该队列项的投递标记（消费前对账，查条目元数据）。"""
+    key = _delivery_key(item)
     for h in s.history[-_DELIVERY_SCAN_DEPTH:]:
-        if mark in (h.get("content") or ""):
+        if key in (h.get("delivered_keys") or ()):
             return True
     return False
 
@@ -862,9 +858,10 @@ async def _consume_pending_reports(w: Worker, s):
     L4 落盘：任务消息（type=="task"）与报告共存于同一队列；此处**只消费报告**，
     task item 保留在队列中由 task_signal 按 id 消费，互不误删。
 
-    恢复对账：save 顺序 jsonl-先写 → 崩溃窗口内 history 已有标记、队列项仍在。
-    消费前逐条对账 history 尾部投递标记：已投递 → 跳过该条（防双跑）且从队列
-    清除（收敛）；未投递 → 注入执行，注入文本为每条报告打标记行。
+    恢复对账：save 顺序 jsonl-先写 → 崩溃窗口内 history 条目已带 delivered_keys
+    元数据、队列项仍在。消费前逐条对账 history 尾部：已投递 → 跳过该条（防双跑）
+    且从队列清除（收敛）；未投递 → 注入执行，注入条目记 delivered_keys 元数据
+    （不进消息正文）。
     """
     reports = [it for it in s.queue_pending if it.get("type") != "task"]
     if not reports:
@@ -882,8 +879,7 @@ async def _consume_pending_reports(w: Worker, s):
             _log.warning("[Worker %s] queue_pending save after report reconciliation failed: %s",
                          w.worker_id, e)
         return
-    text = "\n".join(_delivery_mark_line(it) for it in undelivered) + \
-        "\n\n" + _format_report_batch(undelivered)
+    text = _format_report_batch(undelivered)
 
     # 报告不是 assign 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
     w._current_seq = None
@@ -901,7 +897,8 @@ async def _consume_pending_reports(w: Worker, s):
     # （与磁盘保持一致，报告仍可重投）。本批报告全部移除：未投递项已注入
     # （出队 = 移交确认），对账命中的已投递项一并清除（收敛）。
     old_queue = s.queue_pending
-    s.history.append({"role": "user", "content": injected_text})
+    s.history.append({"role": "user", "content": injected_text,
+                      "delivered_keys": [_delivery_key(it) for it in undelivered]})
     s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
     try:
         await _sess.save_async(s)
