@@ -10,6 +10,7 @@ Covers:
 import asyncio
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
@@ -571,7 +572,9 @@ def test_enqueue_qq_reminder_delivers_to_subscribers(monkeypatch, tmp_path):
     monkeypatch.setattr(worker, "_sess", types.SimpleNamespace(
         list_all=lambda: [sub, other],
         save_async=lambda s: asyncio.sleep(0),
+        get=lambda sid: next((x for x in [sub, other] if x.id == sid), None),
     ))
+    monkeypatch.setattr(worker, "create_worker", AsyncMock())  # auto_spawn 不真建进程
     delivered = _run(worker.enqueue_qq_reminder(
         "user", "1234567890", nickname="TestUser", text="你好", time_str="t"))
     assert delivered == 1
@@ -599,7 +602,10 @@ def test_enqueue_qq_reminder_bot_scoped_subscription(monkeypatch, tmp_path):
     monkeypatch.setattr(worker, "_sess", types.SimpleNamespace(
         list_all=lambda: [legacy_sub, bot_sub, outsider],
         save_async=lambda s: asyncio.sleep(0),
+        get=lambda sid: next(
+            (x for x in [legacy_sub, bot_sub, outsider] if x.id == sid), None),
     ))
+    monkeypatch.setattr(worker, "create_worker", AsyncMock())  # auto_spawn 不真建进程
     delivered = _run(worker.enqueue_qq_reminder(
         "user", "1234567890", nickname="TestUser", text="hi", time_str="t",
         bot_uin="1470993983"))
@@ -639,3 +645,102 @@ def test_format_report_batch_qq_header_with_bot():
     }])
     assert rendered2.split("\n")[0] == "@@@@by qq : user:1234567890 | Alice"
     assert "botUin" not in rendered2
+
+
+# ── api_recent_contacts(bot_uin) / api_channels（多账号 bot 维度）──
+
+
+def test_recent_contacts_bot_uin_routes_to_channel(monkeypatch):
+    """bot_uin 提供时按号取对应通道拉联系人。"""
+    calls = []
+
+    class FakeCh:
+        async def recent_contacts(self):
+            calls.append(self)
+            return {"ok": True, "contacts": [
+                {"peerUin": "555", "peerName": "B2", "chatType": 1}]}
+
+    ch = FakeCh()
+    monkeypatch.setattr(
+        qq, "get_channel_by_uin",
+        lambda u: ch if str(u) == "1470993983" else None)
+    result = _run(qq.api_recent_contacts("1470993983"))
+    assert result["ok"] is True
+    assert result["contacts"][0]["peerUin"] == "555"
+    assert calls == [ch]
+
+
+def test_recent_contacts_unknown_bot_uin(monkeypatch):
+    """未注册的 bot_uin → ok:false（unknown_bot_uin），不落到默认通道。"""
+    monkeypatch.setattr(qq, "get_channel_by_uin", lambda u: None)
+
+    def boom():
+        raise AssertionError("should not hit default channel")
+    monkeypatch.setattr(qq, "get_channel", boom)
+    result = _run(qq.api_recent_contacts("999"))
+    assert result["ok"] is False
+    assert result["error"]["code"] == "unknown_bot_uin"
+
+
+def test_recent_contacts_default_channel_when_no_bot_uin(monkeypatch):
+    """缺省 bot_uin → 默认通道（向后兼容）。"""
+    class FakeCh:
+        async def recent_contacts(self):
+            return {"ok": True, "contacts": [
+                {"peerUin": "1", "peerName": "A", "chatType": 1}]}
+
+    monkeypatch.setattr(qq, "get_channel", lambda: FakeCh())
+    result = _run(qq.api_recent_contacts())
+    assert result["ok"] is True
+    assert result["contacts"][0]["peerUin"] == "1"
+
+
+def test_api_channels_lists_registry(monkeypatch):
+    """/api/qq/channels 列出注册通道：name/bot_uin/connected；空 bot_uin 保留。"""
+    from types import SimpleNamespace
+
+    class FakeCh:
+        name = "llonebot"
+
+        def __init__(self, bot_uin, connected=True):
+            self.config = SimpleNamespace(bot_uin=bot_uin)
+            self._connected = connected
+
+        async def is_connected(self):
+            return self._connected
+
+    c1 = FakeCh("3494144273")
+    c2 = FakeCh("1470993983", connected=False)
+    c3 = FakeCh(None)  # 未配置 bot_uin 的通道（单通道兼容）
+    monkeypatch.setattr(qq._qq_channels, "_ACTIVE_CHANNELS",
+                        {"llonebot": c1, "llonebot2": c2, "napcat": c3})
+    monkeypatch.setattr(qq._qq_channels, "_ACTIVE", c1)
+    result = _run(qq.api_channels())
+    assert result["ok"] is True
+    by_uin = {c["bot_uin"]: c for c in result["channels"]}
+    assert set(by_uin) == {"3494144273", "1470993983", ""}
+    assert by_uin["3494144273"]["connected"] is True
+    assert by_uin["1470993983"]["connected"] is False
+    assert by_uin["3494144273"]["name"] == "llonebot"
+
+
+def test_api_channels_active_fallback(monkeypatch):
+    """注册表为空但存在默认通道时，至少列出一个（单通道部署）。"""
+    from types import SimpleNamespace
+
+    class FakeCh:
+        name = "napcat"
+
+        def __init__(self):
+            self.config = SimpleNamespace(bot_uin="3494144273")
+
+        async def is_connected(self):
+            return True
+
+    ch = FakeCh()
+    monkeypatch.setattr(qq._qq_channels, "_ACTIVE_CHANNELS", {})
+    monkeypatch.setattr(qq._qq_channels, "_ACTIVE", ch)
+    result = _run(qq.api_channels())
+    assert result["ok"] is True
+    assert len(result["channels"]) == 1
+    assert result["channels"][0]["bot_uin"] == "3494144273"

@@ -2012,21 +2012,25 @@ async def api_qq_notify(data: dict):
     return {"ok": True, "delivered": delivered}
 
 
-@app.get("/api/qq/contacts")
-async def api_qq_contacts():
-    """列出最近的 QQ 联系人/群（代理到 QQ 插件 recent_contacts）。
+async def _qq_plugin_get(path: str, params: dict | None = None) -> dict:
+    """GET 代理到 QQ 插件（packages/qq/plugin.py，PAN_QQ_API_URL，默认 8080）。
 
-    postbox 弹窗需要可选 QQ 会话列表。QQ 插件（packages/qq/plugin.py）在独立
-    端口（默认 8080，PAN_QQ_API_URL 可覆盖）暴露 GET /api/qq/recent_contacts，
-    此处代理转发，让前端统一走 Pan Core 同源 /api，避免跨域。
+    统一错误形态 {ok:false, error:{code,message}}；连接失败归为 connection_error，
+    HTTP 非 2xx 透传插件返回体（插件已按同一形态返回）。
     """
     plugin_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(f"{plugin_url}/api/qq/recent_contacts")
+            r = await client.get(f"{plugin_url}{path}", params=params)
             r.raise_for_status()
             return r.json()
     except httpx.HTTPStatusError as e:
+        try:
+            body = e.response.json()
+            if isinstance(body, dict) and body.get("error"):
+                return body
+        except ValueError:
+            pass
         return {"ok": False, "error": {
             "code": e.response.status_code,
             "message": e.response.text[:300]}}
@@ -2034,6 +2038,28 @@ async def api_qq_contacts():
         return {"ok": False, "error": {
             "code": "connection_error",
             "message": f"{type(e).__name__}: {e}"}}
+
+
+@app.get("/api/qq/contacts")
+async def api_qq_contacts(bot_uin: str = ""):
+    """列出最近的 QQ 联系人/群（代理到 QQ 插件 recent_contacts）。
+
+    postbox 弹窗需要可选 QQ 会话列表。QQ 插件（packages/qq/plugin.py）在独立
+    端口（默认 8080，PAN_QQ_API_URL 可覆盖）暴露 GET /api/qq/recent_contacts，
+    此处代理转发，让前端统一走 Pan Core 同源 /api，避免跨域。bot_uin 可选
+    （多账号）：透传给插件，只拉指定 bot 通道的联系人；缺省插件走默认通道。
+    """
+    params = {"bot_uin": bot_uin} if bot_uin else None
+    return await _qq_plugin_get("/api/qq/recent_contacts", params)
+
+
+@app.get("/api/qq/channels")
+async def api_qq_channels():
+    """列出已注册的 QQ bot 通道（代理到插件 /api/qq/channels）。
+
+    Postbox 合并模式据此对每个 bot 分别拉联系人；每项 {name, bot_uin, connected}。
+    """
+    return await _qq_plugin_get("/api/qq/channels")
 
 
 @app.post("/api/claim")

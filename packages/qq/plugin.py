@@ -1062,16 +1062,51 @@ async def api_history(
     return {"target_id": str(target_id), "messages": messages}
 
 
-async def api_recent_contacts() -> dict:
-    """列出 QQ 联系人：近期会话合并完整好友/群（经当前通道抽象）。
+async def api_recent_contacts(bot_uin: str | int | None = None) -> dict:
+    """列出 QQ 联系人：近期会话合并完整好友/群（经通道抽象）。
 
-    调用链：GET /api/qq/recent_contacts → 当前 QQChannel.recent_contacts() →
+    调用链：GET /api/qq/recent_contacts → QQChannel.recent_contacts() →
     网关 call_api 合并 get_recent_contact / get_friend_list / get_group_list。
     字段统一映射为 peerUin/peerName/chatType；peerUin 空/"0"、chatType 非 1/2 的
     异常条目剔除；名称缺失时兜底显示 QQ 号。单列表失败不致命；bot 未连接或全空
     才 ok:false。合并逻辑在通道内（OneBot 通用），切换通道不改行为。
+
+    bot_uin 可选（多账号）：指定从哪个 bot（QQ 号）的通道拉取联系人；未注册 /
+    未连接返回 ok:false（unknown_bot_uin）；缺省走默认通道（向后兼容）。
     """
+    if bot_uin:
+        ch = get_channel_by_uin(bot_uin)
+        if ch is None:
+            return {"ok": False, "error": {
+                "code": "unknown_bot_uin",
+                "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"}}
+        return await ch.recent_contacts()
     return await get_channel().recent_contacts()
+
+
+async def api_channels() -> dict:
+    """列出当前注册的 QQ 通道（bot 账号维度），供前端 Postbox 合并展示来源账号。
+
+    每项 {name, bot_uin, connected}：bot_uin 为空表示通道未配置 bot QQ 号
+    （单通道兼容，不参与按号路由）；connected 为通道当前连接状态。
+    """
+    chans: list[QQChannel] = list(_qq_channels.iter_channels().values())
+    active = _qq_channels.get_active_channel()
+    if active is not None and not any(ch is active for ch in chans):
+        chans.append(active)
+    channels = []
+    for ch in chans:
+        bot_uin = getattr(ch.config, "bot_uin", None)
+        try:
+            connected = bool(await ch.is_connected())
+        except Exception:
+            connected = False
+        channels.append({
+            "name": ch.name,
+            "bot_uin": str(bot_uin) if bot_uin else "",
+            "connected": connected,
+        })
+    return {"ok": True, "channels": channels}
 
 
 def _register_qq_api(app) -> None:
@@ -1100,8 +1135,12 @@ def _register_qq_api(app) -> None:
         return await api_history(target_id, limit, bot_uin or None)
 
     @app.get("/api/qq/recent_contacts")
-    async def _route_qq_recent_contacts():
-        return await api_recent_contacts()
+    async def _route_qq_recent_contacts(bot_uin: str = ""):
+        return await api_recent_contacts(bot_uin or None)
+
+    @app.get("/api/qq/channels")
+    async def _route_qq_channels():
+        return await api_channels()
 
     @app.get("/api/qq/inbox")
     async def _route_qq_inbox(

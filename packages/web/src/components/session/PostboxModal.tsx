@@ -3,12 +3,13 @@ import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import {
+  fetchQqChannels,
   fetchQqContacts,
   qqSubscribe,
   qqUnsubscribe,
   fetchSession,
 } from '@/services/api';
-import type { QqContact, Session } from '@/types';
+import type { QqChannelInfo, QqContact, Session } from '@/types';
 import { Search, Bell, Check } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
@@ -20,15 +21,33 @@ interface PostboxModalProps {
   sessionId: string | null;
 }
 
-/** Subscription key as stored on the session, e.g. "user:1234567890". */
+/** A contact row tagged with the bot account it came from (merge mode). */
+interface BotContact {
+  contact: QqContact;
+  /** Bot QQ number this contact belongs to; '' = default channel (no bot). */
+  botUin: string;
+  /** Channel name, fallback label when botUin is empty. */
+  botName: string;
+}
+
+/** Subscription base key as stored on the session, e.g. "user:1234567890". */
 function contactKey(c: QqContact): string {
   return `${c.chatType === 2 ? 'group' : 'user'}:${c.peerUin}`;
 }
 
+/** Session subscription key: "user:123@3494144273"; bot '' → legacy key. */
+function botKey(base: string, botUin: string): string {
+  return botUin ? `${base}@${botUin}` : base;
+}
+
 /**
  * QQ postbox: subscribe/unsubscribe the session to QQ conversation inbox
- * reminders. Contact list comes from GET /api/qq/contacts; subscriptions live
- * in the session's `qqSubscriptions` (strings like "user:<uin>").
+ * reminders. Multi-account merge mode: contacts from EVERY connected bot are
+ * merged into one list, each row tagged with its bot (bot_uin badge) so the
+ * same person under different bots shows as separate rows and can be
+ * subscribed independently. Subscriptions live in the session's
+ * `qqSubscriptions` as either bot-scoped keys "user:<uin>@<bot_uin>" or
+ * legacy bot-agnostic keys "user:<uin>" (matched for every bot).
  */
 export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   const loadSessions = useSessionStore((s) => s.loadSessions);
@@ -38,7 +57,8 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
     sessionId ? s.sessions.find((x) => x.id === sessionId) ?? null : null,
   );
 
-  const [contacts, setContacts] = useState<QqContact[]>([]);
+  const [bots, setBots] = useState<QqChannelInfo[]>([]);
+  const [items, setItems] = useState<BotContact[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -48,7 +68,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   // carry `qqSubscriptions`.
   const [detailSession, setDetailSession] = useState<Session | null>(null);
 
-  // Fetch QQ contacts + reset on open
+  // Fetch bot channels + contacts (merged per-bot) + session detail on open
   useEffect(() => {
     if (!open) return;
     setQuery('');
@@ -56,77 +76,135 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
     setBusyKey(null);
     setLoadError(null);
     setDetailSession(null);
+    setItems([]);
+    let cancelled = false;
     setLoading(true);
-    fetchQqContacts()
-      .then((list) => setContacts(list))
-      .catch((e) =>
+
+    const load = async () => {
+      try {
+        let botList: QqChannelInfo[] = [];
+        try {
+          botList = await fetchQqChannels();
+        } catch {
+          botList = [];
+        }
+        if (cancelled) return;
+        setBots(botList);
+        // Merge mode: pull contacts from EVERY bot, merged into one list. A
+        // bot with no bot_uin (single-channel compat) hits the default
+        // channel. A failing bot is skipped so one offline account doesn't
+        // blank the whole list.
+        const targets: QqChannelInfo[] =
+          botList.length > 0
+            ? botList
+            : [{ name: '', bot_uin: '', connected: false }];
+        const results = await Promise.all(
+          targets.map(async (b) => {
+            try {
+              const list = await fetchQqContacts(b.bot_uin || undefined);
+              return list.map((contact): BotContact => ({
+                contact,
+                botUin: b.bot_uin,
+                botName: b.name,
+              }));
+            } catch {
+              return [] as BotContact[];
+            }
+          }),
+        );
+        if (cancelled) return;
+        setItems(results.flat());
+      } catch (e) {
+        if (cancelled) return;
         setLoadError(
           e instanceof Error ? e.message : 'Failed to load QQ contacts',
-        ),
-      )
-      .finally(() => setLoading(false));
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+
     if (sessionId) {
       fetchSession(sessionId)
         .then((full) => setDetailSession(full))
         .catch(() => setDetailSession(null));
     }
+    return () => {
+      cancelled = true;
+    };
   }, [open, sessionId]);
 
   const sessionIdValue = session?.id ?? sessionId ?? null;
 
-  // Live set of subscription keys for this session.
-  const subscribedKeys = useMemo(
-    () => new Set<string>(detailSession?.qqSubscriptions ?? []),
-    [detailSession],
-  );
+  const subscriptions = detailSession?.qqSubscriptions ?? [];
+
+  // A row is subscribed if the bot-scoped exact key exists, or the legacy
+  // bot-agnostic key exists (delivers reminders from ANY bot).
+  const isSubscribed = (item: BotContact): boolean => {
+    const base = contactKey(item.contact);
+    return (
+      subscriptions.includes(botKey(base, item.botUin)) ||
+      subscriptions.includes(base)
+    );
+  };
 
   // 仅保留可订阅的条目：peerUin 非空非 "0"、chatType 为私聊(1)/群(2)。
   // 后端已清洗（合并 recent + friend/group 列表），此处双保险避免 Unknown/q号0
   // 条目进入搜索与展示。
-  const validContacts = useMemo(
+  const validItems = useMemo(
     () =>
-      contacts.filter(
-        (c) =>
-          c.peerUin &&
-          c.peerUin !== '0' &&
-          (c.chatType === 1 || c.chatType === 2),
+      items.filter(
+        (it) =>
+          it.contact.peerUin &&
+          it.contact.peerUin !== '0' &&
+          (it.contact.chatType === 1 || it.contact.chatType === 2),
       ),
-    [contacts],
+    [items],
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return validContacts;
-    return validContacts.filter(
-      (c) =>
-        (c.peerName || '').toLowerCase().includes(q) ||
-        c.peerUin.includes(q),
+    if (!q) return validItems;
+    return validItems.filter(
+      (it) =>
+        (it.contact.peerName || '').toLowerCase().includes(q) ||
+        it.contact.peerUin.includes(q),
     );
-  }, [validContacts, query]);
+  }, [validItems, query]);
 
   const visible = showAll ? filtered : filtered.slice(0, SHOW_LIMIT);
+  const subscribedCount = validItems.filter(isSubscribed).length;
 
-  const toggle = async (c: QqContact, checked: boolean) => {
+  const toggle = async (item: BotContact, checked: boolean) => {
     if (!sessionIdValue || busyKey) return;
+    const c = item.contact;
     const targetType: 'user' | 'group' = c.chatType === 2 ? 'group' : 'user';
-    const key = contactKey(c);
-    setBusyKey(key);
+    const base = contactKey(c);
+    const exactKey = botKey(base, item.botUin);
+    setBusyKey(exactKey);
     try {
       if (checked) {
-        await qqSubscribe(sessionIdValue, targetType, c.peerUin);
+        await qqSubscribe(sessionIdValue, targetType, c.peerUin, item.botUin || undefined);
         showToast(`Subscribed to "${c.peerName}"`);
       } else {
-        await qqUnsubscribe(sessionIdValue, targetType, c.peerUin);
+        // Remove the bot-scoped exact key first; if only the legacy
+        // bot-agnostic key exists, remove that instead.
+        const removeBot = subscriptions.includes(exactKey)
+          ? item.botUin || undefined
+          : undefined;
+        await qqUnsubscribe(sessionIdValue, targetType, c.peerUin, removeBot);
         showToast(`Unsubscribed from "${c.peerName}"`);
       }
-      // Optimistic local update: subscribedKeys derives from detailSession
+      // Optimistic local update: subscriptions derive from detailSession
       // (fetched once on open) — without this the checkbox/button would stay
       // stale until the modal is reopened.
       setDetailSession((d) => {
         if (!d) return d;
         const subs = new Set(d.qqSubscriptions ?? []);
-        if (checked) subs.add(key);
-        else subs.delete(key);
+        if (checked) subs.add(exactKey);
+        else if (subscriptions.includes(exactKey)) subs.delete(exactKey);
+        else subs.delete(base);
         return { ...d, qqSubscriptions: [...subs] };
       });
       await loadSessions();
@@ -153,6 +231,8 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
           <>
             <div className="text-xs text-text-secondary">
               Subscribe this session to QQ conversation inbox updates.
+              {bots.length > 1 &&
+                ` Merging ${bots.length} bot accounts — each contact is tagged with its bot and subscribable independently.`}
             </div>
 
             {/* Load error */}
@@ -170,13 +250,13 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
             )}
 
             {/* Empty (no error) */}
-            {!loading && !loadError && validContacts.length === 0 && (
+            {!loading && !loadError && validItems.length === 0 && (
               <div className="py-6 text-center text-sm text-text-tertiary">
                 No QQ contacts available
               </div>
             )}
 
-            {!loading && !loadError && validContacts.length > 0 && (
+            {!loading && !loadError && validItems.length > 0 && (
               <>
                 {/* Search */}
                 <div className="relative">
@@ -198,8 +278,9 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
 
                 <div className="flex items-center justify-between text-[11px] text-text-tertiary">
                   <span>
-                    {subscribedKeys.size} subscribed &middot; {filtered.length}{' '}
+                    {subscribedCount} subscribed &middot; {filtered.length}{' '}
                     contacts
+                    {bots.length > 1 && ` &middot; ${bots.length} accounts`}
                   </span>
                 </div>
 
@@ -210,12 +291,16 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                       No matching contacts
                     </div>
                   )}
-                  {visible.map((c) => {
-                    const key = contactKey(c);
-                    const isSubscribed = subscribedKeys.has(key);
+                  {visible.map((it) => {
+                    const c = it.contact;
+                    const base = contactKey(c);
+                    const exactKey = botKey(base, it.botUin);
+                    const subscribed = isSubscribed(it);
+                    const legacyOnly =
+                      subscribed && !subscriptions.includes(exactKey);
                     return (
                       <div
-                        key={key}
+                        key={exactKey}
                         className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
                           busyKey !== null
                             ? 'pointer-events-none opacity-70'
@@ -226,8 +311,24 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                           <div className="text-sm text-text-primary truncate">
                             {c.peerName || 'Unknown'}
                           </div>
-                          <div className="text-[11px] text-text-tertiary truncate">
-                            {c.peerUin}
+                          <div className="text-[11px] text-text-tertiary truncate flex items-center gap-1">
+                            <span>{c.peerUin}</span>
+                            {/* Source bot badge */}
+                            {it.botUin ? (
+                              <span className="shrink-0 rounded bg-bg-tertiary border border-border-default px-1 py-px text-[10px] leading-none">
+                                {it.botUin}
+                              </span>
+                            ) : it.botName ? (
+                              <span className="shrink-0 rounded bg-bg-tertiary border border-border-default px-1 py-px text-[10px] leading-none">
+                                {it.botName}
+                              </span>
+                            ) : null}
+                            {/* Legacy bot-agnostic subscription scope */}
+                            {legacyOnly && (
+                              <span className="shrink-0 rounded bg-accent/10 border border-accent/30 px-1 py-px text-[10px] leading-none text-accent">
+                                any bot
+                              </span>
+                            )}
                           </div>
                         </div>
                         <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
@@ -236,25 +337,25 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                         {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
                         <button
                           type="button"
-                          onClick={() => toggle(c, !isSubscribed)}
+                          onClick={() => toggle(it, !subscribed)}
                           disabled={busyKey !== null}
                           title={
-                            isSubscribed
+                            subscribed
                               ? 'Click to unsubscribe from inbox updates'
                               : 'Click to subscribe to inbox updates'
                           }
                           className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
-                            isSubscribed
+                            subscribed
                               ? 'border-accent/50 bg-accent/10 text-accent'
                               : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                           }`}
                         >
-                          {isSubscribed ? (
+                          {subscribed ? (
                             <Check size={12} />
                           ) : (
                             <Bell size={12} />
                           )}
-                          {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                          {subscribed ? 'Subscribed' : 'Subscribe'}
                         </button>
                       </div>
                     );

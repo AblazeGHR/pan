@@ -27,8 +27,10 @@ import type {
   ApiClaimResponse,
   ApiReportSubscribeResponse,
   ApiQqContactsResponse,
+  ApiQqChannelsResponse,
   ApiQqSubscribeResponse,
   QqContact,
+  QqChannelInfo,
   McpServerInfo,
   ApiMcpServersResponse,
   AgentQueueItem,
@@ -298,6 +300,7 @@ export async function qqSubscribe(
   sessionId: string,
   targetType: 'user' | 'group',
   targetId: string,
+  botUin?: string,
 ): Promise<ApiQqSubscribeResponse> {
   const data = await request<ApiQqSubscribeResponse>(`${BASE}/qq/subscribe`, {
     method: 'POST',
@@ -305,6 +308,7 @@ export async function qqSubscribe(
       sessionId,
       target_type: targetType,
       target_id: targetId,
+      ...(botUin ? { bot_uin: botUin } : {}),
     }),
   });
   if (data.error) throw new Error(data.error);
@@ -315,6 +319,7 @@ export async function qqUnsubscribe(
   sessionId: string,
   targetType: 'user' | 'group',
   targetId: string,
+  botUin?: string,
 ): Promise<ApiQqSubscribeResponse> {
   const data = await request<ApiQqSubscribeResponse>(`${BASE}/qq/unsubscribe`, {
     method: 'POST',
@@ -322,18 +327,28 @@ export async function qqUnsubscribe(
       sessionId,
       target_type: targetType,
       target_id: targetId,
+      ...(botUin ? { bot_uin: botUin } : {}),
     }),
   });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function fetchQqContacts(): Promise<QqContact[]> {
-  const data = await request<ApiQqContactsResponse>(`${BASE}/qq/contacts`);
+export async function fetchQqContacts(botUin?: string): Promise<QqContact[]> {
+  const qs = botUin ? `?bot_uin=${encodeURIComponent(botUin)}` : '';
+  const data = await request<ApiQqContactsResponse>(`${BASE}/qq/contacts${qs}`);
   if (data.ok === false) {
     throw new Error(data.error?.message || 'Failed to load QQ contacts');
   }
   return data.contacts || [];
+}
+
+export async function fetchQqChannels(): Promise<QqChannelInfo[]> {
+  const data = await request<ApiQqChannelsResponse>(`${BASE}/qq/channels`);
+  if (data.ok === false) {
+    throw new Error(data.error?.message || 'Failed to load QQ channels');
+  }
+  return data.channels || [];
 }
 
 // ── Workers ──

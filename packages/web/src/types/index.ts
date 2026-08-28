@@ -172,6 +172,21 @@ export interface ApiQqContactsResponse {
   error?: ApiErrorInfo;
 }
 
+/** A registered QQ channel (bot account), from GET /api/qq/channels. */
+export interface QqChannelInfo {
+  /** Channel name, e.g. "llonebot" / "llonebot2". */
+  name: string;
+  /** Bot QQ number; empty when the channel has no bot_uin configured. */
+  bot_uin: string;
+  connected: boolean;
+}
+
+export interface ApiQqChannelsResponse {
+  ok?: boolean;
+  channels?: QqChannelInfo[];
+  error?: ApiErrorInfo;
+}
+
 export interface ApiQqSubscribeResponse {
   sessionId?: string;
   qqTarget?: string;
