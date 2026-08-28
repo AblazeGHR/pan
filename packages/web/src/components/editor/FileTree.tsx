@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FileNode } from '@/types';
 import { useEditorStore } from '@/stores/editorStore';
-import { File, Folder, FolderOpen, Pencil, X } from 'lucide-react';
+import { Download, File, Folder, FolderOpen, Pencil, X } from 'lucide-react';
 
 interface FileTreeProps {
   workdir: string;
@@ -20,6 +20,7 @@ function FileTreeItem({
   const openFile = useEditorStore((s) => s.openFile);
   const renameFile = useEditorStore((s) => s.renameFile);
   const deleteFile = useEditorStore((s) => s.deleteFile);
+  const downloadFile = useEditorStore((s) => s.downloadFile);
 
   const isExpanded = expanded.has(node.path);
   const isSelected = selectedPath === node.path;
@@ -110,6 +111,18 @@ function FileTreeItem({
 
         {!renaming && (
           <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
+            {node.type === 'file' && (
+              <button
+                className="text-text-tertiary hover:text-text-primary p-0.5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  downloadFile(node.path, node.name);
+                }}
+                title="Download"
+              >
+                <Download size={10} />
+              </button>
+            )}
             <button
               className="text-text-tertiary hover:text-text-primary p-0.5"
               onClick={(e) => {

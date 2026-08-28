@@ -33,6 +33,7 @@ interface EditorStore {
   saveFile: (repath?: string) => Promise<void>;
   renameFile: (from: string, to: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
+  downloadFile: (path: string, fileName: string) => Promise<void>;
   setMdViewMode: (path: string, mode: 'edit' | 'preview' | 'split') => void;
 }
 
@@ -295,6 +296,26 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       // Refresh parent dir
       const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
       get().refreshTree(parentPath);
+    } catch {
+      // show error
+    }
+  },
+
+  downloadFile: async (path: string, fileName: string) => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+
+    try {
+      const content = await readFile(sessionId, path);
+      const blob = new Blob([content], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     } catch {
       // show error
     }
