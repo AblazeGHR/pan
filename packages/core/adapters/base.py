@@ -71,6 +71,15 @@ class CliAdapter(Protocol):
         """
         ...
 
+    # 可选能力（非协议必需，worker 用 getattr 探测，缺省 False）：
+    #
+    # supports_spawn_system_prompt: bool — stream spawn 的长驻进程是否接受
+    # worker 传入的 ``--system-prompt <text>`` flag。True 的 adapter 必须真正
+    # 消费该 flag（cbc CLI 原生支持；kimi 的 wrapper 转为其 CLI 原生
+    # ``--agent-file``）。False/缺省时 worker 退化为首条消息注入——若强传给
+    # 不认识的子进程，argparse 会报 unrecognized arguments 直接 exit 2，表现
+    # 为「发消息后永不回复」（SMA(NoAdapter)+kimi 卡死根因）。
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]: ...

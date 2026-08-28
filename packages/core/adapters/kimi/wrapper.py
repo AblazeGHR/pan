@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 from queue import Queue
 
@@ -25,6 +26,30 @@ def _write_stdout_line(text: str) -> None:
     """以 UTF-8 写入 stdout 并换行，避免 Windows 管道默认编码问题。"""
     sys.stdout.buffer.write(text.encode("utf-8", errors="replace") + b"\n")
     sys.stdout.buffer.flush()
+
+
+def _write_agent_file(system_prompt: str, kimi_home: str | None) -> str:
+    """把 system_prompt 写成 kimi agent markdown，返回文件路径。
+
+    kimi CLI 没有 --system-prompt 参数；原生注入途径是 ``--agent-file <md>``
+    （frontmatter + 正文即人设，实测与 -p 组合生效、-S resume 后人设保留——
+    2026-08-29 kimi 0.39.1）。文件放隔离 HOME（kimi_home，会话专属）内避免
+    污染；无隔离 HOME 时退回临时目录。
+    """
+    body = (
+        "---\n"
+        "name: pan-system-prompt\n"
+        "description: Pan session system prompt\n"
+        "---\n\n"
+        f"{system_prompt.strip()}\n"
+    )
+    if kimi_home:
+        base = os.path.join(kimi_home, "pan-agent.md")
+    else:
+        base = os.path.join(tempfile.mkdtemp(prefix="pan-kimi-agent-"), "pan-agent.md")
+    with open(base, "w", encoding="utf-8") as f:
+        f.write(body)
+    return base
 
 
 def _forward_and_collect(stdout, session_id: str | None) -> tuple[str | None, str | None]:
@@ -107,15 +132,24 @@ def _stdin_reader(message_queue: Queue, shutdown_event: threading.Event) -> None
 def _main_loop(kimi_path: str, model: str | None,
                initial_session_id: str | None,
                cwd: str | None,
-               kimi_home: str | None = None) -> int:
+               kimi_home: str | None = None,
+               system_prompt: str | None = None) -> int:
     """主循环：从队列取消息，逐条调用 Kimi。
 
     *kimi_home*：若提供，则在其指向的隔离 HOME 目录内准备 config.toml + mcp.json，
     并以 ``KIMI_CODE_HOME`` 环境变量注入每条 kimi 子进程——使 kimi 加载该 HOME 内的
     用户级 mcp.json（绕过 folder-trust，方案 C）。隔离 HOME 由 adapter 在
     data/kimi-homes/<session_id>/ 生成（见 kimi/adapter.py）。
+
+    *system_prompt*：worker spawn 注入（--system-prompt）。kimi CLI 无该参数，
+    首轮（尚无 session_id）转为 ``--agent-file``；后续轮次经 -S resume 延续
+    上下文，人设已在会话内，不再传（--agent-file 也禁止与 -S 组合）。
     """
     session_id = initial_session_id
+    # 首轮 agent 文件只在无 session_id 时生成一次；轮次推进后即失效。
+    agent_file = None
+    if system_prompt and not session_id:
+        agent_file = _write_agent_file(system_prompt, kimi_home)
     message_queue: Queue = Queue()
     shutdown_event = threading.Event()
 
@@ -136,6 +170,8 @@ def _main_loop(kimi_path: str, model: str | None,
                 continue
 
             args = [kimi_path, "-p", text, "--output-format", "stream-json"]
+            if agent_file and not session_id:
+                args.extend(["--agent-file", agent_file])
             if model:
                 args.extend(["-m", model])
             if session_id:
@@ -218,7 +254,9 @@ def _main_loop(kimi_path: str, model: str | None,
     return 0
 
 
-def main() -> int:
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """独立成函数便于测试（回归：worker 曾强传 --system-prompt 导致
+    argparse unrecognized arguments exit 2 —— NoAdapter+kimi 卡死根因）。"""
     parser = argparse.ArgumentParser(
         description="Kimi Code CLI persistent wrapper for Pan"
     )
@@ -226,7 +264,13 @@ def main() -> int:
     parser.add_argument("--model", default=None)
     parser.add_argument("--session-id", default=None)
     parser.add_argument("--kimi-home", default=None)
-    args = parser.parse_args()
+    parser.add_argument("--system-prompt", default=None,
+                        help="worker 注入的系统提示词（首轮转 --agent-file）")
+    return parser
+
+
+def main() -> int:
+    args = _build_arg_parser().parse_args()
 
     cwd = os.environ.get("PAN_KIMI_CWD") or os.environ.get("CLICONDUCTOR_KIMI_CWD") or os.getcwd()
     return _main_loop(
@@ -235,6 +279,7 @@ def main() -> int:
         initial_session_id=args.session_id,
         cwd=cwd,
         kimi_home=args.kimi_home,
+        system_prompt=args.system_prompt,
     )
 
 

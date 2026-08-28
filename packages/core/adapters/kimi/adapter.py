@@ -52,6 +52,12 @@ class KimiAdapter:
 
     name = "kimi"
 
+    # worker spawn 路径支持 --system-prompt flag：wrapper 接受它并在首轮转为
+    # kimi 原生 --agent-file（kimi CLI 无 --system-prompt 参数，实测
+    # --agent-file 与 -p 组合生效、-S resume 后人设保留）。缺 False 的 adapter
+    # 由 worker 退回首条消息注入（见 worker.py spawn 块）。
+    supports_spawn_system_prompt = True
+
     # 执行模式（adapter-p1-oneshot.md）：kimi 用 wrapper 长驻，worker 只走
     # stream；wrapper 内部逐条 `kimi -p` 的一次性语义对 worker 透明，故不暴露
     # oneshot。oneshot_args 不会被调用，返回 [] 作为防御兜底。

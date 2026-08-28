@@ -67,6 +67,51 @@ def test_build_spawn_args_with_resume():
     print("PASS: build_spawn_args with resume")
 
 
+def test_supports_spawn_system_prompt():
+    """kimi wrapper 接受 worker 的 --system-prompt（首轮转 --agent-file）。
+
+    回归背景：SMA(NoAdapter)+kimi 卡死根因 —— worker 曾对一切 stream+MCP
+    session 强传 --system-prompt，kimi wrapper argparse 不认识直接 exit 2。
+    """
+    assert _adapter().supports_spawn_system_prompt is True
+
+
+def test_build_spawn_args_passthrough_system_prompt():
+    a = _adapter()
+    s = _sess.Session(id="ses_test", name="test", adapter="kimi")
+    args = a.build_spawn_args(s, extra_args=["--system-prompt", "You are SMA."])
+    assert "--system-prompt" in args
+    assert "You are SMA." in args
+
+
+def test_wrapper_argparse_accepts_system_prompt():
+    """wrapper argparse 必须接受 --system-prompt（原 bug 场景：unrecognized
+    arguments -> exit 2 -> 会话永不回复）。"""
+    from packages.core.adapters.kimi import wrapper as kimi_wrapper
+
+    args = kimi_wrapper._build_arg_parser().parse_args([
+        "--kimi-path", "kimi.exe",
+        "--model", "moonshot-cn/kimi-k2.6",
+        "--kimi-home", "D:/tmp/home",
+        "--system-prompt", "You are SMA.",
+    ])
+    assert args.kimi_path == "kimi.exe"
+    assert args.system_prompt == "You are SMA."
+    assert args.session_id is None
+
+
+def test_write_agent_file(tmp_path):
+    from packages.core.adapters.kimi.wrapper import _write_agent_file
+
+    prompt = "你是 SMA。"
+    path = _write_agent_file(prompt, str(tmp_path))
+    text = Path(path).read_text(encoding="utf-8")
+    assert text.startswith("---\n")
+    assert "name: pan-system-prompt" in text
+    assert prompt.strip() in text
+    assert Path(path).parent == tmp_path  # 写进隔离 HOME，不污染其它位置
+
+
 def test_encode_user_message():
     a = _adapter()
     data = json.loads(a.encode_user_message("hello"))
