@@ -83,6 +83,14 @@ python main.py
 
 `scripts/` also has helper scripts that skip the manual steps: `setup.bat` / `setup.sh` (install deps, generate config.json, probe the QQ interpreter, etc.), `start_pan.bat` / `start.sh` (start), `stop_pan.bat` / `stop.sh` (stop; the Windows version kills the exact process tree via the PID file, without touching other python processes).
 
+**macOS / Linux quick path** (the scripts automate steps 1-3 above):
+
+```bash
+bash scripts/setup.sh    # first time: create .venv + deps + config.json + frontend build
+bash scripts/start.sh    # background start (PID in data/process.pid, log data/pan.out.log)
+bash scripts/stop.sh     # stop
+```
+
 ### 2.3 Ports and Environment Variables
 
 | Port | Purpose |
@@ -108,6 +116,12 @@ python main.py
 
 Ctrl+C exits gracefully (the QQ bot subprocess is terminated along with it); or use `scripts/stop_pan.bat` / `stop.sh`.
 
+### 2.5 macOS / Linux Notes
+
+- **Case-sensitive paths**: macOS/Linux filesystems are case-sensitive — `.venv`, `config.json`, `packages/qq/.env` etc. must match the docs exactly; a wrong case means "file not found";
+- **QQ interpreter**: the path is resolved automatically by `main.py` (`PAN_QQ_PYTHON` env var > `qq.python` in config.json > platform default); on macOS/Linux it defaults to `python3`, so no manual config is needed — only set `qq.python` or `PAN_QQ_PYTHON` if you need a specific interpreter; if you don't use QQ, set `qq.enabled=false` in config and skip setup.sh's QQ dependency step;
+- **Process-group reaping**: on Linux `setsid` is available, so `start.sh` makes main.py the leader of its own process group and `stop.sh` reaps the whole group; macOS has no `setsid` by default, degrading to a plain background process — `stop.sh` recursively TERMs the children (including the QQ bridge) then shuts down gracefully. **Only the recorded PID + process group is killed; other python processes are never touched.**
+
 ---
 
 ## 3. Quick Start (UI Walkthrough)
@@ -119,7 +133,12 @@ This chapter walks you through your first task using the **browser interface**: 
 > **Don't feel like reading the docs?** After starting the service, create an `SMA(NoAdapter)` session and ask it "how do I get the most out of Pan?" — it will pull up the orchestration handbook (`pan_handbook`) and teach you step by step.
 
 ```bash
+# Windows
 python main.py
+
+# macOS / Linux (background start; run setup first time)
+bash scripts/setup.sh    # first time only
+bash scripts/start.sh
 ```
 
 Open <http://127.0.0.1:8768> in a browser (the default port; see §5.2 to change it). You'll see Pan's **React Dashboard**: the session list (Sidebar) on the left, the chat main area on the right.

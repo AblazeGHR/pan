@@ -304,6 +304,21 @@ python main.py
 python -m pytest tests/ -q
 ```
 
+**按平台选择启动方式**：
+
+| 平台 | 安装依赖 | 启动 | 停止 |
+|------|----------|------|------|
+| Windows | 上文步骤 1-3（或 `scripts\setup.bat`） | `scripts\start_pan.bat`，或前台 `python main.py` | `scripts\stop_pan.bat`，或 Ctrl+C |
+| macOS / Linux | `bash scripts/setup.sh`（首次） | `bash scripts/start.sh`（后台启动，PID 记 `data/process.pid`，日志 `data/pan.out.log`） | `bash scripts/stop.sh`（只杀记录的 PID + 进程组，绝不误伤其他 python） |
+
+macOS / Linux 一键路径：
+
+```bash
+bash scripts/setup.sh   # 首次：装依赖 + 生成 config.json + 构建前端
+bash scripts/start.sh   # 启动 → http://127.0.0.1:8768
+bash scripts/stop.sh    # 停止
+```
+
 > 📖 完整使用指南（安装、操作、编排、API、配置、排障）见 [用户手册](docs/USER_MANUAL.md)。
 
 ### 前端说明：推荐 React，Vanilla 已弃用（deprecated）

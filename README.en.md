@@ -304,6 +304,21 @@ python main.py
 python -m pytest tests/ -q
 ```
 
+**Pick the startup method by platform**:
+
+| Platform | Install dependencies | Start | Stop |
+|----------|----------------------|-------|------|
+| Windows | Steps 1-3 above (or `scripts\setup.bat`) | `scripts\start_pan.bat`, or foreground `python main.py` | `scripts\stop_pan.bat`, or Ctrl+C |
+| macOS / Linux | `bash scripts/setup.sh` (first time) | `bash scripts/start.sh` (background; PID in `data/process.pid`, log `data/pan.out.log`) | `bash scripts/stop.sh` (kills only the recorded PID + process group, never other python processes) |
+
+macOS / Linux one-liner path:
+
+```bash
+bash scripts/setup.sh   # first time: deps + config.json + frontend build
+bash scripts/start.sh   # start → http://127.0.0.1:8768
+bash scripts/stop.sh    # stop
+```
+
 > 📖 Full user guide (install, operations, orchestration, API, config, troubleshooting): [User manual](docs/USER_MANUAL.md).
 
 ### Frontend choice: React recommended, Vanilla deprecated

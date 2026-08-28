@@ -83,6 +83,14 @@ python main.py
 
 `scripts/` 下另有免手动步骤的脚本：`setup.bat` / `setup.sh`（安装依赖、生成 config.json、探测 QQ 解释器等）、`start_pan.bat` / `start.sh`（启动）、`stop_pan.bat` / `stop.sh`（停止；Windows 版按 PID 文件做精确进程树杀，不误伤其他 python 进程）。
 
+**macOS / Linux 快速路径**（脚本自动完成上面的步骤 1-3）：
+
+```bash
+bash scripts/setup.sh    # 首次：建 .venv + 装依赖 + 生成 config.json + 构建前端
+bash scripts/start.sh    # 后台启动（PID 记 data/process.pid，日志 data/pan.out.log）
+bash scripts/stop.sh     # 停止
+```
+
 ### 2.3 端口与环境变量
 
 | 端口 | 用途 |
@@ -108,6 +116,12 @@ python main.py
 
 Ctrl+C 优雅退出（QQ bot 子进程随之终止）；或用 `scripts/stop_pan.bat` / `stop.sh`。
 
+### 2.5 macOS / Linux 专属说明
+
+- **路径大小写敏感**：macOS/Linux 文件系统大小写敏感——`.venv`、`config.json`、`packages/qq/.env` 等路径务必与文档一致，大小写写错会导致找不到文件；
+- **QQ 解释器**：解释器路径由 `main.py` 自动解析（`PAN_QQ_PYTHON` 环境变量 > `config.json` 的 `qq.python` > 平台默认）；macOS/Linux 上默认即 `python3`，无需手动配置——仅当要用特定解释器时才设置 `qq.python` 或 `PAN_QQ_PYTHON`；不用 QQ 就在配置里设 `qq.enabled=false`，可跳过 setup.sh 的 QQ 依赖步骤；
+- **进程组收割**：Linux 有 `setsid` 时，`start.sh` 让 main.py 成为独立进程组组长，`stop.sh` 整组收割；macOS 默认无 `setsid`，退化为普通后台进程，`stop.sh` 递归 TERM 子进程（含 QQ bridge）后优雅关停——**只杀记录在案的 PID + 进程组，绝不误伤其它 python 进程**。
+
 ---
 
 ## 3. 快速上手（界面操作）
@@ -119,7 +133,12 @@ Ctrl+C 优雅退出（QQ bot 子进程随之终止）；或用 `scripts/stop_pan
 > **实在不想读文档？** 启动服务后，直接新建一个 `SMA(NoAdapter)` 会话，问它一句「怎么玩转 Pan？」——它会调出编排手册（`pan_handbook`）现场教你一步步来。
 
 ```bash
+# Windows
 python main.py
+
+# macOS / Linux（后台启动；首次先装依赖）
+bash scripts/setup.sh    # 仅首次
+bash scripts/start.sh
 ```
 
 浏览器打开 <http://127.0.0.1:8768>（默认端口；改端口见 §5.2）。你会看到 Pan 的 **React Dashboard**：左侧是会话列表（Sidebar），右侧是聊天主区。
