@@ -664,6 +664,14 @@ python -m packages.remote
 - 状态服务：`curl http://127.0.0.1:8769/status`
 - 公网域名来自 `config_path` 指向的 yml 的 `ingress.hostname`；tunnel 暴露的是 Pan 主端口（`config.port`）
 
+## ⚠️ 安全提示
+
+使用前请了解以下默认行为并自行评估信任边界：
+
+- **自动化全权限**：默认 adapter 模板 `permission_mode=bypassPermissions`——CLI Agent 无需逐条审批即可执行命令 / 改文件。这是自动化编排的设计使然，请在可信环境使用，勿对不可信任务放行。
+- **服务无鉴权**：Pan API 无任何鉴权，默认仅绑定 `127.0.0.1`（loopback），**仅限本机使用**。改 `PAN_HOST` 会把所有端点暴露到网络。
+- **公网暴露**：Remote（Cloudflare Tunnel）会把 Pan 主端口暴露到公网，启用前务必评估风险（同样无鉴权）。
+
 ## 运行须知
 
 - **安全模型**：API 无鉴权，默认绑定 `127.0.0.1`（loopback）是有意为之。把 `PAN_HOST` 改成非 loopback 会把所有端点暴露到网络（`main.py` 启动时会告警）。安全重点在边界校验：workdir 路径逃逸校验、character_id 格式校验。
