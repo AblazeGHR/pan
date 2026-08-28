@@ -14,6 +14,7 @@ import pytest
 from packages.core.session import Session
 from packages.core.adapters.cbc import adapter as cbc_adapter
 from packages.core.adapters.cbc.adapter import CbcAdapter
+from packages.core.adapters.kimi import adapter as kimi_adapter
 from packages.core.adapters.kimi.adapter import KimiAdapter
 
 
@@ -156,9 +157,20 @@ class TestCbcMCPArgs:
 
 
 class TestKimiMCPArgs:
-    def test_mcp_args_kimi_home(self):
+    def test_mcp_args_kimi_home(self, tmp_path, monkeypatch):
         """kimi 经 KIMI_CODE_HOME 隔离 HOME 加载 MCP（方案 C）：有 mcp_servers 时
         mcp_args 返回 --kimi-home <dir> 且隔离 HOME 生成；无 mcp_servers 返回 []。"""
+        # 隔离 HOME 的 config.toml 拷贝自真实 ~/.kimi-code（CI 上不存在）——
+        # monkeypatch Path.home 指向带 fake .kimi-code/config.toml 的 tmp 目录，
+        # 使生成逻辑在干净环境也能完整产出。
+        fake_home = tmp_path / "home"
+        (fake_home / ".kimi-code").mkdir(parents=True)
+        (fake_home / ".kimi-code" / "config.toml").write_text(
+            'default_model = "kimi-test-model"\n', encoding="utf-8"
+        )
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+        monkeypatch.setattr(kimi_adapter, "KIMI_HOME_ROOT", tmp_path / "kimi-homes")
+
         adapter = KimiAdapter()
         s = _make_session(mcp_servers=[{
             "name": "rw",
@@ -174,9 +186,6 @@ class TestKimiMCPArgs:
         # 无 mcp_servers → []（走原路径，使用真实用户目录）
         s2 = _make_session()
         assert adapter.mcp_args(s2) == []
-        # 清理隔离 HOME（测试残留）
-        import shutil
-        shutil.rmtree(home_dir, ignore_errors=True)
 
 
 # ------------------------------------------------------------------ #

@@ -47,16 +47,24 @@ def test_adapter_metadata():
     print("PASS: adapter metadata")
 
 
-def test_shim_resolution():
-    """.CMD shim → 真实 codex.js 入口（避开 cmd.exe 中文乱码）。"""
-    # 用假 shim 路径验证解析逻辑（不要求文件存在）；Windows 下 os.path.join 用反斜杠
-    fake_shim = "D:/node_npm/node_global/codex.CMD"
-    resolved = codex_adapter._codex_js_from_shim(fake_shim)
-    expected = os.path.join("D:", os.sep, "node_npm", "node_global",
-                            "node_modules", "@openai", "codex", "bin", "codex.js")
-    assert os.path.normcase(resolved) == os.path.normcase(expected)
+def test_shim_resolution(tmp_path):
+    """.CMD shim → 真实 codex.js 入口（避开 cmd.exe 中文乱码）。
+
+    在 tmp_path 构造真实 npm shim 文件树（`_codex_js_from_shim` 内部用
+    os.path.isfile 校验 codex.js 存在，候选文件必须真实存在）。
+    """
+    shim_dir = tmp_path / "node_global"
+    js = shim_dir / "node_modules" / "@openai" / "codex" / "bin" / "codex.js"
+    js.parent.mkdir(parents=True)
+    js.write_text("// fake codex entry", encoding="utf-8")
+    shim = shim_dir / "codex.CMD"
+    shim.write_text("@echo off\r\n", encoding="utf-8")
+
+    resolved = codex_adapter._codex_js_from_shim(str(shim))
+    assert resolved is not None
+    assert os.path.normcase(resolved) == os.path.normcase(str(js))
     # 非 .CMD 路径不做 shim 解析
-    assert codex_adapter._codex_js_from_shim("D:/bin/codex") is None
+    assert codex_adapter._codex_js_from_shim(str(tmp_path / "bin" / "codex")) is None
     print("PASS: shim resolution")
 
 
