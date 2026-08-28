@@ -36,7 +36,7 @@ if defined VPY (
 )
 echo.
 
-REM ---- [2/5] QQ 模块依赖 (main.py:24 默认 E 盘 miniforge，可用 PAN_QQ_PYTHON 覆盖) ----
+REM ---- [2/5] QQ 模块依赖 (解释器解析链: %%PAN_QQ_PYTHON%% > config.json qq.python > E盘 miniforge > PATH python) ----
 echo ========== [2/5] QQ 模块依赖 ==========
 set "QQ_PY=%PAN_QQ_PYTHON%"
 if not defined QQ_PY (
@@ -77,6 +77,14 @@ if exist "%ROOT%\config.json" (
 ) else (
     copy /y "%ROOT%\config.example.json" "%ROOT%\config.json" >nul
     echo [OK] 已生成 config.json — 请按需修改端口等字段
+)
+
+REM 把 [2/5] 探测到的 QQ 解释器固化进 config.json 的 qq.python（单一事实源），
+REM main.py / stop_pan.bat 均从该字段解析。字段已有相同值时跳过，不重复覆盖。
+if defined QQ_PY (
+    powershell -NoProfile -Command "$f='%ROOT%\config.json'; $py='%QQ_PY%'; try { $c=Get-Content -Raw -LiteralPath $f | ConvertFrom-Json } catch { $c=$null }; if ($c) { if (-not $c.qq) { $c | Add-Member -Force -MemberType NoteProperty -Name qq -Value (New-Object PSObject) }; if ($c.qq.python -ne $py) { $c.qq | Add-Member -Force -MemberType NoteProperty -Name python -Value $py; $t=$f+'.tmp'; ConvertTo-Json -InputObject $c -Depth 32 | ForEach-Object { [IO.File]::WriteAllText($t, $_) }; Move-Item -Force $t $f; Write-Host \"[OK] qq.python -> $py\" } else { Write-Host \"[INFO] qq.python 已一致，跳过\" } } else { Write-Host \"[WARN] config.json 不可读，未写入 qq.python\" }"
+) else (
+    echo [INFO] 未探测到 QQ 解释器，跳过 qq.python 写入
 )
 if exist "%ROOT%\packages\qq\.env" (
     echo [OK] packages\qq\.env 已存在

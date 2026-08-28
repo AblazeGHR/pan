@@ -121,10 +121,12 @@
   "qq": {
     "_字段说明": {
       "enabled": "是否启动 QQ 模块（packages/qq/bot.py，NoneBot）：false 时 main.py 不启动 QQ bot（默认 true）。",
-      "mode": "QQ 桥接模式（packages/qq/plugin.py 读取）：mirror=收到消息自动建 session 并回复（默认）；selective=消息只进 inbox+history 不自动回复，由 meta-agent 经 MCP（qq_read_inbox/qq_send_message）选择性处理。也可用环境变量 PAN_QQ_MODE 覆盖。"
+      "mode": "QQ 桥接模式（packages/qq/plugin.py 读取）：mirror=收到消息自动建 session 并回复（默认）；selective=消息只进 inbox+history 不自动回复，由 meta-agent 经 MCP（qq_read_inbox/qq_send_message）选择性处理。也可用环境变量 PAN_QQ_MODE 覆盖。",
+      "python": "QQ bot 独立解释器路径（单一事实源，NoneBot 装在这里而非项目 .venv）：空 = 走默认解析链（PAN_QQ_PYTHON 环境变量 > 此处 > 平台默认 E:\\software\\miniforge\\python.exe）。setup.bat 探测到解释器后会自动写入。"
     },
     "enabled": true,
-    "mode": "mirror"
+    "mode": "mirror",
+    "python": ""
   },
 
   "worker": {

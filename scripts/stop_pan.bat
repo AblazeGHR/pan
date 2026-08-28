@@ -50,10 +50,13 @@ REM ---- 5. Fallback: precise command-line match, NEVER kill all python.exe ----
 REM     5a. main.py whose command line contains this project root
 powershell -NoProfile -Command "$base='%BASE_DIR%'; $p = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match [regex]::Escape($base) -and $_.CommandLine -match 'main\.py' }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
 
-REM     5b. QQ bridge bot.py — the Pan QQ bot runs under the miniforge
-REM         interpreter (project .venv has no nonebot), so require BOTH
-REM         bot.py and the miniforge path on the command line.
-powershell -NoProfile -Command "$py='E:\software\miniforge'; $p = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'bot\.py' -and $_.CommandLine -match [regex]::Escape($py) }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
+REM     5b. QQ bridge bot.py — runs under an interpreter OUTSIDE the project
+REM         .venv (nonebot lives there). Resolve the same way main.py does:
+REM         PAN_QQ_PYTHON env > config.json qq.python > E-drive miniforge
+REM         fallback. Require BOTH bot.py and that interpreter's directory
+REM         (bare "python" interpreters fall back to the project root, since
+REM         bot.py's own path already contains it).
+powershell -NoProfile -Command "$py=''; if ($env:PAN_QQ_PYTHON) { $py=$env:PAN_QQ_PYTHON } else { try { $c=Get-Content -Raw '%BASE_DIR%\config.json' | ConvertFrom-Json; if ($c.qq.python) { $py=$c.qq.python } } catch {} }; if (-not $py) { $py='E:\software\miniforge\python.exe' }; $frag=Split-Path -Parent $py; if (-not $frag) { $frag='%BASE_DIR%' }; $p = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'bot\.py' -and $_.CommandLine -match [regex]::Escape($frag) }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
 
 REM     5c. cloudflared whose command line uses our temp tunnel config marker
 powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'pan_cf_config_' }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1

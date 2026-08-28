@@ -20,8 +20,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parent
 _QQ_BOT_PY = _PROJECT_ROOT / "packages" / "qq" / "bot.py"
 _QQ_DIR = _QQ_BOT_PY.parent
 _QQ_PID_FILE = _PROJECT_ROOT / "data" / "qq_bot.pid"
-# NoneBot 依赖装在 miniforge（项目 .venv 没有），故 QQ bot 用独立解释器。
-# 可用环境变量 PAN_QQ_PYTHON 覆盖。
+# QQ bot 跑在独立解释器上（项目 .venv 没有 nonebot 依赖）。
+# 解释器路径的单一事实源是 config.json 的 qq.python（setup.bat 首次运行时写入），
+# 解析链见 _resolve_qq_python()：PAN_QQ_PYTHON 环境变量 > qq.python > 此处平台默认。
 # Windows 默认 miniforge；POSIX 上该盘符路径无效，退回 PATH 里的 python3。
 _QQ_DEFAULT_PYTHON = (
     r"E:\software\miniforge\python.exe"
@@ -154,6 +155,27 @@ def _stop_qq_bot() -> None:
     _QQ_PID_FILE.unlink(missing_ok=True)
 
 
+def _resolve_qq_python() -> str:
+    """解析 QQ bot 解释器路径（优先级链）：
+
+    1. PAN_QQ_PYTHON 环境变量（临时覆盖，调试用）
+    2. config.json 的 qq.python（单一事实源，setup.bat 写入）
+    3. 平台默认 _QQ_DEFAULT_PYTHON（nt: E盘 miniforge / POSIX: python3）
+    """
+    env = os.environ.get("PAN_QQ_PYTHON")
+    if env:
+        return env
+    try:
+        from packages.core.config import load_config
+
+        configured = ((load_config().get("qq") or {}).get("python") or "").strip()
+    except Exception:
+        configured = ""
+    if configured:
+        return configured
+    return _QQ_DEFAULT_PYTHON
+
+
 def _spawn_qq_bot() -> None:
     """Start the QQ bridge (packages/qq/bot.py) if config qq.enabled.
 
@@ -180,7 +202,7 @@ def _spawn_qq_bot() -> None:
             _log.warning("[Pan] QQ bot pid %s still alive, skipping spawn — stop it first", old_pid)
             return
 
-    python = os.environ.get("PAN_QQ_PYTHON") or _QQ_DEFAULT_PYTHON
+    python = _resolve_qq_python()
     try:
         # bot.py 顶层 `from packages.qq import ...` 需要项目根在 sys.path；
         # cwd 是 packages/qq 且子进程不继承父进程 sys.path，必须显式注入

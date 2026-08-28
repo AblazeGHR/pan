@@ -100,6 +100,13 @@ DEFAULT_CONFIG: dict = {
         "binary_path": "",
         "status_port": 8769,
     },
+    # QQ 模块（packages/qq/bot.py，NoneBot，跑在独立解释器上）
+    "qq": {
+        # QQ bot 独立解释器路径（单一事实源）。空串 = 走默认解析链：
+        # PAN_QQ_PYTHON 环境变量 > 此处 > 平台默认（nt: E盘 miniforge / POSIX: python3）。
+        # scripts/setup.bat 首次运行时会把探测结果写入此处。
+        "python": "",
+    },
     # 前端 App 设置（config.json 为单一真源，跨浏览器/会话一致）。
     # 由 GET/PUT /api/settings/ui 读写，前端 appSettingsStore 消费。
     "ui": {
