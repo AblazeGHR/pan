@@ -530,9 +530,14 @@ async def _send_and_wait(text: str, scope_id: str, scope: str = "user") -> str:
 
 # ── message handler（通道抽象：业务层只认 QQMessage）──
 
-async def _send_chunks(target_type: str, target_id: str, text: str) -> None:
-    """经当前通道把文本按 1500 字切片发送（command-route 与 mirror 回复共用）。"""
-    ch = get_channel()
+async def _send_chunks(
+    target_type: str, target_id: str, text: str, ch: QQChannel | None = None
+) -> None:
+    """经指定通道把文本按 1500 字切片发送（command-route 与 mirror 回复共用）。
+
+    ch 缺省用默认通道；多账号部署时由调用方传入消息来源 bot 的通道（谁收到谁回）。
+    """
+    ch = ch or get_channel()
     MAX_LEN = 1500
     if len(text) <= MAX_LEN:
         await ch.send(target_type, target_id, text)
@@ -556,16 +561,23 @@ async def handle_qq_message(msg: QQMessage) -> None:
     scope, scope_id = msg.scope, msg.scope_id
     target_type = msg.target_type()
 
+    # 多账号路由：谁收到谁回 —— 按消息来源 bot（self_id）找通道，未配置 / 未
+    # 注册（单通道兼容）回退默认通道。
+    reply_channel = get_channel_by_uin(msg.bot_uin) or get_channel()
+
     # 落盘用户消息（按 target_id：私聊 user_id / 群 group_id），供 HTTP API
-    # GET /api/qq/history 与 MCP 工具 qq_read_conversation 读取。
-    await _append_history(scope_id, "user", text)
+    # GET /api/qq/history 与 MCP 工具 qq_read_conversation 读取。bot_uin 标注
+    # 消息由哪个 bot 收到（多账号；空串时不写字段，旧记录兼容）。
+    await _append_history(scope_id, "user", text, bot_uin=msg.bot_uin)
 
     # selective 模式：消息进入 inbox（待处理队列），不自动回复；由 meta-agent
     # 经 MCP 工具 qq_read_inbox → 决策 → qq_send_message 决定回不回、回什么。
     # 注意：command-route 消息同样会入 inbox（消息已在别处自动回复，编排者可
     # 结合 history 判断），见下方 command route 分支。
     if _qq_mode() == "selective":
-        await _append_inbox(scope_id, scope, text, msg.sender_nickname)
+        await _append_inbox(
+            scope_id, scope, text, msg.sender_nickname, bot_uin=msg.bot_uin
+        )
 
     # Lazy-load command routes on first use (lets the bot start before Core
     # if needed). Hits are forwarded straight to the manifest-declared HTTP
@@ -577,7 +589,7 @@ async def handle_qq_message(msg: QQMessage) -> None:
     match = _match_command_route(text)
     if match:
         target, body = match
-        await get_channel().send(target_type, scope_id, "processing, please wait...")
+        await reply_channel.send(target_type, scope_id, "processing, please wait...")
         try:
             client = await _get_client()
             r = await client.post(target, json={"text": body})
@@ -593,20 +605,24 @@ async def handle_qq_message(msg: QQMessage) -> None:
         except Exception as e:
             response = f"[Pan] command route error: {type(e).__name__}: {e}"
 
-        await _append_history(scope_id, "assistant", response)
-        await _send_chunks(target_type, scope_id, response)
+        await _append_history(
+            scope_id, "assistant", response, bot_uin=reply_channel.config.bot_uin
+        )
+        await _send_chunks(target_type, scope_id, response, ch=reply_channel)
         return
 
     # mirror 模式（默认）：绑定 session → 派发 worker → 自动回复（现状兼容）。
     # selective 模式：消息已入 inbox + history，此处不 _ensure_session / 不
     # spawn / 不 _send_and_wait / 不自动回复，直接结束。
     if _qq_mode() != "selective":
-        await get_channel().send(target_type, scope_id, "processing, please wait...")
+        await reply_channel.send(target_type, scope_id, "processing, please wait...")
 
         response = await _send_and_wait(text, scope_id, scope=scope)
 
-        await _append_history(scope_id, "assistant", response)
-        await _send_chunks(target_type, scope_id, response)
+        await _append_history(
+            scope_id, "assistant", response, bot_uin=reply_channel.config.bot_uin
+        )
+        await _send_chunks(target_type, scope_id, response, ch=reply_channel)
 
 
 # ── lifecycle hooks ──
@@ -638,10 +654,26 @@ def get_channel() -> QQChannel:
     return _channel
 
 
+def get_channel_by_uin(bot_uin: str | int | None) -> QQChannel | None:
+    """按 bot QQ 号（消息来源 self_id）查通道；未注册 / 未配置返回 None。
+
+    多账号部署时业务层用它把回复路由到收到消息的那个 bot（谁收到谁回）。
+    """
+    return _qq_channels.get_channel_by_uin(bot_uin)
+
+
 # 绑定 NoneBot driver（注册 on_bot_connect / on_message）+ 注册业务消息回调
 _channel = get_channel()
 _channel.bind(driver)
 _channel.on_message(handle_qq_message)
+
+# 多账号部署：bot.py 启动时已把全部通道注册进 _ACTIVE_CHANNELS。这里把默认之外
+# 的通道也绑定到 driver 并注册业务回调（bind 幂等；通道 _on_message 内部按
+# config.bot_uin 过滤，各通道只处理自己 bot 的 event）。
+for _name_, _ch_ in _qq_channels.iter_channels().items():
+    if _ch_ is not _channel:
+        _ch_.bind(driver)
+        _ch_.on_message(handle_qq_message)
 
 
 @driver.on_startup
@@ -710,40 +742,68 @@ async def _on_bot_disconnect(bot: Bot) -> None:
     print(f"[QQ Bridge] bot disconnected: {bot.self_id}")
 
 
-def _history_path(target_id: str) -> Path:
+def _history_path(target_id: str, bot_uin: str | int | None = None) -> Path:
     """Sanitized history file path for a target_id (user_id / group_id).
 
+    多账号会话隔离（方案A 目录分层）：bot_uin 非空 → ``<dir>/<bot_uin>/<id>.json``；
+    为空（单通道旧数据）→ 旧路径 ``<dir>/<id>.json``。
     Only alphanumerics / ``-_`` survive, so a hostile target_id can't escape
     the history dir via ``..``.
     """
     safe = "".join(c for c in str(target_id) if c.isalnum() or c in "-_")
+    if bot_uin:
+        bot = "".join(c for c in str(bot_uin) if c.isalnum() or c in "-_")
+        return _HISTORY_DIR / bot / f"{safe}.json"
     return _HISTORY_DIR / f"{safe}.json"
 
 
-async def _load_history(target_id: str) -> list[dict]:
-    """Load a target's on-disk conversation log (list of {role,text,time})."""
+def _migrate_legacy_file(legacy: Path, new: Path) -> None:
+    """旧单通道数据迁移：bot 路径尚无文件而旧路径存在时整体搬过去（best-effort）。
+
+    保证升级到多账号隔离后旧会话记录不丢（延续对话上下文）。失败静默忽略。
+    """
     try:
-        data = json.loads(_history_path(target_id).read_text(encoding="utf-8"))
+        if not new.exists() and legacy.exists():
+            new.parent.mkdir(parents=True, exist_ok=True)
+            legacy.rename(new)
+    except OSError:
+        pass
+
+
+async def _load_history(target_id: str, bot_uin: str | int | None = None) -> list[dict]:
+    """Load a target's on-disk conversation log (list of {role,text,time[,bot_uin]})."""
+    try:
+        data = json.loads(_history_path(target_id, bot_uin).read_text(encoding="utf-8"))
         return data if isinstance(data, list) else []
     except (OSError, json.JSONDecodeError):
         return []
 
 
-async def _append_history(target_id: str, role: str, text: str) -> None:
-    """Append one message to a target's conversation log (role: user/assistant)."""
+async def _append_history(
+    target_id: str, role: str, text: str, bot_uin: str | int | None = None
+) -> None:
+    """Append one message to a target's conversation log (role: user/assistant).
+
+    bot_uin 非空时按 bot 隔离落盘（方案A：<dir>/<bot_uin>/<id>.json）并标注该
+    消息经哪个 bot（QQ 号）收发；为空时写旧路径（单通道兼容，不写字段）。
+    """
     if not text:
         return
     async with _history_lock:
-        messages = await _load_history(target_id)
-        messages.append({
+        _migrate_legacy_file(_history_path(target_id), _history_path(target_id, bot_uin))
+        messages = await _load_history(target_id, bot_uin)
+        entry = {
             "role": role,
             "text": text,
             "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        })
+        }
+        if bot_uin:
+            entry["bot_uin"] = str(bot_uin)
+        messages.append(entry)
         if len(messages) > _HISTORY_MAX_ENTRIES:
             messages = messages[-_HISTORY_MAX_ENTRIES:]
-        _HISTORY_DIR.mkdir(parents=True, exist_ok=True)
-        _history_path(target_id).write_text(
+        _history_path(target_id, bot_uin).parent.mkdir(parents=True, exist_ok=True)
+        _history_path(target_id, bot_uin).write_text(
             json.dumps(messages, ensure_ascii=False, indent=1),
             encoding="utf-8",
         )
@@ -761,26 +821,37 @@ _INBOX_MAX_ENTRIES = 500
 _inbox_lock = asyncio.Lock()
 
 
-def _inbox_path(target_id: str) -> Path:
-    """Sanitized inbox file path for a target_id — same rule as qq_history."""
+def _inbox_path(target_id: str, bot_uin: str | int | None = None) -> Path:
+    """Sanitized inbox file path — same rule as _history_path（方案A bot 目录分层）."""
     safe = "".join(c for c in str(target_id) if c.isalnum() or c in "-_")
+    if bot_uin:
+        bot = "".join(c for c in str(bot_uin) if c.isalnum() or c in "-_")
+        return _INBOX_DIR / bot / f"{safe}.json"
     return _INBOX_DIR / f"{safe}.json"
 
 
-async def _load_inbox(target_id: str) -> list[dict]:
-    """Load a target's pending inbox queue (list of {id,target_id,scope,role,text,time})."""
+async def _load_inbox(
+    target_id: str, bot_uin: str | int | None = None
+) -> list[dict]:
+    """Load a target's pending inbox queue (list of {id,target_id,scope,role,text,time[,bot_uin]})."""
     try:
-        data = json.loads(_inbox_path(target_id).read_text(encoding="utf-8"))
+        data = json.loads(_inbox_path(target_id, bot_uin).read_text(encoding="utf-8"))
         return data if isinstance(data, list) else []
     except (OSError, json.JSONDecodeError):
         return []
 
 
-async def _append_inbox(target_id: str, scope: str, text: str, nickname: str = "") -> None:
+async def _append_inbox(
+    target_id: str, scope: str, text: str, nickname: str = "",
+    bot_uin: str | int | None = None,
+) -> None:
     """Append one pending QQ message to a target's inbox (selective mode).
 
     Scope is "user" (private) or "group"; role is always "user" — inbox 只收
     上行 QQ 消息，编排者的回复经 api_send 走 history，不回流 inbox。
+
+    bot_uin 可选：多账号部署时标注该消息由哪个 bot 收到，编排者读 inbox 时
+    据此决定用哪个 bot 回复（谁收到谁回）；None 不写字段（旧记录兼容）。
 
     落盘后 best-effort 通知 Pan Core（/api/qq/notify）：若该 QQ 会话被某个
     Pan session 订阅（qq_subscriptions），订阅者会收到一条 `@@@@by qq` 提醒。
@@ -788,23 +859,27 @@ async def _append_inbox(target_id: str, scope: str, text: str, nickname: str = "
     if not text:
         return
     async with _inbox_lock:
-        messages = await _load_inbox(target_id)
-        messages.append({
+        _migrate_legacy_file(_inbox_path(target_id), _inbox_path(target_id, bot_uin))
+        messages = await _load_inbox(target_id, bot_uin)
+        entry = {
             "id": f"{int(time.time() * 1000)}-{len(messages)}",
             "target_id": target_id,
             "scope": scope,
             "role": "user",
             "text": text,
             "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        })
+        }
+        if bot_uin:
+            entry["bot_uin"] = str(bot_uin)
+        messages.append(entry)
         if len(messages) > _INBOX_MAX_ENTRIES:
             messages = messages[-_INBOX_MAX_ENTRIES:]
-        _INBOX_DIR.mkdir(parents=True, exist_ok=True)
-        _inbox_path(target_id).write_text(
+        _inbox_path(target_id, bot_uin).parent.mkdir(parents=True, exist_ok=True)
+        _inbox_path(target_id, bot_uin).write_text(
             json.dumps(messages, ensure_ascii=False, indent=1),
             encoding="utf-8",
         )
-    await _notify_pan_inbox(scope, target_id, nickname, text)
+    await _notify_pan_inbox(scope, target_id, nickname, text, bot_uin)
 
 
 def _pan_core_url() -> str:
@@ -816,61 +891,93 @@ def _pan_core_url() -> str:
     return f"http://127.0.0.1:{port}"
 
 
-async def _notify_pan_inbox(scope: str, target_id: str, nickname: str, text: str) -> None:
+async def _notify_pan_inbox(
+    scope: str, target_id: str, nickname: str, text: str,
+    bot_uin: str | int | None = None,
+) -> None:
     """Best-effort 通知 Pan Core：QQ inbox 有新消息。
 
-    供 qq_subscriptions 订阅者（绑定该 QQ 会话的 Pan session）消费。仅当
-    Pan Core 可达时推送；失败只打印警告，不影响 inbox 落盘（通知是异步增强，
-    inbox 文件才是真源）。
+    供 qq_subscriptions 订阅者（绑定该 QQ 会话的 Pan session）消费。bot_uin
+    可选（多账号来源标注）。仅当 Pan Core 可达时推送；失败只打印警告，
+    不影响 inbox 落盘（通知是异步增强，inbox 文件才是真源）。
     """
     try:
         url = f"{_pan_core_url()}/api/qq/notify"
         client = await _get_client()
-        await client.post(url, json={
+        payload = {
             "target_type": scope,
             "target_id": str(target_id),
             "nickname": nickname,
             "text": text,
             "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        })
+        }
+        if bot_uin:
+            payload["bot_uin"] = str(bot_uin)
+        await client.post(url, json=payload)
     except Exception as e:
         print(f"[QQ Bridge] notify Pan inbox failed: {type(e).__name__}: {e}")
 
 
-async def api_inbox(target_id: str, limit: int = 30, consume: bool = False) -> dict:
+def _resolve_read_bot_uin(bot_uin: str | int | None) -> str | None:
+    """读接口（history/inbox）的 bot 归属解析。
+
+    显式 bot_uin 优先；缺省用默认通道的 bot_uin（多账号部署下读默认 bot 的
+    会话）；都无（单通道 / 未配置）→ None 走旧的无 bot 路径，兼容旧数据。
+    """
+    if bot_uin:
+        return str(bot_uin)
+    ch = _qq_channels.get_active_channel()
+    if ch is not None and getattr(ch.config, "bot_uin", None):
+        return str(ch.config.bot_uin)
+    return None
+
+
+async def api_inbox(
+    target_id: str, limit: int = 30, consume: bool = False,
+    bot_uin: str | int | None = None,
+) -> dict:
     """Read a target's pending inbox messages, oldest first.
 
-    consume=True → 读取后即从队列删除（消费即删，落盘回写），避免编排者重复处理。
-    返回 {target_id, messages: [{id, text, time}]}。
+    bot_uin 定位 bot 隔离的 inbox 文件（方案A：<dir>/<bot_uin>/<target_id>.json）；
+    缺省用默认通道的 bot_uin，单通道旧数据走旧路径。consume=True → 读取后即从
+    队列删除（消费即删，落盘回写），避免编排者重复处理。
     """
     target_id = str(target_id)
+    bot = _resolve_read_bot_uin(bot_uin)
     if limit is None or limit <= 0:
         limit = _INBOX_MAX_ENTRIES
     async with _inbox_lock:
-        messages = await _load_inbox(target_id)
+        messages = await _load_inbox(target_id, bot)
         take = messages[:limit]
         if consume:
             messages = messages[limit:]
-            _INBOX_DIR.mkdir(parents=True, exist_ok=True)
-            _inbox_path(target_id).write_text(
+            _inbox_path(target_id, bot).parent.mkdir(parents=True, exist_ok=True)
+            _inbox_path(target_id, bot).write_text(
                 json.dumps(messages, ensure_ascii=False, indent=1),
                 encoding="utf-8",
             )
-    return {
-        "target_id": target_id,
-        "messages": [
-            {"id": m.get("id"), "text": m.get("text"), "time": m.get("time")}
-            for m in take
-        ],
-    }
+    out = []
+    for m in take:
+        item = {"id": m.get("id"), "text": m.get("text"), "time": m.get("time")}
+        # bot_uin：多账号来源标注；旧记录无此字段则不返回（向后兼容）
+        if m.get("bot_uin"):
+            item["bot_uin"] = str(m["bot_uin"])
+        out.append(item)
+    return {"target_id": target_id, "messages": out}
 
 
-async def api_inbox_clear(target_id: str) -> dict:
-    """Delete a target's inbox file (clear all pending messages)."""
+async def api_inbox_clear(
+    target_id: str, bot_uin: str | int | None = None
+) -> dict:
+    """Delete a target's inbox file (clear all pending messages).
+
+    bot_uin 语义同 api_inbox（缺省默认通道 bot；None 走旧路径）。
+    """
     target_id = str(target_id)
+    bot = _resolve_read_bot_uin(bot_uin)
     async with _inbox_lock:
         try:
-            p = _inbox_path(target_id)
+            p = _inbox_path(target_id, bot)
             if p.exists():
                 p.unlink()
             return {"ok": True, "target_id": target_id, "cleared": True}
@@ -880,27 +987,77 @@ async def api_inbox_clear(target_id: str) -> dict:
                 "message": f"{type(e).__name__}: {e}"}}
 
 
-async def api_send(target_type: str, target_id: str | int, text: str) -> dict:
-    """发送一条 QQ 消息（走当前通道抽象）。返回 {ok, message_id} 或错误。
+async def api_send(
+    target_type: str, target_id: str | int, text: str, bot_uin: str | int | None = None
+) -> dict:
+    """发送一条 QQ 消息（走通道抽象）。返回 {ok, message_id} 或错误。
 
-    调用链（HTTP POST /api/qq/send）：body {target_type, target_id, text} →
-    当前 QQChannel.send(...) → 网关（NapCat / LLOneBot）发送。text 支持 OneBot
-    CQ 码（如 "[CQ:face,id=1]"、图片 URL）。发送成功后以 assistant 角色落盘，
+    调用链（HTTP POST /api/qq/send）：body {target_type, target_id, text,
+    bot_uin?} → QQChannel.send(...) → 网关（NapCat / LLOneBot）发送。bot_uin
+    可选：指定用哪个 bot（QQ 号）发送，缺省用默认通道；多账号部署时与入站
+    消息的 bot_uin 对齐（谁收到谁回）。text 支持 OneBot CQ 码（如
+    "[CQ:face,id=1]"、图片 URL）。发送成功后以 assistant 角色落盘，
     供 qq_read_conversation 读回。校验（target_type / target_id / 空文本）与
     wire 发送都在通道内完成。
     """
-    result = await get_channel().send(target_type, target_id, text)
-    # 发送成功才落盘本次主动发送（assistant 角色），保持对话上下文完整
+    ch = get_channel()
+    if bot_uin:
+        ch = get_channel_by_uin(bot_uin)
+        if ch is None:
+            return {"ok": False, "error": {
+                "code": "unknown_bot_uin",
+                "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"}}
+    result = await ch.send(target_type, target_id, text)
+    # 发送成功才落盘本次主动发送（assistant 角色），保持对话上下文完整；
+    # bot_uin 标注本条由哪个 bot 发出（多账号；未配置时为 None 不写字段）
     if result.get("ok"):
-        await _append_history(str(target_id), "assistant", text)
+        await _append_history(
+            str(target_id), "assistant", text, bot_uin=ch.config.bot_uin
+        )
     return result
 
 
-async def api_history(target_id: str, limit: int = 30) -> dict:
-    """Read a target's on-disk conversation log, newest-last, capped at limit."""
+async def api_send_file(
+    target_type: str, target_id: str | int, file_path: str, name: str = "",
+    bot_uin: str | int | None = None,
+) -> dict:
+    """发送一个文件到 QQ 会话（走当前通道抽象）。返回 {ok} 或错误。
+
+    调用链（HTTP POST /api/qq/send_file）：body {target_type, target_id,
+    file_path, name, bot_uin?} → QQChannel.upload_file(...) → 网关
+    upload_private_file / upload_group_file。bot_uin 语义同 api_send（指定用
+    哪个 bot 发送，缺省默认通道）。file_path 为本地绝对路径（须网关侧可读）或
+    URL，name 缺省时由通道从路径推导。发送成功后以 assistant 角色落盘一条
+    "[文件: 名字]"，供 qq_read_conversation 读回，与 api_send 的落盘做法一致。
+    """
+    ch = get_channel()
+    if bot_uin:
+        ch = get_channel_by_uin(bot_uin)
+        if ch is None:
+            return {"ok": False, "error": {
+                "code": "unknown_bot_uin",
+                "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"}}
+    result = await ch.upload_file(target_type, target_id, file_path, name)
+    if result.get("ok"):
+        fname = (name or "").strip() or file_path
+        await _append_history(
+            str(target_id), "assistant", f"[文件: {fname}]", bot_uin=ch.config.bot_uin
+        )
+    return result
+
+
+async def api_history(
+    target_id: str, limit: int = 30, bot_uin: str | int | None = None
+) -> dict:
+    """Read a target's on-disk conversation log, newest-last, capped at limit.
+
+    bot_uin 定位 bot 隔离的 history 文件（方案A）；缺省用默认通道 bot_uin；
+    单通道旧数据走旧路径。
+    """
     if limit is None or limit <= 0:
         limit = _HISTORY_MAX_ENTRIES
-    messages = await _load_history(str(target_id))
+    bot = _resolve_read_bot_uin(bot_uin)
+    messages = await _load_history(str(target_id), bot)
     messages = messages[-min(limit, _HISTORY_MAX_ENTRIES):]
     return {"target_id": str(target_id), "messages": messages}
 
@@ -925,23 +1082,36 @@ def _register_qq_api(app) -> None:
             body.get("target_type", ""),
             body.get("target_id"),
             body.get("text", ""),
+            body.get("bot_uin"),
+        )
+
+    @app.post("/api/qq/send_file")
+    async def _route_qq_send_file(body: dict):
+        return await api_send_file(
+            body.get("target_type", ""),
+            body.get("target_id"),
+            body.get("file_path", ""),
+            body.get("name", ""),
+            body.get("bot_uin"),
         )
 
     @app.get("/api/qq/history")
-    async def _route_qq_history(target_id: str, limit: int = 30):
-        return await api_history(target_id, limit)
+    async def _route_qq_history(target_id: str, limit: int = 30, bot_uin: str = ""):
+        return await api_history(target_id, limit, bot_uin or None)
 
     @app.get("/api/qq/recent_contacts")
     async def _route_qq_recent_contacts():
         return await api_recent_contacts()
 
     @app.get("/api/qq/inbox")
-    async def _route_qq_inbox(target_id: str, limit: int = 30, consume: int = 0):
-        return await api_inbox(target_id, limit, bool(consume))
+    async def _route_qq_inbox(
+        target_id: str, limit: int = 30, consume: int = 0, bot_uin: str = ""
+    ):
+        return await api_inbox(target_id, limit, bool(consume), bot_uin or None)
 
     @app.delete("/api/qq/inbox")
-    async def _route_qq_inbox_clear(target_id: str):
-        return await api_inbox_clear(target_id)
+    async def _route_qq_inbox_clear(target_id: str, bot_uin: str = ""):
+        return await api_inbox_clear(target_id, bot_uin or None)
 
 
 # 仅在 fastapi driver 下挂载（nonebot2[fastapi] 默认 driver 即 fastapi）。

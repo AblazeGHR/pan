@@ -581,3 +581,61 @@ def test_enqueue_qq_reminder_delivers_to_subscribers(monkeypatch, tmp_path):
     assert item["qqTarget"] == "user:1234567890"
     assert item["nickname"] == "TestUser" and item["text"] == "你好"
     assert other.queue_pending == []
+
+
+def test_enqueue_qq_reminder_bot_scoped_subscription(monkeypatch, tmp_path):
+    """多账号订阅区分：bot_uin 非空时同时命中旧键（不区分 bot）与
+    <type>:<id>@<bot> 精确键；提醒项带 botUin 字段。"""
+    import types
+    from packages.core import session as sess
+    from packages.core import worker
+    monkeypatch.setattr(sess, "SESSION_DIR", tmp_path / "sessions")
+    legacy_sub = sess.create(name="legacy-sub", model="m")   # 旧键：任何 bot
+    bot_sub = sess.create(name="bot-sub", model="m")         # 精确键：仅 1470993983
+    outsider = sess.create(name="outsider", model="m")       # 订阅别的 bot
+    legacy_sub.qq_subscriptions.add("user:1234567890")
+    bot_sub.qq_subscriptions.add("user:1234567890@1470993983")
+    outsider.qq_subscriptions.add("user:1234567890@3494144273")
+    monkeypatch.setattr(worker, "_sess", types.SimpleNamespace(
+        list_all=lambda: [legacy_sub, bot_sub, outsider],
+        save_async=lambda s: asyncio.sleep(0),
+    ))
+    delivered = _run(worker.enqueue_qq_reminder(
+        "user", "1234567890", nickname="TestUser", text="hi", time_str="t",
+        bot_uin="1470993983"))
+    assert delivered == 2  # legacy_sub + bot_sub
+    assert len(legacy_sub.queue_pending) == 1
+    item = legacy_sub.queue_pending[0]
+    assert item["botUin"] == "1470993983"
+    assert item["qqTarget"] == "user:1234567890"
+    assert len(bot_sub.queue_pending) == 1
+    assert outsider.queue_pending == []
+    # bot_uin 为空（旧来源）→ 仅旧键命中
+    delivered2 = _run(worker.enqueue_qq_reminder(
+        "user", "1234567890", nickname="U", text="x", time_str="t"))
+    assert delivered2 == 1
+    assert legacy_sub.queue_pending[1].get("botUin") is None
+    assert len(bot_sub.queue_pending) == 1  # 精确键不被空 bot 命中
+    for s in (legacy_sub, bot_sub, outsider):
+        sess.delete(s.id)
+
+
+def test_format_report_batch_qq_header_with_bot():
+    """@@@@by qq 抬头带 bot 来源标识：botUin 非空 → `| bot <uin>`；空 → 旧格式。"""
+    from packages.core import worker
+    rendered = worker._format_report_batch([{
+        "type": "qq", "qqTarget": "user:1234567890", "targetType": "user",
+        "targetId": "1234567890", "nickname": "Alice", "botUin": "3494144273",
+        "text": "hello", "time": "2026-08-28 12:00:00",
+    }])
+    lines = rendered.split("\n")
+    assert lines[0] == "@@@@by qq : user:1234567890 | Alice | bot 3494144273"
+    assert "botUin: 3494144273" in lines
+    # 旧来源（无 botUin）保持旧抬头
+    rendered2 = worker._format_report_batch([{
+        "type": "qq", "qqTarget": "user:1234567890", "targetType": "user",
+        "targetId": "1234567890", "nickname": "Alice",
+        "text": "hello", "time": "t",
+    }])
+    assert rendered2.split("\n")[0] == "@@@@by qq : user:1234567890 | Alice"
+    assert "botUin" not in rendered2
