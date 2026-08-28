@@ -10,6 +10,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -478,7 +479,10 @@ def test_sessions_provider_e2e():
 
 def _reset_models_cache():
     CodexAdapter._cached_models = None
-    CodexAdapter._models_cached_at = 0.0
+    # 注意：不能用 0.0 模拟"很久以前"——TTL 判断用 time.monotonic()
+    # （开机起算），CI runner 全新机器开机 < TTL 时 0.0 会被误判为"新鲜"，
+    # 导致缓存不刷新（test_supported_models_ttl_cache 曾因此在 CI 偶发失败）。
+    CodexAdapter._models_cached_at = time.monotonic() - CodexAdapter._MODELS_TTL_SEC - 1.0
 
 
 def _fake_codex_home(tmp_path: Path, catalog_models: list[dict] | None = None) -> Path:
@@ -557,8 +561,8 @@ def test_supported_models_ttl_cache(monkeypatch, tmp_path):
             json.dumps({"models": [{"slug": "new/x"}]}), encoding="utf-8"
         )
         assert a.supported_models == ["cat/a"]
-        # 模拟 TTL 过期 → 自动重拉
-        CodexAdapter._models_cached_at = 0.0
+        # 模拟 TTL 过期 → 自动重拉（用单调时钟回退，不用 0.0——见 _reset_models_cache 注释）
+        CodexAdapter._models_cached_at = time.monotonic() - CodexAdapter._MODELS_TTL_SEC - 1.0
         assert a.supported_models == ["new/x"]
     finally:
         _reset_models_cache()
