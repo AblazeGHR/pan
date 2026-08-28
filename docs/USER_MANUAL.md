@@ -8,17 +8,17 @@
 
 1. [什么是 Pan](#1-什么是-pan)
 2. [安装与启动](#2-安装与启动)
-3. [快速上手](#3-快速上手)
-4. [核心操作详解](#4-核心操作详解)
-5. [编排实践（Meta-Agent 指南）](#5-编排实践meta-agent-指南)
-6. [MCP 工具层](#6-mcp-工具层)
-7. [HTTP/WS API](#7-httpws-api)
-8. [配置参考](#8-配置参考)
-9. [多 CLI 适配](#9-多-cli-适配)
-10. [前端使用](#10-前端使用)
-11. [通道：Web / QQ / Remote](#11-通道web--qq--remote)
-12. [故障排查](#12-故障排查)
-13. [安全与运维提示](#13-安全与运维提示)
+3. [快速上手（界面操作）](#3-快速上手界面操作)
+4. [UI 使用指南](#4-ui-使用指南)
+5. [配置方法](#5-配置方法)
+6. [最佳实践](#6-最佳实践)
+7. [核心操作详解](#7-核心操作详解)
+8. [编排实践：Meta-Agent 指南](#8-编排实践meta-agent-指南)
+9. [通道：Web / QQ / Remote](#9-通道web--qq--remote)
+10. [故障排查](#10-故障排查)
+11. [安全与运维提示](#11-安全与运维提示)
+12. [开发者与 API 参考](#12-开发者与-api-参考)
+13. [关联文档](#13-关联文档)
 
 ---
 
@@ -32,7 +32,7 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 
 | 层级 | 用法 | 涉及组件 |
 |------|------|----------|
-| 最小 | 一个入口管理多个 CLI 会话：建 Session、派任务、看结果 | Web Dashboard / HTTP API |
+| 最小 | 一个入口管理多个 CLI 会话：建会话、派任务、看结果 | **Web Dashboard（推荐）** / HTTP API |
 | 进阶 | 一个 Meta-Agent 编排多个 Worker 并行（fan-out） | MCP 工具 + report_subscribe |
 | 完整 | 外部 Agent 集群协作 + 多渠道指挥（Web/QQ/公网）+ 记忆/人设 | 全部模块 |
 
@@ -57,8 +57,10 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 ### 2.1 前置要求
 
 - Python 3.14（开发环境为 3.14.5）
-- Node.js + npm（编译 legacy 前端）；React 前端需 pnpm
+- Node.js + pnpm（构建 React 前端）
 - 至少一个受支持的 CLI：`cbc`（CodeBuddy CLI）、`kimi`、`opencode`、`claude`、`codex`
+
+> 前端说明：**React Dashboard 是当前唯一维护并推荐的前端**。旧版 Vanilla 前端已弃用（deprecated），仅在 `/vanilla` 路由作后备访问（见 §12.3），不建议新用户使用。
 
 ### 2.2 安装步骤
 
@@ -69,18 +71,15 @@ pip install -r minimal-requirements.txt
 # 2. 生成配置（所有字段可选，省略用默认值）
 cp config.example.json config.json        # Windows: copy config.example.json config.json
 
-# 3. 编译 legacy 前端（TS 源码 → static/js/app.js，必须在项目根执行）
-npx tsc
-
-# 4.（可选）构建 React 前端
+# 3. 构建 React 前端（推荐；产物 → packages/web/dist/）
 cd packages/web && pnpm install && pnpm build && cd ../..
 
-# 5. 启动
+# 4. 启动
 python main.py
 # → http://127.0.0.1:8768
 ```
 
-`scripts/` 下另有免手动步骤的脚本：`setup.bat` / `setup.sh`（安装依赖、生成 config.json、探测 QQ 解释器等）、`start_pan.bat` / `start.sh`（启动）、`stop_pan.bat` / `stop.sh`（停止；Windows 版按 PID 文件做精确进程树杀，不误伤其他 python 进程）。`git config core.hooksPath scripts` 后 `scripts/pre-commit` 会同时校验前端双源。
+`scripts/` 下另有免手动步骤的脚本：`setup.bat` / `setup.sh`（安装依赖、生成 config.json、探测 QQ 解释器等）、`start_pan.bat` / `start.sh`（启动）、`stop_pan.bat` / `stop.sh`（停止；Windows 版按 PID 文件做精确进程树杀，不误伤其他 python 进程）。
 
 ### 2.3 端口与环境变量
 
@@ -109,113 +108,337 @@ Ctrl+C 优雅退出（QQ bot 子进程随之终止）；或用 `scripts/stop_pan
 
 ---
 
-## 3. 快速上手
+## 3. 快速上手（界面操作）
 
-以 HTTP API 为例走通主链路（等价的 MCP 工具链路见 §6）。
+这一章带你用**浏览器界面**走完第一个任务：从启动服务到看到 AI 输出结果，全程不需要命令行。
 
-```bash
-BASE=http://127.0.0.1:8768
-
-# 1. 创建 Session（只建会话，不启动 Worker）
-curl -X POST $BASE/api/sessions -H "Content-Type: application/json" \
-  -d '{"name":"fix-h1","adapter":"cbc","model":"hy3"}'
-# → 完整 session 对象，记下返回的 "id"（ses_...）与 "workdir"
-
-# 2. 异步派发任务（无活 Worker 时自动 spawn，立即返回）
-curl -X POST $BASE/api/assign -H "Content-Type: application/json" \
-  -d '{"sessionId":"ses_xxxx","text":"修复 utils.py 中的空指针，跑通测试"}'
-# → {"status":"queued","workerId":"worker-1","sessionId":"ses_xxxx"}
-
-# 3. 查看结果（轮询 lastResult.status：queued → running → done/error）
-curl $BASE/api/sessions/ses_xxxx
-
-# 4. 收尾：删除 Session（同时 kill Worker；注意不删 workdir 磁盘目录）
-curl -X DELETE $BASE/api/sessions/ses_xxxx
-```
-
-> **Windows curl 注意**：内联中文 body 会因终端编码（GBK）报 `{"detail":"There was an error parsing the body"}`。中文任务一律 `--data-binary @body.json`（UTF-8 保存）或用 python requests。
-
-订阅制报告（推荐给编排者）：让 Meta-Agent 订阅目标 Session，完成后报告自动投进它的落盘收件箱 `queue_pending`，无需轮询——
+### 3.1 启动服务并打开界面
 
 ```bash
-curl -X POST $BASE/api/report-subscribe -H "Content-Type: application/json" \
-  -d '{"managerId":"ses_manager","sessionId":"ses_xxxx"}'
+python main.py
 ```
+
+浏览器打开 <http://127.0.0.1:8768>（默认端口；改端口见 §5.2）。你会看到 Pan 的 **React Dashboard**：左侧是会话列表（Sidebar），右侧是聊天主区。
+
+### 3.2 新建一个会话
+
+1. 在左侧栏顶部点击 **New** 快速创建一个默认命名的新会话；或点击旁边的 ⚙ 齿轮，打开**新建会话配置弹窗**，设置：
+   - **Adapter（CLI）**：选择用哪个 CLI Agent 干活（cbc / kimi / opencode 等，见 §7.9）；
+   - **会话名称**：起一个能代表任务的名字（例如 `fix-login-bug`）；
+   - **工作目录（workdir）**：AI 干活时能读写哪些文件（默认 `data/workdirs/<会话名>`）；
+   - **会话模板**：可选，例如 SMA 模板会预置 Meta-Agent 编排能力（见 §8）。
+2. 创建后，会话出现在左侧列表中，卡片上带状态点、adapter 徽标、模型、消息数等。
+
+> 模型、权限模式、思考档位等更多设置不必在新建时决定——随时可以在会话设置里改（见 §4.6）。
+
+### 3.3 启动 Worker 并发送任务
+
+1. 选中刚创建的会话，点击顶栏的 **Start** 启动 Worker（拉起对应的 CLI Agent 进程）。
+2. 在底部输入框输入任务，例如：`修复 src/utils.py 里的空指针问题，并跑通单元测试。`
+3. 按 **Enter** 发送（Shift+Enter 换行）。Worker 忙碌时，消息会自动进入**发送队列**，空闲后按序处理。
+
+### 3.4 观察实时输出
+
+- 顶栏状态点随 Worker 状态变色：**绿色 = 空闲，蓝色 = 运行中，黄色 = 已被你接管，红色 = 出错**；
+- 聊天流逐条显示 Worker 的回复；AI 调用的工具（tool）折叠成一行，点击可在右侧 **DetailPanel** 看原始输出；思考过程可内联展开；
+- 顶栏可在 **Bubble**（气泡）与 **TUI**（终端风格）两种视图间切换。
+
+### 3.5 查看结果与后续
+
+- 任务完成，状态点回到绿色（idle），回复停在聊天流里；
+- 随时可继续在输入框追问（多轮对话）；
+- 让 AI 改完文件后，切到 **Editor** 视图浏览/编辑会话工作目录里的文件（见 §4.4）；
+- 想清理，右键会话 → Delete（见 §4.5）。
+
+> 完整功能地图见第 4 章「UI 使用指南」；「什么时候该怎么做」的建议见第 6 章「最佳实践」。
 
 ---
 
-## 4. 核心操作详解
+## 4. UI 使用指南
 
-### 4.1 派活三式：assign / send / send_force
+本章以 React Dashboard（`packages/web/src/`）的实际界面为基准，介绍每个区域的用途与操作方式。
 
-| 操作 | HTTP | MCP | 语义 | 适用 |
-|------|------|-----|------|------|
-| assign | `POST /api/assign` | `agent_assign(session_id, text, task_id?)` | **异步派新任务**：立即返回 queued，无活 Worker 自动 spawn；`taskId` 幂等（同 id 重发不双跑：已完成回缓存结果、进行中回 `pending`） | 新任务 / 并行 fan-out（**默认首选**） |
-| send | `POST /api/send` | `agent_send(session_id, text)` | 向已有 Agent 发消息：**排队不打断**，目标空闲才处理；无活 Worker 不报错，入持久队列（返回 `pendingSpawn: true`），全局 watchdog 自动 spawn 后分发 | 多轮追问 / 补充线索 |
-| send_force | `POST /api/send` + `"force":true` | `agent_send_force(session_id, text)` | **强制推送 = restart + send**：打断进行中任务立即送达；无活 Worker 时退化为入队 | 方向变更 / 紧急指令 / Worker 卡死兜底 |
+### 4.1 整体布局
 
-Pan 内 Session 互发消息自动加身份前缀 `////by agent : ses_xxx | 标题`，目标 Worker 据此区分编排消息与真实用户消息（`agent_assign` 不加前缀）。
+打开首页后，界面分两大块：
 
-### 4.2 生命周期操作
+- **左侧 Sidebar**：会话列表，顶部是导航与新建入口；
+- **主区**：三个视图，由侧栏或快捷键切换：
 
-| 操作 | HTTP | MCP | 说明 |
-|------|------|-----|------|
-| spawn | `POST /api/spawn` | `agent_spawn` | 启动 Worker；已有 Worker 先 kill（一个 Agent 同时只有一个 Worker） |
-| kill | `POST /api/kill/{worker_id}` | `agent_kill` | 杀 Worker 进程树，Session 数据保留；无活 Worker 时无害 no-op |
-| restart | `POST /api/worker/{worker_id}/restart` | —（send_force 内部走此端点） | 杀进程后带 resume 重建 |
-| interrupt | `POST /api/worker/{worker_id}/interrupt` | — | 中断当前任务（仅 running 时） |
+| 视图 | 路由 | 用途 |
+|------|------|------|
+| 聊天（Chat） | `/` | 与单个会话对话：发任务、看输出、调设置 |
+| 编辑（Editor） | `/editor` | 浏览/编辑会话工作目录里的文件 |
+| 管理（Manage） | `/manage/:id` | 会话管理面板：认领/被认领、MCP 权限等 |
 
-### 4.3 归属关系：claim / unclaim
+快捷键：**Ctrl+B** 折叠/展开侧栏（折叠后变窄图标栏）；**Ctrl+1 / Ctrl+2** 在聊天/编辑视图间切换；**Ctrl/Cmd+K** 呼出命令面板（§4.7）。
 
-- `POST /api/claim`（MCP `session_claim`）：建立 manager ↔ session 双向 managed 关系，**claim 自动 report_subscribe**；目标已被他人管理则拒绝；幂等。批量版 `session_claim_many` / `session_unclaim_many` 逐项隔离、部分成功。
-- `POST /api/unclaim`（MCP `session_unclaim`）：解除 managed 关系并自动退订报告；仅当前 manager 可解除。
-- 每个 Session 只属于一个主管（星形拓扑）；`GET /api/sessions/{id}/managers`（MCP `manager_chain`）可查上级管理链。
+### 4.2 会话列表与新建
 
-### 4.4 branch（fork 分支）
+- **New** 按钮：快速创建默认命名的新会话；
+- **⚙ 新建配置弹窗**（NewSessionModal）：新建时可设置 Adapter、会话名、工作目录、会话模板；Output Mode 仅对支持多模式的 adapter（如 cbc）出现；
+- 会话卡片（SessionItem）显示：状态点、adapter 徽标、消息数、模型、工作目录、credit 等；
+- 列表支持搜索过滤、排序，并按目录或 manager 分组（侧栏上方的控件）；
+- 每个会话右上角/选中后可看到**顶栏**（TopBar）：Start（启动 Worker）、Restart、Interrupt（中断当前任务）、Takeover（本地接管终端）、Kill，以及状态点与 worker ID。
 
-`POST /api/sessions/{id}/branch`，body `{"name": "fork-name"}`。从现有 Session 分支：纯文件操作 fork adapter 原生 transcript（cbc 复制 JSONL / kimi 复制目录 / opencode 复制 SQLite 行），新 Session 继承设置 + MCP 绑定，与原会话互不影响。**无 MCP 工具，需 HTTP 直调**。运行中 Worker 也可 `POST /api/worker/{worker_id}/branch`（CLI `--fork-session` 方式）。
+### 4.3 聊天视图
 
-### 4.5 takeover（人类接管）
+- **发消息**：底部输入框（InputRow），Enter 发送、Shift+Enter 换行；输入框左侧齿轮打开会话设置（§4.6）。
+- **发送队列**（SendQueuePanel）：Worker 忙碌时消息自动入队；队列面板里可编辑、排序、删除、合并发送，或一键清空；Agent 队列单独分组。
+- **消息流**（ChatMessages）：显示历史与实时回复；tool 调用折叠为可点击行，点击后右侧 **DetailPanel** 显示原始输出；thinking 块可内联展开。
+- **视图切换**：Bubble / TUI 两种展示风格。
 
-`POST /api/worker/{worker_id}/takeover`：restart Worker 后在新终端窗口打开 adapter 原生交互式 CLI（`--resume`），Worker 状态置 `held`。held 期间任务投递被拒、watchdog 跳过。`GET /api/worker/{worker_id}/takeover-command` 只返回命令不执行（移动端复制用）。恢复：restart 清 held。
+### 4.4 编辑视图
 
-### 4.6 handoff（替身交接）
+- 左侧**文件树**（FileTree）：浏览会话工作目录，可重命名/删除文件；
+- 主区**多标签编辑器**（EditorPane）：同时打开多个文件；Markdown 文件支持 **Edit / Preview / Split** 三种模式（编辑/预览/分屏）。
 
-`POST /api/sessions/{id}/handoff`（MCP `session_handoff`）。场景：上下文过大需精简，或中途切换 adapter（普通 Session 不能直接换 adapter）。行为：
+### 4.5 会话管理操作
 
-1. 创建孪生 Session B 接替 A：接管 A 的全部关系网（managed、report_subscriptions、QQ 绑定）；
-2. B 自动 manage A，A 重命名为 `(archive) <原名>` 归档可读；
-3. `copySettings=true`（默认）1:1 复制设置（不含 system_prompt，`cli_session_id` 清空——精简上下文的关键）；`false` 时必须显式传 `adapter`；
-4. B 的 system_prompt = `handoffPrompt`（必填，由 A 的 agent 编写交接简报）与 A 原 system_prompt 拼接。
+在会话上右键（或选中后的菜单，SessionMenu）：
 
-### 4.7 批量删除与清理
+| 操作 | 说明 |
+|------|------|
+| Rename | 重命名（同步回写 CLI 原生存储） |
+| Reimport | 重新导入底层 CLI 会话 |
+| Branch | 分支：从当前会话 fork 一个独立副本（继承设置，互不影响；仅 CLI 会话可用） |
+| Manage | 打开管理面板（ManageModal） |
+| Postbox | 打开收件箱订阅（PostboxModal） |
+| Select | 进入多选模式，批量删除 |
+| Delete | 删除会话（同时 kill Worker；不删 workdir 磁盘目录） |
 
-- `POST /api/sessions/batch-delete`，body `{"sessionIds": [...]}`（MCP `session_batch_delete`）：批量删除并清理跨 Session 引用。
-- `session_delete` / batch 都**不删 workdir 磁盘目录**，需自行清理。
-- 复用已删除的 Session：底层 CLI 会话（`~/.codebuddy/projects/` 等）仍保留，可用导入端点（§7.4）按 `cli_session_id` 重新导入，恢复全部历史上下文。
+- **管理面板**（ManageModal）三节：① 被谁管理（可解绑）；② 管理谁（claim/unclaim + 订阅完成报告）；③ MCP 权限与 MCP 服务器选择。
+- **导入会话**（ImportModal）：从 cbc / kimi / opencode 等浏览并导入既有 CLI 历史会话，复用历史上下文。
+- **收件箱订阅**（PostboxModal）：把某个 QQ 会话订阅到当前会话的收件箱，QQ 新消息会以提醒形式推入 `queue_pending`（配合 QQ 通道使用，见 §9.2）。
 
-### 4.8 QQ 订阅
+### 4.6 设置
 
-`POST /api/qq/subscribe`，body `{"sessionId","target_type":"user"|"group","target_id"}`（MCP `session_qq_subscribe`）。订阅后该 QQ 会话新消息进 inbox 时，向 Session 的 `queue_pending` 推 `@@@@by qq` 提醒并唤醒 Worker。退订 `POST /api/qq/unsubscribe`。
+- **会话设置**（SettingsPopover，输入框左侧齿轮）：模型、权限模式、Thinking/Effort 思考档位、Output Mode，以及对 Worker 的操作。
+- **全局设置**（AppSettingsModal，侧栏齿轮）：会话列表默认分组、消息可见性（meta-agent / task-agent / QQ 消息开关）、主题切换，以及**配置热重载**（适配器 / worker / plugin / memory 配置无需重启即可生效）。
 
-### 4.9 任务文本怎么写（派发判定）
+### 4.7 命令面板
 
-派活前先 `session_get` 查 **`cliSessionId`**：
-
-| `cliSessionId` | 含义 | 任务文本写法 |
-|----------------|------|--------------|
-| 非空 | Worker 会 `--resume` 恢复完整上下文 | **简短指令**：追加任务/恢复中断/串行下一步即可，不要重发完整任务描述 |
-| 空/null | 全新会话，Worker 无上下文 | **自包含描述**：背景/目标/涉及文件（相对 workdir）/边界/验收标准 |
+**Ctrl/Cmd+K** 呼出 CommandPalette：输入关键字即可快速执行——切换视图、新建会话、跳转会话、切换主题、折叠侧栏等。
 
 ---
 
-## 5. 编排实践（Meta-Agent 指南）
+## 5. 配置方法
 
-### 5.1 决策三问
+配置文件是仓库根目录的 `config.json`（**gitignored**），模板见 `config.example.json`。所有字段可选，省略时使用默认值。下面按「你想达到什么效果」组织常用配置；完整字段速查见 §5.7。
+
+### 5.1 从模板生成配置
+
+```bash
+cp config.example.json config.json    # Windows: copy config.example.json config.json
+```
+
+编辑 `config.json` 后重启 `python main.py` 生效；适配器 / worker / plugin / memory 部分配置支持热重载（UI 全局设置里有按钮，或 `POST /api/config/reload`）。
+
+### 5.2 改端口
+
+```json
+{ "port": 8768 }
+```
+
+默认 main 分支 8768、test 分支 8767。也可用环境变量 `PAN_PORT` 覆盖（优先级更高）。改完访问地址跟着变。
+
+### 5.3 默认模型与可用模型
+
+```json
+{
+  "cbc":  { "model": "deepseek-v4-flash", "models": [] },
+  "kimi": { "model": "moonshot-cn/kimi-k2.6", "models": [] }
+}
+```
+
+- `model`：该 adapter 创建会话时的**默认模型**；
+- `models`：**不填（`[]`）= 自动识别**该 CLI 的全部可用模型；**填写 = 限制** UI 里可选模型（例如只想用某个模型的团队可以锁死）。
+
+### 5.4 权限模式（重要，涉及安全）
+
+```json
+{ "cbc": { "permission_mode": "bypassPermissions" } }
+```
+
+可选：`""`（默认）` / default / acceptEdits / bypassPermissions / plan / dontAsk / auto`。
+
+- `bypassPermissions`（默认）：CLI Agent 执行命令/改文件**无需逐条审批**——自动化编排的设计使然，请在可信环境使用；
+- 更保守的 `default` / `acceptEdits`：AI 修改文件前会要求确认，更安全但更打断。
+
+> 无鉴权 + 默认绑 127.0.0.1 是既定设计（§11）。权限模式管的是「AI 干活时的动作」，不是「谁能访问服务」。
+
+### 5.5 前端模式
+
+```json
+{ "frontend": "coexist" }
+```
+
+| 值 | 效果 |
+|----|------|
+| `coexist`（默认） | `/` 307 跳转 `/react/`（React Dashboard）；旧前端在 `/vanilla` |
+| `react` | 仅 React 接管 `/`（无旧前端入口） |
+| `legacy` | 仅旧前端（**已弃用**，不建议） |
+
+### 5.6 Worker 超时（卡死回收）
+
+```json
+{
+  "worker": {
+    "timeout_sec": 300,
+    "idle_sec": 300
+  }
+}
+```
+
+- `timeout_sec`：**静默超时**——任务运行中持续无输出超过该秒数视为卡死，自动 kill（默认 300）。长思考/大文件读取不会被误杀（有输出就续命）；
+- `task_timeout_sec`：**stream 任务运行时长上限**（默认 1800）——单次任务整体运行超过该秒数会被回收，用于兜底「有输出但死循环」的情况；
+- `idle_sec`：**空闲回收**——任务完成后进程闲置超过该秒数被回收，释放资源（默认 300；已被你接管或出错的跳过）。
+
+### 5.7 字段速查表
+
+| 字段 | 默认 | 说明 |
+|------|------|------|
+| `port` | `8768` | 主服务端口 |
+| `frontend` | `"coexist"` | 前端模式：`coexist` / `react` / `legacy` |
+| `cbc.model` | `"deepseek-v4-flash"` | cbc 默认模型 |
+| `cbc.permission_mode` | `"bypassPermissions"` | 权限模式（见 §5.4） |
+| `cbc.always_thinking_enabled` | `false` | 思考开关；false 时 `effort` 不生效 |
+| `cbc.effort` | `""` | 思考档位（`none/off/auto/low/medium/high/xhigh/max/ultracode`） |
+| `cbc.models` | `[]` | 不填自动识别；填写 = 限制可用模型 |
+| `kimi.model` | `"moonshot-cn/kimi-k2.6"` | kimi 默认模型 |
+| `cbc_import.*` | 见模板 | 外部会话导入过滤（消息数/时间窗/目录匹配等） |
+| `worker.timeout_sec` | `300` | 静默超时（无输出即 kill） |
+| `worker.task_timeout_sec` | `1800` | stream 任务运行时长上限 |
+| `worker.idle_sec` | `300` | 空闲回收（`held`/`zombie` 跳过） |
+| `memory.enabled` | `true` | 记忆注入开关 |
+| `qq.enabled` | `true` | 是否启动 QQ bot |
+| `qq.mode` | `"mirror"` | `mirror` 自动回复 / `selective` 只进收件箱由编排者处理 |
+| `qq.channel` | `"napcat"` | `napcat` / `llonebot` 网关 |
+| `qq.python` | `""` | QQ bot 独立解释器路径 |
+| `remote.*` | 见模板 | Cloudflare Tunnel：`enabled`/`quick_tunnel`/`config_path`/`status_port` 等 |
+| `logging.*` | INFO / `data/logs/pan.log` | 日志级别、文件、轮转 |
+| `plugin_manifests` | `["manifest.json"]` | 外部 Character profiles / 模板 / MCP server 清单 |
+
+---
+
+## 6. 最佳实践
+
+### 6.1 怎么组织会话
+
+- **一个任务一个会话**：按任务（或项目子任务）建会话，用能代表目标的名字（如 `fix-login-bug`、`docs-refactor`）。Pan 的会话是持久身份的（有记忆），但记忆服务于「这个任务」比服务于「这台机器」更清晰；
+- **同项目的多个并行任务**：让它们的 `workdir` 指向同一项目目录，或各自独立的 git worktree（§8.4），避免提交冲突；
+- **任务做完了就删**：会话和 Worker 进程及时清理（§4.5），Pan 只帮你管进程，磁盘上的 workdir 需手动清理（删除会话不删 workdir）。
+
+### 6.2 什么时候该派 Worker、派哪种
+
+| 场景 | 建议 |
+|------|------|
+| 新任务 / 一次性交付 | **assign**（异步派发，推荐默认）：发出即返回，完成后收报告 |
+| 对同一个会话继续追问 / 补充线索 | **send**（排队不打断）：目标空闲才处理，适合多轮对话 |
+| 方向变了 / 紧急打断 / 卡死了 | **send_force**（强制推送）：重启 Worker 立即送达 |
+| 任务不大、想立刻看到过程 | 直接在聊天视图发消息，边看输出边跟进 |
+
+> 界面上，直接发送消息等价于 send；assign 适合「派完就忙别的，回头收结果」的用法。多个独立子任务想并行 → 建多个会话，或交给 Meta-Agent 编排（第 8 章）。
+
+### 6.3 任务描述怎么写
+
+- **新会话（没有上下文）**：任务要**自包含**——背景、目标、涉及文件（相对 workdir）、边界、验收标准一次写清；
+- **已有上下文（恢复/继续）**：给**简短指令**即可（追加任务、恢复中断、串行下一步），不要重发完整任务描述——重发反而稀释上下文；
+- 判断依据：会话是否有历史上下文（UI 里看聊天记录是否已有内容）。
+
+### 6.4 怎么验收结果
+
+- 不要全信报告，**trust-but-verify**：让 AI 改动代码后，要求它跑测试/给出验证步骤；你在 Editor 视图检查改动；
+- 看结果状态：顶栏状态点回绿（idle）＝任务完成；任务出错会标红，可看错误信息后让 AI 修复或自己接管；
+- 重要改动建议先 Branch 一个副本试跑，确认无误再合入主工作区。
+
+### 6.5 什么时候人工接管
+
+- AI 反复绕圈、卡在同一问题上：用 **Takeover** 把 Worker 终端抢回自己手里，手动处理完再重启交给 AI；
+- AI 权限不足或想用交互式界面：takeover 后进入 adapter 原生 CLI（`--resume` 恢复上下文）。
+
+### 6.6 用模板与人设加速
+
+- **SMA 模板**：需要「一个主管拆解并指挥多个 Worker 并行干活」时，用 SMA 模板创建会话，自带编排工具（§8）；
+- **Character（人设）**：长期共事的会话挂上人设 + 记忆库，AI 会记住项目背景与你的偏好，不用每次重新交代（§1.2）。
+
+### 6.7 多任务编排建议
+
+- 想并行推进 N 个独立子任务：让主管**决策三问**（能真并行吗？拆了更快吗？精度关键吗？）通过后再 fan-out，不要无脑拆；
+- 派出去的活用**订阅制报告**回收：订阅即接管，完成后报告自动投递，不用逐个去问（§8.2）。
+
+---
+
+## 7. 核心操作详解
+
+本章解释各操作的含义与适用场景（操作入口：UI 见第 4 章，HTTP/MCP 见第 12 章开发者参考）。
+
+### 7.1 派活三式
+
+| 操作 | 语义 | 适用 |
+|------|------|------|
+| assign | **异步派新任务**：立即返回 queued，无活 Worker 自动 spawn；`taskId` 幂等（同 id 重发不双跑） | 新任务 / 并行 fan-out（默认首选） |
+| send | 向已有 Agent 发消息：**排队不打断**，目标空闲才处理；无活 Worker 入持久队列 | 多轮追问 / 补充线索 |
+| send_force | **强制推送 = restart + send**：打断进行中任务立即送达 | 方向变更 / 紧急指令 / Worker 卡死兜底 |
+
+### 7.2 生命周期
+
+- **spawn**：启动 Worker（一个 Agent 同时只有一个 Worker，已有则先 kill）；
+- **kill**：杀 Worker 进程，Session 数据保留（进程是顺带的，随时可重建）；
+- **restart**：杀进程后带 resume 重建；
+- **interrupt**：中断当前任务（仅运行中）。
+
+### 7.3 归属关系：claim / unclaim
+
+- **claim**：建立「主管 ↔ 会话」双向管理关系，**claim 自动订阅报告**；目标已被他人管理则拒绝；
+- **unclaim**：解除管理并自动退订报告；
+- 每个 Session 只属于一个主管（星形拓扑）；可查上级管理链。
+
+### 7.4 branch（分支）
+
+从现有会话 fork 出独立副本：继承设置与 MCP 绑定，与原会话互不影响。适合「试另一条路」——试错了删掉分支即可，不影响主线。
+
+### 7.5 takeover（人工接管）
+
+restart Worker 后在**新终端窗口**打开 adapter 原生交互式 CLI（`--resume` 恢复上下文），Worker 状态置 `held`。held 期间任务投递被拒、watchdog 跳过。恢复：restart 清 held。
+
+### 7.6 handoff（替身交接）
+
+场景：上下文过大需精简，或中途想换 adapter（普通会话不能直接换）。创建孪生会话 B 接替 A：B 接管 A 的全部关系网（managed、订阅、QQ 绑定），A 归档为 `(archive) <原名>`；只带精简摘要，**避免长会话上下文膨胀**。
+
+### 7.7 批量删除
+
+多选批量删除并清理跨会话引用。注意：删除不删 workdir 磁盘目录；底层 CLI 会话仍在，可随时重新导入复用。
+
+### 7.8 QQ 订阅
+
+把某 QQ 会话（好友/群）订阅到 Pan 会话：QQ 新消息进收件箱时以 `@@@@by qq` 提醒推入 `queue_pending` 并唤醒 Worker（配合 §9.2 使用）。
+
+### 7.9 多 CLI（Adapter）
+
+每种 CLI Agent 一个 adapter：`cbc` / `kimi` / `opencode` / `claude` / `codex`。新建会话时选哪个就用哪个干活；同一个任务想换 CLI 用 §7.6 handoff（普通会话不能中途换 adapter）。适配细节（执行模式、MCP 注入方式）见 §12.3。
+
+---
+
+## 8. 编排实践：Meta-Agent 指南
+
+本章面向「用 Pan 当调度台，让一个主管指挥多个 Worker 并行干活」的使用者。
+
+### 8.0 先给 Agent CLI 装上 pan skill（强烈建议）
+
+**pan skill**（`SKILL.md`）是给「想当 Meta-Agent 主管」的 agent 准备的**冷启动手册**：它把 Pan 的编排链路（`session_create → report_subscribe → agent_assign → queue_pending`）、MCP 工具约定与踩坑一次性教给 agent。配上之后，agent 开工即自动掌握这些知识，**不需要你在提示词里从头教**；再配合 MCP 工具注入，agent 就能直接上手调度 Worker。
+
+配置方式：
+
+- **主源**：`docs/skills/pan/SKILL.md`（git 跟踪，随仓库更新，改动以它为准）；
+- **CodeBuddy（cbc，主力 adapter）**：本仓库已内置项目级副本 `.codebuddy/skills/pan/SKILL.md`，用 CodeBuddy 在本仓库 workdir 里干活时**自动加载，无需额外操作**；在其它项目里用，把整个 `pan/` 目录复制到目标项目的 `.codebuddy/skills/` 下即可；
+- **其它支持 Agent Skills 的 CLI**（如 Claude Code 的 `.claude/skills/`、Codex 的 `~/.codex/skills/` 等）：把 `pan/SKILL.md` 按该 CLI 的 skill 目录约定放好。frontmatter 的 `name` / `description` 是 skill 的元信息（description 影响触发时机，建议保留原名）。
+
+### 8.1 决策三问
 
 派发前自问：① 能真并行吗？② 拆了更快吗？③ 精度关键吗？任一不过 → 自己做；全过 → 并行派发。
 
-### 5.2 并行 fan-out 主链路
+### 8.2 并行 fan-out 主链路
 
 ```
 session_create → report_subscribe（订阅）→ agent_assign × N → queue_pending 收报告 → session_get 汇总 → session_delete 收尾
@@ -227,27 +450,88 @@ session_create → report_subscribe（订阅）→ agent_assign × N → queue_p
 - 传 `task_id`（uuid 样幂等键）保证重试不双跑；
 - zombie 通知：被管 Session 的 Worker 在任务进行中异常死亡时，收 `{"status":"error","type":"zombie",...}` 报告（正常完成后的 idle 回收不报）。
 
-### 5.3 trust-but-verify 验收
+### 8.3 trust-but-verify 验收
 
 合并汇报前逐项核对改动、跑测试验证。读结果：`session_get(session_id)` 的 `lastResult.status`（`queued`/`running`/`done`/`error`/`pending`）与 `result` 字段。
 
-### 5.4 worktree 并行
+### 8.4 worktree 并行
 
 多个 Worker 共改一个项目时，让所有 Session 的 `workdir` 用**绝对路径**指向同一项目目录（或各自独立 git worktree），避免提交冲突。`workdir` 默认 `data/workdirs/<name>`（相对基准 = 实际运行的那个 Pan 服务实例的数据根，以 `session_create` 返回的 `workdir` 字段为准）。
 
-### 5.5 串行依赖
+### 8.5 串行依赖
 
 阻塞式 handoff 已移除（2026-08-26）。串行 = 派发后订阅报告，报告入 `queue_pending` 即「下一步」的信号——「等」是 meta-agent 的 idle 状态，而非阻塞调用。
 
-### 5.6 清理
+### 8.6 清理
 
 完成后 `session_delete` / `session_batch_delete` 释放进程与磁盘；watchdog 只回收进程不删 Session。不再需要的会话及时清理。
 
 ---
 
-## 6. MCP 工具层
+## 9. 通道：Web / QQ / Remote
 
-### 6.1 接入方式
+### 9.1 Web
+
+主通道：Dashboard（第 3/4 章）+ `/ws` + HTTP API（§12.2）。
+
+### 9.2 QQ（QQ Bridge）
+
+用 QQ 遥控 Pan：在 QQ 里给 Bot 发消息，消息变成 Worker 的指令。
+
+- 依赖：`packages/qq/requirements.txt`（nonebot2 + onebot 适配器 + httpx），跑在**独立解释器**（NoneBot 不装项目 .venv；`setup.bat` 探测后写入 `qq.python`）。
+- 网关：NapCat（正向 WS，端口 3001）或 LLOneBot（3002），`qq.channel` 选择；WS 地址写 `packages/qq/.env` 的 `ONEBOT_WS_URLS` 或 config 的 `qq.<channel>.ws_urls`。
+- 启动：`python main.py` 按 `qq.enabled` 自动拉起/终止 QQ bot（PID 写 `data/qq_bot.pid`）；NapCat 不可达时降级运行（每 3s 重连）。
+- 模式：`mirror`（收到消息自动建 Session 并回复）/ `selective`（消息只进 inbox，meta-agent 经 pan-qq MCP 处理）。
+- 编排接入：`session_qq_subscribe`（§7.8）收 inbox 提醒；`manifest.json` 的 `command_routes` 可声明 QQ 前缀命令直发外部 HTTP API（不走 LLM）。
+
+### 9.3 Remote（Cloudflare Tunnel）
+
+出门在外，公网访问调度台：
+
+```bash
+python -m packages.remote        # 或 scripts/start_cf.ps1
+```
+
+`remote.quick_tunnel=true` 输出临时 `*.trycloudflare.com` URL；`false` 需 `remote.config_path` 指向 named tunnel 的 config.yml（公网域名取其 `ingress.hostname`）。状态服务 `curl http://127.0.0.1:8769/status`。隧道转发 Pan 主端口——公网侧同样**无鉴权**（§11）。
+
+---
+
+## 10. 故障排查
+
+| 现象 | 原因与处理 |
+|------|-----------|
+| Worker 状态点消失 / 变 `null` | watchdog 已回收（idle/静默/任务超时）。直接再发任务或点 Start 自动重建并恢复上下文（Session 数据完好） |
+| 任务长时间无回复 | 查顶栏状态：`idle` = 已完成未读（看聊天流即可）；`running` 且超时可能已被回收。回收只杀进程不删 Session |
+| 超时配置不生效 | `worker.*` 改后需重启或热重载（UI 全局设置或 `POST /api/config/reload`，scope `worker`） |
+| 队列不消费 | `queue_pending` 非空但无活 Worker 时全局 watchdog（30s tick）会自动拉起；持续不动查 `data/logs/pan.log` 的 watchdog/branch 日志 |
+| 端口占用 | 换 `port` 或 `PAN_PORT`；确认旧实例已 `stop_pan.bat` 树杀 |
+| 聊天里看不到输出 | 检查顶栏是否停在 TUI 视图/折叠面板；tool 行需点击展开（§4.3） |
+| QQ 连不上 | 查 NapCat/LLOneBot 是否启动、`ONEBOT_WS_URLS` / `qq.<channel>.ws_urls` 是否指向正确端口（3001/3002）；QQ bot 崩溃看 `data/logs/pan.log` 启动告警（Pan Core 不受影响） |
+| 带 character 的会话首个任务卡顿 | embedding 首次加载/网络重试；等 15s 超时降级，或 `memory.enabled: false` |
+| Worker 报 "Worker process dead" | 进程已崩溃/被回收，重新 Start / 再发任务（自动恢复上下文） |
+| 删除 Session 后 workdir 残留 | 设计如此（delete 不删磁盘目录），需要时手动清理；CLI 原生会话可重新导入复用 |
+| 新用户访问 `/vanilla` 空白 | 旧版 Vanilla 前端已弃用且未构建（需项目根 `npx tsc`）；推荐使用 `/react/` |
+
+---
+
+## 11. 安全与运维提示
+
+- **API 无鉴权**，默认绑 `127.0.0.1` 是有意设计。改 `PAN_HOST` 为非 loopback 会把全部端点暴露到网络（启动时打印告警）。`pan_access` 隔离只在 MCP 层生效，HTTP/前端是最高权限。
+- **config.json 已 gitignored**：端口、QQ token（`ONEBOT_ACCESS_TOKEN`）、`remote.config_path` 等都在其中，不要提交；凭据也不进代码库。
+- **数据落盘位置**（均相对项目根）：`data/sessions/`（Session 元数据 + `.history.jsonl`）、`data/workdirs/`（默认工作目录）、`data/mcp-configs/`（每会话 MCP 配置）、`data/characters/`、`data/memory/`（SQLite 记忆库）、`data/logs/pan.log`、`data/qq_bot.pid`。备份/迁移按目录整体拷贝。
+- **Memory 依赖降级**：`minimal-requirements.txt` 不含 ML 链；向量检索需 `sentence-transformers`，缺失时懒加载降级不影响 Core；`jieba` 缺失会降低中文检索质量。
+- **Remote 公网暴露**：Cloudflare Tunnel 侧无鉴权，公网可访问全部 API——仅在理解风险时开启，建议叠加 Cloudflare Access 等外部防护。
+- **git worktree 场景**：worktree 无独立 `.venv`，统一用主仓库解释器。
+
+---
+
+## 12. 开发者与 API 参考
+
+> 本章面向开发/集成场景（脚本、外部 Agent、自定义前端）。普通用户通常不需要；日常操作请走第 3/4 章界面。
+
+### 12.1 MCP 工具层
+
+#### 12.1.1 接入方式
 
 **方式 A：Session 内自动注入（推荐）**——创建 Session 时指定 `mcpServers: ["pan"]`（或用 SMA 等自带 MCP 的模板），adapter 在 spawn 时自动生成 `data/mcp-configs/<session_id>.mcp.json` 并经 `--mcp-config` 注入，同时写入 `PAN_AGENT_SESSION_ID` / `PAN_AGENT_SESSION_TITLE` 环境变量（工具据此识别调用方身份）。各 adapter 注入方式：cbc/claude 写 `--mcp-config`；kimi 写会话级隔离 home（`--kimi-home`）；opencode 写项目级 `opencode.json`；codex `-c mcp_servers.*` 内联注入。
 
@@ -265,7 +549,7 @@ python -m packages.mcp.server --transport sse --port 9740
 
 > **三对齐**：MCP server 目标端口（`PAN_API_URL`）必须与 `PAN_AGENT_SESSION_ID` 所在 Pan 实例同端口，否则 `report_subscribe` / `qq_bind` 失效。
 
-### 6.2 `pan` server 工具清单（35 个）
+#### 12.1.2 `pan` server 工具清单（35 个）
 
 命名分层：`agent_*` 是一等工具（以 session_id 寻址，无活进程也容忍）；`worker_*` 是兼容别名（DEPRECATED），仅 `worker_id` 进程寻址为遗留独有路径，新代码一律用 `agent_*`。
 
@@ -282,7 +566,7 @@ python -m packages.mcp.server --transport sse --port 9740
 | `session_update` | `session_id`，`model?`/`permission_mode?`/`always_thinking_enabled?`/`effort?`/`max_thinking_tokens?`/`mcp_servers?`/`game_id?` | PATCH 封装；改 mcp_servers 返回 `requireRestart: true`（idle worker 自动 respawn 生效） |
 | `session_delete` | `session_id` | 删除并 kill worker（不删 workdir） |
 | `session_batch_delete` | `session_ids` | 批量删除（逐个过 managed 隔离检查） |
-| `session_handoff` | `session_id`，`handoff_prompt`（必填），`copy_settings?`(=true)，`adapter?`/`model?`/`permission_mode?` | 替身交接（§4.6） |
+| `session_handoff` | `session_id`，`handoff_prompt`（必填），`copy_settings?`(=true)，`adapter?`/`model?`/`permission_mode?` | 替身交接（§7.6） |
 | `session_claim` / `session_claim_many` | `session_id` / `session_ids` | 认领（自动 report_subscribe；被他人管理则拒绝） |
 | `session_unclaim` / `session_unclaim_many` | 同上 | 解除 managed（自动退订） |
 | `session_history` | `session_id`，`limit?=50`，`before?` | 分页历史 |
@@ -311,21 +595,43 @@ python -m packages.mcp.server --transport sse --port 9740
 | `model_list` | `adapter?` | 列出 adapter 可用模型 |
 | `pan_handbook` | — | 返回 `docs/skills/pan/SKILL.md` 全文（冷启动先调它） |
 
-### 6.3 `pan-qq` server 工具（6 个，`packages/qq/mcp.py`）
+#### 12.1.3 `pan-qq` server 工具（6 个，`packages/qq/mcp.py`）
 
 `qq_send_message` / `qq_read_conversation` / `qq_read_inbox` / `qq_list_contacts` / `qq_bind` / `qq_unbind`。selective 模式下 meta-agent 用它做 QQ 选择性收发；`qq_bind` 后新消息以 `@@@@by qq` 提醒推入 `queue_pending`。SMA 模板已默认挂载。
 
-### 6.4 安全模型（MCP 层）
+#### 12.1.4 安全模型（MCP 层）
 
-无传统鉴权，靠「身份注入 + managed 隔离」：Session 的 `pan_access` 三能力位 `restrict_to_managed` / `can_claim_unmanaged` / `auto_claim_created`（默认全 False）。受限调用方操作他人 Session 会被 `permission_denied`；spawn/task/assign/send 自带「派任务即接管」。注意这些限制**只在 MCP 层实施**，HTTP API 不检查（见 §13）。
+无传统鉴权，靠「身份注入 + managed 隔离」：Session 的 `pan_access` 三能力位 `restrict_to_managed` / `can_claim_unmanaged` / `auto_claim_created`（默认全 False）。受限调用方操作他人 Session 会被 `permission_denied`；spawn/task/assign/send 自带「派任务即接管」。注意这些限制**只在 MCP 层实施**，HTTP API 不检查（见 §11）。
 
----
-
-## 7. HTTP/WS API
+### 12.2 HTTP/WS API
 
 基址 `http://127.0.0.1:<port>`；全部返回 JSON，失败多为 HTTP 200 + `{"error": "..."}`。完整 69 端点清单见 README「API 概览」；本章给主要端点与调用示例。**请求 body 用 camelCase，MCP 参数用 snake_case**（如 HTTP `sessionId` ↔ MCP `session_id`；创建响应里叫 `id`，后续请求体一律用 `sessionId`）。
 
-### 7.1 Session 管理
+最小链路（等价的界面操作见第 3 章）：
+
+```bash
+BASE=http://127.0.0.1:8768
+
+# 1. 创建 Session（只建会话，不启动 Worker）
+curl -X POST $BASE/api/sessions -H "Content-Type: application/json" \
+  -d '{"name":"fix-h1","adapter":"cbc","model":"hy3"}'
+# → 完整 session 对象，记下返回的 "id"（ses_...）与 "workdir"
+
+# 2. 异步派发任务（无活 Worker 时自动 spawn，立即返回）
+curl -X POST $BASE/api/assign -H "Content-Type: application/json" \
+  -d '{"sessionId":"ses_xxxx","text":"修复 utils.py 中的空指针，跑通测试"}'
+# → {"status":"queued","workerId":"worker-1","sessionId":"ses_xxxx"}
+
+# 3. 查看结果（轮询 lastResult.status：queued → running → done/error）
+curl $BASE/api/sessions/ses_xxxx
+
+# 4. 收尾：删除 Session（同时 kill Worker；注意不删 workdir 磁盘目录）
+curl -X DELETE $BASE/api/sessions/ses_xxxx
+```
+
+> **Windows curl 注意**：内联中文 body 会因终端编码（GBK）报 `{"detail":"There was an error parsing the body"}`。中文任务一律 `--data-binary @body.json`（UTF-8 保存）或用 python requests。
+
+#### 12.2.1 Session 管理
 
 | 方法+路径 | 用途 |
 |-----------|------|
@@ -335,12 +641,12 @@ python -m packages.mcp.server --transport sse --port 9740
 | `GET /api/sessions/{id}/history?limit=50&before=<游标>` | 历史分页 |
 | `PATCH /api/sessions/{id}` | 更新设置（model/effort/MCP 等；idle Worker 自动 respawn，running 标 `pending_restart`） |
 | `POST /api/sessions/{id}/rename` | 重命名（body `{"name"}`；同步回写 adapter 原生存储） |
-| `POST /api/sessions/{id}/branch` | fork 分支（§4.4） |
-| `POST /api/sessions/{id}/handoff` | 替身交接（§4.6） |
+| `POST /api/sessions/{id}/branch` | fork 分支（§7.4） |
+| `POST /api/sessions/{id}/handoff` | 替身交接（§7.6） |
 | `DELETE /api/sessions/{id}` / `POST /api/sessions/batch-delete` | 删除 / 批量删除 |
 | `GET /api/sessions/{id}/managers` | manager 链 |
 
-### 7.2 Worker 与任务投递
+#### 12.2.2 Worker 与任务投递
 
 ```bash
 # spawn（sessionId 必填；已有 Worker 先 kill）
@@ -355,11 +661,11 @@ curl -X POST $BASE/api/kill/worker-1
 
 其余：`POST /api/worker/{id}/restart|settings|rename|branch|interrupt|takeover`、`GET /api/worker/{id}/takeover-command`。
 
-### 7.3 编排端点
+#### 12.2.3 编排端点
 
-`POST /api/assign`、`POST /api/send`（`force:true` 即强制）、`POST /api/claim` / `POST /api/unclaim`（body `{"managerId","sessionId"}`）、`POST /api/report-subscribe` / `POST /api/report-unsubscribe`——语义见 §4/§5。
+`POST /api/assign`、`POST /api/send`（`force:true` 即强制）、`POST /api/claim` / `POST /api/unclaim`（body `{"managerId","sessionId"}`）、`POST /api/report-subscribe` / `POST /api/report-unsubscribe`——语义见 §7/§8。
 
-### 7.4 导入 / 设置 / Manifest / Memory / 文件
+#### 12.2.4 导入 / 设置 / Manifest / Memory / 文件
 
 | 类别 | 端点 |
 |------|------|
@@ -373,7 +679,7 @@ curl -X POST $BASE/api/kill/worker-1
 | 文件系统 | `GET /api/fs/list`、`GET /api/fs/read`、`POST /api/fs/write`、`POST /api/fs/rename`、`POST /api/fs/delete`（限 session workdir 内，拒绝 `..` 逃逸，单文件 5 MiB 上限） |
 | QQ | `POST /api/qq/subscribe`、`POST /api/qq/unsubscribe`、`POST /api/qq/notify`、`GET /api/qq/contacts` |
 
-### 7.5 WebSocket
+#### 12.2.5 WebSocket
 
 | 端点 | 用途 |
 |------|------|
@@ -394,41 +700,7 @@ curl -X POST $BASE/api/kill/worker-1
  "status": "done", "result": "...", "taskId": "...", "taskSeq": 3}
 ```
 
----
-
-## 8. 配置参考
-
-配置文件 `config.json`（**gitignored**），模板 `config.example.json`；所有字段可选，默认值在 `packages/core/config.py`。改后重启生效（worker/adapters 部分支持 `POST /api/config/reload` 热重载）。
-
-| 字段 | 默认 | 说明 |
-|------|------|------|
-| `port` | `8768` | 主服务端口 |
-| `frontend` | `"coexist"` | `coexist`/`react`：React 接管 `/`，旧前端在 `/vanilla`；`legacy`：仅旧前端 |
-| `cbc.model` | `"deepseek-v4-flash"` | cbc 默认模型 |
-| `cbc.permission_mode` | `"bypassPermissions"` | 可选 `""`/`default`/`acceptEdits`/`bypassPermissions`/`plan`/`dontAsk`/`auto` |
-| `cbc.always_thinking_enabled` | `false` | cbc 思考开关；false 时 `--effort` 不生效 |
-| `cbc.effort` | `""` | `none`/`off`/`auto`/`low`/`medium`/`high`/`xhigh`/`max`/`ultracode`；仅思考开启时生效 |
-| `cbc.models` | `[]` | 不填自动识别（`cbc --help` 解析）；填写 = 限制可用模型 |
-| `kimi.model` | `"moonshot-cn/kimi-k2.6"` | kimi 默认模型 |
-| `kimi.*` 其余 | 同 cbc 结构 | kimi 的 permission_mode/effort 暂不支持，保持空值 |
-| `cbc_import.*` | 见模板 | 外部会话导入过滤（`min_message_count`/`max_sessions_shown`/`exclude_workdir_patterns`/`project_dir_exact_match`/`import_recent_days`/`min_resume_bytes`） |
-| `worker.timeout_sec` | `300` | queued 静默超时（无 stdout 输出即 kill） |
-| `worker.task_timeout_sec` | `1800` | stream running **任务运行时长**上限（长思考/大文件读取不误杀） |
-| `worker.idle_sec` | `300` | idle 空闲回收（`held`/`zombie` 跳过） |
-| `memory.enabled` | `true` | 记忆注入开关（character session 首次任务可能被 embedding 加载阻塞，可关） |
-| `mcp.enabled_default` | 已废弃 | MCP 启用由 session 的 `mcp_servers` 非空决定 |
-| `qq.enabled` | `true` | 是否启动 QQ bot（`packages/qq/bot.py`） |
-| `qq.mode` | `"mirror"` | `mirror` 自动回复；`selective` 只进 inbox，由 meta-agent 经 pan-qq MCP 决策（`PAN_QQ_MODE` 可覆盖） |
-| `qq.channel` | `"napcat"` | `napcat` / `llonebot`；各通道 WS 地址配 `qq.<channel>.ws_urls`，兼容旧 `qq.ws_url` |
-| `qq.python` | `""` | QQ bot 独立解释器（`PAN_QQ_PYTHON` 优先） |
-| `remote.*` | 见模板 | `enabled`/`provider`(cloudflare)/`quick_tunnel`/`config_path`/`binary_path`/`status_port` |
-| `logging.*` | INFO / `data/logs/pan.log` | `level`/`file`/`max_bytes`(10MB)/`backup_count`(7)/`console` |
-| `plugin_manifests` | `["manifest.json"]` | 外部 Character profiles / session 模板 / MCP server 清单 |
-| `ui.*` | `{}` | App Settings 显示设置（前端经 `/api/settings/ui` 读写） |
-
----
-
-## 9. 多 CLI 适配
+### 12.3 多 CLI 适配
 
 Adapter 协议（`packages/core/adapters/base.py`）+ 注册表（`registry.py`）。五种内置 adapter：
 
@@ -442,78 +714,11 @@ Adapter 协议（`packages/core/adapters/base.py`）+ 注册表（`registry.py`�
 
 执行模式：`stream` 长驻进程（消息写 stdin，可挂 MCP）；`oneshot` 每任务起一次性进程（`outputMode: "oneshot"` 时启用，仅 adapter 声明支持时可选）。特殊行为详见 `docs/references/cli-adapter-special-behaviors.md`。
 
----
-
-## 10. 前端使用
-
-双轨前端（改前端须守双源约定：legacy 源码 `packages/web/ts/app.ts` → 项目根 `npx tsc`；React 源码 `packages/web/src/` → `pnpm build`；产物均 gitignored，禁止直改）：
-
-| URL | 内容 |
-|-----|------|
-| `/` | `frontend` 为 `coexist`/`react` 时 307 到 `/react/`（React Dashboard）；`legacy` 时为旧前端 |
-| `/react/` | React Dashboard（`packages/web/dist/`） |
-| `/vanilla` | 旧版 Vanilla JS 前端（移动 UA 自动分流 mobile.html） |
-
-React Dashboard 功能：会话列表（含 workerStatus 分组）、实时输出围观、历史查看、模型/adapter/权限选择（创建与 PATCH）、App Settings（`/api/settings/ui`，跨浏览器共享的显示设置）、外部会话导入、文件浏览器（限 workdir）。开发模式 `cd packages/web && pnpm dev`（Vite HMR + 代理后端）。
+前端说明（双前端维护约定）：**React Dashboard 是当前唯一维护并推荐的前端**（源码 `packages/web/src/` → `pnpm build`）；旧版 Vanilla 前端已弃用（deprecated），源码 `packages/web/ts/app.ts` → 项目根 `npx tsc` 编译，产物均 gitignored、禁止直改；`/vanilla` 路由仍可访问作后备，但不建议新用户使用。
 
 ---
 
-## 11. 通道：Web / QQ / Remote
-
-### 11.1 Web
-
-主通道：Dashboard + `/ws` + HTTP API，见 §7/§10。
-
-### 11.2 QQ（QQ Bridge）
-
-- 依赖：`packages/qq/requirements.txt`（nonebot2 + onebot 适配器 + httpx），跑在**独立解释器**（NoneBot 不装项目 .venv；`setup.bat` 探测后写入 `qq.python`）。
-- 网关：NapCat（正向 WS，端口 3001）或 LLOneBot（3002），`qq.channel` 选择；WS 地址写 `packages/qq/.env` 的 `ONEBOT_WS_URLS` 或 config 的 `qq.<channel>.ws_urls`。
-- 启动：`python main.py` 按 `qq.enabled` 自动拉起/终止 QQ bot（PID 写 `data/qq_bot.pid`）；NapCat 不可达时降级运行（每 3s 重连）。
-- 模式：`mirror`（收到消息自动建 Session 并回复）/ `selective`（消息只进 inbox，meta-agent 经 pan-qq MCP 处理）。
-- 编排接入：`session_qq_subscribe`（§4.8）收 inbox 提醒；`manifest.json` 的 `command_routes` 可声明 QQ 前缀命令直发外部 HTTP API（不走 LLM）。
-
-### 11.3 Remote（Cloudflare Tunnel）
-
-```bash
-python -m packages.remote        # 或 scripts/start_cf.ps1
-```
-
-`remote.quick_tunnel=true` 输出临时 `*.trycloudflare.com` URL；`false` 需 `remote.config_path` 指向 named tunnel 的 config.yml（公网域名取其 `ingress.hostname`）。状态服务 `curl http://127.0.0.1:8769/status`。隧道转发 Pan 主端口——公网侧同样**无鉴权**（§13）。
-
----
-
-## 12. 故障排查
-
-| 现象 | 原因与处理 |
-|------|-----------|
-| `workerStatus` 变 `null` | watchdog 已回收（idle/静默/任务超时）。直接 `agent_assign` / `agent_spawn` 自动重建并恢复上下文（Session 数据完好） |
-| 任务长时间无回复 | 查 `lastResult.status`：`idle` = 已完成未读，`session_get` 即可；`running` 且超时可能已被回收。回收只杀进程不删 Session |
-| 超时配置不生效 | `worker.*` 改后需重启或 `POST /api/config/reload`（scope `worker`） |
-| 队列不消费 | `queue_pending` 非空但无活 Worker 时全局 watchdog（30s tick）会自动拉起；持续不动查 `data/logs/pan.log` 的 watchdog/branch 日志 |
-| 端口占用 | 换 `port` 或 `PAN_PORT`；确认旧实例已 `stop_pan.bat` 树杀 |
-| MCP 工具搜不到 | `--mcp-config` 路径下工具应直接可见（非 deferred）；搜不到 = 未接线，查 mcp-config 生成与 `cwd` |
-| `report_subscribe` 返回 404 / 失效 | **三对齐**没满足：`PAN_API_URL` 端口、`PAN_AGENT_SESSION_ID` 所在服务、mcp-config `cwd` 必须同实例；404 还可能是运行中服务版本落后（无 report-subscribe 路由），此时用轮询兜底（`session_get` 轮 `lastResult.status`） |
-| Windows curl 中文报错 | `{"detail":"There was an error parsing the body"}`——改 `--data-binary @body.json`（UTF-8）或 python requests |
-| `session_list` 输出过大 | 全量返回含 history（实测可到 300KB+）。巡检用 `summary=true`（HTTP `?summary=1`），详情用 `session_get(limit=15)` |
-| QQ 连不上 | 查 NapCat/LLOneBot 是否启动、`ONEBOT_WS_URLS` / `qq.<channel>.ws_urls` 是否指向正确端口（3001/3002）；QQ bot 崩溃看 `data/logs/pan.log` 启动告警（Pan Core 不受影响） |
-| 带 character 的会话首个任务卡顿 | embedding 首次加载/网络重试；等 15s 超时降级，或 `memory.enabled: false` |
-| Worker 报 "Worker process dead" | 进程已崩溃/被回收，重新 `agent_spawn`（自动恢复上下文） |
-| 删除 Session 后 workdir 残留 | 设计如此（delete 不删磁盘目录），需要时手动清理；CLI 原生会话可重新导入复用 |
-
----
-
-## 13. 安全与运维提示
-
-- **API 无鉴权**，默认绑 `127.0.0.1` 是有意设计。改 `PAN_HOST` 为非 loopback 会把全部端点暴露到网络（启动时打印告警）。`pan_access` 隔离只在 MCP 层生效，HTTP/前端是最高权限。
-- **config.json 已 gitignored**：端口、QQ token（`ONEBOT_ACCESS_TOKEN`）、`remote.config_path` 等都在其中，不要提交；凭据也不进代码库。
-- **数据落盘位置**（均相对项目根）：`data/sessions/`（Session 元数据 + `.history.jsonl`）、`data/workdirs/`（默认工作目录）、`data/mcp-configs/`（每会话 MCP 配置）、`data/characters/`、`data/memory/`（SQLite 记忆库）、`data/logs/pan.log`、`data/qq_bot.pid`。备份/迁移按目录整体拷贝。
-- **Memory 依赖降级**：`minimal-requirements.txt` 不含 ML 链；向量检索需 `sentence-transformers`，缺失时懒加载降级不影响 Core；`jieba` 缺失会降低中文检索质量。
-- **Remote 公网暴露**：Cloudflare Tunnel 侧无鉴权，公网可访问全部 API——仅在理解风险时开启，建议叠加 Cloudflare Access 等外部防护。
-- **git worktree 场景**：worktree 无独立 `.venv`，统一用主仓库解释器。
-
----
-
-## 关联文档
+## 13. 关联文档
 
 - `README.md` — 项目概览、卖点、69 端点 API 索引
 - `docs/skills/pan/SKILL.md` — 编排知识单一事实源（Meta-Agent 冷启动手册；MCP 内 `pan_handbook` 返回其全文）

@@ -65,7 +65,7 @@ Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，
 | 🧠 员工的长期记忆 | **Memory** | 向量 + 全文（FTS5）混合检索，开工前自动注入相关记忆 |
 | 🎭 有性格的老员工 | **Character** | 人设 + 独立记忆库，跨 Session 保持同一身份 |
 | 🐕 不睡觉的监工 | **Watchdog** | 每个 Worker 配一只：卡死 / 摸鱼超时自动清理；全局级还能自动补员 |
-| 🖥️ 工位监控大屏 | **Dashboard** | 网页实时围观每个 Worker 的输出（React 新版 + 旧版双轨） |
+| 🖥️ 工位监控大屏 | **Dashboard** | 网页实时围观每个 Worker 的输出（React 新版为主；旧版 Vanilla 已弃用（deprecated），仅作后备） |
 | 💬 用 QQ 遥控 | **QQ Bridge** | 把 QQ 消息变成给 Worker 的指令；NapCat / LLOneBot 通道可切换 |
 | 🌐 远程办公室 | **Remote** | Cloudflare Tunnel，把调度台暴露到公网 |
 
@@ -168,7 +168,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 
 | 通道 | 入口 | 说明 |
 |------|------|------|
-| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | React SPA（`/react/`，主开发）+ 旧版 Vanilla 双轨共存，`frontend` 配置控制路由分配（`coexist` / `react` / `legacy`） |
+| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | **推荐 React SPA**（`/react/`，当前唯一维护的前端）；旧版 Vanilla 已弃用（deprecated），仅经 `/vanilla` 作后备访问；`frontend` 配置控制路由分配（`coexist` / `react` / `legacy`） |
 | 💬 **QQ Bridge** | NapCat / LLOneBot | OneBot 11 网关**插件化**：两个通道只是 `QQChannel` 的薄子类，业务层零改动；`mirror` 全量镜像 / `selective` 选择性发送双模式 |
 | 🌐 **Remote** | Cloudflare Tunnel | 一键暴露到公网，出门在外也能管 |
 | 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | 让任意 Agent CLI 当主管：MCP 工具 + 事件流订阅，Meta-Agent 的接入通道 |
@@ -224,7 +224,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 
 Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Worker 架构下，一个「Meta-Agent 主管」通过 MCP 工具与 WebSocket 事件流，同时指挥多个 Worker（每个 Worker 是独立运行的 CLI Agent 会话）并行推进任务，每个 Worker 在独立的 git worktree 中工作。你可以在 Web Dashboard、QQ、公网隧道或任意 Agent CLI 上指挥它，也随时可以旁观、插话或接管某个 Worker 的终端。
 
-- **技术栈**：Python + FastAPI + WebSocket + SQLite（FTS5 全文检索）+ 可选 embedding 向量检索；前端为 React（开发主力）+ Vanilla JS（稳定备份）双轨。
+- **技术栈**：Python + FastAPI + WebSocket + SQLite（FTS5 全文检索）+ 可选 embedding 向量检索；前端为 React（当前唯一维护并推荐的前端）+ Vanilla JS（已弃用 deprecated，仅作后备）。
 
 传统的一对一 AI 编程助手是「你说一句，它干一件」。Pan 把这种模式升级为**一对多**：你只跟一个主管对话，主管同时调度多个 Worker 并行干活，再汇总成一份结果回报给你。
 
@@ -244,7 +244,7 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 - **Worker 生命周期自愈**：`stream` / `one-shot` 双执行模式；Watchdog 三档超时清理 + 落盘队列在进程异常死亡后自动重建 Worker。
 - **Memory + Character**：SQLite FTS5 + embedding 混合检索；人设（Character）与记忆库跨 Session 保持同一身份。
 - **会话级 MCP**：每个 Session 可挂载自己的 MCP Server；内置 `pan`（编排工具集）与 `pan-qq`（QQ 工具集）两个 server。
-- **多渠道接入**：Web Dashboard（React + Legacy 双轨）、QQ Bridge（NapCat / LLOneBot 通道插件化）、Cloudflare Tunnel、任意 Agent CLI（WS + MCP）。
+- **多渠道接入**：Web Dashboard（React 为唯一维护前端；Legacy Vanilla 已弃用 deprecated，仅作后备）、QQ Bridge（NapCat / LLOneBot 通道插件化）、Cloudflare Tunnel、任意 Agent CLI（WS + MCP）。
 - **会话导入**：cbc / kimi / opencode / claude / codex 历史会话可导入复用，免去重新探索与初始化。
 
 ## 核心概念
@@ -269,10 +269,12 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 
 ## 快速开始
 
+> 完整使用指南（安装 / 操作 / 编排 / API / 配置 / 排障）见[用户手册](docs/USER_MANUAL.md)。
+
 ### 前置要求
 
 - Python 3.14（当前开发环境为 3.14.5）
-- Node.js + npm（编译 legacy 前端）
+- Node.js + pnpm（构建 React 前端）
 
 ### 安装与启动
 
@@ -285,9 +287,11 @@ cp config.example.json config.json
 # Windows: copy config.example.json config.json
 # 所有字段可选；models 不填时自动识别可用模型
 
-# 3. 编译 legacy 前端（TS 源码 → static/js/app.js）
-#    必须在项目根执行（根 tsconfig，而非 packages/web 的 React tsconfig）
-npx tsc
+# 3. 构建 React 前端（推荐；产物 → packages/web/dist/）
+cd packages/web
+pnpm install   # 首次
+pnpm build
+cd ../..
 
 # 4. 启动
 python main.py
@@ -298,12 +302,16 @@ python main.py
 python -m pytest tests/ -q
 ```
 
-### React 前端（主开发目标）
+> 📖 完整使用指南（安装、操作、编排、API、配置、排障）见 [用户手册](docs/USER_MANUAL.md)。
+
+### 前端说明：推荐 React，Vanilla 已弃用（deprecated）
+
+**React 前端是当前唯一维护并推荐的前端**：完成上面的步骤 3 构建后，直接访问 `http://127.0.0.1:{port}`（默认 307 重定向到 `/react/`）。
+
+开发模式下可用 Vite HMR 热更新：
 
 ```bash
 cd packages/web
-pnpm install   # 首次
-pnpm build     # 产物 → packages/web/dist/
 pnpm dev       # 开发模式：Vite HMR + 代理到后端
 ```
 
@@ -313,9 +321,9 @@ pnpm dev       # 开发模式：Vite HMR + 代理到后端
 |------------|------|
 | `coexist`（默认） | `/` 307 重定向到 `/react/`；旧前端移至 `/vanilla` |
 | `react` | React 接管 `/`（无旧前端入口） |
-| `legacy` | 仅旧前端，`/` 直接渲染 Vanilla |
+| `legacy` | 仅旧前端，`/` 直接渲染 Vanilla（**已弃用 deprecated，不建议使用**） |
 
-> 后端 API/WS 优先为 React 演化；若后端变更破坏 legacy 前端，改 `ts/app.ts` 跟随，不约束后端。
+> ⚠️ **Vanilla（legacy）前端已弃用（deprecated）**：React 是当前唯一维护并推荐的前端，vanilla 不再修复问题、不建议任何用户使用；`/vanilla` 路由仍可访问作为后备。后端 API/WS 优先为 React 演化；若后端变更破坏 legacy 前端，改 `ts/app.ts` 跟随，不约束后端。如确需使用 legacy 前端，须在项目根执行 `npx tsc` 编译（`packages/web/ts/app.ts` → `static/js/app.js`）。
 
 ## 架构
 
@@ -563,7 +571,7 @@ WS   /ws/agent     Meta-Agent：subscribe（按 eventTypes / sessionIds 过滤 +
 
 ### Web / Dashboard
 
-- `http://127.0.0.1:{port}` — 默认 307 重定向到 React Dashboard `/react/`；旧版 Vanilla Dashboard 挂在 `/vanilla`
+- `http://127.0.0.1:{port}` — 默认 307 重定向到 React Dashboard `/react/`（推荐）；旧版 Vanilla Dashboard 已弃用（deprecated），仍挂在 `/vanilla` 作后备
 - `ws://127.0.0.1:{port}/ws` — Dashboard WebSocket
 - `ws://127.0.0.1:{port}/ws/agent` — Meta-Agent WebSocket
 
@@ -640,6 +648,14 @@ python -m packages.mcp.server --transport sse --port 9740
 
 编排方法论与实战手册见 `docs/skills/pan/SKILL.md`（`pan_handbook` 工具可直接取用）。
 
+#### 给你的 Agent CLI 装上 pan skill（强烈建议）
+
+**pan skill**（`SKILL.md`）是给「想当 Meta-Agent 主管」的 agent 准备的**冷启动手册**：把它配给你的 agent CLI 后，agent 开工即自动掌握 Pan 的编排链路（`session_create → report_subscribe → agent_assign → queue_pending`）、MCP 工具约定与踩坑，**无需你每次在提示词里从头教**——与 MCP 工具（方式 A 注入）配合，agent 即可直接上手当主管。
+
+- **主源**：`docs/skills/pan/SKILL.md`（git 跟踪，随仓库更新）；
+- **CodeBuddy（cbc）**：本仓库已内置项目级副本 `.codebuddy/skills/pan/SKILL.md`，在本仓库 workdir 内干活时**自动加载，无需额外操作**；要在其它项目里用，把整个 `pan/` 目录复制到目标项目的 `.codebuddy/skills/` 下；
+- **其它支持 Agent Skills 的 CLI**（如 Claude Code 的 `.claude/skills/`、Codex 的 `~/.codex/skills/` 等）：把 `pan/SKILL.md` 按该 CLI 的 skill 目录约定放好即可。frontmatter 的 `name` / `description` 是 skill 的元信息（description 影响触发时机，建议保留原名）。
+
 ### QQ Bridge
 
 依赖见 `packages/qq/requirements.txt`（nonebot2 + onebot-adapter-onebot + httpx）。启动：
@@ -695,8 +711,8 @@ python -m packages.remote
 ## 贡献
 
 - 开发采用 **git worktree 并行分支**模式：每个功能在独立 worktree / 分支上开发，合入 main 前先过测试。
-- **前端双源约定**（详见 `CODEBUDDY.md`）：
-  - legacy 源码在 `packages/web/ts/app.ts`，`static/js/app.js` 是编译产物（gitignored），**禁止直接改产物**；改完从项目根执行 `npx tsc`；
+- **前端源码约定**（详见 `CODEBUDDY.md`；**legacy（Vanilla）前端已弃用（deprecated）**，React 为当前唯一维护并推荐的前端）：
+  - legacy 源码在 `packages/web/ts/app.ts`，`static/js/app.js` 是编译产物（gitignored），**禁止直接改产物**；如确需改动，从项目根执行 `npx tsc`；
   - React 源码在 `packages/web/src/`，产物 `dist/`（gitignored）；改完执行 `cd packages/web && pnpm build`；
   - pre-commit（`git config core.hooksPath scripts`）会同时校验 legacy（`tsc --noEmit`）与 React（`pnpm build`）。
 - 运行测试：`python -m pytest tests/ -q`。
