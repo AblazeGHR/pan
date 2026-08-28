@@ -28,6 +28,7 @@ data/
 # Personal notes
 privatenote.md
 devNote.md
+private-manifest.json
 
 # Agent instructions (local only)
 CODEBUDDY.md
