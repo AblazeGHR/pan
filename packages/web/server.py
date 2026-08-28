@@ -722,6 +722,14 @@ def _open_terminal(cmd: str, cwd: str | Path) -> int:
 
 # ── Dashboard & favicon ──
 
+from packages.core import __version__
+
+@app.get("/api/health")
+async def health():
+    """Health check: process liveness + Pan version."""
+    return {"status": "ok", "version": __version__}
+
+
 @app.get("/favicon.ico")
 async def favicon():
     svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#58a6ff"/><text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-family="monospace" font-weight="bold">P</text></svg>'

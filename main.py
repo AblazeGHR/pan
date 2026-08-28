@@ -12,6 +12,7 @@ import threading
 from pathlib import Path
 from urllib.parse import urlparse
 
+from packages.core import __version__
 from packages.web.server import app
 
 _log = logging.getLogger("pan")
@@ -237,7 +238,7 @@ if __name__ == "__main__":
     else:
         port = load_config().get("port", 8768)
 
-    _log.info("Pan starting on %s:%s", host, port)
+    _log.info("Pan v%s starting on %s:%s", __version__, host, port)
 
     # No-auth guard (#16, resolved by policy): the API has no authentication.
     # Binding to anything but loopback exposes every endpoint on the network.
