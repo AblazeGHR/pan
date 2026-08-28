@@ -177,18 +177,23 @@ class CharacterManager:
             or count != self._manifest_file_count
         )
 
-    def _manifest_files_parse_ok(self) -> tuple[bool, list[str]]:
+    def _manifest_files_parse_ok(
+        self, plugin_paths: list[str] | None = None
+    ) -> tuple[bool, list[str]]:
         """``(ok, errors)`` — whether every resolved manifest currently parses.
 
         Used by ``reload_manifest`` to abort and keep the old config when a
         manifest is broken (instead of swapping in a partial/silent result).
+        Pass *plugin_paths* to validate a candidate list that is not loaded
+        yet (``reload_plugin_paths``); defaults to the current paths.
         """
         from .manifest_loader import resolve_manifest_files
 
+        paths = self._plugin_paths if plugin_paths is None else plugin_paths
         errors: list[str] = []
-        if not self._plugin_paths:
+        if not paths:
             return True, errors
-        for mf in resolve_manifest_files(self._plugin_paths):
+        for mf in resolve_manifest_files(paths):
             try:
                 json.loads(mf.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError) as exc:
@@ -232,6 +237,45 @@ class CharacterManager:
         self._manifest_config = new_config
         self._refresh_manifest_state()
         return self._manifest_config
+
+    def reload_plugin_paths(
+        self, plugin_paths: list[str]
+    ) -> tuple[ManifestConfig | None, list[str]]:
+        """Swap in a NEW ``plugin_paths`` list and load manifests from it.
+
+        Unlike ``reload_manifest`` (which re-reads the same already-registered
+        files), this applies a changed ``plugin_manifests`` list read from
+        config.json — manifest files added to or removed from the list take
+        effect without a restart. Failure-preserving: if any manifest in the
+        new list fails to parse, or loading raises, the previous paths AND
+        config are kept intact (never a partial swap).
+
+        Returns ``(config, errors)``: on success ``(new_config, [])``; on
+        abort ``(None, errors)`` with the previous state untouched.
+        """
+        ok, errors = self._manifest_files_parse_ok(list(plugin_paths))
+        if not ok:
+            log.error(
+                "Plugin paths reload aborted — %d file(s) failed to parse; "
+                "keeping previous config: %s",
+                len(errors), errors,
+            )
+            return None, errors
+
+        from .manifest_loader import load_manifests
+
+        try:
+            new_config = load_manifests(list(plugin_paths))
+        except Exception:
+            log.exception("Plugin paths reload failed; keeping previous config")
+            return None, ["manifest load failed (see server log)"]
+
+        # Atomic swap: replace paths + config together, then refresh the
+        # mtime snapshot so change detection tracks the new file set.
+        self._plugin_paths = list(plugin_paths)
+        self._manifest_config = new_config
+        self._refresh_manifest_state()
+        return new_config, []
 
     def list_session_templates(self) -> list[SessionTemplate]:
         if self._manifest_config is None:

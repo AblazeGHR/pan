@@ -104,6 +104,20 @@ def load_memory_config():
     _MEMORY_ENABLED = bool(load_config().get("memory", {}).get("enabled", True))
 
 
+def reload_memory_config() -> dict:
+    """热重载 memory.enabled 开关（POST /api/config/reload 调用）。
+
+    重新执行 load_memory_config() 从盘上读 config.json 的 memory 段，
+    刷新模块级 _MEMORY_ENABLED，使运行中的 server 不重启即应用新值。
+
+    返回新旧值对比（before/after），供端点向前端展示变化。
+    """
+    before = {"enabled": _MEMORY_ENABLED}
+    load_memory_config()
+    after = {"enabled": _MEMORY_ENABLED}
+    return {"before": before, "after": after}
+
+
 # ── Memory injection helper ──
 
 
@@ -786,11 +800,20 @@ def _format_report_batch(reports: list[dict]) -> str:
         if r.get("type") == "qq":
             qq_target = r.get("qqTarget") or ""
             nickname = r.get("nickname") or ""
+            bot_uin = str(r.get("botUin") or "")
+            # 多账号：抬头带 bot 来源标识，agent 可见该会话由哪个 bot 收到
+            header = f"@@@@by qq : {qq_target} | {nickname}"
+            if bot_uin:
+                header += f" | bot {bot_uin}"
             lines = [
-                f"@@@@by qq : {qq_target} | {nickname}",
+                header,
                 f"targetType: {_field_value(r.get('targetType'))}",
                 f"targetId: {_field_value(r.get('targetId'))}",
                 f"nickname: {_field_value(r.get('nickname'))}",
+            ]
+            if bot_uin:
+                lines.append(f"botUin: {bot_uin}")
+            lines += [
                 "message:",
                 _field_value(r.get("text")),
                 f"time: {_field_value(r.get('time'))}",
@@ -1036,17 +1059,22 @@ async def _wake_worker(session_id: str) -> None:
 
 async def enqueue_qq_reminder(target_type: str, target_id: str,
                               nickname: str = "", text: str = "",
-                              time_str: str = "") -> int:
+                              time_str: str = "", bot_uin: str = "") -> int:
     """QQ inbox 更新提醒入队：所有订阅了该 QQ 会话的 session 各收到一条提醒。
+
+    多账号（bot_uin 非空）：命中两类订阅——不区分 bot 的旧键 ``<type>:<id>``
+    与精确键 ``<type>:<id>@<bot_uin>``；bot_uin 为空（旧来源）仅命中旧键。
 
     镜像 report 汇报链路：提醒项 append 到订阅者 session 的落盘 queue_pending，
     再唤醒其 worker consumer（report_signal）。无活 worker 时由全局 watchdog
     自动 spawn 恢复。返回投递的订阅者数量。
 
-    提醒项格式：{"type": "qq", "qqTarget": "<scope>:<target_id>", ...}，
-    _format_report_batch 按 type=qq 分支渲染为 `@@@@by qq` 抬头。
+    提醒项格式：{"type": "qq", "qqTarget": "<scope>:<target_id>",
+    "botUin": "<bot_uin>"?, ...}，_format_report_batch 按 type=qq 分支渲染为
+    `@@@@by qq` 抬头（bot_uin 非空时抬头带 `| bot <uin>`）。
     """
     target_key = f"{target_type}:{target_id}"
+    bot_key = f"{target_key}@{bot_uin}" if bot_uin else None
     item = {
         "type": "qq",
         "qqTarget": target_key,
@@ -1056,9 +1084,12 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
         "text": text,
         "time": time_str,
     }
+    if bot_uin:
+        item["botUin"] = str(bot_uin)
     delivered = 0
     for s in _sess.list_all():
-        if target_key not in (s.qq_subscriptions or set()):
+        subs = s.qq_subscriptions or set()
+        if target_key not in subs and not (bot_key and bot_key in subs):
             continue
         s.queue_pending.append(item)
         await _sess.save_async(s)

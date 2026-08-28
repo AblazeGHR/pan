@@ -5,7 +5,10 @@
   （cbc 有 TTL、kimi 无 TTL 两种路径都覆盖）
 - 端点返回各 adapter 新旧模型数量对比（modelsBefore / modelsAfter）
 - worker 配置重载：reload 后模块级 _WORKER_* 变量读出新值
-- scope 过滤：adapters / worker / all（默认 all）
+- plugin manifest 列表重载：新增/移除 plugin_manifests 条目生效；
+  坏 manifest 中止并保留旧状态（reload_plugin_paths 原子性）
+- memory.enabled 开关重载：reload 后模块级 _MEMORY_ENABLED 读出新值
+- scope 过滤：adapters / worker / plugin / memory / all（默认 all）
 - 幂等：重复调用结果一致
 - 异常路径：invalidate 抛异常 → reloaded:false + errors（不 500）；未知 scope
 
@@ -30,6 +33,7 @@ from packages.core.adapters.claude.adapter import ClaudeAdapter  # noqa: E402
 from packages.core.adapters.codex.adapter import CodexAdapter  # noqa: E402
 from packages.core.adapters.kimi.adapter import KimiAdapter  # noqa: E402
 from packages.core.adapters.opencode.adapter import OpencodeAdapter  # noqa: E402
+from packages.core.character import CharacterManager  # noqa: E402
 
 _ADAPTER_CLASSES = [CbcAdapter, KimiAdapter, OpencodeAdapter, ClaudeAdapter, CodexAdapter]
 
@@ -49,6 +53,19 @@ def _write_config(p, obj):
     p.write_text(json.dumps(obj), encoding="utf-8")
 
 
+def _write_plugin_manifest(path: Path, template_name: str) -> str:
+    """写一个最小可用 plugin manifest，返回其路径字符串。"""
+    path.write_text(json.dumps({
+        "session_templates": [
+            {"name": template_name, "system_prompt": f"{template_name} prompt"}
+        ],
+        "character_templates": [],
+        "mcp_servers": [],
+        "command_routes": [],
+    }), encoding="utf-8")
+    return str(path)
+
+
 def _reset_model_caches():
     """复位 5 个 adapter 的 class 级模型缓存（测试前后各一次）。"""
     for cls in _ADAPTER_CLASSES:
@@ -61,13 +78,31 @@ def _reset_model_caches():
 
 @pytest.fixture(autouse=True)
 def _isolate(tmp_path, monkeypatch):
-    """tmp config + worker 模块级变量登记恢复 + 模型缓存复位。"""
+    """tmp config + worker 模块级变量登记恢复 + 模型缓存复位。
+
+    scope=all 会触达 plugin/memory 分支：config 里显式给一个指向 tmp
+    manifest 的 plugin_manifests，并给 srv 一个加载它的 tmp manager，
+    避免读到真实仓库的 manifest.json。
+    """
+    plugins_dir = tmp_path / "plugins"
+    plugins_dir.mkdir()
+    manifest_a = _write_plugin_manifest(plugins_dir / "a.json", "pa")
+
+    cfg = dict(BASE_CONFIG)
+    cfg["plugin_manifests"] = [manifest_a]
     cfg_path = tmp_path / "config.json"
-    _write_config(cfg_path, BASE_CONFIG)
+    _write_config(cfg_path, cfg)
     monkeypatch.setattr(config, "CONFIG_FILE", cfg_path)
-    # reload 会覆盖 worker 模块级变量：登记当前值，teardown 自动恢复
+    # reload 会覆盖 worker 模块级变量：登记当前值，teardown 自动恢复。
+    # _MEMORY_ENABLED 例外：import srv 时 load_memory_config() 读的是真实
+    # config.json（可能 enabled=false），测试需要已知起始值 True 才可断言。
     for attr in ("_WORKER_TIMEOUT_SEC", "_WORKER_TASK_TIMEOUT_SEC", "_WORKER_IDLE_SEC"):
         monkeypatch.setattr(worker, attr, getattr(worker, attr))
+    monkeypatch.setattr(worker, "_MEMORY_ENABLED", True)
+    # plugin 分支需要已初始化的 manager（生产中 lifespan 保证，测试里手动给）
+    mgr = CharacterManager(str(tmp_path / "data"))
+    mgr.load_manifest([manifest_a])
+    monkeypatch.setattr(srv, "_character_manager", mgr)
     _reset_model_caches()
     yield cfg_path
     _reset_model_caches()
@@ -145,17 +180,23 @@ def test_reload_worker_updates_module_globals():
 # ── scope / 幂等 / 异常路径 ──
 
 
-def test_reload_default_scope_all_includes_both():
+def test_reload_default_scope_all_includes_everything():
     r = asyncio.run(srv.api_config_reload())
     assert r["reloaded"] is True
     assert "adapters" in r
     assert "worker" in r
+    assert "plugin" in r
+    assert "memory" in r
+    assert r["plugin"]["applied"] is True
+    assert "frontend" in r["requiresRestart"]
 
 
 def test_reload_worker_scope_skips_adapters():
     r = asyncio.run(srv.api_config_reload({"scope": "worker"}))
     assert "adapters" not in r
     assert "worker" in r
+    assert "plugin" not in r
+    assert "memory" not in r
 
 
 def test_reload_idempotent():
@@ -185,6 +226,125 @@ def test_reload_invalidate_failure_reported_not_500(monkeypatch):
     # 其他 adapter 不受影响，仍完成刷新
     kimi_entry = next(e for e in r["adapters"] if e["name"] == "kimi")
     assert kimi_entry["modelsAfter"] is not None
+
+
+# ── plugin manifest 列表热重载 ──
+
+
+def _read_cfg():
+    return json.loads(config.CONFIG_FILE.read_text(encoding="utf-8"))
+
+
+def test_reload_plugin_picks_up_added_manifest():
+    """新增 plugin_manifests 条目：reload 后新 manifest 的模板生效。"""
+    plugins_dir = config.CONFIG_FILE.parent / "plugins"
+    a_path = str(plugins_dir / "a.json")
+    b_path = _write_plugin_manifest(plugins_dir / "b.json", "pb")
+
+    mgr = srv._character_manager
+    assert [t.name for t in mgr.list_session_templates()] == ["pa"]
+
+    cfg = _read_cfg()
+    cfg["plugin_manifests"] = [a_path, b_path]
+    _write_config(config.CONFIG_FILE, cfg)
+
+    r = asyncio.run(srv.api_config_reload({"scope": "plugin"}))
+    assert r["reloaded"] is True
+    p = r["plugin"]
+    assert p["applied"] is True
+    assert p["before"] == [a_path]
+    assert p["after"] == [a_path, b_path]
+    assert p["sessionTemplates"] == 2
+    assert p["mcpServers"] == 0
+    assert p["characters"] == 0
+    assert p["commandRoutes"] == 0
+    assert [t.name for t in mgr.list_session_templates()] == ["pa", "pb"]
+
+
+def test_reload_plugin_removed_manifest_drops_templates():
+    """移除条目：reload 后该 manifest 的模板不再出现。
+
+    这是 reload_manifest 做不到的——它只重读已注册路径；列表变化必须
+    走 reload_plugin_paths。
+    """
+    plugins_dir = config.CONFIG_FILE.parent / "plugins"
+    a_path = str(plugins_dir / "a.json")
+    b_path = _write_plugin_manifest(plugins_dir / "b.json", "pb")
+
+    cfg = _read_cfg()
+    cfg["plugin_manifests"] = [a_path, b_path]
+    _write_config(config.CONFIG_FILE, cfg)
+    r = asyncio.run(srv.api_config_reload({"scope": "plugin"}))
+    assert r["plugin"]["sessionTemplates"] == 2
+
+    cfg["plugin_manifests"] = [a_path]  # 移除 b
+    _write_config(config.CONFIG_FILE, cfg)
+    r = asyncio.run(srv.api_config_reload({"scope": "plugin"}))
+    assert r["reloaded"] is True
+    assert r["plugin"]["applied"] is True
+    assert r["plugin"]["after"] == [a_path]
+    assert r["plugin"]["sessionTemplates"] == 1
+    assert [t.name for t in srv._character_manager.list_session_templates()] == ["pa"]
+
+
+def test_reload_plugin_broken_manifest_keeps_old_state():
+    """新列表里有坏 manifest：中止、报错，旧 paths + 旧 config 原样保留。"""
+    plugins_dir = config.CONFIG_FILE.parent / "plugins"
+    a_path = str(plugins_dir / "a.json")
+    broken = plugins_dir / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+
+    cfg = _read_cfg()
+    cfg["plugin_manifests"] = [a_path, str(broken)]
+    _write_config(config.CONFIG_FILE, cfg)
+
+    mgr = srv._character_manager
+    r = asyncio.run(srv.api_config_reload({"scope": "plugin"}))
+    assert r["reloaded"] is False
+    assert r["plugin"]["applied"] is False
+    assert r["plugin"]["errors"]
+    assert any("broken" in e for e in r["errors"])
+    # 旧状态完整保留
+    assert mgr._plugin_paths == [a_path]
+    assert [t.name for t in mgr.list_session_templates()] == ["pa"]
+
+
+def test_reload_plugin_scope_in_all():
+    """scope=all 的 plugin 分支与 scope=plugin 行为一致。"""
+    r = asyncio.run(srv.api_config_reload({"scope": "all"}))
+    assert r["reloaded"] is True
+    assert r["plugin"]["applied"] is True
+    assert r["plugin"]["before"] == r["plugin"]["after"]
+    assert r["plugin"]["sessionTemplates"] == 1
+
+
+# ── memory.enabled 开关热重载 ──
+
+
+def test_reload_memory_enabled_toggle():
+    cfg = _read_cfg()
+    cfg["memory"] = {"enabled": False}
+    _write_config(config.CONFIG_FILE, cfg)
+
+    r = asyncio.run(srv.api_config_reload({"scope": "memory"}))
+    assert r["reloaded"] is True
+    assert r["memory"]["before"] == {"enabled": True}
+    assert r["memory"]["after"] == {"enabled": False}
+    assert worker._MEMORY_ENABLED is False
+
+    # 改回 true 后再 reload 恢复
+    cfg["memory"] = {"enabled": True}
+    _write_config(config.CONFIG_FILE, cfg)
+    r = asyncio.run(srv.api_config_reload({"scope": "memory"}))
+    assert worker._MEMORY_ENABLED is True
+
+
+def test_reload_memory_default_true_when_key_missing():
+    """config 无 memory 段：默认开启，reload 幂等。"""
+    r = asyncio.run(srv.api_config_reload({"scope": "memory"}))
+    assert r["reloaded"] is True
+    assert r["memory"]["before"] == {"enabled": True}
+    assert r["memory"]["after"] == {"enabled": True}
 
 
 if __name__ == "__main__":
