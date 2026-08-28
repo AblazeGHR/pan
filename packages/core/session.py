@@ -15,6 +15,7 @@ import asyncio
 import copy
 import json
 import os
+import re
 import secrets
 import threading
 from dataclasses import dataclass, field, asdict
@@ -98,6 +99,27 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 def _new_id() -> str:
     return "ses_" + secrets.token_hex(8)
+
+
+# 存量清理：旧版投递对账把 `[delivered: task/report:<id>:<12位指纹>]` 作为独立
+# 文本行注入消息正文（fix/delivery-mark 起改为 history 条目的 delivered_keys
+# 元数据，见 packages/core/worker.py）。加载时剥离，避免旧消息继续在 UI / 上下
+# 文中显示前缀。整行精确匹配（含 12 位十六进制指纹）才剥离——真实用户消息恰为
+# 该格式独立行的概率可忽略，不误删。
+_DELIVERY_MARK_LINE_RE = re.compile(
+    r"^\[delivered: (?:task|report):[^\]\n]*:[0-9a-f]{12}\]$")
+
+
+def _strip_delivery_marks(history: list[dict]) -> list[dict]:
+    """剥离 history 条目 content 中的旧版 `[delivered: ...]` 标记行（就地修改）。"""
+    for h in history:
+        content = h.get("content")
+        if not isinstance(content, str) or "[delivered:" not in content:
+            continue
+        lines = [ln for ln in content.split("\n")
+                 if not _DELIVERY_MARK_LINE_RE.match(ln)]
+        h["content"] = "\n".join(lines).lstrip("\n")
+    return history
 
 
 # The three capability flags are stored nested under ``pan_access``. Old JSON
@@ -416,7 +438,9 @@ def _from_data_with_history(sid: str, data: dict) -> Session:
     _migrate_session_usage(s)
     hist_path = _history_path(sid)
     if hist_path.exists():
-        s.history = _read_jsonl(hist_path)
+        s.history = _strip_delivery_marks(_read_jsonl(hist_path))
+    else:
+        _strip_delivery_marks(s.history)
     s._hist_persisted = len(s.history)
     s._last_meta_sig = _meta_signature(s)
     return s
