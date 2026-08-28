@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { QueuedMessage, QueuedEdit, Message } from '@/types';
+import type { QueuedMessage, QueuedEdit } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -12,6 +12,9 @@ import { wsClient } from '@/services/ws';
  * - 编辑先出队：编辑中的消息从队列（内存 + localStorage）移除，避免被 flush 发出；
  *   Enter 保存插回原位置，Esc 恢复原值；编辑态持久化，刷新可恢复。
  * - `sendingId` 单飞锁：防同一条在异步窗口内被 idle 事件重复触发两次。
+ * - 语义：排队消息**不进聊天历史**（它不在服务端 history 中，伪装上屏会在刷新后
+ *   凭空消失）。可见性由 SendQueuePanel + InputRow 角标 + toast 提供（数据源
+ *   localStorage 持久，刷新后仍在）；flush 发送成功后才 addMessage 上屏。
  */
 
 const QUEUE_KEY_PREFIX = 'pan.sendQueue.';
@@ -114,11 +117,6 @@ interface QueueStore {
   panelOpen: boolean;
   /** 当前正在发送的队列项 id（批量拼接时为 '__batch__'）；null 表示空闲。 */
   sendingId: string | null;
-  /** 入队时立即塞进 currentMessages 的「乐观」聊天消息（按 sessionId → queueId →
-   *  Message 引用）。Message 对象以引用相等存入 currentMessages，因此可用引用
-   *  精确移除，避免在 remove / edit / clear 时留下幽灵消息。flush 发送后仅清理
-   *  追踪（保留聊天消息 = 已发送的那条）；remove / clear / startEdit 走移除路径。 */
-  optimisticRefs: Record<string, Record<string, Message>>;
 
   /** session 切换 / 首次进入时从 localStorage 恢复。 */
   loadForSession: (sessionId: string | null) => void;
@@ -203,61 +201,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       queues: { ...s.queues, [sessionId]: next },
       edits: { ...s.edits, [sessionId]: null },
     }));
-    // 该条目回到「待发送」状态 → 补一条乐观聊天消息（之前 startEdit 移走了）
-    _addOptimisticForItem(sessionId, edit.id, edit.originalText);
-  }
-
-  // ── 乐观聊天消息 helpers ──
-  // 入队时立即把用户消息追加到 currentMessages，让用户按 Enter 就看到自己的消息
-  // （与 InputRow 直接发送一致）。后续 flush 发送完成时仅清理追踪、不重复 addMessage；
-  // remove / edit / clear 走 _clearOptimisticForQids 把对应消息从聊天里也撤掉。
-
-  function _addOptimisticForItem(sid: string, qid: string, text: string): void {
-    // 切到别的 session 时入队（理论 race）→ 不污染对方聊天区
-    if (useSessionStore.getState().currentSessionId !== sid) return;
-    const msg: Message = { role: 'user', content: text };
-    useSessionStore.getState().addMessage(msg);
-    const cur = { ...(get().optimisticRefs[sid] ?? {}) };
-    cur[qid] = msg;
-    set((s) => ({ optimisticRefs: { ...s.optimisticRefs, [sid]: cur } }));
-  }
-
-  function _clearOptimisticForQids(sid: string, qids: string[]): void {
-    const refs = get().optimisticRefs[sid];
-    if (!refs) return;
-    const removeRefs: Message[] = [];
-    const cur = { ...refs };
-    for (const qid of qids) {
-      const r = cur[qid];
-      if (r) {
-        removeRefs.push(r);
-        delete cur[qid];
-      }
-    }
-    if (removeRefs.length === 0) return;
-    // 仅当聊天里还引用着这些对象时才动 currentMessages（切走 session 等导致
-    // currentMessages 已被替换时，跳过即可，避免误删别人的消息）。
-    useSessionStore.setState((s) => {
-      const hasAny = removeRefs.some((r) => s.currentMessages.includes(r));
-      if (!hasAny) return {};
-      return { currentMessages: s.currentMessages.filter((m) => !removeRefs.includes(m)) };
-    });
-    set((s) => ({ optimisticRefs: { ...s.optimisticRefs, [sid]: cur } }));
-  }
-
-  /** 仅清理追踪，保留聊天消息（消息已发送，聊天里那条就是它）。 */
-  function _untrackOptimistic(sid: string, qids: string[]): void {
-    const refs = get().optimisticRefs[sid];
-    if (!refs) return;
-    let changed = false;
-    const cur = { ...refs };
-    for (const qid of qids) {
-      if (qid in cur) {
-        delete cur[qid];
-        changed = true;
-      }
-    }
-    if (changed) set((s) => ({ optimisticRefs: { ...s.optimisticRefs, [sid]: cur } }));
   }
 
   return {
@@ -266,7 +209,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     batchSend: {},
     panelOpen: false,
     sendingId: null,
-    optimisticRefs: {},
 
     loadForSession: (sessionId) => {
       if (!sessionId) return;
@@ -293,9 +235,8 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const next = [...queue, item];
       persistQueue(sid, next);
       set((s) => ({ queues: { ...s.queues, [sid]: next } }));
-      // 立即在聊天窗口追加用户消息（与 InputRow 直接发送一致）——之前要等 worker
-      // idle 触发 flush 才上屏，发送中的延迟会被用户误判为「没发出去」。
-      _addOptimisticForItem(sid, item.id, text);
+      // 排队消息不上屏：它尚未进入服务端会话历史，伪装成已发送会在刷新后
+      // 凭空消失。可见性由 toast + SendQueuePanel + 输入框 ^ 角标提供。
       useUIStore.getState().showToast(`已加入发送队列（${next.length} 条待发）`);
       // 竞态兜底：busy 检查与入队之间 worker 可能已 idle（idle 事件先于入队触发过）
       get().flush();
@@ -308,9 +249,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       ensureLoaded(sid);
       const queue = get().queues[sid] ?? [];
       const idx = queue.findIndex((x) => x.id === id);
-      if (idx < 0) return; // 已不在队列（已发送或不存在）→ 无乐观消息需要移除
-      // 该项是「待发送」状态：从聊天区撤掉入队时追加的乐观消息，避免幽灵。
-      _clearOptimisticForQids(sid, [id]);
+      if (idx < 0) return; // 已不在队列（已发送或不存在）
       const next = queue.slice();
       next.splice(idx, 1);
       persistQueue(sid, next);
@@ -335,9 +274,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const next = queue.slice();
       next.splice(idx, 1);
       persistQueue(sid, next);
-      // 该项从「待发送」转入「编辑」→ 撤掉乐观聊天消息（saveEdit / cancelEdit 重新入队
-      // 时会通过 restoreEdit 或 saveEdit 内部再补一条新的乐观消息）。
-      _clearOptimisticForQids(sid, [id]);
       const edit: QueuedEdit = {
         id: item.id,
         text: item.text,
@@ -385,8 +321,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         queues: { ...s.queues, [sid]: next },
         edits: { ...s.edits, [sid]: null },
       }));
-      // 重新入队 → 补一条乐观聊天消息（startEdit 撤掉过；文本可能已修改）
-      _addOptimisticForItem(sid, edit.id, finalText);
       get().flush();
     },
 
@@ -422,9 +356,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const sid = useSessionStore.getState().currentSessionId;
       if (!sid) return;
       ensureLoaded(sid);
-      // 清空队列 → 撤掉所有「待发送」项对应的乐观聊天消息（保留已编辑中的 edit）
-      const queue = get().queues[sid] ?? [];
-      _clearOptimisticForQids(sid, queue.map((x) => x.id));
       persistQueue(sid, []);
       set((s) => ({ queues: { ...s.queues, [sid]: [] } }));
       useUIStore.getState().showToast('已清空发送队列');
@@ -463,17 +394,12 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       if (status === 'held') return; // takeover：服务端硬拒，跳过自动发送
       if (status !== 'idle' && status !== 'offline') return; // queued/running/…：等 idle 事件
 
-      const finish = (idsToRemove: string[], message: string, isBatch: boolean): void => {
-        if (isBatch) {
-          // 批量：N 条乐观消息替换为 1 条合并后的消息（与服务端一致）。
-          _clearOptimisticForQids(sid, idsToRemove);
-          if (useSessionStore.getState().currentSessionId === sid) {
-            useSessionStore.getState().addMessage({ role: 'user', content: message });
-          }
-        } else {
-          // 单条：入队时已把乐观消息塞进聊天区，发送完成只需清理追踪——保留那条消息
-          // （它就是刚刚发出去的用户消息）。
-          _untrackOptimistic(sid, idsToRemove);
+      const finish = (idsToRemove: string[], message: string): void => {
+        // 消息已被服务端接受进任务流 → 现在才上屏（桥接到服务端历史包含它为止；
+        // sessionStore 的 isServerHistoryPrefix 防护会保留这条本地消息不被过期
+        // 快照冲掉）。单条与批量路径统一：聊天区只显示已确认发送的内容。
+        if (useSessionStore.getState().currentSessionId === sid) {
+          useSessionStore.getState().addMessage({ role: 'user', content: message });
         }
         const cur = get().queues[sid] ?? [];
         const removeSet = new Set(idsToRemove);
@@ -492,7 +418,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           finish(
             queue.map((x) => x.id),
             combined,
-            true,
           );
         });
         return;
@@ -504,7 +429,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       sendText(sid, head.text, (ok) => {
         set({ sendingId: null });
         if (!ok) return; // 发送失败：保留队首待下次重试
-        finish([head.id], head.text, false);
+        finish([head.id], head.text);
       });
     },
 
@@ -523,11 +448,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         delete edits[sessionId];
         const batchSend = { ...s.batchSend };
         delete batchSend[sessionId];
-        // session 删了 → 它的乐观聊天消息追踪也清掉（currentMessages 已被
-        // sessionStore 重置，不用管）
-        const optimisticRefs = { ...s.optimisticRefs };
-        delete optimisticRefs[sessionId];
-        return { queues, edits, batchSend, optimisticRefs };
+        return { queues, edits, batchSend };
       });
     },
   };

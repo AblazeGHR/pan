@@ -70,7 +70,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('InputRow send queue wiring', () => {
-  it('enqueues when worker busy, clears input, and shows badge + panel row', () => {
+  it('enqueues when worker busy, clears input, shows badge + panel row, and does NOT add to chat history', () => {
     setBusySession();
     render(<InputRow />);
 
@@ -83,16 +83,34 @@ describe('InputRow send queue wiring', () => {
     expect(q.length).toBe(1);
     expect(q[0]?.text).toBe('queued msg');
     expect((textarea as HTMLTextAreaElement).value).toBe('');
-    // 入队即上屏（乐观）：与直接发送一致，用户按 Enter 立即看到自己的消息
-    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['queued msg']);
+    // 排队消息不上屏：它不在服务端 history 中，伪装进聊天会在刷新后凭空消失
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
 
     // ^ 按钮角标显示 1（面板头部的计数也在 DOM 中，用 getAllByText）
     expect(screen.getAllByText('1').length).toBeGreaterThan(0);
 
-    // 点击 ^ 展开面板 → 显示队列项
+    // 点击 ^ 展开面板 → 显示队列项（排队消息的唯一 UI 呈现处）
     fireEvent.click(screen.getByLabelText('发送队列'));
     expect(screen.getByText('queued msg')).toBeTruthy();
     expect(screen.getByText('待发送')).toBeTruthy();
+  });
+
+  it('still renders queued messages from localStorage after a page reload', () => {
+    // 预置上一页留下的队列（localStorage 持久化）
+    localStorage.setItem(
+      'pan.sendQueue.s1',
+      JSON.stringify([{ id: 'q1', text: 'survivor msg', createdAt: 1, status: 'pending' }]),
+    );
+    setBusySession();
+    // 内存镜像为空（模拟刷新后 store 初始化）
+    useQueueStore.setState({ queues: {}, edits: {}, batchSend: {} });
+    render(<InputRow />);
+
+    // SendQueuePanel mount effect loadForSession → 从 localStorage 恢复并渲染
+    fireEvent.click(screen.getByLabelText('发送队列'));
+    expect(screen.getByText('survivor msg')).toBeTruthy();
+    // 聊天历史（服务端拉取）中不含它
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
   it('still sends directly when worker is idle', () => {
