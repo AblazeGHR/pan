@@ -4,6 +4,20 @@
 
 **English · [中文](./README.md)**
 
+## Design Philosophy: Reduce Cognitive Load
+
+Pan's starting point is not to build a more complex tool, but to relieve a burden — the burden of attention and cognition, whether it belongs to humans or to agents.
+
+This is the most direct lesson from building agent management, clustering, scheduling and communication systems first-hand: cognitive load drops on both sides.
+
+**For humans**: parallel work used to mean juggling 7–8 terminals with attention torn apart — an extremely painful experience. Now you talk to a single Meta-Agent and enjoy a clean context.
+
+**For agents**: everyone sticks to its own role — the Meta-Agent is never drowned in detailed context, while Task-Agents receive ultra-high-quality prompts written by an agent with a global view. And the Meta-Agent's ability to decompose tasks and orchestrate parallel/serial steps, dependencies and boundaries is astonishing.
+
+The combined result: at least a 10× boost in efficiency.
+
+---
+
 Spend 30 seconds to see Pan's selling points and typical workflows first; the full feature / configuration / API reference is in the [Table of Contents](#table-of-contents) below.
 
 **Pan is not an all-or-nothing product — it is a spectrum of an extensible middleware layer**: used shallowly, it is a minimal "Session & Agent CLI manager"; used to its full depth, it is a complete, extensible "Agent cluster management & collaboration system + MCP tool layer" — and every depth in between can be enabled on demand (see "[Pan is a spectrum](#-pan-is-a-spectrum-scale-it-as-you-go)").
