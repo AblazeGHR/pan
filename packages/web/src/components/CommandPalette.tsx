@@ -41,9 +41,9 @@ export function CommandPalette() {
     // Session
     result.push(
       { id: 'sess-new', label: 'New Session', detail: 'Create a new session', group: 'Session', action: () => {
-        createNewSession(nextSessionDefaultName(sessions)).catch((e) =>
-          showToast(e.message || 'Creation failed', 'error'),
-        );
+        createNewSession(nextSessionDefaultName(sessions))
+          .then(() => showToast('Session created'))
+          .catch((e) => showToast(e.message || 'Creation failed', 'error'));
       }},
       { id: 'sess-import', label: 'Import', detail: 'Import from cbc/kimi', group: 'Session', action: () => {
         // TODO: trigger import modal — for now, navigate to home

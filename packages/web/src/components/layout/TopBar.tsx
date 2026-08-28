@@ -105,7 +105,11 @@ export function TopBar() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => restart(effectiveWorkerId)}
+              onClick={() =>
+                restart(effectiveWorkerId)
+                  .then(() => showToast('Restarted worker'))
+                  .catch((e) => showToast(e.message, 'error'))
+              }
               title="Restart worker"
             >
               <RotateCw size={14} />
@@ -113,7 +117,11 @@ export function TopBar() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => interrupt(effectiveWorkerId)}
+              onClick={() =>
+                interrupt(effectiveWorkerId)
+                  .then(() => showToast('Interrupt sent'))
+                  .catch((e) => showToast(e.message, 'error'))
+              }
               title="Interrupt"
             >
               <Ban size={14} />
@@ -139,9 +147,9 @@ export function TopBar() {
               size="sm"
               onClick={() => {
                 if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
-                killCurrent(effectiveWorkerId).catch((e) =>
-                  showToast(e.message, 'error'),
-                );
+                killCurrent(effectiveWorkerId)
+                  .then(() => showToast('Kill sent'))
+                  .catch((e) => showToast(e.message, 'error'));
               }}
               title="Kill worker"
             >
@@ -154,9 +162,9 @@ export function TopBar() {
             variant="primary"
             size="sm"
             onClick={() =>
-              startWorker(currentSession.id || '').catch((e) =>
-                showToast(e.message, 'error'),
-              )
+              startWorker(currentSession.id || '')
+                .then(() => showToast('Worker started'))
+                .catch((e) => showToast(e.message, 'error'))
             }
           >
             Start

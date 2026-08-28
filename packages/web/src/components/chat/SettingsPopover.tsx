@@ -249,12 +249,14 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
             onClick={() => {
               const workerId = effectiveWorkerId;
               if (workerId) {
-                restart(workerId).catch((e) => showToast(e.message, 'error'));
+                restart(workerId)
+                  .then(() => showToast('Restarted worker'))
+                  .catch((e) => showToast(e.message, 'error'));
               } else if (session?.id) {
                 // No worker yet — spawn one (mirrors TopBar "Start").
-                startWorker(session.id).catch((e) =>
-                  showToast(e.message, 'error'),
-                );
+                startWorker(session.id)
+                  .then(() => showToast('Worker started'))
+                  .catch((e) => showToast(e.message, 'error'));
               }
             }}
           >
@@ -266,9 +268,9 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
                 variant="secondary"
                 size="sm"
                 onClick={() =>
-                  interrupt(effectiveWorkerId).catch((e) =>
-                    showToast(e.message, 'error'),
-                  )
+                  interrupt(effectiveWorkerId)
+                    .then(() => showToast('Interrupt sent'))
+                    .catch((e) => showToast(e.message, 'error'))
                 }
               >
                 ⊘ Interrupt
@@ -291,9 +293,9 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
                 size="sm"
                 onClick={() => {
                   if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
-                  killCurrent(effectiveWorkerId).catch((e) =>
-                    showToast(e.message, 'error'),
-                  );
+                  killCurrent(effectiveWorkerId)
+                    .then(() => showToast('Kill sent'))
+                    .catch((e) => showToast(e.message, 'error'));
                 }}
               >
                 ✕ Kill

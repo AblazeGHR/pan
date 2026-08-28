@@ -108,17 +108,19 @@ export function Sidebar() {
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} selected session(s)?`)) return;
-    batchRemoveSessions().catch((e) =>
-      showToast(e.message || 'Batch delete failed', 'error'),
-    );
+    const count = selectedIds.size;
+    batchRemoveSessions()
+      .then(() => showToast(`Deleted ${count} session(s)`))
+      .catch((e) => showToast(e.message || 'Batch delete failed', 'error'));
   };
 
   const quickNew = useCallback(() => {
     const name = nextSessionDefaultName(sessions);
     const store = useSessionStore.getState();
-    store.createNewSession(name).catch((e) =>
-      showToast(e.message || 'Creation failed', 'error'),
-    );
+    store
+      .createNewSession(name)
+      .then(() => showToast('Session created'))
+      .catch((e) => showToast(e.message || 'Creation failed', 'error'));
   }, [sessions, showToast]);
 
   // useCallback：SessionList 的 SessionItem 是 React.memo，onSessionMenu 必须
