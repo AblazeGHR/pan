@@ -291,6 +291,12 @@ def test_create_channel_alias_name():
 # ── 多账号注册表 set/get/by_name/by_uin ──
 
 def test_multi_channel_registry():
+    # 进程级注册表在 import 时可能已含默认通道（plugin.get_channel() 惰性创建；
+    # 无 config.json 时 resolve_channel_name 回退默认 napcat——CI 干净环境即此
+    # 情形，本地有 config.json 时是 llonebot）。快照并清空注册表，使下方断言
+    # 只针对本用例注册的通道，对环境前置状态免疫。
+    saved_registry = dict(ch._ACTIVE_CHANNELS)
+    ch._ACTIVE_CHANNELS.clear()
     c1 = ch.create_channel("llonebot", ["ws://127.0.0.1:3002"], bot_uin="3494144273")
     c2 = ch.create_channel("llonebot2", ["ws://127.0.0.1:3003"], bot_uin="1470993983")
     ch.set_active_channel(c1, name=c1.name)
@@ -311,8 +317,9 @@ def test_multi_channel_registry():
         # iter_channels 快照
         assert ch.iter_channels() == {"llonebot": c1, "llonebot2": c2}
     finally:
-        ch._ACTIVE_CHANNELS.pop("llonebot", None)
-        ch._ACTIVE_CHANNELS.pop("llonebot2", None)
+        # 还原注册表快照（本用例注册的 llonebot/llonebot2 一并移除）
+        ch._ACTIVE_CHANNELS.clear()
+        ch._ACTIVE_CHANNELS.update(saved_registry)
         # 恢复默认指针为剩余注册表首项（若空则 None）
         rest = list(ch.iter_channels().values())
         if rest:
