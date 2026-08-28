@@ -22,6 +22,12 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 3. **完成通知只有一条编排路径**：MCP `report_subscribe` → 报告落到自己的**落盘队列 `queue_pending`**（meta-agent 内部订阅，§3）。外部 WS 盯梢（`/ws/agent` / `monitor_workers.py`）仅**测试/排障/外部协调者**用，不是编排路径（§4）。
 4. 端口约定：main 分支默认 **8768**（test 分支 8767）；MCP server 默认连 `PAN_API_URL`（8768）。**关键**：MCP server 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务**同实例**（§3 三对齐），否则 `report_subscribe` / `qq_bind` 失效（§10.2 G9）。端口不符时用 `PAN_API_URL` 覆盖。
 
+## 0.5 面向最终用户：怎么回复「怎么玩转 Pan」
+
+> **触发**：最终用户（非 agent、不写代码的人）问「怎么使用 / 玩转 Pan」「你能干什么」时，**不要**向用户抛 MCP 工具名、API、session_id 等开发者 / agent 术语——本文件其余章节都是编排视角，直接照讲用户听不懂。
+>
+> **正确做法**：按 [`references/user-guide.md`](references/user-guide.md) 的标准回答框架回复，用「你（用户）/ 我（Pan）」对话口吻，核心一句话——**用自然语言告诉我要什么，我来拆解、派帮手、汇报结果**。该文档含可直接发送的正文（含示例对话）与回复注意事项。
+
 ## 1. 核心概念
 
 | 概念 | 说明 |
