@@ -109,8 +109,12 @@ def test_report_atomic_dequeue(monkeypatch):
 
     assert len(received) == 1
     assert "r1" in received[0][0] and "r2" in received[0][0]
+    assert "[delivered:" not in received[0][0], "mark must not leak into message content"
     assert s.queue_pending == []
     assert len(s.history) == 1
+    # 投递标记记为 history 条目元数据，正文不含前缀
+    assert s.history[0].get("delivered_keys") == [
+        worker._delivery_key(_make_report(1)), worker._delivery_key(_make_report(2))]
     # 原子性：恰好一次消费落盘，且落盘瞬间 history 已含消息、queue 已出队
     consumer_saves = [e for e in save_log if e[0]]
     assert len(consumer_saves) == 1, f"exactly one atomic save expected: {save_log}"
@@ -214,10 +218,11 @@ def test_task_atomic_dequeue(monkeypatch):
     asyncio.run(scenario())
 
     assert len(received) == 1
-    assert s.queue_pending == []
-    assert received[0][0].startswith("[delivered: task:task1:")
+    assert "[delivered:" not in received[0][0], "mark must not leak into message content"
     assert "job 1" in received[0][0], "delivery mark must not replace the task text"
     assert received[0][2] == 1 and received[0][3] == "tid1", "seq/taskId must propagate"
+    # 投递标记记为 history 条目元数据，正文不含前缀
+    assert s.history[0].get("delivered_keys") == [worker._delivery_key(task)]
     # 原子性：恰好一次消费落盘，且落盘瞬间 history 已含消息、queue 已出队
     consumer_saves = [e for e in save_log if e[0]]
     assert len(consumer_saves) == 1, f"exactly one atomic save expected: {save_log}"
@@ -415,9 +420,9 @@ def test_reconcile_report_already_delivered_skips_and_clears(monkeypatch):
     _cleanup()
     s = _setup_session("ses_mgr")
     report = _make_report(1)
-    # 模拟崩溃现场：jsonl 已写（history 含投递标记）、主文件未写（队列项还在）
-    s.history.append({"role": "user",
-                      "content": f"{worker._delivery_mark_line(report)}\n\n@@@@by agent : ses_child"})
+    # 模拟崩溃现场：jsonl 已写（history 条目含投递标记元数据）、主文件未写（队列项还在）
+    s.history.append({"role": "user", "content": "@@@@by agent : ses_child",
+                      "delivered_keys": [worker._delivery_key(report)]})
     s.queue_pending = [report]
     w = _make_worker("ses_mgr")
     monkeypatch.setattr(_sess, "save_async", _recording_save([]))
@@ -446,9 +451,9 @@ def test_reconcile_task_already_delivered_skips_and_clears(monkeypatch):
     _cleanup()
     s = _setup_session("ses_mgr")
     task = _make_task(1)
-    # 模拟崩溃现场：jsonl 已写（含标记）、主文件未写（队列项还在）
-    s.history.append({"role": "user",
-                      "content": f"{worker._delivery_mark_line(task)}\njob 1"})
+    # 模拟崩溃现场：jsonl 已写（含标记元数据）、主文件未写（队列项还在）
+    s.history.append({"role": "user", "content": "job 1",
+                      "delivered_keys": [worker._delivery_key(task)]})
     s.queue_pending = [task]
     w = _make_worker("ses_mgr")
     monkeypatch.setattr(_sess, "save_async", _recording_save([]))
@@ -478,8 +483,8 @@ def test_reconcile_partial_delivered_reports(monkeypatch):
     _cleanup()
     s = _setup_session("ses_mgr")
     delivered, fresh = _make_report(1), _make_report(2)
-    s.history.append({"role": "user",
-                      "content": f"{worker._delivery_mark_line(delivered)}\n\nx"})
+    s.history.append({"role": "user", "content": "x",
+                      "delivered_keys": [worker._delivery_key(delivered)]})
     s.queue_pending = [delivered, fresh]
     w = _make_worker("ses_mgr")
     save_log = []
@@ -514,10 +519,11 @@ def test_reconcile_mismatched_content_redelivers(monkeypatch):
     s = _setup_session("ses_mgr")
     # 内容不同（status: done vs error），taskId 相同 → key 不同 → 不命中
     changed = dict(_make_report(1), status="error", result="boom")
-    s.history.append({"role": "user",
-                      "content": f"{worker._delivery_mark_line(_make_report(1))}\n\nx"})
-    # 格式差异：history 里是错误大小写的标记，构造的假标记不会命中真实项
-    s.history.append({"role": "user", "content": "[Delivered: report:whatever]\ny"})
+    s.history.append({"role": "user", "content": "x",
+                      "delivered_keys": [worker._delivery_key(_make_report(1))]})
+    # 格式差异：history 里是错误 key（大小写/指纹不同），不会命中真实项
+    s.history.append({"role": "user", "content": "y",
+                      "delivered_keys": ["Report:whatever:000000000000"]})
     s.queue_pending = [changed]
     w = _make_worker("ses_mgr")
     monkeypatch.setattr(_sess, "save_async", _recording_save([]))
@@ -551,8 +557,8 @@ def test_reconcile_scans_tail_window_only(monkeypatch):
     depth = worker._DELIVERY_SCAN_DEPTH
     for i in range(depth):
         s.history.append({"role": "user", "content": f"filler {i}"})
-    s.history.append({"role": "user",
-                      "content": f"{worker._delivery_mark_line(report)}\n\nold"})
+    s.history.append({"role": "user", "content": "old",
+                      "delivered_keys": [worker._delivery_key(report)]})
     for i in range(depth):
         s.history.append({"role": "user", "content": f"newer {i}"})
     s.queue_pending = [report]
@@ -593,3 +599,53 @@ def test_recover_pending_signals_mixed_queue(monkeypatch):
     assert task_ids == ["task1", "task2"]
     assert {"type": "report_signal"} in signals
     _cleanup()
+
+
+# ── 存量清理：加载时剥离旧版正文标记行 ──
+
+
+def test_strip_delivery_marks_helper():
+    """旧版 `[delivered: ...]` 独立行被剥离；行内提及与非标记格式保留。"""
+    from packages.core.session import _strip_delivery_marks
+
+    hist = _strip_delivery_marks([
+        # task 单标记行 + 正文 → 前缀剥离、正文保留
+        {"role": "user", "content": f"[delivered: task:task1:{'a' * 12}]\njob 1"},
+        # report 批量多标记行 + 空行 + 正文 → 剥离后不残留前导空行
+        {"role": "user", "content":
+            f"[delivered: report:t9:{'b' * 12}]\n[delivered: report:anon:{'c' * 12}]"
+            "\n\n@@@@by agent : x"},
+        # 行内提及（非独立行）→ 保留，不误删
+        {"role": "user", "content": "see the mark [delivered: task:x:aab] here"},
+        # 指纹非 12 位十六进制 → 不命中，保留
+        {"role": "user", "content": "[delivered: task:weird:zzz]"},
+        # 无标记 → 原样
+        {"role": "user", "content": "plain"},
+    ])
+
+    assert hist[0]["content"] == "job 1"
+    assert hist[1]["content"] == "@@@@by agent : x"
+    assert hist[2]["content"] == "see the mark [delivered: task:x:aab] here"
+    assert hist[3]["content"] == "[delivered: task:weird:zzz]"
+    assert hist[4]["content"] == "plain"
+
+
+def test_legacy_marks_stripped_on_session_load(tmp_path, monkeypatch):
+    """加载路径集成：主文件 history（旧格式）经 get() 加载后正文标记行已剥离。"""
+    import json
+    from packages.core import session as sess_mod
+
+    hist = [{"role": "user", "content": f"[delivered: task:task1:{'a' * 12}]\njob 1"},
+            {"role": "user", "content": "untouched"}]
+    monkeypatch.setattr(sess_mod, "SESSION_DIR", tmp_path)
+    sess_mod._cache.clear()
+    (tmp_path / "ses_legacy.json").write_text(
+        json.dumps({"id": "ses_legacy", "name": "t", "history": hist}), encoding="utf-8")
+
+    try:
+        s = sess_mod.get("ses_legacy")
+        assert s is not None
+        assert s.history[0]["content"] == "job 1"
+        assert s.history[1]["content"] == "untouched"
+    finally:
+        sess_mod._cache.clear()
