@@ -98,22 +98,27 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
           botList.length > 0
             ? botList
             : [{ name: '', bot_uin: '', connected: false }];
-        const results = await Promise.all(
+        // 分批加载：每个 bot 拉完立即追加显示，不阻塞等待全部完成（首次
+        // 冷启动时先出第一批，避免一直卡 loading）。
+        const accumulated: BotContact[] = [];
+        await Promise.all(
           targets.map(async (b) => {
             try {
               const list = await fetchQqContacts(b.bot_uin || undefined);
-              return list.map((contact): BotContact => ({
+              const rows = list.map((contact): BotContact => ({
                 contact,
                 botUin: b.bot_uin,
                 botName: b.name,
               }));
+              accumulated.push(...rows);
             } catch {
-              return [] as BotContact[];
+              // 单个 bot 失败跳过，不因离线账号清空整表
             }
+            if (cancelled) return;
+            setItems(accumulated.slice());
           }),
         );
         if (cancelled) return;
-        setItems(results.flat());
       } catch (e) {
         if (cancelled) return;
         setLoadError(
@@ -173,7 +178,13 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
     );
   }, [validItems, query]);
 
-  const visible = showAll ? filtered : filtered.slice(0, SHOW_LIMIT);
+  // 已订阅的置顶（保持其余相对顺序），然后截断到 SHOW_LIMIT。
+  const visible = useMemo(() => {
+    const sorted = filtered
+      .slice()
+      .sort((a, b) => Number(isSubscribed(b)) - Number(isSubscribed(a)));
+    return showAll ? sorted : sorted.slice(0, SHOW_LIMIT);
+  }, [filtered, showAll, subscriptions]);
   const subscribedCount = validItems.filter(isSubscribed).length;
 
   const toggle = async (item: BotContact, checked: boolean) => {

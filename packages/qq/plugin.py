@@ -39,6 +39,16 @@ import websockets
 from nonebot import get_driver
 from nonebot.adapters.onebot.v11 import Bot
 
+# recent_contacts 结果缓存（按 bot_uin）：联系人/会话列表相对稳定，短 TTL 缓存
+# 避免每次打开 Postbox 都全量调 3 个 OneBot API（get_recent_contact / get_friend_list /
+# get_group_list），双 bot 时尤甚。失败结果不缓存（下次重试）。
+_CONTACTS_CACHE_TTL = 60.0
+_contacts_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _contacts_cache_key(bot_uin: str | int | None) -> str:
+    return str(bot_uin or "")
+
 from packages.qq.channels import QQChannel, QQMessage
 from packages.qq import channels as _qq_channels
 
@@ -1073,15 +1083,26 @@ async def api_recent_contacts(bot_uin: str | int | None = None) -> dict:
 
     bot_uin 可选（多账号）：指定从哪个 bot（QQ 号）的通道拉取联系人；未注册 /
     未连接返回 ok:false（unknown_bot_uin）；缺省走默认通道（向后兼容）。
+    结果按 bot_uin 做短 TTL 缓存（_CONTACTS_CACHE_TTL），避免 Postbox 每次打开
+    都全量调网关 API；失败结果不缓存。
     """
+    key = _contacts_cache_key(bot_uin)
+    now = time.monotonic()
+    cached = _contacts_cache.get(key)
+    if cached and now - cached[0] < _CONTACTS_CACHE_TTL:
+        return cached[1]
     if bot_uin:
         ch = get_channel_by_uin(bot_uin)
         if ch is None:
             return {"ok": False, "error": {
                 "code": "unknown_bot_uin",
                 "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"}}
-        return await ch.recent_contacts()
-    return await get_channel().recent_contacts()
+        result = await ch.recent_contacts()
+    else:
+        result = await get_channel().recent_contacts()
+    if result.get("ok"):
+        _contacts_cache[key] = (now, result)
+    return result
 
 
 async def api_channels() -> dict:

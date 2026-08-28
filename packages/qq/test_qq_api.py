@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import nonebot  # noqa: E402
@@ -22,6 +24,13 @@ nonebot.init()
 
 from packages.qq import plugin as qq  # noqa: E402
 from packages.qq.channels import QQMessage  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _clear_contacts_cache():
+    """清理模块级联系人缓存，避免测试间污染（api_recent_contacts 的 TTL 缓存）。"""
+    qq._contacts_cache.clear()
+    yield
 
 
 class FakeBot:
