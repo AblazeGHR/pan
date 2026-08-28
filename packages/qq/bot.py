@@ -47,8 +47,22 @@ def _inject_onebot_env(name: str, ws_urls: list[str], token: str | None) -> None
 
 def main() -> None:
     qq_cfg = _load_qq_config()
-    name, ws_urls, token = _channels.build_channel_spec(qq_cfg)
-    _inject_onebot_env(name, ws_urls, token)
+    # 多通道解析：qq.channels 数组存在则逐项构建（多账号同收发），
+    # 否则退回单通道 build_channel_spec（向后兼容）。
+    specs = _channels.build_channel_specs(qq_cfg)
+
+    # NoneBot OneBot v11 适配器按 ONEBOT_WS_URLS（JSON 数组）连接网关，原生支持
+    # 多 bot：把全部通道的 ws_urls 合并注入，每个网关返回各自的 self_id，
+    # 通道实例再按 config.bot_uin 认领属于自己的连接。
+    all_urls: list[str] = []
+    first_token: str | None = None
+    for spec in specs:
+        for u in spec["ws_urls"]:
+            if u not in all_urls:
+                all_urls.append(u)
+        if first_token is None and spec["token"]:
+            first_token = spec["token"]
+    _inject_onebot_env(specs[0]["name"], all_urls, first_token)
 
     # Mixed driver: fastapi serves the QQ HTTP API (server_app) while websockets
     # provides the OneBot v11 WS *client* connection to the gateway. Without the
@@ -57,9 +71,22 @@ def main() -> None:
     driver = get_driver()
     driver.register_adapter(OneBotAdapter)
 
-    # 构造通道并 stash：plugin 复用同一实例（避免重复创建 / 配置不一致）
-    channel = _channels.create_channel(name, ws_urls, token)
-    _channels.set_active_channel(channel)
+    # 构造全部通道并注册：第一个为默认通道（get_active_channel / plugin 复用），
+    # 其余进注册表按 name / bot_uin 查找（plugin 的多账号回复路由）。
+    for spec in specs:
+        channel = _channels.create_channel(
+            spec["name"], spec["ws_urls"], spec["token"], bot_uin=spec["bot_uin"]
+        )
+        _channels.set_active_channel(channel, name=channel.name)
+        print(
+            f"[QQ] 通道 '{channel.name}' 已注册"
+            f"（bot_uin={spec['bot_uin'] or '未配置'}, ws={spec['ws_urls']}）"
+        )
+    if len(specs) > 1:
+        # set_active_channel 每次都会把 _ACTIVE 指向新通道，这里拨回第一个作默认
+        first = _channels.get_channel_by_name(specs[0]["name"])
+        if first is not None:
+            _channels.set_active_channel(first)
 
     nonebot.load_plugin("plugin")
     nonebot.run()

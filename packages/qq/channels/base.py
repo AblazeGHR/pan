@@ -35,9 +35,12 @@ class QQMessage:
 
     scope:     "user"（私聊）/ "group"（群聊）
     scope_id:  私聊为 QQ 号，群聊为群号（字符串）
-    text:      消息纯文本（OneBot get_plaintext 结果，不含 CQ 码外的控制段）
+    text:      消息文本：纯文本 + 富媒体占位描述（如 "[图片: https://…]"、
+               "[表情: 5]"，媒体在前）；纯富媒体消息时 text 即媒体描述（非空）
     sender_nickname: 发送者昵称（best-effort，可为空）
     at_bot:    群消息是否为 @ 本 bot（私聊恒为 True）；未在通道 hook 内过滤
+    bot_uin:   收到本消息的 bot QQ 号（self_id，字符串）；多账号部署时按来源
+               路由回复（谁收到谁回），空串表示未知（单通道兼容）
     raw:       原始 event dict 透传（高级用法，如 CQ 码/图片），默认 None
     """
 
@@ -46,6 +49,7 @@ class QQMessage:
     text: str
     sender_nickname: str = ""
     at_bot: bool = True
+    bot_uin: str = ""
     raw: dict | None = None
 
     def target_type(self) -> str:
@@ -66,6 +70,10 @@ class ChannelConfig:
     token: str | None = None
     # 反向 WS（LLOneBot ws-reverse）：若配置，NoneBot 作为 WS 服务端供网关连接。
     reverse_ws_url: str | None = None
+    # 本通道对应的 bot QQ 号（config.json qq.channels[].bot_uin）。多账号部署时
+    # 通道按它过滤 on_bot_connect / on_message（只认自己的 self_id），None 表示
+    # 不限制（单通道兼容，采纳任何连入的 bot）。
+    bot_uin: str | None = None
 
 
 class QQChannel(ABC):
@@ -115,6 +123,13 @@ class QQChannel(ABC):
     @abstractmethod
     async def recent_contacts(self) -> dict:
         """返回 {ok, contacts:[{peerUin,peerName,chatType}]}（合并去重）。"""
+
+    async def upload_file(
+        self, target_type: str, target_id: str | int, file_path: str, name: str = ""
+    ) -> dict:
+        """发送文件（本地路径或 URL）。默认不支持，由具体通道按需覆写。"""
+        return {"ok": False, "error": {
+            "code": "unsupported", "message": "当前通道不支持发送文件"}}
 
     # ── 状态 ──
 

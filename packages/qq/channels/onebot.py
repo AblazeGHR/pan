@@ -14,10 +14,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+import re
 import socket
+from datetime import datetime
+from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
+import httpx
 from nonebot import get_driver, on_message
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 
@@ -32,6 +38,204 @@ from .base import (
 # 不可订阅，合并时忽略。
 _CHAT_FRIEND = 1
 _CHAT_GROUP = 2
+
+# 渲染富媒体描述时跳过的段：text 已由 get_plaintext 提取，at 已有专门 @ 过滤
+_SKIP_SEG_TYPES = {"text", "at"}
+
+# ── 入站富媒体自动下载 ──
+#
+# 收到带 url 的 image/file/mface/qface 段时自动下载到 data/qq_media/<scope>/<scope_id>/
+# （scope=user/group，scope_id=QQ号/群号），描述里直接给本地绝对路径，编排
+# worker 用 Read 即可读取，无需自己 curl。下载失败静默降级为原 url 描述，
+# 绝不阻塞/崩溃消息处理。落盘用模块级目录而非 session workdir：消息先到通道
+# 再 dispatch，通道层不知道目标 session。
+
+_MEDIA_ROOT = Path(__file__).resolve().parents[3] / "data" / "qq_media"
+_DOWNLOAD_TIMEOUT = 10.0
+
+# 合法扩展名：点开头 + 1~6 位字母数字（防 query 残留/路径注入）
+_EXT_RE = re.compile(r"^\.[A-Za-z0-9]{1,6}$")
+
+# content-type → 扩展名（url 无扩展名时的兜底；QQ 多媒体 url 常不带扩展名）
+_CONTENT_TYPE_EXT = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/bmp": ".bmp",
+    "application/pdf": ".pdf",
+    "text/plain": ".txt",
+}
+
+
+def _media_root() -> Path:
+    """媒体下载根目录（测试可 monkeypatch 重定向到 tmp_path）。"""
+    return _MEDIA_ROOT
+
+
+def _guess_ext(source: str) -> str:
+    """从 url / 文件名推断扩展名；推断不出返回 .bin。"""
+    try:
+        path = urlparse(source).path
+    except ValueError:
+        return ".bin"
+    ext = os.path.splitext(path)[1].lower()
+    return ext if _EXT_RE.match(ext) else ".bin"
+
+
+def _safe_filename(source: str, prefix: str, seq: int, fallback_name: str = "") -> str:
+    """生成安全文件名：prefix_时间戳_序号.扩展名（如 img_20260828_185301_001.jpg）。
+
+    扩展名优先取 source（url）路径段的；取不出且 fallback_name（如 file 段的
+    原始文件名）带合法扩展名则用之；否则 .bin。
+    """
+    ext = _guess_ext(source)
+    if ext == ".bin" and fallback_name:
+        ext = _guess_ext(fallback_name)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{prefix}_{ts}_{seq:03d}{ext}"
+
+
+async def _download(
+    url: str, dest_dir: Path, filename: str, timeout: float = _DOWNLOAD_TIMEOUT
+) -> str | None:
+    """下载 url 到 dest_dir/filename。成功返回绝对路径字符串，失败静默返回 None。
+
+    dest 扩展名为 .bin 时按响应 content-type 修正（QQ 多媒体 url 常无扩展名）。
+    先写 .part 临时文件，成功后原子改名，避免留下半个文件被误读。
+    """
+    dest = dest_dir / filename
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            async with client.stream("GET", url) as resp:
+                resp.raise_for_status()
+                if dest.suffix == ".bin":
+                    ct = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                    ext = _CONTENT_TYPE_EXT.get(ct)
+                    if ext:
+                        dest = dest.with_suffix(ext)
+                        tmp = dest.with_suffix(dest.suffix + ".part")
+                with open(tmp, "wb") as f:
+                    async for chunk in resp.aiter_bytes():
+                        f.write(chunk)
+        tmp.rename(dest)
+        return str(dest.resolve())
+    except Exception as e:  # noqa: BLE001  下载失败不阻塞消息处理
+        print(f"[QQ] media download failed: {type(e).__name__}: {e} url={url[:120]}")
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None
+
+
+async def _download_segments_media(
+    segments, scope: str, scope_id: str
+) -> dict[int, str]:
+    """对带 url 的 image/file/mface/qface 段并发下载，返回 {段索引: 本地路径}（仅成功项）。
+
+    逐段编号（同一消息内 001/002...），落盘到 _media_root()/<scope>/<scope_id>/。
+    mface/qface 无 url 时跳过下载（描述走 summary/id 文本）。
+    """
+    jobs: list[tuple[int, object]] = []  # (段索引, 协程)
+    seq = 0
+    for idx, seg in enumerate(segments):
+        seg_type = getattr(seg, "type", None)
+        if seg_type not in ("image", "file", "mface", "qface"):
+            continue
+        data = getattr(seg, "data", None) or {}
+        url = data.get("url")
+        if not url:
+            continue
+        seq += 1
+        prefix = {"image": "img", "file": "file"}.get(seg_type, seg_type)
+        # fallback 扩展名只对 file 段有意义（image 段的 file 字段是 QQ 内部
+        # 命名如 "abc.image"，不是真实扩展名）
+        fallback = (
+            str(data.get("file") or "").removeprefix("file://")
+            if seg_type == "file"
+            else ""
+        )
+        filename = _safe_filename(url, prefix, seq, fallback_name=fallback)
+        dest_dir = _media_root() / scope / scope_id
+        jobs.append((idx, _download(url, dest_dir, filename)))
+    if not jobs:
+        return {}
+    results = await asyncio.gather(
+        *(coro for _, coro in jobs), return_exceptions=True
+    )
+    out: dict[int, str] = {}
+    for (idx, _), r in zip(jobs, results):
+        if isinstance(r, str):
+            out[idx] = r
+    return out
+
+
+def _describe_media(segments, downloaded: dict[int, str] | None = None) -> str:
+    """把 OneBot 消息段中的富媒体渲染为可读占位描述（空格连接）。
+
+    - image → "[图片: 路径]"；downloaded 含该段索引时路径为下载后的本地绝对
+      路径，否则为 url（无 url 退用 file，再无则 "[图片]"）
+    - file  → "[文件: 名 路径]"（路径同上；url 缺失则 "[文件: 名]"，名也缺失
+      则 "[文件]"）
+    - face  → "[表情: id]"（id 为 0 合法，勿用 or 判断）
+    - mface/qface（QQ 新版表情）→ 优先 summary → "[表情: summary 本地路径]"；
+      summary 缺失用 face_id/qface_id/emoji_id/id → "[表情: mface<id>]"；
+      有 url 时经 _download_segments_media 下载，成功后描述带本地绝对路径，
+      失败/无 url 时退用原值；全缺失才回退 "[mface]"
+    - 其它非文本段（record/video 等）→ "[段类型]"
+    纯文本消息返回 ""，不影响原有行为。
+    """
+    downloaded = downloaded or {}
+    parts: list[str] = []
+    for idx, seg in enumerate(segments):
+        seg_type = getattr(seg, "type", None)
+        if seg_type is None or seg_type in _SKIP_SEG_TYPES:
+            continue
+        data = getattr(seg, "data", None) or {}
+        if seg_type == "image":
+            detail = downloaded.get(idx) or data.get("url") or data.get("file")
+            parts.append(f"[图片: {detail}]" if detail else "[图片]")
+        elif seg_type == "file":
+            # OneBot v11 file 段：file=文件名（可能带 file:// 前缀），url=下载链接，
+            # path=网关侧本地路径（url/path 均可能缺失）
+            name = str(data.get("file") or "").removeprefix("file://")
+            url = downloaded.get(idx) or data.get("url")
+            if name and url:
+                parts.append(f"[文件: {name} {url}]")
+            elif name:
+                parts.append(f"[文件: {name}]")
+            else:
+                parts.append("[文件]")
+        elif seg_type == "face":
+            parts.append(f"[表情: {data.get('id', '?')}]")
+        elif seg_type in ("mface", "qface"):
+            # QQ 新版表情段（字段名因网关而异）：summary=表情含义文字；
+            # id 类字段兜底；url=表情图（易过期，下载成功优先本地路径）
+            summary = str(data.get("summary") or "").strip()
+            if not summary:
+                fid = (
+                    data.get("face_id")
+                    or data.get("qface_id")
+                    or data.get("emoji_id")
+                    or data.get("id")
+                )
+                if fid is not None and str(fid).strip():
+                    summary = f"{seg_type}{fid}"
+            detail = downloaded.get(idx) or data.get("url") or ""
+            if summary and detail:
+                parts.append(f"[表情: {summary} {detail}]")
+            elif summary:
+                parts.append(f"[表情: {summary}]")
+            elif detail:
+                parts.append(f"[表情: {detail}]")
+            else:
+                parts.append(f"[{seg_type}]")
+        else:
+            parts.append(f"[{seg_type}]")
+    return " ".join(parts)
 
 
 class OneBotChannel(QQChannel):
@@ -51,6 +255,17 @@ class OneBotChannel(QQChannel):
 
     # ── 绑定 NoneBot driver ──
 
+    def _matches_uin(self, bot: Bot) -> bool:
+        """bot.self_id 是否属于本通道。
+
+        配置了 bot_uin（多账号部署）时只认自己的 QQ 号；未配置（单通道兼容）
+        采纳任何连入的 bot。
+        """
+        uin = getattr(self.config, "bot_uin", None)
+        if not uin:
+            return True
+        return str(uin) == str(getattr(bot, "self_id", ""))
+
     def bind(self, driver=None) -> None:
         """绑定 NoneBot driver：注册连接/断开/消息 hook + 启动预检。幂等。"""
         if self._bound:
@@ -64,6 +279,12 @@ class OneBotChannel(QQChannel):
         self._bound = True
 
     async def _on_bot_connect(self, bot: Bot) -> None:
+        if not self._matches_uin(bot):
+            print(
+                f"[QQ][{self.name}] bot connected: {getattr(bot, 'self_id', '?')}"
+                f"（非本通道 bot_uin={self.config.bot_uin}，忽略）"
+            )
+            return
         self._bot = bot
         print(f"[QQ][{self.name}] bot connected: {getattr(bot, 'self_id', '?')}")
 
@@ -97,6 +318,9 @@ class OneBotChannel(QQChannel):
     # ── 入站消息：OneBot event → QQMessage → 业务层 ──
 
     async def _on_message(self, bot: Bot, event: MessageEvent) -> None:
+        # 多账号部署：每个通道的 matcher 都会收到所有 event，只处理自己 bot 的
+        if not self._matches_uin(bot):
+            return
         # 缓存活动 bot（即使 on_bot_connect 未触发也能用）
         self._bot = bot
         # 群消息：OneBot v11 的 GroupMessageEvent.message_type == "group"
@@ -117,6 +341,14 @@ class OneBotChannel(QQChannel):
         else:
             scope, scope_id = "user", str(event.get_user_id())
         text = event.get_plaintext().strip()
+        # 富媒体（图片/文件等）先尝试下载到本地（并发，失败静默降级为原 url），
+        # 再渲染为占位描述拼进 text（媒体在前），纯富媒体消息 text 即媒体描述，
+        # 不再被空文本判断丢弃
+        segs = getattr(event, "message", [])
+        media_paths = await _download_segments_media(segs, scope, scope_id)
+        media = _describe_media(segs, media_paths)
+        if media:
+            text = f"{media} {text}".strip()
         if not text:
             return
         sender = getattr(event, "sender", None)
@@ -127,6 +359,7 @@ class OneBotChannel(QQChannel):
             text=text,
             sender_nickname=nickname,
             at_bot=True,
+            bot_uin=str(getattr(bot, "self_id", "") or ""),
             raw=getattr(event, "model_dump", lambda: None)(),
         )
         await self._dispatch(msg)
@@ -179,6 +412,49 @@ class OneBotChannel(QQChannel):
         if isinstance(result, dict):
             return {"ok": True, "message_id": result.get("message_id")}
         return {"ok": True, "message_id": result}
+
+    async def upload_file(
+        self, target_type: str, target_id: str | int, file_path: str, name: str = ""
+    ) -> dict:
+        """发送文件（本地绝对路径或 URL，由网关侧取用）。返回 {ok} 或 {ok:false,...}。
+
+        私聊 → upload_private_file(user_id, file, name)；群聊 → upload_group_file
+        (group_id, file, name)。name 缺省时从 file_path 推导文件名（OneBot 两个
+        upload API 都要求显式 name）。上传成功无 message_id，仅返回 {"ok": True}。
+        """
+        if target_type not in ("private", "group"):
+            return {"ok": False, "error": {
+                "code": "invalid_target_type",
+                "message": "target_type 必须是 'private' 或 'group'"}}
+        if not file_path:
+            return {"ok": False, "error": {
+                "code": "empty_file_path", "message": "file_path 不能为空"}}
+        try:
+            target_id_int = int(target_id)
+        except (TypeError, ValueError):
+            return {"ok": False, "error": {
+                "code": "invalid_target_id",
+                "message": f"target_id 必须是 QQ 号/群号，got {target_id!r}"}}
+        # file_path 可能是本地路径（/ 或 \ 分隔）或 URL，两者 basename 均可推导
+        fname = (name or "").strip() or os.path.basename(file_path)
+        try:
+            bot = self._resolve_bot()
+            if target_type == "private":
+                await bot.call_api(
+                    "upload_private_file",
+                    user_id=target_id_int, file=file_path, name=fname)
+            else:
+                await bot.call_api(
+                    "upload_group_file",
+                    group_id=target_id_int, file=file_path, name=fname)
+        except ChannelNotConnected as e:
+            return {"ok": False, "error": {
+                "code": "bot_not_connected", "message": str(e)}}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": {
+                "code": "upload_failed",
+                "message": f"{type(e).__name__}: {e}"}}
+        return {"ok": True}
 
     async def recent_contacts(self) -> dict:
         try:
