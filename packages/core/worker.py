@@ -1043,18 +1043,31 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     await _wake_worker(s.managed_by)
 
 
-async def _wake_worker(session_id: str) -> None:
+async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     """唤醒某 session 的 worker consumer（若存活）。
 
     信号只负责唤醒、不承载正文（立项 4.3/4.7：正文在落盘 queue_pending）。
-    worker 死亡时由全局 watchdog 负责 spawn 恢复（spawn 后若 queue_pending
-    非空自动补发信号）。
+    worker 死亡/未 spawn 时默认静默返回，由全局 watchdog 周期兜底 spawn 恢复
+    （spawn 后若 queue_pending 非空自动补发信号）。
+
+    auto_spawn=True：无活 worker 时**立即** create_worker（事件驱动恢复，不等
+    watchdog tick）。create_worker 自带 per-session 锁防重复 spawn、并对已有
+    活 worker 去重复用；spawn 失败返回错误串，此处仅打 warning 不抛出——消息
+    已落盘 queue_pending，watchdog 下轮仍会兜底。oneshot worker（process 为
+    None）满足可唤醒条件，不会误触发 spawn。
     """
     mw = find_worker_by_session(session_id)
     if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
         mw.last_activity = time.monotonic()
         await mw.pending_signal.put({"type": "report_signal"})
+    elif auto_spawn:
+        created = await create_worker(session_id)
+        if isinstance(created, str):
+            _log.warning(
+                "[Pan] auto-spawn worker failed for session=%s: %s",
+                session_id, created,
+            )
 
 
 async def enqueue_qq_reminder(target_type: str, target_id: str,
@@ -1066,8 +1079,9 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
     与精确键 ``<type>:<id>@<bot_uin>``；bot_uin 为空（旧来源）仅命中旧键。
 
     镜像 report 汇报链路：提醒项 append 到订阅者 session 的落盘 queue_pending，
-    再唤醒其 worker consumer（report_signal）。无活 worker 时由全局 watchdog
-    自动 spawn 恢复。返回投递的订阅者数量。
+    再唤醒其 worker consumer（report_signal）。无活 worker 时立即 auto_spawn
+    恢复（事件驱动，消除 QQ 消息等待 watchdog tick 的最长 30s 延迟），spawn
+    失败打日志、由全局 watchdog 兜底。返回投递的订阅者数量。
 
     提醒项格式：{"type": "qq", "qqTarget": "<scope>:<target_id>",
     "botUin": "<bot_uin>"?, ...}，_format_report_batch 按 type=qq 分支渲染为
@@ -1093,7 +1107,7 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
             continue
         s.queue_pending.append(item)
         await _sess.save_async(s)
-        await _wake_worker(s.id)
+        await _wake_worker(s.id, auto_spawn=True)
         delivered += 1
     return delivered
 
