@@ -703,7 +703,7 @@ Before using Pan, be aware of these defaults and evaluate your own trust boundar
 ## Documentation
 
 - [`docs/skills/pan/SKILL.md`](docs/skills/pan/SKILL.md) — single source of truth for Pan orchestration knowledge (cold-start manual, MCP tool conventions, pitfalls & conventions)
-- [User manual](docs/USER_MANUAL.md) — install, operations, orchestration, API, config, troubleshooting
+- [User manual](docs/USER_MANUAL.md) ([中文](docs/USER_MANUAL.md) · [English](docs/USER_MANUAL.en.md)) — install, operations, orchestration, API, config, troubleshooting
 - [`docs/design/`](docs/design/) — design docs (adapter architecture, kimi / opencode adaptation, one-shot mode, etc.)
 - [`docs/plans&overviews/`](docs/plans&overviews/) — project planning & implementation records
 - [`docs/references/`](docs/references/) — reference notes

@@ -703,7 +703,7 @@ python -m packages.remote
 
 ## 文档
 
-- [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) — 完整用户手册（安装、操作、编排、API、配置、排障）
+- [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)（[English](docs/USER_MANUAL.en.md)）— 完整用户手册（安装、操作、编排、API、配置、排障）
 - [`docs/skills/pan/SKILL.md`](docs/skills/pan/SKILL.md) — Pan 编排知识单一事实源（冷启动手册、MCP 工具约定、坑与约定）
 - [`docs/design/`](docs/design/) — 设计文档（adapter 架构、kimi / opencode 适配、one-shot 模式等）
 - [`docs/plans&overviews/`](docs/plans&overviews/) — 立项规划与实现记录

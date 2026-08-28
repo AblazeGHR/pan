@@ -4,6 +4,8 @@
 >
 > 适用版本：main 分支（commit aa430a0 之后）。文中端口默认 main 分支 8768（test 分支为 8767）。
 
+**[English](./USER_MANUAL.en.md) · 中文**
+
 ## 目录
 
 1. [什么是 Pan](#1-什么是-pan)
