@@ -219,6 +219,9 @@ class Worker:
     # 若 CLI 在 stdin 写入后崩溃，保留该引用让 watchdog/respawn 能重投，而不
     # 依赖 taskId（taskId 允许为空，且同 id 可能有值相同的不同 item）。
     _current_queue_item: dict | None = None
+    # 当前报告批次的持久 item。报告与 task 共用 queue_pending，但报告由一次
+    # report_signal 批量送入；同样要到 terminal result 后才确认整批出队。
+    _current_report_items: list[dict] = field(default_factory=list)
     _zombie_reported: bool = False  # 异常死亡 zombie 报告是否已推送（防 watchdog/EOF 双路径重复）
     # ── 流式块防抖落盘（A1）──
     _hist_dirty: bool = False          # 有未落盘的 history 块（append 只标记，不逐块 save）
@@ -511,6 +514,16 @@ def _ack_current_task(w: Worker, s) -> None:
     s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
 
 
+def _ack_current_reports(w: Worker, s) -> None:
+    """收到最终 result 后确认当前报告批次出队（仅改内存，不单独落盘）。"""
+    items = w._current_report_items
+    w._current_report_items = []
+    if not items or s is None:
+        return
+    item_ids = {id(item) for item in items}
+    s.queue_pending = [queued for queued in s.queue_pending if id(queued) not in item_ids]
+
+
 async def _finish_task_error(w: Worker, s, result: str) -> None:
     """把执行前失败也收敛成可见的 terminal result。"""
     task_id = w._current_task_id
@@ -524,6 +537,7 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
             "taskSeq": w._current_seq,
         }
         _ack_current_task(w, s)
+        _ack_current_reports(w, s)
         await _sess.save_async(s)
     await _bcast({
         "type": "worker.result",
@@ -724,6 +738,7 @@ async def _read_stdout(w: Worker):
                 # result 是 task item 的完成确认点。把 item 与 last_result/
                 # history 放进同一次落盘，避免“结果已落盘但队列仍在”造成重跑。
                 _ack_current_task(w, s)
+                _ack_current_reports(w, s)
                 # enrich: 从 CLI 原生存储获取消耗数据（如 raw_usage）
                 enrichment = None
                 try:
@@ -857,6 +872,13 @@ async def _consumer(w: Worker):
             s = _session(w)
             if s and s.queue_pending:
                 await _consume_pending_reports(w, s)
+            if w._current_report_items:
+                _log.warning(
+                    "[Worker %s] report batch returned without terminal result; "
+                    "leaving %d item(s) in queue_pending for recovery",
+                    w.worker_id, len(w._current_report_items),
+                )
+                break
             continue
 
         # 任务唤醒信号（L4 落盘）：正文在落盘 queue_pending，按 id 认领单个 task
@@ -1089,9 +1111,10 @@ def _delivery_mark_in_history(s, item: dict) -> bool:
 async def _consume_pending_reports(w: Worker, s):
     """从落盘 queue_pending 取全部积压报告，拼接为一条消息交给模型处理。
 
-    报告仍采用注入即确认的批量投递语义：构造注入文本 → history append + 从
-    queue_pending 移除这批报告 → **同一次 save_async** 写盘。崩溃在 save 前则
-    报告可重投，save 后则不会重复。save 失败（非崩溃）回滚内存态，队列原样保留。
+    报告批次在收到 terminal result 前一直保留在 queue_pending。构造注入文本时
+    先落盘 history 投递标记；result/error/cancelled 到达后，调用方把报告批次
+    与最终结果一起确认出队。崩溃在注入后仍可重投，且已有 history 标记不会重复
+    追加用户消息；save 失败则队列原样保留。
 
     消费前确认 worker 进程存活（CLI 子进程死 → 中止保留队列，由全局 watchdog
     spawn 恢复后经 _recover_pending_signals 补发信号重投）。
@@ -1100,27 +1123,17 @@ async def _consume_pending_reports(w: Worker, s):
     task item 保留在队列中由 task_signal 按 id 消费，互不误删。
 
     恢复对账：save 顺序 jsonl-先写 → 崩溃窗口内 history 条目已带 delivered_keys
-    元数据、队列项仍在。消费前逐条对账 history 尾部：已投递 → 跳过该条（防双跑）
-    且从队列清除（收敛）；未投递 → 注入执行，注入条目记 delivered_keys 元数据
-    （不进消息正文）。
+    元数据、队列项仍在。恢复时复用已有 history 用户项，但仍重试整个报告批次，
+    直到收到 terminal result；新报告与旧报告混合时保持队列顺序。
     """
     reports = [it for it in s.queue_pending if it.get("type") != "task"]
     if not reports:
         # 队列里只剩 task item（报告已被其他信号消费）→ 不发空消息
         return
     undelivered = [it for it in reports if not _delivery_mark_in_history(s, it)]
-    if not undelivered:
-        # 全部已投递（jsonl-先写崩溃恢复）→ 只做队列清除收敛，不注入不执行
-        _log.info("[Worker %s] report reconciliation: %d already-delivered report(s) "
-                  "skipped and cleared from queue_pending", w.worker_id, len(reports))
-        s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
-        try:
-            await _sess.save_async(s)
-        except Exception as e:
-            _log.warning("[Worker %s] queue_pending save after report reconciliation failed: %s",
-                         w.worker_id, e)
-        return
-    text = _format_report_batch(undelivered)
+    # 已有投递标记只表示上一次尝试已经写入执行上下文，不表示模型已经处理完成；
+    # 因而恢复时仍把整个报告批次重试，但不重复追加 history 用户消息。
+    text = _format_report_batch(reports)
 
     # 报告不是 assign 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
     w._current_seq = None
@@ -1134,21 +1147,22 @@ async def _consume_pending_reports(w: Worker, s):
             "%d report(s) kept in queue_pending", w.worker_id, len(undelivered))
         return
 
-    # 报告仍沿用“注入即确认”的批量消费语义；Codex task 则在 result 后确认，
-    # 因而可以在 CLI 崩溃后重投。
-    old_queue = s.queue_pending
-    s.history.append({"role": "user", "content": injected_text,
-                      "delivered_keys": [_delivery_key(it) for it in undelivered]})
-    s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
-    try:
-        await _sess.save_async(s)
-    except Exception as e:
-        s.history.pop()
-        s.queue_pending = old_queue
-        _log.warning(
-            "[Worker %s] report atomic save failed, %d report(s) kept in queue_pending: %s",
-            w.worker_id, len(undelivered), e)
-        return
+    # 只有新报告需要追加 history；已经有 delivered_keys 的报告属于未完成的
+    # 上一次尝试，复用原用户条目，避免恢复时污染上下文。
+    if undelivered:
+        old_history_len = len(s.history)
+        s.history.append({"role": "user", "content": injected_text,
+                          "delivered_keys": [_delivery_key(it) for it in undelivered]})
+        try:
+            await _sess.save_async(s)
+        except Exception as e:
+            del s.history[old_history_len:]
+            _log.warning(
+                "[Worker %s] report handoff save failed, %d item(s) kept in "
+                "queue_pending: %s", w.worker_id, len(undelivered), e)
+            return
+
+    w._current_report_items = reports
 
     mode = resolve_execution_mode(w.adapter, s)
     if mode == "oneshot":
@@ -1800,6 +1814,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
     # One-shot 没有独立的 stdout result reader；在解析完本轮输出后同样以
     # result/error 为完成确认点，从持久队列移除当前 task。
     _ack_current_task(w, s)
+    _ack_current_reports(w, s)
     # 用量/credit 落账：与 stream 路径（_read_stdout）同构——补调
     # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
     # oneshot 之前漏调，导致 cbc 不记 credit、claude（仅 oneshot）完全不记
