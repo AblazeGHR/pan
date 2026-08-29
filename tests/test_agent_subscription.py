@@ -168,6 +168,54 @@ def test_dead_agent_pruned_on_broadcast():
 def test_dashboard_replays_live_native_interactions():
     """Dashboard reconnect restores only prompts owned by live workers."""
     _cleanup()
+    ws = FakeWS()
+
+    class LiveProcess:
+        returncode = None
+
+    class FakeWorker:
+        worker_id = "worker-1"
+        session_id = "ses-1"
+        process = LiveProcess()
+
+    original_list = srv.worker.list_workers
+    original_events = srv.worker.pending_interaction_events
+    original_status = srv.worker.native_status_event
+    try:
+        srv.worker.list_workers = lambda: [FakeWorker()]
+        srv.worker.native_status_event = lambda w: {
+            "type": "codex.thread_status",
+            "native_status": {"type": "active"},
+        }
+        srv.worker.pending_interaction_events = lambda w: [{
+            "type": "approval.request", "request_id": 3,
+            "method": "item/commandExecution/requestApproval", "params": {},
+        }]
+        _run(srv._replay_pending_interactions(ws))
+    finally:
+        srv.worker.list_workers = original_list
+        srv.worker.pending_interaction_events = original_events
+        srv.worker.native_status_event = original_status
+
+    assert ws.sent == [
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.thread_status",
+                "native_status": {"type": "active"},
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "approval.request", "request_id": 3,
+                "method": "item/commandExecution/requestApproval", "params": {},
+            },
+            "replayed": True,
+        },
+    ]
+    _cleanup()
 
 
 def test_dashboard_replay_can_filter_sessions():
@@ -188,8 +236,10 @@ def test_dashboard_replay_can_filter_sessions():
     workers = [FakeWorker("worker-a", "ses-a"), FakeWorker("worker-b", "ses-b")]
     original_list = srv.worker.list_workers
     original_events = srv.worker.pending_interaction_events
+    original_status = srv.worker.native_status_event
     try:
         srv.worker.list_workers = lambda: workers
+        srv.worker.native_status_event = lambda w: None
         srv.worker.pending_interaction_events = lambda w: [{
             "type": "codex.user_input", "request_id": w.session_id,
             "method": "item/tool/requestUserInput", "params": {},
@@ -198,40 +248,9 @@ def test_dashboard_replay_can_filter_sessions():
     finally:
         srv.worker.list_workers = original_list
         srv.worker.pending_interaction_events = original_events
+        srv.worker.native_status_event = original_status
 
     assert [m["sessionId"] for m in ws.sent] == ["ses-b"]
-    _cleanup()
-    ws = FakeWS()
-
-    class LiveProcess:
-        returncode = None
-
-    class FakeWorker:
-        worker_id = "worker-1"
-        session_id = "ses-1"
-        process = LiveProcess()
-
-    original_list = srv.worker.list_workers
-    original_events = srv.worker.pending_interaction_events
-    try:
-        srv.worker.list_workers = lambda: [FakeWorker()]
-        srv.worker.pending_interaction_events = lambda w: [{
-            "type": "approval.request", "request_id": 3,
-            "method": "item/commandExecution/requestApproval", "params": {},
-        }]
-        _run(srv._replay_pending_interactions(ws))
-    finally:
-        srv.worker.list_workers = original_list
-        srv.worker.pending_interaction_events = original_events
-
-    assert ws.sent == [{
-        "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
-        "event": {
-            "type": "approval.request", "request_id": 3,
-            "method": "item/commandExecution/requestApproval", "params": {},
-        },
-        "replayed": True,
-    }]
     _cleanup()
 
 

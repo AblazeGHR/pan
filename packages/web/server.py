@@ -793,6 +793,15 @@ async def _replay_pending_interactions(
             continue
         if w.process is None or w.process.returncode is not None:
             continue
+        status_event = worker.native_status_event(w)
+        if status_event is not None:
+            await ws.send_json({
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "event": status_event,
+                "replayed": True,
+            })
         for event in worker.pending_interaction_events(w):
             await ws.send_json({
                 "type": "worker.stream",

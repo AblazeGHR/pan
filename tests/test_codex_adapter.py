@@ -477,6 +477,25 @@ def test_worker_native_interaction_replay_cache():
     print("PASS: native interaction replay cache")
 
 
+def test_worker_native_status_replay_cache():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-status-replay",
+        session_id="ses-status-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    status = {
+        "type": "codex.thread_status",
+        "native_status": {"type": "active", "activeFlags": ["waitingOnUserInput"]},
+    }
+    worker._update_pending_interactions(w, status)
+    assert worker.native_status_event(w) == status
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_status_event(w) is None
+    print("PASS: native status replay cache")
+
+
 # ── wrapper 参数构建 ──
 
 
