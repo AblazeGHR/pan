@@ -408,6 +408,50 @@ class AppServer:
                     "item_id": item_id,
                 })
             return
+        if method == "item/fileChange/outputDelta":
+            params = message.get("params") or {}
+            item_id = str(params.get("itemId") or "")
+            delta = params.get("delta")
+            if item_id and delta:
+                item = state.setdefault("file_items", {}).setdefault(
+                    item_id, {"type": "fileChange", "id": item_id,
+                              "changes": [], "status": "inProgress"}
+                ) if state is not None else {
+                    "type": "fileChange", "id": item_id,
+                    "changes": [], "status": "inProgress",
+                }
+                item["output"] = str(item.get("output") or "") + str(delta)
+                args = dict(item)
+                _write_stdout({
+                    "type": "assistant", "delta": True, "replace": True,
+                    "stream_text": f"FileChange({json.dumps(args, ensure_ascii=True, separators=(',', ':'))})",
+                    "message": {"content": [{"type": "tool_use", "name": "FileChange", "input": args}]},
+                    "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                    "item_id": item_id,
+                })
+            return
+        if method == "item/fileChange/patchUpdated":
+            params = message.get("params") or {}
+            item_id = str(params.get("itemId") or "")
+            changes = params.get("changes")
+            if item_id and isinstance(changes, list):
+                item = state.setdefault("file_items", {}).setdefault(
+                    item_id, {"type": "fileChange", "id": item_id,
+                              "changes": [], "status": "inProgress"}
+                ) if state is not None else {
+                    "type": "fileChange", "id": item_id,
+                    "changes": [], "status": "inProgress",
+                }
+                item["changes"] = changes
+                args = dict(item)
+                _write_stdout({
+                    "type": "assistant", "delta": True, "replace": True,
+                    "stream_text": f"FileChange({json.dumps(args, ensure_ascii=True, separators=(',', ':'))})",
+                    "message": {"content": [{"type": "tool_use", "name": "FileChange", "input": args}]},
+                    "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                    "item_id": item_id,
+                })
+            return
         if method == "item/started":
             params = message.get("params") or {}
             item = params.get("item") or {}
@@ -427,6 +471,18 @@ class AppServer:
                         "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
                         "item_id": item_id,
                     })
+            if state is not None and kind in ("filechange", "patchapply"):
+                item_id = str(item.get("id") or "")
+                if item_id:
+                    state.setdefault("file_items", {})[item_id] = dict(item)
+                    args = dict(item)
+                    _write_stdout({
+                        "type": "assistant", "delta": True, "replace": False,
+                        "stream_text": f"FileChange({json.dumps(args, ensure_ascii=True, separators=(',', ':'))})",
+                        "message": {"content": [{"type": "tool_use", "name": "FileChange", "input": args}]},
+                        "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                        "item_id": item_id,
+                    })
             return
         if method == "item/completed":
             params = message.get("params") or {}
@@ -438,6 +494,8 @@ class AppServer:
                 if event.get("type") in ("assistant", "thinking"):
                     event["final"] = True
                 if str(item.get("type") or "").replace("_", "").lower() == "commandexecution":
+                    event["replace"] = True
+                if str(item.get("type") or "").replace("_", "").lower() in ("filechange", "patchapply"):
                     event["replace"] = True
                 _write_stdout(event)
             return
