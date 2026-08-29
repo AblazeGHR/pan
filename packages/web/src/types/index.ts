@@ -83,6 +83,9 @@ export interface WorkerEvent {
   replace?: boolean;
   /** Native Codex item id; lets the UI update the right interleaved item. */
   item_id?: string;
+  /** Native Codex terminal interaction process id and prompt/input bytes. */
+  process_id?: string;
+  stdin?: string;
   /** Native Codex server request metadata (approval/user-input bridge). */
   method?: string;
   request_id?: string | number;
@@ -137,6 +140,16 @@ export interface ElicitationRequest {
   workerId: string;
   requestId: string | number;
   method: string;
+  params: Record<string, unknown>;
+}
+
+/** Native Codex terminal interaction emitted when a command needs stdin. */
+export interface TerminalInteraction {
+  sessionId: string;
+  workerId: string;
+  itemId: string;
+  processId: string;
+  stdin: string;
   params: Record<string, unknown>;
 }
 

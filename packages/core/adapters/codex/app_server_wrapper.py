@@ -18,6 +18,7 @@ workers remain usable.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import subprocess
@@ -36,6 +37,7 @@ _INTERACTIVE_APPROVAL_METHODS = {
 _INTERACTIVE_USER_INPUT_METHOD = "item/tool/requestUserInput"
 _INTERACTIVE_PERMISSION_METHOD = "item/permissions/requestApproval"
 _INTERACTIVE_ELICITATION_METHOD = "mcpServer/elicitation/request"
+_TERMINAL_INTERACTION_METHOD = "item/commandExecution/terminalInteraction"
 
 
 def _write_stdout(event: dict[str, Any]) -> None:
@@ -367,6 +369,23 @@ class AppServer:
             _write_stdout({
                 "type": "codex.request_resolved",
                 "request_id": request_id,
+                "params": params,
+            })
+            return
+        if method == _TERMINAL_INTERACTION_METHOD:
+            params = message.get("params") or {}
+            item_id = params.get("itemId", params.get("item_id"))
+            process_id = params.get("processId", params.get("process_id"))
+            if state is not None and item_id is not None:
+                state.setdefault("terminal_items", {})[str(item_id)] = dict(params)
+            _write_stdout({
+                "type": "codex.terminal_interaction",
+                "method": method,
+                "item_id": item_id,
+                "process_id": process_id,
+                "stdin": str(params.get("stdin") or ""),
+                "thread_id": params.get("threadId", params.get("thread_id")),
+                "turn_id": params.get("turnId", params.get("turn_id")),
                 "params": params,
             })
             return
@@ -775,6 +794,34 @@ class AppServer:
                     }})
                 except (OSError, RuntimeError):
                     state["error"] = "failed to send Codex elicitation response"
+            elif kind == "terminal_input":
+                process_id = control.get("process_id", control.get("processId"))
+                if not process_id:
+                    continue
+                raw_text = control.get("text", control.get("data", ""))
+                if not isinstance(raw_text, str):
+                    raw_text = str(raw_text or "")
+                encoded = base64.b64encode(raw_text.encode("utf-8")).decode("ascii")
+                if not encoded and not control.get("close_stdin", control.get("closeStdin", False)):
+                    continue
+                try:
+                    self._request("command/exec/write", {
+                        "processId": str(process_id),
+                        "deltaBase64": encoded or None,
+                        "closeStdin": bool(control.get("close_stdin", control.get("closeStdin", False))),
+                    })
+                except (OSError, RuntimeError):
+                    state["error"] = "failed to write Codex terminal input"
+            elif kind == "terminal_terminate":
+                process_id = control.get("process_id", control.get("processId"))
+                if not process_id:
+                    continue
+                try:
+                    self._request("command/exec/terminate", {
+                        "processId": str(process_id),
+                    })
+                except (OSError, RuntimeError):
+                    state["error"] = "failed to terminate Codex terminal process"
 
     def run_turn(self, text: str, effort: str | None = None,
                  control_queue: Queue[dict[str, Any] | None] | None = None) -> None:
@@ -863,7 +910,8 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
             continue
         if message.get("type") in (
                 "interrupt", "steer", "approval_response", "user_input_response",
-                "permission_response", "elicitation_response"):
+                "permission_response", "elicitation_response", "terminal_input",
+                "terminal_terminate"):
             control_queue.put(message)
         elif message.get("text"):
             task_queue.put(message)

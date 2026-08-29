@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
 import type { Session, Message } from '@/types';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
@@ -77,6 +78,7 @@ describe('useWebSocket worker.result wiring', () => {
       _touchSeq: 0,
       _sessionWsTouchedSeq: {},
     });
+    useUIStore.setState({ terminalInteractions: [] });
   });
 
   it('updates a background session card in-place on worker.result', () => {
@@ -231,6 +233,34 @@ describe('useWebSocket worker.result wiring', () => {
       { role: 'tool', content: 'Command({"command":"one","output":"aa"})', nativeItemId: 'one' },
       { role: 'tool', content: 'Command({"command":"two","output":"b"})', nativeItemId: 'two' },
     ]);
+  });
+
+  it('surfaces native terminal interaction and clears it on result', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.terminal_interaction',
+          item_id: 'item-1', process_id: 'process-1', stdin: 'Password: ',
+          params: { threadId: 't', turnId: 'u' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().terminalInteractions).toEqual([{
+      sessionId: 'A', workerId: 'w1', itemId: 'item-1', processId: 'process-1',
+      stdin: 'Password: ', params: { threadId: 't', turnId: 'u' },
+    }]);
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1',
+        status: 'done', result: 'ok',
+      });
+    });
+    expect(useUIStore.getState().terminalInteractions).toEqual([]);
   });
 });
 

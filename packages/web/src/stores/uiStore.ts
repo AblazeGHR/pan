@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import type { ApprovalRequest, ElicitationRequest, ToastMessage, UserInputRequest } from '@/types';
+import type {
+  ApprovalRequest,
+  ElicitationRequest,
+  TerminalInteraction,
+  ToastMessage,
+  UserInputRequest,
+} from '@/types';
 
 // ── localStorage helpers ──
 
@@ -100,6 +106,7 @@ interface UIStore {
   approvalRequests: ApprovalRequest[];
   userInputRequests: UserInputRequest[];
   elicitationRequests: ElicitationRequest[];
+  terminalInteractions: TerminalInteraction[];
   bubbleViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
@@ -124,6 +131,9 @@ interface UIStore {
   addElicitationRequest: (request: ElicitationRequest) => void;
   removeElicitationRequest: (sessionId: string, requestId: string | number) => void;
   clearElicitationRequests: (sessionId: string) => void;
+  addTerminalInteraction: (interaction: TerminalInteraction) => void;
+  removeTerminalInteraction: (sessionId: string, itemId: string) => void;
+  clearTerminalInteractions: (sessionId: string) => void;
   toggleBubbleView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
@@ -152,6 +162,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   approvalRequests: [],
   userInputRequests: [],
   elicitationRequests: [],
+  terminalInteractions: [],
   bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
@@ -250,6 +261,31 @@ export const useUIStore = create<UIStore>((set, get) => ({
   clearElicitationRequests: (sessionId) => {
     set((s) => ({
       elicitationRequests: s.elicitationRequests.filter((item) => item.sessionId !== sessionId),
+    }));
+  },
+
+  addTerminalInteraction: (interaction) => {
+    set((s) => ({
+      terminalInteractions: [
+        ...s.terminalInteractions.filter(
+          (item) => !(item.sessionId === interaction.sessionId && item.itemId === interaction.itemId),
+        ),
+        interaction,
+      ],
+    }));
+  },
+
+  removeTerminalInteraction: (sessionId, itemId) => {
+    set((s) => ({
+      terminalInteractions: s.terminalInteractions.filter(
+        (item) => !(item.sessionId === sessionId && item.itemId === itemId),
+      ),
+    }));
+  },
+
+  clearTerminalInteractions: (sessionId) => {
+    set((s) => ({
+      terminalInteractions: s.terminalInteractions.filter((item) => item.sessionId !== sessionId),
     }));
   },
 

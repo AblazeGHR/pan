@@ -26,6 +26,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `POST` | `/api/unclaim` | `{"managerId": "...", "sessionId": "..."}` | 解除 managed 关系（同时退订该 session 报告）。等价 MCP 工具：`session_unclaim` |
 | `POST` | `/api/worker/{worker_id}/restart` | — | 终止并重新 spawn worker 进程。`agent_send_force`（MCP，别名 worker_send_force）内部走此端点 |
 | `POST` | `/api/worker/{worker_id}/steer` | `{"text": "补充指令"}` | 将补充指令注入正在运行的 Codex 原生回合，并在写入成功后落盘到 Pan history |
+| `POST` | `/api/worker/{worker_id}/control` | `{"control": {"type": "terminal_input", "process_id": "...", "text": "..."}}` | 向运行中的 Codex 发送终端输入；`terminal_terminate` 可终止对应进程。也支持审批、用户输入、权限和 elicitation 控制 |
 | `POST` | `/api/qq/subscribe` | `{"sessionId": "...", "target_type": "user"/"group", "target_id": "..."}` | Pan session 订阅某 QQ 会话 inbox 提醒（`@@@@by qq` 推送到 queue_pending）；等价 MCP 工具 `session_qq_subscribe`（pan server） |
 | `POST` | `/api/qq/unsubscribe` | 同上 | 退订（等价 `session_qq_unsubscribe`） |
 
