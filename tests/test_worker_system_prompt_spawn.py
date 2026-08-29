@@ -88,9 +88,19 @@ def test_adapter_without_capability_returns_none():
     assert worker._spawn_system_prompt_args(_NoCapabilityAdapter(), s, mcp_on=True) is None
 
 
-def test_no_mcp_returns_none():
+def test_capable_adapter_injects_without_mcp():
     s = _session_with_prompt()
-    assert worker._spawn_system_prompt_args(get_adapter("cbc"), s, mcp_on=False) is None
+    assert worker._spawn_system_prompt_args(get_adapter("cbc"), s, mcp_on=False) == [
+        "--system-prompt", "You are SMA."
+    ]
+    assert worker._spawn_system_prompt_args(get_adapter("codex"), s, mcp_on=False) == [
+        "--system-prompt", "You are SMA."
+    ]
+
+
+def test_unsupported_adapter_falls_back_without_mcp():
+    s = _session_with_prompt()
+    assert worker._spawn_system_prompt_args(_NoCapabilityAdapter(), s, mcp_on=False) is None
 
 
 def test_empty_system_prompt_returns_none():
@@ -114,7 +124,8 @@ if __name__ == "__main__":
         test_mcp_plus_prompt_new_session_injects,
         test_kimi_mcp_plus_prompt_injects,
         test_adapter_without_capability_returns_none,
-        test_no_mcp_returns_none,
+        test_capable_adapter_injects_without_mcp,
+        test_unsupported_adapter_falls_back_without_mcp,
         test_empty_system_prompt_returns_none,
         test_existing_cli_session_id_returns_none,
     ]:

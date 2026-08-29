@@ -1655,6 +1655,26 @@ async def create_worker(session_id: str) -> Worker | str:
     async with lock:
         return await _create_worker(session_id)
 
+def _spawn_system_prompt_args(adapter, s, mcp_on: bool) -> list[str] | None:
+    """stream spawn 的 --system-prompt 注入决策（_create_worker 用）。
+
+    返回传给 ``_spawn_process`` 的 extra_args（含该 flag）或 None：
+
+    - 有 system_prompt 且是全新会话（无 cli_session_id）时，优先考虑 CLI 级注入。
+      这能避免把人设作为首条 user 消息发送（尤其是 MCP 场景的 roleplay trap）。
+    - 仅当 adapter 声明 ``supports_spawn_system_prompt``（可选能力，getattr
+      探测，缺省 False）：cbc CLI 原生支持；kimi 由 wrapper 转为其 CLI 原生
+      --agent-file；codex 由 wrapper 转为 developer_instructions。不支持的 adapter 强传会让子进程 argparse 报
+      ``unrecognized arguments`` 直接 exit 2 —— 会话永不回复
+      （SMA(NoAdapter)+kimi 卡死根因），此时返回 None，由 _create_worker
+      退回首条消息注入。
+    """
+    if not (s.system_prompt and not s.cli_session_id):
+        return None
+    if getattr(adapter, "supports_spawn_system_prompt", False):
+        return ["--system-prompt", s.system_prompt]
+    return None
+
 
 async def _create_worker(session_id: str) -> Worker | str:
     """create_worker 的锁内实现（勿直接调用）。"""
@@ -1694,12 +1714,8 @@ async def _create_worker(session_id: str) -> Worker | str:
         # If MCP is configured (mcp_on, output_mode="stream"), the process is
         # spawned with --mcp-config (build_spawn_args -> mcp_args) so the
         # long-running stream keeps MCP tools (cbc >= 2.137.0).
-        extra_args = None
-        if mcp_on and s.system_prompt and not s.cli_session_id:
-            # stream+MCP: inject system_prompt via --system-prompt (same as
-            # one-shot) instead of a separate first message, avoiding the
-            # roleplay trap (see cbc-mcp-踩坑记录.md #13).
-            extra_args = ["--system-prompt", s.system_prompt]
+        extra_args = _spawn_system_prompt_args(adapter, s, mcp_on)
+        spawn_injected = bool(extra_args)
         proc = await _spawn_process(session_id, adapter=adapter, extra_args=extra_args)
         if isinstance(proc, str):
             return proc
@@ -1753,11 +1769,11 @@ async def _create_worker(session_id: str) -> Worker | str:
     if s.system_prompt and not s.cli_session_id:
         if mode == "oneshot":
             _log.info("[Worker %s] oneshot mode: system_prompt 由 oneshot_args 逐任务注入", worker_id)
-        elif not mcp_on:
+        elif not spawn_injected:
             _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
             await send_task(worker_id, s.system_prompt, source="system_prompt")
         else:
-            _log.info("[Worker %s] MCP stream mode: system_prompt injected via --system-prompt", worker_id)
+            _log.info("[Worker %s] stream mode: system_prompt injected via --system-prompt", worker_id)
 
     return w
 

@@ -455,11 +455,7 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 ## 6. codex（OpenAI Codex CLI）
 
 > 以下记录 Codex CLI 与 Pan wrapper 的特殊行为、已落地的兼容处理，以及仍待实测的遗留问题。
-<<<<<<< HEAD
 > 基础 adapter 改造已提交到 `feature/codex-models`；原生 app-server 体验增强继续在该工作树推进。
-=======
-> adapter 代码已合入 main；后续体验优化在 feature 工作树持续推进。
->>>>>>> f6230b4 (feat(codex): align native instructions and sandbox modes)
 
 ### 6.1 execution_modes = `["stream"]`（原生 app-server 桥接）
 
@@ -509,11 +505,11 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
 - **代码位置**：`codex/adapter.py` `mcp_args` / `_c_override`；app-server 进程启动时继承这些 `-c`
   覆盖，因此 MCP 在长驻 thread 中保持可用。
 
-当 session 开启 system prompt 且使用 MCP stream 时，worker 首次 spawn 传入
+当 session 开启 system prompt 且 adapter 支持该能力时，worker 首次 spawn 传入
 `--system-prompt`，Codex wrapper 将其转换为 `-c developer_instructions=...`。
-该 prompt 位于 Codex 的 developer/instruction 层，不会作为额外 user turn 发送；已有
-thread resume 时不重复注入。wrapper 的 `--system-prompt` 是 Pan 内部参数，不是 Codex
-CLI 的公开参数。
+该 prompt 位于 Codex 的 developer/instruction 层，不会作为额外 user turn 发送；无论
+MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper 的 `--system-prompt`
+是 Pan 内部参数，不是 Codex CLI 的公开参数。
 
 - **代码位置**：`worker.py` `_spawn_system_prompt_args`；`codex/wrapper.py`
   `_system_prompt_opts` / `_main_loop`。
