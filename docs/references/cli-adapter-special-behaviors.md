@@ -475,7 +475,13 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 `[node, <dir>/node_modules/@openai/codex/bin/codex.js]`；node 取 shim 同目录 `node.exe` 或 PATH 上
 的 `node`（npm global 通常不内嵌 node.exe）。env 覆盖 `PAN_CODEX_PATH` / `PAN_CODEX_NODE`。
 
-### 6.3 模型：无稳定 `models` 子命令
+### 6.3 模型：使用 Codex 动态模型缓存
+
+Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自己维护的
+`$CODEX_HOME/models_cache.json`（默认 `~/.codex/models_cache.json`），只展示
+`visibility=list` 的模型；缓存不可用时再回退到 `model_catalog_json` 和默认模型。
+模型目录中的 `supported_reasoning_levels` 也用于补充 `xhigh`、`max`、`ultra`
+等 effort 选项。显式配置的 `codex.models` 白名单始终优先。
 
 - **现象**：codex CLI 无稳定 `models` 子命令（help 未列出）→ 不跑 CLI 解析。
 - **处理**：`config.json("codex".models)` > 单默认模型。`default_model` 自动识别：config.json

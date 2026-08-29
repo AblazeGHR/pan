@@ -593,6 +593,25 @@ def test_parse_models_from_catalog(monkeypatch, tmp_path):
     print("PASS: _parse_models_from_catalog (dedupe + fallback + fault tolerance)")
 
 
+def test_parse_models_from_models_cache(monkeypatch, tmp_path):
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    (home / "models_cache.json").write_text(json.dumps({"models": [
+        {"slug": "gpt-a", "visibility": "list",
+         "supported_reasoning_levels": [{"effort": "low"}, {"effort": "max"}]},
+        {"slug": "hidden", "visibility": "hide"},
+        {"slug": "gpt-a", "visibility": "list"},
+        {"display_name": "gpt-b", "visibility": "list",
+         "supported_reasoning_levels": [{"effort": "ultra"}]},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+    assert codex_adapter._parse_models_from_models_cache() == ["gpt-a", "gpt-b"]
+    assert codex_adapter._parse_effort_values_from_models_cache() == ["low", "max", "ultra"]
+    (home / "models_cache.json").write_text("{broken", encoding="utf-8")
+    assert codex_adapter._parse_models_from_models_cache() == []
+    print("PASS: models_cache parser (visibility + dedupe + effort + fault tolerance)")
+
+
 def test_supported_models_catalog_priority(monkeypatch, tmp_path):
     _reset_models_cache()
     try:
@@ -615,6 +634,22 @@ def test_supported_models_catalog_priority(monkeypatch, tmp_path):
     finally:
         _reset_models_cache()
     print("PASS: supported_models priority (whitelist > catalog > default)")
+
+
+def test_supported_models_models_cache_priority(monkeypatch, tmp_path):
+    _reset_models_cache()
+    try:
+        home = _fake_codex_home(tmp_path, [{"slug": "cat/a"}])
+        (home / "models_cache.json").write_text(
+            json.dumps({"models": [{"slug": "dynamic/a", "visibility": "list"}]}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+        monkeypatch.setattr(core_config, "load_config", lambda: {"codex": {}})
+        assert _adapter().supported_models == ["dynamic/a"]
+    finally:
+        _reset_models_cache()
+    print("PASS: supported_models priority (dynamic cache > catalog)")
 
 
 def test_supported_models_ttl_cache(monkeypatch, tmp_path):
@@ -659,6 +694,8 @@ if __name__ == "__main__":
     test_build_codex_args_resume_filters_non_c_flags()
     test_filter_resume_opts()
     test_parse_models_from_catalog()
+    test_parse_models_from_models_cache()
+    test_supported_models_models_cache_priority()
     test_supported_models_catalog_priority()
     test_supported_models_ttl_cache()
     test_item_to_block_mapping()

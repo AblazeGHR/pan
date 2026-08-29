@@ -78,7 +78,7 @@ DEFAULT_CONFIG: dict = {
     },
     "codex": {
         # 默认模型。可选值见 adapter.py 的 supported_models；
-        # 不填时自动识别（读 ~/.codex/config.toml 的 model，否则内置兜底）。
+        # 不填时自动识别（读 CODEX_HOME/models_cache.json / config.toml，否则兜底）。
         "model": "deepseek-ai/DeepSeek-V4-Flash",
         # 可选模型白名单（填=限制可选项，不填=自动识别）
         "models": [],
