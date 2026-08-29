@@ -539,6 +539,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   string/number/boolean/enum 字段及 URL 授权页，回传原生 `action + content`；超时安全取消。
   命令审批还保留原生结构化决策 `acceptWithExecpolicyAmendment` /
   `applyNetworkPolicyAmendment`，前端会原样回传，支持记住 execpolicy 或网络规则。
+  Dynamic Tool 注册与执行映射明确不纳入 Pan：外部工具统一通过 MCP 接入，Pan 不暴露额外的
+  运行时工具回调；收到 Codex `item/tool/call` 时返回明确的不支持错误，避免同时维护两套工具发现与权限语义。
   `item/commandExecution/terminalInteraction` 会广播为 `codex.terminal_interaction`，前端可在
   当前会话的终端交互栏输入内容或终止进程；输入经 UTF-8 Base64 编码后由桥接器调用固定的
   `command/exec/write`，终止调用固定的 `command/exec/terminate`。这补上了命令执行需要 stdin

@@ -103,3 +103,4 @@
 | skill 包装 /pan-monitor | SKILL.md §4 已提供直接用法，暂不包装 | plans&overviews/Worker监督与事件驱动模式.md |
 | worker_handoff 恢复 | 已于 2026-08-26 彻底移除，串行依赖统一走 assign + report_subscribe / session_handoff | SKILL.md（既定决策） |
 | API 鉴权 | 既定姿态：无鉴权 + 绑 loopback，安全重点转向 workdir/manifest 边界（见 D1/D2） | 阶段计划与进度.md D0 |
+| Dynamic Tool 注册与执行映射 | **有意舍弃（2026-08-29）**：MCP 已覆盖外部工具接入；Pan 不额外暴露运行时工具回调，Codex 的 `item/tool/call` 返回明确的不支持错误。只有未来出现 Pan 内部运行时工具需求时才重新立项 | Codex 对接审计 |
