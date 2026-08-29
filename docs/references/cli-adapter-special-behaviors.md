@@ -537,6 +537,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   超过 `autoResolutionMs`（最多 120 秒）时回传空答案，避免 worker 无限挂起。MCP
   `mcpServer/elicitation/request` 会广播为 `codex.elicitation`，支持 form schema 的常见
   string/number/boolean/enum 字段及 URL 授权页，回传原生 `action + content`；超时安全取消。
+  命令审批还保留原生结构化决策 `acceptWithExecpolicyAmendment` /
+  `applyNetworkPolicyAmendment`，前端会原样回传，支持记住 execpolicy 或网络规则。
   `item/commandExecution/terminalInteraction` 会广播为 `codex.terminal_interaction`，前端可在
   当前会话的终端交互栏输入内容或终止进程；输入经 UTF-8 Base64 编码后由桥接器调用固定的
   `command/exec/write`，终止调用固定的 `command/exec/terminate`。这补上了命令执行需要 stdin
