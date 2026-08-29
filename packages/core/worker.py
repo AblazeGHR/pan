@@ -2125,6 +2125,34 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     return new_w
 
 
+async def send_control_message(worker_id: str, control: dict) -> str | None:
+    """Send a narrowly-scoped out-of-band control message to a live worker.
+
+    Native adapters may use this for controls that are not user turns, such
+    as Codex app-server approval responses.  The adapter owns wire encoding;
+    workers without that optional capability keep the existing behavior.
+    """
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    if (w.process is None or w.process.returncode is not None
+            or w.process.stdin is None):
+        return "Worker process is not running"
+    encode_control = getattr(w.adapter, "encode_control_message", None)
+    if encode_control is None:
+        return f"Adapter '{w.adapter.name}' does not support worker controls"
+    if not isinstance(control, dict) or control.get("type") not in {
+        "interrupt", "steer", "approval_response",
+    }:
+        return "Unsupported worker control"
+    try:
+        w.process.stdin.write(encode_control(control) + b"\n")
+        await w.process.stdin.drain()
+    except (BrokenPipeError, ConnectionError, OSError, RuntimeError):
+        return "Worker control write failed"
+    return None
+
+
 async def interrupt_worker(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
@@ -2135,15 +2163,11 @@ async def interrupt_worker(worker_id: str) -> str | None:
     # long-lived native thread and app-server process.  Fall back to the
     # established kill+resume path for adapters without this optional
     # capability or when the control write fails.
-    if (getattr(w.adapter, "supports_native_interrupt", False)
-            and w.process is not None and w.process.stdin is not None):
-        try:
-            encode_control = getattr(w.adapter, "encode_control_message")
-            w.process.stdin.write(encode_control({"type": "interrupt"}) + b"\n")
-            await w.process.stdin.drain()
+    if getattr(w.adapter, "supports_native_interrupt", False):
+        err = await send_control_message(worker_id, {"type": "interrupt"})
+        if err is None:
             return None
-        except (BrokenPipeError, ConnectionError, OSError, RuntimeError):
-            _log.warning("[Worker %s] native interrupt write failed; restarting", worker_id)
+        _log.warning("[Worker %s] native interrupt write failed: %s; restarting", worker_id, err)
     return await restart_worker(worker_id)
 
 

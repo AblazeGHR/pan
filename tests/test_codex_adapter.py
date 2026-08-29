@@ -391,6 +391,35 @@ def test_app_server_item_translation():
     print("PASS: app-server item translation")
 
 
+def test_app_server_approval_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    request = {
+        "id": 7,
+        "method": "item/commandExecution/requestApproval",
+        "params": {
+            "itemId": "item-1", "command": "echo ok",
+            "availableDecisions": ["accept", "decline"],
+        },
+    }
+    app._handle_server_request(request, state)
+    assert state["pending_requests"]["7"]["id"] == 7
+    assert emitted[0]["type"] == "approval.request"
+    assert sent == []
+
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "approval_response", "request_id": 7, "decision": "accept"})
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 7, "result": {"decision": "accept"}}]
+    assert state["pending_requests"] == {}
+    print("PASS: app-server approval roundtrip")
+
+
 # ── sessions：纯函数 ──
 
 
