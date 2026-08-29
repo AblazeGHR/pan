@@ -703,6 +703,28 @@ class AppServer:
                         control_queue: Queue[dict[str, Any] | None] | None) -> None:
         if control_queue is None:
             return
+        # Pan can report a worker as running before turn/start has returned a
+        # turn id. Flush controls captured during that small window as soon as
+        # the native id becomes available.
+        if state.get("turn_id"):
+            if state.pop("interrupt_pending", False):
+                try:
+                    self._request("turn/interrupt", {
+                        "threadId": self.thread_id, "turnId": state["turn_id"],
+                    })
+                    state["interrupt_requested"] = True
+                except (OSError, RuntimeError):
+                    state["error"] = "failed to interrupt Codex turn"
+            pending_steer = state.pop("steer_pending", None)
+            if pending_steer:
+                try:
+                    self._request("turn/steer", {
+                        "threadId": self.thread_id,
+                        "expectedTurnId": state["turn_id"],
+                        "input": [{"type": "text", "text": str(pending_steer)}],
+                    })
+                except (OSError, RuntimeError):
+                    _write_stderr("[codex app-server bridge] failed to steer turn\n")
         while True:
             self._safe_decline_expired(state)
             try:
@@ -712,7 +734,10 @@ class AppServer:
             if not isinstance(control, dict):
                 continue
             kind = control.get("type")
-            if kind == "interrupt" and state.get("turn_id"):
+            if kind == "interrupt":
+                if not state.get("turn_id"):
+                    state["interrupt_pending"] = True
+                    continue
                 try:
                     self._request("turn/interrupt", {
                         "threadId": self.thread_id, "turnId": state["turn_id"],
@@ -720,7 +745,10 @@ class AppServer:
                     state["interrupt_requested"] = True
                 except (OSError, RuntimeError):
                     state["error"] = "failed to interrupt Codex turn"
-            elif kind == "steer" and state.get("turn_id") and control.get("text"):
+            elif kind == "steer" and control.get("text"):
+                if not state.get("turn_id"):
+                    state["steer_pending"] = str(control["text"])
+                    continue
                 try:
                     self._request("turn/steer", {
                         "threadId": self.thread_id,
