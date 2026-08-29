@@ -518,7 +518,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
 
 - app-server 的 `item/agentMessage/delta` / reasoning delta 被转换为 `content.part` 增量事件，前端合并
   到同一条消息；`item/completed` 转换为既有 assistant/thinking/tool 事件，`turn/completed` 转换为
-  worker 所需的 `result`。
+  worker 所需的 `result`。原生文件变更的 `item/fileChange/outputDelta` 与
+  `item/fileChange/patchUpdated` 也会实时更新同一个 `FileChange` tool 卡片，不必等到
+  `item/completed` 才看到路径和 diff。
 - `thread/start` 返回的 thread id 作为 Pan 的 `cli_session_id`；worker 重建时走
   `thread/resume`，已验证重启后仍能读取原生上下文。
 - Codex adapter 的 `interrupt_worker` 优先向桥接进程发送控制消息，由桥接调用原生
