@@ -96,6 +96,7 @@ agent_clients: set[WebSocket] = set()
 
 # agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
 _AGENT_DEFAULT_SUBSCRIPTION = frozenset({"worker.result"})
+_AGENT_TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
 
 
 @dataclass
@@ -200,6 +201,41 @@ async def broadcast(data: dict):
 worker.set_broadcaster(broadcast)
 worker.load_worker_config()
 worker.load_memory_config()
+
+
+async def _replay_agent_results(ws: WebSocket, session_ids: list[str]) -> None:
+    """补发 agent 尚未消费的终态结果（成功、失败、取消均不能静默丢失）。"""
+    sub = agent_subscriptions.get(ws)
+    if sub is None:
+        sub = AgentSubscription()
+        agent_subscriptions[ws] = sub
+    for sid in session_ids:
+        s = sess.get(sid)
+        if not s or not s.last_result:
+            continue
+        status = s.last_result.get("status")
+        if status not in _AGENT_TERMINAL_RESULT_STATUSES:
+            continue
+        # 补发条件：consumed_seq < latest_seq（中途断线、部分消费也补发）
+        latest_seq = s.last_result.get("taskSeq")
+        if latest_seq is None:
+            # 旧数据未存 taskSeq：仅当完全未消费时补发（保持原有行为）
+            if sub.consumed_seq.get(sid, 0) > 0:
+                continue
+            latest_seq = 0
+        elif sub.consumed_seq.get(sid, 0) >= latest_seq:
+            continue
+        await ws.send_json({
+            "type": "worker.result",
+            "workerId": "",
+            "sessionId": sid,
+            "status": status,
+            "result": s.last_result.get("result"),
+            "taskSeq": latest_seq,
+            "replayed": True,
+        })
+        # 补发成功后再推进游标，避免下次 reconnect 重复补发
+        sub.consumed_seq[sid] = max(sub.consumed_seq.get(sid, 0), latest_seq)
 
 
 @app.middleware("http")
@@ -912,35 +948,8 @@ async def ws_agent_endpoint(ws: WebSocket):
 
             elif msg_type == "reconnect":
                 # 断线重连补发：{"type":"reconnect","sessionIds":[...]}
-                # 补发各 session 未消费的 worker.result（seq 大于已消费游标）
-                sub = agent_subscriptions.get(ws)
-                if sub is None:
-                    sub = AgentSubscription()
-                    agent_subscriptions[ws] = sub
-                for sid in (msg.get("sessionIds") or []):
-                    s = sess.get(sid)
-                    if not s or not s.last_result or s.last_result.get("status") != "done":
-                        continue
-                    # 补发条件：consumed_seq < latest_seq（中途断线、部分消费也补发）
-                    latest_seq = s.last_result.get("taskSeq")
-                    if latest_seq is None:
-                        # 旧数据未存 taskSeq：仅当完全未消费时补发（保持原有行为）
-                        if sub.consumed_seq.get(sid, 0) > 0:
-                            continue
-                        latest_seq = 0
-                    elif sub.consumed_seq.get(sid, 0) >= latest_seq:
-                        continue
-                    await ws.send_json({
-                        "type": "worker.result",
-                        "workerId": "",
-                        "sessionId": sid,
-                        "status": s.last_result.get("status"),
-                        "result": s.last_result.get("result"),
-                        "taskSeq": latest_seq,
-                        "replayed": True,
-                    })
-                    # 补发成功后再推进游标，避免下次 reconnect 重复补发
-                    sub.consumed_seq[sid] = max(sub.consumed_seq.get(sid, 0), latest_seq)
+                # 补发各 session 未消费的终态 worker.result（成功/失败/取消）
+                await _replay_agent_results(ws, msg.get("sessionIds") or [])
 
             elif msg_type == "task":
                 session_id = msg.get("sessionId")

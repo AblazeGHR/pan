@@ -25,13 +25,13 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 消息 | 格式 | 说明 |
 |------|------|------|
 | subscribe | `{"type":"subscribe","eventTypes":["worker.result","worker.zombie"],"sessionIds":["ses_..."]}` | `eventTypes`：省略/空数组 → 默认 `["worker.result"]`；`["*"]` 订阅全部。`sessionIds`：省略 → 所有 session；只过滤 `worker.result`。回 `{"type":"subscribed",...}` |
-| reconnect | `{"type":"reconnect","sessionIds":["ses_..."]}` | 断线重连补发：每 session 未消费的 `worker.result`（`consumed_seq < taskSeq`），带 `replayed: true` |
+| reconnect | `{"type":"reconnect","sessionIds":["ses_..."]}` | 断线重连补发：每 session 未消费的终态 `worker.result`（`done/error/cancelled`，且 `consumed_seq < taskSeq`），带 `replayed: true` |
 
 ### 服务端 → 客户端事件
 
 | 事件 | 字段 | 说明 |
 |------|------|------|
-| `worker.result` | `workerId, sessionId, status(done/error), result, taskSeq` | **任务完成**，默认订阅 |
+| `worker.result` | `workerId, sessionId, status(done/error/cancelled), result, taskSeq` | **任务完成/失败/取消**，默认订阅；终态结果可在 reconnect 时补发 |
 | `worker.zombie` | `workerId, sessionId, returncode` | 进程退出/被杀/回收瞬间广播（订阅方据此感知异常丢失） |
 | `worker.crashed` | `workerId, sessionId, returncode` | 非零退出 |
 | `worker.status` | `workerId, sessionId, status, source` | 状态切换（running 等） |

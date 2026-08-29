@@ -11,6 +11,7 @@ Verifies the `broadcast()` filtering logic for agent clients:
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 # Make packages importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -148,6 +149,35 @@ def test_consumed_seq_tracked():
 
 def test_dead_agent_pruned_on_broadcast():
     """A send_json that raises removes the connection."""
+    _cleanup()
+
+
+def test_reconnect_replays_error_and_cancelled_results(monkeypatch):
+    """断线补发不能只恢复成功；Codex error/cancelled 也必须可见。"""
+    _cleanup()
+    ws = FakeWS()
+    sessions = {
+        "s-error": SimpleNamespace(last_result={
+            "status": "error", "result": "turn failed", "taskSeq": 4,
+        }),
+        "s-cancelled": SimpleNamespace(last_result={
+            "status": "cancelled", "result": "turn cancelled", "taskSeq": 5,
+        }),
+    }
+    monkeypatch.setattr(srv.sess, "get", lambda sid: sessions.get(sid))
+    srv.agent_subscriptions[ws] = srv.AgentSubscription()
+
+    _run(srv._replay_agent_results(ws, list(sessions)))
+
+    assert [m["status"] for m in ws.sent] == ["error", "cancelled"]
+    assert all(m["replayed"] for m in ws.sent)
+    assert srv.agent_subscriptions[ws].consumed_seq == {
+        "s-error": 4, "s-cancelled": 5,
+    }
+
+    # 游标推进后再次重连不重复补发。
+    _run(srv._replay_agent_results(ws, list(sessions)))
+    assert len(ws.sent) == 2
     _cleanup()
 
     class BrokenWS(FakeWS):
