@@ -377,6 +377,29 @@ class AppServer:
                     "turn_id": params.get("turnId", params.get("turn_id")),
                 })
             return
+        if method == "account/rateLimits/updated":
+            params = message.get("params") or {}
+            rate_limits = params.get("rateLimits")
+            if isinstance(rate_limits, dict):
+                _write_stdout({
+                    "type": "codex.rate_limits",
+                    "rate_limits": rate_limits,
+                })
+            return
+        if method == "mcpServer/startupStatus/updated":
+            params = message.get("params") or {}
+            _write_stdout({
+                "type": "codex.mcp_status",
+                "mcp_status": params,
+            })
+            return
+        if method == "model/rerouted":
+            params = message.get("params") or {}
+            _write_stdout({
+                "type": "codex.model_rerouted",
+                "model_rerouted": params,
+            })
+            return
         if method == "serverRequest/resolved":
             params = message.get("params") or {}
             request_id = params.get("requestId", params.get("request_id"))

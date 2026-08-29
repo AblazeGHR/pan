@@ -123,6 +123,12 @@ export interface WorkerEvent {
   item?: Record<string, unknown>;
   /** Native Codex thread/turn token usage snapshot. */
   token_usage?: Record<string, unknown>;
+  /** Native Codex account rate-limit snapshot. */
+  rate_limits?: Record<string, unknown>;
+  /** Native Codex MCP startup status notification. */
+  mcp_status?: Record<string, unknown>;
+  /** Native Codex model reroute notification. */
+  model_rerouted?: Record<string, unknown>;
 }
 
 export interface ApprovalRequest {
@@ -627,4 +633,6 @@ export interface WorkerInfo {
   };
   /** Latest live Codex token usage snapshot; persisted totals live on Session. */
   nativeUsage?: Record<string, unknown>;
+  /** Latest live Codex account rate-limit snapshot. */
+  nativeRateLimits?: Record<string, unknown>;
 }

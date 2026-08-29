@@ -484,8 +484,10 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
 等 effort 选项。显式配置的 `codex.models` 白名单始终优先。
 
 - **现象**：codex CLI 无稳定 `models` 子命令（help 未列出）→ 不跑 CLI 解析。
-- **处理**：`config.json("codex".models)` > 单默认模型。`default_model` 自动识别：config.json
-  model > 读 `~/.codex/config.toml` 的 `model` 字段（正则 `^\s*model\s*=\s*"([^"]+)"`）> 内置兜底
+- **处理**：模型列表优先级为显式 `config.json("codex".models)` 白名单 >
+  `models_cache.json` > `model_catalog_json` > 单默认模型。`default_model` 在白名单/动态列表
+  中优先使用有效的 config.toml 配置模型，否则依次使用 `~/.codex/config.toml` 的 `model`
+  字段（正则 `^\s*model\s*=\s*"([^"]+)"`）和当前可见列表首项，最后才用内置兜底
   `_DEFAULT_MODEL`。
 - **模型目录来源（补充，已核实）**：`~/.codex/config.toml` 的
   `model_catalog_json = "cc-switch-model-catalog.json"` 指向
@@ -555,6 +557,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `thread/tokenUsage/updated` 会归一化为 `codex.token_usage`，当前回合的 token 数和上下文窗口
   会实时显示在顶栏；最新快照也会随存活 worker 的 WebSocket 重连回放。持久化 session 总用量
   仍由 Codex provider 的原生存储聚合，二者不混用。
+  `account/rateLimits/updated` 会归一化为 `codex.rate_limits`，在顶栏显示 primary/secondary
+  限额窗口的已用比例，并在 WebSocket 重连时回放；MCP 启动失败会以明确错误提示展示，
+  `model/rerouted` 会提示 Codex 临时切换的模型，但不会篡改 Session 的配置模型。
   运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
   原生 `turn/completed` 的 `interrupted` / `cancelled` 会标记为独立的 `cancelled` 结果，

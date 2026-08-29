@@ -866,6 +866,15 @@ async def _replay_pending_interactions(
                 "event": usage_event,
                 "replayed": True,
             })
+        rate_limits_event = worker.native_rate_limits_event(w)
+        if rate_limits_event is not None:
+            await ws.send_json({
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "event": rate_limits_event,
+                "replayed": True,
+            })
         for event in worker.pending_interaction_events(w):
             await ws.send_json({
                 "type": "worker.stream",

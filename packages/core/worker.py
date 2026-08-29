@@ -204,6 +204,10 @@ class Worker:
     # The provider remains the source of truth for persisted/session totals;
     # this is only the live thread/turn snapshot from app-server.
     native_usage: dict | None = None
+    # Latest account-level Codex rate-limit snapshot. Unlike token usage this
+    # survives a completed turn, but it is still process-local and must be
+    # cleared when the app-server is respawned.
+    native_rate_limits: dict | None = None
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
@@ -401,6 +405,10 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
         token_usage = event.get("token_usage")
         w.native_usage = dict(token_usage) if isinstance(token_usage, dict) else None
         return
+    if event_type == "codex.rate_limits":
+        rate_limits = event.get("rate_limits")
+        w.native_rate_limits = dict(rate_limits) if isinstance(rate_limits, dict) else None
+        return
     if event_type in _PENDING_INTERACTION_TYPES:
         key = _interaction_key(event)
         if key is not None:
@@ -442,6 +450,14 @@ def native_usage_event(w: Worker) -> dict | None:
     return {"type": "codex.token_usage", "token_usage": dict(native_usage)}
 
 
+def native_rate_limits_event(w: Worker) -> dict | None:
+    """Return the latest account rate-limit snapshot for a reconnecting UI."""
+    rate_limits = getattr(w, "native_rate_limits", None)
+    if not rate_limits:
+        return None
+    return {"type": "codex.rate_limits", "rate_limits": dict(rate_limits)}
+
+
 def clear_native_runtime_state(w: Worker) -> None:
     """Drop app-server state that belongs only to the current OS process.
 
@@ -452,6 +468,7 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.pending_interactions.clear()
     w.native_status = None
     w.native_usage = None
+    w.native_rate_limits = None
 
 
 async def _iter_stdout_lines(w: Worker):
