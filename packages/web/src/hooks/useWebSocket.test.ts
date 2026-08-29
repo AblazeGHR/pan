@@ -152,6 +152,28 @@ describe('useWebSocket worker.result wiring', () => {
     });
   });
 
+  it('keeps native Codex account rate limits available to the active worker', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.rate_limits',
+          rate_limits: {
+            primary: { usedPercent: 25 },
+            secondary: { usedPercent: 5 },
+          },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeRateLimits).toEqual({
+      primary: { usedPercent: 25 },
+      secondary: { usedPercent: 5 },
+    });
+  });
+
   it('surfaces native Codex turn errors immediately without adding a fake chat message', () => {
     renderHook(() => useWebSocket());
 
@@ -169,6 +191,49 @@ describe('useWebSocket worker.result wiring', () => {
     expect(useUIStore.getState().toastQueue.at(-1)?.message)
       .toBe('Codex: upstream unavailable');
     expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('surfaces Codex MCP startup failures without surfacing ready notifications', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.mcp_status',
+          mcp_status: { name: 'pan', status: 'ready' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.mcp_status',
+          mcp_status: { name: 'pan', status: 'failed', error: 'offline' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex MCP pan: offline');
+  });
+
+  it('surfaces native Codex model reroutes on the active session', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.model_rerouted',
+          model_rerouted: {
+            fromModel: 'gpt-a', toModel: 'gpt-b', reason: 'highRiskCyberActivity',
+          },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex switched model: gpt-a → gpt-b (highRiskCyberActivity)');
   });
 
   it('updates a background session card in-place on worker.result', () => {

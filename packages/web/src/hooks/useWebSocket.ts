@@ -192,6 +192,30 @@ export function useWebSocket() {
           e.event.token_usage,
         );
       }
+      if (e.event.type === 'codex.rate_limits' && e.event.rate_limits) {
+        useWorkerStore.getState().updateNativeRateLimits(
+          e.sessionId,
+          e.workerId,
+          e.event.rate_limits,
+        );
+      }
+      if (e.event.type === 'codex.mcp_status' && e.sessionId === useSessionStore.getState().currentSessionId) {
+        const status = e.event.mcp_status;
+        if (status && String(status.status || '').toLowerCase() === 'failed') {
+          const name = String(status.name || 'server');
+          const detail = status.error || status.failureReason || 'startup failed';
+          useUIStore.getState().showToast(`Codex MCP ${name}: ${detail}`, 'error');
+        }
+      }
+      if (e.event.type === 'codex.model_rerouted' && e.sessionId === useSessionStore.getState().currentSessionId) {
+        const rerouted = e.event.model_rerouted;
+        if (rerouted) {
+          const from = String(rerouted.fromModel || 'configured model');
+          const to = String(rerouted.toModel || 'fallback model');
+          const reason = rerouted.reason ? ` (${String(rerouted.reason)})` : '';
+          useUIStore.getState().showToast(`Codex switched model: ${from} → ${to}${reason}`);
+        }
+      }
       if (e.event.type === 'codex.turn_error' && e.sessionId === useSessionStore.getState().currentSessionId) {
         const detail = e.event.error_text || 'Codex turn failed';
         useUIStore.getState().showToast(`Codex: ${detail}`, 'error');

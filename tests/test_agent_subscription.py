@@ -255,6 +255,7 @@ def test_dashboard_replays_live_native_interactions():
     original_events = srv.worker.pending_interaction_events
     original_status = srv.worker.native_status_event
     original_usage = srv.worker.native_usage_event
+    original_rate_limits = srv.worker.native_rate_limits_event
     try:
         srv.worker.list_workers = lambda: [FakeWorker()]
         srv.worker.native_status_event = lambda w: {
@@ -264,6 +265,10 @@ def test_dashboard_replays_live_native_interactions():
         srv.worker.native_usage_event = lambda w: {
             "type": "codex.token_usage",
             "token_usage": {"last": {"totalTokens": 150}},
+        }
+        srv.worker.native_rate_limits_event = lambda w: {
+            "type": "codex.rate_limits",
+            "rate_limits": {"primary": {"usedPercent": 25}},
         }
         srv.worker.pending_interaction_events = lambda w: [{
             "type": "approval.request", "request_id": 3,
@@ -275,6 +280,7 @@ def test_dashboard_replays_live_native_interactions():
         srv.worker.pending_interaction_events = original_events
         srv.worker.native_status_event = original_status
         srv.worker.native_usage_event = original_usage
+        srv.worker.native_rate_limits_event = original_rate_limits
 
     assert ws.sent == [
         {
@@ -290,6 +296,14 @@ def test_dashboard_replays_live_native_interactions():
             "event": {
                 "type": "codex.token_usage",
                 "token_usage": {"last": {"totalTokens": 150}},
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.rate_limits",
+                "rate_limits": {"primary": {"usedPercent": 25}},
             },
             "replayed": True,
         },

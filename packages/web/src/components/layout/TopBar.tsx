@@ -43,6 +43,20 @@ function liveUsageLabel(usage: Record<string, unknown> | undefined): string | un
   return `${formatTokenCount(current)} tok${context}`;
 }
 
+function liveRateLimitLabel(rateLimits: Record<string, unknown> | undefined): string | undefined {
+  if (!rateLimits) return undefined;
+  const windows = ['primary', 'secondary']
+    .map((key) => rateLimits[key])
+    .filter((value): value is Record<string, unknown> =>
+      !!value && typeof value === 'object',
+    );
+  const used = windows
+    .map((window) => tokenCount(window.usedPercent))
+    .filter((value): value is number => value !== null);
+  if (used.length === 0) return undefined;
+  return `quota ${used.map((value) => `${Math.round(value)}%`).join(' / ')}`;
+}
+
 export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
@@ -79,6 +93,9 @@ export function TopBar() {
         : undefined;
   const nativeUsageLabel = currentWorker?.sessionId === currentSession.id
     ? liveUsageLabel(currentWorker.nativeUsage)
+    : undefined;
+  const nativeRateLimitLabel = currentWorker?.sessionId === currentSession.id
+    ? liveRateLimitLabel(currentWorker.nativeRateLimits)
     : undefined;
 
   // Effective worker for the CURRENT session. Prefer the server-reported
@@ -152,6 +169,14 @@ export function TopBar() {
             title="Live Codex token usage for the current turn"
           >
             {nativeUsageLabel}
+          </span>
+        )}
+        {nativeRateLimitLabel && (
+          <span
+            className="hidden md:inline text-xs text-text-tertiary mr-1"
+            title="Codex account rate-limit usage (primary / secondary windows)"
+          >
+            {nativeRateLimitLabel}
           </span>
         )}
         {effectiveWorkerId && (

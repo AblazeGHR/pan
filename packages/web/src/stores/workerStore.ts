@@ -60,6 +60,11 @@ interface WorkerStore {
     workerId: string | null | undefined,
     nativeUsage: WorkerInfo['nativeUsage'],
   ) => void;
+  updateNativeRateLimits: (
+    sessionId: string,
+    workerId: string | null | undefined,
+    nativeRateLimits: WorkerInfo['nativeRateLimits'],
+  ) => void;
   syncToSession: (sessionId: string | null) => void;
   refresh: () => Promise<void>;
 }
@@ -141,6 +146,9 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
         : previous?.nativeUsage
           ? { nativeUsage: previous.nativeUsage }
           : {}),
+      ...(status !== null && status !== undefined && previous?.id === workerId && previous?.nativeRateLimits
+        ? { nativeRateLimits: previous.nativeRateLimits }
+        : {}),
     };
 
     set((s) => {
@@ -214,6 +222,32 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
     });
   },
 
+  updateNativeRateLimits: (sessionId, workerId, nativeRateLimits) => {
+    if (!sessionId) return;
+    set((s) => {
+      const previous = s.workers[sessionId];
+      if (!previous && !workerId) return s;
+      const worker: WorkerInfo = previous
+        ? { ...previous, nativeRateLimits }
+        : {
+            id: workerId || '',
+            sessionId,
+            status: 'running',
+            nativeRateLimits,
+          };
+      const workers = { ...s.workers, [sessionId]: worker };
+      const currentSessionId = useSessionStore.getState().currentSessionId;
+      const currentWorkerId = sessionId === currentSessionId
+        ? worker.id || s.currentWorkerId
+        : s.currentWorkerId;
+      return {
+        workers,
+        currentWorkerId,
+        currentWorker: findWorker(workers, currentWorkerId),
+      };
+    });
+  },
+
   syncToSession: (sessionId) => {
     set((s) => {
       const currentWorkerId = sessionId
@@ -242,6 +276,9 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
             : {}),
           ...(status !== 'idle' && previous?.nativeUsage
             ? { nativeUsage: previous.nativeUsage }
+            : {}),
+          ...(previous?.id === w.workerId && previous?.nativeRateLimits
+            ? { nativeRateLimits: previous.nativeRateLimits }
             : {}),
         };
       }

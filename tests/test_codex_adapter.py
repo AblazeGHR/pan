@@ -460,6 +460,38 @@ def test_app_server_token_usage_is_normalized(monkeypatch):
     print("PASS: app-server token usage normalization")
 
 
+def test_app_server_account_notifications_are_normalized(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    app._handle_server_message({
+        "method": "account/rateLimits/updated",
+        "params": {"rateLimits": {"primary": {"usedPercent": 25}}},
+    }, {})
+    app._handle_server_message({
+        "method": "mcpServer/startupStatus/updated",
+        "params": {"name": "pan", "status": "failed", "error": "offline"},
+    }, {})
+    app._handle_server_message({
+        "method": "model/rerouted",
+        "params": {"fromModel": "gpt-a", "toModel": "gpt-b", "reason": "highRiskCyberActivity"},
+    }, {})
+
+    assert emitted == [
+        {"type": "codex.rate_limits", "rate_limits": {
+            "primary": {"usedPercent": 25},
+        }},
+        {"type": "codex.mcp_status", "mcp_status": {
+            "name": "pan", "status": "failed", "error": "offline",
+        }},
+        {"type": "codex.model_rerouted", "model_rerouted": {
+            "fromModel": "gpt-a", "toModel": "gpt-b", "reason": "highRiskCyberActivity",
+        }},
+    ]
+    print("PASS: app-server account notifications")
+
+
 def test_app_server_terminal_interaction_roundtrip(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     emitted: list[dict] = []
@@ -603,6 +635,27 @@ def test_worker_native_usage_replay_cache():
     worker._update_pending_interactions(w, {"type": "result"})
     assert worker.native_usage_event(w) is None
     print("PASS: native usage replay cache")
+
+
+def test_worker_native_rate_limits_survive_turn_and_replay_until_respawn():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-rate-limit-replay",
+        session_id="ses-rate-limit-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    event = {
+        "type": "codex.rate_limits",
+        "rate_limits": {"primary": {"usedPercent": 25}},
+    }
+    worker._update_pending_interactions(w, event)
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_rate_limits_event(w) == event
+
+    worker.clear_native_runtime_state(w)
+    assert worker.native_rate_limits_event(w) is None
+    print("PASS: native rate-limit replay cache")
 
 
 def test_worker_native_runtime_state_clears_on_respawn_boundary():
