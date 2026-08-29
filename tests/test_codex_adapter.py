@@ -399,7 +399,10 @@ def test_app_server_approval_roundtrip(monkeypatch):
     app._send = sent.append  # type: ignore[method-assign]
     state = {"pending_requests": {}}
     request = {
-        "id": 7,
+        # JSON-RPC server request IDs legitimately start at numeric zero.
+        # Keep this test at zero so callers do not accidentally treat it as
+        # a missing/falsy request ID when forwarding approval controls.
+        "id": 0,
         "method": "item/commandExecution/requestApproval",
         "params": {
             "itemId": "item-1", "command": "echo ok",
@@ -407,15 +410,15 @@ def test_app_server_approval_roundtrip(monkeypatch):
         },
     }
     app._handle_server_request(request, state)
-    assert state["pending_requests"]["7"]["id"] == 7
+    assert state["pending_requests"]["0"]["id"] == 0
     assert emitted[0]["type"] == "approval.request"
     assert sent == []
 
     from queue import Queue
     controls: Queue = Queue()
-    controls.put({"type": "approval_response", "request_id": 7, "decision": "accept"})
+    controls.put({"type": "approval_response", "request_id": 0, "decision": "accept"})
     app._drain_controls(state, controls)
-    assert sent == [{"id": 7, "result": {"decision": "accept"}}]
+    assert sent == [{"id": 0, "result": {"decision": "accept"}}]
     assert state["pending_requests"] == {}
     print("PASS: app-server approval roundtrip")
 
