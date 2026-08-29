@@ -3,8 +3,9 @@
 核心不变量：**任务收到 terminal result 后才出队；执行前/执行中崩溃时保留队列，
 由新 worker 重投。**
 
-- 报告持久化在 Session.queue_pending（落盘真源），仍在注入时确认；任务则先持久化
-  history 投递标记，收到 result 后才从 queue_pending 移除。崩溃窗口内任务可重投，
+- 报告持久化在 Session.queue_pending（落盘真源），先落 history 投递标记，收到
+  terminal result 后才从 queue_pending 移除；任务同样先持久化 history 投递标记，
+  收到 result 后才从 queue_pending 移除。崩溃窗口内任务和报告均可重投，
   且已有 history 标记不会导致用户消息重复追加。
 - save 失败（非崩溃）回滚内存态，item 留在队列可重投；消费前确认 worker
   进程存活（死 → 中止保留队列，respawn 后由 _recover_pending_signals 重投）。

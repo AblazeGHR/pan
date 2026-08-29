@@ -195,6 +195,49 @@ def test_reconnect_replays_error_and_cancelled_results(monkeypatch):
     _cleanup()
 
 
+def test_reconnect_after_midstream_disconnect_replays_newer_sequence(monkeypatch):
+    """中途断线：已消费 seq=1 后，seq=2 未送达，重连只补发更新结果。"""
+    _cleanup()
+
+    class FlakyWS(FakeWS):
+        fail = False
+
+        async def send_json(self, data: dict):
+            if self.fail:
+                raise ConnectionError("connection dropped")
+            await super().send_json(data)
+
+    ws = FlakyWS()
+    srv.agent_clients.add(ws)
+    srv.agent_subscriptions[ws] = srv.AgentSubscription()
+    latest = SimpleNamespace(last_result={
+        "status": "done", "result": "second", "taskSeq": 2,
+    })
+    monkeypatch.setattr(srv.sess, "get", lambda sid: latest if sid == "s1" else None)
+
+    _run(srv.broadcast({
+        "type": "worker.result", "workerId": "w1", "sessionId": "s1",
+        "status": "done", "result": "first", "taskSeq": 1,
+    }))
+    assert srv.agent_subscriptions[ws].consumed_seq == {"s1": 1}
+
+    ws.fail = True
+    _run(srv.broadcast({
+        "type": "worker.result", "workerId": "w1", "sessionId": "s1",
+        "status": "done", "result": "second", "taskSeq": 2,
+    }))
+    assert ws not in srv.agent_clients
+
+    ws.fail = False
+    srv.agent_clients.add(ws)
+    _run(srv._replay_agent_results(ws, ["s1"]))
+    assert ws.sent[-1]["taskSeq"] == 2
+    assert ws.sent[-1]["result"] == "second"
+    assert ws.sent[-1]["replayed"] is True
+    assert srv.agent_subscriptions[ws].consumed_seq == {"s1": 2}
+    _cleanup()
+
+
 def test_dashboard_replays_live_native_interactions():
     """Dashboard reconnect restores only prompts owned by live workers."""
     _cleanup()
