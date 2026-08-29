@@ -124,11 +124,13 @@ export function useWebSocket() {
     // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
+      if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
+      if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
@@ -153,6 +155,20 @@ export function useWebSocket() {
     // Stream events (real-time message chunks)
     unsubscribers.push(wsClient.on('worker.stream', (e: StreamEvent) => {
       if (!e.sessionId || !e.event) return;
+      if (
+        e.event.type === 'approval.request' &&
+        e.workerId &&
+        e.event.method &&
+        e.event.request_id !== undefined
+      ) {
+        useUIStore.getState().addApprovalRequest({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          requestId: e.event.request_id,
+          method: e.event.method,
+          params: e.event.params ?? {},
+        });
+      }
       const store = useSessionStore.getState();
       // 消息区：仅当前 session 追加（原有逻辑，保留）
       if (e.sessionId === store.currentSessionId) appendEvent(e.event);
@@ -164,6 +180,7 @@ export function useWebSocket() {
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       const sessionStore = useSessionStore.getState();
+      if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
         const status = e.status === 'error' ? 'error' : 'done';
         sessionStore.addMessage({

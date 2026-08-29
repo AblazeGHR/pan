@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ToastMessage } from '@/types';
+import type { ApprovalRequest, ToastMessage } from '@/types';
 
 // ── localStorage helpers ──
 
@@ -97,6 +97,7 @@ function persistTheme(t: Theme) {
 
 interface UIStore {
   toastQueue: ToastMessage[];
+  approvalRequests: ApprovalRequest[];
   bubbleViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
@@ -112,6 +113,9 @@ interface UIStore {
 
   showToast: (message: string, type?: ToastMessage['type']) => void;
   dismissToast: (id: string) => void;
+  addApprovalRequest: (request: ApprovalRequest) => void;
+  removeApprovalRequest: (sessionId: string, requestId: string | number) => void;
+  clearApprovalRequests: (sessionId: string) => void;
   toggleBubbleView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
@@ -137,6 +141,7 @@ let toastCounter = 0;
 
 export const useUIStore = create<UIStore>((set, get) => ({
   toastQueue: [],
+  approvalRequests: [],
   bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
@@ -160,6 +165,31 @@ export const useUIStore = create<UIStore>((set, get) => ({
   dismissToast: (id) => {
     set((s) => ({
       toastQueue: s.toastQueue.filter((t) => t.id !== id),
+    }));
+  },
+
+  addApprovalRequest: (request) => {
+    set((s) => ({
+      approvalRequests: [
+        ...s.approvalRequests.filter(
+          (item) => !(item.sessionId === request.sessionId && item.requestId === request.requestId),
+        ),
+        request,
+      ],
+    }));
+  },
+
+  removeApprovalRequest: (sessionId, requestId) => {
+    set((s) => ({
+      approvalRequests: s.approvalRequests.filter(
+        (item) => !(item.sessionId === sessionId && item.requestId === requestId),
+      ),
+    }));
+  },
+
+  clearApprovalRequests: (sessionId) => {
+    set((s) => ({
+      approvalRequests: s.approvalRequests.filter((item) => item.sessionId !== sessionId),
     }));
   },
 

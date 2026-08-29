@@ -522,9 +522,10 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
 - `thread/start` 返回的 thread id 作为 Pan 的 `cli_session_id`；worker 重建时走
   `thread/resume`，已验证重启后仍能读取原生上下文。
 - Codex adapter 的 `interrupt_worker` 优先向桥接进程发送控制消息，由桥接调用原生
-  `turn/interrupt`；发送失败才回退到通用 kill + resume。审批/用户输入请求会先广播为
-  `approval.request` / `codex.user_input`；当前 Pan 尚无统一交互式审批响应 API，自动权限模式不应触发
-  审批，保守模式目前会拒绝未处理请求而避免 worker 无限挂起。
+  `turn/interrupt`；发送失败才回退到通用 kill + resume。命令/文件审批请求会先广播为
+  `approval.request`，React 前端提供 Allow/Deny 控件，再由 WebSocket 或
+  `POST /api/worker/{id}/control` 回传原生 JSON-RPC response；UI 断开或超过 120 秒时安全拒绝。
+  其它用户输入请求仍使用保守兜底，避免无人值守 worker 无限挂起。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
   `web/src/hooks/useWebSocket.ts` 增量合并。
 

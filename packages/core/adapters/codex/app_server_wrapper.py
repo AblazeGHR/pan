@@ -27,6 +27,13 @@ from queue import Empty, Queue
 from typing import Any
 
 
+_APPROVAL_TIMEOUT_SEC = 120.0
+_INTERACTIVE_APPROVAL_METHODS = {
+    "item/commandExecution/requestApproval",
+    "item/fileChange/requestApproval",
+}
+
+
 def _write_stdout(event: dict[str, Any]) -> None:
     raw = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.buffer.write(raw.encode("utf-8", errors="replace") + b"\n")
@@ -438,6 +445,20 @@ class AppServer:
         _write_stdout({"type": event_type, "method": method, "request_id": request_id,
                        "params": params})
 
+        # In interactive permission modes, keep the native JSON-RPC request
+        # open until Pan sends an approval_response.  This is the same pause
+        # point the native Codex UI exposes.  Bypass mode remains automatic;
+        # non-interactive request kinds retain their conservative fallback.
+        if (state is not None and method in _INTERACTIVE_APPROVAL_METHODS
+                and request_id is not None and not self.auto_approve):
+            state.setdefault("pending_requests", {})[str(request_id)] = {
+                "id": request_id,
+                "method": method,
+                "params": params,
+                "deadline": time.monotonic() + _APPROVAL_TIMEOUT_SEC,
+            }
+            return
+
         if method == "item/tool/requestUserInput":
             result: dict[str, Any] = {"answers": {}}
         elif method == "mcpServer/elicitation/request":
@@ -460,11 +481,24 @@ class AppServer:
             result = {"decision": decision}
         self._send({"id": request_id, "result": result})
 
+    def _safe_decline_expired(self, state: dict[str, Any]) -> None:
+        pending = state.get("pending_requests") or {}
+        now = time.monotonic()
+        for key, request in list(pending.items()):
+            if now < float(request.get("deadline") or 0):
+                continue
+            try:
+                self._send({"id": request["id"], "result": {"decision": "decline"}})
+            except (OSError, RuntimeError):
+                state["error"] = "failed to decline expired Codex approval"
+            pending.pop(key, None)
+
     def _drain_controls(self, state: dict[str, Any],
                         control_queue: Queue[dict[str, Any] | None] | None) -> None:
         if control_queue is None:
             return
         while True:
+            self._safe_decline_expired(state)
             try:
                 control = control_queue.get_nowait()
             except Empty:
@@ -489,6 +523,21 @@ class AppServer:
                     })
                 except (OSError, RuntimeError):
                     _write_stderr("[codex app-server bridge] failed to steer turn\n")
+            elif kind == "approval_response":
+                request_id = control.get("request_id", control.get("requestId"))
+                pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
+                if pending is None:
+                    continue
+                result = control.get("result")
+                if not isinstance(result, dict):
+                    decision = str(control.get("decision") or "decline")
+                    if decision not in {"accept", "acceptForSession", "decline", "cancel"}:
+                        decision = "decline"
+                    result = {"decision": decision}
+                try:
+                    self._send({"id": pending["id"], "result": result})
+                except (OSError, RuntimeError):
+                    state["error"] = "failed to send Codex approval response"
 
     def run_turn(self, text: str, effort: str | None = None,
                  control_queue: Queue[dict[str, Any] | None] | None = None) -> None:

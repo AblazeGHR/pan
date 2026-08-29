@@ -79,6 +79,10 @@ export interface WorkerEvent {
   final?: boolean;
   /** Tool/output delta targets the currently displayed item instead of appending. */
   replace?: boolean;
+  /** Native Codex server request metadata (approval/user-input bridge). */
+  method?: string;
+  request_id?: string | number;
+  params?: Record<string, unknown>;
   /** kimi: stream-json 事件以 role 标识（assistant/thinking/result/meta），
    *  纯文本 assistant 事件没有 type 字段。 */
   role?: string;
@@ -97,6 +101,14 @@ export interface WorkerEvent {
   is_error?: boolean;
   result?: string;
   cliSessionId?: string;
+}
+
+export interface ApprovalRequest {
+  sessionId: string;
+  workerId: string;
+  requestId: string | number;
+  method: string;
+  params: Record<string, unknown>;
 }
 
 export interface StreamEvent {

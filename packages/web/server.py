@@ -819,6 +819,13 @@ async def ws_endpoint(ws: WebSocket):
                         err = await worker.send_task(w.worker_id, text, source="user")
                         if err:
                             await broadcast({"type": "error", "message": err})
+            elif msg_type == "worker_control":
+                worker_id = msg.get("workerId")
+                control = msg.get("control")
+                if worker_id and isinstance(control, dict):
+                    err = await worker.send_control_message(worker_id, control)
+                    if err:
+                        await ws.send_json({"type": "error", "message": err})
                     else:
                         # auto-spawn worker for this session
                         result = await worker.create_worker(session_id)
@@ -2596,6 +2603,16 @@ async def api_interrupt(worker_id: str):
     if err:
         return {"error": err}
     return {"workerId": worker_id, "status": "interrupted"}
+
+
+@app.post("/api/worker/{worker_id}/control")
+async def api_worker_control(worker_id: str, data: dict):
+    """Send an adapter-native out-of-band control to a live worker."""
+    control = data.get("control") if isinstance(data.get("control"), dict) else data
+    err = await worker.send_control_message(worker_id, control)
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "control sent"}
 
 
 @app.post("/api/worker/{worker_id}/takeover")
