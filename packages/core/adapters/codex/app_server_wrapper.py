@@ -338,6 +338,17 @@ class AppServer:
                 self.last_usage = usage
             _write_stdout({"type": "codex.notification", "method": method, "params": params})
             return
+        if method == "serverRequest/resolved":
+            params = message.get("params") or {}
+            request_id = params.get("requestId", params.get("request_id"))
+            if state is not None and request_id is not None:
+                (state.get("pending_requests") or {}).pop(str(request_id), None)
+            _write_stdout({
+                "type": "codex.request_resolved",
+                "request_id": request_id,
+                "params": params,
+            })
+            return
         if method == "item/agentMessage/delta":
             params = message.get("params") or {}
             delta = params.get("delta")

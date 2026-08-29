@@ -541,6 +541,21 @@ def test_app_server_elicitation_roundtrip(monkeypatch):
     print("PASS: app-server elicitation roundtrip")
 
 
+def test_app_server_request_resolved_clears_pending(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state = {"pending_requests": {"0": {"id": 0, "method": "item/tool/requestUserInput"}}}
+    app._handle_server_message({
+        "method": "serverRequest/resolved",
+        "params": {"requestId": 0, "threadId": "thread-1"},
+    }, state)
+    assert state["pending_requests"] == {}
+    assert emitted == [{"type": "codex.request_resolved", "request_id": 0,
+                        "params": {"requestId": 0, "threadId": "thread-1"}}]
+    print("PASS: app-server request resolved")
+
+
 # ── sessions：纯函数 ──
 
 
