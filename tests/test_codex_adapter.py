@@ -555,6 +555,34 @@ def test_app_server_request_resolved_clears_pending(monkeypatch):
     print("PASS: app-server request resolved")
 
 
+def test_app_server_file_change_stream(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state: dict = {}
+    app._handle_server_message({
+        "method": "item/started",
+        "params": {"threadId": "t", "turnId": "u", "item": {
+            "id": "file-1", "type": "fileChange", "changes": [],
+            "status": "inProgress",
+        }},
+    }, state)
+    app._handle_server_message({
+        "method": "item/fileChange/outputDelta",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "file-1", "delta": "editing"},
+    }, state)
+    app._handle_server_message({
+        "method": "item/fileChange/patchUpdated",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "file-1", "changes": [{
+            "path": "a.txt", "kind": {"type": "update"}, "diff": "+hello",
+        }]},
+    }, state)
+    assert [event["replace"] for event in emitted] == [False, True, True]
+    assert emitted[-1]["message"]["content"][0]["input"]["changes"][0]["path"] == "a.txt"
+    assert state["file_items"]["file-1"]["output"] == "editing"
+    print("PASS: app-server file change stream")
+
+
 # ── sessions：纯函数 ──
 
 
