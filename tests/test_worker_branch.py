@@ -17,6 +17,36 @@ def test_codex_worker_branch_uses_sessions_provider(monkeypatch):
     worker.workers.clear()
     _sess._cache.clear()
 
+
+def test_steer_worker_persists_only_after_control_write(monkeypatch):
+    worker.workers.clear()
+    _sess._cache.clear()
+    session = _sess.Session(id="ses_steer", name="steer", adapter="codex")
+    _sess._cache[session.id] = session
+    live = worker.Worker(
+        worker_id="worker-steer",
+        session_id=session.id,
+        adapter=CodexAdapter(),
+        process=MagicMock(),
+    )
+    live.process.returncode = None
+    live.process.stdin = MagicMock()
+    worker.workers[live.worker_id] = live
+
+    async def fake_control(worker_id, control):
+        assert worker_id == live.worker_id
+        assert control == {"type": "steer", "text": "focus here"}
+        return None
+
+    monkeypatch.setattr(worker, "send_control_message", fake_control)
+    monkeypatch.setattr(_sess, "save_async", AsyncMock())
+
+    assert asyncio.run(worker.steer_worker(live.worker_id, " focus here ")) is None
+    assert session.history == [{"role": "user", "content": "focus here"}]
+
+    worker.workers.clear()
+    _sess._cache.clear()
+
     parent = _sess.Session(
         id="ses_parent",
         name="parent",

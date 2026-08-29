@@ -2209,6 +2209,28 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     return None
 
 
+async def steer_worker(worker_id: str, text: str) -> str | None:
+    """Inject a follow-up instruction into a native running turn.
+
+    Codex app-server's ``turn/steer`` changes the native thread, but it does
+    not produce a normal Pan ``user_inject`` event. Persist the instruction
+    only after the control write succeeds so Pan history stays aligned with
+    the native conversation.
+    """
+    text = str(text or "").strip()
+    if not text:
+        return "Steer text is required"
+    err = await send_control_message(worker_id, {"type": "steer", "text": text})
+    if err:
+        return err
+    w = workers.get(worker_id)
+    s = _session(w) if w else None
+    if s is not None:
+        s.history.append({"role": "user", "content": text})
+        await _sess.save_async(s)
+    return None
+
+
 async def interrupt_worker(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:

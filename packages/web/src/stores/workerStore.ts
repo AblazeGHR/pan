@@ -6,6 +6,7 @@ import {
   restartWorker,
   workerSettings,
   interruptWorker,
+  steerWorker,
   takeoverWorker,
   listWorkers,
 } from '@/services/api';
@@ -41,6 +42,7 @@ interface WorkerStore {
   startWorker: (sessionId: string, settings?: SettingsBody) => Promise<void>;
   killCurrent: (workerId: string) => Promise<void>;
   interrupt: (workerId: string) => Promise<void>;
+  steer: (workerId: string, text: string) => Promise<void>;
   restart: (workerId: string, settings?: SettingsBody) => Promise<void>;
   takeover: (workerId: string) => Promise<ApiGenericResponse>;
   updateWorker: (
@@ -92,6 +94,10 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
     } catch (e) {
       throw e;
     }
+  },
+
+  steer: async (workerId, text) => {
+    await steerWorker(workerId, text);
   },
 
   restart: async (workerId, settings) => {

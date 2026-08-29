@@ -2280,6 +2280,17 @@ async def api_worker_control(worker_id: str, data: dict):
     return {"workerId": worker_id, "status": "control sent"}
 
 
+@app.post("/api/worker/{worker_id}/steer")
+async def api_worker_steer(worker_id: str, data: dict):
+    """Inject text into a running native turn (currently Codex app-server)."""
+    err = await worker.steer_worker(
+        worker_id, data.get("text") if isinstance(data, dict) else ""
+    )
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "steer sent"}
+
+
 @app.post("/api/worker/{worker_id}/takeover")
 async def api_takeover(worker_id: str):
     w = worker.get_worker(worker_id)
