@@ -500,11 +500,11 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
   `PAN_API_URL` 到各 server env（对齐 opencode 的 PAN_API_URL 处理）。
 - **代码位置**：`codex/adapter.py` `mcp_args` / `_c_override`。
 
-当 session 开启 system prompt 且使用 MCP stream 时，worker 首次 spawn 传入
+当 session 开启 system prompt 且 adapter 支持该能力时，worker 首次 spawn 传入
 `--system-prompt`，Codex wrapper 将其转换为 `-c developer_instructions=...`。
-该 prompt 位于 Codex 的 developer/instruction 层，不会作为额外 user turn 发送；已有
-thread resume 时不重复注入。wrapper 的 `--system-prompt` 是 Pan 内部参数，不是 Codex
-CLI 的公开参数。
+该 prompt 位于 Codex 的 developer/instruction 层，不会作为额外 user turn 发送；无论
+MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper 的 `--system-prompt`
+是 Pan 内部参数，不是 Codex CLI 的公开参数。
 
 - **代码位置**：`worker.py` `_spawn_system_prompt_args`；`codex/wrapper.py`
   `_system_prompt_opts` / `_main_loop`。

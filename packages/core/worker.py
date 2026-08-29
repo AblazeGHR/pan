@@ -1728,17 +1728,16 @@ def _spawn_system_prompt_args(adapter, s, mcp_on: bool) -> list[str] | None:
 
     返回传给 ``_spawn_process`` 的 extra_args（含该 flag）或 None：
 
-    - 仅当 stream+MCP、有 system_prompt 且是全新会话（无 cli_session_id）时
-      才考虑 CLI 级注入（与 one-shot 的 --system-prompt 同思路，避免首条
-      消息注入导致 roleplay trap，见 cbc-mcp-踩坑记录.md #13）。
-    - 且仅当 adapter 声明 ``supports_spawn_system_prompt``（可选能力，getattr
+    - 有 system_prompt 且是全新会话（无 cli_session_id）时，优先考虑 CLI 级注入。
+      这能避免把人设作为首条 user 消息发送（尤其是 MCP 场景的 roleplay trap）。
+    - 仅当 adapter 声明 ``supports_spawn_system_prompt``（可选能力，getattr
       探测，缺省 False）：cbc CLI 原生支持；kimi 由 wrapper 转为其 CLI 原生
-      --agent-file。不支持的 adapter 强传会让子进程 argparse 报
+      --agent-file；codex 由 wrapper 转为 developer_instructions。不支持的 adapter 强传会让子进程 argparse 报
       ``unrecognized arguments`` 直接 exit 2 —— 会话永不回复
       （SMA(NoAdapter)+kimi 卡死根因），此时返回 None，由 _create_worker
       退回首条消息注入。
     """
-    if not (mcp_on and s.system_prompt and not s.cli_session_id):
+    if not (s.system_prompt and not s.cli_session_id):
         return None
     if getattr(adapter, "supports_spawn_system_prompt", False):
         return ["--system-prompt", s.system_prompt]
@@ -1842,11 +1841,11 @@ async def _create_worker(session_id: str) -> Worker | str:
     if s.system_prompt and not s.cli_session_id:
         if mode == "oneshot":
             _log.info("[Worker %s] oneshot mode: system_prompt 由 oneshot_args 逐任务注入", worker_id)
-        elif not mcp_on or not spawn_injected:
+        elif not spawn_injected:
             _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
             await send_task(worker_id, s.system_prompt, source="system_prompt")
         else:
-            _log.info("[Worker %s] MCP stream mode: system_prompt injected via --system-prompt", worker_id)
+            _log.info("[Worker %s] stream mode: system_prompt injected via --system-prompt", worker_id)
 
     return w
 
