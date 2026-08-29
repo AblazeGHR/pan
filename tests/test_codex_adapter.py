@@ -42,8 +42,10 @@ def test_adapter_metadata():
     assert a.execution_modes == ["stream"]  # wrapper 长驻，worker 只走 stream
     assert a.supports_resume is True
     assert a.supports_fork is True
+    assert a.supports_spawn_system_prompt is True
     assert len(a.supported_models) > 0
-    assert any(p["value"] in ("", "bypass", "approve") for p in a.permission_modes)
+    assert all(p["value"] in ("", "read-only", "workspace-write", "bypass", "approve")
+               for p in a.permission_modes)
     assert a.default_permission_mode == "bypass"
     print("PASS: adapter metadata")
 
@@ -106,6 +108,16 @@ def test_permission_mode_args():
     # approve：不用 --approve-for-me（resume 不支持），改 -c 覆盖等效配置
     s2 = _session(permission_mode="approve")
     assert a.permission_mode_args(s2) == [
+        "-c", 'sandbox_mode="workspace-write"',
+        "-c", 'approval_policy="never"',
+    ]
+    s_read = _session(permission_mode="read-only")
+    assert a.permission_mode_args(s_read) == [
+        "-c", 'sandbox_mode="read-only"',
+        "-c", 'approval_policy="never"',
+    ]
+    s_write = _session(permission_mode="workspace-write")
+    assert a.permission_mode_args(s_write) == [
         "-c", 'sandbox_mode="workspace-write"',
         "-c", 'approval_policy="never"',
     ]
@@ -708,6 +720,7 @@ if __name__ == "__main__":
     test_build_codex_args_fresh()
     test_build_codex_args_resume_filters_non_c_flags()
     test_filter_resume_opts()
+    test_system_prompt_opts()
     test_parse_models_from_catalog()
     test_parse_models_from_models_cache()
     test_model_efforts_from_models_cache()

@@ -157,6 +157,8 @@ class CodexAdapter:
     settings_via_session = True
     permission_modes = [
         {"value": "", "label": "default (config)"},
+        {"value": "read-only", "label": "read-only (auto)"},
+        {"value": "workspace-write", "label": "workspace-write (auto)"},
         {"value": "bypass", "label": "bypass (--dangerously-bypass-approvals-and-sandbox)"},
         {"value": "approve", "label": "approve-for-me (workspace-write + auto-approve)"},
     ]
@@ -210,6 +212,8 @@ class CodexAdapter:
         - ""（default）：沿用 codex/config.toml 默认（无参数）；
         - "bypass"：--dangerously-bypass-approvals-and-sandbox（headless 自动化默认；
           实测 `codex exec resume` 同样接受该 flag）；
+        - "read-only"：-c 覆盖 sandbox_mode="read-only" + approval_policy="never"；
+        - "workspace-write"：-c 覆盖 sandbox_mode="workspace-write" + approval_policy="never"；
         - "approve"：-c 覆盖 sandbox_mode="workspace-write" + approval_policy="never"
           （等效 --approve-for-me 的 workspace-write sandbox + 自动审批）。**不用**
           --approve-for-me flag，因为实测 `codex exec resume` 不接受该 flag（报
@@ -220,8 +224,9 @@ class CodexAdapter:
         mode = s.permission_mode or self.default_permission_mode
         if mode == "bypass":
             return ["--dangerously-bypass-approvals-and-sandbox"]
-        if mode == "approve":
-            return ["-c", _c_override("sandbox_mode", "workspace-write"),
+        if mode in ("read-only", "workspace-write", "approve"):
+            sandbox_mode = "read-only" if mode == "read-only" else "workspace-write"
+            return ["-c", _c_override("sandbox_mode", sandbox_mode),
                     "-c", _c_override("approval_policy", "never")]
         return []
 

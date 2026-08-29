@@ -82,7 +82,8 @@ DEFAULT_CONFIG: dict = {
         "model": "deepseek-ai/DeepSeek-V4-Flash",
         # 可选模型白名单（填=限制可选项，不填=自动识别）
         "models": [],
-        # 默认权限模式：""（沿用 codex config）| "bypass"（--dangerously-bypass-approvals-and-sandbox）| "approve"（--approve-for-me）
+        # 默认权限模式：""（沿用 codex config）| "read-only" | "workspace-write" |
+        # "bypass"（--dangerously-bypass-approvals-and-sandbox）| "approve"（自动批准）
         "permission_mode": "bypass",
         # 默认 reasoning effort（-c model_reasoning_effort）："" | low | medium | high
         "effort": "",

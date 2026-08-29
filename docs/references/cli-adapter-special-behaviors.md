@@ -55,9 +55,9 @@
 | §5.9 | claude | 项目目录编码 `~/.claude/projects/<encoded-cwd>` |
 | §6.1 | codex | `execution_modes=["stream"]`（wrapper 长驻） |
 | §6.2 | codex | `.CMD` shim → `node codex.js` |
-| §6.3 | codex | 模型：无稳定 `models` 子命令；config.toml 兜底；model_catalog_json 来源 |
-| §6.4 | codex | **遗留** MCP：`-c 'mcp_servers.<name>...'` 内联注入 |
-| §6.5 | codex | **遗留** `approve`（`--approve-for-me`）resume 时被丢弃 |
+| §6.3 | codex | 模型：`models_cache.json` > 白名单 > model_catalog_json |
+| §6.4 | codex | MCP 内联注入 + developer instructions 注入 |
+| §6.5 | codex | 权限模式映射；`-c` 覆盖可随 resume 生效 |
 | §6.6 | codex | **遗留** thread cwd 被归一化为 git 根 |
 | §6.7 | codex | **遗留** fork 走 DB 行复制，首次 resume 待验证 |
 | §6.8 | codex | **遗留** 事件命名 snake_case vs camelCase |
@@ -455,7 +455,11 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 ## 6. codex（OpenAI Codex CLI）
 
 > 以下记录 Codex CLI 与 Pan wrapper 的特殊行为、已落地的兼容处理，以及仍待实测的遗留问题。
+<<<<<<< HEAD
 > 基础 adapter 改造已提交到 `feature/codex-models`；原生 app-server 体验增强继续在该工作树推进。
+=======
+> adapter 代码已合入 main；后续体验优化在 feature 工作树持续推进。
+>>>>>>> f6230b4 (feat(codex): align native instructions and sandbox modes)
 
 ### 6.1 execution_modes = `["stream"]`（原生 app-server 桥接）
 
@@ -490,11 +494,12 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
 - **模型目录来源（补充，已核实）**：`~/.codex/config.toml` 的
   `model_catalog_json = "cc-switch-model-catalog.json"` 指向
   `~/.codex/cc-switch-model-catalog.json`（cc-switch 模型管理工具生成的模型目录 JSON）——这是
-  完整模型列表的**可用来源**，但 adapter 目前**尚未接入解析**（只读 `model` 字段）。
+  完整模型列表的**回退来源**；当前 adapter 已接入解析，并以 Codex 自身
+  `models_cache.json` 为更高优先级动态来源。
 - **代码位置**：`codex/adapter.py` `default_model` / `supported_models` /
-  `_read_codex_config_toml_model`。
+  `_read_codex_config_toml_model` / `model_efforts`。
 
-### 6.4 遗留：MCP `-c 'mcp_servers.<name>...'` 内联注入
+### 6.4 MCP 与原生 developer instructions 注入
 
 - **现象/处理**：codex **无 `--mcp-config`**；MCP server 来自 `~/.codex/config.toml` 的
   `[mcp_servers]` 段。用 `-c 'mcp_servers.<name>...'` **内联覆盖**（实测 `codex mcp list -c '...'`
@@ -504,7 +509,11 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
 - **代码位置**：`codex/adapter.py` `mcp_args` / `_c_override`；app-server 进程启动时继承这些 `-c`
   覆盖，因此 MCP 在长驻 thread 中保持可用。
 
-### 6.5 遗留：`approve`（`--approve-for-me`）resume 时被丢弃
+当 session 开启 system prompt 且使用 MCP stream 时，worker 首次 spawn 传入
+`--system-prompt`，Codex wrapper 将其转换为 `-c developer_instructions=...`。
+该 prompt 位于 Codex 的 developer/instruction 层，不会作为额外 user turn 发送；已有
+thread resume 时不重复注入。wrapper 的 `--system-prompt` 是 Pan 内部参数，不是 Codex
+CLI 的公开参数。
 
 - **代码位置**：`worker.py` `_spawn_system_prompt_args`；`codex/wrapper.py`
   `_system_prompt_opts` / `_main_loop`。
