@@ -4,6 +4,7 @@ import { ChatMessages } from '@/components/chat/ChatMessages';
 import { InputRow } from '@/components/chat/InputRow';
 import { ApprovalBanner } from '@/components/chat/ApprovalBanner';
 import { UserInputBanner } from '@/components/chat/UserInputBanner';
+import { ElicitationBanner } from '@/components/chat/ElicitationBanner';
 
 export default function ChatView() {
   // Initialize WebSocket connection and event routing
@@ -14,6 +15,7 @@ export default function ChatView() {
       <div className="flex flex-col h-full min-h-0">
         <ApprovalBanner />
         <UserInputBanner />
+        <ElicitationBanner />
         <ChatMessages />
         <InputRow />
       </div>

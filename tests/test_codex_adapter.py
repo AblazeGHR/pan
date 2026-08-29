@@ -507,6 +507,39 @@ def test_app_server_permission_roundtrip(monkeypatch):
     print("PASS: app-server permission roundtrip")
 
 
+def test_app_server_elicitation_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    app._handle_server_request({
+        "id": 0,
+        "method": "mcpServer/elicitation/request",
+        "params": {
+            "mode": "form",
+            "message": "Choose an environment",
+            "requestedSchema": {"properties": {"env": {"type": "string"}}},
+        },
+    }, state)
+    assert emitted[0]["type"] == "codex.elicitation"
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({
+        "type": "elicitation_response",
+        "request_id": 0,
+        "action": "accept",
+        "content": {"env": "test"},
+    })
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 0, "result": {
+        "action": "accept", "content": {"env": "test"},
+    }}]
+    assert state["pending_requests"] == {}
+    print("PASS: app-server elicitation roundtrip")
+
+
 # ── sessions：纯函数 ──
 
 
