@@ -356,7 +356,7 @@ class CodexAdapter:
         return json.dumps({"text": text}).encode("utf-8")
 
     def encode_control_message(self, control: dict) -> bytes:
-        """Encode a bridge control message (currently interrupt/steer)."""
+        """Encode a bridge control message for interrupt, steer, or approval."""
         return json.dumps(control, ensure_ascii=True).encode("utf-8")
 
     # ── stdout 事件解析 ──

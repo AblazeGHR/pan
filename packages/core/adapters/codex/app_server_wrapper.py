@@ -9,9 +9,9 @@ for the whole worker lifetime.
 
 The bridge translates app-server notifications into the event shapes already
 understood by Pan's Codex adapter and frontend.  Native server requests are
-surfaced as ``approval.request``/``codex.user_input`` events and receive a
-safe fallback response when Pan has no interactive response channel yet.  In
-the automatic permission modes used by Pan they should not normally occur.
+surfaced as ``approval.request``/``codex.user_input`` events.  Command and
+file-change approvals remain pending until Pan sends a decision; other request
+types receive a safe fallback response so headless workers remain usable.
 """
 
 from __future__ import annotations
