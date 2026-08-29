@@ -59,7 +59,7 @@
 | §6.4 | codex | MCP 内联注入 + developer instructions 注入 |
 | §6.5 | codex | 权限模式映射；`-c` 覆盖可随 resume 生效 |
 | §6.6 | codex | thread cwd 归一化为 git 根；Pan 用祖先匹配兼容 |
-| §6.7 | codex | **遗留** fork 走 DB 行复制，首次 resume 待验证 |
+| §6.7 | codex | fork 走 DB 行复制；首次 resume 已通过本机 e2e |
 | §6.8 | codex | **遗留** 事件命名 snake_case vs camelCase |
 | §6.9 | codex | resume 只透传 `-c` 类覆盖（丢弃一次性 flag 与 `-C`） |
 | §6.10 | codex | `--skip-git-repo-check` |
@@ -534,7 +534,7 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   分隔符边界的前缀匹配（`repo` 不会匹配 `repo-other`）；仍保留大小写/分隔符归一化。
 - **代码位置**：`codex/sessions.py` `_cwd_matches` / `list_codex_sessions`。
 
-### 6.7 遗留：fork 走 DB 行复制，首次 resume 待验证
+### 6.7 fork：DB 行复制与 resume
 
 - **现象/处理**：codex CLI 无 headless `--fork`（`codex fork` 是交互 picker）。fork 直接复制 DB 行：
   - `state_5.sqlite` `threads` 建新线程（复制全列、新 id、title=name、parent 记录到
@@ -543,8 +543,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
     从 history DB 重建上下文）；
   - **`rollout_path` 指向按新 id 生成的新路径**（`sessions/<y>/<m>/<d>/rollout-...jsonl`），首次
     resume 时 codex 会新建该文件。
-- **待验证**：fork 后的 thread **首次 resume 行为尚未实测**（codex-e2e 测试进行中）——新 rollout
-  为空时 `codex exec resume` 是否正常加载 history DB 并续写，需 e2e 确认。
+- **验证（2026-08-29）**：本机 Codex `state_5.sqlite` 中的 fork 子 thread 已成功产生新
+  `rollout-*.jsonl`，并在复制的历史之后继续写入新 user/assistant turns；说明首次
+  `codex exec resume <child_id>` 能加载复制的 history DB 并续写新 rollout。
 - **代码位置**：`codex/sessions.py` `fork_codex_session`。
 
 ### 6.8 遗留：事件命名 snake_case vs camelCase
@@ -558,9 +559,10 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
 ### 6.9 resume 只透传 `-c` 类覆盖
 
 - **现象/处理**：`codex exec resume <thread_id>` **不接受 `-C`**（实测报 `unexpected argument
-  '-C'`），也无需 `-C`（thread 已记住 cwd）。wrapper 在 resume 时只透传 `-c <value>` 对
-  （mcp_servers / model_reasoning_effort / model 等覆盖），丢弃一次性 flag（model 用 `-c model=`
-  表达，不依赖 `--model`）。resume 统一加 `--skip-git-repo-check`。
+  '-C'`），也无需 `-C`（thread 已记住 cwd）。wrapper 在 resume 时透传 `-c <value>` 对
+  （mcp_servers / model_reasoning_effort / model 等覆盖），并保留审批相关 flag；其它一次性
+  flag 丢弃（model 用 `-c model=`表达，不依赖 `--model`）。resume 统一加
+  `--skip-git-repo-check`。
 - **代码位置**：`codex/wrapper.py` `_build_codex_args` / `_filter_resume_opts`。
 
 ### 6.10 `--skip-git-repo-check`
