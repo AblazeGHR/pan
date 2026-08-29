@@ -534,7 +534,8 @@ def test_app_server_approval_roundtrip(monkeypatch):
 
     state["pending_requests"]["1"] = {
         "id": 1, "method": request["method"],
-        "deadline": time.monotonic() + 60,
+        # Keep the synthetic request live while exercising structured decisions.
+        "deadline": 9_999_999_999,
     }
     controls.put({
         "type": "approval_response", "request_id": 1,
