@@ -110,6 +110,30 @@ describe('useWebSocket worker.result wiring', () => {
     });
   });
 
+  it('keeps the latest native Codex token usage available to the active worker', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.token_usage',
+          token_usage: {
+            last: { totalTokens: 150 },
+            total: { totalTokens: 150 },
+            modelContextWindow: 4096,
+          },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeUsage).toEqual({
+      last: { totalTokens: 150 },
+      total: { totalTokens: 150 },
+      modelContextWindow: 4096,
+    });
+  });
+
   it('updates a background session card in-place on worker.result', () => {
     renderHook(() => useWebSocket());
 

@@ -53,7 +53,8 @@ React dashboard 使用 `ws://127.0.0.1:<port>/ws`。连接建立后发送：
 ```
 
 服务端会把仍由**存活 worker**持有的 Codex 原生审批、用户输入、MCP elicitation
-和 terminal interaction，以带 `replayed: true` 的 `worker.stream` 事件补发。也可传
+和 terminal interaction，以带 `replayed: true` 的 `worker.stream` 事件补发，同时回放
+最新的原生 thread status 与 token usage。也可传
 `sessionIds` 数组限制范围。该机制只恢复 UI 快照；原生 JSON-RPC 请求仍在原 worker
 进程中，worker 已重启或死亡的请求不会伪造恢复，避免把旧 response 发给新进程。
 

@@ -111,6 +111,8 @@ export interface WorkerEvent {
     type?: string;
     activeFlags?: string[];
   };
+  /** Native Codex thread/turn token usage snapshot. */
+  token_usage?: Record<string, unknown>;
 }
 
 export interface ApprovalRequest {
@@ -524,4 +526,6 @@ export interface WorkerInfo {
     type?: string;
     activeFlags?: string[];
   };
+  /** Latest live Codex token usage snapshot; persisted totals live on Session. */
+  nativeUsage?: Record<string, unknown>;
 }

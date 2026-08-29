@@ -369,7 +369,12 @@ class AppServer:
             usage = params.get("tokenUsage")
             if isinstance(usage, dict):
                 self.last_usage = usage
-            _write_stdout({"type": "codex.notification", "method": method, "params": params})
+                _write_stdout({
+                    "type": "codex.token_usage",
+                    "token_usage": usage,
+                    "thread_id": params.get("threadId", params.get("thread_id")),
+                    "turn_id": params.get("turnId", params.get("turn_id")),
+                })
             return
         if method == "serverRequest/resolved":
             params = message.get("params") or {}
@@ -866,6 +871,10 @@ class AppServer:
 
     def run_turn(self, text: str, effort: str | None = None,
                  control_queue: Queue[dict[str, Any] | None] | None = None) -> None:
+        # A tokenUsage notification is emitted per turn. Do not accidentally
+        # attach the previous turn's snapshot to a result if the native server
+        # finishes a turn without sending a fresh usage notification.
+        self.last_usage = None
         state: dict[str, Any] = {"last_text": "", "error": "", "done": False, "is_error": False}
         params: dict[str, Any] = {
             "threadId": self.thread_id,

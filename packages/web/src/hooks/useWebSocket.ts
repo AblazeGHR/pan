@@ -185,6 +185,13 @@ export function useWebSocket() {
           e.event.native_status,
         );
       }
+      if (e.event.type === 'codex.token_usage' && e.event.token_usage) {
+        useWorkerStore.getState().updateNativeUsage(
+          e.sessionId,
+          e.workerId,
+          e.event.token_usage,
+        );
+      }
       if (
         e.event.type === 'approval.request' &&
         e.workerId &&
