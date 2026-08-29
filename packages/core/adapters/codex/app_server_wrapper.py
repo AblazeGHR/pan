@@ -150,6 +150,27 @@ def _item_event(item: dict[str, Any]) -> dict[str, Any] | None:
             "message": {"content": [{"type": "tool_use", "name": "FileChange", "input": item}]},
             "codex_item": item,
         }
+    native_tool_names = {
+        "collabagenttoolcall": "Agent",
+        "subagentactivity": "SubAgent",
+        "websearch": "WebSearch",
+        "imagegeneration": "ImageGeneration",
+        "sleep": "Sleep",
+        "enteredreviewmode": "ReviewMode",
+        "exitedreviewmode": "ReviewMode",
+        "contextcompaction": "ContextCompaction",
+    }
+    if kind in native_tool_names:
+        tool_input = {key: value for key, value in item.items()
+                      if key not in {"id", "type"}}
+        name = native_tool_names[kind]
+        if kind == "collabagenttoolcall" and item.get("tool"):
+            name = f"{name}/{item['tool']}"
+        return {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "name": name, "input": tool_input}]},
+            "codex_item": item,
+        }
     # User messages are already persisted by Pan before the turn starts.  Do
     # not echo them into history, but retain unknown native items for callers
     # that want to inspect the raw stream.

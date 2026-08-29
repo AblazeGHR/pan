@@ -257,6 +257,24 @@ def _item_to_block(item: dict) -> dict | None:
     if itype in ("filechange", "patchapply"):
         inp = json.dumps(item, ensure_ascii=False)
         return {"role": "tool", "content": f"FileChange({inp})"}
+    native_tool_names = {
+        "collabagenttoolcall": "Agent",
+        "subagentactivity": "SubAgent",
+        "websearch": "WebSearch",
+        "imagegeneration": "ImageGeneration",
+        "sleep": "Sleep",
+        "enteredreviewmode": "ReviewMode",
+        "exitedreviewmode": "ReviewMode",
+        "contextcompaction": "ContextCompaction",
+    }
+    if itype in native_tool_names:
+        tool_input = {key: value for key, value in item.items()
+                      if key not in {"id", "type"}}
+        name = native_tool_names[itype]
+        if itype == "collabagenttoolcall" and item.get("tool"):
+            name = f"{name}/{item['tool']}"
+        inp = json.dumps(tool_input, ensure_ascii=False)
+        return {"role": "tool", "content": f"{name}({inp})"}
     return None
 
 

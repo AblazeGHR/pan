@@ -443,6 +443,26 @@ class CodexAdapter:
         elif itype in ("filechange", "patchapply"):
             inp = json.dumps(item, ensure_ascii=False)
             blocks.append({"role": "tool", "content": f"FileChange({inp})"})
+        elif itype in {
+            "collabagenttoolcall", "subagentactivity", "websearch", "imagegeneration",
+            "sleep", "enteredreviewmode", "exitedreviewmode", "contextcompaction",
+        }:
+            names = {
+                "collabagenttoolcall": "Agent",
+                "subagentactivity": "SubAgent",
+                "websearch": "WebSearch",
+                "imagegeneration": "ImageGeneration",
+                "sleep": "Sleep",
+                "enteredreviewmode": "ReviewMode",
+                "exitedreviewmode": "ReviewMode",
+                "contextcompaction": "ContextCompaction",
+            }
+            name = names[itype]
+            if itype == "collabagenttoolcall" and item.get("tool"):
+                name = f"{name}/{item['tool']}"
+            tool_input = {key: value for key, value in item.items()
+                          if key not in {"id", "type"}}
+            blocks.append({"role": "tool", "content": f"{name}({json.dumps(tool_input, ensure_ascii=False)})"})
         elif itype == "functioncall":
             name = item.get("name") or item.get("pluginId") or "tool"
             args = item.get("arguments") or item.get("parameters") or {}

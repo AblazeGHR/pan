@@ -608,6 +608,23 @@ def test_app_server_mcp_progress_stream(monkeypatch):
     print("PASS: app-server MCP progress stream")
 
 
+def test_app_server_native_items_are_displayable():
+    agent = app_server_wrapper._item_event({
+        "id": "agent-1", "type": "collabAgentToolCall", "tool": "spawnAgent",
+        "status": "completed", "prompt": "inspect tests", "receiverThreadIds": ["t2"],
+    })
+    assert agent["message"]["content"][0]["name"] == "Agent/spawnAgent"
+    assert agent["message"]["content"][0]["input"]["prompt"] == "inspect tests"
+
+    search = app_server_wrapper._item_event({
+        "id": "search-1", "type": "webSearch", "query": "Pan Codex",
+        "results": [{"title": "result"}],
+    })
+    assert search["message"]["content"][0]["name"] == "WebSearch"
+    assert search["message"]["content"][0]["input"]["query"] == "Pan Codex"
+    print("PASS: app-server native item translation")
+
+
 # ── sessions：纯函数 ──
 
 
@@ -621,6 +638,10 @@ def test_item_to_block_mapping():
     assert codex_sessions._item_to_block({"type": "mcpToolCall", "tool": "pan_probe", "arguments": {"x": 1}, "result": "ok"}) == {"role": "tool", "content": 'pan_probe({"x": 1})\n→ ok'}
     file_change = codex_sessions._item_to_block({"type": "fileChange", "changes": [{"path": "a.txt"}]})
     assert file_change and file_change["role"] == "tool" and file_change["content"].startswith("FileChange(")
+    native_tool = codex_sessions._item_to_block({
+        "type": "webSearch", "query": "Pan", "results": [],
+    })
+    assert native_tool and native_tool["role"] == "tool" and native_tool["content"].startswith("WebSearch(")
     assert codex_sessions._item_to_block({"type": "unknownType"}) is None
     print("PASS: _item_to_block mapping")
 
