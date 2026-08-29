@@ -106,6 +106,11 @@ export interface WorkerEvent {
   is_error?: boolean;
   result?: string;
   cliSessionId?: string;
+  /** Native Codex thread status (`active` may carry waiting flags). */
+  native_status?: {
+    type?: string;
+    activeFlags?: string[];
+  };
 }
 
 export interface ApprovalRequest {
@@ -515,4 +520,8 @@ export interface WorkerInfo {
   status: 'idle' | 'running' | 'held' | 'offline';
   model?: string;
   name?: string;
+  nativeStatus?: {
+    type?: string;
+    activeFlags?: string[];
+  };
 }

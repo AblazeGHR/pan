@@ -178,6 +178,13 @@ export function useWebSocket() {
     // Stream events (real-time message chunks)
     unsubscribers.push(wsClient.on('worker.stream', (e: StreamEvent) => {
       if (!e.sessionId || !e.event) return;
+      if (e.event.type === 'codex.thread_status' && e.event.native_status) {
+        useWorkerStore.getState().updateNativeStatus(
+          e.sessionId,
+          e.workerId,
+          e.event.native_status,
+        );
+      }
       if (
         e.event.type === 'approval.request' &&
         e.workerId &&

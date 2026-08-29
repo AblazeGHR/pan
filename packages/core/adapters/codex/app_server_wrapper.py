@@ -354,6 +354,16 @@ class AppServer:
             self.thread_id = thread.get("id") or self.thread_id
             self._emit_thread_started(thread)
             return
+        if method == "thread/status/changed":
+            params = message.get("params") or {}
+            status = params.get("status")
+            if isinstance(status, dict):
+                _write_stdout({
+                    "type": "codex.thread_status",
+                    "native_status": status,
+                    "thread_id": params.get("threadId", params.get("thread_id")),
+                })
+            return
         if method == "thread/tokenUsage/updated":
             params = message.get("params") or {}
             usage = params.get("tokenUsage")
