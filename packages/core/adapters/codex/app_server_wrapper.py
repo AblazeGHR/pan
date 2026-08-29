@@ -115,6 +115,9 @@ def _item_event(item: dict[str, Any]) -> dict[str, Any] | None:
     if kind == "reasoning":
         text = _text_from_item(item)
         return {"type": "thinking", "content": text, "codex_item": item}
+    if kind == "plan":
+        text = _text_from_item(item)
+        return {"type": "thinking", "content": text, "codex_item": item}
     if kind == "commandexecution":
         command = str(item.get("command") or "")
         output = str(item.get("aggregated_output") or item.get("aggregatedOutput")
@@ -357,6 +360,19 @@ class AppServer:
                     "type": "content.part", "role": "thinking", "delta": True,
                     "part": {"type": "think", "think": str(delta)},
                     "stream_text": state.get("reasoning_text", "") if state is not None else str(delta),
+                    "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                })
+            return
+        if method == "item/plan/delta":
+            params = message.get("params") or {}
+            delta = params.get("delta")
+            if delta:
+                if state is not None:
+                    state["plan_text"] = state.get("plan_text", "") + str(delta)
+                _write_stdout({
+                    "type": "content.part", "role": "thinking", "delta": True,
+                    "part": {"type": "think", "think": str(delta)},
+                    "stream_text": state.get("plan_text", "") if state is not None else str(delta),
                     "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
                 })
             return

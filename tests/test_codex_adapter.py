@@ -231,6 +231,17 @@ def test_parse_reasoning():
     print("PASS: parse reasoning")
 
 
+def test_parse_plan_and_file_change():
+    a = _adapter()
+    plan = {"type": "item.completed", "item": {"type": "plan", "text": "1. Inspect\n2. Fix"}}
+    assert a.extract_assistant_blocks(plan) == [{"role": "thinking", "content": "1. Inspect\n2. Fix"}]
+    file_change = {"type": "item.completed", "item": {
+        "type": "fileChange", "changes": [{"path": "a.txt", "kind": "update"}], "status": "completed",
+    }}
+    assert a.extract_assistant_blocks(file_change)[0]["role"] == "tool"
+    print("PASS: parse plan and file_change")
+
+
 def test_parse_command_execution():
     a = _adapter()
     event = {"type": "item.completed", "item": {
@@ -504,9 +515,12 @@ def test_item_to_block_mapping():
     assert codex_sessions._item_to_block({"type": "userMessage", "content": [{"type": "text", "text": "u"}]}) == {"role": "user", "content": "u"}
     assert codex_sessions._item_to_block({"type": "agentMessage", "text": "a"}) == {"role": "assistant", "content": "a"}
     assert codex_sessions._item_to_block({"type": "reasoning", "summary": ["r"]}) == {"role": "thinking", "content": "r"}
+    assert codex_sessions._item_to_block({"type": "plan", "text": "inspect"}) == {"role": "thinking", "content": "inspect"}
     assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregated_output": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
     assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregatedOutput": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
     assert codex_sessions._item_to_block({"type": "mcpToolCall", "tool": "pan_probe", "arguments": {"x": 1}, "result": "ok"}) == {"role": "tool", "content": 'pan_probe({"x": 1})\n→ ok'}
+    file_change = codex_sessions._item_to_block({"type": "fileChange", "changes": [{"path": "a.txt"}]})
+    assert file_change and file_change["role"] == "tool" and file_change["content"].startswith("FileChange(")
     assert codex_sessions._item_to_block({"type": "unknownType"}) is None
     print("PASS: _item_to_block mapping")
 

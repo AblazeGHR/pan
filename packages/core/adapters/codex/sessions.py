@@ -136,6 +136,17 @@ def _parent_of(thread_spawn_edges_con, child_id: str) -> str:
         return ""
 
 
+def _text_from_item(item: dict) -> str:
+    """Extract text from native plan/reasoning items across protocol versions."""
+    text = item.get("text")
+    if isinstance(text, str):
+        return text
+    summary = item.get("summary") or []
+    if isinstance(summary, list):
+        return "".join(str(value) for value in summary if value is not None)
+    return ""
+
+
 # ── 会话列表 ──
 
 
@@ -220,6 +231,9 @@ def _item_to_block(item: dict) -> dict | None:
             if summary:
                 text = summary[0] if isinstance(summary[0], str) else str(summary[0])
         return {"role": "thinking", "content": text} if text else None
+    if itype == "plan":
+        text = _text_from_item(item)
+        return {"role": "thinking", "content": text} if text else None
     if itype == "commandexecution":
         cmd = item.get("command", "")
         # app-server stores camelCase fields; legacy exec rollouts use the
@@ -240,6 +254,9 @@ def _item_to_block(item: dict) -> dict | None:
         if out:
             content += "\n→ " + out
         return {"role": "tool", "content": content}
+    if itype in ("filechange", "patchapply"):
+        inp = json.dumps(item, ensure_ascii=False)
+        return {"role": "tool", "content": f"FileChange({inp})"}
     return None
 
 
