@@ -2201,7 +2201,7 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     """Send a narrowly-scoped out-of-band control message to a live worker.
 
     Native adapters may use this for controls that are not user turns, such
-    as Codex app-server approval responses.  The adapter owns wire encoding;
+    as Codex app-server approval and user-input responses.  The adapter owns wire encoding;
     workers without that optional capability keep the existing behavior.
     """
     w = workers.get(worker_id)
@@ -2214,7 +2214,7 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     if encode_control is None:
         return f"Adapter '{w.adapter.name}' does not support worker controls"
     if not isinstance(control, dict) or control.get("type") not in {
-        "interrupt", "steer", "approval_response",
+        "interrupt", "steer", "approval_response", "user_input_response", "permission_response",
     }:
         return "Unsupported worker control"
     try:

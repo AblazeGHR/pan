@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ApprovalRequest, ToastMessage } from '@/types';
+import type { ApprovalRequest, ToastMessage, UserInputRequest } from '@/types';
 
 // ── localStorage helpers ──
 
@@ -98,6 +98,7 @@ function persistTheme(t: Theme) {
 interface UIStore {
   toastQueue: ToastMessage[];
   approvalRequests: ApprovalRequest[];
+  userInputRequests: UserInputRequest[];
   bubbleViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
@@ -116,6 +117,9 @@ interface UIStore {
   addApprovalRequest: (request: ApprovalRequest) => void;
   removeApprovalRequest: (sessionId: string, requestId: string | number) => void;
   clearApprovalRequests: (sessionId: string) => void;
+  addUserInputRequest: (request: UserInputRequest) => void;
+  removeUserInputRequest: (sessionId: string, requestId: string | number) => void;
+  clearUserInputRequests: (sessionId: string) => void;
   toggleBubbleView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
@@ -142,6 +146,7 @@ let toastCounter = 0;
 export const useUIStore = create<UIStore>((set, get) => ({
   toastQueue: [],
   approvalRequests: [],
+  userInputRequests: [],
   bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
@@ -190,6 +195,31 @@ export const useUIStore = create<UIStore>((set, get) => ({
   clearApprovalRequests: (sessionId) => {
     set((s) => ({
       approvalRequests: s.approvalRequests.filter((item) => item.sessionId !== sessionId),
+    }));
+  },
+
+  addUserInputRequest: (request) => {
+    set((s) => ({
+      userInputRequests: [
+        ...s.userInputRequests.filter(
+          (item) => !(item.sessionId === request.sessionId && item.requestId === request.requestId),
+        ),
+        request,
+      ],
+    }));
+  },
+
+  removeUserInputRequest: (sessionId, requestId) => {
+    set((s) => ({
+      userInputRequests: s.userInputRequests.filter(
+        (item) => !(item.sessionId === sessionId && item.requestId === requestId),
+      ),
+    }));
+  },
+
+  clearUserInputRequests: (sessionId) => {
+    set((s) => ({
+      userInputRequests: s.userInputRequests.filter((item) => item.sessionId !== sessionId),
     }));
   },
 

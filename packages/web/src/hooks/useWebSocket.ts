@@ -8,7 +8,7 @@ import { useQueueStore } from '@/stores/queueStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
-import type { StreamEvent, WorkerEvent, Message } from '@/types';
+import type { StreamEvent, WorkerEvent, Message, UserInputQuestion } from '@/types';
 
 // ── Debounced full-list refresh (mirrors legacy app.ts scheduleRefreshSessions) ──
 // WS events can burst (rapid task completions, session updates); firing a full
@@ -124,13 +124,19 @@ export function useWebSocket() {
     // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
-      if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
+      if (e.sessionId) {
+        useUIStore.getState().clearApprovalRequests(e.sessionId);
+        useUIStore.getState().clearUserInputRequests(e.sessionId);
+      }
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
-      if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
+      if (e.sessionId) {
+        useUIStore.getState().clearApprovalRequests(e.sessionId);
+        useUIStore.getState().clearUserInputRequests(e.sessionId);
+      }
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
@@ -169,6 +175,21 @@ export function useWebSocket() {
           params: e.event.params ?? {},
         });
       }
+      if (
+        e.event.type === 'codex.user_input' &&
+        e.workerId &&
+        e.event.method === 'item/tool/requestUserInput' &&
+        e.event.request_id !== undefined
+      ) {
+        const questions = e.event.params?.questions;
+        useUIStore.getState().addUserInputRequest({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          requestId: e.event.request_id,
+          method: e.event.method,
+          questions: Array.isArray(questions) ? questions as UserInputQuestion[] : [],
+        });
+      }
       const store = useSessionStore.getState();
       // 消息区：仅当前 session 追加（原有逻辑，保留）
       if (e.sessionId === store.currentSessionId) appendEvent(e.event);
@@ -181,6 +202,7 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       const sessionStore = useSessionStore.getState();
       if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
+      if (e.sessionId) useUIStore.getState().clearUserInputRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
         const status = e.status === 'error' ? 'error' : 'done';
         sessionStore.addMessage({

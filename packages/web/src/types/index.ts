@@ -111,6 +111,23 @@ export interface ApprovalRequest {
   params: Record<string, unknown>;
 }
 
+export interface UserInputQuestion {
+  id: string;
+  header?: string;
+  question?: string;
+  isOther?: boolean;
+  isSecret?: boolean;
+  options?: Array<{ label: string; description?: string }>;
+}
+
+export interface UserInputRequest {
+  sessionId: string;
+  workerId: string;
+  requestId: string | number;
+  method: string;
+  questions: UserInputQuestion[];
+}
+
 export interface StreamEvent {
   type: string;
   sessionId?: string;
