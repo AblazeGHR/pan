@@ -206,6 +206,13 @@ export function useWebSocket() {
           params: e.event.params ?? {},
         });
       }
+      if (e.event.type === 'codex.request_resolved' && e.sessionId && e.event.request_id !== undefined) {
+        const requestId = e.event.request_id;
+        const ui = useUIStore.getState();
+        ui.removeApprovalRequest(e.sessionId, requestId);
+        ui.removeUserInputRequest(e.sessionId, requestId);
+        ui.removeElicitationRequest(e.sessionId, requestId);
+      }
       const store = useSessionStore.getState();
       // 消息区：仅当前 session 追加（原有逻辑，保留）
       if (e.sessionId === store.currentSessionId) appendEvent(e.event);
