@@ -530,6 +530,22 @@ def test_app_server_approval_roundtrip(monkeypatch):
     app._drain_controls(state, controls)
     assert sent == [{"id": 0, "result": {"decision": "accept"}}]
     assert state["pending_requests"] == {}
+
+    state["pending_requests"]["1"] = {
+        "id": 1, "method": request["method"],
+        "deadline": time.monotonic() + 60,
+    }
+    controls.put({
+        "type": "approval_response", "request_id": 1,
+        "result": {"decision": {
+            "acceptWithExecpolicyAmendment": {"execpolicy_amendment": ["echo *"]},
+        }},
+    })
+    app._drain_controls(state, controls)
+    assert sent[-1] == {"id": 1, "result": {"decision": {
+        "acceptWithExecpolicyAmendment": {"execpolicy_amendment": ["echo *"]},
+    }}}
+    assert state["pending_requests"] == {}
     print("PASS: app-server approval roundtrip")
 
 

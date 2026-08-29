@@ -7,26 +7,40 @@ import { wsClient } from '@/services/ws';
 import { sendWorkerControl } from '@/services/api';
 import type { ApprovalRequest } from '@/types';
 
-function availableDecisions(request: ApprovalRequest): string[] {
+interface ApprovalChoice {
+  key: string;
+  label: string;
+  decision: string | Record<string, unknown>;
+}
+
+function availableDecisions(request: ApprovalRequest): ApprovalChoice[] {
   const raw = request.params.availableDecisions;
   if (Array.isArray(raw)) {
-    const values = raw
+    const choices = raw
       .map((item) => {
-        if (typeof item === 'string') return item;
+        if (typeof item === 'string') {
+          return { key: item, label: decisionLabel(item), decision: item };
+        }
         if (item && typeof item === 'object') {
           const record = item as Record<string, unknown>;
-          return typeof record.value === 'string'
+          const key = Object.keys(record).find((value) =>
+            value === 'acceptWithExecpolicyAmendment' || value === 'applyNetworkPolicyAmendment')
+            || Object.keys(record)[0];
+          if (key) return { key, label: decisionLabel(key), decision: record };
+          const value = typeof record.value === 'string'
             ? record.value
-            : typeof record.decision === 'string'
-              ? record.decision
-              : null;
+            : typeof record.decision === 'string' ? record.decision : null;
+          return value ? { key: value, label: decisionLabel(value), decision: value } : null;
         }
         return null;
       })
-      .filter((item): item is string => Boolean(item));
-    if (values.length > 0) return values;
+      .filter((item) => item !== null) as ApprovalChoice[];
+    if (choices.length > 0) return choices;
   }
-  return ['accept', 'decline'];
+  return [
+    { key: 'accept', label: decisionLabel('accept'), decision: 'accept' },
+    { key: 'decline', label: decisionLabel('decline'), decision: 'decline' },
+  ];
 }
 
 function decisionLabel(decision: string): string {
@@ -37,6 +51,10 @@ function decisionLabel(decision: string): string {
       return 'Deny';
     case 'cancel':
       return 'Cancel';
+    case 'acceptWithExecpolicyAmendment':
+      return 'Allow and remember rule';
+    case 'applyNetworkPolicyAmendment':
+      return 'Apply network rule';
     default:
       return 'Allow';
   }
@@ -91,8 +109,12 @@ export function ApprovalBanner() {
 
   if (requests.length === 0) return null;
 
-  const respond = async (request: ApprovalRequest, decision: string) => {
+  const respond = async (
+    request: ApprovalRequest,
+    decision: string | Record<string, unknown>,
+  ) => {
     const permissionRequest = isPermissionRequest(request);
+    const isStructuredDecision = typeof decision === 'object';
     const control = {
       type: permissionRequest ? 'permission_response' : 'approval_response',
       request_id: request.requestId,
@@ -101,7 +123,7 @@ export function ApprovalBanner() {
           permissions: decision === 'decline' ? {} : request.params.permissions ?? {},
           scope: decision === 'acceptForSession' ? 'session' : 'turn',
         }
-        : { decision }),
+        : isStructuredDecision ? { result: { decision } } : { decision }),
     };
     const sent = wsClient.send({
       type: 'worker_control',
@@ -133,15 +155,19 @@ export function ApprovalBanner() {
             </div>
             <div className="flex flex-wrap justify-end gap-1">
               {(isPermissionRequest(request)
-                ? ['accept', 'acceptForSession', 'decline']
-                : availableDecisions(request)).map((decision) => (
+                ? [
+                  { key: 'accept', label: decisionLabel('accept'), decision: 'accept' },
+                  { key: 'acceptForSession', label: decisionLabel('acceptForSession'), decision: 'acceptForSession' },
+                  { key: 'decline', label: decisionLabel('decline'), decision: 'decline' },
+                ]
+                : availableDecisions(request)).map((choice) => (
                 <Button
-                  key={decision}
+                  key={choice.key}
                   size="sm"
-                  variant={decision === 'decline' || decision === 'cancel' ? 'danger' : 'primary'}
-                  onClick={() => respond(request, decision)}
+                  variant={choice.key === 'decline' || choice.key === 'cancel' ? 'danger' : 'primary'}
+                  onClick={() => respond(request, choice.decision)}
                 >
-                  {decisionLabel(decision)}
+                  {choice.label}
                 </Button>
               ))}
             </div>
