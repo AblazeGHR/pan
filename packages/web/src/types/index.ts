@@ -404,6 +404,14 @@ export interface ApiConfigReloadResponse {
   errors?: string[];
 }
 
+// PUT /api/settings/worker — save + hot-apply worker lifecycle timeouts.
+// Same {before, after} shape as the ``worker`` entry of ApiConfigReloadResponse.
+export interface ApiWorkerSettingsUpdateResponse {
+  error?: string;
+  before: Partial<ApiConfigReloadWorkerValues>;
+  after: Partial<ApiConfigReloadWorkerValues>;
+}
+
 // ── Remote tunnel (cloudflared via scripts/start_cf.ps1) ──
 
 export interface ApiRemoteStatusResponse {

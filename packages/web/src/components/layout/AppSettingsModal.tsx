@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
-import { reloadConfig, fetchRemoteStatus, restartRemoteTunnel } from '@/services/api';
+import { reloadConfig, fetchRemoteStatus, restartRemoteTunnel, updateWorkerSettings } from '@/services/api';
 import type {
   ApiConfigReloadResponse,
   ApiRemoteStatusResponse,
@@ -71,11 +71,13 @@ function ReloadRow({
   label,
   hint,
   busy,
+  action = 'Reload',
   onClick,
 }: {
   label: string;
   hint: string;
   busy: boolean;
+  action?: string;
   onClick: () => void;
 }) {
   return (
@@ -92,9 +94,128 @@ function ReloadRow({
         </span>
       </span>
       <span className="shrink-0 text-[11px] text-text-tertiary">
-        {busy ? 'Reloading…' : 'Reload'}
+        {busy ? 'Reloading…' : action}
       </span>
     </button>
+  );
+}
+
+/**
+ * Edit dialog for the worker lifecycle timeouts (config.json worker
+ * section). Rendered through its own portal to <body> so it stacks above
+ * the App Settings card. Overlay click / X / Escape (handled by the parent,
+ * which owns the state) close it.
+ */
+function WorkerEditModal({
+  values,
+  loading,
+  saving,
+  error,
+  onValueChange,
+  onSave,
+  onClose,
+}: {
+  values: Record<string, string>;
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  onValueChange: (key: string, value: string) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const FIELD_HINTS: Record<string, string> = {
+    timeout_sec: 'Silence timeout — queued no-output / MCP read',
+    task_timeout_sec: 'Stream running task duration cap',
+    idle_sec: 'Idle reclaim timeout',
+  };
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit worker config"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-[min(420px,92vw)] bg-bg-primary border border-border-default rounded-lg shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 border-b border-border-default px-4 py-3">
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary">
+              Edit worker config
+            </h3>
+            <p className="mt-0.5 text-[11px] text-text-tertiary">
+              Saved to config.json and applied without restart.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-4 py-4 space-y-3">
+          {WORKER_KEYS.map((k) => (
+            <div key={k}>
+              <label
+                htmlFor={`worker-${k}`}
+                className="block text-xs text-text-secondary font-mono"
+              >
+                {k}
+              </label>
+              <input
+                id={`worker-${k}`}
+                type="number"
+                min="0"
+                step="any"
+                disabled={loading || saving}
+                value={values[k] ?? ''}
+                onChange={(e) => onValueChange(k, e.target.value)}
+                className="mt-1 w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary font-mono outline-none focus:border-accent disabled:opacity-50"
+              />
+              <p className="mt-1 text-[10px] text-text-tertiary leading-relaxed">
+                {FIELD_HINTS[k]} (seconds)
+              </p>
+            </div>
+          ))}
+          {loading && (
+            <p className="text-[11px] text-text-tertiary">Loading current values…</p>
+          )}
+          {error && (
+            <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 border-t border-border-default px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded border border-border-default px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={loading || saving}
+            className="rounded bg-accent px-3 py-1.5 text-xs text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -170,6 +291,20 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     useState<ApiConfigReloadResponse | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
 
+  // Worker config edit dialog — opened from the "Edit worker config" row.
+  // Prefills current values (reloadConfig('worker').before — idempotent),
+  // saves via PUT /api/settings/worker (persist + hot-apply), and reuses
+  // the config-reload result block to show the returned before→after.
+  const [workerEditOpen, setWorkerEditOpen] = useState(false);
+  const [workerValues, setWorkerValues] = useState<Record<string, string>>({
+    timeout_sec: '',
+    task_timeout_sec: '',
+    idle_sec: '',
+  });
+  const [workerLoading, setWorkerLoading] = useState(false);
+  const [workerSaving, setWorkerSaving] = useState(false);
+  const [workerEditError, setWorkerEditError] = useState<string | null>(null);
+
   // Remote tunnel state — fetched when the modal opens. The whole
   // "Remote / Tunnel" section only renders when config.json has a remote
   // section AND remote.enabled is true (backend /api/remote/status).
@@ -231,15 +366,67 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     }
   };
 
-  // Close on Escape.
+  const openWorkerEdit = async () => {
+    setWorkerEditOpen(true);
+    setWorkerEditError(null);
+    setWorkerLoading(true);
+    try {
+      const r = await reloadConfig('worker');
+      const b = r.worker?.before ?? {};
+      setWorkerValues({
+        timeout_sec: b.timeout_sec !== undefined ? String(b.timeout_sec) : '',
+        task_timeout_sec:
+          b.task_timeout_sec !== undefined ? String(b.task_timeout_sec) : '',
+        idle_sec: b.idle_sec !== undefined ? String(b.idle_sec) : '',
+      });
+    } catch (e) {
+      setWorkerEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWorkerLoading(false);
+    }
+  };
+
+  const handleWorkerSave = async () => {
+    // All three fields are required and must be positive finite numbers.
+    const patch: Record<string, number> = {};
+    for (const k of WORKER_KEYS) {
+      const raw = (workerValues[k] ?? '').trim();
+      const v = Number(raw);
+      if (!raw || !Number.isFinite(v) || v <= 0) {
+        setWorkerEditError(`${k} must be a positive number (seconds)`);
+        return;
+      }
+      patch[k] = v;
+    }
+    setWorkerSaving(true);
+    setWorkerEditError(null);
+    try {
+      const r = await updateWorkerSettings(patch);
+      // Reuse the config-reload result block to render before→after.
+      setReloadResult({ reloaded: true, worker: r });
+      setReloadSection('config');
+      setReloadError(null);
+      setWorkerEditOpen(false);
+      showToast('Worker config saved and applied', 'info');
+    } catch (e) {
+      setWorkerEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWorkerSaving(false);
+    }
+  };
+
+  // Close on Escape — the worker edit dialog (when open) takes priority
+  // over closing the whole settings modal.
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (workerEditOpen) setWorkerEditOpen(false);
+      else onClose();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [open, onClose]);
+  }, [open, onClose, workerEditOpen]);
 
   if (!open) return null;
 
@@ -327,7 +514,10 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </section>
 
           {/* Configuration reload — POST /api/config/reload, original
-              scopes. plugin/memory live in the "Other hot-reload" section
+              scopes. The worker row opens an edit dialog instead (PUT
+              /api/settings/worker: save + hot-apply in one step); a save
+              shows its before→after in this section's result block below.
+              plugin/memory live in the "Other hot-reload" section
               below; ui settings are read live per request and need no
               reload; frontend/port/logging/remote are startup-frozen. */}
           <section>
@@ -342,10 +532,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 onClick={() => handleReload('adapters')}
               />
               <ReloadRow
-                label="Reload worker config"
+                label="Edit worker config"
                 hint="Worker timeout_sec / task_timeout_sec / idle_sec"
-                busy={reloadScope === 'worker'}
-                onClick={() => handleReload('worker')}
+                busy={false}
+                action="Edit"
+                onClick={openWorkerEdit}
               />
             </div>
             {reloadError && reloadSection === 'config' && (
@@ -496,6 +687,21 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </div>
         </div>
       </div>
+
+      {/* Worker config edit dialog — portal stacks above the settings card. */}
+      {workerEditOpen && (
+        <WorkerEditModal
+          values={workerValues}
+          loading={workerLoading}
+          saving={workerSaving}
+          error={workerEditError}
+          onValueChange={(k, v) =>
+            setWorkerValues((prev) => ({ ...prev, [k]: v }))
+          }
+          onSave={handleWorkerSave}
+          onClose={() => setWorkerEditOpen(false)}
+        />
+      )}
     </div>,
     document.body,
   );

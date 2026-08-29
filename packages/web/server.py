@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import mimetypes
 import os
 import re
@@ -1715,6 +1716,48 @@ async def api_put_settings_ui(data: dict):
     raw["ui"] = ui
     save_config(raw)
     return ui
+
+
+# ── Worker settings (config.json worker, hot-applied) ──
+
+_WORKER_SETTING_KEYS = ("timeout_sec", "task_timeout_sec", "idle_sec")
+
+
+@app.put("/api/settings/worker")
+async def api_put_settings_worker(data: dict):
+    """Merge worker lifecycle timeouts into config.json's ``worker`` object.
+
+    Body may carry any subset of {timeout_sec, task_timeout_sec, idle_sec};
+    each provided value must be a positive number (seconds). Provided keys
+    are merged over the current worker section (unprovided keys and other
+    fields in the section are kept) and persisted atomically, then
+    worker.reload_worker_config() re-reads the file so the running server
+    applies the new values without a restart. Returns the {before, after}
+    diff in the same shape as the ``worker`` entry of /api/config/reload.
+    """
+    patch: dict = {}
+    for k in _WORKER_SETTING_KEYS:
+        if k not in data:
+            continue
+        try:
+            v = float(data[k])
+        except (TypeError, ValueError):
+            return {"error": f"worker.{k} must be a number (seconds)"}
+        if not (math.isfinite(v) and v > 0):  # rejects 0 / negative / inf / nan
+            return {"error": f"worker.{k} must be a positive number (seconds)"}
+        patch[k] = v
+    if not patch:
+        return {
+            "error": "no worker keys provided (expected any of: "
+            + ", ".join(_WORKER_SETTING_KEYS)
+            + ")"
+        }
+    raw = read_config_file()
+    section = dict(raw.get("worker") or {})
+    section.update(patch)
+    raw["worker"] = section
+    save_config(raw)
+    return worker.reload_worker_config()
 
 
 # ── Remote tunnel (cloudflared, scripts/start_cf.ps1) ──

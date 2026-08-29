@@ -7,6 +7,7 @@ import type {
   AdapterConfig,
   ApiConfigResponse,
   ApiConfigReloadResponse,
+  ApiWorkerSettingsUpdateResponse,
   ApiAdaptersResponse,
   ApiBatchDeleteResponse,
   SessionTemplate,
@@ -753,5 +754,29 @@ export async function updateUiSettings(
     body: JSON.stringify(patch),
   });
   if (data.error) throw new Error(String(data.error));
+  return data;
+}
+
+// ── Worker settings (config.json worker, hot-applied) ──
+
+/**
+ * Save worker lifecycle timeouts (seconds) to config.json and hot-apply
+ * them via the backend (worker.reload_worker_config). Returns the
+ * {before, after} diff in the same shape as reloadConfig('worker').
+ */
+export async function updateWorkerSettings(
+  patch: Partial<Pick<
+    ApiWorkerSettingsUpdateResponse['before'],
+    'timeout_sec' | 'task_timeout_sec' | 'idle_sec'
+  >>,
+): Promise<ApiWorkerSettingsUpdateResponse> {
+  const data = await request<ApiWorkerSettingsUpdateResponse>(
+    `${BASE}/settings/worker`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    },
+  );
+  if (data.error) throw new Error(data.error);
   return data;
 }
