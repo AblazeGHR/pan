@@ -667,7 +667,10 @@ class AppServer:
         elif method == "mcpServer/elicitation/request":
             result = {"action": "cancel", "content": None}
         elif method == "item/tool/call":
-            # Pan does not currently expose a dynamic-tool callback channel.
+            # Dynamic Tool is intentionally out of scope: external tools use
+            # MCP, so Pan does not expose a second runtime callback/permission
+            # surface. Keep the failure explicit instead of silently hanging
+            # the native request.
             self._send({"id": request_id, "error": {"code": -32000,
                            "message": "Pan does not expose dynamic tool callbacks"}})
             return
