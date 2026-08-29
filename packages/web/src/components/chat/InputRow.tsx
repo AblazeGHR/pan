@@ -8,6 +8,7 @@ import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { wsClient } from '@/services/ws';
+import { sendSession } from '@/services/api';
 import { ChevronDown, ChevronUp, CornerUpRight, Settings } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
@@ -235,9 +236,6 @@ export function InputRow() {
       }
       setInputDraft(currentSessionId, '');
 
-      // Add user message to local state
-      addMessage({ role: 'user', content: text });
-
       const msg = {
         type: 'user_inject',
         sessionId: currentSessionId,
@@ -245,8 +243,11 @@ export function InputRow() {
       };
 
       if (wsClient.isOpen) {
-        wsClient.send(msg);
-        return;
+        if (wsClient.send(msg)) {
+          // WS send is the server hand-off point; only show it after that.
+          addMessage({ role: 'user', content: text });
+          return;
+        }
       }
 
       if (!currentSession?.workerId) {
@@ -254,22 +255,30 @@ export function InputRow() {
         try {
           await startWorker(currentSessionId);
           // spawn 等待窗口内 WS 可能仍在 CONNECTING（send 返回 false）——
-          // 不检查会把消息静默丢掉（聊天区已上屏但服务端从未收到）
-          if (!wsClient.send(msg)) {
-            showToast('Connection lost. Please refresh the page.', 'error');
+          // 优先走 WS，失败则使用 session API，由服务端持久化/排队。
+          if (wsClient.send(msg)) {
+            addMessage({ role: 'user', content: text });
+            return;
           }
         } catch (e) {
           showToast(
             'Spawn failed: ' + (e as Error).message,
             'error',
           );
+          return;
         }
-        return;
       }
 
-      // WS not connected and worker exists — try anyway
-      if (!wsClient.send(msg)) {
-        showToast('Connection lost. Please refresh the page.', 'error');
+      // WS was unavailable (or became unavailable during spawn). The HTTP
+      // endpoint is durable and also handles a worker disappearing mid-send.
+      try {
+        await sendSession(currentSessionId, text);
+        addMessage({ role: 'user', content: text });
+      } catch (e) {
+        showToast(
+          'Send failed: ' + (e as Error).message,
+          'error',
+        );
       }
     },
     [
@@ -277,6 +286,7 @@ export function InputRow() {
       currentSession,
       showToast,
       addMessage,
+      sendSession,
       startWorker,
       setInputDraft,
       enqueue,

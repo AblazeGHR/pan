@@ -1011,6 +1011,7 @@ async def ws_agent_endpoint(ws: WebSocket):
                         result = await worker.create_worker(session_id)
                         if isinstance(result, str):
                             await ws.send_json({"type": "error", "message": result})
+                            continue
                         else:
                             w = result
                     err = await worker.send_task(w.worker_id, text, source="agent")

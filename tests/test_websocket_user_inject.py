@@ -59,3 +59,29 @@ def test_user_inject_without_worker_spawns_and_delivers(monkeypatch):
         ("send", "worker-1", "hello", "user"),
     ]
     assert ws not in srv.ws_clients
+
+
+def test_agent_task_does_not_send_after_spawn_failure(monkeypatch):
+    """A failed agent spawn must return an error without dereferencing None."""
+    srv.agent_clients.clear()
+    srv.agent_subscriptions.clear()
+    ws = _FakeWS({"type": "task", "sessionId": "session-1", "text": "hello"})
+    send_calls = []
+
+    monkeypatch.setattr(srv.worker, "find_worker_by_session", lambda _: None)
+
+    async def fake_create_worker(session_id):
+        return "spawn failed"
+
+    async def fake_send_task(*args, **kwargs):
+        send_calls.append((args, kwargs))
+        return None
+
+    monkeypatch.setattr(srv.worker, "create_worker", fake_create_worker)
+    monkeypatch.setattr(srv.worker, "send_task", fake_send_task)
+
+    asyncio.run(srv.ws_agent_endpoint(ws))
+
+    assert ws.sent == [{"type": "error", "message": "spawn failed"}]
+    assert send_calls == []
+    assert ws not in srv.agent_clients

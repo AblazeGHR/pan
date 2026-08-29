@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, fireEvent, screen, cleanup } from '@testing-library/react';
+import { render, fireEvent, screen, cleanup, waitFor } from '@testing-library/react';
 import { InputRow } from './InputRow';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { patchSession } from '@/services/api';
+import { sendSession, spawnWorker, patchSession } from '@/services/api';
+import { wsClient } from '@/services/ws';
 import type { AdapterConfig } from '@/types';
 
 vi.mock('@/services/ws', () => ({
@@ -25,6 +26,8 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     patchSession: vi.fn(async () => ({})),
     fetchSessions: vi.fn(async () => []),
+    sendSession: vi.fn(async () => ({ status: 'queued' })),
+    spawnWorker: vi.fn(async () => ({ workerId: 'w-new' })),
   };
 });
 
@@ -65,6 +68,10 @@ beforeEach(() => {
     configReady: false,
   });
   vi.mocked(patchSession).mockClear();
+  vi.mocked(sendSession).mockClear();
+  vi.mocked(spawnWorker).mockClear();
+  vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
+  Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
 });
 
 afterEach(cleanup);
@@ -142,6 +149,42 @@ describe('InputRow send queue wiring', () => {
     expect(q.length).toBe(0);
     expect(useSessionStore.getState().currentMessages.length).toBe(1);
     expect(useSessionStore.getState().currentMessages[0]?.content).toBe('direct msg');
+  });
+
+  it('uses durable HTTP fallback when WS is unavailable during first spawn', async () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: [],
+      sessions: [
+        {
+          id: 's1',
+          name: 'Test',
+          adapter: 'cbc',
+          model: null,
+          permissionMode: null,
+          alwaysThinkingEnabled: false,
+          effort: '',
+          workerStatus: null,
+          workerId: null,
+          history: [],
+        },
+      ],
+    });
+    Object.defineProperty(wsClient, 'isOpen', { value: false, configurable: true });
+    vi.mocked(wsClient.send).mockReturnValue(false);
+    render(<InputRow />);
+
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: 'survive reconnect' } });
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(spawnWorker).toHaveBeenCalledWith('s1', undefined);
+      expect(sendSession).toHaveBeenCalledWith('s1', 'survive reconnect');
+    });
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'survive reconnect',
+    ]);
   });
 });
 

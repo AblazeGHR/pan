@@ -234,6 +234,19 @@ export async function reorderSessionQueue(
   return data.items || [];
 }
 
+/** Send a message to a session, queuing it server-side when no worker exists. */
+export async function sendSession(
+  sessionId: string,
+  text: string,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(`${BASE}/send`, {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, text, source: 'user' }),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 // ── Session management (claim / unclaim) ──
 
 export async function claimSession(
