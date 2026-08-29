@@ -4,6 +4,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import type { Session, Message } from '@/types';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
@@ -87,6 +88,26 @@ describe('useWebSocket worker.result wiring', () => {
     renderHook(() => useWebSocket());
 
     expect(wsMock.send).toHaveBeenCalledWith({ type: 'sync_interactive' });
+  });
+
+  it('keeps native Codex waiting status available to the active worker', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.thread_status',
+          native_status: {
+            type: 'active', activeFlags: ['waitingOnApproval'],
+          },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeStatus).toEqual({
+      type: 'active', activeFlags: ['waitingOnApproval'],
+    });
   });
 
   it('updates a background session card in-place on worker.result', () => {

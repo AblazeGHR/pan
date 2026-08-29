@@ -352,6 +352,27 @@ def test_app_server_run_turn_message_loop(monkeypatch):
     print("PASS: app-server run_turn message loop")
 
 
+def test_app_server_thread_status_is_normalized(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    app._handle_server_message({
+        "method": "thread/status/changed",
+        "params": {
+            "threadId": "thread-1",
+            "status": {"type": "active", "activeFlags": ["waitingOnApproval"]},
+        },
+    }, {})
+
+    assert emitted == [{
+        "type": "codex.thread_status",
+        "native_status": {"type": "active", "activeFlags": ["waitingOnApproval"]},
+        "thread_id": "thread-1",
+    }]
+    print("PASS: app-server thread status normalization")
+
+
 def test_app_server_terminal_interaction_roundtrip(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     emitted: list[dict] = []

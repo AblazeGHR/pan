@@ -34,6 +34,16 @@ export function TopBar() {
   }
 
   const status = currentSession.workerStatus || 'offline';
+  const nativeStatus = currentWorker?.sessionId === currentSession.id
+    ? currentWorker.nativeStatus
+    : undefined;
+  const nativeLabel = nativeStatus?.activeFlags?.includes('waitingOnApproval')
+    ? 'waiting for approval'
+    : nativeStatus?.activeFlags?.includes('waitingOnUserInput')
+      ? 'waiting for input'
+      : nativeStatus?.type === 'active'
+        ? 'active'
+        : undefined;
 
   // Effective worker for the CURRENT session. Prefer the server-reported
   // session.workerId (authoritative after page load); fall back to the live
@@ -97,7 +107,7 @@ export function TopBar() {
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <span className="hidden md:inline text-xs text-text-tertiary mr-1">
-          {status}
+          {nativeLabel || status}
           {effectiveWorkerId ? ` (${effectiveWorkerId})` : ' (no worker)'}
         </span>
         {effectiveWorkerId && (

@@ -547,6 +547,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   时 Pan 无法介入的缺口；不接受前端传入任意 app-server method。
   Dashboard 每次 WebSocket 重连会请求 `sync_interactive`，存活 worker 中尚未解决的原生
   交互请求会以 `replayed: true` 补发；worker 已重启或死亡时不伪造恢复。
+  app-server 的 `thread/status/changed` 会归一化为 `codex.thread_status`，当前会话顶栏会
+  显示 active、waiting for approval 或 waiting for input 等原生状态，不改变 Pan 的 worker 调度状态。
   运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
