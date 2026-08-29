@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { wsClient } from '@/services/ws';
+import { sendWorkerControl } from '@/services/api';
 import type { ApprovalRequest } from '@/types';
 
 function availableDecisions(request: ApprovalRequest): string[] {
@@ -90,25 +91,30 @@ export function ApprovalBanner() {
 
   if (requests.length === 0) return null;
 
-  const respond = (request: ApprovalRequest, decision: string) => {
+  const respond = async (request: ApprovalRequest, decision: string) => {
     const permissionRequest = isPermissionRequest(request);
+    const control = {
+      type: permissionRequest ? 'permission_response' : 'approval_response',
+      request_id: request.requestId,
+      ...(permissionRequest
+        ? {
+          permissions: decision === 'decline' ? {} : request.params.permissions ?? {},
+          scope: decision === 'acceptForSession' ? 'session' : 'turn',
+        }
+        : { decision }),
+    };
     const sent = wsClient.send({
       type: 'worker_control',
       workerId: request.workerId,
-      control: {
-        type: permissionRequest ? 'permission_response' : 'approval_response',
-        request_id: request.requestId,
-        ...(permissionRequest
-          ? {
-            permissions: decision === 'decline' ? {} : request.params.permissions ?? {},
-            scope: decision === 'acceptForSession' ? 'session' : 'turn',
-          }
-          : { decision }),
-      },
+      control,
     });
     if (!sent) {
-      showToast('未连接到服务器，审批未发送', 'error');
-      return;
+      try {
+        await sendWorkerControl(request.workerId, control);
+      } catch (error) {
+        showToast((error as Error).message || '审批未发送', 'error');
+        return;
+      }
     }
     removeApprovalRequest(request.sessionId, request.requestId);
   };

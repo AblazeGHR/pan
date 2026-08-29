@@ -523,8 +523,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `thread/resume`，已验证重启后仍能读取原生上下文。
 - Codex adapter 的 `interrupt_worker` 优先向桥接进程发送控制消息，由桥接调用原生
   `turn/interrupt`；发送失败才回退到通用 kill + resume。命令/文件审批请求会先广播为
-  `approval.request`，React 前端提供 Allow/Deny 控件，再由 WebSocket 或
-  `POST /api/worker/{id}/control` 回传原生 JSON-RPC response；UI 断开或超过 120 秒时安全拒绝。
+  `approval.request`，React 前端提供 Allow/Deny 控件，再由 WebSocket 优先、HTTP
+  `POST /api/worker/{id}/control` 回退回传原生 JSON-RPC response；UI 断开或超过 120 秒时安全拒绝。
   `item/permissions/requestApproval` 也复用审批栏：允许本回合/允许本 session 会回传请求的
   权限子集，拒绝则回传空权限。`item/tool/requestUserInput` 会广播为 `codex.user_input`，
   React 前端按原生 questions 渲染选项、文本和密码输入，并回传结构化 answers；UI 断开或
