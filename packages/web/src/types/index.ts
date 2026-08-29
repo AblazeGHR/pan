@@ -240,6 +240,8 @@ export interface AdapterConfig {
   models: string[];
   defaultModel: string;
   effortValues: string[];
+  /** Per-model reasoning effort values when the adapter exposes them. */
+  modelEfforts?: Record<string, string[]>;
   permissionModes: PermissionMode[];
   defaultPermissionMode: string;
   supportedSettings: string[];
@@ -252,6 +254,7 @@ export interface ApiConfigResponse {
   models: string[];
   defaultModel: string;
   effortValues: string[];
+  modelEfforts?: Record<string, string[]>;
   permissionModes: PermissionMode[];
   defaultPermissionMode?: string;
   supportedSettings?: string[];

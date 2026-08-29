@@ -71,14 +71,24 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
   const applySetting = useCallback(
     async (key: string, value: unknown) => {
       if (!session) return;
+      const patch: Record<string, unknown> = { [key]: value };
+      // Codex exposes model-specific reasoning levels. Clear an effort that
+      // the newly selected model cannot accept; empty means native default.
+      if (key === 'model' && config?.modelEfforts) {
+        const nextEfforts = config.modelEfforts[String(value)];
+        const currentEffort = (detailSession ?? session).effort || '';
+        if (nextEfforts && currentEffort && !nextEfforts.includes(currentEffort)) {
+          patch.effort = '';
+        }
+      }
       try {
         const res = await applySettings(
           session.id,
           effectiveWorkerId || undefined,
-          { [key]: value },
+          patch,
         );
         // Reflect the change locally so the select/checkbox stays in sync.
-        setDetailSession((d) => (d ? { ...d, [key]: value } : d));
+        setDetailSession((d) => (d ? { ...d, ...patch } : d));
         await loadSessions();
         // Process-affecting settings (output_mode / model / mcp …) require a
         // worker restart to take effect. When a worker is NOT running the
@@ -94,7 +104,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
         showToast((e as Error).message || 'Failed', 'error');
       }
     },
-    [session, effectiveWorkerId, applySettings, loadSessions, showToast],
+    [session, detailSession, config, effectiveWorkerId, applySettings, loadSessions, showToast],
   );
 
   // Close on outside click (the gear button lives under [data-settings-popover]).
@@ -123,17 +133,17 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
   const showMode = supportsSetting(config, 'permissionMode');
   const showThinking = supportsSetting(config, 'thinking');
   const showEffort =
-    showThinking &&
     supportsSetting(config, 'effort') &&
-    !!s.alwaysThinkingEnabled;
-  const effortValues = config.effortValues || [];
+    (!showThinking || !!s.alwaysThinkingEnabled);
+  const modelEfforts = config.modelEfforts?.[currentModel];
+  const effortValues = modelEfforts ? ['', ...modelEfforts] : config.effortValues || [];
   // opencode's effort list starts with "" (unset sentinel); filter it out so
   // the dropdown never renders a blank <option>, and surface it as a clear
   // "默认" placeholder instead.
   const validEffortValues = effortValues.filter((v) => v && String(v).trim() !== '');
   const hadEmpty = effortValues.length !== validEffortValues.length;
   const currentEffort =
-    s.effort && s.effort.trim() !== ''
+    s.effort && validEffortValues.includes(s.effort.trim())
       ? s.effort
       : hadEmpty
         ? ''

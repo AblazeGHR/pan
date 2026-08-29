@@ -602,6 +602,14 @@ def _apply_session_updates(s: sess.Session, data: dict):
     """Apply model/mode/thinking/effort fields from data to a Session (in-place)."""
     if "model" in data:
         s.model = data["model"]
+        # Some adapters (currently Codex) expose model-specific effort levels.
+        # Switching models must not leave an incompatible effort on the session;
+        # an empty value delegates to the native model default.
+        if "effort" not in data:
+            model_efforts = getattr(get_adapter(s.adapter), "model_efforts", {}).get(str(s.model))
+            current_effort = s.adapter_config.get("effort", "")
+            if model_efforts and current_effort and current_effort not in model_efforts:
+                s.set_adapter_field("effort", "")
     if "permissionMode" in data:
         s.permission_mode = data["permissionMode"] or None
     if "alwaysThinkingEnabled" in data:
@@ -1559,6 +1567,7 @@ async def api_adapter_config(adapter: str = "cbc"):
         "models": a.supported_models,
         "defaultModel": a.default_model,
         "effortValues": list(a.effort_values),
+        "modelEfforts": getattr(a, "model_efforts", {}),
         "permissionModes": a.permission_modes,
         "defaultPermissionMode": a.default_permission_mode,
         "supportedSettings": getattr(a, "supported_settings", ["model", "permissionMode", "thinking", "effort"]),
@@ -2488,12 +2497,18 @@ async def api_worker_settings(worker_id: str, data: dict):
         return {"error": str(e)}
     sess.save(s)
 
+    adapter = get_adapter(s.adapter)
     extra_args: list[str] = []
-    if "model" in data:
-        extra_args.extend(["--model", data["model"]])
-    if "permissionMode" in data:
-        extra_args.extend(["--permission-mode", data["permissionMode"] or ""])
-    extra_args.extend(get_adapter(s.adapter).effort_args(s))
+    # Most native CLIs consume these compatibility overrides directly. Codex
+    # uses a persistent wrapper and receives all settings from its Session via
+    # --codex-extra-args; passing --model/--permission-mode to the wrapper would
+    # make argparse reject the process before it can handle the next message.
+    if not getattr(adapter, "settings_via_session", False):
+        if "model" in data:
+            extra_args.extend(["--model", data["model"]])
+        if "permissionMode" in data:
+            extra_args.extend(["--permission-mode", data["permissionMode"] or ""])
+        extra_args.extend(adapter.effort_args(s))
 
     err = await worker.respawn_worker(worker_id, extra_args if extra_args else None)
     if err:

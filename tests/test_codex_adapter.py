@@ -543,6 +543,21 @@ def test_parse_models_from_models_cache(monkeypatch, tmp_path):
     print("PASS: models_cache parser (visibility + dedupe + effort + fault tolerance)")
 
 
+def test_model_efforts_from_models_cache(monkeypatch, tmp_path):
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    (home / "models_cache.json").write_text(json.dumps({"models": [
+        {"slug": "gpt-a", "visibility": "list",
+         "supported_reasoning_levels": [{"effort": "low"}, {"effort": "max"}]},
+        {"slug": "hidden", "visibility": "hide",
+         "supported_reasoning_levels": [{"effort": "ultra"}]},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+    assert _adapter().model_efforts == {"gpt-a": ["low", "max"]}
+    assert _adapter().settings_via_session is True
+    print("PASS: per-model effort metadata")
+
+
 def test_supported_models_catalog_priority(monkeypatch, tmp_path):
     _reset_models_cache()
     try:
@@ -626,6 +641,7 @@ if __name__ == "__main__":
     test_filter_resume_opts()
     test_parse_models_from_catalog()
     test_parse_models_from_models_cache()
+    test_model_efforts_from_models_cache()
     test_supported_models_models_cache_priority()
     test_supported_models_catalog_priority()
     test_supported_models_ttl_cache()
