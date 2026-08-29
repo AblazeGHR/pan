@@ -918,6 +918,17 @@ async def ws_endpoint(ws: WebSocket):
                         err = await worker.send_task(w.worker_id, text, source="user")
                         if err:
                             await broadcast({"type": "error", "message": err})
+                    else:
+                        # The dashboard sends directly over the already-open WS.
+                        # Keep the no-worker path equivalent to the legacy sender:
+                        # create the ephemeral worker before delivering the task.
+                        result = await worker.create_worker(session_id)
+                        if isinstance(result, str):
+                            await broadcast({"type": "error", "message": result})
+                        else:
+                            err = await worker.send_task(result.worker_id, text, source="user")
+                            if err:
+                                await broadcast({"type": "error", "message": err})
             elif msg_type == "worker_control":
                 worker_id = msg.get("workerId")
                 control = msg.get("control")
