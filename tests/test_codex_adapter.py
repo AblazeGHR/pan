@@ -373,6 +373,31 @@ def test_app_server_thread_status_is_normalized(monkeypatch):
     print("PASS: app-server thread status normalization")
 
 
+def test_app_server_token_usage_is_normalized(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    usage = {
+        "last": {"inputTokens": 120, "outputTokens": 30, "totalTokens": 150},
+        "total": {"inputTokens": 120, "outputTokens": 30, "totalTokens": 150},
+        "modelContextWindow": 4096,
+    }
+
+    app._handle_server_message({
+        "method": "thread/tokenUsage/updated",
+        "params": {"threadId": "thread-1", "turnId": "turn-1", "tokenUsage": usage},
+    }, {})
+
+    assert app.last_usage == usage
+    assert emitted == [{
+        "type": "codex.token_usage",
+        "token_usage": usage,
+        "thread_id": "thread-1",
+        "turn_id": "turn-1",
+    }]
+    print("PASS: app-server token usage normalization")
+
+
 def test_app_server_terminal_interaction_roundtrip(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     emitted: list[dict] = []
@@ -495,6 +520,27 @@ def test_worker_native_status_replay_cache():
     worker._update_pending_interactions(w, {"type": "result"})
     assert worker.native_status_event(w) is None
     print("PASS: native status replay cache")
+
+
+def test_worker_native_usage_replay_cache():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-usage-replay",
+        session_id="ses-usage-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    usage = {
+        "last": {"totalTokens": 150},
+        "total": {"totalTokens": 150},
+        "modelContextWindow": 4096,
+    }
+    event = {"type": "codex.token_usage", "token_usage": usage}
+    worker._update_pending_interactions(w, event)
+    assert worker.native_usage_event(w) == event
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_usage_event(w) is None
+    print("PASS: native usage replay cache")
 
 
 # ── wrapper 参数构建 ──

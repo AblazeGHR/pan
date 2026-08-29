@@ -55,6 +55,11 @@ interface WorkerStore {
     workerId: string | null | undefined,
     nativeStatus: WorkerInfo['nativeStatus'],
   ) => void;
+  updateNativeUsage: (
+    sessionId: string,
+    workerId: string | null | undefined,
+    nativeUsage: WorkerInfo['nativeUsage'],
+  ) => void;
   syncToSession: (sessionId: string | null) => void;
   refresh: () => Promise<void>;
 }
@@ -131,6 +136,11 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
         : previous?.nativeStatus
           ? { nativeStatus: previous.nativeStatus }
           : {}),
+      ...(status === 'idle' || status === null || status === undefined
+        ? {}
+        : previous?.nativeUsage
+          ? { nativeUsage: previous.nativeUsage }
+          : {}),
     };
 
     set((s) => {
@@ -178,6 +188,32 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
     });
   },
 
+  updateNativeUsage: (sessionId, workerId, nativeUsage) => {
+    if (!sessionId) return;
+    set((s) => {
+      const previous = s.workers[sessionId];
+      if (!previous && !workerId) return s;
+      const worker: WorkerInfo = previous
+        ? { ...previous, nativeUsage }
+        : {
+            id: workerId || '',
+            sessionId,
+            status: 'running',
+            nativeUsage,
+          };
+      const workers = { ...s.workers, [sessionId]: worker };
+      const currentSessionId = useSessionStore.getState().currentSessionId;
+      const currentWorkerId = sessionId === currentSessionId
+        ? worker.id || s.currentWorkerId
+        : s.currentWorkerId;
+      return {
+        workers,
+        currentWorkerId,
+        currentWorker: findWorker(workers, currentWorkerId),
+      };
+    });
+  },
+
   syncToSession: (sessionId) => {
     set((s) => {
       const currentWorkerId = sessionId
@@ -195,10 +231,13 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
       const workers = await listWorkers();
       const map: Record<string, WorkerInfo> = {};
       for (const w of workers) {
+        const previous = useWorkerStore.getState().workers[w.sessionId];
         map[w.sessionId] = {
           id: w.workerId,
           sessionId: w.sessionId,
           status: w.status as WorkerInfo['status'],
+          ...(previous?.nativeStatus ? { nativeStatus: previous.nativeStatus } : {}),
+          ...(previous?.nativeUsage ? { nativeUsage: previous.nativeUsage } : {}),
         };
       }
       // Pre-existing workers (spawned before this page loaded) never fire a

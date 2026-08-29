@@ -14,6 +14,35 @@ import {
   X,
 } from 'lucide-react';
 
+function tokenCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function formatTokenCount(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return String(Math.round(value));
+}
+
+function liveUsageLabel(usage: Record<string, unknown> | undefined): string | undefined {
+  if (!usage) return undefined;
+  const last = (usage.last ?? usage.lastTokenUsage ?? usage.last_token_usage) as
+    | Record<string, unknown>
+    | undefined;
+  const total = (usage.total ?? usage.totalTokenUsage ?? usage.total_token_usage) as
+    | Record<string, unknown>
+    | undefined;
+  const lastTokens = tokenCount(last?.totalTokens ?? last?.total_tokens);
+  const totalTokens = tokenCount(total?.totalTokens ?? total?.total_tokens);
+  const contextWindow = tokenCount(
+    usage.modelContextWindow ?? usage.model_context_window,
+  );
+  const current = lastTokens ?? totalTokens;
+  if (current === null) return undefined;
+  const context = contextWindow ? ` / ${formatTokenCount(contextWindow)}` : '';
+  return `${formatTokenCount(current)} tok${context}`;
+}
+
 export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
@@ -44,6 +73,9 @@ export function TopBar() {
       : nativeStatus?.type === 'active'
         ? 'active'
         : undefined;
+  const nativeUsageLabel = currentWorker?.sessionId === currentSession.id
+    ? liveUsageLabel(currentWorker.nativeUsage)
+    : undefined;
 
   // Effective worker for the CURRENT session. Prefer the server-reported
   // session.workerId (authoritative after page load); fall back to the live
@@ -110,6 +142,14 @@ export function TopBar() {
           {nativeLabel || status}
           {effectiveWorkerId ? ` (${effectiveWorkerId})` : ' (no worker)'}
         </span>
+        {nativeUsageLabel && (
+          <span
+            className="hidden md:inline text-xs text-text-tertiary mr-1"
+            title="Live Codex token usage for the current turn"
+          >
+            {nativeUsageLabel}
+          </span>
+        )}
         {effectiveWorkerId && (
           <>
             <Button
