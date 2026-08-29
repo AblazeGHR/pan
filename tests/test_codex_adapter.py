@@ -304,6 +304,53 @@ def test_app_server_canonical_events_are_persistable():
     print("PASS: app-server canonical events")
 
 
+def test_app_server_run_turn_message_loop(monkeypatch):
+    """A native turn's response and notifications are consumed in one loop."""
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    sent: list[tuple[str, dict]] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        sent.append((method, params))
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        app.incoming.put({
+            "method": "item/agentMessage/delta",
+            "params": {"threadId": "thread-1", "turnId": "turn-1",
+                        "itemId": "agent-1", "delta": "partial"},
+        })
+        app.incoming.put({
+            "method": "item/completed",
+            "params": {"item": {"id": "agent-1", "type": "agentMessage",
+                                   "text": "complete"}},
+        })
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {"id": "turn-1", "status": "completed",
+                                  "items": [{"type": "agentMessage", "text": "complete"}]}},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("hello", effort="low")
+
+    assert sent == [("turn/start", {
+        "threadId": "thread-1",
+        "input": [{"type": "text", "text": "hello"}],
+        "effort": "low",
+    })]
+    assert emitted[0]["type"] == "content.part"
+    assert emitted[0]["item_id"] == "agent-1"
+    assert emitted[1]["type"] == "assistant"
+    assert emitted[1]["final"] is True
+    assert emitted[1]["item_id"] == "agent-1"
+    assert emitted[-1] == {"type": "result", "is_error": False,
+                           "result": "complete", "usage": None}
+    print("PASS: app-server run_turn message loop")
+
+
 # ── wrapper 参数构建 ──
 
 
