@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ApprovalRequest, ToastMessage, UserInputRequest } from '@/types';
+import type { ApprovalRequest, ElicitationRequest, ToastMessage, UserInputRequest } from '@/types';
 
 // ── localStorage helpers ──
 
@@ -99,6 +99,7 @@ interface UIStore {
   toastQueue: ToastMessage[];
   approvalRequests: ApprovalRequest[];
   userInputRequests: UserInputRequest[];
+  elicitationRequests: ElicitationRequest[];
   bubbleViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
@@ -120,6 +121,9 @@ interface UIStore {
   addUserInputRequest: (request: UserInputRequest) => void;
   removeUserInputRequest: (sessionId: string, requestId: string | number) => void;
   clearUserInputRequests: (sessionId: string) => void;
+  addElicitationRequest: (request: ElicitationRequest) => void;
+  removeElicitationRequest: (sessionId: string, requestId: string | number) => void;
+  clearElicitationRequests: (sessionId: string) => void;
   toggleBubbleView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
@@ -147,6 +151,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   toastQueue: [],
   approvalRequests: [],
   userInputRequests: [],
+  elicitationRequests: [],
   bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
@@ -220,6 +225,31 @@ export const useUIStore = create<UIStore>((set, get) => ({
   clearUserInputRequests: (sessionId) => {
     set((s) => ({
       userInputRequests: s.userInputRequests.filter((item) => item.sessionId !== sessionId),
+    }));
+  },
+
+  addElicitationRequest: (request) => {
+    set((s) => ({
+      elicitationRequests: [
+        ...s.elicitationRequests.filter(
+          (item) => !(item.sessionId === request.sessionId && item.requestId === request.requestId),
+        ),
+        request,
+      ],
+    }));
+  },
+
+  removeElicitationRequest: (sessionId, requestId) => {
+    set((s) => ({
+      elicitationRequests: s.elicitationRequests.filter(
+        (item) => !(item.sessionId === sessionId && item.requestId === requestId),
+      ),
+    }));
+  },
+
+  clearElicitationRequests: (sessionId) => {
+    set((s) => ({
+      elicitationRequests: s.elicitationRequests.filter((item) => item.sessionId !== sessionId),
     }));
   },
 

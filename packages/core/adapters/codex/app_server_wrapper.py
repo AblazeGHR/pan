@@ -35,6 +35,7 @@ _INTERACTIVE_APPROVAL_METHODS = {
 }
 _INTERACTIVE_USER_INPUT_METHOD = "item/tool/requestUserInput"
 _INTERACTIVE_PERMISSION_METHOD = "item/permissions/requestApproval"
+_INTERACTIVE_ELICITATION_METHOD = "mcpServer/elicitation/request"
 
 
 def _write_stdout(event: dict[str, Any]) -> None:
@@ -460,7 +461,12 @@ class AppServer:
         method = str(message.get("method") or "")
         request_id = message.get("id")
         params = message.get("params") or {}
-        event_type = "approval.request" if "Approval" in method or "approval" in method else "codex.user_input"
+        if method == _INTERACTIVE_ELICITATION_METHOD:
+            event_type = "codex.elicitation"
+        elif "Approval" in method or "approval" in method:
+            event_type = "approval.request"
+        else:
+            event_type = "codex.user_input"
         _write_stdout({"type": event_type, "method": method, "request_id": request_id,
                        "params": params})
 
@@ -471,8 +477,10 @@ class AppServer:
         interactive_approval = method in _INTERACTIVE_APPROVAL_METHODS and not self.auto_approve
         interactive_user_input = method == _INTERACTIVE_USER_INPUT_METHOD
         interactive_permission = method == _INTERACTIVE_PERMISSION_METHOD and not self.auto_approve
+        interactive_elicitation = method == _INTERACTIVE_ELICITATION_METHOD
         if (state is not None and request_id is not None
-                and (interactive_approval or interactive_user_input or interactive_permission)):
+                and (interactive_approval or interactive_user_input or interactive_permission
+                     or interactive_elicitation)):
             if interactive_user_input:
                 fallback_result: dict[str, Any] = {"answers": {}}
                 auto_resolution_ms = params.get("autoResolutionMs")
@@ -485,6 +493,9 @@ class AppServer:
                     timeout_sec = _APPROVAL_TIMEOUT_SEC
             elif interactive_permission:
                 fallback_result = {"permissions": {}, "scope": "turn"}
+                timeout_sec = _APPROVAL_TIMEOUT_SEC
+            elif interactive_elicitation:
+                fallback_result = {"action": "cancel", "content": None}
                 timeout_sec = _APPROVAL_TIMEOUT_SEC
             else:
                 fallback_result = {"decision": "decline"}
@@ -613,6 +624,23 @@ class AppServer:
                     }})
                 except (OSError, RuntimeError):
                     state["error"] = "failed to send Codex permission response"
+            elif kind == "elicitation_response":
+                request_id = control.get("request_id", control.get("requestId"))
+                pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
+                if pending is None or pending.get("method") != _INTERACTIVE_ELICITATION_METHOD:
+                    continue
+                action = str(control.get("action") or "cancel")
+                if action not in {"accept", "decline", "cancel"}:
+                    action = "cancel"
+                content = control.get("content") if action == "accept" else None
+                if action == "accept" and not isinstance(content, dict):
+                    content = {}
+                try:
+                    self._send({"id": pending["id"], "result": {
+                        "action": action, "content": content,
+                    }})
+                except (OSError, RuntimeError):
+                    state["error"] = "failed to send Codex elicitation response"
 
     def run_turn(self, text: str, effort: str | None = None,
                  control_queue: Queue[dict[str, Any] | None] | None = None) -> None:
@@ -701,7 +729,7 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
             continue
         if message.get("type") in (
                 "interrupt", "steer", "approval_response", "user_input_response",
-                "permission_response"):
+                "permission_response", "elicitation_response"):
             control_queue.put(message)
         elif message.get("text"):
             task_queue.put(message)

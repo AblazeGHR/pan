@@ -128,6 +128,14 @@ export interface UserInputRequest {
   questions: UserInputQuestion[];
 }
 
+export interface ElicitationRequest {
+  sessionId: string;
+  workerId: string;
+  requestId: string | number;
+  method: string;
+  params: Record<string, unknown>;
+}
+
 export interface StreamEvent {
   type: string;
   sessionId?: string;

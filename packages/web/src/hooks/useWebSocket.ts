@@ -127,6 +127,7 @@ export function useWebSocket() {
       if (e.sessionId) {
         useUIStore.getState().clearApprovalRequests(e.sessionId);
         useUIStore.getState().clearUserInputRequests(e.sessionId);
+        useUIStore.getState().clearElicitationRequests(e.sessionId);
       }
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
@@ -136,6 +137,7 @@ export function useWebSocket() {
       if (e.sessionId) {
         useUIStore.getState().clearApprovalRequests(e.sessionId);
         useUIStore.getState().clearUserInputRequests(e.sessionId);
+        useUIStore.getState().clearElicitationRequests(e.sessionId);
       }
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
@@ -190,6 +192,20 @@ export function useWebSocket() {
           questions: Array.isArray(questions) ? questions as UserInputQuestion[] : [],
         });
       }
+      if (
+        e.event.type === 'codex.elicitation' &&
+        e.workerId &&
+        e.event.method === 'mcpServer/elicitation/request' &&
+        e.event.request_id !== undefined
+      ) {
+        useUIStore.getState().addElicitationRequest({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          requestId: e.event.request_id,
+          method: e.event.method,
+          params: e.event.params ?? {},
+        });
+      }
       const store = useSessionStore.getState();
       // 消息区：仅当前 session 追加（原有逻辑，保留）
       if (e.sessionId === store.currentSessionId) appendEvent(e.event);
@@ -203,6 +219,7 @@ export function useWebSocket() {
       const sessionStore = useSessionStore.getState();
       if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
       if (e.sessionId) useUIStore.getState().clearUserInputRequests(e.sessionId);
+      if (e.sessionId) useUIStore.getState().clearElicitationRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
         const status = e.status === 'error' ? 'error' : 'done';
         sessionStore.addMessage({

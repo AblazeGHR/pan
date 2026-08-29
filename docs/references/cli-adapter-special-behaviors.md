@@ -528,7 +528,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `item/permissions/requestApproval` 也复用审批栏：允许本回合/允许本 session 会回传请求的
   权限子集，拒绝则回传空权限。`item/tool/requestUserInput` 会广播为 `codex.user_input`，
   React 前端按原生 questions 渲染选项、文本和密码输入，并回传结构化 answers；UI 断开或
-  超过 `autoResolutionMs`（最多 120 秒）时回传空答案，避免 worker 无限挂起。
+  超过 `autoResolutionMs`（最多 120 秒）时回传空答案，避免 worker 无限挂起。MCP
+  `mcpServer/elicitation/request` 会广播为 `codex.elicitation`，支持 form schema 的常见
+  string/number/boolean/enum 字段及 URL 授权页，回传原生 `action + content`；超时安全取消。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
   `web/src/hooks/useWebSocket.ts` 增量合并；`web/src/components/chat/ApprovalBanner.tsx` /
   `UserInputBanner.tsx` 交互展示。

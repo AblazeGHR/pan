@@ -2215,6 +2215,7 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
         return f"Adapter '{w.adapter.name}' does not support worker controls"
     if not isinstance(control, dict) or control.get("type") not in {
         "interrupt", "steer", "approval_response", "user_input_response", "permission_response",
+        "elicitation_response",
     }:
         return "Unsupported worker control"
     try:
