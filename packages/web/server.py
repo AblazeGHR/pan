@@ -2397,6 +2397,32 @@ async def api_send(data: dict):
     return result
 
 
+@app.post("/api/notify")
+async def api_notify(data: dict):
+    """[internal/MCP-only] 向 session 投递一条提醒（MCP agent_notify 专用）。
+
+    不作为通用对外 API（README/API 文档不宣传）；隔离由 MCP 层
+    _check_access 实施（仅允许调用方自己或其 managed 的 session），本端点
+    与 /api/send 同约定不检查 pan_access。
+
+    Body: {"targetSessionId": <目标 session id>, "text": <提醒正文>,
+           "source"?: <来源 session id，渲染抬头用>}
+
+    内部走 worker.enqueue_notice：与 report 相同的持久化投递链路
+    （queue_pending 落盘 + 唤醒 + 无活 worker 立即 auto-spawn，不等
+    watchdog tick）。区别于 /api/send：投递的是「通知」而非任务消息。
+    """
+    target = (data.get("targetSessionId") or data.get("sessionId") or "").strip()
+    text = data.get("text")
+    if not target or not text:
+        return {"error": "targetSessionId and text are required"}
+    result = await worker.enqueue_notice(target, str(text),
+                                         source=data.get("source"))
+    if isinstance(result, dict) and not result.get("ok", True):
+        return {"error": (result.get("error") or {}).get("message", "notify failed")}
+    return result
+
+
 @app.post("/api/assign")
 async def api_assign(data: dict):
     """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。
