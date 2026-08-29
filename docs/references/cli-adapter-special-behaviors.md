@@ -558,6 +558,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   不再误报为 error；重复任务的幂等状态也会把取消视为终态。
   对尚未有专用 UI 映射的新原生 item，Pan 会以截断的只读工具摘要显示并持久化，避免
   Codex 协议扩展后出现事件静默丢失；该兜底不执行任何 item 中携带的方法或回调。
+  原生 `error` 通知会转换为 `codex.turn_error`，当前会话即时展示错误详情，最终结果仍由
+  `worker.result` 统一收敛，避免同时写入一条伪造的聊天消息。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
   `web/src/hooks/useWebSocket.ts` 增量合并；`web/src/components/chat/ApprovalBanner.tsx` /
   `UserInputBanner.tsx` / `TerminalInteractionBanner.tsx` 交互展示。

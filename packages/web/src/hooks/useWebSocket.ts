@@ -192,6 +192,10 @@ export function useWebSocket() {
           e.event.token_usage,
         );
       }
+      if (e.event.type === 'codex.turn_error' && e.sessionId === useSessionStore.getState().currentSessionId) {
+        const detail = e.event.error_text || 'Codex turn failed';
+        useUIStore.getState().showToast(`Codex: ${detail}`, 'error');
+      }
       if (
         e.event.type === 'approval.request' &&
         e.workerId &&

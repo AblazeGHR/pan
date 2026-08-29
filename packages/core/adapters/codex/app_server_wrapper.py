@@ -620,9 +620,17 @@ class AppServer:
             return
         if method == "error":
             params = message.get("params") or {}
+            error = params.get("error") or params
+            error_text = self._error_text(error)
             if state is not None:
-                state["error"] = self._error_text(params.get("error") or params)
-            _write_stdout({"type": "error", "error": params})
+                state["error"] = error_text
+            _write_stdout({
+                "type": "codex.turn_error",
+                "error": error,
+                "error_text": error_text,
+                "thread_id": params.get("threadId", params.get("thread_id")),
+                "turn_id": params.get("turnId", params.get("turn_id")),
+            })
             return
         # Preserve useful native lifecycle/status events for diagnostics and
         # future UI consumers without making the worker treat them as results.
