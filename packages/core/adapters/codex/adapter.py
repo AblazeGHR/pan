@@ -127,6 +127,34 @@ class CodexAdapter:
             if effort not in values:
                 values.append(effort)
         return values
+
+    @property
+    def model_efforts(self) -> dict[str, list[str]]:
+        """Per-model reasoning levels from Codex's native model catalog.
+
+        An empty mapping means that no native catalog is available and callers
+        should use ``effort_values`` as the compatibility fallback.
+        """
+        result: dict[str, list[str]] = {}
+        for model in _read_models_cache():
+            if model.get("visibility") not in (None, "list"):
+                continue
+            ident = str(model.get("slug") or model.get("display_name") or "").strip()
+            if not ident:
+                continue
+            levels: list[str] = []
+            for level in model.get("supported_reasoning_levels") or []:
+                effort = level.get("effort") if isinstance(level, dict) else level
+                effort = str(effort or "").strip()
+                if effort and effort not in levels:
+                    levels.append(effort)
+            if levels:
+                result[ident] = levels
+        return result
+
+    # Settings are encoded into --codex-extra-args by build_spawn_args. The
+    # wrapper itself intentionally does not accept CBC-style runtime flags.
+    settings_via_session = True
     permission_modes = [
         {"value": "", "label": "default (config)"},
         {"value": "bypass", "label": "bypass (--dangerously-bypass-approvals-and-sandbox)"},

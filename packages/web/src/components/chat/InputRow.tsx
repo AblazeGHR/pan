@@ -80,8 +80,6 @@ function PermissionPill({
   show: boolean;
   onApply: (key: string, value: string) => void;
 }) {
-  if (!show) return null;
-
   const [open, setOpen] = useState(false);
   const current = sessionMode || defaultMode;
   const active = modes.find((m) => m.value === current);
@@ -96,6 +94,8 @@ function PermissionPill({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  if (!show) return null;
 
   return (
     <div data-perm-pill className="relative">
@@ -185,7 +185,7 @@ export function InputRow() {
     if (currentSession) {
       loadConfig(currentSession.adapter || 'cbc');
     }
-  }, [currentSession?.id]);
+  }, [currentSession, loadConfig]);
 
   const applySetting = async (key: string, value: unknown) => {
     if (!currentSession) return;
@@ -296,10 +296,10 @@ export function InputRow() {
   const showThinking = supportsSetting(config, 'thinking');
   // Effort only makes sense with thinking enabled (mirrors SettingsPopover).
   const showEffort =
-    showThinking &&
     supportsSetting(config, 'effort') &&
-    !!currentSession?.alwaysThinkingEnabled;
-  const effortValues = config?.effortValues || [];
+    (!showThinking || !!currentSession?.alwaysThinkingEnabled);
+  const modelEfforts = config?.modelEfforts?.[currentSession?.model || config?.defaultModel || ''];
+  const effortValues = modelEfforts ? ['', ...modelEfforts] : config?.effortValues || [];
   // opencode's effort list starts with "" (unset sentinel); filter it out so
   // the dropdown never renders a blank <option>, and surface it as a clear
   // "默认" placeholder instead.
@@ -308,7 +308,7 @@ export function InputRow() {
   );
   const hadEmptyEffort = effortValues.length !== validEffortValues.length;
   const currentEffort =
-    currentSession?.effort && currentSession.effort.trim() !== ''
+    currentSession?.effort && validEffortValues.includes(currentSession.effort.trim())
       ? currentSession.effort
       : hadEmptyEffort
         ? ''

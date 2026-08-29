@@ -396,6 +396,7 @@ export async function fetchAdapterConfig(
     models: data.models || [],
     defaultModel: data.defaultModel || 'deepseek-v4-flash',
     effortValues: data.effortValues || [],
+    modelEfforts: data.modelEfforts || {},
     permissionModes: data.permissionModes || [],
     defaultPermissionMode: data.defaultPermissionMode || '',
     supportedSettings: data.supportedSettings || [
