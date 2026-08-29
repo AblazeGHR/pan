@@ -605,6 +605,35 @@ def test_worker_native_usage_replay_cache():
     print("PASS: native usage replay cache")
 
 
+def test_worker_native_runtime_state_clears_on_respawn_boundary():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-runtime-state",
+        session_id="ses-runtime-state",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    worker._update_pending_interactions(w, {
+        "type": "approval.request", "request_id": 3,
+        "method": "item/commandExecution/requestApproval", "params": {},
+    })
+    worker._update_pending_interactions(w, {
+        "type": "codex.thread_status",
+        "native_status": {"type": "active"},
+    })
+    worker._update_pending_interactions(w, {
+        "type": "codex.token_usage",
+        "token_usage": {"last": {"totalTokens": 10}},
+    })
+
+    worker.clear_native_runtime_state(w)
+
+    assert worker.pending_interaction_events(w) == []
+    assert worker.native_status_event(w) is None
+    assert worker.native_usage_event(w) is None
+    print("PASS: native runtime state reset")
+
+
 # ── wrapper 参数构建 ──
 
 

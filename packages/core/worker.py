@@ -384,6 +384,18 @@ def native_usage_event(w: Worker) -> dict | None:
     return {"type": "codex.token_usage", "token_usage": dict(native_usage)}
 
 
+def clear_native_runtime_state(w: Worker) -> None:
+    """Drop app-server state that belongs only to the current OS process.
+
+    Codex thread identity lives on the Session and must survive a respawn;
+    status, usage, and open UI prompts belong to the old app-server process and
+    must not be replayed while its replacement is starting.
+    """
+    w.pending_interactions.clear()
+    w.native_status = None
+    w.native_usage = None
+
+
 async def _iter_stdout_lines(w: Worker):
     """分块读取 worker stdout，按换行切分产出完整行。
 
@@ -2095,6 +2107,10 @@ async def restart_worker(worker_id: str) -> str | None:
     if w._stdout_task:
         w._stdout_task.cancel()
 
+    # Do this before any await that can service a dashboard reconnect. The
+    # Worker object is reused, but these snapshots are process-local.
+    clear_native_runtime_state(w)
+
     # kill takeover terminal if one was opened
     await _kill_takeover_terminal(w)
 
@@ -2136,6 +2152,10 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
         w._consume_task.cancel()
     if w._stdout_task:
         w._stdout_task.cancel()
+
+    # Do this before killing/spawning: a reconnect must never replay prompts or
+    # usage emitted by the process that is being replaced.
+    clear_native_runtime_state(w)
 
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)

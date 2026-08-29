@@ -547,6 +547,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   时 Pan 无法介入的缺口；不接受前端传入任意 app-server method。
   Dashboard 每次 WebSocket 重连会请求 `sync_interactive`，存活 worker 中尚未解决的原生
   交互请求会以 `replayed: true` 补发；worker 已重启或死亡时不伪造恢复。
+  `restart_worker` / `respawn_worker` 在杀旧 app-server 前会清空 status、usage 与交互快照，
+  防止重连窗口把旧进程状态误回放给新进程；Codex thread id 仍保留在 Session 中用于 resume。
   app-server 的 `thread/status/changed` 会归一化为 `codex.thread_status`，当前会话顶栏会
   显示 active、waiting for approval、waiting for input 或 system error 等原生状态，不改变
   Pan 的 worker 调度状态。
