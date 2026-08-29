@@ -480,6 +480,18 @@ class CodexAdapter:
             )
             if text:
                 blocks.append({"role": "user", "content": text})
+        else:
+            # Keep newly introduced native item kinds visible and persisted
+            # instead of silently dropping them until Pan learns a dedicated
+            # renderer. This is display-only; no native method or callback is
+            # exposed through the fallback.
+            kind = str(item.get("type") or "CodexItem")
+            details = {key: value for key, value in item.items()
+                       if key not in {"id", "type"}}
+            rendered = json.dumps(details, ensure_ascii=False)
+            if len(rendered) > 4000:
+                rendered = rendered[:4000] + "…"
+            blocks.append({"role": "tool", "content": f"{kind}({rendered})"})
 
         return blocks
 

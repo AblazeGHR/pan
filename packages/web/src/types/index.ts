@@ -115,6 +115,8 @@ export interface WorkerEvent {
     type?: string;
     activeFlags?: string[];
   };
+  /** Raw native item carried by the generic Codex item fallback. */
+  item?: Record<string, unknown>;
   /** Native Codex thread/turn token usage snapshot. */
   token_usage?: Record<string, unknown>;
 }

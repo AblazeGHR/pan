@@ -305,6 +305,19 @@ def test_app_server_canonical_events_are_persistable():
     print("PASS: app-server canonical events")
 
 
+def test_codex_unknown_native_item_is_preserved_as_tool():
+    adapter = _adapter()
+    blocks = adapter.extract_assistant_blocks({
+        "type": "item.completed",
+        "item": {"id": "item-1", "type": "futureNativeItem", "summary": "kept"},
+    })
+    assert blocks == [{
+        "role": "tool",
+        "content": 'futureNativeItem({"summary": "kept"})',
+    }]
+    print("PASS: unknown native item fallback")
+
+
 def test_app_server_run_turn_message_loop(monkeypatch):
     """A native turn's response and notifications are consumed in one loop."""
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
