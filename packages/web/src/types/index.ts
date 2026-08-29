@@ -3,6 +3,8 @@
 export interface Message {
   role: string;
   content: string;
+  /** Transient native Codex item id used to merge interleaved tool deltas. */
+  nativeItemId?: string;
 }
 
 /** MCP-only capability flags (backend `pan_access`, camelCase over HTTP). */
@@ -77,6 +79,8 @@ export interface WorkerEvent {
   final?: boolean;
   /** Tool/output delta targets the currently displayed item instead of appending. */
   replace?: boolean;
+  /** Native Codex item id; lets the UI update the right interleaved item. */
+  item_id?: string;
   /** Native Codex server request metadata (approval/user-input bridge). */
   method?: string;
   request_id?: string | number;

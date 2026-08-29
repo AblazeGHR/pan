@@ -523,7 +523,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `item/completed` 才看到路径和 diff。MCP 工具的
   `item/mcpToolCall/progress` 同样会更新对应工具卡片，展示连接或执行中的进度。原生协作代理、
   Web 搜索、图片生成、sleep、review mode 和 context compaction item 会映射为可见的 Pan 工具历史，
-  不再因未知 item 类型在刷新后丢失。
+  不再因未知 item 类型在刷新后丢失。原生增量事件带有 `item_id` 时，前端按 item id 更新目标卡片，
+  多个工具事件交错到达时也不会误替换最后一条工具消息。
 - `thread/start` 返回的 thread id 作为 Pan 的 `cli_session_id`；worker 重建时走
   `thread/resume`，已验证重启后仍能读取原生上下文。
 - Codex adapter 的 `interrupt_worker` 优先向桥接进程发送控制消息，由桥接调用原生
