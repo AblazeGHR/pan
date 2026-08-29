@@ -577,7 +577,8 @@ async def _read_stdout(w: Worker):
         if adapter.is_result_event(event):
             s = _session(w)
             is_error = adapter.is_result_error(event)
-            w.status = "error" if is_error else "done"
+            is_cancelled = bool(event.get("cancelled") or event.get("is_cancelled"))
+            w.status = "cancelled" if is_cancelled else ("error" if is_error else "done")
 
             # replay 结束：标记完成，不保存（history 无变化）
             if w._replaying:
@@ -2430,7 +2431,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
     # taskId 幂等检查
     if task_id is not None and task_id in _task_status:
         existing = _task_status[task_id]
-        if existing["status"] in ("done", "error"):
+        if existing["status"] in ("done", "error", "cancelled"):
             return dict(existing)
         return {"status": "pending", "taskId": task_id}
 

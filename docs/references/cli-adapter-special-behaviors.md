@@ -554,6 +554,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   仍由 Codex provider 的原生存储聚合，二者不混用。
   运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
+  原生 `turn/completed` 的 `interrupted` / `cancelled` 会标记为独立的 `cancelled` 结果，
+  不再误报为 error；重复任务的幂等状态也会把取消视为终态。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
   `web/src/hooks/useWebSocket.ts` 增量合并；`web/src/components/chat/ApprovalBanner.tsx` /
   `UserInputBanner.tsx` / `TerminalInteractionBanner.tsx` 交互展示。

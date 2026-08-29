@@ -347,8 +347,34 @@ def test_app_server_run_turn_message_loop(monkeypatch):
     assert emitted[1]["final"] is True
     assert emitted[1]["item_id"] == "agent-1"
     assert emitted[-1] == {"type": "result", "is_error": False,
+                           "cancelled": False, "turn_status": "completed",
                            "result": "complete", "usage": None}
     print("PASS: app-server run_turn message loop")
+
+
+def test_app_server_interrupted_turn_is_not_an_error(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {"id": "turn-1", "status": "interrupted", "items": []}},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("stop me")
+
+    assert emitted[-1] == {
+        "type": "result", "is_error": False, "cancelled": True,
+        "turn_status": "interrupted", "result": "", "usage": None,
+    }
+    print("PASS: app-server interrupted turn")
 
 
 def test_app_server_thread_status_is_normalized(monkeypatch):
