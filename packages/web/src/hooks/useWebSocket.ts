@@ -26,6 +26,15 @@ function scheduleRefreshSessions(): void {
   }, 300);
 }
 
+function clearInteractiveRequests(sessionId?: string): void {
+  if (!sessionId) return;
+  const ui = useUIStore.getState();
+  ui.clearApprovalRequests(sessionId);
+  ui.clearUserInputRequests(sessionId);
+  ui.clearElicitationRequests(sessionId);
+  ui.clearTerminalInteractions(sessionId);
+}
+
 /**
  * Connects to WebSocket and routes events to Zustand stores.
  * Uses store.getState() for callbacks so React components re-render
@@ -109,38 +118,31 @@ export function useWebSocket() {
     }));
 
     // Worker spawned / restarted / reconfigured
-    unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) =>
-      handleWorkerUpdate(e, 'idle'),
-    ));
-    unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) =>
-      handleWorkerUpdate(e, 'idle'),
-    ));
-    unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) =>
-      handleWorkerUpdate(e, 'idle'),
-    ));
+    unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
+      clearInteractiveRequests(e.sessionId);
+      handleWorkerUpdate(e, 'idle');
+    }));
+    unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) => {
+      clearInteractiveRequests(e.sessionId);
+      handleWorkerUpdate(e, 'idle');
+    }));
+    unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) => {
+      clearInteractiveRequests(e.sessionId);
+      handleWorkerUpdate(e, 'idle');
+    }));
 
     // Worker destroyed / crashed — 除就地更新状态点外触发防抖全量兜底：
     // 崩溃/销毁是低频事件，且流式片段已逐块落盘，刷新让列表吸收已持久化的
     // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
-      if (e.sessionId) {
-        useUIStore.getState().clearApprovalRequests(e.sessionId);
-        useUIStore.getState().clearUserInputRequests(e.sessionId);
-        useUIStore.getState().clearElicitationRequests(e.sessionId);
-        useUIStore.getState().clearTerminalInteractions(e.sessionId);
-      }
+      clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
-      if (e.sessionId) {
-        useUIStore.getState().clearApprovalRequests(e.sessionId);
-        useUIStore.getState().clearUserInputRequests(e.sessionId);
-        useUIStore.getState().clearElicitationRequests(e.sessionId);
-        useUIStore.getState().clearTerminalInteractions(e.sessionId);
-      }
+      clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
@@ -241,10 +243,7 @@ export function useWebSocket() {
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       const sessionStore = useSessionStore.getState();
-      if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
-      if (e.sessionId) useUIStore.getState().clearUserInputRequests(e.sessionId);
-      if (e.sessionId) useUIStore.getState().clearElicitationRequests(e.sessionId);
-      if (e.sessionId) useUIStore.getState().clearTerminalInteractions(e.sessionId);
+      clearInteractiveRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
         const status = e.status === 'error' ? 'error' : 'done';
         sessionStore.addMessage({

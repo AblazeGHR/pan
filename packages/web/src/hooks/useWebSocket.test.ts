@@ -262,6 +262,40 @@ describe('useWebSocket worker.result wiring', () => {
     });
     expect(useUIStore.getState().terminalInteractions).toEqual([]);
   });
+
+  it('drops stale native interaction prompts when a worker is restarted', () => {
+    renderHook(() => useWebSocket());
+    useUIStore.setState({
+      approvalRequests: [{
+        sessionId: 'A', workerId: 'w1', requestId: 1,
+        method: 'item/commandExecution/requestApproval', params: {},
+      }],
+      userInputRequests: [{
+        sessionId: 'A', workerId: 'w1', requestId: 2,
+        method: 'item/tool/requestUserInput', questions: [],
+      }],
+      elicitationRequests: [{
+        sessionId: 'A', workerId: 'w1', requestId: 3,
+        method: 'mcpServer/elicitation/request', params: {},
+      }],
+      terminalInteractions: [{
+        sessionId: 'A', workerId: 'w1', itemId: 'item-1', processId: 'process-1',
+        stdin: '', params: {},
+      }],
+    });
+
+    act(() => {
+      wsMock.trigger('worker.restarted', {
+        type: 'worker.restarted', sessionId: 'A', workerId: 'w1',
+      });
+    });
+
+    const ui = useUIStore.getState();
+    expect(ui.approvalRequests).toEqual([]);
+    expect(ui.userInputRequests).toEqual([]);
+    expect(ui.elicitationRequests).toEqual([]);
+    expect(ui.terminalInteractions).toEqual([]);
+  });
 });
 
 describe('useWebSocket agent-injected message sync', () => {
