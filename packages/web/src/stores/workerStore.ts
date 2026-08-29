@@ -232,12 +232,17 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
       const map: Record<string, WorkerInfo> = {};
       for (const w of workers) {
         const previous = useWorkerStore.getState().workers[w.sessionId];
+        const status = w.status as WorkerInfo['status'];
         map[w.sessionId] = {
           id: w.workerId,
           sessionId: w.sessionId,
-          status: w.status as WorkerInfo['status'],
-          ...(previous?.nativeStatus ? { nativeStatus: previous.nativeStatus } : {}),
-          ...(previous?.nativeUsage ? { nativeUsage: previous.nativeUsage } : {}),
+          status,
+          ...(status !== 'idle' && previous?.nativeStatus
+            ? { nativeStatus: previous.nativeStatus }
+            : {}),
+          ...(status !== 'idle' && previous?.nativeUsage
+            ? { nativeUsage: previous.nativeUsage }
+            : {}),
         };
       }
       // Pre-existing workers (spawned before this page loaded) never fire a
