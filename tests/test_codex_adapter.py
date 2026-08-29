@@ -412,6 +412,18 @@ def test_norm_path():
     print("PASS: _norm_path")
 
 
+def test_cwd_matches_repository_root():
+    original = codex_sessions._IS_WINDOWS
+    try:
+        codex_sessions._IS_WINDOWS = True
+        assert codex_sessions._cwd_matches(r"C:\repo", r"C:\repo\nested") is True
+        assert codex_sessions._cwd_matches(r"C:\repo", r"C:\repo-other") is False
+        assert codex_sessions._cwd_matches(r"C:\repo\nested", r"C:\repo") is False
+    finally:
+        codex_sessions._IS_WINDOWS = original
+    print("PASS: _cwd_matches ancestor boundary")
+
+
 # ── sessions：临时 ~/.codex 端到端（hermetic）──
 
 
@@ -729,5 +741,6 @@ if __name__ == "__main__":
     test_supported_models_ttl_cache()
     test_item_to_block_mapping()
     test_norm_path()
+    test_cwd_matches_repository_root()
     test_sessions_provider_e2e()
     print("\n=== ALL CODEX ADAPTER TESTS PASSED ===")

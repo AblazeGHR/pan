@@ -83,6 +83,24 @@ def _norm_path(p) -> str:
     return s.rstrip("/")
 
 
+def _cwd_matches(thread_cwd, project_cwd) -> bool:
+    """Return whether a Codex thread belongs to a requested workdir.
+
+    Codex may persist the git repository root even when Pan launched it from a
+    nested workdir. Treat that stored root as an ancestor match, but keep a
+    separator boundary so similarly-prefixed directories do not leak into the
+    result (``repo`` must not match ``repo-other``).
+    """
+    thread = _norm_path(thread_cwd)
+    project = _norm_path(project_cwd)
+    if not thread or not project:
+        return thread == project
+    if thread == project:
+        return True
+    separator = "\\" if _IS_WINDOWS else "/"
+    return project.startswith(thread + separator)
+
+
 def _rollout_full_path(rollout_path: str | None) -> Path | None:
     if not rollout_path:
         return None
@@ -144,7 +162,7 @@ def list_codex_sessions(project_cwd: str | None = None) -> list[dict]:
         rows: list[dict] = []
         for r in cur.fetchall():
             sid, title, cwd, model, provider, created, updated = r
-            if project_cwd and _norm_path(cwd) != _norm_path(project_cwd):
+            if project_cwd and not _cwd_matches(cwd, project_cwd):
                 continue
             msg_count = 0
             if hcon is not None:
