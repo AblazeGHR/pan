@@ -38,6 +38,14 @@
 | opencode fork event 溯源 | fork 经 DB 复制，假定从 session/message/part 恢复；若还需 event 溯源行需补 | design/opencode-adaptation.md |
 | HTTP 全链路 sanity（kimi MCP） | 独立端口起 server 走 `/api/sessions`+`/api/spawn`+`/api/task` 链路未跑（worker 级集成已覆盖，低风险） | design/kimi-mcp-solution.md |
 
+### Codex 原生体验（低优先级）
+
+| 项 | 说明 | 触发条件 |
+|----|------|---------|
+| Codex 原生 warning 专用 UI | `warning`、`configWarning`、`guardianWarning`、`deprecationNotice`、context compact、model verification 等目前没有专用展示 | 有实际用户场景或需要进一步贴近原生 Codex 时 |
+| Codex 额度主动初始化 | 当前依赖 `account/rateLimits/updated` 推送；尚未主动调用 `account/rateLimits/read` 获取首次快照 | 顶栏额度出现空白或需要页面打开即显示时 |
+| Codex 真实端到端组合测试 | 低成本模型下验证实际审批、MCP、steer、终端交互、fork/resume 与异常恢复组合 | 测试环境可用且需要发布验收时 |
+
 ---
 
 ## 三、功能 / 演进方向
