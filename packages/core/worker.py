@@ -197,6 +197,9 @@ class Worker:
     # JSON-RPC request; this snapshot only lets a reconnected dashboard
     # restore its prompt while that same worker is still alive.
     pending_interactions: dict[str, dict] = field(default_factory=dict)
+    # Last native Codex thread status for reconnecting dashboards.  Like the
+    # interaction cache, this is only valid while this worker process lives.
+    native_status: dict | None = None
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
@@ -364,6 +367,10 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
     there is no safe request to replay into a newly spawned process.
     """
     event_type = event.get("type")
+    if event_type == "codex.thread_status":
+        native_status = event.get("native_status")
+        w.native_status = dict(native_status) if isinstance(native_status, dict) else None
+        return
     if event_type in _PENDING_INTERACTION_TYPES:
         key = _interaction_key(event)
         if key is not None:
@@ -381,11 +388,19 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
         return
     if event_type == "result":
         w.pending_interactions.clear()
+        w.native_status = None
 
 
 def pending_interaction_events(w: Worker) -> list[dict]:
     """Return copies of prompts that a dashboard may safely replay."""
     return [dict(event) for event in (w.pending_interactions or {}).values()]
+
+
+def native_status_event(w: Worker) -> dict | None:
+    """Return the latest native status as a replayable worker event."""
+    if not w.native_status:
+        return None
+    return {"type": "codex.thread_status", "native_status": dict(w.native_status)}
 
 
 async def _iter_stdout_lines(w: Worker):
