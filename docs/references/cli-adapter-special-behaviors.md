@@ -58,7 +58,7 @@
 | §6.3 | codex | 模型：`models_cache.json` > 白名单 > model_catalog_json |
 | §6.4 | codex | MCP 内联注入 + developer instructions 注入 |
 | §6.5 | codex | 权限模式映射；`-c` 覆盖可随 resume 生效 |
-| §6.6 | codex | **遗留** thread cwd 被归一化为 git 根 |
+| §6.6 | codex | thread cwd 归一化为 git 根；Pan 用祖先匹配兼容 |
 | §6.7 | codex | **遗留** fork 走 DB 行复制，首次 resume 待验证 |
 | §6.8 | codex | **遗留** 事件命名 snake_case vs camelCase |
 | §6.9 | codex | resume 只透传 `-c` 类覆盖（丢弃一次性 flag 与 `-C`） |
@@ -520,7 +520,7 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
 - **代码位置**：`codex/wrapper.py` `_filter_resume_opts` / `_build_codex_args`；
   `codex/adapter.py` `permission_mode_args`。
 
-### 6.6 遗留：thread cwd 被归一化为 git 根
+### 6.6 thread cwd 归一化为 git 根
 
 - **现象**：workdir 在 git 仓库内时，codex 记录的 **thread.cwd 是仓库根而非子目录**。
   `list_sessions(cwd=workdir)` 按 cwd **严格相等**过滤（`_norm_path` 大小写/分隔符归一）→
@@ -530,11 +530,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `--skip-git-repo-check` 且显式 `-C workdir` 的 thread 保留子目录
   `\\?\D:\project\pan-codex-adapter\data\workdirs\codex-e2e`。另注意 codex 记录的 cwd 常带
   `\\?\` 长路径前缀（`_norm_path` 已处理）。
-- **处理/规避**（记录先行，修复待定）：候选方向——① `list_codex_sessions` 过滤时把 project_cwd
-  向上归一到 git 根再比较；② 前缀匹配（project_cwd 是记录的祖先即命中）；③ 不提供 cwd 时全量
-  扫描兜底。当前实现只做**精确相等 + `\\?\` 剥离 + 大小写/分隔符归一**。
-- **代码位置**：`codex/sessions.py` `list_codex_sessions`（`:136` `_norm_path(cwd) !=
-  _norm_path(project_cwd)` 过滤）、`_norm_path`。
+- **处理**：`list_codex_sessions` 过滤时允许记录的 thread cwd 作为 Pan workdir 的祖先，使用带
+  分隔符边界的前缀匹配（`repo` 不会匹配 `repo-other`）；仍保留大小写/分隔符归一化。
+- **代码位置**：`codex/sessions.py` `_cwd_matches` / `list_codex_sessions`。
 
 ### 6.7 遗留：fork 走 DB 行复制，首次 resume 待验证
 
