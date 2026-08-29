@@ -6,6 +6,7 @@ monkeypatch the module-level paths.
 """
 
 import json
+import base64
 import os
 import sqlite3
 import sys
@@ -348,6 +349,49 @@ def test_app_server_run_turn_message_loop(monkeypatch):
     assert emitted[-1] == {"type": "result", "is_error": False,
                            "result": "complete", "usage": None}
     print("PASS: app-server run_turn message loop")
+
+
+def test_app_server_terminal_interaction_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    requests: list[tuple[str, dict]] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        requests.append((method, params))
+        return len(requests)
+
+    monkeypatch.setattr(app, "_request", request)
+    state: dict = {}
+    app._handle_server_message({
+        "method": "item/commandExecution/terminalInteraction",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "item-1",
+                    "processId": "process-1", "stdin": "Password: "},
+    }, state)
+    assert emitted == [{
+        "type": "codex.terminal_interaction",
+        "method": "item/commandExecution/terminalInteraction",
+        "item_id": "item-1", "process_id": "process-1", "stdin": "Password: ",
+        "thread_id": "t", "turn_id": "u",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "item-1",
+                    "processId": "process-1", "stdin": "Password: "},
+    }]
+    assert state["terminal_items"]["item-1"]["processId"] == "process-1"
+
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "terminal_input", "process_id": "process-1", "text": "secret\n"})
+    controls.put({"type": "terminal_terminate", "process_id": "process-1"})
+    app._drain_controls(state, controls)
+    assert requests == [
+        ("command/exec/write", {
+            "processId": "process-1",
+            "deltaBase64": base64.b64encode(b"secret\n").decode("ascii"),
+            "closeStdin": False,
+        }),
+        ("command/exec/terminate", {"processId": "process-1"}),
+    ]
+    print("PASS: app-server terminal interaction roundtrip")
 
 
 # ── wrapper 参数构建 ──

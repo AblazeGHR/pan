@@ -128,6 +128,7 @@ export function useWebSocket() {
         useUIStore.getState().clearApprovalRequests(e.sessionId);
         useUIStore.getState().clearUserInputRequests(e.sessionId);
         useUIStore.getState().clearElicitationRequests(e.sessionId);
+        useUIStore.getState().clearTerminalInteractions(e.sessionId);
       }
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
@@ -138,6 +139,7 @@ export function useWebSocket() {
         useUIStore.getState().clearApprovalRequests(e.sessionId);
         useUIStore.getState().clearUserInputRequests(e.sessionId);
         useUIStore.getState().clearElicitationRequests(e.sessionId);
+        useUIStore.getState().clearTerminalInteractions(e.sessionId);
       }
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
@@ -206,6 +208,21 @@ export function useWebSocket() {
           params: e.event.params ?? {},
         });
       }
+      if (
+        e.event.type === 'codex.terminal_interaction' &&
+        e.workerId &&
+        e.event.item_id !== undefined &&
+        e.event.process_id !== undefined
+      ) {
+        useUIStore.getState().addTerminalInteraction({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          itemId: String(e.event.item_id),
+          processId: String(e.event.process_id),
+          stdin: typeof e.event.stdin === 'string' ? e.event.stdin : '',
+          params: e.event.params ?? {},
+        });
+      }
       if (e.event.type === 'codex.request_resolved' && e.sessionId && e.event.request_id !== undefined) {
         const requestId = e.event.request_id;
         const ui = useUIStore.getState();
@@ -227,6 +244,7 @@ export function useWebSocket() {
       if (e.sessionId) useUIStore.getState().clearApprovalRequests(e.sessionId);
       if (e.sessionId) useUIStore.getState().clearUserInputRequests(e.sessionId);
       if (e.sessionId) useUIStore.getState().clearElicitationRequests(e.sessionId);
+      if (e.sessionId) useUIStore.getState().clearTerminalInteractions(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
         const status = e.status === 'error' ? 'error' : 'done';
         sessionStore.addMessage({
