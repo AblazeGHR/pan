@@ -525,9 +525,13 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `turn/interrupt`；发送失败才回退到通用 kill + resume。命令/文件审批请求会先广播为
   `approval.request`，React 前端提供 Allow/Deny 控件，再由 WebSocket 或
   `POST /api/worker/{id}/control` 回传原生 JSON-RPC response；UI 断开或超过 120 秒时安全拒绝。
-  其它用户输入请求仍使用保守兜底，避免无人值守 worker 无限挂起。
+  `item/permissions/requestApproval` 也复用审批栏：允许本回合/允许本 session 会回传请求的
+  权限子集，拒绝则回传空权限。`item/tool/requestUserInput` 会广播为 `codex.user_input`，
+  React 前端按原生 questions 渲染选项、文本和密码输入，并回传结构化 answers；UI 断开或
+  超过 `autoResolutionMs`（最多 120 秒）时回传空答案，避免 worker 无限挂起。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
-  `web/src/hooks/useWebSocket.ts` 增量合并。
+  `web/src/hooks/useWebSocket.ts` 增量合并；`web/src/components/chat/ApprovalBanner.tsx` /
+  `UserInputBanner.tsx` 交互展示。
 
 ### 6.6 权限模式与 resume 动态切换
 

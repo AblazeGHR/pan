@@ -50,6 +50,14 @@ def test_adapter_metadata():
     print("PASS: adapter metadata")
 
 
+def test_default_permission_mode_reads_config(monkeypatch):
+    monkeypatch.setattr(core_config, "load_config", lambda: {
+        "codex": {"permission_mode": "workspace-write"},
+    })
+    assert _adapter().default_permission_mode == "workspace-write"
+    print("PASS: configured default permission mode")
+
+
 def test_shim_resolution(tmp_path):
     """.CMD shim → 真实 codex.js 入口（避开 cmd.exe 中文乱码）。
 
@@ -421,6 +429,71 @@ def test_app_server_approval_roundtrip(monkeypatch):
     assert sent == [{"id": 0, "result": {"decision": "accept"}}]
     assert state["pending_requests"] == {}
     print("PASS: app-server approval roundtrip")
+
+
+def test_app_server_user_input_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    request = {
+        "id": 0,
+        "method": "item/tool/requestUserInput",
+        "params": {
+            "questions": [{"id": "target", "question": "Which target?"}],
+            "autoResolutionMs": 60000,
+        },
+    }
+    app._handle_server_request(request, state)
+    assert emitted[0]["type"] == "codex.user_input"
+    assert state["pending_requests"]["0"]["fallback_result"] == {"answers": {}}
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({
+        "type": "user_input_response",
+        "request_id": 0,
+        "answers": {"target": {"answers": ["core"]}},
+    })
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 0, "result": {"answers": {"target": {"answers": ["core"]}}}}]
+    assert state["pending_requests"] == {}
+    print("PASS: app-server user input roundtrip")
+
+
+def test_app_server_permission_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    sent: list[dict] = []
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    request = {
+        "id": 0,
+        "method": "item/permissions/requestApproval",
+        "params": {
+            "reason": "Need to inspect a shared directory",
+            "permissions": {"fileSystem": {"read": ["C:/shared"]}},
+        },
+    }
+    app._handle_server_request(request, state)
+    assert state["pending_requests"]["0"]["fallback_result"] == {
+        "permissions": {}, "scope": "turn",
+    }
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({
+        "type": "permission_response",
+        "request_id": 0,
+        "permissions": request["params"]["permissions"],
+        "scope": "session",
+    })
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 0, "result": {
+        "permissions": {"fileSystem": {"read": ["C:/shared"]}},
+        "scope": "session",
+    }}]
+    assert state["pending_requests"] == {}
+    print("PASS: app-server permission roundtrip")
 
 
 # ── sessions：纯函数 ──

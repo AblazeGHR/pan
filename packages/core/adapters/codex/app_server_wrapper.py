@@ -9,9 +9,10 @@ for the whole worker lifetime.
 
 The bridge translates app-server notifications into the event shapes already
 understood by Pan's Codex adapter and frontend.  Native server requests are
-surfaced as ``approval.request``/``codex.user_input`` events.  Command and
-file-change approvals remain pending until Pan sends a decision; other request
-types receive a safe fallback response so headless workers remain usable.
+surfaced as ``approval.request``/``codex.user_input`` events.  Command,
+file-change, and additional-permission requests remain pending until Pan sends
+a decision; other request types receive a safe fallback response so headless
+workers remain usable.
 """
 
 from __future__ import annotations
@@ -32,6 +33,8 @@ _INTERACTIVE_APPROVAL_METHODS = {
     "item/commandExecution/requestApproval",
     "item/fileChange/requestApproval",
 }
+_INTERACTIVE_USER_INPUT_METHOD = "item/tool/requestUserInput"
+_INTERACTIVE_PERMISSION_METHOD = "item/permissions/requestApproval"
 
 
 def _write_stdout(event: dict[str, Any]) -> None:
@@ -446,16 +449,36 @@ class AppServer:
                        "params": params})
 
         # In interactive permission modes, keep the native JSON-RPC request
-        # open until Pan sends an approval_response.  This is the same pause
+        # open until Pan sends the matching response control.  This is the same pause
         # point the native Codex UI exposes.  Bypass mode remains automatic;
         # non-interactive request kinds retain their conservative fallback.
-        if (state is not None and method in _INTERACTIVE_APPROVAL_METHODS
-                and request_id is not None and not self.auto_approve):
+        interactive_approval = method in _INTERACTIVE_APPROVAL_METHODS and not self.auto_approve
+        interactive_user_input = method == _INTERACTIVE_USER_INPUT_METHOD
+        interactive_permission = method == _INTERACTIVE_PERMISSION_METHOD and not self.auto_approve
+        if (state is not None and request_id is not None
+                and (interactive_approval or interactive_user_input or interactive_permission)):
+            if interactive_user_input:
+                fallback_result: dict[str, Any] = {"answers": {}}
+                auto_resolution_ms = params.get("autoResolutionMs")
+                try:
+                    timeout_sec = max(1.0, min(
+                        _APPROVAL_TIMEOUT_SEC,
+                        float(auto_resolution_ms) / 1000.0,
+                    )) if auto_resolution_ms is not None else _APPROVAL_TIMEOUT_SEC
+                except (TypeError, ValueError):
+                    timeout_sec = _APPROVAL_TIMEOUT_SEC
+            elif interactive_permission:
+                fallback_result = {"permissions": {}, "scope": "turn"}
+                timeout_sec = _APPROVAL_TIMEOUT_SEC
+            else:
+                fallback_result = {"decision": "decline"}
+                timeout_sec = _APPROVAL_TIMEOUT_SEC
             state.setdefault("pending_requests", {})[str(request_id)] = {
                 "id": request_id,
                 "method": method,
                 "params": params,
-                "deadline": time.monotonic() + _APPROVAL_TIMEOUT_SEC,
+                "fallback_result": fallback_result,
+                "deadline": time.monotonic() + timeout_sec,
             }
             return
 
@@ -488,7 +511,10 @@ class AppServer:
             if now < float(request.get("deadline") or 0):
                 continue
             try:
-                self._send({"id": request["id"], "result": {"decision": "decline"}})
+                self._send({
+                    "id": request["id"],
+                    "result": request.get("fallback_result") or {"decision": "decline"},
+                })
             except (OSError, RuntimeError):
                 state["error"] = "failed to decline expired Codex approval"
             pending.pop(key, None)
@@ -538,6 +564,39 @@ class AppServer:
                     self._send({"id": pending["id"], "result": result})
                 except (OSError, RuntimeError):
                     state["error"] = "failed to send Codex approval response"
+            elif kind == "user_input_response":
+                request_id = control.get("request_id", control.get("requestId"))
+                pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
+                if pending is None or pending.get("method") != _INTERACTIVE_USER_INPUT_METHOD:
+                    continue
+                result = control.get("result")
+                if not isinstance(result, dict):
+                    raw_answers = control.get("answers")
+                    answers = raw_answers if isinstance(raw_answers, dict) else {}
+                    result = {"answers": answers}
+                else:
+                    raw_answers = result.get("answers")
+                    result = {"answers": raw_answers if isinstance(raw_answers, dict) else {}}
+                try:
+                    self._send({"id": pending["id"], "result": result})
+                except (OSError, RuntimeError):
+                    state["error"] = "failed to send Codex user input response"
+            elif kind == "permission_response":
+                request_id = control.get("request_id", control.get("requestId"))
+                pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
+                if pending is None or pending.get("method") != _INTERACTIVE_PERMISSION_METHOD:
+                    continue
+                raw_permissions = control.get("permissions")
+                permissions = raw_permissions if isinstance(raw_permissions, dict) else {}
+                scope = control.get("scope")
+                if scope not in {"turn", "session"}:
+                    scope = "turn"
+                try:
+                    self._send({"id": pending["id"], "result": {
+                        "permissions": permissions, "scope": scope,
+                    }})
+                except (OSError, RuntimeError):
+                    state["error"] = "failed to send Codex permission response"
 
     def run_turn(self, text: str, effort: str | None = None,
                  control_queue: Queue[dict[str, Any] | None] | None = None) -> None:
@@ -624,7 +683,9 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
             continue
         if not isinstance(message, dict):
             continue
-        if message.get("type") in ("interrupt", "steer", "approval_response"):
+        if message.get("type") in (
+                "interrupt", "steer", "approval_response", "user_input_response",
+                "permission_response"):
             control_queue.put(message)
         elif message.get("text"):
             task_queue.put(message)

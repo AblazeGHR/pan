@@ -180,8 +180,6 @@ class CodexAdapter:
         {"value": "bypass", "label": "bypass (--dangerously-bypass-approvals-and-sandbox)"},
         {"value": "approve", "label": "approve-for-me (workspace-write + auto-approve)"},
     ]
-    default_permission_mode = "bypass"
-
     # 前端展示的设置项
     supported_settings = ["model", "permissionMode", "effort"]
 
@@ -346,7 +344,7 @@ class CodexAdapter:
         return json.dumps({"text": text}).encode("utf-8")
 
     def encode_control_message(self, control: dict) -> bytes:
-        """Encode a bridge control message for interrupt, steer, or approval."""
+        """Encode a bridge control message for interrupt, steer, or interactive requests."""
         return json.dumps(control, ensure_ascii=True).encode("utf-8")
 
     # ── stdout 事件解析 ──
