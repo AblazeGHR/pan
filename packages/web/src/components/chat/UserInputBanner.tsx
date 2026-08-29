@@ -37,15 +37,13 @@ function UserInputForm({ request }: { request: UserInputRequest }) {
   const submit = () => {
     const answers: Record<string, { answers: string[] }> = {};
     for (const question of request.questions) {
-      const value = values[question.id]?.trim();
-      if (!value) continue;
+      const value = values[question.id]?.trim() ?? '';
       const options = questionOptions(question);
       const isOther = value === '__other__' || value.startsWith('__other__:');
       const answerValue = value.startsWith('__other__:') ? value.slice('__other__:'.length).trim() : value;
       const isFreeForm = options.length === 0 || isOther;
-      if (!answerValue) continue;
       answers[question.id] = {
-        answers: [isFreeForm ? `user_note: ${answerValue}` : answerValue],
+        answers: answerValue ? [isFreeForm ? `user_note: ${answerValue}` : answerValue] : [],
       };
     }
     respond(answers);
