@@ -584,6 +584,30 @@ def test_app_server_file_change_stream(monkeypatch):
     print("PASS: app-server file change stream")
 
 
+def test_app_server_mcp_progress_stream(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state: dict = {}
+    app._handle_server_message({
+        "method": "item/started",
+        "params": {"threadId": "t", "turnId": "u", "item": {
+            "id": "mcp-1", "type": "mcpToolCall", "server": "pan",
+            "tool": "session_get", "arguments": {"session_id": "s1"},
+        }},
+    }, state)
+    app._handle_server_message({
+        "method": "item/mcpToolCall/progress",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "mcp-1",
+                   "message": "connecting"},
+    }, state)
+    assert [event["replace"] for event in emitted] == [False, True]
+    input_args = emitted[-1]["message"]["content"][0]["input"]
+    assert input_args["session_id"] == "s1"
+    assert input_args["progress"] == "connecting"
+    print("PASS: app-server MCP progress stream")
+
+
 # ── sessions：纯函数 ──
 
 

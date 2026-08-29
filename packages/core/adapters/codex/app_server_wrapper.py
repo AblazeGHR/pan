@@ -452,6 +452,31 @@ class AppServer:
                     "item_id": item_id,
                 })
             return
+        if method == "item/mcpToolCall/progress":
+            params = message.get("params") or {}
+            item_id = str(params.get("itemId") or "")
+            progress = params.get("message")
+            if item_id and progress:
+                item = state.setdefault("mcp_items", {}).setdefault(
+                    item_id, {"type": "mcpToolCall", "id": item_id,
+                              "tool": "MCP tool", "arguments": {}}
+                ) if state is not None else {
+                    "type": "mcpToolCall", "id": item_id,
+                    "tool": "MCP tool", "arguments": {},
+                }
+                item["progress"] = str(progress)
+                name = str(item.get("tool") or item.get("name") or "MCP tool")
+                raw_args = item.get("arguments") or item.get("input") or {}
+                args = dict(raw_args) if isinstance(raw_args, dict) else {"input": raw_args}
+                args["progress"] = str(progress)
+                _write_stdout({
+                    "type": "assistant", "delta": True, "replace": True,
+                    "stream_text": f"{name}({json.dumps(args, ensure_ascii=True, separators=(',', ':'))})",
+                    "message": {"content": [{"type": "tool_use", "name": name, "input": args}]},
+                    "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                    "item_id": item_id,
+                })
+            return
         if method == "item/started":
             params = message.get("params") or {}
             item = params.get("item") or {}
@@ -480,6 +505,20 @@ class AppServer:
                         "type": "assistant", "delta": True, "replace": False,
                         "stream_text": f"FileChange({json.dumps(args, ensure_ascii=True, separators=(',', ':'))})",
                         "message": {"content": [{"type": "tool_use", "name": "FileChange", "input": args}]},
+                        "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                        "item_id": item_id,
+                    })
+            if state is not None and kind == "mcptoolcall":
+                item_id = str(item.get("id") or "")
+                if item_id:
+                    state.setdefault("mcp_items", {})[item_id] = dict(item)
+                    name = str(item.get("tool") or item.get("name") or item.get("server") or "MCP tool")
+                    raw_args = item.get("arguments") or item.get("input") or item.get("parameters") or {}
+                    args = dict(raw_args) if isinstance(raw_args, dict) else {"input": raw_args}
+                    _write_stdout({
+                        "type": "assistant", "delta": True, "replace": False,
+                        "stream_text": f"{name}({json.dumps(args, ensure_ascii=True, separators=(',', ':'))})",
+                        "message": {"content": [{"type": "tool_use", "name": name, "input": args}]},
                         "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
                         "item_id": item_id,
                     })
