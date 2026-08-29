@@ -512,7 +512,7 @@ class AppServer:
         if method == "item/tool/requestUserInput":
             result: dict[str, Any] = {"answers": {}}
         elif method == "mcpServer/elicitation/request":
-            result = {"action": "cancel"}
+            result = {"action": "cancel", "content": None}
         elif method == "item/tool/call":
             # Pan does not currently expose a dynamic-tool callback channel.
             self._send({"id": request_id, "error": {"code": -32000,
