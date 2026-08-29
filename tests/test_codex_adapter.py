@@ -395,6 +395,36 @@ def test_app_server_terminal_interaction_roundtrip(monkeypatch):
     print("PASS: app-server terminal interaction roundtrip")
 
 
+def test_app_server_turn_controls_wait_for_turn_id(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    requests: list[tuple[str, dict]] = []
+    monkeypatch.setattr(app, "_request",
+                        lambda method, params: requests.append((method, params)) or len(requests))
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "interrupt"})
+    controls.put({"type": "steer", "text": "focus"})
+    state: dict = {}
+    app._drain_controls(state, controls)
+    assert state["interrupt_pending"] is True
+    assert state["steer_pending"] == "focus"
+    assert requests == []
+
+    state["turn_id"] = "turn-1"
+    app._drain_controls(state, controls)
+    assert requests == [
+        ("turn/interrupt", {"threadId": "thread-1", "turnId": "turn-1"}),
+        ("turn/steer", {
+            "threadId": "thread-1", "expectedTurnId": "turn-1",
+            "input": [{"type": "text", "text": "focus"}],
+        }),
+    ]
+    assert "interrupt_pending" not in state
+    assert "steer_pending" not in state
+    print("PASS: app-server early turn controls")
+
+
 # ── wrapper 参数构建 ──
 
 
