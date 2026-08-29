@@ -116,6 +116,8 @@ export interface WorkerEvent {
   native_status?: {
     type?: string;
     activeFlags?: string[];
+    message?: string;
+    error?: string;
   };
   /** Raw native item carried by the generic Codex item fallback. */
   item?: Record<string, unknown>;
@@ -620,6 +622,8 @@ export interface WorkerInfo {
   nativeStatus?: {
     type?: string;
     activeFlags?: string[];
+    message?: string;
+    error?: string;
   };
   /** Latest live Codex token usage snapshot; persisted totals live on Session. */
   nativeUsage?: Record<string, unknown>;

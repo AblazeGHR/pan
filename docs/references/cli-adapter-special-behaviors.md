@@ -548,7 +548,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   Dashboard 每次 WebSocket 重连会请求 `sync_interactive`，存活 worker 中尚未解决的原生
   交互请求会以 `replayed: true` 补发；worker 已重启或死亡时不伪造恢复。
   app-server 的 `thread/status/changed` 会归一化为 `codex.thread_status`，当前会话顶栏会
-  显示 active、waiting for approval 或 waiting for input 等原生状态，不改变 Pan 的 worker 调度状态。
+  显示 active、waiting for approval、waiting for input 或 system error 等原生状态，不改变
+  Pan 的 worker 调度状态。
   `thread/tokenUsage/updated` 会归一化为 `codex.token_usage`，当前回合的 token 数和上下文窗口
   会实时显示在顶栏；最新快照也会随存活 worker 的 WebSocket 重连回放。持久化 session 总用量
   仍由 Codex provider 的原生存储聚合，二者不混用。
