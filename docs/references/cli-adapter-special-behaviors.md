@@ -559,6 +559,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
   原生 `turn/completed` 的 `interrupted` / `cancelled` 会标记为独立的 `cancelled` 结果，
   不再误报为 error；重复任务的幂等状态也会把取消视为终态。
+  普通任务会一直保留在 Session 的 `queue_pending`，直到收到 terminal result（包括
+  error/cancelled）才确认出队；因此 app-server 在写入 turn 后、完成通知前崩溃时，
+  新 worker 能自动重投，且已落盘的用户消息不会重复追加到 Pan history。
   对尚未有专用 UI 映射的新原生 item，Pan 会以截断的只读工具摘要显示并持久化，避免
   Codex 协议扩展后出现事件静默丢失；该兜底不执行任何 item 中携带的方法或回调。
   原生 `error` 通知会转换为 `codex.turn_error`，当前会话即时展示错误详情，最终结果仍由

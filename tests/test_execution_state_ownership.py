@@ -1,8 +1,8 @@
 """执行状态归属审计的固化测试（本 worktree 链最后一块）。
 
 审计结论（详见分支回报）：执行状态全部留在 Worker 内存，**不迁 session**——
-在「出队 = 移交确认 + 死亡不重跑（_mark_worker_tasks_error + zombie）」的投递
-语义下，执行状态的生命周期 = 执行尝试的生命周期 = worker 进程生命周期，
+任务 item 在 terminal result 前留在 session.queue_pending，崩溃后可重投；执行
+状态的生命周期 = 执行尝试的生命周期 = worker 进程生命周期，
 respawn 后归零不是缺陷而是正确语义：
 
 - (b) per-worker 进程语义：_task_started_at（新尝试重新计时）、last_activity
@@ -93,6 +93,7 @@ def test_respawn_resets_execution_state(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append(text)
+        worker._ack_current_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
@@ -132,7 +133,7 @@ def test_pairing_follows_new_attempt_after_respawn(monkeypatch):
     s.queue_pending = [_make_task(1, seq=1), _make_task(2, seq=7)]
 
     async def fake_stream(ww, text, source, sess):
-        pass
+        worker._ack_current_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 

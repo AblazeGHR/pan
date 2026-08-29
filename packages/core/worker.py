@@ -215,6 +215,10 @@ class Worker:
     _task_counter: int = 0   # 已分配的任务序号（send_task 入队时自增）
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
+    # 当前正在执行的持久 task item。task item 要到收到 result 后才确认出队；
+    # 若 CLI 在 stdin 写入后崩溃，保留该引用让 watchdog/respawn 能重投，而不
+    # 依赖 taskId（taskId 允许为空，且同 id 可能有值相同的不同 item）。
+    _current_queue_item: dict | None = None
     _zombie_reported: bool = False  # 异常死亡 zombie 报告是否已推送（防 watchdog/EOF 双路径重复）
     # ── 流式块防抖落盘（A1）──
     _hist_dirty: bool = False          # 有未落盘的 history 块（append 只标记，不逐块 save）
@@ -259,14 +263,29 @@ def _prune_task_status() -> None:
 def _mark_worker_tasks_error(worker_id: str, reason: str) -> int:
     """kill_worker / worker 退出路径：把该 worker 名下 status==pending 的 taskId 标 error。
 
-    任务超时后任务仍在跑；若此时 worker 被杀/崩溃，taskId 若停留在 pending，
-    同 taskId 重试会被幂等注册表永久拦截、永不执行。标 error 后重试拿到确定性
-    失败（H2 卡死修复）。
+    任务 item 在收到 result 前一直留在 Session.queue_pending，因此 worker 被杀
+    时保留队列中的 taskId 为 pending，交给新 worker 自动重投。只有已经不在持久
+    队列中的旧式/直连任务才标记 error；否则 taskId 重试会被错误地短路成失败，
+    而自动恢复又可能继续执行同一任务。
     """
     now = time.monotonic()
+    old_worker = workers.get(worker_id)
+    pending_task_ids: set[str] = set()
+    if old_worker is not None:
+        session = _session(old_worker)
+        if session is not None:
+            pending_task_ids = {
+                item.get("taskId")
+                for item in session.queue_pending
+                if isinstance(item, dict) and item.get("type") == "task"
+                and item.get("taskId")
+            }
     marked = 0
     for tid, entry in list(_task_status.items()):
         if entry.get("workerId") == worker_id and entry.get("status") == "pending":
+            if tid in pending_task_ids:
+                entry["workerId"] = None
+                continue
             entry.update({"status": "error", "result": reason, "ts": now})
             marked += 1
     if marked:
@@ -478,6 +497,53 @@ def _signal_task_done(w: Worker) -> None:
         ev.set()
 
 
+def _ack_current_task(w: Worker, s) -> None:
+    """收到最终 result 后确认当前 task item 出队（仅改内存，不单独落盘）。
+
+    用户任务在真正完成前不能从持久队列删除：stream CLI 可能在 stdin 接收后、
+    result 到达前崩溃。调用方会把这次修改和 result/history 一起 save；若没有
+    当前队列 item（兼容旧的直接入队消息），保持原行为。
+    """
+    item = w._current_queue_item
+    w._current_queue_item = None
+    if item is None or s is None:
+        return
+    s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
+
+
+async def _finish_task_error(w: Worker, s, result: str) -> None:
+    """把执行前失败也收敛成可见的 terminal result。"""
+    task_id = w._current_task_id
+    w.status = "error"
+    if s is not None:
+        s.last_result = {
+            "status": "error",
+            "result": result,
+            "cli_session_id": s.cli_session_id,
+            "timestamp": datetime.now().isoformat(),
+            "taskSeq": w._current_seq,
+        }
+        _ack_current_task(w, s)
+        await _sess.save_async(s)
+    await _bcast({
+        "type": "worker.result",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "status": "error",
+        "result": result,
+        "taskSeq": w._current_seq,
+    })
+    await _enqueue_report(w.session_id, "error", result, task_id, w.worker_id)
+    if task_id and task_id in _task_status:
+        _task_status[task_id] = {
+            "status": "error", "result": result,
+            "workerId": w.worker_id, "taskId": task_id, "ts": time.monotonic(),
+        }
+    w._current_task_id = None
+    w.status = "idle"
+    _signal_task_done(w)
+
+
 # ── 流式块防抖落盘（A1）──
 # save 是 O(history) 全量序列化（实测 1295 条 ≈ 8ms/次 vs 新会话 0.76ms）。逐块
 # save 是热路径最大浪费。改为：assistant 块 append 只标记 dirty，由单一防抖任务
@@ -655,6 +721,9 @@ async def _read_stdout(w: Worker):
                     if not (last and last.get("role") == "assistant"
                             and last.get("content") == result_text):
                         s.history.append({"role": "assistant", "content": result_text})
+                # result 是 task item 的完成确认点。把 item 与 last_result/
+                # history 放进同一次落盘，避免“结果已落盘但队列仍在”造成重跑。
+                _ack_current_task(w, s)
                 # enrich: 从 CLI 原生存储获取消耗数据（如 raw_usage）
                 enrichment = None
                 try:
@@ -800,6 +869,7 @@ async def _consumer(w: Worker):
             source = claimed.get("source", "agent")
             w._current_seq = claimed.get("seq")
             w._current_task_id = claimed.get("taskId")
+            w._current_queue_item = claimed
         else:
             # 直接入队消息（无 type）：send_task 落盘迁移前的完整 item 形态
             # （兼容测试直连 pending_signal.put 的完整 item）
@@ -807,6 +877,7 @@ async def _consumer(w: Worker):
             source = item.get("source", "agent")
             w._current_seq = item.get("seq")
             w._current_task_id = item.get("taskId")
+            w._current_queue_item = None
 
         try:
             # resume replay 等待已删除（worker-resume-replay 结论）：cbc 在 stdin 有
@@ -823,19 +894,12 @@ async def _consumer(w: Worker):
                 # 标记 → 已投递过，只做队列清除收敛（幂等，防双跑），不重复执行。
                 # 对账与进程死活无关，放在存活检查之前；只对认领项做——直接入队
                 # 消息（claimed=None）不经队列，无对账可言。
-                if claimed is not None and _delivery_mark_in_history(s, claimed):
+                already_delivered = claimed is not None and _delivery_mark_in_history(s, claimed)
+                if already_delivered:
                     _log.info(
                         "[Worker %s] task id=%s reconciliation: delivery mark already "
-                        "in history, skipping execution and clearing from queue_pending",
-                        w.worker_id, claimed.get("id"))
-                    s.queue_pending = [it for it in s.queue_pending if it is not claimed]
-                    try:
-                        await _sess.save_async(s)
-                    except Exception as e:
-                        _log.warning(
-                            "[Worker %s] queue_pending save after task reconciliation "
-                            "failed: %s", w.worker_id, e)
-                    continue
+                        "in history, reusing the existing user entry and retrying "
+                        "execution", w.worker_id, claimed.get("id"))
                 injected_text = await _maybe_inject_memory(s, text)
                 text = injected_text
                 # 投递语义：注入期间进程死亡 → 中止，claimed item 留在
@@ -851,26 +915,28 @@ async def _consumer(w: Worker):
                     # 投递标记记为 history 条目元数据（不进消息正文，恢复对账据此
                     # 去重）；直连消息（claimed=None）不经队列，无对账、不打标记
                     hist_entry["delivered_keys"] = [_delivery_key(claimed)]
-                if claimed is None:
-                    s.history.append(hist_entry)
+                if claimed is None or already_delivered:
+                    # A delivery mark means the user entry was persisted before an
+                    # earlier attempt died. Keep it exactly once in history, but do
+                    # execute again: the previous process may have died before
+                    # producing a result.
+                    if claimed is None:
+                        s.history.append(hist_entry)
                 else:
-                    # 原子消费（出队 = 移交成功的确认）：执行上下文记录
-                    # （history append）+ 从 queue_pending 移除，改同一份内存态后
-                    # **一次落盘**——崩溃在 save 前 = 两者都没写（重投）；save 后
-                    # = 两者都写了。save 失败回滚内存态，item 留队列可重投。
-                    old_queue = s.queue_pending
                     s.history.append(hist_entry)
-                    s.queue_pending = [it for it in old_queue if it is not claimed]
+                    # 执行上下文记录先落盘，task item 保留到 result 确认。
+                    # 崩溃发生在 stdin 写入前/后都能由新 worker 重投；result
+                    # 路径再把 item 与最终结果一起确认出队。
+                    old_history_len = len(s.history) - 1
                     try:
                         await _sess.save_async(s)
                     except Exception as e:
-                        s.history.pop()
-                        s.queue_pending = old_queue
+                        del s.history[old_history_len:]
                         _log.warning(
-                            "[Worker %s] task id=%s atomic save failed, "
-                            "kept in queue_pending: %s", w.worker_id,
+                            "[Worker %s] task id=%s handoff save failed, kept "
+                            "in queue_pending: %s", w.worker_id,
                             claimed.get("id"), e)
-                        continue
+                        break
             # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_oneshot）：在
             # running 广播 + 写 cbc stdin 之后立即持久化，发送时指示灯不再被全量
             # O(history) 序列化阻塞（方案 1）。崩溃窗口 = 写 stdin → 落盘 毫秒级，
@@ -884,6 +950,18 @@ async def _consumer(w: Worker):
                 await _consumer_oneshot(w, text, source, s)
             else:
                 await _consumer_stream(w, text, source, s)
+            # A task remains in queue_pending until its execution path calls
+            # _ack_current_task from a terminal result.  Do not consume another
+            # signal if an adapter returned without producing that result (for
+            # example because its process died); the queue item must wait for a
+            # respawn instead of being attempted repeatedly by the old worker.
+            if claimed is not None and w._current_queue_item is claimed:
+                _log.warning(
+                    "[Worker %s] task id=%s returned without terminal result; "
+                    "leaving item in queue_pending for recovery",
+                    w.worker_id, claimed.get("id"),
+                )
+                break
         finally:
             # 无论正常完成、中止还是异常/取消，都释放 in-flight 标记——item 是否
             # 留在队列由「是否已确认出队」决定，标记只负责运行期去重。
@@ -1003,11 +1081,9 @@ def _delivery_mark_in_history(s, item: dict) -> bool:
 async def _consume_pending_reports(w: Worker, s):
     """从落盘 queue_pending 取全部积压报告，拼接为一条消息交给模型处理。
 
-    投递语义（出队 = 移交成功的确认，原子落盘）：消费逻辑跑在 server 进程，
-    构造注入文本 → history append + 从 queue_pending 移除这批报告 → **同一次
-    save_async** 写盘（history 与 queue_pending 在同一 Session JSON，天然原子）。
-    崩溃在 save 前 = 两者都没写、报告可重投；save 后 = 两者都写了——既不丢
-    也不重复。save 失败（非崩溃）则回滚内存态，队列原样保留可重投。
+    报告仍采用注入即确认的批量投递语义：构造注入文本 → history append + 从
+    queue_pending 移除这批报告 → **同一次 save_async** 写盘。崩溃在 save 前则
+    报告可重投，save 后则不会重复。save 失败（非崩溃）回滚内存态，队列原样保留。
 
     消费前确认 worker 进程存活（CLI 子进程死 → 中止保留队列，由全局 watchdog
     spawn 恢复后经 _recover_pending_signals 补发信号重投）。
@@ -1050,9 +1126,8 @@ async def _consume_pending_reports(w: Worker, s):
             "%d report(s) kept in queue_pending", w.worker_id, len(undelivered))
         return
 
-    # 原子消费：history + 出队先改同一份内存态，再一次落盘；失败回滚内存态
-    # （与磁盘保持一致，报告仍可重投）。本批报告全部移除：未投递项已注入
-    # （出队 = 移交确认），对账命中的已投递项一并清除（收敛）。
+    # 报告仍沿用“注入即确认”的批量消费语义；Codex task 则在 result 后确认，
+    # 因而可以在 CLI 崩溃后重投。
     old_queue = s.queue_pending
     s.history.append({"role": "user", "content": injected_text,
                       "delivered_keys": [_delivery_key(it) for it in undelivered]})
@@ -1083,11 +1158,10 @@ _inflight_task_ids: set[str] = set()
 async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
     """在落盘 queue_pending 中按 id 认领一个任务 item（只标记、不移除）。
 
-    投递语义（出队 = 移交成功的确认，原子落盘）：本函数只定位 item 并打
-    in-flight 标记；实际出队在 _consumer 中与「执行上下文记录（history append）」
-    合并为**同一次 save_async**（同一 Session JSON，天然原子）——崩溃在 save 前
-    = 两者都没写、任务可重投；save 后 = 两者都写了。save 失败（非崩溃）回滚
-    内存态，item 留在队列，respawn 后由 _recover_pending_signals 重新分发。
+    本函数只定位 item 并打 in-flight 标记；任务的执行上下文先写入 history，
+    item 保留在 queue_pending，直到 adapter 收到 terminal result 才出队。这样
+    stdin 写入后到 result 到达前的崩溃仍可由 respawn 重投；save 失败则 item 留
+    队列，respawn 后由 _recover_pending_signals 重新分发。
 
     返回 item；信号重复 / item 不存在 / 已被消费 / 会话消失 → None。
 
@@ -1521,15 +1595,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
             "[Worker %s] oneshot_args 返回空 argv（adapter=%s 不支持 oneshot？）；跳过本次任务",
             w.worker_id, getattr(adapter, "name", "?"),
         )
-        if s:
-            s.last_result = {
-                "status": "error",
-                "result": "adapter 不支持 oneshot 执行模式",
-                "timestamp": datetime.now().isoformat(),
-            }
-            await _sess.save_async(s)
+        await _finish_task_error(w, s, "adapter 不支持 oneshot 执行模式")
         w.last_activity = time.monotonic()
-        w.status = "idle"
         _maybe_restart_pending(w)
         return
 
@@ -1544,12 +1611,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         )
     except Exception as e:
         _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
-        if s:
-            s.last_result = {"status": "error", "result": f"MCP spawn failed: {e}", "timestamp": datetime.now().isoformat()}
-            await _sess.save_async(s)
+        await _finish_task_error(w, s, f"MCP spawn failed: {e}")
         # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
         w.last_activity = time.monotonic()
-        w.status = "idle"
         _maybe_restart_pending(w)
         return
 
@@ -1711,6 +1775,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         "timestamp": datetime.now().isoformat(),
         "taskSeq": w._current_seq,
     }
+    # One-shot 没有独立的 stdout result reader；在解析完本轮输出后同样以
+    # result/error 为完成确认点，从持久队列移除当前 task。
+    _ack_current_task(w, s)
     # 用量/credit 落账：与 stream 路径（_read_stdout）同构——补调
     # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
     # oneshot 之前漏调，导致 cbc 不记 credit、claude（仅 oneshot）完全不记
