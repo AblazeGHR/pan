@@ -110,6 +110,24 @@ describe('useWebSocket worker.result wiring', () => {
     });
   });
 
+  it('keeps a native system error status and its summary visible to the toolbar', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.thread_status',
+          native_status: { type: 'systemError', message: 'server disconnected' },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeStatus).toEqual({
+      type: 'systemError', message: 'server disconnected',
+    });
+  });
+
   it('keeps the latest native Codex token usage available to the active worker', () => {
     renderHook(() => useWebSocket());
 

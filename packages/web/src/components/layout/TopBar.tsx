@@ -68,8 +68,12 @@ export function TopBar() {
     : undefined;
   const nativeLabel = nativeStatus?.activeFlags?.includes('waitingOnApproval')
     ? 'waiting for approval'
-    : nativeStatus?.activeFlags?.includes('waitingOnUserInput')
-      ? 'waiting for input'
+      : nativeStatus?.activeFlags?.includes('waitingOnUserInput')
+        ? 'waiting for input'
+        : nativeStatus?.type === 'systemError'
+          ? `system error${nativeStatus.message || nativeStatus.error
+            ? `: ${nativeStatus.message || nativeStatus.error}`
+            : ''}`
       : nativeStatus?.type === 'active'
         ? 'active'
         : undefined;
