@@ -1,11 +1,11 @@
-"""OpenAI Codex CLI 长驻包装器。
+"""Stable executable entry point for the Codex Pan bridge.
 
-Codex 的 `codex exec` 是一次性进程（无 stdin 长驻流协议），故通过 wrapper.py 包装成
-一个长驻子进程，由 wrapper 在内部循环调用 `codex exec "<text>" --json`（续接时
-`codex exec resume <thread_id> "<text>" --json`），逐行转发 JSONL 事件，并在每次
-调用结束时合成一条 result 事件让 worker.py 标记任务完成（原生 codex 无 result 事件）。
+The adapter starts this file with ``--app-server`` so the default path is the
+native long-lived ``codex app-server --stdio`` protocol implemented in
+``app_server_wrapper.py``. The original ``codex exec`` loop remains below as
+a compatibility fallback for direct/manual invocations that omit the flag.
 
-关键修复（对齐 opencode/kimi wrapper）：
+Legacy exec fallback fixes (对齐 opencode/kimi wrapper）：
 - codex 子进程显式 ``stdin=DEVNULL``，切断与 server 长驻管道的连接（prompt 来自 CLI
   参数，不依赖 stdin）；否则 codex 会读 stdin 等 EOF 而静默挂起 → 会话卡 running。
 - 真实入口解析为 ``[node, codex.js]``（由 adapter 经 --codex-path/--node-path 传入），
@@ -58,6 +58,19 @@ def _filter_resume_opts(opts: list[str]) -> list[str]:
         else:
             i += 1
     return out
+
+
+def _system_prompt_opts(system_prompt: str | None) -> list[str]:
+    """Encode Pan's system prompt as Codex developer instructions.
+
+    ``codex exec`` has no public ``--system-prompt`` flag. The current native
+    CLI accepts the ``developer_instructions`` config key, which keeps the
+    prompt in the instruction/developer layer instead of sending it as an
+    ordinary user turn.
+    """
+    if not system_prompt:
+        return []
+    return ["-c", f"developer_instructions={json.dumps(system_prompt, ensure_ascii=False)}"]
 
 
 def _build_codex_args(node: str, codex_js: str, text: str,
@@ -171,7 +184,8 @@ def _stdin_reader(message_queue: Queue, shutdown_event: threading.Event) -> None
 
 
 def _main_loop(node: str, codex_js: str, extra_opts: list[str],
-               initial_thread_id: str | None, cwd: str | None) -> int:
+               initial_thread_id: str | None, cwd: str | None,
+               system_prompt: str | None = None) -> int:
     thread_id = initial_thread_id
     message_queue: Queue = Queue()
     shutdown_event = threading.Event()
@@ -190,9 +204,12 @@ def _main_loop(node: str, codex_js: str, extra_opts: list[str],
             if not text:
                 continue
 
-            args = _build_codex_args(
-                node, codex_js, text, thread_id, extra_opts, cwd
-            )
+            # Only the first fresh turn receives the developer instructions.
+            # Once Codex has created a thread, resume carries that context.
+            call_opts = extra_opts
+            if not thread_id and system_prompt:
+                call_opts = extra_opts + _system_prompt_opts(system_prompt)
+            args = _build_codex_args(node, codex_js, text, thread_id, call_opts, cwd)
 
             try:
                 # 关键修复：codex exec 不依赖 stdin（prompt 来自 CLI 参数），显式置
@@ -264,6 +281,16 @@ def _main_loop(node: str, codex_js: str, extra_opts: list[str],
 
 
 def main() -> int:
+    # The native app-server bridge keeps one Codex thread/turn protocol alive
+    # and is the default path used by the adapter.  Keep this file as the
+    # stable executable entry point so existing deployments and tests that
+    # refer to ``wrapper.py`` continue to work; the old exec loop remains a
+    # useful fallback for manual invocations without --app-server.
+    if "--app-server" in sys.argv[1:]:
+        from app_server_wrapper import main as app_server_main
+        argv = [arg for arg in sys.argv[1:] if arg != "--app-server"]
+        return app_server_main(argv)
+
     parser = argparse.ArgumentParser(description="OpenAI Codex persistent wrapper for Pan")
     parser.add_argument("--codex-path", required=True,
                         help="Path to codex.js (resolved real entry, not the .CMD shim)")
@@ -273,6 +300,8 @@ def main() -> int:
                         help="Initial thread id to resume (continuity across worker respawns)")
     parser.add_argument("--codex-extra-args", default="[]",
                         help="JSON list of codex-level option flags (model/permission/mcp/effort)")
+    parser.add_argument("--system-prompt", default=None,
+                        help="Pan system prompt, passed as Codex developer_instructions on the first fresh turn")
     args = parser.parse_args()
 
     cwd = os.environ.get("PAN_CODEX_CWD") or os.getcwd()
@@ -288,6 +317,7 @@ def main() -> int:
         extra_opts=extra_opts,
         initial_thread_id=args.thread_id,
         cwd=cwd,
+        system_prompt=args.system_prompt,
     )
 
 

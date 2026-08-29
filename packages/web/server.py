@@ -98,6 +98,7 @@ agent_clients: set[WebSocket] = set()
 
 # agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
 _AGENT_DEFAULT_SUBSCRIPTION = frozenset({"worker.result"})
+_AGENT_TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
 
 
 @dataclass
@@ -204,6 +205,41 @@ worker.load_worker_config()
 worker.load_memory_config()
 
 
+async def _replay_agent_results(ws: WebSocket, session_ids: list[str]) -> None:
+    """补发 agent 尚未消费的终态结果（成功、失败、取消均不能静默丢失）。"""
+    sub = agent_subscriptions.get(ws)
+    if sub is None:
+        sub = AgentSubscription()
+        agent_subscriptions[ws] = sub
+    for sid in session_ids:
+        s = sess.get(sid)
+        if not s or not s.last_result:
+            continue
+        status = s.last_result.get("status")
+        if status not in _AGENT_TERMINAL_RESULT_STATUSES:
+            continue
+        # 补发条件：consumed_seq < latest_seq（中途断线、部分消费也补发）
+        latest_seq = s.last_result.get("taskSeq")
+        if latest_seq is None:
+            # 旧数据未存 taskSeq：仅当完全未消费时补发（保持原有行为）
+            if sub.consumed_seq.get(sid, 0) > 0:
+                continue
+            latest_seq = 0
+        elif sub.consumed_seq.get(sid, 0) >= latest_seq:
+            continue
+        await ws.send_json({
+            "type": "worker.result",
+            "workerId": "",
+            "sessionId": sid,
+            "status": status,
+            "result": s.last_result.get("result"),
+            "taskSeq": latest_seq,
+            "replayed": True,
+        })
+        # 补发成功后再推进游标，避免下次 reconnect 重复补发
+        sub.consumed_seq[sid] = max(sub.consumed_seq.get(sid, 0), latest_seq)
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """Log every API request with method, path, and status code."""
@@ -243,7 +279,7 @@ def _session_to_api(s: sess.Session):
         "name": s.name,
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
-        "model": s.model or config.get("model") or a.default_model,
+        "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         # Canonical nested capability object; the flat keys below are kept as
         # deprecated aliases so old HTTP consumers keep working.
@@ -325,7 +361,7 @@ def _session_summary(s: sess.Session) -> dict:
         "historyTotal": len(s.history),
         "totalUsage": s.total_usage,
         # 设置字段（供前端列表/InputRow 显示真实值，避免未打开设置弹窗时回退默认）
-        "model": s.model or config.get("model") or a.default_model,
+        "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
@@ -602,6 +638,14 @@ def _apply_session_updates(s: sess.Session, data: dict):
     """Apply model/mode/thinking/effort fields from data to a Session (in-place)."""
     if "model" in data:
         s.model = data["model"]
+        # Some adapters (currently Codex) expose model-specific effort levels.
+        # Switching models must not leave an incompatible effort on the session;
+        # an empty value delegates to the native model default.
+        if "effort" not in data:
+            model_efforts = getattr(get_adapter(s.adapter), "model_efforts", {}).get(str(s.model))
+            current_effort = s.adapter_config.get("effort", "")
+            if model_efforts and current_effort and current_effort not in model_efforts:
+                s.set_adapter_field("effort", "")
     if "permissionMode" in data:
         s.permission_mode = data["permissionMode"] or None
     if "alwaysThinkingEnabled" in data:
@@ -789,6 +833,69 @@ if FRONTEND_MODE != "legacy":
 
 # ── WebSocket: Dashboard ──
 
+async def _replay_pending_interactions(
+    ws: WebSocket, session_ids: list[str] | None = None,
+) -> None:
+    """Restore native Codex prompts to a dashboard that just reconnected.
+
+    Only live workers are considered: the snapshot is a UI replay cache, while
+    the open JSON-RPC request itself still belongs to the native process.  A
+    dead/restarted worker cannot safely receive the old request response.
+    """
+    selected = {str(sid) for sid in session_ids or []}
+    for w in worker.list_workers():
+        if selected and w.session_id not in selected:
+            continue
+        if w.process is None or w.process.returncode is not None:
+            continue
+        status_event = worker.native_status_event(w)
+        if status_event is not None:
+            await ws.send_json({
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "event": status_event,
+                "replayed": True,
+            })
+        usage_event = worker.native_usage_event(w)
+        if usage_event is not None:
+            await ws.send_json({
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "event": usage_event,
+                "replayed": True,
+            })
+        rate_limits_event = worker.native_rate_limits_event(w)
+        if rate_limits_event is not None:
+            await ws.send_json({
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "event": rate_limits_event,
+                "replayed": True,
+            })
+        for native_event in (
+            worker.native_plan_event(w),
+            worker.native_diff_event(w),
+        ):
+            if native_event is not None:
+                await ws.send_json({
+                    "type": "worker.stream",
+                    "workerId": w.worker_id,
+                    "sessionId": w.session_id,
+                    "event": native_event,
+                    "replayed": True,
+                })
+        for event in worker.pending_interaction_events(w):
+            await ws.send_json({
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "event": event,
+                "replayed": True,
+            })
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
@@ -811,15 +918,25 @@ async def ws_endpoint(ws: WebSocket):
                         err = await worker.send_task(w.worker_id, text, source="user")
                         if err:
                             await broadcast({"type": "error", "message": err})
-                    else:
-                        # auto-spawn worker for this session
-                        result = await worker.create_worker(session_id)
-                        if isinstance(result, str):
-                            await broadcast({"type": "error", "message": result})
-                        else:
-                            err = await worker.send_task(result.worker_id, text, source="user")
-                            if err:
-                                await broadcast({"type": "error", "message": err})
+            elif msg_type == "worker_control":
+                worker_id = msg.get("workerId")
+                control = msg.get("control")
+                if worker_id and isinstance(control, dict):
+                    err = await worker.send_control_message(worker_id, control)
+                    if err:
+                        await ws.send_json({"type": "error", "message": err})
+            elif msg_type == "sync_interactive":
+                # Optional sessionIds narrows the replay; omitted means all
+                # live workers visible to this dashboard, matching /ws's
+                # existing broadcast scope.
+                raw_session_ids = msg.get("sessionIds")
+                if raw_session_ids is not None and not isinstance(raw_session_ids, list):
+                    await ws.send_json({
+                        "type": "error",
+                        "message": "sessionIds must be a list",
+                    })
+                    continue
+                await _replay_pending_interactions(ws, raw_session_ids)
     except WebSocketDisconnect:
         pass
     finally:
@@ -871,35 +988,8 @@ async def ws_agent_endpoint(ws: WebSocket):
 
             elif msg_type == "reconnect":
                 # 断线重连补发：{"type":"reconnect","sessionIds":[...]}
-                # 补发各 session 未消费的 worker.result（seq 大于已消费游标）
-                sub = agent_subscriptions.get(ws)
-                if sub is None:
-                    sub = AgentSubscription()
-                    agent_subscriptions[ws] = sub
-                for sid in (msg.get("sessionIds") or []):
-                    s = sess.get(sid)
-                    if not s or not s.last_result or s.last_result.get("status") != "done":
-                        continue
-                    # 补发条件：consumed_seq < latest_seq（中途断线、部分消费也补发）
-                    latest_seq = s.last_result.get("taskSeq")
-                    if latest_seq is None:
-                        # 旧数据未存 taskSeq：仅当完全未消费时补发（保持原有行为）
-                        if sub.consumed_seq.get(sid, 0) > 0:
-                            continue
-                        latest_seq = 0
-                    elif sub.consumed_seq.get(sid, 0) >= latest_seq:
-                        continue
-                    await ws.send_json({
-                        "type": "worker.result",
-                        "workerId": "",
-                        "sessionId": sid,
-                        "status": s.last_result.get("status"),
-                        "result": s.last_result.get("result"),
-                        "taskSeq": latest_seq,
-                        "replayed": True,
-                    })
-                    # 补发成功后再推进游标，避免下次 reconnect 重复补发
-                    sub.consumed_seq[sid] = max(sub.consumed_seq.get(sid, 0), latest_seq)
+                # 补发各 session 未消费的终态 worker.result（成功/失败/取消）
+                await _replay_agent_results(ws, msg.get("sessionIds") or [])
 
             elif msg_type == "task":
                 session_id = msg.get("sessionId")
@@ -1559,6 +1649,7 @@ async def api_adapter_config(adapter: str = "cbc"):
         "models": a.supported_models,
         "defaultModel": a.default_model,
         "effortValues": list(a.effort_values),
+        "modelEfforts": getattr(a, "model_efforts", {}),
         "permissionModes": a.permission_modes,
         "defaultPermissionMode": a.default_permission_mode,
         "supportedSettings": getattr(a, "supported_settings", ["model", "permissionMode", "thinking", "effort"]),
@@ -2639,12 +2730,18 @@ async def api_worker_settings(worker_id: str, data: dict):
         return {"error": str(e)}
     sess.save(s)
 
+    adapter = get_adapter(s.adapter)
     extra_args: list[str] = []
-    if "model" in data:
-        extra_args.extend(["--model", data["model"]])
-    if "permissionMode" in data:
-        extra_args.extend(["--permission-mode", data["permissionMode"] or ""])
-    extra_args.extend(get_adapter(s.adapter).effort_args(s))
+    # Most native CLIs consume these compatibility overrides directly. Codex
+    # uses a persistent wrapper and receives all settings from its Session via
+    # --codex-extra-args; passing --model/--permission-mode to the wrapper would
+    # make argparse reject the process before it can handle the next message.
+    if not getattr(adapter, "settings_via_session", False):
+        if "model" in data:
+            extra_args.extend(["--model", data["model"]])
+        if "permissionMode" in data:
+            extra_args.extend(["--permission-mode", data["permissionMode"] or ""])
+        extra_args.extend(adapter.effort_args(s))
 
     err = await worker.respawn_worker(worker_id, extra_args if extra_args else None)
     if err:
@@ -2732,6 +2829,27 @@ async def api_interrupt(worker_id: str):
     if err:
         return {"error": err}
     return {"workerId": worker_id, "status": "interrupted"}
+
+
+@app.post("/api/worker/{worker_id}/control")
+async def api_worker_control(worker_id: str, data: dict):
+    """Send an adapter-native out-of-band control to a live worker."""
+    control = data.get("control") if isinstance(data.get("control"), dict) else data
+    err = await worker.send_control_message(worker_id, control)
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "control sent"}
+
+
+@app.post("/api/worker/{worker_id}/steer")
+async def api_worker_steer(worker_id: str, data: dict):
+    """Inject text into a running native turn (currently Codex app-server)."""
+    err = await worker.steer_worker(
+        worker_id, data.get("text") if isinstance(data, dict) else ""
+    )
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "steer sent"}
 
 
 @app.post("/api/worker/{worker_id}/takeover")

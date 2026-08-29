@@ -183,6 +183,37 @@ def test_idle_worker_reclaimed():
     _cleanup()
 
 
+def test_idle_worker_with_pending_work_not_reclaimed():
+    """idle 瞬间仍有队列任务时，不得抢在 consumer 前回收 worker。"""
+    _cleanup()
+    killed = []
+    s = _setup_session()
+    s.queue_pending = [{"type": "task", "id": "pending-1", "text": "job"}]
+
+    async def fake_kill(worker_id):
+        killed.append(worker_id)
+
+    worker._WATCHDOG_TICK_SEC = 0.01
+    worker._WORKER_TIMEOUT_SEC = 999
+    worker._WORKER_TASK_TIMEOUT_SEC = 999
+    worker._WORKER_IDLE_SEC = 0.1
+    w = _setup_worker(s.id, status="idle", last_activity=0.0)
+
+    orig_kill = worker.kill_worker
+    worker.kill_worker = fake_kill
+    try:
+        asyncio.run(_run_watchdog(w, ticks=4))
+    finally:
+        worker.kill_worker = orig_kill
+        worker._WATCHDOG_TICK_SEC = 30.0
+        worker._WORKER_TIMEOUT_SEC = 300.0
+        worker._WORKER_TASK_TIMEOUT_SEC = 1800.0
+        worker._WORKER_IDLE_SEC = 300.0
+
+    assert killed == [], f"worker with pending work was reclaimed: {killed}"
+    _cleanup()
+
+
 def test_held_worker_skipped():
     """held (takeover) worker never reclaimed by watchdog."""
     _cleanup()

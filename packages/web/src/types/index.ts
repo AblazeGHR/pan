@@ -3,6 +3,8 @@
 export interface Message {
   role: string;
   content: string;
+  /** Transient native Codex item id used to merge interleaved tool deltas. */
+  nativeItemId?: string;
 }
 
 /** MCP-only capability flags (backend `pan_access`, camelCase over HTTP). */
@@ -71,6 +73,23 @@ export interface WorkerEventContent {
 
 export interface WorkerEvent {
   type: string;
+  /** Native app-server incremental event; UI merges it into one message. */
+  delta?: boolean;
+  /** Cumulative text for sidebar previews while `delta` is true. */
+  stream_text?: string;
+  /** Completed canonical event should replace any in-flight delta message. */
+  final?: boolean;
+  /** Tool/output delta targets the currently displayed item instead of appending. */
+  replace?: boolean;
+  /** Native Codex item id; lets the UI update the right interleaved item. */
+  item_id?: string;
+  /** Native Codex terminal interaction process id and prompt/input bytes. */
+  process_id?: string;
+  stdin?: string;
+  /** Native Codex server request metadata (approval/user-input bridge). */
+  method?: string;
+  request_id?: string | number;
+  params?: Record<string, unknown>;
   /** kimi: stream-json 事件以 role 标识（assistant/thinking/result/meta），
    *  纯文本 assistant 事件没有 type 字段。 */
   role?: string;
@@ -87,8 +106,77 @@ export interface WorkerEvent {
   session_id?: string;
   model?: string;
   is_error?: boolean;
+  cancelled?: boolean;
+  turn_status?: string;
+  error?: unknown;
+  error_text?: string;
   result?: string;
   cliSessionId?: string;
+  /** Native Codex thread status (`active` may carry waiting flags). */
+  native_status?: {
+    type?: string;
+    activeFlags?: string[];
+    message?: string;
+    error?: string;
+  };
+  /** Raw native item carried by the generic Codex item fallback. */
+  item?: Record<string, unknown>;
+  /** Native Codex thread/turn token usage snapshot. */
+  token_usage?: Record<string, unknown>;
+  /** Native Codex account rate-limit snapshot. */
+  rate_limits?: Record<string, unknown>;
+  /** Native Codex aggregate plan for the current turn. */
+  plan?: Array<Record<string, unknown>>;
+  explanation?: string | null;
+  /** Native Codex aggregate diff for the current turn. */
+  diff?: string;
+  /** Native Codex MCP startup status notification. */
+  mcp_status?: Record<string, unknown>;
+  /** Native Codex model reroute notification. */
+  model_rerouted?: Record<string, unknown>;
+}
+
+export interface ApprovalRequest {
+  sessionId: string;
+  workerId: string;
+  requestId: string | number;
+  method: string;
+  params: Record<string, unknown>;
+}
+
+export interface UserInputQuestion {
+  id: string;
+  header?: string;
+  question?: string;
+  isOther?: boolean;
+  isSecret?: boolean;
+  options?: Array<{ label: string; description?: string }>;
+}
+
+export interface UserInputRequest {
+  sessionId: string;
+  workerId: string;
+  requestId: string | number;
+  method: string;
+  questions: UserInputQuestion[];
+}
+
+export interface ElicitationRequest {
+  sessionId: string;
+  workerId: string;
+  requestId: string | number;
+  method: string;
+  params: Record<string, unknown>;
+}
+
+/** Native Codex terminal interaction emitted when a command needs stdin. */
+export interface TerminalInteraction {
+  sessionId: string;
+  workerId: string;
+  itemId: string;
+  processId: string;
+  stdin: string;
+  params: Record<string, unknown>;
 }
 
 export interface StreamEvent {
@@ -98,11 +186,14 @@ export interface StreamEvent {
   event?: WorkerEvent;
   message?: string;
   status?: string;
+  cancelled?: boolean;
   name?: string;
   cliSessionId?: string;
   /** 任务来源标记（worker.status 事件透传）：agent=meta-agent 编排注入、
    *  report=订阅报告、user=前端发送、system_prompt=系统提示词注入。 */
   source?: string;
+  /** True when the server replays a still-pending interactive prompt after WS reconnect. */
+  replayed?: boolean;
 }
 
 // ── API response types ──
@@ -240,6 +331,8 @@ export interface AdapterConfig {
   models: string[];
   defaultModel: string;
   effortValues: string[];
+  /** Per-model reasoning effort values when the adapter exposes them. */
+  modelEfforts?: Record<string, string[]>;
   permissionModes: PermissionMode[];
   defaultPermissionMode: string;
   supportedSettings: string[];
@@ -252,6 +345,7 @@ export interface ApiConfigResponse {
   models: string[];
   defaultModel: string;
   effortValues: string[];
+  modelEfforts?: Record<string, string[]>;
   permissionModes: PermissionMode[];
   defaultPermissionMode?: string;
   supportedSettings?: string[];
@@ -555,4 +649,14 @@ export interface WorkerInfo {
   status: 'idle' | 'running' | 'held' | 'offline';
   model?: string;
   name?: string;
+  nativeStatus?: {
+    type?: string;
+    activeFlags?: string[];
+    message?: string;
+    error?: string;
+  };
+  /** Latest live Codex token usage snapshot; persisted totals live on Session. */
+  nativeUsage?: Record<string, unknown>;
+  /** Latest live Codex account rate-limit snapshot. */
+  nativeRateLimits?: Record<string, unknown>;
 }

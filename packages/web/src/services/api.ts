@@ -414,6 +414,36 @@ export async function interruptWorker(
   return data;
 }
 
+export async function steerWorker(
+  workerId: string,
+  text: string,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/worker/${workerId}/steer`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function sendWorkerControl(
+  workerId: string,
+  control: Record<string, unknown>,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/worker/${workerId}/control`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ control }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 export async function takeoverWorker(
   workerId: string,
 ): Promise<ApiGenericResponse> {
@@ -457,6 +487,7 @@ export async function fetchAdapterConfig(
     models: data.models || [],
     defaultModel: data.defaultModel || 'deepseek-v4-flash',
     effortValues: data.effortValues || [],
+    modelEfforts: data.modelEfforts || {},
     permissionModes: data.permissionModes || [],
     defaultPermissionMode: data.defaultPermissionMode || '',
     supportedSettings: data.supportedSettings || [

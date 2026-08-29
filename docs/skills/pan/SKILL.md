@@ -344,7 +344,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 - 每个 Worker 有一个内存 `pending_signal`（asyncio.Queue），consumer 循环阻塞在它上面。
 - **普通任务**：入队 `{text, source, seq, taskId}` → consumer 取出 → 执行。
-- **报告信号**：入队 `{"type":"report_signal"}` ——**只负责唤醒**，报告正文在 meta-agent 的**落盘队列** `Session.queue_pending`（真源）。consumer 被唤醒后从落盘队列批量拉取，拼接成一条消息（`─────` 分隔 + 来源标注）处理，消费即删。
+- **报告信号**：入队 `{"type":"report_signal"}` ——**只负责唤醒**，报告正文在 meta-agent 的**落盘队列** `Session.queue_pending`（真源）。consumer 被唤醒后从落盘队列批量拉取，拼接成一条消息（`─────` 分隔 + 来源标注）处理；报告批次在收到 `done/error/cancelled` 等终态结果后才确认出队，worker 在执行期间崩溃会由恢复流程重投，避免报告丢失。
 - **QQ 提醒信号（2026-08-22 起）**：`/api/qq/notify` 被 QQ 插件调用后，`enqueue_qq_reminder` 对所有订阅了该 QQ 会话的 session append `{"type":"qq","qqTarget":...}` 到其 `queue_pending` 并唤醒（同一 `report_signal` 通道）——即订阅者 worker 会收到 `@@@@by qq` 抬头提醒（镜像 report 链路，见 §3）。
 - 落盘真源 + 内存信号：服务重启不丢报告；全局 watchdog 看到 `queue_pending` 非空无活 worker 会自动拉起。
 

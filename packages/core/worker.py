@@ -21,14 +21,19 @@ import logging
 import os
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 import psutil
 
 from . import session as _sess
-from .adapters import get_adapter, CliAdapter, resolve_execution_mode
+from .adapters import (
+    get_adapter,
+    get_sessions_provider,
+    CliAdapter,
+    resolve_execution_mode,
+)
 from .config import load_config
 
 _log = logging.getLogger(__name__)
@@ -177,7 +182,7 @@ class Worker:
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance
-    status: str = "idle"      # idle | running | held | error | queued | zombie
+    status: str = "idle"      # idle | running | held | done | error | cancelled | queued | zombie
     process: asyncio.subprocess.Process | None = None
     _mcp_proc: asyncio.subprocess.Process | None = None  # in-flight one-shot MCP process
     _stdout_task: asyncio.Task | None = None
@@ -187,6 +192,25 @@ class Worker:
     # 消息真源是落盘 Session.queue_pending，本队列只放信号——report_signal
     # （报告批量消费）与 task_signal（携带 item.id，正文按 id 从真源拉取）。
     pending_signal: asyncio.Queue | None = None
+    # Native Codex interactive requests are kept here as a short-lived
+    # replay cache.  The process remains the source of truth for the actual
+    # JSON-RPC request; this snapshot only lets a reconnected dashboard
+    # restore its prompt while that same worker is still alive.
+    pending_interactions: dict[str, dict] = field(default_factory=dict)
+    # Last native Codex thread status for reconnecting dashboards.  Like the
+    # interaction cache, this is only valid while this worker process lives.
+    native_status: dict | None = None
+    # Latest native Codex token usage notification for reconnecting dashboards.
+    # The provider remains the source of truth for persisted/session totals;
+    # this is only the live thread/turn snapshot from app-server.
+    native_usage: dict | None = None
+    # Latest account-level Codex rate-limit snapshot. Unlike token usage this
+    # survives a completed turn, but it is still process-local and must be
+    # cleared when the app-server is respawned.
+    native_rate_limits: dict | None = None
+    # Current turn's native plan/diff snapshots for dashboard reconnect replay.
+    native_plan: dict | None = None
+    native_diff: dict | None = None
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
@@ -198,6 +222,13 @@ class Worker:
     _task_counter: int = 0   # 已分配的任务序号（send_task 入队时自增）
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
+    # 当前正在执行的持久 task item。task item 要到收到 result 后才确认出队；
+    # 若 CLI 在 stdin 写入后崩溃，保留该引用让 watchdog/respawn 能重投，而不
+    # 依赖 taskId（taskId 允许为空，且同 id 可能有值相同的不同 item）。
+    _current_queue_item: dict | None = None
+    # 当前报告批次的持久 item。报告与 task 共用 queue_pending，但报告由一次
+    # report_signal 批量送入；同样要到 terminal result 后才确认整批出队。
+    _current_report_items: list[dict] = field(default_factory=list)
     _zombie_reported: bool = False  # 异常死亡 zombie 报告是否已推送（防 watchdog/EOF 双路径重复）
     # ── 流式块防抖落盘（A1）──
     _hist_dirty: bool = False          # 有未落盘的 history 块（append 只标记，不逐块 save）
@@ -242,14 +273,29 @@ def _prune_task_status() -> None:
 def _mark_worker_tasks_error(worker_id: str, reason: str) -> int:
     """kill_worker / worker 退出路径：把该 worker 名下 status==pending 的 taskId 标 error。
 
-    任务超时后任务仍在跑；若此时 worker 被杀/崩溃，taskId 若停留在 pending，
-    同 taskId 重试会被幂等注册表永久拦截、永不执行。标 error 后重试拿到确定性
-    失败（H2 卡死修复）。
+    任务 item 在收到 result 前一直留在 Session.queue_pending，因此 worker 被杀
+    时保留队列中的 taskId 为 pending，交给新 worker 自动重投。只有已经不在持久
+    队列中的旧式/直连任务才标记 error；否则 taskId 重试会被错误地短路成失败，
+    而自动恢复又可能继续执行同一任务。
     """
     now = time.monotonic()
+    old_worker = workers.get(worker_id)
+    pending_task_ids: set[str] = set()
+    if old_worker is not None:
+        session = _session(old_worker)
+        if session is not None:
+            pending_task_ids = {
+                item.get("taskId")
+                for item in session.queue_pending
+                if isinstance(item, dict) and item.get("type") == "task"
+                and item.get("taskId")
+            }
     marked = 0
     for tid, entry in list(_task_status.items()):
         if entry.get("workerId") == worker_id and entry.get("status") == "pending":
+            if tid in pending_task_ids:
+                entry["workerId"] = None
+                continue
             entry.update({"status": "error", "result": reason, "ts": now})
             marked += 1
     if marked:
@@ -324,6 +370,134 @@ def _mcp_configured(s: _sess.Session | None) -> bool:
 # 回归来源 252c41d）。活性基准见 _read_stdout 的有效输出路径。
 _STDOUT_READ_TIMEOUT_SEC: float = 60.0
 
+_PENDING_INTERACTION_TYPES = frozenset({
+    "approval.request",
+    "codex.user_input",
+    "codex.elicitation",
+    "codex.terminal_interaction",
+})
+
+
+def _interaction_key(event: dict) -> str | None:
+    """Return a stable key for a native interactive event."""
+    event_type = event.get("type")
+    if event_type in {
+        "approval.request", "codex.user_input", "codex.elicitation",
+    }:
+        request_id = event.get("request_id")
+        return f"request:{request_id}" if request_id is not None else None
+    if event_type == "codex.terminal_interaction":
+        item_id = event.get("item_id")
+        return f"terminal:{item_id}" if item_id is not None else None
+    return None
+
+
+def _update_pending_interactions(w: Worker, event: dict) -> None:
+    """Track or retire a native interactive event for dashboard replay.
+
+    This is deliberately worker-local and ephemeral.  If the native process
+    dies, its open JSON-RPC requests die with it and the worker is removed;
+    there is no safe request to replay into a newly spawned process.
+    """
+    event_type = event.get("type")
+    if event_type == "codex.thread_status":
+        native_status = event.get("native_status")
+        w.native_status = dict(native_status) if isinstance(native_status, dict) else None
+        return
+    if event_type == "codex.token_usage":
+        token_usage = event.get("token_usage")
+        w.native_usage = dict(token_usage) if isinstance(token_usage, dict) else None
+        return
+    if event_type == "codex.rate_limits":
+        rate_limits = event.get("rate_limits")
+        w.native_rate_limits = dict(rate_limits) if isinstance(rate_limits, dict) else None
+        return
+    if event_type == "codex.plan":
+        plan = event.get("plan")
+        if isinstance(plan, list):
+            w.native_plan = dict(event)
+        return
+    if event_type == "codex.diff":
+        diff = event.get("diff")
+        w.native_diff = dict(event) if isinstance(diff, str) and diff else None
+        return
+    if event_type in _PENDING_INTERACTION_TYPES:
+        key = _interaction_key(event)
+        if key is not None:
+            w.pending_interactions[key] = dict(event)
+        return
+    if event_type == "codex.request_resolved":
+        request_id = event.get("request_id")
+        if request_id is not None:
+            w.pending_interactions.pop(f"request:{request_id}", None)
+        return
+    if event_type == "codex.item.completed":
+        item_id = event.get("item_id")
+        if item_id is not None:
+            w.pending_interactions.pop(f"terminal:{item_id}", None)
+        return
+    if event_type == "result":
+        w.pending_interactions.clear()
+        w.native_status = None
+        w.native_usage = None
+        w.native_plan = None
+        w.native_diff = None
+
+
+def pending_interaction_events(w: Worker) -> list[dict]:
+    """Return copies of prompts that a dashboard may safely replay."""
+    return [dict(event) for event in (w.pending_interactions or {}).values()]
+
+
+def native_status_event(w: Worker) -> dict | None:
+    """Return the latest native status as a replayable worker event."""
+    if not w.native_status:
+        return None
+    return {"type": "codex.thread_status", "native_status": dict(w.native_status)}
+
+
+def native_usage_event(w: Worker) -> dict | None:
+    """Return the latest native usage as a replayable worker event."""
+    native_usage = getattr(w, "native_usage", None)
+    if not native_usage:
+        return None
+    return {"type": "codex.token_usage", "token_usage": dict(native_usage)}
+
+
+def native_rate_limits_event(w: Worker) -> dict | None:
+    """Return the latest account rate-limit snapshot for a reconnecting UI."""
+    rate_limits = getattr(w, "native_rate_limits", None)
+    if not rate_limits:
+        return None
+    return {"type": "codex.rate_limits", "rate_limits": dict(rate_limits)}
+
+
+def native_plan_event(w: Worker) -> dict | None:
+    """Return the current turn plan for a reconnecting dashboard."""
+    plan = getattr(w, "native_plan", None)
+    return dict(plan) if isinstance(plan, dict) else None
+
+
+def native_diff_event(w: Worker) -> dict | None:
+    """Return the current turn diff for a reconnecting dashboard."""
+    diff = getattr(w, "native_diff", None)
+    return dict(diff) if isinstance(diff, dict) else None
+
+
+def clear_native_runtime_state(w: Worker) -> None:
+    """Drop app-server state that belongs only to the current OS process.
+
+    Codex thread identity lives on the Session and must survive a respawn;
+    status, usage, and open UI prompts belong to the old app-server process and
+    must not be replayed while its replacement is starting.
+    """
+    w.pending_interactions.clear()
+    w.native_status = None
+    w.native_usage = None
+    w.native_rate_limits = None
+    w.native_plan = None
+    w.native_diff = None
+
 
 async def _iter_stdout_lines(w: Worker):
     """分块读取 worker stdout，按换行切分产出完整行。
@@ -369,6 +543,64 @@ def _signal_task_done(w: Worker) -> None:
     ev = getattr(w, "_task_done", None)
     if ev is not None:
         ev.set()
+
+
+def _ack_current_task(w: Worker, s) -> None:
+    """收到最终 result 后确认当前 task item 出队（仅改内存，不单独落盘）。
+
+    用户任务在真正完成前不能从持久队列删除：stream CLI 可能在 stdin 接收后、
+    result 到达前崩溃。调用方会把这次修改和 result/history 一起 save；若没有
+    当前队列 item（兼容旧的直接入队消息），保持原行为。
+    """
+    item = w._current_queue_item
+    w._current_queue_item = None
+    if item is None or s is None:
+        return
+    s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
+
+
+def _ack_current_reports(w: Worker, s) -> None:
+    """收到最终 result 后确认当前报告批次出队（仅改内存，不单独落盘）。"""
+    items = w._current_report_items
+    w._current_report_items = []
+    if not items or s is None:
+        return
+    item_ids = {id(item) for item in items}
+    s.queue_pending = [queued for queued in s.queue_pending if id(queued) not in item_ids]
+
+
+async def _finish_task_error(w: Worker, s, result: str) -> None:
+    """把执行前失败也收敛成可见的 terminal result。"""
+    task_id = w._current_task_id
+    w.status = "error"
+    if s is not None:
+        s.last_result = {
+            "status": "error",
+            "result": result,
+            "cli_session_id": s.cli_session_id,
+            "timestamp": datetime.now().isoformat(),
+            "taskSeq": w._current_seq,
+        }
+        _ack_current_task(w, s)
+        _ack_current_reports(w, s)
+        await _sess.save_async(s)
+    await _bcast({
+        "type": "worker.result",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "status": "error",
+        "result": result,
+        "taskSeq": w._current_seq,
+    })
+    await _enqueue_report(w.session_id, "error", result, task_id, w.worker_id)
+    if task_id and task_id in _task_status:
+        _task_status[task_id] = {
+            "status": "error", "result": result,
+            "workerId": w.worker_id, "taskId": task_id, "ts": time.monotonic(),
+        }
+    w._current_task_id = None
+    w.status = "idle"
+    _signal_task_done(w)
 
 
 # ── 流式块防抖落盘（A1）──
@@ -486,6 +718,10 @@ async def _read_stdout(w: Worker):
 
         # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
         w.last_activity = time.monotonic()
+        # Keep only native interactive prompts in the worker-local replay
+        # cache.  The cache is consumed by the dashboard after a WS reconnect;
+        # normal stream events remain live-only to avoid retaining history.
+        _update_pending_interactions(w, event)
 
         # 提取 session_id + model 并写入 Session
         # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，
@@ -514,7 +750,8 @@ async def _read_stdout(w: Worker):
         if adapter.is_result_event(event):
             s = _session(w)
             is_error = adapter.is_result_error(event)
-            w.status = "error" if is_error else "done"
+            is_cancelled = bool(event.get("cancelled") or event.get("is_cancelled"))
+            w.status = "cancelled" if is_cancelled else ("error" if is_error else "done")
 
             # replay 结束：标记完成，不保存（history 无变化）
             if w._replaying:
@@ -543,6 +780,10 @@ async def _read_stdout(w: Worker):
                     if not (last and last.get("role") == "assistant"
                             and last.get("content") == result_text):
                         s.history.append({"role": "assistant", "content": result_text})
+                # result 是 task item 的完成确认点。把 item 与 last_result/
+                # history 放进同一次落盘，避免“结果已落盘但队列仍在”造成重跑。
+                _ack_current_task(w, s)
+                _ack_current_reports(w, s)
                 # enrich: 从 CLI 原生存储获取消耗数据（如 raw_usage）
                 enrichment = None
                 try:
@@ -676,6 +917,13 @@ async def _consumer(w: Worker):
             s = _session(w)
             if s and s.queue_pending:
                 await _consume_pending_reports(w, s)
+            if w._current_report_items:
+                _log.warning(
+                    "[Worker %s] report batch returned without terminal result; "
+                    "leaving %d item(s) in queue_pending for recovery",
+                    w.worker_id, len(w._current_report_items),
+                )
+                break
             continue
 
         # 任务唤醒信号（L4 落盘）：正文在落盘 queue_pending，按 id 认领单个 task
@@ -688,6 +936,7 @@ async def _consumer(w: Worker):
             source = claimed.get("source", "agent")
             w._current_seq = claimed.get("seq")
             w._current_task_id = claimed.get("taskId")
+            w._current_queue_item = claimed
         else:
             # 直接入队消息（无 type）：send_task 落盘迁移前的完整 item 形态
             # （兼容测试直连 pending_signal.put 的完整 item）
@@ -695,6 +944,7 @@ async def _consumer(w: Worker):
             source = item.get("source", "agent")
             w._current_seq = item.get("seq")
             w._current_task_id = item.get("taskId")
+            w._current_queue_item = None
 
         try:
             # resume replay 等待已删除（worker-resume-replay 结论）：cbc 在 stdin 有
@@ -711,19 +961,12 @@ async def _consumer(w: Worker):
                 # 标记 → 已投递过，只做队列清除收敛（幂等，防双跑），不重复执行。
                 # 对账与进程死活无关，放在存活检查之前；只对认领项做——直接入队
                 # 消息（claimed=None）不经队列，无对账可言。
-                if claimed is not None and _delivery_mark_in_history(s, claimed):
+                already_delivered = claimed is not None and _delivery_mark_in_history(s, claimed)
+                if already_delivered:
                     _log.info(
                         "[Worker %s] task id=%s reconciliation: delivery mark already "
-                        "in history, skipping execution and clearing from queue_pending",
-                        w.worker_id, claimed.get("id"))
-                    s.queue_pending = [it for it in s.queue_pending if it is not claimed]
-                    try:
-                        await _sess.save_async(s)
-                    except Exception as e:
-                        _log.warning(
-                            "[Worker %s] queue_pending save after task reconciliation "
-                            "failed: %s", w.worker_id, e)
-                    continue
+                        "in history, reusing the existing user entry and retrying "
+                        "execution", w.worker_id, claimed.get("id"))
                 injected_text = await _maybe_inject_memory(s, text)
                 text = injected_text
                 # 投递语义：注入期间进程死亡 → 中止，claimed item 留在
@@ -739,26 +982,28 @@ async def _consumer(w: Worker):
                     # 投递标记记为 history 条目元数据（不进消息正文，恢复对账据此
                     # 去重）；直连消息（claimed=None）不经队列，无对账、不打标记
                     hist_entry["delivered_keys"] = [_delivery_key(claimed)]
-                if claimed is None:
-                    s.history.append(hist_entry)
+                if claimed is None or already_delivered:
+                    # A delivery mark means the user entry was persisted before an
+                    # earlier attempt died. Keep it exactly once in history, but do
+                    # execute again: the previous process may have died before
+                    # producing a result.
+                    if claimed is None:
+                        s.history.append(hist_entry)
                 else:
-                    # 原子消费（出队 = 移交成功的确认）：执行上下文记录
-                    # （history append）+ 从 queue_pending 移除，改同一份内存态后
-                    # **一次落盘**——崩溃在 save 前 = 两者都没写（重投）；save 后
-                    # = 两者都写了。save 失败回滚内存态，item 留队列可重投。
-                    old_queue = s.queue_pending
                     s.history.append(hist_entry)
-                    s.queue_pending = [it for it in old_queue if it is not claimed]
+                    # 执行上下文记录先落盘，task item 保留到 result 确认。
+                    # 崩溃发生在 stdin 写入前/后都能由新 worker 重投；result
+                    # 路径再把 item 与最终结果一起确认出队。
+                    old_history_len = len(s.history) - 1
                     try:
                         await _sess.save_async(s)
                     except Exception as e:
-                        s.history.pop()
-                        s.queue_pending = old_queue
+                        del s.history[old_history_len:]
                         _log.warning(
-                            "[Worker %s] task id=%s atomic save failed, "
-                            "kept in queue_pending: %s", w.worker_id,
+                            "[Worker %s] task id=%s handoff save failed, kept "
+                            "in queue_pending: %s", w.worker_id,
                             claimed.get("id"), e)
-                        continue
+                        break
             # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_oneshot）：在
             # running 广播 + 写 cbc stdin 之后立即持久化，发送时指示灯不再被全量
             # O(history) 序列化阻塞（方案 1）。崩溃窗口 = 写 stdin → 落盘 毫秒级，
@@ -772,6 +1017,18 @@ async def _consumer(w: Worker):
                 await _consumer_oneshot(w, text, source, s)
             else:
                 await _consumer_stream(w, text, source, s)
+            # A task remains in queue_pending until its execution path calls
+            # _ack_current_task from a terminal result.  Do not consume another
+            # signal if an adapter returned without producing that result (for
+            # example because its process died); the queue item must wait for a
+            # respawn instead of being attempted repeatedly by the old worker.
+            if claimed is not None and w._current_queue_item is claimed:
+                _log.warning(
+                    "[Worker %s] task id=%s returned without terminal result; "
+                    "leaving item in queue_pending for recovery",
+                    w.worker_id, claimed.get("id"),
+                )
+                break
         finally:
             # 无论正常完成、中止还是异常/取消，都释放 in-flight 标记——item 是否
             # 留在队列由「是否已确认出队」决定，标记只负责运行期去重。
@@ -850,13 +1107,21 @@ def _process_alive(w: Worker) -> bool:
     return w.process is None or w.process.returncode is None
 
 
+def _worker_has_pending_work(w: Worker) -> bool:
+    """idle watchdog 回收前检查是否还有待消费信号或持久队列项。"""
+    if w.pending_signal is not None and not w.pending_signal.empty():
+        return True
+    s = _session(w)
+    return bool(s and s.queue_pending)
+
+
 # ── 投递标记与恢复对账（jsonl-先写顺序下的重复窗口封堵）──
 #
 # save 顺序：① jsonl(history) ② 主文件(queue_pending)。崩溃窗口：jsonl 已写、
 # 主文件未写 → history 有注入消息、队列项还在 → 重启 _recover_pending_signals
 # 重投 → 重复。兜底：注入时在 history 条目上记 `delivered_keys` 元数据（不进
-# 消息正文），消费前对账 history 尾部——条目元数据已含该项 key → 已投递过，
-# 跳过执行并从队列清除（收敛），未命中 → 正常注入执行。
+# 消息正文），恢复时复用已有 history 用户项但重试整个批次，直到 terminal result
+# 才从 queue_pending 确认出队；未命中 → 正常注入执行。
 
 # 对账扫描 history 尾部深度：标记只在注入时写入，重投对账发生在恢复后不久，
 # 尾部窗口足够；深度内未命中一律按未投递处理（宁可重复不丢）。
@@ -891,11 +1156,10 @@ def _delivery_mark_in_history(s, item: dict) -> bool:
 async def _consume_pending_reports(w: Worker, s):
     """从落盘 queue_pending 取全部积压报告，拼接为一条消息交给模型处理。
 
-    投递语义（出队 = 移交成功的确认，原子落盘）：消费逻辑跑在 server 进程，
-    构造注入文本 → history append + 从 queue_pending 移除这批报告 → **同一次
-    save_async** 写盘（history 与 queue_pending 在同一 Session JSON，天然原子）。
-    崩溃在 save 前 = 两者都没写、报告可重投；save 后 = 两者都写了——既不丢
-    也不重复。save 失败（非崩溃）则回滚内存态，队列原样保留可重投。
+    报告批次在收到 terminal result 前一直保留在 queue_pending。构造注入文本时
+    先落盘 history 投递标记；result/error/cancelled 到达后，调用方把报告批次
+    与最终结果一起确认出队。崩溃在注入后仍可重投，且已有 history 标记不会重复
+    追加用户消息；save 失败则队列原样保留。
 
     消费前确认 worker 进程存活（CLI 子进程死 → 中止保留队列，由全局 watchdog
     spawn 恢复后经 _recover_pending_signals 补发信号重投）。
@@ -904,27 +1168,17 @@ async def _consume_pending_reports(w: Worker, s):
     task item 保留在队列中由 task_signal 按 id 消费，互不误删。
 
     恢复对账：save 顺序 jsonl-先写 → 崩溃窗口内 history 条目已带 delivered_keys
-    元数据、队列项仍在。消费前逐条对账 history 尾部：已投递 → 跳过该条（防双跑）
-    且从队列清除（收敛）；未投递 → 注入执行，注入条目记 delivered_keys 元数据
-    （不进消息正文）。
+    元数据、队列项仍在。恢复时复用已有 history 用户项，但仍重试整个报告批次，
+    直到收到 terminal result；新报告与旧报告混合时保持队列顺序。
     """
     reports = [it for it in s.queue_pending if it.get("type") != "task"]
     if not reports:
         # 队列里只剩 task item（报告已被其他信号消费）→ 不发空消息
         return
     undelivered = [it for it in reports if not _delivery_mark_in_history(s, it)]
-    if not undelivered:
-        # 全部已投递（jsonl-先写崩溃恢复）→ 只做队列清除收敛，不注入不执行
-        _log.info("[Worker %s] report reconciliation: %d already-delivered report(s) "
-                  "skipped and cleared from queue_pending", w.worker_id, len(reports))
-        s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
-        try:
-            await _sess.save_async(s)
-        except Exception as e:
-            _log.warning("[Worker %s] queue_pending save after report reconciliation failed: %s",
-                         w.worker_id, e)
-        return
-    text = _format_report_batch(undelivered)
+    # 已有投递标记只表示上一次尝试已经写入执行上下文，不表示模型已经处理完成；
+    # 因而恢复时仍把整个报告批次重试，但不重复追加 history 用户消息。
+    text = _format_report_batch(reports)
 
     # 报告不是 assign 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
     w._current_seq = None
@@ -938,22 +1192,22 @@ async def _consume_pending_reports(w: Worker, s):
             "%d report(s) kept in queue_pending", w.worker_id, len(undelivered))
         return
 
-    # 原子消费：history + 出队先改同一份内存态，再一次落盘；失败回滚内存态
-    # （与磁盘保持一致，报告仍可重投）。本批报告全部移除：未投递项已注入
-    # （出队 = 移交确认），对账命中的已投递项一并清除（收敛）。
-    old_queue = s.queue_pending
-    s.history.append({"role": "user", "content": injected_text,
-                      "delivered_keys": [_delivery_key(it) for it in undelivered]})
-    s.queue_pending = [it for it in s.queue_pending if it.get("type") == "task"]
-    try:
-        await _sess.save_async(s)
-    except Exception as e:
-        s.history.pop()
-        s.queue_pending = old_queue
-        _log.warning(
-            "[Worker %s] report atomic save failed, %d report(s) kept in queue_pending: %s",
-            w.worker_id, len(undelivered), e)
-        return
+    # 只有新报告需要追加 history；已经有 delivered_keys 的报告属于未完成的
+    # 上一次尝试，复用原用户条目，避免恢复时污染上下文。
+    if undelivered:
+        old_history_len = len(s.history)
+        s.history.append({"role": "user", "content": injected_text,
+                          "delivered_keys": [_delivery_key(it) for it in undelivered]})
+        try:
+            await _sess.save_async(s)
+        except Exception as e:
+            del s.history[old_history_len:]
+            _log.warning(
+                "[Worker %s] report handoff save failed, %d item(s) kept in "
+                "queue_pending: %s", w.worker_id, len(undelivered), e)
+            return
+
+    w._current_report_items = reports
 
     mode = resolve_execution_mode(w.adapter, s)
     if mode == "oneshot":
@@ -971,11 +1225,10 @@ _inflight_task_ids: set[str] = set()
 async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
     """在落盘 queue_pending 中按 id 认领一个任务 item（只标记、不移除）。
 
-    投递语义（出队 = 移交成功的确认，原子落盘）：本函数只定位 item 并打
-    in-flight 标记；实际出队在 _consumer 中与「执行上下文记录（history append）」
-    合并为**同一次 save_async**（同一 Session JSON，天然原子）——崩溃在 save 前
-    = 两者都没写、任务可重投；save 后 = 两者都写了。save 失败（非崩溃）回滚
-    内存态，item 留在队列，respawn 后由 _recover_pending_signals 重新分发。
+    本函数只定位 item 并打 in-flight 标记；任务的执行上下文先写入 history，
+    item 保留在 queue_pending，直到 adapter 收到 terminal result 才出队。这样
+    stdin 写入后到 result 到达前的崩溃仍可由 respawn 重投；save 失败则 item 留
+    队列，respawn 后由 _recover_pending_signals 重新分发。
 
     返回 item；信号重复 / item 不存在 / 已被消费 / 会话消失 → None。
 
@@ -1187,6 +1440,13 @@ async def _watchdog(w: Worker):
         # MCP one-shot：只回收长期 idle 的 worker（running 由读取超时兜底）
         if w.process is None:
             if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
+                if _worker_has_pending_work(w):
+                    _log.debug(
+                        "[Worker %s] watchdog keep: reason=pending_work mode=mcp "
+                        "idle_for=%.0fs branch=mcp_pending_work",
+                        w.worker_id, idle_for,
+                    )
+                    continue
                 _log.info(
                     "[Worker %s] watchdog kill: reason=idle_reclaim mode=mcp status=%s "
                     "idle_for=%.0fs idle_threshold=%.0fs branch=mcp_idle_reclaim",
@@ -1225,6 +1485,13 @@ async def _watchdog(w: Worker):
             await kill_worker(w.worker_id)
             return
         if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
+            if _worker_has_pending_work(w):
+                _log.debug(
+                    "[Worker %s] watchdog keep: reason=pending_work mode=stream "
+                    "idle_for=%.0fs branch=stream_pending_work",
+                    w.worker_id, idle_for,
+                )
+                continue
             _log.info(
                 "[Worker %s] watchdog kill: reason=idle_reclaim mode=stream status=%s "
                 "idle_for=%.0fs idle_threshold=%.0fs branch=stream_idle_reclaim",
@@ -1409,15 +1676,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
             "[Worker %s] oneshot_args 返回空 argv（adapter=%s 不支持 oneshot？）；跳过本次任务",
             w.worker_id, getattr(adapter, "name", "?"),
         )
-        if s:
-            s.last_result = {
-                "status": "error",
-                "result": "adapter 不支持 oneshot 执行模式",
-                "timestamp": datetime.now().isoformat(),
-            }
-            await _sess.save_async(s)
+        await _finish_task_error(w, s, "adapter 不支持 oneshot 执行模式")
         w.last_activity = time.monotonic()
-        w.status = "idle"
         _maybe_restart_pending(w)
         return
 
@@ -1432,12 +1692,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         )
     except Exception as e:
         _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
-        if s:
-            s.last_result = {"status": "error", "result": f"MCP spawn failed: {e}", "timestamp": datetime.now().isoformat()}
-            await _sess.save_async(s)
+        await _finish_task_error(w, s, f"MCP spawn failed: {e}")
         # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
         w.last_activity = time.monotonic()
-        w.status = "idle"
         _maybe_restart_pending(w)
         return
 
@@ -1599,6 +1856,10 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         "timestamp": datetime.now().isoformat(),
         "taskSeq": w._current_seq,
     }
+    # One-shot 没有独立的 stdout result reader；在解析完本轮输出后同样以
+    # result/error 为完成确认点，从持久队列移除当前 task。
+    _ack_current_task(w, s)
+    _ack_current_reports(w, s)
     # 用量/credit 落账：与 stream 路径（_read_stdout）同构——补调
     # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
     # oneshot 之前漏调，导致 cbc 不记 credit、claude（仅 oneshot）完全不记
@@ -1728,17 +1989,16 @@ def _spawn_system_prompt_args(adapter, s, mcp_on: bool) -> list[str] | None:
 
     返回传给 ``_spawn_process`` 的 extra_args（含该 flag）或 None：
 
-    - 仅当 stream+MCP、有 system_prompt 且是全新会话（无 cli_session_id）时
-      才考虑 CLI 级注入（与 one-shot 的 --system-prompt 同思路，避免首条
-      消息注入导致 roleplay trap，见 cbc-mcp-踩坑记录.md #13）。
-    - 且仅当 adapter 声明 ``supports_spawn_system_prompt``（可选能力，getattr
+    - 有 system_prompt 且是全新会话（无 cli_session_id）时，优先考虑 CLI 级注入。
+      这能避免把人设作为首条 user 消息发送（尤其是 MCP 场景的 roleplay trap）。
+    - 仅当 adapter 声明 ``supports_spawn_system_prompt``（可选能力，getattr
       探测，缺省 False）：cbc CLI 原生支持；kimi 由 wrapper 转为其 CLI 原生
-      --agent-file。不支持的 adapter 强传会让子进程 argparse 报
+      --agent-file；codex 由 wrapper 转为 developer_instructions。不支持的 adapter 强传会让子进程 argparse 报
       ``unrecognized arguments`` 直接 exit 2 —— 会话永不回复
       （SMA(NoAdapter)+kimi 卡死根因），此时返回 None，由 _create_worker
       退回首条消息注入。
     """
-    if not (mcp_on and s.system_prompt and not s.cli_session_id):
+    if not (s.system_prompt and not s.cli_session_id):
         return None
     if getattr(adapter, "supports_spawn_system_prompt", False):
         return ["--system-prompt", s.system_prompt]
@@ -1842,11 +2102,11 @@ async def _create_worker(session_id: str) -> Worker | str:
     if s.system_prompt and not s.cli_session_id:
         if mode == "oneshot":
             _log.info("[Worker %s] oneshot mode: system_prompt 由 oneshot_args 逐任务注入", worker_id)
-        elif not mcp_on or not spawn_injected:
+        elif not spawn_injected:
             _log.info("[Worker %s] injecting system_prompt (%d chars)", worker_id, len(s.system_prompt))
             await send_task(worker_id, s.system_prompt, source="system_prompt")
         else:
-            _log.info("[Worker %s] MCP stream mode: system_prompt injected via --system-prompt", worker_id)
+            _log.info("[Worker %s] stream mode: system_prompt injected via --system-prompt", worker_id)
 
     return w
 
@@ -2064,6 +2324,10 @@ async def restart_worker(worker_id: str) -> str | None:
     if w._stdout_task:
         w._stdout_task.cancel()
 
+    # Do this before any await that can service a dashboard reconnect. The
+    # Worker object is reused, but these snapshots are process-local.
+    clear_native_runtime_state(w)
+
     # kill takeover terminal if one was opened
     await _kill_takeover_terminal(w)
 
@@ -2106,6 +2370,10 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
     if w._stdout_task:
         w._stdout_task.cancel()
 
+    # Do this before killing/spawning: a reconnect must never replay prompts or
+    # usage emitted by the process that is being replaced.
+    clear_native_runtime_state(w)
+
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
     w.process = None
@@ -2139,9 +2407,20 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     if not s:
         return "New session not found"
 
-    # inherit model/mode/thinking from original session
+    # inherit model/mode/thinking and adapter-specific session settings from
+    # the original session.  Provider-owned identity/usage cursors are
+    # deliberately excluded: the fork gets a new native CLI session below.
     orig = _sess.get(w.session_id)
     if orig:
+        inherited_config = {
+            key: value for key, value in orig.adapter_config.items()
+            if key not in {"cli_session_id", "codex_prev_usage"}
+        }
+        inherited_config.update({
+            key: value for key, value in s.adapter_config.items()
+            if key not in {"cli_session_id", "codex_prev_usage"}
+        })
+        s.adapter_config = inherited_config
         if not s.model:
             s.model = orig.model
         if not s.permission_mode:
@@ -2155,11 +2434,50 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         # cli_session_id so fork_args can create the branched session.
         if orig.cli_session_id and not s.cli_session_id:
             s.cli_session_id = orig.cli_session_id
+        if not s.system_prompt:
+            s.system_prompt = orig.system_prompt
+        if not s.character_id:
+            s.character_id = orig.character_id
+        if not s.session_template:
+            s.session_template = orig.session_template
+        if not s.pan_access:
+            s.pan_access = dict(orig.pan_access)
 
-    # branch needs --fork-session from adapter
+    # Most legacy adapters fork by passing a CLI-specific flag.  Codex's
+    # app-server has no reliable headless fork flag, so its SessionsProvider
+    # materializes a new native thread in the Codex state/history databases.
     extra_args = w.adapter.fork_args(s)
-    if not w.adapter.supports_fork or not extra_args:
+    provider = None
+    if w.adapter.supports_fork and not extra_args:
+        try:
+            provider = get_sessions_provider(w.adapter.name)
+        except KeyError:
+            provider = None
+
+    if not w.adapter.supports_fork or (not extra_args and provider is None):
         return f"Adapter '{w.adapter.name}' does not support fork"
+
+    if not extra_args and provider is not None:
+        if not orig or not orig.cli_session_id:
+            return "Session has no native CLI session ID — cannot fork"
+        try:
+            new_cli_id = await asyncio.to_thread(
+                provider.fork_session,
+                orig.cli_session_id,
+                s.name,
+                s.workdir or None,
+            )
+            s.cli_session_id = new_cli_id
+            s.history = await asyncio.to_thread(
+                provider.parse_history, new_cli_id, s.workdir or None
+            )
+            raw_usage_entries = await asyncio.to_thread(
+                provider.get_raw_usage, new_cli_id, s.workdir or None
+            )
+            s.raw_usage = _sess.accumulate_raw_usage(None, raw_usage_entries)
+            s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        except Exception as exc:
+            return f"Fork failed: {exc}"
 
     new_id = await _next_worker_id()
     proc = await _spawn_process(new_session_id, adapter=w.adapter, extra_args=extra_args)
@@ -2198,12 +2516,72 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     return new_w
 
 
+async def send_control_message(worker_id: str, control: dict) -> str | None:
+    """Send a narrowly-scoped out-of-band control message to a live worker.
+
+    Native adapters may use this for controls that are not user turns, such
+    as Codex app-server approval and user-input responses.  The adapter owns wire encoding;
+    workers without that optional capability keep the existing behavior.
+    """
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    if (w.process is None or w.process.returncode is not None
+            or w.process.stdin is None):
+        return "Worker process is not running"
+    encode_control = getattr(w.adapter, "encode_control_message", None)
+    if encode_control is None:
+        return f"Adapter '{w.adapter.name}' does not support worker controls"
+    if not isinstance(control, dict) or control.get("type") not in {
+        "interrupt", "steer", "approval_response", "user_input_response", "permission_response",
+        "elicitation_response", "terminal_input", "terminal_terminate",
+    }:
+        return "Unsupported worker control"
+    try:
+        w.process.stdin.write(encode_control(control) + b"\n")
+        await w.process.stdin.drain()
+    except (BrokenPipeError, ConnectionError, OSError, RuntimeError):
+        return "Worker control write failed"
+    return None
+
+
+async def steer_worker(worker_id: str, text: str) -> str | None:
+    """Inject a follow-up instruction into a native running turn.
+
+    Codex app-server's ``turn/steer`` changes the native thread, but it does
+    not produce a normal Pan ``user_inject`` event. Persist the instruction
+    only after the control write succeeds so Pan history stays aligned with
+    the native conversation.
+    """
+    text = str(text or "").strip()
+    if not text:
+        return "Steer text is required"
+    err = await send_control_message(worker_id, {"type": "steer", "text": text})
+    if err:
+        return err
+    w = workers.get(worker_id)
+    s = _session(w) if w else None
+    if s is not None:
+        s.history.append({"role": "user", "content": text})
+        await _sess.save_async(s)
+    return None
+
+
 async def interrupt_worker(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
     if w.status != "running":
         return "Worker is not running"
+    # Codex app-server can interrupt the active turn while preserving the
+    # long-lived native thread and app-server process.  Fall back to the
+    # established kill+resume path for adapters without this optional
+    # capability or when the control write fails.
+    if getattr(w.adapter, "supports_native_interrupt", False):
+        err = await send_control_message(worker_id, {"type": "interrupt"})
+        if err is None:
+            return None
+        _log.warning("[Worker %s] native interrupt write failed: %s; restarting", worker_id, err)
     return await restart_worker(worker_id)
 
 
@@ -2281,7 +2659,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
 
     task_id 幂等（复用 taskId 幂等注册表 _task_status + TTL 惰性清理）：
     同一 taskId 重发不重复入队（防双跑）。若该 taskId 已存在：
-    - 已完成（done/error）→ 返回缓存结果（status/result）
+    - 已完成（done/error/cancelled）→ 返回缓存结果（status/result）
     - 进行中 → 返回 {"status": "pending", "taskId": ...}，不重复入队
     用于超时后安全重试 / 并发去重。不带 task_id 行为不变。
     """
@@ -2290,7 +2668,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
     # taskId 幂等检查
     if task_id is not None and task_id in _task_status:
         existing = _task_status[task_id]
-        if existing["status"] in ("done", "error"):
+        if existing["status"] in ("done", "error", "cancelled"):
             return dict(existing)
         return {"status": "pending", "taskId": task_id}
 

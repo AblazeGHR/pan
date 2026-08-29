@@ -317,8 +317,10 @@ def test_create_worker_injects_system_prompt_only_for_fresh_session(monkeypatch)
     """
     _cleanup()
     sent_calls = []
+    spawn_calls = []
 
     async def fake_spawn(session_id, adapter, extra_args=None):
+        spawn_calls.append(extra_args)
         return MockProcess([], returncode=None, hold_open=True)
 
     async def fake_send(worker_id, text, source="agent"):
@@ -332,14 +334,16 @@ def test_create_worker_injects_system_prompt_only_for_fresh_session(monkeypatch)
     monkeypatch.setattr(worker, "send_task", fake_send)
     monkeypatch.setattr(_sess, "save_async", fake_save)
 
-    # 1) 全新会话（无 cli_session_id）→ 注入 system_prompt 消息
+    # 1) 全新会话（无 cli_session_id）→ 优先通过 spawn 参数注入 system_prompt
     s = _setup_session()
     s.system_prompt = "You are a test assistant."
     s.adapter_config = {}
     w1 = asyncio.run(worker.create_worker(s.id))
     assert isinstance(w1, worker.Worker), f"create_worker failed: {w1}"
-    assert any(src == "system_prompt" for _, src in sent_calls), \
+    assert spawn_calls[0] == ["--system-prompt", s.system_prompt], \
         "fresh session 首次 spawn 必须注入 system_prompt"
+    assert not any(src == "system_prompt" for _, src in sent_calls), \
+        "支持 spawn 注入的 adapter 不应再发送重复的 system_prompt 消息"
     for t in (w1._stdout_task, w1._consume_task, w1._watchdog_task):
         if t:
             t.cancel()
@@ -352,6 +356,7 @@ def test_create_worker_injects_system_prompt_only_for_fresh_session(monkeypatch)
     s2.adapter_config = {"cli_session_id": "forked-cli-1"}
     w2 = asyncio.run(worker.create_worker(s2.id))
     assert isinstance(w2, worker.Worker), f"create_worker failed: {w2}"
+    assert spawn_calls[1] is None
     assert not any(src == "system_prompt" for _, src in sent_calls), \
         "fork/resume 会话不应重复注入 system_prompt"
     for t in (w2._stdout_task, w2._consume_task, w2._watchdog_task):

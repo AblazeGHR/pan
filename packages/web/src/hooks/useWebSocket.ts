@@ -8,7 +8,7 @@ import { useQueueStore } from '@/stores/queueStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
-import type { StreamEvent, WorkerEvent, Message } from '@/types';
+import type { StreamEvent, WorkerEvent, Message, UserInputQuestion } from '@/types';
 
 // ── Debounced full-list refresh (mirrors legacy app.ts scheduleRefreshSessions) ──
 // WS events can burst (rapid task completions, session updates); firing a full
@@ -24,6 +24,15 @@ function scheduleRefreshSessions(): void {
     refreshTimer = null;
     useSessionStore.getState().loadSessions();
   }, 300);
+}
+
+function clearInteractiveRequests(sessionId?: string): void {
+  if (!sessionId) return;
+  const ui = useUIStore.getState();
+  ui.clearApprovalRequests(sessionId);
+  ui.clearUserInputRequests(sessionId);
+  ui.clearElicitationRequests(sessionId);
+  ui.clearTerminalInteractions(sessionId);
 }
 
 /**
@@ -100,35 +109,51 @@ export function useWebSocket() {
       streamPreviewLastFlush.delete(sessionId);
     };
 
-    // Open handler — refresh sessions on connect
+    const syncInteractiveRequests = (): void => {
+      // The backend keeps a worker-local snapshot of native prompts while the
+      // JSON-RPC request is still open. Ask for it after every connection so a
+      // browser refresh/reconnect does not strand the user at a hidden prompt.
+      wsClient.send({ type: 'sync_interactive' });
+    };
+
+    // Open handler — refresh sessions and restore live native prompts on connect
     unsubscribers.push(wsClient.on('open', () => {
       useSessionStore.getState().loadSessions();
       useWorkerStore.getState().refresh();
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
+      syncInteractiveRequests();
     }));
+    // If the singleton was already open before this hook mounted (HMR/route
+    // remount), no new `open` event will arrive; sync explicitly as well.
+    if (wsClient.isOpen) syncInteractiveRequests();
 
     // Worker spawned / restarted / reconfigured
-    unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) =>
-      handleWorkerUpdate(e, 'idle'),
-    ));
-    unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) =>
-      handleWorkerUpdate(e, 'idle'),
-    ));
-    unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) =>
-      handleWorkerUpdate(e, 'idle'),
-    ));
+    unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
+      clearInteractiveRequests(e.sessionId);
+      handleWorkerUpdate(e, 'idle');
+    }));
+    unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) => {
+      clearInteractiveRequests(e.sessionId);
+      handleWorkerUpdate(e, 'idle');
+    }));
+    unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) => {
+      clearInteractiveRequests(e.sessionId);
+      handleWorkerUpdate(e, 'idle');
+    }));
 
     // Worker destroyed / crashed — 除就地更新状态点外触发防抖全量兜底：
     // 崩溃/销毁是低频事件，且流式片段已逐块落盘，刷新让列表吸收已持久化的
     // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
+      clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
+      clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       scheduleRefreshSessions();
     }));
@@ -153,6 +178,113 @@ export function useWebSocket() {
     // Stream events (real-time message chunks)
     unsubscribers.push(wsClient.on('worker.stream', (e: StreamEvent) => {
       if (!e.sessionId || !e.event) return;
+      if (e.event.type === 'codex.thread_status' && e.event.native_status) {
+        useWorkerStore.getState().updateNativeStatus(
+          e.sessionId,
+          e.workerId,
+          e.event.native_status,
+        );
+      }
+      if (e.event.type === 'codex.token_usage' && e.event.token_usage) {
+        useWorkerStore.getState().updateNativeUsage(
+          e.sessionId,
+          e.workerId,
+          e.event.token_usage,
+        );
+      }
+      if (e.event.type === 'codex.rate_limits' && e.event.rate_limits) {
+        useWorkerStore.getState().updateNativeRateLimits(
+          e.sessionId,
+          e.workerId,
+          e.event.rate_limits,
+        );
+      }
+      if (e.event.type === 'codex.mcp_status' && e.sessionId === useSessionStore.getState().currentSessionId) {
+        const status = e.event.mcp_status;
+        if (status && String(status.status || '').toLowerCase() === 'failed') {
+          const name = String(status.name || 'server');
+          const detail = status.error || status.failureReason || 'startup failed';
+          useUIStore.getState().showToast(`Codex MCP ${name}: ${detail}`, 'error');
+        }
+      }
+      if (e.event.type === 'codex.model_rerouted' && e.sessionId === useSessionStore.getState().currentSessionId) {
+        const rerouted = e.event.model_rerouted;
+        if (rerouted) {
+          const from = String(rerouted.fromModel || 'configured model');
+          const to = String(rerouted.toModel || 'fallback model');
+          const reason = rerouted.reason ? ` (${String(rerouted.reason)})` : '';
+          useUIStore.getState().showToast(`Codex switched model: ${from} → ${to}${reason}`);
+        }
+      }
+      if (e.event.type === 'codex.turn_error' && e.sessionId === useSessionStore.getState().currentSessionId) {
+        const detail = e.event.error_text || 'Codex turn failed';
+        useUIStore.getState().showToast(`Codex: ${detail}`, 'error');
+      }
+      if (
+        e.event.type === 'approval.request' &&
+        e.workerId &&
+        e.event.method &&
+        e.event.request_id !== undefined
+      ) {
+        useUIStore.getState().addApprovalRequest({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          requestId: e.event.request_id,
+          method: e.event.method,
+          params: e.event.params ?? {},
+        });
+      }
+      if (
+        e.event.type === 'codex.user_input' &&
+        e.workerId &&
+        e.event.method === 'item/tool/requestUserInput' &&
+        e.event.request_id !== undefined
+      ) {
+        const questions = e.event.params?.questions;
+        useUIStore.getState().addUserInputRequest({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          requestId: e.event.request_id,
+          method: e.event.method,
+          questions: Array.isArray(questions) ? questions as UserInputQuestion[] : [],
+        });
+      }
+      if (
+        e.event.type === 'codex.elicitation' &&
+        e.workerId &&
+        e.event.method === 'mcpServer/elicitation/request' &&
+        e.event.request_id !== undefined
+      ) {
+        useUIStore.getState().addElicitationRequest({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          requestId: e.event.request_id,
+          method: e.event.method,
+          params: e.event.params ?? {},
+        });
+      }
+      if (
+        e.event.type === 'codex.terminal_interaction' &&
+        e.workerId &&
+        e.event.item_id !== undefined &&
+        e.event.process_id !== undefined
+      ) {
+        useUIStore.getState().addTerminalInteraction({
+          sessionId: e.sessionId,
+          workerId: e.workerId,
+          itemId: String(e.event.item_id),
+          processId: String(e.event.process_id),
+          stdin: typeof e.event.stdin === 'string' ? e.event.stdin : '',
+          params: e.event.params ?? {},
+        });
+      }
+      if (e.event.type === 'codex.request_resolved' && e.sessionId && e.event.request_id !== undefined) {
+        const requestId = e.event.request_id;
+        const ui = useUIStore.getState();
+        ui.removeApprovalRequest(e.sessionId, requestId);
+        ui.removeUserInputRequest(e.sessionId, requestId);
+        ui.removeElicitationRequest(e.sessionId, requestId);
+      }
       const store = useSessionStore.getState();
       // 消息区：仅当前 session 追加（原有逻辑，保留）
       if (e.sessionId === store.currentSessionId) appendEvent(e.event);
@@ -164,8 +296,13 @@ export function useWebSocket() {
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       const sessionStore = useSessionStore.getState();
+      clearInteractiveRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
-        const status = e.status === 'error' ? 'error' : 'done';
+        const status = e.status === 'error'
+          ? 'error'
+          : e.status === 'cancelled' || e.cancelled
+            ? 'cancelled'
+            : 'done';
         sessionStore.addMessage({
           role: 'system',
           content: `[${status.toUpperCase()}] Task completed`,
@@ -270,6 +407,38 @@ function extractBlocks(
   event: WorkerEvent,
 ): Array<{ role: string; content: string }> {
   const blocks: Array<{ role: string; content: string }> = [];
+  if (event.type === 'codex.plan' && Array.isArray(event.plan)) {
+    const statusMark: Record<string, string> = {
+      completed: '[x]',
+      inProgress: '[>]',
+      pending: '[ ]',
+    };
+    const lines = event.plan.map((step) => {
+      const text = String(step.step ?? '').trim();
+      const mark = statusMark[String(step.status ?? '')] ?? '[ ]';
+      return `${mark} ${text}`.trimEnd();
+    }).filter(Boolean);
+    const explanation = typeof event.explanation === 'string'
+      ? event.explanation.trim()
+      : '';
+    const content = [explanation, lines.join('\n')].filter(Boolean).join('\n\n');
+    return content ? [{ role: 'thinking', content }] : blocks;
+  }
+  if (event.type === 'codex.diff' && typeof event.diff === 'string' && event.diff) {
+    return [{
+      role: 'tool',
+      content: `CodexDiff(${pyJsonDumps({ diff: event.diff })})`,
+    }];
+  }
+  if (event.type === 'codex.item.completed' && event.item) {
+    const item = { ...event.item };
+    const kind = String(item.type ?? 'CodexItem');
+    delete item.id;
+    delete item.type;
+    let rendered = pyJsonDumps(item);
+    if (rendered.length > 4000) rendered = rendered.slice(0, 4000) + '…';
+    return [{ role: 'tool', content: `${kind}(${rendered})` }];
+  }
   const role = event.role ?? event.type;
   if (role !== 'assistant' && role !== 'thinking') return blocks;
 
@@ -327,6 +496,7 @@ function extractBlocks(
  *  每个 text 块在消息区各成一条 assistant 消息，预览取最后一个 text 块即
  *  「最新消息」。无 text 块（thinking/tool/meta 等）→ 返回 null。 */
 function extractStreamText(event: WorkerEvent): string | null {
+  if (event.delta && event.stream_text) return event.stream_text;
   let text = '';
   for (const b of extractBlocks(event)) {
     if (b.role === 'assistant' && b.content) text = b.content;
@@ -340,16 +510,78 @@ function appendEvent(event: StreamEvent['event']): void {
   if (t === 'system' && event.subtype === 'init') return;
   if (t === 'result') return;
 
-  const store = useSessionStore.getState();
   for (const b of extractBlocks(event)) {
+    const store = useSessionStore.getState();
+    const messages = store.currentMessages;
+    const nativeItemId = event.item_id !== undefined ? String(event.item_id) : undefined;
+    const nativeIndex = nativeItemId
+      ? messages.findIndex((message) => message.nativeItemId === nativeItemId)
+      : -1;
+    const lastIndex = messages.length - 1;
+    const targetIndex = nativeIndex >= 0 ? nativeIndex : lastIndex;
+    const target = targetIndex >= 0 ? messages[targetIndex] : undefined;
+    if (event.replace && target?.role === b.role) {
+      const updated = { ...target, content: b.content };
+      useSessionStore.setState({
+        currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
+      });
+      continue;
+    }
+    if (event.delta) {
+      if (target?.role === b.role && (nativeIndex >= 0 || !nativeItemId)) {
+        const content = event.replace ? b.content : target.content + b.content;
+        const updated = {
+          ...target,
+          content,
+          ...(nativeItemId ? { nativeItemId } : {}),
+        };
+        useSessionStore.setState({
+          currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
+        });
+      } else {
+        useSessionStore.getState().addMessage({
+          role: b.role,
+          content: b.content,
+          ...(nativeItemId ? { nativeItemId } : {}),
+        });
+      }
+      continue;
+    }
+    if (event.final && target?.role === b.role && target.content !== b.content) {
+      // Replace the prefix accumulated from app-server deltas with the
+      // authoritative completed item.  If it is unrelated, retain both.
+      if (b.content.startsWith(target.content)) {
+        const updated = {
+          ...target,
+          content: b.content,
+          ...(nativeItemId ? { nativeItemId } : {}),
+        };
+        useSessionStore.setState({
+          currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
+        });
+        continue;
+      }
+    }
+    if (event.final && target?.role === b.role && target.content === b.content) {
+      continue;
+    }
     if (b.role === 'assistant') {
-      store.addMessage({ role: 'assistant', content: b.content });
+      useSessionStore.getState().addMessage({
+        role: 'assistant', content: b.content,
+        ...(nativeItemId ? { nativeItemId } : {}),
+      });
     } else if (b.role === 'thinking') {
       store.markUnread(b.content);
-      store.addMessage({ role: 'thinking', content: b.content });
+      useSessionStore.getState().addMessage({
+        role: 'thinking', content: b.content,
+        ...(nativeItemId ? { nativeItemId } : {}),
+      });
     } else if (b.role === 'tool') {
       store.markUnread(b.content);
-      store.addMessage({ role: 'tool', content: b.content });
+      useSessionStore.getState().addMessage({
+        role: 'tool', content: b.content,
+        ...(nativeItemId ? { nativeItemId } : {}),
+      });
     }
   }
 }

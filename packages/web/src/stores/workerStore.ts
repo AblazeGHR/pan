@@ -6,6 +6,7 @@ import {
   restartWorker,
   workerSettings,
   interruptWorker,
+  steerWorker,
   takeoverWorker,
   listWorkers,
 } from '@/services/api';
@@ -41,12 +42,28 @@ interface WorkerStore {
   startWorker: (sessionId: string, settings?: SettingsBody) => Promise<void>;
   killCurrent: (workerId: string) => Promise<void>;
   interrupt: (workerId: string) => Promise<void>;
+  steer: (workerId: string, text: string) => Promise<void>;
   restart: (workerId: string, settings?: SettingsBody) => Promise<void>;
   takeover: (workerId: string) => Promise<ApiGenericResponse>;
   updateWorker: (
     sessionId: string,
     workerId: string | null,
     status: string | null,
+  ) => void;
+  updateNativeStatus: (
+    sessionId: string,
+    workerId: string | null | undefined,
+    nativeStatus: WorkerInfo['nativeStatus'],
+  ) => void;
+  updateNativeUsage: (
+    sessionId: string,
+    workerId: string | null | undefined,
+    nativeUsage: WorkerInfo['nativeUsage'],
+  ) => void;
+  updateNativeRateLimits: (
+    sessionId: string,
+    workerId: string | null | undefined,
+    nativeRateLimits: WorkerInfo['nativeRateLimits'],
   ) => void;
   syncToSession: (sessionId: string | null) => void;
   refresh: () => Promise<void>;
@@ -94,6 +111,10 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
     }
   },
 
+  steer: async (workerId, text) => {
+    await steerWorker(workerId, text);
+  },
+
   restart: async (workerId, settings) => {
     if (settings) {
       await workerSettings(workerId, settings);
@@ -110,10 +131,24 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
   updateWorker: (sessionId, workerId, status) => {
     if (!sessionId) return;
 
+    const previous = useWorkerStore.getState().workers[sessionId];
     const now: WorkerInfo = {
       id: workerId || '',
       sessionId,
       status: (status as WorkerInfo['status']) || 'offline',
+      ...(status === 'idle' || status === null || status === undefined
+        ? {}
+        : previous?.nativeStatus
+          ? { nativeStatus: previous.nativeStatus }
+          : {}),
+      ...(status === 'idle' || status === null || status === undefined
+        ? {}
+        : previous?.nativeUsage
+          ? { nativeUsage: previous.nativeUsage }
+          : {}),
+      ...(status !== null && status !== undefined && previous?.id === workerId && previous?.nativeRateLimits
+        ? { nativeRateLimits: previous.nativeRateLimits }
+        : {}),
     };
 
     set((s) => {
@@ -126,6 +161,84 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
       const workers = { ...s.workers, [sessionId]: now };
       const currentWorkerId = isCurrentSession
         ? workerId || null
+        : s.currentWorkerId;
+      return {
+        workers,
+        currentWorkerId,
+        currentWorker: findWorker(workers, currentWorkerId),
+      };
+    });
+  },
+
+  updateNativeStatus: (sessionId, workerId, nativeStatus) => {
+    if (!sessionId) return;
+    set((s) => {
+      const previous = s.workers[sessionId];
+      if (!previous && !workerId) return s;
+      const worker: WorkerInfo = previous
+        ? { ...previous, nativeStatus }
+        : {
+            id: workerId || '',
+            sessionId,
+            status: 'running',
+            nativeStatus,
+          };
+      const workers = { ...s.workers, [sessionId]: worker };
+      const currentSessionId = useSessionStore.getState().currentSessionId;
+      const currentWorkerId = sessionId === currentSessionId
+        ? worker.id || s.currentWorkerId
+        : s.currentWorkerId;
+      return {
+        workers,
+        currentWorkerId,
+        currentWorker: findWorker(workers, currentWorkerId),
+      };
+    });
+  },
+
+  updateNativeUsage: (sessionId, workerId, nativeUsage) => {
+    if (!sessionId) return;
+    set((s) => {
+      const previous = s.workers[sessionId];
+      if (!previous && !workerId) return s;
+      const worker: WorkerInfo = previous
+        ? { ...previous, nativeUsage }
+        : {
+            id: workerId || '',
+            sessionId,
+            status: 'running',
+            nativeUsage,
+          };
+      const workers = { ...s.workers, [sessionId]: worker };
+      const currentSessionId = useSessionStore.getState().currentSessionId;
+      const currentWorkerId = sessionId === currentSessionId
+        ? worker.id || s.currentWorkerId
+        : s.currentWorkerId;
+      return {
+        workers,
+        currentWorkerId,
+        currentWorker: findWorker(workers, currentWorkerId),
+      };
+    });
+  },
+
+  updateNativeRateLimits: (sessionId, workerId, nativeRateLimits) => {
+    if (!sessionId) return;
+    set((s) => {
+      const previous = s.workers[sessionId];
+      if (!previous && !workerId) return s;
+      const worker: WorkerInfo = previous
+        ? { ...previous, nativeRateLimits }
+        : {
+            id: workerId || '',
+            sessionId,
+            status: 'running',
+            nativeRateLimits,
+          };
+      const workers = { ...s.workers, [sessionId]: worker };
+      const currentSessionId = useSessionStore.getState().currentSessionId;
+      const currentWorkerId = sessionId === currentSessionId
+        ? worker.id || s.currentWorkerId
         : s.currentWorkerId;
       return {
         workers,
@@ -152,10 +265,21 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
       const workers = await listWorkers();
       const map: Record<string, WorkerInfo> = {};
       for (const w of workers) {
+        const previous = useWorkerStore.getState().workers[w.sessionId];
+        const status = w.status as WorkerInfo['status'];
         map[w.sessionId] = {
           id: w.workerId,
           sessionId: w.sessionId,
-          status: w.status as WorkerInfo['status'],
+          status,
+          ...(status !== 'idle' && previous?.nativeStatus
+            ? { nativeStatus: previous.nativeStatus }
+            : {}),
+          ...(status !== 'idle' && previous?.nativeUsage
+            ? { nativeUsage: previous.nativeUsage }
+            : {}),
+          ...(previous?.id === w.workerId && previous?.nativeRateLimits
+            ? { nativeRateLimits: previous.nativeRateLimits }
+            : {}),
         };
       }
       // Pre-existing workers (spawned before this page loaded) never fire a

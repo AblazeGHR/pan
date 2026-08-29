@@ -25,13 +25,13 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 消息 | 格式 | 说明 |
 |------|------|------|
 | subscribe | `{"type":"subscribe","eventTypes":["worker.result","worker.zombie"],"sessionIds":["ses_..."]}` | `eventTypes`：省略/空数组 → 默认 `["worker.result"]`；`["*"]` 订阅全部。`sessionIds`：省略 → 所有 session；只过滤 `worker.result`。回 `{"type":"subscribed",...}` |
-| reconnect | `{"type":"reconnect","sessionIds":["ses_..."]}` | 断线重连补发：每 session 未消费的 `worker.result`（`consumed_seq < taskSeq`），带 `replayed: true` |
+| reconnect | `{"type":"reconnect","sessionIds":["ses_..."]}` | 断线重连补发：每 session 未消费的终态 `worker.result`（`done/error/cancelled`，且 `consumed_seq < taskSeq`），带 `replayed: true` |
 
 ### 服务端 → 客户端事件
 
 | 事件 | 字段 | 说明 |
 |------|------|------|
-| `worker.result` | `workerId, sessionId, status(done/error), result, taskSeq` | **任务完成**，默认订阅 |
+| `worker.result` | `workerId, sessionId, status(done/error/cancelled), result, taskSeq` | **任务完成/失败/取消**，默认订阅；终态结果可在 reconnect 时补发 |
 | `worker.zombie` | `workerId, sessionId, returncode` | 进程退出/被杀/回收瞬间广播（订阅方据此感知异常丢失） |
 | `worker.crashed` | `workerId, sessionId, returncode` | 非零退出 |
 | `worker.status` | `workerId, sessionId, status, source` | 状态切换（running 等） |
@@ -43,6 +43,20 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `subscribed` / `error` | — | 协议握手 / 错误 |
 
 订阅状态：每个连接独立维护 `consumed_seq`（每 session 已消费的 result 序号），重连补发据此推进。**订阅可限定 session**：只收关心的 session，减少无关唤醒。
+
+## Dashboard `/ws` 交互请求恢复
+
+React dashboard 使用 `ws://127.0.0.1:<port>/ws`。连接建立后发送：
+
+```json
+{"type":"sync_interactive"}
+```
+
+服务端会把仍由**存活 worker**持有的 Codex 原生审批、用户输入、MCP elicitation
+和 terminal interaction，以带 `replayed: true` 的 `worker.stream` 事件补发，同时回放
+最新的原生 thread status 与 token usage。也可传
+`sessionIds` 数组限制范围。该机制只恢复 UI 快照；原生 JSON-RPC 请求仍在原 worker
+进程中，worker 已重启或死亡的请求不会伪造恢复，避免把旧 response 发给新进程。
 
 ## monitor_workers.py 盯梢模板
 

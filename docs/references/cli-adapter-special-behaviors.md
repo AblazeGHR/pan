@@ -55,11 +55,11 @@
 | §5.9 | claude | 项目目录编码 `~/.claude/projects/<encoded-cwd>` |
 | §6.1 | codex | `execution_modes=["stream"]`（wrapper 长驻） |
 | §6.2 | codex | `.CMD` shim → `node codex.js` |
-| §6.3 | codex | 模型：无稳定 `models` 子命令；config.toml 兜底；model_catalog_json 来源 |
-| §6.4 | codex | **遗留** MCP：`-c 'mcp_servers.<name>...'` 内联注入 |
-| §6.5 | codex | **遗留** `approve`（`--approve-for-me`）resume 时被丢弃 |
-| §6.6 | codex | **遗留** thread cwd 被归一化为 git 根 |
-| §6.7 | codex | **遗留** fork 走 DB 行复制，首次 resume 待验证 |
+| §6.3 | codex | 模型：`models_cache.json` > 白名单 > model_catalog_json |
+| §6.4 | codex | MCP 内联注入 + developer instructions 注入 |
+| §6.5 | codex | 权限模式映射；`-c` 覆盖可随 resume 生效 |
+| §6.6 | codex | thread cwd 归一化为 git 根；Pan 用祖先匹配兼容 |
+| §6.7 | codex | fork 走 DB 行复制；首次 resume 已通过本机 e2e |
 | §6.8 | codex | **遗留** 事件命名 snake_case vs camelCase |
 | §6.9 | codex | resume 只透传 `-c` 类覆盖（丢弃一次性 flag 与 `-C`） |
 | §6.10 | codex | `--skip-git-repo-check` |
@@ -454,16 +454,20 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 
 ## 6. codex（OpenAI Codex CLI）
 
-> 以下 5 项为 2026-08-26 实战核实的**遗留问题清单**（其中 thread cwd 归一化优先记录）。
-> adapter 代码已合入 main（feat/codex-adapter 分支已合并）。
+> 以下记录 Codex CLI 与 Pan wrapper 的特殊行为、已落地的兼容处理，以及仍待实测的遗留问题。
+> 基础 adapter 改造已提交到 `feature/codex-models`；原生 app-server 体验增强继续在该工作树推进。
 
-### 6.1 execution_modes = `["stream"]`（wrapper 长驻）
+### 6.1 execution_modes = `["stream"]`（原生 app-server 桥接）
 
-- **现象/处理**：`codex exec` 是非交互一次性命令（JSONL 事件流），无原生长驻 stdin/stdout 协议，
-  也**无原生 `result` 事件**。采用 wrapper 长驻 + stream：wrapper 内部逐条
-  `codex exec "<text>" --json`（续接时 `codex exec resume <thread_id> "<text>" --json`），转发事件、
-  合成 `{"type":"result"}`。`oneshot_args` 返回 `[]`。
-- **代码位置**：`codex/adapter.py` `execution_modes`；`codex/wrapper.py`。
+- **现象/处理**：`codex exec` 是一次性命令，虽然可以输出 JSONL，但每轮重启 CLI，无法提供原生
+  thread/turn 生命周期与细粒度 delta。Pan 仍保留 `wrapper.py` 作为稳定入口，但默认经
+  `--app-server` 启动一个长驻 `codex app-server --stdio`，用 `thread/start`/`thread/resume` 建立上下文，
+  用 `turn/start` 驱动后续消息，并将原生通知翻译为 Pan 的事件模型；每轮仅合成一条兼容的 `result`。
+  `oneshot_args` 返回 `[]`。
+- **收益**：多轮不再逐轮 spawn `codex exec`，原生 `item/*/delta` 可实时转发；app-server 的 thread/turn
+  也让 resume、effort 和中断语义更贴近 Codex 原生客户端。
+- **代码位置**：`codex/adapter.py` `execution_modes` / `base_args`；`codex/wrapper.py` 稳定入口；
+  `codex/app_server_wrapper.py` 协议桥。
 
 ### 6.2 `.CMD` shim 解析为 `node codex.js`
 
@@ -480,39 +484,115 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
 等 effort 选项。显式配置的 `codex.models` 白名单始终优先。
 
 - **现象**：codex CLI 无稳定 `models` 子命令（help 未列出）→ 不跑 CLI 解析。
-- **处理**：`config.json("codex".models)` > 单默认模型。`default_model` 自动识别：config.json
-  model > 读 `~/.codex/config.toml` 的 `model` 字段（正则 `^\s*model\s*=\s*"([^"]+)"`）> 内置兜底
+- **处理**：模型列表优先级为显式 `config.json("codex".models)` 白名单 >
+  `models_cache.json` > `model_catalog_json` > 单默认模型。`default_model` 在白名单/动态列表
+  中优先使用有效的 config.toml 配置模型，否则依次使用 `~/.codex/config.toml` 的 `model`
+  字段（正则 `^\s*model\s*=\s*"([^"]+)"`）和当前可见列表首项，最后才用内置兜底
   `_DEFAULT_MODEL`。
 - **模型目录来源（补充，已核实）**：`~/.codex/config.toml` 的
   `model_catalog_json = "cc-switch-model-catalog.json"` 指向
   `~/.codex/cc-switch-model-catalog.json`（cc-switch 模型管理工具生成的模型目录 JSON）——这是
-  完整模型列表的**可用来源**，但 adapter 目前**尚未接入解析**（只读 `model` 字段）。
+  完整模型列表的**回退来源**；当前 adapter 已接入解析，并以 Codex 自身
+  `models_cache.json` 为更高优先级动态来源。
 - **代码位置**：`codex/adapter.py` `default_model` / `supported_models` /
-  `_read_codex_config_toml_model`。
+  `_read_codex_config_toml_model` / `model_efforts`。
 
-### 6.4 遗留：MCP `-c 'mcp_servers.<name>...'` 内联注入
+### 6.4 MCP 与原生 developer instructions 注入
 
 - **现象/处理**：codex **无 `--mcp-config`**；MCP server 来自 `~/.codex/config.toml` 的
   `[mcp_servers]` 段。用 `-c 'mcp_servers.<name>...'` **内联覆盖**（实测 `codex mcp list -c '...'`
   生效）——**session 级、零文件污染、不触碰 auth.json**（API key 不泄露）。TOML 段格式对齐
   `codex mcp add` 写入形态：`command`/`args`/`[env]`；URL server 用 `url` + `transport`。同时透传
   `PAN_API_URL` 到各 server env（对齐 opencode 的 PAN_API_URL 处理）。
-- **代码位置**：`codex/adapter.py` `mcp_args` / `_c_override`。
+- **代码位置**：`codex/adapter.py` `mcp_args` / `_c_override`；app-server 进程启动时继承这些 `-c`
+  覆盖，因此 MCP 在长驻 thread 中保持可用。
 
-### 6.5 遗留：`approve`（`--approve-for-me`）resume 时被丢弃
+当 session 开启 system prompt 且 adapter 支持该能力时，worker 首次 spawn 传入
+`--system-prompt`，Codex wrapper 将其转换为 `-c developer_instructions=...`。
+该 prompt 位于 Codex 的 developer/instruction 层，不会作为额外 user turn 发送；无论
+MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper 的 `--system-prompt`
+是 Pan 内部参数，不是 Codex CLI 的公开参数。
 
-- **现象**：`permission_mode="approve"` 对应的 `--approve-for-me` 在 **resume 时被丢弃**——thread
-  持久化旧配置，中途改设置不生效。
-- **根因**：wrapper 的 `_filter_resume_opts` 在 resume 时**只保留 `-c` 类配置覆盖**，丢弃所有
-  一次性 flag（含 `--dangerously-bypass-approvals-and-sandbox` / `--approve-for-me`）；而 thread
-  已记住旧的 approval/sandbox 配置，`codex exec resume` 沿用 thread 配置。
-- **处理/规避**：当前行为是有意的（resume 沿用 thread 已存配置），但对「中途改 permission_mode」
-  的用户是坑——改设置后需**新建 thread** 或接受不生效；如要支持动态切换需后续在 resume 时用
-  `-c approval_policy=...` 类覆盖（未实现）。
+- **代码位置**：`worker.py` `_spawn_system_prompt_args`；`codex/wrapper.py`
+  `_system_prompt_opts` / `_main_loop`。
+
+### 6.5 原生 app-server 事件、连续回合与中断
+
+- app-server 的 `item/agentMessage/delta` / reasoning delta 被转换为 `content.part` 增量事件，前端合并
+  到同一条消息；`item/completed` 转换为既有 assistant/thinking/tool 事件，`turn/completed` 转换为
+  worker 所需的 `result`。原生文件变更的 `item/fileChange/outputDelta` 与
+  `item/fileChange/patchUpdated` 也会实时更新同一个 `FileChange` tool 卡片，不必等到
+  `item/completed` 才看到路径和 diff。MCP 工具的
+  `item/mcpToolCall/progress` 同样会更新对应工具卡片，展示连接或执行中的进度。原生协作代理、
+  Web 搜索、图片生成、sleep、review mode 和 context compaction item 会映射为可见的 Pan 工具历史，
+  不再因未知 item 类型在刷新后丢失。原生增量事件带有 `item_id` 时，前端按 item id 更新目标卡片，
+  多个工具事件交错到达时也不会误替换最后一条工具消息。
+- `thread/start` 返回的 thread id 作为 Pan 的 `cli_session_id`；worker 重建时走
+  `thread/resume`，已验证重启后仍能读取原生上下文。
+- Codex adapter 的 `interrupt_worker` 优先向桥接进程发送控制消息，由桥接调用原生
+  `turn/interrupt`；发送失败才回退到通用 kill + resume。命令/文件审批请求会先广播为
+  `approval.request`，React 前端提供 Allow/Deny 控件，再由 WebSocket 优先、HTTP
+  `POST /api/worker/{id}/control` 回退回传原生 JSON-RPC response；UI 断开或超过 120 秒时安全拒绝。
+  `item/permissions/requestApproval` 也复用审批栏：允许本回合/允许本 session 会回传请求的
+  权限子集，拒绝则回传空权限。`item/tool/requestUserInput` 会广播为 `codex.user_input`，
+  React 前端按原生 questions 渲染选项、文本和密码输入，并回传结构化 answers；UI 断开或
+  超过 `autoResolutionMs`（最多 120 秒）时回传空答案，避免 worker 无限挂起。MCP
+  `mcpServer/elicitation/request` 会广播为 `codex.elicitation`，支持 form schema 的常见
+  string/number/boolean/enum 字段及 URL 授权页，回传原生 `action + content`；超时安全取消。
+  命令审批还保留原生结构化决策 `acceptWithExecpolicyAmendment` /
+  `applyNetworkPolicyAmendment`，前端会原样回传，支持记住 execpolicy 或网络规则。
+  Dynamic Tool 注册与执行映射明确不纳入 Pan：外部工具统一通过 MCP 接入，Pan 不暴露额外的
+  运行时工具回调；收到 Codex `item/tool/call` 时返回明确的不支持错误，避免同时维护两套工具发现与权限语义。
+  `item/commandExecution/terminalInteraction` 会广播为 `codex.terminal_interaction`，前端可在
+  当前会话的终端交互栏输入内容或终止进程；输入经 UTF-8 Base64 编码后由桥接器调用固定的
+  `command/exec/write`，终止调用固定的 `command/exec/terminate`。这补上了命令执行需要 stdin
+  时 Pan 无法介入的缺口；不接受前端传入任意 app-server method。
+  Dashboard 每次 WebSocket 重连会请求 `sync_interactive`，存活 worker 中尚未解决的原生
+  交互请求会以 `replayed: true` 补发；worker 已重启或死亡时不伪造恢复。
+  `restart_worker` / `respawn_worker` 在杀旧 app-server 前会清空 status、usage 与交互快照，
+  防止重连窗口把旧进程状态误回放给新进程；Codex thread id 仍保留在 Session 中用于 resume。
+  app-server 的 `thread/status/changed` 会归一化为 `codex.thread_status`，当前会话顶栏会
+  显示 active、waiting for approval、waiting for input 或 system error 等原生状态，不改变
+  Pan 的 worker 调度状态。
+  `thread/tokenUsage/updated` 会归一化为 `codex.token_usage`，当前回合的 token 数和上下文窗口
+  会实时显示在顶栏；最新快照也会随存活 worker 的 WebSocket 重连回放。持久化 session 总用量
+  仍由 Codex provider 的原生存储聚合，二者不混用。
+  `account/rateLimits/updated` 会归一化为 `codex.rate_limits`，在顶栏显示 primary/secondary
+  限额窗口的已用比例，并在 WebSocket 重连时回放；MCP 启动失败会以明确错误提示展示，
+  `model/rerouted` 会提示 Codex 临时切换的模型，但不会篡改 Session 的配置模型。
+  `turn/plan/updated` 与 `turn/diff/updated` 会归一化为当前 turn 的实时计划和聚合 diff；
+  计划在聊天区原位更新为可折叠 thinking 块，diff 以可展开的只读工具卡片展示，且在
+  WebSocket 重连时回放。它们只属于当前 app-server 进程/turn，不写入 Pan 的持久 history。
+  运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
+  控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
+  新版 app-server 的 `applyPatchApproval` / `execCommandApproval` 也复用同一审批栏，
+  不会因协议方法名变化而被错误地当作未知请求拒绝；`currentTime/read` 由桥接器返回标准
+  Unix 秒时间戳。
+  原生 `turn/completed` 的 `interrupted` / `cancelled` 会标记为独立的 `cancelled` 结果，
+  不再误报为 error；重复任务的幂等状态也会把取消视为终态。
+  普通任务会一直保留在 Session 的 `queue_pending`，直到收到 terminal result（包括
+  error/cancelled）才确认出队；因此 app-server 在写入 turn 后、完成通知前崩溃时，
+  新 worker 能自动重投，且已落盘的用户消息不会重复追加到 Pan history。
+  对尚未有专用 UI 映射的新原生 item，Pan 会以截断的只读工具摘要显示并持久化，避免
+  Codex 协议扩展后出现事件静默丢失；该兜底不执行任何 item 中携带的方法或回调。
+  原生 `error` 通知会转换为 `codex.turn_error`，当前会话即时展示错误详情，最终结果仍由
+  `worker.result` 统一收敛，避免同时写入一条伪造的聊天消息。
+- **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
+  `web/src/hooks/useWebSocket.ts` 增量合并；`web/src/components/chat/ApprovalBanner.tsx` /
+  `UserInputBanner.tsx` / `TerminalInteractionBanner.tsx` 交互展示。
+
+### 6.6 权限模式与 resume 动态切换
+
+- **处理**：Codex adapter 暴露 `read-only` 与 `workspace-write` 两个自动批准档位，分别映射
+  `sandbox_mode` 与 `approval_policy="never"`；保留 `approve` 作为 workspace-write 的兼容别名，
+  `bypass` 继续映射 `--dangerously-bypass-approvals-and-sandbox`。
+- `-c` 覆盖在 wrapper 的 resume 路径中保留，因此 read-only/workspace-write/approve 的设置切换
+  会作用于后续 turn；`bypass` 的一次性 flag 也被显式保留，避免 resume 后 MCP 调用因审批策略
+  不一致而失败。
 - **代码位置**：`codex/wrapper.py` `_filter_resume_opts` / `_build_codex_args`；
   `codex/adapter.py` `permission_mode_args`。
 
-### 6.6 遗留：thread cwd 被归一化为 git 根
+### 6.7 thread cwd 归一化为 git 根
 
 - **现象**：workdir 在 git 仓库内时，codex 记录的 **thread.cwd 是仓库根而非子目录**。
   `list_sessions(cwd=workdir)` 按 cwd **严格相等**过滤（`_norm_path` 大小写/分隔符归一）→
@@ -522,13 +602,11 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
   `--skip-git-repo-check` 且显式 `-C workdir` 的 thread 保留子目录
   `\\?\D:\project\pan-codex-adapter\data\workdirs\codex-e2e`。另注意 codex 记录的 cwd 常带
   `\\?\` 长路径前缀（`_norm_path` 已处理）。
-- **处理/规避**（记录先行，修复待定）：候选方向——① `list_codex_sessions` 过滤时把 project_cwd
-  向上归一到 git 根再比较；② 前缀匹配（project_cwd 是记录的祖先即命中）；③ 不提供 cwd 时全量
-  扫描兜底。当前实现只做**精确相等 + `\\?\` 剥离 + 大小写/分隔符归一**。
-- **代码位置**：`codex/sessions.py` `list_codex_sessions`（`:136` `_norm_path(cwd) !=
-  _norm_path(project_cwd)` 过滤）、`_norm_path`。
+- **处理**：`list_codex_sessions` 过滤时允许记录的 thread cwd 作为 Pan workdir 的祖先，使用带
+  分隔符边界的前缀匹配（`repo` 不会匹配 `repo-other`）；仍保留大小写/分隔符归一化。
+- **代码位置**：`codex/sessions.py` `_cwd_matches` / `list_codex_sessions`。
 
-### 6.7 遗留：fork 走 DB 行复制，首次 resume 待验证
+### 6.8 fork：DB 行复制与 resume
 
 - **现象/处理**：codex CLI 无 headless `--fork`（`codex fork` 是交互 picker）。fork 直接复制 DB 行：
   - `state_5.sqlite` `threads` 建新线程（复制全列、新 id、title=name、parent 记录到
@@ -537,11 +615,12 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
     从 history DB 重建上下文）；
   - **`rollout_path` 指向按新 id 生成的新路径**（`sessions/<y>/<m>/<d>/rollout-...jsonl`），首次
     resume 时 codex 会新建该文件。
-- **待验证**：fork 后的 thread **首次 resume 行为尚未实测**（codex-e2e 测试进行中）——新 rollout
-  为空时 `codex exec resume` 是否正常加载 history DB 并续写，需 e2e 确认。
+- **验证（2026-08-29）**：本机 Codex `state_5.sqlite` 中的 fork 子 thread 已成功产生新
+  `rollout-*.jsonl`，并在复制的历史之后继续写入新 user/assistant turns；说明首次
+  `codex exec resume <child_id>` 能加载复制的 history DB 并续写新 rollout。
 - **代码位置**：`codex/sessions.py` `fork_codex_session`。
 
-### 6.8 遗留：事件命名 snake_case vs camelCase
+### 6.9 遗留：事件命名 snake_case vs camelCase
 
 - **现象**：codex **live stdout 用 snake_case**（`agent_message` / `command_execution`），**持久化
   `thread_items` 用 camelCase**（`agentMessage` / `commandExecution`）。同一字段两种拼写。
@@ -549,21 +628,22 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
 - **代码位置**：`codex/adapter.py` `extract_assistant_blocks`（`:271-276`）；
   `codex/sessions.py` `_item_to_block`；`codex/wrapper.py` `_forward_and_collect`（两拼写都判）。
 
-### 6.9 resume 只透传 `-c` 类覆盖
+### 6.10 resume 只透传 `-c` 类覆盖
 
 - **现象/处理**：`codex exec resume <thread_id>` **不接受 `-C`**（实测报 `unexpected argument
-  '-C'`），也无需 `-C`（thread 已记住 cwd）。wrapper 在 resume 时只透传 `-c <value>` 对
-  （mcp_servers / model_reasoning_effort / model 等覆盖），丢弃一次性 flag（model 用 `-c model=`
-  表达，不依赖 `--model`）。resume 统一加 `--skip-git-repo-check`。
+  '-C'`），也无需 `-C`（thread 已记住 cwd）。wrapper 在 resume 时透传 `-c <value>` 对
+  （mcp_servers / model_reasoning_effort / model 等覆盖），并保留审批相关 flag；其它一次性
+  flag 丢弃（model 用 `-c model=`表达，不依赖 `--model`）。resume 统一加
+  `--skip-git-repo-check`。
 - **代码位置**：`codex/wrapper.py` `_build_codex_args` / `_filter_resume_opts`。
 
-### 6.10 `--skip-git-repo-check`
+### 6.11 `--skip-git-repo-check`
 
 - **现象/处理**：codex 默认要求 git 仓库，非 git 目录会报错/拒绝。wrapper 每次 `codex exec` 都加
   `--skip-git-repo-check` 兜底（workdir 可能是非 git 目录）。
 - **代码位置**：`codex/wrapper.py` `_build_codex_args`。
 
-### 6.11 enrich：rollout JSONL `token_count` 聚合增量
+### 6.12 enrich：rollout JSONL `token_count` 聚合增量
 
 - **处理**：用法数据存于 rollout JSONL 的 `event_msg`（`payload.type=token_count` 的
   `last_token_usage` / `total_token_usage`）。`get_raw_usage` 读全文件取**最后一次** token_count，
@@ -572,7 +652,7 @@ Codex 没有稳定公开的 `models` 子命令。Pan 优先读取 Codex CLI 自�
 - **代码位置**：`codex/adapter.py` `enrich_after_result`；`codex/sessions.py`
   `get_codex_raw_usage` / `_iter_jsonl`。
 
-### 6.12 其它
+### 6.13 其它
 
 - **存储**：两个 SQLite——`~/.codex/state_5.sqlite`（`threads` 元数据 +
   `thread_spawn_edges` fork 关系）+ `~/.codex/thread_history_1.sqlite`（`thread_items` /

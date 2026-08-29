@@ -60,6 +60,20 @@ function parseTool(content: string): ToolInfo {
       if (args && typeof args === 'object' && !Array.isArray(args)) {
         const keys = Object.keys(args);
         if (keys.length > 0) {
+          if (name === 'FileChange' && Array.isArray(args.changes)) {
+            const paths = args.changes
+              .map((change) => {
+                if (!change || typeof change !== 'object') return '';
+                const record = change as Record<string, unknown>;
+                return typeof record.path === 'string' ? record.path : '';
+              })
+              .filter(Boolean);
+            argsPreview = paths.length > 0
+              ? `${paths.slice(0, 2).join(', ')}${paths.length > 2 ? ` +${paths.length - 2}` : ''}`
+              : 'file changes';
+          }
+        }
+        if (!argsPreview && keys.length > 0) {
           const firstKey = keys[0]!;
           const firstVal = args[firstKey];
           const valStr = typeof firstVal === 'string' ? firstVal : JSON.stringify(firstVal);
@@ -83,8 +97,21 @@ function parseTool(content: string): ToolInfo {
   return { name, status, args, argsPreview, rawContent: content };
 }
 
-function formatArgs(args: Record<string, unknown> | null): string {
+function formatArgs(args: Record<string, unknown> | null, name = ''): string {
   if (!args) return '';
+  if (name === 'FileChange' && Array.isArray(args.changes)) {
+    const status = typeof args.status === 'string' ? args.status : 'unknown';
+    const lines = [`status: ${status}`];
+    for (const change of args.changes) {
+      if (!change || typeof change !== 'object') continue;
+      const record = change as Record<string, unknown>;
+      const path = typeof record.path === 'string' ? record.path : '(unknown path)';
+      const kind = typeof record.kind === 'string' ? ` (${record.kind})` : '';
+      lines.push(`\n${path}${kind}`);
+      if (typeof record.diff === 'string' && record.diff) lines.push(record.diff);
+    }
+    return lines.join('\n');
+  }
   try {
     const cleaned: Record<string, unknown> = {};
     for (const key of Object.keys(args)) {
@@ -175,7 +202,7 @@ export function ToolGroup({ items }: ToolGroupProps) {
               {expandedTools.has(i) && (
                 <div className="bg-bg-tertiary border-t border-border-default p-3 overflow-hidden">
                   <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed text-text-secondary">
-                    {tool.args ? formatArgs(tool.args) : tool.rawContent}
+                    {tool.args ? formatArgs(tool.args, tool.name) : tool.rawContent}
                   </pre>
                 </div>
               )}

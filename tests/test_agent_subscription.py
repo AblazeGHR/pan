@@ -11,6 +11,7 @@ Verifies the `broadcast()` filtering logic for agent clients:
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 # Make packages importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -150,6 +151,35 @@ def test_dead_agent_pruned_on_broadcast():
     """A send_json that raises removes the connection."""
     _cleanup()
 
+
+def test_reconnect_replays_error_and_cancelled_results(monkeypatch):
+    """断线补发不能只恢复成功；Codex error/cancelled 也必须可见。"""
+    _cleanup()
+    ws = FakeWS()
+    sessions = {
+        "s-error": SimpleNamespace(last_result={
+            "status": "error", "result": "turn failed", "taskSeq": 4,
+        }),
+        "s-cancelled": SimpleNamespace(last_result={
+            "status": "cancelled", "result": "turn cancelled", "taskSeq": 5,
+        }),
+    }
+    monkeypatch.setattr(srv.sess, "get", lambda sid: sessions.get(sid))
+    srv.agent_subscriptions[ws] = srv.AgentSubscription()
+
+    _run(srv._replay_agent_results(ws, list(sessions)))
+
+    assert [m["status"] for m in ws.sent] == ["error", "cancelled"]
+    assert all(m["replayed"] for m in ws.sent)
+    assert srv.agent_subscriptions[ws].consumed_seq == {
+        "s-error": 4, "s-cancelled": 5,
+    }
+
+    # 游标推进后再次重连不重复补发。
+    _run(srv._replay_agent_results(ws, list(sessions)))
+    assert len(ws.sent) == 2
+    _cleanup()
+
     class BrokenWS(FakeWS):
         async def send_json(self, data: dict):
             raise ConnectionError("boom")
@@ -162,6 +192,194 @@ def test_dead_agent_pruned_on_broadcast():
     _run(srv.broadcast({"type": "worker.result", "workerId": "w1"}))
 
     assert ws not in srv.agent_clients, "broken agent connection not pruned"
+    _cleanup()
+
+
+def test_reconnect_after_midstream_disconnect_replays_newer_sequence(monkeypatch):
+    """中途断线：已消费 seq=1 后，seq=2 未送达，重连只补发更新结果。"""
+    _cleanup()
+
+    class FlakyWS(FakeWS):
+        fail = False
+
+        async def send_json(self, data: dict):
+            if self.fail:
+                raise ConnectionError("connection dropped")
+            await super().send_json(data)
+
+    ws = FlakyWS()
+    srv.agent_clients.add(ws)
+    srv.agent_subscriptions[ws] = srv.AgentSubscription()
+    latest = SimpleNamespace(last_result={
+        "status": "done", "result": "second", "taskSeq": 2,
+    })
+    monkeypatch.setattr(srv.sess, "get", lambda sid: latest if sid == "s1" else None)
+
+    _run(srv.broadcast({
+        "type": "worker.result", "workerId": "w1", "sessionId": "s1",
+        "status": "done", "result": "first", "taskSeq": 1,
+    }))
+    assert srv.agent_subscriptions[ws].consumed_seq == {"s1": 1}
+
+    ws.fail = True
+    _run(srv.broadcast({
+        "type": "worker.result", "workerId": "w1", "sessionId": "s1",
+        "status": "done", "result": "second", "taskSeq": 2,
+    }))
+    assert ws not in srv.agent_clients
+
+    ws.fail = False
+    srv.agent_clients.add(ws)
+    _run(srv._replay_agent_results(ws, ["s1"]))
+    assert ws.sent[-1]["taskSeq"] == 2
+    assert ws.sent[-1]["result"] == "second"
+    assert ws.sent[-1]["replayed"] is True
+    assert srv.agent_subscriptions[ws].consumed_seq == {"s1": 2}
+    _cleanup()
+
+
+def test_dashboard_replays_live_native_interactions():
+    """Dashboard reconnect restores only prompts owned by live workers."""
+    _cleanup()
+    ws = FakeWS()
+
+    class LiveProcess:
+        returncode = None
+
+    class FakeWorker:
+        worker_id = "worker-1"
+        session_id = "ses-1"
+        process = LiveProcess()
+
+    original_list = srv.worker.list_workers
+    original_events = srv.worker.pending_interaction_events
+    original_status = srv.worker.native_status_event
+    original_usage = srv.worker.native_usage_event
+    original_rate_limits = srv.worker.native_rate_limits_event
+    original_plan = srv.worker.native_plan_event
+    original_diff = srv.worker.native_diff_event
+    try:
+        srv.worker.list_workers = lambda: [FakeWorker()]
+        srv.worker.native_status_event = lambda w: {
+            "type": "codex.thread_status",
+            "native_status": {"type": "active"},
+        }
+        srv.worker.native_usage_event = lambda w: {
+            "type": "codex.token_usage",
+            "token_usage": {"last": {"totalTokens": 150}},
+        }
+        srv.worker.native_rate_limits_event = lambda w: {
+            "type": "codex.rate_limits",
+            "rate_limits": {"primary": {"usedPercent": 25}},
+        }
+        srv.worker.native_plan_event = lambda w: {
+            "type": "codex.plan", "plan": [{"step": "Inspect", "status": "inProgress"}],
+            "turn_id": "turn-1", "item_id": "plan:turn-1", "delta": True, "replace": True,
+        }
+        srv.worker.native_diff_event = lambda w: {
+            "type": "codex.diff", "diff": "+new", "turn_id": "turn-1",
+            "item_id": "diff:turn-1", "delta": True, "replace": True,
+        }
+        srv.worker.pending_interaction_events = lambda w: [{
+            "type": "approval.request", "request_id": 3,
+            "method": "item/commandExecution/requestApproval", "params": {},
+        }]
+        _run(srv._replay_pending_interactions(ws))
+    finally:
+        srv.worker.list_workers = original_list
+        srv.worker.pending_interaction_events = original_events
+        srv.worker.native_status_event = original_status
+        srv.worker.native_usage_event = original_usage
+        srv.worker.native_rate_limits_event = original_rate_limits
+        srv.worker.native_plan_event = original_plan
+        srv.worker.native_diff_event = original_diff
+
+    assert ws.sent == [
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.thread_status",
+                "native_status": {"type": "active"},
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.token_usage",
+                "token_usage": {"last": {"totalTokens": 150}},
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.rate_limits",
+                "rate_limits": {"primary": {"usedPercent": 25}},
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.plan", "plan": [{"step": "Inspect", "status": "inProgress"}],
+                "turn_id": "turn-1", "item_id": "plan:turn-1", "delta": True, "replace": True,
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.diff", "diff": "+new", "turn_id": "turn-1",
+                "item_id": "diff:turn-1", "delta": True, "replace": True,
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "approval.request", "request_id": 3,
+                "method": "item/commandExecution/requestApproval", "params": {},
+            },
+            "replayed": True,
+        },
+    ]
+    _cleanup()
+
+
+def test_dashboard_replay_can_filter_sessions():
+    """A dashboard may request only selected sessions."""
+    _cleanup()
+    ws = FakeWS()
+
+    class LiveProcess:
+        returncode = None
+
+    class FakeWorker:
+        process = LiveProcess()
+
+        def __init__(self, worker_id: str, session_id: str):
+            self.worker_id = worker_id
+            self.session_id = session_id
+
+    workers = [FakeWorker("worker-a", "ses-a"), FakeWorker("worker-b", "ses-b")]
+    original_list = srv.worker.list_workers
+    original_events = srv.worker.pending_interaction_events
+    original_status = srv.worker.native_status_event
+    try:
+        srv.worker.list_workers = lambda: workers
+        srv.worker.native_status_event = lambda w: None
+        srv.worker.pending_interaction_events = lambda w: [{
+            "type": "codex.user_input", "request_id": w.session_id,
+            "method": "item/tool/requestUserInput", "params": {},
+        }]
+        _run(srv._replay_pending_interactions(ws, ["ses-b"]))
+    finally:
+        srv.worker.list_workers = original_list
+        srv.worker.pending_interaction_events = original_events
+        srv.worker.native_status_event = original_status
+
+    assert [m["sessionId"] for m in ws.sent] == ["ses-b"]
     _cleanup()
 
 

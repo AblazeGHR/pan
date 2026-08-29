@@ -83,6 +83,24 @@ def _norm_path(p) -> str:
     return s.rstrip("/")
 
 
+def _cwd_matches(thread_cwd, project_cwd) -> bool:
+    """Return whether a Codex thread belongs to a requested workdir.
+
+    Codex may persist the git repository root even when Pan launched it from a
+    nested workdir. Treat that stored root as an ancestor match, but keep a
+    separator boundary so similarly-prefixed directories do not leak into the
+    result (``repo`` must not match ``repo-other``).
+    """
+    thread = _norm_path(thread_cwd)
+    project = _norm_path(project_cwd)
+    if not thread or not project:
+        return thread == project
+    if thread == project:
+        return True
+    separator = "\\" if _IS_WINDOWS else "/"
+    return project.startswith(thread + separator)
+
+
 def _rollout_full_path(rollout_path: str | None) -> Path | None:
     if not rollout_path:
         return None
@@ -118,6 +136,17 @@ def _parent_of(thread_spawn_edges_con, child_id: str) -> str:
         return ""
 
 
+def _text_from_item(item: dict) -> str:
+    """Extract text from native plan/reasoning items across protocol versions."""
+    text = item.get("text")
+    if isinstance(text, str):
+        return text
+    summary = item.get("summary") or []
+    if isinstance(summary, list):
+        return "".join(str(value) for value in summary if value is not None)
+    return ""
+
+
 # ── 会话列表 ──
 
 
@@ -144,7 +173,7 @@ def list_codex_sessions(project_cwd: str | None = None) -> list[dict]:
         rows: list[dict] = []
         for r in cur.fetchall():
             sid, title, cwd, model, provider, created, updated = r
-            if project_cwd and _norm_path(cwd) != _norm_path(project_cwd):
+            if project_cwd and not _cwd_matches(cwd, project_cwd):
                 continue
             msg_count = 0
             if hcon is not None:
@@ -202,22 +231,50 @@ def _item_to_block(item: dict) -> dict | None:
             if summary:
                 text = summary[0] if isinstance(summary[0], str) else str(summary[0])
         return {"role": "thinking", "content": text} if text else None
+    if itype == "plan":
+        text = _text_from_item(item)
+        return {"role": "thinking", "content": text} if text else None
     if itype == "commandexecution":
         cmd = item.get("command", "")
-        out = item.get("aggregated_output", "")
+        # app-server stores camelCase fields; legacy exec rollouts use the
+        # snake_case spelling.  Accept both so switching protocols does not
+        # lose tool output after a refresh.
+        out = item.get("aggregated_output") or item.get("aggregatedOutput", "")
         content = cmd
         if out:
             content += "\n→ " + out
         return {"role": "tool", "content": content}
-    if itype == "functioncall":
-        name = item.get("name") or item.get("pluginId") or "tool"
-        args = item.get("arguments") or item.get("parameters") or {}
+    if itype in ("functioncall", "mcptoolcall", "dynamictoolcall"):
+        name = (item.get("name") or item.get("tool") or item.get("pluginId")
+                or item.get("server") or "tool")
+        args = item.get("arguments") or item.get("parameters") or item.get("input") or {}
         inp = json.dumps(args, ensure_ascii=False) if isinstance(args, (dict, list)) else str(args or "")
-        out = item.get("output") or item.get("result") or ""
+        out = item.get("output") or item.get("result") or item.get("error") or ""
         content = f"{name}({inp})"
         if out:
             content += "\n→ " + out
         return {"role": "tool", "content": content}
+    if itype in ("filechange", "patchapply"):
+        inp = json.dumps(item, ensure_ascii=False)
+        return {"role": "tool", "content": f"FileChange({inp})"}
+    native_tool_names = {
+        "collabagenttoolcall": "Agent",
+        "subagentactivity": "SubAgent",
+        "websearch": "WebSearch",
+        "imagegeneration": "ImageGeneration",
+        "sleep": "Sleep",
+        "enteredreviewmode": "ReviewMode",
+        "exitedreviewmode": "ReviewMode",
+        "contextcompaction": "ContextCompaction",
+    }
+    if itype in native_tool_names:
+        tool_input = {key: value for key, value in item.items()
+                      if key not in {"id", "type"}}
+        name = native_tool_names[itype]
+        if itype == "collabagenttoolcall" and item.get("tool"):
+            name = f"{name}/{item['tool']}"
+        inp = json.dumps(tool_input, ensure_ascii=False)
+        return {"role": "tool", "content": f"{name}({inp})"}
     return None
 
 

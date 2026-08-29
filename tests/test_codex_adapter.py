@@ -6,6 +6,7 @@ monkeypatch the module-level paths.
 """
 
 import json
+import base64
 import os
 import sqlite3
 import sys
@@ -19,6 +20,7 @@ from packages.core.adapters import CodexAdapter
 from packages.core.adapters.codex import adapter as codex_adapter
 from packages.core.adapters.codex import sessions as codex_sessions
 from packages.core.adapters.codex import wrapper as codex_wrapper
+from packages.core.adapters.codex import app_server_wrapper
 from packages.core import session as _sess
 import packages.core.config as core_config
 
@@ -42,10 +44,20 @@ def test_adapter_metadata():
     assert a.execution_modes == ["stream"]  # wrapper 长驻，worker 只走 stream
     assert a.supports_resume is True
     assert a.supports_fork is True
+    assert a.supports_spawn_system_prompt is True
     assert len(a.supported_models) > 0
-    assert any(p["value"] in ("", "bypass", "approve") for p in a.permission_modes)
+    assert all(p["value"] in ("", "read-only", "workspace-write", "bypass", "approve")
+               for p in a.permission_modes)
     assert a.default_permission_mode == "bypass"
     print("PASS: adapter metadata")
+
+
+def test_default_permission_mode_reads_config(monkeypatch):
+    monkeypatch.setattr(core_config, "load_config", lambda: {
+        "codex": {"permission_mode": "workspace-write"},
+    })
+    assert _adapter().default_permission_mode == "workspace-write"
+    print("PASS: configured default permission mode")
 
 
 def test_shim_resolution(tmp_path):
@@ -106,6 +118,16 @@ def test_permission_mode_args():
     # approve：不用 --approve-for-me（resume 不支持），改 -c 覆盖等效配置
     s2 = _session(permission_mode="approve")
     assert a.permission_mode_args(s2) == [
+        "-c", 'sandbox_mode="workspace-write"',
+        "-c", 'approval_policy="never"',
+    ]
+    s_read = _session(permission_mode="read-only")
+    assert a.permission_mode_args(s_read) == [
+        "-c", 'sandbox_mode="read-only"',
+        "-c", 'approval_policy="never"',
+    ]
+    s_write = _session(permission_mode="workspace-write")
+    assert a.permission_mode_args(s_write) == [
         "-c", 'sandbox_mode="workspace-write"',
         "-c", 'approval_policy="never"',
     ]
@@ -210,6 +232,17 @@ def test_parse_reasoning():
     print("PASS: parse reasoning")
 
 
+def test_parse_plan_and_file_change():
+    a = _adapter()
+    plan = {"type": "item.completed", "item": {"type": "plan", "text": "1. Inspect\n2. Fix"}}
+    assert a.extract_assistant_blocks(plan) == [{"role": "thinking", "content": "1. Inspect\n2. Fix"}]
+    file_change = {"type": "item.completed", "item": {
+        "type": "fileChange", "changes": [{"path": "a.txt", "kind": "update"}], "status": "completed",
+    }}
+    assert a.extract_assistant_blocks(file_change)[0]["role"] == "tool"
+    print("PASS: parse plan and file_change")
+
+
 def test_parse_command_execution():
     a = _adapter()
     event = {"type": "item.completed", "item": {
@@ -248,6 +281,503 @@ def test_result_event():
     err = {"type": "result", "is_error": True, "result": "boom"}
     assert a.is_result_error(err) is True
     print("PASS: result event")
+
+
+def test_app_server_canonical_events_are_persistable():
+    a = _adapter()
+    final = {
+        "type": "assistant",
+        "message": {"content": [
+            {"type": "text", "text": "answer"},
+            {"type": "tool_use", "name": "Command", "input": {"command": "dir"}},
+        ]},
+    }
+    assert a.is_assistant_event(final)
+    assert a.extract_assistant_blocks(final) == [
+        {"role": "assistant", "content": "answer"},
+        {"role": "tool", "content": 'Command({"command": "dir"})'},
+    ]
+    delta = {
+        "type": "content.part", "role": "assistant", "delta": True,
+        "part": {"type": "text", "text": "a"},
+    }
+    assert not a.is_assistant_event(delta)
+    print("PASS: app-server canonical events")
+
+
+def test_codex_unknown_native_item_is_preserved_as_tool():
+    adapter = _adapter()
+    blocks = adapter.extract_assistant_blocks({
+        "type": "item.completed",
+        "item": {"id": "item-1", "type": "futureNativeItem", "summary": "kept"},
+    })
+    assert blocks == [{
+        "role": "tool",
+        "content": 'futureNativeItem({"summary": "kept"})',
+    }]
+    print("PASS: unknown native item fallback")
+
+
+def test_app_server_run_turn_message_loop(monkeypatch):
+    """A native turn's response and notifications are consumed in one loop."""
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    sent: list[tuple[str, dict]] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        sent.append((method, params))
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        app.incoming.put({
+            "method": "item/agentMessage/delta",
+            "params": {"threadId": "thread-1", "turnId": "turn-1",
+                        "itemId": "agent-1", "delta": "partial"},
+        })
+        app.incoming.put({
+            "method": "item/completed",
+            "params": {"item": {"id": "agent-1", "type": "agentMessage",
+                                   "text": "complete"}},
+        })
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {"id": "turn-1", "status": "completed",
+                                  "items": [{"type": "agentMessage", "text": "complete"}]}},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("hello", effort="low")
+
+    assert sent == [("turn/start", {
+        "threadId": "thread-1",
+        "input": [{"type": "text", "text": "hello"}],
+        "effort": "low",
+    })]
+    assert emitted[0]["type"] == "content.part"
+    assert emitted[0]["item_id"] == "agent-1"
+    assert emitted[1]["type"] == "assistant"
+    assert emitted[1]["final"] is True
+    assert emitted[1]["item_id"] == "agent-1"
+    assert emitted[-1] == {"type": "result", "is_error": False,
+                           "cancelled": False, "turn_status": "completed",
+                           "result": "complete", "usage": None}
+    print("PASS: app-server run_turn message loop")
+
+
+def test_app_server_interrupted_turn_is_not_an_error(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {"id": "turn-1", "status": "interrupted", "items": []}},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("stop me")
+
+    assert emitted[-1] == {
+        "type": "result", "is_error": False, "cancelled": True,
+        "turn_status": "interrupted", "result": "", "usage": None,
+    }
+    print("PASS: app-server interrupted turn")
+
+
+def test_app_server_error_is_normalized_for_pan(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state: dict = {}
+
+    app._handle_server_message({
+        "method": "error",
+        "params": {
+            "threadId": "thread-1", "turnId": "turn-1",
+            "error": {"code": "unavailable", "message": "upstream unavailable"},
+        },
+    }, state)
+
+    assert state["error"] == "upstream unavailable"
+    assert emitted == [{
+        "type": "codex.turn_error",
+        "error": {"code": "unavailable", "message": "upstream unavailable"},
+        "error_text": "upstream unavailable",
+        "thread_id": "thread-1", "turn_id": "turn-1",
+    }]
+    print("PASS: app-server error normalization")
+
+
+def test_app_server_thread_status_is_normalized(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    app._handle_server_message({
+        "method": "thread/status/changed",
+        "params": {
+            "threadId": "thread-1",
+            "status": {"type": "active", "activeFlags": ["waitingOnApproval"]},
+        },
+    }, {})
+
+    assert emitted == [{
+        "type": "codex.thread_status",
+        "native_status": {"type": "active", "activeFlags": ["waitingOnApproval"]},
+        "thread_id": "thread-1",
+    }]
+    print("PASS: app-server thread status normalization")
+
+
+def test_app_server_token_usage_is_normalized(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    usage = {
+        "last": {"inputTokens": 120, "outputTokens": 30, "totalTokens": 150},
+        "total": {"inputTokens": 120, "outputTokens": 30, "totalTokens": 150},
+        "modelContextWindow": 4096,
+    }
+
+    app._handle_server_message({
+        "method": "thread/tokenUsage/updated",
+        "params": {"threadId": "thread-1", "turnId": "turn-1", "tokenUsage": usage},
+    }, {})
+
+    assert app.last_usage == usage
+    assert emitted == [{
+        "type": "codex.token_usage",
+        "token_usage": usage,
+        "thread_id": "thread-1",
+        "turn_id": "turn-1",
+    }]
+    print("PASS: app-server token usage normalization")
+
+
+def test_app_server_account_notifications_are_normalized(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    app._handle_server_message({
+        "method": "account/rateLimits/updated",
+        "params": {"rateLimits": {"primary": {"usedPercent": 25}}},
+    }, {})
+    app._handle_server_message({
+        "method": "mcpServer/startupStatus/updated",
+        "params": {"name": "pan", "status": "failed", "error": "offline"},
+    }, {})
+    app._handle_server_message({
+        "method": "model/rerouted",
+        "params": {"fromModel": "gpt-a", "toModel": "gpt-b", "reason": "highRiskCyberActivity"},
+    }, {})
+    app._handle_server_message({
+        "method": "turn/plan/updated",
+        "params": {
+            "threadId": "thread-1", "turnId": "turn-1",
+            "explanation": "working", "plan": [
+                {"step": "Inspect", "status": "completed"},
+                {"step": "Fix", "status": "inProgress"},
+            ],
+        },
+    }, {})
+    app._handle_server_message({
+        "method": "turn/diff/updated",
+        "params": {"threadId": "thread-1", "turnId": "turn-1", "diff": "+new"},
+    }, {})
+
+    assert emitted == [
+        {"type": "codex.rate_limits", "rate_limits": {
+            "primary": {"usedPercent": 25},
+        }},
+        {"type": "codex.mcp_status", "mcp_status": {
+            "name": "pan", "status": "failed", "error": "offline",
+        }},
+        {"type": "codex.model_rerouted", "model_rerouted": {
+            "fromModel": "gpt-a", "toModel": "gpt-b", "reason": "highRiskCyberActivity",
+        }},
+        {"type": "codex.plan", "plan": [
+            {"step": "Inspect", "status": "completed"},
+            {"step": "Fix", "status": "inProgress"},
+        ], "explanation": "working", "thread_id": "thread-1", "turn_id": "turn-1",
+         "item_id": "plan:turn-1", "delta": True, "replace": True},
+        {"type": "codex.diff", "diff": "+new", "thread_id": "thread-1", "turn_id": "turn-1",
+         "item_id": "diff:turn-1", "delta": True, "replace": True},
+    ]
+    print("PASS: app-server account notifications")
+
+
+def test_app_server_terminal_interaction_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    requests: list[tuple[str, dict]] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        requests.append((method, params))
+        return len(requests)
+
+    monkeypatch.setattr(app, "_request", request)
+    state: dict = {}
+    app._handle_server_message({
+        "method": "item/commandExecution/terminalInteraction",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "item-1",
+                    "processId": "process-1", "stdin": "Password: "},
+    }, state)
+    assert emitted == [{
+        "type": "codex.terminal_interaction",
+        "method": "item/commandExecution/terminalInteraction",
+        "item_id": "item-1", "process_id": "process-1", "stdin": "Password: ",
+        "thread_id": "t", "turn_id": "u",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "item-1",
+                    "processId": "process-1", "stdin": "Password: "},
+    }]
+    assert state["terminal_items"]["item-1"]["processId"] == "process-1"
+
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "terminal_input", "process_id": "process-1", "text": "secret\n"})
+    controls.put({"type": "terminal_terminate", "process_id": "process-1"})
+    app._drain_controls(state, controls)
+    assert requests == [
+        ("command/exec/write", {
+            "processId": "process-1",
+            "deltaBase64": base64.b64encode(b"secret\n").decode("ascii"),
+            "closeStdin": False,
+        }),
+        ("command/exec/terminate", {"processId": "process-1"}),
+    ]
+    print("PASS: app-server terminal interaction roundtrip")
+
+
+def test_app_server_new_style_approval_requests_wait_for_pan(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    monkeypatch.setattr(app, "_send", sent.append)
+    state: dict = {}
+
+    for request_id, method in ((11, "applyPatchApproval"), (12, "execCommandApproval")):
+        app._handle_server_message({
+            "id": request_id,
+            "method": method,
+            "params": {"conversationId": "thread-1", "callId": f"call-{request_id}"},
+        }, state)
+
+    assert [event["type"] for event in emitted] == ["approval.request", "approval.request"]
+    assert set(state["pending_requests"]) == {"11", "12"}
+
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "approval_response", "request_id": 11, "decision": "accept"})
+    controls.put({"type": "approval_response", "request_id": 12, "decision": "decline"})
+    app._drain_controls(state, controls)
+    assert sent == [
+        {"id": 11, "result": {"decision": "accept"}},
+        {"id": 12, "result": {"decision": "decline"}},
+    ]
+    print("PASS: app-server new-style approvals")
+
+
+def test_app_server_current_time_request_has_native_response(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    sent: list[dict] = []
+    monkeypatch.setattr(app, "_send", sent.append)
+
+    app._handle_server_message({
+        "id": 4, "method": "currentTime/read", "params": {"threadId": "thread-1"},
+    }, {})
+
+    assert sent[0]["id"] == 4
+    assert isinstance(sent[0]["result"]["currentTimeAt"], int)
+    print("PASS: app-server current-time response")
+
+
+def test_app_server_turn_controls_wait_for_turn_id(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    requests: list[tuple[str, dict]] = []
+    monkeypatch.setattr(app, "_request",
+                        lambda method, params: requests.append((method, params)) or len(requests))
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "interrupt"})
+    controls.put({"type": "steer", "text": "focus"})
+    state: dict = {}
+    app._drain_controls(state, controls)
+    assert state["interrupt_pending"] is True
+    assert state["steer_pending"] == "focus"
+    assert requests == []
+
+    state["turn_id"] = "turn-1"
+    app._drain_controls(state, controls)
+    assert requests == [
+        ("turn/interrupt", {"threadId": "thread-1", "turnId": "turn-1"}),
+        ("turn/steer", {
+            "threadId": "thread-1", "expectedTurnId": "turn-1",
+            "input": [{"type": "text", "text": "focus"}],
+        }),
+    ]
+    assert "interrupt_pending" not in state
+    assert "steer_pending" not in state
+    print("PASS: app-server early turn controls")
+
+
+def test_worker_native_interaction_replay_cache():
+    """A reconnect can restore prompts, but resolved items disappear."""
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-replay",
+        session_id="ses-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    approval = {
+        "type": "approval.request", "request_id": 7,
+        "method": "item/commandExecution/requestApproval", "params": {},
+    }
+    terminal = {
+        "type": "codex.terminal_interaction", "item_id": "item-1",
+        "process_id": "process-1", "stdin": "Password: ", "params": {},
+    }
+    worker._update_pending_interactions(w, approval)
+    worker._update_pending_interactions(w, terminal)
+    assert worker.pending_interaction_events(w) == [approval, terminal]
+
+    worker._update_pending_interactions(w, {
+        "type": "codex.request_resolved", "request_id": 7,
+    })
+    assert worker.pending_interaction_events(w) == [terminal]
+    worker._update_pending_interactions(w, {
+        "type": "codex.item.completed", "item_id": "item-1",
+    })
+    assert worker.pending_interaction_events(w) == []
+    print("PASS: native interaction replay cache")
+
+
+def test_worker_native_status_replay_cache():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-status-replay",
+        session_id="ses-status-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    status = {
+        "type": "codex.thread_status",
+        "native_status": {"type": "active", "activeFlags": ["waitingOnUserInput"]},
+    }
+    worker._update_pending_interactions(w, status)
+    assert worker.native_status_event(w) == status
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_status_event(w) is None
+    print("PASS: native status replay cache")
+
+
+def test_worker_native_usage_replay_cache():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-usage-replay",
+        session_id="ses-usage-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    usage = {
+        "last": {"totalTokens": 150},
+        "total": {"totalTokens": 150},
+        "modelContextWindow": 4096,
+    }
+    event = {"type": "codex.token_usage", "token_usage": usage}
+    worker._update_pending_interactions(w, event)
+    assert worker.native_usage_event(w) == event
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_usage_event(w) is None
+    print("PASS: native usage replay cache")
+
+
+def test_worker_native_rate_limits_survive_turn_and_replay_until_respawn():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-rate-limit-replay",
+        session_id="ses-rate-limit-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    event = {
+        "type": "codex.rate_limits",
+        "rate_limits": {"primary": {"usedPercent": 25}},
+    }
+    worker._update_pending_interactions(w, event)
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_rate_limits_event(w) == event
+
+    worker.clear_native_runtime_state(w)
+    assert worker.native_rate_limits_event(w) is None
+    print("PASS: native rate-limit replay cache")
+
+
+def test_worker_native_plan_and_diff_replay_until_turn_finishes():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-plan-replay",
+        session_id="ses-plan-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    plan = {
+        "type": "codex.plan", "plan": [{"step": "Inspect", "status": "inProgress"}],
+        "turn_id": "turn-1", "item_id": "plan:turn-1", "delta": True, "replace": True,
+    }
+    diff = {
+        "type": "codex.diff", "diff": "+new", "turn_id": "turn-1",
+        "item_id": "diff:turn-1", "delta": True, "replace": True,
+    }
+    worker._update_pending_interactions(w, plan)
+    worker._update_pending_interactions(w, diff)
+    assert worker.native_plan_event(w) == plan
+    assert worker.native_diff_event(w) == diff
+
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_plan_event(w) is None
+    assert worker.native_diff_event(w) is None
+    print("PASS: native plan/diff replay cache")
+
+
+def test_worker_native_runtime_state_clears_on_respawn_boundary():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-runtime-state",
+        session_id="ses-runtime-state",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    worker._update_pending_interactions(w, {
+        "type": "approval.request", "request_id": 3,
+        "method": "item/commandExecution/requestApproval", "params": {},
+    })
+    worker._update_pending_interactions(w, {
+        "type": "codex.thread_status",
+        "native_status": {"type": "active"},
+    })
+    worker._update_pending_interactions(w, {
+        "type": "codex.token_usage",
+        "token_usage": {"last": {"totalTokens": 10}},
+    })
+
+    worker.clear_native_runtime_state(w)
+
+    assert worker.pending_interaction_events(w) == []
+    assert worker.native_status_event(w) is None
+    assert worker.native_usage_event(w) is None
+    print("PASS: native runtime state reset")
 
 
 # ── wrapper 参数构建 ──
@@ -309,6 +839,285 @@ def test_filter_resume_opts():
     print("PASS: _filter_resume_opts")
 
 
+def test_system_prompt_opts():
+    prompt = 'You are Pan.\nUse "中文".'
+    opts = codex_wrapper._system_prompt_opts(prompt)
+    assert opts[0] == "-c"
+    assert opts[1] == 'developer_instructions="You are Pan.\\nUse \\"中文\\"."'
+    assert codex_wrapper._system_prompt_opts("") == []
+    assert codex_wrapper._system_prompt_opts(None) == []
+    print("PASS: _system_prompt_opts")
+
+
+def test_app_server_option_translation():
+    opts = [
+        "-c", 'model="gpt-test"',
+        "-c", 'model_reasoning_effort="high"',
+        "--dangerously-bypass-approvals-and-sandbox",
+    ]
+    assert app_server_wrapper._parse_extra_options(opts) == {
+        "model": "gpt-test",
+        "model_reasoning_effort": "high",
+    }
+    assert app_server_wrapper._server_options(opts) == [
+        "-c", 'model="gpt-test"',
+        "-c", 'model_reasoning_effort="high"',
+    ]
+    print("PASS: app-server option translation")
+
+
+def test_app_server_item_translation():
+    assistant = app_server_wrapper._item_event({
+        "type": "agentMessage", "text": "done",
+    })
+    assert assistant["type"] == "assistant"
+    assert assistant["message"]["content"][0]["text"] == "done"
+
+    command = app_server_wrapper._item_event({
+        "type": "commandExecution", "command": "echo hi",
+        "aggregatedOutput": "hi",
+    })
+    # The native schema currently uses aggregated_output; the command itself
+    # must still be represented even when a future version changes output key.
+    assert command["message"]["content"][0]["name"] == "Command"
+    assert command["message"]["content"][0]["input"]["command"] == "echo hi"
+    assert app_server_wrapper._item_event({
+        "type": "userMessage", "content": [],
+    }) is None
+    print("PASS: app-server item translation")
+
+
+def test_app_server_approval_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    request = {
+        # JSON-RPC server request IDs legitimately start at numeric zero.
+        # Keep this test at zero so callers do not accidentally treat it as
+        # a missing/falsy request ID when forwarding approval controls.
+        "id": 0,
+        "method": "item/commandExecution/requestApproval",
+        "params": {
+            "itemId": "item-1", "command": "echo ok",
+            "availableDecisions": ["accept", "decline"],
+        },
+    }
+    app._handle_server_request(request, state)
+    assert state["pending_requests"]["0"]["id"] == 0
+    assert emitted[0]["type"] == "approval.request"
+    assert sent == []
+
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "approval_response", "request_id": 0, "decision": "accept"})
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 0, "result": {"decision": "accept"}}]
+    assert state["pending_requests"] == {}
+
+    state["pending_requests"]["1"] = {
+        "id": 1, "method": request["method"],
+        # Keep the synthetic request live while exercising structured decisions.
+        "deadline": 9_999_999_999,
+    }
+    controls.put({
+        "type": "approval_response", "request_id": 1,
+        "result": {"decision": {
+            "acceptWithExecpolicyAmendment": {"execpolicy_amendment": ["echo *"]},
+        }},
+    })
+    app._drain_controls(state, controls)
+    assert sent[-1] == {"id": 1, "result": {"decision": {
+        "acceptWithExecpolicyAmendment": {"execpolicy_amendment": ["echo *"]},
+    }}}
+    assert state["pending_requests"] == {}
+    print("PASS: app-server approval roundtrip")
+
+
+def test_app_server_user_input_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    request = {
+        "id": 0,
+        "method": "item/tool/requestUserInput",
+        "params": {
+            "questions": [{"id": "target", "question": "Which target?"}],
+            "autoResolutionMs": 60000,
+        },
+    }
+    app._handle_server_request(request, state)
+    assert emitted[0]["type"] == "codex.user_input"
+    assert state["pending_requests"]["0"]["fallback_result"] == {"answers": {}}
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({
+        "type": "user_input_response",
+        "request_id": 0,
+        "answers": {"target": {"answers": ["core"]}},
+    })
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 0, "result": {"answers": {"target": {"answers": ["core"]}}}}]
+    assert state["pending_requests"] == {}
+    print("PASS: app-server user input roundtrip")
+
+
+def test_app_server_permission_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    sent: list[dict] = []
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    request = {
+        "id": 0,
+        "method": "item/permissions/requestApproval",
+        "params": {
+            "reason": "Need to inspect a shared directory",
+            "permissions": {"fileSystem": {"read": ["C:/shared"]}},
+        },
+    }
+    app._handle_server_request(request, state)
+    assert state["pending_requests"]["0"]["fallback_result"] == {
+        "permissions": {}, "scope": "turn",
+    }
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({
+        "type": "permission_response",
+        "request_id": 0,
+        "permissions": request["params"]["permissions"],
+        "scope": "session",
+    })
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 0, "result": {
+        "permissions": {"fileSystem": {"read": ["C:/shared"]}},
+        "scope": "session",
+    }}]
+    assert state["pending_requests"] == {}
+    print("PASS: app-server permission roundtrip")
+
+
+def test_app_server_elicitation_roundtrip(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    app._send = sent.append  # type: ignore[method-assign]
+    state = {"pending_requests": {}}
+    app._handle_server_request({
+        "id": 0,
+        "method": "mcpServer/elicitation/request",
+        "params": {
+            "mode": "form",
+            "message": "Choose an environment",
+            "requestedSchema": {"properties": {"env": {"type": "string"}}},
+        },
+    }, state)
+    assert emitted[0]["type"] == "codex.elicitation"
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({
+        "type": "elicitation_response",
+        "request_id": 0,
+        "action": "accept",
+        "content": {"env": "test"},
+    })
+    app._drain_controls(state, controls)
+    assert sent == [{"id": 0, "result": {
+        "action": "accept", "content": {"env": "test"},
+    }}]
+    assert state["pending_requests"] == {}
+    print("PASS: app-server elicitation roundtrip")
+
+
+def test_app_server_request_resolved_clears_pending(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state = {"pending_requests": {"0": {"id": 0, "method": "item/tool/requestUserInput"}}}
+    app._handle_server_message({
+        "method": "serverRequest/resolved",
+        "params": {"requestId": 0, "threadId": "thread-1"},
+    }, state)
+    assert state["pending_requests"] == {}
+    assert emitted == [{"type": "codex.request_resolved", "request_id": 0,
+                        "params": {"requestId": 0, "threadId": "thread-1"}}]
+    print("PASS: app-server request resolved")
+
+
+def test_app_server_file_change_stream(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state: dict = {}
+    app._handle_server_message({
+        "method": "item/started",
+        "params": {"threadId": "t", "turnId": "u", "item": {
+            "id": "file-1", "type": "fileChange", "changes": [],
+            "status": "inProgress",
+        }},
+    }, state)
+    app._handle_server_message({
+        "method": "item/fileChange/outputDelta",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "file-1", "delta": "editing"},
+    }, state)
+    app._handle_server_message({
+        "method": "item/fileChange/patchUpdated",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "file-1", "changes": [{
+            "path": "a.txt", "kind": {"type": "update"}, "diff": "+hello",
+        }]},
+    }, state)
+    assert [event["replace"] for event in emitted] == [False, True, True]
+    assert emitted[-1]["message"]["content"][0]["input"]["changes"][0]["path"] == "a.txt"
+    assert state["file_items"]["file-1"]["output"] == "editing"
+    print("PASS: app-server file change stream")
+
+
+def test_app_server_mcp_progress_stream(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state: dict = {}
+    app._handle_server_message({
+        "method": "item/started",
+        "params": {"threadId": "t", "turnId": "u", "item": {
+            "id": "mcp-1", "type": "mcpToolCall", "server": "pan",
+            "tool": "session_get", "arguments": {"session_id": "s1"},
+        }},
+    }, state)
+    app._handle_server_message({
+        "method": "item/mcpToolCall/progress",
+        "params": {"threadId": "t", "turnId": "u", "itemId": "mcp-1",
+                   "message": "connecting"},
+    }, state)
+    assert [event["replace"] for event in emitted] == [False, True]
+    input_args = emitted[-1]["message"]["content"][0]["input"]
+    assert input_args["session_id"] == "s1"
+    assert input_args["progress"] == "connecting"
+    print("PASS: app-server MCP progress stream")
+
+
+def test_app_server_native_items_are_displayable():
+    agent = app_server_wrapper._item_event({
+        "id": "agent-1", "type": "collabAgentToolCall", "tool": "spawnAgent",
+        "status": "completed", "prompt": "inspect tests", "receiverThreadIds": ["t2"],
+    })
+    assert agent["message"]["content"][0]["name"] == "Agent/spawnAgent"
+    assert agent["message"]["content"][0]["input"]["prompt"] == "inspect tests"
+
+    search = app_server_wrapper._item_event({
+        "id": "search-1", "type": "webSearch", "query": "Pan Codex",
+        "results": [{"title": "result"}],
+    })
+    assert search["message"]["content"][0]["name"] == "WebSearch"
+    assert search["message"]["content"][0]["input"]["query"] == "Pan Codex"
+    print("PASS: app-server native item translation")
+
+
 # ── sessions：纯函数 ──
 
 
@@ -316,7 +1125,16 @@ def test_item_to_block_mapping():
     assert codex_sessions._item_to_block({"type": "userMessage", "content": [{"type": "text", "text": "u"}]}) == {"role": "user", "content": "u"}
     assert codex_sessions._item_to_block({"type": "agentMessage", "text": "a"}) == {"role": "assistant", "content": "a"}
     assert codex_sessions._item_to_block({"type": "reasoning", "summary": ["r"]}) == {"role": "thinking", "content": "r"}
+    assert codex_sessions._item_to_block({"type": "plan", "text": "inspect"}) == {"role": "thinking", "content": "inspect"}
     assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregated_output": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
+    assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregatedOutput": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
+    assert codex_sessions._item_to_block({"type": "mcpToolCall", "tool": "pan_probe", "arguments": {"x": 1}, "result": "ok"}) == {"role": "tool", "content": 'pan_probe({"x": 1})\n→ ok'}
+    file_change = codex_sessions._item_to_block({"type": "fileChange", "changes": [{"path": "a.txt"}]})
+    assert file_change and file_change["role"] == "tool" and file_change["content"].startswith("FileChange(")
+    native_tool = codex_sessions._item_to_block({
+        "type": "webSearch", "query": "Pan", "results": [],
+    })
+    assert native_tool and native_tool["role"] == "tool" and native_tool["content"].startswith("WebSearch(")
     assert codex_sessions._item_to_block({"type": "unknownType"}) is None
     print("PASS: _item_to_block mapping")
 
@@ -326,6 +1144,18 @@ def test_norm_path():
     assert codex_sessions._norm_path("\\\\?\\C:\\Users\\x\\Temp\\w") == "c:\\users\\x\\temp\\w"
     assert codex_sessions._norm_path("c:/users/x/temp/w") == "c:\\users\\x\\temp\\w"
     print("PASS: _norm_path")
+
+
+def test_cwd_matches_repository_root():
+    original = codex_sessions._IS_WINDOWS
+    try:
+        codex_sessions._IS_WINDOWS = True
+        assert codex_sessions._cwd_matches(r"C:\repo", r"C:\repo\nested") is True
+        assert codex_sessions._cwd_matches(r"C:\repo", r"C:\repo-other") is False
+        assert codex_sessions._cwd_matches(r"C:\repo\nested", r"C:\repo") is False
+    finally:
+        codex_sessions._IS_WINDOWS = original
+    print("PASS: _cwd_matches ancestor boundary")
 
 
 # ── sessions：临时 ~/.codex 端到端（hermetic）──
@@ -543,6 +1373,21 @@ def test_parse_models_from_models_cache(monkeypatch, tmp_path):
     print("PASS: models_cache parser (visibility + dedupe + effort + fault tolerance)")
 
 
+def test_model_efforts_from_models_cache(monkeypatch, tmp_path):
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    (home / "models_cache.json").write_text(json.dumps({"models": [
+        {"slug": "gpt-a", "visibility": "list",
+         "supported_reasoning_levels": [{"effort": "low"}, {"effort": "max"}]},
+        {"slug": "hidden", "visibility": "hide",
+         "supported_reasoning_levels": [{"effort": "ultra"}]},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+    assert _adapter().model_efforts == {"gpt-a": ["low", "max"]}
+    assert _adapter().settings_via_session is True
+    print("PASS: per-model effort metadata")
+
+
 def test_supported_models_catalog_priority(monkeypatch, tmp_path):
     _reset_models_cache()
     try:
@@ -581,6 +1426,39 @@ def test_supported_models_models_cache_priority(monkeypatch, tmp_path):
     finally:
         _reset_models_cache()
     print("PASS: supported_models priority (dynamic cache > catalog)")
+
+
+def test_default_model_skips_stale_config(monkeypatch, tmp_path):
+    _reset_models_cache()
+    try:
+        home = _fake_codex_home(tmp_path, [{"slug": "catalog/a"}])
+        (home / "models_cache.json").write_text(
+            json.dumps({"models": [
+                {"slug": "dynamic/a", "visibility": "list"},
+                {"slug": "dynamic/b", "visibility": "list"},
+            ]}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+        # The Pan config value is stale, and Codex's config.toml initially
+        # points at a model that is not in the refreshed native catalog.
+        monkeypatch.setattr(core_config, "load_config", lambda: {
+            "codex": {"model": "stale/provider-model"}
+        })
+        assert _adapter().supported_models == ["dynamic/a", "dynamic/b"]
+        assert _adapter().default_model == "dynamic/a"
+        # Replace config.toml with a valid native selection and ensure it wins
+        # over the dynamic list's first item.
+        (home / "config.toml").write_text(
+            'model = "dynamic/b"\n', encoding="utf-8"
+        )
+        assert _adapter().default_model == "dynamic/b"
+        # With no valid native selection, the first visible dynamic model wins.
+        (home / "config.toml").write_text('model = "not-visible"\n', encoding="utf-8")
+        assert _adapter().default_model == "dynamic/a"
+    finally:
+        _reset_models_cache()
+    print("PASS: default_model skips stale config and follows native catalog")
 
 
 def test_supported_models_ttl_cache(monkeypatch, tmp_path):
@@ -624,12 +1502,16 @@ if __name__ == "__main__":
     test_build_codex_args_fresh()
     test_build_codex_args_resume_filters_non_c_flags()
     test_filter_resume_opts()
+    test_system_prompt_opts()
     test_parse_models_from_catalog()
     test_parse_models_from_models_cache()
+    test_model_efforts_from_models_cache()
     test_supported_models_models_cache_priority()
     test_supported_models_catalog_priority()
+    test_default_model_skips_stale_config()
     test_supported_models_ttl_cache()
     test_item_to_block_mapping()
     test_norm_path()
+    test_cwd_matches_repository_root()
     test_sessions_provider_e2e()
     print("\n=== ALL CODEX ADAPTER TESTS PASSED ===")

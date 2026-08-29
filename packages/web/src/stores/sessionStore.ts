@@ -77,7 +77,7 @@ interface SessionStore {
    *  `_applyWorkerUpdate` 的就地更新路径）。 */
   applyResultToSession: (
     id: string,
-    e: { status?: string; result?: string },
+    e: { status?: string; cancelled?: boolean; result?: string },
   ) => void;
   toggleMultiSelect: (id?: string) => void;
   toggleSelection: (id: string) => void;
@@ -572,7 +572,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   applyResultToSession: (id, e) => {
-    const status = e.status === 'error' ? 'error' : 'done';
+    const status = e.status === 'error'
+      ? 'error'
+      : e.status === 'cancelled' || e.cancelled
+        ? 'cancelled'
+        : 'done';
     const result = e.result;
     set((s) => {
       const sessions = s.sessions.map((x) => {

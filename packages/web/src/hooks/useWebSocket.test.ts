@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import type { Session, Message } from '@/types';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
@@ -10,6 +12,7 @@ const wsMock = vi.hoisted(() => {
   const handlers: Record<string, Array<(e: unknown) => void>> = {};
   return {
     handlers,
+    send: vi.fn(() => true),
     on: vi.fn((type: string, h: (e: unknown) => void) => {
       (handlers[type] ??= []).push(h);
       return () => {
@@ -26,7 +29,7 @@ vi.mock('@/services/ws', () => ({
   wsClient: {
     connect: vi.fn(),
     on: wsMock.on,
-    send: vi.fn(() => true),
+    send: wsMock.send,
     isOpen: true,
   },
 }));
@@ -61,6 +64,7 @@ function mk(id: string, name: string, extra?: Partial<Session>): Session {
 describe('useWebSocket worker.result wiring', () => {
   beforeEach(() => {
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
+    wsMock.send.mockClear();
     useSessionStore.setState({
       sessions: [
         mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
@@ -77,6 +81,200 @@ describe('useWebSocket worker.result wiring', () => {
       _touchSeq: 0,
       _sessionWsTouchedSeq: {},
     });
+    useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
+  });
+
+  it('requests pending native interactions when the singleton is already open', () => {
+    renderHook(() => useWebSocket());
+
+    expect(wsMock.send).toHaveBeenCalledWith({ type: 'sync_interactive' });
+  });
+
+  it('keeps native Codex waiting status available to the active worker', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.thread_status',
+          native_status: {
+            type: 'active', activeFlags: ['waitingOnApproval'],
+          },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeStatus).toEqual({
+      type: 'active', activeFlags: ['waitingOnApproval'],
+    });
+  });
+
+  it('keeps a native system error status and its summary visible to the toolbar', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.thread_status',
+          native_status: { type: 'systemError', message: 'server disconnected' },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeStatus).toEqual({
+      type: 'systemError', message: 'server disconnected',
+    });
+  });
+
+  it('keeps the latest native Codex token usage available to the active worker', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.token_usage',
+          token_usage: {
+            last: { totalTokens: 150 },
+            total: { totalTokens: 150 },
+            modelContextWindow: 4096,
+          },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeUsage).toEqual({
+      last: { totalTokens: 150 },
+      total: { totalTokens: 150 },
+      modelContextWindow: 4096,
+    });
+  });
+
+  it('keeps native Codex account rate limits available to the active worker', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.rate_limits',
+          rate_limits: {
+            primary: { usedPercent: 25 },
+            secondary: { usedPercent: 5 },
+          },
+        },
+      });
+    });
+
+    expect(useWorkerStore.getState().workers.A?.nativeRateLimits).toEqual({
+      primary: { usedPercent: 25 },
+      secondary: { usedPercent: 5 },
+    });
+  });
+
+  it('renders and replaces native Codex turn plans and aggregate diffs', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.plan', item_id: 'plan:turn-1', delta: true, replace: true,
+          explanation: 'Working',
+          plan: [
+            { step: 'Inspect', status: 'completed' },
+            { step: 'Fix', status: 'inProgress' },
+          ],
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.plan', item_id: 'plan:turn-1', delta: true, replace: true,
+          plan: [{ step: 'Fix', status: 'completed' }],
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.diff', item_id: 'diff:turn-1', delta: true, replace: true,
+          diff: '--- a/file\n+++ b/file\n+new',
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'thinking', content: '[x] Fix', nativeItemId: 'plan:turn-1' },
+      {
+        role: 'tool',
+        content: 'CodexDiff({"diff":"--- a/file\\n+++ b/file\\n+new"})',
+        nativeItemId: 'diff:turn-1',
+      },
+    ]);
+  });
+
+  it('surfaces native Codex turn errors immediately without adding a fake chat message', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.turn_error',
+          error_text: 'upstream unavailable',
+          error: { code: 'unavailable' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex: upstream unavailable');
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('surfaces Codex MCP startup failures without surfacing ready notifications', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.mcp_status',
+          mcp_status: { name: 'pan', status: 'ready' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.mcp_status',
+          mcp_status: { name: 'pan', status: 'failed', error: 'offline' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex MCP pan: offline');
+  });
+
+  it('surfaces native Codex model reroutes on the active session', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.model_rerouted',
+          model_rerouted: {
+            fromModel: 'gpt-a', toModel: 'gpt-b', reason: 'highRiskCyberActivity',
+          },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex switched model: gpt-a → gpt-b (highRiskCyberActivity)');
   });
 
   it('updates a background session card in-place on worker.result', () => {
@@ -125,6 +323,26 @@ describe('useWebSocket worker.result wiring', () => {
     const s = useSessionStore.getState().sessions.find((x) => x.id === 'A');
     expect(s?.history.map((m) => m.content)).toEqual(['u0', 'a-reply']);
     expect(s?.workerStatus).toBe('idle');
+  });
+
+  it('labels a native cancelled turn separately from an error', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result',
+        sessionId: 'A',
+        workerId: 'w1',
+        status: 'cancelled',
+        cancelled: true,
+        result: '',
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.at(-1)?.content)
+      .toBe('[CANCELLED] Task completed');
+    expect(useSessionStore.getState().sessions.find((x) => x.id === 'A')?.lastResult?.status)
+      .toBe('cancelled');
   });
 
   it('clears the card status on worker crash and keeps history intact', () => {
@@ -178,6 +396,142 @@ describe('useWebSocket worker.result wiring', () => {
     expect(msgs[0]?.content).toBe(
       'Bash({"command":"ls \\u4e2d\\u6587\\u76ee\\u5f55","path":"\\u6570\\u636e/\\u6587\\u4ef6.txt"})',
     );
+  });
+
+  it('renders unknown native Codex items through the generic tool fallback', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'codex.item.completed',
+          item: { id: 'item-1', type: 'futureNativeItem', summary: 'kept' },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.at(-1)).toEqual({
+      role: 'tool',
+      content: 'futureNativeItem({"summary":"kept"})',
+    });
+  });
+
+  it('replaces a running command item as native output deltas arrive', () => {
+    renderHook(() => useWebSocket());
+    useSessionStore.setState({ currentSessionId: 'A' });
+
+    const toolEvent = (output?: string, replace = false) => ({
+      type: 'assistant',
+      delta: true,
+      replace,
+      message: {
+        content: [{
+          type: 'tool_use',
+          name: 'Command',
+          input: { command: 'printf hello', ...(output ? { output } : {}) },
+        }],
+      },
+    });
+
+    act(() => {
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', event: toolEvent() });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', event: toolEvent('hel', true) });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', event: {
+        ...toolEvent('hello', true), delta: false, final: true,
+      } });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'tool', content: 'Command({"command":"printf hello","output":"hello"})' },
+    ]);
+  });
+
+  it('updates interleaved native tools by item id', () => {
+    renderHook(() => useWebSocket());
+    useSessionStore.setState({ currentSessionId: 'A' });
+
+    const toolEvent = (itemId: string, output: string, replace: boolean) => ({
+      type: 'assistant', delta: true, replace, item_id: itemId,
+      message: { content: [{
+        type: 'tool_use', name: 'Command',
+        input: { command: itemId, output },
+      }] },
+    });
+    act(() => {
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', event: toolEvent('one', 'a', false) });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', event: toolEvent('two', 'b', false) });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', event: toolEvent('one', 'aa', true) });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'tool', content: 'Command({"command":"one","output":"aa"})', nativeItemId: 'one' },
+      { role: 'tool', content: 'Command({"command":"two","output":"b"})', nativeItemId: 'two' },
+    ]);
+  });
+
+  it('surfaces native terminal interaction and clears it on result', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.terminal_interaction',
+          item_id: 'item-1', process_id: 'process-1', stdin: 'Password: ',
+          params: { threadId: 't', turnId: 'u' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().terminalInteractions).toEqual([{
+      sessionId: 'A', workerId: 'w1', itemId: 'item-1', processId: 'process-1',
+      stdin: 'Password: ', params: { threadId: 't', turnId: 'u' },
+    }]);
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1',
+        status: 'done', result: 'ok',
+      });
+    });
+    expect(useUIStore.getState().terminalInteractions).toEqual([]);
+  });
+
+  it('drops stale native interaction prompts when a worker is restarted', () => {
+    renderHook(() => useWebSocket());
+    useUIStore.setState({
+      approvalRequests: [{
+        sessionId: 'A', workerId: 'w1', requestId: 1,
+        method: 'item/commandExecution/requestApproval', params: {},
+      }],
+      userInputRequests: [{
+        sessionId: 'A', workerId: 'w1', requestId: 2,
+        method: 'item/tool/requestUserInput', questions: [],
+      }],
+      elicitationRequests: [{
+        sessionId: 'A', workerId: 'w1', requestId: 3,
+        method: 'mcpServer/elicitation/request', params: {},
+      }],
+      terminalInteractions: [{
+        sessionId: 'A', workerId: 'w1', itemId: 'item-1', processId: 'process-1',
+        stdin: '', params: {},
+      }],
+    });
+
+    act(() => {
+      wsMock.trigger('worker.restarted', {
+        type: 'worker.restarted', sessionId: 'A', workerId: 'w1',
+      });
+    });
+
+    const ui = useUIStore.getState();
+    expect(ui.approvalRequests).toEqual([]);
+    expect(ui.userInputRequests).toEqual([]);
+    expect(ui.elicitationRequests).toEqual([]);
+    expect(ui.terminalInteractions).toEqual([]);
   });
 });
 
@@ -502,5 +856,55 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       vi.advanceTimersByTime(1000);
     });
     expect(lastMessageOf('B')).toBe('final-result');
+  });
+
+  it('merges native app-server deltas and replaces them with the final item', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'content.part',
+          role: 'assistant',
+          delta: true,
+          stream_text: 'Hel',
+          part: { type: 'text', text: 'Hel' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'content.part',
+          role: 'assistant',
+          delta: true,
+          stream_text: 'Hello',
+          part: { type: 'text', text: 'lo' },
+        },
+      });
+    });
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'assistant', content: 'Hello' },
+    ]);
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'assistant',
+          final: true,
+          message: { content: [{ type: 'text', text: 'Hello!' }] },
+        },
+      });
+    });
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'assistant', content: 'Hello!' },
+    ]);
   });
 });

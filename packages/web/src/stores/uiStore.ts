@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import type { ToastMessage } from '@/types';
+import type {
+  ApprovalRequest,
+  ElicitationRequest,
+  TerminalInteraction,
+  ToastMessage,
+  UserInputRequest,
+} from '@/types';
 
 // ── localStorage helpers ──
 
@@ -97,6 +103,10 @@ function persistTheme(t: Theme) {
 
 interface UIStore {
   toastQueue: ToastMessage[];
+  approvalRequests: ApprovalRequest[];
+  userInputRequests: UserInputRequest[];
+  elicitationRequests: ElicitationRequest[];
+  terminalInteractions: TerminalInteraction[];
   bubbleViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
@@ -112,6 +122,18 @@ interface UIStore {
 
   showToast: (message: string, type?: ToastMessage['type']) => void;
   dismissToast: (id: string) => void;
+  addApprovalRequest: (request: ApprovalRequest) => void;
+  removeApprovalRequest: (sessionId: string, requestId: string | number) => void;
+  clearApprovalRequests: (sessionId: string) => void;
+  addUserInputRequest: (request: UserInputRequest) => void;
+  removeUserInputRequest: (sessionId: string, requestId: string | number) => void;
+  clearUserInputRequests: (sessionId: string) => void;
+  addElicitationRequest: (request: ElicitationRequest) => void;
+  removeElicitationRequest: (sessionId: string, requestId: string | number) => void;
+  clearElicitationRequests: (sessionId: string) => void;
+  addTerminalInteraction: (interaction: TerminalInteraction) => void;
+  removeTerminalInteraction: (sessionId: string, itemId: string) => void;
+  clearTerminalInteractions: (sessionId: string) => void;
   toggleBubbleView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
@@ -137,6 +159,10 @@ let toastCounter = 0;
 
 export const useUIStore = create<UIStore>((set, get) => ({
   toastQueue: [],
+  approvalRequests: [],
+  userInputRequests: [],
+  elicitationRequests: [],
+  terminalInteractions: [],
   bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
@@ -160,6 +186,106 @@ export const useUIStore = create<UIStore>((set, get) => ({
   dismissToast: (id) => {
     set((s) => ({
       toastQueue: s.toastQueue.filter((t) => t.id !== id),
+    }));
+  },
+
+  addApprovalRequest: (request) => {
+    set((s) => ({
+      approvalRequests: [
+        ...s.approvalRequests.filter(
+          (item) => !(item.sessionId === request.sessionId && item.requestId === request.requestId),
+        ),
+        request,
+      ],
+    }));
+  },
+
+  removeApprovalRequest: (sessionId, requestId) => {
+    set((s) => ({
+      approvalRequests: s.approvalRequests.filter(
+        (item) => !(item.sessionId === sessionId && item.requestId === requestId),
+      ),
+    }));
+  },
+
+  clearApprovalRequests: (sessionId) => {
+    set((s) => ({
+      approvalRequests: s.approvalRequests.filter((item) => item.sessionId !== sessionId),
+    }));
+  },
+
+  addUserInputRequest: (request) => {
+    set((s) => ({
+      userInputRequests: [
+        ...s.userInputRequests.filter(
+          (item) => !(item.sessionId === request.sessionId && item.requestId === request.requestId),
+        ),
+        request,
+      ],
+    }));
+  },
+
+  removeUserInputRequest: (sessionId, requestId) => {
+    set((s) => ({
+      userInputRequests: s.userInputRequests.filter(
+        (item) => !(item.sessionId === sessionId && item.requestId === requestId),
+      ),
+    }));
+  },
+
+  clearUserInputRequests: (sessionId) => {
+    set((s) => ({
+      userInputRequests: s.userInputRequests.filter((item) => item.sessionId !== sessionId),
+    }));
+  },
+
+  addElicitationRequest: (request) => {
+    set((s) => ({
+      elicitationRequests: [
+        ...s.elicitationRequests.filter(
+          (item) => !(item.sessionId === request.sessionId && item.requestId === request.requestId),
+        ),
+        request,
+      ],
+    }));
+  },
+
+  removeElicitationRequest: (sessionId, requestId) => {
+    set((s) => ({
+      elicitationRequests: s.elicitationRequests.filter(
+        (item) => !(item.sessionId === sessionId && item.requestId === requestId),
+      ),
+    }));
+  },
+
+  clearElicitationRequests: (sessionId) => {
+    set((s) => ({
+      elicitationRequests: s.elicitationRequests.filter((item) => item.sessionId !== sessionId),
+    }));
+  },
+
+  addTerminalInteraction: (interaction) => {
+    set((s) => ({
+      terminalInteractions: [
+        ...s.terminalInteractions.filter(
+          (item) => !(item.sessionId === interaction.sessionId && item.itemId === interaction.itemId),
+        ),
+        interaction,
+      ],
+    }));
+  },
+
+  removeTerminalInteraction: (sessionId, itemId) => {
+    set((s) => ({
+      terminalInteractions: s.terminalInteractions.filter(
+        (item) => !(item.sessionId === sessionId && item.itemId === itemId),
+      ),
+    }));
+  },
+
+  clearTerminalInteractions: (sessionId) => {
+    set((s) => ({
+      terminalInteractions: s.terminalInteractions.filter((item) => item.sessionId !== sessionId),
     }));
   },
 
