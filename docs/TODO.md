@@ -31,7 +31,7 @@
 |----|------|------|
 | L4 watchdog 分支不确定点 | `pending_signal` 载荷收窄留待真源迁移后与 consumer 侧同步；worker 级 watchdog 是否整体替换为全局级待评估 | 阶段计划与进度.md |
 | L5 MCP 隔离细节 | 隔离的权限边界、claim 释放时机、与报告订阅的交互 | 阶段计划与进度.md |
-| R1 idle 覆盖边缘窗口 | stream `_read_stdout` 在队列仍有任务时置 idle，`idle_sec` 短时可能提前回收——低优确认 | 阶段计划与进度.md |
+| ~~R1 idle 覆盖边缘窗口~~ | **已解决（2026-08-29）**：watchdog 在 idle 回收前检查 `pending_signal` 与持久 `queue_pending`，有待消费工作时保留 worker；补回归测试 | 阶段计划与进度.md |
 | R2 补 3 个集成测试 | stream 端到端序号配对、reconnect 中途断线补发、「超时→kill→重试」幂等组合（修复均已落地，测试未补） | 阶段计划与进度.md |
 | 测试夹具用户名 | `tests/test_kimi_adapter.py:19` `KIMI_TEST_WORKDIR` 含本机用户名，其他机器跑测试失败（2026-08-27 核对仍存在） | 跨设备移植报告 / 阶段计划与进度.md |
 | opencode handoff 复验 | 原 worker_handoff 已移除；新 `agent_assign`（别名 worker_assign）/`session_handoff` 链路下 opencode stream 完成信号是否仍超时未复验 | design/opencode-adaptation.md |

@@ -1040,6 +1040,14 @@ def _process_alive(w: Worker) -> bool:
     return w.process is None or w.process.returncode is None
 
 
+def _worker_has_pending_work(w: Worker) -> bool:
+    """idle watchdog 回收前检查是否还有待消费信号或持久队列项。"""
+    if w.pending_signal is not None and not w.pending_signal.empty():
+        return True
+    s = _session(w)
+    return bool(s and s.queue_pending)
+
+
 # ── 投递标记与恢复对账（jsonl-先写顺序下的重复窗口封堵）──
 #
 # save 顺序：① jsonl(history) ② 主文件(queue_pending)。崩溃窗口：jsonl 已写、
@@ -1373,6 +1381,13 @@ async def _watchdog(w: Worker):
         # MCP one-shot：只回收长期 idle 的 worker（running 由读取超时兜底）
         if w.process is None:
             if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
+                if _worker_has_pending_work(w):
+                    _log.debug(
+                        "[Worker %s] watchdog keep: reason=pending_work mode=mcp "
+                        "idle_for=%.0fs branch=mcp_pending_work",
+                        w.worker_id, idle_for,
+                    )
+                    continue
                 _log.info(
                     "[Worker %s] watchdog kill: reason=idle_reclaim mode=mcp status=%s "
                     "idle_for=%.0fs idle_threshold=%.0fs branch=mcp_idle_reclaim",
@@ -1411,6 +1426,13 @@ async def _watchdog(w: Worker):
             await kill_worker(w.worker_id)
             return
         if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
+            if _worker_has_pending_work(w):
+                _log.debug(
+                    "[Worker %s] watchdog keep: reason=pending_work mode=stream "
+                    "idle_for=%.0fs branch=stream_pending_work",
+                    w.worker_id, idle_for,
+                )
+                continue
             _log.info(
                 "[Worker %s] watchdog kill: reason=idle_reclaim mode=stream status=%s "
                 "idle_for=%.0fs idle_threshold=%.0fs branch=stream_idle_reclaim",
