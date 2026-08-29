@@ -60,6 +60,19 @@ def _filter_resume_opts(opts: list[str]) -> list[str]:
     return out
 
 
+def _system_prompt_opts(system_prompt: str | None) -> list[str]:
+    """Encode Pan's system prompt as Codex developer instructions.
+
+    ``codex exec`` has no public ``--system-prompt`` flag. The current native
+    CLI accepts the ``developer_instructions`` config key, which keeps the
+    prompt in the instruction/developer layer instead of sending it as an
+    ordinary user turn.
+    """
+    if not system_prompt:
+        return []
+    return ["-c", f"developer_instructions={json.dumps(system_prompt, ensure_ascii=False)}"]
+
+
 def _build_codex_args(node: str, codex_js: str, text: str,
                       thread_id: str | None, extra_opts: list[str],
                       cwd: str | None) -> list[str]:
@@ -171,7 +184,8 @@ def _stdin_reader(message_queue: Queue, shutdown_event: threading.Event) -> None
 
 
 def _main_loop(node: str, codex_js: str, extra_opts: list[str],
-               initial_thread_id: str | None, cwd: str | None) -> int:
+               initial_thread_id: str | None, cwd: str | None,
+               system_prompt: str | None = None) -> int:
     thread_id = initial_thread_id
     message_queue: Queue = Queue()
     shutdown_event = threading.Event()
@@ -190,9 +204,12 @@ def _main_loop(node: str, codex_js: str, extra_opts: list[str],
             if not text:
                 continue
 
-            args = _build_codex_args(
-                node, codex_js, text, thread_id, extra_opts, cwd
-            )
+            # Only the first fresh turn receives the developer instructions.
+            # Once Codex has created a thread, resume carries that context.
+            call_opts = extra_opts
+            if not thread_id and system_prompt:
+                call_opts = extra_opts + _system_prompt_opts(system_prompt)
+            args = _build_codex_args(node, codex_js, text, thread_id, call_opts, cwd)
 
             try:
                 # 关键修复：codex exec 不依赖 stdin（prompt 来自 CLI 参数），显式置
@@ -273,6 +290,8 @@ def main() -> int:
                         help="Initial thread id to resume (continuity across worker respawns)")
     parser.add_argument("--codex-extra-args", default="[]",
                         help="JSON list of codex-level option flags (model/permission/mcp/effort)")
+    parser.add_argument("--system-prompt", default=None,
+                        help="Pan system prompt, passed as Codex developer_instructions on the first fresh turn")
     args = parser.parse_args()
 
     cwd = os.environ.get("PAN_CODEX_CWD") or os.getcwd()
@@ -288,6 +307,7 @@ def main() -> int:
         extra_opts=extra_opts,
         initial_thread_id=args.thread_id,
         cwd=cwd,
+        system_prompt=args.system_prompt,
     )
 
 

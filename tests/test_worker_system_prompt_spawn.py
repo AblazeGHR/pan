@@ -48,16 +48,22 @@ def test_kimi_declares_capability():
     assert get_adapter("kimi").supports_spawn_system_prompt is True
 
 
-def test_opencode_codex_do_not_declare_capability():
-    """横向排查（2026-08-29）：opencode / codex 的 wrapper argparse 均不认识
-    ``--system-prompt``（与 kimi 修复前同形 —— 强传即 exit 2 卡死）。二者不声明
-    该能力，worker 决策函数必须返回 None（退回首条消息注入），永不强传。
-    claude 则因 execution_modes=["oneshot"] 根本不走 spawn 路径。"""
-    for name in ("opencode", "codex"):
-        adapter = get_adapter(name)
-        assert getattr(adapter, "supports_spawn_system_prompt", False) is False, name
-        s = _session_with_prompt(mcp_servers=[{"name": "pan"}])
-        assert worker._spawn_system_prompt_args(adapter, s, mcp_on=True) is None, name
+def test_opencode_does_not_declare_capability():
+    """opencode 的 wrapper 仍不接受 worker 的 ``--system-prompt`` 参数。"""
+    adapter = get_adapter("opencode")
+    assert getattr(adapter, "supports_spawn_system_prompt", False) is False
+    s = _session_with_prompt(mcp_servers=[{"name": "pan"}])
+    assert worker._spawn_system_prompt_args(adapter, s, mcp_on=True) is None
+
+
+def test_codex_declares_capability():
+    """codex wrapper 将该参数转换为 developer_instructions。"""
+    adapter = get_adapter("codex")
+    assert adapter.supports_spawn_system_prompt is True
+    s = _session_with_prompt(mcp_servers=[{"name": "pan"}])
+    assert worker._spawn_system_prompt_args(adapter, s, mcp_on=True) == [
+        "--system-prompt", "You are SMA."
+    ]
 
 
 # ── _spawn_system_prompt_args decision ──
@@ -103,7 +109,8 @@ if __name__ == "__main__":
     for fn in [
         test_cbc_declares_capability,
         test_kimi_declares_capability,
-        test_opencode_codex_do_not_declare_capability,
+        test_opencode_does_not_declare_capability,
+        test_codex_declares_capability,
         test_mcp_plus_prompt_new_session_injects,
         test_kimi_mcp_plus_prompt_injects,
         test_adapter_without_capability_returns_none,
