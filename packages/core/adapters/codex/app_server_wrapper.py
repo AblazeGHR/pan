@@ -400,6 +400,37 @@ class AppServer:
                 "model_rerouted": params,
             })
             return
+        if method == "turn/plan/updated":
+            params = message.get("params") or {}
+            plan = params.get("plan")
+            if isinstance(plan, list):
+                turn_id = params.get("turnId", params.get("turn_id"))
+                _write_stdout({
+                    "type": "codex.plan",
+                    "plan": plan,
+                    "explanation": params.get("explanation"),
+                    "thread_id": params.get("threadId", params.get("thread_id")),
+                    "turn_id": turn_id,
+                    "item_id": f"plan:{turn_id}" if turn_id else "plan",
+                    "delta": True,
+                    "replace": True,
+                })
+            return
+        if method == "turn/diff/updated":
+            params = message.get("params") or {}
+            diff = params.get("diff")
+            if isinstance(diff, str):
+                turn_id = params.get("turnId", params.get("turn_id"))
+                _write_stdout({
+                    "type": "codex.diff",
+                    "diff": diff,
+                    "thread_id": params.get("threadId", params.get("thread_id")),
+                    "turn_id": turn_id,
+                    "item_id": f"diff:{turn_id}" if turn_id else "diff",
+                    "delta": True,
+                    "replace": True,
+                })
+            return
         if method == "serverRequest/resolved":
             params = message.get("params") or {}
             request_id = params.get("requestId", params.get("request_id"))

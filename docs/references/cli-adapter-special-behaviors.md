@@ -560,6 +560,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `account/rateLimits/updated` 会归一化为 `codex.rate_limits`，在顶栏显示 primary/secondary
   限额窗口的已用比例，并在 WebSocket 重连时回放；MCP 启动失败会以明确错误提示展示，
   `model/rerouted` 会提示 Codex 临时切换的模型，但不会篡改 Session 的配置模型。
+  `turn/plan/updated` 与 `turn/diff/updated` 会归一化为当前 turn 的实时计划和聚合 diff；
+  计划在聊天区原位更新为可折叠 thinking 块，diff 以可展开的只读工具卡片展示，且在
+  WebSocket 重连时回放。它们只属于当前 app-server 进程/turn，不写入 Pan 的持久 history。
   运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
   原生 `turn/completed` 的 `interrupted` / `cancelled` 会标记为独立的 `cancelled` 结果，

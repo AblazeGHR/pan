@@ -407,6 +407,29 @@ function extractBlocks(
   event: WorkerEvent,
 ): Array<{ role: string; content: string }> {
   const blocks: Array<{ role: string; content: string }> = [];
+  if (event.type === 'codex.plan' && Array.isArray(event.plan)) {
+    const statusMark: Record<string, string> = {
+      completed: '[x]',
+      inProgress: '[>]',
+      pending: '[ ]',
+    };
+    const lines = event.plan.map((step) => {
+      const text = String(step.step ?? '').trim();
+      const mark = statusMark[String(step.status ?? '')] ?? '[ ]';
+      return `${mark} ${text}`.trimEnd();
+    }).filter(Boolean);
+    const explanation = typeof event.explanation === 'string'
+      ? event.explanation.trim()
+      : '';
+    const content = [explanation, lines.join('\n')].filter(Boolean).join('\n\n');
+    return content ? [{ role: 'thinking', content }] : blocks;
+  }
+  if (event.type === 'codex.diff' && typeof event.diff === 'string' && event.diff) {
+    return [{
+      role: 'tool',
+      content: `CodexDiff(${pyJsonDumps({ diff: event.diff })})`,
+    }];
+  }
   if (event.type === 'codex.item.completed' && event.item) {
     const item = { ...event.item };
     const kind = String(item.type ?? 'CodexItem');

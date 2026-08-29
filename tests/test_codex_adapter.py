@@ -477,6 +477,20 @@ def test_app_server_account_notifications_are_normalized(monkeypatch):
         "method": "model/rerouted",
         "params": {"fromModel": "gpt-a", "toModel": "gpt-b", "reason": "highRiskCyberActivity"},
     }, {})
+    app._handle_server_message({
+        "method": "turn/plan/updated",
+        "params": {
+            "threadId": "thread-1", "turnId": "turn-1",
+            "explanation": "working", "plan": [
+                {"step": "Inspect", "status": "completed"},
+                {"step": "Fix", "status": "inProgress"},
+            ],
+        },
+    }, {})
+    app._handle_server_message({
+        "method": "turn/diff/updated",
+        "params": {"threadId": "thread-1", "turnId": "turn-1", "diff": "+new"},
+    }, {})
 
     assert emitted == [
         {"type": "codex.rate_limits", "rate_limits": {
@@ -488,6 +502,13 @@ def test_app_server_account_notifications_are_normalized(monkeypatch):
         {"type": "codex.model_rerouted", "model_rerouted": {
             "fromModel": "gpt-a", "toModel": "gpt-b", "reason": "highRiskCyberActivity",
         }},
+        {"type": "codex.plan", "plan": [
+            {"step": "Inspect", "status": "completed"},
+            {"step": "Fix", "status": "inProgress"},
+        ], "explanation": "working", "thread_id": "thread-1", "turn_id": "turn-1",
+         "item_id": "plan:turn-1", "delta": True, "replace": True},
+        {"type": "codex.diff", "diff": "+new", "thread_id": "thread-1", "turn_id": "turn-1",
+         "item_id": "diff:turn-1", "delta": True, "replace": True},
     ]
     print("PASS: app-server account notifications")
 
@@ -656,6 +677,33 @@ def test_worker_native_rate_limits_survive_turn_and_replay_until_respawn():
     worker.clear_native_runtime_state(w)
     assert worker.native_rate_limits_event(w) is None
     print("PASS: native rate-limit replay cache")
+
+
+def test_worker_native_plan_and_diff_replay_until_turn_finishes():
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-plan-replay",
+        session_id="ses-plan-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    plan = {
+        "type": "codex.plan", "plan": [{"step": "Inspect", "status": "inProgress"}],
+        "turn_id": "turn-1", "item_id": "plan:turn-1", "delta": True, "replace": True,
+    }
+    diff = {
+        "type": "codex.diff", "diff": "+new", "turn_id": "turn-1",
+        "item_id": "diff:turn-1", "delta": True, "replace": True,
+    }
+    worker._update_pending_interactions(w, plan)
+    worker._update_pending_interactions(w, diff)
+    assert worker.native_plan_event(w) == plan
+    assert worker.native_diff_event(w) == diff
+
+    worker._update_pending_interactions(w, {"type": "result"})
+    assert worker.native_plan_event(w) is None
+    assert worker.native_diff_event(w) is None
+    print("PASS: native plan/diff replay cache")
 
 
 def test_worker_native_runtime_state_clears_on_respawn_boundary():
