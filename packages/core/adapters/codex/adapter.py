@@ -419,6 +419,10 @@ class CodexAdapter:
                     text = summary[0] if isinstance(summary[0], str) else str(summary[0])
             if text:
                 blocks.append({"role": "thinking", "content": text})
+        elif itype == "plan":
+            text = item.get("text") or ""
+            if text:
+                blocks.append({"role": "thinking", "content": text})
         elif itype == "commandexecution":
             cmd = item.get("command", "")
             out = item.get("aggregated_output", "")
@@ -426,6 +430,9 @@ class CodexAdapter:
             if out:
                 content += "\n→ " + out
             blocks.append({"role": "tool", "content": content})
+        elif itype in ("filechange", "patchapply"):
+            inp = json.dumps(item, ensure_ascii=False)
+            blocks.append({"role": "tool", "content": f"FileChange({inp})"})
         elif itype == "functioncall":
             name = item.get("name") or item.get("pluginId") or "tool"
             args = item.get("arguments") or item.get("parameters") or {}
