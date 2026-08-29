@@ -61,3 +61,6 @@ _pan_codex_e2e*.log
 auth_token*
 *.env
 *.log
+
+# pytest temporary bases used by local adapter/worker regression runs
+.pytest-tmp*/
