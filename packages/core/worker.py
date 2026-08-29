@@ -146,7 +146,7 @@ class Worker:
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance
-    status: str = "idle"      # idle | running | held | error | queued | zombie
+    status: str = "idle"      # idle | running | held | done | error | cancelled | queued | zombie
     process: asyncio.subprocess.Process | None = None
     _mcp_proc: asyncio.subprocess.Process | None = None  # in-flight one-shot MCP process
     _stdout_task: asyncio.Task | None = None
@@ -2422,7 +2422,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
 
     task_id 幂等（复用 taskId 幂等注册表 _task_status + TTL 惰性清理）：
     同一 taskId 重发不重复入队（防双跑）。若该 taskId 已存在：
-    - 已完成（done/error）→ 返回缓存结果（status/result）
+    - 已完成（done/error/cancelled）→ 返回缓存结果（status/result）
     - 进行中 → 返回 {"status": "pending", "taskId": ...}，不重复入队
     用于超时后安全重试 / 并发去重。不带 task_id 行为不变。
     """
