@@ -357,7 +357,7 @@ def test_format_report_batch():
 
 
 def test_consumer_drains_reports_as_one_message(monkeypatch):
-    """report_signal → queue_pending 全部积压拼成一条消息；消费即删。"""
+    """report_signal → queue_pending 全部积压拼成一条消息；终态后确认出队。"""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     mgr = _setup_session("ses_mgr")
@@ -375,6 +375,7 @@ def test_consumer_drains_reports_as_one_message(monkeypatch):
 
     async def fake_stream(ww, text, source, s):
         received.append((text, source))
+        worker._ack_current_reports(ww, s)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 

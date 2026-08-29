@@ -80,6 +80,7 @@ async def _complete_task(ww, sess):
     """测试桩：模拟 adapter 已收到 terminal result。"""
     task_id = ww._current_task_id
     worker._ack_current_task(ww, sess)
+    worker._ack_current_reports(ww, sess)
     if task_id and task_id in worker._task_status:
         worker._task_status[task_id] = {
             "status": "done", "result": "recovered",
@@ -95,11 +96,11 @@ def _run_consumer(w):
     asyncio.run(scenario())
 
 
-# ── 报告路径：原子出队 ──
+# ── 报告路径：result 后确认出队 ──
 
 
 def test_report_atomic_dequeue(monkeypatch):
-    """报告消费 = 一次原子 save：落盘时 history 已追加且队列已清空，仅一次落盘。"""
+    """报告 handoff 先落盘 history，terminal result 后才确认整批出队。"""
     _cleanup()
     s = _setup_session("ses_mgr")
     s.queue_pending = [_make_report(1), _make_report(2)]
@@ -110,6 +111,7 @@ def test_report_atomic_dequeue(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append((text, source))
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
@@ -128,12 +130,12 @@ def test_report_atomic_dequeue(monkeypatch):
     # 投递标记记为 history 条目元数据，正文不含前缀
     assert s.history[0].get("delivered_keys") == [
         worker._delivery_key(_make_report(1)), worker._delivery_key(_make_report(2))]
-    # 原子性：恰好一次消费落盘，且落盘瞬间 history 已含消息、queue 已出队
+    # handoff save 恰好一次；落盘瞬间报告仍在队列，等待 terminal result 确认
     consumer_saves = [e for e in save_log if e[0]]
     assert len(consumer_saves) == 1, f"exactly one atomic save expected: {save_log}"
     hist_at_save, queue_at_save = consumer_saves[0]
     assert len(hist_at_save) == 1, "history must be appended in the same save"
-    assert queue_at_save == [], "queue must be drained in the same save"
+    assert queue_at_save == [_make_report(1), _make_report(2)]
     _cleanup()
 
 
@@ -148,6 +150,7 @@ def test_report_kept_when_worker_dead_before_handoff(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append((text, source))
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
@@ -187,6 +190,7 @@ def test_report_rollback_on_save_failure(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append((text, source))
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
     monkeypatch.setattr(_sess, "save_async", failing_save)
@@ -498,8 +502,7 @@ def test_mixed_queue_report_and_task_mutual_exclusion(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append((source, list(sess.queue_pending)))
-        if source == "agent":
-            await _complete_task(ww, sess)
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
@@ -512,8 +515,9 @@ def test_mixed_queue_report_and_task_mutual_exclusion(monkeypatch):
     asyncio.run(scenario())
 
     assert [src for src, _ in received] == ["report", "agent"]
-    # report 消费后：task item 原样保留
-    assert received[0][1] == [task], "report consumption must not touch task item"
+    # report 交给模型时仍在队列中，task item 也原样保留；报告终态后才确认出队
+    assert received[0][1] == [_make_report(1), task, _make_report(2)]
+    assert received[1][1] == [task], "report acknowledgement must not touch task item"
     # task 消费后：队列清空
     assert s.queue_pending == []
     _cleanup()
@@ -522,8 +526,8 @@ def test_mixed_queue_report_and_task_mutual_exclusion(monkeypatch):
 # ── 恢复对账（jsonl-先写崩溃窗口去重）──
 
 
-def test_reconcile_report_already_delivered_skips_and_clears(monkeypatch):
-    """jsonl-先写崩溃恢复：history 已有标记、报告仍在队列 → 跳过不执行、队列清除。"""
+def test_reconcile_report_already_delivered_retries_without_duplicate_history(monkeypatch):
+    """jsonl-先写崩溃恢复：复用 history 用户项，但重试报告执行。"""
     _cleanup()
     s = _setup_session("ses_mgr")
     report = _make_report(1)
@@ -537,6 +541,7 @@ def test_reconcile_report_already_delivered_skips_and_clears(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append(text)
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
@@ -547,8 +552,8 @@ def test_reconcile_report_already_delivered_skips_and_clears(monkeypatch):
 
     asyncio.run(scenario())
 
-    assert received == [], "already-delivered report must NOT be re-executed"
-    assert s.queue_pending == [], "stale item must be cleared (queue convergence)"
+    assert len(received) == 1 and "r1" in received[0], "in-flight report must be retried"
+    assert s.queue_pending == [], "report is cleared only after terminal result"
     assert len(s.history) == 1, "history must not grow (no duplicate injection)"
     _cleanup()
 
@@ -587,7 +592,7 @@ def test_reconcile_task_already_delivered_retries_without_duplicate_history(monk
 
 
 def test_reconcile_partial_delivered_reports(monkeypatch):
-    """部分已投递：只注入未投递报告，已投递项从队列清除，一次原子 save 收敛。"""
+    """部分已投递：整批重试，只有新报告新增 history 标记。"""
     _cleanup()
     s = _setup_session("ses_mgr")
     delivered, fresh = _make_report(1), _make_report(2)
@@ -601,6 +606,7 @@ def test_reconcile_partial_delivered_reports(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append(text)
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
@@ -612,11 +618,12 @@ def test_reconcile_partial_delivered_reports(monkeypatch):
     asyncio.run(scenario())
 
     assert len(received) == 1
-    assert "r2" in received[0] and "r1" not in received[0], \
-        "only the undelivered report is injected"
-    assert s.queue_pending == [], "delivered item cleared, fresh item consumed"
+    assert "r1" in received[0] and "r2" in received[0], \
+        "the in-flight batch must be retried as a whole"
+    assert s.queue_pending == [], "batch is cleared only after terminal result"
     consumer_saves = [e for e in save_log if e[0]]
-    assert len(consumer_saves) == 1, "single atomic save for inject + clear + dequeue"
+    assert len(consumer_saves) == 1, "single handoff save before batch execution"
+    assert consumer_saves[0][1] == [delivered, fresh]
     _cleanup()
 
 
@@ -639,6 +646,7 @@ def test_reconcile_mismatched_content_redelivers(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append(text)
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
@@ -676,6 +684,7 @@ def test_reconcile_scans_tail_window_only(monkeypatch):
 
     async def fake_stream(ww, text, source, sess):
         received.append(text)
+        await _complete_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
