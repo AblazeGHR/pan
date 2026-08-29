@@ -243,7 +243,7 @@ def _session_to_api(s: sess.Session):
         "name": s.name,
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
-        "model": s.model or config.get("model") or a.default_model,
+        "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         # Canonical nested capability object; the flat keys below are kept as
         # deprecated aliases so old HTTP consumers keep working.
@@ -325,7 +325,7 @@ def _session_summary(s: sess.Session) -> dict:
         "historyTotal": len(s.history),
         "totalUsage": s.total_usage,
         # 设置字段（供前端列表/InputRow 显示真实值，避免未打开设置弹窗时回退默认）
-        "model": s.model or config.get("model") or a.default_model,
+        "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
