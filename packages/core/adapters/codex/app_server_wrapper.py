@@ -670,7 +670,22 @@ class AppServer:
                         state["last_text"] = _text_from_item(item)
                         break
                 status = str(turn.get("status") or "completed")
-                error = turn.get("error") or state.get("error")
+                turn_error = turn.get("error")
+                if turn_error:
+                    error = turn_error
+                elif status in ("completed", "complete"):
+                    # The completed turn notification is authoritative: a
+                    # successful turn must not inherit transient in-turn
+                    # error notices (e.g. "Reconnecting... 2/5" emitted by
+                    # the native client while falling back from WebSockets
+                    # to HTTPS), otherwise correct results get flagged
+                    # as errors.
+                    error = None
+                else:
+                    # Non-successful completion without an explicit turn
+                    # error: fall back to any error notification captured
+                    # during the turn.
+                    error = state.get("error")
                 state["done"] = True
                 state["turn_status"] = status
                 state["is_cancelled"] = status.lower() in _CANCELLED_TURN_STATUSES and not error
