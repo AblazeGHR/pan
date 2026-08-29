@@ -381,6 +381,7 @@ class AppServer:
                     "part": {"type": "text", "text": str(delta)},
                     "stream_text": state.get("assistant_text", "") if state is not None else str(delta),
                     "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                    "item_id": params.get("itemId"),
                 })
             return
         if method in ("item/reasoning/textDelta", "item/reasoning/summaryTextDelta"):
@@ -394,6 +395,7 @@ class AppServer:
                     "part": {"type": "think", "think": str(delta)},
                     "stream_text": state.get("reasoning_text", "") if state is not None else str(delta),
                     "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                    "item_id": params.get("itemId"),
                 })
             return
         if method == "item/plan/delta":
@@ -407,6 +409,7 @@ class AppServer:
                     "part": {"type": "think", "think": str(delta)},
                     "stream_text": state.get("plan_text", "") if state is not None else str(delta),
                     "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                    "item_id": params.get("itemId"),
                 })
             return
         if method in ("item/commandExecution/outputDelta", "command/exec/outputDelta"):
@@ -557,6 +560,8 @@ class AppServer:
                     event["replace"] = True
                 if str(item.get("type") or "").replace("_", "").lower() in ("filechange", "patchapply"):
                     event["replace"] = True
+                if item.get("id") is not None:
+                    event["item_id"] = item["id"]
                 _write_stdout(event)
             return
         if method == "turn/completed":

@@ -209,6 +209,29 @@ describe('useWebSocket worker.result wiring', () => {
       { role: 'tool', content: 'Command({"command":"printf hello","output":"hello"})' },
     ]);
   });
+
+  it('updates interleaved native tools by item id', () => {
+    renderHook(() => useWebSocket());
+    useSessionStore.setState({ currentSessionId: 'A' });
+
+    const toolEvent = (itemId: string, output: string, replace: boolean) => ({
+      type: 'assistant', delta: true, replace, item_id: itemId,
+      message: { content: [{
+        type: 'tool_use', name: 'Command',
+        input: { command: itemId, output },
+      }] },
+    });
+    act(() => {
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', event: toolEvent('one', 'a', false) });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', event: toolEvent('two', 'b', false) });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', event: toolEvent('one', 'aa', true) });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'tool', content: 'Command({"command":"one","output":"aa"})', nativeItemId: 'one' },
+      { role: 'tool', content: 'Command({"command":"two","output":"b"})', nativeItemId: 'two' },
+    ]);
+  });
 });
 
 describe('useWebSocket agent-injected message sync', () => {

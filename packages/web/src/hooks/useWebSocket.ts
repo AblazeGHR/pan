@@ -404,55 +404,78 @@ function appendEvent(event: StreamEvent['event']): void {
   if (t === 'system' && event.subtype === 'init') return;
   if (t === 'result') return;
 
-  const store = useSessionStore.getState();
   for (const b of extractBlocks(event)) {
-    const last = store.currentMessages[store.currentMessages.length - 1];
-    if (event.replace && last?.role === b.role) {
+    const store = useSessionStore.getState();
+    const messages = store.currentMessages;
+    const nativeItemId = event.item_id !== undefined ? String(event.item_id) : undefined;
+    const nativeIndex = nativeItemId
+      ? messages.findIndex((message) => message.nativeItemId === nativeItemId)
+      : -1;
+    const lastIndex = messages.length - 1;
+    const targetIndex = nativeIndex >= 0 ? nativeIndex : lastIndex;
+    const target = targetIndex >= 0 ? messages[targetIndex] : undefined;
+    if (event.replace && target?.role === b.role) {
+      const updated = { ...target, content: b.content };
       useSessionStore.setState({
-        currentMessages: [
-          ...store.currentMessages.slice(0, -1),
-          { ...last, content: b.content },
-        ],
+        currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
       });
       continue;
     }
     if (event.delta) {
-      if (last?.role === b.role) {
+      if (target?.role === b.role && (nativeIndex >= 0 || !nativeItemId)) {
+        const content = event.replace ? b.content : target.content + b.content;
+        const updated = {
+          ...target,
+          content,
+          ...(nativeItemId ? { nativeItemId } : {}),
+        };
         useSessionStore.setState({
-          currentMessages: [
-            ...store.currentMessages.slice(0, -1),
-            { ...last, content: last.content + b.content },
-          ],
+          currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
         });
       } else {
-        store.addMessage({ role: b.role, content: b.content });
+        useSessionStore.getState().addMessage({
+          role: b.role,
+          content: b.content,
+          ...(nativeItemId ? { nativeItemId } : {}),
+        });
       }
       continue;
     }
-    if (event.final && last?.role === b.role && last.content !== b.content) {
+    if (event.final && target?.role === b.role && target.content !== b.content) {
       // Replace the prefix accumulated from app-server deltas with the
       // authoritative completed item.  If it is unrelated, retain both.
-      if (b.content.startsWith(last.content)) {
+      if (b.content.startsWith(target.content)) {
+        const updated = {
+          ...target,
+          content: b.content,
+          ...(nativeItemId ? { nativeItemId } : {}),
+        };
         useSessionStore.setState({
-          currentMessages: [
-            ...store.currentMessages.slice(0, -1),
-            { role: b.role, content: b.content },
-          ],
+          currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
         });
         continue;
       }
     }
-    if (event.final && last?.role === b.role && last.content === b.content) {
+    if (event.final && target?.role === b.role && target.content === b.content) {
       continue;
     }
     if (b.role === 'assistant') {
-      store.addMessage({ role: 'assistant', content: b.content });
+      useSessionStore.getState().addMessage({
+        role: 'assistant', content: b.content,
+        ...(nativeItemId ? { nativeItemId } : {}),
+      });
     } else if (b.role === 'thinking') {
       store.markUnread(b.content);
-      store.addMessage({ role: 'thinking', content: b.content });
+      useSessionStore.getState().addMessage({
+        role: 'thinking', content: b.content,
+        ...(nativeItemId ? { nativeItemId } : {}),
+      });
     } else if (b.role === 'tool') {
       store.markUnread(b.content);
-      store.addMessage({ role: 'tool', content: b.content });
+      useSessionStore.getState().addMessage({
+        role: 'tool', content: b.content,
+        ...(nativeItemId ? { nativeItemId } : {}),
+      });
     }
   }
 }
