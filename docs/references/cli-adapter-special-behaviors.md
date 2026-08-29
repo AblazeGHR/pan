@@ -556,6 +556,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
   原生 `turn/completed` 的 `interrupted` / `cancelled` 会标记为独立的 `cancelled` 结果，
   不再误报为 error；重复任务的幂等状态也会把取消视为终态。
+  对尚未有专用 UI 映射的新原生 item，Pan 会以截断的只读工具摘要显示并持久化，避免
+  Codex 协议扩展后出现事件静默丢失；该兜底不执行任何 item 中携带的方法或回调。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
   `web/src/hooks/useWebSocket.ts` 增量合并；`web/src/components/chat/ApprovalBanner.tsx` /
   `UserInputBanner.tsx` / `TerminalInteractionBanner.tsx` 交互展示。

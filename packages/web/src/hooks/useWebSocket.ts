@@ -379,6 +379,15 @@ function extractBlocks(
   event: WorkerEvent,
 ): Array<{ role: string; content: string }> {
   const blocks: Array<{ role: string; content: string }> = [];
+  if (event.type === 'codex.item.completed' && event.item) {
+    const item = { ...event.item };
+    const kind = String(item.type ?? 'CodexItem');
+    delete item.id;
+    delete item.type;
+    let rendered = pyJsonDumps(item);
+    if (rendered.length > 4000) rendered = rendered.slice(0, 4000) + '…';
+    return [{ role: 'tool', content: `${kind}(${rendered})` }];
+  }
   const role = event.role ?? event.type;
   if (role !== 'assistant' && role !== 'thinking') return blocks;
 

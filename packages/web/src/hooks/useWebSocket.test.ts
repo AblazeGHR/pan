@@ -255,6 +255,27 @@ describe('useWebSocket worker.result wiring', () => {
     );
   });
 
+  it('renders unknown native Codex items through the generic tool fallback', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'codex.item.completed',
+          item: { id: 'item-1', type: 'futureNativeItem', summary: 'kept' },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.at(-1)).toEqual({
+      role: 'tool',
+      content: 'futureNativeItem({"summary":"kept"})',
+    });
+  });
+
   it('replaces a running command item as native output deltas arrive', () => {
     renderHook(() => useWebSocket());
     useSessionStore.setState({ currentSessionId: 'A' });
