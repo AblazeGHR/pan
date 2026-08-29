@@ -556,6 +556,50 @@ def test_app_server_terminal_interaction_roundtrip(monkeypatch):
     print("PASS: app-server terminal interaction roundtrip")
 
 
+def test_app_server_new_style_approval_requests_wait_for_pan(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    sent: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    monkeypatch.setattr(app, "_send", sent.append)
+    state: dict = {}
+
+    for request_id, method in ((11, "applyPatchApproval"), (12, "execCommandApproval")):
+        app._handle_server_message({
+            "id": request_id,
+            "method": method,
+            "params": {"conversationId": "thread-1", "callId": f"call-{request_id}"},
+        }, state)
+
+    assert [event["type"] for event in emitted] == ["approval.request", "approval.request"]
+    assert set(state["pending_requests"]) == {"11", "12"}
+
+    from queue import Queue
+    controls: Queue = Queue()
+    controls.put({"type": "approval_response", "request_id": 11, "decision": "accept"})
+    controls.put({"type": "approval_response", "request_id": 12, "decision": "decline"})
+    app._drain_controls(state, controls)
+    assert sent == [
+        {"id": 11, "result": {"decision": "accept"}},
+        {"id": 12, "result": {"decision": "decline"}},
+    ]
+    print("PASS: app-server new-style approvals")
+
+
+def test_app_server_current_time_request_has_native_response(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    sent: list[dict] = []
+    monkeypatch.setattr(app, "_send", sent.append)
+
+    app._handle_server_message({
+        "id": 4, "method": "currentTime/read", "params": {"threadId": "thread-1"},
+    }, {})
+
+    assert sent[0]["id"] == 4
+    assert isinstance(sent[0]["result"]["currentTimeAt"], int)
+    print("PASS: app-server current-time response")
+
+
 def test_app_server_turn_controls_wait_for_turn_id(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     app.thread_id = "thread-1"

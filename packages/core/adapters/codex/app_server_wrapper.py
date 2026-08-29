@@ -33,6 +33,11 @@ _APPROVAL_TIMEOUT_SEC = 120.0
 _INTERACTIVE_APPROVAL_METHODS = {
     "item/commandExecution/requestApproval",
     "item/fileChange/requestApproval",
+    # Newer app-server protocol variants use these client callbacks instead
+    # of item-scoped requestApproval methods.  They have the same response
+    # shape and must remain pending in interactive permission modes.
+    "applyPatchApproval",
+    "execCommandApproval",
 }
 _INTERACTIVE_USER_INPUT_METHOD = "item/tool/requestUserInput"
 _INTERACTIVE_PERMISSION_METHOD = "item/permissions/requestApproval"
@@ -345,6 +350,8 @@ class AppServer:
     def _handle_server_message(self, message: dict[str, Any], state: dict[str, Any] | None) -> None:
         method = message.get("method")
         if ((method and method.endswith("/requestApproval")) or method in (
+            "applyPatchApproval", "execCommandApproval",
+            "currentTime/read",
             "item/tool/requestUserInput", "mcpServer/elicitation/request", "item/tool/call",
         )):
             self._handle_server_request(message, state)
@@ -746,6 +753,13 @@ class AppServer:
 
         if method == "item/tool/requestUserInput":
             result: dict[str, Any] = {"answers": {}}
+        elif method == "currentTime/read":
+            # The app-server uses this for client/server clock coordination;
+            # respond with the bridge host's whole Unix-second timestamp.
+            self._send({"id": request_id, "result": {
+                "currentTimeAt": int(time.time()),
+            }})
+            return
         elif method == "mcpServer/elicitation/request":
             result = {"action": "cancel", "content": None}
         elif method == "item/tool/call":

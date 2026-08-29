@@ -565,6 +565,9 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   WebSocket 重连时回放。它们只属于当前 app-server 进程/turn，不写入 Pan 的持久 history。
   运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
+  新版 app-server 的 `applyPatchApproval` / `execCommandApproval` 也复用同一审批栏，
+  不会因协议方法名变化而被错误地当作未知请求拒绝；`currentTime/read` 由桥接器返回标准
+  Unix 秒时间戳。
   原生 `turn/completed` 的 `interrupted` / `cancelled` 会标记为独立的 `cancelled` 结果，
   不再误报为 error；重复任务的幂等状态也会把取消视为终态。
   普通任务会一直保留在 Session 的 `queue_pending`，直到收到 terminal result（包括
