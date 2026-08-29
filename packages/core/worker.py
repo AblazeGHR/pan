@@ -28,7 +28,12 @@ from pathlib import Path
 import psutil
 
 from . import session as _sess
-from .adapters import get_adapter, CliAdapter, resolve_execution_mode
+from .adapters import (
+    get_adapter,
+    get_sessions_provider,
+    CliAdapter,
+    resolve_execution_mode,
+)
 from .config import load_config
 
 _log = logging.getLogger(__name__)
@@ -2138,9 +2143,20 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     if not s:
         return "New session not found"
 
-    # inherit model/mode/thinking from original session
+    # inherit model/mode/thinking and adapter-specific session settings from
+    # the original session.  Provider-owned identity/usage cursors are
+    # deliberately excluded: the fork gets a new native CLI session below.
     orig = _sess.get(w.session_id)
     if orig:
+        inherited_config = {
+            key: value for key, value in orig.adapter_config.items()
+            if key not in {"cli_session_id", "codex_prev_usage"}
+        }
+        inherited_config.update({
+            key: value for key, value in s.adapter_config.items()
+            if key not in {"cli_session_id", "codex_prev_usage"}
+        })
+        s.adapter_config = inherited_config
         if not s.model:
             s.model = orig.model
         if not s.permission_mode:
@@ -2154,11 +2170,50 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         # cli_session_id so fork_args can create the branched session.
         if orig.cli_session_id and not s.cli_session_id:
             s.cli_session_id = orig.cli_session_id
+        if not s.system_prompt:
+            s.system_prompt = orig.system_prompt
+        if not s.character_id:
+            s.character_id = orig.character_id
+        if not s.session_template:
+            s.session_template = orig.session_template
+        if not s.pan_access:
+            s.pan_access = dict(orig.pan_access)
 
-    # branch needs --fork-session from adapter
+    # Most legacy adapters fork by passing a CLI-specific flag.  Codex's
+    # app-server has no reliable headless fork flag, so its SessionsProvider
+    # materializes a new native thread in the Codex state/history databases.
     extra_args = w.adapter.fork_args(s)
-    if not w.adapter.supports_fork or not extra_args:
+    provider = None
+    if w.adapter.supports_fork and not extra_args:
+        try:
+            provider = get_sessions_provider(w.adapter.name)
+        except KeyError:
+            provider = None
+
+    if not w.adapter.supports_fork or (not extra_args and provider is None):
         return f"Adapter '{w.adapter.name}' does not support fork"
+
+    if not extra_args and provider is not None:
+        if not orig or not orig.cli_session_id:
+            return "Session has no native CLI session ID — cannot fork"
+        try:
+            new_cli_id = await asyncio.to_thread(
+                provider.fork_session,
+                orig.cli_session_id,
+                s.name,
+                s.workdir or None,
+            )
+            s.cli_session_id = new_cli_id
+            s.history = await asyncio.to_thread(
+                provider.parse_history, new_cli_id, s.workdir or None
+            )
+            raw_usage_entries = await asyncio.to_thread(
+                provider.get_raw_usage, new_cli_id, s.workdir or None
+            )
+            s.raw_usage = _sess.accumulate_raw_usage(None, raw_usage_entries)
+            s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        except Exception as exc:
+            return f"Fork failed: {exc}"
 
     new_id = await _next_worker_id()
     proc = await _spawn_process(new_session_id, adapter=w.adapter, extra_args=extra_args)
