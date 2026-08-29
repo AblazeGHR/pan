@@ -256,6 +256,8 @@ def test_dashboard_replays_live_native_interactions():
     original_status = srv.worker.native_status_event
     original_usage = srv.worker.native_usage_event
     original_rate_limits = srv.worker.native_rate_limits_event
+    original_plan = srv.worker.native_plan_event
+    original_diff = srv.worker.native_diff_event
     try:
         srv.worker.list_workers = lambda: [FakeWorker()]
         srv.worker.native_status_event = lambda w: {
@@ -270,6 +272,14 @@ def test_dashboard_replays_live_native_interactions():
             "type": "codex.rate_limits",
             "rate_limits": {"primary": {"usedPercent": 25}},
         }
+        srv.worker.native_plan_event = lambda w: {
+            "type": "codex.plan", "plan": [{"step": "Inspect", "status": "inProgress"}],
+            "turn_id": "turn-1", "item_id": "plan:turn-1", "delta": True, "replace": True,
+        }
+        srv.worker.native_diff_event = lambda w: {
+            "type": "codex.diff", "diff": "+new", "turn_id": "turn-1",
+            "item_id": "diff:turn-1", "delta": True, "replace": True,
+        }
         srv.worker.pending_interaction_events = lambda w: [{
             "type": "approval.request", "request_id": 3,
             "method": "item/commandExecution/requestApproval", "params": {},
@@ -281,6 +291,8 @@ def test_dashboard_replays_live_native_interactions():
         srv.worker.native_status_event = original_status
         srv.worker.native_usage_event = original_usage
         srv.worker.native_rate_limits_event = original_rate_limits
+        srv.worker.native_plan_event = original_plan
+        srv.worker.native_diff_event = original_diff
 
     assert ws.sent == [
         {
@@ -304,6 +316,22 @@ def test_dashboard_replays_live_native_interactions():
             "event": {
                 "type": "codex.rate_limits",
                 "rate_limits": {"primary": {"usedPercent": 25}},
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.plan", "plan": [{"step": "Inspect", "status": "inProgress"}],
+                "turn_id": "turn-1", "item_id": "plan:turn-1", "delta": True, "replace": True,
+            },
+            "replayed": True,
+        },
+        {
+            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+            "event": {
+                "type": "codex.diff", "diff": "+new", "turn_id": "turn-1",
+                "item_id": "diff:turn-1", "delta": True, "replace": True,
             },
             "replayed": True,
         },

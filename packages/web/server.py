@@ -875,6 +875,18 @@ async def _replay_pending_interactions(
                 "event": rate_limits_event,
                 "replayed": True,
             })
+        for native_event in (
+            worker.native_plan_event(w),
+            worker.native_diff_event(w),
+        ):
+            if native_event is not None:
+                await ws.send_json({
+                    "type": "worker.stream",
+                    "workerId": w.worker_id,
+                    "sessionId": w.session_id,
+                    "event": native_event,
+                    "replayed": True,
+                })
         for event in worker.pending_interaction_events(w):
             await ws.send_json({
                 "type": "worker.stream",

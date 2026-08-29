@@ -125,6 +125,11 @@ export interface WorkerEvent {
   token_usage?: Record<string, unknown>;
   /** Native Codex account rate-limit snapshot. */
   rate_limits?: Record<string, unknown>;
+  /** Native Codex aggregate plan for the current turn. */
+  plan?: Array<Record<string, unknown>>;
+  explanation?: string | null;
+  /** Native Codex aggregate diff for the current turn. */
+  diff?: string;
   /** Native Codex MCP startup status notification. */
   mcp_status?: Record<string, unknown>;
   /** Native Codex model reroute notification. */

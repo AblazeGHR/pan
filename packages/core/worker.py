@@ -208,6 +208,9 @@ class Worker:
     # survives a completed turn, but it is still process-local and must be
     # cleared when the app-server is respawned.
     native_rate_limits: dict | None = None
+    # Current turn's native plan/diff snapshots for dashboard reconnect replay.
+    native_plan: dict | None = None
+    native_diff: dict | None = None
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
@@ -409,6 +412,15 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
         rate_limits = event.get("rate_limits")
         w.native_rate_limits = dict(rate_limits) if isinstance(rate_limits, dict) else None
         return
+    if event_type == "codex.plan":
+        plan = event.get("plan")
+        if isinstance(plan, list):
+            w.native_plan = dict(event)
+        return
+    if event_type == "codex.diff":
+        diff = event.get("diff")
+        w.native_diff = dict(event) if isinstance(diff, str) and diff else None
+        return
     if event_type in _PENDING_INTERACTION_TYPES:
         key = _interaction_key(event)
         if key is not None:
@@ -428,6 +440,8 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
         w.pending_interactions.clear()
         w.native_status = None
         w.native_usage = None
+        w.native_plan = None
+        w.native_diff = None
 
 
 def pending_interaction_events(w: Worker) -> list[dict]:
@@ -458,6 +472,18 @@ def native_rate_limits_event(w: Worker) -> dict | None:
     return {"type": "codex.rate_limits", "rate_limits": dict(rate_limits)}
 
 
+def native_plan_event(w: Worker) -> dict | None:
+    """Return the current turn plan for a reconnecting dashboard."""
+    plan = getattr(w, "native_plan", None)
+    return dict(plan) if isinstance(plan, dict) else None
+
+
+def native_diff_event(w: Worker) -> dict | None:
+    """Return the current turn diff for a reconnecting dashboard."""
+    diff = getattr(w, "native_diff", None)
+    return dict(diff) if isinstance(diff, dict) else None
+
+
 def clear_native_runtime_state(w: Worker) -> None:
     """Drop app-server state that belongs only to the current OS process.
 
@@ -469,6 +495,8 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_status = None
     w.native_usage = None
     w.native_rate_limits = None
+    w.native_plan = None
+    w.native_diff = None
 
 
 async def _iter_stdout_lines(w: Worker):

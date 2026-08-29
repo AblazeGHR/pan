@@ -174,6 +174,47 @@ describe('useWebSocket worker.result wiring', () => {
     });
   });
 
+  it('renders and replaces native Codex turn plans and aggregate diffs', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.plan', item_id: 'plan:turn-1', delta: true, replace: true,
+          explanation: 'Working',
+          plan: [
+            { step: 'Inspect', status: 'completed' },
+            { step: 'Fix', status: 'inProgress' },
+          ],
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.plan', item_id: 'plan:turn-1', delta: true, replace: true,
+          plan: [{ step: 'Fix', status: 'completed' }],
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.diff', item_id: 'diff:turn-1', delta: true, replace: true,
+          diff: '--- a/file\n+++ b/file\n+new',
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'thinking', content: '[x] Fix', nativeItemId: 'plan:turn-1' },
+      {
+        role: 'tool',
+        content: 'CodexDiff({"diff":"--- a/file\\n+++ b/file\\n+new"})',
+        nativeItemId: 'diff:turn-1',
+      },
+    ]);
+  });
+
   it('surfaces native Codex turn errors immediately without adding a fake chat message', () => {
     renderHook(() => useWebSocket());
 
