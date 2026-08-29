@@ -691,6 +691,39 @@ def test_supported_models_models_cache_priority(monkeypatch, tmp_path):
     print("PASS: supported_models priority (dynamic cache > catalog)")
 
 
+def test_default_model_skips_stale_config(monkeypatch, tmp_path):
+    _reset_models_cache()
+    try:
+        home = _fake_codex_home(tmp_path, [{"slug": "catalog/a"}])
+        (home / "models_cache.json").write_text(
+            json.dumps({"models": [
+                {"slug": "dynamic/a", "visibility": "list"},
+                {"slug": "dynamic/b", "visibility": "list"},
+            ]}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(codex_adapter, "_codex_home", lambda: home)
+        # The Pan config value is stale, and Codex's config.toml initially
+        # points at a model that is not in the refreshed native catalog.
+        monkeypatch.setattr(core_config, "load_config", lambda: {
+            "codex": {"model": "stale/provider-model"}
+        })
+        assert _adapter().supported_models == ["dynamic/a", "dynamic/b"]
+        assert _adapter().default_model == "dynamic/a"
+        # Replace config.toml with a valid native selection and ensure it wins
+        # over the dynamic list's first item.
+        (home / "config.toml").write_text(
+            'model = "dynamic/b"\n', encoding="utf-8"
+        )
+        assert _adapter().default_model == "dynamic/b"
+        # With no valid native selection, the first visible dynamic model wins.
+        (home / "config.toml").write_text('model = "not-visible"\n', encoding="utf-8")
+        assert _adapter().default_model == "dynamic/a"
+    finally:
+        _reset_models_cache()
+    print("PASS: default_model skips stale config and follows native catalog")
+
+
 def test_supported_models_ttl_cache(monkeypatch, tmp_path):
     _reset_models_cache()
     try:
@@ -738,6 +771,7 @@ if __name__ == "__main__":
     test_model_efforts_from_models_cache()
     test_supported_models_models_cache_priority()
     test_supported_models_catalog_priority()
+    test_default_model_skips_stale_config()
     test_supported_models_ttl_cache()
     test_item_to_block_mapping()
     test_norm_path()

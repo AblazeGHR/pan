@@ -58,14 +58,27 @@ class CodexAdapter:
 
     @property
     def default_model(self) -> str:
+        """Return a model that is also present in the current model source.
+
+        A stale Pan ``config.json`` model must not win over Codex's refreshed
+        native catalog: otherwise the UI offers one list while a new session
+        silently starts with a model that cannot be selected. Keep the
+        configured model when it is valid, then prefer Codex's own config.toml
+        selection, and finally use the first visible model.
+        """
         cfg_model = self._codex_config.get("model")
-        if cfg_model:
-            return str(cfg_model)
-        # 自动识别：读 ~/.codex/config.toml 的 model（不填=自动识别）
+        cfg_model = str(cfg_model).strip() if cfg_model else ""
+        models = self.supported_models
+        if cfg_model and cfg_model in models:
+            return cfg_model
+
         toml_model = _read_codex_config_toml_model()
-        if toml_model:
+        if toml_model and toml_model in models:
             return toml_model
-        return _DEFAULT_MODEL
+
+        # supported_models always has a fallback entry, but retain the final
+        # constant for defensive callers during a partially initialized home.
+        return models[0] if models else _DEFAULT_MODEL
 
     @property
     def default_permission_mode(self) -> str:
@@ -101,7 +114,12 @@ class CodexAdapter:
                 result = dynamic_models
             else:
                 catalog_models = _parse_models_from_catalog()
-                result = catalog_models or [self.default_model]
+                # Do not call self.default_model here: it consults
+                # supported_models and would recurse when no catalog exists.
+                fallback = (self._codex_config.get("model")
+                            or _read_codex_config_toml_model()
+                            or _DEFAULT_MODEL)
+                result = catalog_models or [str(fallback)]
         CodexAdapter._cached_models = result
         CodexAdapter._models_cached_at = now
         return result
