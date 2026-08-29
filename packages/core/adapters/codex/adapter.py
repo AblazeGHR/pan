@@ -1,11 +1,10 @@
-"""OpenAI Codex CLI (codex) 适配器。
+"""OpenAI Codex CLI (codex) adapter.
 
-Codex 的 ``codex exec`` 是非交互一次性命令（一次 prompt 跑完即退出、输出 JSONL
-事件流），没有原生长驻 stdin/stdout 流协议，也没有原生 ``result`` 事件。因此采用
-**wrapper 长驻 + stream 模式**（与 opencode / kimi 同形）：worker 起一个长驻
-``wrapper.py`` 进程，wrapper 内部逐条调用 ``codex exec "<text>" --json``（续接时
-``codex exec resume <thread_id> "<text>" --json``），转发 JSONL 事件，并在每次调用
-结束时合成一条 ``{"type":"result",...}`` 事件供 worker 标记任务完成。
+Pan starts a stable ``wrapper.py`` entry point which bridges the native
+long-lived ``codex app-server --stdio`` protocol. The worker keeps its
+existing stream contract while thread/turn state, deltas, tool items and
+native interruption stay alive inside one app-server process. The old exec
+loop remains available as a fallback for manual wrapper invocations.
 
 关键坑处理（详见任务 brief 实战教训）：
 1. **npm .CMD shim 中文乱码**：Windows 下 ``shutil.which("codex")`` 返回 ``codex.CMD``，
@@ -13,9 +12,9 @@ Codex 的 ``codex exec`` 是非交互一次性命令（一次 prompt 跑完即�
    ``[node, <npm_global>/node_modules/@openai/codex/bin/codex.js]``，参数经
    CreateProcess 原样传给 node，不再经过 cmd.exe 二次解析（与 cbc/_resolve_cbc_argv、
    opencode/_resolve_opencode_exe_from_shim 同思路）。
-2. **stdin 挂起**：wrapper 内部 spawn ``codex exec`` 时显式 ``stdin=DEVNULL``，切断与
-   server 长驻管道的连接（prompt 来自 CLI 参数，不依赖 stdin）。否则 codex 会读 stdin
-   等 EOF，表现为会话卡 running。
+2. **原生长驻协议**：默认使用 ``codex app-server --stdio``，Pan 只负责把自己的简化
+   JSONL worker 协议映射到 Codex 的 thread/turn JSON-RPC。旧的 ``codex exec`` 路径仍保留
+   在 wrapper 中，便于手工兼容调用。
 3. **MCP 注入**：codex 无 ``--mcp-config``；MCP server 来自 ``~/.codex/config.toml`` 的
    ``[mcp_servers]`` 段。用 ``-c 'mcp_servers.<name>...'`` 内联覆盖（实测 ``codex mcp
    list -c '...'`` 生效），session 级、零文件污染、不触碰 auth.json（API key 不泄露）。
@@ -46,8 +45,8 @@ class CodexAdapter:
 
     name = "codex"
 
-    # 执行模式：codex 用 wrapper 长驻，worker 只走 stream（与 kimi / opencode 同形）；
-    # wrapper 内部逐条 ``codex exec`` 的一次性语义对 worker 透明，故不暴露 oneshot。
+    # 执行模式：codex 用原生 app-server 长驻，worker 只走 stream；wrapper 负责协议桥接，
+    # 故不暴露 oneshot。
     execution_modes = ["stream"]
 
     # 元信息
@@ -140,6 +139,10 @@ class CodexAdapter:
     # The wrapper translates worker's --system-prompt into Codex's native
     # developer_instructions config override on the first fresh turn.
     supports_spawn_system_prompt = True
+    # The native bridge accepts an out-of-band control JSON message, allowing
+    # Pan's interrupt endpoint to stop a turn without killing the whole native
+    # thread/app-server process.
+    supports_native_interrupt = True
     # codex reasoning effort（config: model_reasoning_effort）。空表示不覆盖。
     # models_cache.json may add xhigh/max/ultra; keep the fallback useful even
     # before Codex has populated its cache.
@@ -210,6 +213,7 @@ class CodexAdapter:
 
     def base_args(self) -> list[str]:
         return [sys.executable, "-u", self._wrapper_path,
+                "--app-server",
                 "--codex-path", self._codex_js,
                 "--node-path", self._codex_node]
 
@@ -351,6 +355,10 @@ class CodexAdapter:
     def encode_user_message(self, text: str) -> bytes:
         return json.dumps({"text": text}).encode("utf-8")
 
+    def encode_control_message(self, control: dict) -> bytes:
+        """Encode a bridge control message (currently interrupt/steer)."""
+        return json.dumps(control, ensure_ascii=True).encode("utf-8")
+
     # ── stdout 事件解析 ──
 
     def parse_event(self, line: str) -> dict | None:
@@ -375,10 +383,35 @@ class CodexAdapter:
         return None
 
     def is_assistant_event(self, event: dict) -> bool:
-        # 仅在 item.completed 上抽取块，避免 item.started（in_progress）重复。
-        return event.get("type") == "item.completed"
+        # app-server bridge emits canonical display events for completed
+        # assistant/reasoning/tool items.  Incremental ``content.part`` events
+        # are intentionally excluded from history; they are UI-only deltas.
+        return (event.get("type") in ("item.completed", "assistant", "thinking")
+                and not event.get("delta"))
 
     def extract_assistant_blocks(self, event: dict) -> list[dict]:
+        if event.get("type") == "assistant":
+            content = ((event.get("message") or {}).get("content") or [])
+            blocks: list[dict] = []
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                if part.get("type") == "text" and part.get("text"):
+                    blocks.append({"role": "assistant", "content": part["text"]})
+                elif part.get("type") in ("thinking", "think"):
+                    text = part.get("thinking") or part.get("think") or ""
+                    if text:
+                        blocks.append({"role": "thinking", "content": text})
+                elif part.get("type") == "tool_use":
+                    name = part.get("name") or "tool"
+                    args = part.get("input") or {}
+                    inp = json.dumps(args, ensure_ascii=False) if isinstance(args, (dict, list)) else str(args)
+                    blocks.append({"role": "tool", "content": f"{name}({inp})"})
+            return blocks
+        if event.get("type") == "thinking":
+            text = event.get("content") or ""
+            return [{"role": "thinking", "content": text}] if text else []
+
         item = event.get("item", {}) or {}
         # live stdout 用 snake_case（agent_message），持久化 thread_items 用
         # camelCase（agentMessage）。统一去掉下划线归一后匹配。

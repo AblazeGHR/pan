@@ -327,6 +327,7 @@ function extractBlocks(
  *  每个 text 块在消息区各成一条 assistant 消息，预览取最后一个 text 块即
  *  「最新消息」。无 text 块（thinking/tool/meta 等）→ 返回 null。 */
 function extractStreamText(event: WorkerEvent): string | null {
+  if (event.delta && event.stream_text) return event.stream_text;
   let text = '';
   for (const b of extractBlocks(event)) {
     if (b.role === 'assistant' && b.content) text = b.content;
@@ -342,6 +343,45 @@ function appendEvent(event: StreamEvent['event']): void {
 
   const store = useSessionStore.getState();
   for (const b of extractBlocks(event)) {
+    const last = store.currentMessages[store.currentMessages.length - 1];
+    if (event.replace && last?.role === b.role) {
+      useSessionStore.setState({
+        currentMessages: [
+          ...store.currentMessages.slice(0, -1),
+          { ...last, content: b.content },
+        ],
+      });
+      continue;
+    }
+    if (event.delta) {
+      if (last?.role === b.role) {
+        useSessionStore.setState({
+          currentMessages: [
+            ...store.currentMessages.slice(0, -1),
+            { ...last, content: last.content + b.content },
+          ],
+        });
+      } else {
+        store.addMessage({ role: b.role, content: b.content });
+      }
+      continue;
+    }
+    if (event.final && last?.role === b.role && last.content !== b.content) {
+      // Replace the prefix accumulated from app-server deltas with the
+      // authoritative completed item.  If it is unrelated, retain both.
+      if (b.content.startsWith(last.content)) {
+        useSessionStore.setState({
+          currentMessages: [
+            ...store.currentMessages.slice(0, -1),
+            { role: b.role, content: b.content },
+          ],
+        });
+        continue;
+      }
+    }
+    if (event.final && last?.role === b.role && last.content === b.content) {
+      continue;
+    }
     if (b.role === 'assistant') {
       store.addMessage({ role: 'assistant', content: b.content });
     } else if (b.role === 'thinking') {

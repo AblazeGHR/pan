@@ -2203,6 +2203,19 @@ async def interrupt_worker(worker_id: str) -> str | None:
         return "Worker not found"
     if w.status != "running":
         return "Worker is not running"
+    # Codex app-server can interrupt the active turn while preserving the
+    # long-lived native thread and app-server process.  Fall back to the
+    # established kill+resume path for adapters without this optional
+    # capability or when the control write fails.
+    if (getattr(w.adapter, "supports_native_interrupt", False)
+            and w.process is not None and w.process.stdin is not None):
+        try:
+            encode_control = getattr(w.adapter, "encode_control_message")
+            w.process.stdin.write(encode_control({"type": "interrupt"}) + b"\n")
+            await w.process.stdin.drain()
+            return None
+        except (BrokenPipeError, ConnectionError, OSError, RuntimeError):
+            _log.warning("[Worker %s] native interrupt write failed; restarting", worker_id)
     return await restart_worker(worker_id)
 
 

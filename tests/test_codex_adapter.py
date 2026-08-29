@@ -19,6 +19,7 @@ from packages.core.adapters import CodexAdapter
 from packages.core.adapters.codex import adapter as codex_adapter
 from packages.core.adapters.codex import sessions as codex_sessions
 from packages.core.adapters.codex import wrapper as codex_wrapper
+from packages.core.adapters.codex import app_server_wrapper
 from packages.core import session as _sess
 import packages.core.config as core_config
 
@@ -262,6 +263,28 @@ def test_result_event():
     print("PASS: result event")
 
 
+def test_app_server_canonical_events_are_persistable():
+    a = _adapter()
+    final = {
+        "type": "assistant",
+        "message": {"content": [
+            {"type": "text", "text": "answer"},
+            {"type": "tool_use", "name": "Command", "input": {"command": "dir"}},
+        ]},
+    }
+    assert a.is_assistant_event(final)
+    assert a.extract_assistant_blocks(final) == [
+        {"role": "assistant", "content": "answer"},
+        {"role": "tool", "content": 'Command({"command": "dir"})'},
+    ]
+    delta = {
+        "type": "content.part", "role": "assistant", "delta": True,
+        "part": {"type": "text", "text": "a"},
+    }
+    assert not a.is_assistant_event(delta)
+    print("PASS: app-server canonical events")
+
+
 # ── wrapper 参数构建 ──
 
 
@@ -331,6 +354,44 @@ def test_system_prompt_opts():
     print("PASS: _system_prompt_opts")
 
 
+def test_app_server_option_translation():
+    opts = [
+        "-c", 'model="gpt-test"',
+        "-c", 'model_reasoning_effort="high"',
+        "--dangerously-bypass-approvals-and-sandbox",
+    ]
+    assert app_server_wrapper._parse_extra_options(opts) == {
+        "model": "gpt-test",
+        "model_reasoning_effort": "high",
+    }
+    assert app_server_wrapper._server_options(opts) == [
+        "-c", 'model="gpt-test"',
+        "-c", 'model_reasoning_effort="high"',
+    ]
+    print("PASS: app-server option translation")
+
+
+def test_app_server_item_translation():
+    assistant = app_server_wrapper._item_event({
+        "type": "agentMessage", "text": "done",
+    })
+    assert assistant["type"] == "assistant"
+    assert assistant["message"]["content"][0]["text"] == "done"
+
+    command = app_server_wrapper._item_event({
+        "type": "commandExecution", "command": "echo hi",
+        "aggregatedOutput": "hi",
+    })
+    # The native schema currently uses aggregated_output; the command itself
+    # must still be represented even when a future version changes output key.
+    assert command["message"]["content"][0]["name"] == "Command"
+    assert command["message"]["content"][0]["input"]["command"] == "echo hi"
+    assert app_server_wrapper._item_event({
+        "type": "userMessage", "content": [],
+    }) is None
+    print("PASS: app-server item translation")
+
+
 # ── sessions：纯函数 ──
 
 
@@ -339,6 +400,8 @@ def test_item_to_block_mapping():
     assert codex_sessions._item_to_block({"type": "agentMessage", "text": "a"}) == {"role": "assistant", "content": "a"}
     assert codex_sessions._item_to_block({"type": "reasoning", "summary": ["r"]}) == {"role": "thinking", "content": "r"}
     assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregated_output": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
+    assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregatedOutput": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
+    assert codex_sessions._item_to_block({"type": "mcpToolCall", "tool": "pan_probe", "arguments": {"x": 1}, "result": "ok"}) == {"role": "tool", "content": 'pan_probe({"x": 1})\n→ ok'}
     assert codex_sessions._item_to_block({"type": "unknownType"}) is None
     print("PASS: _item_to_block mapping")
 
