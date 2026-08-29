@@ -179,6 +179,36 @@ describe('useWebSocket worker.result wiring', () => {
       'Bash({"command":"ls \\u4e2d\\u6587\\u76ee\\u5f55","path":"\\u6570\\u636e/\\u6587\\u4ef6.txt"})',
     );
   });
+
+  it('replaces a running command item as native output deltas arrive', () => {
+    renderHook(() => useWebSocket());
+    useSessionStore.setState({ currentSessionId: 'A' });
+
+    const toolEvent = (output?: string, replace = false) => ({
+      type: 'assistant',
+      delta: true,
+      replace,
+      message: {
+        content: [{
+          type: 'tool_use',
+          name: 'Command',
+          input: { command: 'printf hello', ...(output ? { output } : {}) },
+        }],
+      },
+    });
+
+    act(() => {
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', event: toolEvent() });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', event: toolEvent('hel', true) });
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', event: {
+        ...toolEvent('hello', true), delta: false, final: true,
+      } });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'tool', content: 'Command({"command":"printf hello","output":"hello"})' },
+    ]);
+  });
 });
 
 describe('useWebSocket agent-injected message sync', () => {
@@ -502,5 +532,55 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       vi.advanceTimersByTime(1000);
     });
     expect(lastMessageOf('B')).toBe('final-result');
+  });
+
+  it('merges native app-server deltas and replaces them with the final item', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'content.part',
+          role: 'assistant',
+          delta: true,
+          stream_text: 'Hel',
+          part: { type: 'text', text: 'Hel' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'content.part',
+          role: 'assistant',
+          delta: true,
+          stream_text: 'Hello',
+          part: { type: 'text', text: 'lo' },
+        },
+      });
+    });
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'assistant', content: 'Hello' },
+    ]);
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        event: {
+          type: 'assistant',
+          final: true,
+          message: { content: [{ type: 'text', text: 'Hello!' }] },
+        },
+      });
+    });
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'assistant', content: 'Hello!' },
+    ]);
   });
 });

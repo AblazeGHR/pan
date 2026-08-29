@@ -454,16 +454,20 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 
 ## 6. codex（OpenAI Codex CLI）
 
-> 以下 5 项为 2026-08-26 实战核实的**遗留问题清单**（其中 thread cwd 归一化优先记录）。
-> adapter 代码已合入 main（feat/codex-adapter 分支已合并）。
+> 以下记录 Codex CLI 与 Pan wrapper 的特殊行为、已落地的兼容处理，以及仍待实测的遗留问题。
+> 基础 adapter 改造已提交到 `feature/codex-models`；原生 app-server 体验增强继续在该工作树推进。
 
-### 6.1 execution_modes = `["stream"]`（wrapper 长驻）
+### 6.1 execution_modes = `["stream"]`（原生 app-server 桥接）
 
-- **现象/处理**：`codex exec` 是非交互一次性命令（JSONL 事件流），无原生长驻 stdin/stdout 协议，
-  也**无原生 `result` 事件**。采用 wrapper 长驻 + stream：wrapper 内部逐条
-  `codex exec "<text>" --json`（续接时 `codex exec resume <thread_id> "<text>" --json`），转发事件、
-  合成 `{"type":"result"}`。`oneshot_args` 返回 `[]`。
-- **代码位置**：`codex/adapter.py` `execution_modes`；`codex/wrapper.py`。
+- **现象/处理**：`codex exec` 是一次性命令，虽然可以输出 JSONL，但每轮重启 CLI，无法提供原生
+  thread/turn 生命周期与细粒度 delta。Pan 仍保留 `wrapper.py` 作为稳定入口，但默认经
+  `--app-server` 启动一个长驻 `codex app-server --stdio`，用 `thread/start`/`thread/resume` 建立上下文，
+  用 `turn/start` 驱动后续消息，并将原生通知翻译为 Pan 的事件模型；每轮仅合成一条兼容的 `result`。
+  `oneshot_args` 返回 `[]`。
+- **收益**：多轮不再逐轮 spawn `codex exec`，原生 `item/*/delta` 可实时转发；app-server 的 thread/turn
+  也让 resume、effort 和中断语义更贴近 Codex 原生客户端。
+- **代码位置**：`codex/adapter.py` `execution_modes` / `base_args`；`codex/wrapper.py` 稳定入口；
+  `codex/app_server_wrapper.py` 协议桥。
 
 ### 6.2 `.CMD` shim 解析为 `node codex.js`
 
@@ -491,22 +495,40 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
   生效）——**session 级、零文件污染、不触碰 auth.json**（API key 不泄露）。TOML 段格式对齐
   `codex mcp add` 写入形态：`command`/`args`/`[env]`；URL server 用 `url` + `transport`。同时透传
   `PAN_API_URL` 到各 server env（对齐 opencode 的 PAN_API_URL 处理）。
-- **代码位置**：`codex/adapter.py` `mcp_args` / `_c_override`。
+- **代码位置**：`codex/adapter.py` `mcp_args` / `_c_override`；app-server 进程启动时继承这些 `-c`
+  覆盖，因此 MCP 在长驻 thread 中保持可用。
 
 ### 6.5 遗留：`approve`（`--approve-for-me`）resume 时被丢弃
 
-- **现象**：`permission_mode="approve"` 对应的 `--approve-for-me` 在 **resume 时被丢弃**——thread
-  持久化旧配置，中途改设置不生效。
-- **根因**：wrapper 的 `_filter_resume_opts` 在 resume 时**只保留 `-c` 类配置覆盖**，丢弃所有
-  一次性 flag（含 `--dangerously-bypass-approvals-and-sandbox` / `--approve-for-me`）；而 thread
-  已记住旧的 approval/sandbox 配置，`codex exec resume` 沿用 thread 配置。
-- **处理/规避**：当前行为是有意的（resume 沿用 thread 已存配置），但对「中途改 permission_mode」
-  的用户是坑——改设置后需**新建 thread** 或接受不生效；如要支持动态切换需后续在 resume 时用
-  `-c approval_policy=...` 类覆盖（未实现）。
+- **代码位置**：`worker.py` `_spawn_system_prompt_args`；`codex/wrapper.py`
+  `_system_prompt_opts` / `_main_loop`。
+
+### 6.5 原生 app-server 事件、连续回合与中断
+
+- app-server 的 `item/agentMessage/delta` / reasoning delta 被转换为 `content.part` 增量事件，前端合并
+  到同一条消息；`item/completed` 转换为既有 assistant/thinking/tool 事件，`turn/completed` 转换为
+  worker 所需的 `result`。
+- `thread/start` 返回的 thread id 作为 Pan 的 `cli_session_id`；worker 重建时走
+  `thread/resume`，已验证重启后仍能读取原生上下文。
+- Codex adapter 的 `interrupt_worker` 优先向桥接进程发送控制消息，由桥接调用原生
+  `turn/interrupt`；发送失败才回退到通用 kill + resume。审批/用户输入请求会先广播为
+  `approval.request` / `codex.user_input`；当前 Pan 尚无统一交互式审批响应 API，自动权限模式不应触发
+  审批，保守模式目前会拒绝未处理请求而避免 worker 无限挂起。
+- **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
+  `web/src/hooks/useWebSocket.ts` 增量合并。
+
+### 6.6 权限模式与 resume 动态切换
+
+- **处理**：Codex adapter 暴露 `read-only` 与 `workspace-write` 两个自动批准档位，分别映射
+  `sandbox_mode` 与 `approval_policy="never"`；保留 `approve` 作为 workspace-write 的兼容别名，
+  `bypass` 继续映射 `--dangerously-bypass-approvals-and-sandbox`。
+- `-c` 覆盖在 wrapper 的 resume 路径中保留，因此 read-only/workspace-write/approve 的设置切换
+  会作用于后续 turn；`bypass` 的一次性 flag 也被显式保留，避免 resume 后 MCP 调用因审批策略
+  不一致而失败。
 - **代码位置**：`codex/wrapper.py` `_filter_resume_opts` / `_build_codex_args`；
   `codex/adapter.py` `permission_mode_args`。
 
-### 6.6 遗留：thread cwd 被归一化为 git 根
+### 6.7 thread cwd 归一化为 git 根
 
 - **现象**：workdir 在 git 仓库内时，codex 记录的 **thread.cwd 是仓库根而非子目录**。
   `list_sessions(cwd=workdir)` 按 cwd **严格相等**过滤（`_norm_path` 大小写/分隔符归一）→
@@ -522,7 +544,7 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 - **代码位置**：`codex/sessions.py` `list_codex_sessions`（`:136` `_norm_path(cwd) !=
   _norm_path(project_cwd)` 过滤）、`_norm_path`。
 
-### 6.7 遗留：fork 走 DB 行复制，首次 resume 待验证
+### 6.8 fork：DB 行复制与 resume
 
 - **现象/处理**：codex CLI 无 headless `--fork`（`codex fork` 是交互 picker）。fork 直接复制 DB 行：
   - `state_5.sqlite` `threads` 建新线程（复制全列、新 id、title=name、parent 记录到
@@ -535,7 +557,7 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
   为空时 `codex exec resume` 是否正常加载 history DB 并续写，需 e2e 确认。
 - **代码位置**：`codex/sessions.py` `fork_codex_session`。
 
-### 6.8 遗留：事件命名 snake_case vs camelCase
+### 6.9 遗留：事件命名 snake_case vs camelCase
 
 - **现象**：codex **live stdout 用 snake_case**（`agent_message` / `command_execution`），**持久化
   `thread_items` 用 camelCase**（`agentMessage` / `commandExecution`）。同一字段两种拼写。
@@ -543,7 +565,7 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 - **代码位置**：`codex/adapter.py` `extract_assistant_blocks`（`:271-276`）；
   `codex/sessions.py` `_item_to_block`；`codex/wrapper.py` `_forward_and_collect`（两拼写都判）。
 
-### 6.9 resume 只透传 `-c` 类覆盖
+### 6.10 resume 只透传 `-c` 类覆盖
 
 - **现象/处理**：`codex exec resume <thread_id>` **不接受 `-C`**（实测报 `unexpected argument
   '-C'`），也无需 `-C`（thread 已记住 cwd）。wrapper 在 resume 时只透传 `-c <value>` 对
@@ -551,13 +573,13 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
   表达，不依赖 `--model`）。resume 统一加 `--skip-git-repo-check`。
 - **代码位置**：`codex/wrapper.py` `_build_codex_args` / `_filter_resume_opts`。
 
-### 6.10 `--skip-git-repo-check`
+### 6.11 `--skip-git-repo-check`
 
 - **现象/处理**：codex 默认要求 git 仓库，非 git 目录会报错/拒绝。wrapper 每次 `codex exec` 都加
   `--skip-git-repo-check` 兜底（workdir 可能是非 git 目录）。
 - **代码位置**：`codex/wrapper.py` `_build_codex_args`。
 
-### 6.11 enrich：rollout JSONL `token_count` 聚合增量
+### 6.12 enrich：rollout JSONL `token_count` 聚合增量
 
 - **处理**：用法数据存于 rollout JSONL 的 `event_msg`（`payload.type=token_count` 的
   `last_token_usage` / `total_token_usage`）。`get_raw_usage` 读全文件取**最后一次** token_count，
@@ -566,7 +588,7 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 - **代码位置**：`codex/adapter.py` `enrich_after_result`；`codex/sessions.py`
   `get_codex_raw_usage` / `_iter_jsonl`。
 
-### 6.12 其它
+### 6.13 其它
 
 - **存储**：两个 SQLite——`~/.codex/state_5.sqlite`（`threads` 元数据 +
   `thread_spawn_edges` fork 关系）+ `~/.codex/thread_history_1.sqlite`（`thread_items` /

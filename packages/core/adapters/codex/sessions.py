@@ -202,16 +202,20 @@ def _item_to_block(item: dict) -> dict | None:
         return {"role": "thinking", "content": text} if text else None
     if itype == "commandexecution":
         cmd = item.get("command", "")
-        out = item.get("aggregated_output", "")
+        # app-server stores camelCase fields; legacy exec rollouts use the
+        # snake_case spelling.  Accept both so switching protocols does not
+        # lose tool output after a refresh.
+        out = item.get("aggregated_output") or item.get("aggregatedOutput", "")
         content = cmd
         if out:
             content += "\n→ " + out
         return {"role": "tool", "content": content}
-    if itype == "functioncall":
-        name = item.get("name") or item.get("pluginId") or "tool"
-        args = item.get("arguments") or item.get("parameters") or {}
+    if itype in ("functioncall", "mcptoolcall", "dynamictoolcall"):
+        name = (item.get("name") or item.get("tool") or item.get("pluginId")
+                or item.get("server") or "tool")
+        args = item.get("arguments") or item.get("parameters") or item.get("input") or {}
         inp = json.dumps(args, ensure_ascii=False) if isinstance(args, (dict, list)) else str(args or "")
-        out = item.get("output") or item.get("result") or ""
+        out = item.get("output") or item.get("result") or item.get("error") or ""
         content = f"{name}({inp})"
         if out:
             content += "\n→ " + out

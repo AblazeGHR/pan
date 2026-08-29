@@ -69,6 +69,14 @@ export interface WorkerEventContent {
 
 export interface WorkerEvent {
   type: string;
+  /** Native app-server incremental event; UI merges it into one message. */
+  delta?: boolean;
+  /** Cumulative text for sidebar previews while `delta` is true. */
+  stream_text?: string;
+  /** Completed canonical event should replace any in-flight delta message. */
+  final?: boolean;
+  /** Tool/output delta targets the currently displayed item instead of appending. */
+  replace?: boolean;
   /** kimi: stream-json 事件以 role 标识（assistant/thinking/result/meta），
    *  纯文本 assistant 事件没有 type 字段。 */
   role?: string;

@@ -1,11 +1,11 @@
-"""OpenAI Codex CLI 长驻包装器。
+"""Stable executable entry point for the Codex Pan bridge.
 
-Codex 的 `codex exec` 是一次性进程（无 stdin 长驻流协议），故通过 wrapper.py 包装成
-一个长驻子进程，由 wrapper 在内部循环调用 `codex exec "<text>" --json`（续接时
-`codex exec resume <thread_id> "<text>" --json`），逐行转发 JSONL 事件，并在每次
-调用结束时合成一条 result 事件让 worker.py 标记任务完成（原生 codex 无 result 事件）。
+The adapter starts this file with ``--app-server`` so the default path is the
+native long-lived ``codex app-server --stdio`` protocol implemented in
+``app_server_wrapper.py``. The original ``codex exec`` loop remains below as
+a compatibility fallback for direct/manual invocations that omit the flag.
 
-关键修复（对齐 opencode/kimi wrapper）：
+Legacy exec fallback fixes (对齐 opencode/kimi wrapper）：
 - codex 子进程显式 ``stdin=DEVNULL``，切断与 server 长驻管道的连接（prompt 来自 CLI
   参数，不依赖 stdin）；否则 codex 会读 stdin 等 EOF 而静默挂起 → 会话卡 running。
 - 真实入口解析为 ``[node, codex.js]``（由 adapter 经 --codex-path/--node-path 传入），
@@ -264,6 +264,16 @@ def _main_loop(node: str, codex_js: str, extra_opts: list[str],
 
 
 def main() -> int:
+    # The native app-server bridge keeps one Codex thread/turn protocol alive
+    # and is the default path used by the adapter.  Keep this file as the
+    # stable executable entry point so existing deployments and tests that
+    # refer to ``wrapper.py`` continue to work; the old exec loop remains a
+    # useful fallback for manual invocations without --app-server.
+    if "--app-server" in sys.argv[1:]:
+        from app_server_wrapper import main as app_server_main
+        argv = [arg for arg in sys.argv[1:] if arg != "--app-server"]
+        return app_server_main(argv)
+
     parser = argparse.ArgumentParser(description="OpenAI Codex persistent wrapper for Pan")
     parser.add_argument("--codex-path", required=True,
                         help="Path to codex.js (resolved real entry, not the .CMD shim)")
