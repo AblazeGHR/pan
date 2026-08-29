@@ -99,6 +99,11 @@ DEFAULT_CONFIG: dict = {
         "config_path": "",
         "binary_path": "",
         "status_port": 8769,
+        # cloudflared 连接协议（隧道传输层）：auto（cloudflared 默认探测，
+        # 优先 QUIC/UDP 7844）| quic | http2（纯 TCP，代理链不支持 UDP 时用）。
+        # 默认 http2：实测走 mihomo(anytls Final) 等无 UDP 转发的代理时 QUIC
+        # 握手不通，http2 稳定。空串 = 不注入（沿用 cloudflared 默认 auto）。
+        "protocol": "http2",
     },
     # QQ 模块（packages/qq/bot.py，NoneBot，跑在独立解释器上）
     "qq": {

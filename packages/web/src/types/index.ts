@@ -310,6 +310,25 @@ export interface ApiConfigReloadResponse {
   errors?: string[];
 }
 
+// ── Remote tunnel (cloudflared via scripts/start_cf.ps1) ──
+
+export interface ApiRemoteStatusResponse {
+  available: boolean;
+  enabled: boolean;
+  provider?: string;
+  quickTunnel?: boolean;
+  protocol?: string;
+  port?: number;
+  running: boolean;
+}
+
+export interface ApiRemoteRestartResponse {
+  ok: boolean;
+  error?: string;
+  killed?: number[];
+  restarted?: boolean;
+}
+
 // ── Import types ──
 
 export interface CbcProject {
