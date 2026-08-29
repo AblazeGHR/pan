@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
-import { reloadConfig } from '@/services/api';
-import type { ApiConfigReloadResponse } from '@/types';
+import { useUIStore } from '@/stores/uiStore';
+import { reloadConfig, fetchRemoteStatus, restartRemoteTunnel } from '@/services/api';
+import type {
+  ApiConfigReloadResponse,
+  ApiRemoteStatusResponse,
+} from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
 
 interface AppSettingsModalProps {
@@ -165,6 +169,49 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [reloadResult, setReloadResult] =
     useState<ApiConfigReloadResponse | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
+
+  // Remote tunnel state — fetched when the modal opens. The whole
+  // "Remote / Tunnel" section only renders when config.json has a remote
+  // section AND remote.enabled is true (backend /api/remote/status).
+  const [remoteStatus, setRemoteStatus] =
+    useState<ApiRemoteStatusResponse | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const showToast = useUIStore((s) => s.showToast);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetchRemoteStatus()
+      .then((s) => {
+        if (!cancelled) setRemoteStatus(s);
+      })
+      .catch(() => {
+        /* modal still usable without the remote section */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const handleRemoteRestart = async () => {
+    setRemoteBusy(true);
+    try {
+      const r = await restartRemoteTunnel();
+      const killed = r.killed?.length ?? 0;
+      showToast(
+        r.restarted
+          ? `Tunnel restarted${killed ? ` (stopped ${killed} old process${killed > 1 ? 'es' : ''})` : ''}`
+          : 'Tunnel stop/start issued, but process not detected yet',
+        r.restarted ? 'info' : 'error',
+      );
+      const s = await fetchRemoteStatus();
+      setRemoteStatus(s);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Tunnel restart failed', 'error');
+    } finally {
+      setRemoteBusy(false);
+    }
+  };
 
   const handleReload = async (scope: ReloadScope) => {
     setReloadScope(scope);
@@ -385,6 +432,53 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               server restart to apply.
             </p>
           </section>
+
+          {/* Remote / Tunnel — cloudflared tunnel managed by
+              scripts/start_cf.ps1. Only rendered when config.json has a
+              remote section with enabled=true (the tunnel itself is optional;
+              without it the section would be dead UI). Restart kills only
+              Pan's own tunnel process (temp-yml command-line match) and
+              re-runs start_cf.ps1, picking up port + remote.protocol. */}
+          {remoteStatus?.available && remoteStatus.enabled && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                Remote / Tunnel
+              </h3>
+              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                <button
+                  type="button"
+                  disabled={remoteBusy}
+                  onClick={handleRemoteRestart}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-xs text-text-primary">
+                      Restart tunnel
+                      <span
+                        className={`ml-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${
+                          remoteStatus.running ? 'bg-success' : 'bg-danger'
+                        }`}
+                        aria-hidden
+                      />
+                    </span>
+                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
+                      cloudflared · {remoteStatus.running ? 'running' : 'stopped'}
+                      {remoteStatus.protocol ? ` · ${remoteStatus.protocol}` : ''}
+                      {remoteStatus.port ? ` · :${remoteStatus.port}` : ''}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-text-tertiary">
+                    {remoteBusy ? 'Restarting…' : 'Restart'}
+                  </span>
+                </button>
+              </div>
+              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                Kills Pan's own cloudflared (temp-yml match only — the
+                cloudflared-ssh service is untouched) and re-runs
+                scripts/start_cf.ps1 with the current config.json.
+              </p>
+            </section>
+          )}
 
           {/* Reset */}
           <div className="border-t border-border-muted pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

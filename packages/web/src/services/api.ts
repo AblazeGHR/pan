@@ -35,6 +35,8 @@ import type {
   ApiMcpServersResponse,
   AgentQueueItem,
   ApiSessionQueueResponse,
+  ApiRemoteStatusResponse,
+  ApiRemoteRestartResponse,
 } from '@/types';
 
 const BASE = '/api';
@@ -492,6 +494,21 @@ export async function reloadConfig(
     },
   );
   if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── Remote tunnel (cloudflared) ──
+
+export async function fetchRemoteStatus(): Promise<ApiRemoteStatusResponse> {
+  return request<ApiRemoteStatusResponse>(`${BASE}/remote/status`);
+}
+
+export async function restartRemoteTunnel(): Promise<ApiRemoteRestartResponse> {
+  const data = await request<ApiRemoteRestartResponse>(
+    `${BASE}/remote/restart`,
+    { method: 'POST' },
+  );
+  if (!data.ok && data.error) throw new Error(data.error);
   return data;
 }
 

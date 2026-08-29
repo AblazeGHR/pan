@@ -1614,6 +1614,157 @@ async def api_put_settings_ui(data: dict):
     return ui
 
 
+# ── Remote tunnel (cloudflared, scripts/start_cf.ps1) ──
+#
+# Pan's own tunnel cloudflared is started by scripts/start_cf.ps1 with a
+# generated temp yml (%TEMP%/pan_cf_config_<port>.yml). PidFiles written at
+# start are deleted by start_pan.bat, so running processes are identified by
+# command line instead — the temp-yml marker is unique to Pan's tunnel and
+# never matches service installs (e.g. cloudflared-ssh).
+
+_PAN_TUNNEL_MARKER = "pan_cf_config_"
+
+
+def _matches_pan_tunnel(name: str, cmdline: str) -> bool:
+    """Pure matcher for Pan's own tunnel cloudflared process.
+
+    True only when the process is a cloudflared binary AND its command line
+    references the temp tunnel config marker (pan_cf_config_<port>.yml).
+    Service processes (cloudflared-ssh etc.) never reference that file and
+    are never matched — mirrors scripts/stop_pan.bat's precise 5c fallback.
+    """
+    if not cmdline:
+        return False
+    base = name.lower()
+    if not base.startswith("cloudflared"):
+        return False
+    return _PAN_TUNNEL_MARKER in cmdline
+
+
+def _find_pan_tunnel_processes() -> list[dict]:
+    """Return [{pid, name, cmdline}] for Pan's cloudflared tunnel processes."""
+    procs: list[dict] = []
+    try:
+        import psutil
+
+        for p in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                info = p.info
+                cmdline = " ".join(info.get("cmdline") or [])
+                if _matches_pan_tunnel(info.get("name") or "", cmdline):
+                    procs.append({
+                        "pid": info["pid"],
+                        "name": info.get("name") or "",
+                        "cmdline": cmdline,
+                    })
+            except Exception:
+                continue
+    except ImportError:
+        # PowerShell fallback (same matcher as scripts/stop_pan.bat 5c).
+        try:
+            out = subprocess.run(
+                [
+                    "powershell", "-NoProfile", "-Command",
+                    "Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\""
+                    " | Select-Object ProcessId,CommandLine | ConvertTo-Json",
+                ],
+                capture_output=True, text=True, timeout=15,
+            )
+            data = json.loads(out.stdout or "null")
+            items = data if isinstance(data, list) else ([data] if data else [])
+            for it in items:
+                cmdline = it.get("CommandLine") or ""
+                if _matches_pan_tunnel("cloudflared.exe", cmdline):
+                    procs.append({
+                        "pid": int(it["ProcessId"]),
+                        "name": "cloudflared.exe",
+                        "cmdline": cmdline,
+                    })
+        except Exception as e:
+            _log(f"[remote] cloudflared process scan failed: {e}")
+    return procs
+
+
+def _kill_pan_tunnel_processes(procs: list[dict]) -> list[int]:
+    """Kill the given processes (tree-kill); returns pids actually killed."""
+    killed: list[int] = []
+    for pr in procs:
+        try:
+            r = subprocess.run(
+                ["taskkill", "/PID", str(pr["pid"]), "/T", "/F"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0:
+                killed.append(pr["pid"])
+            else:
+                _log(f"[remote] kill pid {pr['pid']} failed: {r.stderr.strip()}")
+        except Exception as e:
+            _log(f"[remote] kill pid {pr['pid']} error: {e}")
+    return killed
+
+
+@app.get("/api/remote/status")
+async def api_remote_status():
+    """Remote tunnel status for the App Settings modal.
+
+    ``available`` reflects the raw on-disk config (remote section present);
+    ``enabled`` comes from the merged config. ``running`` = a Pan tunnel
+    cloudflared process was found by command-line match.
+    """
+    config = load_config()
+    raw = read_config_file()
+    remote = config.get("remote") or {}
+    return {
+        "available": "remote" in raw,
+        "enabled": bool(remote.get("enabled")),
+        "provider": remote.get("provider"),
+        "quickTunnel": bool(remote.get("quick_tunnel")),
+        "protocol": remote.get("protocol") or "",
+        "port": config.get("port"),
+        "running": bool(_find_pan_tunnel_processes()),
+    }
+
+
+@app.post("/api/remote/restart")
+async def api_remote_restart():
+    """Restart Pan's cloudflared tunnel via scripts/start_cf.ps1.
+
+    Only processes whose command line carries the temp-yml marker are killed
+    (never the cloudflared-ssh service). Restarting re-runs start_cf.ps1 —
+    the same entry point start_pan.bat uses — so the freshly generated temp
+    yml picks up current config.json values (port + remote.protocol).
+    """
+    config = load_config()
+    remote = config.get("remote") or {}
+    if not remote.get("enabled"):
+        return {"ok": False, "error": "remote is not enabled in config.json"}
+
+    killed = _kill_pan_tunnel_processes(_find_pan_tunnel_processes())
+
+    script = _PROJECT_DIR / "scripts" / "start_cf.ps1"
+    if not script.exists():
+        return {"ok": False, "error": f"start script not found: {script}",
+                "killed": killed}
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+             "-File", str(script)],
+            capture_output=True, text=True, timeout=30,
+            cwd=str(_PROJECT_DIR),
+        )
+    except Exception as e:
+        return {"ok": False, "error": str(e), "killed": killed}
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "").strip()[-500:]
+        return {"ok": False, "error": f"start_cf.ps1 failed: {err}",
+                "killed": killed}
+
+    # Give cloudflared a moment to appear, then confirm via process scan.
+    await asyncio.sleep(2)
+    restarted = bool(_find_pan_tunnel_processes())
+    return {"ok": True, "killed": killed, "restarted": restarted}
+
+
 # ── Config hot-reload ──
 
 @app.post("/api/config/reload")

@@ -41,8 +41,22 @@ if (-not $cfConfig) {
 # so the tunnel always forwards to the port main.py actually listens on.
 $content = Get-Content $cfConfig -Raw
 $content = $content -replace 'http://localhost:\d+', "http://localhost:$port"
+# Protocol injection: config.json remote.protocol ("auto" | "quic" | "http2")
+# is appended at the yml root level. Empty/absent = no injection (cloudflared
+# default auto-detect, which prefers QUIC over UDP 7844).
+$proto = $null
+if ($cfg -and $cfg.remote -and $cfg.remote.protocol) {
+    $proto = "$($cfg.remote.protocol)".Trim()
+}
+if ($proto) {
+    $content = $content -replace "(?m)^\s*protocol\s*:.*\r?\n?", ''
+    if ($content -notmatch "`n$") { $content += "`n" }
+    $content += "protocol: $proto`n"
+}
 $tempConfig = Join-Path $env:TEMP "pan_cf_config_$port.yml"
 $content | Set-Content -Path $tempConfig -Encoding utf8
 
 $p = Start-Process -FilePath 'cloudflared.exe' -ArgumentList 'tunnel','--config',$tempConfig,'run' -WindowStyle Minimized -PassThru
-$p.Id | Out-File -FilePath $PidFile -Encoding ascii -NoNewline
+if ($PidFile) {
+    $p.Id | Out-File -FilePath $PidFile -Encoding ascii -NoNewline
+}
