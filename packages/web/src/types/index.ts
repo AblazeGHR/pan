@@ -106,6 +106,8 @@ export interface WorkerEvent {
   session_id?: string;
   model?: string;
   is_error?: boolean;
+  cancelled?: boolean;
+  turn_status?: string;
   result?: string;
   cliSessionId?: string;
   /** Native Codex thread status (`active` may carry waiting flags). */
@@ -167,6 +169,7 @@ export interface StreamEvent {
   event?: WorkerEvent;
   message?: string;
   status?: string;
+  cancelled?: boolean;
   name?: string;
   cliSessionId?: string;
   /** 任务来源标记（worker.status 事件透传）：agent=meta-agent 编排注入、

@@ -182,6 +182,26 @@ describe('useWebSocket worker.result wiring', () => {
     expect(s?.workerStatus).toBe('idle');
   });
 
+  it('labels a native cancelled turn separately from an error', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result',
+        sessionId: 'A',
+        workerId: 'w1',
+        status: 'cancelled',
+        cancelled: true,
+        result: '',
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.at(-1)?.content)
+      .toBe('[CANCELLED] Task completed');
+    expect(useSessionStore.getState().sessions.find((x) => x.id === 'A')?.lastResult?.status)
+      .toBe('cancelled');
+  });
+
   it('clears the card status on worker crash and keeps history intact', () => {
     renderHook(() => useWebSocket());
 

@@ -270,7 +270,11 @@ export function useWebSocket() {
       const sessionStore = useSessionStore.getState();
       clearInteractiveRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
-        const status = e.status === 'error' ? 'error' : 'done';
+        const status = e.status === 'error'
+          ? 'error'
+          : e.status === 'cancelled' || e.cancelled
+            ? 'cancelled'
+            : 'done';
         sessionStore.addMessage({
           role: 'system',
           content: `[${status.toUpperCase()}] Task completed`,

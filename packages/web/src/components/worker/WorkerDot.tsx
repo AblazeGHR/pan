@@ -8,6 +8,7 @@ const statusColors: Record<string, string> = {
   running: 'bg-accent',
   held: 'bg-warning',
   error: 'bg-danger',
+  cancelled: 'bg-warning',
   offline: 'bg-text-tertiary',
 };
 

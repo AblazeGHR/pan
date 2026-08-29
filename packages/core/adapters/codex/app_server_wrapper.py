@@ -38,6 +38,7 @@ _INTERACTIVE_USER_INPUT_METHOD = "item/tool/requestUserInput"
 _INTERACTIVE_PERMISSION_METHOD = "item/permissions/requestApproval"
 _INTERACTIVE_ELICITATION_METHOD = "mcpServer/elicitation/request"
 _TERMINAL_INTERACTION_METHOD = "item/commandExecution/terminalInteraction"
+_CANCELLED_TURN_STATUSES = {"interrupted", "cancelled", "canceled"}
 
 
 def _write_stdout(event: dict[str, Any]) -> None:
@@ -610,7 +611,11 @@ class AppServer:
                 status = str(turn.get("status") or "completed")
                 error = turn.get("error") or state.get("error")
                 state["done"] = True
-                state["is_error"] = bool(error) or status not in ("completed", "complete")
+                state["turn_status"] = status
+                state["is_cancelled"] = status.lower() in _CANCELLED_TURN_STATUSES and not error
+                state["is_error"] = bool(error) or (
+                    status not in ("completed", "complete") and not state["is_cancelled"]
+                )
                 state["error"] = self._error_text(error) if error else ""
             return
         if method == "error":
@@ -919,6 +924,8 @@ class AppServer:
         if state["is_error"] and not result:
             result = state["error"] or "Codex turn failed"
         _write_stdout({"type": "result", "is_error": bool(state["is_error"]),
+                       "cancelled": bool(state.get("is_cancelled")),
+                       "turn_status": state.get("turn_status", "completed"),
                        "result": result, "usage": self.last_usage})
 
     def close(self) -> None:
