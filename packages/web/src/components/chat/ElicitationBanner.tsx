@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { wsClient } from '@/services/ws';
+import { sendWorkerControl } from '@/services/api';
 import type { ElicitationRequest } from '@/types';
 
 interface ElicitationField {
@@ -61,20 +62,25 @@ function ElicitationForm({ request }: { request: ElicitationRequest }) {
   const fields = useMemo(() => fieldsFor(request), [request]);
   const [values, setValues] = useState<Record<string, string>>({});
 
-  const respond = (action: 'accept' | 'decline' | 'cancel', content: Record<string, unknown> | null = null) => {
+  const respond = async (action: 'accept' | 'decline' | 'cancel', content: Record<string, unknown> | null = null) => {
+    const control = {
+      type: 'elicitation_response',
+      request_id: request.requestId,
+      action,
+      content,
+    };
     const sent = wsClient.send({
       type: 'worker_control',
       workerId: request.workerId,
-      control: {
-        type: 'elicitation_response',
-        request_id: request.requestId,
-        action,
-        content,
-      },
+      control,
     });
     if (!sent) {
-      showToast('未连接到服务器，MCP 请求未响应', 'error');
-      return;
+      try {
+        await sendWorkerControl(request.workerId, control);
+      } catch (error) {
+        showToast((error as Error).message || 'MCP 请求未响应', 'error');
+        return;
+      }
     }
     removeRequest(request.sessionId, request.requestId);
   };

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { wsClient } from '@/services/ws';
+import { sendWorkerControl } from '@/services/api';
 import type { UserInputQuestion, UserInputRequest } from '@/types';
 
 function questionOptions(question: UserInputQuestion): Array<{ label: string; description?: string }> {
@@ -17,19 +18,24 @@ function UserInputForm({ request }: { request: UserInputRequest }) {
   const showToast = useUIStore((s) => s.showToast);
   const [values, setValues] = useState<Record<string, string>>({});
 
-  const respond = (answers: Record<string, { answers: string[] }>) => {
+  const respond = async (answers: Record<string, { answers: string[] }>) => {
+    const control = {
+      type: 'user_input_response',
+      request_id: request.requestId,
+      answers,
+    };
     const sent = wsClient.send({
       type: 'worker_control',
       workerId: request.workerId,
-      control: {
-        type: 'user_input_response',
-        request_id: request.requestId,
-        answers,
-      },
+      control,
     });
     if (!sent) {
-      showToast('未连接到服务器，回答未发送', 'error');
-      return;
+      try {
+        await sendWorkerControl(request.workerId, control);
+      } catch (error) {
+        showToast((error as Error).message || '回答未发送', 'error');
+        return;
+      }
     }
     removeRequest(request.sessionId, request.requestId);
   };

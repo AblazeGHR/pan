@@ -427,6 +427,21 @@ export async function steerWorker(
   return data;
 }
 
+export async function sendWorkerControl(
+  workerId: string,
+  control: Record<string, unknown>,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/worker/${workerId}/control`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ control }),
+    },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 export async function takeoverWorker(
   workerId: string,
 ): Promise<ApiGenericResponse> {
