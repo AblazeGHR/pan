@@ -390,6 +390,30 @@ def test_app_server_interrupted_turn_is_not_an_error(monkeypatch):
     print("PASS: app-server interrupted turn")
 
 
+def test_app_server_error_is_normalized_for_pan(monkeypatch):
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state: dict = {}
+
+    app._handle_server_message({
+        "method": "error",
+        "params": {
+            "threadId": "thread-1", "turnId": "turn-1",
+            "error": {"code": "unavailable", "message": "upstream unavailable"},
+        },
+    }, state)
+
+    assert state["error"] == "upstream unavailable"
+    assert emitted == [{
+        "type": "codex.turn_error",
+        "error": {"code": "unavailable", "message": "upstream unavailable"},
+        "error_text": "upstream unavailable",
+        "thread_id": "thread-1", "turn_id": "turn-1",
+    }]
+    print("PASS: app-server error normalization")
+
+
 def test_app_server_thread_status_is_normalized(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     emitted: list[dict] = []

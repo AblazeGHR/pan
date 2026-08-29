@@ -81,7 +81,7 @@ describe('useWebSocket worker.result wiring', () => {
       _touchSeq: 0,
       _sessionWsTouchedSeq: {},
     });
-    useUIStore.setState({ terminalInteractions: [] });
+    useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
   });
 
   it('requests pending native interactions when the singleton is already open', () => {
@@ -132,6 +132,25 @@ describe('useWebSocket worker.result wiring', () => {
       total: { totalTokens: 150 },
       modelContextWindow: 4096,
     });
+  });
+
+  it('surfaces native Codex turn errors immediately without adding a fake chat message', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.turn_error',
+          error_text: 'upstream unavailable',
+          error: { code: 'unavailable' },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue.at(-1)?.message)
+      .toBe('Codex: upstream unavailable');
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
   it('updates a background session card in-place on worker.result', () => {

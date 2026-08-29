@@ -106,6 +106,8 @@ export interface WorkerEvent {
   is_error?: boolean;
   cancelled?: boolean;
   turn_status?: string;
+  error?: unknown;
+  error_text?: string;
   result?: string;
   cliSessionId?: string;
   /** Native Codex thread status (`active` may carry waiting flags). */
