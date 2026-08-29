@@ -165,6 +165,8 @@ export interface StreamEvent {
   /** 任务来源标记（worker.status 事件透传）：agent=meta-agent 编排注入、
    *  report=订阅报告、user=前端发送、system_prompt=系统提示词注入。 */
   source?: string;
+  /** True when the server replays a still-pending interactive prompt after WS reconnect. */
+  replayed?: boolean;
 }
 
 // ── API response types ──

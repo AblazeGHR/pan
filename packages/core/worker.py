@@ -21,7 +21,7 @@ import logging
 import os
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -192,6 +192,11 @@ class Worker:
     # 消息真源是落盘 Session.queue_pending，本队列只放信号——report_signal
     # （报告批量消费）与 task_signal（携带 item.id，正文按 id 从真源拉取）。
     pending_signal: asyncio.Queue | None = None
+    # Native Codex interactive requests are kept here as a short-lived
+    # replay cache.  The process remains the source of truth for the actual
+    # JSON-RPC request; this snapshot only lets a reconnected dashboard
+    # restore its prompt while that same worker is still alive.
+    pending_interactions: dict[str, dict] = field(default_factory=dict)
     _task_done: asyncio.Event | None = None  # stream 任务完成信号（_consumer_stream 等待，防多消息同时在 cbc 管道飞行）
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
@@ -328,6 +333,59 @@ def _mcp_configured(s: _sess.Session | None) -> bool:
 # （刷新会导致 stream worker 的 idle 回收 / queued 静默超时永不触发，
 # 回归来源 252c41d）。活性基准见 _read_stdout 的有效输出路径。
 _STDOUT_READ_TIMEOUT_SEC: float = 60.0
+
+_PENDING_INTERACTION_TYPES = frozenset({
+    "approval.request",
+    "codex.user_input",
+    "codex.elicitation",
+    "codex.terminal_interaction",
+})
+
+
+def _interaction_key(event: dict) -> str | None:
+    """Return a stable key for a native interactive event."""
+    event_type = event.get("type")
+    if event_type in {
+        "approval.request", "codex.user_input", "codex.elicitation",
+    }:
+        request_id = event.get("request_id")
+        return f"request:{request_id}" if request_id is not None else None
+    if event_type == "codex.terminal_interaction":
+        item_id = event.get("item_id")
+        return f"terminal:{item_id}" if item_id is not None else None
+    return None
+
+
+def _update_pending_interactions(w: Worker, event: dict) -> None:
+    """Track or retire a native interactive event for dashboard replay.
+
+    This is deliberately worker-local and ephemeral.  If the native process
+    dies, its open JSON-RPC requests die with it and the worker is removed;
+    there is no safe request to replay into a newly spawned process.
+    """
+    event_type = event.get("type")
+    if event_type in _PENDING_INTERACTION_TYPES:
+        key = _interaction_key(event)
+        if key is not None:
+            w.pending_interactions[key] = dict(event)
+        return
+    if event_type == "codex.request_resolved":
+        request_id = event.get("request_id")
+        if request_id is not None:
+            w.pending_interactions.pop(f"request:{request_id}", None)
+        return
+    if event_type == "codex.item.completed":
+        item_id = event.get("item_id")
+        if item_id is not None:
+            w.pending_interactions.pop(f"terminal:{item_id}", None)
+        return
+    if event_type == "result":
+        w.pending_interactions.clear()
+
+
+def pending_interaction_events(w: Worker) -> list[dict]:
+    """Return copies of prompts that a dashboard may safely replay."""
+    return [dict(event) for event in (w.pending_interactions or {}).values()]
 
 
 async def _iter_stdout_lines(w: Worker):
@@ -491,6 +549,10 @@ async def _read_stdout(w: Worker):
 
         # 活性探测：任何有效输出都刷新 last_activity（watchdog 据此判定卡死）
         w.last_activity = time.monotonic()
+        # Keep only native interactive prompts in the worker-local replay
+        # cache.  The cache is consumed by the dashboard after a WS reconnect;
+        # normal stream events remain live-only to avoid retaining history.
+        _update_pending_interactions(w, event)
 
         # 提取 session_id + model 并写入 Session
         # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，

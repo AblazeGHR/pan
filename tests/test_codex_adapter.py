@@ -425,6 +425,38 @@ def test_app_server_turn_controls_wait_for_turn_id(monkeypatch):
     print("PASS: app-server early turn controls")
 
 
+def test_worker_native_interaction_replay_cache():
+    """A reconnect can restore prompts, but resolved items disappear."""
+    from packages.core import worker
+
+    w = worker.Worker(
+        worker_id="worker-replay",
+        session_id="ses-replay",
+        adapter=codex_adapter.CodexAdapter(),
+    )
+    approval = {
+        "type": "approval.request", "request_id": 7,
+        "method": "item/commandExecution/requestApproval", "params": {},
+    }
+    terminal = {
+        "type": "codex.terminal_interaction", "item_id": "item-1",
+        "process_id": "process-1", "stdin": "Password: ", "params": {},
+    }
+    worker._update_pending_interactions(w, approval)
+    worker._update_pending_interactions(w, terminal)
+    assert worker.pending_interaction_events(w) == [approval, terminal]
+
+    worker._update_pending_interactions(w, {
+        "type": "codex.request_resolved", "request_id": 7,
+    })
+    assert worker.pending_interaction_events(w) == [terminal]
+    worker._update_pending_interactions(w, {
+        "type": "codex.item.completed", "item_id": "item-1",
+    })
+    assert worker.pending_interaction_events(w) == []
+    print("PASS: native interaction replay cache")
+
+
 # ── wrapper 参数构建 ──
 
 

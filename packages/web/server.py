@@ -797,6 +797,30 @@ if FRONTEND_MODE != "legacy":
 
 # ── WebSocket: Dashboard ──
 
+async def _replay_pending_interactions(
+    ws: WebSocket, session_ids: list[str] | None = None,
+) -> None:
+    """Restore native Codex prompts to a dashboard that just reconnected.
+
+    Only live workers are considered: the snapshot is a UI replay cache, while
+    the open JSON-RPC request itself still belongs to the native process.  A
+    dead/restarted worker cannot safely receive the old request response.
+    """
+    selected = {str(sid) for sid in session_ids or []}
+    for w in worker.list_workers():
+        if selected and w.session_id not in selected:
+            continue
+        if w.process is None or w.process.returncode is not None:
+            continue
+        for event in worker.pending_interaction_events(w):
+            await ws.send_json({
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "event": event,
+                "replayed": True,
+            })
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
@@ -826,6 +850,18 @@ async def ws_endpoint(ws: WebSocket):
                     err = await worker.send_control_message(worker_id, control)
                     if err:
                         await ws.send_json({"type": "error", "message": err})
+            elif msg_type == "sync_interactive":
+                # Optional sessionIds narrows the replay; omitted means all
+                # live workers visible to this dashboard, matching /ws's
+                # existing broadcast scope.
+                raw_session_ids = msg.get("sessionIds")
+                if raw_session_ids is not None and not isinstance(raw_session_ids, list):
+                    await ws.send_json({
+                        "type": "error",
+                        "message": "sessionIds must be a list",
+                    })
+                    continue
+                await _replay_pending_interactions(ws, raw_session_ids)
     except WebSocketDisconnect:
         pass
     finally:

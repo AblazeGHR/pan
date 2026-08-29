@@ -109,13 +109,24 @@ export function useWebSocket() {
       streamPreviewLastFlush.delete(sessionId);
     };
 
-    // Open handler — refresh sessions on connect
+    const syncInteractiveRequests = (): void => {
+      // The backend keeps a worker-local snapshot of native prompts while the
+      // JSON-RPC request is still open. Ask for it after every connection so a
+      // browser refresh/reconnect does not strand the user at a hidden prompt.
+      wsClient.send({ type: 'sync_interactive' });
+    };
+
+    // Open handler — refresh sessions and restore live native prompts on connect
     unsubscribers.push(wsClient.on('open', () => {
       useSessionStore.getState().loadSessions();
       useWorkerStore.getState().refresh();
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
+      syncInteractiveRequests();
     }));
+    // If the singleton was already open before this hook mounted (HMR/route
+    // remount), no new `open` event will arrive; sync explicitly as well.
+    if (wsClient.isOpen) syncInteractiveRequests();
 
     // Worker spawned / restarted / reconfigured
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
