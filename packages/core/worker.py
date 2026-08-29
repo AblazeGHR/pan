@@ -1030,8 +1030,8 @@ def _worker_has_pending_work(w: Worker) -> bool:
 # save 顺序：① jsonl(history) ② 主文件(queue_pending)。崩溃窗口：jsonl 已写、
 # 主文件未写 → history 有注入消息、队列项还在 → 重启 _recover_pending_signals
 # 重投 → 重复。兜底：注入时在 history 条目上记 `delivered_keys` 元数据（不进
-# 消息正文），消费前对账 history 尾部——条目元数据已含该项 key → 已投递过，
-# 跳过执行并从队列清除（收敛），未命中 → 正常注入执行。
+# 消息正文），恢复时复用已有 history 用户项但重试整个批次，直到 terminal result
+# 才从 queue_pending 确认出队；未命中 → 正常注入执行。
 
 # 对账扫描 history 尾部深度：标记只在注入时写入，重投对账发生在恢复后不久，
 # 尾部窗口足够；深度内未命中一律按未投递处理（宁可重复不丢）。
