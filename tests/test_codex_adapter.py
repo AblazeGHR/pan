@@ -391,6 +391,81 @@ def test_app_server_interrupted_turn_is_not_an_error(monkeypatch):
     print("PASS: app-server interrupted turn")
 
 
+def test_app_server_transient_error_notice_does_not_fail_completed_turn(monkeypatch):
+    """A mid-turn "Reconnecting... n/5" notice must not flag a completed turn.
+
+    Codex emits transient ``error`` notifications while falling back from
+    WebSockets to HTTPS. The completed-turn notification is authoritative:
+    a turn that ends with status "completed" and no turn-level error is a
+    success even if such notices arrived during the turn.
+    """
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        for attempt in range(2, 6):
+            app.incoming.put({
+                "method": "error",
+                "params": {
+                    "threadId": "thread-1", "turnId": "turn-1",
+                    "error": {"message": f"Reconnecting... {attempt}/5",
+                              "codexErrorInfo": {"responseStreamDisconnected":
+                                                 {"httpStatusCode": None}},
+                              "additionalDetails": "request timed out"},
+                },
+            })
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {"id": "turn-1", "status": "completed",
+                                  "error": None,
+                                  "items": [{"type": "agentMessage", "text": "391"}]}},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("17*23?")
+
+    assert emitted[-1] == {
+        "type": "result", "is_error": False, "cancelled": False,
+        "turn_status": "completed", "result": "391", "usage": None,
+    }
+    print("PASS: transient reconnect notices do not fail completed turns")
+
+
+def test_app_server_turn_error_with_failed_status_stays_an_error(monkeypatch):
+    """A non-completed turn with no explicit turn error still inherits the
+    in-turn error notice (the fallback path for genuinely failed turns)."""
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+
+    def request(method: str, params: dict) -> int:
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        app.incoming.put({
+            "method": "error",
+            "params": {"threadId": "thread-1", "turnId": "turn-1",
+                        "error": {"message": "upstream unavailable"}},
+        })
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {"id": "turn-1", "status": "failed", "items": []}},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("hello")
+
+    assert emitted[-1]["is_error"] is True
+    assert emitted[-1]["turn_status"] == "failed"
+    print("PASS: failed turn still reports error")
+
+
 def test_app_server_error_is_normalized_for_pan(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     emitted: list[dict] = []
