@@ -11,6 +11,7 @@ const wsMock = vi.hoisted(() => {
   const handlers: Record<string, Array<(e: unknown) => void>> = {};
   return {
     handlers,
+    send: vi.fn(() => true),
     on: vi.fn((type: string, h: (e: unknown) => void) => {
       (handlers[type] ??= []).push(h);
       return () => {
@@ -27,7 +28,7 @@ vi.mock('@/services/ws', () => ({
   wsClient: {
     connect: vi.fn(),
     on: wsMock.on,
-    send: vi.fn(() => true),
+    send: wsMock.send,
     isOpen: true,
   },
 }));
@@ -62,6 +63,7 @@ function mk(id: string, name: string, extra?: Partial<Session>): Session {
 describe('useWebSocket worker.result wiring', () => {
   beforeEach(() => {
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
+    wsMock.send.mockClear();
     useSessionStore.setState({
       sessions: [
         mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
@@ -79,6 +81,12 @@ describe('useWebSocket worker.result wiring', () => {
       _sessionWsTouchedSeq: {},
     });
     useUIStore.setState({ terminalInteractions: [] });
+  });
+
+  it('requests pending native interactions when the singleton is already open', () => {
+    renderHook(() => useWebSocket());
+
+    expect(wsMock.send).toHaveBeenCalledWith({ type: 'sync_interactive' });
   });
 
   it('updates a background session card in-place on worker.result', () => {
