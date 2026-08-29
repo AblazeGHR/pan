@@ -78,7 +78,13 @@ def _recording_save(log):
 
 async def _complete_task(ww, sess):
     """测试桩：模拟 adapter 已收到 terminal result。"""
+    task_id = ww._current_task_id
     worker._ack_current_task(ww, sess)
+    if task_id and task_id in worker._task_status:
+        worker._task_status[task_id] = {
+            "status": "done", "result": "recovered",
+            "workerId": ww.worker_id, "taskId": task_id,
+        }
 
 
 def _run_consumer(w):
@@ -330,6 +336,41 @@ def test_task_requeued_after_crash_after_handoff(monkeypatch):
     assert attempts == ["crash", "recovered"]
     assert s.queue_pending == []
     assert len(s.history) == 1, "recovery must reuse the existing user history entry"
+    _cleanup()
+
+
+def test_timeout_kill_then_same_task_id_retries(monkeypatch):
+    """超时/kill 后仍在队列的 taskId 保持 pending，重启 worker 可继续执行。"""
+    _cleanup()
+    s = _setup_session("ses_mgr")
+    task = _make_task(1)
+    s.queue_pending = [task]
+    w = _make_worker("ses_mgr")
+    worker._task_status["tid1"] = {
+        "status": "pending", "workerId": w.worker_id, "taskId": "tid1",
+    }
+
+    # watchdog/kill 路径不应把仍在持久队列中的任务短路成永久 error。
+    assert worker._mark_worker_tasks_error(w.worker_id, "worker killed") == 0
+    assert worker._task_status["tid1"]["status"] == "pending"
+    assert worker._task_status["tid1"]["workerId"] is None
+
+    worker.workers.clear()
+    w2 = _make_worker("ses_mgr")
+    received = []
+
+    async def recovered_stream(ww, text, source, sess):
+        received.append(text)
+        await _complete_task(ww, sess)
+
+    monkeypatch.setattr(worker, "_consumer_stream", recovered_stream)
+    monkeypatch.setattr(_sess, "save_async", _recording_save([]))
+    worker._recover_pending_signals(w2, s)
+    _run_consumer(w2)
+
+    assert received == ["job 1"]
+    assert s.queue_pending == []
+    assert worker._task_status["tid1"]["status"] == "done"
     _cleanup()
 
 
