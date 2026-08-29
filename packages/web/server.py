@@ -826,15 +826,6 @@ async def ws_endpoint(ws: WebSocket):
                     err = await worker.send_control_message(worker_id, control)
                     if err:
                         await ws.send_json({"type": "error", "message": err})
-                    else:
-                        # auto-spawn worker for this session
-                        result = await worker.create_worker(session_id)
-                        if isinstance(result, str):
-                            await broadcast({"type": "error", "message": result})
-                        else:
-                            err = await worker.send_task(result.worker_id, text, source="user")
-                            if err:
-                                await broadcast({"type": "error", "message": err})
     except WebSocketDisconnect:
         pass
     finally:
