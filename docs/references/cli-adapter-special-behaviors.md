@@ -531,6 +531,8 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   超过 `autoResolutionMs`（最多 120 秒）时回传空答案，避免 worker 无限挂起。MCP
   `mcpServer/elicitation/request` 会广播为 `codex.elicitation`，支持 form schema 的常见
   string/number/boolean/enum 字段及 URL 授权页，回传原生 `action + content`；超时安全取消。
+  运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
+  控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
 - **代码位置**：`codex/app_server_wrapper.py`；`worker.py` `interrupt_worker`；
   `web/src/hooks/useWebSocket.ts` 增量合并；`web/src/components/chat/ApprovalBanner.tsx` /
   `UserInputBanner.tsx` 交互展示。

@@ -8,7 +8,7 @@ import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { wsClient } from '@/services/ws';
-import { ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import { ChevronDown, ChevronUp, CornerUpRight, Settings } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
 const PILL_CLASS =
@@ -161,7 +161,7 @@ export function InputRow() {
   const currentSession = useCurrentSession();
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
-  const { startWorker } = useWorkerStore();
+  const { startWorker, steer } = useWorkerStore();
   const { showToast } = useUIStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const enqueue = useQueueStore((s) => s.enqueue);
@@ -283,6 +283,21 @@ export function InputRow() {
     ],
   );
 
+  const handleSteer = useCallback(
+    async (text: string) => {
+      if (!currentSessionId || !text.trim() || !currentSession?.workerId) return;
+      try {
+        await steer(currentSession.workerId, text);
+        if (inputRef.current) inputRef.current.value = '';
+        setInputDraft(currentSessionId, '');
+        addMessage({ role: 'user', content: text });
+      } catch (e) {
+        showToast((e as Error).message || 'Steer failed', 'error');
+      }
+    },
+    [currentSessionId, currentSession, steer, setInputDraft, addMessage, showToast],
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -313,6 +328,10 @@ export function InputRow() {
       : hadEmptyEffort
         ? ''
         : validEffortValues[0] ?? '';
+  const canSteer =
+    currentSession?.adapter === 'codex' &&
+    currentSession.workerStatus === 'running' &&
+    !!currentSession.workerId;
 
   return (
     <div className="shrink-0 w-full border-t border-border-default bg-bg-primary">
@@ -435,6 +454,16 @@ export function InputRow() {
               onKeyDown={handleKeyDown}
             />
             <div className="flex flex-col gap-1 items-end">
+              {canSteer && (
+                <button
+                  onClick={() => handleSteer(inputRef.current?.value || '')}
+                  className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+                  title="Send an instruction to the running Codex turn"
+                >
+                  <CornerUpRight size={13} />
+                  Steer
+                </button>
+              )}
               <button
                 onClick={() => handleSend(inputRef.current?.value || '')}
                 className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
