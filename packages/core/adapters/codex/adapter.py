@@ -79,9 +79,11 @@ class CodexAdapter:
 
     @property
     def supported_models(self) -> list[str]:
-        """模型列表（优先级）：config.codex.models 白名单 > model_catalog_json 解析 > 内置默认。
+        """模型列表（优先级）：白名单 > Codex 动态缓存 > catalog > 内置默认。
 
         - config.codex.models：显式白名单（填=限制可选项）；
+        - ~/.codex/models_cache.json（Codex CLI 自己维护的动态模型目录）：
+          解析公开模型的 ``slug``；
         - ~/.codex/config.toml 的 model_catalog_json（cc-switch 生成的模型目录文件）：
           解析其 ``models[].slug``（回退 ``display_name``）得到完整模型列表；
         - 兜底：default_model 单元素列表。
@@ -95,11 +97,12 @@ class CodexAdapter:
         if isinstance(models, list) and len(models) > 0:
             result = [str(m) for m in models]
         else:
-            catalog_models = _parse_models_from_catalog()
-            if catalog_models:
-                result = catalog_models
+            dynamic_models = _parse_models_from_models_cache()
+            if dynamic_models:
+                result = dynamic_models
             else:
-                result = [self.default_model]
+                catalog_models = _parse_models_from_catalog()
+                result = catalog_models or [self.default_model]
         CodexAdapter._cached_models = result
         CodexAdapter._models_cached_at = now
         return result
@@ -117,7 +120,17 @@ class CodexAdapter:
     supports_resume = True
     supports_fork = True
     # codex reasoning effort（config: model_reasoning_effort）。空表示不覆盖。
-    effort_values = ["", "low", "medium", "high"]
+    # models_cache.json may add xhigh/max/ultra; keep the fallback useful even
+    # before Codex has populated its cache.
+    _BASE_EFFORT_VALUES = ["", "low", "medium", "high", "xhigh", "max", "ultra"]
+
+    @property
+    def effort_values(self) -> list[str]:
+        values = list(self._BASE_EFFORT_VALUES)
+        for effort in _parse_effort_values_from_models_cache():
+            if effort not in values:
+                values.append(effort)
+        return values
     permission_modes = [
         {"value": "", "label": "default (config)"},
         {"value": "bypass", "label": "bypass (--dangerously-bypass-approvals-and-sandbox)"},
@@ -508,8 +521,51 @@ def _codex_js_from_shim(shim_path: str) -> str | None:
 
 
 def _codex_home() -> Path:
-    """codex 用户目录（CODEX_HOME 默认 ~/.codex）。抽成函数便于单测 monkeypatch。"""
-    return Path.home() / ".codex"
+    """Codex 用户目录（尊重 CODEX_HOME，默认 ``~/.codex``）。"""
+    configured = os.environ.get("CODEX_HOME")
+    return Path(configured).expanduser() if configured else Path.home() / ".codex"
+
+
+def _read_models_cache() -> list[dict]:
+    """读取 Codex CLI 的动态模型缓存；缺失或损坏时返回空列表。"""
+    path = _codex_home() / "models_cache.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return []
+    models = data.get("models") if isinstance(data, dict) else None
+    return [m for m in models if isinstance(m, dict)] if isinstance(models, list) else []
+
+
+def _parse_models_from_models_cache() -> list[str]:
+    """解析 Codex CLI 动态目录中的公开模型，去重并保持原目录顺序。"""
+    out: list[str] = []
+    seen: set[str] = set()
+    for model in _read_models_cache():
+        if model.get("visibility") not in (None, "list"):
+            continue
+        ident = str(model.get("slug") or model.get("display_name") or "").strip()
+        if ident and ident not in seen:
+            seen.add(ident)
+            out.append(ident)
+    return out
+
+
+def _parse_effort_values_from_models_cache() -> list[str]:
+    """返回动态目录声明过的 reasoning effort，去重并保持模型顺序。"""
+    out: list[str] = []
+    seen: set[str] = set()
+    for model in _read_models_cache():
+        if model.get("visibility") not in (None, "list"):
+            continue
+        levels = model.get("supported_reasoning_levels") or []
+        for level in levels:
+            effort = level.get("effort") if isinstance(level, dict) else level
+            effort = str(effort or "").strip()
+            if effort and effort not in seen:
+                seen.add(effort)
+                out.append(effort)
+    return out
 
 
 def _config_toml_text() -> str:

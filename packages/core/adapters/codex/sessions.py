@@ -25,7 +25,9 @@ from datetime import datetime
 from pathlib import Path
 
 
-_CODEX_DIR = Path.home() / ".codex"
+# Match the Codex CLI's own home selection.  This matters for isolated
+# profiles, CI, and users who keep separate authenticated Codex environments.
+_CODEX_DIR = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
 _STATE_DB = _CODEX_DIR / "state_5.sqlite"
 _HISTORY_DB = _CODEX_DIR / "thread_history_1.sqlite"
 _SESSIONS_DIR = _CODEX_DIR / "sessions"
