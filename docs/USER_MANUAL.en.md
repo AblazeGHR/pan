@@ -176,7 +176,7 @@ Open <http://127.0.0.1:8768> in a browser (the default port; see §5.2 to change
 
 - The status dot in the top bar changes color with the Worker state: **green = idle, blue = running, yellow = taken over by you, red = error**;
 - Replies appear in the chat stream one by one; tool calls are collapsed into a row — click one to see the raw output in the **DetailPanel** on the right; thinking blocks can be expanded inline;
-- The React frontend currently retains the **TUI**-style view: user input has a green border and message blocks have left-side color bars. The **Bubble** view and top-bar toggle are currently hidden and marked deprecated so they can be re-enabled later if needed.
+- The React frontend currently retains the **TUI**-style view: user input has a green border, message blocks have left-side color bars, and completion messages keep the `--- [DONE] Task completed` style. The old Bubble/TUI implementation names were reversed and are now corrected. The **Bubble** view and top-bar toggle are currently hidden and marked deprecated so they can be re-enabled later if needed.
 
 ### 3.5 Reading Results and What's Next
 
@@ -221,7 +221,7 @@ Shortcuts: **Ctrl+B** collapses/expands the sidebar (collapsed to a narrow icon 
 - **Sending messages**: the input row (InputRow) at the bottom — Enter sends, Shift+Enter inserts a newline; the gear left of the input opens session settings (§4.6).
 - **Send queue** (SendQueuePanel): messages queue automatically while the Worker is busy; the queue panel lets you edit, reorder, delete, merge-send, or clear; Agent queues are grouped separately.
 - **Message stream** (ChatMessages): shows history and live replies; tool calls collapse into clickable rows — clicking shows the raw output in the **DetailPanel** on the right; thinking blocks expand inline.
-- **Display style**: TUI style is currently fixed; the Bubble implementation is retained but deprecated, and its toggle entry is temporarily hidden.
+- **Display style**: TUI style is currently fixed; the Bubble implementation is retained but deprecated, and its toggle entry is temporarily hidden. The historical Bubble/TUI implementation names have been corrected.
 
 ### 4.4 Editor View
 
