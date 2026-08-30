@@ -44,6 +44,9 @@ _UI_DEFAULTS = {
     "showMetaAgent": True,
     "showTaskAgent": True,
     "showQQ": True,
+    "notifications": {
+        "codexWarningToast": True,
+    },
 }
 
 
@@ -79,6 +82,7 @@ def test_get_ui_merges_partial_config(tmp_path, monkeypatch):
     assert r["showMetaAgent"] is True
     assert r["showTaskAgent"] is True
     assert r["defaultGroupBy"] == "none"
+    assert r["notifications"]["codexWarningToast"] is True
 
 
 # ── PUT /api/settings/ui ──
@@ -102,6 +106,15 @@ def test_put_ui_partial_merge_persists(tmp_path, monkeypatch):
     # A fresh load reflects the persisted values.
     r2 = asyncio.run(srv.api_get_settings_ui())
     assert r2["showQQ"] is False
+
+
+def test_put_ui_notification_setting_persists(tmp_path, monkeypatch):
+    p = _use_temp_config(tmp_path, monkeypatch)
+    r = asyncio.run(
+        srv.api_put_settings_ui({"notifications": {"codexWarningToast": False}})
+    )
+    assert r["notifications"]["codexWarningToast"] is False
+    assert _read(p)["ui"]["notifications"]["codexWarningToast"] is False
 
 
 def test_put_ui_full_replacement(tmp_path, monkeypatch):

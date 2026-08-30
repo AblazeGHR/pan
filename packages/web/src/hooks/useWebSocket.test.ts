@@ -6,6 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useQueueStore } from '@/stores/queueStore';
+import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import type { Session, Message } from '@/types';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
@@ -40,11 +41,13 @@ vi.mock('@/services/ws', () => ({
 const apiMock = vi.hoisted(() => ({
   fetchSessionHistory: vi.fn(),
   fetchSessionQueue: vi.fn(),
+  updateUiSettings: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => ({
   fetchSessionHistory: apiMock.fetchSessionHistory,
   fetchSessionQueue: apiMock.fetchSessionQueue,
+  updateUiSettings: apiMock.updateUiSettings,
 }));
 
 function msg(role: string, content: string): Message {
@@ -85,9 +88,12 @@ describe('useWebSocket worker.result wiring', () => {
       _sessionWsTouchedSeq: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
     useQueueStore.setState({ agentQueues: {}, agentQueueLoadSeq: {} });
     apiMock.fetchSessionQueue.mockReset();
     apiMock.fetchSessionQueue.mockResolvedValue([]);
+    apiMock.updateUiSettings.mockReset();
+    apiMock.updateUiSettings.mockResolvedValue({});
   });
 
   it('requests pending native interactions when the singleton is already open', () => {
@@ -238,6 +244,23 @@ describe('useWebSocket worker.result wiring', () => {
     expect(useUIStore.getState().toastQueue.at(-1)?.message)
       .toBe('Codex: upstream unavailable');
     expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('suppresses Codex warning Toasts when the notification setting is disabled', () => {
+    useAppSettingsStore.getState().setCodexWarningToast(false);
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.turn_error',
+          error_text: 'upstream unavailable',
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue).toEqual([]);
   });
 
   it('surfaces Codex MCP startup failures without surfacing ready notifications', () => {

@@ -124,6 +124,10 @@ DEFAULT_CONFIG: dict = {
         "showTaskAgent": True,
         # 是否显示 QQ（@@@@by qq）注入消息
         "showQQ": True,
+        # 是否通过 Toast 显示 Codex CLI 原生 warning
+        "notifications": {
+            "codexWarningToast": True,
+        },
     },
 }
 

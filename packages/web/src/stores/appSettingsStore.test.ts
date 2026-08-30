@@ -87,12 +87,16 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowMetaAgent(false);
     useAppSettingsStore.getState().setShowTaskAgent(false);
     useAppSettingsStore.getState().setShowQQ(false);
+    useAppSettingsStore.getState().setCodexWarningToast(false);
 
     expect(useAppSettingsStore.getState().defaultGroupBy).toBe('workdir');
     expect(mockedUpdate).toHaveBeenNthCalledWith(1, { defaultGroupBy: 'workdir' });
     expect(mockedUpdate).toHaveBeenNthCalledWith(2, { showMetaAgent: false });
     expect(mockedUpdate).toHaveBeenNthCalledWith(3, { showTaskAgent: false });
     expect(mockedUpdate).toHaveBeenNthCalledWith(4, { showQQ: false });
+    expect(mockedUpdate).toHaveBeenNthCalledWith(5, {
+      notifications: { codexWarningToast: false },
+    });
   });
 
   it('resets all settings to defaults and writes them back', () => {
@@ -136,11 +140,12 @@ describe('appSettingsStore', () => {
 
   it('sanitizeSettings fills missing fields with defaults', () => {
     expect(sanitizeSettings({ showQQ: false })).toEqual({
-      defaultGroupBy: 'none',
-      showMetaAgent: true,
-      showTaskAgent: true,
+      ...DEFAULT_SETTINGS,
       showQQ: false,
     });
+    expect(
+      sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications,
+    ).toEqual({ codexWarningToast: false });
     expect(sanitizeSettings(null)).toEqual({ ...DEFAULT_SETTINGS });
   });
 });

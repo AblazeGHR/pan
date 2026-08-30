@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useQueueStore } from '@/stores/queueStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
@@ -33,6 +34,10 @@ function clearInteractiveRequests(sessionId?: string): void {
   ui.clearUserInputRequests(sessionId);
   ui.clearElicitationRequests(sessionId);
   ui.clearTerminalInteractions(sessionId);
+}
+
+function showCodexWarningToast(): boolean {
+  return useAppSettingsStore.getState().notifications.codexWarningToast;
 }
 
 function refreshAgentQueue(sessionId?: string): void {
@@ -210,7 +215,11 @@ export function useWebSocket() {
       }
       if (e.event.type === 'codex.mcp_status' && e.sessionId === useSessionStore.getState().currentSessionId) {
         const status = e.event.mcp_status;
-        if (status && String(status.status || '').toLowerCase() === 'failed') {
+        if (
+          status &&
+          String(status.status || '').toLowerCase() === 'failed' &&
+          showCodexWarningToast()
+        ) {
           const name = String(status.name || 'server');
           const detail = status.error || status.failureReason || 'startup failed';
           useUIStore.getState().showToast(`Codex MCP ${name}: ${detail}`, 'error');
@@ -218,7 +227,7 @@ export function useWebSocket() {
       }
       if (e.event.type === 'codex.model_rerouted' && e.sessionId === useSessionStore.getState().currentSessionId) {
         const rerouted = e.event.model_rerouted;
-        if (rerouted) {
+        if (rerouted && showCodexWarningToast()) {
           const from = String(rerouted.fromModel || 'configured model');
           const to = String(rerouted.toModel || 'fallback model');
           const reason = rerouted.reason ? ` (${String(rerouted.reason)})` : '';
@@ -226,8 +235,10 @@ export function useWebSocket() {
         }
       }
       if (e.event.type === 'codex.turn_error' && e.sessionId === useSessionStore.getState().currentSessionId) {
-        const detail = e.event.error_text || 'Codex turn failed';
-        useUIStore.getState().showToast(`Codex: ${detail}`, 'error');
+        if (showCodexWarningToast()) {
+          const detail = e.event.error_text || 'Codex turn failed';
+          useUIStore.getState().showToast(`Codex: ${detail}`, 'error');
+        }
       }
       if (
         e.event.type === 'approval.request' &&

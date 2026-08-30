@@ -11,6 +11,11 @@ export interface AppSettings {
   showTaskAgent: boolean;
   /** Show QQ-injected info (e.g. messages with the `@@@@by qq` prefix). */
   showQQ: boolean;
+  /** Notification preferences for CLI adapter warnings. */
+  notifications: {
+    /** Show structured Codex warning events through a Toast. */
+    codexWarningToast: boolean;
+  };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -18,6 +23,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showMetaAgent: true,
   showTaskAgent: true,
   showQQ: true,
+  notifications: {
+    codexWarningToast: true,
+  },
 };
 
 /**
@@ -29,6 +37,11 @@ export function sanitizeSettings(
   raw: Record<string, unknown> | null | undefined,
 ): AppSettings {
   const parsed = raw && typeof raw === 'object' ? raw : {};
+  const rawNotifications = parsed.notifications;
+  const notifications =
+    rawNotifications && typeof rawNotifications === 'object'
+      ? rawNotifications as Record<string, unknown>
+      : {};
   return {
     defaultGroupBy:
       parsed.defaultGroupBy === 'workdir' || parsed.defaultGroupBy === 'manager'
@@ -46,6 +59,12 @@ export function sanitizeSettings(
       typeof parsed.showQQ === 'boolean'
         ? parsed.showQQ
         : DEFAULT_SETTINGS.showQQ,
+    notifications: {
+      codexWarningToast:
+        typeof notifications.codexWarningToast === 'boolean'
+          ? notifications.codexWarningToast
+          : DEFAULT_SETTINGS.notifications.codexWarningToast,
+    },
   };
 }
 
@@ -56,6 +75,7 @@ interface AppSettingsStore extends AppSettings {
   setShowMetaAgent: (v: boolean) => void;
   setShowTaskAgent: (v: boolean) => void;
   setShowQQ: (v: boolean) => void;
+  setCodexWarningToast: (v: boolean) => void;
   /** Reset every field to its default and persist. */
   resetSettings: () => void;
   /** Fetch the persisted ui object from config.json into the store. */
@@ -110,6 +130,16 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
     setShowQQ: (v) => {
       set({ showQQ: v });
       persist({ showQQ: v });
+    },
+
+    setCodexWarningToast: (v) => {
+      set((s) => ({
+        notifications: {
+          ...s.notifications,
+          codexWarningToast: v,
+        },
+      }));
+      persist({ notifications: { codexWarningToast: v } });
     },
 
     resetSettings: () => {

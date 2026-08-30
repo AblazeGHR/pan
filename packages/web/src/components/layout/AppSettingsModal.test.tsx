@@ -40,6 +40,20 @@ describe('AppSettingsModal', () => {
     expect(card.textContent).toContain('Default group by');
     expect(card.querySelectorAll('[role="switch"]')).toHaveLength(3);
     expect(card.textContent).toContain('Reset to defaults');
+    expect(card.textContent).toContain('Notification');
+  });
+
+  it('shows the Codex warning Toast option on the Notification tab', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const notificationTab = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Notification'))!;
+    fireEvent.click(notificationTab);
+    expect(cardEl().textContent).toContain('Codex warnings via Toast');
+    expect(cardEl().textContent).toContain('CBC warnings via Toast');
+    expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(1);
+    fireEvent.click(cardEl().querySelector('[role="switch"]')!);
+    expect(useAppSettingsStore.getState().notifications.codexWarningToast).toBe(false);
   });
 
   it('is full-screen on mobile and ~75% of the viewport on desktop', () => {
@@ -101,6 +115,7 @@ describe('AppSettingsModal', () => {
       showMetaAgent: false,
       showTaskAgent: false,
       showQQ: false,
+      notifications: { codexWarningToast: false },
     });
     render(<AppSettingsModal open onClose={() => {}} />);
     const resetBtn = Array.from(
@@ -112,5 +127,6 @@ describe('AppSettingsModal', () => {
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
+    expect(s.notifications.codexWarningToast).toBe(true);
   });
 });

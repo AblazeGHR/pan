@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { Bell, Settings, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { reloadConfig, fetchRemoteStatus, restartRemoteTunnel, updateWorkerSettings } from '@/services/api';
@@ -22,6 +22,8 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
 ];
 
 const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
+
+type SettingsTab = 'general' | 'notifications';
 
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
 
@@ -273,12 +275,16 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showMetaAgent,
     showTaskAgent,
     showQQ,
+    notifications,
     setDefaultGroupBy,
     setShowMetaAgent,
     setShowTaskAgent,
     setShowQQ,
+    setCodexWarningToast,
     resetSettings,
   } = useAppSettingsStore();
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   const [reloadScope, setReloadScope] = useState<ReloadScope | null>(null);
   // Which section owns the current reloadResult/reloadError — each reload
@@ -459,8 +465,66 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </button>
         </div>
 
+        <div className="flex shrink-0 border-b border-border-default px-4 md:px-6">
+          <button
+            type="button"
+            aria-selected={activeTab === 'general'}
+            onClick={() => setActiveTab('general')}
+            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'general'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <Settings size={14} />
+            General
+          </button>
+          <button
+            type="button"
+            aria-selected={activeTab === 'notifications'}
+            onClick={() => setActiveTab('notifications')}
+            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'notifications'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <Bell size={14} />
+            Notification
+          </button>
+        </div>
+
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6">
+          {activeTab === 'notifications' ? (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                CLI adapter warnings
+              </h3>
+              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                <SwitchRow
+                  label="Codex warnings via Toast"
+                  hint="Native Codex error, MCP startup failure, and model reroute warnings"
+                  checked={notifications.codexWarningToast}
+                  onChange={setCodexWarningToast}
+                />
+                <div className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left opacity-60">
+                  <span className="min-w-0">
+                    <span className="block text-xs text-text-primary">CBC warnings via Toast</span>
+                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
+                      Native CBC warning events are not available yet
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-text-tertiary">Not available</span>
+                </div>
+              </div>
+              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                These settings only control warning Toasts. Other adapter status,
+                chat output, and interactive prompts are unchanged.
+              </p>
+            </section>
+          ) : (
+          <>
           {/* Session list grouping */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
@@ -685,6 +749,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               Reset to defaults
             </button>
           </div>
+          </>
+          )}
         </div>
       </div>
 
