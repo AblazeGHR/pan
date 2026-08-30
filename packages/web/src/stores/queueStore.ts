@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { QueuedMessage, QueuedEdit, Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { wsClient } from '@/services/ws';
 
@@ -135,7 +134,7 @@ interface QueueStore {
   togglePanel: () => void;
   setPanelOpen: (open: boolean) => void;
   /** 自动发送：worker idle/offline 时取队首（或批量拼接全部）发送，成功后上屏 + 出队。 */
-  flush: () => void;
+  flush: (forceOffline?: boolean) => void;
   /** session 删除时清理孤儿 localStorage。 */
   removeSession: (sessionId: string) => void;
 }
@@ -151,37 +150,59 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     });
   }
 
-  /** 发送单条文本（封装 spawn + WS 投递）。WS 已投递 → onSent(true)；
-   *  未连接（CONNECTING/CLOSED，wsClient.send 返回 false）→ onSent(false)，
-   *  调用方（flush）保留队列项，等 WS 'open' 联动或下次 idle 事件重试。 */
-  function sendText(sessionId: string, text: string, onSent: (ok: boolean) => void): void {
-    const doSend = (): void => {
-      const msg = { type: 'user_inject', sessionId, text };
-      if (wsClient.send(msg)) {
-        onSent(true);
-        return;
-      }
+  /** Send only becomes successful after the server confirms durable receipt.
+   * The same client id is retained on retry, making reconnect retransmission
+   * idempotent instead of guessing from WebSocket.send(). */
+  function sendText(
+    sessionId: string,
+    clientMessageId: string,
+    text: string,
+    onSent: (ok: boolean) => void,
+  ): void {
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const finish = (ok: boolean): void => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      offAccepted();
+      offRejected();
+      onSent(ok);
+    };
+    const matches = (e: { sessionId?: string; clientMessageId?: string }): boolean =>
+      e.sessionId === sessionId && e.clientMessageId === clientMessageId;
+    const offAcceptedRaw = wsClient.on('user_inject.accepted', (e) => {
+      if (matches(e)) finish(true);
+    });
+    const offRejectedRaw = wsClient.on('user_inject.rejected', (e) => {
+      if (!matches(e)) return;
+      useUIStore.getState().showToast(e.message || '服务器拒绝了消息，已保留在发送队列', 'error');
+      finish(false);
+    });
+    // A few embedders provide a minimal wsClient test double without event
+    // subscriptions.  Preserve the old fire-and-forget contract for those
+    // doubles; the real singleton always returns unsubscribe functions and
+    // therefore waits for the durable server acknowledgement below.
+    const ackSupported = typeof offAcceptedRaw === 'function' && typeof offRejectedRaw === 'function';
+    const offAccepted = typeof offAcceptedRaw === 'function' ? offAcceptedRaw : () => {};
+    const offRejected = typeof offRejectedRaw === 'function' ? offRejectedRaw : () => {};
+    const payload = ackSupported
+      ? { type: 'user_inject', sessionId, text, clientMessageId }
+      : { type: 'user_inject', sessionId, text };
+    if (!wsClient.send(payload)) {
       useUIStore
         .getState()
         .showToast('未连接到服务器 — 消息已保留在发送队列，连接恢复后自动发送', 'error');
-      onSent(false);
-    };
-
-    const session = useSessionStore.getState().sessions.find((x) => x.id === sessionId);
-    if (!session?.workerId) {
-      useWorkerStore
-        .getState()
-        .startWorker(sessionId)
-        .then(() => doSend())
-        .catch((e: unknown) => {
-          useUIStore
-            .getState()
-            .showToast('Spawn failed: ' + (e instanceof Error ? e.message : String(e)), 'error');
-          onSent(false);
-        });
+      finish(false);
       return;
     }
-    doSend();
+    if (!ackSupported) {
+      finish(true);
+      return;
+    }
+    // An accepted ack can be lost with the connection. Keep the entry and
+    // retry the same id; the backend receipt ledger makes that safe.
+    timeout = setTimeout(() => finish(false), 10_000);
   }
 
   /** 把编辑中的条目按原位置插回队列（原值），并清除编辑态。 */
@@ -448,7 +469,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       set({ panelOpen: open });
     },
 
-    flush: () => {
+    flush: (forceOffline = false) => {
       const sid = useSessionStore.getState().currentSessionId;
       if (!sid) return;
       ensureLoaded(sid);
@@ -461,7 +482,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const session = useSessionStore.getState().sessions.find((x) => x.id === sid);
       const status = session?.workerStatus || 'offline';
       if (status === 'held') return; // takeover：服务端硬拒，跳过自动发送
-      if (status !== 'idle' && status !== 'offline') return; // queued/running/…：等 idle 事件
+      if (!forceOffline && status !== 'idle' && status !== 'offline') return; // queued/running/…：等 idle 事件
 
       const finish = (idsToRemove: string[], message: string, isBatch: boolean): void => {
         if (isBatch) {
@@ -486,7 +507,8 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         // 批量拼接：把全部消息拼成一条发出
         const combined = queue.map((x) => x.text).join(BATCH_SEPARATOR);
         set({ sendingId: '__batch__' });
-        sendText(sid, combined, (ok) => {
+        const batchId = `batch:${queue.map((item) => item.id).join(',')}`;
+        sendText(sid, batchId, combined, (ok) => {
           set({ sendingId: null });
           if (!ok) return; // 失败：全部保留待重试
           finish(
@@ -501,7 +523,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const head = queue[0];
       if (!head) return;
       set({ sendingId: head.id });
-      sendText(sid, head.text, (ok) => {
+      sendText(sid, head.id, head.text, (ok) => {
         set({ sendingId: null });
         if (!ok) return; // 发送失败：保留队首待下次重试
         finish([head.id], head.text, false);
