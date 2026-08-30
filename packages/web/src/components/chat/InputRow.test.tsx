@@ -204,6 +204,18 @@ const OPENCODE_CONFIG: AdapterConfig = {
   supportedSettings: ['model'],
 };
 
+const CODEX_CONFIG: AdapterConfig = {
+  models: ['gpt-5-codex'],
+  defaultModel: 'gpt-5-codex',
+  effortValues: [],
+  permissionModes: [
+    { value: 'read-only', label: 'read-only (auto)' },
+    { value: 'workspace-write', label: 'workspace-write (auto)' },
+  ],
+  defaultPermissionMode: 'read-only',
+  supportedSettings: ['permissionMode'],
+};
+
 function setModelSession() {
   useSessionStore.setState({
     currentSessionId: 's1',
@@ -287,5 +299,39 @@ describe('InputRow ModelPill search', () => {
 
     fireEvent.mouseDown(screen.getByPlaceholderText(/Type a message/));
     expect(screen.queryByPlaceholderText('筛选模型…')).toBeNull();
+  });
+});
+
+describe('InputRow PermissionPill', () => {
+  it('keeps the collapsed Codex permission pill to the short label', () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: [],
+      sessions: [
+        {
+          id: 's1',
+          name: 'Test',
+          adapter: 'codex',
+          model: null,
+          permissionMode: 'read-only',
+          alwaysThinkingEnabled: false,
+          effort: '',
+          workerStatus: 'idle',
+          workerId: 'w1',
+          history: [],
+        },
+      ],
+    });
+    useAdapterStore.setState({
+      currentAdapter: 'codex',
+      adapterConfigs: { codex: CODEX_CONFIG },
+    });
+
+    render(<InputRow />);
+
+    const pill = document.querySelector('[data-perm-pill] button')!;
+    expect(pill.textContent).toBe('read-only');
+    fireEvent.click(pill);
+    expect(screen.getByText('read-only (auto)')).toBeTruthy();
   });
 });

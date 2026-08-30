@@ -84,7 +84,9 @@ function PermissionPill({
   const [open, setOpen] = useState(false);
   const current = sessionMode || defaultMode;
   const active = modes.find((m) => m.value === current);
-  const label = active?.label || current;
+  // Keep the collapsed toolbar pill compact; the expanded menu still shows
+  // the adapter's full label and its CLI hint.
+  const label = (active?.label || current).replace(/\s*\(.*$/, '').trim();
 
   useEffect(() => {
     if (!open) return;
