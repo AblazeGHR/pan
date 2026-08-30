@@ -183,7 +183,8 @@ class Worker:
     last_activity: float = 0.0  # time.monotonic；stdout 有事件 / 新任务入队时刷新
     _task_started_at: float = 0.0  # time.monotonic；stream 任务开始处理（status→running）时记录，watchdog 据此判定「任务运行时长」超时
     # ── 任务序号（result 与 task 配对用）──
-    _task_counter: int = 0   # 已分配的任务序号（send_task 入队时自增）
+    # 序号计数器在 session.task_seq 上（跨 worker respawn 持久）；send_task
+    # 入队时从 session 读、自增后随 item.seq 一起落盘。
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
     # 当前正在执行的持久 task item。task item 要到收到 result 后才确认出队；
@@ -725,9 +726,9 @@ async def _read_stdout(w: Worker):
                 _maybe_restart_pending(w)
                 continue
 
-            # taskSeq 统一用 _current_seq（_consumer 取出 item 时记录）。用
-            # _result_count 会在中断/重启后与 _task_counter 错位，导致
-            # result 与 task 配对错乱。
+            # taskSeq 统一用 _current_seq（_consumer 取出 item 时记录，item.seq
+            # 由 send_task 分配并随 item 落盘）。序号计数器在 session.task_seq
+            # 上，跨 worker respawn 保持单调递增。
             task_seq = w._current_seq
 
             if s:
@@ -2530,10 +2531,15 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     if w.pending_signal is None:
         return "Worker signal queue not ready"
 
-    # 分配任务序号（result 与 task 配对用；外部可预分配传入，保证 item.seq 与期望一致）
+    # 分配任务序号（result 与 task 配对用；外部可预分配传入，保证 item.seq 与期望一致）。
+    # 计数器持久化在 session.task_seq 上，跨 worker respawn 保持单调递增；
+    # 早期用 worker 实例属性 _task_counter，respawn 产生新 Worker 后从 1 重新计数。
+    s = _session(w)
+    if s is None:
+        return f"Session {w.session_id} not found"
     if seq is None:
-        w._task_counter += 1
-        seq = w._task_counter
+        s.task_seq += 1
+        seq = s.task_seq
 
     w.last_activity = time.monotonic()
 
@@ -2549,9 +2555,6 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
         "seq": seq,
         "taskId": task_id,
     }
-    s = _session(w)
-    if s is None:
-        return f"Session {w.session_id} not found"
     s.queue_pending.append(item)
     await _sess.save_async(s)
     await w.pending_signal.put({"type": "task_signal", "id": item["id"]})
