@@ -309,12 +309,25 @@ def _kill_pid_tree(pid: int) -> None:
     """同步：用 psutil 杀掉指定 PID 及其所有子进程树。"""
     try:
         parent = psutil.Process(pid)
-        for child in parent.children(recursive=True):
+        processes = [parent, *parent.children(recursive=True)]
+        for child in processes[1:]:
             try:
                 child.kill()
             except psutil.NoSuchProcess:
                 pass
-        parent.kill()
+        try:
+            parent.kill()
+        except psutil.NoSuchProcess:
+            pass
+        # kill() only sends the termination signal.  Wait for every process in
+        # the tree so a caller that immediately starts another client for the
+        # same Codex thread cannot race the old app-server writer.
+        _, alive = psutil.wait_procs(processes, timeout=5)
+        for proc in alive:
+            try:
+                proc.kill()
+            except psutil.NoSuchProcess:
+                pass
     except psutil.NoSuchProcess:
         pass
     except Exception as e:
@@ -2150,27 +2163,81 @@ async def _cancel_worker_task(task: asyncio.Task | None) -> None:
 
 async def _kill_process_tree(w: Worker) -> None:
     """杀 worker 的 CLI 子进程树。异步版，不阻塞事件循环。"""
+    async def wait_for_exit(process, label: str) -> None:
+        wait = getattr(process, "wait", None)
+        if not callable(wait):
+            return
+        try:
+            await asyncio.wait_for(wait(), timeout=5)
+        except asyncio.TimeoutError:
+            _log.warning("[Worker %s] %s did not exit after kill; forcing", w.worker_id, label)
+            try:
+                process.kill()
+            except (ProcessLookupError, OSError):
+                return
+            try:
+                await asyncio.wait_for(wait(), timeout=2)
+            except (asyncio.TimeoutError, ProcessLookupError, OSError):
+                _log.warning("[Worker %s] %s still has not exited", w.worker_id, label)
+
     # Stream mode: w.process is the long-running cbc
     if w.process:
+        process = w.process
         pid = w.process.pid
         try:
             await asyncio.to_thread(_kill_pid_tree, pid)
         except Exception:
             try:
-                w.process.kill()
+                process.kill()
             except (ProcessLookupError, Exception):
                 pass
+        await wait_for_exit(process, "CLI process")
 
     # MCP mode: w._mcp_proc is the in-flight one-shot cbc (may be None)
     if w._mcp_proc:
+        process = w._mcp_proc
         mpid = w._mcp_proc.pid
         try:
             await asyncio.to_thread(_kill_pid_tree, mpid)
         except Exception:
             try:
-                w._mcp_proc.kill()
+                process.kill()
             except (ProcessLookupError, Exception):
                 pass
+        await wait_for_exit(process, "MCP process")
+
+
+async def takeover_worker(worker_id: str) -> str | None:
+    """Stop Pan's runtime and hold the Worker for an interactive takeover.
+
+    Takeover launches a separate native CLI TUI with the same session/thread.
+    It must not call ``restart_worker``: that would create a replacement
+    app-server immediately before the TUI resumes the same Codex thread,
+    producing the native ``already has an active writer`` error.
+    """
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    if w.status == "held":
+        return "Worker already in takeover mode"
+
+    current = asyncio.current_task()
+    if w._watchdog_task and w._watchdog_task is not current:
+        await _cancel_worker_task(w._watchdog_task)
+    if w._consume_task:
+        await _cancel_worker_task(w._consume_task)
+    if w._stdout_task:
+        await _cancel_worker_task(w._stdout_task)
+
+    clear_native_runtime_state(w)
+    await _kill_takeover_terminal(w)
+    await _kill_process_tree(w)
+    w.process = None
+    w._mcp_proc = None
+    if w._hist_dirty:
+        await _flush_history_now(w)
+    w.status = "held"
+    return None
 
 
 async def kill_worker(worker_id: str) -> str | None:

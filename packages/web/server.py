@@ -2924,11 +2924,13 @@ async def api_takeover(worker_id: str):
     if not adapter_cmd:
         return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
 
-    err = await worker.restart_worker(worker_id)
+    # Takeover must leave no Pan app-server alive.  Restarting here would spawn
+    # a replacement writer immediately before the native TUI resumes the same
+    # Codex thread, which fails with "already has an active writer".
+    err = await worker.takeover_worker(worker_id)
     if err:
         return {"error": err}
 
-    w.status = "held"
     await broadcast({
         "type": "worker.status",
         "sessionId": w.session_id,
