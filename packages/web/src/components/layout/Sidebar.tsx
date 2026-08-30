@@ -272,31 +272,37 @@ export function Sidebar() {
 
             {/* Buttons */}
             <div className="flex gap-1">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={quickNew}
-                title="Quick new session"
-                className="flex-1"
-              >
-                <Plus size={14} />
-                New
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowNewModal(true)}
-                title="New with settings"
-              >
-                <Settings size={14} />
-              </Button>
+              <div className="flex flex-[3] min-w-0 overflow-hidden rounded border border-transparent bg-accent">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={quickNew}
+                  title="Quick new session"
+                  className="min-w-0 flex-1 rounded-none border-0"
+                >
+                  <Plus size={14} />
+                  New
+                </Button>
+                <span aria-hidden="true" className="w-px shrink-0 bg-white/30" />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setShowNewModal(true)}
+                  title="New with settings"
+                  className="rounded-none border-0"
+                >
+                  <Settings size={14} />
+                </Button>
+              </div>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => setShowImportModal(true)}
                 title="Import session"
+                className="flex-[2] min-w-0 justify-center"
               >
                 <Import size={14} />
+                Import
               </Button>
             </div>
           </div>
