@@ -2127,6 +2127,20 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
     return True
 
 
+async def _cancel_worker_task(task: asyncio.Task | None) -> None:
+    """Cancel a worker task and wait until its finally blocks have run.
+
+    ``Task.cancel()`` only schedules cancellation.  Restarting a worker before
+    the old consumer has unwound races with queue recovery: the old consumer
+    can still own the in-flight task id while the replacement tries to claim
+    the same persisted item.
+    """
+    if task is None or task is asyncio.current_task() or task.done():
+        return
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+
 async def _kill_process_tree(w: Worker) -> None:
     """杀 worker 的 CLI 子进程树。异步版，不阻塞事件循环。"""
     # Stream mode: w.process is the long-running cbc
@@ -2164,7 +2178,7 @@ async def kill_worker(worker_id: str) -> str | None:
     current = asyncio.current_task()
     if w._watchdog_task and w._watchdog_task is not current:
         _log.info("[Worker %s] kill_worker: cancelling watchdog task", worker_id)
-        w._watchdog_task.cancel()
+        await _cancel_worker_task(w._watchdog_task)
     elif w._watchdog_task is current:
         _log.info(
             "[Worker %s] kill_worker: skip watchdog self-cancel "
@@ -2172,9 +2186,9 @@ async def kill_worker(worker_id: str) -> str | None:
             worker_id,
         )
     if w._consume_task:
-        w._consume_task.cancel()
+        await _cancel_worker_task(w._consume_task)
     if w._stdout_task:
-        w._stdout_task.cancel()
+        await _cancel_worker_task(w._stdout_task)
     await _kill_process_tree(w)
     await _kill_takeover_terminal(w)
 
@@ -2204,11 +2218,11 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
         if not w:
             return
         if w._watchdog_task:
-            w._watchdog_task.cancel()
+            await _cancel_worker_task(w._watchdog_task)
         if w._consume_task:
-            w._consume_task.cancel()
+            await _cancel_worker_task(w._consume_task)
         if w._stdout_task:
-            w._stdout_task.cancel()
+            await _cancel_worker_task(w._stdout_task)
         await _kill_process_tree(w)
         await _kill_takeover_terminal(w)
         # A1 崩溃安全：清理前 flush 防抖缓冲的流式块
@@ -2321,9 +2335,9 @@ async def restart_worker(worker_id: str) -> str | None:
     # which would remove the worker being restarted.  Cancelling first
     # means _read_stdout never sees the EOF.
     if w._consume_task:
-        w._consume_task.cancel()
+        await _cancel_worker_task(w._consume_task)
     if w._stdout_task:
-        w._stdout_task.cancel()
+        await _cancel_worker_task(w._stdout_task)
 
     # Do this before any await that can service a dashboard reconnect. The
     # Worker object is reused, but these snapshots are process-local.
@@ -2367,9 +2381,9 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
     # if we kill before cancelling, _read_stdout sees EOF and
     # pops the worker from workers dict during spawn.
     if w._consume_task:
-        w._consume_task.cancel()
+        await _cancel_worker_task(w._consume_task)
     if w._stdout_task:
-        w._stdout_task.cancel()
+        await _cancel_worker_task(w._stdout_task)
 
     # Do this before killing/spawning: a reconnect must never replay prompts or
     # usage emitted by the process that is being replaced.
@@ -2795,11 +2809,11 @@ async def shutdown_all():
         if not w:
             continue
         if w._watchdog_task:
-            w._watchdog_task.cancel()
+            await _cancel_worker_task(w._watchdog_task)
         if w._consume_task:
-            w._consume_task.cancel()
+            await _cancel_worker_task(w._consume_task)
         if w._stdout_task:
-            w._stdout_task.cancel()
+            await _cancel_worker_task(w._stdout_task)
         # A1 崩溃安全：关闭前 flush 防抖缓冲的流式块
         if w._hist_dirty:
             await _flush_history_now(w)
