@@ -9,8 +9,8 @@ respawn 后归零不是缺陷而是正确语义：
   （新进程从 spawn 重新计 idle/静默窗口）、_hist_*（本进程 stdout 防抖缓冲）、
   _replaying（死代码兜底）；
 - (c) 已被缓解：_current_seq/_current_task_id（飞行中配对，断链由幂等注册表 +
-  zombie 报告兜住；新尝试的配对值由 task item 自带）、_task_counter（seq 仅
-  飞行中配对用，跨代重复无功能影响）。
+  zombie 报告兜住；新尝试的配对值由 task item 自带）、task_seq 计数（已持久化
+  到 session.task_seq，跨 respawn 单调递增，见 worker.send_task）。
 
 本文件固化上述 (b)/(c) 语义的回归边界，防止将来误迁引入跨代状态污染。
 """

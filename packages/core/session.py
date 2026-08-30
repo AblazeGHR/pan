@@ -170,6 +170,7 @@ class Session:
     managed: list[str] = field(default_factory=list)  # session ids this session manages
     managed_by: str | None = None  # session id of the session managing this one
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
+    task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
     report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
     qq_subscriptions: set[str] = field(default_factory=set)  # QQ conversations this session subscribes to ("user:<qq>"/"group:<group_id>")
 
@@ -208,6 +209,7 @@ class Session:
                  managed: list[str] | None = None,
                  managed_by: str | None = None,
                  queue_pending: list | None = None,
+                 task_seq: int = 0,
                  report_subscriptions=None,
                  qq_subscriptions=None):
         """Manual init so legacy top-level capability kwargs still construct.
@@ -244,6 +246,7 @@ class Session:
         self.managed = managed if managed is not None else []
         self.managed_by = managed_by
         self.queue_pending = queue_pending if queue_pending is not None else []
+        self.task_seq = task_seq
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
         self.__post_init__()
@@ -363,6 +366,7 @@ class Session:
             "managed": self.managed,
             "managed_by": self.managed_by,
             "queue_pending": self.queue_pending,
+            "task_seq": self.task_seq,
             "report_subscriptions": sorted(self.report_subscriptions),
             "qq_subscriptions": sorted(self.qq_subscriptions),
         }

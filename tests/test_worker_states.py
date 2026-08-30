@@ -127,6 +127,40 @@ def test_send_task_does_not_override_running():
     _cleanup()
 
 
+def test_send_task_seq_survives_respawn():
+    """taskSeq 计数持久化在 session 上：worker respawn 后继续 +1，不回退到 1。"""
+    _cleanup()
+
+    async def noop_save_async(s):
+        pass
+
+    orig_save = _sess.save_async
+    _sess.save_async = noop_save_async
+    try:
+        s = _setup_session()
+        assert s.task_seq == 0  # 老落盘文件无该字段时默认 0（向后兼容）
+
+        # 第 1 代 worker：派第 1 个任务 → seq 1
+        w1 = _setup_worker(s.id, status="idle")
+        w1.process.returncode = None
+        err = asyncio.run(worker.send_task(w1.worker_id, "task one", source="agent"))
+        assert err is None
+        assert s.queue_pending[-1]["seq"] == 1 and s.task_seq == 1
+
+        # respawn：worker 空闲回收后重新 spawn（全新 Worker 实例，session 不变）
+        worker.workers.clear()
+        w2 = _setup_worker(s.id, status="idle")
+        w2.process.returncode = None
+        err = asyncio.run(worker.send_task(w2.worker_id, "task two", source="agent"))
+        assert err is None
+        assert s.queue_pending[-1]["seq"] == 2 and s.task_seq == 2, \
+            "taskSeq must keep incrementing across worker respawn"
+        print("PASS: send_task taskSeq survives respawn")
+    finally:
+        _sess.save_async = orig_save
+        _cleanup()
+
+
 def test_init_event_extracts_metadata_only():
     """init event extracts cli_session_id/model but leaves status unchanged.
 
@@ -368,6 +402,7 @@ def test_create_worker_injects_system_prompt_only_for_fresh_session(monkeypatch)
 if __name__ == "__main__":
     test_send_task_sets_queued()
     test_send_task_does_not_override_running()
+    test_send_task_seq_survives_respawn()
     test_init_event_extracts_metadata_only()
     test_eof_sets_zombie_and_removes()
     test_eof_normal_exit_still_zombie()
