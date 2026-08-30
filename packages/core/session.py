@@ -171,10 +171,6 @@ class Session:
     managed_by: str | None = None  # session id of the session managing this one
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
-    # Browser-originated messages are acknowledged only after the queue item is
-    # durable.  Keep a bounded receipt ledger so a WebSocket reconnect can
-    # safely retransmit the same clientMessageId without starting the task twice.
-    accepted_input_ids: list[str] = field(default_factory=list)
     report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
     qq_subscriptions: set[str] = field(default_factory=set)  # QQ conversations this session subscribes to ("user:<qq>"/"group:<group_id>")
 
@@ -214,8 +210,7 @@ class Session:
                  managed_by: str | None = None,
                  queue_pending: list | None = None,
                  task_seq: int = 0,
-                 accepted_input_ids: list[str] | None = None,
-                  report_subscriptions=None,
+                 report_subscriptions=None,
                  qq_subscriptions=None):
         """Manual init so legacy top-level capability kwargs still construct.
 
@@ -252,7 +247,6 @@ class Session:
         self.managed_by = managed_by
         self.queue_pending = queue_pending if queue_pending is not None else []
         self.task_seq = task_seq
-        self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
         self.__post_init__()
@@ -373,7 +367,6 @@ class Session:
             "managed_by": self.managed_by,
             "queue_pending": self.queue_pending,
             "task_seq": self.task_seq,
-            "accepted_input_ids": self.accepted_input_ids,
             "report_subscriptions": sorted(self.report_subscriptions),
             "qq_subscriptions": sorted(self.qq_subscriptions),
         }

@@ -915,32 +915,12 @@ async def ws_endpoint(ws: WebSocket):
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
                 if session_id and text:
-                    client_message_id = msg.get("clientMessageId")
-                    if client_message_id is not None and not isinstance(client_message_id, str):
-                        await ws.send_json({"type": "user_inject.rejected",
-                                            "sessionId": session_id,
-                                            "message": "clientMessageId must be a string"})
-                        continue
-                    if isinstance(client_message_id, str) and len(client_message_id) > 512:
-                        await ws.send_json({"type": "user_inject.rejected",
-                                            "sessionId": session_id,
-                                            "clientMessageId": client_message_id,
-                                            "message": "clientMessageId is too long"})
-                        continue
-                    # Session is the durable address.  A dead/no worker must
-                    # not silently drop a dashboard message; send_session
-                    # persists it and lets the global watchdog recover.
-                    result = await worker.send_session(
-                        session_id, text, source="user",
-                        client_message_id=client_message_id,
-                    )
-                    if result.get("status") == "error":
-                        await ws.send_json({"type": "user_inject.rejected",
-                                            "sessionId": session_id,
-                                            "clientMessageId": client_message_id,
-                                            "message": result.get("result", "send failed")})
+                    w = worker.find_worker_by_session(session_id)
+                    if w:
+                        err = await worker.send_task(w.worker_id, text, source="user")
+                        if err:
+                            await broadcast({"type": "error", "message": err})
                     else:
-<<<<<<< HEAD
                         # The dashboard sends directly over the already-open WS.
                         # Keep the no-worker path equivalent to the legacy sender:
                         # create the ephemeral worker before delivering the task.
@@ -951,12 +931,6 @@ async def ws_endpoint(ws: WebSocket):
                             err = await worker.send_task(result.worker_id, text, source="user")
                             if err:
                                 await broadcast({"type": "error", "message": err})
-=======
-                        await ws.send_json({"type": "user_inject.accepted",
-                                            "sessionId": session_id,
-                                            "workerId": result.get("workerId"),
-                                            "clientMessageId": client_message_id})
->>>>>>> pan-test
             elif msg_type == "worker_control":
                 worker_id = msg.get("workerId")
                 control = msg.get("control")

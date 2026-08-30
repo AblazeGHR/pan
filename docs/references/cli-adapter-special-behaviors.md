@@ -563,6 +563,11 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `turn/plan/updated` 与 `turn/diff/updated` 会归一化为当前 turn 的实时计划和聚合 diff；
   计划在聊天区原位更新为可折叠 thinking 块，diff 以可展开的只读工具卡片展示，且在
   WebSocket 重连时回放。它们只属于当前 app-server 进程/turn，不写入 Pan 的持久 history。
+  仍待办但不阻塞主流程：`warning`、`configWarning`、`guardianWarning`、
+  `deprecationNotice`、context compact 和 model verification 等原生通知尚未做专用 UI；
+  额度也尚未主动调用 `account/rateLimits/read` 做首次初始化，当前依赖
+  `account/rateLimits/updated` 推送。实际审批、MCP、steer、终端交互、fork/resume 与异常
+  恢复的组合端到端验收另列测试待办。
   运行中的 Codex 回合还可通过输入栏的 `Steer` 将补充指令送入原生 `turn/steer`，并在
   控制写入成功后落盘为用户消息；普通 Enter 发送仍保持 Pan 的队列语义。
   新版 app-server 的 `applyPatchApproval` / `execCommandApproval` 也复用同一审批栏，

@@ -5,6 +5,8 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
+import { useQueueStore } from '@/stores/queueStore';
+import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import type { Session, Message } from '@/types';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
@@ -38,10 +40,14 @@ vi.mock('@/services/ws', () => ({
 // the server "has persisted" (the injected user message lives only server-side).
 const apiMock = vi.hoisted(() => ({
   fetchSessionHistory: vi.fn(),
+  fetchSessionQueue: vi.fn(),
+  updateUiSettings: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => ({
   fetchSessionHistory: apiMock.fetchSessionHistory,
+  fetchSessionQueue: apiMock.fetchSessionQueue,
+  updateUiSettings: apiMock.updateUiSettings,
 }));
 
 function msg(role: string, content: string): Message {
@@ -82,6 +88,12 @@ describe('useWebSocket worker.result wiring', () => {
       _sessionWsTouchedSeq: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
+    useQueueStore.setState({ agentQueues: {}, agentQueueLoadSeq: {} });
+    apiMock.fetchSessionQueue.mockReset();
+    apiMock.fetchSessionQueue.mockResolvedValue([]);
+    apiMock.updateUiSettings.mockReset();
+    apiMock.updateUiSettings.mockResolvedValue({});
   });
 
   it('requests pending native interactions when the singleton is already open', () => {
@@ -234,6 +246,23 @@ describe('useWebSocket worker.result wiring', () => {
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
+  it('suppresses Codex warning Toasts when the notification setting is disabled', () => {
+    useAppSettingsStore.getState().setCodexWarningToast(false);
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'codex.turn_error',
+          error_text: 'upstream unavailable',
+        },
+      });
+    });
+
+    expect(useUIStore.getState().toastQueue).toEqual([]);
+  });
+
   it('surfaces Codex MCP startup failures without surfacing ready notifications', () => {
     renderHook(() => useWebSocket());
 
@@ -361,6 +390,22 @@ describe('useWebSocket worker.result wiring', () => {
     // WorkerDot 视同为 offline)，history 不动（崩溃安全）。
     expect(s?.workerStatus).toBeUndefined();
     expect(s?.history.map((m) => m.content)).toEqual(['u1']);
+  });
+
+  it('refreshes the durable agent queue after a worker crash', async () => {
+    renderHook(() => useWebSocket());
+
+    await act(async () => {
+      wsMock.trigger('worker.crashed', {
+        type: 'worker.crashed',
+        sessionId: 'B',
+        workerId: 'w1',
+      });
+      await Promise.resolve();
+    });
+
+    expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('B');
+    expect(useQueueStore.getState().agentQueues.B).toEqual([]);
   });
 
   it('renders streamed tool content with backend-compatible ASCII escaping', () => {
@@ -593,6 +638,44 @@ describe('useWebSocket agent-injected message sync', () => {
     expect(msgs.map((m) => m.content)).toEqual([
       'u0',
       '////by agent : S | title\ninstruct',
+    ]);
+  });
+
+  it('retries when the first history snapshot races the injected message persistence', async () => {
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [msg('user', 'u0')],
+      total: 1,
+      hasMore: false,
+      start: 0,
+    });
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        msg('user', 'u0'),
+        msg('user', '@@@@by qq : group:42 | Chat | bot 100\nnew message'),
+      ],
+      total: 2,
+      hasMore: false,
+      start: 0,
+    });
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'report',
+    });
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['u0']);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 70));
+    });
+
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'u0',
+      '@@@@by qq : group:42 | Chat | bot 100\nnew message',
     ]);
   });
 

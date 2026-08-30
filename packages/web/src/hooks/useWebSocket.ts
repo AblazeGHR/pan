@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useQueueStore } from '@/stores/queueStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
@@ -33,6 +34,14 @@ function clearInteractiveRequests(sessionId?: string): void {
   ui.clearUserInputRequests(sessionId);
   ui.clearElicitationRequests(sessionId);
   ui.clearTerminalInteractions(sessionId);
+}
+
+function showCodexWarningToast(): boolean {
+  return useAppSettingsStore.getState().notifications.codexWarningToast;
+}
+
+function refreshAgentQueue(sessionId?: string): void {
+  if (sessionId) void useQueueStore.getState().loadAgentQueue(sessionId);
 }
 
 /**
@@ -132,14 +141,17 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) => {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) => {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
     }));
 
     // Worker destroyed / crashed — 除就地更新状态点外触发防抖全量兜底：
@@ -149,17 +161,14 @@ export function useWebSocket() {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
-      // A destroyed worker may be the only event after a user queued text
-      // while it was running.  Do not wait for a stale idle status or a later
-      // refresh: the durable session route can accept the message offline.
-      useQueueStore.getState().flush(true);
+      refreshAgentQueue(e.sessionId);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
-      useQueueStore.getState().flush(true);
+      refreshAgentQueue(e.sessionId);
       scheduleRefreshSessions();
     }));
 
@@ -170,7 +179,8 @@ export function useWebSocket() {
       // 注入的 user 消息只在服务端 s.history 落盘，WS 从不广播（只广播 assistant
       // 回复的 worker.stream / 完成的 worker.result），前端对自己的发送有乐观追加、
       // 对 agent 注入没有 → 切走再切回才显示。任务开始 running 时（source 已带
-      // 进广播）拉一次历史把缺的 user 消息并入 currentMessages。
+      // 进广播）拉取历史把缺的 user 消息并入 currentMessages；首次快照若早于
+      // 注入落盘则由 syncAgentInjectedMessage 做短暂重试。
       if (
         e.status === 'running' &&
         (e.source === 'agent' || e.source === 'report') &&
@@ -206,7 +216,11 @@ export function useWebSocket() {
       }
       if (e.event.type === 'codex.mcp_status' && e.sessionId === useSessionStore.getState().currentSessionId) {
         const status = e.event.mcp_status;
-        if (status && String(status.status || '').toLowerCase() === 'failed') {
+        if (
+          status &&
+          String(status.status || '').toLowerCase() === 'failed' &&
+          showCodexWarningToast()
+        ) {
           const name = String(status.name || 'server');
           const detail = status.error || status.failureReason || 'startup failed';
           useUIStore.getState().showToast(`Codex MCP ${name}: ${detail}`, 'error');
@@ -214,7 +228,7 @@ export function useWebSocket() {
       }
       if (e.event.type === 'codex.model_rerouted' && e.sessionId === useSessionStore.getState().currentSessionId) {
         const rerouted = e.event.model_rerouted;
-        if (rerouted) {
+        if (rerouted && showCodexWarningToast()) {
           const from = String(rerouted.fromModel || 'configured model');
           const to = String(rerouted.toModel || 'fallback model');
           const reason = rerouted.reason ? ` (${String(rerouted.reason)})` : '';
@@ -222,8 +236,10 @@ export function useWebSocket() {
         }
       }
       if (e.event.type === 'codex.turn_error' && e.sessionId === useSessionStore.getState().currentSessionId) {
-        const detail = e.event.error_text || 'Codex turn failed';
-        useUIStore.getState().showToast(`Codex: ${detail}`, 'error');
+        if (showCodexWarningToast()) {
+          const detail = e.event.error_text || 'Codex turn failed';
+          useUIStore.getState().showToast(`Codex: ${detail}`, 'error');
+        }
       }
       if (
         e.event.type === 'approval.request' &&
@@ -318,6 +334,7 @@ export function useWebSocket() {
       // 紧接着以 result 写入 lastMessage）。
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
       // 就地更新该 session 卡片（lastResult + 结果文本追加 + historyTotal），
       // 不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新。
       if (e.sessionId) sessionStore.applyResultToSession(e.sessionId, e);
@@ -594,28 +611,45 @@ function appendEvent(event: StreamEvent['event']): void {
 // ── Agent 注入消息实时同步 ──
 // meta-agent 的 worker_send / 订阅报告会把 user 消息写进服务端 s.history，但 WS
 // 只广播 assistant 回复（worker.stream）与完成（worker.result）——user 消息前端
-// 无实时来源，切走再切回（selectSession fetch 历史）才显示。这里在 agent/report
-// 任务开始 running 时拉一次最近历史，把服务端有、本地缺的 user 消息并入。
+// 无实时来源。worker.status(running) 可能先于 history 快照可读，故在首次未合并
+// 到新消息时做有界重试，覆盖落盘与 GET 的短暂竞态，同时避免无限轮询。
 let agentSyncInFlight = false;
+const AGENT_SYNC_RETRY_DELAYS_MS = [50, 150, 500] as const;
+
 function syncAgentInjectedMessage(): void {
   const sid = useSessionStore.getState().currentSessionId;
   if (!sid || agentSyncInFlight) return;
   agentSyncInFlight = true;
-  fetchSessionHistory(sid, 0, 50)
-    .then((data) => {
+  const sync = async (): Promise<void> => {
+    for (let attempt = 0; attempt <= AGENT_SYNC_RETRY_DELAYS_MS.length; attempt++) {
+      if (attempt > 0) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, AGENT_SYNC_RETRY_DELAYS_MS[attempt - 1]);
+        });
+      }
+
       const store = useSessionStore.getState();
       if (store.currentSessionId !== sid) return; // 用户已切走，丢弃过期结果
-      const merged = mergeServerMessages(store.currentMessages, data.history || []);
-      if (merged !== store.currentMessages) {
-        useSessionStore.setState({ currentMessages: merged });
+
+      try {
+        const data = await fetchSessionHistory(sid, 0, 50);
+        const latest = useSessionStore.getState();
+        if (latest.currentSessionId !== sid) return;
+        const merged = mergeServerMessages(latest.currentMessages, data.history || []);
+        if (merged !== latest.currentMessages) {
+          useSessionStore.setState({ currentMessages: merged });
+          return;
+        }
+        // 当前快照没有带来新消息：注入可能仍在异步落盘，继续下一轮。
+      } catch {
+        // 短暂网络失败也进入下一轮；所有尝试失败后保留本地状态。
       }
-    })
-    .catch(() => {
-      // 拉取失败：保留本地，agent 消息仍会随下次切 session 出现
-    })
-    .finally(() => {
-      agentSyncInFlight = false;
-    });
+    }
+  };
+
+  void sync().finally(() => {
+    agentSyncInFlight = false;
+  });
 }
 
 /** 把服务端历史里本地缺失的消息并入本地（幂等），同时保留本地已在流式的
