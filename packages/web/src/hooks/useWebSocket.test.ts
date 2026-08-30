@@ -641,6 +641,44 @@ describe('useWebSocket agent-injected message sync', () => {
     ]);
   });
 
+  it('retries when the first history snapshot races the injected message persistence', async () => {
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [msg('user', 'u0')],
+      total: 1,
+      hasMore: false,
+      start: 0,
+    });
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        msg('user', 'u0'),
+        msg('user', '@@@@by qq : group:42 | Chat | bot 100\nnew message'),
+      ],
+      total: 2,
+      hasMore: false,
+      start: 0,
+    });
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'report',
+    });
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['u0']);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 70));
+    });
+
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'u0',
+      '@@@@by qq : group:42 | Chat | bot 100\nnew message',
+    ]);
+  });
+
   it('does not sync for user-originated tasks', async () => {
     renderHook(() => useWebSocket());
 
