@@ -51,7 +51,7 @@ export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) 
   // System messages
   if (role === 'system') {
     return (
-      <div className={`flex justify-center py-2 ${mt}`}>
+      <div className={`system-message flex justify-center py-2 ${mt}`}>
         <span className="msg system text-xs text-text-tertiary bg-bg-tertiary rounded px-3 py-1">
           {message.content}
         </span>

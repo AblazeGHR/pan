@@ -60,7 +60,7 @@ function liveRateLimitLabel(rateLimits: Record<string, unknown> | undefined): st
 export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
-  const { showToast, toggleBubbleView, bubbleViewEnabled } =
+  const { showToast, toggleTuiView, tuiViewEnabled } =
     useUIStore();
   const { restart, startWorker, killCurrent, interrupt, takeover } =
     useWorkerStore();
@@ -124,15 +124,15 @@ export function TopBar() {
           <span className="text-sm font-medium text-text-primary truncate max-w-[120px] md:max-w-[200px]">
             {currentSession.name || currentSession.id?.slice(0, 12)}
           </span>
-          {/* Deprecated: keep the toggle implementation for a future Bubble
-              view re-enable, but hide this entry from the current UI. */}
+          {/* Deprecated Bubble view: keep the toggle implementation for a
+              future re-enable, but hide this entry from the current UI. */}
           <button
             hidden
-            onClick={toggleBubbleView}
+            onClick={toggleTuiView}
             className="text-sm text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
-            title={bubbleViewEnabled ? 'Switch to TUI view' : 'Switch to Bubble view'}
+            title={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}
           >
-            {bubbleViewEnabled ? <MessageSquare size={16} /> : <Monitor size={16} />}
+            {tuiViewEnabled ? <Monitor size={16} /> : <MessageSquare size={16} />}
           </button>
         </div>
         {currentSession.model && (

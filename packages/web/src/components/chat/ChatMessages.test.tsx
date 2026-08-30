@@ -84,7 +84,7 @@ beforeEach(() => {
     initialLoading: false,
     historyLoadEnd: 0,
   });
-  useUIStore.setState({ bubbleViewEnabled: false });
+  useUIStore.setState({ tuiViewEnabled: true });
 });
 
 afterEach(cleanup);

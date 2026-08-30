@@ -176,7 +176,7 @@ bash scripts/start.sh
 
 - 顶栏状态点随 Worker 状态变色：**绿色 = 空闲，蓝色 = 运行中，黄色 = 已被你接管，红色 = 出错**；
 - 聊天流逐条显示 Worker 的回复；AI 调用的工具（tool）折叠成一行，点击可在右侧 **DetailPanel** 看原始输出；思考过程可内联展开；
-- 当前 React 前端保留 **TUI**（终端风格）视图：用户输入带绿色边框，消息块带左侧色条。原 **Bubble**（气泡）视图及顶栏切换按钮目前已隐藏并标记为 deprecated，后续如需启用可恢复。
+- 当前 React 前端保留 **TUI**（终端风格）视图：用户输入带绿色边框，消息块带左侧色条；完成消息沿用 `--- [DONE] Task completed` 风格。此前代码中的 Bubble/TUI 命名曾反过来，现已按实际语义修正。原 **Bubble**（气泡）视图及顶栏切换按钮目前已隐藏并标记为 deprecated，后续如需启用可恢复。
 
 ### 3.5 查看结果与后续
 
@@ -221,7 +221,7 @@ bash scripts/start.sh
 - **发消息**：底部输入框（InputRow），Enter 发送、Shift+Enter 换行；输入框左侧齿轮打开会话设置（§4.6）。
 - **发送队列**（SendQueuePanel）：Worker 忙碌时消息自动入队；队列面板里可编辑、排序、删除、合并发送，或一键清空；Agent 队列单独分组。
 - **消息流**（ChatMessages）：显示历史与实时回复；tool 调用折叠为可点击行，点击后右侧 **DetailPanel** 显示原始输出；thinking 块可内联展开。
-- **展示风格**：当前固定使用 TUI 风格；Bubble 风格实现暂保留但已 deprecated，切换入口暂时隐藏。
+- **展示风格**：当前固定使用 TUI 风格；Bubble 风格实现暂保留但已 deprecated，切换入口暂时隐藏。两种风格的历史代码命名已反转修正。
 
 ### 4.4 编辑视图
 

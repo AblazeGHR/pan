@@ -16,9 +16,9 @@ export function ChatMessages() {
   const initialLoading = useSessionStore((s) => s.initialLoading);
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
-  // Deprecated Bubble view is still wired for a possible future re-enable.
-  // The retained UI is the TUI-style view: green user border and left bars.
-  const bubbleViewEnabled = useUIStore((s) => s.bubbleViewEnabled);
+  // The old Bubble/TUI names were reversed. Keep the deprecated Bubble branch
+  // wired for a possible future re-enable; TUI is the default branch here.
+  const tuiViewEnabled = useUIStore((s) => s.tuiViewEnabled);
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
   const showQQ = useAppSettingsStore((s) => s.showQQ);
@@ -157,7 +157,7 @@ export function ChatMessages() {
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div
         ref={parentRef}
-        className={`flex-1 min-h-0 overflow-auto ${!bubbleViewEnabled ? 'tui-mode' : ''}`}
+        className={`flex-1 min-h-0 overflow-auto ${!tuiViewEnabled ? 'bubble-mode' : ''}`}
       >
         <div
           style={{

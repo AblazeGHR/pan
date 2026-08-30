@@ -215,7 +215,7 @@ body {
 /* ── hljs theme adaptation ──
    MarkdownRenderer imports highlight.js/styles/github-dark.css unconditionally.
    In light mode that forces dark token colors (e.g. #ff7b72, #79c0ff) on light
-   backgrounds (TUI mode overrides the code background to bg-secondary), which
+   backgrounds (Bubble mode overrides the code background to bg-secondary), which
    is unreadable. Scope the github-light palette under [data-theme="light"]. */
 [data-theme="light"] .hljs { color: #24292e; background: #ffffff; }
 [data-theme="light"] .hljs-doctag,
@@ -304,13 +304,13 @@ body {
   }
 }
 
-/* ── Retained TUI-style view (Bubble view is deprecated) ── */
+/* ── Deprecated Bubble view (formerly named TUI) ── */
 
-.tui-mode {
+.bubble-mode {
   padding: 12px 0 !important;
 }
 
-.tui-mode .msg {
+.bubble-mode .msg {
   border-radius: 0;
   max-width: 100% !important;
   width: 100%;
@@ -318,8 +318,8 @@ body {
   margin: 0;
 }
 
-/* TUI user: green left bar + ">" prefix */
-.tui-mode .msg.user {
+/* Bubble user: green left bar + ">" prefix */
+.bubble-mode .msg.user {
   background: transparent !important;
   border: none !important;
   border-left: 3px solid var(--color-success);
@@ -331,7 +331,7 @@ body {
   position: relative;
 }
 
-.tui-mode .msg.user::before {
+.bubble-mode .msg.user::before {
   content: '>';
   position: absolute;
   left: 6px;
@@ -342,8 +342,8 @@ body {
   line-height: 1;
 }
 
-/* TUI assistant: white left bar */
-.tui-mode .msg.assistant {
+/* Bubble assistant: white left bar */
+.bubble-mode .msg.assistant {
   background: transparent !important;
   border: none !important;
   border-left: 3px solid var(--color-text-tertiary);
@@ -352,8 +352,8 @@ body {
   width: 100%;
 }
 
-/* TUI thinking: collapsible with purple border */
-.tui-mode .msg.thinking {
+/* Bubble thinking: collapsible with purple border */
+.bubble-mode .msg.thinking {
   border-left: 3px solid #d2a8ff;
   padding: 2px 16px 2px 24px;
   border-radius: 0;
@@ -362,8 +362,8 @@ body {
   max-width: 100% !important;
 }
 
-/* TUI tool: orange border */
-.tui-mode .msg.tool {
+/* Bubble tool: orange border */
+.bubble-mode .msg.tool {
   border-left: 3px solid #ffa657;
   padding: 3px 16px 3px 24px;
   border-radius: 0;
@@ -374,8 +374,8 @@ body {
   max-width: 100% !important;
 }
 
-/* TUI tool group */
-.tui-mode .tool-group {
+/* Bubble tool group */
+.bubble-mode .tool-group {
   border-radius: 0;
   border-right: none;
   border-top: none;
@@ -386,28 +386,48 @@ body {
   align-self: stretch !important;
 }
 
-.tui-mode .tool-group .msg.tool {
+.bubble-mode .tool-group .msg.tool {
   border-left: none;
 }
 
-.tui-mode .tool-group-header {
+.bubble-mode .tool-group-header {
   border-radius: 0;
   background: transparent;
 }
 
-/* TUI system */
-.tui-mode .msg.system {
+/* TUI completion marker: moved out of the old `.tui-mode` block so the
+   retained TUI branch keeps the old Bubble UI's done-message style. */
+.system-message {
+  justify-content: flex-start;
+}
+
+.msg.system {
   align-self: flex-start;
   text-align: left;
   padding: 2px 16px;
 }
 
-.tui-mode .msg.system::before {
+.msg.system::before {
   content: '--- ';
 }
 
-/* TUI code blocks */
-.tui-mode pre {
+/* Deprecated Bubble keeps its former centered done-message treatment. */
+.bubble-mode .system-message {
+  justify-content: center;
+}
+
+.bubble-mode .msg.system {
+  align-self: center;
+  text-align: center;
+  padding: 4px 8px;
+}
+
+.bubble-mode .msg.system::before {
+  content: none;
+}
+
+/* Bubble code blocks */
+.bubble-mode pre {
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border-default);
   border-radius: 4px;
@@ -415,15 +435,14 @@ body {
   margin: 4px 0;
 }
 
-.tui-mode code {
+.bubble-mode code {
   background: var(--color-bg-secondary);
 }
 
-/* ── Role-based left color bars (TUI-style view) ──
-   Keep these base rules because Bubble view is deprecated but may be
-   re-enabled later: every message block carries a 3px
+/* ── Role-based left color bars (retained TUI-style view) ──
+   Every message block carries a 3px
    role-colored bar on its left edge (user green, assistant gray, thinking
-   purple, tool orange), mirroring styles.css's `#messages.tui-mode .msg.*`. */
+   purple, tool orange). */
 
 .msg.assistant {
   border-left: 3px solid var(--color-text-secondary);
