@@ -608,7 +608,8 @@ def claim(manager_id: str, session_id: str) -> str | None:
     仅当确实新增了 managed 条目或首次订阅时才 save(manager)（set.add 幂等）。
 
     Refuses (returns an error string) if the target session is already managed
-    by a different session. No-op success when the relationship already holds.
+    by a different existing session. A dangling manager reference is treated
+    as unmanaged so the target can be recovered.
     Refuses self-claim (manager_id == session_id): a session cannot manage or
     subscribe to itself.
 
@@ -622,7 +623,10 @@ def claim(manager_id: str, session_id: str) -> str | None:
     target = get(session_id)
     if target is None:
         return f"Session {session_id} not found"
-    if target.managed_by and target.managed_by != manager_id:
+    # A deleted manager can leave historical data with a dangling managed_by.
+    # Treat that reference as unmanaged so the target can be recovered.
+    if target.managed_by and target.managed_by != manager_id \
+            and get(target.managed_by) is not None:
         return f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"
     changed = False
     if session_id not in manager.managed:
@@ -650,18 +654,28 @@ def release(session_id: str) -> str | None:
 
     Returns None on success, or an error message string.
     """
-    # 订阅残留清理：任何其它 session 的 report_subscriptions 不得引用被删 id
+    # 订阅残留清理：任何其它 session 的 report_subscriptions 不得引用被删 id。
+    # 同时解除被删 session 作为 manager 时留下的子 session 关系，避免
+    # children 被永久锁在一个不存在的 manager 上。
     for s in list_all():
         if s.id == session_id:
             continue
         if session_id in s.report_subscriptions:
             s.report_subscriptions.discard(session_id)
             save(s)
+        if s.managed_by == session_id:
+            s.managed_by = None
+            save(s)
     target = get(session_id)
     if target is None:
         return None  # nothing else to clean up
+    # The object is about to be deleted, but clear these in-memory too so the
+    # relationship is fully detached for callers holding the old object.
+    target.managed.clear()
+    target.report_subscriptions.clear()
     manager_id = target.managed_by
     if not manager_id:
+        save(target)
         return None
     manager = get(manager_id)
     if manager is not None and session_id in manager.managed:
@@ -675,8 +689,10 @@ def release(session_id: str) -> str | None:
 def unclaim(manager_id: str, session_id: str) -> str | None:
     """Remove the managed relationship (manager_id → session_id).
 
-    Only the current manager may unclaim. Also purges the manager's
-    ``report_subscriptions`` for session_id (解除管理即退订完成报告).
+    Only the current manager may unclaim when it still exists. If the target's
+    manager reference is dangling, an existing manager may recover/unclaim it.
+    Also purges the caller's ``report_subscriptions`` for session_id
+    (解除管理即退订完成报告).
     Refuses self-unclaim (manager_id == session_id, defensive).
 
     Returns None on success, or an error message string.
@@ -689,7 +705,11 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
     target = get(session_id)
     if target is None:
         return f"Session {session_id} not found"
-    if target.managed_by != manager_id:
+    # Normal relationships remain exclusive.  A missing manager is a stale
+    # historical reference, so any existing manager may recover/unclaim it.
+    if (target.managed_by != manager_id
+            and target.managed_by
+            and get(target.managed_by) is not None):
         return f"Session {session_id} is not managed by {manager_id}"
     manager.report_subscriptions.discard(session_id)
     if session_id in manager.managed:

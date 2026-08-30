@@ -96,6 +96,7 @@ def test_claim_idempotent():
 def test_claim_refuses_foreign_manager():
     _cleanup()
     mgr = _setup_session("ses_mgr")
+    _setup_session("ses_other")
     child = _setup_session("ses_child", managed_by="ses_other")
     err = _sess.claim("ses_mgr", "ses_child")
     assert err is not None and "managed by ses_other" in err
@@ -121,6 +122,44 @@ def test_release_cleans_manager():
     assert err is None
     assert mgr.managed == []
     assert child.managed_by is None
+    _cleanup()
+
+
+def test_release_manager_clears_children_and_allows_reclaim():
+    """Deleting a manager must orphan its children instead of dangling them."""
+    _cleanup()
+    mgr = _setup_session("ses_mgr")
+    child = _setup_session("ses_child", managed_by="ses_mgr")
+    mgr.managed = ["ses_child"]
+    replacement = _setup_session("ses_replacement")
+    _sess.release("ses_mgr")
+    assert child.managed_by is None
+    assert mgr.managed == []
+    assert _sess.claim(replacement.id, child.id) is None
+    assert child.managed_by == replacement.id
+    _cleanup()
+
+
+def test_dangling_managed_by_can_be_claimed_or_unclaimed():
+    _cleanup()
+    replacement = _setup_session("ses_replacement")
+    child = _setup_session("ses_child", managed_by="deleted_mgr")
+    assert _sess.claim(replacement.id, child.id) is None
+    assert child.managed_by == replacement.id
+
+    child.managed_by = "deleted_mgr"
+    assert _sess.unclaim(replacement.id, child.id) is None
+    assert child.managed_by is None
+    _cleanup()
+
+
+def test_unclaim_still_refuses_existing_foreign_manager():
+    _cleanup()
+    caller = _setup_session("ses_caller")
+    owner = _setup_session("ses_owner")
+    child = _setup_session("ses_child", managed_by=owner.id)
+    assert _sess.unclaim(caller.id, child.id)
+    assert child.managed_by == owner.id
     _cleanup()
 
 
@@ -159,6 +198,7 @@ def test_api_claim_refuses_foreign(monkeypatch):
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
     _setup_session("ses_mgr", can_claim_unmanaged=True)
+    _setup_session("ses_other")
     _setup_session("ses_child", managed_by="ses_other")
     r = asyncio.run(srv.api_claim({"managerId": "ses_mgr", "sessionId": "ses_child"}))
     assert r.get("ok") is False

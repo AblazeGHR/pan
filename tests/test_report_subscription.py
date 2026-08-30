@@ -480,6 +480,7 @@ def test_report_subscribe_rejects_foreign_manager(monkeypatch):
     import packages.web.server as srv
     _cleanup()
     monkeypatch.setattr(_sess, "save", _noop_save)
+    _setup_session("ses_owner")
     _setup_session("ses_child", managed_by="ses_owner")
     mgr = _setup_session("ses_mgr")
 
