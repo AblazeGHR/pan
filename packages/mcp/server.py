@@ -6,7 +6,7 @@ Usage:
 
 Tools exposed:
     - session_create: Create a new session (optional workdir)
-    - session_import: Import an external cbc/kimi session or list what's importable
+    - session_import: Import an external CLI session or list what's importable
     - session_list: List all sessions (optional lean summary mode)
     - session_managed: List the caller's managed sessions (summary)
     - manager_chain: Return the caller's manager chain (upper-level managers)
@@ -50,13 +50,15 @@ import os
 import urllib.request
 import urllib.error
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from mcp.server.fastmcp import FastMCP
 
 _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 
 mcp = FastMCP("Pan")
+
+_IMPORT_ADAPTERS = ("cbc", "kimi", "opencode", "claude", "codex")
 
 
 def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
@@ -370,12 +372,13 @@ def session_import(
     session_template: str | None = None,
     pan_access: dict | None = None,
 ) -> dict:
-    """Import an external cbc/kimi session into Pan, or list what's importable.
+    """Import an external CLI session into Pan, or list what's importable.
 
     Args:
         action: "list_projects" (cbc) / "list_workspaces" (kimi) /
             "list_sessions" / "import"
-        adapter: Source adapter ("cbc" or "kimi")
+        adapter: Source adapter ("cbc", "kimi", "opencode", "claude", or
+            "codex")
         project_dir: cbc project dir name (from list_projects)
         cwd: Absolute path — kimi requires the workspace root; cbc accepts it
             in place of project_dir
@@ -405,6 +408,11 @@ def session_import(
             "message": "action must be one of list_projects / list_workspaces / "
                        f"list_sessions / import, got {action!r}"}}
 
+    if action in ("list_sessions", "import") and adapter not in _IMPORT_ADAPTERS:
+        return {"ok": False, "error": {
+            "code": "invalid_adapter",
+            "message": f"adapter must be one of {', '.join(_IMPORT_ADAPTERS)}, got {adapter!r}"}}
+
     if action == "list_projects":
         return _strip_usage(_api("GET", "/api/cbc/projects"))
 
@@ -425,13 +433,17 @@ def session_import(
             if query:
                 qs.append(("q", query))
             path = "/api/cbc/sessions"
-        else:
+        elif adapter == "kimi":
             if not cwd:
                 return {"ok": False, "error": {
                     "code": "missing_params",
                     "message": "cwd (workspace root) is required for kimi list_sessions"}}
             qs.append(("cwd", cwd))
             path = "/api/kimi/sessions"
+        else:
+            if cwd:
+                qs.append(("cwd", cwd))
+            path = f"/api/adapters/{quote(adapter, safe='')}/sessions"
         suffix = "?" + urlencode(qs) if qs else ""
         return _strip_usage(_api("GET", path + suffix))
 
@@ -457,8 +469,12 @@ def session_import(
             body["project_dir"] = project_dir
         if cwd:
             body["cwd"] = cwd
-    else:
+    elif adapter == "kimi":
         path = "/api/kimi/sessions/import"
+        if cwd:
+            body["cwd"] = cwd
+    else:
+        path = f"/api/adapters/{quote(adapter, safe='')}/sessions/import"
         if cwd:
             body["cwd"] = cwd
     if name:

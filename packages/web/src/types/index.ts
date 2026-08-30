@@ -496,6 +496,16 @@ export interface OpencodeSessionItem {
   model: string;
 }
 
+export interface CodexSessionItem {
+  session_id: string;
+  title: string;
+  workDir: string;
+  createdAt: string;
+  updatedAt: string;
+  message_count: number;
+  model: string;
+}
+
 export interface ApiCbcProjectsResponse {
   projects: CbcProject[];
 }

@@ -2757,8 +2757,9 @@ async def api_adapter_sessions(adapter: str, cwd: str = ""):
     provider = _sessions_provider(adapter)
     if provider is None:
         return {"error": f"Unknown adapter: {adapter}"}
-    cwd = cwd or str(Path.cwd())
-    sessions = provider.list_sessions(cwd)
+    # An empty cwd means all native sessions.  Providers can still apply
+    # their own safe default/filtering when a caller supplies a directory.
+    sessions = provider.list_sessions(cwd or None)
     return {"sessions": sessions, "total": len(sessions)}
 
 

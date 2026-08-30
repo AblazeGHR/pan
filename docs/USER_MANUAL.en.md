@@ -243,7 +243,7 @@ Right-click a session (or use the selected session's menu, SessionMenu):
 | Delete | Delete the session (also kills the Worker; does not delete the workdir directory) |
 
 - **Management panel** (ManageModal) has three sections: ① managed by whom (can unbind); ② who you manage (claim/unclaim + subscribe to completion reports); ③ MCP permissions and MCP server selection.
-- **Import** (ImportModal): browse and import existing CLI history sessions from cbc / kimi / opencode etc., reusing history context.
+- **Import** (ImportModal): browse and import existing CLI history sessions from cbc / kimi / opencode / claude / codex, reusing history context; Codex supports an optional working-directory filter and shows all native threads when left blank.
 - **Postbox subscription** (PostboxModal): subscribe a QQ conversation to the current session's inbox; new QQ messages are pushed into `queue_pending` as reminders (used with the QQ channel, see §9.2).
 
 ### 4.6 Settings
@@ -613,7 +613,7 @@ Naming tiers: `agent_*` are first-class tools (addressed by session_id, tolerant
 | Tool | Key parameters | Description |
 |------|----------------|-------------|
 | `session_create` | `name` (required, unique), `adapter?`/`model?`/`permission_mode?`/`workdir?`/`session_template?`/`character_id?`/`system_prompt?`/`pan_access?` | Create a session (no spawn); workdir defaults to `data/workdirs/<name>`, use absolute paths outside Pan |
-| `session_import` | `action` (`list_projects`/`list_workspaces`/`list_sessions`/`import`), `adapter?`, `cwd?`/`project_dir?`, `session_id?` | Import external CLI history sessions (cbc/kimi/opencode...); creates the Session without spawning |
+| `session_import` | `action` (`list_projects`/`list_workspaces`/`list_sessions`/`import`), `adapter?`, `cwd?`/`project_dir?`, `session_id?` | Import external CLI history sessions (cbc/kimi/opencode/claude/codex); creates the Session without spawning; claude/codex use the generic provider endpoint and accept an optional `cwd` filter |
 | `session_list` | `summary?` | List all sessions; `summary=true` returns only compact fields (preferred for patrols — avoids blowing up output with full history) |
 | `session_managed` | — | Summary of sessions the caller manages (needs `PAN_AGENT_SESSION_ID`) |
 | `manager_chain` | — | The caller's upstream manager chain |

@@ -431,6 +431,59 @@ def test_mcp_import_list_sessions_kimi_cwd(monkeypatch):
     _cleanup()
 
 
+def test_generic_codex_import_endpoint_uses_registered_provider(monkeypatch):
+    """The generic endpoint can import Codex without a Codex-specific route."""
+    _cleanup()
+    _fresh_session_dir()
+
+    class FakeCodexProvider:
+        def list_sessions(self, cwd=None):
+            return [{"session_id": "thread-1", "workDir": cwd or "D:/project/Pan"}]
+
+        def parse_history(self, session_id, cwd=None):
+            assert session_id == "thread-1"
+            return [{"role": "user", "content": "restored"}]
+
+        def get_raw_usage(self, session_id, cwd=None):
+            return []
+
+        def get_session_title(self, session_id, cwd=None):
+            return "Imported Codex thread"
+
+        def session_exists(self, session_id, cwd=None):
+            return session_id == "thread-1"
+
+    provider = FakeCodexProvider()
+    monkeypatch.setattr(server, "_sessions_provider", lambda adapter: provider
+                        if adapter == "codex" else None)
+
+    listed = asyncio.run(server.api_adapter_sessions("codex", "D:/project/Pan"))
+    assert listed["total"] == 1
+    assert listed["sessions"][0]["session_id"] == "thread-1"
+
+    with patch.object(server, "broadcast", new=AsyncMock()):
+        imported = asyncio.run(server.api_adapter_sessions_import(
+            "codex", {"session_id": "thread-1", "cwd": "D:/project/Pan"}))
+
+    assert "error" not in imported, imported
+    assert imported["adapter"] == "codex"
+    assert imported["cliSessionId"] == "thread-1"
+    assert imported["history"] == [{"role": "user", "content": "restored"}]
+    assert imported["workdir"] == "D:/project/Pan"
+    _cleanup()
+
+
+def test_mcp_import_list_sessions_codex_uses_generic_endpoint(monkeypatch):
+    _cleanup()
+    fake = _FakeAPI()
+    monkeypatch.setattr(mcp_server, "_api", fake)
+    r = mcp_server.session_import(action="list_sessions", adapter="codex",
+                                  cwd="D:/project/Pan")
+    assert r["ok"] is True
+    assert fake.calls[0][1] == "/api/adapters/codex/sessions?cwd=D%3A%2Fproject%2FPan"
+    _cleanup()
+
+
 def test_mcp_import_list_sessions_missing_project(monkeypatch):
     _cleanup()
     fake = _FakeAPI()
@@ -516,6 +569,21 @@ def test_mcp_import_kimi_body(monkeypatch):
     import_call = [c for c in fake.calls if c[0] == "POST" and c[1].endswith("/sessions/import")]
     assert import_call[0][1] == "/api/kimi/sessions/import"
     assert import_call[0][2]["cwd"] == "D:/ws"
+    assert r["imported"] is True
+    _cleanup()
+
+
+def test_mcp_import_codex_body_uses_generic_endpoint(monkeypatch):
+    _cleanup()
+    fake = _FakeAPI(import_resp=_import_session_dict(adapter="codex"))
+    monkeypatch.setattr(mcp_server, "_api", fake)
+    r = mcp_server.session_import(action="import", adapter="codex",
+                                  session_id="thread-1", cwd="D:/project/Pan")
+    import_call = [c for c in fake.calls
+                   if c[0] == "POST" and c[1].endswith("/sessions/import")]
+    assert import_call[0][1] == "/api/adapters/codex/sessions/import"
+    assert import_call[0][2]["session_id"] == "thread-1"
+    assert import_call[0][2]["cwd"] == "D:/project/Pan"
     assert r["imported"] is True
     _cleanup()
 

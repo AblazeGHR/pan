@@ -243,7 +243,7 @@ bash scripts/start.sh
 | Delete | 删除会话（同时 kill Worker；不删 workdir 磁盘目录） |
 
 - **管理面板**（ManageModal）三节：① 被谁管理（可解绑）；② 管理谁（claim/unclaim + 订阅完成报告）；③ MCP 权限与 MCP 服务器选择。
-- **导入会话**（ImportModal）：从 cbc / kimi / opencode 等浏览并导入既有 CLI 历史会话，复用历史上下文。
+- **导入会话**（ImportModal）：从 cbc / kimi / opencode / claude / codex 浏览并导入既有 CLI 历史会话，复用历史上下文；Codex 可按工作目录筛选，留空显示全部原生 thread。
 - **收件箱订阅**（PostboxModal）：把某个 QQ 会话订阅到当前会话的收件箱，QQ 新消息会以提醒形式推入 `queue_pending`（配合 QQ 通道使用，见 §9.2）。
 
 ### 4.6 设置
@@ -613,7 +613,7 @@ python -m packages.mcp.server --transport sse --port 9740
 | 工具 | 关键参数 | 说明 |
 |------|----------|------|
 | `session_create` | `name`（必填，唯一），`adapter?`/`model?`/`permission_mode?`/`workdir?`/`session_template?`/`character_id?`/`system_prompt?`/`pan_access?` | 创建会话（不 spawn）；workdir 默认 `data/workdirs/<name>`，Pan 外用绝对路径 |
-| `session_import` | `action`（`list_projects`/`list_workspaces`/`list_sessions`/`import`），`adapter?`，`cwd?`/`project_dir?`，`session_id?` | 导入外部 CLI 历史会话（cbc/kimi/opencode…）；仅建 Session 不 spawn |
+| `session_import` | `action`（`list_projects`/`list_workspaces`/`list_sessions`/`import`），`adapter?`，`cwd?`/`project_dir?`，`session_id?` | 导入外部 CLI 历史会话（cbc/kimi/opencode/claude/codex）；仅建 Session 不 spawn；claude/codex 可用通用 provider 端点，`cwd` 可选 |
 | `session_list` | `summary?` | 列出全部会话；`summary=true` 只返回精简字段（巡检首选，避免全量 history 撑爆输出） |
 | `session_managed` | — | 调用者管理的 session 摘要（需 `PAN_AGENT_SESSION_ID`） |
 | `manager_chain` | — | 调用方的上级 manager 链 |

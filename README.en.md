@@ -631,7 +631,7 @@ Pan is not just for humans — **any external agent that speaks MCP (Model Conte
 | Tool | Purpose |
 |------|---------|
 | `session_create` | Create a session (no worker spawned) |
-| `session_import` | Browse / import existing CLI sessions (actions: list_projects / list_workspaces / list_sessions / import) |
+| `session_import` | Browse / import existing CLI sessions (cbc / kimi / opencode / claude / codex; actions: list_projects / list_workspaces / list_sessions / import) |
 | `session_list` | List all sessions (`summary=true` for compact output) |
 | `session_managed` | Summarize the calling session's managed sessions |
 | `manager_chain` | Return the calling session's manager chain 🚧 *being added (uncommitted)* |

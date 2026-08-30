@@ -659,7 +659,7 @@ Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部
 | 工具 | 功能 |
 |------|------|
 | `session_create` | 创建 Session（只建会话，不启动 worker） |
-| `session_import` | 浏览 / 导入既有 CLI 会话（list_projects / list_workspaces / list_sessions / import 四个 action） |
+| `session_import` | 浏览 / 导入既有 CLI 会话（支持 cbc / kimi / opencode / claude / codex；list_projects / list_workspaces / list_sessions / import 四个 action） |
 | `session_list` | 列出全部 Session（`summary=true` 返回摘要，避免全量 history） |
 | `session_managed` | 返回调用方管理的 Session 概要（归属巡检） |
 | `manager_chain` | 返回调用方的上级 manager 链 🚧 *新增中（未提交）* |

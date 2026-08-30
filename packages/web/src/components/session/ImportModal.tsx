@@ -9,6 +9,7 @@ import type {
   KimiWorkspace,
   KimiSessionItem,
   OpencodeSessionItem,
+  CodexSessionItem,
 } from '@/types';
 import {
   fetchCbcProjects,
@@ -19,6 +20,8 @@ import {
   importKimiSession,
   fetchOpencodeSessions,
   importOpencodeSession,
+  fetchCodexSessions,
+  importCodexSession,
 } from '@/services/api';
 
 interface ImportModalProps {
@@ -27,7 +30,7 @@ interface ImportModalProps {
   initialAdapter?: Adapter;
 }
 
-type Adapter = 'cbc' | 'kimi' | 'opencode';
+type Adapter = 'cbc' | 'kimi' | 'opencode' | 'codex';
 
 function formatTime(ts: string): string {
   try {
@@ -70,6 +73,11 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   const [opencodeSessions, setOpencodeSessions] = useState<OpencodeSessionItem[]>([]);
   const [opencodeLoading, setOpencodeLoading] = useState(false);
 
+  // ── Codex state ──
+  const [codexCwd, setCodexCwd] = useState('');
+  const [codexSessions, setCodexSessions] = useState<CodexSessionItem[]>([]);
+  const [codexLoading, setCodexLoading] = useState(false);
+
   // ── Import state ──
   const [importingId, setImportingId] = useState<string | null>(null);
 
@@ -91,6 +99,9 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     setOpencodeCwd('');
     setOpencodeSessions([]);
     setOpencodeLoading(false);
+    setCodexCwd('');
+    setCodexSessions([]);
+    setCodexLoading(false);
     setImportingId(null);
   }, [open]);
 
@@ -181,6 +192,28 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, adapter]);
 
+  // ── Load Codex sessions (filtered by optional cwd) ──
+  const loadCodex = useCallback(
+    (cwd: string) => {
+      setCodexLoading(true);
+      fetchCodexSessions(cwd)
+        .then((list) => setCodexSessions(list))
+        .catch((e) => {
+          showToast(
+            e instanceof Error ? e.message : 'Failed to load Codex sessions',
+            'error',
+          );
+        })
+        .finally(() => setCodexLoading(false));
+    },
+    [showToast],
+  );
+
+  useEffect(() => {
+    if (open && adapter === 'codex') loadCodex(codexCwd);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, adapter]);
+
   // ── Import CBC session ──
   const handleImportCbc = async (item: CbcSessionItem) => {
     if (importingId) return;
@@ -227,6 +260,26 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     setImportingId(item.session_id);
     try {
       const result = await importOpencodeSession(item.session_id, item.workDir);
+      onClose();
+      await loadSessions();
+      selectSession(result.id);
+      showToast('Session imported');
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : 'Import failed',
+        'error',
+      );
+    } finally {
+      setImportingId(null);
+    }
+  };
+
+  // ── Import Codex session ──
+  const handleImportCodex = async (item: CodexSessionItem) => {
+    if (importingId) return;
+    setImportingId(item.session_id);
+    try {
+      const result = await importCodexSession(item.session_id, item.workDir);
       onClose();
       await loadSessions();
       selectSession(result.id);
@@ -304,6 +357,21 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
           >
             opencode
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdapter('codex');
+              setCodexSessions([]);
+              setCodexLoading(false);
+            }}
+            className={`flex-1 rounded px-3 py-1 text-xs font-medium transition-colors ${
+              adapter === 'codex'
+                ? 'bg-accent text-white'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            codex
+          </button>
         </div>
 
         <hr className="border-border-muted" />
@@ -357,6 +425,19 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
             importingId={importingId}
             onLoad={() => loadOpencode(opencodeCwd)}
             onImport={handleImportOpencode}
+          />
+        )}
+
+        {/* codex import */}
+        {adapter === 'codex' && (
+          <CodexSection
+            cwd={codexCwd}
+            onCwdChange={setCodexCwd}
+            sessions={codexSessions}
+            loading={codexLoading}
+            importingId={importingId}
+            onLoad={() => loadCodex(codexCwd)}
+            onImport={handleImportCodex}
           />
         )}
 
@@ -855,6 +936,108 @@ function OpencodeSessionItemRow({
       </div>
       <div className="text-xs text-text-tertiary mt-0.5">
         {item.message_count} msgs &middot; {item.model || '?'} &middot;{' '}
+        {item.updatedAt ? formatTime(item.updatedAt) : '—'}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
+// Codex Section
+// ──────────────────────────────────────────
+
+interface CodexSectionProps {
+  cwd: string;
+  onCwdChange: (cwd: string) => void;
+  sessions: CodexSessionItem[];
+  loading: boolean;
+  importingId: string | null;
+  onLoad: () => void;
+  onImport: (item: CodexSessionItem) => void;
+}
+
+function CodexSection({
+  cwd,
+  onCwdChange,
+  sessions,
+  loading,
+  importingId,
+  onLoad,
+  onImport,
+}: CodexSectionProps) {
+  return (
+    <>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-text-secondary">
+          Working Directory{' '}
+          <span className="font-normal text-text-tertiary">
+            (filter, optional)
+          </span>
+        </span>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={cwd}
+            onChange={(e) => onCwdChange(e.target.value)}
+            placeholder="/path/to/project"
+            className="flex-1 rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
+          />
+          <Button variant="secondary" size="sm" onClick={onLoad}>
+            Load
+          </Button>
+        </div>
+      </label>
+
+      {loading && (
+        <div className="py-4 text-center text-sm text-text-tertiary">
+          Loading Codex sessions...
+        </div>
+      )}
+
+      {!loading && sessions.length === 0 && (
+        <div className="py-4 text-center text-sm text-text-tertiary">
+          No Codex sessions found
+        </div>
+      )}
+
+      {!loading && sessions.length > 0 && (
+        <div className="max-h-64 overflow-y-auto space-y-1 rounded border border-border-muted bg-bg-primary p-1">
+          {sessions.map((item) => (
+            <CodexSessionItemRow
+              key={item.session_id}
+              item={item}
+              isImporting={importingId === item.session_id}
+              onClick={() => onImport(item)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function CodexSessionItemRow({
+  item,
+  isImporting,
+  onClick,
+}: {
+  item: CodexSessionItem;
+  isImporting: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className={`rounded px-2.5 py-2 cursor-pointer transition-colors hover:bg-bg-tertiary ${
+        isImporting ? 'opacity-50 pointer-events-none' : ''
+      }`}
+    >
+      <div className="text-sm text-text-primary truncate">
+        {item.title || 'Untitled'}
+      </div>
+      <div className="text-xs text-text-tertiary mt-0.5">
+        {item.message_count} msgs &middot; {item.model || '?'} &middot;{' '}
+        {item.workDir || '—'} &middot;{' '}
         {item.updatedAt ? formatTime(item.updatedAt) : '—'}
       </div>
     </div>
