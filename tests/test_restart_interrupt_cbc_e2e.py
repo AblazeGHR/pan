@@ -83,6 +83,14 @@ def test_cbc_interrupt_kills_old_process_and_recovers_task(tmp_path, monkeypatch
                 f"cmdline={psutil.Process(w.process.pid).cmdline() if psutil.pid_exists(w.process.pid) else 'dead'}"
             )
             assert not s.queue_pending
+            # The result reader publishes ``last_result`` and wakes the
+            # consumer before the consumer's finally block releases the
+            # in-flight marker.  Give that cleanup task a scheduling window;
+            # otherwise this assertion is timing-dependent on CI runners.
+            for _ in range(200):
+                if not worker._inflight_task_ids:
+                    break
+                await asyncio.sleep(0.01)
             assert not worker._inflight_task_ids
         finally:
             w = worker.find_worker_by_session(s.id)
