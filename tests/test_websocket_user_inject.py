@@ -4,7 +4,6 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 from fastapi import WebSocketDisconnect
 
@@ -32,32 +31,25 @@ class _FakeWS:
         self.sent.append(data)
 
 
-def test_user_inject_without_worker_spawns_and_delivers(monkeypatch):
-    """An open dashboard WS must not silently drop the first message."""
+def test_user_inject_without_worker_persists_and_acknowledges(monkeypatch):
+    """An open dashboard WS uses the durable session route when offline."""
     srv.ws_clients.clear()
     ws = _FakeWS({"type": "user_inject", "sessionId": "session-1", "text": "hello"})
-    created = SimpleNamespace(worker_id="worker-1")
     calls = []
 
-    monkeypatch.setattr(srv.worker, "find_worker_by_session", lambda _: None)
+    async def fake_send_session(session_id, text, source="agent", **kwargs):
+        calls.append(("send_session", session_id, text, source, kwargs))
+        return {"status": "queued", "workerId": None, "sessionId": session_id,
+                "pendingSpawn": True}
 
-    async def fake_create_worker(session_id):
-        calls.append(("create", session_id))
-        return created
-
-    async def fake_send_task(worker_id, text, source="agent"):
-        calls.append(("send", worker_id, text, source))
-        return None
-
-    monkeypatch.setattr(srv.worker, "create_worker", fake_create_worker)
-    monkeypatch.setattr(srv.worker, "send_task", fake_send_task)
+    monkeypatch.setattr(srv.worker, "send_session", fake_send_session)
 
     asyncio.run(srv.ws_endpoint(ws))
 
-    assert calls == [
-        ("create", "session-1"),
-        ("send", "worker-1", "hello", "user"),
-    ]
+    assert calls == [("send_session", "session-1", "hello", "user",
+                      {"client_message_id": None})]
+    assert ws.sent == [{"type": "user_inject.accepted", "sessionId": "session-1",
+                        "workerId": None, "clientMessageId": None}]
     assert ws not in srv.ws_clients
 
 
