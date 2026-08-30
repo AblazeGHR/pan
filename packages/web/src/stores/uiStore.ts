@@ -107,7 +107,7 @@ interface UIStore {
   userInputRequests: UserInputRequest[];
   elicitationRequests: ElicitationRequest[];
   terminalInteractions: TerminalInteraction[];
-  tuiViewEnabled: boolean;
+  bubbleViewEnabled: boolean;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   /** Mobile drawer (hamburger) open state — store-backed so route changes /
@@ -134,7 +134,7 @@ interface UIStore {
   addTerminalInteraction: (interaction: TerminalInteraction) => void;
   removeTerminalInteraction: (sessionId: string, itemId: string) => void;
   clearTerminalInteractions: (sessionId: string) => void;
-  toggleTuiView: () => void;
+  toggleBubbleView: () => void;
   setSidebarWidth: (w: number) => void;
   toggleSidebar: () => void;
   setMobileSidebarOpen: (open: boolean) => void;
@@ -163,9 +163,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   userInputRequests: [],
   elicitationRequests: [],
   terminalInteractions: [],
-  // The old names were reversed: this flag now describes the retained TUI
-  // branch. The Bubble branch remains available for a future re-enable.
-  tuiViewEnabled: true,
+  bubbleViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
   mobileSidebarOpen: false,
@@ -291,8 +289,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
     }));
   },
 
-  toggleTuiView: () => {
-    set((s) => ({ tuiViewEnabled: !s.tuiViewEnabled }));
+  toggleBubbleView: () => {
+    set((s) => ({ bubbleViewEnabled: !s.bubbleViewEnabled }));
   },
 
   setSidebarWidth: (w) => {

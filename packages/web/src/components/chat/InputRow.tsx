@@ -8,7 +8,6 @@ import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { wsClient } from '@/services/ws';
-import { sendSession } from '@/services/api';
 import { ChevronDown, ChevronUp, CornerUpRight, Settings } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
@@ -84,9 +83,7 @@ function PermissionPill({
   const [open, setOpen] = useState(false);
   const current = sessionMode || defaultMode;
   const active = modes.find((m) => m.value === current);
-  // Keep the collapsed toolbar pill compact; the expanded menu still shows
-  // the adapter's full label and its CLI hint.
-  const label = (active?.label || current).replace(/\s*\(.*$/, '').trim();
+  const label = active?.label || current;
 
   useEffect(() => {
     if (!open) return;
@@ -238,6 +235,9 @@ export function InputRow() {
       }
       setInputDraft(currentSessionId, '');
 
+      // Add user message to local state
+      addMessage({ role: 'user', content: text });
+
       const msg = {
         type: 'user_inject',
         sessionId: currentSessionId,
@@ -245,11 +245,8 @@ export function InputRow() {
       };
 
       if (wsClient.isOpen) {
-        if (wsClient.send(msg)) {
-          // WS send is the server hand-off point; only show it after that.
-          addMessage({ role: 'user', content: text });
-          return;
-        }
+        wsClient.send(msg);
+        return;
       }
 
       if (!currentSession?.workerId) {
@@ -257,30 +254,22 @@ export function InputRow() {
         try {
           await startWorker(currentSessionId);
           // spawn 等待窗口内 WS 可能仍在 CONNECTING（send 返回 false）——
-          // 优先走 WS，失败则使用 session API，由服务端持久化/排队。
-          if (wsClient.send(msg)) {
-            addMessage({ role: 'user', content: text });
-            return;
+          // 不检查会把消息静默丢掉（聊天区已上屏但服务端从未收到）
+          if (!wsClient.send(msg)) {
+            showToast('Connection lost. Please refresh the page.', 'error');
           }
         } catch (e) {
           showToast(
             'Spawn failed: ' + (e as Error).message,
             'error',
           );
-          return;
         }
+        return;
       }
 
-      // WS was unavailable (or became unavailable during spawn). The HTTP
-      // endpoint is durable and also handles a worker disappearing mid-send.
-      try {
-        await sendSession(currentSessionId, text);
-        addMessage({ role: 'user', content: text });
-      } catch (e) {
-        showToast(
-          'Send failed: ' + (e as Error).message,
-          'error',
-        );
+      // WS not connected and worker exists — try anyway
+      if (!wsClient.send(msg)) {
+        showToast('Connection lost. Please refresh the page.', 'error');
       }
     },
     [
@@ -288,7 +277,6 @@ export function InputRow() {
       currentSession,
       showToast,
       addMessage,
-      sendSession,
       startWorker,
       setInputDraft,
       enqueue,
@@ -351,7 +339,7 @@ export function InputRow() {
       <SendQueuePanel />
 
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
-          右侧内容列：pill 行 + textarea/Send 行。 */}
+          右侧内容列：pill 行（ModelPill 仅桌面显示，移动端 model 只在设置弹窗中）+ textarea/Send 行。 */}
       <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
         {/* 左列竖排：gear 在上、^ 在下，gap-1 紧挨 */}
         <div className="flex flex-col gap-1 shrink-0 self-start">
@@ -410,22 +398,22 @@ export function InputRow() {
         <div className="flex-1 min-w-0 flex flex-col gap-2">
           {currentSession && (
             <div className="flex items-center gap-1.5 flex-wrap">
-              <ModelPill
-                sessionModel={currentSession.model || ''}
-                defaultModel={config?.defaultModel || ''}
-                models={config?.models || []}
-                show={showModelPill}
-                onApply={applySetting}
-              />
               <div className="hidden md:flex">
-                <PermissionPill
-                  sessionMode={currentSession.permissionMode || null}
-                  defaultMode={config?.defaultPermissionMode || ''}
-                  modes={config?.permissionModes || []}
-                  show={showPermPill}
+                <ModelPill
+                  sessionModel={currentSession.model || ''}
+                  defaultModel={config?.defaultModel || ''}
+                  models={config?.models || []}
+                  show={showModelPill}
                   onApply={applySetting}
                 />
               </div>
+              <PermissionPill
+                sessionMode={currentSession.permissionMode || null}
+                defaultMode={config?.defaultPermissionMode || ''}
+                modes={config?.permissionModes || []}
+                show={showPermPill}
+                onApply={applySetting}
+              />
               <ThinkingToggle
                 enabled={currentSession.alwaysThinkingEnabled}
                 show={showThinking}

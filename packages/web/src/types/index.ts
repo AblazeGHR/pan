@@ -112,6 +112,11 @@ export interface WorkerEvent {
   error_text?: string;
   result?: string;
   cliSessionId?: string;
+<<<<<<< HEAD
+=======
+  /** Durable acknowledgement correlation for browser send-queue items. */
+  clientMessageId?: string;
+>>>>>>> pan-test
   /** Native Codex thread status (`active` may carry waiting flags). */
   native_status?: {
     type?: string;
