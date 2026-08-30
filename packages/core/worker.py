@@ -1425,7 +1425,7 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
         await mw.pending_signal.put({"type": "report_signal"})
     elif not mw or mw.status not in {"held", "restarting"}:
         session = _sess.get(session_id)
-        if auto_spawn and session is not None and not session.queue_pending:
+        if auto_spawn and (session is None or not session.queue_pending):
             # Legacy callers use auto_spawn to materialize an idle worker even
             # before the first item exists; retain that contract synchronously.
             created = await create_worker(session_id)
