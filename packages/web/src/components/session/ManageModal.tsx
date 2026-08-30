@@ -293,12 +293,20 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   const mcpLockReason = detailSession?.mcpLockReason ?? null;
   const mcpLocked = detailSession?.mcpLocked === true;
   const mcpForceUnlocked = mcpLocked && mcpLockReason === 'never' && mcpForced;
-  const mcpEditable = !mcpLocked || mcpForceUnlocked;
+  // An `always` template locks MCP on, but the server membership remains
+  // editable. Keep the catalog visible and prevent removing the final server.
+  // `never` remains locked until the explicit force-enable flow is confirmed.
+  const mcpSelectionLocked =
+    mcpLocked && mcpLockReason !== 'always' && !mcpForceUnlocked;
+  const mcpEditable = !mcpSelectionLocked;
 
   // Toggle one MCP server in/out of the session's enabled set and persist the
   // full name list. Empty list clears them (backend supports [] / null).
   const toggleMcpServer = async (name: string, checked: boolean) => {
     if (!managerId || savingMcp || !mcpEditable) return;
+    // Keep the backend's always-on invariant intact even during a render
+    // transition or if an event is triggered programmatically.
+    if (mcpLockReason === 'always' && !checked && enabledMcp.size <= 1) return;
     const next = new Set(enabledMcp);
     if (checked) next.add(name);
     else next.delete(name);
@@ -585,14 +593,12 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               title="MCP Server / MCP 服务"
               subtitle="Select MCP servers from the manifest for this session; worker restarts with the change applied."
             />
-            {mcpLocked && !mcpForceUnlocked ? (
+            {mcpSelectionLocked ? (
               <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary flex items-center justify-between gap-2">
                 <span>
-                  {mcpLockReason === 'always'
-                    ? 'MCP is locked to ON by the session template — selection disabled.'
-                    : mcpLockReason === 'never'
-                      ? 'MCP is locked OFF by the session template — selection disabled.'
-                      : 'MCP is locked by the session template — selection disabled.'}
+                  {mcpLockReason === 'never'
+                    ? 'MCP is locked OFF by the session template — selection disabled.'
+                    : 'MCP is locked by the session template — selection disabled.'}
                 </span>
                 {mcpLockReason === 'never' && (
                   <button
@@ -607,46 +613,62 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                 )}
               </div>
             ) : (
-              <div className="rounded border border-border-muted bg-bg-primary p-1 space-y-0.5">
-                {!mcpCatalogLoaded && mcpServers.length === 0 && (
-                  <div className="py-3 text-center text-[11px] text-text-tertiary">
-                    Loading MCP servers…
+              <>
+                {mcpLocked && mcpLockReason === 'always' && (
+                  <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-text-tertiary">
+                    MCP is locked ON by the session template — at least one server must remain enabled.
                   </div>
                 )}
-                {mcpCatalogLoaded && mcpServers.length === 0 && (
-                  <div className="py-4 text-center text-sm text-text-tertiary">
-                    No MCP servers available (manifest not loaded)
-                  </div>
-                )}
-                {mcpServers.map((srv) => {
-                  const checked = enabledMcp.has(srv.name);
-                  return (
-                    <label
-                      key={srv.name}
-                      className={`flex items-start gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
-                        savingMcp ? 'pointer-events-none opacity-70' : ''
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 shrink-0 accent-accent"
-                        checked={checked}
-                        disabled={savingMcp || detailSession === null}
-                        onChange={(e) => toggleMcpServer(srv.name, e.target.checked)}
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm text-text-primary">{srv.name}</span>
-                        {srv.command && (
-                          <span className="block text-[11px] text-text-tertiary font-mono truncate">
-                            {srv.command}
-                            {srv.cwd ? ` · cwd: ${srv.cwd}` : ''}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+                <div className="rounded border border-border-muted bg-bg-primary p-1 space-y-0.5">
+                  {!mcpCatalogLoaded && mcpServers.length === 0 && (
+                    <div className="py-3 text-center text-[11px] text-text-tertiary">
+                      Loading MCP servers…
+                    </div>
+                  )}
+                  {mcpCatalogLoaded && mcpServers.length === 0 && (
+                    <div className="py-4 text-center text-sm text-text-tertiary">
+                      No MCP servers available (manifest not loaded)
+                    </div>
+                  )}
+                  {mcpServers.map((srv) => {
+                    const checked = enabledMcp.has(srv.name);
+                    return (
+                      <label
+                        key={srv.name}
+                        className={`flex items-start gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                          savingMcp ? 'pointer-events-none opacity-70' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 shrink-0 accent-accent"
+                          checked={checked}
+                          disabled={
+                            savingMcp ||
+                            detailSession === null ||
+                            (mcpLockReason === 'always' && checked && enabledMcp.size <= 1)
+                          }
+                          title={
+                            mcpLockReason === 'always' && checked && enabledMcp.size <= 1
+                              ? 'At least one MCP server must remain enabled'
+                              : undefined
+                          }
+                          onChange={(e) => toggleMcpServer(srv.name, e.target.checked)}
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm text-text-primary">{srv.name}</span>
+                          {srv.command && (
+                            <span className="block text-[11px] text-text-tertiary font-mono truncate">
+                              {srv.command}
+                              {srv.cwd ? ` · cwd: ${srv.cwd}` : ''}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </section>
         </>

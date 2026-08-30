@@ -174,8 +174,45 @@ describe('ManageModal', () => {
 
     render(<ManageModal open onClose={() => {}} sessionId="s1" />);
 
-    // Locked state shows the notice and no server checkboxes.
+    // An unspecified lock reason remains fully locked and has no selectors.
     await screen.findByText(/MCP is locked by the session template/);
     expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('keeps the MCP catalog visible for an always-on template', async () => {
+    apiMock.fetchSession.mockResolvedValue(
+      mk('s1', 'Child', {
+        managed: [],
+        reportSubscriptions: [],
+        mcpServers: ['pan'],
+        mcpLocked: true,
+        mcpLockReason: 'always',
+      }),
+    );
+    apiMock.fetchMcpServers.mockResolvedValue([
+      { name: 'pan', command: 'node pan.js' },
+      { name: 'git', command: 'node git.js' },
+    ]);
+    apiMock.patchSession.mockImplementation(async (_id, body) =>
+      mk('s1', 'Child', { mcpServers: (body as { mcpServers?: string[] }).mcpServers }),
+    );
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    const panLabel = await screen.findByText('pan');
+    const gitLabel = await screen.findByText('git');
+    const panInput = panLabel.closest('label')!.querySelector('input') as HTMLInputElement;
+    const gitInput = gitLabel.closest('label')!.querySelector('input') as HTMLInputElement;
+    expect(panInput.checked).toBe(true);
+    expect(panInput.disabled).toBe(true);
+    expect(gitInput.disabled).toBe(false);
+
+    fireEvent.click(gitInput);
+    await waitFor(() =>
+      expect(apiMock.patchSession).toHaveBeenCalledWith('s1', {
+        mcpServers: ['pan', 'git'],
+        forceMcp: true,
+      }),
+    );
   });
 });
