@@ -14,9 +14,9 @@ Tools exposed:
     - session_update: Update session settings (model/effort/mcp etc.)
     - session_delete: Delete a session
     - session_batch_delete: Delete multiple sessions at once
-    - session_claim: Claim a session for the calling agent (managed relationship)
+    - session_claim: Claim a session (establish managed relationship; auto-subscribes reports)
     - session_claim_many: Batch-claim multiple sessions
-    - session_unclaim: Unclaim a session from the calling agent
+    - session_unclaim: Release the managed relationship entirely (auto-unsubscribes reports; session becomes unmanaged)
     - session_unclaim_many: Batch-unclaim multiple sessions
     - session_handoff: 替身交接——创建孪生 session B 接替 A（精简上下文/切换 adapter）
     - agent_spawn: Spawn a worker process (CLI) for an agent (= session)
@@ -32,8 +32,8 @@ Tools exposed:
       to the same implementation as agent_*.
     - session_history: Get paginated conversation history
     - model_list: List available AI models
-    - report_subscribe: Subscribe to completion reports of a managed session
-    - report_unsubscribe: Unsubscribe from completion reports of a managed session
+    - report_subscribe: Subscribe to completion reports (auto-claims the session if unmanaged — 订阅即接管)
+    - report_unsubscribe: Unsubscribe from completion reports only (keeps the managed relationship; use session_unclaim to fully release)
     - session_qq_subscribe: Subscribe the calling session to a QQ chat's inbox reminders
     - session_qq_unsubscribe: Unsubscribe the calling session from a QQ chat's inbox reminders
     - pan_handbook: Return the full Pan orchestration handbook (reads docs/skills/pan/SKILL.md)
@@ -724,8 +724,11 @@ def session_claim(session_id: str) -> dict:
     """Claim a session for the calling agent (establish managed relationship).
 
     Establishes manager.managed += [session_id] / session.managed_by =
-    manager_id (立项 4.2). Claim 自动 report_subscribe：本 agent 会收到该
-    session 的完成报告（后端已实现）。目标若已被其他 manager 认领则拒绝。
+    manager_id (立项 4.2). Claim 自动 report_subscribe（订阅即接管）：本 agent
+    会收到该 session 的完成报告（后端已实现）。目标若已被其他 manager 认领则拒绝。
+
+    ⚠️ 反向操作：session_unclaim 解除整个 managed 关系（连带退订，session 变无主）；
+    若只想停止完成报告推送、仍保留管理 → 用 report_unsubscribe。
 
     Args:
         session_id: Session ID to claim
@@ -786,8 +789,12 @@ def session_unclaim(session_id: str) -> dict:
     """Release the calling agent's managed relationship with a session.
 
     Removes session from the caller's managed list and clears the session's
-    managed_by (auto-unsubscribes completion reports, backend已实现). Only the
-    current manager may unclaim — the backend validates that.
+    managed_by — 解除整个 managed 关系，session 变无主，并自动连带退订完成报告
+    (auto-unsubscribes completion reports, 后端已实现). Only the current
+    manager may unclaim — the backend validates that.
+
+    ⚠️ 若只想停止完成报告推送、仍保留 managed 关系 → 用 report_unsubscribe，
+    **不是**本工具（本工具会连管理关系一起解除）。
 
     Args:
         session_id: Session ID to unclaim
@@ -917,7 +924,7 @@ def session_history(session_id: str, limit: int = 50, before: int | None = None)
 
 @mcp.tool()
 def report_subscribe(session_id: str) -> dict:
-    """Subscribe to completion reports for a managed session.
+    """Subscribe to completion reports for a session.
 
     Opt-in report delivery (立项 4.3): after subscribing, every time the
     managed session finishes a task (done/error) its report dict — shape
@@ -927,8 +934,12 @@ def report_subscribe(session_id: str) -> dict:
     when multiple reports accumulate). Unsubscribed sessions only keep the
     existing worker.result broadcast for external coordinators.
 
+    ⚠️ 订阅即接管：若目标 session 尚未被管理，本调用会**自动建立 managed 关系**
+    （自动 claim，claim=True）；已归本 manager 管理则仅确保订阅。仅退订而保留
+    管理 → report_unsubscribe；解除整个管理关系 → session_unclaim。
+
     Args:
-        session_id: Managed session ID to subscribe to reports for
+        session_id: Session ID to subscribe to reports for
 
     完整编排流程见 /pan skill。
     """
@@ -949,8 +960,13 @@ def report_subscribe(session_id: str) -> dict:
 def report_unsubscribe(session_id: str) -> dict:
     """Unsubscribe from completion reports for a managed session.
 
-    Stops report delivery for the session. Existing worker.result broadcasts
-    are unaffected (they were never gated by subscription).
+    Stops report delivery for the session — **仅此而已，保留 managed 关系**
+    (该 session 仍归本 manager 管理，仍可 session_get / 之后随时再
+    report_subscribe). Existing worker.result broadcasts are unaffected
+    (they were never gated by subscription).
+
+    ⚠️ 想解除整个管理关系（session 变无主）→ 用 session_unclaim（会连带退订），
+    不是本工具。
 
     Args:
         session_id: Managed session ID to unsubscribe from

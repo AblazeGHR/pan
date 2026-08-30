@@ -186,6 +186,8 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 `queue_pending` 是**落盘真源**，`pending_signal` 只是唤醒信号（§7.6）。报告可跨进程重启恢复。
 
 > **订阅即接管**：`report_subscribe` 同时把目标 session 归为调用方（meta-agent）管理（自动 claim，见 `packages/mcp/server.py`）；`report_unsubscribe` 仅能退订**自己管理**的 session。
+>
+> **订阅 vs 管理（务必分清）**：`report_unsubscribe` **只退完成报告推送、保留 managed 关系**（session 仍归你管理）；`session_unclaim` 是**解除整个管理关系**（自动连带退订，session 变无主）。想「保留管理、只是不要完成报告推送」→ 用 `report_unsubscribe`（**不是** `session_unclaim`）。四操作对比见 §5。
 
 ## 4. HTTP API 与 WS 协议（技术细节 → 引用子文档）
 
@@ -217,9 +219,9 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查，等价 HTTP `POST /api/sessions/batch-delete`） |
 | `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 它与 A 原 system_prompt 拼接；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
-| `session_claim` | `session_id` | 当前 agent（`PAN_AGENT_SESSION_ID`）认领会话，建立 managed 关系（立项 4.2）。**claim 自动 report_subscribe**（后端实现）。走 `POST /api/claim`（带 `_check_access(claim=True)` 隔离检查）；目标已被他人管理则拒绝。需 `PAN_AGENT_SESSION_ID` |
+| `session_claim` | `session_id` | 当前 agent（`PAN_AGENT_SESSION_ID`）认领会话，建立 managed 关系（立项 4.2）。**claim 自动 report_subscribe**（订阅即接管，开启完成报告推送；后端实现）。走 `POST /api/claim`（带 `_check_access(claim=True)` 隔离检查）；目标已被他人管理则拒绝。需 `PAN_AGENT_SESSION_ID` |
 | `session_claim_many` | `session_ids` | 批量认领：逐个处理，返回 `{"ok": true, "claimed": [...], "failed": [{"sessionId", "error"}]}`，单个失败不影响其余 |
-| `session_unclaim` | `session_id` | 当前 agent 解除对会话的 managed 关系（自动退订报告，后端实现）。走 `POST /api/unclaim`（带 `_check_access` 隔离检查，受限 caller 只能解绑自己管理的）；仅当前 manager 可解绑。需 `PAN_AGENT_SESSION_ID` |
+| `session_unclaim` | `session_id` | 当前 agent 解除对会话的**整个 managed 关系**（**自动连带退订报告，session 变无主**，后端实现）。走 `POST /api/unclaim`（带 `_check_access` 隔离检查，受限 caller 只能解绑自己管理的）；仅当前 manager 可解绑。⚠️ 只想停止完成报告推送、保留管理 → 用 `report_unsubscribe`（§5 四操作对比）。需 `PAN_AGENT_SESSION_ID` |
 | `session_unclaim_many` | `session_ids` | 批量解绑：语义同 `session_claim_many`，返回 `unclaimed`/`failed` 列表 |
 | `session_qq_subscribe` | `target_type`, `target_id` | 给当前 agent session 订阅某 QQ 会话的 inbox 更新提醒（`@@@@by qq` 提醒入 `queue_pending`，§7.6）。走 `POST /api/qq/subscribe`，body sessionId=自己（无需 `_check_access`，但需 `PAN_AGENT_SESSION_ID`）。`target_type` 仅 `"user"`/`"group"`；`target_id` 为 QQ 号/群号（转 str） |
 | `session_qq_unsubscribe` | `target_type`, `target_id` | 退订 QQ inbox 更新提醒，走 `POST /api/qq/unsubscribe`，参数同上 |
@@ -257,8 +259,19 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
-| `report_subscribe` | `session_id` | 订阅被管理 session 的完成报告（需 `PAN_AGENT_SESSION_ID` 环境变量，仅 Pan 内 session 生效）。**订阅即接管**：自动 claim 目标 session（§3） |
-| `report_unsubscribe` | `session_id` | 取消订阅（仅能退订**自己管理**的 session） |
+| `report_subscribe` | `session_id` | 订阅 session 的完成报告（需 `PAN_AGENT_SESSION_ID` 环境变量，仅 Pan 内 session 生效）。**订阅即接管**：自动 claim 目标 session 建立 managed 关系（§3）；已归本 manager 管理则仅确保订阅 |
+| `report_unsubscribe` | `session_id` | 仅取消完成报告订阅，**保留 managed 关系**（仅能退订**自己管理**的 session）；想解除整个管理关系用 `session_unclaim`（见下方四操作对比） |
+
+> **四操作关系（订阅 vs 管理，务必分清）**：
+>
+> | 操作 | managed 关系 | 完成报告推送 | 典型用途 |
+> |------|-------------|-------------|---------|
+> | `report_subscribe` | **建立**（订阅即接管，自动 claim） | 开启 | 派发前订阅收完成报告（默认路径，§3） |
+> | `report_unsubscribe` | **保留**（不动 managed） | 关闭 | **想保留管理、只是不要完成报告推送** ⭐ |
+> | `session_claim` | **建立** | 开启（自动订阅） | 认领无主 session 归自己管理 |
+> | `session_unclaim` | **解除**（session 变无主） | 关闭（连带退订） | 彻底放手：不再管理该 session |
+>
+> ⚠️ **区别提示**：两对工具是**不对称联动**——订阅可在保留管理的前提下单独关掉（`report_unsubscribe`），但解除管理必然连带退订（`session_unclaim`）。**想「保留管理、只是不要完成报告推送」→ 用 `report_unsubscribe`，不是 `session_unclaim`**（后者会让 session 变无主）。
 
 > **zombie 通知**：被管 session 的 worker **异常死亡**（running/queued 状态被 watchdog 回收或进程崩溃/EOF）时，也会向你的 `queue_pending` 推一条报告：`{"status":"error","type":"zombie","sessionId","workerId","result":"worker died: <原因>"}`——可据此感知 worker 意外丢失（正常完成后的 idle 回收**不**报 zombie）。报告拼接时 `type` 字段单独一行。
 
@@ -362,7 +375,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 3. **并行 fan-out 用 `agent_assign` + `report_subscribe`**（§3）；串行依赖同样走 assign + report_subscribe（§2.2/§7.4）。
 4. **上下文过大 / 要切 adapter 用 `session_handoff`**（§2.7）：替身交接创建孪生 session B 接替 A，A 归档可读。
 5. **完成通知走 `report_subscribe` → `queue_pending`**（内部订阅，§3）；外部 WS 盯梢仅测试/排障用（§4）。
-6. **订阅即接管**：`report_subscribe` 后完成报告自动入队；不想要时 `report_unsubscribe` 退订（仅自己管理的 session）。
+6. **订阅即接管**：`report_subscribe` 后完成报告自动入队（并自动 claim 建立管理）；不想要完成报告推送时用 `report_unsubscribe` 退订（**保留管理**）——**不要**用 `session_unclaim`（那是解除整个管理关系，会连带退订，session 变无主，§5）。
 7. **一个 Session 一个任务**：避免混多个不相关任务（taskSeq/result 配对依赖此约束）。
 8. **长任务防误杀**：stream running 卡死判定基于任务运行时长（`worker.task_timeout_sec`，默认 1800s）——长思考/大文件读取不会被静默超时误杀；仍建议复杂任务拆小、读大文件分段。
 9. **及时清理**：`session_delete` / `session_batch_delete` 释放资源；watchdog 只回收进程不删 session。
@@ -390,6 +403,9 @@ A: `PAN_API_URL` 端口要指向实际运行的 port（main 分支 8768，MCP �
 
 **Q: report_subscribe 后没收到完成报告？**
 A: 检查 §3 前置条件：目标 session 是否有 `managed_by`、是否已 `report_subscribe`、你的环境是否有 `PAN_AGENT_SESSION_ID`（report 工具仅 Pan 内 session 可用）、manager 与目标是否**同实例**（§10.2 G9 / G10）。
+
+**Q: 想保留管理关系，但不想再收完成报告推送？**
+A: 用 `report_unsubscribe`（只关完成报告推送，**保留 managed**）。**不要**用 `session_unclaim`——那是解除整个管理关系（连带退订），session 会变无主（§3 / §5 四操作对比）。
 
 ## 10. 冷启动实测记录与待补充清单（D5）
 
