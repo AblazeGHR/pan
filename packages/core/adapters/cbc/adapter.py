@@ -199,6 +199,10 @@ class CbcAdapter:
             return [path]
         return [path]
 
+    def resolved_cli_argv(self) -> list[str]:
+        """Return the resolved cbc executable components for preflight checks."""
+        return self._resolve_cbc_argv()
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:

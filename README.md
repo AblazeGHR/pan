@@ -319,6 +319,19 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 
 - Python 3.14（当前开发环境为 3.14.5）
 - Node.js + pnpm（构建 React 前端）
+- 至少一个已安装并可从当前环境找到的受支持 Agent CLI：`cbc`、`kimi`、`opencode`、`claude`、`codex`
+
+Pan 不会替用户安装这些第三方 CLI；它会在启动时逐个检查。请在**启动 Pan 的同一个终端 / 用户环境**中任选至少一个 CLI 验证全局安装：
+
+```bash
+cbc --version
+kimi --version
+opencode --version
+claude --version
+codex --version
+```
+
+至少一条命令应输出版本号。Windows PowerShell、macOS/Linux 以及后台服务都要使用能找到该命令的环境；如果 CLI 装在 npm 全局目录但 Pan 找不到，请重启 Pan，或设置对应的 `PAN_*_PATH`。Pan 启动日志会列出每个 CLI 的 `ready/unavailable` 状态；运行后也可访问 `GET http://127.0.0.1:8768/api/cli/status` 查看诊断详情。
 
 ### 安装与启动
 
@@ -587,6 +600,7 @@ POST   /api/fs/delete                   → 删除
 GET    /api/models?adapter=cbc          → 获取模型列表
 GET    /api/adapter/config?adapter=cbc  → Adapter 配置
 GET    /api/adapters                    → 列举可用 Adapter
+GET    /api/cli/status                  → 检查当前 Pan 进程能否找到各 Agent CLI
 GET    /api/adapters/{adapter}/sessions[/import] → 通用会话导入 / 浏览
 GET    /api/cbc/projects                → CBC 项目列表
 GET    /api/cbc/sessions                → CBC Session 列表

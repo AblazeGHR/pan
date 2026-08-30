@@ -574,6 +574,10 @@ class CodexAdapter:
         """返回 codex 真实启动前缀 ``[node, codex_js]``（避开 .CMD shim）。"""
         return [self._codex_node, self._codex_js]
 
+    def resolved_cli_argv(self) -> list[str]:
+        """Return Node and the Codex entry point for preflight checks."""
+        return self._resolve_codex_argv()
+
 
 def _c_override(key: str, value) -> str:
     """构造 ``-c`` 内联覆盖字符串 ``<key>=<toml-literal>``。

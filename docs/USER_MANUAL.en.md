@@ -62,6 +62,18 @@ Data-model essentials: **Workers have no memory; Sessions do.** Every spawn is a
 - Node.js + pnpm (to build the React frontend)
 - At least one supported CLI: `cbc` (CodeBuddy CLI), `kimi`, `opencode`, `claude`, `codex`
 
+Pan does not install third-party Agent CLIs. In the **same terminal / user environment that will start Pan**, verify that at least one CLI is installed globally:
+
+```bash
+cbc --version
+kimi --version
+opencode --version
+claude --version
+codex --version
+```
+
+At least one command should print a version. At startup, Pan logs a `ready/unavailable` status for every CLI. A missing optional CLI does not prevent Pan from starting, but creating a Worker with that adapter shows installation, PATH, and restart guidance. If all CLIs are missing, Workers cannot run. A background service may have a different PATH from your interactive terminal, so restart Pan after installing a CLI or changing PATH. Inspect `GET http://127.0.0.1:8768/api/cli/status` for live diagnostics.
+
 > Frontend note: **React Dashboard is the only maintained and recommended frontend.** The legacy Vanilla frontend is deprecated and served only at `/vanilla` as a fallback (see §12.3); new users are advised not to use it.
 
 ### 2.2 Installation Steps
@@ -714,7 +726,7 @@ Others: `POST /api/worker/{id}/restart|settings|rename|branch|interrupt|takeover
 |----------|-----------|
 | Generic import | `GET /api/adapters/{adapter}/sessions`, `POST /api/adapters/{adapter}/sessions/import` (claude/codex use this) |
 | cbc/kimi/opencode import | `GET /api/cbc/projects`, `GET /api/cbc/sessions`, `GET /api/cbc/browse`, `POST /api/cbc/sessions/import`; `GET /api/kimi/workspaces`, `GET /api/kimi/sessions`, `POST /api/kimi/sessions/import`; `GET /api/opencode/sessions`, `POST /api/opencode/sessions/import` |
-| Models/Adapter | `GET /api/models?adapter=cbc`, `GET /api/adapter/config?adapter=cbc`, `GET /api/adapters` |
+| Models/Adapter | `GET /api/models?adapter=cbc`, `GET /api/adapter/config?adapter=cbc`, `GET /api/adapters`, `GET /api/cli/status` (Agent CLI availability diagnostics) |
 | Settings | `GET`/`PUT /api/settings/ui` (App Settings display settings); `POST /api/config/reload` (hot-reload config.json, `{"scope":"adapters"\|"worker"\|"all"}`); `POST /api/manifest/reload` (hot-reload manifest) |
 | Templates/MCP | `GET /api/session-templates` (`GET /api/characters/profiles` is its deprecated alias), `GET /api/mcp/servers`, `GET /api/manifest/command-routes` |
 | Character | `GET`/`POST /api/characters`, `GET`/`DELETE /api/characters/{id}` |

@@ -291,6 +291,19 @@ Typical use cases:
 
 - Python 3.14 (current development environment: 3.14.5)
 - Node.js + pnpm (to build the React frontend)
+- At least one supported Agent CLI installed and discoverable in the current environment: `cbc`, `kimi`, `opencode`, `claude`, or `codex`
+
+Pan does not install these third-party CLIs for you; it checks them at startup. In the **same terminal / user environment that will start Pan**, verify that at least one CLI is installed globally:
+
+```bash
+cbc --version
+kimi --version
+opencode --version
+claude --version
+codex --version
+```
+
+At least one command should print a version. Windows PowerShell, macOS/Linux, and background services must use an environment where the command is discoverable. If a CLI is installed in an npm global directory but Pan cannot find it, restart Pan or set the corresponding `PAN_*_PATH` variable. Pan logs a `ready/unavailable` status for every CLI at startup; after startup, inspect `GET http://127.0.0.1:8768/api/cli/status` for details.
 
 ### Install & Start
 
@@ -559,6 +572,7 @@ POST   /api/fs/delete                   → delete
 GET    /api/models?adapter=cbc          → get the model list
 GET    /api/adapter/config?adapter=cbc  → Adapter configuration
 GET    /api/adapters                    → list available Adapters
+GET    /api/cli/status                  → check Agent CLI availability in the Pan process
 GET    /api/adapters/{adapter}/sessions[/import] → generic session import / browse
 GET    /api/cbc/projects                → CBC project list
 GET    /api/cbc/sessions                → CBC Session list

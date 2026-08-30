@@ -364,6 +364,22 @@ export interface ApiAdaptersResponse {
   default: string;
 }
 
+export interface CliDiagnostic {
+  name: string;
+  label: string;
+  available: boolean;
+  command: string[];
+  missing: string[];
+  hint: string;
+  error?: string | null;
+}
+
+export interface ApiCliStatusResponse {
+  adapters: CliDiagnostic[];
+  available: string[];
+  hasAvailable: boolean;
+}
+
 // ── Config hot-reload ──
 
 export interface ApiConfigReloadAdapterEntry {

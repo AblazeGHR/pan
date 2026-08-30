@@ -9,6 +9,7 @@ import type {
   ApiConfigReloadResponse,
   ApiWorkerSettingsUpdateResponse,
   ApiAdaptersResponse,
+  ApiCliStatusResponse,
   ApiBatchDeleteResponse,
   SessionTemplate,
   ApiSessionTemplatesResponse,
@@ -516,6 +517,10 @@ export async function fetchAdapterConfig(
 
 export async function fetchAdapters(): Promise<ApiAdaptersResponse> {
   return request<ApiAdaptersResponse>(`${BASE}/adapters`);
+}
+
+export async function fetchCliStatus(): Promise<ApiCliStatusResponse> {
+  return request<ApiCliStatusResponse>(`${BASE}/cli/status`);
 }
 
 // ── Config hot-reload ──

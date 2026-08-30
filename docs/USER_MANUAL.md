@@ -62,6 +62,18 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 - Node.js + pnpm（构建 React 前端）
 - 至少一个受支持的 CLI：`cbc`（CodeBuddy CLI）、`kimi`、`opencode`、`claude`、`codex`
 
+Pan 不负责安装第三方 Agent CLI。请在**启动 Pan 的同一个终端 / 用户环境**中，任选至少一个 CLI 验证全局安装：
+
+```bash
+cbc --version
+kimi --version
+opencode --version
+claude --version
+codex --version
+```
+
+至少一条命令应输出版本号。Pan 启动时会在日志中逐个报告 CLI 的 `ready/unavailable` 状态；缺少某个 CLI 不会阻止 Pan 启动，但使用对应 adapter 创建 Worker 时会给出安装、PATH 和重启提示。如果所有 CLI 都缺失，Worker 无法运行。后台服务的 PATH 可能和交互式终端不同，安装 CLI 或修改 PATH 后请重启 Pan。运行中的诊断可通过 `GET http://127.0.0.1:8768/api/cli/status` 查看。
+
 > 前端说明：**React Dashboard 是当前唯一维护并推荐的前端**。旧版 Vanilla 前端已弃用（deprecated），仅在 `/vanilla` 路由作后备访问（见 §12.3），不建议新用户使用。
 
 ### 2.2 安装步骤
@@ -714,7 +726,7 @@ curl -X POST $BASE/api/kill/worker-1
 |------|------|
 | 通用导入 | `GET /api/adapters/{adapter}/sessions`、`POST /api/adapters/{adapter}/sessions/import`（claude/codex 走此端点） |
 | cbc/kimi/opencode 导入 | `GET /api/cbc/projects`、`GET /api/cbc/sessions`、`GET /api/cbc/browse`、`POST /api/cbc/sessions/import`；`GET /api/kimi/workspaces`、`GET /api/kimi/sessions`、`POST /api/kimi/sessions/import`；`GET /api/opencode/sessions`、`POST /api/opencode/sessions/import` |
-| 模型/Adapter | `GET /api/models?adapter=cbc`、`GET /api/adapter/config?adapter=cbc`、`GET /api/adapters` |
+| 模型/Adapter | `GET /api/models?adapter=cbc`、`GET /api/adapter/config?adapter=cbc`、`GET /api/adapters`、`GET /api/cli/status`（Agent CLI 可用性诊断） |
 | 设置 | `GET`/`PUT /api/settings/ui`（App Settings 显示设置）；`POST /api/config/reload`（config.json 热重载，`{"scope":"adapters"\|"worker"\|"all"}`）；`POST /api/manifest/reload`（manifest 热重载） |
 | 模板/MCP | `GET /api/session-templates`（`GET /api/characters/profiles` 为其废弃别名）、`GET /api/mcp/servers`、`GET /api/manifest/command-routes` |
 | Character | `GET`/`POST /api/characters`、`GET`/`DELETE /api/characters/{id}` |

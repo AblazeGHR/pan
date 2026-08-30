@@ -163,6 +163,10 @@ class ClaudeAdapter:
                 return resolved
         return [which]
 
+    def resolved_cli_argv(self) -> list[str]:
+        """Return the resolved Claude executable components for preflight checks."""
+        return self._resolve_claude_argv()
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:

@@ -35,6 +35,7 @@ from .adapters import (
     resolve_execution_mode,
 )
 from .config import load_config
+from .cli_diagnostics import format_cli_spawn_error
 
 _log = logging.getLogger(__name__)
 
@@ -1713,7 +1714,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         )
     except Exception as e:
         _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
-        await _finish_task_error(w, s, f"MCP spawn failed: {e}")
+        await _finish_task_error(w, s, format_cli_spawn_error(adapter.name, e))
         # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
         w.last_activity = time.monotonic()
         _maybe_restart_pending(w)
@@ -2354,9 +2355,8 @@ async def _spawn_process(session_id: str,
     if not s:
         return f"Session {session_id} not found"
 
-    args = adapter.build_spawn_args(s, extra_args)
-
     try:
+        args = adapter.build_spawn_args(s, extra_args)
         return await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,
@@ -2365,9 +2365,9 @@ async def _spawn_process(session_id: str,
             cwd=s.workdir or None,
         )
     except FileNotFoundError:
-        return f"CLI executable not found (adapter={adapter.name})"
+        return format_cli_spawn_error(adapter.name)
     except OSError as e:
-        return f"OS error spawning {adapter.name}: {e}"
+        return format_cli_spawn_error(adapter.name, e)
 
 
 async def _restart_tasks(w: Worker):

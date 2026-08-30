@@ -31,6 +31,7 @@ from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
 from packages.core.adapters.opencode import sessions as opencode_sessions
 from packages.core.config import load_config, read_config_file, save_config
+from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 
@@ -2460,6 +2461,17 @@ async def api_list():
             }
             for w in worker.list_workers()
         ]
+    }
+
+
+@app.get("/api/cli/status")
+async def api_cli_status():
+    """Return user-facing availability diagnostics for supported Agent CLIs."""
+    adapters = get_cli_diagnostics()
+    return {
+        "adapters": adapters,
+        "available": [entry["name"] for entry in adapters if entry["available"]],
+        "hasAvailable": any(entry["available"] for entry in adapters),
     }
 
 

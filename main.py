@@ -225,11 +225,14 @@ def _spawn_qq_bot() -> None:
 
 if __name__ == "__main__":
     import uvicorn
+    from packages.core.cli_diagnostics import log_cli_preflight
     from packages.core.config import load_config
     from packages.core.logging_setup import setup_logging
 
     # 本地日志：data/logs/pan.log（大小/天轮转）+ console 双输出
     setup_logging()
+    # 非侵入式检查：缺少某个可选 CLI 不阻止 Pan 启动，但给出安装/PATH 提示。
+    log_cli_preflight(_log)
 
     host = os.environ.get("PAN_HOST", "127.0.0.1")
     env_port = os.environ.get("PAN_PORT")

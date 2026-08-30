@@ -165,6 +165,10 @@ class KimiAdapter:
     def _wrapper_path(self) -> str:
         return str(Path(__file__).resolve().parent / "wrapper.py")
 
+    def resolved_cli_argv(self) -> list[str]:
+        """Return the Kimi CLI path used by the wrapper."""
+        return [self._KIMI_PATH]
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:

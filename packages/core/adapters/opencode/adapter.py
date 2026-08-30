@@ -139,6 +139,10 @@ class OpencodeAdapter:
     def _wrapper_path(self) -> str:
         return str(Path(__file__).resolve().parent / "wrapper.py")
 
+    def resolved_cli_argv(self) -> list[str]:
+        """Return the resolved OpenCode executable for preflight checks."""
+        return [_resolve_opencode_path()]
+
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:

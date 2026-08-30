@@ -82,6 +82,10 @@ class CliAdapter(Protocol):
 
     # ── 进程启动 ──
 
+    def resolved_cli_argv(self) -> list[str]:
+        """Return executable components used by this adapter, without spawning."""
+        ...
+
     def base_args(self) -> list[str]: ...
 
     def model_args(self, s: Session) -> list[str]: ...

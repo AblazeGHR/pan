@@ -4,6 +4,7 @@ import { Sidebar } from './components/layout/Sidebar';
 import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
 import { DetailPanel } from './components/detail/DetailPanel';
+import { CliStatusBanner } from './components/layout/CliStatusBanner';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useUIStore } from './stores/uiStore';
 import { Outlet, useNavigate } from 'react-router-dom';
@@ -133,6 +134,7 @@ function Layout() {
         className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden ${isMobile ? 'pt-[calc(env(safe-area-inset-top)+0.5rem)]' : ''}`}
         style={{ gridColumn: '3' }}
       >
+        <CliStatusBanner />
         <Outlet />
       </main>
 
