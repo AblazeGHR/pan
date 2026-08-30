@@ -16,6 +16,8 @@ export function ChatMessages() {
   const initialLoading = useSessionStore((s) => s.initialLoading);
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  // Deprecated Bubble view is still wired for a possible future re-enable.
+  // The retained UI is the TUI-style view: green user border and left bars.
   const bubbleViewEnabled = useUIStore((s) => s.bubbleViewEnabled);
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);

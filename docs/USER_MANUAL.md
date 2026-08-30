@@ -176,7 +176,7 @@ bash scripts/start.sh
 
 - 顶栏状态点随 Worker 状态变色：**绿色 = 空闲，蓝色 = 运行中，黄色 = 已被你接管，红色 = 出错**；
 - 聊天流逐条显示 Worker 的回复；AI 调用的工具（tool）折叠成一行，点击可在右侧 **DetailPanel** 看原始输出；思考过程可内联展开；
-- 顶栏可在 **Bubble**（气泡）与 **TUI**（终端风格）两种视图间切换。
+- 当前 React 前端保留 **TUI**（终端风格）视图：用户输入带绿色边框，消息块带左侧色条。原 **Bubble**（气泡）视图及顶栏切换按钮目前已隐藏并标记为 deprecated，后续如需启用可恢复。
 
 ### 3.5 查看结果与后续
 
@@ -221,7 +221,7 @@ bash scripts/start.sh
 - **发消息**：底部输入框（InputRow），Enter 发送、Shift+Enter 换行；输入框左侧齿轮打开会话设置（§4.6）。
 - **发送队列**（SendQueuePanel）：Worker 忙碌时消息自动入队；队列面板里可编辑、排序、删除、合并发送，或一键清空；Agent 队列单独分组。
 - **消息流**（ChatMessages）：显示历史与实时回复；tool 调用折叠为可点击行，点击后右侧 **DetailPanel** 显示原始输出；thinking 块可内联展开。
-- **视图切换**：Bubble / TUI 两种展示风格。
+- **展示风格**：当前固定使用 TUI 风格；Bubble 风格实现暂保留但已 deprecated，切换入口暂时隐藏。
 
 ### 4.4 编辑视图
 
@@ -560,7 +560,7 @@ python -m packages.remote        # 或 scripts/start_cf.ps1
 | 超时配置不生效 | `worker.*` 改后需重启或热重载（UI 全局设置或 `POST /api/config/reload`，scope `worker`） |
 | 队列不消费 | `queue_pending` 非空但无活 Worker 时全局 watchdog（30s tick）会自动拉起；持续不动查 `data/logs/pan.log` 的 watchdog/branch 日志 |
 | 端口占用 | 换 `port` 或 `PAN_PORT`；确认旧实例已 `stop_pan.bat` 树杀 |
-| 聊天里看不到输出 | 检查顶栏是否停在 TUI 视图/折叠面板；tool 行需点击展开（§4.3） |
+| 聊天里看不到输出 | 检查消息区是否滚动到底部或面板是否折叠；tool 行需点击展开（§4.3） |
 | QQ 连不上 | 查 NapCat/LLOneBot 是否启动、`ONEBOT_WS_URLS` / `qq.<channel>.ws_urls` 是否指向正确端口（3001/3002）；QQ bot 崩溃看 `data/logs/pan.log` 启动告警（Pan Core 不受影响） |
 | 带 character 的会话首个任务卡顿 | embedding 首次加载/网络重试；等 15s 超时降级，或 `memory.enabled: false` |
 | Worker 报 "Worker process dead" | 进程已崩溃/被回收，重新 Start / 再发任务（自动恢复上下文） |

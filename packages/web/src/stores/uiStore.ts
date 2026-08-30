@@ -163,7 +163,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
   userInputRequests: [],
   elicitationRequests: [],
   terminalInteractions: [],
-  bubbleViewEnabled: true,
+  // Deprecated: Bubble view is retained for a possible future re-enable, but
+  // the current UI intentionally starts in the TUI-style view.
+  bubbleViewEnabled: false,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),
   mobileSidebarOpen: false,

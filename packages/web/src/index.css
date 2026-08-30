@@ -304,7 +304,7 @@ body {
   }
 }
 
-/* ── TUI Mode (flat text, no bubbles) ── */
+/* ── Retained TUI-style view (Bubble view is deprecated) ── */
 
 .tui-mode {
   padding: 12px 0 !important;
@@ -419,8 +419,9 @@ body {
   background: var(--color-bg-secondary);
 }
 
-/* ── Role-based left color bars (vanilla TUI replication) ──
-   Applies to the bubble view too: every message block carries a 3px
+/* ── Role-based left color bars (TUI-style view) ──
+   Keep these base rules because Bubble view is deprecated but may be
+   re-enabled later: every message block carries a 3px
    role-colored bar on its left edge (user green, assistant gray, thinking
    purple, tool orange), mirroring styles.css's `#messages.tui-mode .msg.*`. */
 

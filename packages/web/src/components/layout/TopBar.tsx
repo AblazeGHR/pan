@@ -124,7 +124,10 @@ export function TopBar() {
           <span className="text-sm font-medium text-text-primary truncate max-w-[120px] md:max-w-[200px]">
             {currentSession.name || currentSession.id?.slice(0, 12)}
           </span>
+          {/* Deprecated: keep the toggle implementation for a future Bubble
+              view re-enable, but hide this entry from the current UI. */}
           <button
+            hidden
             onClick={toggleBubbleView}
             className="text-sm text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
             title={bubbleViewEnabled ? 'Switch to TUI view' : 'Switch to Bubble view'}

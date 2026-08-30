@@ -176,7 +176,7 @@ Open <http://127.0.0.1:8768> in a browser (the default port; see §5.2 to change
 
 - The status dot in the top bar changes color with the Worker state: **green = idle, blue = running, yellow = taken over by you, red = error**;
 - Replies appear in the chat stream one by one; tool calls are collapsed into a row — click one to see the raw output in the **DetailPanel** on the right; thinking blocks can be expanded inline;
-- The top bar lets you switch between **Bubble** and **TUI** views.
+- The React frontend currently retains the **TUI**-style view: user input has a green border and message blocks have left-side color bars. The **Bubble** view and top-bar toggle are currently hidden and marked deprecated so they can be re-enabled later if needed.
 
 ### 3.5 Reading Results and What's Next
 
@@ -221,7 +221,7 @@ Shortcuts: **Ctrl+B** collapses/expands the sidebar (collapsed to a narrow icon 
 - **Sending messages**: the input row (InputRow) at the bottom — Enter sends, Shift+Enter inserts a newline; the gear left of the input opens session settings (§4.6).
 - **Send queue** (SendQueuePanel): messages queue automatically while the Worker is busy; the queue panel lets you edit, reorder, delete, merge-send, or clear; Agent queues are grouped separately.
 - **Message stream** (ChatMessages): shows history and live replies; tool calls collapse into clickable rows — clicking shows the raw output in the **DetailPanel** on the right; thinking blocks expand inline.
-- **View switching**: Bubble / TUI display styles.
+- **Display style**: TUI style is currently fixed; the Bubble implementation is retained but deprecated, and its toggle entry is temporarily hidden.
 
 ### 4.4 Editor View
 
@@ -560,7 +560,7 @@ python -m packages.remote        # or scripts/start_cf.ps1
 | Timeout config not taking effect | After changing `worker.*`, restart or hot-reload (UI global settings or `POST /api/config/reload`, scope `worker`) |
 | Queue not being consumed | When `queue_pending` is non-empty but no Worker is live, the global watchdog (30s tick) auto-starts one; if it still sits, check `data/logs/pan.log` for watchdog/branch logs |
 | Port in use | Change `port` or `PAN_PORT`; make sure the old instance was tree-killed via `stop_pan.bat` |
-| No output in chat | Check whether the top bar is stuck in TUI view / collapsed panel; tool rows need a click to expand (§4.3) |
+| No output in chat | Check whether the message area is scrolled to the bottom / a panel is collapsed; tool rows need a click to expand (§4.3) |
 | QQ won't connect | Check NapCat/LLOneBot is running and `ONEBOT_WS_URLS` / `qq.<channel>.ws_urls` point at the right ports (3001/3002); if the QQ bot crashes, look at the startup warning in `data/logs/pan.log` (Pan Core is unaffected) |
 | First task on a character session stutters | embedding first load / network retry; wait for the 15s timeout to degrade, or set `memory.enabled: false` |
 | Worker reports "Worker process dead" | The process crashed or was reclaimed; Start again / resend the task (context auto-restores) |

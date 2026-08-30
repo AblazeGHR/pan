@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'static/', 'node_modules/'] },
+  // Legacy Vanilla frontend is checked separately by the root TypeScript
+  // compile hook; keep it out of the React lint/test surface.
+  { ignores: ['dist/', 'static/', 'node_modules/', 'ts/'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

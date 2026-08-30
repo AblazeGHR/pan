@@ -59,8 +59,8 @@ export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) 
     );
   }
 
-  // User messages — vanilla TUI style: full-width green box (3px green left
-  // bar + green top/bottom separator + ">" prefix), styled via .msg.user CSS.
+  // Retained TUI-style view: full-width green user box (3px green left bar +
+  // green top/bottom separator + ">" prefix), styled via .msg.user CSS.
   if (role === 'user') {
     return (
       <div className={`${mt} px-3 sm:px-6 lg:px-8`}>
