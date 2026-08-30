@@ -214,6 +214,13 @@ export interface ApiModelsResponse {
   default: string;
 }
 
+export interface ApiCodexRefreshOfficialModelsResponse {
+  ok: boolean;
+  before: string[];
+  after: string[];
+  error?: string;
+}
+
 export interface ApiGenericResponse {
   error?: string;
   workerId?: string;

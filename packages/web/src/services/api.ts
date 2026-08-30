@@ -7,6 +7,8 @@ import type {
   AdapterConfig,
   ApiConfigResponse,
   ApiConfigReloadResponse,
+  ApiModelsResponse,
+  ApiCodexRefreshOfficialModelsResponse,
   ApiWorkerSettingsUpdateResponse,
   ApiAdaptersResponse,
   ApiCliStatusResponse,
@@ -545,6 +547,19 @@ export async function reloadConfig(
     },
   );
   if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function fetchCodexModels(): Promise<ApiModelsResponse> {
+  return request<ApiModelsResponse>(`${BASE}/models?adapter=codex`);
+}
+
+export async function refreshCodexOfficialModels(): Promise<ApiCodexRefreshOfficialModelsResponse> {
+  const data = await request<ApiCodexRefreshOfficialModelsResponse>(
+    `${BASE}/codex/refresh-official-models`,
+    { method: 'POST' },
+  );
+  if (!data.ok) throw new Error(data.error || 'Failed to refresh Codex models');
   return data;
 }
 

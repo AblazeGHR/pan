@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -1927,6 +1927,82 @@ async def api_remote_restart():
 
 # ── Config hot-reload ──
 
+def _reload_adapter_models() -> tuple[list[dict], list[str]]:
+    """Invalidate adapter model caches and return count diffs and errors."""
+    adapters_out = []
+    errors: list[str] = []
+    for a in list_adapters():
+        entry: dict = {"name": a.name}
+        try:
+            entry["modelsBefore"] = len(a.supported_models)
+        except Exception as e:
+            entry["modelsBefore"] = None
+            errors.append(f"{a.name}: read before: {e}")
+        invalidate = getattr(a, "invalidate_models_cache", None)
+        if callable(invalidate):
+            try:
+                invalidate()
+            except Exception as e:
+                errors.append(f"{a.name}: invalidate: {e}")
+        try:
+            entry["modelsAfter"] = len(a.supported_models)
+        except Exception as e:
+            entry["modelsAfter"] = None
+            errors.append(f"{a.name}: read after: {e}")
+        adapters_out.append(entry)
+    return adapters_out, errors
+
+
+@app.post("/api/codex/refresh-official-models")
+async def api_codex_refresh_official_models():
+    """Replace the Codex whitelist with the visible official model catalog."""
+    try:
+        completed = subprocess.run(
+            ["codex", "debug", "models"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(_PROJECT_DIR),
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="codex debug models timed out")
+    except OSError as e:
+        raise HTTPException(status_code=502, detail=f"failed to run codex: {e}")
+
+    if completed.returncode != 0:
+        message = (completed.stderr or completed.stdout or "command failed").strip()
+        raise HTTPException(status_code=502, detail=f"codex debug models failed: {message[-500:]}")
+    try:
+        catalog = json.loads(completed.stdout)
+        if isinstance(catalog, dict):
+            catalog = catalog.get("models")  # actual `codex debug models` shape
+        if not isinstance(catalog, list):
+            raise ValueError("expected a JSON object with models[] or a JSON array")
+        models = []
+        for item in catalog:
+            if not isinstance(item, dict):
+                raise ValueError("catalog entries must be objects")
+            if item.get("visibility") in (None, "list"):
+                slug = item.get("slug")
+                if not isinstance(slug, str) or not slug:
+                    raise ValueError("visible catalog entry has no valid slug")
+                models.append(slug)
+    except (json.JSONDecodeError, ValueError) as e:
+        raise HTTPException(status_code=502, detail=f"invalid codex model catalog: {e}")
+
+    before = list(get_adapter("codex").supported_models)
+    raw = read_config_file()
+    codex = dict(raw.get("codex") or {})
+    codex["models"] = models
+    raw["codex"] = codex
+    save_config(raw)
+
+    _, reload_errors = _reload_adapter_models()
+    if reload_errors:
+        raise HTTPException(status_code=500, detail="; ".join(reload_errors))
+    after = list(get_adapter("codex").supported_models)
+    return {"ok": True, "before": before, "after": after}
+
 @app.post("/api/config/reload")
 async def api_config_reload(data: dict | None = None):
     """Force a config.json hot-reload (adapters / worker / plugin / memory).
@@ -1956,26 +2032,8 @@ async def api_config_reload(data: dict | None = None):
     errors: list[str] = []
 
     if scope in ("adapters", "all"):
-        adapters_out = []
-        for a in list_adapters():
-            entry: dict = {"name": a.name}
-            try:
-                entry["modelsBefore"] = len(a.supported_models)
-            except Exception as e:
-                entry["modelsBefore"] = None
-                errors.append(f"{a.name}: read before: {e}")
-            invalidate = getattr(a, "invalidate_models_cache", None)
-            if callable(invalidate):
-                try:
-                    invalidate()
-                except Exception as e:
-                    errors.append(f"{a.name}: invalidate: {e}")
-            try:
-                entry["modelsAfter"] = len(a.supported_models)
-            except Exception as e:
-                entry["modelsAfter"] = None
-                errors.append(f"{a.name}: read after: {e}")
-            adapters_out.append(entry)
+        adapters_out, adapter_errors = _reload_adapter_models()
+        errors.extend(adapter_errors)
         result["adapters"] = adapters_out
 
     if scope in ("worker", "all"):
@@ -2199,7 +2257,10 @@ async def api_report_subscribe(data: dict):
     if not target:
         return {"error": f"Session {session_id} not found"}
     # 软约束：已有归属且不属于该 manager → 拒绝（防止越权订阅）
-    if target.managed_by and target.managed_by != manager_id:
+    # A deleted manager may remain in historical data as a dangling reference;
+    # treat that target as unmanaged so it can be recovered.
+    if (target.managed_by and target.managed_by != manager_id
+            and sess.get(target.managed_by) is not None):
         return {"error": f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"}
     # 订阅即接管：建立 managed 关系（双向落盘，立项 4.2）。
     # claim 内部已自动 report_subscribe；此处 add 幂等，保留作防御性兜底。

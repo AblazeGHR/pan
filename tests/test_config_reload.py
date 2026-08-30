@@ -18,6 +18,7 @@
 import asyncio
 import json
 import sys
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -233,6 +234,73 @@ def test_reload_invalidate_failure_reported_not_500(monkeypatch):
 
 def _read_cfg():
     return json.loads(config.CONFIG_FILE.read_text(encoding="utf-8"))
+
+
+def test_refresh_codex_official_models_replaces_whitelist(monkeypatch):
+    """Official visible entries replace only codex.models and refresh caches."""
+    get_adapter("codex").supported_models  # warm the permanent/TTL cache
+    cfg_before = _read_cfg()
+    cfg_before["codex"]["model"] = "codex-m1"
+    cfg_before["ui"] = {"language": "zh"}
+    _write_config(config.CONFIG_FILE, cfg_before)
+
+    output = json.dumps({"models": [
+        {"slug": "official-a", "display_name": "A", "visibility": "list"},
+        {"slug": "hidden", "display_name": "Hidden", "visibility": "hide"},
+        {"slug": "official-b", "display_name": "B", "visibility": None},
+    ]})
+
+    def fake_run(args, **kwargs):
+        assert args == ["codex", "debug", "models"]
+        assert kwargs["timeout"] == 30
+        return subprocess.CompletedProcess(args, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    result = asyncio.run(srv.api_codex_refresh_official_models())
+
+    assert result == {
+        "ok": True,
+        "before": ["codex-m1"],
+        "after": ["official-a", "official-b"],
+    }
+    saved = _read_cfg()
+    assert saved["codex"]["models"] == ["official-a", "official-b"]
+    assert saved["codex"]["model"] == "codex-m1"
+    assert saved["ui"] == {"language": "zh"}
+
+
+def test_refresh_codex_official_models_accepts_bare_array(monkeypatch):
+    """兼容顶层为数组的 catalog 输出（防御 codex CLI 格式回退）。"""
+    output = json.dumps([{"slug": "m1", "display_name": "M1", "visibility": "list"}])
+
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    result = asyncio.run(srv.api_codex_refresh_official_models())
+    assert result["after"] == ["m1"]
+
+
+def test_refresh_codex_official_models_reports_command_failure(monkeypatch):
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(args, 1, stdout="", stderr="not logged in")
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    with pytest.raises(srv.HTTPException) as exc:
+        asyncio.run(srv.api_codex_refresh_official_models())
+    assert exc.value.status_code == 502
+    assert "not logged in" in str(exc.value.detail)
+
+
+def test_refresh_codex_official_models_reports_invalid_json(monkeypatch):
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout="not json", stderr="")
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    with pytest.raises(srv.HTTPException) as exc:
+        asyncio.run(srv.api_codex_refresh_official_models())
+    assert exc.value.status_code == 502
+    assert "invalid codex model catalog" in str(exc.value.detail)
 
 
 def test_reload_plugin_picks_up_added_manifest():

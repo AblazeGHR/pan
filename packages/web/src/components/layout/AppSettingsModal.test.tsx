@@ -1,8 +1,26 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { AppSettingsModal } from './AppSettingsModal';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
+
+const { fetchCodexModelsMock, refreshCodexOfficialModelsMock } = vi.hoisted(() => ({
+  fetchCodexModelsMock: vi.fn(),
+  refreshCodexOfficialModelsMock: vi.fn(),
+}));
+vi.mock('@/services/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/api')>();
+  return {
+    ...actual,
+    fetchRemoteStatus: vi.fn().mockResolvedValue({
+      available: false,
+      enabled: false,
+      running: false,
+    }),
+    fetchCodexModels: fetchCodexModelsMock,
+    refreshCodexOfficialModels: refreshCodexOfficialModelsMock,
+  };
+});
 
 // AppSettingsModal renders through a portal to document.body — query there,
 // not the render() container.
@@ -27,6 +45,15 @@ describe('AppSettingsModal', () => {
   beforeEach(() => {
     localStorage.clear();
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
+    fetchCodexModelsMock.mockResolvedValue({
+      models: ['gpt-5-codex', 'gpt-5-mini'],
+      default: 'gpt-5-codex',
+    });
+    refreshCodexOfficialModelsMock.mockResolvedValue({
+      ok: true,
+      before: ['gpt-5-codex'],
+      after: ['gpt-5.1-codex', 'gpt-5-mini'],
+    });
   });
 
   it('renders nothing when closed', () => {
@@ -54,6 +81,27 @@ describe('AppSettingsModal', () => {
     expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(1);
     fireEvent.click(cardEl().querySelector('[role="switch"]')!);
     expect(useAppSettingsStore.getState().notifications.codexWarningToast).toBe(false);
+  });
+
+  it('loads and replaces the Codex whitelist on the Adapter tab', async () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const adapterTab = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Adapter'))!;
+    fireEvent.click(adapterTab);
+
+    await waitFor(() =>
+      expect(cardEl().textContent).toContain('gpt-5-codex, gpt-5-mini'),
+    );
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
+        (button) => button.textContent?.includes('替换为官方模型目录'),
+      )!,
+    );
+    await waitFor(() =>
+      expect(cardEl().textContent).toContain('after: gpt-5.1-codex, gpt-5-mini'),
+    );
+    expect(refreshCodexOfficialModelsMock).toHaveBeenCalledTimes(1);
   });
 
   it('is full-screen on mobile and ~75% of the viewport on desktop', () => {
