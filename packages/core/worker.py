@@ -239,6 +239,11 @@ class Worker:
     _hist_wake_count: int = 0          # 未消费的「提前落盘」唤醒计数（权威信号，防 ev.set 被 clear 冲掉）
     _hist_flush_event: asyncio.Event | None = None  # 防抖唤醒（仅作阻塞唤醒；计数为准）
     _hist_save_task: asyncio.Task | None = None     # 防抖落盘任务（单写者）
+    # A restart reuses the public worker id, so stale background tasks must be
+    # fully stopped before a new generation starts.  This counter makes that
+    # ownership boundary explicit for delayed interrupt fallbacks.
+    generation: int = 0
+    _interrupt_guard_task: asyncio.Task | None = None
 
 
 workers: dict[str, Worker] = {}
@@ -948,15 +953,29 @@ async def _consumer(w: Worker):
             if claimed is None:
                 continue  # 信号重复 / item 已被消费 / 会话消失 → 跳过
             text = claimed["text"]
-            source = claimed.get("source", "agent")
+            source = _task_source(claimed)
+            if source is None:
+                _log.warning("[Worker %s] task id=%s has unknown source; leaving in queue_pending",
+                             w.worker_id, claimed.get("id"))
+                _inflight_task_ids.discard(claimed.get("id"))
+                continue
             w._current_seq = claimed.get("seq")
             w._current_task_id = claimed.get("taskId")
             w._current_queue_item = claimed
         else:
             # 直接入队消息（无 type）：send_task 落盘迁移前的完整 item 形态
-            # （兼容测试直连 pending_signal.put 的完整 item）
+            # （兼容测试直连 pending_signal.put 的完整 item）。未知/畸形信号
+            # 必须丢弃并记录，不能静默套用 agent 身份。
+            if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+                _log.warning("[Worker %s] ignoring malformed worker signal: %r",
+                             w.worker_id, item)
+                continue
+            source = _task_source(item)
+            if source is None:
+                _log.warning("[Worker %s] ignoring worker signal with unknown source: %r",
+                             w.worker_id, item.get("source"))
+                continue
             text = item["text"]
-            source = item.get("source", "agent")
             w._current_seq = item.get("seq")
             w._current_task_id = item.get("taskId")
             w._current_queue_item = None
@@ -1129,6 +1148,71 @@ def _process_alive(w: Worker) -> bool:
     return w._consume_task is None or not w._consume_task.done()
 
 
+def _is_task_item(item) -> bool:
+    return isinstance(item, dict) and item.get("type") == "task"
+
+
+def _is_report_item(item) -> bool:
+    """Return whether a persisted item is an actual agent/QQ report.
+
+    ``queue_pending`` predates durable task envelopes.  Old user messages had
+    ``text``/``source`` but no ``type`` and must never be formatted as an
+    ``@@@@by agent`` report merely because a worker died before consuming them.
+    """
+    if not isinstance(item, dict):
+        return False
+    # A task envelope always wins, even if a malformed caller happened to add
+    # a field named ``result``.  Otherwise it could be pulled into the report
+    # batch and formatted as @@@@by agent.
+    if item.get("type") == "task":
+        return False
+    return item.get("type") == "qq" or "result" in item
+
+
+_TASK_SOURCES = {"user", "agent", "system_prompt", "report"}
+
+
+def _task_source(item: dict) -> str | None:
+    """Return an explicit task origin, safely normalizing legacy text items."""
+    source = item.get("source")
+    if source is None:
+        # Pre-L4 agent sends carried source=agent; an unmarked text envelope is
+        # therefore safest as a dashboard/user task, never an agent report.
+        return "user"
+    return source if source in _TASK_SOURCES else None
+
+
+def _migrate_legacy_task_items(s) -> bool:
+    """Normalize pre-L4 text envelopes in-place and return whether changed."""
+    changed = False
+    for index, item in enumerate(s.queue_pending):
+        if not isinstance(item, dict) or item.get("type") is not None:
+            continue
+        if not isinstance(item.get("text"), str):
+            continue
+        # A no-type item with text was the former direct user/agent signal.
+        # Reports use ``result`` instead; honour that distinction strictly.
+        migrated = dict(item)
+        migrated["type"] = "task"
+        migrated.setdefault("id", uuid.uuid4().hex)
+        # Never manufacture an agent identity for an unmarked legacy text
+        # envelope: after a worker restart that would render user text as an
+        # @@@@by agent message.
+        if _task_source(migrated) is None:
+            migrated["source"] = "user"
+        else:
+            migrated.setdefault("source", "user")
+        if migrated.get("seq") is None:
+            s.task_seq += 1
+            migrated["seq"] = s.task_seq
+        migrated.setdefault("taskId", None)
+        s.queue_pending[index] = migrated
+        changed = True
+        _log.info("[Session %s] migrated legacy text queue item id=%s to task envelope",
+                  s.id, migrated["id"])
+    return changed
+
+
 def _worker_has_pending_work(w: Worker) -> bool:
     """idle watchdog 回收前检查是否还有待消费信号或持久队列项。"""
     if w.pending_signal is not None and not w.pending_signal.empty():
@@ -1193,7 +1277,7 @@ async def _consume_pending_reports(w: Worker, s):
     元数据、队列项仍在。恢复时复用已有 history 用户项，但仍重试整个报告批次，
     直到收到 terminal result；新报告与旧报告混合时保持队列顺序。
     """
-    reports = [it for it in s.queue_pending if it.get("type") != "task"]
+    reports = [it for it in s.queue_pending if _is_report_item(it)]
     if not reports:
         # 队列里只剩 task item（报告已被其他信号消费）→ 不发空消息
         return
@@ -1264,7 +1348,7 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
                      w.worker_id, w.session_id)
         return None
     for it in s.queue_pending:
-        if it.get("type") == "task" and it.get("id") == task_id:
+        if _is_task_item(it) and it.get("id") == task_id:
             if task_id in _inflight_task_ids:
                 _log.warning(
                     "[Worker %s] task_signal: task id=%s already in-flight, "
@@ -1961,7 +2045,7 @@ async def _session_spawn_lock(session_id: str) -> asyncio.Lock:
     return _spawn_locks.setdefault(session_id, asyncio.Lock())
 
 
-def _recover_pending_signals(w: Worker, s) -> None:
+def _recover_pending_signals(w: Worker, s) -> bool:
     """spawn/重启后恢复消费：把落盘 queue_pending 的积压项转成唤醒信号。
 
     L4 落盘：任务与报告都持久化在 Session.queue_pending（落盘真源），worker
@@ -1972,17 +2056,19 @@ def _recover_pending_signals(w: Worker, s) -> None:
     调用时机：create_worker 在 system_prompt 注入**之前**（避免对注入任务重复
     发信号）、_restart_tasks 重建 consumer 后。
     """
+    migrated = _migrate_legacy_task_items(s)
     pending = s.queue_pending
     if not pending:
-        return
+        return migrated
     has_report = False
     for it in pending:
-        if it.get("type") == "task":
+        if _is_task_item(it):
             w.pending_signal.put_nowait({"type": "task_signal", "id": it.get("id")})
-        else:
+        elif _is_report_item(it):
             has_report = True
     if has_report:
         w.pending_signal.put_nowait({"type": "report_signal"})
+    return migrated
 
 
 async def create_worker(session_id: str) -> Worker | str:
@@ -2103,7 +2189,12 @@ async def _create_worker(session_id: str) -> Worker | str:
     # 每个 task item 发 task_signal（带 id），有 report item 再补发 report_signal。
     # 必须放在 system_prompt 注入**之前**：注入会往 queue_pending 追加新 task 并
     # 自带 task_signal，先做恢复可避免对同一 item 重复发信号。
-    _recover_pending_signals(w, s)
+    queue_migrated = _recover_pending_signals(w, s)
+    if queue_migrated:
+        # Persist the compatibility migration before the consumer can execute
+        # it.  Otherwise another crash would classify the same user message as
+        # a report again on the following start.
+        await _sess.save_async(s)
 
     # Inject system_prompt
     # - Pure stream (no MCP): injected as a separate first message (existing).
@@ -2160,6 +2251,17 @@ async def _cancel_worker_task(task: asyncio.Task | None) -> None:
         return
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
+
+
+async def _stop_worker_tasks(w: Worker, *, include_watchdog: bool = True) -> None:
+    """Stop the current generation in a deterministic order."""
+    if include_watchdog:
+        await _cancel_worker_task(w._watchdog_task)
+    await _cancel_worker_task(w._consume_task)
+    await _cancel_worker_task(w._stdout_task)
+    w._watchdog_task = None
+    w._consume_task = None
+    w._stdout_task = None
 
 
 async def _kill_process_tree(w: Worker) -> None:
@@ -2264,6 +2366,9 @@ async def kill_worker(worker_id: str) -> str | None:
         await _cancel_worker_task(w._consume_task)
     if w._stdout_task:
         await _cancel_worker_task(w._stdout_task)
+    if w._interrupt_guard_task and w._interrupt_guard_task is not asyncio.current_task():
+        await _cancel_worker_task(w._interrupt_guard_task)
+    await _stop_worker_tasks(w)
     await _kill_process_tree(w)
     await _kill_takeover_terminal(w)
 
@@ -2298,6 +2403,9 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
             await _cancel_worker_task(w._consume_task)
         if w._stdout_task:
             await _cancel_worker_task(w._stdout_task)
+        if w._interrupt_guard_task:
+            await _cancel_worker_task(w._interrupt_guard_task)
+        await _stop_worker_tasks(w)
         await _kill_process_tree(w)
         await _kill_takeover_terminal(w)
         # A1 崩溃安全：清理前 flush 防抖缓冲的流式块
@@ -2374,13 +2482,13 @@ async def _restart_tasks(w: Worker):
     # A1 崩溃安全：重启前先 flush 防抖缓冲的流式块（换进程后 resume 依赖已落盘内容）
     if w._hist_dirty:
         await _flush_history_now(w)
-    if w._watchdog_task:
-        w._watchdog_task.cancel()
-    if w._stdout_task:
-        w._stdout_task.cancel()
-    if w._consume_task:
-        w._consume_task.cancel()
     w.pending_signal = asyncio.Queue()
+    w._task_done = asyncio.Event()
+    w._current_seq = None
+    w._current_task_id = None
+    w._current_queue_item = None
+    w._current_report_items = []
+    w._task_started_at = 0.0
     w.last_activity = time.monotonic()
     if w.process is not None:
         w._stdout_task = asyncio.create_task(_read_stdout(w))
@@ -2391,8 +2499,8 @@ async def _restart_tasks(w: Worker):
     # L4 落盘恢复：新 consumer 的信号队列是新建的，旧信号已随旧队列丢弃——
     # 重新对落盘 queue_pending 积压发信号，避免重启/换进程时丢任务与报告。
     s = _session(w)
-    if s:
-        _recover_pending_signals(w, s)
+    if s and _recover_pending_signals(w, s):
+        await _sess.save_async(s)
 
 
 async def restart_worker(worker_id: str) -> str | None:
@@ -2401,8 +2509,11 @@ async def restart_worker(worker_id: str) -> str | None:
     if not w:
         return "Worker not found"
 
-    # always clear held status
-    w.status = "idle"
+    # Block new work from the retiring generation.  send_task still persists a
+    # concurrent message, and _restart_tasks will recover it after the new
+    # consumer exists.
+    w.status = "restarting"
+    w.generation += 1
 
     # cancel stale tasks FIRST — before killing the process.
     # _read_stdout detects EOF on process death and calls workers.pop(),
@@ -2412,6 +2523,9 @@ async def restart_worker(worker_id: str) -> str | None:
         await _cancel_worker_task(w._consume_task)
     if w._stdout_task:
         await _cancel_worker_task(w._stdout_task)
+    if w._interrupt_guard_task and w._interrupt_guard_task is not asyncio.current_task():
+        await _cancel_worker_task(w._interrupt_guard_task)
+    await _stop_worker_tasks(w)
 
     # Do this before any await that can service a dashboard reconnect. The
     # Worker object is reused, but these snapshots are process-local.
@@ -2458,6 +2572,11 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
         await _cancel_worker_task(w._consume_task)
     if w._stdout_task:
         await _cancel_worker_task(w._stdout_task)
+    w.status = "restarting"
+    w.generation += 1
+    if w._interrupt_guard_task and w._interrupt_guard_task is not asyncio.current_task():
+        await _cancel_worker_task(w._interrupt_guard_task)
+    await _stop_worker_tasks(w)
 
     # Do this before killing/spawning: a reconnect must never replay prompts or
     # usage emitted by the process that is being replaced.
@@ -2667,15 +2786,91 @@ async def interrupt_worker(worker_id: str) -> str | None:
     # established kill+resume path for adapters without this optional
     # capability or when the control write fails.
     if getattr(w.adapter, "supports_native_interrupt", False):
+        # A previous turn may have left the event set during the tiny window
+        # before this turn's consumer starts waiting.  Do not let that stale
+        # completion suppress the native-interrupt fallback.
+        if w._task_done is not None:
+            w._task_done.clear()
         err = await send_control_message(worker_id, {"type": "interrupt"})
         if err is None:
+            # A successful stdin write is not proof that the native provider
+            # honoured the interrupt.  Keep its cheap in-process path, but
+            # bound it: a stuck turn is recovered through the same restart
+            # route as non-native adapters.
+            generation = w.generation
+            if w._interrupt_guard_task is not None:
+                await _cancel_worker_task(w._interrupt_guard_task)
+            w._interrupt_guard_task = asyncio.create_task(
+                _restart_if_native_interrupt_stalls(w, generation))
             return None
         _log.warning("[Worker %s] native interrupt write failed: %s; restarting", worker_id, err)
     return await restart_worker(worker_id)
 
 
+_ACCEPTED_INPUT_ID_LIMIT = 256
+
+
+def _has_accepted_input_id(s, client_message_id: str | None) -> bool:
+    return bool(client_message_id and client_message_id in s.accepted_input_ids)
+
+
+async def _persist_task_item(s, text: str, source: str, seq: int | None,
+                             task_id: str | None,
+                             client_message_id: str | None) -> tuple[dict | None, str | None]:
+    """Durably append one task, atomically with the browser receipt ledger."""
+    if _has_accepted_input_id(s, client_message_id):
+        return None, None
+    old_seq = s.task_seq
+    old_accepted_input_ids = list(s.accepted_input_ids)
+    if seq is None:
+        s.task_seq += 1
+        seq = s.task_seq
+    item = {
+        "type": "task",
+        "id": uuid.uuid4().hex,
+        "text": text,
+        "source": source,
+        "seq": seq,
+        "taskId": task_id,
+    }
+    if client_message_id:
+        item["clientMessageId"] = client_message_id
+        s.accepted_input_ids.append(client_message_id)
+        if len(s.accepted_input_ids) > _ACCEPTED_INPUT_ID_LIMIT:
+            del s.accepted_input_ids[:-_ACCEPTED_INPUT_ID_LIMIT]
+    s.queue_pending.append(item)
+    try:
+        await _sess.save_async(s)
+    except Exception as exc:
+        # Do not poison retry idempotency after a failed durable write.
+        s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
+        s.task_seq = old_seq
+        s.accepted_input_ids = old_accepted_input_ids
+        return None, f"Failed to persist queued task: {exc}"
+    return item, None
+
+
+async def _restart_if_native_interrupt_stalls(w: Worker, generation: int) -> None:
+    """Fall back to restart when native interrupt has no terminal response."""
+    event = w._task_done
+    if event is None:
+        return
+    try:
+        await asyncio.wait_for(event.wait(), timeout=10)
+    except asyncio.TimeoutError:
+        if workers.get(w.worker_id) is w and w.generation == generation and w.status == "running":
+            _log.warning("[Worker %s] native interrupt timed out; forcing restart", w.worker_id)
+            await restart_worker(w.worker_id)
+    except asyncio.CancelledError:
+        raise
+    finally:
+        if w._interrupt_guard_task is asyncio.current_task():
+            w._interrupt_guard_task = None
+
+
 async def send_task(worker_id: str, text: str, source: str = "agent",
-                    seq: int | None = None, task_id: str | None = None) -> str | None:
+                    seq: int | None = None, task_id: str | None = None,
+                    client_message_id: str | None = None) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -2693,26 +2888,21 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     s = _session(w)
     if s is None:
         return f"Session {w.session_id} not found"
-    if seq is None:
-        s.task_seq += 1
-        seq = s.task_seq
-
     w.last_activity = time.monotonic()
 
     # L4 落盘改造：任务 item 持久化到 session.queue_pending（落盘真源），
     # pending_signal 只放 task_signal 唤醒信号（携带 item.id），正文由 _consumer
     # 按 id 从真源拉取——worker 死亡/回收后任务不丢，重启后由 create_worker /
     # 全局 watchdog 自动恢复消费。
-    item = {
-        "type": "task",
-        "id": uuid.uuid4().hex,
-        "text": text,
-        "source": source,
-        "seq": seq,
-        "taskId": task_id,
-    }
-    s.queue_pending.append(item)
-    await _sess.save_async(s)
+    item, persist_error = await _persist_task_item(
+        s, text, source, seq, task_id, client_message_id)
+    if persist_error:
+        return persist_error
+    if item is None:
+        # Same browser message was durably accepted before an ack was lost.
+        # Do not append another signal/task; the original is already pending
+        # or completed and the caller can safely treat this as success.
+        return None
     await w.pending_signal.put({"type": "task_signal", "id": item["id"]})
 
     # queued：任务已入队、consumer 尚未取出。若队列前面还有任务，保持 queued 直到轮到它。
@@ -2801,7 +2991,8 @@ async def send(worker_id: str, text: str, source: str = "agent") -> dict:
 
 
 async def send_session(session_id: str, text: str, source: str = "agent",
-                       force: bool = False) -> dict:
+                       force: bool = False,
+                       client_message_id: str | None = None) -> dict:
     """向 session（agent）发消息（阶段 6 寻址兼容）：编排对象是 agent，
     worker（CLI 进程）是顺带的。
 
@@ -2819,23 +3010,18 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         s = _sess.get(session_id)
         if not s:
             return {"status": "error", "result": f"Session {session_id} not found"}
-        item = {
-            "type": "task",
-            "id": uuid.uuid4().hex,
-            "text": text,
-            "source": source,
-            "seq": None,
-            "taskId": None,
-        }
-        s.queue_pending.append(item)
-        await _sess.save_async(s)
+        item, persist_error = await _persist_task_item(
+            s, text, source, None, None, client_message_id)
+        if persist_error:
+            return {"status": "error", "result": persist_error}
         return {"status": "queued", "workerId": None, "sessionId": session_id,
                 "pendingSpawn": True}
     if force:
         err = await restart_worker(w.worker_id)
         if err:
             return {"status": "error", "result": err}
-    send_err = await send_task(w.worker_id, text, source=source)
+    send_err = await send_task(w.worker_id, text, source=source,
+                               client_message_id=client_message_id)
     if send_err:
         return {"status": "error", "result": send_err}
     return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
@@ -2886,6 +3072,9 @@ async def shutdown_all():
             await _cancel_worker_task(w._consume_task)
         if w._stdout_task:
             await _cancel_worker_task(w._stdout_task)
+        if w._interrupt_guard_task:
+            await _cancel_worker_task(w._interrupt_guard_task)
+        await _stop_worker_tasks(w)
         # A1 崩溃安全：关闭前 flush 防抖缓冲的流式块
         if w._hist_dirty:
             await _flush_history_now(w)
