@@ -1424,7 +1424,20 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
         mw.last_activity = time.monotonic()
         await mw.pending_signal.put({"type": "report_signal"})
     elif not mw or mw.status not in {"held", "restarting"}:
-        _schedule_session_recovery(session_id)
+        session = _sess.get(session_id)
+        if auto_spawn and session is not None and not session.queue_pending:
+            # Legacy callers use auto_spawn to materialize an idle worker even
+            # before the first item exists; retain that contract synchronously.
+            created = await create_worker(session_id)
+            if isinstance(created, str):
+                _log.warning("[Pan] auto-spawn worker failed for session=%s: %s",
+                             session_id, created)
+        elif auto_spawn:
+            task = _schedule_session_recovery(session_id)
+            if task is not None:
+                await task
+        else:
+            _schedule_session_recovery(session_id)
 
 
 async def enqueue_qq_reminder(target_type: str, target_id: str,
@@ -1709,8 +1722,15 @@ async def _global_watchdog_tick():
             continue
         if find_alive_worker_by_session(s.id) is not None:
             continue  # 已有活 worker → 正常
-        if s.id in _recovery_tasks and not _recovery_tasks[s.id].done():
-            continue  # immediate recovery is already in flight
+        pending_recovery = _recovery_tasks.get(s.id)
+        if pending_recovery is not None and not pending_recovery.done():
+            # Drain the already scheduled attempt instead of racing a second
+            # create_worker call.  If it fails, the next watchdog tick retries.
+            try:
+                await pending_recovery
+            except Exception:
+                _log.warning("[Pan] Immediate recovery task failed for session=%s", s.id)
+            continue
         # 无活 worker（从未 spawn，或注册了死进程尚未 pop）→ 交给 create_worker 自愈
         _log.info(
             "[Pan] Global watchdog recover: session=%s queue_pending=%d items, no live worker",
