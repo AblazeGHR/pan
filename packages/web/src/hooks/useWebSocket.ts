@@ -149,12 +149,17 @@ export function useWebSocket() {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
+      // A destroyed worker may be the only event after a user queued text
+      // while it was running.  Do not wait for a stale idle status or a later
+      // refresh: the durable session route can accept the message offline.
+      useQueueStore.getState().flush(true);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
+      useQueueStore.getState().flush(true);
       scheduleRefreshSessions();
     }));
 
