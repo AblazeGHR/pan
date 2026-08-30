@@ -248,6 +248,13 @@ class Worker:
 
 workers: dict[str, Worker] = {}
 
+# A durable item may be appended while its worker is dead (or while the old
+# generation is being torn down).  Keep one best-effort recovery task per
+# session so the request path can wake recovery immediately without spawning
+# duplicate workers.  The global watchdog remains the retry/fallback path when
+# a spawn fails or the service was not able to schedule this task.
+_recovery_tasks: dict[str, asyncio.Task] = {}
+
 _broadcast: callable = None
 
 # ── task 幂等注册表: taskId → {"status", "workerId", "result"}
@@ -1406,27 +1413,18 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     """唤醒某 session 的 worker consumer（若存活）。
 
     信号只负责唤醒、不承载正文（立项 4.3/4.7：正文在落盘 queue_pending）。
-    worker 死亡/未 spawn 时默认静默返回，由全局 watchdog 周期兜底 spawn 恢复
-    （spawn 后若 queue_pending 非空自动补发信号）。
-
-    auto_spawn=True：无活 worker 时**立即** create_worker（事件驱动恢复，不等
-    watchdog tick）。create_worker 自带 per-session 锁防重复 spawn、并对已有
-    活 worker 去重复用；spawn 失败返回错误串，此处仅打 warning 不抛出——消息
-    已落盘 queue_pending，watchdog 下轮仍会兜底。oneshot worker（process 为
-    None）满足可唤醒条件，不会误触发 spawn。
+    worker 死亡时立即请求 session recovery；全局 watchdog 只作为 spawn 失败
+    或调度失败时的兜底（spawn 后若 queue_pending 非空自动补发信号）。保留
+    ``auto_spawn`` 参数以兼容旧调用方；现在所有无活 worker 的唤醒都合并为
+    一个 session 级恢复任务，避免并发报告/QQ 提醒重复 spawn。
     """
     mw = find_worker_by_session(session_id)
     if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
         mw.last_activity = time.monotonic()
         await mw.pending_signal.put({"type": "report_signal"})
-    elif auto_spawn:
-        created = await create_worker(session_id)
-        if isinstance(created, str):
-            _log.warning(
-                "[Pan] auto-spawn worker failed for session=%s: %s",
-                session_id, created,
-            )
+    elif not mw or mw.status not in {"held", "restarting"}:
+        _schedule_session_recovery(session_id)
 
 
 async def enqueue_qq_reminder(target_type: str, target_id: str,
@@ -1619,6 +1617,56 @@ _GLOBAL_WATCHDOG_TICK_SEC: float = _WATCHDOG_TICK_SEC  # 沿用 worker 级间隔
 _global_watchdog_task: asyncio.Task | None = None
 
 
+async def _recover_session(session_id: str) -> None:
+    """Best-effort immediate recovery for a durable queue backlog."""
+    s = _sess.get(session_id)
+    if not s or not s.queue_pending:
+        return
+    current = find_worker_by_session(session_id)
+    # takeover and an explicit restart own the lifecycle; do not race them.
+    if current and current.status in {"held", "restarting"}:
+        return
+    if find_alive_worker_by_session(session_id) is not None:
+        return
+    created = await create_worker(session_id)
+    if isinstance(created, str):
+        _log.warning(
+            "[Pan] Immediate queue recovery failed for session=%s: %s",
+            session_id, created,
+        )
+
+
+def _schedule_session_recovery(session_id: str) -> asyncio.Task | None:
+    """Schedule at most one recovery attempt for a session in this loop."""
+    existing = _recovery_tasks.get(session_id)
+    if existing is not None and not existing.done():
+        return existing
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # Called without a running loop (only possible for an embedding caller);
+        # the global watchdog will still discover the durable backlog later.
+        return None
+    task = loop.create_task(
+        _recover_session(session_id),
+        name=f"pan-recover-{session_id}",
+    )
+    _recovery_tasks[session_id] = task
+
+    def _finish(done: asyncio.Task) -> None:
+        if _recovery_tasks.get(session_id) is done:
+            _recovery_tasks.pop(session_id, None)
+        if done.cancelled():
+            return
+        try:
+            done.result()
+        except Exception:
+            _log.exception("[Pan] Immediate queue recovery crashed for session=%s", session_id)
+
+    task.add_done_callback(_finish)
+    return task
+
+
 def start_global_watchdog() -> asyncio.Task:
     """启动服务级 watchdog（生命周期=Pan 服务）。幂等：已在运行则复用。"""
     global _global_watchdog_task
@@ -1656,8 +1704,13 @@ async def _global_watchdog_tick():
     for s in list(_sess.list_all()):
         if not s.queue_pending:
             continue
+        current = find_worker_by_session(s.id)
+        if current and current.status in {"held", "restarting"}:
+            continue
         if find_alive_worker_by_session(s.id) is not None:
             continue  # 已有活 worker → 正常
+        if s.id in _recovery_tasks and not _recovery_tasks[s.id].done():
+            continue  # immediate recovery is already in flight
         # 无活 worker（从未 spawn，或注册了死进程尚未 pop）→ 交给 create_worker 自愈
         _log.info(
             "[Pan] Global watchdog recover: session=%s queue_pending=%d items, no live worker",
@@ -2540,6 +2593,8 @@ async def restart_worker(worker_id: str) -> str | None:
 
     proc = await _spawn_process(w.session_id, adapter=w.adapter)
     if isinstance(proc, str):
+        w.status = "error"
+        _schedule_session_recovery(w.session_id)
         return f"Spawn failed ({w.session_id}): {proc}"
     w.process = proc
     w.status = "idle"
@@ -2588,6 +2643,8 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
 
     proc = await _spawn_process(w.session_id, adapter=w.adapter, extra_args=extra_args)
     if isinstance(proc, str):
+        w.status = "error"
+        _schedule_session_recovery(w.session_id)
         return proc
     w.process = proc
     w.status = "idle"
@@ -3014,6 +3071,9 @@ async def send_session(session_id: str, text: str, source: str = "agent",
             s, text, source, None, None, client_message_id)
         if persist_error:
             return {"status": "error", "result": persist_error}
+        # The queue write is the acknowledgement boundary.  Start recovery
+        # now; watchdog is intentionally only the eventual retry path.
+        _schedule_session_recovery(session_id)
         return {"status": "queued", "workerId": None, "sessionId": session_id,
                 "pendingSpawn": True}
     if force:
@@ -3061,6 +3121,9 @@ async def shutdown_all():
 
     使用 psutil 递归杀进程树（避免 node.exe 等孤儿进程）。
     """
+    for task in list(_recovery_tasks.values()):
+        await _cancel_worker_task(task)
+    _recovery_tasks.clear()
     ids = list(workers.keys())
     for wid in ids:
         w = workers.get(wid)

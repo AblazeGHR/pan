@@ -24,6 +24,9 @@ async def _save_noop(_session):
 
 
 def _cleanup():
+    for task in list(worker._recovery_tasks.values()):
+        task.cancel()
+    worker._recovery_tasks.clear()
     worker.workers.clear()
     worker._inflight_task_ids.clear()
     worker._task_status.clear()
@@ -67,7 +70,82 @@ def test_offline_user_message_is_a_durable_user_task(monkeypatch):
     _cleanup()
 
 
+def test_offline_enqueue_starts_recovery_without_waiting_for_watchdog(monkeypatch):
+    _cleanup()
+    s = _session("ses-immediate-recovery")
+    calls = []
+    monkeypatch.setattr(_sess, "save_async", _save_noop)
+
+    async def fake_create(session_id):
+        calls.append(session_id)
+        return "spawned"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+
+    async def scenario():
+        result = await worker.send_session(s.id, "wake now", source="user")
+        # Let the scheduled recovery task run; the HTTP acknowledgement itself
+        # must not wait for create_worker.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        return result
+
+    result = asyncio.run(scenario())
+    assert result["pendingSpawn"] is True
+    assert calls == [s.id]
+    _cleanup()
+
+
+def test_concurrent_offline_enqueue_coalesces_recovery(monkeypatch):
+    _cleanup()
+    s = _session("ses-coalesced-recovery")
+    calls = []
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    monkeypatch.setattr(_sess, "save_async", _save_noop)
+
+    async def fake_create(session_id):
+        calls.append(session_id)
+        entered.set()
+        await release.wait()
+        return "spawned"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+
+    async def scenario():
+        first, second = await asyncio.gather(
+            worker.send_session(s.id, "one", source="user"),
+            worker.send_session(s.id, "two", source="user"),
+        )
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        assert calls == [s.id]
+        release.set()
+        await asyncio.sleep(0)
+        return first, second
+
+    first, second = asyncio.run(scenario())
+    assert first["status"] == second["status"] == "queued"
+    assert len(s.queue_pending) == 2
+    _cleanup()
+
+
 def test_client_receipt_id_deduplicates_reconnect_retransmit(monkeypatch):
+    _cleanup()
+    s = _session()
+    w = _worker(s)
+    monkeypatch.setattr(_sess, "save_async", _save_noop)
+
+    async def scenario():
+        first = await worker.send_task(w.worker_id, "once", source="user",
+                                       client_message_id="browser-2")
+        second = await worker.send_task(w.worker_id, "once", source="user",
+                                        client_message_id="browser-2")
+        return first, second
+
+    assert asyncio.run(scenario()) == (None, None)
+    assert len(s.queue_pending) == 1
+    assert w.pending_signal.qsize() == 1
+    assert s.accepted_input_ids == ["browser-2"]
     _cleanup()
 
 
