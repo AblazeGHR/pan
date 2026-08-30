@@ -216,6 +216,13 @@ const CODEX_CONFIG: AdapterConfig = {
   supportedSettings: ['permissionMode'],
 };
 
+const MODEL_AND_PERMISSION_CONFIG: AdapterConfig = {
+  ...OPENCODE_CONFIG,
+  permissionModes: CODEX_CONFIG.permissionModes,
+  defaultPermissionMode: CODEX_CONFIG.defaultPermissionMode,
+  supportedSettings: ['model', 'permissionMode', 'thinking'],
+};
+
 function setModelSession() {
   useSessionStore.setState({
     currentSessionId: 's1',
@@ -240,6 +247,48 @@ function setModelSession() {
     adapterConfigs: { opencode: OPENCODE_CONFIG },
   });
 }
+
+function setModelAndPermissionSession() {
+  useSessionStore.setState({
+    currentSessionId: 's1',
+    currentMessages: [],
+    sessions: [
+      {
+        id: 's1',
+        name: 'Test',
+        adapter: 'opencode',
+        model: 'opencode/big-pickle',
+        permissionMode: 'read-only',
+        alwaysThinkingEnabled: true,
+        effort: '',
+        workerStatus: 'idle',
+        workerId: 'w1',
+        history: [],
+      },
+    ],
+  });
+  useAdapterStore.setState({
+    currentAdapter: 'opencode',
+    adapterConfigs: { opencode: MODEL_AND_PERMISSION_CONFIG },
+  });
+}
+
+describe('InputRow pill visibility', () => {
+  it('shows the model pill on mobile and keeps the permission pill desktop-only', () => {
+    setModelAndPermissionSession();
+    render(<InputRow />);
+
+    const modelPill = document.querySelector('[data-model-pill]');
+    const permissionPill = document.querySelector('[data-perm-pill]');
+
+    expect(modelPill).toBeTruthy();
+    expect(modelPill?.parentElement?.className).not.toContain('hidden');
+    expect(permissionPill).toBeTruthy();
+    expect(permissionPill?.parentElement?.className).toContain('hidden md:flex');
+    expect(screen.getByRole('button', { name: /opencode\/big-pickle/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /read-only/ })).toBeTruthy();
+  });
+});
 
 describe('InputRow ModelPill search', () => {
   it('opens a searchable dropdown and filters models by keyword', () => {

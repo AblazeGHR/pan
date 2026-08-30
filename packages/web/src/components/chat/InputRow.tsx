@@ -351,7 +351,7 @@ export function InputRow() {
       <SendQueuePanel />
 
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
-          右侧内容列：pill 行（ModelPill 仅桌面显示，移动端 model 只在设置弹窗中）+ textarea/Send 行。 */}
+          右侧内容列：pill 行 + textarea/Send 行。 */}
       <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
         {/* 左列竖排：gear 在上、^ 在下，gap-1 紧挨 */}
         <div className="flex flex-col gap-1 shrink-0 self-start">
@@ -410,22 +410,22 @@ export function InputRow() {
         <div className="flex-1 min-w-0 flex flex-col gap-2">
           {currentSession && (
             <div className="flex items-center gap-1.5 flex-wrap">
+              <ModelPill
+                sessionModel={currentSession.model || ''}
+                defaultModel={config?.defaultModel || ''}
+                models={config?.models || []}
+                show={showModelPill}
+                onApply={applySetting}
+              />
               <div className="hidden md:flex">
-                <ModelPill
-                  sessionModel={currentSession.model || ''}
-                  defaultModel={config?.defaultModel || ''}
-                  models={config?.models || []}
-                  show={showModelPill}
+                <PermissionPill
+                  sessionMode={currentSession.permissionMode || null}
+                  defaultMode={config?.defaultPermissionMode || ''}
+                  modes={config?.permissionModes || []}
+                  show={showPermPill}
                   onApply={applySetting}
                 />
               </div>
-              <PermissionPill
-                sessionMode={currentSession.permissionMode || null}
-                defaultMode={config?.defaultPermissionMode || ''}
-                modes={config?.permissionModes || []}
-                show={showPermPill}
-                onApply={applySetting}
-              />
               <ThinkingToggle
                 enabled={currentSession.alwaysThinkingEnabled}
                 show={showThinking}
