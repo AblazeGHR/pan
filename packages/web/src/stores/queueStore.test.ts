@@ -5,6 +5,14 @@ import { useSessionStore } from './sessionStore';
 import { useUIStore } from './uiStore';
 import { wsClient } from '@/services/ws';
 
+const queueApiMock = vi.hoisted(() => ({
+  fetchSessionQueue: vi.fn(),
+  deleteSessionQueueItem: vi.fn(),
+  reorderSessionQueue: vi.fn(),
+}));
+
+vi.mock('@/services/api', () => queueApiMock);
+
 vi.mock('@/services/ws', () => ({
   wsClient: {
     send: vi.fn(() => true),
@@ -51,7 +59,10 @@ function reset() {
     currentMessages: [],
     sessions: [],
   });
-  useQueueStore.setState({ queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false });
+  useQueueStore.setState({
+    queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false,
+    agentQueues: {}, agentQueueLoadSeq: {},
+  });
   useUIStore.setState({ toastQueue: [] });
   vi.mocked(wsClient.send).mockClear();
   vi.mocked(wsClient.send).mockReturnValue(true);
@@ -356,5 +367,23 @@ describe('queueStore move / clear / removeSession', () => {
     expect(localStorage.getItem('pan.sendQueue.s1')).toBeNull();
     expect(localStorage.getItem('pan.sendQueue.batch.s1')).toBeNull();
     expect(useQueueStore.getState().queues['s1']).toBeUndefined();
+  });
+});
+
+describe('queueStore agent queue refresh', () => {
+  it('keeps the newest response when queue refreshes complete out of order', async () => {
+    let resolveOld: ((items: never[]) => void) | undefined;
+    const oldResponse = new Promise<never[]>((resolve) => { resolveOld = resolve; });
+    queueApiMock.fetchSessionQueue
+      .mockReturnValueOnce(oldResponse)
+      .mockResolvedValueOnce([]);
+
+    const oldLoad = useQueueStore.getState().loadAgentQueue('s1');
+    const newLoad = useQueueStore.getState().loadAgentQueue('s1');
+    await newLoad;
+    resolveOld?.([{ id: 'stale', kind: 'task', text: 'stale', createdAt: 0 }] as never[]);
+    await oldLoad;
+
+    expect(useQueueStore.getState().agentQueues.s1).toEqual([]);
   });
 });

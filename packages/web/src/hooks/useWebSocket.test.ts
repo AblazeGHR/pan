@@ -5,6 +5,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
+import { useQueueStore } from '@/stores/queueStore';
 import type { Session, Message } from '@/types';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
@@ -38,10 +39,12 @@ vi.mock('@/services/ws', () => ({
 // the server "has persisted" (the injected user message lives only server-side).
 const apiMock = vi.hoisted(() => ({
   fetchSessionHistory: vi.fn(),
+  fetchSessionQueue: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => ({
   fetchSessionHistory: apiMock.fetchSessionHistory,
+  fetchSessionQueue: apiMock.fetchSessionQueue,
 }));
 
 function msg(role: string, content: string): Message {
@@ -82,6 +85,9 @@ describe('useWebSocket worker.result wiring', () => {
       _sessionWsTouchedSeq: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
+    useQueueStore.setState({ agentQueues: {}, agentQueueLoadSeq: {} });
+    apiMock.fetchSessionQueue.mockReset();
+    apiMock.fetchSessionQueue.mockResolvedValue([]);
   });
 
   it('requests pending native interactions when the singleton is already open', () => {
@@ -361,6 +367,22 @@ describe('useWebSocket worker.result wiring', () => {
     // WorkerDot 视同为 offline)，history 不动（崩溃安全）。
     expect(s?.workerStatus).toBeUndefined();
     expect(s?.history.map((m) => m.content)).toEqual(['u1']);
+  });
+
+  it('refreshes the durable agent queue after a worker crash', async () => {
+    renderHook(() => useWebSocket());
+
+    await act(async () => {
+      wsMock.trigger('worker.crashed', {
+        type: 'worker.crashed',
+        sessionId: 'B',
+        workerId: 'w1',
+      });
+      await Promise.resolve();
+    });
+
+    expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('B');
+    expect(useQueueStore.getState().agentQueues.B).toEqual([]);
   });
 
   it('renders streamed tool content with backend-compatible ASCII escaping', () => {

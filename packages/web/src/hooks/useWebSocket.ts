@@ -35,6 +35,10 @@ function clearInteractiveRequests(sessionId?: string): void {
   ui.clearTerminalInteractions(sessionId);
 }
 
+function refreshAgentQueue(sessionId?: string): void {
+  if (sessionId) void useQueueStore.getState().loadAgentQueue(sessionId);
+}
+
 /**
  * Connects to WebSocket and routes events to Zustand stores.
  * Uses store.getState() for callbacks so React components re-render
@@ -132,14 +136,17 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) => {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) => {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
     }));
 
     // Worker destroyed / crashed — 除就地更新状态点外触发防抖全量兜底：
@@ -149,12 +156,14 @@ export function useWebSocket() {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
+      refreshAgentQueue(e.sessionId);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
+      refreshAgentQueue(e.sessionId);
       scheduleRefreshSessions();
     }));
 
@@ -313,6 +322,7 @@ export function useWebSocket() {
       // 紧接着以 result 写入 lastMessage）。
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       handleWorkerUpdate(e, 'idle');
+      refreshAgentQueue(e.sessionId);
       // 就地更新该 session 卡片（lastResult + 结果文本追加 + historyTotal），
       // 不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新。
       if (e.sessionId) sessionStore.applyResultToSession(e.sessionId, e);

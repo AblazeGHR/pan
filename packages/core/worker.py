@@ -1104,8 +1104,15 @@ def _format_report_batch(reports: list[dict]) -> str:
 
 
 def _process_alive(w: Worker) -> bool:
-    """worker 进程存活检查：stream 模式看 cbc returncode；oneshot（process=None）视为存活。"""
-    return w.process is None or w.process.returncode is None
+    """检查 worker runtime 是否仍可接收任务。
+
+    stream worker 由 cbc 子进程的 returncode 表示活性；oneshot worker 没有
+    常驻 OS 进程（process=None），此时由其常驻 consumer task 表示 runtime。
+    ``_consume_task is None`` 兼容构造完成、尚未启动 consumer 的短暂窗口。
+    """
+    if w.process is not None:
+        return w.process.returncode is None
+    return w._consume_task is None or not w._consume_task.done()
 
 
 def _worker_has_pending_work(w: Worker) -> bool:
@@ -2608,7 +2615,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     if w.status == "held":
         return "Worker is held (takeover mode). Restart first."
     # In MCP mode, process is None (spawned per-task). Still allow signal queue.
-    if w.process is not None and w.process.returncode is not None:
+    if not _process_alive(w):
         return "Worker process dead"
     if w.pending_signal is None:
         return "Worker signal queue not ready"
@@ -2659,7 +2666,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
 async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
     """确保 session 有活的 worker。返回 (worker, None) 或 (None, error)。"""
     w = find_worker_by_session(session_id)
-    if w is None or (w.process is not None and w.process.returncode is not None):
+    if w is None or not _process_alive(w):
         created = await create_worker(session_id)
         if isinstance(created, str):
             return None, created
@@ -2718,7 +2725,7 @@ async def send(worker_id: str, text: str, source: str = "agent") -> dict:
     w = workers.get(worker_id)
     if w is None:
         return {"status": "error", "result": "Worker not found"}
-    if w.process is not None and w.process.returncode is not None:
+    if not _process_alive(w):
         return {"status": "error", "result": "Worker process dead"}
     send_err = await send_task(worker_id, text, source=source)
     if send_err:
@@ -2739,8 +2746,8 @@ async def send_session(session_id: str, text: str, source: str = "agent",
       补发 task_signal 分发——「send = 写给 agent」。
     - held（takeover 模式）→ 透传错误，不吞错不入队。
     """
-    w = find_worker_by_session(session_id)
-    alive = w is not None and (w.process is None or w.process.returncode is None)
+    w = find_alive_worker_by_session(session_id)
+    alive = w is not None
     if not alive:
         s = _sess.get(session_id)
         if not s:
@@ -2783,17 +2790,15 @@ def find_worker_by_session(session_id: str) -> Worker | None:
 
 
 def find_alive_worker_by_session(session_id: str) -> Worker | None:
-    """Like find_worker_by_session, but only returns workers whose OS process
-    is still alive (returncode is None).
+    """Like find_worker_by_session, but only returns live worker runtimes.
 
-    A worker in the `workers` dict can have a dead process in the brief window
-    between process exit and `_read_stdout` popping it. Also, `status` only
-    equals "running" during active message processing — an idle worker (alive
-    process, waiting for input) has status "idle" but should still be preserved
-    by reimport. Checking `returncode is None` is the robust liveness test.
+    Stream workers are checked by their OS process. CBC one-shot workers have no
+    OS process (``process=None``), so their resident consumer task is the runtime
+    liveness signal. ``status`` is deliberately not used: an idle worker is still
+    alive and must be reused by the queue/watchdog.
     """
     w = find_worker_by_session(session_id)
-    if w and w.process and w.process.returncode is None:
+    if w and _process_alive(w):
         return w
     return None
 

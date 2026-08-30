@@ -21,9 +21,13 @@ const EMPTY_AGENT_QUEUE: AgentQueueItem[] = [];
 const ROW_BTN =
   'rounded p-1 text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
 
-/** agent 队列行的 kind 徽章（agent task / agent report / agent qq）。 */
+/** agent 队列行的 kind 徽章（user/agent + task/report/qq）。 */
 const AGENT_BADGE =
   'shrink-0 rounded border border-border-default bg-bg-tertiary px-1 py-px text-[10px] leading-tight text-text-secondary whitespace-nowrap';
+
+function queueItemOrigin(item: AgentQueueItem): 'user' | 'agent' {
+  return item.source === 'user' ? 'user' : 'agent';
+}
 
 /**
  * 待发送队列面板：单行截断 + hover 操作（编辑/上移/下移/删除）、行内编辑、
@@ -259,7 +263,9 @@ export function SendQueuePanel() {
                       key={item.id}
                       className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors hover:bg-bg-hover"
                     >
-                      <span className={AGENT_BADGE}>agent {item.kind}</span>
+                      <span className={AGENT_BADGE}>
+                        {queueItemOrigin(item)} {item.kind}
+                      </span>
                       <span
                         className="flex-1 min-w-0 truncate text-text-primary"
                         title={item.text}

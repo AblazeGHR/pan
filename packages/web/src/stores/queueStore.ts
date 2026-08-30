@@ -125,6 +125,8 @@ interface QueueStore {
   /** Agent 落盘队列（session.queue_pending 归一化视图），每 session 一份。
    *  undefined = 尚未加载；[] = 已加载且为空。 */
   agentQueues: Record<string, AgentQueueItem[]>;
+  /** 每个 session 的最新 queue 请求序号，防止 crash/result 刷新竞态回写旧快照。 */
+  agentQueueLoadSeq: Record<string, number>;
 
   /** session 切换 / 首次进入时从 localStorage 恢复。 */
   loadForSession: (sessionId: string | null) => void;
@@ -224,6 +226,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     panelOpen: false,
     sendingId: null,
     agentQueues: {},
+    agentQueueLoadSeq: {},
 
     loadForSession: (sessionId) => {
       if (!sessionId) return;
@@ -235,8 +238,16 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     },
 
     loadAgentQueue: async (sessionId) => {
+      const requestSeq = (get().agentQueueLoadSeq[sessionId] ?? 0) + 1;
+      set((s) => ({
+        agentQueueLoadSeq: { ...s.agentQueueLoadSeq, [sessionId]: requestSeq },
+      }));
       try {
         const items = await fetchSessionQueue(sessionId);
+        // worker.crashed/worker.result can issue adjacent refreshes. Only the
+        // newest response is authoritative; an older response must not make a
+        // consumed queue item reappear in the panel.
+        if (get().agentQueueLoadSeq[sessionId] !== requestSeq) return;
         set((s) => ({ agentQueues: { ...s.agentQueues, [sessionId]: items } }));
       } catch {
         // 拉取失败（网络/会话已删）：保留旧值不动，面板按 undefined/旧值渲染；
@@ -477,7 +488,9 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         delete batchSend[sessionId];
         const agentQueues = { ...s.agentQueues };
         delete agentQueues[sessionId];
-        return { queues, edits, batchSend, agentQueues };
+        const agentQueueLoadSeq = { ...s.agentQueueLoadSeq };
+        delete agentQueueLoadSeq[sessionId];
+        return { queues, edits, batchSend, agentQueues, agentQueueLoadSeq };
       });
     },
 

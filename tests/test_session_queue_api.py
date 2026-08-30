@@ -81,6 +81,7 @@ def test_get_queue_mixed(monkeypatch):
     # zombie report（type=zombie）也归为 report
     assert items[3]["kind"] == "report"
     assert items[3]["text"] == "worker died"
+    assert items[2]["source"] == "user", "user task source must survive normalization"
     # qq
     assert items[4]["kind"] == "qq"
     assert items[4]["text"] == "hi from qq"

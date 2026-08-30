@@ -100,6 +100,39 @@ def test_global_watchdog_tick_skips_live_worker(monkeypatch):
     _cleanup()
 
 
+def test_global_watchdog_tick_skips_active_oneshot_worker(monkeypatch):
+    """CBC one-shot 执行期间 process=None，不能被 watchdog 重复 spawn。"""
+    _cleanup()
+    s = _setup_session("ses_oneshot", queue_pending=[{"type": "task", "text": "in flight"}])
+    spawned = []
+
+    async def scenario():
+        consumer = asyncio.create_task(asyncio.Event().wait())
+        w = worker.Worker(
+            worker_id="worker-oneshot",
+            session_id=s.id,
+            adapter=CbcAdapter(),
+            status="running",
+            process=None,
+            pending_signal=asyncio.Queue(),
+            _consume_task=consumer,
+        )
+        worker.workers[w.worker_id] = w
+
+        async def fake_create(session_id):
+            spawned.append(session_id)
+            return w
+
+        monkeypatch.setattr(worker, "create_worker", fake_create)
+        await worker._global_watchdog_tick()
+        consumer.cancel()
+        await asyncio.gather(consumer, return_exceptions=True)
+
+    asyncio.run(scenario())
+    assert spawned == [], "active one-shot consumer must not be replaced"
+    _cleanup()
+
+
 def test_global_watchdog_tick_skips_empty_queue(monkeypatch):
     """queue_pending 为空 → 不 spawn。"""
     _cleanup()
