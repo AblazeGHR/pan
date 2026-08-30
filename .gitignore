@@ -37,8 +37,8 @@ testoutcome.md
 spike-node/
 spike-python/
 .codebuddy/
-myTODO.md
-prompt.md
+.privart/
+eprompt.md
 /.playwright-cli/
 # config
 config.json
