@@ -560,6 +560,7 @@ python -m packages.remote        # 或 scripts/start_cf.ps1
 | 超时配置不生效 | `worker.*` 改后需重启或热重载（UI 全局设置或 `POST /api/config/reload`，scope `worker`） |
 | 队列不消费 | `queue_pending` 非空但无活 Worker 时全局 watchdog（30s tick）会自动拉起；持续不动查 `data/logs/pan.log` 的 watchdog/branch 日志 |
 | 端口占用 | 换 `port` 或 `PAN_PORT`；确认旧实例已 `stop_pan.bat` 树杀 |
+| 启动后出现 `ses_a` / `ses_os` / `ses_d` / `ses_f` 等测试会话 | 这些固定 ID 来自测试夹具。测试若把 `Session` 写入正式 `data/sessions/`，启动时会被 `sess.list_all()` 加载；其中遗留的 `queue_pending` 还会被全局 watchdog（约 30s）当作待恢复任务自动 spawn。当前 `tests/conftest.py` 已为 `pytest tests/` 下的每个测试使用独立临时 Session 目录，正常测试不会再污染正式数据。清理旧残留时只删除已确认的测试文件，不要按 `ses_*` 全量删除。 |
 | 聊天里看不到输出 | 检查消息区是否滚动到底部或面板是否折叠；tool 行需点击展开（§4.3） |
 | QQ 连不上 | 查 NapCat/LLOneBot 是否启动、`ONEBOT_WS_URLS` / `qq.<channel>.ws_urls` 是否指向正确端口（3001/3002）；QQ bot 崩溃看 `data/logs/pan.log` 启动告警（Pan Core 不受影响） |
 | 带 character 的会话首个任务卡顿 | embedding 首次加载/网络重试；等 15s 超时降级，或 `memory.enabled: false` |
