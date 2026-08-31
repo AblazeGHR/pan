@@ -334,11 +334,14 @@ class ClaudeAdapter:
         args.extend(self.permission_mode_args(s))
         args.extend(self.effort_args(s))
         args.extend(self.resume_args(s))
-        args.extend(self.mcp_args(s))
         # system_prompt 仅首条（cli_session_id 尚未捕获）注入；续接靠 --resume 承载。
         if s.system_prompt and not s.cli_session_id:
             args.extend(["--system-prompt", s.system_prompt])
+        # Claude's --mcp-config accepts one or more values.  The prompt must
+        # precede this variadic option; otherwise Claude treats the prompt as
+        # a second MCP config path (and reports Invalid MCP configuration).
         args.append(text)
+        args.extend(self.mcp_args(s))
         return args
 
     def mcp_args(self, s: Session) -> list[str]:

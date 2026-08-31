@@ -232,7 +232,12 @@ def test_oneshot_args_with_mcp():
     ):
         args = a.oneshot_args(s, "with mcp")
     assert "--mcp-config" in args
-    print("PASS: oneshot_args injects --mcp-config when mcp_servers set")
+    mcp_idx = args.index("--mcp-config")
+    # Claude's --mcp-config is variadic; a positional prompt after it is
+    # parsed as another config path and causes "Invalid MCP configuration".
+    assert args.index("with mcp") < mcp_idx
+    assert args[mcp_idx + 1].endswith("ses_claudetest.mcp.json")
+    print("PASS: oneshot_args places prompt before variadic --mcp-config")
 
 
 def test_claude_mcp_args_writes_pan_descriptor(tmp_path, monkeypatch):
