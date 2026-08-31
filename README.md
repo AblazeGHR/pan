@@ -311,29 +311,16 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 ## 快速开始
 
 > 完整使用指南（安装 / 操作 / 编排 / API / 配置 / 排障）见[用户手册](docs/USER_MANUAL.md)。
->
 
- **实在不想看文档？** 服务起来后，新建一个 `SMA(NoAdapter)` 会话，直接问它「怎么玩转 Pan？」——它会调出编排手册（`pan_handbook`）现场教你，边教边演示。
-
-#### 直接问 SMA：创建带参数的会话
-
-在 Web Dashboard 中点击“新建带参数的 session”，先创建一个可配置的会话：
-
-![点击此处新建带参数的 session](<assets/创建SMA第一步（点击此处，新建带参数的session）.png>)
-
-在模板列表中选择 `SMA(NoAdapter)`。这里务必选择 `NoAdapter` 版本，之后才能按需要自行配置 adapter：
-
-![选择 SMA(NoAdapter) 模板](<assets/创建SMA第二步，选中SMA(注意务必选择noadapter的以便自行配置adapter).png>)
-
-创建完成后，直接向 SMA 提问即可让它调用 `pan_handbook`，边讲解边演示 Pan 的编排能力。
+下面按最终用户第一次使用的顺序说明：准备环境 → 安装依赖 → 生成配置 → 启动服务 → 打开 React Dashboard → 创建会话并发送第一条任务。
 
 ### 前置要求
 
-- Python 3.14（当前开发环境为 3.14.5）
+- Python 3.14（开发环境为 3.14.5）
 - Node.js + pnpm（构建 React 前端）
-- 至少一个已安装并可从当前环境找到的受支持 Agent CLI：`cbc`、`kimi`、`opencode`、`claude`、`codex`
+- 至少一个已安装并可从当前环境找到的受支持 Agent CLI：`cbc`（CodeBuddy CLI）、`kimi`、`opencode`、`claude`、`codex`
 
-Pan 不会替用户安装这些第三方 CLI；它会在启动时逐个检查。请在**启动 Pan 的同一个终端 / 用户环境**中任选至少一个 CLI 验证全局安装：
+Pan 不负责安装第三方 Agent CLI。请在**启动 Pan 的同一个终端 / 用户环境**中任选至少一个 CLI 验证全局安装：
 
 ```bash
 cbc --version
@@ -343,7 +330,9 @@ claude --version
 codex --version
 ```
 
-至少一条命令应输出版本号。Windows PowerShell、macOS/Linux 以及后台服务都要使用能找到该命令的环境；如果 CLI 装在 npm 全局目录但 Pan 找不到，请重启 Pan，或设置对应的 `PAN_*_PATH`。Pan 启动日志会列出每个 CLI 的 `ready/unavailable` 状态；运行后也可访问 `GET http://127.0.0.1:8768/api/cli/status` 查看诊断详情。
+至少一条命令应输出版本号。Pan 启动时会逐个报告 CLI 的 `ready/unavailable` 状态；缺少某个可选 CLI 不会阻止 Pan 启动，但用对应 adapter 创建 Worker 时会提示安装、PATH 和重启问题。如果所有 CLI 都缺失，Worker 无法运行。后台服务的 PATH 可能和交互式终端不同，安装 CLI 或修改 PATH 后请重启 Pan；运行中的诊断可通过 `GET http://127.0.0.1:8768/api/cli/status` 查看。
+
+> **前端说明**：React Dashboard 是当前唯一维护并推荐的前端。旧版 Vanilla 前端已弃用（deprecated），仅在 `/vanilla` 路由作后备访问，不建议新用户使用。
 
 ### 安装与启动
 
@@ -351,10 +340,8 @@ codex --version
 # 1. 安装最小依赖（仅核心，不含 Memory 的 ML 链）
 pip install -r minimal-requirements.txt
 
-# 2. 生成配置
-cp config.example.json config.json
-# Windows: copy config.example.json config.json
-# 所有字段可选；models 不填时自动识别可用模型
+# 2. 生成配置（所有字段可选，省略时使用默认值）
+cp config.example.json config.json        # Windows: copy config.example.json config.json
 
 # 3. 构建 React 前端（推荐；产物 → packages/web/dist/）
 cd packages/web
@@ -367,8 +354,6 @@ python main.py
 # → http://127.0.0.1:8768
 #   main 分支默认 8768；test 分支默认 8767；可用 PAN_PORT 覆盖
 
-# 5. 运行测试
-python -m pytest tests/ -q
 ```
 
 **按平台选择启动方式**：
@@ -386,7 +371,85 @@ bash scripts/start.sh   # 启动 → http://127.0.0.1:8768
 bash scripts/stop.sh    # 停止
 ```
 
-> 📖 完整使用指南（安装、操作、编排、API、配置、排障）见 [用户手册](docs/USER_MANUAL.md)。
+### 端口与环境变量
+
+| 端口 | 用途 |
+|------|------|
+| 8768 | Pan 主服务（`main` 分支默认；`test` 分支为 8767；由 `config.json` 的 `port` 控制） |
+| 8769 | Remote 状态服务（`remote.status_port`） |
+| 8080 | QQ 插件（NoneBot）HTTP API，不对外 |
+| 3001 / 3002 | NapCat / LLOneBot 正向 WS 网关 |
+| 9740 | MCP server 的 SSE/streamable-http 默认端口 |
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `PAN_PORT` | — | 覆盖 `port` |
+| `PAN_HOST` | `127.0.0.1` | 监听地址；改成非 loopback 会打印无鉴权告警 |
+| `PAN_API_URL` | `http://127.0.0.1:8768` | MCP server 连接 Pan Core 的地址 |
+| `PAN_URL` | `http://127.0.0.1:{port}` | QQ Bridge 访问 Pan Core 的地址 |
+| `PAN_QQ_API_URL` | `http://127.0.0.1:8080` | pan-qq MCP 连接 QQ 插件的地址 |
+| `PAN_QQ_PYTHON` | 平台默认 | QQ bot 解释器路径 |
+| `PAN_QQ_MODE` | — | 覆盖 `qq.mode` |
+| `ONEBOT_WS_URLS` / `ONEBOT_ACCESS_TOKEN` | — | QQ 通道 WS 地址 / token，可写入 `packages/qq/.env` |
+
+main 分支默认访问 <http://127.0.0.1:8768>，test 分支默认使用 8767；也可在 `config.json` 设置 `port` 或用 `PAN_PORT` 覆盖。改端口后，浏览器地址和 `PAN_API_URL` 必须使用同一个端口。
+
+### 首次使用：从 Dashboard 完成第一个任务
+
+启动后在浏览器打开 <http://127.0.0.1:8768>。你会看到 React Dashboard：左侧是会话列表，右侧是聊天主区。
+
+1. 在左侧栏点击 **New** 快速创建会话，或点击旁边的 ⚙ 打开新建会话配置弹窗；可设置 adapter（`cbc` / `kimi` / `opencode` 等）、会话名称、工作目录和会话模板。默认工作目录是 `data/workdirs/<会话名>`。
+2. 创建后，会话卡片会显示状态点、adapter、模型和消息数。模型、权限模式、思考档位等设置可以稍后在会话设置中修改。
+3. 选中会话，点击顶栏 **Start** 启动 Worker；在底部输入任务并按 **Enter** 发送，Shift+Enter 换行。Worker 忙碌时消息会进入发送队列，空闲后按顺序处理。
+4. 状态点含义为：绿色 idle、蓝色 running、黄色已被人工接管、红色 error。回复会逐条显示，工具调用可在右侧 DetailPanel 查看原始输出。
+5. 任务完成后可继续多轮追问，或切换到 **Editor** 浏览/编辑会话工作目录中的文件；不再需要时右键会话 → Delete。完整 UI 操作见[用户手册第 4 章](docs/USER_MANUAL.md#4-ui-使用指南)。
+
+#### 直接问 SMA：创建带参数的会话
+
+在 Web Dashboard 中点击“新建带参数的 session”，先创建一个可配置的会话：
+
+![点击此处新建带参数的 session](<assets/创建SMA第一步（点击此处，新建带参数的session）.png>)
+
+在模板列表中选择 `SMA(NoAdapter)`。这里务必选择 `NoAdapter` 版本，之后才能按需要自行配置 adapter：
+
+![选择 SMA(NoAdapter) 模板](<assets/创建SMA第二步，选中SMA(注意务必选择noadapter的以便自行配置adapter).png>)
+
+创建完成后，直接向 SMA 提问「怎么玩转 Pan？」即可让它调用 `pan_handbook`，边讲解边演示 Pan 的编排能力。
+
+### 首次使用 SMA：推荐工作流与边界
+
+推荐只和一个 `SMA(NoAdapter)` 主管会话对话，把目标、边界和验收标准交给它。它会先判断是否值得拆解；需要并行时，创建并自动管理子会话，派发任务并订阅报告，最后做 trust-but-verify 验收后交付合并结果。典型流程是：
+
+1. 新建会话，模板选择 **SMA(NoAdapter)**；
+2. 提出目标，例如“并行调研方案 A / B / C，分别给出结论，最后汇总对比报告”；
+3. SMA 使用 `session_create`、`worker_assign`、`report_subscribe` 管理子会话，完成报告进入它的 `queue_pending` 收件箱；
+4. SMA 汇总并验收后向你交付结果，必要时用 `session_batch_delete` 清理子会话。
+
+简单问题或改一行代码可以直接使用普通会话；多任务并行、需要汇总交付或长期协作时更适合交给 SMA。子会话删除不会删除磁盘上的 workdir，需保留产物时请先落盘。完整建议见[用户手册第 6 章](docs/USER_MANUAL.md#6-最佳实践)。
+
+### 配置要点
+
+配置文件是仓库根目录的 `config.json`（已 gitignore），模板为 `config.example.json`；所有字段可选。编辑后通常重启 `python main.py` 生效，适配器、worker、plugin、memory 部分也支持在 UI 全局设置中热重载。
+
+```json
+{
+  "port": 8768,
+  "frontend": "coexist",
+  "cbc": { "model": "deepseek-v4-flash", "models": [], "permission_mode": "bypassPermissions" },
+  "worker": { "timeout_sec": 300, "task_timeout_sec": 1800, "idle_sec": 300 }
+}
+```
+
+- `models: []` 表示自动识别 CLI 可用模型；填写后会限制 UI 中的可选模型。
+- `frontend` 推荐保持 `coexist`（根路径跳转 React，旧版仅在 `/vanilla` 后备）；`react` 只启用 React；`legacy` 仅旧版且已弃用。
+- `bypassPermissions` 默认不逐条审批命令和文件修改，适合可信环境；`default` / `acceptEdits` 更保守。Pan 默认无鉴权并绑定 `127.0.0.1`，不要把 `PAN_HOST` 改为公网地址而不做额外保护。
+- `worker.timeout_sec` 是无输出静默超时，`task_timeout_sec` 是 stream 任务总时长上限，`idle_sec` 是任务完成后的空闲回收时间。
+
+QQ 需要先运行 NapCat（3001）或 LLOneBot（3002），在 `qq.channel` 选择网关；`qq.mode` 为 `mirror` 时自动回复，为 `selective` 时只进收件箱由编排者处理。不使用 QQ 时可设置 `qq.enabled=false`。MCP 会话级注入、外部 Agent 接入和完整字段表见[用户手册第 5、9、12 章](docs/USER_MANUAL.md#5-配置方法)。
+
+### 停止与常见限制
+
+Ctrl+C 可优雅退出；也可使用 `scripts/stop_pan.bat` / `scripts/stop.sh`。macOS/Linux 路径大小写敏感；后台启动时 PATH 可能不同，修改 CLI 或 PATH 后要重启 Pan。API 默认无鉴权，Remote/Cloudflare Tunnel 会把主端口暴露到公网；使用前必须评估风险。Worker 被 watchdog 回收后可重新 Start，Session 历史仍会保留；删除 Session 不会删除其 workdir。更多排障见[用户手册第 10、11 章](docs/USER_MANUAL.md#10-故障排查)。
 
 ### 前端说明：推荐 React，Vanilla 已弃用（deprecated）
 

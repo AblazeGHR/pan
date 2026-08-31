@@ -283,29 +283,17 @@ Typical use cases:
 
 ## Quick Start
 
-> For the full guide (installation / operations / orchestration / API / configuration / troubleshooting), see the [User Manual](docs/USER_MANUAL.md).
->
-> **Don't feel like reading the docs?** Once the service is up, create an `SMA(NoAdapter)` session and just ask it "how does Pan work?" — it will pull up the orchestration handbook (`pan_handbook`) and teach you live, with a walkthrough.
+> For the full guide (installation / operations / orchestration / API / configuration / troubleshooting), see the [User Manual](docs/USER_MANUAL.en.md).
 
-#### Ask SMA directly: create a parameterized session
-
-In the Web Dashboard, click “create a parameterized session” to start a configurable session:
-
-![Click to create a parameterized session](<assets/创建SMA第一步（点击此处，新建带参数的session）.png>)
-
-In the template list, choose `SMA(NoAdapter)`. Be sure to choose the `NoAdapter` version so you can configure the adapter yourself afterward:
-
-![Choose the SMA(NoAdapter) template](<assets/创建SMA第二步，选中SMA(注意务必选择noadapter的以便自行配置adapter).png>)
-
-Once it is created, ask SMA directly. It can call `pan_handbook` to explain Pan's orchestration capabilities with a live walkthrough.
+Follow this order for a first user setup: prepare the environment → install dependencies → generate configuration → start Pan → open the React Dashboard → create a session and send the first task.
 
 ### Prerequisites
 
 - Python 3.14 (current development environment: 3.14.5)
 - Node.js + pnpm (to build the React frontend)
-- At least one supported Agent CLI installed and discoverable in the current environment: `cbc`, `kimi`, `opencode`, `claude`, or `codex`
+- At least one supported Agent CLI installed and discoverable in the current environment: `cbc` (CodeBuddy CLI), `kimi`, `opencode`, `claude`, or `codex`
 
-Pan does not install these third-party CLIs for you; it checks them at startup. In the **same terminal / user environment that will start Pan**, verify that at least one CLI is installed globally:
+Pan does not install third-party Agent CLIs. In the **same terminal / user environment that will start Pan**, verify that at least one CLI is installed globally:
 
 ```bash
 cbc --version
@@ -315,7 +303,9 @@ claude --version
 codex --version
 ```
 
-At least one command should print a version. Windows PowerShell, macOS/Linux, and background services must use an environment where the command is discoverable. If a CLI is installed in an npm global directory but Pan cannot find it, restart Pan or set the corresponding `PAN_*_PATH` variable. Pan logs a `ready/unavailable` status for every CLI at startup; after startup, inspect `GET http://127.0.0.1:8768/api/cli/status` for details.
+At least one command should print a version. At startup, Pan logs a `ready/unavailable` status for every CLI. A missing optional CLI does not prevent Pan from starting, but creating a Worker with that adapter shows installation, PATH, and restart guidance. If all CLIs are missing, Workers cannot run. A background service may have a different PATH from your interactive terminal, so restart Pan after installing a CLI or changing PATH. Inspect `GET http://127.0.0.1:8768/api/cli/status` for live diagnostics.
+
+> **Frontend note**: the React Dashboard is the only maintained and recommended frontend. The legacy Vanilla frontend is deprecated and served only at `/vanilla` as a fallback; new users should not use it.
 
 ### Install & Start
 
@@ -323,10 +313,8 @@ At least one command should print a version. Windows PowerShell, macOS/Linux, an
 # 1. Install the minimal dependencies (core only, no Memory ML chain)
 pip install -r minimal-requirements.txt
 
-# 2. Generate configuration
-cp config.example.json config.json
-# Windows: copy config.example.json config.json
-# Every field is optional; models are auto-detected when left empty
+# 2. Generate configuration (every field is optional; omitted fields use defaults)
+cp config.example.json config.json        # Windows: copy config.example.json config.json
 
 # 3. Build the React frontend (recommended; output → packages/web/dist/)
 cd packages/web
@@ -339,8 +327,6 @@ python main.py
 # → http://127.0.0.1:8768
 #   main branch defaults to 8768; test branch to 8767; override with PAN_PORT
 
-# 5. Run tests
-python -m pytest tests/ -q
 ```
 
 **Pick the startup method by platform**:
@@ -358,7 +344,85 @@ bash scripts/start.sh   # start → http://127.0.0.1:8768
 bash scripts/stop.sh    # stop
 ```
 
-> 📖 Full user guide (install, operations, orchestration, API, config, troubleshooting): [User manual](docs/USER_MANUAL.md).
+### Ports and Environment Variables
+
+| Port | Purpose |
+|------|---------|
+| 8768 | Pan main service (`main` default; `test` uses 8767; controlled by `config.json` → `port`) |
+| 8769 | Remote status service (`remote.status_port`) |
+| 8080 | QQ plugin (NoneBot) HTTP API, not exposed |
+| 3001 / 3002 | NapCat / LLOneBot forward-WS gateways |
+| 9740 | Default MCP server SSE/streamable-http port |
+
+| Environment variable | Default | Description |
+|----------------------|---------|-------------|
+| `PAN_PORT` | — | Overrides `port` |
+| `PAN_HOST` | `127.0.0.1` | Listen address; non-loopback prints an unauthenticated warning |
+| `PAN_API_URL` | `http://127.0.0.1:8768` | Address the MCP server uses to reach Pan Core |
+| `PAN_URL` | `http://127.0.0.1:{port}` | Address QQ Bridge uses to reach Pan Core |
+| `PAN_QQ_API_URL` | `http://127.0.0.1:8080` | Address pan-qq MCP uses to reach the QQ plugin |
+| `PAN_QQ_PYTHON` | platform default | QQ bot interpreter path |
+| `PAN_QQ_MODE` | — | Overrides `qq.mode` |
+| `ONEBOT_WS_URLS` / `ONEBOT_ACCESS_TOKEN` | — | QQ channel WS address / token; can be written in `packages/qq/.env` |
+
+The `main` branch uses <http://127.0.0.1:8768> by default and `test` uses 8767. Set `port` in `config.json` or override it with `PAN_PORT`; after changing it, use the same port in the browser URL and `PAN_API_URL`.
+
+### First Use: Complete a Task from the Dashboard
+
+After starting Pan, open <http://127.0.0.1:8768> in a browser. The React Dashboard has the session list on the left and the chat area on the right.
+
+1. Click **New** in the left sidebar, or click the ⚙ gear to open the new-session config dialog. Set the adapter (`cbc` / `kimi` / `opencode` etc.), session name, workdir, and optional session template. The default workdir is `data/workdirs/<session name>`.
+2. The new session card shows its status dot, adapter, model, and message count. Model, permission mode, and thinking level can be changed later in session settings.
+3. Select the session and click **Start** in the top bar. Enter a task and press **Enter**; use Shift+Enter for a newline. Messages sent while the Worker is busy enter the send queue and are processed in order.
+4. Status colors mean green = idle, blue = running, yellow = taken over by a human, and red = error. Replies stream into chat; tool calls can be opened in the right-side DetailPanel.
+5. Continue with follow-up messages, use **Editor** to browse/edit files in the session workdir, or right-click the session → Delete when finished. See [Chapter 4 of the User Manual](docs/USER_MANUAL.en.md#4-ui-guide) for the complete UI guide.
+
+#### Ask SMA Directly: Create a Parameterized Session
+
+In the Web Dashboard, click “create a parameterized session” to start a configurable session:
+
+![Click to create a parameterized session](<assets/创建SMA第一步（点击此处，新建带参数的session）.png>)
+
+In the template list, choose `SMA(NoAdapter)`. Be sure to choose the `NoAdapter` version so you can configure the adapter yourself afterward:
+
+![Choose the SMA(NoAdapter) template](<assets/创建SMA第二步，选中SMA(注意务必选择noadapter的以便自行配置adapter).png>)
+
+Once created, ask SMA "how does Pan work?" It can call `pan_handbook` to explain Pan's orchestration capabilities with a live walkthrough.
+
+### First SMA Workflow and Boundaries
+
+The recommended pattern is to talk to one `SMA(NoAdapter)` supervisor session and give it the goal, boundaries, and acceptance criteria. It decides whether to split the work; when parallel work is worthwhile, it creates and manages child sessions, dispatches tasks, subscribes to reports, and performs trust-but-verify acceptance before delivering a consolidated result:
+
+1. Create a session with the **SMA(NoAdapter)** template.
+2. Give it a goal such as “research plans A / B / C in parallel, give a conclusion for each, then produce a comparison report.”
+3. SMA uses `session_create`, `worker_assign`, and `report_subscribe`; completed reports arrive in its `queue_pending` inbox.
+4. SMA verifies and delivers the result, then can use `session_batch_delete` to clean up child sessions.
+
+Use a regular session for a simple question or one-line change. Use SMA for parallel work, consolidated delivery, or long-running collaboration. Deleting a session does not delete its disk workdir, so save any required artifacts first. See [Chapter 6 of the User Manual](docs/USER_MANUAL.en.md#6-best-practices) for the full guidance.
+
+### Configuration Essentials
+
+The repo-root `config.json` is gitignored and generated from `config.example.json`; every field is optional. After editing it, normally restart `python main.py`; adapter, worker, plugin, and memory settings can also be hot-reloaded from global UI settings.
+
+```json
+{
+  "port": 8768,
+  "frontend": "coexist",
+  "cbc": { "model": "deepseek-v4-flash", "models": [], "permission_mode": "bypassPermissions" },
+  "worker": { "timeout_sec": 300, "task_timeout_sec": 1800, "idle_sec": 300 }
+}
+```
+
+- `models: []` auto-detects models available to the CLI; filling it restricts the UI choices.
+- Keep `frontend` as `coexist` (root redirects to React and legacy is only at `/vanilla`); `react` enables only React; `legacy` is deprecated.
+- `bypassPermissions` skips per-step approval for commands and file edits and is intended only for trusted environments; `default` / `acceptEdits` are more conservative. Pan has no authentication by default and binds to `127.0.0.1`.
+- `worker.timeout_sec` is the no-output silence timeout, `task_timeout_sec` caps total stream-task duration, and `idle_sec` reclaims an idle process after completion.
+
+For QQ, start NapCat (3001) or LLOneBot (3002) first and set `qq.channel`; `qq.mode` is `mirror` for automatic replies or `selective` to send messages only to the orchestrator inbox. Set `qq.enabled=false` if QQ is not needed. See [Chapters 5, 9, and 12 of the User Manual](docs/USER_MANUAL.en.md#5-configuration) for MCP injection, external Agent access, and the full field reference.
+
+### Stopping and Common Limits
+
+Use Ctrl+C for a graceful exit, or `scripts/stop_pan.bat` / `scripts/stop.sh`. macOS/Linux paths are case-sensitive; a background service may have a different PATH, so restart Pan after changing a CLI or PATH. The API has no authentication by default, and Remote/Cloudflare Tunnel exposes the main port publicly; assess the risk before enabling it. A Worker reclaimed by the watchdog can be started again while Session history remains; deleting a Session does not delete its workdir. See [Chapters 10 and 11 of the User Manual](docs/USER_MANUAL.en.md#10-troubleshooting) for troubleshooting and security notes.
 
 ### Frontend choice: React recommended, Vanilla deprecated
 
