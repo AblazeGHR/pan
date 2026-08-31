@@ -197,8 +197,8 @@
 
   "plugin_manifests": {
     "_字段说明": {
-      "plugin_manifests": "外部 manifest.json 文件或目录路径列表，用于加载 Character profiles"
+      "plugin_manifests": "manifest.json 文件或目录路径列表；默认包含项目模板与 Pan MCP，可追加外部/private manifest"
     }
   },
-  "plugin_manifests": ["manifest.json"]
+  "plugin_manifests": ["manifest.json", "packages/mcp/manifest.json"]
 }

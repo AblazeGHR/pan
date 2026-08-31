@@ -30,7 +30,12 @@ from packages.core.adapters.cbc import sessions as cbc_sessions
 from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
 from packages.core.adapters.opencode import sessions as opencode_sessions
-from packages.core.config import load_config, read_config_file, save_config
+from packages.core.config import (
+    DEFAULT_PLUGIN_MANIFESTS,
+    load_config,
+    read_config_file,
+    save_config,
+)
 from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
@@ -69,7 +74,7 @@ async def lifespan(app: FastAPI):
     # Init CharacterManager with manifest
     global _character_manager
     config = load_config()
-    plugin_paths = config.get("plugin_manifests", ["manifest.json"])
+    plugin_paths = config.get("plugin_manifests", DEFAULT_PLUGIN_MANIFESTS)
     _character_manager = CharacterManager(str(DATA_DIR))
     try:
         _character_manager.load_manifest(plugin_paths)
@@ -2224,10 +2229,10 @@ async def api_config_reload(data: dict | None = None):
             errors.append("plugin: character manager not initialized")
         else:
             before_paths = list(_character_manager._plugin_paths)
-            # Same default as lifespan: a missing key falls back to the
-            # repo-root manifest.json; an explicit [] clears all plugins.
+            # Same default as lifespan: a missing key loads the project and
+            # first-party MCP manifests; an explicit [] clears all plugins.
             new_paths = list(
-                load_config().get("plugin_manifests", ["manifest.json"])
+                load_config().get("plugin_manifests", DEFAULT_PLUGIN_MANIFESTS)
             )
             cfg, plug_errors = _character_manager.reload_plugin_paths(new_paths)
             plugin_entry: dict = {"before": before_paths, "after": new_paths}

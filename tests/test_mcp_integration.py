@@ -255,10 +255,9 @@ class TestApplyMCPServers:
 
         s = Session(id="ses_mcp", name="t")
         cm = CharacterManager()
-        # The default runtime loads the repository-root manifest. Keep this
-        # regression on that path: packages/mcp/manifest.json is a standalone
-        # catalog fixture, not the default plugin registration.
-        cm.load_manifest(["manifest.json"])
+        # The clean-worktree default loads the project manifest and the
+        # first-party MCP manifest, matching main's normal config semantics.
+        cm.load_manifest(["manifest.json", "packages/mcp/manifest.json"])
         monkeypatch.setattr(srv, "_character_manager", cm)
         return s
 
@@ -318,17 +317,31 @@ class TestApplyMCPServers:
             srv._resolve_mcp_server_configs(["broken"])
 
 
-def test_root_manifest_registers_pan_with_runtime_interpreter(monkeypatch):
-    """The default catalog must expose pan to PATCH/session creation."""
+def test_default_manifest_list_exposes_pan_without_putting_it_in_root(monkeypatch):
+    """The default catalog includes packages/mcp without duplicating pan in root."""
+    from packages.core.config import DEFAULT_PLUGIN_MANIFESTS
     from packages.core.manifest_loader import load_manifests
 
     monkeypatch.delenv("PAN_PYTHON", raising=False)
-    cfg = load_manifests(["manifest.json"])
+    root_cfg = load_manifests(["manifest.json"])
+    assert {server.name for server in root_cfg.mcp_servers} == {"pan-qq"}
+
+    cfg = load_manifests(DEFAULT_PLUGIN_MANIFESTS)
     servers = {server.name: server for server in cfg.mcp_servers}
     assert set(servers) >= {"pan", "pan-qq"}
     assert servers["pan"].command == sys.executable
     assert servers["pan"].cwd == str(Path(__file__).resolve().parents[1])
 
+
+def test_missing_config_uses_project_and_first_party_manifests(tmp_path, monkeypatch):
+    from packages.core import config
+
+    monkeypatch.setattr(config, "CONFIG_FILE", tmp_path / "missing-config.json")
+    loaded = config.load_config()
+    assert loaded["plugin_manifests"] == [
+        "manifest.json",
+        "packages/mcp/manifest.json",
+    ]
 
 def test_manifest_runtime_interpreter_can_be_overridden(monkeypatch):
     from packages.core.manifest_loader import load_manifests

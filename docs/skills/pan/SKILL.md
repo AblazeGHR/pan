@@ -15,7 +15,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（meta-agent 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
-   - 仓库根 manifest 默认注册 `pan` 与 `pan-qq`；stdio MCP command 使用 `${PAN_PYTHON}`（优先环境变量，否则使用运行 Pan 的 Python 解释器），git worktree 不需要私有 `.venv`。选择未知或不可用 server 时，session 配置 API 返回明确错误。
+   - 无本地 `config.json` 时默认加载根 `manifest.json` 与 `packages/mcp/manifest.json`；后者注册 `pan` 与 `pan-qq`。stdio MCP command 使用 `${PAN_PYTHON}`（优先环境变量，否则使用运行 Pan 的 Python 解释器），git worktree 不需要私有 `.venv`。选择未知或不可用 server 时，session 配置 API 返回明确错误。
    - **项目级 `.mcp.json` 发现路径**：工具是 deferred 的 → `ToolSearch`（查询词 `pan`/`mcp`）→ `DeferExecuteTool` 调用。
    - **拿手册**：MCP 工具 `pan_handbook()` 直接返回本文件全文（§5「其他」）——接线完成后若不清楚编排流程，先调它再动手。
    - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3 / §10.2 G9）。

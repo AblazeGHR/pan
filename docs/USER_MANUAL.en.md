@@ -352,7 +352,7 @@ Options: `""` (default) / `default` / `acceptEdits` / `bypassPermissions` / `pla
 | `qq.python` | `""` | QQ bot's dedicated interpreter path |
 | `remote.*` | see template | Cloudflare Tunnel: `enabled`/`quick_tunnel`/`config_path`/`status_port` etc. |
 | `logging.*` | INFO / `data/logs/pan.log` | Log level, file, rotation |
-| `plugin_manifests` | `["manifest.json"]` | External Character profiles / templates / MCP server manifests |
+| `plugin_manifests` | `["manifest.json", "packages/mcp/manifest.json"]` | Project templates + first-party Pan MCP manifests; append external/private manifests locally |
 
 ---
 

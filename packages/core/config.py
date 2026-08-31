@@ -7,6 +7,13 @@ from pathlib import Path
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config.json"
 
+# The root manifest owns project templates/characters; the package manifest
+# owns Pan's first-party MCP servers. Keep both in the committed default so a
+# clean worktree without a local config.json has the same core catalog as the
+# normal main configuration. User-supplied plugin_manifests still replaces
+# this list, allowing explicit [] to disable all manifests.
+DEFAULT_PLUGIN_MANIFESTS = ["manifest.json", "packages/mcp/manifest.json"]
+
 DEFAULT_CONFIG: dict = {
     "cbc_import": {
         "min_message_count": 5,
@@ -98,6 +105,9 @@ DEFAULT_CONFIG: dict = {
     "frontend": "coexist",
     # 服务端口（环境变量 PAN_PORT 可覆盖）
     "port": 8768,
+    # Built-in project + first-party Pan MCP manifests. External/private
+    # manifests can be appended in config.json.
+    "plugin_manifests": DEFAULT_PLUGIN_MANIFESTS,
     # Remote 通道默认配置
     "remote": {
         "enabled": False,

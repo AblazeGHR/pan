@@ -490,7 +490,7 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 | `remote.quick_tunnel` | true | true uses a temporary URL; false uses a named tunnel (requires `remote.config_path`) |
 | `remote.status_port` | 8769 | Remote status service port |
 | `logging` | INFO / `data/logs/pan.log` | Log level, rotation, console output |
-| `plugin_manifests` | `["manifest.json"]` | External Character profile manifests |
+| `plugin_manifests` | `["manifest.json", "packages/mcp/manifest.json"]` | Project + first-party Pan MCP manifests; append external/private manifests locally |
 
 **Environment variables**:
 
