@@ -11,6 +11,8 @@ export interface AppSettings {
   showTaskAgent: boolean;
   /** Show QQ-injected info (e.g. messages with the `@@@@by qq` prefix). */
   showQQ: boolean;
+  /** Show the Codex terminal input popup when a process is waiting for stdin. */
+  showCodexTerminalInput: boolean;
   /** Notification preferences for CLI adapter warnings. */
   notifications: {
     /** Show structured Codex warning events through a Toast. */
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showMetaAgent: true,
   showTaskAgent: true,
   showQQ: true,
+  showCodexTerminalInput: false,
   notifications: {
     codexWarningToast: true,
   },
@@ -59,6 +62,10 @@ export function sanitizeSettings(
       typeof parsed.showQQ === 'boolean'
         ? parsed.showQQ
         : DEFAULT_SETTINGS.showQQ,
+    showCodexTerminalInput:
+      typeof parsed.showCodexTerminalInput === 'boolean'
+        ? parsed.showCodexTerminalInput
+        : DEFAULT_SETTINGS.showCodexTerminalInput,
     notifications: {
       codexWarningToast:
         typeof notifications.codexWarningToast === 'boolean'
@@ -75,6 +82,7 @@ interface AppSettingsStore extends AppSettings {
   setShowMetaAgent: (v: boolean) => void;
   setShowTaskAgent: (v: boolean) => void;
   setShowQQ: (v: boolean) => void;
+  setShowCodexTerminalInput: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
   /** Reset every field to its default and persist. */
   resetSettings: () => void;
@@ -130,6 +138,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
     setShowQQ: (v) => {
       set({ showQQ: v });
       persist({ showQQ: v });
+    },
+
+    setShowCodexTerminalInput: (v) => {
+      set({ showCodexTerminalInput: v });
+      persist({ showCodexTerminalInput: v });
     },
 
     setCodexWarningToast: (v) => {

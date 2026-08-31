@@ -283,11 +283,13 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showMetaAgent,
     showTaskAgent,
     showQQ,
+    showCodexTerminalInput,
     notifications,
     setDefaultGroupBy,
     setShowMetaAgent,
     setShowTaskAgent,
     setShowQQ,
+    setShowCodexTerminalInput,
     setCodexWarningToast,
     resetSettings,
   } = useAppSettingsStore();
@@ -566,6 +568,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 Codex
               </h3>
               <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                <SwitchRow
+                  label="Show Codex terminal input popup"
+                  hint="默认隐藏；Codex 子进程等待终端输入时显示输入框"
+                  checked={showCodexTerminalInput}
+                  onChange={setShowCodexTerminalInput}
+                />
                 <div className="px-3 py-2">
                   <div className="text-xs text-text-primary">Model whitelist</div>
                   <div className="mt-1 text-[10px] text-text-tertiary font-mono break-words">

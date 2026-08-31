@@ -104,6 +104,21 @@ describe('AppSettingsModal', () => {
     expect(refreshCodexOfficialModelsMock).toHaveBeenCalledTimes(1);
   });
 
+  it('toggles the Codex terminal input popup option and persists it', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Adapter'))!,
+    );
+    const terminalSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) => element.textContent?.includes('Show Codex terminal input popup'))!;
+
+    expect(terminalSwitch.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(terminalSwitch);
+    expect(useAppSettingsStore.getState().showCodexTerminalInput).toBe(true);
+  });
+
   it('is full-screen on mobile and ~75% of the viewport on desktop', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();

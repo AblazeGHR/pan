@@ -3,6 +3,7 @@ import { Terminal, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { wsClient } from '@/services/ws';
 import { sendWorkerControl } from '@/services/api';
 import type { TerminalInteraction } from '@/types';
@@ -103,6 +104,7 @@ function TerminalForm({ interaction }: { interaction: TerminalInteraction }) {
 }
 
 export function TerminalInteractionBanner() {
+  const showCodexTerminalInput = useAppSettingsStore((s) => s.showCodexTerminalInput);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const interactions = useUIStore((s) => s.terminalInteractions);
   const visibleInteractions = useMemo(
@@ -112,7 +114,7 @@ export function TerminalInteractionBanner() {
     [currentSessionId, interactions],
   );
 
-  if (visibleInteractions.length === 0) return null;
+  if (!showCodexTerminalInput || visibleInteractions.length === 0) return null;
   return (
     <div className="mx-3 mb-2 space-y-2">
       {visibleInteractions.map((interaction) => (

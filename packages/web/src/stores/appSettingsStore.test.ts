@@ -32,6 +32,7 @@ describe('appSettingsStore', () => {
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
+    expect(s.showCodexTerminalInput).toBe(false);
   });
 
   it('applies backend ui settings on load', async () => {
@@ -88,6 +89,7 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowTaskAgent(false);
     useAppSettingsStore.getState().setShowQQ(false);
     useAppSettingsStore.getState().setCodexWarningToast(false);
+    useAppSettingsStore.getState().setShowCodexTerminalInput(true);
 
     expect(useAppSettingsStore.getState().defaultGroupBy).toBe('workdir');
     expect(mockedUpdate).toHaveBeenNthCalledWith(1, { defaultGroupBy: 'workdir' });
@@ -97,6 +99,7 @@ describe('appSettingsStore', () => {
     expect(mockedUpdate).toHaveBeenNthCalledWith(5, {
       notifications: { codexWarningToast: false },
     });
+    expect(mockedUpdate).toHaveBeenNthCalledWith(6, { showCodexTerminalInput: true });
   });
 
   it('resets all settings to defaults and writes them back', () => {
@@ -111,6 +114,7 @@ describe('appSettingsStore', () => {
     expect(s.showMetaAgent).toBe(DEFAULT_SETTINGS.showMetaAgent);
     expect(s.showTaskAgent).toBe(DEFAULT_SETTINGS.showTaskAgent);
     expect(s.showQQ).toBe(DEFAULT_SETTINGS.showQQ);
+    expect(s.showCodexTerminalInput).toBe(DEFAULT_SETTINGS.showCodexTerminalInput);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS });
   });
 
@@ -147,5 +151,9 @@ describe('appSettingsStore', () => {
       sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications,
     ).toEqual({ codexWarningToast: false });
     expect(sanitizeSettings(null)).toEqual({ ...DEFAULT_SETTINGS });
+    expect(sanitizeSettings({ showCodexTerminalInput: 'yes' }).showCodexTerminalInput)
+      .toBe(false);
+    expect(sanitizeSettings({ showCodexTerminalInput: true }).showCodexTerminalInput)
+      .toBe(true);
   });
 });
