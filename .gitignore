@@ -70,3 +70,9 @@ auth_token*
 
 # pytest temporary bases used by local adapter/worker regression runs
 .pytest-tmp*/
+
+# README screenshots: keep only the three published images below
+/assets/*
+!/assets/创建SMA第一步（点击此处，新建带参数的session）.png
+!/assets/创建SMA第二步，选中SMA(注意务必选择noadapter的以便自行配置adapter).png
+!/assets/树状的任务？树状来管理.png
