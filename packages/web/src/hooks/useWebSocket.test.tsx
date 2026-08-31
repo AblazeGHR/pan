@@ -1108,7 +1108,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       .toEqual([msg('assistant', '## Answer\n\nbody')]);
   });
 
-  it('renders each selected-session delta through Markdown once without the sidebar raw duplicate', () => {
+  it('renders each selected-session delta through Markdown and keeps the sidebar preview', () => {
     renderHook(() => useWebSocket());
     const chat = render(
       <MessageBubble message={{ role: 'assistant', content: '' }} />,
@@ -1150,7 +1150,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       <MessageBubble message={useSessionStore.getState().currentMessages.at(-1)!} />,
     );
     expect(chat.container.querySelectorAll('.msg.assistant')).toHaveLength(1);
-    expect(sidebar.container.querySelector('.text-xs.text-text-tertiary')).toBeNull();
+    expect(sidebar.container.querySelector('.text-xs.text-text-tertiary')?.textContent).toBe('u0');
 
     act(() => {
       wsMock.trigger('worker.stream', {
