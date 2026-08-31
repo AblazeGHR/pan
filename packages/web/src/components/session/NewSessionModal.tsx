@@ -5,8 +5,9 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
-import { fetchSessionTemplates } from '@/services/api';
+import { fetchSessionTemplates, pickDirectory } from '@/services/api';
 import type { SessionTemplate } from '@/types';
+import { FolderPlus } from 'lucide-react';
 
 interface NewSessionModalProps {
   open: boolean;
@@ -98,6 +99,24 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     if (tpl?.adapter) {
       setAdapter(tpl.adapter);
       showToast(`已选择带 adapter 的 template（${tpl.adapter}），adapter 已锁定`, 'info');
+    }
+  };
+
+  const handlePickDirectory = async () => {
+    try {
+      const result = await pickDirectory(workdir.trim() || undefined);
+      if (result.path) {
+        setWorkdir(result.path);
+      } else if (!result.supported) {
+        showToast(
+          result.reason || 'Folder selection is only supported on Windows.',
+          'info',
+        );
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to open folder picker';
+      showToast(message, 'error');
     }
   };
 
@@ -240,13 +259,26 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
               (optional)
             </span>
           </span>
-          <input
-            type="text"
-            value={workdir}
-            onChange={(e) => setWorkdir(e.target.value)}
-            placeholder="/path/to/project"
-            className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={workdir}
+              onChange={(e) => setWorkdir(e.target.value)}
+              placeholder="/path/to/project"
+              className="min-w-0 flex-1 rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => void handlePickDirectory()}
+              title="Choose a folder"
+              aria-label="Add folder"
+            >
+              <FolderPlus size={14} />
+              添加文件夹
+            </Button>
+          </div>
         </label>
 
         {/* Actions */}
