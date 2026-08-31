@@ -1,3 +1,7 @@
+// DEPRECATED LEGACY FALLBACK: React (packages/web/src/) is the only maintained
+// and recommended frontend. Change this file only for an explicitly requested
+// legacy compatibility fix; do not use it as the basis for new features.
+
 // ── Types ──
 
 interface Message {
