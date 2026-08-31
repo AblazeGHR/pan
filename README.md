@@ -5,15 +5,12 @@
 **[English](./README.en.md) · 中文**
 
 ---
+**[目录](#目录)**
 
-下面先用 30 秒看懂 Pan 的核心卖点与典型工作流；完整的功能 / 配置 / API 参考手册见下方
-
----
-
-**[目录](#目录)。**
 **[快速开始](#快速开始)**
 
-
+> 下面先用 30 秒看懂 Pan 的核心卖点与典型工作流；完
+> 整的功能 / 配置 / API 参考手册见下方
 
 
 **Pan 不是一个「非黑即白」的产品，而是一个光谱式的可扩展中间层**：往浅用，它是一个最小可用的「Session 与 Agent CLI 管理器」；往深用，它是完整可扩展的「Agent 集群管理协作系统 + MCP 工具层」——中间的每一档深度都由你按需启用，不是「全有或全无」（见「[Pan 是一个光谱](#-pan-是一个光谱从小到大按需取用)」）。
@@ -233,11 +230,18 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
   - [快速开始](#快速开始)
     - [前置要求](#前置要求)
     - [安装与启动](#安装与启动)
+    - [端口与环境变量](#端口与环境变量)
+    - [首次使用：从 Dashboard 完成第一个任务](#首次使用从-dashboard-完成第一个任务)
+      - [直接问 SMA：创建带参数的会话](#直接问-sma创建带参数的会话)
+    - [首次使用 SMA：推荐工作流与边界](#首次使用-sma推荐工作流与边界)
+    - [配置要点](#配置要点)
+    - [停止与常见限制](#停止与常见限制)
     - [前端说明：推荐 React，Vanilla 已弃用（deprecated）](#前端说明推荐-reactvanilla-已弃用deprecated)
   - [架构](#架构)
     - [模块划分](#模块划分)
   - [多 CLI 适配](#多-cli-适配)
   - [Meta-Agent 编排](#meta-agent-编排)
+    - [树状任务管理](#树状任务管理)
     - [编排方法论](#编排方法论)
     - [编排层对底层 CLI 无感知](#编排层对底层-cli-无感知)
   - [配置](#配置)
@@ -808,8 +812,7 @@ python -m packages.mcp.server --transport sse --port 9740
 **pan skill**（`SKILL.md`）是给「想当 Meta-Agent 主管」的 agent 准备的**冷启动手册**：把它配给你的 agent CLI 后，agent 开工即自动掌握 Pan 的编排链路（`session_create → report_subscribe → agent_assign → queue_pending`）、MCP 工具约定与踩坑，**无需你每次在提示词里从头教**——与 MCP 工具（方式 A 注入）配合，agent 即可直接上手当主管。
 
 - **主源**：`docs/skills/pan/SKILL.md`（git 跟踪，随仓库更新）；
-- **CodeBuddy（cbc）**：本仓库已内置项目级副本 `.codebuddy/skills/pan/SKILL.md`，在本仓库 workdir 内干活时**自动加载，无需额外操作**；要在其它项目里用，把整个 `pan/` 目录复制到目标项目的 `.codebuddy/skills/` 下；
-- **其它支持 Agent Skills 的 CLI**（如 Claude Code 的 `.claude/skills/`、Codex 的 `~/.codex/skills/` 等）：把 `pan/SKILL.md` 按该 CLI 的 skill 目录约定放好即可。frontmatter 的 `name` / `description` 是 skill 的元信息（description 影响触发时机，建议保留原名）。
+- **支持 Agent Skills 的 CLI**（如 Claude Code 的 `.claude/skills/`、Codex 的 `~/.codex/skills/` 、cbc的 `.codebuddy/skills/`等）：把 `pan/SKILL.md` 按该 CLI 的 skill 目录约定放好即可。frontmatter 的 `name` / `description` 是 skill 的元信息（description 影响触发时机，建议保留原名）。
 
 ### QQ Bridge
 
