@@ -207,6 +207,36 @@ def test_handoff_persists_to_disk():
     _cleanup()
 
 
+def test_handoff_uses_suffix_when_original_name_is_still_occupied():
+    """A stale same-named archive/session must not make B duplicate its name."""
+    _cleanup()
+    _fresh_session_dir()
+    _make("ses_old_archive", "dev")
+    _make("ses_a", "dev", adapter="cbc")
+
+    archived, b = _sess.handoff_session("ses_a", "交接", copy_settings=True)
+
+    assert b.name == "dev-1"
+    assert archived.name == "(archive) dev"
+    assert b.managed == ["ses_a"]
+    assert b.report_subscriptions == {"ses_a"}
+    _cleanup()
+
+
+def test_handoff_skips_all_occupied_name_suffixes():
+    _cleanup()
+    _fresh_session_dir()
+    _make("ses_old", "dev")
+    _make("ses_old_1", "dev-1")
+    _make("ses_old_2", "dev-2")
+    _make("ses_a", "dev")
+
+    _, b = _sess.handoff_session("ses_a", "交接", copy_settings=True)
+
+    assert b.name == "dev-3"
+    _cleanup()
+
+
 # ══════════════════════════════════════════════════════════════════════════ #
 #  HTTP 端点                                                               #
 # ══════════════════════════════════════════════════════════════════════════ #
