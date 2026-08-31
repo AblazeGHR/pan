@@ -263,6 +263,29 @@ def test_claude_mcp_args_writes_pan_descriptor(tmp_path, monkeypatch):
     assert entry["env"]["PAN_AGENT_SESSION_TITLE"] == s.name
 
 
+def test_claude_mcp_args_writes_pan_descriptor(tmp_path, monkeypatch):
+    """Claude receives the same concrete Pan descriptor as other adapters."""
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    a = ClaudeAdapter()
+    s = _make_session(adapter_config={"mcp_servers": [{
+        "name": "pan",
+        "command": sys.executable,
+        "args": ["-m", "packages.mcp.server"],
+        "cwd": str(Path(__file__).resolve().parents[1]),
+    }]})
+    args = a.mcp_args(s)
+    assert args[0] == "--mcp-config"
+    path = Path(args[1])
+    assert path.name == f"{s.id}.mcp.json"
+    config = json.loads(path.read_text(encoding="utf-8"))
+    entry = config["mcpServers"]["pan"]
+    assert entry["command"] == sys.executable
+    assert entry["args"] == ["-m", "packages.mcp.server"]
+    assert entry["cwd"] == str(Path(__file__).resolve().parents[1])
+    assert entry["env"]["PAN_AGENT_SESSION_ID"] == s.id
+    assert entry["env"]["PAN_AGENT_SESSION_TITLE"] == s.name
+
+
 def test_build_spawn_args_stream_defense():
     a = ClaudeAdapter()
     s = _make_session(model="claude-sonnet-4-5")
