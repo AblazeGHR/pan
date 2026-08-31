@@ -40,13 +40,13 @@
   "mcp_servers": [
     {
       "name": "pan",
-      "command": "${PLUGIN_DIR}/../../.venv/Scripts/python",
+      "command": "${PAN_PYTHON}",
       "args": ["-m", "packages.mcp.server"],
       "cwd": "${PLUGIN_DIR}/../.."
     },
     {
       "name": "pan-qq",
-      "command": "${PLUGIN_DIR}/../../.venv/Scripts/python",
+      "command": "${PAN_PYTHON}",
       "args": ["-m", "packages.qq.mcp"],
       "cwd": "${PLUGIN_DIR}/../.."
     }

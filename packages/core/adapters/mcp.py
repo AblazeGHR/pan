@@ -21,9 +21,10 @@ from ..session import Session
 
 _log = logging.getLogger(__name__)
 
-# 允许从 server 描述符透传的字段（cbc 与 kimi 当前用到的并集；两实现原本各自
-# 处理 command/args/cwd/env 与 command/args/url/transport/cwd/env/headers）
-_TRANSPORT_KEYS = ("command", "args", "url", "transport", "cwd", "env", "headers")
+# 允许从 server 描述符透传的字段（stdio 与 HTTP/SSE MCP 配置的并集）。
+_TRANSPORT_KEYS = (
+    "command", "args", "url", "transport", "type", "cwd", "env", "headers",
+)
 
 # 需要注入 MA session 身份的 pan 系 server（worker_send 打标 / qq 订阅，立项 4.8）
 _PAN_IDENTITY_SERVERS = ("pan", "pan-qq")
@@ -46,14 +47,22 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
         return {}
     mcp_servers: dict[str, dict] = {}
     for srv in servers:
+        if not isinstance(srv, dict):
+            raise ValueError("MCP server descriptor must be an object")
         name = srv.get("name", "unnamed")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("MCP server descriptor requires a non-empty name")
         entry: dict = {k: srv[k] for k in _TRANSPORT_KEYS if k in srv}
+        if not entry.get("command") and not entry.get("url"):
+            raise ValueError(
+                f"MCP server {name!r} has no command or URL configured"
+            )
         if name in _PAN_IDENTITY_SERVERS:
             env = dict(entry.get("env") or {})
             env[_PAN_SESSION_ID_ENV] = s.id
             env[_PAN_SESSION_TITLE_ENV] = s.name
             entry["env"] = env
-        entry.setdefault("type", "stdio")
+        entry.setdefault("type", "http" if entry.get("url") else "stdio")
         mcp_servers[name] = entry
     return mcp_servers
 

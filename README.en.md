@@ -482,6 +482,7 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 | `PAN_HOST` | `127.0.0.1` | Listen address |
 | `PAN_URL` | `http://127.0.0.1:{port}` | Base URL used by the QQ Bridge to reach Pan Core |
 | `PAN_API_URL` | `http://127.0.0.1:8768` | URL used by the MCP server to reach Pan Core |
+| `PAN_PYTHON` | Current Pan interpreter | Python interpreter used by the manifest `pan` / `pan-qq` stdio MCP servers; useful when git worktrees share the main repository `.venv` |
 | `PAN_QQ_API_URL` | `http://127.0.0.1:8080` | URL used by pan-qq MCP to reach the QQ bot |
 | `PAN_QQ_PYTHON` | miniforge | Interpreter used for the QQ bot |
 | `PAN_QQ_MODE` | — | Overrides `qq.mode` |

@@ -85,6 +85,150 @@ def test_permission_request_round_trip():
         _cleanup()
 
 
+def test_permission_request_denial_round_trip():
+    _cleanup()
+    s = _sess.Session(id="ses_claude_permission_deny", name="permission-deny", adapter="claude")
+    _sess._cache[s.id] = s
+    w = worker.Worker(
+        worker_id="worker-permission-deny",
+        session_id=s.id,
+        adapter=ClaudeAdapter(),
+        process=_LiveProcess(),
+        pending_signal=asyncio.Queue(),
+    )
+    worker.workers[w.worker_id] = w
+
+    async def run() -> None:
+        pending = asyncio.create_task(
+            worker.request_claude_permission(w.worker_id, "Write", {"file_path": "x"})
+        )
+        for _ in range(50):
+            if worker._claude_permission_requests:
+                break
+            await asyncio.sleep(0)
+        request_id = next(iter(worker._claude_permission_requests))
+        assert await worker.send_control_message(w.worker_id, {
+            "type": "permission_response",
+            "request_id": request_id,
+            "decision": "decline",
+            "message": "user denied",
+        }) is None
+        assert await asyncio.wait_for(pending, timeout=1) == {
+            "behavior": "deny",
+            "message": "user denied",
+        }
+        assert not worker._claude_permission_requests
+
+    try:
+        asyncio.run(run())
+    finally:
+        _cleanup()
+
+
+def test_permission_request_timeout_cleans_pending(monkeypatch):
+    _cleanup()
+    s = _sess.Session(id="ses_claude_permission_timeout", name="permission-timeout", adapter="claude")
+    _sess._cache[s.id] = s
+    w = worker.Worker(
+        worker_id="worker-permission-timeout",
+        session_id=s.id,
+        adapter=ClaudeAdapter(),
+        process=_LiveProcess(),
+        pending_signal=asyncio.Queue(),
+    )
+    worker.workers[w.worker_id] = w
+    monkeypatch.setattr(worker, "_CLAUDE_PERMISSION_TIMEOUT_SEC", 0.001)
+
+    async def run() -> None:
+        result = await worker.request_claude_permission(
+            w.worker_id, "Bash", {"command": "echo no"}
+        )
+        assert result == {
+            "behavior": "deny",
+            "message": "Permission request timed out",
+        }
+        assert not worker._claude_permission_requests
+        assert not w.pending_interactions
+
+    try:
+        asyncio.run(run())
+    finally:
+        _cleanup()
+
+
+def test_permission_request_broadcast_failure_cleans_pending():
+    _cleanup()
+    s = _sess.Session(id="ses_claude_permission_broadcast", name="permission-broadcast", adapter="claude")
+    _sess._cache[s.id] = s
+    w = worker.Worker(
+        worker_id="worker-permission-broadcast",
+        session_id=s.id,
+        adapter=ClaudeAdapter(),
+        process=_LiveProcess(),
+        pending_signal=asyncio.Queue(),
+    )
+    worker.workers[w.worker_id] = w
+
+    async def run() -> None:
+        async def broken_broadcast(_event: dict) -> None:
+            raise RuntimeError("dashboard disconnected")
+
+        worker.set_broadcaster(broken_broadcast)
+        try:
+            await worker.request_claude_permission(w.worker_id, "Bash", {})
+        except RuntimeError as exc:
+            assert str(exc) == "dashboard disconnected"
+        else:
+            assert False, "broadcast failure must be propagated"
+        assert not worker._claude_permission_requests
+        assert not w.pending_interactions
+
+    try:
+        asyncio.run(run())
+    finally:
+        _cleanup()
+
+
+def test_permission_request_round_trip_through_http_api():
+    """The MCP callback and dashboard control meet at the HTTP endpoint."""
+    _cleanup()
+    s = _sess.Session(id="ses_claude_permission_api", name="permission-api", adapter="claude")
+    _sess._cache[s.id] = s
+    w = worker.Worker(
+        worker_id="worker-permission-api",
+        session_id=s.id,
+        adapter=ClaudeAdapter(),
+        process=_LiveProcess(),
+        pending_signal=asyncio.Queue(),
+    )
+    worker.workers[w.worker_id] = w
+    import packages.web.server as web_server
+
+    async def run() -> None:
+        pending = asyncio.create_task(web_server.api_claude_permission(
+            w.worker_id, {"toolName": "Bash", "input": {"command": "git status"}}
+        ))
+        for _ in range(50):
+            if worker._claude_permission_requests:
+                break
+            await asyncio.sleep(0)
+        request_id = next(iter(worker._claude_permission_requests))
+        assert await worker.send_control_message(w.worker_id, {
+            "type": "permission_response",
+            "request_id": request_id,
+            "decision": "accept",
+        }) is None
+        assert await asyncio.wait_for(pending, timeout=1) == {
+            "behavior": "allow",
+            "updatedInput": {"command": "git status"},
+        }
+
+    try:
+        asyncio.run(run())
+    finally:
+        _cleanup()
+
+
 def test_permission_request_is_denied_when_worker_is_stopped():
     _cleanup()
     s = _sess.Session(id="ses_claude_permission_dead", name="permission-dead", adapter="claude")
@@ -110,6 +254,42 @@ def test_permission_request_is_denied_when_worker_is_stopped():
         result = await asyncio.wait_for(pending, timeout=1)
         assert result["behavior"] == "deny"
         assert result["message"] == "worker stopped"
+
+    try:
+        asyncio.run(run())
+    finally:
+        _cleanup()
+
+
+def test_kill_worker_cleans_pending_permission_request(monkeypatch):
+    """The real worker kill path must release a blocked Claude callback."""
+    _cleanup()
+    s = _sess.Session(id="ses_claude_permission_kill", name="permission-kill", adapter="claude")
+    _sess._cache[s.id] = s
+    w = worker.Worker(
+        worker_id="worker-permission-kill",
+        session_id=s.id,
+        adapter=ClaudeAdapter(),
+        process=_LiveProcess(),
+        pending_signal=asyncio.Queue(),
+    )
+    worker.workers[w.worker_id] = w
+
+    async def run() -> None:
+        pending = asyncio.create_task(
+            worker.request_claude_permission(w.worker_id, "Bash", {"command": "false"})
+        )
+        for _ in range(50):
+            if worker._claude_permission_requests:
+                break
+            await asyncio.sleep(0)
+        monkeypatch.setattr(worker, "_kill_process_tree", lambda _worker: asyncio.sleep(0))
+        await worker.kill_worker(w.worker_id)
+        result = await asyncio.wait_for(pending, timeout=1)
+        assert result["behavior"] == "deny"
+        assert result["message"] == "Claude worker was stopped"
+        assert w.worker_id not in worker.workers
+        assert not worker._claude_permission_requests
 
     try:
         asyncio.run(run())

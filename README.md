@@ -510,6 +510,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | `PAN_HOST` | `127.0.0.1` | 监听地址 |
 | `PAN_URL` | `http://127.0.0.1:{port}` | QQ Bridge 访问 Pan Core 的地址 |
 | `PAN_API_URL` | `http://127.0.0.1:8768` | MCP server 连接 Pan Core 的地址 |
+| `PAN_PYTHON` | 当前 Pan 解释器 | manifest 中 `pan` / `pan-qq` stdio MCP server 使用的 Python 解释器；用于 git worktree 共享主仓库 `.venv` |
 | `PAN_QQ_API_URL` | `http://127.0.0.1:8080` | pan-qq MCP 连接 QQ bot 的地址 |
 | `PAN_QQ_PYTHON` | miniforge | QQ bot 解释器路径 |
 | `PAN_QQ_MODE` | — | 覆盖 `qq.mode` |

@@ -461,7 +461,12 @@ def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
     return target
 
 
-def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
+def _build_session_params(
+    data: dict,
+    *,
+    resolve_workdir: bool = True,
+    strict_mcp: bool = True,
+) -> dict:
     """Extract session creation parameters from request data, with defaults.
 
     Session config (system_prompt / adapter / model / permission_mode /
@@ -473,6 +478,11 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
     ``resolve_workdir=False`` skips creating a workdir under data/workdirs/ —
     used by the import endpoints whose sessions keep the external project /
     workspace path as workdir instead.
+
+    ``strict_mcp=False`` is reserved for importing an existing external CLI
+    session. A stale import template may omit MCP rather than preventing the
+    external session from being recorded; normal session creation remains
+    strict so a configured MCP server can never disappear silently.
     """
     adapter_name = data.get("adapter") or "cbc"
     a = get_adapter(adapter_name)
@@ -572,11 +582,21 @@ def _build_session_params(data: dict, *, resolve_workdir: bool = True) -> dict:
     if template.mcp_mode == "always" and template.mcp_servers:
         try:
             params["adapter_config"]["mcp_servers"] = _resolve_mcp_server_configs(template.mcp_servers)
-        except ValueError:
-            # 默认 MCP server 未注册（manifest 未加载/缺失）→ 降级为无 MCP，
-            # 不能因默认 MCP 缺失阻塞建 session。
-            _log(f"默认 MCP server {template.mcp_servers} 未解析，降级为无 MCP")
-            params["adapter_config"]["mcp_servers"] = []
+        except ValueError as exc:
+            if not strict_mcp:
+                _log(
+                    f"Imported MCP server(s) {template.mcp_servers!r} unavailable; "
+                    f"continuing without MCP: {exc}"
+                )
+                params["adapter_config"]["mcp_servers"] = []
+                return params
+            # Do not create a session that claims to have the default Pan MCP
+            # while silently dropping its descriptor.  The API caller needs a
+            # concrete configuration error so it can fix the catalog first.
+            raise ValueError(
+                f"Unable to configure default MCP server(s) "
+                f"{template.mcp_servers!r}: {exc}"
+            ) from exc
 
     # Character binding: memory/assets only (no session config from character).
     character_id = data.get("characterId")
@@ -606,18 +626,53 @@ def _resolve_mcp_server_configs(server_names) -> list[dict]:
             if srv.name == name:
                 cfg: dict = {"name": srv.name}
                 if srv.command:
+                    command = str(srv.command)
+                    if not _mcp_command_available(command):
+                        raise ValueError(
+                            f"MCP server {srv.name!r} command is unavailable: {command}"
+                        )
                     cfg["command"] = srv.command
                 if srv.args:
                     cfg["args"] = srv.args
                 if srv.env:
                     cfg["env"] = srv.env
                 if srv.cwd:
+                    if not Path(srv.cwd).is_dir():
+                        raise ValueError(
+                            f"MCP server {srv.name!r} cwd is unavailable: {srv.cwd}"
+                        )
                     cfg["cwd"] = srv.cwd
+                if srv.url:
+                    cfg["url"] = srv.url
+                if srv.transport:
+                    cfg["transport"] = srv.transport
+                if srv.headers:
+                    cfg["headers"] = srv.headers
+                if srv.type:
+                    cfg["type"] = srv.type
+                if not srv.command and not srv.url:
+                    raise ValueError(
+                        f"MCP server {srv.name!r} has no command or URL configured"
+                    )
                 configs.append(cfg)
                 break
         else:
             raise ValueError(f"Unknown MCP server: {name!r}")
     return configs
+
+
+def _mcp_command_available(command: str) -> bool:
+    """Return whether a manifest stdio command can be launched.
+
+    Absolute and path-like commands are checked directly. Bare executable
+    names are resolved through PATH, allowing portable declarations such as
+    ``python`` while still reporting a useful error before a Claude worker is
+    spawned. This is a preflight check, not a probe that starts the MCP server.
+    """
+    candidate = Path(command)
+    if candidate.is_absolute() or candidate.parent != Path("."):
+        return candidate.is_file()
+    return shutil.which(command) is not None
 
 
 def _safe_adapter(adapter_name: str):
@@ -1106,7 +1161,11 @@ async def ws_agent_endpoint(ws: WebSocket):
                         await ws.send_json({"type": "error", "message": err})
 
             elif msg_type == "spawn":
-                params = _build_session_params(msg)
+                try:
+                    params = _build_session_params(msg)
+                except ValueError as exc:
+                    await ws.send_json({"type": "error", "message": str(exc)})
+                    continue
                 s = sess.create(**params)
                 result = await worker.create_worker(s.id)
                 if isinstance(result, str):
@@ -2214,7 +2273,10 @@ async def api_spawn(data: dict):
             return {"error": str(e)}
         sess.save(s)
     else:
-        params = _build_session_params(data)
+        try:
+            params = _build_session_params(data)
+        except ValueError as e:
+            return {"error": str(e)}
         name = params["name"]
         err_name = _check_session_name(name)
         if err_name:
@@ -2903,6 +2965,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                 **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
             },
             resolve_workdir=False,
+            strict_mcp=False,
         )
     except ValueError as e:
         return {"error": f"Failed to apply session template: {e}"}
@@ -3322,6 +3385,9 @@ async def api_mcp_servers():
             "name": srv.name,
             "command": srv.command,
             "cwd": srv.cwd,
+            "url": srv.url,
+            "transport": srv.transport,
+            "type": srv.type,
         }
         for srv in _character_manager._manifest_config.mcp_servers
     ]

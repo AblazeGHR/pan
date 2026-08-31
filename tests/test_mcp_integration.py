@@ -255,7 +255,10 @@ class TestApplyMCPServers:
 
         s = Session(id="ses_mcp", name="t")
         cm = CharacterManager()
-        cm.load_manifest(["packages/mcp/manifest.json"])
+        # The default runtime loads the repository-root manifest. Keep this
+        # regression on that path: packages/mcp/manifest.json is a standalone
+        # catalog fixture, not the default plugin registration.
+        cm.load_manifest(["manifest.json"])
         monkeypatch.setattr(srv, "_character_manager", cm)
         return s
 
@@ -266,11 +269,9 @@ class TestApplyMCPServers:
         configs = s.adapter_config.get("mcp_servers") or []
         assert len(configs) == 1
         assert configs[0]["name"] == "pan"
-        # Manifest command resolves ${PLUGIN_DIR} to the project venv python
-        # (absolute path, since plain "python" depends on PATH and fails when
-        # launched from the cbc environment — see 54894ba).
-        expected_cmd = str(Path("packages/mcp/../../.venv/Scripts/python").resolve())
-        assert configs[0]["command"] == expected_cmd
+        # The manifest uses ${PAN_PYTHON}: the Pan runtime interpreter (shared
+        # by git worktrees) rather than a private worktree .venv.
+        assert configs[0]["command"] == sys.executable
         assert configs[0]["args"] == ["-m", "packages.mcp.server"]
 
     def test_clear_with_empty(self, monkeypatch):
@@ -297,6 +298,76 @@ class TestApplyMCPServers:
             assert False, "expected ValueError"
         except ValueError as e:
             assert "must be a list" in str(e)
+
+    def test_unavailable_command_has_clear_error(self, monkeypatch, tmp_path):
+        import packages.web.server as srv
+        from packages.core.character import CharacterManager
+
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(json.dumps({
+            "mcp_servers": [{
+                "name": "broken",
+                "command": str(tmp_path / "missing-python.exe"),
+                "cwd": str(tmp_path),
+            }],
+        }), encoding="utf-8")
+        cm = CharacterManager()
+        cm.load_manifest([str(manifest)])
+        monkeypatch.setattr(srv, "_character_manager", cm)
+        with pytest.raises(ValueError, match="command is unavailable"):
+            srv._resolve_mcp_server_configs(["broken"])
+
+
+def test_root_manifest_registers_pan_with_runtime_interpreter(monkeypatch):
+    """The default catalog must expose pan to PATCH/session creation."""
+    from packages.core.manifest_loader import load_manifests
+
+    monkeypatch.delenv("PAN_PYTHON", raising=False)
+    cfg = load_manifests(["manifest.json"])
+    servers = {server.name: server for server in cfg.mcp_servers}
+    assert set(servers) >= {"pan", "pan-qq"}
+    assert servers["pan"].command == sys.executable
+    assert servers["pan"].cwd == str(Path(__file__).resolve().parents[1])
+
+
+def test_manifest_runtime_interpreter_can_be_overridden(monkeypatch):
+    from packages.core.manifest_loader import load_manifests
+
+    monkeypatch.setenv("PAN_PYTHON", "portable-python")
+    cfg = load_manifests(["packages/mcp/manifest.json"])
+    servers = {server.name: server for server in cfg.mcp_servers}
+    assert servers["pan"].command == "portable-python"
+
+
+def test_manifest_http_mcp_fields_survive_catalog_resolution(tmp_path):
+    from packages.core.manifest_loader import load_manifests
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "mcp_servers": [{
+            "name": "remote",
+            "url": "https://example.invalid/mcp",
+            "transport": "streamable-http",
+            "type": "http",
+            "headers": {"X-Test": "value"},
+        }],
+    }), encoding="utf-8")
+    cfg = load_manifests([str(manifest)])
+    server = cfg.mcp_servers[0]
+    assert server.url == "https://example.invalid/mcp"
+    assert server.transport == "streamable-http"
+    assert server.type == "http"
+    assert server.headers == {"X-Test": "value"}
+
+
+def test_mcp_helper_rejects_incomplete_descriptor():
+    from packages.core.adapters.mcp import build_mcp_servers
+
+    with pytest.raises(ValueError, match="no command or URL"):
+        build_mcp_servers(Session(
+            id="ses_bad_mcp", name="bad", adapter="claude",
+            adapter_config={"mcp_servers": [{"name": "broken"}]},
+        ))
 
 
 # ------------------------------------------------------------------ #

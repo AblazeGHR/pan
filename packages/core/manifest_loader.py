@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -40,6 +42,10 @@ class McpServer:
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
     cwd: str | None = None
+    url: str | None = None
+    transport: str | None = None
+    headers: dict[str, str] = field(default_factory=dict)
+    type: str | None = None
 
 
 @dataclass
@@ -330,10 +336,25 @@ def _resolve_plugin_dir(value, plugin_dir: str) -> str | None:
 
 
 def _resolve_plugin_var(value: str, plugin_dir: str) -> str:
-    """Replace ${PLUGIN_DIR} and normalize the path. Only resolves if the var is present."""
-    if "${PLUGIN_DIR}" in value:
-        return str(Path(value.replace("${PLUGIN_DIR}", plugin_dir)).resolve())
-    return value
+    """Resolve portable manifest variables.
+
+    ``${PLUGIN_DIR}`` is the manifest directory.  ``${PAN_PYTHON}`` points at
+    the interpreter running Pan, unless ``PAN_PYTHON`` explicitly overrides
+    it.  The latter is important for git worktrees: dependencies may live in
+    a shared environment while the MCP module must still be imported from the
+    current worktree via its cwd.
+    """
+    used_plugin_dir = "${PLUGIN_DIR}" in value
+    replacements = {
+        "${PLUGIN_DIR}": plugin_dir,
+        "${PAN_PYTHON}": os.environ.get("PAN_PYTHON") or sys.executable,
+    }
+    for marker, replacement in replacements.items():
+        if marker in value:
+            value = value.replace(marker, replacement)
+    # Only normalize paths that used the plugin-dir placeholder.  Commands
+    # such as ``${PAN_PYTHON}`` must remain the exact interpreter path.
+    return str(Path(value).resolve()) if used_plugin_dir else value
 
 
 def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
@@ -353,6 +374,17 @@ def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
         }
     if "cwd" in raw:
         srv.cwd = _resolve_plugin_var(raw["cwd"], plugin_dir) if isinstance(raw["cwd"], str) else raw["cwd"]
+    if "url" in raw:
+        srv.url = _resolve_plugin_var(raw["url"], plugin_dir) if isinstance(raw["url"], str) else raw["url"]
+    if "transport" in raw:
+        srv.transport = raw["transport"] if isinstance(raw["transport"], str) else str(raw["transport"])
+    if "type" in raw:
+        srv.type = raw["type"] if isinstance(raw["type"], str) else str(raw["type"])
+    if "headers" in raw and isinstance(raw["headers"], dict):
+        srv.headers = {
+            k: _resolve_plugin_var(v, plugin_dir) if isinstance(v, str) else str(v)
+            for k, v in raw["headers"].items()
+        }
     return srv
 
 

@@ -345,7 +345,8 @@ class ClaudeAdapter:
         """写 data/mcp-configs/<session_id>.mcp.json 并返回 --mcp-config <path>。
 
         claude 支持 ``--mcp-config <path>``（JSON 文件，含 ``mcpServers`` 键，与
-        cbc 同格式；共享 helper 写）。未配置/写失败返回 []（无 MCP flag）。
+        cbc 同格式；共享 helper 写）。未配置返回 []（无 MCP flag）；写入失败
+        则抛出配置错误，避免静默启动一个缺少 MCP 的 worker。
         """
         servers = s.adapter_config.get("mcp_servers")
         if not servers:
@@ -353,7 +354,9 @@ class ClaudeAdapter:
         from ...session import SESSION_DIR
         mcp_json_path = SESSION_DIR.parent / "mcp-configs" / f"{s.id}.mcp.json"
         if write_mcp_json(mcp_json_path, s) is None:
-            return []
+            raise ValueError(
+                f"Claude MCP configuration could not be generated: {mcp_json_path}"
+            )
         return ["--mcp-config", str(mcp_json_path)]
 
     # ── stdin 消息编码 ──

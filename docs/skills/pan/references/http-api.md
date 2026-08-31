@@ -16,7 +16,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | 方法 | URL | Body / 参数 | 返回 |
 |------|-----|------------|------|
 | `POST` | `/api/sessions/batch-delete` | `{"sessionIds": ["ses_a", "ses_b"]}` | `{"deleted": 2}`（含 kill worker、清理其他 session 的 report_subscriptions/managed 引用）。**MCP 等价工具：`session_batch_delete`（已有，逐个过 managed 隔离检查）** |
-| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改进程相关字段（model/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，**idle worker 自动 respawn 生效、running worker 回 idle 时自动重启**——无需手动 kill+spawn（想立即生效仍可手动 agent_kill + agent_spawn（别名 worker_*））。**MCP 等价工具：`session_update`** |
+| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpEnabled": true, "mcpServers": ["pan"], "outputMode": "stream", "gameId": "..."}` | 更新后 session；改进程相关字段（model/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，**idle worker 自动 respawn 生效、running worker 回 idle 时自动重启**——无需手动 kill+spawn（想立即生效仍可手动 agent_kill + agent_spawn（别名 worker_*））。未知或不可用的 MCP server 返回 `error`，不会生成无效配置。**MCP 等价工具：`session_update`** |
 | `POST` | `/api/sessions/{id}/rename` | `{"name": "new-name"}` | `{"sessionId","name","status":"renamed"}`。**无 MCP 工具，需 HTTP 直调** |
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定）。**无 MCP 工具，需 HTTP 直调** |
 | `POST` | `/api/sessions/{id}/handoff` | `{"handoffPrompt": "...", "copySettings": true, "adapter"?: "...", "model"?: "...", "permissionMode"?: "..."}` | **替身交接**：创建孪生 session B 接替 A（见 SKILL.md §2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填 |
@@ -50,7 +50,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `GET` / `POST` | `/api/adapters/{adapter}/sessions[/import]` | **通用导入端点**（claude/codex 等走此端点；各 adapter 的 sessions provider 化产物） |
 | `GET` / `PUT` | `/api/settings/ui` | 全局显示设置读写 |
 | `GET` | `/api/session-templates` | manifest 中的 Session 模板列表 |
-| `GET` | `/api/mcp/servers` | manifest 中可选 MCP Server 列表 |
+| `GET` | `/api/mcp/servers` | manifest 中可选 MCP Server 列表（含 stdio command / HTTP URL 元数据；不含 env） |
 | `POST` | `/api/manifest/reload` | 强制热重载 manifest（新增/修改 session template 后立即生效） |
 | `GET` | `/api/manifest/command-routes` | QQ 前缀命令路由列表 |
 | `GET` | `/api/worker/{id}/takeover-command` | 生成终端接管命令 |

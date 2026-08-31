@@ -1238,17 +1238,22 @@ async def request_claude_permission(
     future = asyncio.get_running_loop().create_future()
     _claude_permission_requests[request_id] = (worker_id, future)
     _update_pending_interactions(w, event)
-    await _bcast({
-        "type": "worker.stream",
-        "workerId": worker_id,
-        "sessionId": w.session_id,
-        "event": event,
-    })
-
     try:
-        control = await asyncio.wait_for(future, timeout=_CLAUDE_PERMISSION_TIMEOUT_SEC)
-    except asyncio.TimeoutError:
-        return {"behavior": "deny", "message": "Permission request timed out"}
+        # The broadcast is inside the same finally-protected region as the
+        # wait.  A disconnected/failed dashboard broadcaster must not strand
+        # the MCP callback in the global pending map.
+        await _bcast({
+            "type": "worker.stream",
+            "workerId": worker_id,
+            "sessionId": w.session_id,
+            "event": event,
+        })
+        try:
+            control = await asyncio.wait_for(
+                future, timeout=_CLAUDE_PERMISSION_TIMEOUT_SEC
+            )
+        except asyncio.TimeoutError:
+            return {"behavior": "deny", "message": "Permission request timed out"}
     finally:
         _claude_permission_requests.pop(request_id, None)
         w.pending_interactions.pop(f"request:{request_id}", None)
@@ -3012,6 +3017,8 @@ async def _spawn_process(session_id: str,
         )
     except FileNotFoundError:
         return format_cli_spawn_error(adapter.name)
+    except ValueError as e:
+        return f"MCP configuration error for {adapter.name}: {e}"
     except OSError as e:
         return format_cli_spawn_error(adapter.name, e)
 

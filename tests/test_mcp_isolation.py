@@ -12,6 +12,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import packages.mcp.server as mcp_server
@@ -262,10 +264,20 @@ def test_build_session_params_propagates_capabilities(monkeypatch):
 def test_build_session_params_capabilities_default(monkeypatch):
     import packages.web.server as srv
     monkeypatch.setattr(srv, "_character_manager", None)
+    # Keep this test focused on the default capability bits; MCP catalog
+    # failure has its own explicit regression below.
+    monkeypatch.setattr(srv, "_resolve_mcp_server_configs", lambda _names: [])
     params = srv._build_session_params({"name": "plain"})
     assert params["pan_access"]["restrict_to_managed"] is False
     assert params["pan_access"]["can_claim_unmanaged"] is False
     assert params["pan_access"]["auto_claim_created"] is False
+
+
+def test_build_session_params_reports_missing_default_mcp(monkeypatch):
+    import packages.web.server as srv
+    monkeypatch.setattr(srv, "_character_manager", None)
+    with pytest.raises(ValueError, match="Unable to configure default MCP server"):
+        srv._build_session_params({"name": "plain"})
 
 
 # ── MCP isolation helpers ──

@@ -118,6 +118,7 @@ bash scripts/stop.sh     # 停止
 | `PAN_PORT` | — | 覆盖 `port` |
 | `PAN_HOST` | `127.0.0.1` | 监听地址（非 loopback 会打印无鉴权告警） |
 | `PAN_API_URL` | `http://127.0.0.1:8768` | MCP server 连接 Pan Core 的地址 |
+| `PAN_PYTHON` | 当前 Pan 解释器 | manifest 中 `pan` / `pan-qq` stdio MCP server 使用的 Python 解释器；git worktree 可用它指向共享主仓库 `.venv` |
 | `PAN_URL` | `http://127.0.0.1:{port}` | QQ Bridge 访问 Pan Core 的地址 |
 | `PAN_QQ_API_URL` | `http://127.0.0.1:8080` | pan-qq MCP 连接 QQ 插件的地址 |
 | `PAN_QQ_PYTHON` | 平台默认 | QQ bot 解释器路径 |
@@ -589,7 +590,7 @@ python -m packages.remote        # 或 scripts/start_cf.ps1
 
 #### 12.1.1 接入方式
 
-**方式 A：Session 内自动注入（推荐）**——创建 Session 时指定 `mcpServers: ["pan"]`（或用 SMA 等自带 MCP 的模板），adapter 在 spawn 时自动生成 `data/mcp-configs/<session_id>.mcp.json` 并经 `--mcp-config` 注入，同时写入 `PAN_AGENT_SESSION_ID` / `PAN_AGENT_SESSION_TITLE` 环境变量（工具据此识别调用方身份）。各 adapter 注入方式：cbc/claude 写 `--mcp-config`；kimi 写会话级隔离 home（`--kimi-home`）；opencode 写项目级 `opencode.json`；codex `-c mcp_servers.*` 内联注入。
+**方式 A：Session 内自动注入（推荐）**——创建 Session 时指定 `mcpServers: ["pan"]`（或用 SMA 等自带 MCP 的模板），adapter 在 spawn 时自动生成 `data/mcp-configs/<session_id>.mcp.json` 并经 `--mcp-config` 注入，同时写入 `PAN_AGENT_SESSION_ID` / `PAN_AGENT_SESSION_TITLE` 环境变量（工具据此识别调用方身份）。仓库根 manifest 默认注册 `pan` 与 `pan-qq`；其 stdio command 使用 `${PAN_PYTHON}`，优先取环境变量，否则使用运行 Pan 的 Python 解释器，因此不依赖 worktree 私有 `.venv`。各 adapter 注入方式：cbc/claude 写 `--mcp-config`；kimi 写会话级隔离 home（`--kimi-home`）；opencode 写项目级 `opencode.json`；codex `-c mcp_servers.*` 内联注入。选择未知或不可用的 MCP server 会返回明确错误，不会静默启动一个缺少 MCP 的 worker。
 
 **方式 B：独立进程接入（任意 MCP 客户端）**：
 
