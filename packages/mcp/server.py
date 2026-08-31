@@ -54,6 +54,7 @@ from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import CallToolResult, TextContent
 
 _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 
@@ -988,7 +989,7 @@ def report_unsubscribe(session_id: str) -> dict:
 
 
 @mcp.tool()
-def permission_prompt(tool_name: str, input: dict | None = None) -> str:
+def permission_prompt(tool_name: str, input: dict | None = None) -> CallToolResult:
     """Ask the Pan dashboard to approve or deny a Claude Code tool request.
 
     Claude Code calls this MCP tool in non-interactive print/stream mode when
@@ -1003,25 +1004,35 @@ def permission_prompt(tool_name: str, input: dict | None = None) -> str:
     """
     session_id = os.environ.get("PAN_AGENT_SESSION_ID")
     if not session_id:
-        return json.dumps({
+        result = {
             "behavior": "deny",
             "message": "Pan permission bridge has no session identity",
-        }, ensure_ascii=False)
-    worker_id = _session_worker_id(session_id)
-    if not worker_id:
-        return json.dumps({
-            "behavior": "deny",
-            "message": "Pan worker is not available",
-        }, ensure_ascii=False)
-    result = _api(
-        "POST",
-        f"/api/worker/{quote(worker_id, safe='')}/claude-permission",
-        {"toolName": str(tool_name or "unknown"), "input": input or {}},
-        timeout=360.0,
-    )
-    if not isinstance(result, dict) or result.get("behavior") not in {"allow", "deny"}:
-        result = {"behavior": "deny", "message": "Invalid Pan permission response"}
-    return json.dumps(result, ensure_ascii=False)
+        }
+    else:
+        worker_id = _session_worker_id(session_id)
+        if not worker_id:
+            result = {
+                "behavior": "deny",
+                "message": "Pan worker is not available",
+            }
+        else:
+            result = _api(
+                "POST",
+                f"/api/worker/{quote(worker_id, safe='')}/claude-permission",
+                {"toolName": str(tool_name or "unknown"), "input": input or {}},
+                timeout=360.0,
+            )
+            if not isinstance(result, dict) or result.get("behavior") not in {"allow", "deny"}:
+                result = {"behavior": "deny", "message": "Invalid Pan permission response"}
+
+    # Claude Code 2.1.251's --permission-prompt-tool contract accepts exactly
+    # one unstructured text block.  Returning a plain ``str`` from FastMCP
+    # also enables its inferred structured output schema, which makes the
+    # response contain structuredContent.result and Claude rejects it.  An
+    # explicit low-level result keeps the JSON decision in one text block.
+    return CallToolResult(content=[TextContent(
+        type="text", text=json.dumps(result, ensure_ascii=False)
+    )])
 
 
 # ---------------------------------------------------------------------------

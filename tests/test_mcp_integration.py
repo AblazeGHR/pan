@@ -128,6 +128,26 @@ class TestCbcMCPArgs:
         assert entry["env"]["PAN_AGENT_SESSION_ID"] == s.id
         assert entry["env"]["PAN_AGENT_SESSION_TITLE"] == s.name
 
+    def test_pan_server_runtime_env_is_explicit_and_portable(self, monkeypatch):
+        """Claude may ignore an MCP entry's cwd on Windows.
+
+        The module import root and Pan endpoint must therefore travel in the
+        descriptor, while remaining derived from the descriptor/runtime env.
+        """
+        monkeypatch.setenv("PAN_API_URL", "http://127.0.0.1:8767")
+        adapter = CbcAdapter()
+        s = _make_session(mcp_servers=[{
+            "name": "pan",
+            "command": sys.executable,
+            "args": ["-m", "packages.mcp.server"],
+            "cwd": str(Path(__file__).resolve().parents[1]),
+        }])
+        adapter.mcp_args(s)
+        env = _read_mcp_json(s)["mcpServers"]["pan"]["env"]
+        assert env["PAN_API_URL"] == "http://127.0.0.1:8767"
+        assert env["PAN_PYTHON"] == sys.executable
+        assert env["PYTHONPATH"] == str(Path(__file__).resolve().parents[1])
+
     def test_pan_env_merges_existing_env(self):
         """Injection merges on top of any existing env passthrough."""
         adapter = CbcAdapter()

@@ -2276,6 +2276,45 @@ def _extract_cbc_error(output: bytes) -> str | None:
     return None
 
 
+def _log_mcp_launch(worker_id: str, session, args: list[str]) -> None:
+    """Log non-sensitive MCP launch facts for adapter diagnosis.
+
+    Do not log argv values: prompts and system prompts can contain user data.
+    The descriptor summary intentionally contains only server names, executable
+    paths, cwd and environment *keys*, which is enough to diagnose a launcher
+    cwd/PYTHONPATH/API propagation failure without exposing credentials.
+    """
+    descriptors: list[dict] = []
+    try:
+        mcp_index = args.index("--mcp-config")
+    except ValueError:
+        mcp_index = -1
+    if mcp_index >= 0:
+        for raw_path in args[mcp_index + 1:]:
+            if str(raw_path).startswith("--"):
+                break
+            try:
+                data = json.loads(Path(raw_path).read_text(encoding="utf-8"))
+                for name, entry in (data.get("mcpServers") or {}).items():
+                    descriptors.append({
+                        "name": name,
+                        "command": entry.get("command"),
+                        "cwd": entry.get("cwd"),
+                        "env_keys": sorted((entry.get("env") or {}).keys()),
+                    })
+            except (OSError, json.JSONDecodeError, AttributeError):
+                descriptors.append({"path": str(raw_path), "readable": False})
+    _log.info(
+        "[Worker %s] Claude MCP launch: process_cwd=%s session_workdir=%s "
+        "argv_flags=%s descriptors=%s",
+        worker_id,
+        os.getcwd(),
+        getattr(session, "workdir", None),
+        [arg for arg in args if isinstance(arg, str) and arg.startswith("--")],
+        descriptors,
+    )
+
+
 async def _consumer_oneshot(w: Worker, text: str, source: str, s):
     """One-shot mode: 每任务 spawn 一个一次性进程（prompt 作末参）。
 
@@ -2312,7 +2351,11 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         _maybe_restart_pending(w)
         return
 
-    _log.info("[Worker %s] one-shot spawn (full args): %s", w.worker_id, " ".join(repr(a) for a in args))
+    _log_mcp_launch(w.worker_id, s, args)
+    _log.info(
+        "[Worker %s] one-shot spawn: executable=%s argc=%d",
+        w.worker_id, args[0], len(args),
+    )
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -2378,6 +2421,10 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         w._mcp_proc = None
 
     returncode = proc.returncode
+    _log.info(
+        "[Worker %s] one-shot exit: code=%s timed_out=%s output_bytes=%d",
+        w.worker_id, returncode, timed_out, len(output),
+    )
 
     # DEBUG: save raw provider output for inspection
     debug_path = (
@@ -2399,6 +2446,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
     result_event: dict | None = None
     cli_session_id = None
     captured_model = None
+    mcp_statuses: list[dict] = []
     assistant_events: list[dict] = []  # raw assistant events, re-broadcast as worker.stream
     assistant_blocks: list[dict] = []  # extracted history blocks (assistant/thinking/tool)
     for line in output.decode(errors="replace").split("\n"):
@@ -2416,6 +2464,14 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         elif adapter.is_init_event(event):
             cli_session_id = adapter.extract_session_id(event)
             captured_model = adapter.extract_model(event)
+            if adapter.name == "claude":
+                raw_statuses = event.get("mcp_servers")
+                if isinstance(raw_statuses, list):
+                    mcp_statuses = [
+                        {"name": item.get("name"), "status": item.get("status")}
+                        for item in raw_statuses
+                        if isinstance(item, dict)
+                    ]
         elif adapter.is_assistant_event(event):
             # Extract blocks the same way stream mode's _read_stdout does, so
             # history format and the re-broadcast event match stream mode.
@@ -2423,6 +2479,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
             if blocks:
                 assistant_events.append(event)
                 assistant_blocks.extend(blocks)
+
+    if mcp_statuses:
+        _log.info("[Worker %s] Claude MCP status: %s", w.worker_id, mcp_statuses)
 
     # Re-fetch the session: it may have been deleted while the process ran.
     # Never write through a stale reference — that would resurrect a deleted
@@ -3008,6 +3067,8 @@ async def _spawn_process(session_id: str,
 
     try:
         args = adapter.build_spawn_args(s, extra_args)
+        _log_mcp_launch(worker_id=s.worker_id if hasattr(s, "worker_id") else session_id,
+                        session=s, args=args)
         return await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,

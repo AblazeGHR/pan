@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from ..session import Session
 
@@ -30,6 +31,38 @@ _TRANSPORT_KEYS = (
 _PAN_IDENTITY_SERVERS = ("pan", "pan-qq")
 _PAN_SESSION_ID_ENV = "PAN_AGENT_SESSION_ID"
 _PAN_SESSION_TITLE_ENV = "PAN_AGENT_SESSION_TITLE"
+_PAN_API_URL_ENV = "PAN_API_URL"
+_PAN_PYTHON_ENV = "PAN_PYTHON"
+_PYTHONPATH_ENV = "PYTHONPATH"
+
+
+def _pan_runtime_env(entry: dict) -> dict:
+    """Add portable runtime hints required by Claude's Windows launcher.
+
+    Claude Code 2.1.251 starts stdio servers from the CLI process cwd on
+    Windows even when an MCP entry contains ``cwd``.  A ``-m packages...``
+    command therefore needs an explicit import root.  Derive it from the
+    descriptor rather than from a machine-specific path.  The API URL and
+    interpreter are made explicit too: this keeps a worker's MCP child bound
+    to the same Pan instance and documents which shared interpreter it uses.
+    """
+    env = dict(entry.get("env") or {})
+    cwd = entry.get("cwd")
+    args = entry.get("args") or []
+    command = entry.get("command")
+    if isinstance(cwd, str) and cwd and "-m" in args:
+        import_root = str(Path(cwd).resolve())
+        inherited = env.get(_PYTHONPATH_ENV)
+        env[_PYTHONPATH_ENV] = (
+            import_root + os.pathsep + inherited
+            if inherited else import_root
+        )
+    api_url = os.environ.get(_PAN_API_URL_ENV)
+    if api_url and _PAN_API_URL_ENV not in env:
+        env[_PAN_API_URL_ENV] = api_url
+    if isinstance(command, str) and command and _PAN_PYTHON_ENV not in env:
+        env[_PAN_PYTHON_ENV] = command
+    return env
 
 
 def build_mcp_servers(s: Session) -> dict[str, dict]:
@@ -58,7 +91,7 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
                 f"MCP server {name!r} has no command or URL configured"
             )
         if name in _PAN_IDENTITY_SERVERS:
-            env = dict(entry.get("env") or {})
+            env = _pan_runtime_env(entry)
             env[_PAN_SESSION_ID_ENV] = s.id
             env[_PAN_SESSION_TITLE_ENV] = s.name
             entry["env"] = env

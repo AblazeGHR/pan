@@ -307,8 +307,13 @@ def test_mcp_permission_tool_uses_session_worker(monkeypatch):
         return {"behavior": "allow", "updatedInput": {"command": "git status"}}
 
     monkeypatch.setattr(mcp_server, "_api", fake_api)
-    result = json.loads(mcp_server.permission_prompt("Bash", {"command": "git status"}))
-    assert result == {"behavior": "allow", "updatedInput": {"command": "git status"}}
+    result = mcp_server.permission_prompt("Bash", {"command": "git status"})
+    wire = result.model_dump(mode="json")
+    assert wire["structuredContent"] is None
+    assert len(wire["content"]) == 1
+    assert wire["content"][0]["type"] == "text"
+    assert json.loads(wire["content"][0]["text"]) == {
+        "behavior": "allow", "updatedInput": {"command": "git status"}}
     assert calls == [
         (
             "POST",
