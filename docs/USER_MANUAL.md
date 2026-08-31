@@ -116,7 +116,6 @@ bash scripts/start.sh
 8. 等待聊天区出现结果。状态点通常会从 running 回到 idle；之后可以继续追问、在 **Editor** 查看文件，或右键会话选择 **Delete**。
 
 ![新建 Session 弹窗](../assets/1.png)
-说明：Dashboard 新建会话弹窗，展示 Name、Adapter、Session Template、Workdir、Create 按钮；帮助新用户知道第一次创建需要填写什么。
 
 ---
 
@@ -149,7 +148,6 @@ SMA 会自行决定是否值得拆解；并行时典型链路是：`session_crea
 模板字段的应用顺序是“创建时显式字段 > 模板值 > 系统默认值”。`mcp_mode=always` 会锁定 MCP 开关；`never` 会锁定为关闭；`optional` 可选。模板是配置基线，不是一个独立的 Agent 类型。
 
 ![选择 SMA(NoAdapter) 模板](../assets/2.png)
-说明：新建弹窗中选中 `SMA(NoAdapter)` 的状态，展示模板名、MCP 标记、adapter 可选项和 Create 按钮；帮助用户理解模板会预置主管能力。
 
 ### 4.2 方式二：给已有 Agent 配置 pan MCP + pan skill
 
@@ -195,7 +193,6 @@ python -m packages.mcp.server --transport stdio
 4. **MCP Server / MCP 服务**：从 manifest 声明的服务中选择当前 Session 要挂载的服务。变更通常需要 Worker 重启才在 CLI 中生效；模板可能锁定选择。
 
 ![Manage Sessions 面板](../assets/3.png)
-说明：Manage Sessions 面板的管理关系、报告订阅、Pan Access 和 MCP Server 区域；帮助用户定位四类管理操作。
 
 ### 5.2 Postbox 不等于报告订阅
 
@@ -241,7 +238,6 @@ Meta-Agent 先对目标 Session 调 `report_subscribe`，再调 `agent_assign`�
 在 manager Session 的 **Manage → Manages** 中找到目标行，点击 **Subscribe**；成功后显示 **Subscribed**。取消只停止报告，不解除 Managed。点击 **Manage** 会同时建立管理关系并自动订阅；点击 **Managed** 解除管理并自动退订。
 
 ![Managed 与 Subscribed 按钮](../assets/4.png)
-说明：Manage → Manages 中子 Session 的 Managed 和 Subscribed 状态；帮助用户理解两个按钮可以独立切换。
 
 普通 `agent_send` 只是向目标 Agent 发消息；没有订阅时，仍可读取目标 Session 的结果，但不会按 Meta-Agent 的 `queue_pending` 报告链自动唤醒。WebSocket 的 `worker.result` 是外部协调/排障通道；Meta-Agent 的正常路径是 `report_subscribe → queue_pending`，不要用 WS 盯梢替代它。
 
@@ -264,7 +260,6 @@ Meta-Agent 先对目标 Session 调 `report_subscribe`，再调 `agent_assign`�
 在 UI 的 Manage → Pan Access 修改后，保存的是该 Session 的 MCP 权限。权限不是网络安全鉴权：HTTP API/前端当前是高权限路径，不能因为 MCP 隔离存在就把 Pan 服务暴露到公网。
 
 ![Pan Access 权限](../assets/5.png)
-说明：Pan Access 三个开关及其 snake_case 提示文字；帮助用户把三个权限位与实际边界对应起来。
 
 ---
 
