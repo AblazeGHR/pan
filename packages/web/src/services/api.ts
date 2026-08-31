@@ -46,10 +46,16 @@ import type {
 
 const BASE = '/api';
 
-export interface PickDirectoryResponse {
-  supported: boolean;
-  path: string | null;
-  reason?: string;
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+}
+
+export interface DirectoryListResponse {
+  current: string;
+  parent: string | null;
+  entries: DirectoryEntry[];
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -63,11 +69,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function pickDirectory(initialPath?: string): Promise<PickDirectoryResponse> {
-  const query = initialPath
-    ? `?initialPath=${encodeURIComponent(initialPath)}`
-    : '';
-  return request<PickDirectoryResponse>(`${BASE}/pick-directory${query}`);
+export async function fetchDirectories(path?: string): Promise<DirectoryListResponse> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : '';
+  return request<DirectoryListResponse>(`${BASE}/directories${query}`);
 }
 
 // ── Sessions ──

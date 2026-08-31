@@ -7,84 +7,89 @@ import { useAdapterStore } from '@/stores/adapterStore';
 
 const apiMock = vi.hoisted(() => ({
   fetchSessionTemplates: vi.fn(async () => []),
-  pickDirectory: vi.fn(),
+  fetchDirectories: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => apiMock);
 
-describe('NewSessionModal working directory picker', () => {
+const layer = (current: string, entries: Array<{ name: string; path: string }>, parent: string | null = null) => ({
+  current,
+  parent,
+  entries: entries.map((entry) => ({ ...entry, isDirectory: true })),
+});
+
+describe('NewSessionModal working directory browser', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiMock.pickDirectory.mockResolvedValue({ supported: true, path: null });
+    apiMock.fetchDirectories.mockResolvedValue(layer('', [{ name: 'D:\\', path: 'D:\\' }]));
     useAdapterStore.setState({
       adapters: [{ name: 'cbc', defaultModel: '', supportsResume: false, supportsFork: false }],
-      adapterConfigs: {
-        cbc: {
-          models: [],
-          defaultModel: '',
-          effortValues: [],
-          permissionModes: [],
-          defaultPermissionMode: '',
-          supportedSettings: [],
-          executionModes: ['stream'],
-        },
-      },
-      loadAdapterList: vi.fn(async () => {}),
-      loadConfig: vi.fn(async () => {}),
+      adapterConfigs: { cbc: { models: [], defaultModel: '', effortValues: [], permissionModes: [], defaultPermissionMode: '', supportedSettings: [], executionModes: ['stream'] } },
+      loadAdapterList: vi.fn(async () => {}), loadConfig: vi.fn(async () => {}),
     });
     useSessionStore.setState({ sessions: [] });
   });
 
   afterEach(cleanup);
 
-  it('shows an add-folder button next to Working Directory', () => {
+  it('opens and loads only the server root layer', async () => {
     render(<NewSessionModal open onClose={() => {}} />);
-
-    expect(screen.getByLabelText('Add folder')).toBeTruthy();
-    expect(screen.getByText('Working Directory')).toBeTruthy();
-  });
-
-  it('writes a selected directory back to the input', async () => {
-    apiMock.pickDirectory.mockResolvedValue({
-      supported: true,
-      path: 'D:\\projects\\pan',
-    });
-    render(<NewSessionModal open onClose={() => {}} />);
-
     fireEvent.click(screen.getByLabelText('Add folder'));
-
-    await waitFor(() =>
-      expect((screen.getByPlaceholderText('/path/to/project') as HTMLInputElement).value).toBe(
-        'D:\\projects\\pan',
-      ),
-    );
-    expect(apiMock.pickDirectory).toHaveBeenCalledWith(undefined);
+    await waitFor(() => expect(screen.getByText('D:\\')).toBeTruthy());
+    expect(apiMock.fetchDirectories).toHaveBeenCalledWith(undefined);
+    expect(apiMock.fetchDirectories).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the existing directory when selection is cancelled', async () => {
-    apiMock.pickDirectory.mockResolvedValue({ supported: true, path: null });
+  it('loads the next layer on click and writes the selected current directory', async () => {
+    apiMock.fetchDirectories
+      .mockResolvedValueOnce(layer('', [{ name: 'D:\\', path: 'D:\\' }]))
+      .mockResolvedValueOnce(layer('D:\\', [{ name: 'pan', path: 'D:\\pan' }], null))
+      .mockResolvedValueOnce(layer('D:\\pan', [] , 'D:\\'));
+    render(<NewSessionModal open onClose={() => {}} />);
+    fireEvent.click(screen.getByLabelText('Add folder'));
+    await waitFor(() => screen.getByText('D:\\'));
+    fireEvent.click(screen.getByRole('button', { name: 'D:\\' }));
+    await waitFor(() => expect(screen.getByText('pan')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'pan' }));
+    await waitFor(() => expect(screen.getByText('选择当前目录')).toBeTruthy());
+    fireEvent.click(screen.getByText('选择当前目录'));
+    expect((screen.getByPlaceholderText('/path/to/project') as HTMLInputElement).value).toBe('D:\\pan');
+  });
+
+  it('cancel keeps the original value', async () => {
     render(<NewSessionModal open onClose={() => {}} />);
     const input = screen.getByPlaceholderText('/path/to/project');
     fireEvent.change(input, { target: { value: 'D:\\existing' } });
-
     fireEvent.click(screen.getByLabelText('Add folder'));
-
-    await waitFor(() => expect((input as HTMLInputElement).value).toBe('D:\\existing'));
-    expect(apiMock.pickDirectory).toHaveBeenCalledWith('D:\\existing');
+    await waitFor(() => expect(screen.getByTestId('directory-browser')).toBeTruthy());
+    fireEvent.click(screen.getByText('取消'));
+    expect((input as HTMLInputElement).value).toBe('D:\\existing');
   });
 
-  it('keeps manual entry available when the picker is unsupported', async () => {
-    apiMock.pickDirectory.mockResolvedValue({
-      supported: false,
-      path: null,
-      reason: 'Folder selection is currently supported on Windows only.',
+  it('shows a loading error without changing the working directory', async () => {
+    apiMock.fetchDirectories.mockRejectedValueOnce(new Error('Permission denied'));
+    render(<NewSessionModal open onClose={() => {}} />);
+    fireEvent.click(screen.getByLabelText('Add folder'));
+    await waitFor(() => expect(screen.getByText('加载失败：Permission denied')).toBeTruthy());
+    expect((screen.getByPlaceholderText('/path/to/project') as HTMLInputElement).value).toBe('');
+  });
+
+  it('does not let an older response replace the newer directory', async () => {
+    let resolveA!: (value: ReturnType<typeof layer>) => void;
+    let resolveB!: (value: ReturnType<typeof layer>) => void;
+    apiMock.fetchDirectories.mockImplementation((path?: string) => {
+      if (path === 'D:\\a') return new Promise((resolve) => { resolveA = resolve; });
+      if (path === 'D:\\b') return new Promise((resolve) => { resolveB = resolve; });
+      return Promise.resolve(layer('', [{ name: 'a', path: 'D:\\a' }, { name: 'b', path: 'D:\\b' }]));
     });
     render(<NewSessionModal open onClose={() => {}} />);
-    const input = screen.getByPlaceholderText('/path/to/project');
-    fireEvent.change(input, { target: { value: '/existing' } });
-
     fireEvent.click(screen.getByLabelText('Add folder'));
-
-    await waitFor(() => expect((input as HTMLInputElement).value).toBe('/existing'));
+    await waitFor(() => screen.getByText('a'));
+    fireEvent.click(screen.getByRole('button', { name: 'a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'b' }));
+    resolveB(layer('D:\\b', []));
+    resolveA(layer('D:\\a', [{ name: 'stale', path: 'D:\\a\\stale' }]));
+    await waitFor(() => expect(screen.getByText('D:\\b')).toBeTruthy());
+    expect(screen.queryByText('stale')).toBeNull();
   });
 });

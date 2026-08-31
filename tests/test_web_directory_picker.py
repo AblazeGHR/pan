@@ -1,40 +1,76 @@
 import asyncio
+import os
+from pathlib import Path
 
-def test_directory_picker_is_unsupported_off_windows(monkeypatch):
+import pytest
+
+
+def call(path=None):
+    from packages.web.server import list_directories
+
+    return asyncio.run(list_directories(path))
+
+
+def test_directory_roots_are_listed_without_recursive_scan(monkeypatch, tmp_path):
     import packages.web.server as server
 
-    monkeypatch.setattr(server.sys, "platform", "linux")
-    result = asyncio.run(server.pick_directory())
+    root = tmp_path / "server-root"
+    root.mkdir()
+    (root / "child").mkdir()
+    monkeypatch.setattr(server, "_directory_roots", lambda: [root])
 
-    assert result["supported"] is False
-    assert result["path"] is None
+    result = call()
+
+    assert result["current"] == ""
+    assert result["parent"] is None
+    assert result["entries"] == [{"name": root.name, "path": str(root), "isDirectory": True}]
 
 
-def test_directory_picker_returns_selected_path_on_windows(monkeypatch):
+def test_directory_listing_returns_only_direct_child_directories(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "z-dir").mkdir()
+    (root / "z-dir" / "nested").mkdir()
+    (root / "a-dir").mkdir()
+    (root / "file.txt").write_text("not a directory")
+
+    result = call(str(root))
+
+    assert result["current"] == str(root.resolve())
+    assert result["parent"] == str(root.resolve().parent)
+    assert [entry["name"] for entry in result["entries"]] == ["a-dir", "z-dir"]
+    assert all(entry["isDirectory"] for entry in result["entries"])
+
+
+def test_directory_listing_rejects_missing_and_non_directory(tmp_path):
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as missing:
+        call(str(tmp_path / "missing"))
+    assert missing.value.status_code == 404
+
+    file_path = tmp_path / "file"
+    file_path.write_text("x")
+    with pytest.raises(HTTPException) as not_dir:
+        call(str(file_path))
+    assert not_dir.value.status_code == 400
+
+
+def test_directory_listing_reports_permission_error(monkeypatch, tmp_path):
     import packages.web.server as server
 
-    monkeypatch.setattr(server.sys, "platform", "win32")
-    monkeypatch.setattr(
-        server,
-        "_pick_directory_windows",
-        lambda initial_path: r"D:\projects\pan",
-    )
-    result = asyncio.run(server.pick_directory(r"D:\projects"))
+    directory = tmp_path / "restricted"
+    directory.mkdir()
+    original_scandir = os.scandir
 
-    assert result == {"supported": True, "path": r"D:\projects\pan"}
+    def denied(path):
+        if Path(path) == directory:
+            raise PermissionError("denied")
+        return original_scandir(path)
 
+    monkeypatch.setattr(server.os, "scandir", denied)
+    from fastapi import HTTPException
 
-def test_directory_picker_failure_falls_back_to_manual_entry(monkeypatch):
-    import packages.web.server as server
-
-    monkeypatch.setattr(server.sys, "platform", "win32")
-
-    def unavailable(_initial_path):
-        raise RuntimeError("tk unavailable")
-
-    monkeypatch.setattr(server, "_pick_directory_windows", unavailable)
-    result = asyncio.run(server.pick_directory())
-
-    assert result["supported"] is False
-    assert result["path"] is None
-    assert "manually" in result["reason"]
+    with pytest.raises(HTTPException) as error:
+        call(str(directory))
+    assert error.value.status_code == 403

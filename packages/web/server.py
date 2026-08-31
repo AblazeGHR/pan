@@ -787,51 +787,76 @@ async def health():
     return {"status": "ok", "version": __version__}
 
 
-def _pick_directory_windows(initial_path: str | None = None) -> str | None:
-    """Open the native folder picker without adding a platform dependency."""
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-    except (ImportError, OSError):
-        raise RuntimeError("tkinter is not available")
+def _directory_roots() -> list[Path]:
+    """Return navigable filesystem roots on the machine running Pan."""
+    if sys.platform == "win32":
+        # GetLogicalDrives avoids presenting disconnected or nonexistent drive
+        # letters.  Keep this behind a helper so the API remains testable on
+        # non-Windows hosts.
+        import ctypes
 
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes("-topmost", True)
-    try:
-        options: dict[str, str] = {"title": "Choose Working Directory"}
-        if initial_path and Path(initial_path).is_dir():
-            options["initialdir"] = initial_path
-        return filedialog.askdirectory(**options) or None
-    finally:
-        root.destroy()
+        mask = ctypes.windll.kernel32.GetLogicalDrives()
+        return [Path(f"{chr(65 + i)}:\\") for i in range(26) if mask & (1 << i)]
+    return [Path("/")]
 
 
-@app.get("/api/pick-directory")
-async def pick_directory(initialPath: str | None = None):
-    """Pick a local directory for the desktop Pan service.
+def _resolve_directory(path: str | None) -> Path | None:
+    if not path or not path.strip():
+        return None
+    # strict=True ensures the response never claims a path exists when it does
+    # not. Path.resolve also normalizes separators and removes dot segments.
+    return Path(path.strip()).resolve(strict=True)
 
-    A browser cannot expose an absolute path from its directory handle. Keep
-    this endpoint Windows-only until a native picker is available for the
-    other supported launch environments.
+
+@app.get("/api/directories")
+async def list_directories(path: str | None = None):
+    """List one directory level on the Pan server (never recursive).
+
+    ``path`` omitted/empty returns the server's filesystem roots.  The API is
+    intentionally ready for an allowed-roots check to be inserted after path
+    resolution when sandboxing is introduced.
     """
-    if sys.platform != "win32":
-        return {
-            "supported": False,
-            "path": None,
-            "reason": "Folder selection is currently supported on Windows only.",
-        }
     try:
-        path = await asyncio.to_thread(_pick_directory_windows, initialPath)
-    except Exception:
-        # Keep picker failures non-fatal: users can still type a path manually.
-        _log("[Pan] Folder picker unavailable; falling back to manual path entry")
+        current = _resolve_directory(path)
+        if current is None:
+            roots = _directory_roots()
+            entries = [
+                {"name": root.name or str(root), "path": str(root), "isDirectory": True}
+                for root in roots
+            ]
+            return {"current": "", "parent": None, "entries": entries}
+
+        if not current.is_dir():
+            raise HTTPException(status_code=400, detail="Path is not a directory")
+        entries = []
+        with os.scandir(current) as scan:
+            for item in scan:
+                try:
+                    if item.is_dir(follow_symlinks=False):
+                        entries.append({
+                            "name": item.name,
+                            "path": str(Path(item.path)),
+                            "isDirectory": True,
+                        })
+                except OSError:
+                    # A directory can disappear or become inaccessible during
+                    # enumeration; omit only that entry and keep the layer.
+                    continue
+        entries.sort(key=lambda entry: entry["name"].casefold())
+        parent = current.parent if current.parent != current else None
         return {
-            "supported": False,
-            "path": None,
-            "reason": "The folder picker is unavailable. Enter the path manually.",
+            "current": str(current),
+            "parent": str(parent) if parent else None,
+            "entries": entries,
         }
-    return {"supported": True, "path": path}
+    except HTTPException:
+        raise
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Directory does not exist") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="Permission denied") from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid directory path") from exc
 
 
 @app.get("/favicon.ico")

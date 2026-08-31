@@ -5,9 +5,9 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
-import { fetchSessionTemplates, pickDirectory } from '@/services/api';
+import { fetchSessionTemplates, fetchDirectories, type DirectoryListResponse } from '@/services/api';
 import type { SessionTemplate } from '@/types';
-import { FolderPlus } from 'lucide-react';
+import { ChevronUp, Folder, FolderOpen, FolderPlus, Loader2 } from 'lucide-react';
 
 interface NewSessionModalProps {
   open: boolean;
@@ -26,6 +26,84 @@ function manifestLabel(t: SessionTemplate): string {
   return 'manifest.json';
 }
 
+interface DirectoryBrowserProps {
+  path: string;
+  onPathChange: (path: string) => void;
+  onSelect: (path: string) => void;
+  onCancel: () => void;
+}
+
+function DirectoryBrowser({ path, onPathChange, onSelect, onCancel }: DirectoryBrowserProps) {
+  const cacheRef = useRef(new Map<string, DirectoryListResponse>());
+  const requestIdRef = useRef(0);
+  const [data, setData] = useState<DirectoryListResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cached = cacheRef.current.get(path);
+    if (cached) {
+      setData(cached);
+      setError(null);
+      return;
+    }
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    setError(null);
+    fetchDirectories(path || undefined)
+      .then((result) => {
+        if (requestId !== requestIdRef.current) return;
+        cacheRef.current.set(path, result);
+        setData(result);
+      })
+      .catch((err: unknown) => {
+        if (requestId !== requestIdRef.current) return;
+        setData(null);
+        setError(err instanceof Error ? err.message : '无法读取目录');
+      })
+      .finally(() => {
+        if (requestId === requestIdRef.current) setLoading(false);
+      });
+    return () => { requestIdRef.current += 1; };
+  }, [path]);
+
+  const goTo = (nextPath: string) => {
+    requestIdRef.current += 1;
+    onPathChange(nextPath);
+  };
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="directory-browser">
+      <div className="rounded border border-border-muted bg-bg-primary px-3 py-2 text-xs text-text-secondary break-all">
+        {data?.current || path || '服务器文件系统根位置'}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button type="button" size="sm" variant="secondary" disabled={!data?.parent || loading} onClick={() => data?.parent && goTo(data.parent)}>
+          <ChevronUp size={14} /> 上一级
+        </Button>
+        <span className="text-xs text-text-tertiary">仅按需加载当前层目录</span>
+      </div>
+      <div className="min-h-32 rounded border border-border-muted bg-bg-primary">
+        {loading && <div className="flex items-center gap-2 p-4 text-sm text-text-secondary"><Loader2 size={15} className="animate-spin" />加载中…</div>}
+        {!loading && error && <div className="p-4 text-sm text-danger">加载失败：{error}</div>}
+        {!loading && !error && data && data.entries.length === 0 && <div className="p-4 text-sm text-text-tertiary">空目录</div>}
+        {!error && data?.entries.map((entry) => (
+          <button key={entry.path} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary" onClick={() => goTo(entry.path)}>
+            <Folder size={15} className="text-text-tertiary" />
+            <span className="truncate">{entry.name}</span>
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="ghost" onClick={onCancel}>取消</Button>
+        <Button type="button" variant="primary" disabled={!data?.current || loading || !!error} onClick={() => data?.current && onSelect(data.current)}>
+          选择当前目录
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [name, setName] = useState('');
@@ -36,6 +114,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [sessionTemplate, setSessionTemplate] = useState('');
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [directoryBrowserOpen, setDirectoryBrowserOpen] = useState(false);
+  const [browserPath, setBrowserPath] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
   const adapters = useAdapterStore((s) => s.adapters);
@@ -63,6 +143,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setOutputMode('');
       setSessionTemplate('');
       setSubmitting(false);
+      setDirectoryBrowserOpen(false);
       loadConfig('cbc');
       fetchSessionTemplates()
         .then(setTemplates)
@@ -99,24 +180,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     if (tpl?.adapter) {
       setAdapter(tpl.adapter);
       showToast(`已选择带 adapter 的 template（${tpl.adapter}），adapter 已锁定`, 'info');
-    }
-  };
-
-  const handlePickDirectory = async () => {
-    try {
-      const result = await pickDirectory(workdir.trim() || undefined);
-      if (result.path) {
-        setWorkdir(result.path);
-      } else if (!result.supported) {
-        showToast(
-          result.reason || 'Folder selection is only supported on Windows.',
-          'info',
-        );
-      }
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to open folder picker';
-      showToast(message, 'error');
     }
   };
 
@@ -271,7 +334,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => void handlePickDirectory()}
+              onClick={() => {
+                setBrowserPath(workdir.trim());
+                setDirectoryBrowserOpen(true);
+              }}
               title="Choose a folder"
               aria-label="Add folder"
             >
@@ -280,6 +346,23 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             </Button>
           </div>
         </label>
+
+        {directoryBrowserOpen && (
+          <div className="rounded-lg border border-border-default bg-bg-secondary p-4" aria-label="Directory browser panel">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-text-primary">
+              <FolderOpen size={16} /> 选择服务端目录
+            </div>
+            <DirectoryBrowser
+              path={browserPath}
+              onPathChange={setBrowserPath}
+              onSelect={(selectedPath) => {
+                setWorkdir(selectedPath);
+                setDirectoryBrowserOpen(false);
+              }}
+              onCancel={() => setDirectoryBrowserOpen(false)}
+            />
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-2">
