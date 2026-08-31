@@ -18,6 +18,7 @@ import os
 import shutil
 import sys
 import tempfile
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -26,6 +27,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core.adapters import ClaudeAdapter
+from packages.core.adapters.claude import adapter as claude_adapter
 from packages.core.adapters.claude import sessions as claude_sessions
 from packages.core.adapters.claude.adapter import _resolve_claude_exe_from_shim
 from packages.core import session as _sess
@@ -58,9 +60,9 @@ def _make_session(adapter_config=None, **kw):
 def test_adapter_metadata():
     a = ClaudeAdapter()
     assert a.name == "claude"
-    # claude -p is a one-shot process → only oneshot declared
-    assert a.execution_modes == ["oneshot"]
-    assert "stream" not in a.execution_modes
+    # stream is the default long-lived driver; oneshot remains an explicit fallback
+    assert a.execution_modes == ["stream", "oneshot"]
+    assert a.supports_spawn_system_prompt is True
     assert a.supports_resume is True
     # fork is implemented via JSONL copy (no native --fork)
     assert a.supports_fork is True
@@ -241,8 +243,83 @@ def test_build_spawn_args_stream_defense():
     ):
         args = a.build_spawn_args(s)
     assert "-p" in args and "stream-json" in args and "--verbose" in args
+    assert args[args.index("--input-format") + 1] == "stream-json"
+    assert "--include-partial-messages" in args
     assert "--model" in args and "claude-sonnet-4-5" in args
     print("PASS: build_spawn_args (stream-mode defense builder)")
+
+
+def test_stream_and_control_protocol():
+    a = ClaudeAdapter()
+    s = _make_session()
+    stream_args = a.build_spawn_args(s)
+    oneshot_args = a.oneshot_args(s, "hello")
+    assert "--input-format" in stream_args
+    assert "--input-format" not in oneshot_args
+
+    payload = json.loads(a.encode_user_message("你好").decode("utf-8"))
+    assert payload == {
+        "type": "user",
+        "message": {
+            "role": "user",
+            "content": [{"type": "text", "text": "你好"}],
+        },
+    }
+    assert json.loads(a.encode_control_message({
+        "type": "steer", "text": "keep the patch small",
+    })) == {
+        "type": "user",
+        "message": {
+            "role": "user",
+            "content": [{"type": "text", "text": "keep the patch small"}],
+        },
+    }
+    compact = json.loads(a.encode_control_message({"type": "compact"}))
+    assert compact["message"]["content"][0]["text"] == "/compact"
+    print("PASS: stream envelope + steer/compact controls")
+
+
+def test_permission_prompt_args_only_with_pan_mcp(monkeypatch):
+    a = ClaudeAdapter()
+    no_mcp = _make_session(permission_mode="default")
+    assert "--permission-prompt-tool" not in a.permission_mode_args(no_mcp)
+
+    unsupported = _make_session(
+        permission_mode="default",
+        adapter_config={"mcp_servers": [{"name": "pan", "command": "x"}]},
+    )
+    monkeypatch.setattr(ClaudeAdapter, "_permission_prompt_tool_available_cache", False)
+    assert "--permission-prompt-tool" not in a.permission_mode_args(unsupported)
+
+    # The local CLI may not expose this flag yet; exercise the supported
+    # version path without invoking a real Claude process.
+    monkeypatch.setattr(ClaudeAdapter, "_permission_prompt_tool_available_cache", True)
+    with_pan = _make_session(
+        permission_mode="default",
+        adapter_config={"mcp_servers": [{"name": "pan", "command": "x"}]},
+    )
+    args = a.permission_mode_args(with_pan)
+    assert args[args.index("--permission-mode") + 1] == "manual"
+    assert args[args.index("--permission-prompt-tool") + 1] == "mcp__pan__permission_prompt"
+    print("PASS: permission prompt tool only follows pan MCP config")
+
+
+def test_permission_prompt_capability_probe_uses_version_when_help_hides_flag(monkeypatch):
+    a = ClaudeAdapter()
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        if args[-1] == "--help":
+            return SimpleNamespace(stdout="usage without the hidden flag", stderr="")
+        return SimpleNamespace(stdout="2.1.246 (Claude Code)", stderr="")
+
+    monkeypatch.setattr(ClaudeAdapter, "_permission_prompt_tool_available_cache", None)
+    monkeypatch.setattr(ClaudeAdapter, "_claude_config", property(lambda self: {}))
+    monkeypatch.setattr(claude_adapter.subprocess, "run", fake_run)
+    assert a._permission_prompt_tool_supported() is True
+    assert calls[-1][-1] == "--version"
+    print("PASS: permission prompt probe accepts supported CLI version")
 
 
 # ── stdout event parsing ──
@@ -261,6 +338,45 @@ def test_parse_event_and_types():
     # garbage line → None
     assert a.parse_event("not json {{{") is None
     print("PASS: parse_event / init event extraction")
+
+
+def test_parse_partial_stream_events_into_renderer_shape():
+    a = ClaudeAdapter()
+    text_delta = a.parse_event(json.dumps({
+        "type": "stream_event",
+        "event": {
+            "type": "content_block_delta",
+            "delta": {"type": "text_delta", "text": "partial"},
+        },
+    }))
+    assert text_delta == {
+        "type": "assistant",
+        "delta": True,
+        "message": {"content": [{"type": "text", "text": "partial"}]},
+    }
+    assert a.is_assistant_event(text_delta) is False
+
+    thinking_delta = a.parse_event(json.dumps({
+        "type": "stream_event",
+        "event": {
+            "type": "content_block_delta",
+            "delta": {"type": "thinking_delta", "thinking": "reasoning"},
+        },
+    }))
+    assert thinking_delta == {
+        "type": "thinking",
+        "delta": True,
+        "message": {"content": [{
+            "type": "thinking", "thinking": "reasoning",
+        }]},
+    }
+
+    assistant = a.parse_event(json.dumps({
+        "type": "assistant", "message": {"content": []},
+    }))
+    assert assistant["final"] is True
+    assert a.is_assistant_event(assistant) is True
+    print("PASS: partial stream events normalize to renderer shape")
 
 
 def test_parse_assistant_blocks_all_three():
@@ -295,6 +411,15 @@ def test_result_event_and_error_flag():
     err = {"type": "result", "is_error": True, "result": "boom", "session_id": "S3"}
     assert a.is_result_error(err) is True
     print("PASS: result event parsing + error flag")
+
+
+def test_extract_oneshot_error():
+    a = ClaudeAdapter()
+    output = b'{"type":"system","subtype":"init"}\n{"type":"error","error":{"message":"resume failed"}}\n'
+    assert a.extract_oneshot_error(output) == "resume failed"
+    output = b'{"type":"result","is_error":true,"result":"tool denied"}\n'
+    assert a.extract_oneshot_error(output) == "tool denied"
+    print("PASS: structured one-shot error extraction")
 
 
 def test_result_usage_cache_bridges_enrich():
@@ -445,7 +570,13 @@ def test_list_sessions_probe():
 def test_encode_user_message():
     a = ClaudeAdapter()
     data = json.loads(a.encode_user_message("hello").decode("utf-8"))
-    assert data == {"type": "user", "text": "hello"}
+    assert data == {
+        "type": "user",
+        "message": {
+            "role": "user",
+            "content": [{"type": "text", "text": "hello"}],
+        },
+    }
     print("PASS: encode_user_message")
 
 

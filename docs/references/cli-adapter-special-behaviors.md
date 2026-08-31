@@ -44,12 +44,12 @@
 | §4.7 | opencode | enrich：SQLite session 表聚合用量增量 diff |
 | §4.8 | opencode | fork：DB 行复制 |
 | §4.9 | opencode | takeover：顶层 `opencode --session <id>`（非 run） |
-| §5.1 | claude | `execution_modes=["oneshot"]`（`claude -p` 一次性） |
+| §5.1 | claude | `execution_modes=["stream", "oneshot"]`（默认 stream；可选 `claude -p` 一次性） |
 | §5.2 | claude | `.CMD` shim → `bin/claude.exe` 或 `node cli.js` |
 | §5.3 | claude | 模型：无 CLI 列表，仅内置白名单 |
 | §5.4 | claude | MCP：`--mcp-config`（与 cbc 同格式） |
 | §5.5 | claude | 事件格式与 cbc 同构；thinking 自动产出 |
-| §5.6 | claude | oneshot 用量不落账 + cost 权威来源在 stdout result |
+| §5.6 | claude | stream/oneshot 均经 adapter enrich 落账；cost 权威来源在 stdout result |
 | §5.7 | claude | JSONL 无 result 事件（cost 不在 JSONL） |
 | §5.8 | claude | fork：JSONL 复制 |
 | §5.9 | claude | 项目目录编码 `~/.claude/projects/<encoded-cwd>` |
@@ -64,7 +64,7 @@
 | §6.9 | codex | resume 只透传 `-c` 类覆盖（丢弃一次性 flag 与 `-C`） |
 | §6.10 | codex | `--skip-git-repo-check` |
 | §6.11 | codex | enrich：rollout JSONL `token_count` 聚合增量 |
-| §7 | cbc/claude | **通用** oneshot 路径不调 `enrich_after_result` → 用量不落账 |
+| §7 | cbc/claude | 通用 oneshot 路径调用 adapter `enrich_after_result`，与 stream 保持用量落账一致 |
 
 ---
 
@@ -380,13 +380,14 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 
 ## 5. claude（Claude Code CLI）
 
-### 5.1 execution_modes = `["oneshot"]`（claude `-p` 一次性）
+### 5.1 execution_modes = `["stream", "oneshot"]`（默认 stream，兼容 `claude -p` 一次性）
 
-- **现象/处理**：claude `-p`（print 非交互）模式是一次性进程：整段回复以
-  `--output-format stream-json` 事件流打到 stdout，最后一条 `result` 事件后退出。**不需要 wrapper**
-  ——每条消息 spawn 一个 `claude -p --output-format stream-json --verbose "<prompt>"`，上下文续接用
-  `--resume <cli_session_id>`，worker 走通用 `_consumer_oneshot`。天然规避 wrapper 的 stdin EOF
-  挂起坑，也无需维护长驻进程。
+- **默认 stream**：`claude -p --input-format stream-json --output-format stream-json --verbose`
+  启动一个长驻进程，worker 将每条消息写成 Claude 的 user message envelope；原生 session、MCP、
+  实时 partial output、steer 和队列语义由同一 Worker 持续维护。
+- **显式 oneshot**：设置 `outputMode="oneshot"` 后，每条消息 spawn 一个短进程，prompt 作末参，
+  仍以 `--resume <cli_session_id>` 续接上下文，worker 走通用 `_consumer_oneshot`。这保留了
+  单轮隔离场景，同时规避 wrapper 的 stdin EOF 挂起坑。
 - **代码位置**：`claude/adapter.py` `execution_modes`、`oneshot_args`、`base_args`。
 
 ### 5.2 `.CMD` shim 解析
@@ -408,20 +409,21 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
   helper 写 `data/mcp-configs/<session_id>.mcp.json`）。未配置/写失败返回 `[]`。
 - **代码位置**：`claude/adapter.py` `mcp_args`。
 
-### 5.5 事件格式与 cbc 同构；thinking 自动产出
+### 5.5 事件格式、partial output 与 thinking
 
 - **现象/处理**：claude stream-json 事件格式与 cbc 几乎同构：
   `{"type":"system","subtype":"init",...}` / `{"type":"assistant","message":{"content":[...]}}` /
-  `{"type":"result","is_error":...}`。thinking 在 `-p + --verbose` 下由模型自动产出（stream-json 含
-  thinking 块），**无独立 `--thinking` 开关**。
+  `{"type":"result","is_error":...}`。stream 模式额外启用 `--include-partial-messages`，将
+  `stream_event.content_block_delta` 归一化为 Pan 的 `delta` 事件；thinking 块也按原样转成
+  `thinking` 消息，**无独立 `--thinking` 开关**。
 - **代码位置**：`claude/adapter.py` `is_init_event` / `extract_assistant_blocks` /
-  `thinking_args`（返回 `[]`）。
+  `parse_event` / `thinking_args`（返回 `[]`）。
 
-### 5.6 oneshot 用量不落账 + cost 权威来源在 stdout result
+### 5.6 stream/oneshot 用量落账 + cost 权威来源在 stdout result
 
-- **现象**：worker 的 `_consumer_oneshot` **不调用 `enrich_after_result`**（对比 stream 路径
-  `_read_stdout` 在 result 处理时调用）→ cbc oneshot 与 claude 的用量不落账（详见 §7）。claude
-  的 **cost 唯一权威来源是 stdout 的 result 事件**（JSONL 不含 cost）——enrich 优先从
+- **处理**：stream 路径 `_read_stdout`、oneshot 路径 `_consumer_oneshot` 都调用
+  `adapter.enrich_after_result`，所以 Claude 的两种驱动方式都更新 token/credit。Claude 的
+  **cost 唯一权威来源是 stdout 的 result 事件**（JSONL 不含 cost）——enrich 优先从
   `_PENDING_RESULT_USAGE` 模块缓存取
   （`extract_result_text` 解析 result 事件时暂存 usage+cost，按 session_id 键，读取即弹出），
   缓存未命中（如 re-import 路径不触发 extract）则回退读 JSONL assistant 事件 usage（token 准确，
@@ -667,20 +669,17 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
 
 ---
 
-## 7. enrich 落账差异（stream vs oneshot）
+## 7. enrich 落账（stream vs oneshot）
 
 | 执行模式 | enrich 调用点 | 效果 |
 |---|---|---|
-| stream（`_read_stdout` result 处理） | `adapter.enrich_after_result(s)`（worker.py:479-494） | 正常落账 |
-| oneshot（`_consumer_oneshot`） | **不调用** enrich | **用量不落账** |
+| stream（`_read_stdout` result 处理） | `adapter.enrich_after_result(s)` | 正常落账 |
+| oneshot（`_consumer_oneshot` result 处理） | `adapter.enrich_after_result(s)` | 正常落账 |
 
-- **影响**：cbc 的 oneshot 模式、以及**仅 oneshot 的 claude**，本轮 token/credit 不会写入
-  `session.raw_usage`。
-- **特别影响 claude**：claude 的 cost 权威来源在 stdout result 事件（JSONL 无 cost），依赖 enrich
-  从 `_PENDING_RESULT_USAGE` 取——oneshot 不调 enrich 则 **cost 一并丢失**（token 兜底可从 JSONL
-  读回，cost=0）。
-- **代码位置**：`packages/core/worker.py` `_read_stdout`（enrich 在 result 分支）vs
-  `_consumer_oneshot`（无 enrich）。
+- **效果**：cbc 与 Claude 的 oneshot 模式都会落 token/credit；Claude 的 cost 仍依赖 stdout
+  result 事件，若缓存未命中则 JSONL 只能提供 token（cost=0）。
+- **代码位置**：`packages/core/worker.py` 两条 result 处理路径及各 adapter 的
+  `enrich_after_result`。
 
 ---
 

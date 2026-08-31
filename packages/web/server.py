@@ -838,17 +838,17 @@ if FRONTEND_MODE != "legacy":
 async def _replay_pending_interactions(
     ws: WebSocket, session_ids: list[str] | None = None,
 ) -> None:
-    """Restore native Codex prompts to a dashboard that just reconnected.
+    """Restore live native prompts to a dashboard that just reconnected.
 
     Only live workers are considered: the snapshot is a UI replay cache, while
-    the open JSON-RPC request itself still belongs to the native process.  A
-    dead/restarted worker cannot safely receive the old request response.
+    the open request still belongs to the native process/future.  A
+    dead/restarted worker cannot safely receive the old response.
     """
     selected = {str(sid) for sid in session_ids or []}
     for w in worker.list_workers():
         if selected and w.session_id not in selected:
             continue
-        if w.process is None or w.process.returncode is not None:
+        if not worker._process_alive(w):
             continue
         status_event = worker.native_status_event(w)
         if status_event is not None:
@@ -3025,13 +3025,27 @@ async def api_worker_control(worker_id: str, data: dict):
 
 @app.post("/api/worker/{worker_id}/steer")
 async def api_worker_steer(worker_id: str, data: dict):
-    """Inject text into a running native turn (currently Codex app-server)."""
+    """Inject text into a running native turn (Claude stream / Codex)."""
     err = await worker.steer_worker(
         worker_id, data.get("text") if isinstance(data, dict) else ""
     )
     if err:
         return {"error": err}
     return {"workerId": worker_id, "status": "steer sent"}
+
+
+@app.post("/api/worker/{worker_id}/claude-permission")
+async def api_claude_permission(worker_id: str, data: dict):
+    """Bridge Claude Code's MCP permission-prompt callback to the dashboard."""
+    if not isinstance(data, dict):
+        return {"behavior": "deny", "message": "Invalid permission request"}
+    tool_name = data.get("toolName") or data.get("tool_name") or "unknown"
+    tool_input = data.get("input")
+    if not isinstance(tool_input, dict):
+        tool_input = {}
+    return await worker.request_claude_permission(
+        worker_id, str(tool_name), tool_input,
+    )
 
 
 @app.post("/api/worker/{worker_id}/takeover")

@@ -765,7 +765,7 @@ Adapter 协议（`packages/core/adapters/base.py`）+ 注册表（`registry.py`�
 | `cbc` | CodeBuddy CLI | stream + oneshot（唯一双模式） | ✔ / ✔（`--fork-session`） | `--mcp-config` | 主力 adapter；原生 JSON 流协议 |
 | `kimi` | Kimi CLI | stream（wrapper 长驻） | ✔ / ✔ | 会话级隔离 home（`--kimi-home`） | 思考模式由自身 config.toml 控制 |
 | `opencode` | OpenCode CLI | stream（wrapper） | ✔ / ✔ | 项目级 `opencode.json` | |
-| `claude` | Claude Code CLI | one-shot | ✔ | `--mcp-config` | 逐条 `claude -p --output-format stream-json` |
+| `claude` | Claude Code CLI | stream + oneshot | ✔ | `--mcp-config` + `--permission-prompt-tool` | 默认长驻 `--input-format stream-json`，支持 steer/`/compact`；显式 `outputMode: "oneshot"` 时逐条 `claude -p` |
 | `codex` | OpenAI Codex CLI | stream（原生 app-server 桥接） | ✔ | `-c mcp_servers.*` 内联（零文件污染） | 原生 thread/turn、增量输出与中断 |
 
 执行模式：`stream` 长驻进程（消息写 stdin，可挂 MCP）；`oneshot` 每任务起一次性进程（`outputMode: "oneshot"` 时启用，仅 adapter 声明支持时可选）。特殊行为详见 `docs/references/cli-adapter-special-behaviors.md`。

@@ -1,14 +1,15 @@
 """Claude Code (claude-cli) 适配器。
 
-Claude Code 的 ``claude -p``（print / 非交互）模式是一个**一次性进程**：它把
-整个回复以 ``--output-format stream-json`` 的事件流打到 stdout，最后打印一条
-``result`` 事件并退出。因此本 adapter 走 **oneshot** 执行模式（对齐 cbc 的
-oneshot 路径），而不像 kimi/opencode 那样需要长驻 wrapper：
+Claude Code 的 print 模式同时支持两种驱动方式：
 
-- 每条消息 spawn 一个 ``claude -p --output-format stream-json --verbose "<prompt>"``；
-- 上下文续接用 ``--resume <cli_session_id>``（claude 一次 print 运行天然对应一轮对话）；
-- worker 的 ``_consumer_oneshot`` 收集 stdout、按既有事件模型解析，无需 wrapper；
-- 天然规避 wrapper 模式的 stdin EOF 挂起坑（#2），也无需维护长驻进程。
+- 默认的 **stream**：``--input-format stream-json`` 让一个长驻进程接收多轮
+  user envelope，保留原生 session、MCP 和实时事件链路；
+- 可选的 **oneshot**：每条消息 spawn 一个 ``claude -p`` 短进程，prompt 作末参，
+  用于显式 ``outputMode=oneshot`` 或需要隔离单轮进程的场景。
+
+两条路径都用 ``--output-format stream-json`` 和 ``--resume`` 续接 Claude 原生
+会话；默认 stream 路径与 cbc/codex 的长驻 Worker 语义一致，队列、taskSeq、
+respawn 恢复均由通用 Worker 负责。
 
 MCP 经 ``--mcp-config <path>`` 注入（共享 helper 写 data/mcp-configs/<id>.mcp.json）。
 
@@ -26,7 +27,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from ...session import Session
@@ -53,20 +56,27 @@ _BUILTIN_MODELS = [
 # （async 事件循环单线程，且按 session_id 隔离）。JSONL 兜底路径在缓存未命中时启用。
 _PENDING_RESULT_USAGE: dict[str, dict] = {}
 
+# Claude's CLI reference documents --permission-prompt-tool as available from
+# v2.1.199 onward, but the flag is not printed by every build's --help output.
+_PERMISSION_PROMPT_MIN_VERSION = (2, 1, 199)
+
 
 class ClaudeAdapter:
     """Claude Code CLI 适配器。实现 CliAdapter 协议，实例无状态，可多 worker 共享。"""
 
     name = "claude"
 
-    # 执行模式：claude -p 是一次性进程，故只声明 oneshot（对齐 cbc 的 oneshot 分支，
-    # 复用 worker 成熟的 _consumer_oneshot，无需 wrapper）。worker 据此永远走 oneshot。
-    execution_modes = ["oneshot"]
+    # 默认 stream；oneshot 作为显式 outputMode 的兼容/隔离路径保留。
+    execution_modes = ["stream", "oneshot"]
+
+    # Claude CLI 原生接受 stream spawn 的 --system-prompt。
+    supports_spawn_system_prompt = True
 
     _DEFAULT_MODEL = ""  # 空 → 不传 --model，让 claude 用其配置的默认模型
     _DEFAULT_PERMISSION_MODE = "bypassPermissions"
     _DEFAULT_ALWAYS_THINKING_ENABLED = False
     _DEFAULT_EFFORT = ""
+    _DEFAULT_PERMISSION_PROMPT_TOOL = "mcp__pan__permission_prompt"
 
     @property
     def default_model(self) -> str:
@@ -77,11 +87,22 @@ class ClaudeAdapter:
         return self._claude_config.get("permission_mode", self._DEFAULT_PERMISSION_MODE)
 
     @property
+    def default_effort(self) -> str:
+        return self._claude_config.get("effort", self._DEFAULT_EFFORT)
+
+    @property
+    def default_permission_prompt_tool(self) -> str:
+        return self._claude_config.get(
+            "permission_prompt_tool", self._DEFAULT_PERMISSION_PROMPT_TOOL
+        )
+
+    @property
     def _claude_config(self) -> dict:
         from ...config import load_config
         return load_config().get("claude", {})
 
     _cached_models: list[str] | None = None  # class-level cache
+    _permission_prompt_tool_available_cache: bool | None = None
 
     @property
     def supported_models(self) -> list[str]:
@@ -107,6 +128,55 @@ class ClaudeAdapter:
         claude 缓存无 TTL（读一次不再刷新），热重载是唯一不重启的刷新途径。
         """
         cls._cached_models = None
+        cls._permission_prompt_tool_available_cache = None
+
+    def _permission_prompt_tool_supported(self) -> bool:
+        """Check whether the installed Claude CLI exposes the bridge flag.
+
+        The CLI and hosted documentation can be version-skewed.  Passing an
+        unknown flag makes ``claude -p`` exit before it can emit an init event,
+        so a best-effort help probe is safer than assuming support.  A config
+        override is useful for vendor builds that hide the flag from help.
+        """
+        override = self._claude_config.get("permission_prompt_tool_supported")
+        if isinstance(override, bool):
+            return override
+        cached = ClaudeAdapter._permission_prompt_tool_available_cache
+        if cached is not None:
+            return cached
+        try:
+            result = subprocess.run(
+                [*self._claude_argv, "--help"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+            )
+            help_text = f"{result.stdout or ''}\n{result.stderr or ''}"
+            supported = "--permission-prompt-tool" in help_text
+            if not supported:
+                version = subprocess.run(
+                    [*self._claude_argv, "--version"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=5,
+                )
+                version_text = f"{version.stdout or ''}\n{version.stderr or ''}"
+                match = re.search(r"(\d+)\.(\d+)\.(\d+)", version_text)
+                if match:
+                    supported = tuple(int(part) for part in match.groups()) >= _PERMISSION_PROMPT_MIN_VERSION
+        except Exception:
+            supported = False
+        ClaudeAdapter._permission_prompt_tool_available_cache = supported
+        if not supported:
+            _log.warning(
+                "Installed Claude CLI does not expose a supported "
+                "--permission-prompt-tool capability; permission dashboard bridge disabled"
+            )
+        return supported
 
     supports_resume = True
     supports_fork = True  # 经 JSONL 复制实现（见 sessions.fork_session）
@@ -116,9 +186,10 @@ class ClaudeAdapter:
         {"value": "acceptEdits", "label": "acceptEdits"},
         {"value": "bypassPermissions", "label": "bypass"},
         {"value": "plan", "label": "plan"},
+        {"value": "auto", "label": "auto"},
+        {"value": "dontAsk", "label": "dontAsk"},
+        {"value": "manual", "label": "manual"},
     ]
-    default_permission_mode = "bypassPermissions"
-
     # thinking 在 -p + --verbose 下由模型自动产出（stream-json 含 thinking 块），
     # 无独立 --thinking 开关；故 supported_settings 仅暴露模型/权限/effort。
     supported_settings = ["model", "permissionMode", "effort"]
@@ -169,10 +240,16 @@ class ClaudeAdapter:
 
     # ── 进程启动 ──
 
-    def base_args(self) -> list[str]:
-        """oneshot 基础 argv：非交互 print 模式 + stream-json 事件流 + verbose。"""
+    def base_args_stream(self) -> list[str]:
+        """One-shot 基础 argv：prompt 作末参，不读取 stdin。"""
         return self._claude_argv + [
             "-p", "--output-format", "stream-json", "--verbose",
+        ]
+
+    def base_args(self) -> list[str]:
+        """Stream 基础 argv：长驻 stdin + stream-json envelope。"""
+        return self.base_args_stream() + [
+            "--input-format", "stream-json", "--include-partial-messages",
         ]
 
     def model_args(self, s: Session) -> list[str]:
@@ -186,16 +263,38 @@ class ClaudeAdapter:
         return []
 
     def effort_args(self, s: Session) -> list[str]:
-        effort = s.adapter_config.get("effort", "")
+        effort = s.adapter_config.get("effort", "") or self.default_effort
         if effort:
+            if effort not in self.effort_values:
+                _log.warning("Ignoring invalid Claude effort value: %r", effort)
+                return []
             return ["--effort", effort]
         return []
 
     def permission_mode_args(self, s: Session) -> list[str]:
         mode = s.permission_mode or self.default_permission_mode
-        if not mode:
-            return []
-        return ["--permission-mode", mode]
+        # Claude Code currently labels the default interactive permission mode
+        # ``manual`` in its CLI help, while the SDK/config surface also accepts
+        # ``default``. Keep Pan's stable value and translate at the argv edge.
+        if mode == "default":
+            mode = "manual"
+        args = ["--permission-mode", mode] if mode else []
+        prompt_tool = s.adapter_config.get("permission_prompt_tool")
+        if prompt_tool is None:
+            prompt_tool = self.default_permission_prompt_tool
+            # The default bridge lives on Pan's MCP server. Do not pass a
+            # dangling tool name when this session uses another MCP server.
+            servers = s.adapter_config.get("mcp_servers") or []
+            has_pan = any(
+                isinstance(server, dict) and server.get("name") == "pan"
+                for server in servers
+            )
+            if prompt_tool == self._DEFAULT_PERMISSION_PROMPT_TOOL and not has_pan:
+                prompt_tool = ""
+        if (prompt_tool and s.adapter_config.get("mcp_servers")
+                and self._permission_prompt_tool_supported()):
+            args.extend(["--permission-prompt-tool", str(prompt_tool)])
+        return args
 
     def resume_args(self, s: Session) -> list[str]:
         if s.cli_session_id:
@@ -230,7 +329,7 @@ class ClaudeAdapter:
         model / permission / effort / resume / mcp → 首条任务的 --system-prompt →
         prompt 末参。
         """
-        args = list(self.base_args())
+        args = list(self.base_args_stream())
         args.extend(self.model_args(s))
         args.extend(self.permission_mode_args(s))
         args.extend(self.effort_args(s))
@@ -258,10 +357,40 @@ class ClaudeAdapter:
         return ["--mcp-config", str(mcp_json_path)]
 
     # ── stdin 消息编码 ──
-    # oneshot 模式不读 stdin（prompt 在 argv），此方法是协议要求的占位实现。
 
     def encode_user_message(self, text: str) -> bytes:
-        return json.dumps({"type": "user", "text": text}).encode("utf-8")
+        # Claude Code's streaming input protocol wraps the user content in a
+        # message envelope. A flat {type,text} object is not accepted by the
+        # CLI and leaves the Pan task waiting for a result forever.
+        return json.dumps({
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": text}],
+            },
+        }, ensure_ascii=False).encode("utf-8")
+
+    def encode_control_message(self, control: dict) -> bytes:
+        """Encode the one native control Claude exposes through stdin.
+
+        Claude's documented streaming input channel accepts another user
+        message while a turn is running, which is the safe equivalent of Pan's
+        ``steer`` control. ``compact`` is sent as Claude's documented
+        ``/compact`` slash command. Permission responses are resolved by the
+        Pan bridge (the CLI invokes an MCP permission-prompt tool), not sent as
+        a guessed undocumented stdin control frame.
+        """
+        control_type = control.get("type")
+        text = str(control.get("text") or "").strip()
+        if control_type == "compact":
+            return self.encode_user_message(
+                "/compact" + (f" {text}" if text else "")
+            )
+        if control_type != "steer":
+            raise ValueError("Claude Code only supports steer and compact controls")
+        if not text:
+            raise ValueError("Steer text is required")
+        return self.encode_user_message(text)
 
     # ── stdout 事件解析 ──
     # claude stream-json 事件格式与 cbc 几乎同构：
@@ -271,9 +400,43 @@ class ClaudeAdapter:
 
     def parse_event(self, line: str) -> dict | None:
         try:
-            return json.loads(line)
+            event = json.loads(line)
         except json.JSONDecodeError:
             return None
+        if not isinstance(event, dict):
+            return None
+
+        # With --include-partial-messages Claude wraps raw API deltas in
+        # stream_event. Normalize text/thinking deltas into the same event
+        # shape the React renderer already consumes, while keeping them out of
+        # persisted history (is_assistant_event filters delta events).
+        if event.get("type") == "stream_event":
+            inner = event.get("event")
+            if not isinstance(inner, dict):
+                return {"type": "claude.stream_event"}
+            if inner.get("type") == "content_block_delta":
+                delta = inner.get("delta") or {}
+                if isinstance(delta, dict):
+                    if isinstance(delta.get("text"), str) and delta["text"]:
+                        return {
+                            "type": "assistant",
+                            "delta": True,
+                            "message": {"content": [{
+                                "type": "text", "text": delta["text"],
+                            }]},
+                        }
+                    if isinstance(delta.get("thinking"), str) and delta["thinking"]:
+                        return {
+                            "type": "thinking",
+                            "delta": True,
+                            "message": {"content": [{
+                                "type": "thinking", "thinking": delta["thinking"],
+                            }]},
+                        }
+            return {"type": "claude.stream_event", "event": inner}
+        if event.get("type") == "assistant":
+            event["final"] = True
+        return event
 
     def event_type(self, event: dict) -> str:
         return event.get("type", "")
@@ -291,7 +454,7 @@ class ClaudeAdapter:
         return event.get("model")
 
     def is_assistant_event(self, event: dict) -> bool:
-        return event.get("type") == "assistant"
+        return event.get("type") == "assistant" and not event.get("delta")
 
     def extract_assistant_blocks(self, event: dict) -> list[dict]:
         blocks: list[dict] = []
@@ -331,6 +494,24 @@ class ClaudeAdapter:
             if sid:
                 _PENDING_RESULT_USAGE[sid] = _result_usage_entry(event)
         return event.get("result")
+
+    def extract_oneshot_error(self, output: bytes) -> str | None:
+        """Extract a structured Claude error from a one-shot output buffer."""
+        for line in output.decode(errors="replace").splitlines():
+            event = self.parse_event(line.strip())
+            if not event:
+                continue
+            if event.get("type") == "error":
+                error = event.get("error")
+                if isinstance(error, dict):
+                    error = error.get("message") or error.get("error")
+                if isinstance(error, str) and error.strip():
+                    return error.strip()
+            if self.is_result_event(event) and self.is_result_error(event):
+                result = event.get("result") or event.get("error")
+                if isinstance(result, str) and result.strip():
+                    return result.strip()
+        return None
 
     # ── takeover ──
 

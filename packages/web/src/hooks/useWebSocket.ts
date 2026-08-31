@@ -267,6 +267,13 @@ export function useWebSocket() {
         });
       }
       if (
+        e.event.type === 'claude.permission_resolved' &&
+        e.sessionId &&
+        e.event.request_id !== undefined
+      ) {
+        useUIStore.getState().removeApprovalRequest(e.sessionId, e.event.request_id);
+      }
+      if (
         e.event.type === 'codex.user_input' &&
         e.workerId &&
         e.event.method === 'item/tool/requestUserInput' &&

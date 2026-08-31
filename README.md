@@ -446,7 +446,7 @@ Worker 与具体 CLI 解耦：每种 CLI Agent 对应一个实现 `CliAdapter` �
 | `cbc` | CodeBuddy CLI | stream + one-shot | 原生 JSON 流协议，主力 adapter |
 | `kimi` | Kimi CLI | stream（wrapper 长驻） | wrapper 内逐条 `kimi -p` |
 | `opencode` | OpenCode CLI | stream（wrapper 长驻） | wrapper 内逐条 `opencode run --format json` |
-| `claude` | Claude Code CLI | one-shot | 逐条 `claude -p --output-format stream-json`，MCP 经 `--mcp-config` 注入 |
+| `claude` | Claude Code CLI | stream + oneshot | 默认 `--input-format stream-json`；可选 `outputMode: "oneshot"`，MCP 经 `--mcp-config` 注入 |
 | `codex` | OpenAI Codex CLI | stream（wrapper 长驻） | wrapper 内逐条 `codex exec --json`，MCP 经 `-c mcp_servers.*` 内联注入（零文件污染） |
 
 配套的 `SessionsProvider` 协议（`packages/core/adapters/base.py`）把各 CLI 的原生会话存储（历史 / usage / 标题 / fork）统一为同一套读写接口；server 按 adapter 名取 provider，新增一个 CLI 无需再写 import / branch / rename 的分派逻辑（`/api/adapters/{adapter}/sessions[/import]` 通用端点）。

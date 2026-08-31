@@ -51,6 +51,41 @@
     "models": []
   },
 
+  "claude": {
+    "_字段说明": {
+      "model": {
+        "默认值": "",
+        "说明": "空值表示使用 Claude Code 自己的默认模型；也可填写 claude 的完整模型名或 opus/sonnet/haiku 别名"
+      },
+      "models": {
+        "默认值": [],
+        "说明": "Claude CLI 没有稳定的模型清单接口；空值使用 Pan 内置别名，填写后限制前端模型选择"
+      },
+      "permission_mode": {
+        "默认值": "bypassPermissions",
+        "可选值": ["", "default", "acceptEdits", "bypassPermissions", "plan", "auto", "dontAsk", "manual"]
+      },
+      "effort": {
+        "默认值": "",
+        "可选值": ["", "low", "medium", "high", "xhigh", "max"]
+      },
+      "permission_prompt_tool": {
+        "默认值": "mcp__pan__permission_prompt",
+        "说明": "非 bypassPermissions 模式下接收 Claude 权限请求的 MCP 工具；只有挂载 pan MCP server 时才自动传入 CLI"
+      },
+      "permission_prompt_tool_supported": {
+        "默认值": null,
+        "说明": "null 自动检查 claude --help；某些 vendor build 可显式设 true/false"
+      }
+    },
+    "model": "",
+    "models": [],
+    "permission_mode": "bypassPermissions",
+    "effort": "",
+    "permission_prompt_tool": "mcp__pan__permission_prompt",
+    "permission_prompt_tool_supported": null
+  },
+
   "kimi": {
     "_字段说明": {
       "model": {

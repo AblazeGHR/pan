@@ -34,6 +34,7 @@ Tools exposed:
     - model_list: List available AI models
     - report_subscribe: Subscribe to completion reports (auto-claims the session if unmanaged — 订阅即接管)
     - report_unsubscribe: Unsubscribe from completion reports only (keeps the managed relationship; use session_unclaim to fully release)
+    - permission_prompt: Bridge a Claude Code non-interactive permission request to the Pan dashboard
     - session_qq_subscribe: Subscribe the calling session to a QQ chat's inbox reminders
     - session_qq_unsubscribe: Unsubscribe the calling session from a QQ chat's inbox reminders
     - pan_handbook: Return the full Pan orchestration handbook (reads docs/skills/pan/SKILL.md)
@@ -984,6 +985,43 @@ def report_unsubscribe(session_id: str) -> dict:
         return denied
     return _api("POST", "/api/report-unsubscribe",
                 {"managerId": manager_id, "sessionId": session_id})
+
+
+@mcp.tool()
+def permission_prompt(tool_name: str, input: dict | None = None) -> str:
+    """Ask the Pan dashboard to approve or deny a Claude Code tool request.
+
+    Claude Code calls this MCP tool in non-interactive print/stream mode when
+    ``--permission-prompt-tool`` is configured.  The tool blocks until the
+    dashboard responds, then returns Claude's documented JSON result shape:
+    ``{"behavior":"allow","updatedInput":...}`` or
+    ``{"behavior":"deny","message":"..."}``.
+
+    This is intentionally a narrow bridge: it resolves the Worker belonging to
+    ``PAN_AGENT_SESSION_ID`` and never exposes arbitrary worker controls to the
+    Claude process.
+    """
+    session_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not session_id:
+        return json.dumps({
+            "behavior": "deny",
+            "message": "Pan permission bridge has no session identity",
+        }, ensure_ascii=False)
+    worker_id = _session_worker_id(session_id)
+    if not worker_id:
+        return json.dumps({
+            "behavior": "deny",
+            "message": "Pan worker is not available",
+        }, ensure_ascii=False)
+    result = _api(
+        "POST",
+        f"/api/worker/{quote(worker_id, safe='')}/claude-permission",
+        {"toolName": str(tool_name or "unknown"), "input": input or {}},
+        timeout=360.0,
+    )
+    if not isinstance(result, dict) or result.get("behavior") not in {"allow", "deny"}:
+        result = {"behavior": "deny", "message": "Invalid Pan permission response"}
+    return json.dumps(result, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------

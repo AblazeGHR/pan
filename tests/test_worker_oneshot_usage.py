@@ -5,7 +5,7 @@ never called ``adapter.enrich_after_result`` — the only place raw_usage/cost/
 credit get back-filled. Stream mode (``_read_stdout``) does call it, so:
 
 - cbc (oneshot-capable) recorded no credit on the oneshot path;
-- claude (oneshot-only) recorded no usage/cost at all.
+- Claude's explicit one-shot fallback recorded no usage/cost at all.
 
 This suite verifies:
 - ``_consumer_oneshot`` calls ``enrich_after_result`` after setting last_result
@@ -207,7 +207,7 @@ def test_oneshot_enrich_exception_tolerated(monkeypatch, tmp_path):
 
 
 def test_oneshot_claude_bridges_result_usage_cache(monkeypatch, tmp_path):
-    """claude（仅 oneshot）：result 事件的 usage+cost 经 _PENDING_RESULT_USAGE
+    """claude 的 one-shot fallback：result 事件的 usage+cost 经 _PENDING_RESULT_USAGE
     桥接进 raw_usage——验证 extract_result_text → enrich_after_result 全链路。"""
     _cleanup()
     claude_adapter._PENDING_RESULT_USAGE.clear()
