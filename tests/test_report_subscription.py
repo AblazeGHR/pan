@@ -89,6 +89,7 @@ def test_enqueue_report_subscribed(monkeypatch):
         "sessionId": "ses_child",
         "taskId": "task-1",
         "workerId": "worker-1",
+        "deliveryState": "queued",
     }
     _cleanup()
 
@@ -185,6 +186,7 @@ def test_enqueue_report_with_type_zombie(monkeypatch):
         "sessionId": "ses_child",
         "taskId": "task-1",
         "workerId": "worker-1",
+        "deliveryState": "queued",
     }
     _cleanup()
 

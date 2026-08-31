@@ -1226,13 +1226,28 @@ def _queue_item_id(item: dict) -> str:
     if item.get("type") == "task" and item.get("id"):
         return str(item["id"])
     try:
-        canonical = json.dumps(item, sort_keys=True, ensure_ascii=False)
+        # deliveryState changes during hand-off; it is bookkeeping, not item
+        # identity.  Keep report/QQ ids stable so a stale panel action still
+        # addresses the same durable item.
+        identity = {k: v for k, v in item.items() if k != "deliveryState"}
+        canonical = json.dumps(identity, sort_keys=True, ensure_ascii=False)
     except (TypeError, ValueError):
         canonical = repr(item)
     return "sha1:" + hashlib.sha1(canonical.encode("utf-8")).hexdigest()
 
 
-def _serialize_queue_item(item) -> dict | None:
+def _queue_dispatch_state(s, item: dict) -> str:
+    """Expose whether an in-flight item is actively owned or uncertain."""
+    state = worker._delivery_state(item)
+    if state != worker._DELIVERY_IN_FLIGHT:
+        return "queued"
+    live = worker.find_alive_worker_by_session(s.id)
+    if live is not None and worker._worker_owns_queue_item(live, item):
+        return "in_flight"
+    return "uncertain"
+
+
+def _serialize_queue_item(item, session=None) -> dict | None:
     """queue_pending item → AgentQueueItem；无法识别的形状返回 None（跳过）。"""
     if not isinstance(item, dict):
         return None
@@ -1244,7 +1259,11 @@ def _serialize_queue_item(item) -> dict | None:
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
             "createdAt": 0,
             "source": item.get("source"),
-            "meta": {"seq": item.get("seq"), "taskId": item.get("taskId")},
+            "meta": {
+                "seq": item.get("seq"),
+                "taskId": item.get("taskId"),
+                "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+            },
         }
     if t == "qq":
         return {
@@ -1252,7 +1271,11 @@ def _serialize_queue_item(item) -> dict | None:
             "kind": "qq",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
             "createdAt": 0,
-            "meta": {"qqTarget": item.get("qqTarget"), "time": item.get("time")},
+            "meta": {
+                "qqTarget": item.get("qqTarget"),
+                "time": item.get("time"),
+                "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+            },
         }
     # 非 task/qq 一律按 report 处理（普通报告无 type 字段、zombie 为 type=zombie），
     # 与 worker 消费端分类（type != "task" 即报告）保持一致；完全无 result 的
@@ -1280,6 +1303,7 @@ def _serialize_queue_item(item) -> dict | None:
             "status": item.get("status"),
             "taskId": item.get("taskId"),
             "workerId": item.get("workerId"),
+            "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
         },
     }
 
@@ -1287,7 +1311,7 @@ def _serialize_queue_item(item) -> dict | None:
 def _session_queue_items(s) -> list[dict]:
     items = []
     for it in s.queue_pending or []:
-        si = _serialize_queue_item(it)
+        si = _serialize_queue_item(it, s)
         if si is not None:
             items.append(si)
     return items
@@ -1326,6 +1350,20 @@ async def api_session_queue_delete(session_id: str, item_id: str):
     s.queue_pending = [it for it in pending if it is not target]
     await sess.save_async(s)
     return {"ok": True}
+
+
+@app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
+async def api_session_queue_retry(session_id: str, item_id: str):
+    """Explicitly retry an uncertain durable queue item.
+
+    Automatic recovery deliberately leaves ``in_flight`` items untouched to
+    preserve at-most-once execution.  This route is the operator-controlled
+    override and may execute a task again if the previous provider accepted it.
+    """
+    result = await worker.retry_pending_item(session_id, item_id)
+    if isinstance(result, str):
+        return {"ok": False, "error": result}
+    return {"ok": True, "item": _serialize_queue_item(result, sess.get(session_id))}
 
 
 @app.patch("/api/sessions/{session_id}/queue/order")

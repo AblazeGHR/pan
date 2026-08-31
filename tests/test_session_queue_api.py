@@ -45,11 +45,11 @@ def _noop_save(s):
 
 
 # queue_pending fixture：覆盖全部异构形状
-TASK_A = {"type": "task", "id": "task-aaa", "text": "task A", "source": "agent", "seq": 1, "taskId": "t-a"}
-TASK_B = {"type": "task", "id": "task-bbb", "text": "task B", "source": "user", "seq": 2, "taskId": "t-b"}
-REPORT_PLAIN = {"status": "done", "result": "report r1", "sessionId": "ses_child", "taskId": "t-a", "workerId": "worker-1"}
-REPORT_ZOMBIE = {"type": "zombie", "status": "error", "result": "worker died", "sessionId": "ses_child", "taskId": "t-b", "workerId": "worker-1"}
-QQ_ITEM = {"type": "qq", "qqTarget": "user:12345", "targetType": "user", "targetId": "12345", "nickname": "bob", "text": "hi from qq", "time": "12:00"}
+TASK_A = {"type": "task", "id": "task-aaa", "text": "task A", "source": "agent", "seq": 1, "taskId": "t-a", "deliveryState": "queued"}
+TASK_B = {"type": "task", "id": "task-bbb", "text": "task B", "source": "user", "seq": 2, "taskId": "t-b", "deliveryState": "queued"}
+REPORT_PLAIN = {"status": "done", "result": "report r1", "sessionId": "ses_child", "taskId": "t-a", "workerId": "worker-1", "deliveryState": "queued"}
+REPORT_ZOMBIE = {"type": "zombie", "status": "error", "result": "worker died", "sessionId": "ses_child", "taskId": "t-b", "workerId": "worker-1", "deliveryState": "queued"}
+QQ_ITEM = {"type": "qq", "qqTarget": "user:12345", "targetType": "user", "targetId": "12345", "nickname": "bob", "text": "hi from qq", "time": "12:00", "deliveryState": "queued"}
 
 MIXED = [TASK_A, REPORT_PLAIN, TASK_B, REPORT_ZOMBIE, QQ_ITEM]
 
@@ -72,12 +72,12 @@ def test_get_queue_mixed(monkeypatch):
     # task：透传自身 id / text / source / meta
     assert items[0] == {
         "id": "task-aaa", "kind": "task", "text": "task A", "createdAt": 0,
-        "source": "agent", "meta": {"seq": 1, "taskId": "t-a"},
+        "source": "agent", "meta": {"seq": 1, "taskId": "t-a", "dispatchState": "queued"},
     }
     # report（无 type 字段）：result 即 text
     assert items[1]["kind"] == "report"
     assert items[1]["text"] == "report r1"
-    assert items[1]["meta"] == {"status": "done", "taskId": "t-a", "workerId": "worker-1"}
+    assert items[1]["meta"] == {"status": "done", "taskId": "t-a", "workerId": "worker-1", "dispatchState": "queued"}
     # zombie report（type=zombie）也归为 report
     assert items[3]["kind"] == "report"
     assert items[3]["text"] == "worker died"
@@ -85,7 +85,7 @@ def test_get_queue_mixed(monkeypatch):
     # qq
     assert items[4]["kind"] == "qq"
     assert items[4]["text"] == "hi from qq"
-    assert items[4]["meta"] == {"qqTarget": "user:12345", "time": "12:00"}
+    assert items[4]["meta"] == {"qqTarget": "user:12345", "time": "12:00", "dispatchState": "queued"}
     _cleanup()
 
 
@@ -140,6 +140,24 @@ def test_get_queue_empty(monkeypatch):
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     s = _setup_session("ses_q")
     assert asyncio.run(srv.api_session_queue("ses_q")) == {"items": []}
+    _cleanup()
+
+
+def test_retry_queue_item_resets_uncertain_state(monkeypatch):
+    """显式 retry 只重置 durable 状态，不改变任务正文或稳定 id。"""
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    monkeypatch.setattr("packages.web.server.worker._schedule_session_recovery", lambda _sid: None)
+    s = _setup_session("ses_q")
+    task = dict(TASK_A, deliveryState="in_flight")
+    s.queue_pending = [task]
+
+    r = asyncio.run(srv.api_session_queue_retry("ses_q", "task-aaa"))
+
+    assert r["ok"] is True
+    assert r["item"]["id"] == "task-aaa"
+    assert r["item"]["meta"]["dispatchState"] == "queued"
+    assert s.queue_pending[0]["text"] == "task A"
+    assert s.queue_pending[0]["deliveryState"] == "queued"
     _cleanup()
 
 

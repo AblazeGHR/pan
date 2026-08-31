@@ -45,7 +45,7 @@ export interface Session {
   /** True when the session template locks MCP on/off (always/never mode). */
   mcpLocked?: boolean | null;
   /** Why MCP is locked: "always" / "never"; null when unlocked. */
-  mcpLockReason?: "always" | "never" | null;
+  mcpLockReason?: 'always' | 'never' | null;
   /** Names of MCP servers currently enabled for this session. */
   mcpServers?: string[];
   history: Message[];
@@ -598,6 +598,8 @@ export interface AgentQueueItem {
     workerId?: string;
     qqTarget?: string;
     time?: string;
+    /** queued=未投递，in_flight=当前 worker 正在处理，uncertain=进程死亡后需人工确认重试。 */
+    dispatchState?: 'queued' | 'in_flight' | 'uncertain';
   };
 }
 

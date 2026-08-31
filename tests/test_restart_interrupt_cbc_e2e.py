@@ -29,7 +29,7 @@ for line in sys.stdin:
 
 
 def test_cbc_interrupt_kills_old_process_and_recovers_task(tmp_path, monkeypatch):
-    """A running cbc task must be interrupted and replayed by the new process."""
+    """A running cbc task is held after interrupt until explicitly retried."""
     worker.workers.clear()
     worker._task_status.clear()
     worker._inflight_task_ids.clear()
@@ -73,6 +73,12 @@ def test_cbc_interrupt_kills_old_process_and_recovers_task(tmp_path, monkeypatch
             assert replacement.process.pid != old_pid
             assert not psutil.pid_exists(old_pid), "interrupt left the old cbc process alive"
 
+            await asyncio.sleep(0.2)
+            assert s.last_result is None
+            assert len(s.queue_pending) == 1
+            assert s.queue_pending[0]["deliveryState"] == "in_flight"
+
+            await worker.retry_pending_item(s.id, s.queue_pending[0]["id"])
             for _ in range(200):
                 if s.last_result and s.last_result.get("result") == "restarted task completed":
                     break

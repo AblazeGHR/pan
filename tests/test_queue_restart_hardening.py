@@ -64,7 +64,8 @@ def test_offline_user_message_is_a_durable_user_task(monkeypatch):
     assert s.queue_pending == [{
         "type": "task", "id": s.queue_pending[0]["id"],
         "text": "do not turn me into an agent report", "source": "user",
-        "seq": 1, "taskId": None, "clientMessageId": "browser-1",
+        "seq": 1, "taskId": None, "deliveryState": "queued",
+        "clientMessageId": "browser-1",
     }]
     assert s.accepted_input_ids == ["browser-1"]
     _cleanup()
@@ -295,8 +296,8 @@ def test_interrupt_reaps_old_stream_process_before_replaying_task(tmp_path, monk
     _cleanup()
 
 
-def test_running_restart_replays_all_durable_user_queue_items(tmp_path, monkeypatch):
-    """Restarting a busy stream worker must recover the whole queue in order."""
+def test_running_restart_does_not_replay_uncertain_task(tmp_path, monkeypatch):
+    """Restarting a busy worker holds the uncertain task for explicit retry."""
     _cleanup()
     fake_cli = tmp_path / "fake_cbc_restart.py"
     fast_marker = tmp_path / "fast"
@@ -337,8 +338,17 @@ for line in sys.stdin:
             assert [item["text"] for item in s.queue_pending] == ["first", "second"]
             fast_marker.write_text("1", encoding="ascii")
             assert await worker.restart_worker(w.worker_id) is None
+            await asyncio.sleep(0.2)
+            assert [item["text"] for item in s.queue_pending] == ["first", "second"]
+            assert s.queue_pending[0]["deliveryState"] == "in_flight"
+            assert s.queue_pending[1]["deliveryState"] == "queued"
+
+            # The operator explicitly accepts that the first prompt may have
+            # reached the old process.  Once it completes, ack_current_task
+            # releases the next queued item without replaying the first.
+            await worker.retry_pending_item(s.id, s.queue_pending[0]["id"])
             for _ in range(300):
-                if not s.queue_pending and s.last_result and s.last_result.get("result") == "second":
+                if not s.queue_pending and s.last_result:
                     break
                 await asyncio.sleep(0.01)
             assert s.queue_pending == []
@@ -391,6 +401,11 @@ for line in sys.stdin:
             fast_marker.write_text("1", encoding="ascii")
             assert await worker.interrupt_worker(w.worker_id) is None
             assert not psutil.pid_exists(old_pid)
+            await asyncio.sleep(0.2)
+            assert s.last_result is None
+            assert len(s.queue_pending) == 1
+            assert s.queue_pending[0]["deliveryState"] == "in_flight"
+            await worker.retry_pending_item(s.id, s.queue_pending[0]["id"])
             for _ in range(200):
                 if s.last_result and s.last_result.get("result") == "replayed":
                     break

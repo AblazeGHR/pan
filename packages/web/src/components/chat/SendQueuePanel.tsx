@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Loader2,
   Bot,
+  RotateCcw,
 } from 'lucide-react';
 
 // 稳定的空数组引用（避免 selector 每次返回新数组导致无限重渲染）
@@ -36,12 +37,8 @@ function queueItemOrigin(item: AgentQueueItem): 'user' | 'agent' {
 export function SendQueuePanel() {
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const panelOpen = useQueueStore((s) => s.panelOpen);
-  const queue = useQueueStore((s) =>
-    currentSessionId ? s.queues[currentSessionId] : undefined,
-  );
-  const edit = useQueueStore((s) =>
-    currentSessionId ? s.edits[currentSessionId] : null,
-  );
+  const queue = useQueueStore((s) => (currentSessionId ? s.queues[currentSessionId] : undefined));
+  const edit = useQueueStore((s) => (currentSessionId ? s.edits[currentSessionId] : null));
   const batchSend = useQueueStore((s) =>
     currentSessionId ? !!s.batchSend[currentSessionId] : false,
   );
@@ -60,6 +57,7 @@ export function SendQueuePanel() {
     currentSessionId ? s.agentQueues[currentSessionId] : undefined,
   );
   const removeAgentItem = useQueueStore((s) => s.removeAgentItem);
+  const retryAgentItem = useQueueStore((s) => s.retryAgentItem);
   const moveAgentItem = useQueueStore((s) => s.moveAgentItem);
 
   const queueItems = queue ?? EMPTY_QUEUE;
@@ -102,9 +100,7 @@ export function SendQueuePanel() {
               <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none text-text-secondary">
                 {total}
               </span>
-              {sendingId && (
-                <Loader2 size={12} className="animate-spin text-accent" />
-              )}
+              {sendingId && <Loader2 size={12} className="animate-spin text-accent" />}
             </span>
             <div className="flex-1" />
             <label className="inline-flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer select-none hover:text-text-primary transition-colors">
@@ -235,9 +231,7 @@ export function SendQueuePanel() {
                   );
                 })}
                 {batchSending && (
-                  <div className="px-2 py-1.5 text-xs text-accent">
-                    正在拼接发送全部消息…
-                  </div>
+                  <div className="px-2 py-1.5 text-xs text-accent">正在拼接发送全部消息…</div>
                 )}
               </div>
             )}
@@ -250,7 +244,7 @@ export function SendQueuePanel() {
               <div className="flex items-center gap-1.5 pb-1.5">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
                   <Bot size={14} />
-                  Agent 队列
+                  服务端队列（Agent/用户）
                   <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none text-text-secondary">
                     {agentItems.length}
                   </span>
@@ -258,47 +252,73 @@ export function SendQueuePanel() {
               </div>
               <div className="queue-list-scroll max-h-[25vh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary/60">
                 <div className="p-1">
-                  {agentItems.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors hover:bg-bg-hover"
-                    >
-                      <span className={AGENT_BADGE}>
-                        {queueItemOrigin(item)} {item.kind}
-                      </span>
-                      <span
-                        className="flex-1 min-w-0 truncate text-text-primary"
-                        title={item.text}
+                  {agentItems.map((item, index) => {
+                    const dispatchState = item.meta?.dispatchState ?? 'queued';
+                    const uncertain = dispatchState === 'uncertain';
+                    const inFlight = dispatchState === 'in_flight';
+                    return (
+                      <div
+                        key={item.id}
+                        className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors hover:bg-bg-hover"
                       >
-                        {item.text}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
-                        <button
-                          className={ROW_BTN}
-                          disabled={index === 0}
-                          onClick={() => moveAgentItem(item.id, -1)}
-                          title="上移"
+                        <span className={AGENT_BADGE}>
+                          {queueItemOrigin(item)} {item.kind}
+                        </span>
+                        {(uncertain || inFlight) && (
+                          <span
+                            className={`shrink-0 text-[10px] ${uncertain ? 'text-warning' : 'text-accent'}`}
+                            title={
+                              uncertain
+                                ? 'worker 在发送后退出，无法确认是否执行；默认不自动重放'
+                                : 'worker 已认领，正在等待结果'
+                            }
+                          >
+                            {uncertain ? '待确认' : '执行中'}
+                          </span>
+                        )}
+                        <span
+                          className="flex-1 min-w-0 truncate text-text-primary"
+                          title={item.text}
                         >
-                          <ArrowUp size={12} />
-                        </button>
-                        <button
-                          className={ROW_BTN}
-                          disabled={index === agentItems.length - 1}
-                          onClick={() => moveAgentItem(item.id, 1)}
-                          title="下移"
-                        >
-                          <ArrowDown size={12} />
-                        </button>
-                        <button
-                          className={ROW_BTN + ' text-danger hover:bg-danger/10'}
-                          onClick={() => removeAgentItem(item.id)}
-                          title="删除（不确认）"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </span>
-                    </div>
-                  ))}
+                          {item.text}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
+                          {uncertain && (
+                            <button
+                              className={ROW_BTN + ' text-warning hover:bg-warning/10'}
+                              onClick={() => retryAgentItem(item.id)}
+                              title="明确重试（此前若已执行，可能重复）"
+                            >
+                              <RotateCcw size={12} />
+                            </button>
+                          )}
+                          <button
+                            className={ROW_BTN}
+                            disabled={index === 0}
+                            onClick={() => moveAgentItem(item.id, -1)}
+                            title="上移"
+                          >
+                            <ArrowUp size={12} />
+                          </button>
+                          <button
+                            className={ROW_BTN}
+                            disabled={index === agentItems.length - 1}
+                            onClick={() => moveAgentItem(item.id, 1)}
+                            title="下移"
+                          >
+                            <ArrowDown size={12} />
+                          </button>
+                          <button
+                            className={ROW_BTN + ' text-danger hover:bg-danger/10'}
+                            onClick={() => removeAgentItem(item.id)}
+                            title="删除（不确认）"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

@@ -1,12 +1,13 @@
 """投递语义回归测试（fix/delivery-semantics）。
 
-核心不变量：**任务收到 terminal result 后才出队；执行前/执行中崩溃时保留队列，
-由新 worker 重投。**
+核心不变量：**任务收到 terminal result 后才出队；发送前先持久化 in-flight，
+执行状态不确定时不自动重投，由用户显式 retry。**
 
-- 报告持久化在 Session.queue_pending（落盘真源），先落 history 投递标记，收到
-  terminal result 后才从 queue_pending 移除；任务同样先持久化 history 投递标记，
-  收到 result 后才从 queue_pending 移除。崩溃窗口内任务和报告均可重投，
-  且已有 history 标记不会导致用户消息重复追加。
+- 报告持久化在 Session.queue_pending（落盘真源），先落 history 投递标记与
+  in-flight 状态，收到 terminal result 后才从 queue_pending 移除；任务同样先
+  持久化 in-flight 状态，收到 result 后才从 queue_pending 移除。崩溃窗口内
+  item 不自动重投，显式 retry 才再次执行，且已有 history 标记不会导致用户
+  消息重复追加。
 - save 失败（非崩溃）回滚内存态，item 留在队列可重投；消费前确认 worker
   进程存活（死 → 中止保留队列，respawn 后由 _recover_pending_signals 重投）。
 - report 消费与 task 消费共享队列，互不误删（report 只消费非 task，task 按 id
@@ -60,12 +61,14 @@ def _make_worker(sid, process=None):
 
 def _make_report(i=1):
     return {"status": "done", "result": f"r{i}", "sessionId": "ses_child",
-            "taskId": f"t{i}", "workerId": "worker-1"}
+            "taskId": f"t{i}", "workerId": "worker-1",
+            "deliveryState": "queued"}
 
 
 def _make_task(i=1):
     return {"type": "task", "id": f"task{i}", "text": f"job {i}",
-            "source": "agent", "seq": i, "taskId": f"tid{i}"}
+            "source": "agent", "seq": i, "taskId": f"tid{i}",
+            "deliveryState": "queued"}
 
 
 def _recording_save(log):
@@ -136,7 +139,8 @@ def test_report_atomic_dequeue(monkeypatch):
     assert len(consumer_saves) == 1, f"exactly one atomic save expected: {save_log}"
     hist_at_save, queue_at_save = consumer_saves[0]
     assert len(hist_at_save) == 1, "history must be appended in the same save"
-    assert queue_at_save == [_make_report(1), _make_report(2)]
+    assert [item.get("deliveryState") for item in queue_at_save] == [
+        "in_flight", "in_flight"]
     _cleanup()
 
 
@@ -298,8 +302,8 @@ def test_task_kept_when_worker_dead_before_handoff(monkeypatch):
     _cleanup()
 
 
-def test_task_requeued_after_crash_after_handoff(monkeypatch):
-    """stdin 已写入但 result 丢失：重启后重投，history 用户消息不重复。"""
+def test_task_not_replayed_after_crash_after_handoff(monkeypatch):
+    """stdin handoff 后崩溃：自动恢复不重放，显式 retry 才再次执行。"""
     _cleanup()
     s = _setup_session("ses_mgr")
     task = _make_task(1)
@@ -323,10 +327,11 @@ def test_task_requeued_after_crash_after_handoff(monkeypatch):
 
     assert attempts == ["crash"]
     assert s.queue_pending == [task], "in-flight task must remain durable after crash"
+    assert task["deliveryState"] == "in_flight"
     assert len(s.history) == 1, "handoff history should be persisted once"
     assert worker._inflight_task_ids == set()
 
-    # 新 worker 恢复同一个持久 item；第二次执行模拟收到 terminal result。
+    # 新 worker 不会自动恢复 in-flight item。
     worker.workers.clear()
     w2 = _make_worker("ses_mgr")
 
@@ -336,6 +341,14 @@ def test_task_requeued_after_crash_after_handoff(monkeypatch):
 
     monkeypatch.setattr(worker, "_consumer_stream", recovered_stream)
     worker._recover_pending_signals(w2, s)
+    assert w2.pending_signal.empty()
+    _run_consumer(w2)
+
+    assert attempts == ["crash"]
+    assert s.queue_pending == [task]
+
+    # 用户明确接受可能重复后，才重置并重新执行。
+    asyncio.run(worker.retry_pending_item(s.id, "task1"))
     _run_consumer(w2)
 
     assert attempts == ["crash", "recovered"]
@@ -435,6 +448,9 @@ def test_duplicate_task_signal_no_double_claim(monkeypatch):
 
     asyncio.run(scenario())
 
+    # 模拟用户明确 retry，恢复 queued 状态后再发送重复信号。
+    task["deliveryState"] = "queued"
+
     # 正常消费出队后，重复信号再次到达 → item 不在队列 → 不再消费
     received = []
 
@@ -517,7 +533,8 @@ def test_mixed_queue_report_and_task_mutual_exclusion(monkeypatch):
 
     assert [src for src, _ in received] == ["report", "agent"]
     # report 交给模型时仍在队列中，task item 也原样保留；报告终态后才确认出队
-    assert received[0][1] == [_make_report(1), task, _make_report(2)]
+    assert [it.get("deliveryState") for it in received[0][1]
+            if worker._is_report_item(it)] == ["in_flight", "in_flight"]
     assert received[1][1] == [task], "report acknowledgement must not touch task item"
     # task 消费后：队列清空
     assert s.queue_pending == []
@@ -716,6 +733,91 @@ def test_recover_pending_signals_mixed_queue(monkeypatch):
     task_ids = [sig.get("id") for sig in signals if sig.get("type") == "task_signal"]
     assert task_ids == ["task1", "task2"]
     assert {"type": "report_signal"} in signals
+    _cleanup()
+
+
+def test_recovery_suppresses_inflight_and_later_tasks(monkeypatch):
+    """不确定任务不自动重放，后续任务也不能越过它。"""
+    _cleanup()
+    s = _setup_session("ses_mgr")
+    first = _make_task(1)
+    second = _make_task(2)
+    first["deliveryState"] = "in_flight"
+    s.queue_pending = [first, second]
+    w = _make_worker("ses_mgr")
+
+    worker._recover_pending_signals(w, s)
+
+    assert w.pending_signal.empty()
+    _cleanup()
+
+
+def test_report_recovery_suppresses_inflight_batch(monkeypatch):
+    """报告已 handoff 但无结果时，重启不能静默重放整批。"""
+    _cleanup()
+    s = _setup_session("ses_mgr")
+    report = _make_report(1)
+    report["deliveryState"] = "in_flight"
+    s.queue_pending = [report]
+    w = _make_worker("ses_mgr")
+
+    worker._recover_pending_signals(w, s)
+
+    assert w.pending_signal.empty()
+    _cleanup()
+
+
+def test_legacy_history_mark_is_migrated_to_uncertain(monkeypatch):
+    """升级旧版 at-least-once 数据时，已有 handoff 标记不能被自动重放。"""
+    _cleanup()
+    s = _setup_session("ses_mgr")
+    task = _make_task(1)
+    task.pop("deliveryState")
+    s.queue_pending = [task]
+    s.history.append({"role": "user", "content": "job 1",
+                      "delivered_keys": [worker._delivery_key(task)]})
+    w = _make_worker("ses_mgr")
+
+    changed = worker._recover_pending_signals(w, s)
+
+    assert changed is True
+    assert task["deliveryState"] == "in_flight"
+    assert w.pending_signal.empty()
+    _cleanup()
+
+
+def test_unknown_source_is_rejected_before_durable_enqueue(monkeypatch):
+    """未知 source 不得落成无法识别、可能被格式化为 agent 的队列项。"""
+    _cleanup()
+    s = _setup_session("ses_mgr")
+    monkeypatch.setattr(_sess, "save_async", _recording_save([]))
+
+    result = asyncio.run(worker.send_session(s.id, "bad", source="mystery"))
+
+    assert result["status"] == "error"
+    assert "Unknown task source" in result["result"]
+    assert s.queue_pending == []
+    _cleanup()
+
+
+def test_malformed_task_is_not_claimed_or_crashes_consumer(monkeypatch):
+    """损坏的 task envelope 留在队列，不能触发 KeyError 或 agent 误投递。"""
+    _cleanup()
+    s = _setup_session("ses_mgr")
+    malformed = {"type": "task", "id": "bad", "source": "user"}
+    s.queue_pending = [malformed]
+    w = _make_worker("ses_mgr")
+
+    worker._recover_pending_signals(w, s)
+    assert w.pending_signal.empty()
+
+    async def scenario():
+        await w.pending_signal.put({"type": "task_signal", "id": "bad"})
+        await w.pending_signal.put(None)
+        await worker._consumer(w)
+
+    asyncio.run(scenario())
+    assert s.queue_pending == [malformed]
     _cleanup()
 
 

@@ -119,9 +119,7 @@ export async function createSession(
 }
 
 export async function fetchSessionTemplates(): Promise<SessionTemplate[]> {
-  const data = await request<ApiSessionTemplatesResponse>(
-    `${BASE}/session-templates`,
-  );
+  const data = await request<ApiSessionTemplatesResponse>(`${BASE}/session-templates`);
   if (data.error) throw new Error(data.error);
   return data.sessionTemplates || [];
 }
@@ -134,10 +132,7 @@ export async function fetchMcpServers(): Promise<McpServerInfo[]> {
   return data.servers || [];
 }
 
-export async function patchSession(
-  id: string,
-  settings: SettingsBody,
-): Promise<Session> {
+export async function patchSession(id: string, settings: SettingsBody): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/sessions/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(settings),
@@ -154,58 +149,37 @@ export async function deleteSession(id: string): Promise<ApiGenericResponse> {
   return data;
 }
 
-export async function batchDeleteSessions(
-  sessionIds: string[],
-): Promise<ApiBatchDeleteResponse> {
-  const data = await request<ApiBatchDeleteResponse>(
-    `${BASE}/sessions/batch-delete`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ sessionIds }),
-    },
-  );
+export async function batchDeleteSessions(sessionIds: string[]): Promise<ApiBatchDeleteResponse> {
+  const data = await request<ApiBatchDeleteResponse>(`${BASE}/sessions/batch-delete`, {
+    method: 'POST',
+    body: JSON.stringify({ sessionIds }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function renameSession(
-  id: string,
-  name: string,
-): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/sessions/${id}/rename`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    },
-  );
+export async function renameSession(id: string, name: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(`${BASE}/sessions/${id}/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function branchSession(
-  id: string,
-  name: string,
-): Promise<Session> {
-  const data = await request<ApiSessionResponse>(
-    `${BASE}/sessions/${id}/branch`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    },
-  );
+export async function branchSession(id: string, name: string): Promise<Session> {
+  const data = await request<ApiSessionResponse>(`${BASE}/sessions/${id}/branch`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
 // ── Agent queue (session.queue_pending, normalized) ──
 
-export async function fetchSessionQueue(
-  sessionId: string,
-): Promise<AgentQueueItem[]> {
-  const data = await request<ApiSessionQueueResponse>(
-    `${BASE}/sessions/${sessionId}/queue`,
-  );
+export async function fetchSessionQueue(sessionId: string): Promise<AgentQueueItem[]> {
+  const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue`);
   if (data.error) throw new Error(data.error);
   return data.items || [];
 }
@@ -224,26 +198,34 @@ export async function deleteSessionQueueItem(
   return data;
 }
 
+export async function retrySessionQueueItem(
+  sessionId: string,
+  itemId: string,
+): Promise<ApiSessionQueueResponse & { item?: AgentQueueItem }> {
+  const data = await request<ApiSessionQueueResponse & { item?: AgentQueueItem }>(
+    `${BASE}/sessions/${sessionId}/queue/${itemId}/retry`,
+    { method: 'POST' },
+  );
+  if (data.ok === false || data.error) {
+    throw new Error(data.error || 'Retry failed');
+  }
+  return data;
+}
+
 export async function reorderSessionQueue(
   sessionId: string,
   order: string[],
 ): Promise<AgentQueueItem[]> {
-  const data = await request<ApiSessionQueueResponse>(
-    `${BASE}/sessions/${sessionId}/queue/order`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({ order }),
-    },
-  );
+  const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue/order`, {
+    method: 'PATCH',
+    body: JSON.stringify({ order }),
+  });
   if (data.error) throw new Error(data.error);
   return data.items || [];
 }
 
 /** Send a message to a session, queuing it server-side when no worker exists. */
-export async function sendSession(
-  sessionId: string,
-  text: string,
-): Promise<ApiGenericResponse> {
+export async function sendSession(sessionId: string, text: string): Promise<ApiGenericResponse> {
   const data = await request<ApiGenericResponse>(`${BASE}/send`, {
     method: 'POST',
     body: JSON.stringify({ sessionId, text, source: 'user' }),
@@ -288,13 +270,10 @@ export async function reportSubscribe(
   managerId: string,
   sessionId: string,
 ): Promise<ApiReportSubscribeResponse> {
-  const data = await request<ApiReportSubscribeResponse>(
-    `${BASE}/report-subscribe`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ managerId, sessionId }),
-    },
-  );
+  const data = await request<ApiReportSubscribeResponse>(`${BASE}/report-subscribe`, {
+    method: 'POST',
+    body: JSON.stringify({ managerId, sessionId }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -303,13 +282,10 @@ export async function reportUnsubscribe(
   managerId: string,
   sessionId: string,
 ): Promise<ApiReportSubscribeResponse> {
-  const data = await request<ApiReportSubscribeResponse>(
-    `${BASE}/report-unsubscribe`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ managerId, sessionId }),
-    },
-  );
+  const data = await request<ApiReportSubscribeResponse>(`${BASE}/report-unsubscribe`, {
+    method: 'POST',
+    body: JSON.stringify({ managerId, sessionId }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -395,13 +371,10 @@ export async function killWorker(workerId: string): Promise<ApiGenericResponse> 
   return data;
 }
 
-export async function restartWorker(
-  workerId: string,
-): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/worker/${workerId}/restart`,
-    { method: 'POST' },
-  );
+export async function restartWorker(workerId: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/restart`, {
+    method: 'POST',
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -410,39 +383,27 @@ export async function workerSettings(
   workerId: string,
   settings: SettingsBody,
 ): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/worker/${workerId}/settings`,
-    {
-      method: 'POST',
-      body: JSON.stringify(settings),
-    },
-  );
+  const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/settings`, {
+    method: 'POST',
+    body: JSON.stringify(settings),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function interruptWorker(
-  workerId: string,
-): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/worker/${workerId}/interrupt`,
-    { method: 'POST' },
-  );
+export async function interruptWorker(workerId: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/interrupt`, {
+    method: 'POST',
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function steerWorker(
-  workerId: string,
-  text: string,
-): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/worker/${workerId}/steer`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ text }),
-    },
-  );
+export async function steerWorker(workerId: string, text: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/steer`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -451,39 +412,27 @@ export async function sendWorkerControl(
   workerId: string,
   control: Record<string, unknown>,
 ): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/worker/${workerId}/control`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ control }),
-    },
-  );
+  const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/control`, {
+    method: 'POST',
+    body: JSON.stringify({ control }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function takeoverWorker(
-  workerId: string,
-): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/worker/${workerId}/takeover`,
-    { method: 'POST' },
-  );
+export async function takeoverWorker(workerId: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/takeover`, {
+    method: 'POST',
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function workerBranch(
-  workerId: string,
-  name: string,
-): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse>(
-    `${BASE}/worker/${workerId}/branch`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    },
-  );
+export async function workerBranch(workerId: string, name: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/branch`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -495,9 +444,7 @@ export async function listWorkers(): Promise<WorkerItem[]> {
 
 // ── Configuration ──
 
-export async function fetchAdapterConfig(
-  adapter: string,
-): Promise<AdapterConfig> {
+export async function fetchAdapterConfig(adapter: string): Promise<AdapterConfig> {
   const data = await request<ApiConfigResponse>(
     `${BASE}/adapter/config?adapter=${encodeURIComponent(adapter)}`,
   );
@@ -508,12 +455,7 @@ export async function fetchAdapterConfig(
     modelEfforts: data.modelEfforts || {},
     permissionModes: data.permissionModes || [],
     defaultPermissionMode: data.defaultPermissionMode || '',
-    supportedSettings: data.supportedSettings || [
-      'model',
-      'permissionMode',
-      'thinking',
-      'effort',
-    ],
+    supportedSettings: data.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'],
     executionModes: data.executionModes || ['stream'],
   };
 }
@@ -539,13 +481,10 @@ export async function fetchCliStatus(): Promise<ApiCliStatusResponse> {
 export async function reloadConfig(
   scope: 'adapters' | 'worker' | 'plugin' | 'memory' | 'all',
 ): Promise<ApiConfigReloadResponse> {
-  const data = await request<ApiConfigReloadResponse>(
-    `${BASE}/config/reload`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ scope }),
-    },
-  );
+  const data = await request<ApiConfigReloadResponse>(`${BASE}/config/reload`, {
+    method: 'POST',
+    body: JSON.stringify({ scope }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -570,10 +509,9 @@ export async function fetchRemoteStatus(): Promise<ApiRemoteStatusResponse> {
 }
 
 export async function restartRemoteTunnel(): Promise<ApiRemoteRestartResponse> {
-  const data = await request<ApiRemoteRestartResponse>(
-    `${BASE}/remote/restart`,
-    { method: 'POST' },
-  );
+  const data = await request<ApiRemoteRestartResponse>(`${BASE}/remote/restart`, {
+    method: 'POST',
+  });
   if (!data.ok && data.error) throw new Error(data.error);
   return data;
 }
@@ -581,32 +519,22 @@ export async function restartRemoteTunnel(): Promise<ApiRemoteRestartResponse> {
 // ── Import: cbc ──
 
 export async function fetchCbcProjects(): Promise<CbcProject[]> {
-  const data = await request<{ projects: CbcProject[] }>(
-    `${BASE}/cbc/projects`,
-  );
+  const data = await request<{ projects: CbcProject[] }>(`${BASE}/cbc/projects`);
   return data.projects || [];
 }
 
-export async function fetchCbcSessions(
-  projectDir: string,
-): Promise<CbcSessionItem[]> {
+export async function fetchCbcSessions(projectDir: string): Promise<CbcSessionItem[]> {
   const data = await request<{ sessions: CbcSessionItem[] }>(
     `${BASE}/cbc/sessions?project_dir=${encodeURIComponent(projectDir)}`,
   );
   return data.sessions || [];
 }
 
-export async function importCbcSession(
-  sessionId: string,
-  projectDir: string,
-): Promise<Session> {
-  const data = await request<ApiSessionResponse>(
-    `${BASE}/cbc/sessions/import`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, project_dir: projectDir }),
-    },
-  );
+export async function importCbcSession(sessionId: string, projectDir: string): Promise<Session> {
+  const data = await request<ApiSessionResponse>(`${BASE}/cbc/sessions/import`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, project_dir: projectDir }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -614,67 +542,47 @@ export async function importCbcSession(
 // ── Import: kimi ──
 
 export async function fetchKimiWorkspaces(): Promise<KimiWorkspace[]> {
-  const data = await request<{ workspaces: KimiWorkspace[] }>(
-    `${BASE}/kimi/workspaces`,
-  );
+  const data = await request<{ workspaces: KimiWorkspace[] }>(`${BASE}/kimi/workspaces`);
   return data.workspaces || [];
 }
 
-export async function fetchKimiSessions(
-  cwd: string,
-): Promise<KimiSessionItem[]> {
+export async function fetchKimiSessions(cwd: string): Promise<KimiSessionItem[]> {
   const data = await request<{ sessions: KimiSessionItem[] }>(
     `${BASE}/kimi/sessions?cwd=${encodeURIComponent(cwd)}`,
   );
   return data.sessions || [];
 }
 
-export async function importKimiSession(
-  sessionId: string,
-  cwd: string,
-): Promise<Session> {
-  const data = await request<ApiSessionResponse>(
-    `${BASE}/kimi/sessions/import`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, cwd }),
-    },
-  );
+export async function importKimiSession(sessionId: string, cwd: string): Promise<Session> {
+  const data = await request<ApiSessionResponse>(`${BASE}/kimi/sessions/import`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, cwd }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
 // ── Import: opencode ──
 
-export async function fetchOpencodeSessions(
-  cwd: string,
-): Promise<OpencodeSessionItem[]> {
+export async function fetchOpencodeSessions(cwd: string): Promise<OpencodeSessionItem[]> {
   const data = await request<{ sessions: OpencodeSessionItem[] }>(
     `${BASE}/opencode/sessions?cwd=${encodeURIComponent(cwd)}`,
   );
   return data.sessions || [];
 }
 
-export async function importOpencodeSession(
-  sessionId: string,
-  cwd: string,
-): Promise<Session> {
-  const data = await request<ApiSessionResponse>(
-    `${BASE}/opencode/sessions/import`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, cwd }),
-    },
-  );
+export async function importOpencodeSession(sessionId: string, cwd: string): Promise<Session> {
+  const data = await request<ApiSessionResponse>(`${BASE}/opencode/sessions/import`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, cwd }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
 // ── Import: codex ──
 
-export async function fetchCodexSessions(
-  cwd: string,
-): Promise<CodexSessionItem[]> {
+export async function fetchCodexSessions(cwd: string): Promise<CodexSessionItem[]> {
   const query = cwd ? `?cwd=${encodeURIComponent(cwd)}` : '';
   const data = await request<{ sessions: CodexSessionItem[] }>(
     `${BASE}/adapters/codex/sessions${query}`,
@@ -682,17 +590,11 @@ export async function fetchCodexSessions(
   return data.sessions || [];
 }
 
-export async function importCodexSession(
-  sessionId: string,
-  cwd: string,
-): Promise<Session> {
-  const data = await request<ApiSessionResponse>(
-    `${BASE}/adapters/codex/sessions/import`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId, ...(cwd ? { cwd } : {}) }),
-    },
-  );
+export async function importCodexSession(sessionId: string, cwd: string): Promise<Session> {
+  const data = await request<ApiSessionResponse>(`${BASE}/adapters/codex/sessions/import`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, ...(cwd ? { cwd } : {}) }),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -732,21 +634,14 @@ export async function listFiles(
 ): Promise<FsEntry[]> {
   const params = new URLSearchParams({ session_id: sessionId, path });
   if (includeHidden) params.set('include_hidden', 'true');
-  const data = await request<ApiFsListResponse>(
-    `${BASE}/fs/list?${params.toString()}`,
-  );
+  const data = await request<ApiFsListResponse>(`${BASE}/fs/list?${params.toString()}`);
   if (data.error) throw new Error(data.error);
   return data.entries || [];
 }
 
-export async function readFile(
-  sessionId: string,
-  path: string,
-): Promise<string> {
+export async function readFile(sessionId: string, path: string): Promise<string> {
   const params = new URLSearchParams({ session_id: sessionId, path });
-  const data = await request<ApiFsReadResponse>(
-    `${BASE}/fs/read?${params.toString()}`,
-  );
+  const data = await request<ApiFsReadResponse>(`${BASE}/fs/read?${params.toString()}`);
   if (data.error) throw new Error(data.error);
   return data.content;
 }
@@ -777,10 +672,7 @@ export async function renameFs(
   return data;
 }
 
-export async function deleteFs(
-  sessionId: string,
-  path: string,
-): Promise<ApiFsGenericResponse> {
+export async function deleteFs(sessionId: string, path: string): Promise<ApiFsGenericResponse> {
   const data = await request<ApiFsGenericResponse>(`${BASE}/fs/delete`, {
     method: 'POST',
     body: JSON.stringify({ session_id: sessionId, path }),
@@ -815,18 +707,14 @@ export async function updateUiSettings(
  * {before, after} diff in the same shape as reloadConfig('worker').
  */
 export async function updateWorkerSettings(
-  patch: Partial<Pick<
-    ApiWorkerSettingsUpdateResponse['before'],
-    'timeout_sec' | 'task_timeout_sec' | 'idle_sec'
-  >>,
+  patch: Partial<
+    Pick<ApiWorkerSettingsUpdateResponse['before'], 'timeout_sec' | 'task_timeout_sec' | 'idle_sec'>
+  >,
 ): Promise<ApiWorkerSettingsUpdateResponse> {
-  const data = await request<ApiWorkerSettingsUpdateResponse>(
-    `${BASE}/settings/worker`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(patch),
-    },
-  );
+  const data = await request<ApiWorkerSettingsUpdateResponse>(`${BASE}/settings/worker`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
   if (data.error) throw new Error(data.error);
   return data;
 }
