@@ -326,7 +326,7 @@ export function useWebSocket() {
       }
       const store = useSessionStore.getState();
       // 消息区：仅当前 session 追加（原有逻辑，保留）
-      if (e.sessionId === store.currentSessionId) appendEvent(e.event);
+      if (e.sessionId === store.currentSessionId) appendEvent(e.sessionId, e.event);
       // 卡片预览：所有 session 就地 throttle 更新 lastMessage（无文本事件跳过）
       const text = extractStreamText(e.event);
       if (text) throttledLastMessageUpdate(e.sessionId, text);
@@ -351,6 +351,7 @@ export function useWebSocket() {
       // pending 文本与尾随 timer，防止其迟到覆盖 result（applyResultToSession
       // 紧接着以 result 写入 lastMessage）。
       if (e.sessionId) cancelStreamPreview(e.sessionId);
+      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       handleWorkerUpdate(e, 'idle');
       refreshAgentQueue(e.sessionId);
       // 就地更新该 session 卡片（lastResult + 结果文本追加 + historyTotal），
@@ -548,7 +549,12 @@ function extractStreamText(event: WorkerEvent): string | null {
   return text || null;
 }
 
-function appendEvent(event: StreamEvent['event']): void {
+// App-server can use a different item id for the delta and item/completed
+// notifications. Keep that transient alias outside Message so it does not
+// become persisted history, while retaining the first item's position.
+const nativeTurnItemAliases = new Map<string, string>();
+
+function appendEvent(sessionId: string, event: StreamEvent['event']): void {
   if (!event) return;
   const t = event.type;
   if (t === 'system' && event.subtype === 'init') return;
@@ -560,18 +566,29 @@ function appendEvent(event: StreamEvent['event']): void {
     // A Codex assistant reply is one logical message for the whole turn. The
     // native bridge can expose different item ids for its delta and completed
     // notifications (and an interleaved tool can become the last message), so
-    // use the turn id as the assistant's canonical identity. Tool items still
-    // use their item id because several tools may legitimately share a turn.
-    const nativeItemId = b.role === 'assistant' && event.turn_id !== undefined
-      ? `turn:${String(event.turn_id)}`
-      : event.item_id !== undefined
-        ? String(event.item_id)
-        : undefined;
-    const nativeIndex = nativeItemId
-      ? messages.findIndex((message) => message.nativeItemId === nativeItemId)
+    // use the native item id as the canonical identity. The turn id is only a
+    // transient alias for bridges that change ids between delta and completed.
+    const itemId = event.item_id !== undefined ? String(event.item_id) : undefined;
+    const turnId = b.role === 'assistant' && event.turn_id !== undefined
+      ? String(event.turn_id)
+      : undefined;
+    const aliasKey = turnId ? `${sessionId}:${turnId}` : undefined;
+    const aliasedItemId = aliasKey ? nativeTurnItemAliases.get(aliasKey) : undefined;
+    const nativeItemId = itemId ?? (aliasedItemId ?? (turnId ? `turn:${turnId}` : undefined));
+    if (aliasKey && itemId && !aliasedItemId) nativeTurnItemAliases.set(aliasKey, itemId);
+    const nativeIds = [
+      nativeItemId,
+      ...(!event.delta && aliasedItemId ? [aliasedItemId] : []),
+      ...(turnId && nativeItemId !== `turn:${turnId}` ? [`turn:${turnId}`] : []),
+    ].filter((id): id is string => Boolean(id));
+    const nativeIndex = nativeIds.length > 0
+      ? messages.findIndex((message) => message.nativeItemId && nativeIds.includes(message.nativeItemId))
       : -1;
     const lastIndex = messages.length - 1;
-    const targetIndex = nativeIndex >= 0 ? nativeIndex : lastIndex;
+    // A native id is an explicit target. Falling back to the last message here
+    // lets an interleaved later item be replaced by an earlier item's update.
+    // Untagged adapter events retain the legacy last-message behavior.
+    const targetIndex = nativeIndex >= 0 || nativeItemId ? nativeIndex : lastIndex;
     const target = targetIndex >= 0 ? messages[targetIndex] : undefined;
     if (event.replace && target?.role === b.role) {
       const updated = { ...target, content: b.content };
@@ -586,7 +603,7 @@ function appendEvent(event: StreamEvent['event']): void {
         const updated = {
           ...target,
           content,
-          ...(nativeItemId ? { nativeItemId } : {}),
+          ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
         };
         useSessionStore.setState({
           currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
@@ -595,7 +612,7 @@ function appendEvent(event: StreamEvent['event']): void {
         useSessionStore.getState().addMessage({
           role: b.role,
           content: b.content,
-          ...(nativeItemId ? { nativeItemId } : {}),
+          ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
         });
       }
       continue;
@@ -603,11 +620,11 @@ function appendEvent(event: StreamEvent['event']): void {
     if (event.final && target?.role === b.role && target.content !== b.content) {
       // Replace the prefix accumulated from app-server deltas with the
       // authoritative completed item.  If it is unrelated, retain both.
-      if (b.content.startsWith(target.content)) {
+      if (nativeIndex >= 0 || b.content.startsWith(target.content)) {
         const updated = {
           ...target,
           content: b.content,
-          ...(nativeItemId ? { nativeItemId } : {}),
+          ...(nativeItemId && !target.nativeItemId ? { nativeItemId } : {}),
         };
         useSessionStore.setState({
           currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
@@ -636,6 +653,13 @@ function appendEvent(event: StreamEvent['event']): void {
         ...(nativeItemId ? { nativeItemId } : {}),
       });
     }
+  }
+}
+
+function clearNativeTurnAliases(sessionId: string): void {
+  const prefix = `${sessionId}:`;
+  for (const key of nativeTurnItemAliases.keys()) {
+    if (key.startsWith(prefix)) nativeTurnItemAliases.delete(key);
   }
 }
 

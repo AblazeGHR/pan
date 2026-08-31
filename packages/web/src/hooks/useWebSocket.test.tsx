@@ -1083,7 +1083,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
 
     const messages = useSessionStore.getState().currentMessages;
     expect(messages.filter((message) => message.role === 'assistant')).toEqual([
-      { role: 'assistant', content: '## Answer\n\nbody', nativeItemId: 'turn:turn-1' },
+      { role: 'assistant', content: '## Answer\n\nbody', nativeItemId: 'delta-item' },
     ]);
     expect(messages.filter((message) => message.role === 'tool')).toHaveLength(1);
     expect(messages.at(-1)?.role).toBe('system');
@@ -1173,6 +1173,55 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       <MessageBubble message={useSessionStore.getState().currentMessages.find((m) => m.role === 'assistant')!} />,
     );
     expect(chat.container.querySelectorAll('.msg.assistant')).toHaveLength(1);
+  });
+
+  it('keeps interleaved native items in event order while each item streams', () => {
+    renderHook(() => useWebSocket());
+
+    const itemEvent = (itemId: string, text: string, delta = true) => ({
+      type: 'assistant', role: 'assistant', delta, item_id: itemId,
+      turn_id: 'turn-order', message: { content: [{ type: 'text', text }] },
+    });
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: itemEvent('first', 'first'),
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: itemEvent('second', 'second'),
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: itemEvent('first', '-more'),
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'first-more', 'second',
+    ]);
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', final: true, item_id: 'first',
+          message: { content: [{ type: 'text', text: 'first-final' }] },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', final: true, item_id: 'second',
+          message: { content: [{ type: 'text', text: 'second-final' }] },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'first-final', 'second-final',
+    ]);
   });
 
   it('does not append background-session stream or result messages to the selected chat', () => {
