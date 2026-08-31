@@ -1,39 +1,39 @@
 Pan 用户手册截图清单
 
 说明
-- 不要现在把图片放入 assets；按以下清单在可用的 Dashboard 实例中截图后，再统一放入仓库 assets。
+- 图片已按 1.png 至 5.png 放入 assets，并由中文手册引用。
 - 文件名按 pan-user-NN-*.png 排序。桌面截图建议宽 1440px 左右；弹窗/局部裁剪至少 900px 宽，避免裁掉按钮和字段名。
-- 中文手册使用同名占位符，不引用不存在的图片路径。
+- 如后续替换截图，请保持编号与本清单的章节对应关系。
 
-1. pan-user-01-create-session.png
+1. assets/1.png
    截图步骤：打开 Dashboard，点击 New/新建配置，等待新建会话弹窗完整显示。
    截图内容：Name、Adapter、Session Template、Workdir、Create，以及可见的模型/权限设置。
    用途：说明创建第一个 Session 要填写哪些字段，以及 New 与配置弹窗的关系。
    对应章节：USER_MANUAL.md 第 3 节“第一次操作”。
    建议裁剪：包含弹窗全部边界和左侧 Sidebar；隐藏真实路径、token 和私人会话名。
 
-2. pan-user-02-create-sma.png
+2. assets/2.png
    截图步骤：在新建会话弹窗的 Session Template 下拉框选择 SMA(NoAdapter)。
    截图内容：SMA(NoAdapter) 选项、MCP 标记、Adapter 选择状态和 Create 按钮。
    用途：说明模板是创建 Meta-Agent 的快捷入口，且 NoAdapter 允许选择 CLI。
    对应章节：USER_MANUAL.md 第 4.1 节“通过 Session Template 创建”。
    建议裁剪：聚焦模板下拉框和关联字段，宽度约 900-1200px。
 
-3. pan-user-03-manage-sessions.png
+3. assets/3.png
    截图步骤：选中一个 Session，打开右键菜单的 Manage，等待 Manage Sessions 面板加载完成。
    截图内容：Managed by、Manages 列表中的 Manage/Managed 与 Subscribe/Subscribed、Pan Access、MCP Server 四个区域。
    用途：建立管理关系、报告订阅和 MCP 权限的视觉对应关系。
    对应章节：USER_MANUAL.md 第 5.1 节“Manage 面板”。
    建议裁剪：保留完整面板；会话名和 ID 使用演示数据，隐藏真实项目路径。
 
-4. pan-user-04-subscribe-report.png
+4. assets/4.png
    截图步骤：在 Manage → Manages 中选择一个子 Session，先点击 Manage，再观察 Subscribe 按钮。
    截图内容：同一行同时显示 Managed 和 Subscribed，能看出两个按钮可独立切换。
    用途：解释管理关系和完成报告订阅不是同一开关。
    对应章节：USER_MANUAL.md 第 7 节“Subscribe、报告和 queue_pending”。
    建议裁剪：只裁剪 Manages 列表区域，保留按钮文字，不显示敏感结果文本。
 
-5. pan-user-05-pan-access.png
+5. assets/5.png
    截图步骤：打开 Manage → Pan Access；准备 SMA 默认权限或普通 Session 默认权限。
    截图内容：Restrict to managed、Can claim unmanaged、Auto-claim created 三个开关及 snake_case 字段提示。
    用途：帮助用户把三个权限位与实际边界对应起来。
