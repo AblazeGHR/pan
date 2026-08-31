@@ -787,6 +787,53 @@ async def health():
     return {"status": "ok", "version": __version__}
 
 
+def _pick_directory_windows(initial_path: str | None = None) -> str | None:
+    """Open the native folder picker without adding a platform dependency."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except (ImportError, OSError):
+        raise RuntimeError("tkinter is not available")
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        options: dict[str, str] = {"title": "Choose Working Directory"}
+        if initial_path and Path(initial_path).is_dir():
+            options["initialdir"] = initial_path
+        return filedialog.askdirectory(**options) or None
+    finally:
+        root.destroy()
+
+
+@app.get("/api/pick-directory")
+async def pick_directory(initialPath: str | None = None):
+    """Pick a local directory for the desktop Pan service.
+
+    A browser cannot expose an absolute path from its directory handle. Keep
+    this endpoint Windows-only until a native picker is available for the
+    other supported launch environments.
+    """
+    if sys.platform != "win32":
+        return {
+            "supported": False,
+            "path": None,
+            "reason": "Folder selection is currently supported on Windows only.",
+        }
+    try:
+        path = await asyncio.to_thread(_pick_directory_windows, initialPath)
+    except Exception:
+        # Keep picker failures non-fatal: users can still type a path manually.
+        _log("[Pan] Folder picker unavailable; falling back to manual path entry")
+        return {
+            "supported": False,
+            "path": None,
+            "reason": "The folder picker is unavailable. Enter the path manually.",
+        }
+    return {"supported": True, "path": path}
+
+
 @app.get("/favicon.ico")
 async def favicon():
     svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#58a6ff"/><text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-family="monospace" font-weight="bold">P</text></svg>'

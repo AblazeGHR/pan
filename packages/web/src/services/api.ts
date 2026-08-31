@@ -46,6 +46,12 @@ import type {
 
 const BASE = '/api';
 
+export interface PickDirectoryResponse {
+  supported: boolean;
+  path: string | null;
+  reason?: string;
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -55,6 +61,13 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
   return res.json() as Promise<T>;
+}
+
+export async function pickDirectory(initialPath?: string): Promise<PickDirectoryResponse> {
+  const query = initialPath
+    ? `?initialPath=${encodeURIComponent(initialPath)}`
+    : '';
+  return request<PickDirectoryResponse>(`${BASE}/pick-directory${query}`);
 }
 
 // ── Sessions ──
