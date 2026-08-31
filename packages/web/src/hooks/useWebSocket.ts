@@ -511,7 +511,11 @@ function extractBlocks(
   if (blocks.length === 0 && event.type === 'content.part') {
     const part = (event.part ?? {}) as Record<string, unknown>;
     const ptype = String(part.type ?? '');
-    const text = String(part[ptype] ?? '').trim();
+    // Delta whitespace is part of the assistant content. Trimming here
+    // corrupts Markdown across chunk boundaries (for example, the blank line
+    // between a heading and the next paragraph), even though the same delta
+    // is already being accumulated into the single canonical message.
+    const text = String(part[ptype] ?? '');
     if (text) {
       blocks.push({
         role: ptype === 'think' ? 'thinking' : 'assistant',

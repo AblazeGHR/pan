@@ -117,7 +117,12 @@ export const SessionItem = memo(function SessionItem({
           )}
         </div>
 
-        {preview && (
+        {/* The selected session renders its assistant reply in the chat pane
+            through MarkdownRenderer. Showing the sidebar's plain-text
+            lastMessage here as well creates a second, raw-looking copy while
+            that reply is streaming. Background sessions keep this preview so
+            their progress remains visible in the session list. */}
+        {!isActive && preview && (
           <div className="text-xs text-text-tertiary truncate mt-0.5 leading-tight">
             {preview}
           </div>

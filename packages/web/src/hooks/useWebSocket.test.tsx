@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { render, renderHook, act } from '@testing-library/react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -8,6 +8,8 @@ import { useWorkerStore } from '@/stores/workerStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import type { Session, Message } from '@/types';
+import { MessageBubble } from '@/components/chat/MessageBubble';
+import { SessionItem } from '@/components/session/SessionItem';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
 const wsMock = vi.hoisted(() => {
@@ -1104,6 +1106,70 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     });
     expect(useSessionStore.getState().currentMessages.filter((message) => message.role === 'assistant'))
       .toEqual([msg('assistant', '## Answer\n\nbody')]);
+  });
+
+  it('renders each selected-session delta through Markdown once without the sidebar raw duplicate', () => {
+    renderHook(() => useWebSocket());
+    const chat = render(
+      <MessageBubble message={{ role: 'assistant', content: '' }} />,
+    );
+    const sidebar = render(
+      <SessionItem
+        session={useSessionStore.getState().sessions.find((s) => s.id === 'A')!}
+        isActive
+      />,
+    );
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-render', stream_text: '## Answer\n\n',
+          part: { type: 'text', text: '## Answer\n\n' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-render', stream_text: '## Answer\n\n**body**',
+          part: { type: 'text', text: '**body**' },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
+      .toHaveLength(1);
+    expect(useSessionStore.getState().currentMessages.at(-1)?.content)
+      .toBe('## Answer\n\n**body**');
+    chat.rerender(
+      <MessageBubble message={useSessionStore.getState().currentMessages.at(-1)!} />,
+    );
+    expect(chat.container.querySelectorAll('.msg.assistant')).toHaveLength(1);
+    expect(sidebar.container.querySelector('.text-xs.text-text-tertiary')).toBeNull();
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', final: true, turn_id: 'turn-render',
+          item_id: 'completed-item',
+          message: { content: [{ type: 'text', text: '## Answer\n\n**body**' }] },
+        },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1',
+        status: 'done', result: '## Answer\n\n**body**',
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
+      .toHaveLength(1);
+    chat.rerender(
+      <MessageBubble message={useSessionStore.getState().currentMessages.find((m) => m.role === 'assistant')!} />,
+    );
+    expect(chat.container.querySelectorAll('.msg.assistant')).toHaveLength(1);
   });
 
   it('does not append background-session stream or result messages to the selected chat', () => {
