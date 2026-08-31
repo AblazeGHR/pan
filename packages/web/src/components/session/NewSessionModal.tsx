@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useAdapterStore } from '@/stores/adapterStore';
+import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
 import { fetchSessionTemplates, fetchDirectories, type DirectoryListResponse } from '@/services/api';
@@ -108,7 +108,7 @@ function DirectoryBrowser({ path, onPathChange, onSelect, onCancel }: DirectoryB
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [name, setName] = useState('');
   const [workdir, setWorkdir] = useState('');
-  const [adapter, setAdapter] = useState('cbc');
+  const [adapter, setAdapter] = useState('');
   // Output mode follows the selected adapter's config.
   const [outputMode, setOutputMode] = useState('');
   const [sessionTemplate, setSessionTemplate] = useState('');
@@ -118,8 +118,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [browserPath, setBrowserPath] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
 
-  const adapters = useAdapterStore((s) => s.adapters);
-  const loadAdapterList = useAdapterStore((s) => s.loadAdapterList);
+  const cliStatus = useAdapterStore((s) => s.cliStatus);
+  const cliStatusLoading = useAdapterStore((s) => s.cliStatusLoading);
+  const cliStatusError = useAdapterStore((s) => s.cliStatusError);
+  const loadCliStatus = useAdapterStore((s) => s.loadCliStatus);
   const loadConfig = useAdapterStore((s) => s.loadConfig);
   // Config for the *currently selected* adapter (keyed by local state), so the
   // model/permission/effort selects render based on the chosen adapter.
@@ -132,26 +134,66 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // selected template carries an adapter, the adapter selector is locked to it.
   const selectedTemplate = templates.find((t) => t.name === sessionTemplate);
   const lockedAdapter = selectedTemplate?.adapter || null;
+  const availableAdapters = useMemo(
+    () => getAvailableCliAdapters(cliStatus),
+    [cliStatus],
+  );
+  const availableAdapterNames = useMemo(
+    () => new Set(availableAdapters.map((a) => a.name)),
+    [availableAdapters],
+  );
+  const hasAvailableAdapter = availableAdapters.length > 0;
+  const selectedAdapterAvailable = availableAdapterNames.has(adapter);
+  const lockedAdapterUnavailable =
+    !!lockedAdapter && !!cliStatus && !availableAdapterNames.has(lockedAdapter);
 
-  // Load adapter list + default config + session templates when modal opens.
+  // Load CLI availability and session templates when the modal opens.
   useEffect(() => {
     if (open) {
-      loadAdapterList();
+      loadCliStatus();
       setName('');
       setWorkdir('');
-      setAdapter('cbc');
+      setAdapter('');
       setOutputMode('');
       setSessionTemplate('');
       setSubmitting(false);
       setDirectoryBrowserOpen(false);
-      loadConfig('cbc');
       fetchSessionTemplates()
         .then(setTemplates)
         .catch(() => setTemplates([]));
       // Focus name input after render
       requestAnimationFrame(() => nameRef.current?.focus());
     }
-  }, [open, loadAdapterList, loadConfig]);
+  }, [open, loadCliStatus]);
+
+  // Choose cbc when it is available, otherwise the first available adapter.
+  // If a template pins an unavailable adapter, leave the selection empty so
+  // submission cannot silently send an invalid adapter to the backend.
+  useEffect(() => {
+    if (!open || cliStatusLoading || !cliStatus) return;
+    setAdapter((current) => {
+      if (lockedAdapter) {
+        return availableAdapterNames.has(lockedAdapter) ? lockedAdapter : '';
+      }
+      if (availableAdapterNames.has(current)) return current;
+      return availableAdapters.find((a) => a.name === 'cbc')?.name
+        ?? availableAdapters[0]?.name
+        ?? '';
+    });
+  }, [
+    open,
+    cliStatusLoading,
+    cliStatus,
+    lockedAdapter,
+    availableAdapters,
+    availableAdapterNames,
+  ]);
+
+  // Config is only fetched for an adapter that the CLI preflight marked
+  // available. This avoids showing settings for a selection that cannot run.
+  useEffect(() => {
+    if (open && selectedAdapterAvailable) void loadConfig(adapter);
+  }, [open, adapter, selectedAdapterAvailable, loadConfig]);
 
   // When the selected adapter's config loads (including right after switching),
   // seed the linked fields with that adapter's defaults so the selects follow
@@ -178,14 +220,47 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     setSessionTemplate(value);
     const tpl = templates.find((t) => t.name === value);
     if (tpl?.adapter) {
-      setAdapter(tpl.adapter);
-      showToast(`已选择带 adapter 的 template（${tpl.adapter}），adapter 已锁定`, 'info');
+      if (!cliStatus || cliStatusLoading) {
+        setAdapter('');
+      } else if (availableAdapterNames.has(tpl.adapter)) {
+        setAdapter(tpl.adapter);
+        showToast(`已选择带 adapter 的 template（${tpl.adapter}），adapter 已锁定`, 'info');
+      } else {
+        setAdapter('');
+        showToast(`模板要求的 adapter ${tpl.adapter} 当前不可用，无法创建此 session`, 'error');
+      }
+    } else if (value === '') {
+      setAdapter(
+        availableAdapters.find((a) => a.name === 'cbc')?.name
+          ?? availableAdapters[0]?.name
+          ?? '',
+      );
     }
   };
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
     if (submitting) return;
+    if (cliStatusLoading) {
+      showToast('正在检测 Agent CLI 可用性，请稍候', 'error');
+      return;
+    }
+    if (cliStatusError) {
+      showToast(`无法检测 Agent CLI 可用性：${cliStatusError}`, 'error');
+      return;
+    }
+    if (!hasAvailableAdapter) {
+      showToast('当前没有可用的 Agent CLI，无法创建 session', 'error');
+      return;
+    }
+    if (lockedAdapterUnavailable) {
+      showToast(`模板要求的 adapter ${lockedAdapter} 当前不可用，请更换模板`, 'error');
+      return;
+    }
+    if (!selectedAdapterAvailable) {
+      showToast('请选择一个当前可用的 adapter', 'error');
+      return;
+    }
     setSubmitting(true);
 
     const finalName =
@@ -220,37 +295,51 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="New Session" size="lg">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Adapter select — dynamically rendered from /api/adapters */}
+        {/* Adapter select — availability comes from /api/cli/status. */}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">
             Adapter
           </span>
           <select
-            value={adapter}
+            value={selectedAdapterAvailable ? adapter : ''}
             onChange={(e) => handleAdapterChange(e.target.value)}
-            disabled={!!lockedAdapter}
+            disabled={!!lockedAdapter || cliStatusLoading || !!cliStatusError || !hasAvailableAdapter}
             className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {adapters.length > 0 ? (
-              adapters.map((a) => (
+            {cliStatusLoading ? (
+              <option value="">检测 CLI 可用性中…</option>
+            ) : cliStatusError ? (
+              <option value="">无法加载可用 adapter</option>
+            ) : hasAvailableAdapter ? (
+              availableAdapters.map((a) => (
                 <option key={a.name} value={a.name}>
                   {a.name}
                 </option>
               ))
             ) : (
-              <option value="cbc">cbc</option>
+              <option value="">没有可用 adapter</option>
             )}
-            {lockedAdapter &&
-              !adapters.some((a) => a.name === lockedAdapter) && (
-                <option key={lockedAdapter} value={lockedAdapter}>
-                  {lockedAdapter}
-                </option>
-              )}
           </select>
         </label>
 
+        {cliStatusError && (
+          <p className="-mt-2 text-[11px] leading-snug text-danger">
+            无法检测当前可用 adapter：{cliStatusError}。请检查 Pan 后端连接后重试。
+          </p>
+        )}
+        {!cliStatusLoading && !cliStatusError && !hasAvailableAdapter && (
+          <p className="-mt-2 text-[11px] leading-snug text-danger">
+            当前没有可用的 Agent CLI。请安装对应 CLI 后重试；不会自动使用不可用的 cbc。
+          </p>
+        )}
+        {lockedAdapterUnavailable && (
+          <p className="-mt-2 text-[11px] leading-snug text-danger">
+            当前模板要求 adapter <code>{lockedAdapter}</code>，但它不可用。请更换模板后再创建。
+          </p>
+        )}
+
         {/* Output Mode — only adapters with >1 execution mode offer the switch */}
-        {showOutputMode && (
+        {showOutputMode && selectedAdapterAvailable && (
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">
               Output Mode
@@ -377,7 +466,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           <Button
             type="submit"
             variant="primary"
-            disabled={submitting}
+            disabled={submitting || cliStatusLoading || !!cliStatusError || !hasAvailableAdapter || !selectedAdapterAvailable || lockedAdapterUnavailable}
           >
             {submitting ? 'Creating...' : 'Create'}
           </Button>

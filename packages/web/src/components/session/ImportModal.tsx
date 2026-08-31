@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type {
@@ -32,6 +33,13 @@ interface ImportModalProps {
 
 type Adapter = 'cbc' | 'kimi' | 'opencode' | 'codex';
 
+const IMPORT_ADAPTERS: Array<{ name: Adapter; label: string }> = [
+  { name: 'cbc', label: 'cbc' },
+  { name: 'kimi', label: 'kimi' },
+  { name: 'opencode', label: 'opencode' },
+  { name: 'codex', label: 'codex' },
+];
+
 function formatTime(ts: string): string {
   try {
     const d = new Date(ts);
@@ -50,8 +58,12 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const selectSession = useSessionStore((s) => s.selectSession);
   const showToast = useUIStore((s) => s.showToast);
+  const cliStatus = useAdapterStore((s) => s.cliStatus);
+  const cliStatusLoading = useAdapterStore((s) => s.cliStatusLoading);
+  const cliStatusError = useAdapterStore((s) => s.cliStatusError);
+  const loadCliStatus = useAdapterStore((s) => s.loadCliStatus);
 
-  const [adapter, setAdapter] = useState<Adapter>('cbc');
+  const [adapter, setAdapter] = useState<Adapter | null>(null);
 
   // ── CBC state ──
   const [projects, setProjects] = useState<CbcProject[]>([]);
@@ -84,7 +96,8 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   // ── Reset on open/close ──
   useEffect(() => {
     if (!open) return;
-    setAdapter(initialAdapter);
+    loadCliStatus();
+    setAdapter(null);
     setProjects([]);
     setProjectsLoading(false);
     setSelectedDrive(null);
@@ -103,7 +116,61 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     setCodexSessions([]);
     setCodexLoading(false);
     setImportingId(null);
-  }, [open]);
+  }, [open, loadCliStatus]);
+
+  const availableCliAdapters = useMemo(
+    () => getAvailableCliAdapters(cliStatus),
+    [cliStatus],
+  );
+  const availableAdapterNames = useMemo(
+    () => new Set(availableCliAdapters.map((item) => item.name)),
+    [availableCliAdapters],
+  );
+  const availableImportAdapters = useMemo(
+    () => IMPORT_ADAPTERS.filter((item) => availableAdapterNames.has(item.name)),
+    [availableAdapterNames],
+  );
+  const initialAdapterUnavailable =
+    !cliStatusLoading &&
+    !!cliStatus &&
+    !availableAdapterNames.has(initialAdapter);
+
+  // Keep an explicitly requested tab when it is available; otherwise choose
+  // the first supported available adapter. A null selection is intentional
+  // for loading, error, and empty states so no import request can be issued.
+  useEffect(() => {
+    if (!open || cliStatusLoading || !cliStatus) return;
+    setAdapter((current) => {
+      if (current && availableAdapterNames.has(current)) return current;
+      if (availableAdapterNames.has(initialAdapter)) return initialAdapter;
+      return availableImportAdapters[0]?.name ?? null;
+    });
+  }, [
+    open,
+    cliStatusLoading,
+    cliStatus,
+    initialAdapter,
+    availableAdapterNames,
+    availableImportAdapters,
+  ]);
+
+  const handleAdapterChange = (next: Adapter) => {
+    setAdapter(next);
+    if (next === 'cbc') {
+      setSelectedDrive(null);
+      setSelectedProject(null);
+      setCbcSessions([]);
+    } else if (next === 'kimi') {
+      setSelectedWorkspace(null);
+      setKimiSessions([]);
+    } else if (next === 'opencode') {
+      setOpencodeSessions([]);
+      setOpencodeLoading(false);
+    } else if (next === 'codex') {
+      setCodexSessions([]);
+      setCodexLoading(false);
+    }
+  };
 
   // ── Load CBC projects ──
   useEffect(() => {
@@ -306,75 +373,57 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
       .reduce((sum, p) => sum + p.session_count, 0);
 
   // ── Render ──
+  const noImportAdapterMessage = cliStatus?.hasAvailable
+    ? '当前没有可导入的可用 adapter。请安装对应 CLI 后重试。'
+    : '当前没有可用的 Agent CLI。请安装对应 CLI 后重试。';
+
   return (
     <Modal open={open} onClose={onClose} title="Import Session" size="lg">
       <div className="flex flex-col gap-4">
-        {/* Adapter selector */}
-        <div className="flex gap-1 rounded border border-border-muted bg-bg-tertiary p-0.5">
-          <button
-            type="button"
-            onClick={() => {
-              setAdapter('cbc');
-              setSelectedDrive(null);
-              setSelectedProject(null);
-              setCbcSessions([]);
-            }}
-            className={`flex-1 rounded px-3 py-1 text-xs font-medium transition-colors ${
-              adapter === 'cbc'
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            cbc
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAdapter('kimi');
-              setSelectedWorkspace(null);
-              setKimiSessions([]);
-            }}
-            className={`flex-1 rounded px-3 py-1 text-xs font-medium transition-colors ${
-              adapter === 'kimi'
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            kimi
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAdapter('opencode');
-              setOpencodeSessions([]);
-              setOpencodeLoading(false);
-            }}
-            className={`flex-1 rounded px-3 py-1 text-xs font-medium transition-colors ${
-              adapter === 'opencode'
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            opencode
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAdapter('codex');
-              setCodexSessions([]);
-              setCodexLoading(false);
-            }}
-            className={`flex-1 rounded px-3 py-1 text-xs font-medium transition-colors ${
-              adapter === 'codex'
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            codex
-          </button>
-        </div>
+        {/* Adapter tabs — only adapters marked available by /api/cli/status. */}
+        {cliStatusLoading && (
+          <div className="rounded border border-border-muted bg-bg-tertiary px-3 py-2 text-sm text-text-secondary">
+            正在检测 Agent CLI 可用性…
+          </div>
+        )}
+        {cliStatusError && (
+          <div role="alert" className="rounded border border-danger/50 bg-danger/10 px-3 py-2 text-sm text-danger">
+            无法检测 Agent CLI 可用性：{cliStatusError}。请检查 Pan 后端连接后重试。
+          </div>
+        )}
+        {!cliStatusLoading && !cliStatusError && availableImportAdapters.length === 0 && (
+          <div role="alert" className="rounded border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-text-secondary">
+            {noImportAdapterMessage}
+          </div>
+        )}
+        {!cliStatusLoading && !cliStatusError && availableImportAdapters.length > 0 && (
+          <div className="flex gap-1 rounded border border-border-muted bg-bg-tertiary p-0.5">
+            {availableImportAdapters.map((item) => (
+              <button
+                key={item.name}
+                type="button"
+                onClick={() => handleAdapterChange(item.name)}
+                className={`flex-1 rounded px-3 py-1 text-xs font-medium transition-colors ${
+                  adapter === item.name
+                    ? 'bg-accent text-white'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <hr className="border-border-muted" />
+        {initialAdapterUnavailable && availableImportAdapters.length > 0 && (
+          <p className="-mt-2 text-xs text-text-secondary">
+            请求的 adapter <code>{initialAdapter}</code> 当前不可用，已切换到可用的 <code>{adapter}</code>。
+          </p>
+        )}
+
+        {adapter && availableImportAdapters.some((item) => item.name === adapter) && (
+          <hr className="border-border-muted" />
+        )}
 
         {/* cbc import */}
         {adapter === 'cbc' && (
