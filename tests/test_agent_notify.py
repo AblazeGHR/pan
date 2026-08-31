@@ -184,6 +184,42 @@ def test_notice_spawn_failure_swallowed(monkeypatch):
     _cleanup()
 
 
+def test_notice_persists_state_and_coexists_with_task(monkeypatch):
+    """通知保持报告状态，恢复时只产生 report_signal，不吞掉 task。"""
+    _cleanup()
+    s = _setup_session("ses_mix", queue_pending=[{
+        "type": "task", "id": "task-1", "text": "ordinary task",
+        "source": "agent", "deliveryState": "queued",
+    }])
+    monkeypatch.setattr(_sess, "save_async", AsyncMock())
+    w = _setup_worker("ses_mix")
+    r = asyncio.run(worker.enqueue_notice("ses_mix", "background done", source="ses_src"))
+    assert r["ok"] is True
+    assert s.queue_pending[-1]["deliveryState"] == "queued"
+    assert worker._recover_pending_signals(w, s) is False
+    signals = [w.pending_signal.get_nowait() for _ in range(w.pending_signal.qsize())]
+    assert {signal["type"] for signal in signals} == {"task_signal", "report_signal"}
+    assert all(signal.get("id") != s.queue_pending[-1].get("id")
+               for signal in signals if signal["type"] == "task_signal")
+    _cleanup()
+
+
+def test_notice_save_failure_keeps_queued_item(monkeypatch):
+    """落盘失败时通知不能被报告/恢复路径误认为已消费。"""
+    _cleanup()
+    s = _setup_session("ses_save_fail")
+
+    async def fail_save(_session):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(_sess, "save_async", fail_save)
+    with pytest.raises(OSError):
+        asyncio.run(worker.enqueue_notice("ses_save_fail", "must retry"))
+    assert len(s.queue_pending) == 1
+    assert s.queue_pending[0]["deliveryState"] == "queued"
+    _cleanup()
+
+
 # ── 渲染 / normalize 兼容 ──
 
 

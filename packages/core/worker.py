@@ -1952,6 +1952,10 @@ async def enqueue_notice(target_session_id: str, text: str,
         "sessionId": source or None,
         "taskId": None,
         "workerId": None,
+        # Keep the explicit durable state used by report/QQ delivery.  A
+        # missing state is treated as queued for backward compatibility, but
+        # new notices must survive restart with the same queue contract.
+        "deliveryState": _DELIVERY_QUEUED,
     }
     target.queue_pending.append(item)
     await _sess.save_async(target)

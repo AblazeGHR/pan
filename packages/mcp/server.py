@@ -1256,16 +1256,19 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
 
 @mcp.tool()
 def agent_notify(target_session_id: str, text: str = "") -> dict:
-    """Deliver a notification/reminder to an agent (self or managed sessions only).
+    """Persistently deliver a notification for work detached from this worker.
 
-    向自己或自己 managed 的 session 投递一条**提醒（通知）**。典型场景：
-    agent 启动了脱离自身生命周期的后台任务（nohup / 长时任务），需要事后
-    把结果/状态提醒投递给相关 agent——即使目标 worker 已死亡或进程退出，
-    提醒也持久化落盘（queue_pending），且无活 worker 时**立即**自动 spawn
-    worker 分发（不等 watchdog 周期），不丢失。
+    核心用途是异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或
+    长时间任务：例如 nohup、长时测试、编译或外部脚本。后台命令完成后调用
+    agent_notify 持久化回报；不要求 SMA 轮询或阻塞等待。通知写入目标 Agent
+    的 queue_pending，原 worker 退出也不会丢失；没有活 worker 时会自动唤醒
+    / spawn 目标 worker。
 
     与 agent_send 的区别：agent_send 发的是待处理任务消息（排队等空闲处理）；
     agent_notify 发的是提醒通知（目标以「通知」形态消费，不排入任务序列）。
+    它不是普通任务派发的替代品：普通任务继续使用 agent_assign 或
+    agent_send。后台命令本身仍必须遵守权限、审批、安全和结果验证规则，不能
+    通过 agent_notify 绕过审批或 managed 隔离。
 
     仅限投递给自己或自己 managed 的 session，越权目标返回 permission_denied。
 
