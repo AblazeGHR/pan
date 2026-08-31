@@ -28,7 +28,7 @@ SESSION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sessions
 # 不再每次全量重写主文件。主文件只含元数据 + 尾部 history（供人工查看/旧读者
 # 兼容），jsonl 存在时加载一律以 jsonl 为 history 权威来源。
 _MAIN_HISTORY_TAIL = 20          # 主文件内保留的尾部 history 条数（常量开销）
-_SAVE_LOCK = threading.Lock()    # 跨线程写锁：save_async(to_thread) 并发时防双写
+_SAVE_LOCK = threading.RLock()   # 写锁：save_async(to_thread) 并发时防双写；也保护交接命名分配
 _newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
 
 
@@ -445,6 +445,23 @@ def create(name: str, model: str | None = None,
     return s
 
 
+def _available_name(name: str, *, exclude_ids: set[str] | None = None) -> str:
+    """Return the first unused session name, starting with ``name``.
+
+    The caller must hold ``_SAVE_LOCK`` when the result is used to create a
+    session. ``exclude_ids`` is used by handoff so the session being replaced
+    does not make its own name appear occupied.
+    """
+    excluded = exclude_ids or set()
+    used = {s.name for s in list_all() if s.id not in excluded}
+    if name not in used:
+        return name
+    suffix = 1
+    while f"{name}-{suffix}" in used:
+        suffix += 1
+    return f"{name}-{suffix}"
+
+
 def _meta_signature(s: Session) -> str:
     """元数据（不含 history / updated_at）的稳定签名。
 
@@ -767,7 +784,6 @@ def handoff_session(
         return "handoff_prompt is required — session A 的 agent 必须编写交接简报"
 
     orig_name = a.name
-    archive_name = f"(archive) {orig_name}"
 
     # ── 1. 创建 B：可选 1:1 复制 A 的设置（不含 system_prompt）──
     if copy_settings:
@@ -800,19 +816,23 @@ def handoff_session(
             f"{a.system_prompt.strip()}"
         )
 
-    b = create(
-        name=orig_name,
-        adapter=new_adapter,
-        model=new_model,
-        permission_mode=new_permission_mode,
-        adapter_config=new_adapter_config,
-        character_id=new_character_id,
-        session_template=new_template,
-        system_prompt=b_prompt,
-        game_id=new_game_id,
-        pan_access=new_pan_access,
-        workdir=a.workdir,
-    )
+    # Allocate and persist B while holding the same lock used by save().
+    # This closes the check/create window between concurrent handoffs. A is
+    # excluded because it is about to be archived and must not force a suffix.
+    with _SAVE_LOCK:
+        b = create(
+            name=_available_name(orig_name, exclude_ids={a.id}),
+            adapter=new_adapter,
+            model=new_model,
+            permission_mode=new_permission_mode,
+            adapter_config=new_adapter_config,
+            character_id=new_character_id,
+            session_template=new_template,
+            system_prompt=b_prompt,
+            game_id=new_game_id,
+            pan_access=new_pan_access,
+            workdir=a.workdir,
+        )
 
     # ── 2. 关系网接替 ──
     # 2a. A 的子会话 → 改由 B 管理
@@ -858,8 +878,13 @@ def handoff_session(
     a.managed_by = b.id
     a.report_subscriptions = set()
     a.qq_subscriptions = set()
-    a.name = archive_name
-    save(a)
+    # Re-check the archive name after relationship work. Another handoff may
+    # have archived a session while this one was transferring relationships.
+    # Keep allocation and save atomic under the same lock as B creation.
+    with _SAVE_LOCK:
+        a.name = _available_name(
+            f"(archive) {orig_name}", exclude_ids={a.id, b.id})
+        save(a)
     save(b)
     return a, b
 

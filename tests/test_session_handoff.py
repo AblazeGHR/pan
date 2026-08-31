@@ -14,6 +14,7 @@
 import asyncio
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -204,6 +205,86 @@ def test_handoff_persists_to_disk():
     assert b_r is not None and b_r.name == "persist-me"
     assert b_r.managed == ["ses_a"]
     assert b_r.qq_subscriptions == {"user:9"}
+    _cleanup()
+
+
+def test_handoff_uses_suffix_when_original_name_is_still_occupied():
+    """A stale same-named archive/session must not make B duplicate its name."""
+    _cleanup()
+    _fresh_session_dir()
+    _make("ses_old_archive", "dev")
+    _make("ses_a", "dev", adapter="cbc")
+
+    archived, b = _sess.handoff_session("ses_a", "交接", copy_settings=True)
+
+    assert b.name == "dev-1"
+    assert archived.name == "(archive) dev"
+    assert b.managed == ["ses_a"]
+    assert b.report_subscriptions == {"ses_a"}
+    _cleanup()
+
+
+def test_handoff_skips_all_occupied_name_suffixes():
+    _cleanup()
+    _fresh_session_dir()
+    _make("ses_old", "dev")
+    _make("ses_old_1", "dev-1")
+    _make("ses_old_2", "dev-2")
+    _make("ses_a", "dev")
+
+    _, b = _sess.handoff_session("ses_a", "交接", copy_settings=True)
+
+    assert b.name == "dev-3"
+    _cleanup()
+
+
+def test_handoff_suffixes_archive_name_and_persists_relationships():
+    """An existing archive name is suffixed without changing B's name."""
+    _cleanup()
+    session_dir = _fresh_session_dir()
+    _make("ses_old_archive", "(archive) dev")
+    a = _make("ses_a", "dev")
+    child = _make("ses_child", "child")
+    a.managed = [child.id]
+    a.report_subscriptions = {child.id}
+    child.managed_by = a.id
+
+    archived, b = _sess.handoff_session("ses_a", "交接", copy_settings=True)
+
+    assert archived.name == "(archive) dev-1"
+    assert b.name == "dev"
+    assert b.managed == [child.id, a.id]
+    assert b.report_subscriptions == {child.id, a.id}
+    assert _sess.get(child.id).managed_by == b.id
+    assert (session_dir / f"{archived.id}.json").exists()
+    assert (session_dir / f"{b.id}.json").exists()
+
+    _sess._cache.clear()
+    _sess._all_loaded = False
+    archived_r = _sess.get(archived.id)
+    b_r = _sess.get(b.id)
+    assert archived_r.name == "(archive) dev-1"
+    assert b_r.name == "dev"
+    assert b_r.managed == [child.id, a.id]
+    _cleanup()
+
+
+def test_concurrent_handoffs_allocate_distinct_archive_names():
+    _cleanup()
+    _fresh_session_dir()
+    _make("ses_a1", "dev")
+    _make("ses_a2", "dev")
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(
+            lambda sid: _sess.handoff_session(sid, "交接", copy_settings=True),
+            ("ses_a1", "ses_a2")))
+
+    archived_names = {archived.name for archived, _ in results}
+    replacement_names = {replacement.name for _, replacement in results}
+    assert archived_names == {"(archive) dev", "(archive) dev-1"}
+    assert replacement_names == {"dev-1", "dev-2"}
+    assert len(archived_names | replacement_names) == 4
     _cleanup()
 
 
