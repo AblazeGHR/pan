@@ -12,7 +12,6 @@ import {
   ClipboardList,
   Loader2,
   Bot,
-  RotateCcw,
 } from 'lucide-react';
 
 // 稳定的空数组引用（避免 selector 每次返回新数组导致无限重渲染）
@@ -57,7 +56,6 @@ export function SendQueuePanel() {
     currentSessionId ? s.agentQueues[currentSessionId] : undefined,
   );
   const removeAgentItem = useQueueStore((s) => s.removeAgentItem);
-  const retryAgentItem = useQueueStore((s) => s.retryAgentItem);
   const moveAgentItem = useQueueStore((s) => s.moveAgentItem);
 
   const queueItems = queue ?? EMPTY_QUEUE;
@@ -254,7 +252,6 @@ export function SendQueuePanel() {
                 <div className="p-1">
                   {agentItems.map((item, index) => {
                     const dispatchState = item.meta?.dispatchState ?? 'queued';
-                    const uncertain = dispatchState === 'uncertain';
                     const inFlight = dispatchState === 'in_flight';
                     return (
                       <div
@@ -264,16 +261,12 @@ export function SendQueuePanel() {
                         <span className={AGENT_BADGE}>
                           {queueItemOrigin(item)} {item.kind}
                         </span>
-                        {(uncertain || inFlight) && (
+                        {inFlight && (
                           <span
-                            className={`shrink-0 text-[10px] ${uncertain ? 'text-warning' : 'text-accent'}`}
-                            title={
-                              uncertain
-                                ? 'worker 在发送后退出，无法确认是否执行；默认不自动重放'
-                                : 'worker 已认领，正在等待结果'
-                            }
+                            className="shrink-0 text-[10px] text-accent"
+                            title="worker 已认领，正在等待结果"
                           >
-                            {uncertain ? '待确认' : '执行中'}
+                            执行中
                           </span>
                         )}
                         <span
@@ -283,15 +276,6 @@ export function SendQueuePanel() {
                           {item.text}
                         </span>
                         <span className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
-                          {uncertain && (
-                            <button
-                              className={ROW_BTN + ' text-warning hover:bg-warning/10'}
-                              onClick={() => retryAgentItem(item.id)}
-                              title="明确重试（此前若已执行，可能重复）"
-                            >
-                              <RotateCcw size={12} />
-                            </button>
-                          )}
                           <button
                             className={ROW_BTN}
                             disabled={index === 0}

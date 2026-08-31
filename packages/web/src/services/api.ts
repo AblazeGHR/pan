@@ -202,6 +202,8 @@ export async function retrySessionQueueItem(
   sessionId: string,
   itemId: string,
 ): Promise<ApiSessionQueueResponse & { item?: AgentQueueItem }> {
+  // Kept for API compatibility; the server intentionally rejects retries
+  // because a consumed item must never be executed a second time.
   const data = await request<ApiSessionQueueResponse & { item?: AgentQueueItem }>(
     `${BASE}/sessions/${sessionId}/queue/${itemId}/retry`,
     { method: 'POST' },

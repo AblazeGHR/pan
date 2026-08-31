@@ -3,7 +3,6 @@ import type { QueuedMessage, QueuedEdit, AgentQueueItem } from '@/types';
 import {
   fetchSessionQueue,
   deleteSessionQueueItem,
-  retrySessionQueueItem,
   reorderSessionQueue,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -150,8 +149,6 @@ interface QueueStore {
   removeSession: (sessionId: string) => void;
   /** 删除 agent 队列项（调 DELETE API + 本地移除）。 */
   removeAgentItem: (id: string) => Promise<void>;
-  /** 显式重试执行状态不确定的 agent 队列项。 */
-  retryAgentItem: (id: string) => Promise<void>;
   /** 移动 agent 队列项（本地重排 + 调 reorder API）。 */
   moveAgentItem: (id: string, delta: number) => Promise<void>;
 }
@@ -543,20 +540,6 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           agentQueues: { ...s.agentQueues, [sid]: cur.filter((x) => x.id !== id) },
         };
       });
-    },
-
-    retryAgentItem: async (id) => {
-      const sid = useSessionStore.getState().currentSessionId;
-      if (!sid) return;
-      try {
-        await retrySessionQueueItem(sid, id);
-        await get().loadAgentQueue(sid);
-        useUIStore.getState().showToast('已请求重试；此前若已执行，可能产生重复结果');
-      } catch (e) {
-        useUIStore
-          .getState()
-          .showToast('重试失败: ' + (e instanceof Error ? e.message : String(e)), 'error');
-      }
     },
 
     moveAgentItem: async (id, delta) => {

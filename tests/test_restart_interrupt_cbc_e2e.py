@@ -28,8 +28,8 @@ for line in sys.stdin:
 '''
 
 
-def test_cbc_interrupt_kills_old_process_and_recovers_task(tmp_path, monkeypatch):
-    """A running cbc task is held after interrupt until explicitly retried."""
+def test_cbc_interrupt_kills_old_process_without_replaying_task(tmp_path, monkeypatch):
+    """A running cbc task is consumed once and is not replayed after interrupt."""
     worker.workers.clear()
     worker._task_status.clear()
     worker._inflight_task_ids.clear()
@@ -75,15 +75,11 @@ def test_cbc_interrupt_kills_old_process_and_recovers_task(tmp_path, monkeypatch
 
             await asyncio.sleep(0.2)
             assert s.last_result is None
-            assert len(s.queue_pending) == 1
-            assert s.queue_pending[0]["deliveryState"] == "in_flight"
-
-            await worker.retry_pending_item(s.id, s.queue_pending[0]["id"])
-            for _ in range(200):
-                if s.last_result and s.last_result.get("result") == "restarted task completed":
-                    break
-                await asyncio.sleep(0.01)
-            assert s.last_result and s.last_result["status"] == "done", (
+            assert s.queue_pending == [], "interrupt must not requeue a consumed task"
+            assert await worker.retry_pending_item(s.id, "e2e-task") == \
+                "Queue retry disabled by at-most-once policy"
+            await asyncio.sleep(0.2)
+            assert s.last_result is None, (
                 f"status={w.status}, queue={s.queue_pending}, "
                 f"signals={w.pending_signal.qsize()}, returncode={w.process.returncode}, "
                 f"cmdline={psutil.Process(w.process.pid).cmdline() if psutil.pid_exists(w.process.pid) else 'dead'}"

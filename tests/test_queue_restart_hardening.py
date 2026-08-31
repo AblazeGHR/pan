@@ -150,6 +150,25 @@ def test_client_receipt_id_deduplicates_reconnect_retransmit(monkeypatch):
     _cleanup()
 
 
+def test_old_client_message_id_remains_idempotent_after_receipt_ledger_eviction(monkeypatch):
+    """Receipt history prevents a late browser retry after the bounded ledger rolls."""
+    _cleanup()
+    s = _session("ses-old-receipt")
+    s.history = [{
+        "role": "user", "content": "already accepted",
+        "clientMessageId": "old-browser-id",
+    }]
+    s.accepted_input_ids = []
+    monkeypatch.setattr(_sess, "save_async", _save_noop)
+
+    item, err = asyncio.run(worker._persist_task_item(
+        s, "retry", "user", None, None, "old-browser-id"))
+
+    assert item is None and err is None
+    assert s.queue_pending == []
+    _cleanup()
+
+
 def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch):
     """Dashboard input uses the durable session route even without a worker."""
     from fastapi.testclient import TestClient
@@ -172,8 +191,13 @@ def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch):
             ws.send_json(payload)
             assert ws.receive_json()["type"] == "user_inject.accepted"
 
-    assert len(s.queue_pending) == 1
-    assert s.queue_pending[0]["source"] == "user"
+    # The immediate recovery task may already let the Worker consume the item;
+    # either way the browser receipt ledger must contain exactly one id and the
+    # user content must occur at most once in history.
+    assert len(s.accepted_input_ids) == 1
+    assert s.accepted_input_ids[0] == "browser-ws-1"
+    assert [entry.get("content") for entry in s.history
+            if entry.get("role") == "user"].count("offline dashboard input") <= 1
     _cleanup()
     s = _session()
     w = _worker(s)
@@ -210,7 +234,7 @@ def test_unmarked_legacy_text_defaults_to_user_not_agent():
     _cleanup()
 
 
-def test_unmarked_direct_signal_is_safe_user_task_not_agent(monkeypatch):
+def test_non_durable_direct_signal_is_ignored(monkeypatch):
     _cleanup()
     s = _session()
     w = _worker(s)
@@ -227,7 +251,7 @@ def test_unmarked_direct_signal_is_safe_user_task_not_agent(monkeypatch):
         await worker._consumer(w)
 
     asyncio.run(scenario())
-    assert received == [("ambiguous", "user")]
+    assert received == [], "body-bearing signals have no at-most-once receipt"
     _cleanup()
     s = _session()
     # This is the historical direct-signal shape that previously fell through
@@ -296,8 +320,8 @@ def test_interrupt_reaps_old_stream_process_before_replaying_task(tmp_path, monk
     _cleanup()
 
 
-def test_running_restart_does_not_replay_uncertain_task(tmp_path, monkeypatch):
-    """Restarting a busy worker holds the uncertain task for explicit retry."""
+def test_running_restart_does_not_replay_consumed_task(tmp_path, monkeypatch):
+    """Restarting a busy worker never replays the task already consumed by it."""
     _cleanup()
     fake_cli = tmp_path / "fake_cbc_restart.py"
     fast_marker = tmp_path / "fast"
@@ -335,18 +359,11 @@ for line in sys.stdin:
                 await asyncio.sleep(0.01)
             assert w.status == "running"
             assert (await worker.assign(s.id, "second", task_id="restart-2"))["status"] == "queued"
-            assert [item["text"] for item in s.queue_pending] == ["first", "second"]
+            assert [item["text"] for item in s.queue_pending] == ["second"]
             fast_marker.write_text("1", encoding="ascii")
             assert await worker.restart_worker(w.worker_id) is None
             await asyncio.sleep(0.2)
-            assert [item["text"] for item in s.queue_pending] == ["first", "second"]
-            assert s.queue_pending[0]["deliveryState"] == "in_flight"
-            assert s.queue_pending[1]["deliveryState"] == "queued"
-
-            # The operator explicitly accepts that the first prompt may have
-            # reached the old process.  Once it completes, ack_current_task
-            # releases the next queued item without replaying the first.
-            await worker.retry_pending_item(s.id, s.queue_pending[0]["id"])
+            assert all(item["text"] != "first" for item in s.queue_pending)
             for _ in range(300):
                 if not s.queue_pending and s.last_result:
                     break
@@ -403,14 +420,11 @@ for line in sys.stdin:
             assert not psutil.pid_exists(old_pid)
             await asyncio.sleep(0.2)
             assert s.last_result is None
-            assert len(s.queue_pending) == 1
-            assert s.queue_pending[0]["deliveryState"] == "in_flight"
-            await worker.retry_pending_item(s.id, s.queue_pending[0]["id"])
-            for _ in range(200):
-                if s.last_result and s.last_result.get("result") == "replayed":
-                    break
-                await asyncio.sleep(0.01)
-            assert s.last_result and s.last_result["status"] == "done"
+            assert s.queue_pending == [], "interrupt must not requeue a consumed task"
+            assert await worker.retry_pending_item(s.id, "missing") == \
+                "Queue retry disabled by at-most-once policy"
+            await asyncio.sleep(0.2)
+            assert s.last_result is None, "replacement worker must not replay the task"
             assert s.queue_pending == []
         finally:
             active = worker.find_worker_by_session(s.id)

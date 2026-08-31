@@ -598,7 +598,7 @@ export interface AgentQueueItem {
     workerId?: string;
     qqTarget?: string;
     time?: string;
-    /** queued=未投递，in_flight=当前 worker 正在处理，uncertain=进程死亡后需人工确认重试。 */
+    /** queued=尚未被 Worker 接管；in_flight/uncertain 仅兼容旧版遗留数据，当前版本接管即出队。 */
     dispatchState?: 'queued' | 'in_flight' | 'uncertain';
   };
 }
