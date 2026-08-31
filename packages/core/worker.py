@@ -1918,6 +1918,52 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
     return delivered
 
 
+async def enqueue_notice(target_session_id: str, text: str,
+                         source: str | None = None) -> dict:
+    """向显式指定的 session 投递一条提醒（MCP agent_notify 的后端实现）。
+
+    复刻 _enqueue_report 的持久化投递三步（append 落盘队列 + save_async +
+    唤醒），但有两点不同：
+
+    1. 目标是**显式指定**的 target_session_id（调用方自己或其 managed 的
+       session，隔离由 MCP 层 _check_access 实施本层不检查）；
+    2. 唤醒用 ``_wake_worker(target, auto_spawn=True)``——无活 worker 时
+       **立即** create_worker 恢复（事件驱动，不等 watchdog tick；spawn
+       失败打 warning，消息已落盘、由全局 watchdog 兜底）。
+
+    提醒项形状与 report 一致（{status,result,sessionId,taskId,workerId}），
+    加 type="notice" 区分语义：消费端 _consume_pending_reports 按
+    ``type != "task"`` 取报告、前端 normalize 非 task/qq 按 report 分支
+    渲染，均天然兼容。渲染时抬头取 source（``@@@@by agent : <source>``），
+    source 缺省（无调用方身份）记 unknown。
+
+    返回 {"ok": True, "sessionId": ..., "pending": <队列长度>}；session
+    不存在返回 {"ok": False, "error": {...}}。
+    """
+    target = _sess.get(target_session_id)
+    if not target:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {target_session_id} not found"}}
+    item = {
+        "status": "notice",
+        "type": "notice",
+        "result": text,
+        "sessionId": source or None,
+        "taskId": None,
+        "workerId": None,
+        # Keep the explicit durable state used by report/QQ delivery.  A
+        # missing state is treated as queued for backward compatibility, but
+        # new notices must survive restart with the same queue contract.
+        "deliveryState": _DELIVERY_QUEUED,
+    }
+    target.queue_pending.append(item)
+    await _sess.save_async(target)
+    await _wake_worker(target_session_id, auto_spawn=True)
+    return {"ok": True, "sessionId": target_session_id,
+            "pending": len(target.queue_pending)}
+
+
 async def _enqueue_zombie_report(w: Worker, reason: str) -> None:
     """被管 session 的 worker 异常死亡 → 向 manager 推送 zombie 报告（B2）。
 
