@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import type {
   AdapterConfig,
   AdapterInfo,
+  ApiCliStatusResponse,
   ApiGenericResponse,
+  CliDiagnostic,
   Session,
   SyncedSettings,
   SettingsBody,
@@ -10,6 +12,7 @@ import type {
 import {
   fetchAdapterConfig,
   fetchAdapters,
+  fetchCliStatus,
   patchSession,
   workerSettings,
 } from '@/services/api';
@@ -17,6 +20,9 @@ import {
 interface AdapterStore {
   // State
   adapters: AdapterInfo[];
+  cliStatus: ApiCliStatusResponse | null;
+  cliStatusLoading: boolean;
+  cliStatusError: string | null;
   adapterConfigs: Record<string, AdapterConfig>;
   currentAdapter: string;
   configReady: boolean;
@@ -24,6 +30,7 @@ interface AdapterStore {
 
   // Actions
   loadAdapterList: () => Promise<void>;
+  loadCliStatus: () => Promise<void>;
   loadConfig: (adapter: string) => Promise<void>;
   setCurrentAdapter: (adapter: string) => void;
   getConfig: () => AdapterConfig | null;
@@ -36,8 +43,18 @@ interface AdapterStore {
   hasPendingChanges: (current: SyncedSettings) => boolean;
 }
 
+/** The CLI diagnostics endpoint is the source of truth for selectable adapters. */
+export function getAvailableCliAdapters(
+  status: ApiCliStatusResponse | null,
+): CliDiagnostic[] {
+  return status?.adapters.filter((adapter) => adapter.available) ?? [];
+}
+
 export const useAdapterStore = create<AdapterStore>((set, get) => ({
   adapters: [],
+  cliStatus: null,
+  cliStatusLoading: false,
+  cliStatusError: null,
   adapterConfigs: {},
   currentAdapter: 'cbc',
   configReady: false,
@@ -48,7 +65,23 @@ export const useAdapterStore = create<AdapterStore>((set, get) => ({
       const data = await fetchAdapters();
       set({ adapters: data.adapters || [] });
     } catch {
-      set({ adapters: [{ name: 'cbc', defaultModel: '', supportsResume: false, supportsFork: false }] });
+      // Keep the last known registered list. Never invent cbc availability
+      // when the registry request fails.
+    }
+  },
+
+  loadCliStatus: async () => {
+    set({ cliStatusLoading: true, cliStatusError: null });
+    try {
+      const cliStatus = await fetchCliStatus();
+      set({ cliStatus, cliStatusLoading: false });
+    } catch (error: unknown) {
+      set({
+        cliStatus: null,
+        cliStatusLoading: false,
+        cliStatusError:
+          error instanceof Error ? error.message : '无法检测 Agent CLI 可用性',
+      });
     }
   },
 
