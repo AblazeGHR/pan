@@ -1038,4 +1038,92 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       { role: 'assistant', content: 'Hello!' },
     ]);
   });
+
+  it('keeps one selected-session assistant message across an interleaved turn, result, and history refresh', async () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      // The native stream identifies the in-flight assistant item with one
+      // id, while the completed item may be observed with another id. The
+      // turn id is the stable identity for the one assistant reply.
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-1', item_id: 'delta-item',
+          part: { type: 'text', text: '## Answer\n\n' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', item_id: 'tool-item',
+          message: {
+            content: [{
+              type: 'tool_use', name: 'Command', input: { command: 'true' },
+            }],
+          },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', final: true, turn_id: 'turn-1',
+          item_id: 'completed-item',
+          message: { content: [{ type: 'text', text: '## Answer\n\nbody' }] },
+        },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1',
+        status: 'done', result: '## Answer\n\nbody',
+      });
+    });
+
+    const messages = useSessionStore.getState().currentMessages;
+    expect(messages.filter((message) => message.role === 'assistant')).toEqual([
+      { role: 'assistant', content: '## Answer\n\nbody', nativeItemId: 'turn:turn-1' },
+    ]);
+    expect(messages.filter((message) => message.role === 'tool')).toHaveLength(1);
+    expect(messages.at(-1)?.role).toBe('system');
+
+    // A browser refresh/re-entry rebuilds currentMessages from the persisted
+    // history. That history is the canonical comparison: it contains one
+    // assistant reply, not the transient stream item and the result separately.
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        msg('user', 'u0'),
+        msg('tool', 'Command({"command":"true"})'),
+        msg('assistant', '## Answer\n\nbody'),
+      ],
+      total: 3,
+      hasMore: false,
+      start: 0,
+    });
+    await act(async () => {
+      await useSessionStore.getState().selectSession('A');
+    });
+    expect(useSessionStore.getState().currentMessages.filter((message) => message.role === 'assistant'))
+      .toEqual([msg('assistant', '## Answer\n\nbody')]);
+  });
+
+  it('does not append background-session stream or result messages to the selected chat', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'B', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-background',
+          part: { type: 'text', text: 'background' },
+        },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w1',
+        status: 'done', result: 'background',
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
 });

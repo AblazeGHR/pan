@@ -3,7 +3,7 @@
 export interface Message {
   role: string;
   content: string;
-  /** Transient native Codex item id used to merge interleaved tool deltas. */
+  /** Transient native Codex identity used to merge live Codex messages. */
   nativeItemId?: string;
 }
 
@@ -83,6 +83,8 @@ export interface WorkerEvent {
   replace?: boolean;
   /** Native Codex item id; lets the UI update the right interleaved item. */
   item_id?: string;
+  /** Native Codex turn id; canonical identity for the assistant reply. */
+  turn_id?: string;
   /** Native Codex terminal interaction process id and prompt/input bytes. */
   process_id?: string;
   stdin?: string;

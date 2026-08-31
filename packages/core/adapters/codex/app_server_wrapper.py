@@ -472,11 +472,15 @@ class AppServer:
             if delta:
                 if state is not None:
                     state["assistant_text"] = state.get("assistant_text", "") + str(delta)
+                turn_id = params.get("turnId", params.get("turn_id"))
+                if turn_id is None and state is not None:
+                    turn_id = state.get("turn_id")
                 _write_stdout({
                     "type": "content.part", "role": "assistant", "delta": True,
                     "part": {"type": "text", "text": str(delta)},
                     "stream_text": state.get("assistant_text", "") if state is not None else str(delta),
-                    "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
+                    "thread_id": params.get("threadId", params.get("thread_id")),
+                    "turn_id": turn_id,
                     "item_id": params.get("itemId"),
                 })
             return
@@ -658,6 +662,11 @@ class AppServer:
                     event["replace"] = True
                 if item.get("id") is not None:
                     event["item_id"] = item["id"]
+                turn_id = params.get("turnId", params.get("turn_id"))
+                if turn_id is None and state is not None:
+                    turn_id = state.get("turn_id")
+                if turn_id is not None:
+                    event["turn_id"] = turn_id
                 _write_stdout(event)
             return
         if method == "turn/completed":

@@ -357,9 +357,11 @@ def test_app_server_run_turn_message_loop(monkeypatch):
     })]
     assert emitted[0]["type"] == "content.part"
     assert emitted[0]["item_id"] == "agent-1"
+    assert emitted[0]["turn_id"] == "turn-1"
     assert emitted[1]["type"] == "assistant"
     assert emitted[1]["final"] is True
     assert emitted[1]["item_id"] == "agent-1"
+    assert emitted[1]["turn_id"] == "turn-1"
     assert emitted[-1] == {"type": "result", "is_error": False,
                            "cancelled": False, "turn_status": "completed",
                            "result": "complete", "usage": None}

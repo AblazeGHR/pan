@@ -553,7 +553,16 @@ function appendEvent(event: StreamEvent['event']): void {
   for (const b of extractBlocks(event)) {
     const store = useSessionStore.getState();
     const messages = store.currentMessages;
-    const nativeItemId = event.item_id !== undefined ? String(event.item_id) : undefined;
+    // A Codex assistant reply is one logical message for the whole turn. The
+    // native bridge can expose different item ids for its delta and completed
+    // notifications (and an interleaved tool can become the last message), so
+    // use the turn id as the assistant's canonical identity. Tool items still
+    // use their item id because several tools may legitimately share a turn.
+    const nativeItemId = b.role === 'assistant' && event.turn_id !== undefined
+      ? `turn:${String(event.turn_id)}`
+      : event.item_id !== undefined
+        ? String(event.item_id)
+        : undefined;
     const nativeIndex = nativeItemId
       ? messages.findIndex((message) => message.nativeItemId === nativeItemId)
       : -1;
