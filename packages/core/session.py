@@ -820,8 +820,6 @@ def handoff_session(
     # This closes the check/create window between concurrent handoffs. A is
     # excluded because it is about to be archived and must not force a suffix.
     with _SAVE_LOCK:
-        archive_name = _available_name(
-            f"(archive) {orig_name}", exclude_ids={a.id})
         b = create(
             name=_available_name(orig_name, exclude_ids={a.id}),
             adapter=new_adapter,
@@ -880,8 +878,13 @@ def handoff_session(
     a.managed_by = b.id
     a.report_subscriptions = set()
     a.qq_subscriptions = set()
-    a.name = archive_name
-    save(a)
+    # Re-check the archive name after relationship work. Another handoff may
+    # have archived a session while this one was transferring relationships.
+    # Keep allocation and save atomic under the same lock as B creation.
+    with _SAVE_LOCK:
+        a.name = _available_name(
+            f"(archive) {orig_name}", exclude_ids={a.id, b.id})
+        save(a)
     save(b)
     return a, b
 

@@ -14,6 +14,7 @@
 import asyncio
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -265,6 +266,25 @@ def test_handoff_suffixes_archive_name_and_persists_relationships():
     assert archived_r.name == "(archive) dev-1"
     assert b_r.name == "dev"
     assert b_r.managed == [child.id, a.id]
+    _cleanup()
+
+
+def test_concurrent_handoffs_allocate_distinct_archive_names():
+    _cleanup()
+    _fresh_session_dir()
+    _make("ses_a1", "dev")
+    _make("ses_a2", "dev")
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(
+            lambda sid: _sess.handoff_session(sid, "交接", copy_settings=True),
+            ("ses_a1", "ses_a2")))
+
+    archived_names = {archived.name for archived, _ in results}
+    replacement_names = {replacement.name for _, replacement in results}
+    assert archived_names == {"(archive) dev", "(archive) dev-1"}
+    assert replacement_names == {"dev-1", "dev-2"}
+    assert len(archived_names | replacement_names) == 4
     _cleanup()
 
 
