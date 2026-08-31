@@ -28,6 +28,10 @@ from pathlib import Path
 import psutil
 
 from . import session as _sess
+
+READONLY_SESSION_ERROR = (
+    "该 session 当前为只读，必须先取消对该 session 的 readonly 设置后才能发送信息、任务或回报"
+)
 from .adapters import (
     get_adapter,
     get_sessions_provider,
@@ -1945,6 +1949,11 @@ async def enqueue_notice(target_session_id: str, text: str,
         return {"ok": False, "error": {
             "code": "session_not_found",
             "message": f"Session {target_session_id} not found"}}
+    if source and source != target_session_id and target.readonly_session \
+            and target.managed_by == source:
+        return {"ok": False, "error": {
+            "code": "readonly_session",
+            "message": READONLY_SESSION_ERROR}}
     item = {
         "status": "notice",
         "type": "notice",
@@ -3680,6 +3689,12 @@ async def assign(session_id: str, text: str, source: str = "agent",
     - 进行中 → 返回 {"status": "pending", "taskId": ...}，不重复入队
     用于超时后安全重试 / 并发去重。不带 task_id 行为不变。
     """
+    target = _sess.get(session_id)
+    if target is None:
+        return {"status": "error", "result": f"Session {session_id} not found"}
+    if source and source != session_id and target.readonly_session \
+            and target.managed_by == source:
+        return {"status": "error", "result": READONLY_SESSION_ERROR}
     # 惰性清理过期条目（TTL），防止注册表长期运行无界增长（H2 泄漏）
     _prune_task_status()
     # taskId 幂等检查
@@ -3766,6 +3781,12 @@ async def send_session(session_id: str, text: str, source: str = "agent",
       补发 task_signal 分发——「send = 写给 agent」。
     - held（takeover 模式）→ 透传错误，不吞错不入队。
     """
+    target = _sess.get(session_id)
+    if target is None:
+        return {"status": "error", "result": f"Session {session_id} not found"}
+    if source and source != session_id and target.readonly_session \
+            and target.managed_by == source:
+        return {"status": "error", "result": READONLY_SESSION_ERROR}
     w = find_alive_worker_by_session(session_id)
     alive = w is not None
     if not alive:

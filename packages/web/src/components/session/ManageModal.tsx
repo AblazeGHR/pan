@@ -7,12 +7,13 @@ import {
   unclaimSession,
   reportSubscribe,
   reportUnsubscribe,
+  setSessionReadonly,
   fetchSession,
   fetchMcpServers,
   patchSession,
 } from '@/services/api';
 import type { McpServerInfo, PanAccess, Session } from '@/types';
-import { Search, Star, Check, Bell, Unlink } from 'lucide-react';
+import { Search, Star, Check, Bell, Unlink, Lock, Unlock } from 'lucide-react';
 
 const SHOW_LIMIT = 20;
 
@@ -408,6 +409,23 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
     }
   };
 
+  const toggleReadonly = async (targetId: string, enabled: boolean) => {
+    if (!managerId || busyId || !managedIds.has(targetId)) return;
+    setBusyId(targetId);
+    const target = sessions.find((s) => s.id === targetId);
+    const label = target?.name || targetId;
+    try {
+      await setSessionReadonly(managerId, targetId, enabled);
+      useSessionStore.getState().updateSession(targetId, { readonlySession: enabled });
+      showToast(`${enabled ? 'Readonly enabled' : 'Readonly disabled'} for "${label}"`);
+      await loadSessions();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Readonly update failed', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       {!managerId && (
@@ -494,6 +512,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               {visible.map((c) => {
                 const isManaged = managedIds.has(c.id);
                 const isSubscribed = subscribedIds.has(c.id);
+                const isReadonly = c.readonlySession === true;
                 return (
                   <div
                     key={c.id}
@@ -549,6 +568,26 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                     >
                       {isSubscribed ? <Check size={12} /> : <Bell size={12} />}
                       {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                    </button>
+                    {/* Readonly is available only for sessions this manager currently manages. */}
+                    <button
+                      type="button"
+                      onClick={() => toggleReadonly(c.id, !isReadonly)}
+                      disabled={busyId !== null || !isManaged}
+                      aria-pressed={isReadonly}
+                      title={!isManaged
+                        ? 'Manage this session first'
+                        : isReadonly
+                          ? 'Click to allow messages, tasks, and notifications'
+                          : 'Click to block manager messages, tasks, and notifications'}
+                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none ${
+                        isReadonly
+                          ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                      }`}
+                    >
+                      {isReadonly ? <Lock size={12} /> : <Unlock size={12} />}
+                      {isReadonly ? 'Readonly' : 'Readonly'}
                     </button>
                   </div>
                 );
