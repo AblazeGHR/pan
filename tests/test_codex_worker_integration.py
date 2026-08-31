@@ -60,6 +60,7 @@ def test_codex_stream_results_keep_the_current_task_sequence(monkeypatch):
     _sess._cache[session.id] = session
 
     try:
+        expected_history = []
         for index, (seq, result) in enumerate(((11, "first"), (12, "second"))):
             task = {
                 "type": "task", "id": f"task-{seq}", "text": f"job-{seq}",
@@ -87,6 +88,8 @@ def test_codex_stream_results_keep_the_current_task_sequence(monkeypatch):
             assert session.last_result["status"] == "done"
             assert session.last_result["result"] == result
             assert session.last_result["taskSeq"] == seq
+            expected_history.append({"role": "assistant", "content": result})
+            assert session.history == expected_history
             assert session.queue_pending == []
     finally:
         _cleanup()
