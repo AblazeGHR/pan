@@ -237,6 +237,37 @@ def test_handoff_skips_all_occupied_name_suffixes():
     _cleanup()
 
 
+def test_handoff_suffixes_archive_name_and_persists_relationships():
+    """An existing archive name is suffixed without changing B's name."""
+    _cleanup()
+    session_dir = _fresh_session_dir()
+    _make("ses_old_archive", "(archive) dev")
+    a = _make("ses_a", "dev")
+    child = _make("ses_child", "child")
+    a.managed = [child.id]
+    a.report_subscriptions = {child.id}
+    child.managed_by = a.id
+
+    archived, b = _sess.handoff_session("ses_a", "交接", copy_settings=True)
+
+    assert archived.name == "(archive) dev-1"
+    assert b.name == "dev"
+    assert b.managed == [child.id, a.id]
+    assert b.report_subscriptions == {child.id, a.id}
+    assert _sess.get(child.id).managed_by == b.id
+    assert (session_dir / f"{archived.id}.json").exists()
+    assert (session_dir / f"{b.id}.json").exists()
+
+    _sess._cache.clear()
+    _sess._all_loaded = False
+    archived_r = _sess.get(archived.id)
+    b_r = _sess.get(b.id)
+    assert archived_r.name == "(archive) dev-1"
+    assert b_r.name == "dev"
+    assert b_r.managed == [child.id, a.id]
+    _cleanup()
+
+
 # ══════════════════════════════════════════════════════════════════════════ #
 #  HTTP 端点                                                               #
 # ══════════════════════════════════════════════════════════════════════════ #

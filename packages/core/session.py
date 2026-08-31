@@ -784,7 +784,6 @@ def handoff_session(
         return "handoff_prompt is required — session A 的 agent 必须编写交接简报"
 
     orig_name = a.name
-    archive_name = f"(archive) {orig_name}"
 
     # ── 1. 创建 B：可选 1:1 复制 A 的设置（不含 system_prompt）──
     if copy_settings:
@@ -821,6 +820,8 @@ def handoff_session(
     # This closes the check/create window between concurrent handoffs. A is
     # excluded because it is about to be archived and must not force a suffix.
     with _SAVE_LOCK:
+        archive_name = _available_name(
+            f"(archive) {orig_name}", exclude_ids={a.id})
         b = create(
             name=_available_name(orig_name, exclude_ids={a.id}),
             adapter=new_adapter,
