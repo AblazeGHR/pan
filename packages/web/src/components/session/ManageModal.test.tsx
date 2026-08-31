@@ -20,6 +20,7 @@ const apiMock = vi.hoisted(() => ({
   reportUnsubscribe: vi.fn(async () => ({})),
   fetchMcpServers: vi.fn(async (): Promise<McpServerInfo[]> => []),
   patchSession: vi.fn(),
+  setSessionReadonly: vi.fn(async () => ({ ok: true, readonlySession: true })),
 }));
 
 vi.mock('@/services/api', () => apiMock);
@@ -157,6 +158,25 @@ describe('ManageModal', () => {
     await waitFor(() =>
       expect((panInput as HTMLInputElement).checked).toBe(true),
     );
+  });
+
+  it('shows readonly beside Subscribe and persists managed-session toggles', async () => {
+    apiMock.fetchSession.mockResolvedValue(
+      mk('s1', 'Boss', { managed: ['child'], reportSubscriptions: [] }),
+    );
+    useSessionStore.setState({
+      sessions: [mk('s1', 'Boss'), mk('child', 'Child', { managedBy: 's1' })],
+    });
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    const readonly = await screen.findByRole('button', { name: 'Readonly' });
+    expect(readonly.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(readonly);
+    await waitFor(() =>
+      expect(apiMock.setSessionReadonly).toHaveBeenCalledWith('s1', 'child', true),
+    );
+    expect(await screen.findByRole('button', { name: 'Readonly' })).toBeTruthy();
   });
 
   it('disables MCP selection when the template locks it (mcpLocked)', async () => {

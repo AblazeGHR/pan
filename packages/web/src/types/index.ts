@@ -32,6 +32,8 @@ export interface Session {
   workerId?: string | null;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
   managedBy?: string | null;
+  /** True when the managing session has blocked outbound operations to this session. */
+  readonlySession?: boolean;
   /** Ids of sessions this session manages (claims as a meta-agent). */
   managed?: string[];
   /** Managed-session report subscriptions (ids this session gets reports from). */
@@ -259,6 +261,14 @@ export interface ApiReportSubscribeResponse {
   subscribed?: boolean;
   reportSubscriptions?: string[];
   error?: string;
+}
+
+export interface ApiReadonlyResponse {
+  ok?: boolean;
+  managerId?: string;
+  sessionId?: string;
+  readonlySession?: boolean;
+  error?: ApiErrorInfo;
 }
 
 export interface QqContact {

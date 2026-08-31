@@ -31,6 +31,7 @@ import type {
   FsEntry,
   ApiClaimResponse,
   ApiReportSubscribeResponse,
+  ApiReadonlyResponse,
   ApiQqContactsResponse,
   ApiQqChannelsResponse,
   ApiQqSubscribeResponse,
@@ -306,6 +307,21 @@ export async function reportUnsubscribe(
     body: JSON.stringify({ managerId, sessionId }),
   });
   if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function setSessionReadonly(
+  managerId: string,
+  sessionId: string,
+  enabled: boolean,
+): Promise<ApiReadonlyResponse> {
+  const data = await request<ApiReadonlyResponse>(`${BASE}/readonly`, {
+    method: 'POST',
+    body: JSON.stringify({ managerId, sessionId, readonlySession: enabled }),
+  });
+  if (data.ok === false || data.error) {
+    throw new Error(typeof data.error === 'string' ? data.error : data.error?.message || 'Readonly update failed');
+  }
   return data;
 }
 

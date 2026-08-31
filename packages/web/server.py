@@ -311,6 +311,7 @@ def _session_to_api(s: sess.Session):
         "updatedAt": s.updated_at,
         "managed": s.managed,
         "managedBy": s.managed_by,
+        "readonlySession": s.readonly_session,
         "agentLevel": sess.agent_level(s.id),
         "reportSubscriptions": sorted(s.report_subscriptions),
         "qqSubscriptions": sorted(s.qq_subscriptions),
@@ -363,6 +364,7 @@ def _session_summary(s: sess.Session) -> dict:
         "workerStatus": w.status if w else None,
         "updatedAt": s.updated_at,
         "managedBy": s.managed_by,
+        "readonlySession": s.readonly_session,
         "agentLevel": sess.agent_level(s.id),
         "lastMessage": last_text,
         "historyTotal": len(s.history),
@@ -2314,6 +2316,16 @@ async def api_task(data: dict):
     worker_id = data.get("workerId")
     session_id = data.get("sessionId")
 
+    source = data.get("sourceSessionId") or data.get("source")
+    if session_id:
+        target = sess.get(session_id)
+        if not target:
+            return {"error": f"Session {session_id} not found"}
+        if source and source != session_id and target.readonly_session \
+                and target.managed_by == source:
+            return {"ok": False, "error": {"code": "readonly_session",
+                    "message": worker.READONLY_SESSION_ERROR}}
+
     if not worker_id and session_id:
         w = worker.find_worker_by_session(session_id)
         if w:
@@ -2344,6 +2356,15 @@ async def api_task(data: dict):
     if not text:
         return {"error": "text is required"}
 
+    if not session_id:
+        resolved = worker.get_worker(worker_id)
+        session_id = resolved.session_id if resolved else None
+    if session_id:
+        target = sess.get(session_id)
+        if target and source and source != session_id and target.readonly_session \
+                and target.managed_by == source:
+            return {"ok": False, "error": {"code": "readonly_session",
+                    "message": worker.READONLY_SESSION_ERROR}}
     err = await worker.send_task(worker_id, text, source="agent")
     if err:
         if session_id and err in ("Worker not found", "Worker process dead"):
@@ -2389,8 +2410,16 @@ async def api_send(data: dict):
         if not w:
             return {"error": "Worker not found"}
         session_id = w.session_id
+    target = sess.get(session_id)
+    source = data.get("sourceSessionId") or data.get("source")
+    if source and not target:
+        return {"error": f"Session {session_id} not found"}
+    if source and source != session_id and target.readonly_session \
+            and target.managed_by == source:
+        return {"ok": False, "error": {"code": "readonly_session",
+                "message": worker.READONLY_SESSION_ERROR}}
     result = await worker.send_session(session_id, text,
-                                       source=data.get("source", "agent"),
+                                       source=source or "agent",
                                        force=bool(data.get("force")))
     if isinstance(result, dict) and result.get("status") == "error":
         return {"error": result.get("result") or "send failed"}
@@ -2416,8 +2445,16 @@ async def api_notify(data: dict):
     text = data.get("text")
     if not target or not text:
         return {"error": "targetSessionId and text are required"}
+    target_session = sess.get(target)
+    source = data.get("sourceSessionId") or data.get("source")
+    if not target_session:
+        return {"error": f"Session {target} not found"}
+    if source and source != target and target_session.readonly_session \
+            and target_session.managed_by == source:
+        return {"ok": False, "error": {"code": "readonly_session",
+                "message": worker.READONLY_SESSION_ERROR}}
     result = await worker.enqueue_notice(target, str(text),
-                                         source=data.get("source"))
+                                         source=source)
     if isinstance(result, dict) and not result.get("ok", True):
         return {"error": (result.get("error") or {}).get("message", "notify failed")}
     return result
@@ -2435,7 +2472,9 @@ async def api_assign(data: dict):
         return {"ok": False, "error": {"code": "missing_params",
                                        "message": "sessionId and text are required"}}
     task_id = data.get("taskId")
-    return await worker.assign(session_id, text, source="agent", task_id=task_id)
+    return await worker.assign(session_id, text,
+                               source=data.get("sourceSessionId") or data.get("source") or "agent",
+                               task_id=task_id)
 
 
 @app.post("/api/report-subscribe")
@@ -2717,6 +2756,40 @@ async def api_unclaim(data: dict):
         "sessionId": session_id,
         "managed": list(manager.managed) if manager else [],
     }
+
+
+@app.post("/api/readonly")
+async def api_readonly(data: dict):
+    """Set or clear a managed session's persistent readonly state.
+
+    Only the target's current manager may change it; unlike claim this endpoint
+    never establishes a managed relationship or accepts a claim capability.
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    enabled = data.get("readonlySession")
+    if not manager_id or not session_id or not isinstance(enabled, bool):
+        return {"ok": False, "error": {"code": "missing_params",
+                "message": "managerId, sessionId and readonlySession(boolean) are required"}}
+    if manager_id == session_id:
+        return {"ok": False, "error": {"code": "permission_denied",
+                "message": "A session cannot set readonly on itself"}}
+    manager = sess.get(manager_id)
+    target = sess.get(session_id)
+    if not manager:
+        return {"ok": False, "error": {"code": "manager_not_found",
+                "message": f"Manager session {manager_id} not found"}}
+    if not target:
+        return {"ok": False, "error": {"code": "session_not_found",
+                "message": f"Session {session_id} not found"}}
+    if target.managed_by != manager_id or session_id not in manager.managed:
+        return {"ok": False, "error": {"code": "permission_denied",
+                "message": f"Session {manager_id} does not manage {session_id}"}}
+    target.readonly_session = enabled
+    sess.save(target)
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    return {"ok": True, "managerId": manager_id, "sessionId": session_id,
+            "readonlySession": target.readonly_session}
 
 
 @app.post("/api/kill/{worker_id}")

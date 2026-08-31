@@ -18,6 +18,7 @@ Tools exposed:
     - session_claim_many: Batch-claim multiple sessions
     - session_unclaim: Release the managed relationship entirely (auto-unsubscribes reports; session becomes unmanaged)
     - session_unclaim_many: Batch-unclaim multiple sessions
+    - session_readonly: Set or clear readonly on a session already managed by caller
     - session_handoff: 替身交接——创建孪生 session B 接替 A（精简上下文/切换 adapter）
     - agent_spawn: Spawn a worker process (CLI) for an agent (= session)
     - agent_task: Send a task to an agent (auto-spawns if no live worker)
@@ -852,6 +853,21 @@ def session_unclaim_many(session_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def session_readonly(session_id: str, enabled: bool = True) -> dict:
+    """Set or clear persistent readonly on a session already managed by caller.
+
+    This operation never claims a session: the caller must be its current
+    manager. Use ``enabled=False`` to unreadonly it.
+    """
+    manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
+    if not manager_id:
+        return {"ok": False, "error": {"code": "missing_identity",
+                "message": "PAN_AGENT_SESSION_ID not set — readonly tools only work inside a Pan-managed meta-agent session"}}
+    return _api("POST", "/api/readonly", {"managerId": manager_id,
+        "sessionId": session_id, "readonlySession": bool(enabled)})
+
+
+@mcp.tool()
 def session_update(
     session_id: str,
     model: str | None = None,
@@ -1148,8 +1164,11 @@ def agent_task(session_id: str, text: str, source: str = "agent") -> dict:
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
-    return _api("POST", "/api/task",
-                {"sessionId": session_id, "text": text, "source": source})
+    caller = _caller_identity()
+    body = {"sessionId": session_id, "text": text, "source": source}
+    if caller and caller.get("id"):
+        body["sourceSessionId"] = caller["id"]
+    return _api("POST", "/api/task", body)
 
 
 @mcp.tool()
@@ -1182,6 +1201,9 @@ def agent_assign(session_id: str, text: str, task_id: str | None = None) -> dict
     if denied:
         return denied
     body = {"sessionId": session_id, "text": text}
+    caller = _caller_identity()
+    if caller and caller.get("id"):
+        body["sourceSessionId"] = caller["id"]
     if task_id:
         body["taskId"] = task_id
     return _api("POST", "/api/assign", body)
@@ -1213,7 +1235,11 @@ def agent_send(session_id: str, text: str = "") -> dict:
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
-    return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
+    caller = _caller_identity()
+    body = {"sessionId": session_id, "text": text}
+    if caller and caller.get("id"):
+        body["sourceSessionId"] = caller["id"]
+    return _api("POST", "/api/send", body)
 
 
 @mcp.tool()
@@ -1247,11 +1273,19 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
     wid = _session_worker_id(session_id)
     if wid is None:
         # 无活 worker：restart 无从谈起 → 入持久队列，watchdog spawn 后分发
-        return _api("POST", "/api/send", {"sessionId": session_id, "text": text})
+        caller = _caller_identity()
+        body = {"sessionId": session_id, "text": text}
+        if caller and caller.get("id"):
+            body["sourceSessionId"] = caller["id"]
+        return _api("POST", "/api/send", body)
     result = _api("POST", f"/api/worker/{wid}/restart")
     if not isinstance(result, dict) or result.get("error"):
         return result
-    return _api("POST", "/api/task", {"workerId": wid, "text": text})
+    caller = _caller_identity()
+    body = {"workerId": wid, "text": text}
+    if caller and caller.get("id"):
+        body["sourceSessionId"] = caller["id"]
+    return _api("POST", "/api/task", body)
 
 
 @mcp.tool()
@@ -1396,8 +1430,11 @@ def worker_task(session_id: str | None = None, worker_id: str | None = None,
         denied = _check_access(sid, claim=True)
         if denied:
             return denied
-        return _api("POST", "/api/task",
-                    {"workerId": worker_id, "text": text, "source": source})
+        caller = _caller_identity()
+        return _api("POST", "/api/task", {
+            "workerId": worker_id, "text": text,
+            "source": caller.get("id") if caller and caller.get("id") else source,
+        })
     if session_id:
         return agent_task(session_id=session_id, text=text, source=source)
     return {"ok": False, "error": {
@@ -1480,7 +1517,11 @@ def worker_send(worker_id: str | None = None, text: str = "",
         denied = _check_access(target_sid, claim=True)
         if denied:
             return denied
-        return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
+        caller = _caller_identity()
+        body = {"workerId": worker_id, "text": text}
+        if caller and caller.get("id"):
+            body["sourceSessionId"] = caller["id"]
+        return _api("POST", "/api/task", body)
     if session_id:
         # 委托一等实现（////by agent 前缀在其内部拼接）
         return agent_send(session_id=session_id, text=text)
@@ -1520,7 +1561,11 @@ def worker_send_force(worker_id: str | None = None, text: str = "",
         if not isinstance(result, dict) or result.get("error"):
             return result
         # 2) 发送消息（与 agent_send 相同）
-        return _api("POST", "/api/task", {"workerId": worker_id, "text": text})
+        caller = _caller_identity()
+        body = {"workerId": worker_id, "text": text}
+        if caller and caller.get("id"):
+            body["sourceSessionId"] = caller["id"]
+        return _api("POST", "/api/task", body)
     if session_id:
         return agent_send_force(session_id=session_id, text=text)
     return {"ok": False, "error": {

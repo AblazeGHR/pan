@@ -169,6 +169,7 @@ class Session:
     updated_at: str = ""
     managed: list[str] = field(default_factory=list)  # session ids this session manages
     managed_by: str | None = None  # session id of the session managing this one
+    readonly_session: bool = False  # manager blocks operations sent to this session
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
     # Browser-originated messages are acknowledged only after the queue item is
@@ -212,6 +213,7 @@ class Session:
                  updated_at: str = "",
                  managed: list[str] | None = None,
                  managed_by: str | None = None,
+                 readonly_session: bool = False,
                  queue_pending: list | None = None,
                  task_seq: int = 0,
                  accepted_input_ids: list[str] | None = None,
@@ -250,6 +252,7 @@ class Session:
         self.updated_at = updated_at
         self.managed = managed if managed is not None else []
         self.managed_by = managed_by
+        self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
         self.task_seq = task_seq
         self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
@@ -371,6 +374,7 @@ class Session:
             "updated_at": self.updated_at,
             "managed": self.managed,
             "managed_by": self.managed_by,
+            "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
             "task_seq": self.task_seq,
             "accepted_input_ids": self.accepted_input_ids,
