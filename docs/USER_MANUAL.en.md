@@ -761,10 +761,10 @@ Adapter protocol (`packages/core/adapters/base.py`) + registry (`registry.py`). 
 
 | Adapter | CLI | Execution mode | Resume/Fork | MCP injection | Notes |
 |---------|-----|----------------|-------------|---------------|-------|
-| `cbc` | CodeBuddy CLI | stream + oneshot (the only dual-mode) | ✔ / ✔ (`--fork-session`) | `--mcp-config` | Main adapter; native JSON stream protocol |
+| `cbc` | CodeBuddy CLI | stream + oneshot | ✔ / ✔ (`--fork-session`) | `--mcp-config` | Main adapter; native JSON stream protocol |
 | `kimi` | Kimi CLI | stream (long-running wrapper) | ✔ / ✔ | session-isolated home (`--kimi-home`) | thinking mode controlled by its own config.toml |
 | `opencode` | OpenCode CLI | stream (wrapper) | ✔ / ✔ | project-level `opencode.json` | |
-| `claude` | Claude Code CLI | one-shot | ✔ | `--mcp-config` | per-task `claude -p --output-format stream-json` |
+| `claude` | Claude Code CLI | stream + oneshot | ✔ | `--mcp-config` + `--permission-prompt-tool` | default long-lived stream-json input; explicit `outputMode: "oneshot"` runs per-task `claude -p` |
 | `codex` | OpenAI Codex CLI | stream (wrapper) | ✔ | `-c mcp_servers.*` inline (zero file pollution) | |
 
 Execution modes: `stream` is a long-running process (messages written to stdin, can mount MCP); `oneshot` starts a one-off process per task (enabled with `outputMode: "oneshot"`, only where the adapter declares support). Special behaviors: `docs/references/cli-adapter-special-behaviors.md`.

@@ -57,13 +57,19 @@ DEFAULT_CONFIG: dict = {
         # 默认模型。空字符串 = 不传 --model，由 claude 用其配置的默认模型
         # （如 claude-opus-4-8）。显式设置后传给 `claude --model`。
         "model": "",
-        # 默认权限模式："" | "default" | "acceptEdits" | "bypassPermissions" | "plan"。
+        # 默认权限模式："" | "default" | "acceptEdits" | "bypassPermissions" |
+        # "plan" | "auto" | "dontAsk" | "manual"。
         # 非交互模式下默认 bypassPermissions 以避免权限确认挂起。
         "permission_mode": "bypassPermissions",
         # claude 在 -p + --verbose 下自动产出 thinking 块，无独立开关。
         "always_thinking_enabled": False,
         # 默认 reasoning effort（--effort）："" | low | medium | high | xhigh | max
         "effort": "",
+        # 非交互模式下的权限回调 MCP 工具。仅当 session 同时挂载 pan MCP
+        # server 时自动传入 --permission-prompt-tool；bypassPermissions 不会触发它。
+        "permission_prompt_tool": "mcp__pan__permission_prompt",
+        # null = 从 `claude --help` 自动探测；vendor build 可显式设 true/false。
+        "permission_prompt_tool_supported": None,
     },
     "opencode": {
         # 默认模型（provider/model）。可选值见 adapter.py 的 supported_models

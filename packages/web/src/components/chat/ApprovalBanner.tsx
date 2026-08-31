@@ -61,6 +61,23 @@ function decisionLabel(decision: string): string {
 }
 
 function requestDescription(request: ApprovalRequest): string {
+  if (request.method === 'claude/permission') {
+    const toolName = typeof request.params.tool_name === 'string'
+      ? request.params.tool_name
+      : 'Claude tool';
+    const input = request.params.input;
+    if (input && typeof input === 'object') {
+      let rendered = '';
+      try {
+        rendered = JSON.stringify(input);
+      } catch {
+        rendered = String(input);
+      }
+      if (rendered.length > 3000) rendered = `${rendered.slice(0, 3000)}…`;
+      return `${toolName}: ${rendered}`;
+    }
+    return toolName;
+  }
   const command = request.params.command;
   if (typeof command === 'string' && command) return command;
   const reason = request.params.reason;
@@ -71,6 +88,10 @@ function requestDescription(request: ApprovalRequest): string {
 
 function isPermissionRequest(request: ApprovalRequest): boolean {
   return request.method === 'item/permissions/requestApproval';
+}
+
+function isClaudePermissionRequest(request: ApprovalRequest): boolean {
+  return request.method === 'claude/permission';
 }
 
 function permissionDescription(request: ApprovalRequest): string {
@@ -114,11 +135,14 @@ export function ApprovalBanner() {
     decision: string | Record<string, unknown>,
   ) => {
     const permissionRequest = isPermissionRequest(request);
+    const claudePermissionRequest = isClaudePermissionRequest(request);
     const isStructuredDecision = typeof decision === 'object';
     const control = {
-      type: permissionRequest ? 'permission_response' : 'approval_response',
+      type: permissionRequest || claudePermissionRequest ? 'permission_response' : 'approval_response',
       request_id: request.requestId,
-      ...(permissionRequest
+      ...(claudePermissionRequest
+        ? { decision }
+        : permissionRequest
         ? {
           permissions: decision === 'decline' ? {} : request.params.permissions ?? {},
           scope: decision === 'acceptForSession' ? 'session' : 'turn',
@@ -148,13 +172,15 @@ export function ApprovalBanner() {
           <ShieldAlert size={17} className="mt-0.5 flex-shrink-0 text-warning" />
           <div className="min-w-0 flex-1">
             <div className="text-xs font-medium text-text-primary">
-              {isPermissionRequest(request) ? 'Codex requests additional permissions' : 'Codex requests approval'}
+              {isClaudePermissionRequest(request)
+                ? 'Claude requests permission'
+                : isPermissionRequest(request) ? 'Codex requests additional permissions' : 'Codex requests approval'}
             </div>
             <div className="mt-1 max-h-20 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-text-secondary">
               {isPermissionRequest(request) ? permissionDescription(request) : requestDescription(request)}
             </div>
             <div className="flex flex-wrap justify-end gap-1">
-              {(isPermissionRequest(request)
+              {(isPermissionRequest(request) || isClaudePermissionRequest(request)
                 ? [
                   { key: 'accept', label: decisionLabel('accept'), decision: 'accept' },
                   { key: 'acceptForSession', label: decisionLabel('acceptForSession'), decision: 'acceptForSession' },

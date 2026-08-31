@@ -102,6 +102,39 @@ describe('useWebSocket worker.result wiring', () => {
     expect(wsMock.send).toHaveBeenCalledWith({ type: 'sync_interactive' });
   });
 
+  it('routes Claude permission requests and removes them after resolution', () => {
+    useUIStore.setState({ approvalRequests: [] });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'approval.request',
+          method: 'claude/permission',
+          request_id: 'claude-request-1',
+          params: { tool_name: 'Bash', input: { command: 'git status' } },
+        },
+      });
+    });
+
+    expect(useUIStore.getState().approvalRequests).toEqual([{
+      sessionId: 'A',
+      workerId: 'w1',
+      requestId: 'claude-request-1',
+      method: 'claude/permission',
+      params: { tool_name: 'Bash', input: { command: 'git status' } },
+    }]);
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: { type: 'claude.permission_resolved', request_id: 'claude-request-1' },
+      });
+    });
+    expect(useUIStore.getState().approvalRequests).toEqual([]);
+  });
+
   it('keeps native Codex waiting status available to the active worker', () => {
     renderHook(() => useWebSocket());
 

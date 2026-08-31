@@ -262,6 +262,14 @@ _broadcast: callable = None
 # taskId → 检测已存在则返回状态，不重复入队（防超时后双跑）
 _task_status: dict[str, dict] = {}
 
+# Claude Code's non-interactive permission-prompt MCP tool calls back into Pan
+# while the CLI is blocked waiting for a decision.  Keep the waiter on the
+# Worker boundary so both stream and one-shot workers use the same dashboard
+# control path.  The future is deliberately process-local: a respawn cannot
+# safely answer a permission request owned by the old Claude process.
+_CLAUDE_PERMISSION_TIMEOUT_SEC: float = 300.0
+_claude_permission_requests: dict[str, tuple[str, asyncio.Future]] = {}
+
 # task 幂等注册表条目 TTL：条目超过该时长（无论 pending 还是已完成）在下次
 # assign 访问注册表时被惰性清除，防止全局 dict 长期运行无界增长（H2 泄漏）。
 _TASK_STATUS_TTL_SEC: float = 86400.0  # 24h
@@ -453,6 +461,11 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
             w.pending_interactions[key] = dict(event)
         return
     if event_type == "codex.request_resolved":
+        request_id = event.get("request_id")
+        if request_id is not None:
+            w.pending_interactions.pop(f"request:{request_id}", None)
+        return
+    if event_type == "claude.permission_resolved":
         request_id = event.get("request_id")
         if request_id is not None:
             w.pending_interactions.pop(f"request:{request_id}", None)
@@ -887,6 +900,7 @@ async def _read_stdout(w: Worker):
     # stdout EOF — 进程退出了
     code = w.process.returncode if w.process else "unknown"
     _log.info("[Worker %s] %s 进程退出，返回码 %s", w.worker_id, adapter.name, code)
+    _cancel_claude_permission_requests(w.worker_id, "Claude worker exited")
 
     # B2: 进程退出检测路径 — 任务进行中（running/queued）异常退出/崩溃 → 向被管
     # manager 推送 zombie 报告。正常完成后的退出（status 已回 idle）由
@@ -936,8 +950,8 @@ async def _consumer(w: Worker):
       --input-format stream-json. Each message is written to stdin.
     - Stream + MCP mode: same long-running process, spawned with --mcp-config
       (cbc >= 2.137.0). Enabled via adapter_config.output_mode == "stream".
-    - One-shot MCP mode: new cbc process per message with --mcp-config.
-      Legacy path, used when output_mode is unset/oneshot.
+    - One-shot mode: new provider process per message with --mcp-config when
+      the selected adapter exposes that mode and output_mode=oneshot.
 
     Report consumption (订阅制，立项 4.3): a ``report_signal`` item only
     wakes the consumer; the report payload lives in the persisted
@@ -1162,6 +1176,120 @@ def _process_alive(w: Worker) -> bool:
     if w.process is not None:
         return w.process.returncode is None
     return w._consume_task is None or not w._consume_task.done()
+
+
+def _cancel_claude_permission_requests(worker_id: str, message: str) -> None:
+    """Resolve open Claude permission waits as denied when a worker dies.
+
+    A permission callback is owned by the Claude process that requested it.
+    Leaving its MCP request hanging would keep the child process and the Pan
+    consumer alive forever after kill/restart.  Deny is the only safe result
+    when that process is no longer available.
+    """
+    w = workers.get(worker_id)
+    for request_id, (owner_id, future) in list(_claude_permission_requests.items()):
+        if owner_id != worker_id:
+            continue
+        _claude_permission_requests.pop(request_id, None)
+        if w is not None:
+            w.pending_interactions.pop(f"request:{request_id}", None)
+        if not future.done():
+            future.set_result({
+                "type": "permission_response",
+                "request_id": request_id,
+                "decision": "decline",
+                "message": message,
+            })
+
+
+async def request_claude_permission(
+    worker_id: str, tool_name: str, tool_input: dict | None = None,
+) -> dict:
+    """Wait for a dashboard decision for Claude's MCP permission callback.
+
+    This is called by ``mcp__pan__permission_prompt`` over the local HTTP API.
+    It returns Claude Code's documented ``allow/deny`` result shape rather than
+    exposing Pan's internal control envelope to the MCP client.
+    """
+    w = workers.get(worker_id)
+    if w is None:
+        return {"behavior": "deny", "message": "Pan worker is not available"}
+    if getattr(w.adapter, "name", "") != "claude":
+        return {"behavior": "deny", "message": "Worker is not a Claude worker"}
+    if not _process_alive(w):
+        return {"behavior": "deny", "message": "Claude worker is not running"}
+
+    request_id = uuid.uuid4().hex
+    original_input = dict(tool_input or {})
+    event = {
+        "type": "approval.request",
+        "adapter": "claude",
+        "method": "claude/permission",
+        "request_id": request_id,
+        "params": {
+            "tool_name": str(tool_name or "unknown"),
+            "input": original_input,
+        },
+    }
+    future = asyncio.get_running_loop().create_future()
+    _claude_permission_requests[request_id] = (worker_id, future)
+    _update_pending_interactions(w, event)
+    await _bcast({
+        "type": "worker.stream",
+        "workerId": worker_id,
+        "sessionId": w.session_id,
+        "event": event,
+    })
+
+    try:
+        control = await asyncio.wait_for(future, timeout=_CLAUDE_PERMISSION_TIMEOUT_SEC)
+    except asyncio.TimeoutError:
+        return {"behavior": "deny", "message": "Permission request timed out"}
+    finally:
+        _claude_permission_requests.pop(request_id, None)
+        w.pending_interactions.pop(f"request:{request_id}", None)
+
+    if not isinstance(control, dict):
+        return {"behavior": "deny", "message": "Invalid permission response"}
+    decision = str(control.get("decision") or control.get("behavior") or "decline")
+    if decision in {"accept", "allow", "acceptForSession"}:
+        updated_input = control.get("updatedInput")
+        if not isinstance(updated_input, dict):
+            updated_input = original_input
+        return {"behavior": "allow", "updatedInput": updated_input}
+    return {
+        "behavior": "deny",
+        "message": str(control.get("message") or "User denied this action"),
+    }
+
+
+async def _resolve_claude_permission(worker_id: str, control: dict) -> bool:
+    """Resolve one pending Claude permission request, if it belongs to worker."""
+    request_id = control.get("request_id")
+    if request_id is None:
+        return False
+    key = str(request_id)
+    pending = _claude_permission_requests.get(key)
+    if pending is None or pending[0] != worker_id:
+        return False
+    _claude_permission_requests.pop(key, None)
+    w = workers.get(worker_id)
+    if w is not None:
+        w.pending_interactions.pop(f"request:{key}", None)
+    future = pending[1]
+    if not future.done():
+        future.set_result(dict(control))
+    if w is not None:
+        await _bcast({
+            "type": "worker.stream",
+            "workerId": worker_id,
+            "sessionId": w.session_id,
+            "event": {
+                "type": "claude.permission_resolved",
+                "request_id": key,
+            },
+        })
+    return True
 
 
 def _is_task_item(item) -> bool:
@@ -1863,7 +1991,7 @@ async def _global_watchdog_tick():
 
 
 async def _consumer_stream(w: Worker, text: str, source: str, s):
-    """Stream mode: write to long-running cbc stdin."""
+    """Stream mode: write to the adapter's long-running stdin."""
     if w.process is None or w.process.returncode is not None:
         # No write was attempted.  This is the one safe automatic retry window;
         # undo the durable claim so a replacement worker can consume it.
@@ -1893,6 +2021,12 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     w._task_started_at = time.monotonic()
     w.status = "running"
 
+    # Clear before writing.  A fast provider can emit init+result before the
+    # status/save broadcasts below; clearing after the write would erase that
+    # legitimate completion and leave the consumer waiting forever.
+    ev = getattr(w, "_task_done", None)
+    if ev is not None:
+        ev.clear()
     data = w.adapter.encode_user_message(text)
     w.process.stdin.write(data + b"\n")
     await w.process.stdin.drain()
@@ -1918,9 +2052,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     # result 协程的 idle 会覆盖新任务已设的 running，导致等待提前退出、多条消息同时在
     # cbc 长驻进程管道里飞行，result 与 seq/taskId 错位、history 重复（实测复现）。
     # 用独立 Event 标记"本次任务完成"，_consumer 才能串行推进下一个排队任务。
-    ev = getattr(w, "_task_done", None)
     if ev is not None:
-        ev.clear()
         await ev.wait()
 
 
@@ -1950,8 +2082,8 @@ def _extract_cbc_error(output: bytes) -> str | None:
 async def _consumer_oneshot(w: Worker, text: str, source: str, s):
     """One-shot mode: 每任务 spawn 一个一次性进程（prompt 作末参）。
 
-    argv 由 ``adapter.oneshot_args(s, text)`` 提供（cbc 实现；kimi/opencode 因
-    ``execution_modes == ["stream"]`` 永不进入此路径）。stdout 收集后用既有
+    argv 由 ``adapter.oneshot_args(s, text)`` 提供（cbc/Claude 实现；kimi/opencode 因
+    ``execution_modes == ["stream"]`` 永不进入此路径）。stdout 收集后用统一
     ``adapter.parse_event`` 事件模型解析。取代旧 ``_consumer_mcp`` 的 cbc 特定
     拼装与 ``hasattr`` 探测（adapter-architecture P1 建议 4）。
 
@@ -1968,7 +2100,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
 
     adapter = w.adapter
 
-    # argv 全部来自 adapter（去 cbc 化）：无 --input-format stream-json，
+    # argv 全部来自 adapter（去 provider 特化）：one-shot 不传
+    # --input-format stream-json，
     # --resume / --mcp-config / --system-prompt（仅首条）/ prompt 末参。
     args = adapter.oneshot_args(s, text) if hasattr(adapter, "oneshot_args") else []
     if not args:
@@ -2051,8 +2184,10 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
 
     returncode = proc.returncode
 
-    # DEBUG: save raw cbc output for inspection
-    debug_path = os.path.join(s.workdir, ".pan-cbc-raw.jsonl") if s else None
+    # DEBUG: save raw provider output for inspection
+    debug_path = (
+        os.path.join(s.workdir, f".pan-{adapter.name}-raw.jsonl") if s else None
+    )
     if debug_path:
         try:
             os.makedirs(s.workdir, exist_ok=True)
@@ -2061,31 +2196,32 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         except Exception:
             pass
 
-    # Parse stream-json output — collect first, apply to the session only
-    # after confirming it still exists (#10).
+    # Parse stream-json output through the adapter protocol — collect first,
+    # apply to the session only after confirming it still exists (#10).  This
+    # keeps Claude's one-shot fallback on the same event contract as cbc and
+    # avoids hard-coding provider event names in the Worker.
     result_text = ""
+    result_event: dict | None = None
     cli_session_id = None
+    captured_model = None
     assistant_events: list[dict] = []  # raw assistant events, re-broadcast as worker.stream
     assistant_blocks: list[dict] = []  # extracted history blocks (assistant/thinking/tool)
     for line in output.decode(errors="replace").split("\n"):
         line = line.strip()
         if not line:
             continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
+        event = adapter.parse_event(line)
+        if event is None:
             continue
 
-        t = event.get("type", "")
-        if t == "result":
-            # 走 adapter.extract_result_text 而非裸取 result 字段：claude 在该方法内
-            # 把 result 事件的 usage+cost 暂存到 _PENDING_RESULT_USAGE（result 事件是
-            # cost 唯一权威来源），供下方 enrich_after_result 取用。返回文本与裸取
-            # 完全一致（cbc/claude 均返回 event.get("result")），不改变结果语义。
-            result_text = adapter.extract_result_text(event) or ""
-        elif t == "system" and event.get("subtype") == "init":
-            cli_session_id = event.get("session_id")
-        elif t == "assistant":
+        if adapter.is_result_event(event):
+            result_event = event
+            extracted = adapter.extract_result_text(event)
+            result_text = str(extracted) if extracted is not None else ""
+        elif adapter.is_init_event(event):
+            cli_session_id = adapter.extract_session_id(event)
+            captured_model = adapter.extract_model(event)
+        elif adapter.is_assistant_event(event):
             # Extract blocks the same way stream mode's _read_stdout does, so
             # history format and the re-broadcast event match stream mode.
             blocks = adapter.extract_assistant_blocks(event)
@@ -2122,31 +2258,34 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
                 "[Worker %s] cli_session_id mismatch: existing=%s captured=%s; keeping existing",
                 w.worker_id, s.cli_session_id, cli_session_id,
             )
+    if captured_model and not s.model:
+        s.model = captured_model
     # Append extracted blocks (assistant/thinking/tool) — same as stream mode.
     for block in assistant_blocks:
         s.history.append(block)
 
     # Surface failures the user can actually see (#8 timeout, #9 non-zero exit).
-    if timed_out and not result_text:
+    if result_event is not None and adapter.is_result_error(result_event):
+        extract_err = getattr(adapter, "extract_oneshot_error", None)
+        structured_error = extract_err(output) if extract_err else None
+        status, result = "error", structured_error or result_text or "(no output)"
+    elif timed_out and not result_text:
         status, result = (
             "error",
             f"Task timed out after {read_timeout:.0f}s (no output) and the process was killed",
         )
-    elif not result_text and returncode not in (None, 0):
+    elif result_event is None and returncode not in (None, 0):
         tail = output.decode(errors="replace")[-2000:].strip()
-        status, result = "error", f"cbc exited with code {returncode}:\n{tail}"
-    elif not result_text and returncode == 0:
-        # cbc exits 0 even when it fails (e.g. --resume targets a session that
-        # no longer exists). Surface the structured error instead of a silent
-        # "(no output)" so a broken cli_session_id binding is visible.
-        # 错误提取可插拔：adapter 提供 extract_oneshot_error 则优先使用，
-        # 否则回退 cbc 的通用启发式（adapter-architecture P1 建议 4 可选收尾）。
+        status, result = "error", f"{adapter.name} exited with code {returncode}:\n{tail}"
+    elif result_event is None and returncode == 0:
+        # A zero exit without a result can still carry a structured provider
+        # error (for example an invalid --resume id).
         extract_err = getattr(adapter, "extract_oneshot_error", _extract_cbc_error)
-        cbc_error = extract_err(output)
-        status, result = "error", cbc_error or "(no output)"
+        structured_error = extract_err(output)
+        status, result = "error", structured_error or "(no output)"
     else:
         status, result = (
-            "done" if result_text else "error",
+            "done" if result_event is not None and result_text else "error",
             result_text or "(no output)",
         )
 
@@ -2161,10 +2300,10 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
     # result/error 为完成确认点，从持久队列移除当前 task。
     _ack_current_task(w, s)
     _ack_current_reports(w, s)
-    # 用量/credit 落账：与 stream 路径（_read_stdout）同构——补调
+    # 用量/credit 落账：与 stream 路径（_read_stdout）同构——调用
     # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
-    # oneshot 之前漏调，导致 cbc 不记 credit、claude（仅 oneshot）完全不记
-    # usage/cost（result 事件的 usage 已在上方由 extract_result_text 暂存）。
+    # 这也让 cbc/Claude 的 one-shot fallback 不丢 usage/cost（Claude result 事件
+    # 的 usage 已在上方由 extract_result_text 暂存）。
     enrichment = None
     try:
         enrichment = adapter.enrich_after_result(s)
@@ -2514,7 +2653,8 @@ async def _kill_process_tree(w: Worker) -> None:
                 pass
         await wait_for_exit(process, "CLI process")
 
-    # MCP mode: w._mcp_proc is the in-flight one-shot cbc (may be None)
+    # One-shot mode: w._mcp_proc is the in-flight short-lived provider process
+    # (may be None).
     if w._mcp_proc:
         process = w._mcp_proc
         mpid = w._mcp_proc.pid
@@ -2542,6 +2682,8 @@ async def takeover_worker(worker_id: str) -> str | None:
     if w.status == "held":
         return "Worker already in takeover mode"
 
+    _cancel_claude_permission_requests(worker_id, "Claude worker entered takeover mode")
+
     current = asyncio.current_task()
     if w._watchdog_task and w._watchdog_task is not current:
         await _cancel_worker_task(w._watchdog_task)
@@ -2566,6 +2708,8 @@ async def kill_worker(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    _cancel_claude_permission_requests(worker_id, "Claude worker was stopped")
 
     # 若 kill_worker 由该 worker 自己的 watchdog 触发，不能 cancel 当前任务
     # （否则 kill 流程刚 cancel 就收到 CancelledError 被中断，进程杀不掉、
@@ -2615,6 +2759,7 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
         w = workers.get(worker_id)
         if not w:
             return
+        _cancel_claude_permission_requests(worker_id, "Claude worker was cleaned up")
         if w._watchdog_task:
             await _cancel_worker_task(w._watchdog_task)
         if w._consume_task:
@@ -2722,10 +2867,12 @@ async def _restart_tasks(w: Worker):
 
 
 async def restart_worker(worker_id: str) -> str | None:
-    """Restart the cbc process for a Worker. Preserves session."""
+    """Restart a Worker process. Preserves the session."""
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    _cancel_claude_permission_requests(worker_id, "Claude worker was restarted")
 
     # Block new work from the retiring generation.  send_task still persists a
     # concurrent message, and _restart_tasks will recover it after the new
@@ -2784,6 +2931,8 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    _cancel_claude_permission_requests(worker_id, "Claude worker was respawned")
 
     # cancel stale tasks FIRST — same race as restart_worker:
     # if we kill before cancelling, _read_stdout sees EOF and
@@ -2956,21 +3105,30 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    if not isinstance(control, dict) or control.get("type") not in {
+        "interrupt", "steer", "compact", "approval_response", "user_input_response", "permission_response",
+        "elicitation_response", "terminal_input", "terminal_terminate",
+    }:
+        return "Unsupported worker control"
+
+    # Claude Code invokes the permission prompt through MCP, so its response
+    # resolves the waiting HTTP/MCP future rather than being written to stdin.
+    if control.get("type") == "permission_response":
+        if await _resolve_claude_permission(worker_id, control):
+            return None
+        if getattr(w.adapter, "name", "") == "claude":
+            return "Claude permission request not found"
+
     if (w.process is None or w.process.returncode is not None
             or w.process.stdin is None):
         return "Worker process is not running"
     encode_control = getattr(w.adapter, "encode_control_message", None)
     if encode_control is None:
         return f"Adapter '{w.adapter.name}' does not support worker controls"
-    if not isinstance(control, dict) or control.get("type") not in {
-        "interrupt", "steer", "approval_response", "user_input_response", "permission_response",
-        "elicitation_response", "terminal_input", "terminal_terminate",
-    }:
-        return "Unsupported worker control"
     try:
         w.process.stdin.write(encode_control(control) + b"\n")
         await w.process.stdin.drain()
-    except (BrokenPipeError, ConnectionError, OSError, RuntimeError):
+    except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
         return "Worker control write failed"
     return None
 
