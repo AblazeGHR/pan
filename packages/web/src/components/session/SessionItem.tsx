@@ -75,6 +75,13 @@ export const SessionItem = memo(function SessionItem({
       ? previewText.slice(0, 50) + '...'
       : previewText
     : null;
+  // The active Codex chat renders the in-flight assistant reply as Markdown.
+  // Its lastMessage is updated from the same stream for background cards, so
+  // suppress only that raw copy while the worker is actually running. Once
+  // worker.result moves the session back to idle, the completed preview is
+  // visible again.
+  const hideActiveCodexStreamPreview =
+    isActive && session.adapter === 'codex' && session.workerStatus === 'running';
   const credit = session.totalUsage?.credit ?? null;
 
   const handleClick = () => {
@@ -117,12 +124,7 @@ export const SessionItem = memo(function SessionItem({
           )}
         </div>
 
-        {/* The selected session renders its assistant reply in the chat pane
-            through MarkdownRenderer. Showing the sidebar's plain-text
-            lastMessage here as well creates a second, raw-looking copy while
-            that reply is streaming. Background sessions keep this preview so
-            their progress remains visible in the session list. */}
-        {!isActive && preview && (
+        {preview && !hideActiveCodexStreamPreview && (
           <div className="text-xs text-text-tertiary truncate mt-0.5 leading-tight">
             {preview}
           </div>

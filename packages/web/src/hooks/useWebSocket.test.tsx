@@ -1115,7 +1115,10 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     );
     const sidebar = render(
       <SessionItem
-        session={useSessionStore.getState().sessions.find((s) => s.id === 'A')!}
+        session={{
+          ...useSessionStore.getState().sessions.find((s) => s.id === 'A')!,
+          adapter: 'codex',
+        }}
         isActive
       />,
     );
