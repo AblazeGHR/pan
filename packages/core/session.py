@@ -700,11 +700,19 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
     if manager_id == session_id:
         return f"Cannot unclaim itself ({session_id})"
     manager = get(manager_id)
-    if manager is None:
-        return f"Manager session {manager_id} not found"
     target = get(session_id)
     if target is None:
         return f"Session {session_id} not found"
+    if manager is None:
+        if target.managed_by == manager_id:
+            # The manager was deleted outside the normal release path.  Clear
+            # the dangling reference directly; there is no manager to update.
+            target.managed_by = None
+            save(target)
+            return None
+        if target.managed_by and get(target.managed_by) is not None:
+            return f"Session {session_id} is not managed by {manager_id}"
+        return f"Manager session {manager_id} not found"
     # Normal relationships remain exclusive.  A missing manager is a stale
     # historical reference, so any existing manager may recover/unclaim it.
     if (target.managed_by != manager_id

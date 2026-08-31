@@ -163,6 +163,36 @@ def test_unclaim_still_refuses_existing_foreign_manager():
     _cleanup()
 
 
+def test_unclaim_deleted_manager_clears_dangling_reference():
+    _cleanup()
+    child = _setup_session("ses_child", managed_by="deleted_mgr")
+
+    assert _sess.unclaim("deleted_mgr", child.id) is None
+    assert child.managed_by is None
+    _cleanup()
+
+
+def test_unclaim_deleted_manager_refuses_existing_foreign_manager():
+    _cleanup()
+    owner = _setup_session("ses_owner")
+    child = _setup_session("ses_child", managed_by=owner.id)
+
+    err = _sess.unclaim("deleted_mgr", child.id)
+    assert err == f"Session {child.id} is not managed by deleted_mgr"
+    assert child.managed_by == owner.id
+    _cleanup()
+
+
+def test_unclaim_deleted_manager_still_errors_for_unmanaged_target():
+    _cleanup()
+    child = _setup_session("ses_child")
+
+    err = _sess.unclaim("deleted_mgr", child.id)
+    assert err == "Manager session deleted_mgr not found"
+    assert child.managed_by is None
+    _cleanup()
+
+
 # ── HTTP /api/claim endpoint ──
 
 def test_api_claim_without_can_claim_unmanaged_succeeds(monkeypatch):
