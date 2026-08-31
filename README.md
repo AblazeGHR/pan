@@ -315,6 +315,18 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 
  **实在不想看文档？** 服务起来后，新建一个 `SMA(NoAdapter)` 会话，直接问它「怎么玩转 Pan？」——它会调出编排手册（`pan_handbook`）现场教你，边教边演示。
 
+#### 直接问 SMA：创建带参数的会话
+
+在 Web Dashboard 中点击“新建带参数的 session”，先创建一个可配置的会话：
+
+![点击此处新建带参数的 session](<assets/创建SMA第一步（点击此处，新建带参数的session）.png>)
+
+在模板列表中选择 `SMA(NoAdapter)`。这里务必选择 `NoAdapter` 版本，之后才能按需要自行配置 adapter：
+
+![选择 SMA(NoAdapter) 模板](<assets/创建SMA第二步，选中SMA(注意务必选择noadapter的以便自行配置adapter).png>)
+
+创建完成后，直接向 SMA 提问即可让它调用 `pan_handbook`，边讲解边演示 Pan 的编排能力。
+
 ### 前置要求
 
 - Python 3.14（当前开发环境为 3.14.5）
@@ -462,6 +474,12 @@ Meta-Agent 不是某个特殊程序，而是一个**角色**——任何一方�
 3. **有身份**：Pan 记录谁在指挥，并对 Worker 做隔离防止越权。
 
 Pan 内置 **SMA（Super Meta Agent）编排模板**（`manifest.json` 的 `session_templates.SMA`）：一键创建「超级编排代理」会话，挂载 Pan 核心 MCP 与 QQ 通道 MCP，全权限 + 自动认领 + 自动订阅，开箱即用的 AI 项目经理。
+
+### 树状任务管理
+
+Pan 的树状管理 UI 展示 SMA 与其子 session / Worker 的管理关系：SMA 位于树的上层，负责拆解和派发任务；子 session / Worker 位于下层，分别承接具体工作并回传状态与结果。这样可以在一个视图中查看主管、任务与执行者之间的层级关系。
+
+![SMA 与子 session/Worker 的树状管理界面](<assets/树状的任务？树状来管理.png>)
 
 ### 编排方法论
 

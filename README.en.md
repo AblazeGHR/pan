@@ -287,6 +287,18 @@ Typical use cases:
 >
 > **Don't feel like reading the docs?** Once the service is up, create an `SMA(NoAdapter)` session and just ask it "how does Pan work?" — it will pull up the orchestration handbook (`pan_handbook`) and teach you live, with a walkthrough.
 
+#### Ask SMA directly: create a parameterized session
+
+In the Web Dashboard, click “create a parameterized session” to start a configurable session:
+
+![Click to create a parameterized session](<assets/创建SMA第一步（点击此处，新建带参数的session）.png>)
+
+In the template list, choose `SMA(NoAdapter)`. Be sure to choose the `NoAdapter` version so you can configure the adapter yourself afterward:
+
+![Choose the SMA(NoAdapter) template](<assets/创建SMA第二步，选中SMA(注意务必选择noadapter的以便自行配置adapter).png>)
+
+Once it is created, ask SMA directly. It can call `pan_handbook` to explain Pan's orchestration capabilities with a live walkthrough.
+
 ### Prerequisites
 
 - Python 3.14 (current development environment: 3.14.5)
@@ -434,6 +446,12 @@ The Meta-Agent is not a special program but a **role** — any party (your Agent
 3. **Has an identity** — Pan records who is commanding and isolates Workers to prevent privilege escalation.
 
 Pan ships a built-in **SMA (Super Meta Agent) orchestration template** (`session_templates.SMA` in `manifest.json`): create a "super orchestration agent" session in one click, mounted with the Pan core MCP and the QQ channel MCP, with full permissions + auto-claim + auto-subscribe — a ready-to-use AI project manager.
+
+### Tree-based task management
+
+Pan's tree-based management UI shows the relationship between an SMA and its child sessions / Workers: the SMA sits at the top to decompose and dispatch work, while child sessions / Workers handle specific tasks and report status and results. This gives you one view of the hierarchy connecting the supervisor, tasks, and executors.
+
+![Tree-based management view of an SMA and child sessions/Workers](<assets/树状的任务？树状来管理.png>)
 
 ### Orchestration Methodology
 
