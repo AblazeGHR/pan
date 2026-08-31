@@ -29,19 +29,14 @@ describe('SessionItem streaming preview', () => {
     expect(screen.getByText('Answer body')).toBeTruthy();
   });
 
-  it('hides the selected Codex preview only while the worker is running', () => {
-    const { rerender } = render(
+  it('keeps the selected running session preview visible', () => {
+    render(
       <SessionItem
         session={session('## Answer\n\n**body**', 'running')}
         isActive
       />,
     );
 
-    expect(screen.queryByText('Answer body')).toBeNull();
-
-    rerender(
-      <SessionItem session={session('## Answer\n\n**body**')} isActive />,
-    );
     expect(screen.getByText('Answer body')).toBeTruthy();
   });
 

@@ -75,13 +75,6 @@ export const SessionItem = memo(function SessionItem({
       ? previewText.slice(0, 50) + '...'
       : previewText
     : null;
-  // The active Codex chat renders the in-flight assistant reply as Markdown.
-  // Its lastMessage is updated from the same stream for background cards, so
-  // suppress only that raw copy while the worker is actually running. Once
-  // worker.result moves the session back to idle, the completed preview is
-  // visible again.
-  const hideActiveCodexStreamPreview =
-    isActive && session.adapter === 'codex' && session.workerStatus === 'running';
   const credit = session.totalUsage?.credit ?? null;
 
   const handleClick = () => {
@@ -124,7 +117,7 @@ export const SessionItem = memo(function SessionItem({
           )}
         </div>
 
-        {preview && !hideActiveCodexStreamPreview && (
+        {preview && (
           <div className="text-xs text-text-tertiary truncate mt-0.5 leading-tight">
             {preview}
           </div>
