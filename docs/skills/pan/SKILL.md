@@ -239,6 +239,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | `agent_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out / 新任务默认首选）：立即返回 queued，worker 自动 spawn；完成经 `report_subscribe` 内部报告回调（§3）/ `session_get` 读取。传 `task_id` 幂等（同 taskId 重发不双跑，见 §7.4） |
 | `agent_send` | `session_id`, `text` | 向 Agent 发消息（多轮协作，§2.3）；**仅用于非即时补充**：消息排队送达，不打断进行中任务；**无活 worker 不报错**——入持久队列（返回 `pendingSpawn=true`），watchdog 自动 spawn 后分发；需打断/立即生效用 `agent_send_force`；Pan 内 session 自动加 `////by agent` 前缀（§7.5） |
 | `agent_send_force` | `session_id`, `text` | **强制推送** = restart + send（§2.3）：卡死/忙/连接异常导致普通 `agent_send` 无法送达时兜底；**也用于需要打断当前执行的时效性消息**（操作约束、危险操作警告）；无活 worker 时直接入队不报错；自动加 `////by agent` 前缀（§7.5） |
+| `agent_notify` | `target_session_id`, `text` | **持久化通知**：用于异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或长时间任务（nohup、长时测试、编译、外部脚本等），后台命令完成后事后回报；不要求 SMA 轮询或阻塞等待。通知进入目标 `queue_pending`，原 worker 退出不丢；无活 worker 自动唤醒/spawn。仅自己或自己 managed 的 Agent 可投递。它不是普通任务派发替代品，普通任务继续用 `agent_assign`/`agent_send`；后台命令仍须遵守权限、审批、安全和结果验证规则，不能绕过审批或隔离。 |
 | `agent_kill` | `session_id` | 终止 Agent 的 worker 进程（Agent/session 数据保留）；**无活 worker 时无害 no-op**（返回 `killed=false`） |
 | `agent_list` | `summary?` | 列出全部 Agent（= session 摘要）；`session_list` 的别名，参数/返回一致 |
 
@@ -255,6 +256,16 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | `worker_send_force` | `worker_id?`, `session_id?`, `text` | `agent_send_force` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径 |
 | `worker_kill` | `worker_id?`, `session_id?` | `agent_kill` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径 |
 | `worker_list` | (无) | 列出所有**运行中的 worker 进程**（物理层面视图；编排巡检用 `agent_list`） |
+
+### 后台通知与报告订阅
+
+`agent_notify(target_session_id, text)` 是“事后回报”原语，不是派发原语。典型顺序是：
+
+1. 用正常权限/审批规则启动后台命令（例如 nohup、长时测试、编译或外部脚本）。
+2. 后台命令完成后，由仍可运行的脚本/Agent 调用 `agent_notify` 写入结果或状态。
+3. Pan 将通知持久化到目标 Agent 的 `queue_pending`；即使原 worker 已退出，服务重启后仍可恢复，目标无活 worker 时自动 spawn。
+
+通知和完成报告共用持久队列的报告消费通道，但通知不会变成 `agent_assign` 任务，也不应拿来替代 `agent_assign`/`agent_send`。通知调用本身只负责可靠回报，不授予后台命令额外权限；命令执行与结果验证仍受原有审批、安全及 managed 隔离约束。
 
 ### 报告订阅（meta-agent 内部）
 

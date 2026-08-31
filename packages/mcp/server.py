@@ -24,6 +24,8 @@ Tools exposed:
     - agent_assign: Async task dispatch to an agent, returns immediately (preferred)
     - agent_send: Send a message to an agent (queued; no live worker → pending queue)
     - agent_send_force: Force-push to an agent (restart + send; no live worker → queue)
+    - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
+      persisted queue + immediate auto-spawn when no live worker)
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
     - agent_list: List all agents (= sessions) — alias of session_list
     - worker_spawn / worker_task / worker_assign / worker_send / worker_send_force /
@@ -1250,6 +1252,42 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
     if not isinstance(result, dict) or result.get("error"):
         return result
     return _api("POST", "/api/task", {"workerId": wid, "text": text})
+
+
+@mcp.tool()
+def agent_notify(target_session_id: str, text: str = "") -> dict:
+    """Persistently deliver a notification for work detached from this worker.
+
+    核心用途是异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或
+    长时间任务：例如 nohup、长时测试、编译或外部脚本。后台命令完成后调用
+    agent_notify 持久化回报；不要求 SMA 轮询或阻塞等待。通知写入目标 Agent
+    的 queue_pending，原 worker 退出也不会丢失；没有活 worker 时会自动唤醒
+    / spawn 目标 worker。
+
+    与 agent_send 的区别：agent_send 发的是待处理任务消息（排队等空闲处理）；
+    agent_notify 发的是提醒通知（目标以「通知」形态消费，不排入任务序列）。
+    它不是普通任务派发的替代品：普通任务继续使用 agent_assign 或
+    agent_send。后台命令本身仍必须遵守权限、审批、安全和结果验证规则，不能
+    通过 agent_notify 绕过审批或 managed 隔离。
+
+    仅限投递给自己或自己 managed 的 session，越权目标返回 permission_denied。
+
+    Args:
+        target_session_id: 目标 Agent（= session）ID
+        text: 提醒正文
+
+    调用链：隔离检查（_check_access，仅自己/managed，不含 claim）→
+    POST /api/notify。
+    完整编排流程见 /pan skill。
+    """
+    denied = _check_access(target_session_id)
+    if denied:
+        return denied
+    body: dict = {"targetSessionId": target_session_id, "text": text}
+    caller = _caller_identity()
+    if caller and caller.get("id"):
+        body["source"] = caller["id"]
+    return _api("POST", "/api/notify", body)
 
 
 @mcp.tool()
