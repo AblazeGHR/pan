@@ -121,7 +121,13 @@ report_subscribe → agent_assign → Worker done/error → manager queue_pendin
 
 Reports are persisted in the manager’s `queue_pending`; the wake-up signal is not the report source. A report contains fields such as `status`, `result`, `sessionId`, `taskId`, and `workerId`. The Dashboard exposes this in **Manage → Manages**: **Subscribe** becomes **Subscribed**. Claiming a Session also auto-subscribes; unclaiming auto-unsubscribes.
 
-The current code has no generic `agent_notify` MCP tool. Do not confuse it with `/api/qq/notify`, an internal QQ-plugin route. Use `report_subscribe` for completion wake-ups and `agent_send` or `agent_send_force` for messages.
+`agent_notify(target_session_id, text)` is a real MCP tool for persistent, asynchronous notifications. Use it when a background command or long-running job (for example `nohup`, a long test run, a compiler, or an external script) finishes outside the current Agent/Worker lifetime. The job can report afterward:
+
+```text
+agent_notify(target_session_id="ses_parent", text="Background tests finished: 128 passed; log is in artifacts/test.log.")
+```
+
+The notice is persisted in the target Session's `queue_pending`; if the target has no live Worker, Pan wakes/spawns it. It only delivers a reliable report: it does not grant extra permissions, bypass approvals, or bypass managed isolation. Do not confuse it with `/api/qq/notify`, an internal QQ-plugin route. Use `report_subscribe` for child-task completion/error reports, `agent_assign` for ordinary new tasks, `agent_send` for queued follow-up context, and `agent_send_force` for an urgent restart-and-send.
 
 If report subscription returns 404, the running server may not contain the route. Check version and port alignment; temporarily inspect `session_get.lastResult.status` (`queued → running → done/error`).
 
@@ -136,7 +142,7 @@ If report subscription returns 404, the running server may not contain the route
 | `agent_assign(session_id, text, task_id?)` | New asynchronous task; returns `queued`; auto-spawns | Default for new work and parallel fan-out; reuse `task_id` on retry |
 | `agent_send(session_id, text)` | Queued multi-turn message; does not interrupt | Additional context or a follow-up |
 | `agent_send_force(session_id, text)` | Restart + send for a live Worker; queues if none | Urgent constraint, direction change, or stuck Worker |
-| `agent_notify` | Not implemented in the current MCP server | Do not call it |
+| `agent_notify(target_session_id, text)` | Persistent asynchronous notice for detached background work; auto-wakes/spawns the target when needed | Use for a later result/status report, not ordinary task dispatch |
 
 `worker_*` names are compatibility aliases. Dispatch is asynchronous: `queued` means accepted, not complete. Wait for the report, then inspect and verify; do not repeatedly resend because the result is not immediate.
 

@@ -277,9 +277,18 @@ Meta-Agent 先对目标 Session 调 `report_subscribe`，再调 `agent_assign`�
 | `agent_assign(session_id, text, task_id?)` | 异步派发新任务，立即返回 `queued`；无活 Worker 自动 spawn | 不以重启打断 | 新任务、并行 fan-out；重试时复用 `task_id` 防重复 |
 | `agent_send(session_id, text)` | 发多轮协作消息，进入持久队列，等目标空闲处理 | 不打断 | 补充信息、追问、后续建议 |
 | `agent_send_force(session_id, text)` | 对活 Worker 执行 restart + send | 会打断 | 紧急约束、方向变更、Worker 卡住；无活时退化为入队 |
-| `agent_notify` | 当前版本没有这个 MCP 工具 | — | 不要调用或声称它存在 |
+| `agent_notify(target_session_id, text)` | 把“事后通知”持久化投递到自己或自己管理的 Agent | 不启动普通任务序列；目标无活 Worker 时会唤醒/自动 spawn | 脱离当前 Agent/Worker 生命周期的后台命令、长时测试、编译、外部脚本完成后的回报 |
 
-`agent_notify` 不要和 QQ 的 `/api/qq/notify` 混淆：后者是 QQ 插件向 Pan Core 上报 QQ inbox 更新的内部 HTTP 路由，不是通用 Agent 通知 API。要让主管被子任务唤醒，使用 `report_subscribe`；要给 Agent 发消息，使用 `agent_send`/`agent_send_force`。
+`agent_notify` 不要和 QQ 的 `/api/qq/notify` 混淆：后者是 QQ 插件向 Pan Core 上报 QQ inbox 更新的内部 HTTP 路由。`agent_notify` 是可调用的通用 MCP 通知工具，但不是普通任务派发的替代品。适合这样使用：启动一个本身遵守权限、审批和安全规则的后台命令（例如 `nohup`、长时间测试、编译或外部脚本），命令结束后由仍可运行的脚本/Agent 调用：
+
+```text
+agent_notify(
+  target_session_id="ses_parent",
+  text="后台测试已完成：pytest 结果为 128 passed，日志已写入 artifacts/test.log。"
+)
+```
+
+通知会写入目标 Session 的持久化 `queue_pending`；即使原 Worker 已退出，目标无活 Worker 时也会自动唤醒/生成 Worker。它只负责可靠回报，不替后台命令授予额外权限，也不绕过 managed 隔离。普通新任务继续使用 `agent_assign`；向已有 Agent 排队补充消息使用 `agent_send`；需要立即打断并重启后送达使用 `agent_send_force`。要接收子任务完成/错误报告，则使用 `report_subscribe`。
 
 派发是异步编排：`queued` 只表示任务已入队/接受，不表示完成。SMA 应等待报告唤醒，再 `session_get`、验收、必要时补派；不要因没马上看到结果就重复派同一任务。新 Session 的第一条任务应写清背景、目标、文件、边界和验收标准；已有上下文时可简短追问。
 
@@ -370,7 +379,7 @@ Pan 的 Session 删除会 kill Worker、删除 Session 元数据并清理会话�
 | 报告 | `report_subscribe`、`report_unsubscribe`、`queue_pending` |
 | 设置 | `session_update`、`pan_handbook` |
 
-`worker_assign`、`worker_send` 等是兼容旧名；当前实现没有通用 `agent_notify`。
+`worker_assign`、`worker_send` 等是兼容旧名；`agent_notify` 是当前实现中的一等 MCP 工具。
 
 ### HTTP 关键端点
 
@@ -384,6 +393,7 @@ POST /api/claim
 POST /api/unclaim
 POST /api/report-subscribe
 POST /api/report-unsubscribe
+POST /api/notify                 # agent_notify 的内部后端路由
 GET  /api/session-templates
 GET  /api/mcp/servers
 GET  /api/cli/status
