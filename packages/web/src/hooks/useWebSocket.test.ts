@@ -694,6 +694,21 @@ describe('useWebSocket agent-injected message sync', () => {
     expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['u0']);
   });
 
+  it('refreshes the durable queue when receipt transitions to running', async () => {
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionQueue.mockResolvedValueOnce([]);
+
+    await flushTrigger('worker.status', {
+      type: 'worker.status',
+      sessionId: 'A',
+      workerId: 'w1',
+      status: 'running',
+      source: 'user',
+    });
+
+    expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('A');
+  });
+
   it('does not sync when the event targets a non-current session', async () => {
     renderHook(() => useWebSocket());
 

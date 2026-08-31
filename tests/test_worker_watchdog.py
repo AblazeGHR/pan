@@ -361,6 +361,13 @@ def test_watchdog_task_timeout_reports_zombie(monkeypatch):
     _, mgr = _setup_managed_pair()
     killed = []
 
+    async def no_wake(_session_id):
+        return None
+
+    # Keep the assertion focused on report enqueue; under receipt-ack semantics
+    # an immediately recovered manager may consume the report in the same tick.
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+
     async def fake_kill(worker_id):
         killed.append(worker_id)
         return None
@@ -395,6 +402,11 @@ def test_watchdog_queued_timeout_reports_zombie(monkeypatch):
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     _, mgr = _setup_managed_pair()
     killed = []
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
 
     async def fake_kill(worker_id):
         killed.append(worker_id)

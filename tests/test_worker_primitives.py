@@ -159,8 +159,8 @@ def test_assign_task_id_error_after_send_failure(monkeypatch):
     _cleanup()
 
 
-def test_assign_task_id_ttl_prunes():
-    """过期 taskId 条目 → prune 后视为不存在 → 重新入队执行。"""
+def test_assign_task_id_ttl_prunes_but_durable_queue_still_deduplicates():
+    """注册表过期不等于任务可重跑：持久队列仍拒绝第二次执行。"""
     _cleanup()
     s = _setup_session()
     w = _setup_worker(s.id)
@@ -178,9 +178,9 @@ def test_assign_task_id_ttl_prunes():
     finally:
         worker._TASK_STATUS_TTL_SEC = orig_ttl
 
-    assert qsize == 2, f"expired entry not pruned/re-enqueued: qsize={qsize}"
-    assert r2["status"] == "queued", f"got {r2}"
-    print("PASS: assign taskId TTL prunes expired entries")
+    assert qsize == 1, f"durable task id was duplicated after TTL: qsize={qsize}"
+    assert r2["status"] == "pending", f"got {r2}"
+    print("PASS: assign taskId TTL expiry still respects durable idempotency")
     _cleanup()
 
 

@@ -224,12 +224,14 @@ class Worker:
     # 入队时从 session 读、自增后随 item.seq 一起落盘。
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
-    # 当前正在执行的持久 task item。task item 要到收到 result 后才确认出队；
-    # 若 CLI 在 stdin 写入后崩溃，保留该引用供 dashboard 判断是否可安全重试，
-    # 不依赖 taskId（taskId 允许为空，且同 id 可能有值相同的不同 item）。
+    # 当前正在执行的持久 task item。item 在 Worker 持久化接管时已经从
+    # Session.queue_pending 删除；这里仅保留运行期上下文用于 taskSeq、错误
+    # 归属和 terminal result 配对，不得把它重新放回队列。
     _current_queue_item: dict | None = None
+    # 原 queue_pending 位置，仅用于 receipt save 失败时精确回滚内存态。
+    _claimed_queue_index: int | None = None
     # 当前报告批次的持久 item。报告与 task 共用 queue_pending，但报告由一次
-    # report_signal 批量送入；同样要到 terminal result 后才确认整批出队。
+    # report_signal 批量送入；批次在 Worker 持久化接管时一次性出队。
     _current_report_items: list[dict] = field(default_factory=list)
     _zombie_reported: bool = False  # 异常死亡 zombie 报告是否已推送（防 watchdog/EOF 双路径重复）
     # ── 流式块防抖落盘（A1）──
@@ -287,9 +289,9 @@ def _prune_task_status() -> None:
 def _mark_worker_tasks_error(worker_id: str, reason: str) -> int:
     """kill_worker / worker 退出路径：把该 worker 名下 status==pending 的 taskId 标 error。
 
-    任务 item 在收到 result 前一直留在 Session.queue_pending，因此 worker 被杀
-    时保留队列中的 taskId 为 pending。只有已经不在持久队列中的旧式/直连任务
-    才标记 error；队列中的不确定项由显式 retry 决定，避免自动恢复造成双跑。
+    任务 item 在 Worker 接管时已经从 Session.queue_pending 消费，因此 worker
+    被杀时其 taskId 直接标记 error；只有尚未被接管、仍在持久队列中的任务才
+    保持 pending，等待后续 worker 接管。
     """
     now = time.monotonic()
     old_worker = workers.get(worker_id)
@@ -572,40 +574,24 @@ def _signal_task_done(w: Worker) -> None:
 
 
 def _ack_current_task(w: Worker, s) -> None:
-    """收到最终 result 后确认当前 task item 出队（仅改内存，不单独落盘）。
+    """收到最终 result 后清理当前 task 运行上下文。
 
-    用户任务在真正完成前不能从持久队列删除：stream CLI 可能在 stdin 接收后、
-    result 到达前崩溃。调用方会把这次修改和 result/history 一起 save；若没有
-    当前队列 item（兼容旧的直接入队消息），保持原行为。
+    task item 已在 Worker 接管时与 history receipt 一起从持久队列删除；此处
+    只清理运行期引用。即使 provider 在 terminal result 前退出，也不得把 item
+    放回 queue_pending，否则 restart/watchdog 可能再次执行。
     """
     item = w._current_queue_item
     w._current_queue_item = None
-    if item is None or s is None:
-        return
-    s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
-    # A restart may have suppressed later signals behind this in-flight item.
-    # Once the item has a terminal result, release exactly the next queued task
-    # so the queue keeps making progress without replaying the acknowledged one.
-    if w.pending_signal is not None:
-        for queued in s.queue_pending:
-            if _is_task_item(queued) and _is_dispatchable(queued):
-                w.pending_signal.put_nowait({"type": "task_signal", "id": queued.get("id")})
-                break
 
 
 def _ack_current_reports(w: Worker, s) -> None:
-    """收到最终 result 后确认当前报告批次出队（仅改内存，不单独落盘）。"""
+    """收到最终 result 后清理当前报告批次运行上下文。
+
+    报告批次在接管 save 中已经从 queue_pending 删除；这里不再按 terminal
+    result 做第二次出队，也不再额外补发信号。
+    """
     items = w._current_report_items
     w._current_report_items = []
-    if not items or s is None:
-        return
-    item_ids = {id(item) for item in items}
-    s.queue_pending = [queued for queued in s.queue_pending if id(queued) not in item_ids]
-    if w.pending_signal is not None and any(
-        _is_report_item(queued) and _is_dispatchable(queued)
-        for queued in s.queue_pending
-    ):
-        w.pending_signal.put_nowait({"type": "report_signal"})
 
 
 async def _finish_task_error(w: Worker, s, result: str) -> None:
@@ -819,8 +805,8 @@ async def _read_stdout(w: Worker):
                     if not (last and last.get("role") == "assistant"
                             and last.get("content") == result_text):
                         s.history.append({"role": "assistant", "content": result_text})
-                # result 是 task item 的完成确认点。把 item 与 last_result/
-                # history 放进同一次落盘，避免“结果已落盘但队列仍在”造成重跑。
+                # result 只记录终态；task item 已在 Worker receipt save 中消费，
+                # 这里不得再次按结果修改 queue_pending。
                 _ack_current_task(w, s)
                 _ack_current_reports(w, s)
                 # enrich: 从 CLI 原生存储获取消耗数据（如 raw_usage）
@@ -950,6 +936,13 @@ async def _consumer(w: Worker):
         item = await w.pending_signal.get()
         if item is None:
             break
+        if not isinstance(item, dict):
+            # The signal queue is an internal wake-up channel, not a message
+            # transport.  Never let malformed/legacy values kill the consumer
+            # (which would strand every durable item behind this signal).
+            _log.warning("[Worker %s] ignoring malformed worker signal: %r",
+                         w.worker_id, item)
+            continue
 
         # 报告唤醒信号：正文在落盘 queue_pending，批量拉取拼接成一条消息处理
         if item.get("type") == "report_signal":
@@ -959,45 +952,55 @@ async def _consumer(w: Worker):
             if w._current_report_items:
                 _log.warning(
                     "[Worker %s] report batch returned without terminal result; "
-                    "leaving %d item(s) in queue_pending for recovery",
+                    "%d item(s) were already consumed and will not be replayed",
                     w.worker_id, len(w._current_report_items),
                 )
                 break
             continue
 
-        # 任务唤醒信号（L4 落盘）：正文在落盘 queue_pending，按 id 认领单个 task
+        # 任务唤醒信号（L4 落盘）：正文在落盘 queue_pending，按 id 认领单个 task。
+        # 认领会在本函数内立即从持久队列删除；queue_pending 的消费边界是
+        # Worker 持久化接管，而不是 provider 返回 terminal result。
         claimed = None
+        task_candidate = None
         if item.get("type") == "task_signal":
+            # Memory lookup may await. 先读取候选正文，等 lookup 完成后再做同步
+            # claim+出队，避免 claim 尚未持久化时 worker 被取消而留下可重放窗口。
+            candidate_session = _session(w)
+            if candidate_session is not None:
+                task_candidate = next(
+                    (queued for queued in candidate_session.queue_pending
+                     if _is_task_item(queued) and queued.get("id") == item.get("id")),
+                    None,
+                )
+            if (task_candidate is not None
+                    and isinstance(task_candidate.get("text"), str)
+                    and _task_source(task_candidate) is not None):
+                text = await _maybe_inject_memory(candidate_session, task_candidate["text"])
             claimed = await _claim_pending_task(w, item.get("id"))
             if claimed is None:
                 continue  # 信号重复 / item 已被消费 / 会话消失 → 跳过
-            text = claimed["text"]
             source = _task_source(claimed)
             if source is None:
-                _log.warning("[Worker %s] task id=%s has unknown source; leaving in queue_pending",
+                _log.warning("[Worker %s] task id=%s has unknown source; ignoring without replay",
                              w.worker_id, claimed.get("id"))
                 _inflight_task_ids.discard(claimed.get("id"))
                 continue
+            # 若候选在 memory lookup 期间被替换，使用持久真源中的原文；正常路径
+            # text 已经是 lookup 后的注入文本。
+            if task_candidate is not claimed:
+                text = await _maybe_inject_memory(_session(w), claimed["text"])
             w._current_seq = claimed.get("seq")
             w._current_task_id = claimed.get("taskId")
             w._current_queue_item = claimed
         else:
-            # 直接入队消息（无 type）：send_task 落盘迁移前的完整 item 形态
-            # （兼容测试直连 pending_signal.put 的完整 item）。未知/畸形信号
-            # 必须丢弃并记录，不能静默套用 agent 身份。
-            if not isinstance(item, dict) or not isinstance(item.get("text"), str):
-                _log.warning("[Worker %s] ignoring malformed worker signal: %r",
-                             w.worker_id, item)
-                continue
-            source = _task_source(item)
-            if source is None:
-                _log.warning("[Worker %s] ignoring worker signal with unknown source: %r",
-                             w.worker_id, item.get("source"))
-                continue
-            text = item["text"]
-            w._current_seq = item.get("seq")
-            w._current_task_id = item.get("taskId")
-            w._current_queue_item = None
+            # Body-bearing signals have no durable item/receipt and therefore
+            # cannot satisfy at-most-once semantics.  The production protocol
+            # only emits task_signal/report_signal; reject legacy direct forms
+            # instead of silently assigning them a user/agent identity.
+            _log.warning("[Worker %s] ignoring non-durable worker signal: %r",
+                         w.worker_id, item)
+            continue
 
         try:
             # resume replay 等待已删除（worker-resume-replay 结论）：cbc 在 stdin 有
@@ -1010,54 +1013,56 @@ async def _consumer(w: Worker):
 
             s = _session(w)
             if s:
-                # 旧版本可能已经把 history 标记写入、但还没有 deliveryState；
-                # 对账只用于复用历史用户条目，绝不把 in-flight 项自动重放。
+                # 旧版本可能已经把 history 标记写入、但 queue item 仍未被迁移；
+                # 对账只用于避免重复追加 history，绝不把已经接管的 item 重放。
                 already_delivered = claimed is not None and _delivery_mark_in_history(s, claimed)
                 if already_delivered:
                     _log.info(
                         "[Worker %s] task id=%s reconciliation: delivery mark already "
                         "in history; reusing the existing user entry", w.worker_id,
                         claimed.get("id"))
-                injected_text = await _maybe_inject_memory(s, text)
-                text = injected_text
-                # 进程在 hand-off 前死亡：尚未有 stdin/oneshot prompt 发送，
-                # 可以安全退回 queued，让新 worker 自动接管。
-                if claimed is not None and not _process_alive(w):
-                    claimed["deliveryState"] = _DELIVERY_QUEUED
-                    _log.warning(
-                        "[Worker %s] task id=%s aborted: process dead, "
-                        "kept in queue_pending", w.worker_id, claimed.get("id"))
-                    continue
+                injected_text = text
                 hist_entry = {"role": "user", "content": injected_text}
                 if claimed is not None:
                     # 投递标记记为 history 条目元数据（不进消息正文，恢复对账据此
                     # 去重）；直连消息（claimed=None）不经队列，无对账、不打标记
                     hist_entry["delivered_keys"] = [_delivery_key(claimed)]
-                if claimed is None:
-                    # 兼容测试/旧调用方直接向 pending_signal 放完整消息；这类
-                    # 消息没有 durable queue item，仍由执行函数在发送后保存。
+                    if claimed.get("taskId") is not None:
+                        hist_entry["taskId"] = claimed.get("taskId")
+                    if claimed.get("clientMessageId"):
+                        # Keep a durable browser receipt beyond the bounded
+                        # in-memory ledger so a very late reconnect cannot
+                        # execute an old message for a second time.
+                        hist_entry["clientMessageId"] = claimed["clientMessageId"]
+                old_history_len = len(s.history)
+                if not already_delivered:
                     s.history.append(hist_entry)
-                else:
-                    old_history_len = len(s.history)
+                try:
+                    # Queue consumption is committed together with the history
+                    # receipt before writing stdin/spawning oneshot.  Once this
+                    # save succeeds, a restart must never see this item again.
+                    await _save_receipt(s)
+                except Exception as e:
                     if not already_delivered:
-                        s.history.append(hist_entry)
-                    try:
-                        # Persist deliveryState (and a new history entry, if any)
-                        # before writing stdin or spawning a one-shot process.
-                        await _sess.save_async(s)
-                    except Exception as e:
-                        if not already_delivered:
-                            del s.history[old_history_len:]
+                        del s.history[old_history_len:]
+                    if claimed is not None:
+                        # _claim_pending_task removed the item synchronously to
+                        # reserve it against API delete/order and duplicate signals.
+                        restore_at = w._claimed_queue_index
+                        if restore_at is None:
+                            restore_at = len(s.queue_pending)
+                        s.queue_pending.insert(min(restore_at, len(s.queue_pending)), claimed)
+                        w._claimed_queue_index = None
                         claimed["deliveryState"] = _DELIVERY_QUEUED
-                        _log.warning(
-                            "[Worker %s] task id=%s handoff save failed, kept "
-                            "in queue_pending: %s", w.worker_id,
-                            claimed.get("id"), e)
-                        break
-            # 用户消息落盘已下移到执行函数（_consumer_stream / _consumer_oneshot）：在
-            # running 广播 + 写 cbc stdin 之后立即持久化，发送时指示灯不再被全量
-            # O(history) 序列化阻塞（方案 1）。崩溃窗口 = 写 stdin → 落盘 毫秒级，
-            # 最坏丢一条刚发送未落盘的用户消息（可接受范围）。
+                    _log.warning(
+                        "[Worker %s] task receipt save failed, kept item in "
+                        "queue_pending: %s", w.worker_id, e)
+                    break
+                if claimed is not None:
+                    w._claimed_queue_index = None
+            # The item is already durably consumed.  Do not reinsert it if the
+            # provider later exits without a terminal result; that would violate
+            # the at-most-once execution boundary.
 
             # 选择执行模式：oneshot（每次任务新开进程）vs stream（长驻，可带 MCP）。
             # 由 adapter.execution_modes + session.output_mode 决定（去 cbc 化）。
@@ -1067,15 +1072,14 @@ async def _consumer(w: Worker):
                 await _consumer_oneshot(w, text, source, s)
             else:
                 await _consumer_stream(w, text, source, s)
-            # A task remains in queue_pending until its execution path calls
-            # _ack_current_task from a terminal result.  Do not consume another
-            # signal if an adapter returned without producing that result (for
-            # example because its process died); the in-flight item must wait
-            # for explicit retry instead of being attempted repeatedly.
+            # The task is already consumed.  Do not consume another signal if an
+            # adapter returned without producing a terminal result (for example
+            # because its process died); the current execution must settle before
+            # the serial consumer advances, and it must never be re-enqueued.
             if claimed is not None and w._current_queue_item is claimed:
                 _log.warning(
                     "[Worker %s] task id=%s returned without terminal result; "
-                    "leaving item in queue_pending for explicit retry",
+                    "item was already consumed and will not be replayed",
                     w.worker_id, claimed.get("id"),
                 )
                 break
@@ -1211,10 +1215,26 @@ def _has_dispatchable_items(s) -> bool:
     """Whether a session has work that automatic recovery may actually send."""
     if s is None:
         return False
-    return any(
+    if any(
         isinstance(item, dict)
         and (_is_task_item(item) or _is_report_item(item))
         and _is_dispatchable(item)
+        for item in (s.queue_pending or [])
+    ):
+        return True
+    # One-time migration hook: old releases could leave a handed-off item in
+    # queue_pending.  Spawn once so _recover_pending_signals can finalize it;
+    # new items are never left in this state.
+    return any(
+        isinstance(item, dict)
+        and (
+            _delivery_state(item) == _DELIVERY_IN_FLIGHT
+            or (
+                item.get("type") is None
+                and isinstance(item.get("text"), str)
+                and _delivery_mark_in_history(s, item)
+            )
+        )
         for item in (s.queue_pending or [])
     )
 
@@ -1263,6 +1283,70 @@ def _migrate_legacy_task_items(s) -> bool:
     return changed
 
 
+def _consume_legacy_handoff_items(s) -> bool:
+    """Finalize queue entries consumed by the pre-receipt-ack implementation.
+
+    Older versions left ``in_flight`` entries in ``queue_pending`` until a
+    terminal result.  On upgrade we must assume those entries may already have
+    reached the provider: removing them is the only migration that preserves
+    the at-most-once rule.  If the old history handoff mark is absent, retain
+    the user/report content in history before dropping the queue entry so the
+    migration does not silently erase context.
+    """
+    pending = list(s.queue_pending or [])
+    consumed_tasks = []
+    consumed_reports = []
+    keep = []
+    for item in pending:
+        if not isinstance(item, dict) or not (_is_task_item(item) or _is_report_item(item)):
+            keep.append(item)
+            continue
+        # Any history delivery mark proves the item crossed the receipt
+        # boundary, regardless of whether the old queue row recorded a state.
+        legacy_marked = _delivery_mark_in_history(s, item)
+        if _delivery_state(item) == _DELIVERY_IN_FLIGHT or legacy_marked:
+            if _is_task_item(item):
+                consumed_tasks.append(item)
+            else:
+                consumed_reports.append(item)
+            continue
+        keep.append(item)
+
+    if not consumed_tasks and not consumed_reports:
+        return False
+
+    for item in consumed_tasks:
+        if not _delivery_mark_in_history(s, item):
+            entry = {
+                "role": "user",
+                "content": item.get("text", "") if isinstance(item.get("text"), str) else "",
+                "delivered_keys": [_delivery_key(item)],
+            }
+            if item.get("taskId") is not None:
+                entry["taskId"] = item.get("taskId")
+            if item.get("clientMessageId"):
+                entry["clientMessageId"] = item["clientMessageId"]
+            s.history.append(entry)
+
+    unmarked_reports = [
+        item for item in consumed_reports
+        if not _delivery_mark_in_history(s, item)
+    ]
+    if unmarked_reports:
+        s.history.append({
+            "role": "user",
+            "content": _format_report_batch(unmarked_reports),
+            "delivered_keys": [_delivery_key(item) for item in unmarked_reports],
+        })
+
+    s.queue_pending = keep
+    _log.warning(
+        "[Session %s] finalized %d legacy consumed task(s) and %d report(s); "
+        "they will not be replayed", s.id, len(consumed_tasks), len(consumed_reports),
+    )
+    return True
+
+
 def _worker_has_pending_work(w: Worker) -> bool:
     """idle watchdog 回收前检查是否还有待消费信号或持久队列项。"""
     if w.pending_signal is not None and not w.pending_signal.empty():
@@ -1273,15 +1357,14 @@ def _worker_has_pending_work(w: Worker) -> bool:
 
 # ── 投递标记与恢复对账 ──
 #
-# queue_pending 是 durable inbox，而 deliveryState 是 durable hand-off
-# 状态。只有 queued 项会被自动唤醒；一旦在发送前保存为 in_flight，进程死亡
-# 后就不再自动重放。通用 CLI 无法证明 stdin 是否已被 provider 接受，自动
-# 重放会把“可能已执行”的任务变成确定的重复执行；不确定项留在面板中，必须
-# 由用户显式 retry。history 上的 delivered_keys 仍保留，用于兼容旧数据和
-# 防止 save 顺序造成重复用户消息，但不再把 in_flight 项重新执行。
+# queue_pending 是 durable inbox。Worker 在接管前从该 inbox 认领并移除 item，
+# 与 history receipt 一起保存；保存成功即完成消费。通用 CLI 无法证明 stdin
+# 是否已被 provider 接受，因此消费必须发生在 provider 写入前，避免重启时把
+# “可能已执行”的任务变成确定的重复执行。history 上的 delivered_keys 仍保留，
+# 用于兼容旧数据和防止升级/保存顺序造成重复用户消息。
 
-# 对账扫描 history 尾部深度：标记只在注入时写入，重投对账发生在恢复后不久，
-# 尾部窗口足够；深度内未命中一律按未投递处理（宁可重复不丢）。
+# 对账扫描 history 尾部深度：仅用于升级旧格式时识别已消费 item；新路径不依赖
+# history 对账来决定是否重放，避免“宁可重复”的旧策略破坏 at-most-once。
 _DELIVERY_SCAN_DEPTH: int = 50
 
 
@@ -1314,35 +1397,87 @@ def _delivery_mark_in_history(s, item: dict) -> bool:
     return False
 
 
+async def _save_receipt(s) -> None:
+    """Persist a queue receipt even when restart cancels the consumer.
+
+    ``restart_worker`` deliberately cancels the old consumer before killing the
+    provider.  A cancellation arriving during ``save_async`` must not leave the
+    in-memory queue item removed while the durable write is still undecided.
+    Shield the save, wait for its thread to settle, then re-raise the original
+    cancellation only after a successful commit.  Callers can safely rollback
+    on ordinary save errors; a successful cancelled save remains consumed.
+    """
+    save_task = asyncio.create_task(_sess.save_async(s))
+    try:
+        await asyncio.shield(save_task)
+    except asyncio.CancelledError:
+        # A second cancellation can arrive while waiting for the shielded
+        # thread.  Keep waiting until the durable result is observable.
+        while not save_task.done():
+            try:
+                await asyncio.shield(save_task)
+            except asyncio.CancelledError:
+                continue
+        if save_task.cancelled():
+            # Shield normally prevents this, but an event-loop shutdown or a
+            # caller that explicitly cancels the save task can still cancel it.
+            # Convert that pre-commit condition into an ordinary error so the
+            # caller restores its in-memory queue snapshot instead of silently
+            # dropping the item.
+            raise RuntimeError("receipt save cancelled before commit")
+        save_error = save_task.exception()
+        if save_error is not None:
+            raise save_error
+        # Receipt committed; propagate cancellation to the worker lifecycle.
+        raise
+
+
 async def _consume_pending_reports(w: Worker, s):
     """从落盘 queue_pending 取全部积压报告，拼接为一条消息交给模型处理。
 
-    报告批次在收到 terminal result 前一直保留在 queue_pending。构造注入文本时
-    先落盘 history 投递标记与 in-flight 状态；result/error/cancelled 到达后，
-    调用方把报告批次与最终结果一起确认出队。崩溃在注入后不会自动重投，必须
-    显式 retry；save 失败则队列原样保留。
+    报告批次在 Worker 接管时立即从 queue_pending 出队。构造注入文本时先落盘
+    history 投递标记与出队结果，再交给 provider；result/error/cancelled 只负责
+    记录执行结果，不再决定是否消费。崩溃在接管后不会自动重投；save 失败则
+    队列原样保留。
 
-    消费前确认 worker 进程存活（CLI 子进程死 → 中止保留队列，由全局 watchdog
-    spawn 恢复后经 _recover_pending_signals 只补发 queued 项；in-flight 项等待
-    显式 retry）。
+    消费前确认 worker 进程存活（CLI 子进程死 → 中止并保留 queued 项，由全局
+    watchdog spawn 恢复；一旦本 Worker 完成接管并保存出队，就不再重放）。
 
     L4 落盘：任务消息（type=="task"）与报告共存于同一队列；此处**只消费报告**，
     task item 保留在队列中由 task_signal 按 id 消费，互不误删。
 
     恢复对账：save 顺序 jsonl-先写 → 崩溃窗口内 history 条目已带 delivered_keys
-    元数据、队列项仍在。恢复时复用已有 history 用户项，但不会自动重试整个报告
-    批次；显式 retry 后才重新投递，新报告与旧报告混合时保持队列顺序。
+    元数据、旧队列项仍在。升级恢复时复用已有 history 用户项并直接消费旧 item，
+    不会自动重试报告批次；新报告与旧报告混合时仍保持队列顺序。
     """
+    # Upgrade any stale pre-receipt-ack rows before inspecting the report
+    # batch.  The helper also handles legacy task rows sharing this inbox; take
+    # a full snapshot so a failed migration save cannot lose either kind.
+    old_queue_snapshot = list(s.queue_pending)
+    old_history_len = len(s.history)
+    legacy_changed = _consume_legacy_handoff_items(s)
+    if legacy_changed:
+        try:
+            await _save_receipt(s)
+        except Exception as exc:
+            s.queue_pending = old_queue_snapshot
+            del s.history[old_history_len:]
+            _log.warning(
+                "[Worker %s] legacy queue cleanup save failed; leaving rows "
+                "untouched: %s", w.worker_id, exc)
+            return
+
     reports = [it for it in s.queue_pending if _is_report_item(it)]
     if not reports:
         # 队列里只剩 task item（报告已被其他信号消费）→ 不发空消息
         return
-    # A report batch is one delivery unit.  If any member was handed off before
-    # a crash, do not silently replay it (nor overtake it with newer reports).
-    # The dashboard's explicit retry action resets the selected item(s) to queued.
+    # A report batch is one delivery unit.  Legacy in-flight members are removed
+    # by _consume_legacy_handoff_items before this path; new batches are removed
+    # atomically with their receipt save and are never replayed.
     if any(_delivery_state(it) == _DELIVERY_IN_FLIGHT for it in reports):
         _log.info(
-            "[Worker %s] report batch has in-flight item(s); waiting for explicit retry",
+            "[Worker %s] report batch has legacy in-flight item(s); recovery should "
+            "have finalized them",
             w.worker_id,
         )
         return
@@ -1367,6 +1502,15 @@ async def _consume_pending_reports(w: Worker, s):
     for it in reports:
         it["deliveryState"] = _DELIVERY_IN_FLIGHT
 
+    # Reserve the whole report batch by identity before the save await.  Reports
+    # and tasks share queue_pending, so only these report objects are removed;
+    # any queued task remains in its original relative position.
+    report_positions = [
+        (index, it) for index, it in enumerate(s.queue_pending)
+        if _is_report_item(it)
+    ]
+    s.queue_pending = [it for it in s.queue_pending if not _is_report_item(it)]
+
     # 只有新报告需要追加 history；已经有 delivered_keys 的报告属于旧数据的
     # 已写入执行上下文，复用原用户条目，避免恢复时污染上下文。
     if undelivered:
@@ -1374,9 +1518,11 @@ async def _consume_pending_reports(w: Worker, s):
         s.history.append({"role": "user", "content": injected_text,
                           "delivered_keys": [_delivery_key(it) for it in undelivered]})
         try:
-            await _sess.save_async(s)
+            await _save_receipt(s)
         except Exception as e:
             del s.history[old_history_len:]
+            for index, it in reversed(report_positions):
+                s.queue_pending.insert(min(index, len(s.queue_pending)), it)
             for it in reports:
                 previous = old_states[id(it)]
                 if previous is None:
@@ -1389,8 +1535,10 @@ async def _consume_pending_reports(w: Worker, s):
             return
     else:
         try:
-            await _sess.save_async(s)
+            await _save_receipt(s)
         except Exception as e:
+            for index, it in reversed(report_positions):
+                s.queue_pending.insert(min(index, len(s.queue_pending)), it)
             for it in reports:
                 previous = old_states[id(it)]
                 if previous is None:
@@ -1420,9 +1568,10 @@ _inflight_task_ids: set[str] = set()
 async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
     """在落盘 queue_pending 中按 id 认领一个任务 item。
 
-    ``in_flight`` 在发送前持久化，是自动恢复的 at-most-once 边界。只允许
-    队列中更早的 task 都处于 queued（或已经出队）；如果更早的 task 仍
-    in-flight，当前 item 必须等待用户明确 retry，不能越过不确定执行。
+    认领会同步从 ``queue_pending`` 删除；调用方随后把这次接管与 history
+    receipt 一起持久化。队列消费边界在 Worker 接管，而不是 terminal result。
+    只允许队列中更早的 task 都处于 queued（或已经出队）；如果更早的 task
+    仍是旧版本遗留的 in-flight，当前 item 不得越过它。
 
     返回 item；信号重复 / item 不存在 / 已被消费 / 会话消失 → None。
 
@@ -1434,6 +1583,14 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
     if not s:
         _log.warning("[Worker %s] task_signal: session %s not found",
                      w.worker_id, w.session_id)
+        return None
+    # Stream workers must have a live provider before accepting the durable
+    # item.  One-shot workers have process=None and are considered live here.
+    if not _process_alive(w):
+        _log.warning(
+            "[Worker %s] task_signal: provider process is dead; leaving task id=%s queued",
+            w.worker_id, task_id,
+        )
         return None
     for index, it in enumerate(s.queue_pending):
         if _is_task_item(it) and it.get("id") == task_id:
@@ -1455,11 +1612,22 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
             # Legacy versions wrote the history delivery mark before this
             # durable state existed.  Treat that evidence as an uncertain
             # hand-off instead of replaying it automatically.
-            if "deliveryState" not in it and _delivery_mark_in_history(s, it):
-                it["deliveryState"] = _DELIVERY_IN_FLIGHT
+            if _delivery_mark_in_history(s, it):
+                # Legacy history already proves this item crossed the receipt
+                # boundary.  Consume the stale queue row as a migration; never
+                # turn it into a second provider execution.
+                s.queue_pending.pop(index)
+                try:
+                    await _save_receipt(s)
+                except Exception as exc:
+                    s.queue_pending.insert(index, it)
+                    _log.warning(
+                        "[Worker %s] legacy task id=%s cleanup save failed; "
+                        "left queued for migration: %s", w.worker_id, task_id, exc)
+                    return None
                 _log.info(
                     "[Worker %s] task id=%s has legacy history handoff mark; "
-                    "automatic replay suppressed", w.worker_id, task_id)
+                    "consumed stale queue row without replay", w.worker_id, task_id)
                 return None
             source = _task_source(it)
             if source is None:
@@ -1468,13 +1636,30 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
                     w.worker_id, task_id)
                 return None
             for prior in s.queue_pending[:index]:
-                if _is_task_item(prior) and not _is_dispatchable(prior):
+                if (_is_task_item(prior) and _is_dispatchable(prior)
+                        and _task_source(prior) is not None):
+                    # Signals are only hints and can arrive out of order after
+                    # concurrent durable saves.  Re-arm the earliest task and
+                    # the current signal so FIFO order is restored without
+                    # executing the later task ahead of it.  Duplicate hints
+                    # are harmless because claim is by durable item id.
                     _log.info(
-                        "[Worker %s] task id=%s blocked by earlier in-flight task "
-                        "id=%s", w.worker_id, task_id, prior.get("id"))
+                        "[Worker %s] task id=%s blocked by earlier queued task "
+                        "id=%s; rearming FIFO signals", w.worker_id, task_id,
+                        prior.get("id"))
+                    if w.pending_signal is not None:
+                        w.pending_signal.put_nowait({
+                            "type": "task_signal", "id": prior.get("id")})
+                        w.pending_signal.put_nowait({
+                            "type": "task_signal", "id": task_id})
                     return None
             _inflight_task_ids.add(task_id)
             it["deliveryState"] = _DELIVERY_IN_FLIGHT
+            # Reserve and consume by object identity before any later await.
+            # This prevents queue delete/reorder or a duplicate wake-up from
+            # exposing the same item to another consumer while receipt is saved.
+            w._claimed_queue_index = index
+            s.queue_pending.pop(index)
             return it
     _log.warning("[Worker %s] task_signal: task id=%s not found in queue_pending (len=%d)",
                  w.worker_id, task_id, len(s.queue_pending))
@@ -1865,10 +2050,9 @@ async def _global_watchdog_tick():
 async def _consumer_stream(w: Worker, text: str, source: str, s):
     """Stream mode: write to long-running cbc stdin."""
     if w.process is None or w.process.returncode is not None:
-        # No write was attempted.  This is the one safe automatic retry window;
-        # undo the durable claim so a replacement worker can consume it.
-        if w._current_queue_item is not None:
-            w._current_queue_item["deliveryState"] = _DELIVERY_QUEUED
+        # The queue item was already consumed at the durable Worker-receipt
+        # boundary.  Even though no provider write can be attempted here, do
+        # not put it back: automatic retry would violate at-most-once.
         if s:
             s.last_result = {
                 "status": "error",
@@ -1886,6 +2070,14 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
             "taskSeq": w._current_seq,
         })
         return
+
+    # Clear the completion latch before handing the prompt to the provider.
+    # The provider can answer synchronously (especially with a cached turn);
+    # clearing it at the end would lose that wake-up and leave the serial
+    # consumer stuck in running forever.
+    ev = getattr(w, "_task_done", None)
+    if ev is not None:
+        ev.clear()
 
     # 任务运行时长起算点：进入 running 即开始计时（watchdog 据此判定卡死）。
     # 区别于 last_activity（无输出时长）：长思考/大文件读取会长时间无 stdout，
@@ -1905,10 +2097,10 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
         "source": source,
     })
 
-    # 用户消息后置落盘（方案 1）：先广播 running + 写 stdin，再全量落盘——指示灯
-    # 与 cbc 消息送达不再被 O(history) 序列化阻塞。崩溃窗口 = 写 stdin → 落盘
-    # 毫秒级，最坏丢一条刚发送未落盘的用户消息。重取 session 避免把已删除会话
-    # 写回复活（#10 模式，同 _consumer_oneshot 的输出处理处）。
+    # Receipt/history 已在 _consumer 中持久化完成；这里仅保存 stdin 写入后可能
+    # 产生的运行态元数据（例如 provider session id），不再承担 queue 消费语义。
+    # 重取 session 避免把已删除会话写回复活（#10 模式，同
+    # _consumer_oneshot 的输出处理处）。
     sess = _session(w)
     if sess:
         await _sess.save_async(sess)
@@ -1918,9 +2110,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     # result 协程的 idle 会覆盖新任务已设的 running，导致等待提前退出、多条消息同时在
     # cbc 长驻进程管道里飞行，result 与 seq/taskId 错位、history 重复（实测复现）。
     # 用独立 Event 标记"本次任务完成"，_consumer 才能串行推进下一个排队任务。
-    ev = getattr(w, "_task_done", None)
     if ev is not None:
-        ev.clear()
         await ev.wait()
 
 
@@ -2002,10 +2192,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
     # Track in-flight process so kill_worker can terminate it (see #3).
     w._mcp_proc = proc
 
-    # 用户消息后置落盘（方案 1）：one-shot 进程已携带 prompt spawn，视为送达，
-    # 随后立即持久化——running 广播与 spawn 不被全量落盘阻塞；崩溃语义与 stream
-    # 路径一致（最坏丢一条刚发送未落盘的用户消息）。重取 session 避免写回复活
-    # 已删除会话（#10 模式）。
+    # Receipt/history 已在 _consumer 中持久化完成；one-shot spawn 后这里只保存
+    # provider/session 元数据。崩溃不会把已消费的 item 放回队列。
     sess = _session(w)
     if sess:
         await _sess.save_async(sess)
@@ -2244,47 +2432,31 @@ def _recover_pending_signals(w: Worker, s) -> bool:
     """spawn/重启后恢复消费：把落盘 queue_pending 的积压项转成唤醒信号。
 
     L4 落盘：任务与报告都持久化在 Session.queue_pending（落盘真源），worker
-    死亡/回收后消息不丢。新 worker 的 consumer 只为 queued 项补发信号；
-    in-flight 项代表执行结果不确定，绝不自动重放。后续 task 也不能越过更早的
-    in-flight task，避免队列顺序与执行语义漂移。pending_signal 是新队列，直接
-    put_nowait（无界队列不阻塞）。
+    死亡/回收后，只有尚未被 Worker 接管的 queued 项才补发信号。已经被旧版本
+    接管但仍遗留在 queue_pending 的 in-flight 项会在迁移时直接消费掉，绝不自动
+    重放；pending_signal 是新队列，直接 put_nowait（无界队列不阻塞）。
 
     调用时机：create_worker 在 system_prompt 注入**之前**（避免对注入任务重复
     发信号）、_restart_tasks 重建 consumer 后。
     """
     migrated = _migrate_legacy_task_items(s)
+    migrated = _consume_legacy_handoff_items(s) or migrated
     pending = s.queue_pending
     if not pending:
         return migrated
-    # Upgrade old queue items whose history already proves a hand-off.  This
-    # closes the compatibility window when upgrading from the previous
-    # at-least-once implementation, which had no deliveryState field.
-    for it in pending:
-        if ((_is_task_item(it) or _is_report_item(it))
-                and "deliveryState" not in it
-                and _delivery_mark_in_history(s, it)):
-            it["deliveryState"] = _DELIVERY_IN_FLIGHT
-            migrated = True
     has_report = False
-    report_blocked = False
-    task_blocked = False
     for it in pending:
         if _is_task_item(it):
             if not _is_valid_task_item(it) or _task_source(it) is None:
-                task_blocked = True
                 _log.warning(
                     "[Worker %s] skipping malformed/unknown-source task id=%s during recovery",
                     w.worker_id, it.get("id"))
                 continue
-            if not _is_dispatchable(it):
-                task_blocked = True
-            elif not task_blocked:
+            if _is_dispatchable(it):
                 w.pending_signal.put_nowait({"type": "task_signal", "id": it.get("id")})
         elif _is_report_item(it):
             has_report = True
-            if _delivery_state(it) == _DELIVERY_IN_FLIGHT:
-                report_blocked = True
-    if has_report and not report_blocked:
+    if has_report:
         w.pending_signal.put_nowait({"type": "report_signal"})
     return migrated
 
@@ -2403,8 +2575,9 @@ async def _create_worker(session_id: str) -> Worker | str:
 
     await _sess.save_async(s)
 
-    # L4 落盘恢复：把本次 spawn 前仍可安全自动投递的 queued 项转成唤醒信号；
-    # in-flight 项代表不确定执行，保留在队列等待显式 retry。
+    # L4 落盘恢复：把本次 spawn 前尚未被 Worker 接管的 queued 项转成唤醒信号；
+    # 旧版本遗留的 in-flight 项在 _recover_pending_signals 中直接完成迁移消费，
+    # 不会等待或触发重试。
     # 必须放在 system_prompt 注入**之前**：注入会往 queue_pending 追加新 task 并
     # 自带 task_signal，先做恢复可避免对同一 item 重复发信号。
     queue_migrated = _recover_pending_signals(w, s)
@@ -2705,6 +2878,7 @@ async def _restart_tasks(w: Worker):
     w._current_seq = None
     w._current_task_id = None
     w._current_queue_item = None
+    w._claimed_queue_index = None
     w._current_report_items = []
     w._task_started_at = 0.0
     w.last_activity = time.monotonic()
@@ -2715,7 +2889,7 @@ async def _restart_tasks(w: Worker):
         load_worker_config()
     w._watchdog_task = asyncio.create_task(_watchdog(w))
     # L4 落盘恢复：新 consumer 的信号队列是新建的，旧信号已随旧队列丢弃——
-    # 重新对落盘 queue_pending 积压发信号，避免重启/换进程时丢任务与报告。
+    # 重新为尚未接管的 queue_pending 积压发信号；已消费 item 不会重现。
     s = _session(w)
     if s and _recover_pending_signals(w, s):
         await _sess.save_async(s)
@@ -3033,7 +3207,33 @@ _ACCEPTED_INPUT_ID_LIMIT = 256
 
 
 def _has_accepted_input_id(s, client_message_id: str | None) -> bool:
-    return bool(client_message_id and client_message_id in s.accepted_input_ids)
+    if not client_message_id:
+        return False
+    if client_message_id in s.accepted_input_ids:
+        return True
+    # accepted_input_ids is intentionally bounded for hot-path metadata.  The
+    # receipt history is the durable long-term ledger and survives its eviction.
+    return any(
+        isinstance(entry, dict) and entry.get("clientMessageId") == client_message_id
+        for entry in (s.history or [])
+    )
+
+
+def _durable_task_id_seen(s, task_id: str | None) -> bool:
+    """Whether a task id already crossed or is waiting at the receipt boundary."""
+    if not task_id or s is None:
+        return False
+    if any(
+        isinstance(item, dict)
+        and item.get("type") == "task"
+        and item.get("taskId") == task_id
+        for item in (s.queue_pending or [])
+    ):
+        return True
+    return any(
+        isinstance(entry, dict) and entry.get("taskId") == task_id
+        for entry in (s.history or [])
+    )
 
 
 async def _persist_task_item(s, text: str, source: str, seq: int | None,
@@ -3043,6 +3243,12 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     if source not in _TASK_SOURCES:
         return None, f"Unknown task source: {source}"
     if _has_accepted_input_id(s, client_message_id):
+        return None, None
+    # taskId is the durable idempotency key for orchestration callers.  The
+    # in-memory registry is only an acceleration layer; queue/history checks
+    # keep a retry after process restart or registry TTL expiry from running a
+    # second provider turn.
+    if _durable_task_id_seen(s, task_id):
         return None, None
     old_seq = s.task_seq
     old_accepted_input_ids = list(s.accepted_input_ids)
@@ -3094,62 +3300,16 @@ def _worker_owns_queue_item(w: Worker | None, item: dict) -> bool:
 
 
 async def retry_pending_item(session_id: str, item_id: str) -> dict | str:
-    """Explicitly retry one durable queue item after an uncertain hand-off.
+    """Reject retry requests under the strict at-most-once policy.
 
-    Automatic recovery never resets ``in_flight``.  This endpoint is the
-    deliberate acknowledgement that the operator accepts a possible duplicate.
-    Reports/QQ are consumed as one batch, so retrying one report resets the
-    whole currently persisted report batch and replays it exactly once more.
+    A queue item is consumed when the Worker durably accepts it, so an item
+    that has crossed that boundary is intentionally no longer addressable from
+    queue_pending.  Keeping this compatibility entry point prevents old UI
+    clients from silently re-enqueuing a message and executing it twice.
     """
-    s = _sess.get(session_id)
-    if not s:
+    if not _sess.get(session_id):
         return f"Session {session_id} not found"
-    target = None
-    for it in s.queue_pending:
-        if not isinstance(it, dict):
-            continue
-        if it.get("id") == item_id or _pending_item_id(it) == item_id:
-            target = it
-            break
-    if target is None:
-        return "Queue item not found"
-    if not (_is_task_item(target) or _is_report_item(target)):
-        return "Queue item is not retryable"
-
-    live = find_alive_worker_by_session(session_id)
-    if _delivery_state(target) == _DELIVERY_IN_FLIGHT and _worker_owns_queue_item(live, target):
-        return "Queue item is still running"
-
-    retry_items = [target]
-    if _is_report_item(target):
-        retry_items = [it for it in s.queue_pending if _is_report_item(it)]
-        if live and any(_worker_owns_queue_item(live, it) for it in retry_items):
-            return "Report batch is still running"
-
-    old_states = {id(it): it.get("deliveryState") for it in retry_items}
-    for it in retry_items:
-        it["deliveryState"] = _DELIVERY_QUEUED
-        if _is_task_item(it):
-            _inflight_task_ids.discard(it.get("id"))
-    try:
-        await _sess.save_async(s)
-    except Exception as exc:
-        for it in retry_items:
-            previous = old_states[id(it)]
-            if previous is None:
-                it.pop("deliveryState", None)
-            else:
-                it["deliveryState"] = previous
-        return f"Failed to retry queue item: {exc}"
-
-    if live and live.pending_signal is not None and _process_alive(live):
-        if _is_task_item(target):
-            await live.pending_signal.put({"type": "task_signal", "id": target.get("id")})
-        else:
-            await live.pending_signal.put({"type": "report_signal"})
-    else:
-        _schedule_session_recovery(session_id)
-    return target
+    return "Queue retry disabled by at-most-once policy"
 
 
 async def _restart_if_native_interrupt_stalls(w: Worker, generation: int) -> None:
@@ -3240,7 +3400,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
     完成时通过 worker.result 事件（配合 /ws/agent subscribe）回调。
     适用于并行 fan-out。
 
-    task_id 幂等（复用 taskId 幂等注册表 _task_status + TTL 惰性清理）：
+    task_id 幂等（内存注册表用于快速返回，Session.queue/history 作为持久兜底）：
     同一 taskId 重发不重复入队（防双跑）。若该 taskId 已存在：
     - 已完成（done/error/cancelled）→ 返回缓存结果（status/result）
     - 进行中 → 返回 {"status": "pending", "taskId": ...}，不重复入队
@@ -3254,14 +3414,40 @@ async def assign(session_id: str, text: str, source: str = "agent",
         if existing["status"] in ("done", "error", "cancelled"):
             return dict(existing)
         return {"status": "pending", "taskId": task_id}
+    # The registry is process-local and TTL-pruned.  Consult the session's
+    # durable queue/history before spawning a worker so a late retry cannot
+    # create a second execution after a Pan restart or TTL expiry.
+    if task_id is not None:
+        durable_session = _sess.get(session_id)
+        if _durable_task_id_seen(durable_session, task_id):
+            return {"status": "pending", "taskId": task_id}
 
-    w, err = await _ensure_worker(session_id)
+    # Reserve the id before the await below.  Without this synchronous
+    # reservation, two concurrent assign calls with the same task_id can both
+    # pass the check, then enqueue two distinct messages after _ensure_worker.
+    task_reservation = None
+    if task_id is not None:
+        task_reservation = _task_status[task_id] = {
+            "status": "pending", "workerId": None,
+            "taskId": task_id, "ts": time.monotonic(),
+        }
+
+    try:
+        w, err = await _ensure_worker(session_id)
+    except asyncio.CancelledError:
+        if task_id is not None and _task_status.get(task_id) is task_reservation:
+            _task_status.pop(task_id, None)
+        raise
     if err:
+        if task_id is not None and _task_status.get(task_id) is task_reservation:
+            task_reservation.update({
+                "status": "error", "result": err, "ts": time.monotonic(),
+            })
         return {"status": "error", "result": err}
 
     if task_id is not None:
-        _task_status[task_id] = {"status": "pending", "workerId": w.worker_id,
-                                 "taskId": task_id, "ts": time.monotonic()}
+        task_reservation["workerId"] = w.worker_id
+        task_reservation["ts"] = time.monotonic()
 
     send_err = await send_task(w.worker_id, text, source=source, task_id=task_id)
     if send_err:

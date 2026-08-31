@@ -246,9 +246,14 @@ def test_user_message_processed_immediately_even_with_replaying_flag():
 
     w.process = MockProcess([])  # returncode None → consumer proceeds
     w.process.stdin = _StdinMock()
+    s.queue_pending = [{
+        "type": "task", "id": "task-new", "text": "new q",
+        "source": "agent", "seq": 1, "taskId": None,
+        "deliveryState": "queued",
+    }]
 
     async def scenario():
-        await w.pending_signal.put({"text": "new q", "source": "agent"})
+        await w.pending_signal.put({"type": "task_signal", "id": "task-new"})
         task = asyncio.create_task(worker._consumer(w))
         # 不再等待 replay：消息立即处理（旧行为会 sleep(0.5) 轮询等待）
         for _ in range(30):
@@ -264,7 +269,7 @@ def test_user_message_processed_immediately_even_with_replaying_flag():
     asyncio.run(scenario())
 
     # User message appended immediately, history not doubled
-    assert s.history[-1] == {"role": "user", "content": "new q"}, \
+    assert s.history[-1]["role"] == "user" and s.history[-1]["content"] == "new q", \
         f"user message not appended: {s.history}"
     assert s.history[:2] == original_snapshot, \
         f"original history lost: {s.history[:2]} vs {original_snapshot}"

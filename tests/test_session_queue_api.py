@@ -143,8 +143,22 @@ def test_get_queue_empty(monkeypatch):
     _cleanup()
 
 
-def test_retry_queue_item_resets_uncertain_state(monkeypatch):
-    """显式 retry 只重置 durable 状态，不改变任务正文或稳定 id。"""
+def test_get_queue_normalizes_legacy_no_type_text_as_user_task(monkeypatch):
+    """Legacy text envelopes must not be rendered as Agent reports."""
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    s = _setup_session("ses_q")
+    s.queue_pending = [{"text": "already sent by dashboard", "source": "user"}]
+
+    items = asyncio.run(srv.api_session_queue("ses_q"))["items"]
+
+    assert items[0]["kind"] == "task"
+    assert items[0]["source"] == "user"
+    assert items[0]["text"] == "already sent by dashboard"
+    _cleanup()
+
+
+def test_retry_queue_item_is_disabled(monkeypatch):
+    """严格 at-most-once 语义拒绝可能造成第二次执行的 retry。"""
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     monkeypatch.setattr("packages.web.server.worker._schedule_session_recovery", lambda _sid: None)
     s = _setup_session("ses_q")
@@ -153,11 +167,8 @@ def test_retry_queue_item_resets_uncertain_state(monkeypatch):
 
     r = asyncio.run(srv.api_session_queue_retry("ses_q", "task-aaa"))
 
-    assert r["ok"] is True
-    assert r["item"]["id"] == "task-aaa"
-    assert r["item"]["meta"]["dispatchState"] == "queued"
-    assert s.queue_pending[0]["text"] == "task A"
-    assert s.queue_pending[0]["deliveryState"] == "queued"
+    assert r == {"ok": False, "error": "Queue retry disabled by at-most-once policy"}
+    assert s.queue_pending == [task]
     _cleanup()
 
 

@@ -65,7 +65,10 @@ def test_codex_stream_results_keep_the_current_task_sequence(monkeypatch):
                 "type": "task", "id": f"task-{seq}", "text": f"job-{seq}",
                 "source": "user", "seq": seq, "taskId": f"tid-{seq}",
             }
-            session.queue_pending = [task]
+            # The stream reader receives a task that was already consumed at the
+            # Worker receipt boundary; the runtime pointer is enough to pair the
+            # terminal result with its seq/taskId.
+            session.queue_pending = []
             current = worker.Worker(
                 worker_id=f"worker-codex-{index}",
                 session_id=session.id,

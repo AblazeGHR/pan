@@ -359,7 +359,7 @@ def test_format_report_batch():
 
 
 def test_consumer_drains_reports_as_one_message(monkeypatch):
-    """report_signal → queue_pending 全部积压拼成一条消息；终态后确认出队。"""
+    """report_signal → queue_pending 全部积压拼成一条消息并在接管时出队。"""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     mgr = _setup_session("ses_mgr")
@@ -444,7 +444,12 @@ def test_consumer_non_report_single(monkeypatch):
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
 
     async def scenario():
-        await w.pending_signal.put({"text": "hello", "source": "agent", "seq": 1, "taskId": None})
+        mgr.queue_pending = [{
+            "type": "task", "id": "task-hello", "text": "hello",
+            "source": "agent", "seq": 1, "taskId": None,
+            "deliveryState": "queued",
+        }]
+        await w.pending_signal.put({"type": "task_signal", "id": "task-hello"})
         await w.pending_signal.put(None)
         await worker._consumer(w)
 

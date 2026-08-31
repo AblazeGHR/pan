@@ -1,7 +1,7 @@
 """执行状态归属审计的固化测试（本 worktree 链最后一块）。
 
 审计结论（详见分支回报）：执行状态全部留在 Worker 内存，**不迁 session**——
-任务 item 在 terminal result 前留在 session.queue_pending，崩溃后可重投；执行
+任务 item 在 Worker receipt 时即从 session.queue_pending 消费，崩溃后不重投；执行
 状态的生命周期 = 执行尝试的生命周期 = worker 进程生命周期，
 respawn 后归零不是缺陷而是正确语义：
 

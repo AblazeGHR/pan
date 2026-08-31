@@ -4,28 +4,30 @@
 agent/report/QQ messages.  The in-memory `pending_signal` queue contains only
 wake-up signals; it is never the source of message content.
 
-Each actionable item has a `deliveryState`:
-
-- `queued`: not handed to a provider.  A worker spawn/restart or watchdog may
-  dispatch it automatically.
-- `in_flight`: Pan claimed it and persisted that claim before writing stream
-  stdin or spawning a one-shot process.  If the worker then disappears before
-  a terminal result, execution is uncertain and Pan does **not** replay it.
+Each actionable item starts as `queued`.  The consumer claims it only after a
+provider process is available, appends the receipt to history, and persists the
+queue removal in one save.  That save is the **consumption boundary**: once it
+succeeds, the item has been consumed exactly once from Pan's point of view.
 
 The provider protocol does not expose an atomic “stdin accepted + terminal
-result persisted” acknowledgement.  Persisting `in_flight` before hand-off is
-therefore the only safe automatic boundary for at-most-once execution.  The
-trade-off is that a crash immediately after the state save can leave a message
-waiting for operator action rather than silently risking a duplicate.
+result persisted” acknowledgement.  Therefore the queue item is removed before
+the provider write.  If the provider or Worker dies after that save, Pan keeps
+the history/task status but never puts the item back or automatically replays
+it.  This deliberately prefers at-most-once execution over guaranteed
+completion; a crash can leave a task incomplete, but it cannot make the same
+queue item run twice through restart/watchdog recovery.
 
-The queue API exposes `dispatchState=uncertain` when an `in_flight` item no
-longer belongs to a live worker.  `POST /api/sessions/{session_id}/queue/{item_id}/retry`
-explicitly resets it to `queued`; the UI labels this action as potentially
-duplicating a provider-side execution.  Reports and QQ reminders are consumed
-as one batch, so retrying one member retries the persisted report batch.
+`in_flight` and `uncertain` are accepted only as one-time compatibility states
+for data written by older versions.  On recovery those entries are finalized
+and removed without replay; new items do not remain in `queue_pending` after
+Worker receipt.  The retry endpoint remains as a compatibility route but always
+returns an error, so no UI or API path can turn an already-consumed item into a
+second execution.
 
-An item that is known not to have reached a provider (for example, a dead
-stream process detected before write) is returned to `queued` automatically.
-After a terminal result confirms an item, the next queued task/report signal is
-released so a restart cannot strand later messages behind an acknowledged item.
+Reports and QQ reminders are consumed as one batch at the same receipt
+boundary.  Terminal results only update history/status and do not perform a
+second queue acknowledgement.
 
+Browser `clientMessageId` receipts and orchestration `taskId` values are also
+checked against the durable queue/history, not only the process-local registry;
+late reconnects and registry TTL expiry therefore cannot enqueue a second copy.

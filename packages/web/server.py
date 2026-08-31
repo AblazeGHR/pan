@@ -1237,7 +1237,7 @@ def _queue_item_id(item: dict) -> str:
 
 
 def _queue_dispatch_state(s, item: dict) -> str:
-    """Expose whether an in-flight item is actively owned or uncertain."""
+    """Expose queue state (legacy in-flight entries are migration-only)."""
     state = worker._delivery_state(item)
     if state != worker._DELIVERY_IN_FLIGHT:
         return "queued"
@@ -1252,13 +1252,20 @@ def _serialize_queue_item(item, session=None) -> dict | None:
     if not isinstance(item, dict):
         return None
     t = item.get("type")
-    if t == "task":
+    # Before durable task envelopes were introduced, user/agent messages were
+    # persisted as {text, source} without a type.  They are tasks, never
+    # reports: treating a no-type text item as a report is what made a message
+    # show up under the Agent queue (and eventually acquire an @@@@by agent
+    # rendering after a worker restart).  Mirror worker._migrate_legacy_task_items
+    # here so the queue API is safe even before the next worker recovery tick.
+    if t == "task" or (t is None and isinstance(item.get("text"), str)):
+        source = worker._task_source(item) or "user"
         return {
             "id": _queue_item_id(item),
             "kind": "task",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
             "createdAt": 0,
-            "source": item.get("source"),
+            "source": source,
             "meta": {
                 "seq": item.get("seq"),
                 "taskId": item.get("taskId"),
@@ -1354,12 +1361,7 @@ async def api_session_queue_delete(session_id: str, item_id: str):
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
 async def api_session_queue_retry(session_id: str, item_id: str):
-    """Explicitly retry an uncertain durable queue item.
-
-    Automatic recovery deliberately leaves ``in_flight`` items untouched to
-    preserve at-most-once execution.  This route is the operator-controlled
-    override and may execute a task again if the previous provider accepted it.
-    """
+    """Compatibility endpoint; queue retry is disabled by at-most-once policy."""
     result = await worker.retry_pending_item(session_id, item_id)
     if isinstance(result, str):
         return {"ok": False, "error": result}
