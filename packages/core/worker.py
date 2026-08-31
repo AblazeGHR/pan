@@ -1207,6 +1207,18 @@ def _is_dispatchable(item: dict) -> bool:
     return _delivery_state(item) == _DELIVERY_QUEUED
 
 
+def _has_dispatchable_items(s) -> bool:
+    """Whether a session has work that automatic recovery may actually send."""
+    if s is None:
+        return False
+    return any(
+        isinstance(item, dict)
+        and (_is_task_item(item) or _is_report_item(item))
+        and _is_dispatchable(item)
+        for item in (s.queue_pending or [])
+    )
+
+
 _TASK_SOURCES = {"user", "agent", "system_prompt", "report"}
 
 
@@ -1256,7 +1268,7 @@ def _worker_has_pending_work(w: Worker) -> bool:
     if w.pending_signal is not None and not w.pending_signal.empty():
         return True
     s = _session(w)
-    return bool(s and s.queue_pending)
+    return _has_dispatchable_items(s)
 
 
 # ── 投递标记与恢复对账 ──
@@ -1739,7 +1751,7 @@ _global_watchdog_task: asyncio.Task | None = None
 async def _recover_session(session_id: str) -> None:
     """Best-effort immediate recovery for a durable queue backlog."""
     s = _sess.get(session_id)
-    if not s or not s.queue_pending:
+    if not s or not _has_dispatchable_items(s):
         return
     current = find_worker_by_session(session_id)
     # takeover and an explicit restart own the lifecycle; do not race them.
@@ -1821,7 +1833,7 @@ async def _global_watchdog_tick():
     中断后续轮次。
     """
     for s in list(_sess.list_all()):
-        if not s.queue_pending:
+        if not _has_dispatchable_items(s):
             continue
         current = find_worker_by_session(s.id)
         if current and current.status in {"held", "restarting"}:
