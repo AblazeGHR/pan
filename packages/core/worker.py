@@ -238,6 +238,7 @@ class Worker:
     # 当前报告批次的持久 item。报告与 task 共用 queue_pending，但报告由一次
     # report_signal 批量送入；批次在 Worker 持久化接管时一次性出队。
     _current_report_items: list[dict] = field(default_factory=list)
+    _current_serialized: bytes | None = None
     _zombie_reported: bool = False  # 异常死亡 zombie 报告是否已推送（防 watchdog/EOF 双路径重复）
     # ── 流式块防抖落盘（A1）──
     _hist_dirty: bool = False          # 有未落盘的 history 块（append 只标记，不逐块 save）
@@ -263,6 +264,17 @@ workers: dict[str, Worker] = {}
 _recovery_tasks: dict[str, asyncio.Task] = {}
 
 _broadcast: callable = None
+
+# All durable queue mutations go through this per-session lock.  The lock is
+# process-local (the service owns the session cache), while save_async is the
+# durable commit.  Keeping mutation + save in one critical section prevents
+# concurrent HTTP/WebSocket/worker paths from claiming or deleting the same
+# item.
+_queue_locks: dict[str, asyncio.Lock] = {}
+
+
+def queue_lock(session_id: str) -> asyncio.Lock:
+    return _queue_locks.setdefault(session_id, asyncio.Lock())
 
 # ── task 幂等注册表: taskId → {"status", "workerId", "result"}
 # assign 生成 taskId 入队时登记，result 时标记完成；Meta-Agent 重发带同一
@@ -1000,10 +1012,24 @@ async def _consumer(w: Worker):
                      if _is_task_item(queued) and queued.get("id") == item.get("id")),
                     None,
                 )
-            if (task_candidate is not None
+            if not (task_candidate is not None
                     and isinstance(task_candidate.get("text"), str)
                     and _task_source(task_candidate) is not None):
-                text = await _maybe_inject_memory(candidate_session, task_candidate["text"])
+                continue
+            candidate_revision = task_candidate.get("revision")
+            text = await _maybe_inject_memory(candidate_session, task_candidate["text"])
+            # Serialization is deliberately completed before the durable
+            # reservation.  Once reserved, no failure path may return the
+            # item to queued, because the next local write could be ambiguous.
+            try:
+                serialized = _serialize_for_cli(w.adapter, text)
+            except Exception as exc:
+                if task_candidate is not None:
+                    await _quarantine_queued_item(
+                        candidate_session, task_candidate, _DELIVERY_WRITE_FAILED)
+                _log.error("[Worker %s] queue item serialization failed: %s",
+                           w.worker_id, exc)
+                continue
             claimed = await _claim_pending_task(w, item.get("id"))
             if claimed is None:
                 continue  # 信号重复 / item 已被消费 / 会话消失 → 跳过
@@ -1015,12 +1041,29 @@ async def _consumer(w: Worker):
                 continue
             # 若候选在 memory lookup 期间被替换，使用持久真源中的原文；正常路径
             # text 已经是 lookup 后的注入文本。
-            if task_candidate is not claimed:
+            if (task_candidate is not claimed
+                    or claimed.get("revision") != candidate_revision):
                 text = await _maybe_inject_memory(_session(w), claimed["text"])
+                try:
+                    # Editing is legal while memory lookup is awaiting.  Do not
+                    # send bytes serialized from the stale draft; the item is
+                    # already reserved, so a serialization failure is safely
+                    # terminal and cannot return it to queued.
+                    serialized = _serialize_for_cli(w.adapter, text)
+                except Exception as exc:
+                    claimed_session = _session(w)
+                    if claimed_session is not None:
+                        await _persist_delivery_state(
+                            claimed_session, claimed, _DELIVERY_WRITE_FAILED)
+                    _log.error(
+                        "[Worker %s] claimed item re-serialization failed: %s",
+                        w.worker_id, exc)
+                    continue
             w._current_seq = claimed.get("seq")
             w._current_task_id = claimed.get("taskId")
             w._current_source_session_id = claimed.get("sourceSessionId")
             w._current_queue_item = claimed
+            w._current_serialized = serialized
         else:
             # Body-bearing signals have no durable item/receipt and therefore
             # cannot satisfy at-most-once semantics.  The production protocol
@@ -1085,6 +1128,11 @@ async def _consumer(w: Worker):
                         s.queue_pending.insert(min(restore_at, len(s.queue_pending)), claimed)
                         w._claimed_queue_index = None
                         claimed["deliveryState"] = _DELIVERY_QUEUED
+                        qid = _queue_item_id(claimed)
+                        prior = s.queue_delivery_ledger.get(qid)
+                        if prior is not None:
+                            prior["deliveryState"] = _DELIVERY_QUEUED
+                            prior["dispatchState"] = _DELIVERY_QUEUED
                     _log.warning(
                         "[Worker %s] task receipt save failed, kept item in "
                         "queue_pending: %s", w.worker_id, e)
@@ -1103,17 +1151,8 @@ async def _consumer(w: Worker):
                 await _consumer_oneshot(w, text, source, s)
             else:
                 await _consumer_stream(w, text, source, s)
-            # The task is already consumed.  Do not consume another signal if an
-            # adapter returned without producing a terminal result (for example
-            # because its process died); the current execution must settle before
-            # the serial consumer advances, and it must never be re-enqueued.
-            if claimed is not None and w._current_queue_item is claimed:
-                _log.warning(
-                    "[Worker %s] task id=%s returned without terminal result; "
-                    "item was already consumed and will not be replayed",
-                    w.worker_id, claimed.get("id"),
-                )
-                break
+            # The item is already non-retryable.  Continue after local
+            # write+drain; Provider results are not a queue acknowledgement.
         finally:
             # 无论正常完成、中止还是异常/取消，都释放 in-flight 标记——item 是否
             # 留在队列由「是否已确认出队」决定，标记只负责运行期去重。
@@ -1328,7 +1367,9 @@ async def _resolve_claude_permission(worker_id: str, control: dict) -> bool:
 
 
 def _is_task_item(item) -> bool:
-    return isinstance(item, dict) and item.get("type") == "task"
+    return isinstance(item, dict) and (
+        item.get("kind") == "task" or item.get("type") == "task"
+    )
 
 
 def _is_valid_task_item(item) -> bool:
@@ -1347,9 +1388,11 @@ def _is_report_item(item) -> bool:
     # A task envelope always wins, even if a malformed caller happened to add
     # a field named ``result``.  Otherwise it could be pulled into the report
     # batch and formatted as @@@@by agent.
-    if item.get("type") == "task":
+    if _is_task_item(item):
         return False
-    return item.get("type") == "qq" or "result" in item
+    return (item.get("kind") in {"report", "qq"}
+            or item.get("type") in {"report", "qq", "zombie", "notice"}
+            or "result" in item)
 
 
 # Durable delivery state. A missing field is an old queue item and is treated
@@ -1357,13 +1400,205 @@ def _is_report_item(item) -> bool:
 # cannot tell Pan whether stdin was accepted when the process dies before a
 # terminal result; automatic replay would therefore risk a second execution.
 _DELIVERY_QUEUED = "queued"
+_DELIVERY_RESERVED = "reserved"
+_DELIVERY_SENT = "sent_to_cli"
+_DELIVERY_WRITE_FAILED = "write_failed"
+_DELIVERY_UNKNOWN = "unknown_after_crash"
+_DELIVERY_DELETED = "deleted"
+# Old in_flight is accepted only as a migration input.  It is never a
+# dispatchable state and is converted to unknown_after_crash on recovery.
 _DELIVERY_IN_FLIGHT = "in_flight"
-_DELIVERY_STATES = {_DELIVERY_QUEUED, _DELIVERY_IN_FLIGHT}
+_DELIVERY_STATES = {
+    _DELIVERY_QUEUED, _DELIVERY_RESERVED, _DELIVERY_SENT,
+    _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN, _DELIVERY_IN_FLIGHT,
+    _DELIVERY_DELETED,
+}
 
 
 def _delivery_state(item: dict) -> str:
     state = item.get("deliveryState")
     return state if state in _DELIVERY_STATES else _DELIVERY_QUEUED
+
+
+def _new_queue_item_id() -> str:
+    return "q_" + uuid.uuid4().hex
+
+
+def _queue_item_id(item: dict) -> str:
+    """Return the durable queue identity, migrating legacy rows in-place."""
+    value = item.get("queueItemId") or item.get("id")
+    if isinstance(value, str) and value:
+        item.setdefault("queueItemId", value)
+        return value
+    value = _new_queue_item_id()
+    item["queueItemId"] = value
+    item["id"] = value
+    return value
+
+
+def _queue_kind(item: dict) -> str:
+    if _is_task_item(item):
+        return "task"
+    if item.get("kind") == "qq" or item.get("type") == "qq":
+        return "qq"
+    return "report"
+
+
+def _queue_source(item: dict) -> str:
+    source = item.get("source")
+    if source == "system_prompt":
+        source = "system"
+    if source in {"user", "agent", "report", "qq", "system"}:
+        return source
+    if _queue_kind(item) == "qq":
+        return "qq"
+    if _is_task_item(item):
+        return "user"
+    return "report"
+
+
+def _queue_item_text(item: dict) -> str:
+    if isinstance(item.get("text"), str):
+        return item["text"]
+    value = item.get("result", "")
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+def _remember_queue_item(s, item: dict, state: str | None = None) -> dict:
+    """Mirror an item into the durable non-retry ledger."""
+    qid = _queue_item_id(item)
+    if state is not None:
+        item["deliveryState"] = state
+    item.setdefault("schemaVersion", 2)
+    item.setdefault("kind", _queue_kind(item))
+    item.setdefault("source", _queue_source(item))
+    item.setdefault("createdAt", datetime.now().isoformat())
+    item.setdefault("revision", 1)
+    if "position" not in item:
+        item["position"] = next(
+            (index for index, pending in enumerate(s.queue_pending or [])
+             if pending is item),
+            len(s.queue_pending or []),
+        )
+    s.queue_delivery_ledger[qid] = dict(item)
+    return item
+
+
+def _sync_queued_ledger(s) -> bool:
+    """Normalize legacy pending rows and seed their durable ledger entries."""
+    changed = False
+    if not isinstance(getattr(s, "queue_delivery_ledger", None), dict):
+        s.queue_delivery_ledger = {}
+        changed = True
+    for item in s.queue_pending or []:
+        if not isinstance(item, dict):
+            continue
+        before = json.dumps(item, sort_keys=True, ensure_ascii=False, default=str)
+        _remember_queue_item(s, item, _delivery_state(item))
+        after = json.dumps(item, sort_keys=True, ensure_ascii=False, default=str)
+        if before != after:
+            changed = True
+        qid = _queue_item_id(item)
+        if s.queue_delivery_ledger.get(qid, {}).get("deliveryState") != "queued":
+            s.queue_delivery_ledger[qid] = dict(item)
+            changed = True
+    return changed
+
+
+def _recover_nonretryable_states(s) -> bool:
+    """Classify abandoned reservations without ever making them retryable."""
+    changed = False
+    for qid, record in list((getattr(s, "queue_delivery_ledger", {}) or {}).items()):
+        if not isinstance(record, dict):
+            continue
+        if _delivery_state(record) in {_DELIVERY_RESERVED, _DELIVERY_IN_FLIGHT}:
+            record["deliveryState"] = _DELIVERY_UNKNOWN
+            record["dispatchState"] = _DELIVERY_UNKNOWN
+            record["updatedAt"] = datetime.now().isoformat()
+            changed = True
+    # Old versions could leave an in-flight row in queue_pending.  Remove it
+    # while preserving its identity in the ledger; it must not be signalled.
+    keep = []
+    for item in s.queue_pending or []:
+        if isinstance(item, dict) and _delivery_state(item) in {
+            _DELIVERY_RESERVED, _DELIVERY_IN_FLIGHT,
+        }:
+            _remember_queue_item(s, item, _DELIVERY_UNKNOWN)
+            changed = True
+        else:
+            keep.append(item)
+    if len(keep) != len(s.queue_pending or []):
+        s.queue_pending = keep
+        s.queue_revision += 1
+    return changed
+
+
+def _ledger_record(s, queue_item_id: str | None) -> dict | None:
+    if not queue_item_id:
+        return None
+    record = getattr(s, "queue_delivery_ledger", {}).get(queue_item_id)
+    return record if isinstance(record, dict) else None
+
+
+def _serialize_for_cli(adapter, text: str) -> bytes:
+    """Complete protocol serialization before the durable reservation."""
+    if not isinstance(text, str):
+        raise TypeError("CLI message text must be a string")
+    encoded = adapter.encode_user_message(text)
+    if not isinstance(encoded, (bytes, bytearray)):
+        raise TypeError("adapter serialization must return bytes")
+    # Force a complete UTF-8 round trip before any queue item becomes
+    # non-retryable.  The adapter owns the protocol boundary and may append
+    # its own newline later; this check validates the actual wire bytes.
+    bytes(encoded).decode("utf-8")
+    return bytes(encoded)
+
+
+async def _persist_delivery_state(s, item: dict, state: str) -> None:
+    """Persist a non-retryable delivery state; never requeue on save failure."""
+    qid = _queue_item_id(item)
+    record = _ledger_record(s, qid)
+    if record is None:
+        record = dict(item)
+        s.queue_delivery_ledger[qid] = record
+    record["deliveryState"] = state
+    record["dispatchState"] = state
+    record["updatedAt"] = datetime.now().isoformat()
+    record.setdefault("schemaVersion", 2)
+    # The item is no longer retryable.  A failed status save is intentionally
+    # not converted back to queued: a later restart will classify a persisted
+    # reservation as unknown_after_crash, which is the safe side of the
+    # at-most-once trade-off.
+    s.queue_revision += 1
+    try:
+        await _save_receipt(s)
+    except Exception as exc:
+        _log.error("[Session %s] could not persist delivery state=%s id=%s: %s",
+                   s.id, state, qid, exc)
+    await _bcast({"type": "queue.item_updated", "sessionId": s.id,
+                  "queueItemId": qid, "queueRevision": s.queue_revision,
+                  "item": dict(record)})
+
+
+async def _quarantine_queued_item(s, item: dict, state: str) -> None:
+    """Atomically remove a malformed/serialization-failed item from retry."""
+    async with queue_lock(s.id):
+        for index, pending in enumerate(s.queue_pending or []):
+            if pending is item or _queue_item_id(pending) == _queue_item_id(item):
+                s.queue_pending.pop(index)
+                break
+        _remember_queue_item(s, item, state)
+        s.queue_revision += 1
+        try:
+            await _save_receipt(s)
+        except Exception as exc:
+            _log.error("[Session %s] quarantine save failed id=%s: %s",
+                       s.id, _queue_item_id(item), exc)
 
 
 def _is_dispatchable(item: dict) -> bool:
@@ -1381,30 +1616,28 @@ def _has_dispatchable_items(s) -> bool:
         for item in (s.queue_pending or [])
     ):
         return True
-    # One-time migration hook: old releases could leave a handed-off item in
-    # queue_pending.  Spawn once so _recover_pending_signals can finalize it;
-    # new items are never left in this state.
+    # Legacy text rows still need one migration pass before they become typed
+    # queued items.  They are safe to recover because no reservation metadata
+    # exists yet.
     return any(
-        isinstance(item, dict)
-        and (
-            _delivery_state(item) == _DELIVERY_IN_FLIGHT
-            or (
-                item.get("type") is None
-                and isinstance(item.get("text"), str)
-                and _delivery_mark_in_history(s, item)
-            )
-        )
+        isinstance(item, dict) and item.get("type") is None
+        and isinstance(item.get("text"), str)
         for item in (s.queue_pending or [])
     )
+    # reserved/sent/failed/unknown rows are deliberately not dispatchable.
+    # In particular, a restart must not spawn a worker merely to replay an
+    # item whose provider hand-off is already uncertain.
 
 
-_TASK_SOURCES = {"user", "agent", "system_prompt", "report"}
+_TASK_SOURCES = {"user", "agent", "system", "system_prompt", "report", "qq"}
 
 
 def _normalize_source_type(source, default: str = "agent") -> tuple[str | None, str | None]:
     """Normalize the fixed source type without ever treating an ID as one."""
     if source is None or source == "":
         source = default
+    if source == "system_prompt":
+        source = "system"
     if not isinstance(source, str) or source not in _TASK_SOURCES:
         return None, f"Unknown task source: {source}"
     return source, None
@@ -1470,6 +1703,13 @@ def _migrate_legacy_task_items(s) -> bool:
             s.task_seq += 1
             migrated["seq"] = s.task_seq
         migrated.setdefault("taskId", None)
+        migrated.setdefault("kind", "task")
+        migrated.setdefault("schemaVersion", 2)
+        migrated.setdefault("source", "user")
+        migrated.setdefault("createdAt", datetime.now().isoformat())
+        migrated.setdefault("revision", 1)
+        migrated.setdefault("deliveryState", _DELIVERY_QUEUED)
+        _queue_item_id(migrated)
         s.queue_pending[index] = migrated
         changed = True
         _log.info("[Session %s] migrated legacy text queue item id=%s to task envelope",
@@ -1508,6 +1748,12 @@ def _consume_legacy_handoff_items(s) -> bool:
 
     if not consumed_tasks and not consumed_reports:
         return False
+
+    # Legacy receipt marks prove that the old implementation crossed its
+    # hand-off boundary, but cannot prove whether stdin reached the CLI.
+    # Preserve identity as uncertain rather than allowing a replay.
+    for item in consumed_tasks + consumed_reports:
+        _remember_queue_item(s, item, _DELIVERY_UNKNOWN)
 
     for item in consumed_tasks:
         if not _delivery_mark_in_history(s, item):
@@ -1671,7 +1917,17 @@ async def _consume_pending_reports(w: Worker, s):
                 "untouched: %s", w.worker_id, exc)
             return
 
-    reports = [it for it in s.queue_pending if _is_report_item(it)]
+    # Reports and tasks share one FIFO.  Consume only the first contiguous
+    # report/QQ run; a later report must not jump over an earlier queued task.
+    reports = []
+    for it in s.queue_pending:
+        if _is_report_item(it) and _is_dispatchable(it):
+            reports.append(it)
+            continue
+        if _is_task_item(it) and _is_dispatchable(it):
+            break
+        if reports:
+            break
     if not reports:
         # 队列里只剩 task item（报告已被其他信号消费）→ 不发空消息
         return
@@ -1700,20 +1956,34 @@ async def _consume_pending_reports(w: Worker, s):
             "%d report(s) kept in queue_pending", w.worker_id, len(undelivered))
         return
 
+    try:
+        serialized = _serialize_for_cli(w.adapter, injected_text)
+    except Exception as exc:
+        for report in reports:
+            await _quarantine_queued_item(s, report, _DELIVERY_WRITE_FAILED)
+        _log.error("[Worker %s] report serialization failed: %s", w.worker_id, exc)
+        return
+
     # Mark every report in the batch before the adapter sees the prompt.  This
     # is the durable at-most-once boundary for report/QQ messages as well.
     old_states = {id(it): it.get("deliveryState") for it in reports}
+    old_ledger = {
+        _queue_item_id(it): dict(s.queue_delivery_ledger.get(_queue_item_id(it), {}))
+        for it in reports
+    }
     for it in reports:
-        it["deliveryState"] = _DELIVERY_IN_FLIGHT
+        _remember_queue_item(s, it, _DELIVERY_RESERVED)
+    s.queue_revision += 1
 
     # Reserve the whole report batch by identity before the save await.  Reports
     # and tasks share queue_pending, so only these report objects are removed;
     # any queued task remains in its original relative position.
+    report_object_ids = {id(it) for it in reports}
     report_positions = [
         (index, it) for index, it in enumerate(s.queue_pending)
-        if _is_report_item(it)
+        if id(it) in report_object_ids
     ]
-    s.queue_pending = [it for it in s.queue_pending if not _is_report_item(it)]
+    s.queue_pending = [it for it in s.queue_pending if id(it) not in report_object_ids]
 
     # 只有新报告需要追加 history；已经有 delivered_keys 的报告属于旧数据的
     # 已写入执行上下文，复用原用户条目，避免恢复时污染上下文。
@@ -1740,6 +2010,11 @@ async def _consume_pending_reports(w: Worker, s):
                     it.pop("deliveryState", None)
                 else:
                     it["deliveryState"] = previous
+                qid = _queue_item_id(it)
+                if old_ledger[qid]:
+                    s.queue_delivery_ledger[qid] = old_ledger[qid]
+                else:
+                    s.queue_delivery_ledger.pop(qid, None)
             _log.warning(
                 "[Worker %s] report handoff save failed, %d item(s) kept in "
                 "queue_pending: %s", w.worker_id, len(undelivered), e)
@@ -1756,12 +2031,18 @@ async def _consume_pending_reports(w: Worker, s):
                     it.pop("deliveryState", None)
                 else:
                     it["deliveryState"] = previous
+                qid = _queue_item_id(it)
+                if old_ledger[qid]:
+                    s.queue_delivery_ledger[qid] = old_ledger[qid]
+                else:
+                    s.queue_delivery_ledger.pop(qid, None)
             _log.warning(
                 "[Worker %s] report handoff state save failed, %d item(s) kept "
                 "queued: %s", w.worker_id, len(reports), e)
             return
 
     w._current_report_items = reports
+    w._current_serialized = serialized
 
     mode = resolve_execution_mode(w.adapter, s)
     if mode == "oneshot":
@@ -1776,7 +2057,7 @@ async def _consume_pending_reports(w: Worker, s):
 _inflight_task_ids: set[str] = set()
 
 
-async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
+async def _claim_pending_task_unlocked(w: Worker, task_id: str | None) -> dict | None:
     """在落盘 queue_pending 中按 id 认领一个任务 item。
 
     认领会同步从 ``queue_pending`` 删除；调用方随后把这次接管与 history
@@ -1856,25 +2137,33 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
                     w.worker_id, task_id, source_error or source)
                 return None
             for prior in s.queue_pending[:index]:
-                if (_is_task_item(prior) and _is_dispatchable(prior)
-                        and _task_source(prior) is not None):
+                if ((_is_task_item(prior) or _is_report_item(prior))
+                        and _is_dispatchable(prior)):
                     # Signals are only hints and can arrive out of order after
                     # concurrent durable saves.  Re-arm the earliest task and
                     # the current signal so FIFO order is restored without
                     # executing the later task ahead of it.  Duplicate hints
                     # are harmless because claim is by durable item id.
                     _log.info(
-                        "[Worker %s] task id=%s blocked by earlier queued task "
+                        "[Worker %s] task id=%s blocked by earlier queued item "
                         "id=%s; rearming FIFO signals", w.worker_id, task_id,
                         prior.get("id"))
                     if w.pending_signal is not None:
-                        w.pending_signal.put_nowait({
-                            "type": "task_signal", "id": prior.get("id")})
+                        if _is_task_item(prior):
+                            w.pending_signal.put_nowait({
+                                "type": "task_signal", "id": prior.get("id")})
+                        else:
+                            w.pending_signal.put_nowait({"type": "report_signal"})
                         w.pending_signal.put_nowait({
                             "type": "task_signal", "id": task_id})
                     return None
             _inflight_task_ids.add(task_id)
-            it["deliveryState"] = _DELIVERY_IN_FLIGHT
+            # The caller persists this reservation together with its receipt
+            # before touching stdin.  Until that commit, a save failure can
+            # safely restore queued; after it, recovery sees a non-retryable
+            # reservation and can only classify it as unknown_after_crash.
+            _remember_queue_item(s, it, _DELIVERY_RESERVED)
+            s.queue_revision += 1
             # Reserve and consume by object identity before any later await.
             # This prevents queue delete/reorder or a duplicate wake-up from
             # exposing the same item to another consumer while receipt is saved.
@@ -1884,6 +2173,15 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
     _log.warning("[Worker %s] task_signal: task id=%s not found in queue_pending (len=%d)",
                  w.worker_id, task_id, len(s.queue_pending))
     return None
+
+
+async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
+    """Claim a task while serializing it with queue edit/delete/reorder APIs."""
+    s = _session(w)
+    if s is None:
+        return None
+    async with queue_lock(s.id):
+        return await _claim_pending_task_unlocked(w, task_id)
 
 
 async def _enqueue_report(session_id: str, status: str, result: str,
@@ -1911,6 +2209,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
         return
 
     item = {
+        "type": "report", "kind": "report", "schemaVersion": 2,
+        "id": _new_queue_item_id(), "queueItemId": None,
         "source": "report",
         "sourceSessionId": session_id,
         "status": status,
@@ -1919,11 +2219,20 @@ async def _enqueue_report(session_id: str, status: str, result: str,
         "taskId": task_id,
         "workerId": worker_id,
         "deliveryState": _DELIVERY_QUEUED,
+        "dispatchState": _DELIVERY_QUEUED,
+        "createdAt": datetime.now().isoformat(), "revision": 1,
     }
+    item["queueItemId"] = item["id"]
     if report_type is not None:
         item["type"] = report_type
-    manager.queue_pending.append(item)
-    await _sess.save_async(manager)
+    async with queue_lock(manager.id):
+        manager.queue_pending.append(item)
+        _remember_queue_item(manager, item, _DELIVERY_QUEUED)
+        manager.queue_revision += 1
+        await _sess.save_async(manager)
+    await _bcast({"type": "queue.item_added", "sessionId": manager.id,
+                  "queueItemId": item["id"], "queueRevision": manager.queue_revision,
+                  "item": dict(item)})
 
     # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
     # 信号只负责唤醒，不承载正文
@@ -1982,6 +2291,9 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
     bot_key = f"{target_key}@{bot_uin}" if bot_uin else None
     item = {
         "type": "qq",
+        "kind": "qq", "schemaVersion": 2,
+        "id": _new_queue_item_id(), "queueItemId": None,
+        "source": "qq",
         "qqTarget": target_key,
         "targetType": target_type,
         "targetId": str(target_id),
@@ -1989,7 +2301,10 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
         "text": text,
         "time": time_str,
         "deliveryState": _DELIVERY_QUEUED,
+        "dispatchState": _DELIVERY_QUEUED,
+        "createdAt": datetime.now().isoformat(), "revision": 1,
     }
+    item["queueItemId"] = item["id"]
     if bot_uin:
         item["botUin"] = str(bot_uin)
     delivered = 0
@@ -2000,8 +2315,16 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
         # Each subscriber owns an independent durable delivery state.  Reusing
         # one dict across sessions would let one worker's in-flight transition
         # suppress delivery to every other subscriber.
-        s.queue_pending.append(dict(item))
-        await _sess.save_async(s)
+        subscriber_item = dict(item)
+        async with queue_lock(s.id):
+            s.queue_pending.append(subscriber_item)
+            _remember_queue_item(s, subscriber_item, _DELIVERY_QUEUED)
+            s.queue_revision += 1
+            await _sess.save_async(s)
+        await _bcast({"type": "queue.item_added", "sessionId": s.id,
+                      "queueItemId": subscriber_item["id"],
+                      "queueRevision": s.queue_revision,
+                      "item": dict(subscriber_item)})
         await _wake_worker(s.id, auto_spawn=True)
         delivered += 1
     return delivered
@@ -2046,6 +2369,8 @@ async def enqueue_notice(target_session_id: str, text: str,
             "message": source_error}}
     item = {
         "source": source_type,
+        "kind": "report", "schemaVersion": 2,
+        "id": _new_queue_item_id(), "queueItemId": None,
         "status": "notice",
         "type": "notice",
         "result": text,
@@ -2056,11 +2381,20 @@ async def enqueue_notice(target_session_id: str, text: str,
         # missing state is treated as queued for backward compatibility, but
         # new notices must survive restart with the same queue contract.
         "deliveryState": _DELIVERY_QUEUED,
+        "dispatchState": _DELIVERY_QUEUED,
+        "createdAt": datetime.now().isoformat(), "revision": 1,
     }
+    item["queueItemId"] = item["id"]
     if source_sid is not None:
         item["sourceSessionId"] = source_sid
-    target.queue_pending.append(item)
-    await _sess.save_async(target)
+    async with queue_lock(target.id):
+        target.queue_pending.append(item)
+        _remember_queue_item(target, item, _DELIVERY_QUEUED)
+        target.queue_revision += 1
+        await _sess.save_async(target)
+    await _bcast({"type": "queue.item_added", "sessionId": target.id,
+                  "queueItemId": item["id"], "queueRevision": target.queue_revision,
+                  "item": dict(item)})
     _log.info("[Session %s] queued notice source=%s sourceSessionId=%s",
               target_session_id, source_type, source_sid)
     await _wake_worker(target_session_id, auto_spawn=True)
@@ -2301,13 +2635,28 @@ async def _global_watchdog_tick():
     中断后续轮次。
     """
     for s in list(_sess.list_all()):
-        if not _has_dispatchable_items(s):
-            continue
         current = find_worker_by_session(s.id)
         if current and current.status in {"held", "restarting"}:
             continue
         if find_alive_worker_by_session(s.id) is not None:
             continue  # 已有活 worker → 正常
+        # A dead/replaced Pan process may leave a durable reservation behind.
+        # Finalize it before deciding whether recovery is needed.  This is a
+        # state classification only: no reserved/sent/failed/unknown item is
+        # ever put back into the retryable queue.
+        normalized = _migrate_legacy_task_items(s)
+        normalized = _sync_queued_ledger(s) or normalized
+        normalized = _recover_nonretryable_states(s) or normalized
+        if normalized:
+            try:
+                await _save_receipt(s)
+            except Exception as exc:
+                _log.warning(
+                    "[Pan] delivery-state recovery save failed for session=%s: %s",
+                    s.id, exc,
+                )
+        if not _has_dispatchable_items(s):
+            continue
         pending_recovery = _recovery_tasks.get(s.id)
         if pending_recovery is not None and not pending_recovery.done():
             # Drain the already scheduled attempt instead of racing a second
@@ -2337,6 +2686,8 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
         # boundary.  Even though no provider write can be attempted here, do
         # not put it back: automatic retry would violate at-most-once.
         if s:
+            for pending_item in ([w._current_queue_item] if w._current_queue_item is not None else []) + list(w._current_report_items or []):
+                await _persist_delivery_state(s, pending_item, _DELIVERY_UNKNOWN)
             s.last_result = {
                 "status": "error",
                 "result": f"Worker process dead (returncode={w.process.returncode if w.process else 'none'})",
@@ -2376,9 +2727,37 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     ev = getattr(w, "_task_done", None)
     if ev is not None:
         ev.clear()
-    data = w.adapter.encode_user_message(text)
-    w.process.stdin.write(data + b"\n")
-    await w.process.stdin.drain()
+    delivery_items = ([w._current_queue_item] if w._current_queue_item is not None
+                      else list(w._current_report_items or []))
+    item = w._current_queue_item
+    data = w._current_serialized
+    if data is None:
+        # Defensive fallback for direct test/caller paths.  Production queue
+        # dispatch serializes before claim and stores the exact bytes here.
+        data = _serialize_for_cli(w.adapter, text)
+    wire = data if data.endswith(b"\n") else data + b"\n"
+    try:
+        written = w.process.stdin.write(wire)
+        if isinstance(written, int) and written != len(wire):
+            raise OSError(f"short CLI stdin write: {written}/{len(wire)}")
+        await w.process.stdin.drain()
+    except asyncio.CancelledError:
+        if s is not None:
+            for pending_item in delivery_items:
+                await _persist_delivery_state(s, pending_item, _DELIVERY_UNKNOWN)
+        raise
+    except Exception as exc:
+        if s is not None:
+            for pending_item in delivery_items:
+                await _persist_delivery_state(s, pending_item, _DELIVERY_WRITE_FAILED)
+        _log.error("[Worker %s] CLI stdin write failed for queue item %s: %s",
+                   w.worker_id, _queue_item_id(item) if item else None, exc)
+        if s is not None:
+            await _finish_task_error(w, s, f"CLI stdin write failed: {exc}")
+        return
+    if s is not None:
+        for pending_item in delivery_items:
+            await _persist_delivery_state(s, pending_item, _DELIVERY_SENT)
 
     await _bcast({
         "type": "worker.status",
@@ -2397,13 +2776,8 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
     if sess:
         await _sess.save_async(sess)
 
-    # 等待当前任务完成（result 事件 → _read_stdout 置 idle 并 set _task_done）后再返回。
-    # 不能轮询 status：status 在多协程间共享，result 处理中先置 done 后置 idle，旧任务
-    # result 协程的 idle 会覆盖新任务已设的 running，导致等待提前退出、多条消息同时在
-    # cbc 长驻进程管道里飞行，result 与 seq/taskId 错位、history 重复（实测复现）。
-    # 用独立 Event 标记"本次任务完成"，_consumer 才能串行推进下一个排队任务。
-    if ev is not None:
-        await ev.wait()
+    # Queue delivery is complete at write+drain.  Do not wait for a Provider
+    # result, history append, or normal CLI exit to define send success.
 
 
 def _extract_cbc_error(output: bytes) -> str | None:
@@ -2489,6 +2863,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
     })
 
     adapter = w.adapter
+    delivery_items = ([w._current_queue_item] if w._current_queue_item is not None
+                      else list(w._current_report_items or []))
 
     # argv 全部来自 adapter（去 provider 特化）：one-shot 不传
     # --input-format stream-json，
@@ -2518,8 +2894,16 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
+    except asyncio.CancelledError:
+        if s is not None:
+            for pending_item in delivery_items:
+                await _persist_delivery_state(s, pending_item, _DELIVERY_UNKNOWN)
+        raise
     except Exception as e:
         _log.error("[Worker %s] one-shot spawn failed: %s", w.worker_id, e)
+        if s is not None:
+            for pending_item in delivery_items:
+                await _persist_delivery_state(s, pending_item, _DELIVERY_WRITE_FAILED)
         await _finish_task_error(w, s, format_cli_spawn_error(adapter.name, e))
         # M3: 置 idle 同步刷新活性时间，避免该 worker 刚忙完就被 watchdog 当空闲回收
         w.last_activity = time.monotonic()
@@ -2528,6 +2912,14 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
 
     # Track in-flight process so kill_worker can terminate it (see #3).
     w._mcp_proc = proc
+
+    # For one-shot adapters the complete protocol request is carried in the
+    # spawned process argv/stdin setup.  Successful process creation is the
+    # local hand-off boundary; provider output is intentionally irrelevant to
+    # queue consumption.
+    if s is not None:
+        for pending_item in delivery_items:
+            await _persist_delivery_state(s, pending_item, _DELIVERY_SENT)
 
     # Receipt/history 已在 _consumer 中持久化完成；one-shot spawn 后这里只保存
     # provider/session 元数据。崩溃不会把已消费的 item 放回队列。
@@ -2799,11 +3191,13 @@ def _recover_pending_signals(w: Worker, s) -> bool:
     发信号）、_restart_tasks 重建 consumer 后。
     """
     migrated = _migrate_legacy_task_items(s)
+    migrated = _sync_queued_ledger(s) or migrated
+    migrated = _recover_nonretryable_states(s) or migrated
     migrated = _consume_legacy_handoff_items(s) or migrated
     pending = s.queue_pending
     if not pending:
         return migrated
-    has_report = False
+    report_run = []
     for it in pending:
         if _is_task_item(it):
             _, _, source_error = _validate_source_metadata(
@@ -2816,10 +3210,16 @@ def _recover_pending_signals(w: Worker, s) -> bool:
                     source_error or it.get("source"))
                 continue
             if _is_dispatchable(it):
+                if report_run:
+                    w.pending_signal.put_nowait({"type": "report_signal"})
+                    report_run = []
                 w.pending_signal.put_nowait({"type": "task_signal", "id": it.get("id")})
-        elif _is_report_item(it):
-            has_report = True
-    if has_report:
+        elif _is_report_item(it) and _is_dispatchable(it):
+            report_run.append(it)
+        elif report_run:
+            w.pending_signal.put_nowait({"type": "report_signal"})
+            report_run = []
+    if report_run:
         w.pending_signal.put_nowait({"type": "report_signal"})
     return migrated
 
@@ -3608,6 +4008,12 @@ def _has_accepted_input_id(s, client_message_id: str | None) -> bool:
         return False
     if client_message_id in s.accepted_input_ids:
         return True
+    if any(
+        isinstance(item, dict)
+        and item.get("clientMessageId") == client_message_id
+        for item in (getattr(s, "queue_delivery_ledger", {}) or {}).values()
+    ):
+        return True
     # accepted_input_ids is intentionally bounded for hot-path metadata.  The
     # receipt history is the durable long-term ledger and survives its eviction.
     return any(
@@ -3627,9 +4033,14 @@ def _durable_task_id_seen(s, task_id: str | None) -> bool:
         for item in (s.queue_pending or [])
     ):
         return True
-    return any(
+    if any(
         isinstance(entry, dict) and entry.get("taskId") == task_id
         for entry in (s.history or [])
+    ):
+        return True
+    return any(
+        isinstance(item, dict) and item.get("taskId") == task_id
+        for item in (getattr(s, "queue_delivery_ledger", {}) or {}).values()
     )
 
 
@@ -3638,51 +4049,108 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              client_message_id: str | None,
                              source_session_id: str | None = None) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
-    source_type, source_sid, source_error = _validate_source_metadata(
-        s, source, source_session_id)
-    if source_error:
-        return None, source_error
-    if _has_accepted_input_id(s, client_message_id):
-        return None, None
-    # taskId is the durable idempotency key for orchestration callers.  The
-    # in-memory registry is only an acceleration layer; queue/history checks
-    # keep a retry after process restart or registry TTL expiry from running a
-    # second provider turn.
-    if _durable_task_id_seen(s, task_id):
-        return None, None
-    old_seq = s.task_seq
-    old_accepted_input_ids = list(s.accepted_input_ids)
-    if seq is None:
-        s.task_seq += 1
-        seq = s.task_seq
-    item = {
-        "type": "task",
-        "id": uuid.uuid4().hex,
-        "text": text,
-        "source": source_type,
-        "seq": seq,
-        "taskId": task_id,
-        "deliveryState": _DELIVERY_QUEUED,
-    }
-    if source_sid is not None:
-        item["sourceSessionId"] = source_sid
-    if client_message_id:
-        item["clientMessageId"] = client_message_id
-        s.accepted_input_ids.append(client_message_id)
-        if len(s.accepted_input_ids) > _ACCEPTED_INPUT_ID_LIMIT:
-            del s.accepted_input_ids[:-_ACCEPTED_INPUT_ID_LIMIT]
-    s.queue_pending.append(item)
-    try:
-        await _sess.save_async(s)
-    except Exception as exc:
-        # Do not poison retry idempotency after a failed durable write.
-        s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
-        s.task_seq = old_seq
-        s.accepted_input_ids = old_accepted_input_ids
-        return None, f"Failed to persist queued task: {exc}"
+    async with queue_lock(s.id):
+        source_type, source_sid, source_error = _validate_source_metadata(
+            s, source, source_session_id)
+        if source_error:
+            return None, source_error
+        if _has_accepted_input_id(s, client_message_id):
+            return None, None
+        # taskId is the durable idempotency key for orchestration callers.  The
+        # in-memory registry is only an acceleration layer; queue/history/
+        # ledger checks survive process restart and ledger eviction.
+        if _durable_task_id_seen(s, task_id):
+            return None, None
+        old_seq = s.task_seq
+        old_accepted_input_ids = list(s.accepted_input_ids)
+        if seq is None:
+            s.task_seq += 1
+            seq = s.task_seq
+        item = {
+            "type": "task", "kind": "task", "schemaVersion": 2,
+            "id": _new_queue_item_id(), "queueItemId": None,
+            "text": text, "source": source_type, "seq": seq,
+            "taskId": task_id, "deliveryState": _DELIVERY_QUEUED,
+            "dispatchState": _DELIVERY_QUEUED,
+            "createdAt": datetime.now().isoformat(), "revision": 1,
+        }
+        item["queueItemId"] = item["id"]
+        if source_sid is not None:
+            item["sourceSessionId"] = source_sid
+        if client_message_id:
+            item["clientMessageId"] = client_message_id
+            s.accepted_input_ids.append(client_message_id)
+            if len(s.accepted_input_ids) > _ACCEPTED_INPUT_ID_LIMIT:
+                del s.accepted_input_ids[:-_ACCEPTED_INPUT_ID_LIMIT]
+        s.queue_pending.append(item)
+        _remember_queue_item(s, item, _DELIVERY_QUEUED)
+        s.queue_revision += 1
+        try:
+            await _sess.save_async(s)
+        except Exception as exc:
+            # Do not poison retry idempotency after a failed durable write.
+            s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
+            s.queue_delivery_ledger.pop(item["id"], None)
+            s.task_seq = old_seq
+            s.accepted_input_ids = old_accepted_input_ids
+            s.queue_revision = max(0, s.queue_revision - 1)
+            return None, f"Failed to persist queued task: {exc}"
     _log.info("[Session %s] queued task id=%s source=%s sourceSessionId=%s",
               s.id, item["id"], source_type, source_sid)
+    await _bcast({"type": "queue.item_added", "sessionId": s.id,
+                  "queueItemId": item["id"], "queueRevision": s.queue_revision,
+                  "item": dict(item)})
     return item, None
+
+
+def _find_queue_item_by_idempotency(s, client_message_id=None, task_id=None):
+    candidates = list((s.queue_pending or [])) + list(
+        (getattr(s, "queue_delivery_ledger", {}) or {}).values())
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        if client_message_id and item.get("clientMessageId") == client_message_id:
+            return item
+        if task_id and item.get("taskId") == task_id:
+            return item
+    return None
+
+
+async def enqueue_user_message(session_id: str, text: str,
+                               client_message_id: str | None = None) -> dict:
+    """Single durable entry point for browser/user messages.
+
+    The caller receives the server-generated queueItemId only after the item
+    and its idempotency record have been saved.  A duplicate retry returns the
+    original item, including a non-retryable delivery state, and never emits a
+    second worker signal.
+    """
+    s = _sess.get(session_id)
+    if s is None:
+        return {"status": "error", "result": f"Session {session_id} not found"}
+    existing = _find_queue_item_by_idempotency(s, client_message_id=client_message_id)
+    if existing is not None:
+        return {"status": "queued", "sessionId": session_id,
+                "queueItemId": _queue_item_id(existing), "item": dict(existing),
+                "duplicate": True}
+    item, error = await _persist_task_item(
+        s, text, "user", None, None, client_message_id, None)
+    if error:
+        return {"status": "error", "result": error}
+    if item is None:
+        existing = _find_queue_item_by_idempotency(s, client_message_id=client_message_id)
+        if existing is None:
+            return {"status": "error", "result": "queue idempotency lookup failed"}
+        item = existing
+    live = find_alive_worker_by_session(session_id)
+    if live is not None:
+        if live.pending_signal is not None and item.get("deliveryState") == _DELIVERY_QUEUED:
+            await live.pending_signal.put({"type": "task_signal", "id": _queue_item_id(item)})
+    elif live is None and item.get("deliveryState") == _DELIVERY_QUEUED:
+        _schedule_session_recovery(session_id)
+    return {"status": "queued", "workerId": live.worker_id if live else None,
+            "sessionId": session_id, "queueItemId": _queue_item_id(item),
+            "item": dict(item), "duplicate": False}
 
 
 def _pending_item_id(item: dict) -> str:
@@ -3936,8 +4404,14 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         # The queue write is the acknowledgement boundary.  Start recovery
         # now; watchdog is intentionally only the eventual retry path.
         _schedule_session_recovery(session_id)
-        return {"status": "queued", "workerId": None, "sessionId": session_id,
-                "pendingSpawn": True}
+        response = {"status": "queued", "workerId": None, "sessionId": session_id,
+                    "pendingSpawn": True}
+        item = _find_queue_item_by_idempotency(
+            s, client_message_id=client_message_id)
+        if item is not None:
+            response["queueItemId"] = _queue_item_id(item)
+            response["item"] = dict(item)
+        return response
     if force:
         err = await restart_worker(w.worker_id)
         if err:
@@ -3947,7 +4421,13 @@ async def send_session(session_id: str, text: str, source: str = "agent",
                                source_session_id=source_sid)
     if send_err:
         return {"status": "error", "result": send_err}
-    return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
+    response = {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
+    item = _find_queue_item_by_idempotency(
+        target, client_message_id=client_message_id)
+    if item is not None:
+        response["queueItemId"] = _queue_item_id(item)
+        response["item"] = dict(item)
+    return response
 
 
 def get_worker(worker_id: str) -> Worker | None:

@@ -199,22 +199,75 @@ export async function branchSession(id: string, name: string): Promise<Session> 
 
 // ── Agent queue (session.queue_pending, normalized) ──
 
-export async function fetchSessionQueue(sessionId: string): Promise<AgentQueueItem[]> {
+export async function fetchSessionQueue(sessionId: string): Promise<AgentQueueItem[] & { queueRevision?: number }> {
   const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue`);
   if (data.error) throw new Error(data.error);
-  return data.items || [];
+  const items = data.items || [];
+  Object.defineProperty(items, 'queueRevision', { value: data.queueRevision, enumerable: false });
+  return items;
+}
+
+export async function enqueueSessionMessage(
+  sessionId: string,
+  text: string,
+  clientMessageId: string,
+): Promise<{ item: AgentQueueItem; queueRevision?: number; duplicate?: boolean }> {
+  const data = await request<{
+    ok?: boolean;
+    item?: AgentQueueItem;
+    queueRevision?: number;
+    duplicate?: boolean;
+    error?: { message?: string } | string;
+  }>(`${BASE}/sessions/${sessionId}/queue`, {
+    method: 'POST',
+    body: JSON.stringify({ text, clientMessageId }),
+  });
+  if (!data.ok || !data.item) {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || '消息尚未入队');
+  }
+  return { item: data.item, queueRevision: data.queueRevision, duplicate: data.duplicate };
+}
+
+export async function updateSessionQueueItem(
+  sessionId: string,
+  itemId: string,
+  text: string,
+  expectedRevision?: number,
+): Promise<Omit<ApiSessionQueueResponse, 'error'> & {
+  item?: AgentQueueItem;
+  error?: { code?: string; message?: string } | string;
+}> {
+  const data = await request<Omit<ApiSessionQueueResponse, 'error'> & {
+    item?: AgentQueueItem;
+    error?: { code?: string; message?: string } | string;
+  }>(`${BASE}/sessions/${sessionId}/queue/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ text, expectedRevision }),
+  });
+  if (data.ok === false || data.error) {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || '队列项更新失败');
+  }
+  return data;
 }
 
 export async function deleteSessionQueueItem(
   sessionId: string,
   itemId: string,
-): Promise<ApiGenericResponse> {
-  const data = await request<ApiGenericResponse & { ok?: boolean }>(
+): Promise<Omit<ApiGenericResponse, 'error'> & {
+  error?: { code?: string; message?: string } | string;
+}> {
+  const data = await request<Omit<ApiGenericResponse, 'error'> & {
+    ok?: boolean;
+    error?: { code?: string; message?: string } | string;
+  }>(
     `${BASE}/sessions/${sessionId}/queue/${itemId}`,
     { method: 'DELETE' },
   );
   if (data.ok === false || data.error) {
-    throw new Error(data.error || 'Delete failed');
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || 'Delete failed');
   }
   return data;
 }
@@ -222,15 +275,22 @@ export async function deleteSessionQueueItem(
 export async function retrySessionQueueItem(
   sessionId: string,
   itemId: string,
-): Promise<ApiSessionQueueResponse & { item?: AgentQueueItem }> {
+): Promise<Omit<ApiSessionQueueResponse, 'error'> & {
+  item?: AgentQueueItem;
+  error?: { code?: string; message?: string } | string;
+}> {
   // Kept for API compatibility; the server intentionally rejects retries
   // because a consumed item must never be executed a second time.
-  const data = await request<ApiSessionQueueResponse & { item?: AgentQueueItem }>(
+  const data = await request<Omit<ApiSessionQueueResponse, 'error'> & {
+    item?: AgentQueueItem;
+    error?: { code?: string; message?: string } | string;
+  }>(
     `${BASE}/sessions/${sessionId}/queue/${itemId}/retry`,
     { method: 'POST' },
   );
   if (data.ok === false || data.error) {
-    throw new Error(data.error || 'Retry failed');
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || 'Retry failed');
   }
   return data;
 }
@@ -238,13 +298,16 @@ export async function retrySessionQueueItem(
 export async function reorderSessionQueue(
   sessionId: string,
   order: string[],
-): Promise<AgentQueueItem[]> {
+  expectedQueueRevision?: number,
+): Promise<AgentQueueItem[] & { queueRevision?: number }> {
   const data = await request<ApiSessionQueueResponse>(`${BASE}/sessions/${sessionId}/queue/order`, {
     method: 'PATCH',
-    body: JSON.stringify({ order }),
+    body: JSON.stringify({ orderedIds: order, expectedQueueRevision }),
   });
   if (data.error) throw new Error(data.error);
-  return data.items || [];
+  const items = data.items || [];
+  Object.defineProperty(items, 'queueRevision', { value: data.queueRevision, enumerable: false });
+  return items;
 }
 
 /** Send a message to a session, queuing it server-side when no worker exists. */

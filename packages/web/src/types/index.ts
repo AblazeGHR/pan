@@ -616,15 +616,24 @@ export interface QueuedEdit {
 // ── Agent queue (backend session.queue_pending, normalized) ──
 
 export type AgentQueueKind = 'task' | 'report' | 'qq';
+export type QueueDispatchState =
+  | 'queued'
+  | 'reserved'
+  | 'sent_to_cli'
+  | 'write_failed'
+  | 'unknown_after_crash'
+  | 'deleted';
 
 /** 后端落盘队列 queue_pending 的归一化条目（task/report/qq 异构 → 统一形状）。 */
 export interface AgentQueueItem {
-  /** task 项为后端 uuid；report/qq 无 id 字段，由后端按内容 sha1 生成稳定 id。 */
+  /** 服务端生成并持久化的 queueItemId。 */
   id: string;
+  queueItemId: string;
+  /** Legacy read compatibility; normalized status is in meta. */
+  status?: string;
   kind: AgentQueueKind;
   text: string;
-  /** 落盘项无时间戳，恒为 0（预留）。 */
-  createdAt: number;
+  createdAt: number | string;
   source?: string;
   meta?: {
     seq?: number;
@@ -634,12 +643,14 @@ export interface AgentQueueItem {
     qqTarget?: string;
     time?: string;
     /** queued=尚未被 Worker 接管；in_flight/uncertain 仅兼容旧版遗留数据，当前版本接管即出队。 */
-    dispatchState?: 'queued' | 'in_flight' | 'uncertain';
+    dispatchState?: QueueDispatchState;
+    revision?: number;
   };
 }
 
 export interface ApiSessionQueueResponse {
   items: AgentQueueItem[];
+  queueRevision?: number;
   error?: string;
   ok?: boolean;
 }

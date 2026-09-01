@@ -1389,23 +1389,25 @@ async def ws_endpoint(ws: WebSocket):
                                             "clientMessageId": client_message_id,
                                             "message": "clientMessageId is too long"})
                         continue
-                    # Session is the durable address.  A dead/no worker must
-                    # not silently drop a dashboard message; send_session
-                    # persists it and lets the global watchdog recover.
-                    result = await worker.send_session(
-                        session_id, text, source="user",
-                        client_message_id=client_message_id,
-                    )
+                    # Session is the durable address.  All browser messages
+                    # enter the canonical server queue, independent of worker
+                    # liveness; the ack means durable enqueue, not Provider
+                    # completion.
+                    result = await worker.enqueue_user_message(
+                        session_id, text, client_message_id)
                     if result.get("status") == "error":
                         await ws.send_json({"type": "user_inject.rejected",
                                             "sessionId": session_id,
                                             "clientMessageId": client_message_id,
+                                            "queueItemId": result.get("queueItemId"),
                                             "message": result.get("result", "send failed")})
                     else:
                         await ws.send_json({"type": "user_inject.accepted",
                                             "sessionId": session_id,
                                             "workerId": result.get("workerId"),
-                                            "clientMessageId": client_message_id})
+                                            "clientMessageId": client_message_id,
+                                            "queueItemId": result.get("queueItemId"),
+                                            "queueRevision": getattr(sess.get(session_id), "queue_revision", 0)})
             elif msg_type == "worker_control":
                 worker_id = msg.get("workerId")
                 control = msg.get("control")
@@ -1683,17 +1685,19 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
 
 # ── Agent queue (session.queue_pending, normalized view) ──
 #
-# queue_pending 是异构落盘队列：task 项（type=task，自带 uuid id）、report 项
-# （普通报告无 type 字段，zombie 报告 type=zombie）、qq 提醒项（type=qq）。
-# 这里序列化为统一的 AgentQueueItem 供前端 SendQueuePanel 渲染，不改存储结构。
-# report/qq 落盘项没有 id 字段 → 用 sha1(canonical json) 生成稳定 id（同内容
-# 幂等），DELETE 按 id 定位：先匹配原生 id，再回退内容 hash。
+# queue_pending 是异构落盘队列：task、report/notice、QQ 都使用统一 envelope；
+# 这里序列化为统一的 AgentQueueItem 供前端 SendQueuePanel 渲染。旧版本没有
+# queueItemId 的行只在迁移期间回退内容 hash，新写入项始终使用服务端 q_ ID。
 
 _REPORT_TEXT_MAX = 200
 
 
 def _queue_item_id(item: dict) -> str:
-    """Stable id for a queue_pending item (task: own uuid; others: content hash)."""
+    """Return the server-generated queue identity; hash only legacy rows."""
+    if item.get("queueItemId"):
+        return str(item["queueItemId"])
+    if item.get("id") and (item.get("kind") or item.get("schemaVersion")):
+        return str(item["id"])
     if item.get("type") == "task" and item.get("id"):
         return str(item["id"])
     try:
@@ -1708,14 +1712,9 @@ def _queue_item_id(item: dict) -> str:
 
 
 def _queue_dispatch_state(s, item: dict) -> str:
-    """Expose queue state (legacy in-flight entries are migration-only)."""
+    """Expose the durable state, never infer it from Provider status."""
     state = worker._delivery_state(item)
-    if state != worker._DELIVERY_IN_FLIGHT:
-        return "queued"
-    live = worker.find_alive_worker_by_session(s.id)
-    if live is not None and worker._worker_owns_queue_item(live, item):
-        return "in_flight"
-    return "uncertain"
+    return "unknown_after_crash" if state == worker._DELIVERY_IN_FLIGHT else state
 
 
 def _serialize_queue_item(item, session=None) -> dict | None:
@@ -1729,32 +1728,37 @@ def _serialize_queue_item(item, session=None) -> dict | None:
     # show up under the Agent queue (and eventually acquire an @@@@by agent
     # rendering after a worker restart).  Mirror worker._migrate_legacy_task_items
     # here so the queue API is safe even before the next worker recovery tick.
-    if t == "task" or (t is None and isinstance(item.get("text"), str)):
+    if t == "task" or item.get("kind") == "task" or (t is None and isinstance(item.get("text"), str)):
         source = worker._task_source(item) or "user"
         meta = {
             "seq": item.get("seq"),
             "taskId": item.get("taskId"),
+            "revision": item.get("revision", 1),
             "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
         }
         if item.get("sourceSessionId") is not None:
             meta["sourceSessionId"] = item.get("sourceSessionId")
         return {
             "id": _queue_item_id(item),
+            "queueItemId": _queue_item_id(item),
             "kind": "task",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
-            "createdAt": 0,
+            "createdAt": item.get("createdAt", 0),
             "source": source,
             "meta": meta,
         }
-    if t == "qq":
+    if t == "qq" or item.get("kind") == "qq":
         return {
             "id": _queue_item_id(item),
+            "queueItemId": _queue_item_id(item),
             "kind": "qq",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
-            "createdAt": 0,
+            "createdAt": item.get("createdAt", 0),
+            "source": "qq",
             "meta": {
                 "qqTarget": item.get("qqTarget"),
                 "time": item.get("time"),
+                "revision": item.get("revision", 1),
                 "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
             },
         }
@@ -1779,25 +1783,41 @@ def _serialize_queue_item(item, session=None) -> dict | None:
         "status": item.get("status"),
         "taskId": item.get("taskId"),
         "workerId": item.get("workerId"),
+        "revision": item.get("revision", 1),
         "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
     }
     if item.get("sourceSessionId") is not None:
         meta["sourceSessionId"] = item.get("sourceSessionId")
     return {
         "id": _queue_item_id(item),
+        "queueItemId": _queue_item_id(item),
         "kind": "report",
         "text": text,
-        "createdAt": 0,
+        "createdAt": item.get("createdAt", 0),
+        "source": item.get("source") or "report",
         "meta": meta,
     }
 
 
 def _session_queue_items(s) -> list[dict]:
     items = []
-    for it in s.queue_pending or []:
+    seen: set[str] = set()
+    # queue_pending is the ordered retryable portion.
+    source_items = [it for it in (s.queue_pending or []) if isinstance(it, dict)]
+    # The ledger supplies the reserved/sent/failed/unknown snapshot rows that
+    # have intentionally left the retryable queue.
+    source_items += [
+        it for it in (getattr(s, "queue_delivery_ledger", {}) or {}).values()
+        if isinstance(it, dict) and worker._delivery_state(it) not in {
+            worker._DELIVERY_QUEUED, "deleted"
+        }
+    ]
+    source_items.sort(key=lambda it: (it.get("position", 10**9), str(it.get("createdAt", ""))))
+    for it in source_items:
         si = _serialize_queue_item(it, s)
-        if si is not None:
+        if si is not None and si["id"] not in seen:
             items.append(si)
+            seen.add(si["id"])
     return items
 
 
@@ -1807,33 +1827,135 @@ async def api_session_queue(session_id: str):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    return {"items": _session_queue_items(s)}
+    migrated = worker._migrate_legacy_task_items(s)
+    migrated = worker._sync_queued_ledger(s) or migrated
+    if migrated:
+        await sess.save_async(s)
+    return {"items": _session_queue_items(s),
+            "queueRevision": getattr(s, "queue_revision", 0)}
+
+
+@app.post("/api/sessions/{session_id}/queue")
+async def api_session_queue_enqueue(session_id: str, data: dict):
+    """Canonical user enqueue endpoint.
+
+    Only text and the browser idempotency key are accepted from the client;
+    source=user/kind=task are fixed by the server-side entry point.
+    """
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return {"ok": False, "error": {"code": "text_required",
+                                         "message": "text is required"}}
+    client_id = data.get("clientMessageId")
+    if client_id is not None and (not isinstance(client_id, str) or len(client_id) > 512):
+        return {"ok": False, "error": {"code": "invalid_client_message_id",
+                                         "message": "clientMessageId must be a string of at most 512 characters"}}
+    result = await worker.enqueue_user_message(session_id, text, client_id)
+    if result.get("status") == "error":
+        return {"ok": False, "error": {"code": "enqueue_failed",
+                                         "message": result.get("result", "enqueue failed")}}
+    s = sess.get(session_id)
+    return {"ok": True,
+            "item": _serialize_queue_item(result.get("item") or {}, s),
+            "queueRevision": getattr(s, "queue_revision", 0),
+            "duplicate": bool(result.get("duplicate"))}
+
+
+def _queue_error(code: str, message: str, s=None) -> dict:
+    response = {"ok": False, "error": {"code": code, "message": message}}
+    if s is not None:
+        response["items"] = _session_queue_items(s)
+        response["queueRevision"] = getattr(s, "queue_revision", 0)
+    return response
+
+
+@app.patch("/api/sessions/{session_id}/queue/{item_id}")
+async def api_session_queue_update(session_id: str, item_id: str, data: dict):
+    """Edit only a queued user item, retaining its durable identity."""
+    s = sess.get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    text = data.get("text")
+    expected = data.get("expectedRevision")
+    async with worker.queue_lock(session_id):
+        target = next((it for it in s.queue_pending or []
+                       if isinstance(it, dict) and worker._queue_item_id(it) == item_id), None)
+        if target is None:
+            if item_id in (getattr(s, "queue_delivery_ledger", {}) or {}):
+                return _queue_error("queue_item_not_editable", "Only queued user messages can be edited", s)
+            return _queue_error("not_found", "Queue item not found", s)
+        if worker._queue_source(target) != "user":
+            return _queue_error("queue_item_readonly", "Only user-originated queue items can be edited", s)
+        if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        if not isinstance(text, str) or not text.strip():
+            return _queue_error("text_required", "text is required", s)
+        current_revision = int(target.get("revision", 1))
+        if expected is not None and expected != current_revision:
+            return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
+        old_target = dict(target)
+        old_ledger = dict(s.queue_delivery_ledger.get(item_id, {}))
+        old_queue_revision = s.queue_revision
+        target["text"] = text
+        target["revision"] = current_revision + 1
+        target["updatedAt"] = datetime.now().isoformat()
+        _ledger = s.queue_delivery_ledger.get(item_id)
+        if isinstance(_ledger, dict):
+            _ledger.update(target)
+        s.queue_revision += 1
+        try:
+            await sess.save_async(s)
+        except Exception:
+            target.clear()
+            target.update(old_target)
+            if isinstance(_ledger, dict):
+                _ledger.clear()
+                _ledger.update(old_ledger)
+            s.queue_revision = old_queue_revision
+            raise
+    return {"ok": True, "item": _serialize_queue_item(target, s),
+            "queueRevision": s.queue_revision}
 
 
 @app.delete("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_delete(session_id: str, item_id: str):
-    """Remove one item from the persisted queue by its normalized id."""
+    """Remove one still-queued item; non-retryable items remain auditable."""
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    pending = s.queue_pending or []
-    target = None
-    # Pass 1: direct id match (task items carry their own uuid id).
-    for it in pending:
-        if isinstance(it, dict) and it.get("id") == item_id:
-            target = it
-            break
-    # Pass 2: content-hash fallback for report/qq items (no id field).
-    if target is None:
-        for it in pending:
-            if isinstance(it, dict) and _queue_item_id(it) == item_id:
-                target = it
-                break
-    if target is None:
-        return {"ok": False, "error": "not_found"}
-    s.queue_pending = [it for it in pending if it is not target]
-    await sess.save_async(s)
-    return {"ok": True}
+    async with worker.queue_lock(session_id):
+        pending = s.queue_pending or []
+        target = next((it for it in pending if isinstance(it, dict)
+                       and _queue_item_id(it) == item_id), None)
+        if target is None:
+            if item_id in (getattr(s, "queue_delivery_ledger", {}) or {}):
+                return _queue_error("queue_item_not_deletable", "Queue item is no longer queued", s)
+            return {"ok": False, "error": "not_found"}
+        if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_deletable", "Queue item is no longer queued", s)
+        old_pending = list(pending)
+        old_record = dict(s.queue_delivery_ledger.get(item_id, {}))
+        old_queue_revision = s.queue_revision
+        s.queue_pending = [it for it in pending if it is not target]
+        record = s.queue_delivery_ledger.get(item_id)
+        if isinstance(record, dict):
+            record["deliveryState"] = "deleted"
+            record["dispatchState"] = "deleted"
+        s.queue_revision += 1
+        try:
+            await sess.save_async(s)
+        except Exception:
+            s.queue_pending = old_pending
+            if old_record:
+                s.queue_delivery_ledger[item_id] = old_record
+            else:
+                s.queue_delivery_ledger.pop(item_id, None)
+            s.queue_revision = old_queue_revision
+            raise
+    await worker._bcast({"type": "queue.item_removed", "sessionId": session_id,
+                         "queueItemId": item_id, "queueRevision": s.queue_revision})
+    return {"ok": True, "queueItemId": item_id,
+            "queueRevision": s.queue_revision}
 
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
@@ -1847,7 +1969,7 @@ async def api_session_queue_retry(session_id: str, item_id: str):
 
 @app.patch("/api/sessions/{session_id}/queue/order")
 async def api_session_queue_order(session_id: str, data: dict):
-    """Reorder task items within the persisted queue (report/qq keep their slots).
+    """Reorder all still-queued sources within the persisted queue.
 
     Body: {"order": ["id1", ...]} — the relative order of task ids in `order`
     becomes the new task sequence; tasks not mentioned keep their relative
@@ -1856,34 +1978,51 @@ async def api_session_queue_order(session_id: str, data: dict):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    order = data.get("order")
+    order = data.get("orderedIds", data.get("order"))
     if not isinstance(order, list):
         return {"error": "order (array of item ids) required"}
-    pending = list(s.queue_pending or [])
-    by_id: dict[str, dict] = {}
-    for it in pending:
-        if isinstance(it, dict) and it.get("type") == "task":
-            by_id.setdefault(_queue_item_id(it), it)
-    ordered: list[dict] = []
-    seen: set[int] = set()
-    for iid in order:
-        it = by_id.get(str(iid))
-        if it is not None and id(it) not in seen:
-            ordered.append(it)
-            seen.add(id(it))
-    for it in pending:  # tasks absent from `order` keep relative order at the end
-        if (isinstance(it, dict) and it.get("type") == "task"
-                and id(it) not in seen):
-            ordered.append(it)
-            seen.add(id(it))
-    task_iter = iter(ordered)
-    s.queue_pending = [
-        next(task_iter, it)
-        if isinstance(it, dict) and it.get("type") == "task" else it
-        for it in pending
-    ]
-    await sess.save_async(s)
-    return {"items": _session_queue_items(s)}
+    expected = data.get("expectedQueueRevision")
+    async with worker.queue_lock(session_id):
+        if expected is not None and expected != getattr(s, "queue_revision", 0):
+            return _queue_error("queue_revision_conflict", "Queue revision conflict", s)
+        pending = [it for it in (s.queue_pending or [])
+                   if isinstance(it, dict) and worker._delivery_state(it) == worker._DELIVERY_QUEUED]
+        by_id = {_queue_item_id(it): it for it in pending}
+        if len({str(i) for i in order}) != len(order):
+            return _queue_error("invalid_queue_order", "orderedIds contains duplicates", s)
+        unknown = [str(i) for i in order if str(i) not in by_id]
+        if unknown:
+            return _queue_error("invalid_queue_order", "orderedIds contains unknown or claimed items", s)
+        ordered = [by_id[str(i)] for i in order]
+        ordered.extend(it for it in pending if it not in ordered)
+        old_pending = list(s.queue_pending or [])
+        old_positions = {id(it): it.get("position") for it in old_pending}
+        old_queue_revision = s.queue_revision
+        # Keep any legacy non-retryable rows in their existing slots while
+        # applying the requested order to every still-queued source.
+        queued_slots = [index for index, it in enumerate(old_pending)
+                        if isinstance(it, dict)
+                        and worker._delivery_state(it) == worker._DELIVERY_QUEUED]
+        s.queue_pending = list(old_pending)
+        for slot, it in zip(queued_slots, ordered):
+            s.queue_pending[slot] = it
+        for position, it in enumerate(s.queue_pending):
+            it["position"] = position
+        s.queue_revision += 1
+        try:
+            await sess.save_async(s)
+        except Exception:
+            s.queue_pending = old_pending
+            for it in old_pending:
+                if old_positions[id(it)] is None:
+                    it.pop("position", None)
+                else:
+                    it["position"] = old_positions[id(it)]
+            s.queue_revision = old_queue_revision
+            raise
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id,
+                         "queueRevision": s.queue_revision})
+    return {"items": _session_queue_items(s), "queueRevision": s.queue_revision}
 
 
 @app.patch("/api/sessions/{session_id}")
@@ -2730,7 +2869,9 @@ async def api_task(data: dict):
     """Send a task to a Worker by worker_id or session_id."""
     worker_id = data.get("workerId")
     session_id = data.get("sessionId")
-    source_type, source_session_id, source_error = _request_source_metadata(data)
+    source_data = dict(data)
+    source_data["source"] = "agent"
+    source_type, source_session_id, source_error = _request_source_metadata(source_data)
     if source_error:
         return source_error
     if session_id:
@@ -2781,6 +2922,10 @@ async def api_task(data: dict):
             if denied:
                 return denied
     send_kwargs = {"source": source_type}
+    if data.get("taskId") is not None:
+        send_kwargs["task_id"] = data.get("taskId")
+    if data.get("clientMessageId") is not None:
+        send_kwargs["client_message_id"] = data.get("clientMessageId")
     if source_session_id is not None:
         send_kwargs["source_session_id"] = source_session_id
     err = await worker.send_task(worker_id, text, **send_kwargs)
@@ -2803,6 +2948,9 @@ async def api_task(data: dict):
         "workerId": worker_id,
         "sessionId": w.session_id if w else session_id,
         "status": "queued",
+        "queueItemId": (worker._find_queue_item_by_idempotency(
+            sess.get(session_id), client_message_id=data.get("clientMessageId"),
+            task_id=data.get("taskId")) or {}).get("queueItemId"),
     }
 
 
@@ -2829,7 +2977,9 @@ async def api_send(data: dict):
             return {"error": "Worker not found"}
         session_id = w.session_id
     target = sess.get(session_id)
-    source_type, source_session_id, source_error = _request_source_metadata(data)
+    source_data = dict(data)
+    source_data["source"] = "agent"
+    source_type, source_session_id, source_error = _request_source_metadata(source_data)
     if source_error:
         return source_error
     if source_session_id and not target:
@@ -2838,6 +2988,8 @@ async def api_send(data: dict):
     if denied:
         return denied
     send_kwargs = {"source": source_type, "force": bool(data.get("force"))}
+    if data.get("clientMessageId") is not None:
+        send_kwargs["client_message_id"] = data.get("clientMessageId")
     if source_session_id is not None:
         send_kwargs["source_session_id"] = source_session_id
     result = await worker.send_session(session_id, text, **send_kwargs)
@@ -2869,7 +3021,9 @@ async def api_notify(data: dict):
     target_session = sess.get(target)
     if not target_session:
         return {"error": f"Session {target} not found"}
-    source_type, source_session_id, source_error = _request_source_metadata(data)
+    source_data = dict(data)
+    source_data["source"] = "agent"
+    source_type, source_session_id, source_error = _request_source_metadata(source_data)
     if source_error:
         return source_error
     denied = _source_access_error(target_session, source_session_id)
@@ -2897,7 +3051,9 @@ async def api_assign(data: dict):
         return {"ok": False, "error": {"code": "missing_params",
                                        "message": "sessionId and text are required"}}
     task_id = data.get("taskId")
-    source_type, source_session_id, source_error = _request_source_metadata(data)
+    source_data = dict(data)
+    source_data["source"] = "agent"
+    source_type, source_session_id, source_error = _request_source_metadata(source_data)
     if source_error:
         return {"status": "error", "result": source_error["error"]}
     target = sess.get(session_id)

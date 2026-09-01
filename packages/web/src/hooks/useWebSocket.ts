@@ -131,11 +131,20 @@ export function useWebSocket() {
       useWorkerStore.getState().refresh();
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
+      const sessionId = useSessionStore.getState().currentSessionId;
+      if (sessionId) refreshAgentQueue(sessionId);
       syncInteractiveRequests();
     }));
     // If the singleton was already open before this hook mounted (HMR/route
     // remount), no new `open` event will arrive; sync explicitly as well.
     if (wsClient.isOpen) syncInteractiveRequests();
+
+    // Queue events are latency hints only. Every update is reconciled from
+    // the server snapshot, so an old event or a lost WebSocket frame cannot
+    // manufacture a second local business queue.
+    for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.snapshot']) {
+      unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => refreshAgentQueue(e.sessionId)));
+    }
 
     // Worker spawned / restarted / reconfigured
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
@@ -166,10 +175,6 @@ export function useWebSocket() {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       refreshAgentQueue(e.sessionId);
-      // A destroyed worker may be the only event after a user queued text
-      // while it was running.  Do not wait for a stale idle status or a later
-      // refresh: the durable session route can accept the message offline.
-      useQueueStore.getState().flush(true);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
@@ -178,7 +183,6 @@ export function useWebSocket() {
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
       refreshAgentQueue(e.sessionId);
-      useQueueStore.getState().flush(true);
       scheduleRefreshSessions();
     }));
 
@@ -418,14 +422,6 @@ function handleWorkerUpdate(
   const workerStore = useWorkerStore.getState();
   workerStore.updateWorker(e.sessionId, e.workerId ?? null, status);
 
-  // 队列自动发送：worker 变 idle 且属于当前 session → 发送队首 1 条
-  // （发送后 worker 变 queued/running，不再是 idle，天然防重复；result→idle 再取下一条）
-  if (
-    status === 'idle' &&
-    e.sessionId === useSessionStore.getState().currentSessionId
-  ) {
-    useQueueStore.getState().flush();
-  }
 }
 
 /** Python `json.dumps(input, separators=(',',':'), ensure_ascii=True)` 兼容的

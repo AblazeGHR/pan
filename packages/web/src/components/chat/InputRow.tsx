@@ -7,8 +7,6 @@ import { useQueueStore } from '@/stores/queueStore';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
-import { wsClient } from '@/services/ws';
-import { sendSession } from '@/services/api';
 import { ChevronDown, ChevronUp, CornerUpRight, Settings } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
@@ -164,7 +162,7 @@ export function InputRow() {
   const currentSession = useCurrentSession();
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
-  const { startWorker, steer } = useWorkerStore();
+  const { steer } = useWorkerStore();
   const { showToast } = useUIStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const enqueue = useQueueStore((s) => s.enqueue);
@@ -219,77 +217,18 @@ export function InputRow() {
       }
       if (!text.trim()) return;
 
-      const session = currentSession;
-      if (session?.workerStatus === 'running' || session?.workerStatus === 'held') {
-        // worker 忙：不再拒绝，改为入队（空闲后自动逐条/拼接发送）；入队不上屏
-        const ok = enqueue(text);
-        if (ok) {
-          if (inputRef.current) {
-            inputRef.current.value = '';
-          }
-          setInputDraft(currentSessionId, '');
-        }
-        return;
-      }
-
-      // Clear input and draft
-      if (inputRef.current) {
-        inputRef.current.value = '';
-      }
-      setInputDraft(currentSessionId, '');
-
-      const msg = {
-        type: 'user_inject',
-        sessionId: currentSessionId,
-        text,
-      };
-
-      if (wsClient.isOpen) {
-        if (wsClient.send(msg)) {
-          // WS send is the server hand-off point; only show it after that.
-          addMessage({ role: 'user', content: text });
-          return;
-        }
-      }
-
-      if (!currentSession?.workerId) {
-        // No worker — spawn one
-        try {
-          await startWorker(currentSessionId);
-          // spawn 等待窗口内 WS 可能仍在 CONNECTING（send 返回 false）——
-          // 优先走 WS，失败则使用 session API，由服务端持久化/排队。
-          if (wsClient.send(msg)) {
-            addMessage({ role: 'user', content: text });
-            return;
-          }
-        } catch (e) {
-          showToast(
-            'Spawn failed: ' + (e as Error).message,
-            'error',
-          );
-          return;
-        }
-      }
-
-      // WS was unavailable (or became unavailable during spawn). The HTTP
-      // endpoint is durable and also handles a worker disappearing mid-send.
-      try {
-        await sendSession(currentSessionId, text);
-        addMessage({ role: 'user', content: text });
-      } catch (e) {
-        showToast(
-          'Send failed: ' + (e as Error).message,
-          'error',
-        );
+      // Every user message goes to the server queue.  Clear the input only
+      // after the server returns a durable queueItemId; a network failure is
+      // not an offline accepted queue state.
+      const ok = await enqueue(text);
+      if (ok) {
+        if (inputRef.current) inputRef.current.value = '';
+        setInputDraft(currentSessionId, '');
       }
     },
     [
       currentSessionId,
-      currentSession,
       showToast,
-      addMessage,
-      sendSession,
-      startWorker,
       setInputDraft,
       enqueue,
     ],

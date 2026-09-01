@@ -171,6 +171,12 @@ class Session:
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
+    # Durable identity/state ledger for queue items that have crossed the
+    # at-most-once reservation boundary.  queue_pending is deliberately only
+    # the retryable (queued) subset; this ledger is what makes a removed item
+    # idempotent after a crash or a late client retry.
+    queue_delivery_ledger: dict = field(default_factory=dict)
+    queue_revision: int = 0
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
     # Browser-originated messages are acknowledged only after the queue item is
     # durable.  Keep a bounded receipt ledger so a WebSocket reconnect can
@@ -215,6 +221,8 @@ class Session:
                  managed_by: str | None = None,
                  readonly_session: bool = False,
                  queue_pending: list | None = None,
+                 queue_delivery_ledger: dict | None = None,
+                 queue_revision: int = 0,
                  task_seq: int = 0,
                  accepted_input_ids: list[str] | None = None,
                   report_subscriptions=None,
@@ -254,6 +262,10 @@ class Session:
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
+        self.queue_delivery_ledger = (
+            queue_delivery_ledger if queue_delivery_ledger is not None else {}
+        )
+        self.queue_revision = int(queue_revision or 0)
         self.task_seq = task_seq
         self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
@@ -376,6 +388,8 @@ class Session:
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
+            "queue_delivery_ledger": self.queue_delivery_ledger,
+            "queue_revision": self.queue_revision,
             "task_seq": self.task_seq,
             "accepted_input_ids": self.accepted_input_ids,
             "report_subscriptions": sorted(self.report_subscriptions),
