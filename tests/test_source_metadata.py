@@ -177,7 +177,7 @@ def test_recovery_retains_source_session_id_metadata(monkeypatch):
 
     assert changed is False
     assert target.queue_pending == [item]
-    assert w.pending_signal.get_nowait() == {"type": "task_signal", "id": "task-1"}
+    assert w.pending_signal.get_nowait() == {"type": "queue_signal"}
 
 
 def test_task_history_receipt_retains_source_metadata(monkeypatch):
@@ -200,6 +200,7 @@ def test_task_history_receipt_retains_source_metadata(monkeypatch):
     async def run_consumer():
         task = asyncio.create_task(worker._consumer(w))
         await w.pending_signal.put({"type": "task_signal", "id": "task-1"})
+        await w.pending_signal.put(None)
         await asyncio.wait_for(task, timeout=1)
 
     asyncio.run(run_consumer())

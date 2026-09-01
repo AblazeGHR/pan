@@ -19,5 +19,9 @@ def test_loads_session_written_by_newer_queue_version():
 
     assert session.queue_pending == [{"type": "task", "text": "still pending"}]
     assert session.id == "ses_forward_compat"
-    assert "queue_delivery_ledger" not in session.to_dict()
-    assert "queue_revision" not in session.to_dict()
+    assert session.queue_delivery_ledger == {
+        "q_example": {"deliveryState": "sent_to_cli"},
+    }
+    assert session.queue_revision == 7
+    assert session.to_dict()["queue_delivery_ledger"] == session.queue_delivery_ledger
+    assert session.to_dict()["queue_revision"] == 7

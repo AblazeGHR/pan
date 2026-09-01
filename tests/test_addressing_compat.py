@@ -228,8 +228,7 @@ def test_send_session_held_worker_errors(monkeypatch):
 
 
 def test_send_no_worker_enqueue_spawn_recover_closed_loop(monkeypatch):
-    """闭环：send 入队 → 全局 watchdog spawn → _recover_pending_signals
-    补发 task_signal → 按 id 认领。"""
+    """闭环：send 入队 → 全局 watchdog spawn → generic wakeup → FIFO claim。"""
     _cleanup()
     s = _setup_session("ses_loop")
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
@@ -262,13 +261,14 @@ def test_send_no_worker_enqueue_spawn_recover_closed_loop(monkeypatch):
         finally:
             worker.create_worker = orig
         assert spawned == ["ses_loop"], spawned
-        # 3) spawn 后 task_signal 已补发，可按 id 认领
+        # 3) spawn 后 generic wakeup 已补发，可按 durable id 认领
         w = worker.workers["worker-loop"]
         assert w.pending_signal.qsize() == 1
         sig = w.pending_signal.get_nowait()
-        assert sig["type"] == "task_signal"
-        claimed = await worker._claim_pending_task(w, sig["id"])
+        assert sig["type"] == "queue_signal"
+        claimed = await worker._claim_pending_task(w, s.queue_pending[0]["id"])
         assert claimed is not None and claimed["text"] == "queued then delivered"
+        assert s.queue_pending[0]["deliveryState"] == "reserved"
         return r
 
     asyncio.run(scenario())

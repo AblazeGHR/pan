@@ -84,6 +84,8 @@ def test_enqueue_report_subscribed(monkeypatch):
     assert len(mgr.queue_pending) == 1
     r = mgr.queue_pending[0]
     assert r == {
+        "type": "report",
+        "id": r["id"],
         "source": "report",
         "sourceSessionId": "ses_child",
         "status": "done",
@@ -144,7 +146,7 @@ def test_enqueue_report_wakes_manager_consumer(monkeypatch):
     asyncio.run(scenario())
 
     item = asyncio.run(mw.pending_signal.get())
-    assert item == {"type": "report_signal"}, f"got {item}"
+    assert item == {"type": "queue_signal"}, f"got {item}"
     _cleanup()
 
 
@@ -182,6 +184,7 @@ def test_enqueue_report_with_type_zombie(monkeypatch):
     asyncio.run(scenario())
 
     assert mgr.queue_pending[0] == {
+        "id": mgr.queue_pending[0]["id"],
         "source": "report",
         "sourceSessionId": "ses_child",
         "status": "error",

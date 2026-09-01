@@ -6,7 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { sendSession, spawnWorker, patchSession } from '@/services/api';
+import { fetchSessionQueue, sendSession, spawnWorker, patchSession } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import type { AdapterConfig } from '@/types';
 
@@ -26,6 +26,7 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     patchSession: vi.fn(async () => ({})),
     fetchSessions: vi.fn(async () => []),
+    fetchSessionQueue: vi.fn(async () => []),
     sendSession: vi.fn(async () => ({ status: 'queued' })),
     spawnWorker: vi.fn(async () => ({ workerId: 'w-new' })),
   };
@@ -59,7 +60,10 @@ beforeEach(() => {
     currentMessages: [],
     sessions: [],
   });
-  useQueueStore.setState({ queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false });
+  useQueueStore.setState({
+    queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false,
+    agentQueues: {}, agentQueueLoadSeq: {},
+  });
   useUIStore.setState({ toastQueue: [] });
   useAdapterStore.setState({
     adapters: [],
@@ -69,6 +73,7 @@ beforeEach(() => {
   });
   vi.mocked(patchSession).mockClear();
   vi.mocked(sendSession).mockClear();
+  vi.mocked(fetchSessionQueue).mockReset().mockResolvedValue([]);
   vi.mocked(spawnWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
   Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
@@ -77,7 +82,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('InputRow send queue wiring', () => {
-  it('enqueues when worker busy, clears input, shows badge + panel row, and does NOT add to chat history', () => {
+  it('persists through the server queue when worker busy, without interrupting it', async () => {
     setBusySession();
     render(<InputRow />);
 
@@ -85,21 +90,40 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'queued msg' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
-    // 入队成功、输入框清空
+    await waitFor(() => expect(sendSession).toHaveBeenCalledWith(
+      's1', 'queued msg', expect.any(String),
+    ));
+    // 正常输入不再写入 localStorage queue
     const q = useQueueStore.getState().queues['s1'] ?? [];
-    expect(q.length).toBe(1);
-    expect(q[0]?.text).toBe('queued msg');
+    expect(q.length).toBe(0);
     expect((textarea as HTMLTextAreaElement).value).toBe('');
-    // 排队消息不上屏：它不在服务端 history 中，伪装进聊天会在刷新后凭空消失
-    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    expect(useSessionStore.getState().currentMessages[0]?.content).toBe('queued msg');
 
-    // ^ 按钮角标显示 1（面板头部的计数也在 DOM 中，用 getAllByText）
-    expect(screen.getAllByText('1').length).toBeGreaterThan(0);
-
-    // 点击 ^ 展开面板 → 显示队列项（排队消息的唯一 UI 呈现处）
+    // 点击 ^ 展开面板；服务端队列由 GET /queue 镜像，local queue 为空
     fireEvent.click(screen.getByLabelText('发送队列'));
-    expect(screen.getByText('queued msg')).toBeTruthy();
-    expect(screen.getByText('待发送')).toBeTruthy();
+    expect(screen.getByText('待发送队列为空')).toBeTruthy();
+  });
+
+  it('shows frontend tasks, reports, and QQ reminders in one server FIFO list', async () => {
+    setBusySession();
+    vi.mocked(fetchSessionQueue).mockResolvedValue([
+      { id: 'q-task', kind: 'task', text: 'frontend input', createdAt: 0, source: 'user' },
+      { id: 'q-report', kind: 'report', text: 'agent result', createdAt: 0, source: 'report' },
+      { id: 'q-qq', kind: 'qq', text: 'QQ reminder', createdAt: 0, source: 'qq' },
+    ]);
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByLabelText('发送队列'));
+    await waitFor(() => {
+      expect(screen.getByText('统一服务端待发送队列（FIFO）')).toBeTruthy();
+    });
+    expect(screen.getByText('user task')).toBeTruthy();
+    expect(screen.getByText('agent report')).toBeTruthy();
+    expect(screen.getByText('agent qq')).toBeTruthy();
+    expect(screen.getByText('frontend input')).toBeTruthy();
+    expect(screen.getByText('agent result')).toBeTruthy();
+    expect(screen.getByText('QQ reminder')).toBeTruthy();
+    expect(screen.queryByText('服务端待发送队列（FIFO）')).toBeNull();
   });
 
   it('still renders queued messages from localStorage after a page reload', () => {
@@ -120,7 +144,7 @@ describe('InputRow send queue wiring', () => {
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
-  it('still sends directly when worker is idle', () => {
+  it('uses the same durable server queue when worker is idle', async () => {
     useSessionStore.setState({
       currentSessionId: 's1',
       currentMessages: [],
@@ -145,6 +169,9 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'direct msg' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
+    await waitFor(() => expect(sendSession).toHaveBeenCalledWith(
+      's1', 'direct msg', expect.any(String),
+    ));
     const q = useQueueStore.getState().queues['s1'] ?? [];
     expect(q.length).toBe(0);
     expect(useSessionStore.getState().currentMessages.length).toBe(1);
@@ -179,9 +206,9 @@ describe('InputRow send queue wiring', () => {
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(spawnWorker).toHaveBeenCalledWith('s1', undefined);
-      expect(sendSession).toHaveBeenCalledWith('s1', 'survive reconnect');
+      expect(sendSession).toHaveBeenCalledWith('s1', 'survive reconnect', expect.any(String));
     });
+    expect(spawnWorker).not.toHaveBeenCalled();
     expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
       'survive reconnect',
     ]);

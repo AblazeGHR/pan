@@ -1684,23 +1684,27 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
 # ── Agent queue (session.queue_pending, normalized view) ──
 #
 # queue_pending 是异构落盘队列：task 项（type=task，自带 uuid id）、report 项
-# （普通报告无 type 字段，zombie 报告 type=zombie）、qq 提醒项（type=qq）。
+# （普通报告有 type=report，旧行可能无 type，zombie 报告保留 type=zombie）、
+# qq 提醒项（type=qq）。
 # 这里序列化为统一的 AgentQueueItem 供前端 SendQueuePanel 渲染，不改存储结构。
-# report/qq 落盘项没有 id 字段 → 用 sha1(canonical json) 生成稳定 id（同内容
-# 幂等），DELETE 按 id 定位：先匹配原生 id，再回退内容 hash。
+# 新格式的所有 queue item 都有自己的 id。旧 report/QQ 行没有 id 时仍回退到
+# canonical hash，以便升级期间 GET/DELETE 不失联。
 
 _REPORT_TEXT_MAX = 200
 
 
 def _queue_item_id(item: dict) -> str:
-    """Stable id for a queue_pending item (task: own uuid; others: content hash)."""
-    if item.get("type") == "task" and item.get("id"):
+    """Stable id for a queue_pending item (new rows own uuid; old rows hash)."""
+    if item.get("id"):
         return str(item["id"])
     try:
         # deliveryState changes during hand-off; it is bookkeeping, not item
         # identity.  Keep report/QQ ids stable so a stale panel action still
         # addresses the same durable item.
-        identity = {k: v for k, v in item.items() if k != "deliveryState"}
+        identity = {k: v for k, v in item.items() if k not in {
+            "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
+            "deliveryAttempts", "nextAttemptAt", "lastDeliveryError",
+        }}
         canonical = json.dumps(identity, sort_keys=True, ensure_ascii=False)
     except (TypeError, ValueError):
         canonical = repr(item)
@@ -1708,14 +1712,8 @@ def _queue_item_id(item: dict) -> str:
 
 
 def _queue_dispatch_state(s, item: dict) -> str:
-    """Expose queue state (legacy in-flight entries are migration-only)."""
-    state = worker._delivery_state(item)
-    if state != worker._DELIVERY_IN_FLIGHT:
-        return "queued"
-    live = worker.find_alive_worker_by_session(s.id)
-    if live is not None and worker._worker_owns_queue_item(live, item):
-        return "in_flight"
-    return "uncertain"
+    """Expose the durable state without deriving it from Worker memory."""
+    return worker._delivery_state(item)
 
 
 def _serialize_queue_item(item, session=None) -> dict | None:
@@ -1751,6 +1749,7 @@ def _serialize_queue_item(item, session=None) -> dict | None:
             "id": _queue_item_id(item),
             "kind": "qq",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
+            "source": item.get("source") or "qq",
             "createdAt": 0,
             "meta": {
                 "qqTarget": item.get("qqTarget"),
@@ -1787,6 +1786,7 @@ def _serialize_queue_item(item, session=None) -> dict | None:
         "id": _queue_item_id(item),
         "kind": "report",
         "text": text,
+        "source": item.get("source") or "report",
         "createdAt": 0,
         "meta": meta,
     }
@@ -1795,6 +1795,12 @@ def _serialize_queue_item(item, session=None) -> dict | None:
 def _session_queue_items(s) -> list[dict]:
     items = []
     for it in s.queue_pending or []:
+        # reserved/writing/sent rows are internal hand-off states.  They stay
+        # durable for recovery but are intentionally hidden from the pending
+        # queue view; newly appended queued rows therefore remain visible while
+        # another item is running.
+        if isinstance(it, dict) and worker._delivery_state(it) != worker._DELIVERY_QUEUED:
+            continue
         si = _serialize_queue_item(it, s)
         if si is not None:
             items.append(si)
@@ -1823,7 +1829,7 @@ async def api_session_queue_delete(session_id: str, item_id: str):
         if isinstance(it, dict) and it.get("id") == item_id:
             target = it
             break
-    # Pass 2: content-hash fallback for report/qq items (no id field).
+    # Pass 2: content-hash fallback for old rows that predate queue item ids.
     if target is None:
         for it in pending:
             if isinstance(it, dict) and _queue_item_id(it) == item_id:
@@ -1831,6 +1837,8 @@ async def api_session_queue_delete(session_id: str, item_id: str):
                 break
     if target is None:
         return {"ok": False, "error": "not_found"}
+    if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
+        return {"ok": False, "error": "queue_item_not_pending"}
     s.queue_pending = [it for it in pending if it is not target]
     await sess.save_async(s)
     return {"ok": True}
@@ -1838,10 +1846,17 @@ async def api_session_queue_delete(session_id: str, item_id: str):
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
 async def api_session_queue_retry(session_id: str, item_id: str):
-    """Compatibility endpoint; queue retry is disabled by at-most-once policy."""
+    """Retry the original durable item after a failed/paused hand-off."""
     result = await worker.retry_pending_item(session_id, item_id)
     if isinstance(result, str):
         return {"ok": False, "error": result}
+    if worker._delivery_state(result) != worker._DELIVERY_QUEUED:
+        return {
+            "ok": False,
+            "error": "queue_item_not_pending",
+            "status": worker._delivery_state(result),
+            "queueItemId": result.get("queueItemId"),
+        }
     return {"ok": True, "item": _serialize_queue_item(result, sess.get(session_id))}
 
 
@@ -1862,7 +1877,8 @@ async def api_session_queue_order(session_id: str, data: dict):
     pending = list(s.queue_pending or [])
     by_id: dict[str, dict] = {}
     for it in pending:
-        if isinstance(it, dict) and it.get("type") == "task":
+        if (isinstance(it, dict) and it.get("type") == "task"
+                and worker._delivery_state(it) == worker._DELIVERY_QUEUED):
             by_id.setdefault(_queue_item_id(it), it)
     ordered: list[dict] = []
     seen: set[int] = set()
@@ -1873,13 +1889,15 @@ async def api_session_queue_order(session_id: str, data: dict):
             seen.add(id(it))
     for it in pending:  # tasks absent from `order` keep relative order at the end
         if (isinstance(it, dict) and it.get("type") == "task"
+                and worker._delivery_state(it) == worker._DELIVERY_QUEUED
                 and id(it) not in seen):
             ordered.append(it)
             seen.add(id(it))
     task_iter = iter(ordered)
     s.queue_pending = [
         next(task_iter, it)
-        if isinstance(it, dict) and it.get("type") == "task" else it
+        if (isinstance(it, dict) and it.get("type") == "task"
+            and worker._delivery_state(it) == worker._DELIVERY_QUEUED) else it
         for it in pending
     ]
     await sess.save_async(s)
@@ -2837,7 +2855,16 @@ async def api_send(data: dict):
     denied = _source_access_error(target, source_session_id)
     if denied:
         return denied
-    send_kwargs = {"source": source_type, "force": bool(data.get("force"))}
+    client_message_id = data.get("clientMessageId")
+    if client_message_id is not None and not isinstance(client_message_id, str):
+        return {"error": "clientMessageId must be a string"}
+    if isinstance(client_message_id, str) and len(client_message_id) > 512:
+        return {"error": "clientMessageId is too long"}
+    send_kwargs = {
+        "source": source_type,
+        "force": bool(data.get("force")),
+        "client_message_id": client_message_id,
+    }
     if source_session_id is not None:
         send_kwargs["source_session_id"] = source_session_id
     result = await worker.send_session(session_id, text, **send_kwargs)
