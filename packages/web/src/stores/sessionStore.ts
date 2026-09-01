@@ -71,6 +71,8 @@ interface SessionStore {
   setInputDraft: (id: string, draft: string) => void;
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
+  /** Append user messages after the server confirms local CLI hand-off. */
+  appendDeliveredMessages: (sessionId: string, msgs: Message[]) => void;
   updateSession: (id: string, data: Partial<Session>) => void;
   /** 就地更新某 session 卡片：追加结果文本到 history + lastResult + historyTotal，
    *  不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新（镜像 vanilla
@@ -558,6 +560,72 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({
       currentMessages: [...s.currentMessages, ...msgs],
     }));
+  },
+
+  appendDeliveredMessages: (sessionId: string, msgs: Message[]) => {
+    if (!msgs.length) return;
+    set((s) => {
+      const queueIds = (message: Message): string[] => (
+        Array.isArray(message.queueItemIds)
+          ? message.queueItemIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+          : []
+      );
+      const existingIds = new Set(
+        s.currentMessages.flatMap((message) => queueIds(message)),
+      );
+      const currentAppend: Message[] = [];
+      for (const message of msgs) {
+        const ids = queueIds(message);
+        // A duplicate WS delivery event must not render the same hand-off
+        // twice. Distinct queue ids are allowed to carry identical text.
+        if (ids.length && ids.some((id) => existingIds.has(id))) continue;
+        currentAppend.push(message);
+        ids.forEach((id) => existingIds.add(id));
+      }
+
+      const sessions = s.sessions.map((session) => {
+        if (session.id !== sessionId) return session;
+        const history = session.history || [];
+        const historyIds = new Set(
+          history.flatMap((message) => queueIds(message)),
+        );
+        // A fresh history response intentionally strips transient queue ids.
+        // The current chat still has them, so use that view as an additional
+        // dedupe source when a duplicate notification arrives after refresh.
+        if (session.id === s.currentSessionId) {
+          s.currentMessages.flatMap((message) => queueIds(message))
+            .forEach((id) => historyIds.add(id));
+        }
+        const historyAppend = msgs.filter((message) => {
+          const ids = queueIds(message);
+          if (ids.length && ids.some((id) => historyIds.has(id))) return false;
+          ids.forEach((id) => historyIds.add(id));
+          return true;
+        });
+        // summary=1 intentionally has no history. Keep it empty and update
+        // only its card counters; a later selectSession fetches the canonical
+        // history instead of turning one delivered event into a fake snapshot.
+        const hasLoadedHistory = history.length > 0 || (session.historyTotal ?? 0) === 0;
+        const nextHistory = hasLoadedHistory
+          ? [...history, ...historyAppend]
+          : history;
+        const added = hasLoadedHistory ? historyAppend.length : msgs.length;
+        const last = msgs[msgs.length - 1];
+        return {
+          ...session,
+          history: nextHistory,
+          historyTotal: (session.historyTotal ?? history.length) + added,
+          lastMessage: last?.content.slice(0, 200) ?? session.lastMessage,
+        };
+      });
+
+      return {
+        sessions,
+        ...(s.currentSessionId === sessionId && currentAppend.length
+          ? { currentMessages: [...s.currentMessages, ...currentAppend] }
+          : {}),
+      };
+    });
   },
 
   updateSession: (id: string, data: Partial<Session>) => {

@@ -283,6 +283,36 @@ def test_cli_write_outcomes_commit_or_requeue(monkeypatch, mode, expected):
     _cleanup()
 
 
+def test_successful_delivery_broadcasts_user_message_after_durable_commit(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item = {"type": "task", "kind": "task", "queueItemId": "q-event",
+            "id": "q-event", "source": "user", "text": "shown",
+            "deliveryState": "reserved", "revision": 1}
+    current = _write_worker(value, item, _Stdin("ok"))
+    events = []
+
+    async def capture(event):
+        events.append(event)
+
+    worker.set_broadcaster(capture)
+    asyncio.run(worker._consumer_stream(current, "shown", "user", value))
+
+    delivered_index = next(i for i, event in enumerate(events)
+                           if event.get("type") == "queue.item_delivered")
+    delivered = events[delivered_index]
+    assert value.queue_pending == []
+    assert value.queue_delivery_ledger["q-event"]["deliveryState"] == "sent_to_cli"
+    assert delivered["queueItemIds"] == ["q-event"]
+    assert delivered["messages"] == [{
+        "role": "user", "content": "shown", "queueItemIds": ["q-event"],
+    }]
+    assert delivered_index < next(i for i, event in enumerate(events)
+                                  if event.get("type") == "queue.snapshot")
+    _cleanup()
+
+
 class _OneShotStdout:
     async def read(self, _size):
         return b""

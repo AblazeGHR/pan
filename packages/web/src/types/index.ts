@@ -5,6 +5,8 @@ export interface Message {
   content: string;
   /** Transient native Codex identity used to merge live Codex messages. */
   nativeItemId?: string;
+  /** Queue item(s) whose local CLI hand-off produced this user message. */
+  queueItemIds?: string[];
 }
 
 /** MCP-only capability flags (backend `pan_access`, camelCase over HTTP). */
@@ -198,6 +200,10 @@ export interface StreamEvent {
   /** 任务来源标记（worker.status 事件透传）：agent=meta-agent 编排注入、
    *  report=订阅报告、user=前端发送、system_prompt=系统提示词注入。 */
   source?: string;
+  /** User messages durably handed to the local CLI and removed from pending. */
+  messages?: Message[];
+  /** Queue ids included in a successful local CLI hand-off. */
+  queueItemIds?: string[];
   /** True when the server replays a still-pending interactive prompt after WS reconnect. */
   replayed?: boolean;
 }

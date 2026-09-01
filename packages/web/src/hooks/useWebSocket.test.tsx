@@ -744,6 +744,59 @@ describe('useWebSocket agent-injected message sync', () => {
     expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('A');
   });
 
+  it('renders a delivered queue message immediately and keeps it across a stale refresh', async () => {
+    renderHook(() => useWebSocket());
+
+    await flushTrigger('queue.item_delivered', {
+      type: 'queue.item_delivered',
+      sessionId: 'A',
+      source: 'user',
+      queueItemIds: ['q-delivered'],
+      messages: [{
+        role: 'user',
+        content: 'sent by worker',
+        queueItemIds: ['q-delivered'],
+      }],
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'u0',
+      'sent by worker',
+    ]);
+
+    // A refresh can still race the history append and return the old prefix.
+    // It must not make the just-delivered message disappear.
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [msg('user', 'u0')],
+      total: 1,
+      hasMore: false,
+      start: 0,
+    });
+    await act(async () => {
+      await useSessionStore.getState().selectSession('A');
+    });
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'u0',
+      'sent by worker',
+    ]);
+
+    // Replayed/duplicated delivery notifications are idempotent.
+    await flushTrigger('queue.item_delivered', {
+      type: 'queue.item_delivered',
+      sessionId: 'A',
+      queueItemIds: ['q-delivered'],
+      messages: [{
+        role: 'user',
+        content: 'sent by worker',
+        queueItemIds: ['q-delivered'],
+      }],
+    });
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
+      'u0',
+      'sent by worker',
+    ]);
+  });
+
   it('does not sync when the event targets a non-current session', async () => {
     renderHook(() => useWebSocket());
 

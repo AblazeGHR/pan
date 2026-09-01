@@ -145,6 +145,11 @@ export function useWebSocket() {
     for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.snapshot']) {
       unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => refreshAgentQueue(e.sessionId)));
     }
+    unsubscribers.push(wsClient.on('queue.item_delivered', (e: StreamEvent) => {
+      refreshAgentQueue(e.sessionId);
+      if (!e.sessionId || !Array.isArray(e.messages)) return;
+      useSessionStore.getState().appendDeliveredMessages(e.sessionId, e.messages);
+    }));
 
     // Worker spawned / restarted / reconfigured
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
@@ -189,18 +194,14 @@ export function useWebSocket() {
     // Worker status update
     unsubscribers.push(wsClient.on('worker.status', (e: StreamEvent) => {
       handleWorkerUpdate(e, e.status ?? 'idle');
-      // A task/report is removed from the durable server queue at Worker
-      // receipt, immediately before the running status is broadcast. Refresh
-      // on that transition so a queue snapshot fetched just before receipt
-      // cannot leave a consumed user message visible in the Agent queue during
-      // a long-running turn.
+      // A task/report is removed from the durable server queue only after the
+      // local CLI hand-off succeeds. queue.item_delivered renders its user
+      // message; this status refresh only reconciles the pending queue view.
       if (e.status === 'running') refreshAgentQueue(e.sessionId);
       // agent 编排消息实时同步：meta-agent 的 worker_send（////by agent 前缀）
-      // 注入的 user 消息只在服务端 s.history 落盘，WS 从不广播（只广播 assistant
-      // 回复的 worker.stream / 完成的 worker.result），前端对自己的发送有乐观追加、
-      // 对 agent 注入没有 → 切走再切回才显示。任务开始 running 时（source 已带
-      // 进广播）拉取历史把缺的 user 消息并入 currentMessages；首次快照若早于
-      // 注入落盘则由 syncAgentInjectedMessage 做短暂重试。
+      // 注入的 user 消息由 queue.item_delivered 实时广播；保留 running 时的
+      // history 同步作为旧 Worker/丢失 delivery 事件时的兼容兜底。首次快照若
+      // 早于注入落盘则由 syncAgentInjectedMessage 做短暂重试。
       if (
         e.status === 'running' &&
         (e.source === 'agent' || e.source === 'report') &&

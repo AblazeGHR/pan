@@ -1675,6 +1675,22 @@ async def _complete_delivery(w: Worker, s, items: list[dict], text: str,
                 else:
                     _set_delivery_state(s, item, _DELIVERY_QUEUED)
             raise
+    queue_item_ids = [_queue_item_id(item) for item in items]
+    # This event is emitted only after the durable sent receipt, history append,
+    # and pending-row removal have committed.  The browser uses it to render
+    # the user message at the same boundary at which the queue item disappears;
+    # it is deliberately independent of Provider output or process exit.
+    await _bcast({
+        "type": "queue.item_delivered",
+        "sessionId": s.id,
+        "source": source,
+        "queueItemIds": queue_item_ids,
+        "messages": [{
+            "role": "user",
+            "content": text,
+            "queueItemIds": queue_item_ids,
+        }],
+    })
     await _bcast({"type": "queue.snapshot", "sessionId": s.id,
                   "queueRevision": s.queue_revision})
 
