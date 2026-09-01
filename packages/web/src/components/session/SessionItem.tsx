@@ -1,13 +1,17 @@
 import { memo } from 'react';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
-import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight } from 'lucide-react';
+import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 
 interface SessionItemProps {
   session: Session;
   isActive: boolean;
   isSelected?: boolean;
   multiSelectMode?: boolean;
+  /** Select-mode only: this card is currently hidden from the normal list. */
+  isHidden?: boolean;
+  /** Select-mode only: eye button callback (id returned by the component). */
+  onToggleHidden?: (id: string) => void;
   /** Show a collapse/expand chevron (used for manager groups with children). */
   expandable?: boolean;
   expanded?: boolean;
@@ -54,6 +58,8 @@ export const SessionItem = memo(function SessionItem({
   isActive,
   isSelected = false,
   multiSelectMode = false,
+  isHidden = false,
+  onToggleHidden,
   expandable = false,
   expanded = true,
   onToggleChildren,
@@ -88,7 +94,7 @@ export const SessionItem = memo(function SessionItem({
         isActive
           ? 'bg-bg-tertiary border-l-accent'
           : 'bg-bg-secondary hover:bg-bg-tertiary/60 border-l-text-tertiary/50'
-      } ${isPending ? 'opacity-50' : ''}`}
+      } ${isPending ? 'opacity-50' : ''} ${isHidden ? 'opacity-50' : ''}`}
       onClick={handleClick}
     >
       {multiSelectMode ? (
@@ -147,6 +153,22 @@ export const SessionItem = memo(function SessionItem({
           )}
         </div>
       </div>
+
+      {multiSelectMode && !isPending && onToggleHidden ? (
+        // Select-mode hide/show (eye) button: toggles the session's hidden
+        // state for the normal list. stopPropagation keeps it from toggling
+        // the card's selection checkbox/handlers.
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleHidden(session.id);
+          }}
+          className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
+          title={isHidden ? 'Show session' : 'Hide session'}
+        >
+          {isHidden ? <Eye size={14} /> : <EyeOff size={14} />}
+        </button>
+      ) : null}
 
       {!multiSelectMode && !isPending && expandable && (
         <button
