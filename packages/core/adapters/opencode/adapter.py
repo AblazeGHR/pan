@@ -68,7 +68,12 @@ class OpencodeAdapter:
 
     @property
     def default_model(self) -> str:
-        return self._opencode_config.get("model", self._DEFAULT_MODEL)
+        # 与 kimi/codex 同样的 stale-model guard：config.json 里的 model 可能
+        # 已不在当前可选列表内，仅当它确实可选时才采用，否则回退内置默认。
+        model = self._opencode_config.get("model")
+        if model and model in self.supported_models:
+            return model
+        return self._DEFAULT_MODEL
 
     @property
     def default_permission_mode(self) -> str:
@@ -153,7 +158,11 @@ class OpencodeAdapter:
         return ["--model", s.model or self.default_model]
 
     def thinking_args(self, s: Session) -> list[str]:
-        if s.adapter_config.get("thinking", False):
+        # 服务端统一写 always_thinking_enabled（server._build_session_params /
+        # _apply_session_updates）；旧键 "thinking" 仅作遗留数据兼容读取。
+        if s.adapter_config.get(
+            "always_thinking_enabled", s.adapter_config.get("thinking", False)
+        ):
             return ["--thinking"]
         return []
 

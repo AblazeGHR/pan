@@ -318,8 +318,10 @@ def session_create(
 
     Args:
         name: Session name (unique, no spaces)
-        adapter: CLI adapter to use ("cbc" or "kimi")
-        model: AI model name (e.g. "hy3", "deepseek-v4-flash")
+        adapter: CLI adapter to use (e.g. "cbc"/"kimi"/"codex"/"claude"/
+            "opencode"; 必须是已注册的 adapter 名，未知名返回错误)
+        model: AI model name (e.g. "hy3", "deepseek-v4-flash"; 须在该 adapter
+            的 supported_models 内)
         permission_mode: Permission mode ("bypassPermissions", "acceptEdits", "default", "plan")
         workdir: Workdir name, resolved under data/workdirs/. Defaults to session name.
         session_template: Session template name from the manifest (e.g.
@@ -889,8 +891,10 @@ def session_update(
         model: AI model name (e.g. "hy3", "deepseek-v4-flash")
         permission_mode: Permission mode ("bypassPermissions", "acceptEdits", "default", "plan")
         always_thinking_enabled: Toggle extended thinking
-        effort: Thinking effort (e.g. "low"/"medium"/"high")
-        max_thinking_tokens: Max thinking tokens
+        effort: Thinking effort (e.g. "low"/"medium"/"high"; 须在该 adapter
+            声明的值域内，codex 按 model 进一步收窄)
+        max_thinking_tokens: 已废弃——当前没有任何 adapter 消费该设置，传入
+            会被拒绝（错误信息说明原因），不会伪成功持久化
         mcp_servers: MCP server names from the manifest (e.g. ["pan"]); 非空即
             启用 MCP，空列表/省略 = 无 MCP（单一事实源）
         game_id: RuleWhisper game binding; pass "" to clear
@@ -1126,7 +1130,7 @@ def session_qq_unsubscribe(target_type: str, target_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def agent_spawn(session_id: str, adapter: str = "cbc", model: str | None = None) -> dict:
+def agent_spawn(session_id: str, adapter: str | None = None, model: str | None = None) -> dict:
     """Spawn a worker process (CLI) for an agent (= session).
 
     Agent 是编排对象（持久），worker 是它的临时 CLI 进程。已有 worker 会先
@@ -1134,8 +1138,10 @@ def agent_spawn(session_id: str, adapter: str = "cbc", model: str | None = None)
 
     Args:
         session_id: Agent（= session）ID
-        adapter: CLI adapter（默认 "cbc"）
-        model: Model override
+        adapter: CLI adapter。省略 = 沿用 session 当前 adapter（推荐）。
+            传入与 session 不同的 adapter 会被拒绝——切换 adapter 必须用
+            session_handoff（替身交接），不允许在 spawn 时静默切换。
+        model: Model override（须在该 adapter 的 supported_models 内）
 
     完整编排流程见 /pan skill。
     """
@@ -1143,7 +1149,9 @@ def agent_spawn(session_id: str, adapter: str = "cbc", model: str | None = None)
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
-    body: dict = {"sessionId": session_id, "adapter": adapter}
+    body: dict = {"sessionId": session_id}
+    if adapter:
+        body["adapter"] = adapter
     if model:
         body["model"] = model
     return _api("POST", "/api/spawn", body)
@@ -1367,7 +1375,7 @@ def agent_list(summary: bool = False) -> list[dict] | dict:
 
 @mcp.tool()
 def worker_spawn(session_id: str | None = None, name: str | None = None,
-                 adapter: str = "cbc", model: str | None = None,
+                 adapter: str | None = None, model: str | None = None,
                  workdir: str | None = None) -> dict:
     """DEPRECATED alias — prefer agent_spawn(session_id, adapter, model).
 
@@ -1378,8 +1386,9 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
     Args:
         session_id: Existing session ID to spawn worker for
         name: Or create a new session with this name (legacy)
-        adapter: CLI adapter (default "cbc")
-        model: Model override
+        adapter: CLI adapter。已有 session 省略 = 沿用其当前 adapter；
+            传不同 adapter 会被拒绝（切换须用 session_handoff）。
+        model: Model override（须在该 adapter 的 supported_models 内）
         workdir: Workdir for the new session (only used when name is given)
 
     完整编排流程见 /pan skill。
@@ -1387,7 +1396,9 @@ def worker_spawn(session_id: str | None = None, name: str | None = None,
     if session_id and not name and not workdir:
         # 委托一等实现，不复制逻辑
         return agent_spawn(session_id=session_id, adapter=adapter, model=model)
-    body: dict = {"adapter": adapter}
+    body: dict = {}
+    if adapter:
+        body["adapter"] = adapter
     if session_id:
         # spawn 即接管：meta-agent 首次 spawn 现有 session 时自动建立 managed 关系
         denied = _check_access(session_id, claim=True)

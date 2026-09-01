@@ -29,6 +29,18 @@ import httpx
 from packages.core import worker
 from packages.core import session as sess
 from packages.core.adapters import get_adapter, list_adapters, get_sessions_provider
+from packages.core.adapters.validation import (
+    AdapterCapabilityError,
+    is_valid_model,
+    resolve_adapter,
+    validate_effort,
+    validate_model,
+    validate_permission_mode,
+    validate_session_settings,
+    sanitize_adapter_config,
+    supported_settings as _adapter_supported_settings,
+    VALID_MCP_TRANSPORTS,
+)
 from packages.core.adapters.cbc import sessions as cbc_sessions
 from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
 from packages.core.adapters.kimi import sessions as kimi_sessions
@@ -573,6 +585,35 @@ def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
     return target
 
 
+def _guarded_model(a, value) -> str | None:
+    """模板 / config.json 回退 model 的宽容守卫。
+
+    与显式请求的硬校验（validate_model → 拒绝）不同：回退值不在 adapter
+    可选列表内时丢弃（交还 adapter 默认），记日志但不阻止 session 创建。
+    这是既有 stale-model guard 语义（原 kimi-code/kimi-for-coding 场景）。
+    """
+    if not value:
+        return None
+    if is_valid_model(a, value):
+        return value
+    _log(f"[session-config] dropping invalid model {value!r} "
+         f"for adapter '{a.name}' (not in supported_models)")
+    return None
+
+
+def _guarded_permission_mode(a, value) -> str | None:
+    """模板 / config.json 回退 permissionMode 的宽容守卫（同 _guarded_model）。"""
+    if not value:
+        return None
+    try:
+        validate_permission_mode(a, value)
+        return value
+    except AdapterCapabilityError as exc:
+        _log(f"[session-config] dropping invalid permission_mode for adapter "
+             f"'{a.name}': {exc}")
+        return None
+
+
 def _build_session_params(
     data: dict,
     *,
@@ -596,17 +637,37 @@ def _build_session_params(
     external session from being recorded; normal session creation remains
     strict so a configured MCP server can never disappear silently.
     """
-    adapter_name = data.get("adapter") or "cbc"
-    a = get_adapter(adapter_name)
-    config = load_config().get(adapter_name, {})
     name = data.get("name", "default")
     workdir_name = data.get("workdir") or name
 
-    # Resolve session_template: explicit name → manifest template; else default.
+    # Resolve session_template first: the template's adapter participates in
+    # the final adapter resolution (explicit request > template > "cbc"), so
+    # capability validation must run against the adapter the session will
+    # actually use (previously a no-adapter-request + kimi-template request
+    # validated against cbc but created a kimi session).
     template_name = data.get("sessionTemplate") or data.get("session_template") or None
     template = None
-    if template_name and _character_manager is not None:
+    if template_name:
+        if _character_manager is None:
+            raise AdapterCapabilityError(
+                f"Unknown session template {template_name!r}: "
+                "manifest catalog not loaded"
+            )
         template = _character_manager.get_session_template(template_name)
+        if template is None:
+            available: list[str] = []
+            if _character_manager._manifest_config is not None:
+                available = [
+                    t.name for t in _character_manager._manifest_config.session_templates
+                ]
+            raise AdapterCapabilityError(
+                f"Unknown session template {template_name!r}. "
+                f"Available templates: {', '.join(available) or '(none)'}"
+            )
+
+    adapter_name = data.get("adapter") or (template.adapter if template else "") or "cbc"
+    a = resolve_adapter(adapter_name)
+    config = load_config().get(adapter_name, {})
 
     if template is None:
         # Built-in default session_template = config.json session config.
@@ -651,26 +712,83 @@ def _build_session_params(
         if req_key in data:  # legacy flat body fields (backward compat)
             pan_access[pa_key] = bool(data[req_key])
 
+    # 显式请求的能力校验：非法值直接拒绝（结构化错误，不静默回退）。
+    # 校验在所有回退值解析完成后进行，per-model effort 收窄以最终 model 为准。
+    # A named manifest template is an explicit, contractual configuration: if
+    # it carries a model, an adapter override that cannot run that model must
+    # fail rather than silently replacing the template's requested model.
+    # The synthesized default template / config.json fallback keeps the legacy
+    # stale-model guard semantics (宽容守卫，不误杀 —— 例如 claude 的 config
+    # model 可能不在其 best-effort builtin 列表内)。
+    if data.get("model"):
+        _final_model = data["model"]
+    elif template_name and template is not None and template.model:
+        validate_model(a, str(template.model))
+        _final_model = template.model
+    elif template is not None and template.model:
+        # 内置 default 模板：model 已在构造时按 supported_models 守卫过
+        # （config guard + adapter 自带 default 守卫），此处信任旧语义。
+        _final_model = template.model
+    else:
+        _final_model = _guarded_model(a, config.get("model")) or a.default_model
+    explicit_settings: dict = {}
+    if data.get("model"):
+        explicit_settings["model"] = data["model"]
+    if data.get("permissionMode"):
+        explicit_settings["permissionMode"] = data["permissionMode"]
+    if data.get("effort"):
+        explicit_settings["effort"] = data["effort"]
+    if data.get("maxThinkingTokens"):
+        explicit_settings["maxThinkingTokens"] = data["maxThinkingTokens"]
+    if data.get("alwaysThinkingEnabled"):
+        explicit_settings["alwaysThinkingEnabled"] = data["alwaysThinkingEnabled"]
+    if explicit_settings:
+        validate_session_settings(adapter_name, explicit_settings, current_model=_final_model)
+
+    # thinking / effort 的 config 回退值做宽容守卫：adapter 不支持或值非法时
+    # 丢弃回退默认（与 stale-model guard 同语义），只有显式请求才硬拒绝。
+    _declared = _adapter_supported_settings(a)
+    _explicit_thinking = data.get("alwaysThinkingEnabled")
+    if _explicit_thinking is not None:
+        _thinking = bool(_explicit_thinking)
+    else:
+        _config_thinking = bool(config.get("always_thinking_enabled", False))
+        _thinking = _config_thinking if (_declared is None or "thinking" in _declared) else False
+
+    _effort = data.get("effort") or ""
+    if not _effort:
+        _effort = config.get("effort", "") or ""
+        if _effort:
+            try:
+                validate_effort(a, _effort, model=_final_model)
+            except AdapterCapabilityError as _exc:
+                _log(f"[session-config] dropping config effort for adapter "
+                     f"'{a.name}': {_exc}")
+                _effort = ""
+
     params = {
         "name": name,
         # User's explicit adapter wins, then the template's (a no-adapter
         # template parses to ""), else default "cbc". Fix: previously the user
         # selection was ignored — `template.adapter or "cbc"` overwrote a
         # chosen adapter (e.g. kimi) with "cbc" when the template had none.
-        "adapter": data.get("adapter") or template.adapter or "cbc",
-        # config.json may still hold a stale/invalid model (e.g. the old
-        # kimi-code/kimi-for-coding); only adopt it when it's actually in the
-        # adapter's selectable model list, else fall back to the adapter's
-        # (already validated) default.
-        "model": data.get("model") or template.model
-        or (config.get("model") if config.get("model") in a.supported_models else None)
-        or a.default_model,
-        "permission_mode": data.get("permissionMode") or template.permission_mode or config.get("permission_mode") or None,
+        "adapter": adapter_name,
+        # Priority: explicit request > template > config.json > adapter
+        # default. Explicit values are hard-validated above; template/config
+        # fallbacks are guard-dropped (stale/invalid → adapter default).
+        "model": _final_model,
+        "permission_mode": data.get("permissionMode")
+        or _guarded_permission_mode(a, template.permission_mode)
+        or _guarded_permission_mode(a, config.get("permission_mode"))
+        or None,
         "workdir": str(_resolve_workdir(workdir_name)) if resolve_workdir else "",
         "adapter_config": {
-            "always_thinking_enabled": data.get("alwaysThinkingEnabled", config.get("always_thinking_enabled", False)),
-            "effort": data.get("effort") or config.get("effort", ""),
-            "max_thinking_tokens": data.get("maxThinkingTokens") or None,
+            "always_thinking_enabled": _thinking,
+            "effort": _effort,
+            # maxThinkingTokens 不再从请求写入：没有任何 adapter 消费该字段，
+            # 显式传入会在上面的能力校验中被拒绝；字段保留为 None 以兼容
+            # 既有落盘结构读取。
+            "max_thinking_tokens": None,
         },
         "session_template": template_name,
         "pan_access": pan_access,
@@ -728,14 +846,34 @@ def _build_session_params(
 
 
 def _resolve_mcp_server_configs(server_names) -> list[dict]:
-    """Resolve MCP server names to full configs from the manifest table."""
+    """Resolve MCP server names to full configs from the manifest table.
+
+    Session 的 MCP 配置只接受 manifest 中声明的 server 名称（单一事实源）：
+    名称必须是字符串、不允许重复，transport/type 必须在白名单内
+    （stdio/http/sse），不接受任意 command/url/env 内联描述符。
+    """
     _ensure_manifest_fresh()
     if _character_manager is None or _character_manager._manifest_config is None:
         raise ValueError("MCP manifest not loaded")
+    if not isinstance(server_names, list):
+        raise ValueError("MCP server names must be a list")
+    seen: set[str] = set()
     configs: list[dict] = []
     for name in server_names:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Invalid MCP server name: {name!r}")
+        if name in seen:
+            raise ValueError(f"Duplicate MCP server: {name!r}")
+        seen.add(name)
         for srv in _character_manager._manifest_config.mcp_servers:
             if srv.name == name:
+                for _key in ("transport", "type"):
+                    _val = getattr(srv, _key, None)
+                    if _val and str(_val) not in VALID_MCP_TRANSPORTS:
+                        raise ValueError(
+                            f"MCP server {name!r} has invalid {_key}: "
+                            f"{_val!r}. Allowed: {', '.join(VALID_MCP_TRANSPORTS)}"
+                        )
                 cfg: dict = {"name": srv.name}
                 if srv.command:
                     command = str(srv.command)
@@ -804,7 +942,19 @@ _PROCESS_AFFECTING_FIELDS = {
 
 
 def _apply_session_updates(s: sess.Session, data: dict):
-    """Apply model/mode/thinking/effort fields from data to a Session (in-place)."""
+    """Apply model/mode/thinking/effort fields from data to a Session (in-place).
+
+    Validate-first：所有显式设置先整体通过 adapter 能力校验，任一非法即抛
+    AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
+    """
+    _explicit = {
+        key: data[key]
+        for key in ("model", "permissionMode", "alwaysThinkingEnabled",
+                    "effort", "maxThinkingTokens", "outputMode")
+        if key in data
+    }
+    if _explicit:
+        validate_session_settings(s.adapter, _explicit, current_model=s.model)
     if "model" in data:
         s.model = data["model"]
         # Some adapters (currently Codex) expose model-specific effort levels.
@@ -1339,6 +1489,11 @@ async def ws_agent_endpoint(ws: WebSocket):
                     params = _build_session_params(msg)
                 except ValueError as exc:
                     await ws.send_json({"type": "error", "message": str(exc)})
+                    continue
+                # 名称校验与 HTTP spawn 对齐（缺名/重名此前会静默建出重复名 session）
+                err_name = _check_session_name(params.get("name", "default"))
+                if err_name:
+                    await ws.send_json({"type": "error", "message": err_name})
                     continue
                 s = sess.create(**params)
                 result = await worker.create_worker(s.id)
@@ -1910,6 +2065,45 @@ async def api_session_handoff(session_id: str, data: dict):
     permission_mode = data.get("permissionMode")
     if not copy_settings and not adapter:
         return {"error": "adapter is required when copySettings is false"}
+
+    # ── 能力预校验：新 adapter 与 model / settings 组合必须成立 ──
+    # 切 adapter 时连继承自 A 的设置也一并核验，避免交接出一个必然启动失败
+    # 的 B（不静默换模型/清设置）。
+    session_a = sess.get(session_id)
+    if session_a is None:
+        return {"error": f"Session {session_id} not found"}
+    new_adapter_name = adapter or (session_a.adapter if copy_settings else "cbc")
+    switched = new_adapter_name != session_a.adapter
+    try:
+        new_adapter = resolve_adapter(new_adapter_name)
+        if model:
+            validate_model(new_adapter, model)
+        elif copy_settings and session_a.model and switched:
+            try:
+                validate_model(new_adapter, session_a.model)
+            except AdapterCapabilityError:
+                return {"error": (
+                    f"handoff to adapter '{new_adapter_name}' would inherit "
+                    f"model '{session_a.model}' from session A (adapter "
+                    f"'{session_a.adapter}'), which does not support it. Pass "
+                    f"an explicit supported 'model' or use copySettings=false."
+                )}
+        if permission_mode:
+            validate_permission_mode(new_adapter, permission_mode)
+        elif copy_settings and session_a.permission_mode and switched:
+            try:
+                validate_permission_mode(new_adapter, session_a.permission_mode)
+            except AdapterCapabilityError:
+                return {"error": (
+                    f"handoff to adapter '{new_adapter_name}' would inherit "
+                    f"permissionMode '{session_a.permission_mode}' from session "
+                    f"A (adapter '{session_a.adapter}'), which does not support "
+                    f"it. Pass an explicit 'permissionMode' or use "
+                    f"copySettings=false."
+                )}
+    except AdapterCapabilityError as exc:
+        return {"error": str(exc)}
+
     result = sess.handoff_session(
         session_id, handoff_prompt,
         copy_settings=copy_settings, adapter=adapter, model=model,
@@ -1918,6 +2112,13 @@ async def api_session_handoff(session_id: str, data: dict):
     if isinstance(result, str):
         return {"error": result}
     a, b = result
+    # 跨 adapter 复制设置时，清洗 adapter_config：源 adapter 的 effort /
+    # thinking / output_mode / maxThinkingTokens 对新 adapter 不成立的降级为
+    # 默认（复制残值的既有降级语义；显式传参已在上面硬校验）。
+    if switched and copy_settings:
+        b.adapter_config = sanitize_adapter_config(
+            new_adapter_name, b.adapter_config, model=b.model)
+        sess.save(b)
     await broadcast({
         "type": "session.renamed",
         "sessionId": a.id,
@@ -2443,6 +2644,15 @@ async def api_spawn(data: dict):
         s = sess.get(session_id)
         if not s:
             return {"error": f"Session {session_id} not found"}
+        # 已有 Session 的 spawn 不接受切换 adapter（此前被静默忽略）。
+        # 换 adapter 是结构性切换（进程 argv/协议都不同），必须走 handoff。
+        req_adapter = data.get("adapter")
+        if req_adapter and req_adapter != s.adapter:
+            return {"error": (
+                f"Session '{s.name}' uses adapter '{s.adapter}' and cannot "
+                f"be spawned with adapter '{req_adapter}'. Adapter switching "
+                f"requires POST /api/sessions/{session_id}/handoff."
+            )}
         # kill existing worker (avoid multiple workers on same session)
         existing = worker.find_worker_by_session(session_id)
         if existing:

@@ -72,7 +72,13 @@ class CbcAdapter:
 
     @property
     def default_model(self) -> str:
-        return self._cbc_config.get("model", self._DEFAULT_MODEL)
+        # 与 kimi/codex 同样的 stale-model guard：config.json 里的 model 可能
+        # 已不在当前可选列表内（CLI 侧模型下线 / 白名单改动），仅当它确实
+        # 可选时才采用，否则回退到内置有效默认值。
+        model = self._cbc_config.get("model")
+        if model and model in self.supported_models:
+            return model
+        return self._DEFAULT_MODEL
 
     @property
     def default_permission_mode(self) -> str:
@@ -153,6 +159,10 @@ class CbcAdapter:
     ]
 
     default_permission_mode = "bypassPermissions"
+
+    # cbc 全部四类设置项均被真实消费：model_args / permission_mode_args /
+    # thinking_args（always_thinking_enabled）/ effort_args。
+    supported_settings = ["model", "permissionMode", "effort", "thinking"]
 
     def _resolve_cbc_path(self) -> str:
         """确定 cbc 可执行文件路径：配置 > 环境变量 > PATH 查找 > 回退名。"""
