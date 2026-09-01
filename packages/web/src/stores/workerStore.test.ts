@@ -95,6 +95,9 @@ describe('workerStore currentWorker resolution', () => {
   });
 
   it('restart routes by sessionId so a stale workerId cannot cause Worker not found', async () => {
+    // updateWorker only promotes a worker to currentWorkerId for the selected
+    // session, matching the production TopBar/SettingsPopover call path.
+    useSessionStore.setState({ currentSessionId: 'ses_1' });
     mockRestartOrStartWorker.mockResolvedValue({
       workerId: 'worker-new',
       sessionId: 'ses_1',
