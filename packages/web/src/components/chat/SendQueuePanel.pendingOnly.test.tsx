@@ -87,4 +87,38 @@ describe('SendQueuePanel pending-only view', () => {
       's1', ['q-user', 'q-report', 'q-agent', 'q-qq'], 2,
     ));
   });
+
+  it('edits a queued user task and keeps its queue identity', async () => {
+    const original = item('q-user-edit', '原始用户任务', 'queued');
+    const updated = {
+      ...original,
+      text: '修改后的用户任务',
+      meta: { ...original.meta, revision: 2 },
+    };
+    api.fetchSessionQueue
+      .mockResolvedValueOnce(snapshot([original]))
+      .mockResolvedValueOnce(snapshot([updated]));
+    api.updateSessionQueueItem.mockResolvedValue({
+      ok: true,
+      item: updated,
+      queueRevision: 3,
+    });
+
+    render(<SendQueuePanel />);
+    await waitFor(() => expect(screen.getByText('原始用户任务')).toBeTruthy());
+
+    const row = screen.getByText('原始用户任务').closest('div');
+    expect(row).toBeTruthy();
+    fireEvent.click(within(row!).getByTitle('编辑'));
+    fireEvent.change(screen.getByDisplayValue('原始用户任务'), {
+      target: { value: '修改后的用户任务' },
+    });
+    fireEvent.click(screen.getByTitle('保存'));
+
+    await waitFor(() => expect(api.updateSessionQueueItem).toHaveBeenCalledWith(
+      's1', 'q-user-edit', '修改后的用户任务', 1,
+    ));
+    await waitFor(() => expect(screen.getByText('修改后的用户任务')).toBeTruthy());
+    expect(screen.queryByDisplayValue('修改后的用户任务')).toBeNull();
+  });
 });

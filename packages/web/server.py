@@ -1869,7 +1869,7 @@ def _queue_error(code: str, message: str, s=None) -> dict:
 
 @app.patch("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_update(session_id: str, item_id: str, data: dict):
-    """Edit only a queued user item, retaining its durable identity."""
+    """Edit only a queued user task, retaining its durable identity."""
     s = sess.get(session_id)
     if not s:
         return {"ok": False, "error": "Session not found"}
@@ -1880,10 +1880,11 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
                        if isinstance(it, dict) and worker._queue_item_id(it) == item_id), None)
         if target is None:
             if item_id in (getattr(s, "queue_delivery_ledger", {}) or {}):
-                return _queue_error("queue_item_not_editable", "Only queued user messages can be edited", s)
+                return _queue_error("queue_item_not_editable", "Only queued user task messages can be edited", s)
             return _queue_error("not_found", "Queue item not found", s)
-        if worker._queue_source(target) != "user":
-            return _queue_error("queue_item_readonly", "Only user-originated queue items can be edited", s)
+        if (worker._queue_kind(target) != "task"
+                or worker._queue_source(target) != "user"):
+            return _queue_error("queue_item_readonly", "Only user task queue items can be edited", s)
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
         if not isinstance(text, str) or not text.strip():
@@ -1898,19 +1899,30 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         target["revision"] = current_revision + 1
         target["updatedAt"] = datetime.now().isoformat()
         _ledger = s.queue_delivery_ledger.get(item_id)
-        if isinstance(_ledger, dict):
-            _ledger.update(target)
+        if not isinstance(_ledger, dict):
+            _ledger = dict(old_target)
+            s.queue_delivery_ledger[item_id] = _ledger
+        _ledger.update(target)
         s.queue_revision += 1
         try:
             await sess.save_async(s)
         except Exception:
             target.clear()
             target.update(old_target)
-            if isinstance(_ledger, dict):
+            if old_ledger:
                 _ledger.clear()
                 _ledger.update(old_ledger)
+            else:
+                s.queue_delivery_ledger.pop(item_id, None)
             s.queue_revision = old_queue_revision
             raise
+    await worker._bcast({
+        "type": "queue.item_updated",
+        "sessionId": session_id,
+        "queueItemId": item_id,
+        "queueRevision": s.queue_revision,
+        "item": _serialize_queue_item(target, s),
+    })
     return {"ok": True, "item": _serialize_queue_item(target, s),
             "queueRevision": s.queue_revision}
 

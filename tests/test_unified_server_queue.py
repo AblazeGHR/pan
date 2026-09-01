@@ -195,14 +195,26 @@ def test_queue_api_edits_only_queued_user_and_reorders_all_sources(monkeypatch):
     value.queue_delivery_ledger[report["id"]] = dict(report)
     user_id = user["queueItemId"]
     agent_id = agent["queueItemId"]
+    events = []
+
+    async def capture(event):
+        events.append(event)
+
+    worker.set_broadcaster(capture)
 
     edited = asyncio.run(server.api_session_queue_update(
         value.id, user_id, {"text": "user edited", "expectedRevision": 1}))
     assert edited["ok"] is True
     assert value.queue_pending[0]["text"] == "user edited"
+    assert events[-1]["type"] == "queue.item_updated"
+    assert events[-1]["queueItemId"] == user_id
+    assert events[-1]["item"]["text"] == "user edited"
     denied = asyncio.run(server.api_session_queue_update(
         value.id, agent_id, {"text": "spoof"}))
     assert denied["error"]["code"] == "queue_item_readonly"
+    report_denied = asyncio.run(server.api_session_queue_update(
+        value.id, "q-report", {"text": "spoof"}))
+    assert report_denied["error"]["code"] == "queue_item_readonly"
 
     ordered = asyncio.run(server.api_session_queue_order(
         value.id, {"orderedIds": ["q-report", agent_id, user_id],

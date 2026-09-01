@@ -37,11 +37,6 @@ export function SendQueuePanel() {
     const index = copy.findIndex((item) => item.id === edit.id);
     if (index >= 0) {
       copy[index] = { ...copy[index]!, text: edit.text };
-    } else {
-      copy.splice(Math.min(edit.index, copy.length), 0, {
-        id: edit.id, queueItemId: edit.id, kind: 'task', source: 'user', text: edit.text,
-        createdAt: edit.createdAt, meta: { dispatchState: 'queued' },
-      });
     }
     return copy;
   }, [edit, items]);
@@ -69,7 +64,7 @@ export function SendQueuePanel() {
               <div className="p-1">
                 {displayItems.map((item, index) => {
                   const editing = edit?.id === item.id;
-                  const editable = item.source === 'user';
+                  const editable = item.kind === 'task' && item.source === 'user';
                   return (
                     <div key={item.id} className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
                       {editing ? (

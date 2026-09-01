@@ -103,7 +103,8 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     if (!sid) return;
     const items = get().queues[sid] ?? [];
     const item = items.find((candidate) => candidate.id === id);
-    if (!item || item.source !== 'user' || item.meta?.dispatchState !== 'queued') return;
+    if (!item || item.kind !== 'task' || item.source !== 'user'
+        || item.meta?.dispatchState !== 'queued') return;
     set((state) => ({ edits: { ...state.edits, [sid]: {
       id: item.id, text: item.text, originalText: item.text,
       index: items.findIndex((candidate) => candidate.id === id),
@@ -124,7 +125,21 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     if (!sid || !edit || !item) return;
     void (async () => {
       try {
-        await updateSessionQueueItem(sid, edit.id, edit.text.trim() ? edit.text : edit.originalText, item.meta?.revision);
+        const result = await updateSessionQueueItem(
+          sid,
+          edit.id,
+          edit.text.trim() ? edit.text : edit.originalText,
+          item.meta?.revision,
+        );
+        // Apply the server's returned item immediately. This avoids briefly
+        // restoring the old text if the follow-up GET races an older snapshot.
+        if (result.item) {
+          const current = get().queues[sid] ?? [];
+          const next = current.map((candidate) =>
+            candidate.id === edit.id ? result.item! : candidate,
+          );
+          setSnapshot(set, sid, next, result.queueRevision);
+        }
         await get().loadAgentQueue(sid);
         set((state) => ({ edits: { ...state.edits, [sid]: null } }));
       } catch (error) {
