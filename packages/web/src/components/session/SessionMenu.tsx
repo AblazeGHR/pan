@@ -9,6 +9,7 @@ import {
   Settings,
   Mail,
   ListChecks,
+  Info,
   Trash2,
 } from 'lucide-react';
 import type { Session } from '@/types';
@@ -21,9 +22,11 @@ interface SessionMenuProps {
   onManage?: (id: string) => void;
   /** Open the "QQ postbox" subscription modal for this session. */
   onPostbox?: (id: string) => void;
+  /** Open the session details modal for this session. */
+  onDetails?: (id: string) => void;
 }
 
-export function SessionMenu({ session, position, onClose, onManage, onPostbox }: SessionMenuProps) {
+export function SessionMenu({ session, position, onClose, onManage, onPostbox, onDetails }: SessionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   // 挂载前先用点击锚点，量取菜单尺寸后按视口空间翻转/收敛到最终落点。
   const [placement, setPlacement] = useState<{ x: number; y: number }>(() => position);
@@ -133,6 +136,11 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox }:
     onPostbox?.(session.id);
   };
 
+  const handleDetails = () => {
+    onClose();
+    onDetails?.(session.id);
+  };
+
   // 通过 portal 挂到 <body>：Sidebar 的移动端容器带 transform（translateX），
   // 会成为 `position: fixed` 后代的包含块（与 Modal.tsx 相同的原因）。固定定位
   // 的坐标来自 getBoundingClientRect()（视口坐标），保证菜单相对视口落位准确。
@@ -180,6 +188,13 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox }:
       >
         <Mail size={12} className="text-text-tertiary shrink-0" />
         Postbox
+      </button>
+      <button
+        onClick={handleDetails}
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
+      >
+        <Info size={12} className="text-text-tertiary shrink-0" />
+        Details
       </button>
       <button
         onClick={handleMultiSelect}
