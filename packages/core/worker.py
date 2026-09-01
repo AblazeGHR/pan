@@ -2889,7 +2889,18 @@ async def _create_worker(session_id: str) -> Worker | str:
         # force a cold start on every restart (#11, resolved by design).
         await kill_worker(old.worker_id)
 
-    adapter = get_adapter(s.adapter)
+    try:
+        adapter = get_adapter(s.adapter)
+    except KeyError:
+        # A legacy/corrupt session may outlive the adapter that created it.
+        # Surface an actionable worker error instead of allowing a raw
+        # registry KeyError to escape from spawn/respawn paths.
+        from .adapters.registry import list_adapters
+        available = ", ".join(a.name for a in list_adapters())
+        return (
+            f"Unknown adapter {s.adapter!r} for session {s.name!r}. "
+            f"Available adapters: {available}"
+        )
     worker_id = await _next_worker_id()
 
     mcp_on = _mcp_configured(s)
