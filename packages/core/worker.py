@@ -3934,6 +3934,24 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     await _kill_process_tree(w)
     w.process = None
 
+    # One-shot workers deliberately have no long-running stream process.
+    # Restarting one therefore means rebuilding the Pan consumer/runtime only;
+    # calling _spawn_process here would launch a stream CLI with the wrong
+    # protocol and can leave force-send callers waiting forever.
+    if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
+        w.status = "idle"
+        await _restart_tasks(w)
+        s = _session(w)
+        await _bcast({
+            "type": "worker.restarted",
+            "workerId": worker_id,
+            "sessionId": w.session_id,
+            "generation": w.generation,
+            "name": s.name if s else worker_id,
+            "status": w.status,
+        })
+        return None
+
     proc = await _spawn_process(w.session_id, adapter=w.adapter)
     if isinstance(proc, str):
         w.status = "error"
@@ -4000,6 +4018,21 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
     w.process = None
+
+    # Settings changes can also request a respawn.  Keep one-shot sessions on
+    # their consumer path for the same reason as restart: their provider
+    # process is created per task by _consumer_oneshot, never by this helper.
+    if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
+        w.status = "idle"
+        await _restart_tasks(w)
+        await _bcast({
+            "type": "worker.reconfigured",
+            "workerId": worker_id,
+            "sessionId": w.session_id,
+            "generation": w.generation,
+            "status": "idle",
+        })
+        return None
 
     proc = await _spawn_process(w.session_id, adapter=w.adapter, extra_args=extra_args)
     if isinstance(proc, str):
