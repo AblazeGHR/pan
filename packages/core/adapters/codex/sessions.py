@@ -136,14 +136,25 @@ def _parent_of(thread_spawn_edges_con, child_id: str) -> str:
         return ""
 
 
+def _stringify_content(value) -> str:
+    """Convert native Codex content values into text safe for Pan history."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
 def _text_from_item(item: dict) -> str:
     """Extract text from native plan/reasoning items across protocol versions."""
-    text = item.get("text")
-    if isinstance(text, str):
+    text = _stringify_content(item.get("text"))
+    if text:
         return text
     summary = item.get("summary") or []
     if isinstance(summary, list):
-        return "".join(str(value) for value in summary if value is not None)
+        return "".join(_stringify_content(value) for value in summary)
     return ""
 
 
@@ -217,29 +228,29 @@ def _item_to_block(item: dict) -> dict | None:
     if itype == "usermessage":
         parts = item.get("content") or []
         text = "".join(
-            b.get("text", "") for b in parts
+            _stringify_content(b.get("text")) for b in parts
             if isinstance(b, dict) and b.get("type") == "text"
         )
         return {"role": "user", "content": text} if text else None
     if itype == "agentmessage":
-        text = item.get("text", "")
+        text = _stringify_content(item.get("text"))
         return {"role": "assistant", "content": text} if text else None
     if itype == "reasoning":
-        text = item.get("text") or ""
+        text = _stringify_content(item.get("text"))
         if not text:
             summary = item.get("summary") or []
             if summary:
-                text = summary[0] if isinstance(summary[0], str) else str(summary[0])
+                text = _stringify_content(summary[0])
         return {"role": "thinking", "content": text} if text else None
     if itype == "plan":
         text = _text_from_item(item)
         return {"role": "thinking", "content": text} if text else None
     if itype == "commandexecution":
-        cmd = item.get("command", "")
+        cmd = _stringify_content(item.get("command"))
         # app-server stores camelCase fields; legacy exec rollouts use the
         # snake_case spelling.  Accept both so switching protocols does not
         # lose tool output after a refresh.
-        out = item.get("aggregated_output") or item.get("aggregatedOutput", "")
+        out = _stringify_content(item.get("aggregated_output") or item.get("aggregatedOutput"))
         content = cmd
         if out:
             content += "\n→ " + out
@@ -249,7 +260,7 @@ def _item_to_block(item: dict) -> dict | None:
                 or item.get("server") or "tool")
         args = item.get("arguments") or item.get("parameters") or item.get("input") or {}
         inp = json.dumps(args, ensure_ascii=False) if isinstance(args, (dict, list)) else str(args or "")
-        out = item.get("output") or item.get("result") or item.get("error") or ""
+        out = _stringify_content(item.get("output") or item.get("result") or item.get("error"))
         content = f"{name}({inp})"
         if out:
             content += "\n→ " + out
