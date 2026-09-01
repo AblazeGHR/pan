@@ -383,6 +383,27 @@ def test_create_template_model_mismatch_rejected(monkeypatch):
     _cleanup()
 
 
+def test_create_default_template_trusts_adapter_default_model(monkeypatch):
+    """内置 default 模板（无显式 sessionTemplate）不硬校验 adapter 默认模型。
+
+    模拟 claude 场景：config 默认模型不在其 best-effort builtin 列表内，
+    但来自 config/默认回退的模型应保留既有宽容语义，而不是误杀创建。
+    """
+    _cleanup()
+    from packages.core.adapters.claude import ClaudeAdapter
+    _patch_caps(monkeypatch)
+    monkeypatch.setattr(ClaudeAdapter, "supported_models",
+                        property(lambda self: ["claude-opus-4-8"]))
+    monkeypatch.setattr(ClaudeAdapter, "default_model",
+                        property(lambda self: "claude-custom-legacy"))
+    monkeypatch.setattr(srv, "_character_manager", _manifest_manager())
+    with patch.object(srv, "broadcast", new=AsyncMock()):
+        r = asyncio.run(srv.api_create_session({"name": "cl-default", "adapter": "claude"}))
+    assert "error" not in r, r
+    assert _sess.get(r["id"]).model == "claude-custom-legacy"
+    _cleanup()
+
+
 # ══════════════════════════════════════════════════════════════════════════ #
 #  MCP server 解析                                                          #
 # ══════════════════════════════════════════════════════════════════════════ #

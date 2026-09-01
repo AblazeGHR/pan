@@ -725,14 +725,20 @@ def _build_session_params(
 
     # 显式请求的能力校验：非法值直接拒绝（结构化错误，不静默回退）。
     # 校验在所有回退值解析完成后进行，per-model effort 收窄以最终 model 为准。
-    # A template is an explicit, named configuration contract: if it carries
-    # a model, an adapter override that cannot run that model must fail rather
-    # than silently replacing the template's requested model.  Only the
-    # ambient config.json fallback keeps the legacy stale-model guard.
+    # A named manifest template is an explicit, contractual configuration: if
+    # it carries a model, an adapter override that cannot run that model must
+    # fail rather than silently replacing the template's requested model.
+    # The synthesized default template / config.json fallback keeps the legacy
+    # stale-model guard semantics (宽容守卫，不误杀 —— 例如 claude 的 config
+    # model 可能不在其 best-effort builtin 列表内)。
     if data.get("model"):
         _final_model = data["model"]
-    elif template is not None and template.model:
+    elif template_name and template is not None and template.model:
         validate_model(a, str(template.model))
+        _final_model = template.model
+    elif template is not None and template.model:
+        # 内置 default 模板：model 已在构造时按 supported_models 守卫过
+        # （config guard + adapter 自带 default 守卫），此处信任旧语义。
         _final_model = template.model
     else:
         _final_model = _guarded_model(a, config.get("model")) or a.default_model
