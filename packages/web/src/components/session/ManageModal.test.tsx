@@ -179,6 +179,55 @@ describe('ManageModal', () => {
     expect(await screen.findByRole('button', { name: 'Readonly' })).toBeTruthy();
   });
 
+  it('keeps candidate rows readable with horizontal scroll and intact action buttons', async () => {
+    apiMock.fetchSession.mockResolvedValue(
+      mk('s1', 'Boss', { managed: ['child'], reportSubscriptions: ['child'] }),
+    );
+    useSessionStore.setState({
+      sessions: [
+        mk('s1', 'Boss'),
+        mk('child', 'A very long child session name that must stay readable', {
+          managedBy: 's1',
+          adapter: 'kimi',
+        }),
+      ],
+    });
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    // The candidate row renders the full name and keeps it in the title so a
+    // visually truncated label never loses the complete value.
+    const nameEl = await screen.findByText(
+      'A very long child session name that must stay readable',
+    );
+    expect(nameEl.getAttribute('title')).toBe(
+      'A very long child session name that must stay readable',
+    );
+
+    // Name column keeps a min-width so flex can't crush it to zero next to the
+    // shrink-0 action buttons on narrow screens.
+    const nameCol = nameEl.parentElement!;
+    expect(nameCol.className).toContain('min-w-32');
+    expect(nameCol.className).not.toContain('min-w-0');
+
+    // Rows stay on a single line and the list container scrolls horizontally
+    // instead of collapsing row content (vertical scrolling stays intact).
+    const row = nameCol.parentElement!;
+    expect(row.className).toContain('whitespace-nowrap');
+    const list = row.parentElement!;
+    expect(list.className).toContain('overflow-x-auto');
+    expect(list.className).toContain('overflow-y-auto');
+
+    // All three action buttons remain present on the row with their labels.
+    const labels = within(row)
+      .getAllByRole('button')
+      .map((b) => b.textContent)
+      .join('|');
+    expect(labels).toContain('Managed');
+    expect(labels).toContain('Subscribed');
+    expect(labels).toContain('Readonly');
+  });
+
   it('disables MCP selection when the template locks it (mcpLocked)', async () => {
     apiMock.fetchSession.mockResolvedValue(
       mk('s1', 'Child', {
