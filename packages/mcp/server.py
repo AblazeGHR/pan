@@ -880,9 +880,15 @@ def session_update(
 ) -> dict:
     """Update session-level settings without spawning a worker.
 
-    Note: changing mcpServers makes the response include requireRestart: true —
-    the worker must be respawned (agent_kill + agent_spawn) for the change
-    to take effect.
+    Settings persist on the session immediately and take effect when the
+    worker next (re)spawns — a managed Agent's mcp_servers can be switched
+    mid-session at any time (unlike adapter, which requires session_handoff).
+    Changing mcp_servers always sets requireRestart: true in the response;
+    with a live worker, any process-affecting change (model/permission_mode/
+    effort/thinking/mcp_servers) sets it too. The restart is automatic:
+    idle worker → respawned immediately; running worker → respawned when it
+    returns to idle (manual agent_kill + agent_spawn only forces an
+    immediate switch); no live worker → the change applies at the next spawn.
 
     Args:
         session_id: Session ID
@@ -891,9 +897,16 @@ def session_update(
         always_thinking_enabled: Toggle extended thinking
         effort: Thinking effort (e.g. "low"/"medium"/"high")
         max_thinking_tokens: Max thinking tokens
-        mcp_servers: MCP server names from the manifest (e.g. ["pan"]); 非空即
-            启用 MCP，空列表/省略 = 无 MCP（单一事实源）
+        mcp_servers: MCP server names declared in the manifest (e.g.
+            ["pan"], ["pan", "pan-qq"]) — 名字列表即可，服务端解析为完整
+            配置。非空即启用 MCP（单一事实源）；[] 显式清空/禁用；
+            **省略 = 保持不变**（部分更新）。未知或不可用服务名直接报错，
+            不产生无效配置；模板 mcp_mode=always/never 锁死增删（本工具无
+            forceMcp 旁路，仅 HTTP PATCH 带 forceMcp:true 可解锁）。
         game_id: RuleWhisper game binding; pass "" to clear
+
+    权限边界：_check_access 管理隔离——受限 caller（restrictToManaged）只能
+    更新自己管理的 session。
 
     完整编排流程见 /pan skill。
     """
