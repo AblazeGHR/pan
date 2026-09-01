@@ -331,14 +331,15 @@ def test_app_server_run_turn_message_loop(monkeypatch):
         assert method == "turn/start"
         app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
         app.incoming.put({
+            "method": "item/completed",
+            "params": {"turnId": "turn-1",
+                        "item": {"id": "agent-2", "type": "agentMessage",
+                                   "text": "complete"}},
+        })
+        app.incoming.put({
             "method": "item/agentMessage/delta",
             "params": {"threadId": "thread-1", "turnId": "turn-1",
                         "itemId": "agent-1", "delta": "partial"},
-        })
-        app.incoming.put({
-            "method": "item/completed",
-            "params": {"item": {"id": "agent-1", "type": "agentMessage",
-                                   "text": "complete"}},
         })
         app.incoming.put({
             "method": "turn/completed",
@@ -355,11 +356,11 @@ def test_app_server_run_turn_message_loop(monkeypatch):
         "input": [{"type": "text", "text": "hello"}],
         "effort": "low",
     })]
-    assert emitted[0]["type"] == "content.part"
-    assert emitted[0]["item_id"] == "agent-1"
+    assert emitted[0]["type"] == "assistant"
+    assert emitted[0]["final"] is True
+    assert emitted[0]["item_id"] == "agent-2"
     assert emitted[0]["turn_id"] == "turn-1"
-    assert emitted[1]["type"] == "assistant"
-    assert emitted[1]["final"] is True
+    assert emitted[1]["type"] == "content.part"
     assert emitted[1]["item_id"] == "agent-1"
     assert emitted[1]["turn_id"] == "turn-1"
     assert emitted[-1] == {"type": "result", "is_error": False,

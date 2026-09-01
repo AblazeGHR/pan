@@ -1041,6 +1041,94 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     ]);
   });
 
+  it('converges a delta that arrives after its turn item completed under another native id', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      // Some app-server deliveries expose the completed item before a later
+      // delta for the same assistant turn. The two notifications can carry
+      // different native item ids, but they are still one logical reply.
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', final: true, turn_id: 'turn-late-delta',
+          item_id: 'completed-item',
+          message: { content: [{ type: 'text', text: 'completed' }] },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-late-delta', item_id: 'delta-item',
+          part: { type: 'text', text: ' tail' },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
+      .toEqual([{
+        role: 'assistant', content: 'completed tail', nativeItemId: 'completed-item',
+      }]);
+  });
+
+  it('does not reuse a transient turn alias after the worker is restarted', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', final: true, turn_id: 'turn-restarted',
+          item_id: 'old-item',
+          message: { content: [{ type: 'text', text: 'old reply' }] },
+        },
+      });
+      wsMock.trigger('worker.restarted', {
+        type: 'worker.restarted', sessionId: 'A', workerId: 'w2',
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w2',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-restarted', item_id: 'new-item',
+          part: { type: 'text', text: 'new reply' },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
+      .toEqual([
+        { role: 'assistant', content: 'old reply', nativeItemId: 'old-item' },
+        { role: 'assistant', content: 'new reply', nativeItemId: 'new-item' },
+      ]);
+  });
+
+  it('keeps separate completed assistant items with distinct native ids in one turn', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      const completed = (itemId: string, text: string) => ({
+        type: 'assistant', final: true, turn_id: 'turn-multiple-completed',
+        item_id: itemId, message: { content: [{ type: 'text', text }] },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: completed('first-completed', 'first reply'),
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: completed('second-completed', 'second reply'),
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
+      .toEqual([
+        { role: 'assistant', content: 'first reply', nativeItemId: 'first-completed' },
+        { role: 'assistant', content: 'second reply', nativeItemId: 'second-completed' },
+      ]);
+  });
+
   it('keeps one selected-session assistant message across an interleaved turn, result, and history refresh', async () => {
     renderHook(() => useWebSocket());
 

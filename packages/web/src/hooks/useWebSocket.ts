@@ -139,16 +139,19 @@ export function useWebSocket() {
 
     // Worker spawned / restarted / reconfigured
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
+      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
       refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) => {
+      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
       refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) => {
+      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, 'idle');
       refreshAgentQueue(e.sessionId);
@@ -158,6 +161,7 @@ export function useWebSocket() {
     // 崩溃/销毁是低频事件，且流式片段已逐块落盘，刷新让列表吸收已持久化的
     // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
+      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
@@ -169,6 +173,7 @@ export function useWebSocket() {
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
+      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       handleWorkerUpdate(e, null);
@@ -553,6 +558,10 @@ function extractStreamText(event: WorkerEvent): string | null {
 // notifications. Keep that transient alias outside Message so it does not
 // become persisted history, while retaining the first item's position.
 const nativeTurnItemAliases = new Map<string, string>();
+// An alias is safe for a late delta only after this turn has completed an
+// assistant item. Before that point, a new item id must remain a new message:
+// multiple native items can legitimately interleave within one turn.
+const nativeTurnCompleted = new Set<string>();
 
 function appendEvent(sessionId: string, event: StreamEvent['event']): void {
   if (!event) return;
@@ -578,7 +587,9 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
     if (aliasKey && itemId && !aliasedItemId) nativeTurnItemAliases.set(aliasKey, itemId);
     const nativeIds = [
       nativeItemId,
-      ...(!event.delta && aliasedItemId ? [aliasedItemId] : []),
+      ...((!event.delta || (aliasKey && nativeTurnCompleted.has(aliasKey))) && aliasedItemId
+        ? [aliasedItemId]
+        : []),
       ...(turnId && nativeItemId !== `turn:${turnId}` ? [`turn:${turnId}`] : []),
     ].filter((id): id is string => Boolean(id));
     const nativeIndex = nativeIds.length > 0
@@ -590,6 +601,9 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
     // Untagged adapter events retain the legacy last-message behavior.
     const targetIndex = nativeIndex >= 0 || nativeItemId ? nativeIndex : lastIndex;
     const target = targetIndex >= 0 ? messages[targetIndex] : undefined;
+    const aliasOnlyMatch = Boolean(
+      itemId && aliasedItemId && target?.nativeItemId === aliasedItemId && itemId !== aliasedItemId,
+    );
     if (event.replace && target?.role === b.role) {
       const updated = { ...target, content: b.content };
       useSessionStore.setState({
@@ -617,10 +631,13 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
       }
       continue;
     }
+    if (aliasKey && event.final && b.role === 'assistant') {
+      nativeTurnCompleted.add(aliasKey);
+    }
     if (event.final && target?.role === b.role && target.content !== b.content) {
       // Replace the prefix accumulated from app-server deltas with the
       // authoritative completed item.  If it is unrelated, retain both.
-      if (nativeIndex >= 0 || b.content.startsWith(target.content)) {
+      if ((!aliasOnlyMatch && nativeIndex >= 0) || b.content.startsWith(target.content)) {
         const updated = {
           ...target,
           content: b.content,
@@ -660,6 +677,9 @@ function clearNativeTurnAliases(sessionId: string): void {
   const prefix = `${sessionId}:`;
   for (const key of nativeTurnItemAliases.keys()) {
     if (key.startsWith(prefix)) nativeTurnItemAliases.delete(key);
+  }
+  for (const key of nativeTurnCompleted) {
+    if (key.startsWith(prefix)) nativeTurnCompleted.delete(key);
   }
 }
 
