@@ -204,6 +204,8 @@ export interface StreamEvent {
   messages?: Message[];
   /** Queue ids included in a successful local CLI hand-off. */
   queueItemIds?: string[];
+  /** Raw or normalized queue item carried by queue update notifications. */
+  item?: Record<string, unknown>;
   /** True when the server replays a still-pending interactive prompt after WS reconnect. */
   replayed?: boolean;
 }

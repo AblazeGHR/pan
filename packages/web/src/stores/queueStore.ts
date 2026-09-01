@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentQueueItem, QueuedEdit } from '@/types';
+import type { AgentQueueItem, QueueDispatchState, QueuedEdit } from '@/types';
 import {
   deleteSessionQueueItem,
   enqueueSessionMessage,
@@ -22,6 +22,13 @@ interface QueueStore {
   queueRevisions: Record<string, number>;
   loadForSession: (sessionId: string | null) => void;
   loadAgentQueue: (sessionId: string) => Promise<void>;
+  applyQueueEvent: (event: {
+    type?: string;
+    sessionId?: string;
+    queueItemId?: string;
+    queueRevision?: number;
+    item?: Record<string, unknown>;
+  }) => void;
   enqueue: (text: string) => Promise<boolean>;
   remove: (id: string) => void;
   startEdit: (id: string) => void;
@@ -59,6 +66,50 @@ function setSnapshot(
   }));
 }
 
+function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem | null {
+  const id = raw.queueItemId ?? raw.id;
+  if (typeof id !== 'string' || !id) return null;
+  const rawMeta = raw.meta;
+  const meta = rawMeta && typeof rawMeta === 'object'
+    ? { ...(rawMeta as Record<string, unknown>) }
+    : {};
+  const rawKind = raw.kind ?? raw.type;
+  const kind = rawKind === 'qq'
+    ? 'qq'
+    : rawKind === 'report' || rawKind === 'notice' || rawKind === 'zombie'
+      ? 'report'
+      : 'task';
+  const text = typeof raw.text === 'string'
+    ? raw.text
+    : typeof raw.result === 'string'
+      ? raw.result
+      : '';
+  const source = typeof raw.source === 'string'
+    ? raw.source
+    : kind === 'qq'
+      ? 'qq'
+      : kind === 'task'
+        ? 'user'
+        : 'report';
+  const state = raw.dispatchState ?? raw.deliveryState ?? meta.dispatchState ?? 'queued';
+  const revision = raw.revision ?? meta.revision ?? 1;
+  return {
+    id,
+    queueItemId: id,
+    kind,
+    text,
+    createdAt: typeof raw.createdAt === 'string' || typeof raw.createdAt === 'number'
+      ? raw.createdAt
+      : 0,
+    source,
+    meta: {
+      ...meta,
+      dispatchState: state as QueueDispatchState,
+      revision: typeof revision === 'number' ? revision : 1,
+    },
+  } as AgentQueueItem;
+}
+
 export const useQueueStore = create<QueueStore>((set, get) => ({
   queues: {}, edits: {}, batchSend: {}, panelOpen: false, sendingId: null,
   agentQueues: {}, agentQueueLoadSeq: {}, queueRevisions: {},
@@ -77,6 +128,46 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       setSnapshot(set, sessionId, items, items.queueRevision);
     } catch {
       // Preserve the last authoritative snapshot; reconnect/session switch retries.
+    }
+  },
+
+  applyQueueEvent: (event) => {
+    const sid = event.sessionId;
+    if (!sid) return;
+    const currentRevision = get().queueRevisions[sid];
+    if (event.queueRevision !== undefined && currentRevision !== undefined
+        && event.queueRevision < currentRevision) return;
+    const current = get().queues[sid] ?? [];
+    const id = event.queueItemId ?? event.item?.queueItemId ?? event.item?.id;
+    let next = current;
+    if (event.type === 'queue.item_added' && event.item) {
+      const item = normalizeQueueEventItem(event.item);
+      if (item && item.meta?.dispatchState === 'queued') {
+        const index = current.findIndex((candidate) => candidate.id === item.id);
+        next = index < 0
+          ? [...current, item]
+          : current.map((candidate, candidateIndex) =>
+              candidateIndex === index ? item : candidate,
+            );
+      }
+    } else if (event.type === 'queue.item_updated' && event.item
+               && typeof id === 'string') {
+      const item = normalizeQueueEventItem(event.item);
+      const index = current.findIndex((candidate) => candidate.id === id);
+      if (item?.meta?.dispatchState === 'queued') {
+        next = index < 0
+          ? [...current, item]
+          : current.map((candidate, candidateIndex) =>
+              candidateIndex === index ? item : candidate,
+            );
+      } else if (index >= 0) {
+        next = current.filter((_, candidateIndex) => candidateIndex !== index);
+      }
+    } else if (event.type === 'queue.item_removed' && typeof id === 'string') {
+      next = current.filter((candidate) => candidate.id !== id);
+    }
+    if (next !== current || event.queueRevision !== undefined) {
+      setSnapshot(set, sid, next, event.queueRevision);
     }
   },
 

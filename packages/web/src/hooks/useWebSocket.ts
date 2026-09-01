@@ -143,7 +143,10 @@ export function useWebSocket() {
     // the server snapshot, so an old event or a lost WebSocket frame cannot
     // manufacture a second local business queue.
     for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.snapshot']) {
-      unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => refreshAgentQueue(e.sessionId)));
+      unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => {
+        useQueueStore.getState().applyQueueEvent(e);
+        refreshAgentQueue(e.sessionId);
+      }));
     }
     unsubscribers.push(wsClient.on('queue.item_delivered', (e: StreamEvent) => {
       refreshAgentQueue(e.sessionId);

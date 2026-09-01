@@ -744,6 +744,41 @@ describe('useWebSocket agent-injected message sync', () => {
     expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('A');
   });
 
+  it('applies an external queue item immediately before reconciling the snapshot', async () => {
+    const stale: unknown[] = [];
+    Object.defineProperty(stale, 'queueRevision', { value: 3 });
+    apiMock.fetchSessionQueue.mockResolvedValue(stale);
+    useQueueStore.setState({
+      queues: { A: [] },
+      agentQueues: { A: [] },
+      queueRevisions: { A: 3 },
+      agentQueueLoadSeq: {},
+    });
+    renderHook(() => useWebSocket());
+
+    await flushTrigger('queue.item_added', {
+      type: 'queue.item_added',
+      sessionId: 'A',
+      queueRevision: 4,
+      queueItemId: 'q-external',
+      item: {
+        type: 'task',
+        kind: 'task',
+        id: 'q-external',
+        queueItemId: 'q-external',
+        text: '外部入队消息',
+        source: 'user',
+        deliveryState: 'queued',
+        revision: 1,
+      },
+    });
+
+    expect(useQueueStore.getState().queues.A?.map((item) => item.text)).toEqual([
+      '外部入队消息',
+    ]);
+    expect(useQueueStore.getState().queueRevisions.A).toBe(4);
+  });
+
   it('renders a delivered queue message immediately and keeps it across a stale refresh', async () => {
     renderHook(() => useWebSocket());
 
