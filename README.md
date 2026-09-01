@@ -246,7 +246,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
     - [编排层对底层 CLI 无感知](#编排层对底层-cli-无感知)
   - [配置](#配置)
   - [API 概览](#api-概览)
-    - [HTTP（`packages/web/server.py`，69 个端点）](#httppackageswebserverpy69-个端点)
+    - [HTTP（`packages/web/server.py`，86 个端点）](#httppackageswebserverpy86-个端点)
     - [WebSocket](#websocket)
     - [MCP Server（`packages/mcp/server.py`）](#mcp-serverpackagesmcpserverpy)
   - [通道与集成](#通道与集成)
@@ -508,13 +508,13 @@ pnpm dev       # 开发模式：Vite HMR + 代理到后端
 | 目录 | 职责 |
 |------|------|
 | `packages/core/` | Core 模块：进程管理 + 消息路由 + Memory + Adapter。所有外部模块仅通过 HTTP/WS API 与 Core 通信 |
-| `packages/web/` | Web 通道：FastAPI 路由 + WebSocket + Dashboard（69 个 HTTP 端点） |
+| `packages/web/` | Web 通道：FastAPI 路由 + WebSocket + Dashboard（86 个 HTTP 端点） |
 | `packages/qq/` | QQ 通道：NoneBot2 桥接 + 通道插件化 + pan-qq MCP |
 | `packages/mcp/` | MCP Server：编排工具集 + pan-qq，可独立启动 |
 | `packages/remote/` | Cloudflare Tunnel 远程通道 |
 | `scripts/` | 启动 / 停止 / 隧道 / 预提交脚本 |
 | `docs/` | 文档（git 跟踪；`docs/skills/pan/SKILL.md` 是编排知识单一事实源） |
-| `tests/` | 测试（29 个文件） |
+| `tests/` | 测试（53 个 Python 文件） |
 
 ## 多 CLI 适配
 
@@ -603,7 +603,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 
 ## API 概览
 
-### HTTP（`packages/web/server.py`，69 个端点）
+### HTTP（`packages/web/server.py`，86 个端点）
 
 **Session 管理**
 
@@ -748,12 +748,13 @@ Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部
 | `session_import` | 浏览 / 导入既有 CLI 会话（支持 cbc / kimi / opencode / claude / codex；list_projects / list_workspaces / list_sessions / import 四个 action） |
 | `session_list` | 列出全部 Session（`summary=true` 返回摘要，避免全量 history） |
 | `session_managed` | 返回调用方管理的 Session 概要（归属巡检） |
-| `manager_chain` | 返回调用方的上级 manager 链 🚧 *新增中（未提交）* |
+| `manager_chain` | 返回调用方的上级 manager 链 |
 | `session_get` | 获取单个 Session 完整详情（含 history 与最近 result） |
 | `session_update` | 更新会话设置（model / permissionMode / effort / MCP / outputMode 等） |
 | `session_delete` | 删除 Session 并 kill 其 worker |
 | `session_batch_delete` | 批量删除（kill worker、清理跨会话引用） |
 | `session_handoff` | 替身交接：创建孪生 Session B 接替 A（精简上下文 / 换 adapter） |
+| `session_readonly` | 为当前 manager 管理的 Session 设置或清除持久只读状态；不会自动认领目标 |
 | `session_claim` / `session_claim_many` | 认领会话建立 managed 关系（自动订阅报告；批量版逐项隔离） |
 | `session_unclaim` / `session_unclaim_many` | 解除 managed 关系（同时退订报告；批量版逐项隔离） |
 | `session_history` | 分页读取会话历史 |
@@ -766,6 +767,7 @@ Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部
 | `agent_send_force` | 强制推送：重启 worker 再发（`agent_send` 送不到时的兜底；无活 worker 直接入队） |
 | `agent_kill` | 终止 Agent 的 worker 进程（Agent 数据保留；无活 worker 时无害 no-op） |
 | `agent_list` | 列出全部 Agent（= Session 摘要，`session_list` 的别名） |
+| `agent_notify` | 向自己或自己管理的 Agent 持久化投递后台任务完成/状态通知；不是普通任务派发替代品 |
 | `worker_spawn` / `worker_task` / `worker_assign` / `worker_send` / `worker_send_force` / `worker_kill` / `worker_list` | **兼容别名（DEPRECATED）**：内部复用 `agent_*` 同一实现，建议改用 `agent_*`；仅 `worker_id` 进程寻址为别名独有遗留路径 |
 | `model_list` | 列出 adapter 可用模型 |
 | `pan_handbook` | 返回完整 Pan 编排手册（`docs/skills/pan/SKILL.md`） |

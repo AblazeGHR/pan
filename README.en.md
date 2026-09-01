@@ -257,7 +257,7 @@ Typical use cases:
 - **Managed subscription inbox** — subscription-based reports are delivered to an on-disk inbox; the supervisor "dispatches work, then checks the inbox." Reports survive disconnects and reconnects.
 - **Self-healing Worker lifecycle** — `stream` / `one-shot` execution modes; a three-tier Watchdog timeout cleanup plus an on-disk queue that rebuilds Workers after an abnormal process exit.
 - **Memory + Character** — SQLite FTS5 + embedding hybrid retrieval; a Character (persona) and its memory store persist across Sessions as the same identity.
-- **Per-session MCP** — each Session can mount its own MCP Server; two servers ship built in: `pan` (27 orchestration tools) and `pan-qq` (6 QQ tools).
+- **Per-session MCP** — each Session can mount its own MCP Server; two servers ship built in: `pan` (38 orchestration tools) and `pan-qq` (6 QQ tools).
 - **Multi-channel access** — Web Dashboard (React is the only maintained frontend; legacy Vanilla deprecated, fallback only), QQ Bridge (pluggable NapCat / LLOneBot channels), Cloudflare Tunnel, and any Agent CLI (WS + MCP).
 - **Session import** — historical sessions from cbc / kimi / opencode / claude / codex can be imported and reused, avoiding re-exploration and re-initialization.
 
@@ -483,7 +483,7 @@ The serving route is controlled by the `frontend` field in `config.json`:
 | `packages/remote/` | Cloudflare Tunnel remote channel |
 | `scripts/` | Start / stop / tunnel / pre-commit scripts |
 | `docs/` | Documentation (git-tracked; `docs/skills/pan/SKILL.md` is the single source of truth for orchestration knowledge) |
-| `tests/` | Tests (29 files) |
+| `tests/` | Tests (53 Python files) |
 
 ## Multi-CLI Adapters
 
@@ -494,7 +494,7 @@ Workers are decoupled from any specific CLI: each CLI Agent has an adapter imple
 | `cbc` | CodeBuddy CLI | stream + one-shot | Native JSON stream protocol; the primary adapter |
 | `kimi` | Kimi CLI | stream (long-running wrapper) | Calls `kimi -p` per message inside a wrapper |
 | `opencode` | OpenCode CLI | stream (long-running wrapper) | Calls `opencode run --format json` per message inside a wrapper |
-| `claude` | Claude Code CLI | one-shot | Calls `claude -p --output-format stream-json` per message; MCP injected via `--mcp-config` |
+| `claude` | Claude Code CLI | stream + one-shot | Default `--input-format stream-json`; optional `outputMode: "oneshot"`; MCP injected via `--mcp-config` |
 | `codex` | OpenAI Codex CLI | stream (long-running wrapper) | Calls `codex exec --json` per message inside a wrapper; MCP injected inline via `-c mcp_servers.*` overrides (zero file pollution) |
 
 The companion `SessionsProvider` protocol (`packages/core/adapters/base.py`) unifies each CLI's native session storage (history / usage / title / fork) behind a single read/write interface. The server resolves the provider by adapter name, so adding a new CLI needs no per-CLI import / branch / rename dispatch logic (generic endpoint: `/api/adapters/{adapter}/sessions[/import]`).
@@ -572,7 +572,7 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 
 ## API Overview
 
-### HTTP (`packages/web/server.py`, 69 endpoints)
+### HTTP (`packages/web/server.py`, 86 endpoints)
 
 **Session management**
 
@@ -717,12 +717,13 @@ Pan is not just for humans — **any external agent that speaks MCP (Model Conte
 | `session_import` | Browse / import existing CLI sessions (cbc / kimi / opencode / claude / codex; actions: list_projects / list_workspaces / list_sessions / import) |
 | `session_list` | List all sessions (`summary=true` for compact output) |
 | `session_managed` | Summarize the calling session's managed sessions |
-| `manager_chain` | Return the calling session's manager chain 🚧 *being added (uncommitted)* |
+| `manager_chain` | Return the calling session's manager chain |
 | `session_get` | Full session details incl. history and last result |
 | `session_update` | Update session settings (model / permissionMode / effort / MCP / outputMode…) |
 | `session_delete` | Delete a session and kill its worker |
 | `session_batch_delete` | Batch delete (kill workers, purge cross-session references) |
 | `session_handoff` | Twin handoff: spawn successor session B to take over A |
+| `session_readonly` | Set or clear persistent readonly on a Session already managed by the caller; never claims it |
 | `session_claim` / `session_claim_many` | Claim session(s), establishing managed relations (auto-subscribes reports) |
 | `session_unclaim` / `session_unclaim_many` | Release managed relation(s) (also unsubscribes reports) |
 | `session_history` | Paginated conversation history |
@@ -735,6 +736,7 @@ Pan is not just for humans — **any external agent that speaks MCP (Model Conte
 | `worker_send_force` | Force-push: restart the worker, then send |
 | `worker_kill` | Kill a worker process (session data persists) |
 | `worker_list` | List running workers |
+| `agent_notify` | Persistently deliver a background-work completion/status notice to the caller or a managed Agent; not ordinary task dispatch |
 | `model_list` | List available models for an adapter |
 | `pan_handbook` | Return the full Pan orchestration handbook (`docs/skills/pan/SKILL.md`) |
 

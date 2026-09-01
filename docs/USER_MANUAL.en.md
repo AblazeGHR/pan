@@ -111,6 +111,8 @@ ses_child.managedBy = "ses_parent"
 
 `managed` means “children I manage”; `managedBy` means “my parent manager”. A Session has one manager at a time, so a child already managed by another manager cannot be claimed. In UI, click **Manage** or **Managed**. MCP uses `session_claim` and `session_unclaim`. Unclaim removes the relationship and also unsubscribes reports, but does not delete the Session. `report_unsubscribe` stops reports while retaining the relationship. UI management is a direct high-privilege path; MCP `restrictToManaged` does not limit the Dashboard itself.
 
+If a managed child should remain in the management tree but temporarily reject tasks, messages, and notices from other Sessions, the current manager can call `session_readonly(session_id="ses_child", enabled=true)`. Pass `enabled=false` to clear it. The operation never claims a Session and returns `readonly_session` to rejected senders. This is an orchestration state, not HTTP/API authentication or a filesystem read-only permission.
+
 ## 7. Subscribe and completion reports
 
 The normal Meta-Agent flow is:

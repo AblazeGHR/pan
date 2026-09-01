@@ -199,7 +199,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 ## 5. 可用 MCP 工具
 
-> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 35 个工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。
+> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 38 个工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。
 >
 > **命名分层（agent-naming 确立）**：`agent_*` 是**一等工具**（编排对象 = Agent = Session，以 session_id 寻址，无活进程也容忍）；`worker_*` 是**兼容别名（DEPRECATED）**，内部委托同一实现，仅 `worker_id` 进程寻址为别名独有遗留路径——新代码一律用 `agent_*`。
 >
@@ -220,6 +220,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查，等价 HTTP `POST /api/sessions/batch-delete`） |
 | `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 它与 A 原 system_prompt 拼接；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
+| `session_readonly` | `session_id`, `enabled?`(默认 true) | 为**当前 manager 已管理**的 session 设置或清除持久只读状态；不会自动 claim。只读目标拒绝其他 session 发来的任务/消息/通知，返回 `readonly_session`；需 `PAN_AGENT_SESSION_ID` |
 | `session_claim` | `session_id` | 当前 agent（`PAN_AGENT_SESSION_ID`）认领会话，建立 managed 关系（立项 4.2）。**claim 自动 report_subscribe**（订阅即接管，开启完成报告推送；后端实现）。走 `POST /api/claim`（带 `_check_access(claim=True)` 隔离检查）；目标已被他人管理则拒绝。需 `PAN_AGENT_SESSION_ID` |
 | `session_claim_many` | `session_ids` | 批量认领：逐个处理，返回 `{"ok": true, "claimed": [...], "failed": [{"sessionId", "error"}]}`，单个失败不影响其余 |
 | `session_unclaim` | `session_id` | 当前 agent 解除对会话的**整个 managed 关系**（**自动连带退订报告，session 变无主**，后端实现）。走 `POST /api/unclaim`（带 `_check_access` 隔离检查，受限 caller 只能解绑自己管理的）；仅当前 manager 可解绑。⚠️ 只想停止完成报告推送、保留管理 → 用 `report_unsubscribe`（§5 四操作对比）。需 `PAN_AGENT_SESSION_ID` |

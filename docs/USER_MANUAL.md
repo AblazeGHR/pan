@@ -217,6 +217,10 @@ ses_child.managedBy  = "ses_parent"
 
 常见误解：Manage 不等于启动 Worker；Subscribe 不等于拥有管理权（但首次 MCP `report_subscribe` 对无主目标会自动 claim）；Kill 不等于删除 Session；删除子 Session 也不等于只解除关系。
 
+### 6.1 Managed Session 的持久只读
+
+如果希望子 Session 保留在管理树中、但暂时不接受其他 Session 发来的任务、消息或通知，可由当前 manager 调用 `session_readonly(session_id="ses_child", enabled=true)`。取消只读传 `enabled=false`。该操作只允许当前 manager 执行，不会自动认领目标；被拒绝时返回 `readonly_session`。这是编排层状态，不等同于 HTTP/API 鉴权或文件系统只读。
+
 ---
 
 ## 7. Subscribe、报告和 queue_pending
