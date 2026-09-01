@@ -146,6 +146,13 @@ def _strip_delivery_marks(history: list[dict]) -> list[dict]:
 # wrote them as top-level fields; migration lives in _from_data / __post_init__.
 _PAN_ACCESS_KEYS = ("restrict_to_managed", "can_claim_unmanaged", "auto_claim_created")
 
+# Fields introduced by the newer at-most-once queue implementation.  This
+# branch predates that implementation and intentionally keeps
+# ``queue_pending`` as its only persisted queue state.  Session files are
+# shared across checkouts, so a rollback must be able to load files written by
+# the newer checkout instead of failing the whole application startup.
+_FORWARD_COMPAT_FIELDS = ("queue_delivery_ledger", "queue_revision")
+
 
 @dataclass(init=False)
 class Session:
@@ -333,6 +340,12 @@ class Session:
         Old top-level capability fields are migrated into nested pan_access
         (and the old keys removed) so pre-refactor JSON keeps loading.
         """
+        # A newer checkout may have persisted queue delivery bookkeeping that
+        # this rolled-back checkout does not understand.  It is safe to drop
+        # these fields here: this implementation does not read them, while
+        # ``queue_pending`` remains available for the legacy consumer.
+        for key in _FORWARD_COMPAT_FIELDS:
+            data.pop(key, None)
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
             ("cbc_session_id", "cli_session_id"),
