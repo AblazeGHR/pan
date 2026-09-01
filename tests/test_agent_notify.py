@@ -12,7 +12,8 @@
   （@@@@by agent : <source> 抬头 + status/type/result 字段行）
 - 前端显示兼容：web/server._serialize_queue_item 对 notice 项 → kind="report"
 - web POST /api/notify：ok 路径、缺参 error、session 不存在 error 透传
-- MCP agent_notify 工具：自己/managed 放行（POST /api/notify 带 source=caller）；
+- MCP agent_notify 工具：自己/managed 放行（POST /api/notify 带
+  source=agent + sourceSessionId=caller）；
   非 managed 目标 permission_denied（且不触发 /api/notify、不做 claim）；
   无身份调用方不受限
 """
@@ -96,7 +97,8 @@ def test_notice_to_self_enqueued(monkeypatch):
     monkeypatch.setattr(worker, "create_worker", fake_create)
     _setup_worker("ses_self", worker_id="worker-self")  # 活 worker：只唤醒
 
-    r = asyncio.run(worker.enqueue_notice("ses_self", "后台任务完成", source="ses_self"))
+    r = asyncio.run(worker.enqueue_notice(
+        "ses_self", "后台任务完成", source="agent", source_session_id="ses_self"))
     assert r["ok"] is True
     assert r["sessionId"] == "ses_self"
     assert r["pending"] == 1
@@ -107,6 +109,8 @@ def test_notice_to_self_enqueued(monkeypatch):
     assert item["status"] == "notice"
     assert item["result"] == "后台任务完成"
     assert item["sessionId"] == "ses_self"
+    assert item["source"] == "agent"
+    assert item["sourceSessionId"] == "ses_self"
     assert item["taskId"] is None and item["workerId"] is None
     assert spawned == [], "有活 worker 不应 spawn"
     _cleanup()
@@ -120,11 +124,14 @@ def test_notice_to_other_session_enqueued(monkeypatch):
     monkeypatch.setattr(_sess, "save_async", AsyncMock())
     _setup_worker("ses_b", worker_id="worker-b")
 
-    r = asyncio.run(worker.enqueue_notice("ses_b", "hello b", source="ses_a"))
+    r = asyncio.run(worker.enqueue_notice(
+        "ses_b", "hello b", source="agent", source_session_id="ses_a"))
     assert r["ok"] is True and r["sessionId"] == "ses_b"
     assert len(tgt.queue_pending) == 1
     assert tgt.queue_pending[0]["result"] == "hello b"
-    assert tgt.queue_pending[0]["sessionId"] == "ses_a", "source 记录来源"
+    assert tgt.queue_pending[0]["sessionId"] == "ses_b"
+    assert tgt.queue_pending[0]["source"] == "agent"
+    assert tgt.queue_pending[0]["sourceSessionId"] == "ses_a", "source 记录来源"
     assert len(src.queue_pending) == 0, "来源 session 队列不受影响"
     w = worker.workers["worker-b"]
     assert w.pending_signal.qsize() == 1
@@ -193,7 +200,9 @@ def test_notice_persists_state_and_coexists_with_task(monkeypatch):
     }])
     monkeypatch.setattr(_sess, "save_async", AsyncMock())
     w = _setup_worker("ses_mix")
-    r = asyncio.run(worker.enqueue_notice("ses_mix", "background done", source="ses_src"))
+    _setup_session("ses_src")
+    r = asyncio.run(worker.enqueue_notice(
+        "ses_mix", "background done", source="agent", source_session_id="ses_src"))
     assert r["ok"] is True
     assert s.queue_pending[-1]["deliveryState"] == "queued"
     assert worker._recover_pending_signals(w, s) is False
@@ -226,7 +235,8 @@ def test_notice_save_failure_keeps_queued_item(monkeypatch):
 def test_notice_rendered_by_report_branch():
     """_format_report_batch 按 report 分支渲染 notice 项（抬头带 source）。"""
     item = {"status": "notice", "type": "notice", "result": "job done",
-            "sessionId": "ses_src", "taskId": None, "workerId": None}
+            "source": "agent", "sourceSessionId": "ses_src",
+            "sessionId": "ses_target", "taskId": None, "workerId": None}
     _setup_session("ses_src", queue_pending=[])
     text = worker._format_report_batch([item])
     assert "@@@@by agent : ses_src | ses_src" in text
@@ -245,7 +255,9 @@ def test_notice_normalize_display(monkeypatch):
 
     monkeypatch.setattr(worker, "create_worker", fake_create)
     s = _setup_session("ses_q")
-    r = asyncio.run(worker.enqueue_notice("ses_q", "panel item", source="ses_src"))
+    _setup_session("ses_src")
+    r = asyncio.run(worker.enqueue_notice(
+        "ses_q", "panel item", source="agent", source_session_id="ses_src"))
     assert r["ok"] is True
     si = srv._serialize_queue_item(s.queue_pending[0])
     assert si is not None
@@ -261,11 +273,13 @@ def test_notice_normalize_display(monkeypatch):
 def test_api_notify_ok(monkeypatch):
     _cleanup()
     s = _setup_session("ses_t")
+    _setup_session("ses_s")
     monkeypatch.setattr(_sess, "save_async", AsyncMock())
     _setup_worker("ses_t")
 
     r = asyncio.run(srv.api_notify(
-        {"targetSessionId": "ses_t", "text": "ntf", "source": "ses_s"}))
+        {"targetSessionId": "ses_t", "text": "ntf",
+         "source": "agent", "sourceSessionId": "ses_s"}))
     assert r["ok"] is True
     assert s.queue_pending[0]["result"] == "ntf"
     _cleanup()
@@ -326,8 +340,9 @@ def test_agent_notify_self_allowed(monkeypatch):
     r = mcp_server.agent_notify("ses_ma", "self notice")
     assert r.get("ok") is True, r
     assert ("POST", "/api/notify", {"targetSessionId": "ses_ma",
-                                    "text": "self notice",
-                                    "source": "ses_ma"}) in fake.calls
+                                        "text": "self notice",
+                                        "source": "agent",
+                                        "sourceSessionId": "ses_ma"}) in fake.calls
     monkeypatch.delenv("PAN_AGENT_SESSION_ID", raising=False)
     _cleanup()
 

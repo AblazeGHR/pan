@@ -84,6 +84,8 @@ def test_enqueue_report_subscribed(monkeypatch):
     assert len(mgr.queue_pending) == 1
     r = mgr.queue_pending[0]
     assert r == {
+        "source": "report",
+        "sourceSessionId": "ses_child",
         "status": "done",
         "result": "the answer",
         "sessionId": "ses_child",
@@ -180,6 +182,8 @@ def test_enqueue_report_with_type_zombie(monkeypatch):
     asyncio.run(scenario())
 
     assert mgr.queue_pending[0] == {
+        "source": "report",
+        "sourceSessionId": "ses_child",
         "status": "error",
         "type": "zombie",
         "result": "worker died: test",
@@ -578,11 +582,13 @@ def test_mcp_worker_assign_task_id_forwarded(monkeypatch):
 
     r1 = mcp_server.worker_assign("ses_child", "task", task_id="task-abc")
     assert captured["path"] == "/api/assign"
-    assert captured["body"] == {"sessionId": "ses_child", "text": "task", "taskId": "task-abc"}
+    assert captured["body"] == {"sessionId": "ses_child", "text": "task",
+                                 "source": "agent", "taskId": "task-abc"}
     assert r1["status"] == "queued"
 
     r2 = mcp_server.worker_assign("ses_child", "task")
-    assert captured["body"] == {"sessionId": "ses_child", "text": "task"}
+    assert captured["body"] == {"sessionId": "ses_child", "text": "task",
+                                 "source": "agent"}
     assert "taskId" not in captured["body"]
     assert r2["status"] == "queued"
 

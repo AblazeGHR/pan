@@ -52,8 +52,11 @@ def test_all_durable_delivery_paths_are_blocked_before_enqueue():
     before = list(child.queue_pending)
     message = worker.READONLY_SESSION_ERROR
 
-    assert asyncio.run(worker.assign(child.id, "task", source=manager.id))["result"] == message
-    assert asyncio.run(worker.send_session(child.id, "message", source=manager.id))["result"] == message
-    notify = asyncio.run(worker.enqueue_notice(child.id, "notice", source=manager.id))
+    assert asyncio.run(worker.assign(
+        child.id, "task", source="agent", source_session_id=manager.id))["result"] == message
+    assert asyncio.run(worker.send_session(
+        child.id, "message", source="agent", source_session_id=manager.id))["result"] == message
+    notify = asyncio.run(worker.enqueue_notice(
+        child.id, "notice", source="agent", source_session_id=manager.id))
     assert notify["error"]["message"] == message
     assert child.queue_pending == before

@@ -98,6 +98,8 @@ def test_agent_send_posts_api_send_with_prefix(monkeypatch):
     assert r.get("ok") is True, r
     assert any(c[0] == "POST" and c[1] == "/api/send"
                and c[2]["sessionId"] == "ses_child"
+               and c[2]["source"] == "agent"
+               and c[2]["sourceSessionId"] == "ses_ma"
                and c[2]["text"] == "////by agent : ses_ma | meta\nhi"
                for c in fake.calls), fake.calls
 
@@ -142,6 +144,8 @@ def test_agent_send_force_no_worker_enqueues(monkeypatch):
     r = mcp_server.agent_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
     assert any(c[1] == "/api/send" and c[2]["sessionId"] == "ses_child"
+               and c[2]["source"] == "agent"
+               and c[2]["sourceSessionId"] == "ses_ma"
                for c in fake.calls)
     assert all("/restart" not in c[1] for c in fake.calls)
 
@@ -157,6 +161,8 @@ def test_agent_send_force_with_worker_restarts(monkeypatch):
     assert r.get("ok") is True, r
     assert any(c[1] == "/api/worker/worker-9/restart" for c in fake.calls)
     assert any(c[1] == "/api/task" and c[2]["workerId"] == "worker-9"
+               and c[2]["source"] == "agent"
+               and c[2]["sourceSessionId"] == "ses_ma"
                for c in fake.calls)
 
 
@@ -240,6 +246,8 @@ def test_agent_assign_posts_api_assign(monkeypatch):
     assert r.get("ok") is True, r
     assert any(c[0] == "POST" and c[1] == "/api/assign"
                and c[2]["sessionId"] == "ses_child" and c[2]["text"] == "task"
+               and c[2]["source"] == "agent"
+               and c[2]["sourceSessionId"] == "ses_ma"
                and c[2]["taskId"] == "tid-1" for c in fake.calls), fake.calls
 
 
@@ -269,7 +277,8 @@ def test_agent_task_posts_api_task(monkeypatch):
     r = mcp_server.agent_task(session_id="ses_child", text="t", source="agent")
     assert r.get("ok") is True, r
     assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
-               and c[2]["source"] == "agent" for c in fake.calls), fake.calls
+               and c[2]["source"] == "agent"
+               and c[2]["sourceSessionId"] == "ses_ma" for c in fake.calls), fake.calls
 
 
 def test_agent_task_equals_worker_task(monkeypatch):

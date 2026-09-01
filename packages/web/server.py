@@ -1398,17 +1398,20 @@ def _serialize_queue_item(item, session=None) -> dict | None:
     # here so the queue API is safe even before the next worker recovery tick.
     if t == "task" or (t is None and isinstance(item.get("text"), str)):
         source = worker._task_source(item) or "user"
+        meta = {
+            "seq": item.get("seq"),
+            "taskId": item.get("taskId"),
+            "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+        }
+        if item.get("sourceSessionId") is not None:
+            meta["sourceSessionId"] = item.get("sourceSessionId")
         return {
             "id": _queue_item_id(item),
             "kind": "task",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
             "createdAt": 0,
             "source": source,
-            "meta": {
-                "seq": item.get("seq"),
-                "taskId": item.get("taskId"),
-                "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
-            },
+            "meta": meta,
         }
     if t == "qq":
         return {
@@ -1439,17 +1442,20 @@ def _serialize_queue_item(item, session=None) -> dict | None:
             text = repr(result)
     if len(text) > _REPORT_TEXT_MAX:
         text = text[:_REPORT_TEXT_MAX] + "…"
+    meta = {
+        "status": item.get("status"),
+        "taskId": item.get("taskId"),
+        "workerId": item.get("workerId"),
+        "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+    }
+    if item.get("sourceSessionId") is not None:
+        meta["sourceSessionId"] = item.get("sourceSessionId")
     return {
         "id": _queue_item_id(item),
         "kind": "report",
         "text": text,
         "createdAt": 0,
-        "meta": {
-            "status": item.get("status"),
-            "taskId": item.get("taskId"),
-            "workerId": item.get("workerId"),
-            "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
-        },
+        "meta": meta,
     }
 
 
@@ -2310,21 +2316,42 @@ async def api_spawn(data: dict):
     }
 
 
+def _request_source_metadata(data: dict, default: str = "agent"):
+    """Parse the two independent source fields at an HTTP boundary."""
+    source_type, error = worker._normalize_source_type(data.get("source"), default)
+    if error:
+        return None, None, {"error": error}
+    source_session_id, error = worker._normalize_source_session_id(
+        data.get("sourceSessionId"))
+    if error:
+        return None, None, {"error": error}
+    return source_type, source_session_id, None
+
+
+def _source_access_error(target, source_session_id):
+    if (target is not None and source_session_id
+            and source_session_id != target.id and target.readonly_session
+            and target.managed_by == source_session_id):
+        return {"ok": False, "error": {"code": "readonly_session",
+                "message": worker.READONLY_SESSION_ERROR}}
+    return None
+
+
 @app.post("/api/task")
 async def api_task(data: dict):
     """Send a task to a Worker by worker_id or session_id."""
     worker_id = data.get("workerId")
     session_id = data.get("sessionId")
-
-    source = data.get("sourceSessionId") or data.get("source")
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
     if session_id:
         target = sess.get(session_id)
         if not target:
             return {"error": f"Session {session_id} not found"}
-        if source and source != session_id and target.readonly_session \
-                and target.managed_by == source:
-            return {"ok": False, "error": {"code": "readonly_session",
-                    "message": worker.READONLY_SESSION_ERROR}}
+        denied = _source_access_error(target, source_session_id)
+        if denied:
+            return denied
 
     if not worker_id and session_id:
         w = worker.find_worker_by_session(session_id)
@@ -2361,11 +2388,14 @@ async def api_task(data: dict):
         session_id = resolved.session_id if resolved else None
     if session_id:
         target = sess.get(session_id)
-        if target and source and source != session_id and target.readonly_session \
-                and target.managed_by == source:
-            return {"ok": False, "error": {"code": "readonly_session",
-                    "message": worker.READONLY_SESSION_ERROR}}
-    err = await worker.send_task(worker_id, text, source="agent")
+        if target:
+            denied = _source_access_error(target, source_session_id)
+            if denied:
+                return denied
+    send_kwargs = {"source": source_type}
+    if source_session_id is not None:
+        send_kwargs["source_session_id"] = source_session_id
+    err = await worker.send_task(worker_id, text, **send_kwargs)
     if err:
         if session_id and err in ("Worker not found", "Worker process dead"):
             old = worker.find_worker_by_session(session_id)
@@ -2376,7 +2406,7 @@ async def api_task(data: dict):
                 result = await worker.create_worker(session_id)
                 if not isinstance(result, str):
                     worker_id = result.worker_id
-                    err = await worker.send_task(worker_id, text, source="agent")
+                    err = await worker.send_task(worker_id, text, **send_kwargs)
         if err:
             return {"error": err}
 
@@ -2411,16 +2441,18 @@ async def api_send(data: dict):
             return {"error": "Worker not found"}
         session_id = w.session_id
     target = sess.get(session_id)
-    source = data.get("sourceSessionId") or data.get("source")
-    if source and not target:
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    if source_session_id and not target:
         return {"error": f"Session {session_id} not found"}
-    if source and source != session_id and target.readonly_session \
-            and target.managed_by == source:
-        return {"ok": False, "error": {"code": "readonly_session",
-                "message": worker.READONLY_SESSION_ERROR}}
-    result = await worker.send_session(session_id, text,
-                                       source=source or "agent",
-                                       force=bool(data.get("force")))
+    denied = _source_access_error(target, source_session_id)
+    if denied:
+        return denied
+    send_kwargs = {"source": source_type, "force": bool(data.get("force"))}
+    if source_session_id is not None:
+        send_kwargs["source_session_id"] = source_session_id
+    result = await worker.send_session(session_id, text, **send_kwargs)
     if isinstance(result, dict) and result.get("status") == "error":
         return {"error": result.get("result") or "send failed"}
     return result
@@ -2435,7 +2467,8 @@ async def api_notify(data: dict):
     与 /api/send 同约定不检查 pan_access。
 
     Body: {"targetSessionId": <目标 session id>, "text": <提醒正文>,
-           "source"?: <来源 session id，渲染抬头用>}
+           "source"?: <来源类型，如 agent>,
+           "sourceSessionId"?: <来源 session id>}
 
     内部走 worker.enqueue_notice：与 report 相同的持久化投递链路
     （queue_pending 落盘 + 唤醒 + 无活 worker 立即 auto-spawn，不等
@@ -2446,15 +2479,19 @@ async def api_notify(data: dict):
     if not target or not text:
         return {"error": "targetSessionId and text are required"}
     target_session = sess.get(target)
-    source = data.get("sourceSessionId") or data.get("source")
     if not target_session:
         return {"error": f"Session {target} not found"}
-    if source and source != target and target_session.readonly_session \
-            and target_session.managed_by == source:
-        return {"ok": False, "error": {"code": "readonly_session",
-                "message": worker.READONLY_SESSION_ERROR}}
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    denied = _source_access_error(target_session, source_session_id)
+    if denied:
+        return denied
+    notice_kwargs = {"source": source_type}
+    if source_session_id is not None:
+        notice_kwargs["source_session_id"] = source_session_id
     result = await worker.enqueue_notice(target, str(text),
-                                         source=source)
+                                         **notice_kwargs)
     if isinstance(result, dict) and not result.get("ok", True):
         return {"error": (result.get("error") or {}).get("message", "notify failed")}
     return result
@@ -2472,8 +2509,18 @@ async def api_assign(data: dict):
         return {"ok": False, "error": {"code": "missing_params",
                                        "message": "sessionId and text are required"}}
     task_id = data.get("taskId")
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return {"status": "error", "result": source_error["error"]}
+    target = sess.get(session_id)
+    if not target:
+        return {"status": "error", "result": f"Session {session_id} not found"}
+    denied = _source_access_error(target, source_session_id)
+    if denied:
+        return {"status": "error", "result": denied["error"]["message"]}
     return await worker.assign(session_id, text,
-                               source=data.get("sourceSessionId") or data.get("source") or "agent",
+                               source=source_type,
+                               source_session_id=source_session_id,
                                task_id=task_id)
 
 

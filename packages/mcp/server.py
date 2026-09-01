@@ -1200,7 +1200,7 @@ def agent_assign(session_id: str, text: str, task_id: str | None = None) -> dict
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
-    body = {"sessionId": session_id, "text": text}
+    body = {"sessionId": session_id, "text": text, "source": "agent"}
     caller = _caller_identity()
     if caller and caller.get("id"):
         body["sourceSessionId"] = caller["id"]
@@ -1236,7 +1236,7 @@ def agent_send(session_id: str, text: str = "") -> dict:
     if denied:
         return denied
     caller = _caller_identity()
-    body = {"sessionId": session_id, "text": text}
+    body = {"sessionId": session_id, "text": text, "source": "agent"}
     if caller and caller.get("id"):
         body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/send", body)
@@ -1274,7 +1274,7 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
     if wid is None:
         # 无活 worker：restart 无从谈起 → 入持久队列，watchdog spawn 后分发
         caller = _caller_identity()
-        body = {"sessionId": session_id, "text": text}
+        body = {"sessionId": session_id, "text": text, "source": "agent"}
         if caller and caller.get("id"):
             body["sourceSessionId"] = caller["id"]
         return _api("POST", "/api/send", body)
@@ -1282,7 +1282,7 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
     if not isinstance(result, dict) or result.get("error"):
         return result
     caller = _caller_identity()
-    body = {"workerId": wid, "text": text}
+    body = {"workerId": wid, "text": text, "source": "agent"}
     if caller and caller.get("id"):
         body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/task", body)
@@ -1320,7 +1320,8 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
     body: dict = {"targetSessionId": target_session_id, "text": text}
     caller = _caller_identity()
     if caller and caller.get("id"):
-        body["source"] = caller["id"]
+        body["source"] = "agent"
+        body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/notify", body)
 
 
@@ -1432,8 +1433,9 @@ def worker_task(session_id: str | None = None, worker_id: str | None = None,
             return denied
         caller = _caller_identity()
         return _api("POST", "/api/task", {
-            "workerId": worker_id, "text": text,
-            "source": caller.get("id") if caller and caller.get("id") else source,
+            "workerId": worker_id, "text": text, "source": source,
+            **({"sourceSessionId": caller["id"]}
+               if caller and caller.get("id") else {}),
         })
     if session_id:
         return agent_task(session_id=session_id, text=text, source=source)
@@ -1518,7 +1520,7 @@ def worker_send(worker_id: str | None = None, text: str = "",
         if denied:
             return denied
         caller = _caller_identity()
-        body = {"workerId": worker_id, "text": text}
+        body = {"workerId": worker_id, "text": text, "source": "agent"}
         if caller and caller.get("id"):
             body["sourceSessionId"] = caller["id"]
         return _api("POST", "/api/task", body)
@@ -1562,7 +1564,7 @@ def worker_send_force(worker_id: str | None = None, text: str = "",
             return result
         # 2) 发送消息（与 agent_send 相同）
         caller = _caller_identity()
-        body = {"workerId": worker_id, "text": text}
+        body = {"workerId": worker_id, "text": text, "source": "agent"}
         if caller and caller.get("id"):
             body["sourceSessionId"] = caller["id"]
         return _api("POST", "/api/task", body)

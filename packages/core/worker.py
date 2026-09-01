@@ -228,6 +228,7 @@ class Worker:
     # 入队时从 session 读、自增后随 item.seq 一起落盘。
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
+    _current_source_session_id: str | None = None  # 当前 item 的来源 Session（审计元数据）
     # 当前正在执行的持久 task item。item 在 Worker 持久化接管时已经从
     # Session.queue_pending 删除；这里仅保留运行期上下文用于 taskSeq、错误
     # 归属和 terminal result 配对，不得把它重新放回队列。
@@ -633,6 +634,7 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
         "status": "error",
         "result": result,
         "taskSeq": w._current_seq,
+        "sourceSessionId": w._current_source_session_id,
     })
     await _enqueue_report(w.session_id, "error", result, task_id, w.worker_id)
     if task_id and task_id in _task_status:
@@ -641,6 +643,7 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
             "workerId": w.worker_id, "taskId": task_id, "ts": time.monotonic(),
         }
     w._current_task_id = None
+    w._current_source_session_id = None
     w.status = "idle"
     _signal_task_done(w)
 
@@ -816,6 +819,7 @@ async def _read_stdout(w: Worker):
                     "cli_session_id": s.cli_session_id,
                     "timestamp": datetime.now().isoformat(),
                     "taskSeq": task_seq,
+                    "sourceSessionId": w._current_source_session_id,
                 }
                 if isinstance(result_text, str) and result_text.strip():
                     last = s.history[-1] if s.history else None
@@ -845,6 +849,7 @@ async def _read_stdout(w: Worker):
 
             # taskSeq 已在上方（last_result 补存处）统一用 _current_seq。
             task_seq = w._current_seq
+            task_source_session_id = w._current_source_session_id
             result_text = adapter.extract_result_text(event)
             await _bcast({
                 "type": "worker.result",
@@ -853,6 +858,7 @@ async def _read_stdout(w: Worker):
                 "status": w.status,
                 "result": result_text,
                 "taskSeq": task_seq,
+                "sourceSessionId": task_source_session_id,
             })
             # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
             await _enqueue_report(w.session_id, w.status, result_text, w._current_task_id, w.worker_id)
@@ -873,7 +879,9 @@ async def _read_stdout(w: Worker):
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
                 "status": "idle",
+                "sourceSessionId": task_source_session_id,
             })
+            w._current_source_session_id = None
             _signal_task_done(w)
             _maybe_restart_pending(w)
             continue
@@ -965,6 +973,7 @@ async def _consumer(w: Worker):
         # 报告唤醒信号：正文在落盘 queue_pending，批量拉取拼接成一条消息处理
         if item.get("type") == "report_signal":
             s = _session(w)
+            w._current_source_session_id = None
             if s and s.queue_pending:
                 await _consume_pending_reports(w, s)
             if w._current_report_items:
@@ -1010,6 +1019,7 @@ async def _consumer(w: Worker):
                 text = await _maybe_inject_memory(_session(w), claimed["text"])
             w._current_seq = claimed.get("seq")
             w._current_task_id = claimed.get("taskId")
+            w._current_source_session_id = claimed.get("sourceSessionId")
             w._current_queue_item = claimed
         else:
             # Body-bearing signals have no durable item/receipt and therefore
@@ -1045,6 +1055,9 @@ async def _consumer(w: Worker):
                     # 投递标记记为 history 条目元数据（不进消息正文，恢复对账据此
                     # 去重）；直连消息（claimed=None）不经队列，无对账、不打标记
                     hist_entry["delivered_keys"] = [_delivery_key(claimed)]
+                    hist_entry["source"] = source
+                    if claimed.get("sourceSessionId") is not None:
+                        hist_entry["sourceSessionId"] = claimed.get("sourceSessionId")
                     if claimed.get("taskId") is not None:
                         hist_entry["taskId"] = claimed.get("taskId")
                     if claimed.get("clientMessageId"):
@@ -1149,7 +1162,16 @@ def _format_report_batch(reports: list[dict]) -> str:
             ]
             parts.append("\n".join(lines))
             continue
-        sid = r.get("sessionId") or ""
+        # Reports identify the producing session in sourceSessionId. The
+        # legacy sessionId field remains the report subject/fallback.
+        if r.get("type") == "notice":
+            # Pre-separation notice rows stored the sender in sessionId. Only
+            # honor that legacy shape when no explicit source type exists.
+            candidate_sid = r.get("sourceSessionId") or (
+                r.get("sessionId") if not r.get("source") else "") or ""
+        else:
+            candidate_sid = r.get("sourceSessionId") or r.get("sessionId") or ""
+        sid = candidate_sid if isinstance(candidate_sid, str) else ""
         title = "unknown"
         if sid:
             sess = _sess.get(sid)
@@ -1379,6 +1401,41 @@ def _has_dispatchable_items(s) -> bool:
 _TASK_SOURCES = {"user", "agent", "system_prompt", "report"}
 
 
+def _normalize_source_type(source, default: str = "agent") -> tuple[str | None, str | None]:
+    """Normalize the fixed source type without ever treating an ID as one."""
+    if source is None or source == "":
+        source = default
+    if not isinstance(source, str) or source not in _TASK_SOURCES:
+        return None, f"Unknown task source: {source}"
+    return source, None
+
+
+def _normalize_source_session_id(source_session_id) -> tuple[str | None, str | None]:
+    """Normalize and validate the concrete source Session ID metadata."""
+    if source_session_id is None or source_session_id == "":
+        return None, None
+    if not isinstance(source_session_id, str):
+        return None, "sourceSessionId must be a string"
+    if _sess.get(source_session_id) is None:
+        return None, f"Source session {source_session_id} not found"
+    return source_session_id, None
+
+
+def _validate_source_metadata(target, source, source_session_id,
+                              default: str = "agent") -> tuple[str | None, str | None, str | None]:
+    """Validate source type, source Session metadata, and readonly access."""
+    source_type, error = _normalize_source_type(source, default=default)
+    if error:
+        return None, None, error
+    source_sid, error = _normalize_source_session_id(source_session_id)
+    if error:
+        return None, None, error
+    if (target is not None and source_sid and source_sid != target.id
+            and target.readonly_session and target.managed_by == source_sid):
+        return None, None, READONLY_SESSION_ERROR
+    return source_type, source_sid, None
+
+
 def _task_source(item: dict) -> str | None:
     """Return an explicit task origin, safely normalizing legacy text items."""
     source = item.get("source")
@@ -1386,7 +1443,7 @@ def _task_source(item: dict) -> str | None:
         # Pre-L4 agent sends carried source=agent; an unmarked text envelope is
         # therefore safest as a dashboard/user task, never an agent report.
         return "user"
-    return source if source in _TASK_SOURCES else None
+    return source if isinstance(source, str) and source in _TASK_SOURCES else None
 
 
 def _migrate_legacy_task_items(s) -> bool:
@@ -1458,7 +1515,10 @@ def _consume_legacy_handoff_items(s) -> bool:
                 "role": "user",
                 "content": item.get("text", "") if isinstance(item.get("text"), str) else "",
                 "delivered_keys": [_delivery_key(item)],
+                "source": _task_source(item) or "user",
             }
+            if item.get("sourceSessionId") is not None:
+                entry["sourceSessionId"] = item.get("sourceSessionId")
             if item.get("taskId") is not None:
                 entry["taskId"] = item.get("taskId")
             if item.get("clientMessageId"):
@@ -1470,11 +1530,18 @@ def _consume_legacy_handoff_items(s) -> bool:
         if not _delivery_mark_in_history(s, item)
     ]
     if unmarked_reports:
-        s.history.append({
+        report_entry = {
             "role": "user",
             "content": _format_report_batch(unmarked_reports),
             "delivered_keys": [_delivery_key(item) for item in unmarked_reports],
-        })
+            "source": "report",
+        }
+        source_ids = sorted({item.get("sourceSessionId") for item in unmarked_reports
+                             if isinstance(item.get("sourceSessionId"), str)
+                             and item.get("sourceSessionId")})
+        if source_ids:
+            report_entry["sourceSessionIds"] = source_ids
+        s.history.append(report_entry)
 
     s.queue_pending = keep
     _log.warning(
@@ -1652,8 +1719,15 @@ async def _consume_pending_reports(w: Worker, s):
     # 已写入执行上下文，复用原用户条目，避免恢复时污染上下文。
     if undelivered:
         old_history_len = len(s.history)
-        s.history.append({"role": "user", "content": injected_text,
-                          "delivered_keys": [_delivery_key(it) for it in undelivered]})
+        report_entry = {"role": "user", "content": injected_text,
+                        "delivered_keys": [_delivery_key(it) for it in undelivered],
+                        "source": "report"}
+        source_ids = sorted({it.get("sourceSessionId") for it in undelivered
+                             if isinstance(it.get("sourceSessionId"), str)
+                             and it.get("sourceSessionId")})
+        if source_ids:
+            report_entry["sourceSessionIds"] = source_ids
+        s.history.append(report_entry)
         try:
             await _save_receipt(s)
         except Exception as e:
@@ -1736,6 +1810,13 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
                     "[Worker %s] task id=%s has malformed text; leaving it queued",
                     w.worker_id, task_id)
                 return None
+            _, _, source_error = _validate_source_metadata(
+                s, it.get("source"), it.get("sourceSessionId"))
+            if source_error:
+                _log.warning(
+                    "[Worker %s] task id=%s has invalid source metadata; "
+                    "leaving it queued: %s", w.worker_id, task_id, source_error)
+                return None
             if task_id in _inflight_task_ids:
                 _log.warning(
                     "[Worker %s] task_signal: task id=%s already in-flight, "
@@ -1767,10 +1848,12 @@ async def _claim_pending_task(w: Worker, task_id: str | None) -> dict | None:
                     "consumed stale queue row without replay", w.worker_id, task_id)
                 return None
             source = _task_source(it)
-            if source is None:
+            _, source_sid, source_error = _validate_source_metadata(
+                s, source, it.get("sourceSessionId"))
+            if source is None or source_error:
                 _log.warning(
-                    "[Worker %s] task id=%s has unknown source; leaving it queued",
-                    w.worker_id, task_id)
+                    "[Worker %s] task id=%s has invalid source metadata; leaving it queued: %s",
+                    w.worker_id, task_id, source_error or source)
                 return None
             for prior in s.queue_pending[:index]:
                 if (_is_task_item(prior) and _is_dispatchable(prior)
@@ -1828,6 +1911,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
         return
 
     item = {
+        "source": "report",
+        "sourceSessionId": session_id,
         "status": status,
         "result": result,
         "sessionId": session_id,
@@ -1923,7 +2008,8 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
 
 
 async def enqueue_notice(target_session_id: str, text: str,
-                         source: str | None = None) -> dict:
+                         source: str = "agent",
+                         source_session_id: str | None = None) -> dict:
     """向显式指定的 session 投递一条提醒（MCP agent_notify 的后端实现）。
 
     复刻 _enqueue_report 的持久化投递三步（append 落盘队列 + save_async +
@@ -1935,11 +2021,12 @@ async def enqueue_notice(target_session_id: str, text: str,
        **立即** create_worker 恢复（事件驱动，不等 watchdog tick；spawn
        失败打 warning，消息已落盘、由全局 watchdog 兜底）。
 
-    提醒项形状与 report 一致（{status,result,sessionId,taskId,workerId}），
+    提醒项形状与 report 一致（{source,sourceSessionId,status,result,sessionId,
+    taskId,workerId}），
     加 type="notice" 区分语义：消费端 _consume_pending_reports 按
     ``type != "task"`` 取报告、前端 normalize 非 task/qq 按 report 分支
-    渲染，均天然兼容。渲染时抬头取 source（``@@@@by agent : <source>``），
-    source 缺省（无调用方身份）记 unknown。
+    渲染，均天然兼容。渲染时抬头取 sourceSessionId（``@@@@by agent``），
+    sourceSessionId 缺省（无调用方身份）记 unknown。
 
     返回 {"ok": True, "sessionId": ..., "pending": <队列长度>}；session
     不存在返回 {"ok": False, "error": {...}}。
@@ -1949,16 +2036,20 @@ async def enqueue_notice(target_session_id: str, text: str,
         return {"ok": False, "error": {
             "code": "session_not_found",
             "message": f"Session {target_session_id} not found"}}
-    if source and source != target_session_id and target.readonly_session \
-            and target.managed_by == source:
+    source_type, source_sid, source_error = _validate_source_metadata(
+        target, source, source_session_id)
+    if source_error:
+        code = ("readonly_session" if source_error == READONLY_SESSION_ERROR
+                else "invalid_source_metadata")
         return {"ok": False, "error": {
-            "code": "readonly_session",
-            "message": READONLY_SESSION_ERROR}}
+            "code": code,
+            "message": source_error}}
     item = {
+        "source": source_type,
         "status": "notice",
         "type": "notice",
         "result": text,
-        "sessionId": source or None,
+        "sessionId": target_session_id,
         "taskId": None,
         "workerId": None,
         # Keep the explicit durable state used by report/QQ delivery.  A
@@ -1966,8 +2057,12 @@ async def enqueue_notice(target_session_id: str, text: str,
         # new notices must survive restart with the same queue contract.
         "deliveryState": _DELIVERY_QUEUED,
     }
+    if source_sid is not None:
+        item["sourceSessionId"] = source_sid
     target.queue_pending.append(item)
     await _sess.save_async(target)
+    _log.info("[Session %s] queued notice source=%s sourceSessionId=%s",
+              target_session_id, source_type, source_sid)
     await _wake_worker(target_session_id, auto_spawn=True)
     return {"ok": True, "sessionId": target_session_id,
             "pending": len(target.queue_pending)}
@@ -2247,6 +2342,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
                 "result": f"Worker process dead (returncode={w.process.returncode if w.process else 'none'})",
                 "cli_session_id": s.cli_session_id,
                 "timestamp": datetime.now().isoformat(),
+                "sourceSessionId": w._current_source_session_id,
             }
             await _sess.save_async(s)
         await _bcast({
@@ -2256,6 +2352,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
             "status": "error",
             "result": "Worker process dead",
             "taskSeq": w._current_seq,
+            "sourceSessionId": w._current_source_session_id,
         })
         return
 
@@ -2289,6 +2386,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s):
         "sessionId": w.session_id,
         "status": "running",
         "source": source,
+        "sourceSessionId": w._current_source_session_id,
     })
 
     # Receipt/history 已在 _consumer 中持久化完成；这里仅保存 stdin 写入后可能
@@ -2387,6 +2485,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s):
         "sessionId": w.session_id,
         "status": "running",
         "source": source,
+        "sourceSessionId": w._current_source_session_id,
     })
 
     adapter = w.adapter
@@ -2707,10 +2806,14 @@ def _recover_pending_signals(w: Worker, s) -> bool:
     has_report = False
     for it in pending:
         if _is_task_item(it):
-            if not _is_valid_task_item(it) or _task_source(it) is None:
+            _, _, source_error = _validate_source_metadata(
+                s, it.get("source"), it.get("sourceSessionId"))
+            if (not _is_valid_task_item(it) or _task_source(it) is None
+                    or source_error):
                 _log.warning(
-                    "[Worker %s] skipping malformed/unknown-source task id=%s during recovery",
-                    w.worker_id, it.get("id"))
+                    "[Worker %s] skipping malformed/unknown-source task id=%s "
+                    "during recovery: %s", w.worker_id, it.get("id"),
+                    source_error or it.get("source"))
                 continue
             if _is_dispatchable(it):
                 w.pending_signal.put_nowait({"type": "task_signal", "id": it.get("id")})
@@ -3521,10 +3624,13 @@ def _durable_task_id_seen(s, task_id: str | None) -> bool:
 
 async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              task_id: str | None,
-                             client_message_id: str | None) -> tuple[dict | None, str | None]:
+                             client_message_id: str | None,
+                             source_session_id: str | None = None) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
-    if source not in _TASK_SOURCES:
-        return None, f"Unknown task source: {source}"
+    source_type, source_sid, source_error = _validate_source_metadata(
+        s, source, source_session_id)
+    if source_error:
+        return None, source_error
     if _has_accepted_input_id(s, client_message_id):
         return None, None
     # taskId is the durable idempotency key for orchestration callers.  The
@@ -3542,11 +3648,13 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         "type": "task",
         "id": uuid.uuid4().hex,
         "text": text,
-        "source": source,
+        "source": source_type,
         "seq": seq,
         "taskId": task_id,
         "deliveryState": _DELIVERY_QUEUED,
     }
+    if source_sid is not None:
+        item["sourceSessionId"] = source_sid
     if client_message_id:
         item["clientMessageId"] = client_message_id
         s.accepted_input_ids.append(client_message_id)
@@ -3561,6 +3669,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         s.task_seq = old_seq
         s.accepted_input_ids = old_accepted_input_ids
         return None, f"Failed to persist queued task: {exc}"
+    _log.info("[Session %s] queued task id=%s source=%s sourceSessionId=%s",
+              s.id, item["id"], source_type, source_sid)
     return item, None
 
 
@@ -3615,24 +3725,28 @@ async def _restart_if_native_interrupt_stalls(w: Worker, generation: int) -> Non
 
 async def send_task(worker_id: str, text: str, source: str = "agent",
                     seq: int | None = None, task_id: str | None = None,
-                    client_message_id: str | None = None) -> str | None:
+                    client_message_id: str | None = None,
+                    source_session_id: str | None = None) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
     if w.status == "held":
         return "Worker is held (takeover mode). Restart first."
     # In MCP mode, process is None (spawned per-task). Still allow signal queue.
-    if not _process_alive(w):
-        return "Worker process dead"
-    if w.pending_signal is None:
-        return "Worker signal queue not ready"
-
     # 分配任务序号（result 与 task 配对用；外部可预分配传入，保证 item.seq 与期望一致）。
     # 计数器持久化在 session.task_seq 上，跨 worker respawn 保持单调递增；
     # 早期用 worker 实例属性 _task_counter，respawn 产生新 Worker 后从 1 重新计数。
     s = _session(w)
     if s is None:
         return f"Session {w.session_id} not found"
+    _, source_sid, source_error = _validate_source_metadata(
+        s, source, source_session_id)
+    if source_error:
+        return source_error
+    if not _process_alive(w):
+        return "Worker process dead"
+    if w.pending_signal is None:
+        return "Worker signal queue not ready"
     w.last_activity = time.monotonic()
 
     # L4 落盘改造：任务 item 持久化到 session.queue_pending（落盘真源），
@@ -3640,7 +3754,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     # 按 id 从真源拉取——worker 死亡/回收后任务不丢，重启后由 create_worker /
     # 全局 watchdog 自动恢复消费。
     item, persist_error = await _persist_task_item(
-        s, text, source, seq, task_id, client_message_id)
+        s, text, source, seq, task_id, client_message_id, source_sid)
     if persist_error:
         return persist_error
     if item is None:
@@ -3658,6 +3772,8 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
             "workerId": w.worker_id,
             "sessionId": w.session_id,
             "status": "queued",
+            "source": source,
+            "sourceSessionId": source_sid,
         })
     return None
 
@@ -3677,7 +3793,8 @@ async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
 
 
 async def assign(session_id: str, text: str, source: str = "agent",
-                 task_id: str | None = None) -> dict:
+                 task_id: str | None = None,
+                 source_session_id: str | None = None) -> dict:
     """异步分派：确保 worker 存在 → 发任务 → 立即返回 queued。
 
     完成时通过 worker.result 事件（配合 /ws/agent subscribe）回调。
@@ -3692,9 +3809,10 @@ async def assign(session_id: str, text: str, source: str = "agent",
     target = _sess.get(session_id)
     if target is None:
         return {"status": "error", "result": f"Session {session_id} not found"}
-    if source and source != session_id and target.readonly_session \
-            and target.managed_by == source:
-        return {"status": "error", "result": READONLY_SESSION_ERROR}
+    source_type, source_sid, source_error = _validate_source_metadata(
+        target, source, source_session_id)
+    if source_error:
+        return {"status": "error", "result": source_error}
     # 惰性清理过期条目（TTL），防止注册表长期运行无界增长（H2 泄漏）
     _prune_task_status()
     # taskId 幂等检查
@@ -3738,7 +3856,10 @@ async def assign(session_id: str, text: str, source: str = "agent",
         task_reservation["workerId"] = w.worker_id
         task_reservation["ts"] = time.monotonic()
 
-    send_err = await send_task(w.worker_id, text, source=source, task_id=task_id)
+    send_kwargs = {"source": source_type, "task_id": task_id}
+    if source_sid is not None:
+        send_kwargs["source_session_id"] = source_sid
+    send_err = await send_task(w.worker_id, text, **send_kwargs)
     if send_err:
         if task_id is not None:
             _task_status[task_id] = {"status": "error", "result": send_err,
@@ -3751,7 +3872,8 @@ async def assign(session_id: str, text: str, source: str = "agent",
     return result
 
 
-async def send(worker_id: str, text: str, source: str = "agent") -> dict:
+async def send(worker_id: str, text: str, source: str = "agent",
+               source_session_id: str | None = None) -> dict:
     """向已有 worker 发消息（持续性多轮协作）。
 
     若 worker 已死返回 error（需先 spawn）。完成时通过 worker.result 事件回调。
@@ -3761,7 +3883,8 @@ async def send(worker_id: str, text: str, source: str = "agent") -> dict:
         return {"status": "error", "result": "Worker not found"}
     if not _process_alive(w):
         return {"status": "error", "result": "Worker process dead"}
-    send_err = await send_task(worker_id, text, source=source)
+    send_err = await send_task(worker_id, text, source=source,
+                               source_session_id=source_session_id)
     if send_err:
         return {"status": "error", "result": send_err}
     return {"status": "queued", "workerId": worker_id, "sessionId": w.session_id}
@@ -3769,7 +3892,8 @@ async def send(worker_id: str, text: str, source: str = "agent") -> dict:
 
 async def send_session(session_id: str, text: str, source: str = "agent",
                        force: bool = False,
-                       client_message_id: str | None = None) -> dict:
+                       client_message_id: str | None = None,
+                       source_session_id: str | None = None) -> dict:
     """向 session（agent）发消息（阶段 6 寻址兼容）：编排对象是 agent，
     worker（CLI 进程）是顺带的。
 
@@ -3784,9 +3908,10 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     target = _sess.get(session_id)
     if target is None:
         return {"status": "error", "result": f"Session {session_id} not found"}
-    if source and source != session_id and target.readonly_session \
-            and target.managed_by == source:
-        return {"status": "error", "result": READONLY_SESSION_ERROR}
+    source_type, source_sid, source_error = _validate_source_metadata(
+        target, source, source_session_id)
+    if source_error:
+        return {"status": "error", "result": source_error}
     w = find_alive_worker_by_session(session_id)
     alive = w is not None
     if not alive:
@@ -3794,7 +3919,7 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         if not s:
             return {"status": "error", "result": f"Session {session_id} not found"}
         item, persist_error = await _persist_task_item(
-            s, text, source, None, None, client_message_id)
+            s, text, source_type, None, None, client_message_id, source_sid)
         if persist_error:
             return {"status": "error", "result": persist_error}
         # The queue write is the acknowledgement boundary.  Start recovery
@@ -3806,8 +3931,9 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         err = await restart_worker(w.worker_id)
         if err:
             return {"status": "error", "result": err}
-    send_err = await send_task(w.worker_id, text, source=source,
-                               client_message_id=client_message_id)
+    send_err = await send_task(w.worker_id, text, source=source_type,
+                               client_message_id=client_message_id,
+                               source_session_id=source_sid)
     if send_err:
         return {"status": "error", "result": send_err}
     return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}
