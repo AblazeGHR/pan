@@ -451,6 +451,10 @@ def _session_summary(s: sess.Session) -> dict:
     the React sidebar can be driven entirely by summary=1 (no per-session
     history download for hidden sessions). lastMessage is the last history
     item's text truncated to 200 chars (no full message bodies).
+
+    Since 2026-09-01: also exposes managed / mcpServers / mcpLockReason so the
+    sidebar can run the "has subagent" and "is MetaAgent" special filters
+    without per-session detail calls (mirrors _session_to_api).
     """
     w = worker.find_worker_by_session(s.id)
     a = get_adapter(s.adapter)
@@ -474,6 +478,13 @@ def _session_summary(s: sess.Session) -> dict:
         "lastMessage": last_text,
         "historyTotal": len(s.history),
         "totalUsage": s.total_usage,
+        "managed": s.managed,
+        "mcpServers": [
+            c.get("name")
+            for c in (ac.get("mcp_servers") or [])
+            if isinstance(c, dict) and c.get("name")
+        ],
+        "mcpLockReason": _get_mcp_locked_state(s),
         # 设置字段（供前端列表/InputRow 显示真实值，避免未打开设置弹窗时回退默认）
         "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,

@@ -11,6 +11,7 @@ import { ImportModal } from '@/components/session/ImportModal';
 import { ManageModal } from '@/components/session/ManageModal';
 import { PostboxModal } from '@/components/session/PostboxModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
+import { SPECIAL_FILTERS } from '@/utils/sessionFilters';
 import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
 import { AppSettingsModal } from './AppSettingsModal';
@@ -28,6 +29,7 @@ import {
   Search,
   ArrowUpDown,
   Layers,
+  ListFilter,
   ChevronUp,
   ChevronDown,
   Sun,
@@ -57,6 +59,9 @@ export function Sidebar() {
     setSearchQuery,
     sortBy,
     setSortBy,
+    specialFilters,
+    toggleSpecialFilter,
+    clearSpecialFilters,
     collapsedGroups,
     collapseAllGroups,
     expandAllGroups,
@@ -78,6 +83,7 @@ export function Sidebar() {
   const [manageSessionId, setManageSessionId] = useState<string | null>(null);
   const [postboxSessionId, setPostboxSessionId] = useState<string | null>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // Init editor tree when on editor route and session changes
   useEffect(() => {
@@ -318,6 +324,62 @@ export function Sidebar() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
               />
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowFilterMenu((v) => !v)}
+                className={`flex items-center gap-1 p-1 rounded transition-colors ${
+                  specialFilters.size > 0
+                    ? 'text-accent bg-accent/10'
+                    : 'text-text-tertiary hover:text-text-primary'
+                }`}
+                title="Special filters"
+                aria-haspopup="menu"
+                aria-expanded={showFilterMenu}
+              >
+                <ListFilter size={14} />
+                {specialFilters.size > 0 && (
+                  <span className="text-[10px] leading-none font-medium">{specialFilters.size}</span>
+                )}
+              </button>
+              {showFilterMenu && (
+                <>
+                  {/* Click-away backdrop */}
+                  <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full mt-1 z-30 w-64 rounded border border-border-default bg-bg-primary shadow-lg py-1"
+                  >
+                    {SPECIAL_FILTERS.map((f) => (
+                      <label
+                        key={f.id}
+                        role="menuitemcheckbox"
+                        aria-checked={specialFilters.has(f.id)}
+                        className="flex items-start gap-2 px-3 py-1.5 cursor-pointer hover:bg-bg-hover/40 select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={specialFilters.has(f.id)}
+                          onChange={() => toggleSpecialFilter(f.id)}
+                          className="mt-0.5 accent-accent shrink-0"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-xs text-text-primary">{f.label}</span>
+                          <span className="block text-[10px] text-text-tertiary leading-tight">{f.description}</span>
+                        </span>
+                      </label>
+                    ))}
+                    {specialFilters.size > 0 && (
+                      <button
+                        onClick={clearSpecialFilters}
+                        className="w-full text-left px-3 py-1.5 mt-1 text-xs text-text-tertiary hover:text-text-primary border-t border-border-muted"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <button
               onClick={() => setSortBy(sortBy === 'recent' ? 'name' : 'recent')}

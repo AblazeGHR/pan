@@ -6,6 +6,7 @@ import type {
   ToastMessage,
   UserInputRequest,
 } from '@/types';
+import type { SpecialFilterId } from '@/utils/sessionFilters';
 
 // ── localStorage helpers ──
 
@@ -78,6 +79,29 @@ function persistSortBy(mode: SortMode) {
   }
 }
 
+const HIDDEN_SESSIONS_KEY = 'pan:hiddenSessions';
+
+/** Session ids hidden via Select mode, persisted per session id across reloads. */
+function loadHiddenSessions(): Set<string> {
+  try {
+    const v = localStorage.getItem(HIDDEN_SESSIONS_KEY);
+    if (!v) return new Set();
+    const arr: unknown = JSON.parse(v);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === 'string'));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistHiddenSessions(ids: Set<string>) {
+  try {
+    localStorage.setItem(HIDDEN_SESSIONS_KEY, JSON.stringify([...ids]));
+  } catch {
+    // no-op
+  }
+}
+
 // ── Store ──
 
 export type GroupMode = 'none' | 'workdir' | 'manager';
@@ -116,6 +140,12 @@ interface UIStore {
   groupBy: GroupMode;
   searchQuery: string;
   sortBy: SortMode;
+  /** Active special filters (see utils/sessionFilters); composable with the
+   *  text search and cleared individually. Not persisted (like searchQuery). */
+  specialFilters: Set<SpecialFilterId>;
+  /** Sessions hidden via Select mode's eye button, keyed by session id.
+   *  Persisted to localStorage so hiding survives refreshes/reloads. */
+  hiddenSessionIds: Set<string>;
   collapsedGroups: Set<string>;
   filesCollapsed: boolean;
   theme: Theme;
@@ -142,6 +172,12 @@ interface UIStore {
   cycleGroupBy: () => void;
   setSearchQuery: (q: string) => void;
   setSortBy: (mode: SortMode) => void;
+  toggleSpecialFilter: (id: SpecialFilterId) => void;
+  clearSpecialFilters: () => void;
+  /** Mark a session hidden (Select mode eye button) or shown again. */
+  setSessionHidden: (id: string, hidden: boolean) => void;
+  /** Drop hidden ids that no longer correspond to a live session. */
+  pruneHiddenSessions: (validIds: Set<string>) => void;
   toggleGroupCollapse: (key: string) => void;
   collapseAllGroups: (keys: string[]) => void;
   expandAllGroups: () => void;
@@ -172,6 +208,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
   groupBy: loadGroupBy(),
   searchQuery: '',
   sortBy: loadSortBy(),
+  specialFilters: new Set<SpecialFilterId>(),
+  hiddenSessionIds: loadHiddenSessions(),
   collapsedGroups: new Set<string>(),
   filesCollapsed: false,
   theme: loadTheme(),
@@ -331,6 +369,52 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setSortBy: (mode) => {
     set({ sortBy: mode });
     persistSortBy(mode);
+  },
+
+  toggleSpecialFilter: (id) => {
+    set((s) => {
+      const next = new Set(s.specialFilters);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return { specialFilters: next };
+    });
+  },
+
+  clearSpecialFilters: () => {
+    set({ specialFilters: new Set() });
+  },
+
+  setSessionHidden: (id, hidden) => {
+    set((s) => {
+      const next = new Set(s.hiddenSessionIds);
+      if (hidden) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      persistHiddenSessions(next);
+      return { hiddenSessionIds: next };
+    });
+  },
+
+  pruneHiddenSessions: (validIds) => {
+    set((s) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of s.hiddenSessionIds) {
+        if (validIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      }
+      if (!changed) return {};
+      persistHiddenSessions(next);
+      return { hiddenSessionIds: next };
+    });
   },
 
   toggleGroupCollapse: (key) => {

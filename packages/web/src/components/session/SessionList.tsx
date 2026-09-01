@@ -3,6 +3,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
+import { matchesSpecialFilters } from '@/utils/sessionFilters';
 import type { Session } from '@/types';
 import { FolderOpen, Loader2 } from 'lucide-react';
 
@@ -90,8 +91,19 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const multiSelectMode = useSessionStore((s) => s.multiSelectMode);
   const selectedIds = useSessionStore((s) => s.selectedIds);
 
-  const { groupBy, searchQuery, sortBy, collapsedGroups, toggleGroupCollapse, addCollapsedGroups, removeCollapsedGroups, pruneCollapsedGroups } =
-    useUIStore();
+  const {
+    groupBy,
+    searchQuery,
+    sortBy,
+    specialFilters,
+    hiddenSessionIds,
+    collapsedGroups,
+    toggleGroupCollapse,
+    addCollapsedGroups,
+    removeCollapsedGroups,
+    pruneCollapsedGroups,
+    pruneHiddenSessions,
+  } = useUIStore();
   const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
 
   // Default grouping: adopt the app-settings default as long as the user has
@@ -124,8 +136,30 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     pruneCollapsedGroups(valid);
   }, [sessions, groupBy, pruneCollapsedGroups]);
 
-  const { filtered, grouped, managerTree } = useMemo(() => {
-    let filtered = [...sessions];
+  // Keep hiddenSessionIds consistent with the live list: drop ids of deleted
+  // sessions. Guarded on sessions.length > 0 so a fresh page load (empty list
+  // before the first fetch resolves) never wipes persisted hides.
+  useEffect(() => {
+    if (sessions.length === 0) return;
+    pruneHiddenSessions(new Set(sessions.map((s) => s.id)));
+  }, [sessions, pruneHiddenSessions]);
+
+  const { filtered, grouped, managerTree, allHidden } = useMemo(() => {
+    // Hidden sessions never take part in the normal list — they are excluded
+    // up front so text search, special filters, sorting and grouping all
+    // operate on the visible set. Select mode bypasses the exclusion so a
+    // permanently hidden session is always reachable (recovery path).
+    const base = multiSelectMode
+      ? [...sessions]
+      : sessions.filter((s) => !hiddenSessionIds.has(s.id));
+
+    let filtered = base;
+
+    if (specialFilters.size > 0) {
+      filtered = filtered.filter((s) =>
+        matchesSpecialFilters(s, sessions, specialFilters),
+      );
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -182,8 +216,11 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
     const managerTree = groupBy === 'manager' ? buildManagerTree(filtered) : [];
 
-    return { filtered, grouped: groups, managerTree };
-  }, [sessions, searchQuery, sortBy, groupBy]);
+    // Normal mode, sessions exist, but every one of them is hidden.
+    const allHidden = !multiSelectMode && sessions.length > 0 && base.length === 0;
+
+    return { filtered, grouped: groups, managerTree, allHidden };
+  }, [sessions, searchQuery, sortBy, groupBy, specialFilters, hiddenSessionIds, multiSelectMode]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
@@ -207,6 +244,13 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     },
     [onSessionMenu],
   );
+
+  // Select-mode eye button: toggle the hidden state, read live via getState()
+  // so the callback reference stays stable (React.memo cards don't re-render).
+  const handleToggleHidden = useCallback((id: string) => {
+    const store = useUIStore.getState();
+    store.setSessionHidden(id, !store.hiddenSessionIds.has(id));
+  }, []);
 
   // Recursive collapse/expand: collapsing a manager node also collapses every
   // descendant; expanding it expands the whole subtree (same for un-collapse).
@@ -250,11 +294,21 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     );
   }
 
-  if (filtered.length === 0 && searchQuery.trim()) {
+  // Every session is hidden (normal mode): only Select mode can surface them.
+  if (allHidden) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 px-4 gap-2">
+        <p className="text-sm text-text-tertiary">All sessions hidden</p>
+        <p className="text-xs text-text-tertiary">Enable Select mode to show hidden sessions again</p>
+      </div>
+    );
+  }
+
+  if (filtered.length === 0 && (searchQuery.trim() || specialFilters.size > 0)) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-4 gap-2">
         <p className="text-sm text-text-tertiary">No matching sessions</p>
-        <p className="text-xs text-text-tertiary">Try a different search term</p>
+        <p className="text-xs text-text-tertiary">Try a different search term or clear filters</p>
       </div>
     );
   }
@@ -270,9 +324,11 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             selectedIds={selectedIds}
             multiSelectMode={multiSelectMode}
             collapsedGroups={collapsedGroups}
+            hiddenIds={hiddenSessionIds}
             onSelect={handleSelect}
             onMenu={handleMenu}
             onToggle={handleToggleManagerNode}
+            onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
           />
         ))}
       </div>
@@ -297,6 +353,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
                 isActive={session.id === currentSessionId}
                 isSelected={selectedIds.has(session.id)}
                 multiSelectMode={multiSelectMode}
+                isHidden={hiddenSessionIds.has(session.id)}
+                onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
                 onSelect={handleSelect}
                 onMenu={handleMenu}
               />
@@ -316,6 +374,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           isActive={session.id === currentSessionId}
           isSelected={selectedIds.has(session.id)}
           multiSelectMode={multiSelectMode}
+          isHidden={hiddenSessionIds.has(session.id)}
+          onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
           onSelect={handleSelect}
           onMenu={handleMenu}
         />
@@ -330,9 +390,12 @@ interface ManagerNodeViewProps {
   selectedIds: Set<string>;
   multiSelectMode: boolean;
   collapsedGroups: Set<string>;
+  /** Select-mode hidden ids (eye button source). */
+  hiddenIds: Set<string>;
   onSelect: (id: string) => void;
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
+  onToggleHidden?: (id: string) => void;
 }
 
 /**
@@ -346,9 +409,11 @@ function ManagerNodeView({
   selectedIds,
   multiSelectMode,
   collapsedGroups,
+  hiddenIds,
   onSelect,
   onMenu,
   onToggle,
+  onToggleHidden,
 }: ManagerNodeViewProps) {
   const session = node.session;
   const hasChildren = node.children.length > 0;
@@ -361,6 +426,8 @@ function ManagerNodeView({
         isActive={session.id === currentSessionId}
         isSelected={selectedIds.has(session.id)}
         multiSelectMode={multiSelectMode}
+        isHidden={hiddenIds.has(session.id)}
+        onToggleHidden={onToggleHidden}
         expandable={hasChildren && !multiSelectMode}
         expanded={!collapsed}
         onToggleChildren={(e) => {
@@ -381,9 +448,11 @@ function ManagerNodeView({
               selectedIds={selectedIds}
               multiSelectMode={multiSelectMode}
               collapsedGroups={collapsedGroups}
+              hiddenIds={hiddenIds}
               onSelect={onSelect}
               onMenu={onMenu}
               onToggle={onToggle}
+              onToggleHidden={onToggleHidden}
             />
           ))}
         </div>
@@ -401,9 +470,12 @@ interface ManagerChildViewProps {
   selectedIds: Set<string>;
   multiSelectMode: boolean;
   collapsedGroups: Set<string>;
+  /** Select-mode hidden ids (eye button source). */
+  hiddenIds: Set<string>;
   onSelect: (id: string) => void;
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
+  onToggleHidden?: (id: string) => void;
 }
 
 /**
@@ -428,9 +500,11 @@ function ManagerChildView({
   selectedIds,
   multiSelectMode,
   collapsedGroups,
+  hiddenIds,
   onSelect,
   onMenu,
   onToggle,
+  onToggleHidden,
 }: ManagerChildViewProps) {
   const session = child.session;
   const hasChildren = child.children.length > 0;
@@ -467,6 +541,8 @@ function ManagerChildView({
           isActive={session.id === currentSessionId}
           isSelected={selectedIds.has(session.id)}
           multiSelectMode={multiSelectMode}
+          isHidden={hiddenIds.has(session.id)}
+          onToggleHidden={onToggleHidden}
           expandable={hasChildren && !multiSelectMode}
           expanded={!collapsed}
           onToggleChildren={(e) => {
@@ -489,9 +565,11 @@ function ManagerChildView({
               selectedIds={selectedIds}
               multiSelectMode={multiSelectMode}
               collapsedGroups={collapsedGroups}
+              hiddenIds={hiddenIds}
               onSelect={onSelect}
               onMenu={onMenu}
               onToggle={onToggle}
+              onToggleHidden={onToggleHidden}
             />
           ))}
         </div>
