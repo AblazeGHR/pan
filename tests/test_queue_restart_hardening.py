@@ -146,7 +146,7 @@ def test_client_receipt_id_deduplicates_reconnect_retransmit(monkeypatch):
 
     assert asyncio.run(scenario()) == (None, None)
     assert len(s.queue_pending) == 1
-    assert w.pending_signal.qsize() == 1
+    assert w.pending_signal.qsize() == 2, "duplicate receipt only adds wake hints"
     assert s.accepted_input_ids == ["browser-2"]
     _cleanup()
 
@@ -200,22 +200,6 @@ def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch):
     assert [entry.get("content") for entry in s.history
             if entry.get("role") == "user"].count("offline dashboard input") <= 1
     _cleanup()
-    s = _session()
-    w = _worker(s)
-    monkeypatch.setattr(_sess, "save_async", _save_noop)
-
-    async def scenario():
-        first = await worker.send_task(w.worker_id, "once", source="user",
-                                       client_message_id="browser-2")
-        second = await worker.send_task(w.worker_id, "once", source="user",
-                                        client_message_id="browser-2")
-        return first, second
-
-    assert asyncio.run(scenario()) == (None, None)
-    assert len(s.queue_pending) == 1
-    assert w.pending_signal.qsize() == 1
-    assert s.accepted_input_ids == ["browser-2"]
-    _cleanup()
 
 
 def test_restart_migrates_legacy_user_text_to_task_not_report(monkeypatch):
@@ -231,7 +215,7 @@ def test_unmarked_legacy_text_defaults_to_user_not_agent():
     assert worker._recover_pending_signals(w, s) is True
     assert s.queue_pending[0]["type"] == "task"
     assert s.queue_pending[0]["source"] == "user"
-    assert w.pending_signal.get_nowait()["type"] == "task_signal"
+    assert w.pending_signal.get_nowait()["type"] == "queue_signal"
     _cleanup()
 
 
@@ -264,7 +248,7 @@ def test_non_durable_direct_signal_is_ignored(monkeypatch):
     signal = w.pending_signal.get_nowait()
 
     assert changed is True
-    assert signal["type"] == "task_signal"
+    assert signal["type"] == "queue_signal"
     assert s.queue_pending[0]["type"] == "task"
     assert s.queue_pending[0]["source"] == "user"
     assert "result" not in s.queue_pending[0]
@@ -421,8 +405,9 @@ for line in sys.stdin:
             assert not psutil.pid_exists(old_pid)
             await asyncio.sleep(0.2)
             assert s.last_result is None
-            assert s.queue_pending == [], "interrupt must not requeue a consumed task"
-            assert await worker.retry_pending_item(s.id, "missing") == "Queue item not found"
+            assert s.queue_pending == [], "completed hand-off must not requeue a consumed task"
+            assert await worker.retry_pending_item(s.id, "missing") == \
+                "Queue item missing not found"
             await asyncio.sleep(0.2)
             assert s.last_result is None, "replacement worker must not replay the task"
             assert s.queue_pending == []
@@ -434,3 +419,5 @@ for line in sys.stdin:
 
     asyncio.run(scenario())
     _cleanup()
+
+

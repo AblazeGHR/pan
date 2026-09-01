@@ -188,25 +188,51 @@ def test_send_session_unknown_session_errors():
     _cleanup()
 
 
-def test_send_session_force_live_worker_restarts(monkeypatch):
-    """force=True + 活 worker → 先 restart 再投递。"""
+def test_send_session_force_live_oneshot_restarts_without_stream_spawn(monkeypatch):
+    """force=True + one-shot worker resets its consumer, never stream-spawns."""
     _cleanup()
     s = _setup_session("ses_d")
+    s.adapter_config["output_mode"] = "oneshot"
     _setup_worker(s.id, worker_id="worker-d1")
-    restarts = []
+    delivered = []
+    delivered_event = asyncio.Event()
 
-    async def fake_restart(worker_id):
-        restarts.append(worker_id)
-        return None
+    async def forbidden_stream_spawn(*_args, **_kwargs):
+        raise AssertionError("one-shot restart must not spawn a stream process")
 
-    monkeypatch.setattr(worker, "restart_worker", fake_restart)
+    async def fake_oneshot(w, text, source, session, *, on_handoff=None):
+        if on_handoff is not None:
+            await on_handoff()
+        delivered.append((w.worker_id, text, source, session.id))
+        w.status = "idle"
+        delivered_event.set()
+
+    monkeypatch.setattr(worker, "_spawn_process", forbidden_stream_spawn)
+    monkeypatch.setattr(worker, "_consumer_oneshot", fake_oneshot)
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    w = worker.workers["worker-d1"]
 
     async def scenario():
-        return await worker.send_session(s.id, "urgent", force=True)
+        try:
+            result = await worker.send_session(s.id, "urgent", force=True)
+            await asyncio.wait_for(delivered_event.wait(), timeout=1)
+            return result
+        finally:
+            tasks = [w._consume_task, w._watchdog_task]
+            for task in tasks:
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in tasks if task is not None),
+                return_exceptions=True,
+            )
 
     result = asyncio.run(scenario())
     assert result["status"] == "queued", result
-    assert restarts == ["worker-d1"], restarts
+    assert result["workerId"] == "worker-d1", result
+    assert delivered == [("worker-d1", "urgent", "agent", "ses_d")]
+    assert s.queue_pending == []
+    assert w.generation == 1
     _cleanup()
 
 
@@ -228,8 +254,7 @@ def test_send_session_held_worker_errors(monkeypatch):
 
 
 def test_send_no_worker_enqueue_spawn_recover_closed_loop(monkeypatch):
-    """闭环：send 入队 → 全局 watchdog spawn → _recover_pending_signals
-    补发 task_signal → 按 id 认领。"""
+    """闭环：send 入队 → 全局 watchdog spawn → generic wakeup → FIFO claim。"""
     _cleanup()
     s = _setup_session("ses_loop")
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
@@ -262,13 +287,14 @@ def test_send_no_worker_enqueue_spawn_recover_closed_loop(monkeypatch):
         finally:
             worker.create_worker = orig
         assert spawned == ["ses_loop"], spawned
-        # 3) spawn 后 task_signal 已补发，可按 id 认领
+        # 3) spawn 后 generic wakeup 已补发，可按 durable id 认领
         w = worker.workers["worker-loop"]
         assert w.pending_signal.qsize() == 1
         sig = w.pending_signal.get_nowait()
-        assert sig["type"] == "task_signal"
-        claimed = await worker._claim_pending_task(w, sig["id"])
+        assert sig["type"] == "queue_signal"
+        claimed = await worker._claim_pending_task(w, s.queue_pending[0]["id"])
         assert claimed is not None and claimed["text"] == "queued then delivered"
+        assert s.queue_pending[0]["deliveryState"] == "reserved"
         return r
 
     asyncio.run(scenario())
@@ -355,7 +381,7 @@ def test_mcp_worker_send_missing_params(monkeypatch):
 
 
 def test_mcp_worker_send_force_by_session_no_worker_enqueues(monkeypatch):
-    """worker_send_force(session_id) 无活 worker → 入队（不 restart、不报错）。"""
+    """worker_send_force(session_id) 无活 worker → session restart-or-start 后投递。"""
     _cleanup()
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
@@ -365,9 +391,10 @@ def test_mcp_worker_send_force_by_session_no_worker_enqueues(monkeypatch):
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
     r = mcp_server.worker_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
-    assert any(c[1] == "/api/send" and c[2]["sessionId"] == "ses_child"
+    assert any(c[1] == "/api/sessions/ses_child/worker/restart"
                for c in fake.calls), fake.calls
-    assert all("/restart" not in c[1] for c in fake.calls), "无 worker 不得 restart"
+    assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
+               for c in fake.calls), fake.calls
     _cleanup()
 
 
@@ -382,8 +409,8 @@ def test_mcp_worker_send_force_by_session_with_worker_restarts(monkeypatch):
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
     r = mcp_server.worker_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
-    assert any(c[1] == "/api/worker/worker-9/restart" for c in fake.calls), fake.calls
-    assert any(c[1] == "/api/task" and c[2]["workerId"] == "worker-9"
+    assert any(c[1] == "/api/sessions/ses_child/worker/restart" for c in fake.calls), fake.calls
+    assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
                for c in fake.calls), fake.calls
     _cleanup()
 
@@ -427,7 +454,7 @@ def test_mcp_worker_kill_by_session_id_with_worker(monkeypatch):
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
     r = mcp_server.worker_kill(session_id="ses_child")
-    assert any(c[1] == "/api/kill/worker-7" for c in fake.calls), fake.calls
+    assert any(c[1] == "/api/sessions/ses_child/worker/kill" for c in fake.calls), fake.calls
     _cleanup()
 
 
@@ -468,7 +495,8 @@ def test_api_send_by_session_id_delegates(monkeypatch):
     _cleanup()
     captured = {}
 
-    async def fake_send_session(session_id, text, source="agent", force=False):
+    async def fake_send_session(session_id, text, source="agent", force=False,
+                                client_message_id=None, source_session_id=None):
         captured.update(session_id=session_id, text=text, force=force)
         return {"status": "queued", "workerId": None, "sessionId": session_id,
                 "pendingSpawn": True}
@@ -488,7 +516,8 @@ def test_api_send_workerid_resolves_session(monkeypatch):
     _setup_worker(s.id, worker_id="worker-h1")
     captured = {}
 
-    async def fake_send_session(session_id, text, source="agent", force=False):
+    async def fake_send_session(session_id, text, source="agent", force=False,
+                                client_message_id=None, source_session_id=None):
         captured.update(session_id=session_id, force=force)
         return {"status": "queued", "workerId": "worker-h1", "sessionId": session_id}
 
@@ -505,7 +534,8 @@ def test_api_send_error_translation(monkeypatch):
     """send_session error → 端点翻译为 {"error": ...}（与 /api/task 约定一致）。"""
     _cleanup()
 
-    async def fake_send_session(session_id, text, source="agent", force=False):
+    async def fake_send_session(session_id, text, source="agent", force=False,
+                                client_message_id=None, source_session_id=None):
         return {"status": "error", "result": f"Session {session_id} not found"}
 
     monkeypatch.setattr(worker, "send_session", fake_send_session)

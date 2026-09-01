@@ -135,7 +135,7 @@ def test_notice_to_other_session_enqueued(monkeypatch):
     assert len(src.queue_pending) == 0, "来源 session 队列不受影响"
     w = worker.workers["worker-b"]
     assert w.pending_signal.qsize() == 1
-    assert w.pending_signal.get_nowait() == {"type": "report_signal"}
+    assert w.pending_signal.get_nowait() == {"type": "queue_signal"}
     _cleanup()
 
 
@@ -205,9 +205,9 @@ def test_notice_persists_state_and_coexists_with_task(monkeypatch):
         "ses_mix", "background done", source="agent", source_session_id="ses_src"))
     assert r["ok"] is True
     assert s.queue_pending[-1]["deliveryState"] == "queued"
-    assert worker._recover_pending_signals(w, s) is False
+    assert worker._recover_pending_signals(w, s) is True
     signals = [w.pending_signal.get_nowait() for _ in range(w.pending_signal.qsize())]
-    assert {signal["type"] for signal in signals} == {"task_signal", "report_signal"}
+    assert {signal["type"] for signal in signals} == {"queue_signal"}
     assert all(signal.get("id") != s.queue_pending[-1].get("id")
                for signal in signals if signal["type"] == "task_signal")
     _cleanup()

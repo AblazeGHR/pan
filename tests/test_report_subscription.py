@@ -83,16 +83,17 @@ def test_enqueue_report_subscribed(monkeypatch):
 
     assert len(mgr.queue_pending) == 1
     r = mgr.queue_pending[0]
-    assert r == {
-        "source": "report",
-        "sourceSessionId": "ses_child",
-        "status": "done",
-        "result": "the answer",
-        "sessionId": "ses_child",
-        "taskId": "task-1",
-        "workerId": "worker-1",
-        "deliveryState": "queued",
-    }
+    assert r["type"] == "report"
+    assert r["kind"] == "report"
+    assert r["id"] == r["queueItemId"]
+    assert r["source"] == "report"
+    assert r["sourceSessionId"] == "ses_child"
+    assert r["status"] == "done"
+    assert r["result"] == "the answer"
+    assert r["sessionId"] == "ses_child"
+    assert r["taskId"] == "task-1"
+    assert r["workerId"] == "worker-1"
+    assert r["deliveryState"] == "queued"
     _cleanup()
 
 
@@ -144,7 +145,7 @@ def test_enqueue_report_wakes_manager_consumer(monkeypatch):
     asyncio.run(scenario())
 
     item = asyncio.run(mw.pending_signal.get())
-    assert item == {"type": "report_signal"}, f"got {item}"
+    assert item == {"type": "queue_signal"}, f"got {item}"
     _cleanup()
 
 
@@ -181,17 +182,18 @@ def test_enqueue_report_with_type_zombie(monkeypatch):
 
     asyncio.run(scenario())
 
-    assert mgr.queue_pending[0] == {
-        "source": "report",
-        "sourceSessionId": "ses_child",
-        "status": "error",
-        "type": "zombie",
-        "result": "worker died: test",
-        "sessionId": "ses_child",
-        "taskId": "task-1",
-        "workerId": "worker-1",
-        "deliveryState": "queued",
-    }
+    row = mgr.queue_pending[0]
+    assert row["id"] == row["queueItemId"]
+    assert row["source"] == "report"
+    assert row["sourceSessionId"] == "ses_child"
+    assert row["status"] == "error"
+    assert row["type"] == "zombie"
+    assert row["kind"] == "report"
+    assert row["result"] == "worker died: test"
+    assert row["sessionId"] == "ses_child"
+    assert row["taskId"] == "task-1"
+    assert row["workerId"] == "worker-1"
+    assert row["deliveryState"] == "queued"
     _cleanup()
 
 

@@ -134,7 +134,7 @@ def test_agent_send_equals_worker_send(monkeypatch):
 
 # ── agent_send_force ──
 
-def test_agent_send_force_no_worker_enqueues(monkeypatch):
+def test_agent_send_force_no_worker_starts_then_sends_by_session(monkeypatch):
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
         "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
@@ -143,11 +143,11 @@ def test_agent_send_force_no_worker_enqueues(monkeypatch):
     _env(monkeypatch)
     r = mcp_server.agent_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
-    assert any(c[1] == "/api/send" and c[2]["sessionId"] == "ses_child"
+    assert any(c[1] == "/api/sessions/ses_child/worker/restart" for c in fake.calls)
+    assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
                and c[2]["source"] == "agent"
                and c[2]["sourceSessionId"] == "ses_ma"
                for c in fake.calls)
-    assert all("/restart" not in c[1] for c in fake.calls)
 
 
 def test_agent_send_force_with_worker_restarts(monkeypatch):
@@ -159,8 +159,8 @@ def test_agent_send_force_with_worker_restarts(monkeypatch):
     _env(monkeypatch)
     r = mcp_server.agent_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
-    assert any(c[1] == "/api/worker/worker-9/restart" for c in fake.calls)
-    assert any(c[1] == "/api/task" and c[2]["workerId"] == "worker-9"
+    assert any(c[1] == "/api/sessions/ses_child/worker/restart" for c in fake.calls)
+    assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
                and c[2]["source"] == "agent"
                and c[2]["sourceSessionId"] == "ses_ma"
                for c in fake.calls)
@@ -202,7 +202,7 @@ def test_agent_kill_with_worker(monkeypatch):
     monkeypatch.setattr(mcp_server, "_api", fake)
     _env(monkeypatch)
     mcp_server.agent_kill(session_id="ses_child")
-    assert any(c[1] == "/api/kill/worker-7" for c in fake.calls)
+    assert any(c[1] == "/api/sessions/ses_child/worker/kill" for c in fake.calls)
 
 
 def test_agent_kill_denied_unmanaged(monkeypatch):

@@ -10,6 +10,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -34,6 +35,7 @@ def _cleanup():
     worker.workers.clear()
     worker._task_status.clear()
     worker._spawn_locks.clear()  # per-session asyncio.Lock 绑定事件循环，测试间需清掉
+    worker._recovery_required.clear()
     _sess._cache.clear()
     _sess._all_loaded = False  # 重置磁盘加载标记，避免残留 session 混入
     worker.set_broadcaster(None)
@@ -60,6 +62,38 @@ def _setup_worker(session_id, worker_id="worker-test"):
     )
     worker.workers[w.worker_id] = w
     return w
+
+
+def test_restart_or_start_creates_when_session_has_no_live_worker(monkeypatch):
+    _setup_session("ses_control")
+    created = object()
+    create = AsyncMock(return_value=created)
+    restart = AsyncMock()
+    monkeypatch.setattr(worker, "_create_worker", create)
+    monkeypatch.setattr(worker, "_restart_worker_unlocked", restart)
+    monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: None)
+
+    result = asyncio.run(worker.restart_or_start_worker("ses_control"))
+
+    assert result is created
+    create.assert_awaited_once_with("ses_control")
+    restart.assert_not_awaited()
+
+
+def test_restart_or_start_restarts_live_worker_without_creating(monkeypatch):
+    _setup_session("ses_control")
+    live = SimpleNamespace(worker_id="worker-live")
+    create = AsyncMock()
+    restart = AsyncMock(return_value=None)
+    monkeypatch.setattr(worker, "_create_worker", create)
+    monkeypatch.setattr(worker, "_restart_worker_unlocked", restart)
+    monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: live)
+
+    result = asyncio.run(worker.restart_or_start_worker("ses_control"))
+
+    assert result is live
+    restart.assert_awaited_once_with("worker-live")
+    create.assert_not_awaited()
 
 
 # ── global watchdog tick ──
@@ -147,6 +181,105 @@ def test_global_watchdog_tick_skips_empty_queue(monkeypatch):
 
     asyncio.run(worker._global_watchdog_tick())
     assert spawned == [], "must NOT spawn when queue_pending is empty"
+    _cleanup()
+
+
+def test_abnormal_recovery_restarts_session_without_queue(monkeypatch):
+    """An active-turn death still recreates the runtime after its receipt is closed."""
+    _cleanup()
+    _setup_session("ses_abnormal")
+    created = object()
+    create = AsyncMock(return_value=created)
+    monkeypatch.setattr(worker, "create_worker", create)
+    monkeypatch.setattr(worker, "find_worker_by_session", lambda _: None)
+    monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: None)
+
+    asyncio.run(worker._recover_session("ses_abnormal", force=True))
+
+    create.assert_awaited_once_with("ses_abnormal")
+    _cleanup()
+
+
+def test_idle_recovery_without_pending_work_does_not_recreate(monkeypatch):
+    """Normal idle reclamation must remain terminal when no durable work exists."""
+    _cleanup()
+    _setup_session("ses_idle")
+    create = AsyncMock()
+    monkeypatch.setattr(worker, "create_worker", create)
+
+    asyncio.run(worker._recover_session("ses_idle"))
+
+    create.assert_not_awaited()
+    _cleanup()
+
+
+def test_recovery_scheduler_deduplicates_lifecycle_and_watchdog_requests(monkeypatch):
+    """Multiple recovery triggers for one session share one create attempt."""
+    _cleanup()
+    _setup_session("ses_race")
+    spawned = []
+
+    async def fake_create(session_id):
+        spawned.append(session_id)
+        await asyncio.sleep(0.01)
+        return object()
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+    monkeypatch.setattr(worker, "find_worker_by_session", lambda _: None)
+    monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: None)
+
+    async def scenario():
+        first = worker._schedule_session_recovery("ses_race", force=True)
+        second = worker._schedule_session_recovery("ses_race", force=True)
+        assert first is second
+        await asyncio.gather(first, second)
+
+    asyncio.run(scenario())
+    assert spawned == ["ses_race"]
+    _cleanup()
+
+
+def test_stdout_death_rebuilds_running_session_once(monkeypatch):
+    """An EOF during a turn schedules force recovery and removes the corpse."""
+    _cleanup()
+    session = _setup_session(
+        "ses_crash",
+        queue_pending=[{"type": "task", "text": "continue", "deliveryState": "queued"}],
+    )
+
+    class EofStdout:
+        async def read(self, _size):
+            return b""
+
+    process = SimpleNamespace(returncode=1, stdout=EofStdout())
+    dead = worker.Worker(
+        worker_id="worker-crash",
+        session_id=session.id,
+        adapter=CbcAdapter(),
+        status="running",
+        process=process,
+        pending_signal=asyncio.Queue(),
+    )
+    worker.workers[dead.worker_id] = dead
+    rebuilt = []
+
+    async def fake_create(session_id):
+        rebuilt.append(session_id)
+        return _setup_worker(session_id, worker_id="worker-rebuilt")
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+    monkeypatch.setattr(worker, "_enqueue_zombie_report", AsyncMock())
+    monkeypatch.setattr(worker, "_bcast", AsyncMock())
+
+    async def scenario():
+        await worker._read_stdout(dead)
+        recovery = worker._recovery_tasks.get(session.id)
+        if recovery is not None:
+            await recovery
+
+    asyncio.run(scenario())
+    assert rebuilt == [session.id]
+    assert worker.find_worker_by_session(session.id).worker_id == "worker-rebuilt"
     _cleanup()
 
 
@@ -291,7 +424,7 @@ def test_wake_worker_auto_spawn_skips_live_worker(monkeypatch):
     asyncio.run(worker._wake_worker("ses_qq", auto_spawn=True))
     assert spawned == [], "live worker must only be woken, not re-spawned"
     assert w.pending_signal.qsize() == 1
-    assert w.pending_signal.get_nowait() == {"type": "report_signal"}
+    assert w.pending_signal.get_nowait() == {"type": "queue_signal"}
     _cleanup()
 
 

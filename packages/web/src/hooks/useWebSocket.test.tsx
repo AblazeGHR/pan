@@ -421,9 +421,10 @@ describe('useWebSocket worker.result wiring', () => {
     });
 
     const s = useSessionStore.getState().sessions.find((x) => x.id === 'B');
-    // handleWorkerUpdate(null) → dot offline (null 经 ?? 归一为 undefined，
-    // WorkerDot 视同为 offline)，history 不动（崩溃安全）。
-    expect(s?.workerStatus).toBeUndefined();
+    // handleWorkerUpdate(null) → 显式 offline/null，避免 stale runtime id
+    // 继续驱动控制按钮；history 不动（崩溃安全）。
+    expect(s?.workerStatus).toBeNull();
+    expect(s?.workerId).toBeNull();
     expect(s?.history.map((m) => m.content)).toEqual(['u1']);
   });
 

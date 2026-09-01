@@ -393,7 +393,7 @@ async def no_cache_api(request: Request, call_next):
 
 def _session_to_api(s: sess.Session):
     """Convert Session to API response dict."""
-    w = worker.find_worker_by_session(s.id)
+    w = worker.find_alive_worker_by_session(s.id)
     a = get_adapter(s.adapter)
     config = load_config().get(s.adapter, {})
     ac = s.adapter_config
@@ -468,7 +468,7 @@ def _session_summary(s: sess.Session) -> dict:
     sidebar can run the "has subagent" and "is MetaAgent" special filters
     without per-session detail calls (mirrors _session_to_api).
     """
-    w = worker.find_worker_by_session(s.id)
+    w = worker.find_alive_worker_by_session(s.id)
     a = get_adapter(s.adapter)
     config = load_config().get(s.adapter, {})
     ac = s.adapter_config
@@ -1318,6 +1318,7 @@ async def _replay_pending_interactions(
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
                 "event": status_event,
                 "replayed": True,
             })
@@ -1327,6 +1328,7 @@ async def _replay_pending_interactions(
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
                 "event": usage_event,
                 "replayed": True,
             })
@@ -1336,6 +1338,7 @@ async def _replay_pending_interactions(
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
                 "event": rate_limits_event,
                 "replayed": True,
             })
@@ -1348,6 +1351,7 @@ async def _replay_pending_interactions(
                     "type": "worker.stream",
                     "workerId": w.worker_id,
                     "sessionId": w.session_id,
+                    "generation": getattr(w, "generation", 0),
                     "event": native_event,
                     "replayed": True,
                 })
@@ -1356,6 +1360,7 @@ async def _replay_pending_interactions(
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
                 "event": event,
                 "replayed": True,
             })
@@ -1409,9 +1414,16 @@ async def ws_endpoint(ws: WebSocket):
                                             "queueItemId": result.get("queueItemId"),
                                             "queueRevision": getattr(sess.get(session_id), "queue_revision", 0)})
             elif msg_type == "worker_control":
+                session_id = msg.get("sessionId")
                 worker_id = msg.get("workerId")
                 control = msg.get("control")
-                if worker_id and isinstance(control, dict):
+                if session_id and isinstance(control, dict):
+                    result = await worker.send_session_control(session_id, control)
+                    if isinstance(result, str):
+                        await ws.send_json({"type": "error", "message": result})
+                    elif result is None:
+                        await ws.send_json({"type": "error", "message": "Worker not found"})
+                elif worker_id and isinstance(control, dict):
                     err = await worker.send_control_message(worker_id, control)
                     if err:
                         await ws.send_json({"type": "error", "message": err})
@@ -1485,7 +1497,7 @@ async def ws_agent_endpoint(ws: WebSocket):
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
                 if session_id and text:
-                    w = worker.find_worker_by_session(session_id)
+                    w = worker.find_alive_worker_by_session(session_id)
                     if not w:
                         result = await worker.create_worker(session_id)
                         if isinstance(result, str):
@@ -1517,6 +1529,7 @@ async def ws_agent_endpoint(ws: WebSocket):
                         "type": "worker.spawned",
                         "sessionId": s.id,
                         "workerId": result.worker_id,
+                        "generation": result.generation,
                         "name": s.name,
                         "status": result.status,
                         "model": s.model,
@@ -1542,11 +1555,9 @@ async def ws_agent_endpoint(ws: WebSocket):
 
             elif msg_type == "kill":
                 session_id = msg.get("sessionId") or msg.get("workerId")
-                w = worker.find_worker_by_session(session_id)
-                if w:
-                    err = await worker.kill_worker(w.worker_id)
-                    if err:
-                        await ws.send_json({"type": "error", "message": err})
+                result = await worker.kill_session_worker(session_id)
+                if isinstance(result, str):
+                    await ws.send_json({"type": "error", "message": result})
 
             elif msg_type == "list":
                 sessions = sess.list_all()
@@ -1651,7 +1662,7 @@ async def api_session_managers(session_id: str):
         cur = manager
     managers = []
     for i, m in enumerate(reversed(chain)):  # topmost first
-        w = worker.find_worker_by_session(m.id)
+        w = worker.find_alive_worker_by_session(m.id)
         last_status = (m.last_result or {}).get("status") \
             if isinstance(m.last_result, dict) else None
         managers.append({
@@ -1704,7 +1715,10 @@ def _queue_item_id(item: dict) -> str:
         # deliveryState changes during hand-off; it is bookkeeping, not item
         # identity.  Keep report/QQ ids stable so a stale panel action still
         # addresses the same durable item.
-        identity = {k: v for k, v in item.items() if k != "deliveryState"}
+        identity = {k: v for k, v in item.items() if k not in {
+            "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
+            "deliveryAttempts", "nextAttemptAt", "lastDeliveryError",
+        }}
         canonical = json.dumps(identity, sort_keys=True, ensure_ascii=False)
     except (TypeError, ValueError):
         canonical = repr(item)
@@ -1825,7 +1839,7 @@ async def api_session_queue(session_id: str):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    migrated = worker._migrate_legacy_task_items(s)
+    migrated = worker._migrate_queue_delivery_state(s)
     migrated = worker._sync_queued_ledger(s) or migrated
     if migrated:
         await sess.save_async(s)
@@ -1877,13 +1891,13 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
     expected = data.get("expectedRevision")
     async with worker.queue_lock(session_id):
         target = next((it for it in s.queue_pending or []
-                       if isinstance(it, dict) and worker._queue_item_id(it) == item_id), None)
+                       if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
         if target is None:
             if item_id in (getattr(s, "queue_delivery_ledger", {}) or {}):
                 return _queue_error("queue_item_not_editable", "Only queued user task messages can be edited", s)
             return _queue_error("not_found", "Queue item not found", s)
-        if (worker._queue_kind(target) != "task"
-                or worker._queue_source(target) != "user"):
+        if (worker._queue_item_kind(target) != "task"
+                or worker._task_source(target) != "user"):
             return _queue_error("queue_item_readonly", "Only user task queue items can be edited", s)
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
@@ -2066,7 +2080,7 @@ async def api_update_session(session_id: str, data: dict):
     # respawn 让新配置生效；running worker 标记 pending_restart，回 idle 时
     # 自动 respawn（worker._maybe_restart_pending）。
     if any(k in data for k in _PROCESS_AFFECTING_FIELDS):
-        w = worker.find_worker_by_session(session_id)
+        w = worker.find_alive_worker_by_session(session_id)
         if w:
             if w.status == "idle" and w.process is not None:
                 asyncio.create_task(worker._respawn_worker(w))
@@ -2896,7 +2910,7 @@ async def api_task(data: dict):
             return denied
 
     if not worker_id and session_id:
-        w = worker.find_worker_by_session(session_id)
+        w = worker.find_alive_worker_by_session(session_id)
         if w:
             worker_id = w.worker_id
 
@@ -2912,6 +2926,7 @@ async def api_task(data: dict):
             "type": "worker.spawned",
             "workerId": worker_id,
             "sessionId": session_id,
+            "generation": result.generation,
             "name": s.name,
             "status": "idle",
             "model": s.model or get_adapter(s.adapter).default_model,
@@ -3414,8 +3429,9 @@ async def api_list():
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
                 "status": w.status,
+            "generation": getattr(w, "generation", 0),
             }
-            for w in worker.list_workers()
+            for w in worker.list_live_workers()
         ]
     }
 
@@ -3739,6 +3755,33 @@ async def api_restart(worker_id: str):
     return {"workerId": worker_id, "status": "restarted"}
 
 
+@app.post("/api/sessions/{session_id}/worker/restart")
+async def api_restart_or_start(session_id: str):
+    """Restart the session's live worker, or start it when it is gone."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    result = await worker.restart_or_start_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    return {
+        "workerId": result.worker_id,
+        "sessionId": session_id,
+        "status": result.status,
+    }
+
+
+@app.post("/api/sessions/{session_id}/worker/kill")
+async def api_session_kill(session_id: str):
+    """Kill the session's live worker; workerId is response detail only."""
+    result = await worker.kill_session_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "offline"}
+
+
 @app.post("/api/worker/{worker_id}/settings")
 async def api_worker_settings(worker_id: str, data: dict):
     """Apply model/mode/thinking settings to a session and respawn the worker."""
@@ -3856,6 +3899,17 @@ async def api_interrupt(worker_id: str):
     return {"workerId": worker_id, "status": "interrupted"}
 
 
+@app.post("/api/sessions/{session_id}/worker/interrupt")
+async def api_session_interrupt(session_id: str):
+    """Interrupt the session's live worker; workerId is response detail only."""
+    result = await worker.interrupt_session_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "interrupted"}
+
+
 @app.post("/api/worker/{worker_id}/control")
 async def api_worker_control(worker_id: str, data: dict):
     """Send an adapter-native out-of-band control to a live worker."""
@@ -3864,6 +3918,18 @@ async def api_worker_control(worker_id: str, data: dict):
     if err:
         return {"error": err}
     return {"workerId": worker_id, "status": "control sent"}
+
+
+@app.post("/api/sessions/{session_id}/worker/control")
+async def api_session_worker_control(session_id: str, data: dict):
+    """Send a native control using the session as the stable address."""
+    control = data.get("control") if isinstance(data, dict) and isinstance(data.get("control"), dict) else data
+    result = await worker.send_session_control(session_id, control)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"error": "Worker not found"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "control sent"}
 
 
 @app.post("/api/worker/{worker_id}/steer")
@@ -3875,6 +3941,18 @@ async def api_worker_steer(worker_id: str, data: dict):
     if err:
         return {"error": err}
     return {"workerId": worker_id, "status": "steer sent"}
+
+
+@app.post("/api/sessions/{session_id}/worker/steer")
+async def api_session_worker_steer(session_id: str, data: dict):
+    result = await worker.steer_session_worker(
+        session_id, data.get("text") if isinstance(data, dict) else "",
+    )
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"error": "Worker not found"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent"}
 
 
 @app.post("/api/worker/{worker_id}/claude-permission")
@@ -3919,6 +3997,7 @@ async def api_takeover(worker_id: str):
         "type": "worker.status",
         "sessionId": w.session_id,
         "workerId": w.worker_id,
+        "generation": getattr(w, "generation", 0),
         "status": "held",
     })
 
@@ -3942,6 +4021,52 @@ async def api_takeover(worker_id: str):
         # 裸 join 的命令无法直接粘贴执行（takeover 修复）。
         # list2cmdline 逐参数引号转义（同 /takeover）：takeover 命令含 --resume
         # <cli_session_id>，裸 join 的命令无法直接粘贴执行。
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
+        "takeoverPid": w.takeover_pid,
+        "status": "takeover started",
+    }
+
+
+@app.post("/api/sessions/{session_id}/worker/takeover")
+async def api_session_takeover(session_id: str):
+    """Take over the session's live worker using sessionId as the control key."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    w = worker.find_alive_worker_by_session(session_id)
+    if not w:
+        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+    if not s.cli_session_id:
+        return {"error": "Worker has no CLI session yet"}
+    adapter_cmd = w.adapter.takeover_command(s)
+    if not adapter_cmd:
+        return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
+
+    result = await worker.takeover_session_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+    w = result
+    await broadcast({
+        "type": "worker.status",
+        "sessionId": session_id,
+        "workerId": w.worker_id,
+        "generation": getattr(w, "generation", 0),
+        "status": "held",
+    })
+    try:
+        w.takeover_pid = _open_terminal(
+            subprocess.list2cmdline(adapter_cmd), s.workdir or Path.cwd(),
+        )
+    except FileNotFoundError:
+        return {"error": "terminal opener not found"}
+    except OSError as e:
+        return {"error": str(e)}
+    return {
+        "workerId": w.worker_id,
+        "sessionId": session_id,
+        "cliSessionId": s.cli_session_id,
         "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
         "takeoverPid": w.takeover_pid,
         "status": "takeover started",
@@ -3975,6 +4100,28 @@ async def api_takeover_command(worker_id: str):
         "cliSessionId": s.cli_session_id,
         # list2cmdline 逐参数引号转义（同 /takeover）：takeover 命令含 --resume
         # <cli_session_id>，裸 join 的命令无法直接粘贴执行。
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
+    }
+
+
+@app.get("/api/sessions/{session_id}/worker/takeover-command")
+async def api_session_takeover_command(session_id: str):
+    """Return a takeover command by session, without changing runtime state."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    w = worker.find_alive_worker_by_session(session_id)
+    if not w:
+        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+    if not s.cli_session_id:
+        return {"error": "Worker has no CLI session yet"}
+    adapter_cmd = w.adapter.takeover_command(s)
+    if not adapter_cmd:
+        return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
+    return {
+        "workerId": w.worker_id,
+        "sessionId": session_id,
+        "cliSessionId": s.cli_session_id,
         "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
     }
 

@@ -1207,6 +1207,16 @@ def test_item_to_block_mapping():
     assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregated_output": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
     assert codex_sessions._item_to_block({"type": "commandExecution", "command": "cmd", "aggregatedOutput": "out"}) == {"role": "tool", "content": "cmd\n→ out"}
     assert codex_sessions._item_to_block({"type": "mcpToolCall", "tool": "pan_probe", "arguments": {"x": 1}, "result": "ok"}) == {"role": "tool", "content": 'pan_probe({"x": 1})\n→ ok'}
+    structured_result = {"content": [{"type": "text", "text": "ok"}], "structuredContent": None, "_meta": None}
+    assert codex_sessions._item_to_block({"type": "mcpToolCall", "tool": "pan_probe", "result": structured_result}) == {
+        "role": "tool",
+        "content": 'pan_probe({})\n→ ' + json.dumps(structured_result, ensure_ascii=False),
+    }
+    structured_error = {"message": "resources/list failed"}
+    assert codex_sessions._item_to_block({"type": "mcpToolCall", "tool": "pan_probe", "error": structured_error}) == {
+        "role": "tool",
+        "content": 'pan_probe({})\n→ ' + json.dumps(structured_error, ensure_ascii=False),
+    }
     file_change = codex_sessions._item_to_block({"type": "fileChange", "changes": [{"path": "a.txt"}]})
     assert file_change and file_change["role"] == "tool" and file_change["content"].startswith("FileChange(")
     native_tool = codex_sessions._item_to_block({

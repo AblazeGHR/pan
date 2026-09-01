@@ -11,6 +11,7 @@ import { ImportModal } from '@/components/session/ImportModal';
 import { ManageModal } from '@/components/session/ManageModal';
 import { PostboxModal } from '@/components/session/PostboxModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
+import { SessionDetailsModal } from '@/components/session/SessionDetailsModal';
 import { SPECIAL_FILTERS } from '@/utils/sessionFilters';
 import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
@@ -82,6 +83,7 @@ export function Sidebar() {
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [manageSessionId, setManageSessionId] = useState<string | null>(null);
   const [postboxSessionId, setPostboxSessionId] = useState<string | null>(null);
+  const [detailsSessionId, setDetailsSessionId] = useState<string | null>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
@@ -465,6 +467,7 @@ export function Sidebar() {
                 }
               }}
               onPostbox={setPostboxSessionId}
+              onDetails={setDetailsSessionId}
             />
           )}
         </>
@@ -609,6 +612,10 @@ export function Sidebar() {
         open={!!postboxSessionId}
         onClose={() => setPostboxSessionId(null)}
         sessionId={postboxSessionId}
+      />
+      <SessionDetailsModal
+        session={detailsSessionId ? sessions.find((s) => s.id === detailsSessionId) ?? null : null}
+        onClose={() => setDetailsSessionId(null)}
       />
     </aside>
   );

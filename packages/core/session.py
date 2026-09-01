@@ -146,6 +146,12 @@ def _strip_delivery_marks(history: list[dict]) -> list[dict]:
 # wrote them as top-level fields; migration lives in _from_data / __post_init__.
 _PAN_ACCESS_KEYS = ("restrict_to_managed", "can_claim_unmanaged", "auto_claim_created")
 
+# Queue receipts written by the previous queue implementation are retained as
+# compatibility metadata.  They are not a second queue: ``queue_pending`` is
+# still the only durable delivery queue.  Keeping the receipt ledger here lets
+# a late taskId/clientMessageId retry resolve to the original receipt after an
+# upgrade instead of creating a second queue item.
+
 
 @dataclass(init=False)
 class Session:
@@ -263,9 +269,12 @@ class Session:
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
         self.queue_delivery_ledger = (
-            queue_delivery_ledger if queue_delivery_ledger is not None else {}
+            queue_delivery_ledger if isinstance(queue_delivery_ledger, dict) else {}
         )
-        self.queue_revision = int(queue_revision or 0)
+        try:
+            self.queue_revision = int(queue_revision or 0)
+        except (TypeError, ValueError):
+            self.queue_revision = 0
         self.task_seq = task_seq
         self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()

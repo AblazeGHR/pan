@@ -9,16 +9,16 @@ const wsMock = vi.hoisted(() => ({
   send: vi.fn(() => true),
 }));
 const apiMock = vi.hoisted(() => ({
-  sendWorkerControl: vi.fn(),
+  sendSessionWorkerControl: vi.fn(),
 }));
 
 vi.mock('@/services/ws', () => ({ wsClient: wsMock }));
-vi.mock('@/services/api', () => ({ sendWorkerControl: apiMock.sendWorkerControl }));
+vi.mock('@/services/api', () => ({ sendSessionWorkerControl: apiMock.sendSessionWorkerControl }));
 
 describe('ApprovalBanner Claude permissions', () => {
   beforeEach(() => {
     wsMock.send.mockClear();
-    apiMock.sendWorkerControl.mockReset();
+    apiMock.sendSessionWorkerControl.mockReset();
     useSessionStore.setState({ currentSessionId: 'session-1' });
     useUIStore.setState({
       approvalRequests: [{
@@ -49,7 +49,7 @@ describe('ApprovalBanner Claude permissions', () => {
 
     expect(wsMock.send).toHaveBeenCalledWith({
       type: 'worker_control',
-      workerId: 'worker-1',
+      sessionId: 'session-1',
       control: {
         type: 'permission_response',
         request_id: 'request-1',

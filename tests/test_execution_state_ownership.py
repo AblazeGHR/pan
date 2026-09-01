@@ -1,8 +1,8 @@
 """执行状态归属审计的固化测试（本 worktree 链最后一块）。
 
-审计结论（详见分支回报）：执行状态全部留在 Worker 内存，**不迁 session**——
-任务 item 在 Worker receipt 时即从 session.queue_pending 消费，崩溃后不重投；执行
-状态的生命周期 = 执行尝试的生命周期 = worker 进程生命周期，
+执行状态仍全部留在 Worker 内存，**不迁 session**；但 queue item 在 CLI hand-off
+前保留于 session.queue_pending，交接失败/取消/重启可恢复。执行状态的生命周期 =
+执行尝试的生命周期 = worker 进程生命周期，
 respawn 后归零不是缺陷而是正确语义：
 
 - (b) per-worker 进程语义：_task_started_at（新尝试重新计时）、last_activity
@@ -104,7 +104,7 @@ def test_respawn_resets_execution_state(monkeypatch):
 
     asyncio.run(scenario1())
 
-    assert w1._current_seq == 1 and w1._current_task_id == "tid1"
+    assert w1._current_seq == 1 and w1._current_task_id is None
     assert w1._task_started_at == 0.0  # fake_stream 未走真实 running 路径
 
     # respawn：worker1 死亡 → 全局 watchdog/手动 create 出 worker2（全新对象）
@@ -132,7 +132,10 @@ def test_pairing_follows_new_attempt_after_respawn(monkeypatch):
     w1 = _make_worker("ses_test", worker_id="worker-1")
     s.queue_pending = [_make_task(1, seq=1), _make_task(2, seq=7)]
 
+    pairs = []
+
     async def fake_stream(ww, text, source, sess):
+        pairs.append((ww._current_seq, ww._current_task_id))
         worker._ack_current_task(ww, sess)
 
     monkeypatch.setattr(worker, "_consumer_stream", fake_stream)
@@ -143,7 +146,7 @@ def test_pairing_follows_new_attempt_after_respawn(monkeypatch):
         await worker._consumer(w1)
 
     asyncio.run(scenario1())
-    assert (w1._current_seq, w1._current_task_id) == (1, "tid1")
+    assert pairs[-1] == (1, "tid1")
 
     # respawn：任务 B（seq=7）仍在队列（queue_pending 真源未受旧代影响）
     worker.workers.clear()
@@ -152,7 +155,7 @@ def test_pairing_follows_new_attempt_after_respawn(monkeypatch):
     _run_consumer(w2)
 
     assert s.queue_pending == [], "task B consumed after respawn"
-    assert (w2._current_seq, w2._current_task_id) == (7, "tid2"), \
+    assert pairs[-1] == (7, "tid2"), \
         "pairing must come from the new attempt's item, not the old generation"
     _cleanup()
 

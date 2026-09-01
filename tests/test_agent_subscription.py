@@ -296,7 +296,8 @@ def test_dashboard_replays_live_native_interactions():
 
     assert ws.sent == [
         {
-            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "generation": 0,
             "event": {
                 "type": "codex.thread_status",
                 "native_status": {"type": "active"},
@@ -304,7 +305,8 @@ def test_dashboard_replays_live_native_interactions():
             "replayed": True,
         },
         {
-            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "generation": 0,
             "event": {
                 "type": "codex.token_usage",
                 "token_usage": {"last": {"totalTokens": 150}},
@@ -312,7 +314,8 @@ def test_dashboard_replays_live_native_interactions():
             "replayed": True,
         },
         {
-            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "generation": 0,
             "event": {
                 "type": "codex.rate_limits",
                 "rate_limits": {"primary": {"usedPercent": 25}},
@@ -320,7 +323,8 @@ def test_dashboard_replays_live_native_interactions():
             "replayed": True,
         },
         {
-            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "generation": 0,
             "event": {
                 "type": "codex.plan", "plan": [{"step": "Inspect", "status": "inProgress"}],
                 "turn_id": "turn-1", "item_id": "plan:turn-1", "delta": True, "replace": True,
@@ -328,7 +332,8 @@ def test_dashboard_replays_live_native_interactions():
             "replayed": True,
         },
         {
-            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "generation": 0,
             "event": {
                 "type": "codex.diff", "diff": "+new", "turn_id": "turn-1",
                 "item_id": "diff:turn-1", "delta": True, "replace": True,
@@ -336,7 +341,8 @@ def test_dashboard_replays_live_native_interactions():
             "replayed": True,
         },
         {
-            "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "type": "worker.stream", "workerId": "worker-1", "sessionId": "ses-1",
+                "generation": 0,
             "event": {
                 "type": "approval.request", "request_id": 3,
                 "method": "item/commandExecution/requestApproval", "params": {},

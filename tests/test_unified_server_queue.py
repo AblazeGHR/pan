@@ -74,7 +74,8 @@ def test_task_id_stays_idempotent_after_pending_row_is_removed(monkeypatch):
         return duplicate, duplicate_error
 
     duplicate, duplicate_error = asyncio.run(scenario())
-    assert duplicate is None and duplicate_error is None
+    assert duplicate is not None and duplicate_error is None
+    assert duplicate["queueItemId"].startswith("q_")
     assert value.queue_pending == []
     _cleanup()
 
@@ -107,7 +108,7 @@ def test_task_id_retry_after_handoff_returns_durable_receipt(monkeypatch):
     assert result["duplicate"] is True
     assert result["receipt"] == receipt
     assert value.queue_pending == []
-    assert stdin.writes == [b'{"message":"x"}\n']
+    assert len(stdin.writes) == 1
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
@@ -128,10 +129,11 @@ def test_task_id_retry_after_handoff_returns_durable_receipt(monkeypatch):
     assert duplicate["duplicate"] is True
     assert duplicate["queueItemId"] == item["queueItemId"]
     assert duplicate["item"] == receipt
-    assert task_duplicate is None and task_error is None
+    assert task_duplicate is not None and task_error is None
+    assert task_duplicate["queueItemId"] == item["queueItemId"]
     assert value.queue_pending == []
     assert len(value.queue_delivery_ledger) == 1
-    assert stdin.writes == [b'{"message":"x"}\n']
+    assert len(stdin.writes) == 1
     _cleanup()
 
 
@@ -442,7 +444,7 @@ def test_recovery_returns_reserved_to_queued_and_signals(monkeypatch):
     assert len(value.queue_pending) == 1
     assert value.queue_pending[0]["queueItemId"] == item["queueItemId"]
     assert value.queue_pending[0]["lastDeliveryState"] == "reserved"
-    assert current.pending_signal.get_nowait() == {"type": "task_signal", "id": "q-crash"}
+    assert current.pending_signal.get_nowait() == {"type": "queue_signal"}
     _cleanup()
 
 

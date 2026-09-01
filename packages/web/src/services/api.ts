@@ -482,6 +482,27 @@ export async function restartWorker(workerId: string): Promise<ApiGenericRespons
   return data;
 }
 
+export async function killSessionWorker(sessionId: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/kill`,
+    { method: 'POST' },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+/** Restart the live worker for a session, or start one when it has gone away. */
+export async function restartOrStartWorker(
+  sessionId: string,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/restart`,
+    { method: 'POST' },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 export async function workerSettings(
   workerId: string,
   settings: SettingsBody,
@@ -502,11 +523,29 @@ export async function interruptWorker(workerId: string): Promise<ApiGenericRespo
   return data;
 }
 
+export async function interruptSessionWorker(sessionId: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/interrupt`,
+    { method: 'POST' },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 export async function steerWorker(workerId: string, text: string): Promise<ApiGenericResponse> {
   const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/steer`, {
     method: 'POST',
     body: JSON.stringify({ text }),
   });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function steerSessionWorker(sessionId: string, text: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/steer`,
+    { method: 'POST', body: JSON.stringify({ text }) },
+  );
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -523,10 +562,31 @@ export async function sendWorkerControl(
   return data;
 }
 
+export async function sendSessionWorkerControl(
+  sessionId: string,
+  control: Record<string, unknown>,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/control`,
+    { method: 'POST', body: JSON.stringify({ control }) },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 export async function takeoverWorker(workerId: string): Promise<ApiGenericResponse> {
   const data = await request<ApiGenericResponse>(`${BASE}/worker/${workerId}/takeover`, {
     method: 'POST',
   });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function takeoverSessionWorker(sessionId: string): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/takeover`,
+    { method: 'POST' },
+  );
   if (data.error) throw new Error(data.error);
   return data;
 }

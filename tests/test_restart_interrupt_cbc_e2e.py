@@ -77,7 +77,7 @@ def test_cbc_interrupt_kills_old_process_without_replaying_task(tmp_path, monkey
             assert s.last_result is None
             assert s.queue_pending == [], "interrupt must not requeue a consumed task"
             assert await worker.retry_pending_item(s.id, "e2e-task") == \
-                "Queue retry disabled by at-most-once policy"
+                "Queue item e2e-task not found"
             await asyncio.sleep(0.2)
             assert s.last_result is None, (
                 f"status={w.status}, queue={s.queue_pending}, "

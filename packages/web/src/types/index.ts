@@ -191,6 +191,8 @@ export interface StreamEvent {
   type: string;
   sessionId?: string;
   workerId?: string;
+  /** Monotonic runtime generation, used to ignore late lifecycle events. */
+  generation?: number;
   event?: WorkerEvent;
   message?: string;
   status?: string;
@@ -587,6 +589,7 @@ export interface WorkerItem {
   workerId: string;
   sessionId: string;
   status: string;
+  generation?: number;
 }
 
 export interface ApiWorkerListResponse {
@@ -627,6 +630,7 @@ export type AgentQueueKind = 'task' | 'report' | 'qq';
 export type QueueDispatchState =
   | 'queued'
   | 'reserved'
+  | 'writing'
   | 'sent_to_cli'
   | 'write_failed'
   | 'unknown_after_crash'
@@ -746,6 +750,7 @@ export interface WorkerInfo {
   id: string;
   sessionId?: string;
   status: 'idle' | 'running' | 'held' | 'offline';
+  generation?: number;
   model?: string;
   name?: string;
   nativeStatus?: {

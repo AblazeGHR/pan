@@ -318,3 +318,4 @@ useSessionStore.subscribe((state, previous) => {
   const live = new Set(state.sessions.map((session) => session.id));
   for (const session of previous.sessions) if (!live.has(session.id)) useQueueStore.getState().removeSession(session.id);
 });
+

@@ -164,8 +164,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           if ((wsTouchedSeq[sid] ?? 0) >= touchSeqAtStart) {
             return {
               ...sess,
-              workerStatus: cur.workerStatus ?? sess.workerStatus,
-              workerId: cur.workerId ?? sess.workerId,
+              // WS state is newer than this snapshot.  Preserve explicit null:
+              // it is the destroy/crash transition, not a missing value.
+              workerStatus: cur.workerStatus,
+              workerId: cur.workerId,
             };
           }
           // summary=1 omits workerId (server.py `_session_summary`) — carry the
