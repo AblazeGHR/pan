@@ -68,15 +68,6 @@
   ],
   "mcp_servers": [
     {
-      "name": "pan",
-      "command": "${PLUGIN_DIR}/.venv/Scripts/python",
-      "args": [
-        "-m",
-        "packages.mcp.server"
-      ],
-      "cwd": "${PLUGIN_DIR}"
-    },
-    {
       "name": "pan-qq",
       "command": "${PAN_PYTHON}",
       "args": [
