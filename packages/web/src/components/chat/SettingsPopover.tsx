@@ -31,7 +31,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
   const session = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const showToast = useUIStore((s) => s.showToast);
-  const { restart, startWorker, killCurrent, interrupt, takeover } =
+  const { restart, killCurrent, interrupt, takeover } =
     useWorkerStore();
   const config = useAdapterStore((s) => s.getConfig());
   const applySettings = useAdapterStore((s) => s.applySettings);
@@ -257,17 +257,13 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
             variant="secondary"
             size="sm"
             onClick={() => {
-              const workerId = effectiveWorkerId;
-              if (workerId) {
-                restart(workerId)
-                  .then(() => showToast('Restarted worker'))
-                  .catch((e) => showToast(e.message, 'error'));
-              } else if (session?.id) {
-                // No worker yet — spawn one (mirrors TopBar "Start").
-                startWorker(session.id)
-                  .then(() => showToast('Worker started'))
-                  .catch((e) => showToast(e.message, 'error'));
-              }
+              if (!session?.id) return;
+              // The session-level endpoint decides atomically whether this is
+              // a restart or a start; effectiveWorkerId may be stale after a
+              // watchdog destroy and must not be used for control routing.
+              restart(session.id)
+                .then(() => showToast('Worker restarted or started'))
+                .catch((e) => showToast(e.message, 'error'));
             }}
           >
             ⟳ Restart

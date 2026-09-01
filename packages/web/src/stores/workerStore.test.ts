@@ -9,18 +9,21 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     listWorkers: vi.fn(),
     killWorker: vi.fn(),
+    restartOrStartWorker: vi.fn(),
   };
 });
 
-import { listWorkers, killWorker } from '@/services/api';
+import { listWorkers, killWorker, restartOrStartWorker } from '@/services/api';
 
 const mockListWorkers = vi.mocked(listWorkers);
 const mockKillWorker = vi.mocked(killWorker);
+const mockRestartOrStartWorker = vi.mocked(restartOrStartWorker);
 
 describe('workerStore currentWorker resolution', () => {
   beforeEach(() => {
     mockListWorkers.mockReset();
     mockKillWorker.mockReset();
+    mockRestartOrStartWorker.mockReset();
     useWorkerStore.setState({ workers: {}, currentWorkerId: null });
     useSessionStore.setState({ currentSessionId: null });
   });
@@ -89,5 +92,18 @@ describe('workerStore currentWorker resolution', () => {
     await useWorkerStore.getState().killCurrent('worker-5');
 
     expect(useWorkerStore.getState().currentWorker).toBeNull();
+  });
+
+  it('restart routes by sessionId so a stale workerId cannot cause Worker not found', async () => {
+    mockRestartOrStartWorker.mockResolvedValue({
+      workerId: 'worker-new',
+      sessionId: 'ses_1',
+      status: 'idle',
+    });
+
+    await useWorkerStore.getState().restart('ses_1');
+
+    expect(mockRestartOrStartWorker).toHaveBeenCalledWith('ses_1');
+    expect(useWorkerStore.getState().currentWorker?.id).toBe('worker-new');
   });
 });
