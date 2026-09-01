@@ -43,6 +43,9 @@ import type {
   ApiSessionQueueResponse,
   ApiRemoteStatusResponse,
   ApiRemoteRestartResponse,
+  ApiMainRestartStatusResponse,
+  ApiMainRestartResponse,
+  ApiHealthResponse,
 } from '@/types';
 
 const BASE = '/api';
@@ -320,7 +323,9 @@ export async function setSessionReadonly(
     body: JSON.stringify({ managerId, sessionId, readonlySession: enabled }),
   });
   if (data.ok === false || data.error) {
-    throw new Error(typeof data.error === 'string' ? data.error : data.error?.message || 'Readonly update failed');
+    throw new Error(
+      typeof data.error === 'string' ? data.error : data.error?.message || 'Readonly update failed',
+    );
   }
   return data;
 }
@@ -549,6 +554,27 @@ export async function restartRemoteTunnel(): Promise<ApiRemoteRestartResponse> {
   });
   if (!data.ok && data.error) throw new Error(data.error);
   return data;
+}
+
+// ── Main Pan service restart ──
+
+export async function fetchMainRestartStatus(): Promise<ApiMainRestartStatusResponse> {
+  return request<ApiMainRestartStatusResponse>(`${BASE}/main/restart/status`);
+}
+
+export async function restartMainService(): Promise<ApiMainRestartResponse> {
+  const data = await request<ApiMainRestartResponse>(`${BASE}/main/restart`, {
+    method: 'POST',
+  });
+  if (!data.ok) throw new Error(data.error || `Pan restart ${data.status}`);
+  return data;
+}
+
+export async function fetchHealth(signal?: AbortSignal): Promise<ApiHealthResponse> {
+  return request<ApiHealthResponse>(`${BASE}/health`, {
+    signal,
+    cache: 'no-store',
+  });
 }
 
 // ── Import: cbc ──
