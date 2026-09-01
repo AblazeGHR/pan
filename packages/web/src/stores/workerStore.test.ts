@@ -8,21 +8,23 @@ vi.mock('@/services/api', async (importOriginal) => {
   return {
     ...actual,
     listWorkers: vi.fn(),
-    killWorker: vi.fn(),
+    killSessionWorker: vi.fn(),
+    interruptSessionWorker: vi.fn(),
+    takeoverSessionWorker: vi.fn(),
     restartOrStartWorker: vi.fn(),
   };
 });
 
-import { listWorkers, killWorker, restartOrStartWorker } from '@/services/api';
+import { listWorkers, killSessionWorker, restartOrStartWorker } from '@/services/api';
 
 const mockListWorkers = vi.mocked(listWorkers);
-const mockKillWorker = vi.mocked(killWorker);
+const mockKillSessionWorker = vi.mocked(killSessionWorker);
 const mockRestartOrStartWorker = vi.mocked(restartOrStartWorker);
 
 describe('workerStore currentWorker resolution', () => {
   beforeEach(() => {
     mockListWorkers.mockReset();
-    mockKillWorker.mockReset();
+    mockKillSessionWorker.mockReset();
     mockRestartOrStartWorker.mockReset();
     useWorkerStore.setState({ workers: {}, currentWorkerId: null });
     useSessionStore.setState({ currentSessionId: null });
@@ -84,14 +86,15 @@ describe('workerStore currentWorker resolution', () => {
     expect(useWorkerStore.getState().currentWorker?.id).toBe('worker-5');
   });
 
-  it('killCurrent clears the current worker', async () => {
+  it('killCurrent routes by sessionId and clears that session worker', async () => {
     useSessionStore.setState({ currentSessionId: 'ses_1' });
     useWorkerStore.getState().updateWorker('ses_1', 'worker-5', 'idle');
-    mockKillWorker.mockResolvedValue({ status: 'killed' });
+    mockKillSessionWorker.mockResolvedValue({ status: 'offline', workerId: 'worker-5' });
 
-    await useWorkerStore.getState().killCurrent('worker-5');
+    await useWorkerStore.getState().killCurrent('ses_1');
 
     expect(useWorkerStore.getState().currentWorker).toBeNull();
+    expect(mockKillSessionWorker).toHaveBeenCalledWith('ses_1');
   });
 
   it('restart routes by sessionId so a stale workerId cannot cause Worker not found', async () => {
@@ -108,5 +111,15 @@ describe('workerStore currentWorker resolution', () => {
 
     expect(mockRestartOrStartWorker).toHaveBeenCalledWith('ses_1');
     expect(useWorkerStore.getState().currentWorker?.id).toBe('worker-new');
+  });
+
+  it('ignores a late destroyed event from an older worker generation', () => {
+    useSessionStore.setState({ currentSessionId: 'ses_1' });
+    useWorkerStore.getState().updateWorker('ses_1', 'worker-new', 'idle', 3);
+
+    useWorkerStore.getState().updateWorker('ses_1', 'worker-old', null, 2, true);
+
+    expect(useWorkerStore.getState().currentWorker?.id).toBe('worker-new');
+    expect(useWorkerStore.getState().workers.ses_1?.generation).toBe(3);
   });
 });

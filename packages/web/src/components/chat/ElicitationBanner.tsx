@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { wsClient } from '@/services/ws';
-import { sendWorkerControl } from '@/services/api';
+import { sendSessionWorkerControl } from '@/services/api';
 import type { ElicitationRequest } from '@/types';
 
 interface ElicitationField {
@@ -71,12 +71,12 @@ function ElicitationForm({ request }: { request: ElicitationRequest }) {
     };
     const sent = wsClient.send({
       type: 'worker_control',
-      workerId: request.workerId,
+      sessionId: request.sessionId,
       control,
     });
     if (!sent) {
       try {
-        await sendWorkerControl(request.workerId, control);
+        await sendSessionWorkerControl(request.sessionId, control);
       } catch (error) {
         showToast((error as Error).message || 'MCP 请求未响应', 'error');
         return;

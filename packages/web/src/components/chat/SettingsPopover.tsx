@@ -62,7 +62,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
 
   // Same per-session effective-worker logic as TopBar/SettingsPanel.
   const effectiveWorkerId =
-    session?.workerId ||
+    (session?.workerId && session.workerStatus ? session.workerId : null) ||
     (currentWorker && currentWorker.sessionId === session?.id
       ? currentWorker.id
       : null) ||
@@ -84,7 +84,6 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
       try {
         const res = await applySettings(
           session.id,
-          effectiveWorkerId || undefined,
           patch,
         );
         // Reflect the change locally so the select/checkbox stays in sync.
@@ -274,7 +273,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
                 variant="secondary"
                 size="sm"
                 onClick={() =>
-                  interrupt(effectiveWorkerId)
+                  interrupt(session.id)
                     .then(() => showToast('Interrupt sent'))
                     .catch((e) => showToast(e.message, 'error'))
                 }
@@ -285,7 +284,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
                 variant="secondary"
                 size="sm"
                 onClick={() =>
-                  takeover(effectiveWorkerId)
+                  takeover(session.id)
                     .then(() =>
                       showToast('PowerShell opened for takeover'),
                     )
@@ -299,7 +298,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
                 size="sm"
                 onClick={() => {
                   if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
-                  killCurrent(effectiveWorkerId)
+                  killCurrent(session.id)
                     .then(() => showToast('Kill sent'))
                     .catch((e) => showToast(e.message, 'error'));
                 }}

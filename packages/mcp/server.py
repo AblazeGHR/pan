@@ -1291,19 +1291,13 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
-    wid = _session_worker_id(session_id)
-    if wid is None:
-        # 无活 worker：restart 无从谈起 → 入持久队列，watchdog spawn 后分发
-        caller = _caller_identity()
-        body = {"sessionId": session_id, "text": text, "source": "agent"}
-        if caller and caller.get("id"):
-            body["sourceSessionId"] = caller["id"]
-        return _api("POST", "/api/send", body)
-    result = _api("POST", f"/api/worker/{wid}/restart")
+    # The session route atomically chooses restart vs start.  workerId is
+    # deliberately not resolved here; it is a backend runtime detail.
+    result = _api("POST", f"/api/sessions/{session_id}/worker/restart")
     if not isinstance(result, dict) or result.get("error"):
         return result
     caller = _caller_identity()
-    body = {"workerId": wid, "text": text, "source": "agent"}
+    body = {"sessionId": session_id, "text": text, "source": "agent"}
     if caller and caller.get("id"):
         body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/task", body)
@@ -1361,12 +1355,12 @@ def agent_kill(session_id: str) -> dict:
     denied = _check_access(session_id)
     if denied:
         return denied
-    wid = _session_worker_id(session_id)
-    if wid is None:
-        return {"ok": True, "sessionId": session_id, "workerId": None,
-                "killed": False,
-                "message": "no live worker for agent; nothing to kill"}
-    return _api("POST", f"/api/kill/{wid}")
+    result = _api("POST", f"/api/sessions/{session_id}/worker/kill")
+    if isinstance(result, dict):
+        result.setdefault("ok", "error" not in result)
+        result.setdefault("killed", result.get("status") == "offline"
+                           and result.get("workerId") is not None)
+    return result
 
 
 @mcp.tool()

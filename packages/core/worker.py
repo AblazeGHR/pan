@@ -257,6 +257,33 @@ class Worker:
 
 
 workers: dict[str, Worker] = {}
+# Fast session -> current runtime lookup.  Keep the worker-id registry as the
+# compatibility/source-of-truth container; this index only avoids scanning it
+# for the hot session control/status paths.
+_workers_by_session: dict[str, Worker] = {}
+_worker_generations: dict[str, int] = {}
+
+
+def _register_worker(w: Worker) -> None:
+    _workers_by_session[w.session_id] = w
+
+
+def _unregister_worker(w: Worker) -> None:
+    if _workers_by_session.get(w.session_id) is w:
+        _workers_by_session.pop(w.session_id, None)
+
+
+def _next_worker_generation(session_id: str) -> int:
+    generation = _worker_generations.get(session_id, -1) + 1
+    _worker_generations[session_id] = generation
+    return generation
+
+
+def _bump_worker_generation(w: Worker) -> None:
+    w.generation += 1
+    _worker_generations[w.session_id] = max(
+        _worker_generations.get(w.session_id, -1), w.generation,
+    )
 
 # A durable item may be appended while its worker is dead (or while the old
 # generation is being torn down).  Keep one best-effort recovery task per
@@ -264,6 +291,10 @@ workers: dict[str, Worker] = {}
 # duplicate workers.  The global watchdog remains the retry/fallback path when
 # a spawn fails or the service was not able to schedule this task.
 _recovery_tasks: dict[str, asyncio.Task] = {}
+# Sessions whose worker died during an active turn.  Keep retry intent beyond
+# the first best-effort spawn so a transient CLI launch failure is retried by
+# the service watchdog; successful/normal idle paths remove the marker.
+_recovery_required: set[str] = set()
 # One timer per session is enough to wake a queued item after persisted
 # backoff.  This is deliberately separate from pending_signal: the timer only
 # emits a generic wake-up and never stores queue payload.
@@ -638,6 +669,7 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
         "type": "worker.result",
         "workerId": w.worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
         "status": "error",
         "result": result,
         "taskSeq": w._current_seq,
@@ -862,6 +894,7 @@ async def _read_stdout(w: Worker):
                 "type": "worker.result",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
+                "generation": w.generation,
                 "status": w.status,
                 "result": result_text,
                 "taskSeq": task_seq,
@@ -885,6 +918,7 @@ async def _read_stdout(w: Worker):
                 "type": "worker.status",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
+                "generation": w.generation,
                 "status": "idle",
                 "sourceSessionId": task_source_session_id,
             })
@@ -899,10 +933,16 @@ async def _read_stdout(w: Worker):
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
+                "generation": w.generation,
                 "event": event,
             })
 
     # stdout EOF — 进程退出了
+    # A serialized restart marks the object before its first await.  Its old
+    # stdout task may still observe EOF in that tiny window; the restart owns
+    # the transition and will clean up the process itself.
+    if w.status == "restarting" or workers.get(w.worker_id) is not w:
+        return
     code = w.process.returncode if w.process else "unknown"
     _log.info("[Worker %s] %s 进程退出，返回码 %s", w.worker_id, adapter.name, code)
     _cancel_claude_permission_requests(w.worker_id, "Claude worker exited")
@@ -910,6 +950,7 @@ async def _read_stdout(w: Worker):
     # B2: 进程退出检测路径 — 任务进行中（running/queued）异常退出/崩溃 → 向被管
     # manager 推送 zombie 报告。正常完成后的退出（status 已回 idle）由
     # _enqueue_zombie_report 内部判定跳过——done/error 报告完成时已推送。
+    abnormal = w.status in {"running", "queued"}
     await _enqueue_zombie_report(w, f"process exited (returncode={code})")
 
     # 如果已经通过 result event 收到正常输出（last_result 有内容且非 error），
@@ -923,6 +964,7 @@ async def _read_stdout(w: Worker):
             "type": "worker.crashed",
             "workerId": w.worker_id,
             "sessionId": w.session_id,
+            "generation": w.generation,
             "returncode": code,
         })
     # zombie：进程已死、尚未回收的瞬间状态。先广播再移除，让订阅方能观测到。
@@ -931,6 +973,7 @@ async def _read_stdout(w: Worker):
         "type": "worker.zombie",
         "workerId": w.worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
         "returncode": code,
     })
     # H2: worker 退出 → 名下 pending 的 taskId 标 error（防止"超时+crash"组合
@@ -944,6 +987,9 @@ async def _read_stdout(w: Worker):
     # 从 workers dict 移除尸体——否则 find_worker_by_session 会返回这个死 worker，
     # 后续 send_task 才报 'process dead'，晚了一步
     workers.pop(w.worker_id, None)
+    _unregister_worker(w)
+    if abnormal:
+        _schedule_session_recovery(w.session_id, force=True)
 
 
 # ── consumer ──
@@ -1584,6 +1630,7 @@ async def request_claude_permission(
             "type": "worker.stream",
             "workerId": worker_id,
             "sessionId": w.session_id,
+            "generation": w.generation,
             "event": event,
         })
         try:
@@ -1631,6 +1678,7 @@ async def _resolve_claude_permission(worker_id: str, control: dict) -> bool:
             "type": "worker.stream",
             "workerId": worker_id,
             "sessionId": w.session_id,
+            "generation": w.generation,
             "event": {
                 "type": "claude.permission_resolved",
                 "request_id": key,
@@ -2563,7 +2611,7 @@ async def _watchdog(w: Worker):
                 # B2: 异常死亡（running 卡死超时）→ 向被管 manager 推送 zombie 报告
                 await _enqueue_zombie_report(
                     w, f"task timeout (running {task_run_for:.0f}s > {_WORKER_TASK_TIMEOUT_SEC:.0f}s)")
-                await kill_worker(w.worker_id)
+                await kill_worker(w.worker_id, recover=True)
                 return
         elif w.status == "queued" and idle_for > _WORKER_TIMEOUT_SEC:
             _log.warning(
@@ -2574,7 +2622,7 @@ async def _watchdog(w: Worker):
             # B2: 异常死亡（queued 静默超时）→ 向被管 manager 推送 zombie 报告
             await _enqueue_zombie_report(
                 w, f"queued timeout (no output for {idle_for:.0f}s)")
-            await kill_worker(w.worker_id)
+            await kill_worker(w.worker_id, recover=True)
             return
         if w.status == "idle" and idle_for > _WORKER_IDLE_SEC:
             if _worker_has_pending_work(w):
@@ -2598,23 +2646,29 @@ async def _watchdog(w: Worker):
 # ── 全局 watchdog：落盘队列自愈（立项 4.4）──
 # worker 级 _watchdog 随 worker 生灭（worker 死亡时它自己也结束），无法自愈；
 # 本任务生命周期=Pan 服务（由 server lifespan 启动/关闭），周期扫描"落盘队列
-# queue_pending 非空但没有活 worker 的 session"，自动 create_worker 恢复。
+# queue_pending 非空或异常死亡重建标记仍在、但没有活 worker 的 session"，自动
+# create_worker 恢复。
 # spawn 走 create_worker（自带防重复，立项 4.5），不会对同一 session 重复 spawn。
 
 _GLOBAL_WATCHDOG_TICK_SEC: float = _WATCHDOG_TICK_SEC  # 沿用 worker 级间隔
 _global_watchdog_task: asyncio.Task | None = None
 
 
-async def _recover_session(session_id: str) -> None:
-    """Best-effort immediate recovery for a durable queue backlog."""
+async def _recover_session(session_id: str, *, force: bool = False) -> None:
+    """Best-effort recovery for durable work or an abnormally dead worker."""
     s = _sess.get(session_id)
-    if not s or not _has_dispatchable_items(s):
+    if not s:
+        _recovery_required.discard(session_id)
+        return
+    if not force and not _has_dispatchable_items(s) and session_id not in _recovery_required:
         return
     current = find_worker_by_session(session_id)
     # takeover and an explicit restart own the lifecycle; do not race them.
     if current and current.status in {"held", "restarting"}:
+        _recovery_required.discard(session_id)
         return
     if find_alive_worker_by_session(session_id) is not None:
+        _recovery_required.discard(session_id)
         return
     created = await create_worker(session_id)
     if isinstance(created, str):
@@ -2622,10 +2676,16 @@ async def _recover_session(session_id: str) -> None:
             "[Pan] Immediate queue recovery failed for session=%s: %s",
             session_id, created,
         )
+        return
+    _recovery_required.discard(session_id)
 
 
-def _schedule_session_recovery(session_id: str) -> asyncio.Task | None:
+def _schedule_session_recovery(
+    session_id: str, *, force: bool = False,
+) -> asyncio.Task | None:
     """Schedule at most one recovery attempt for a session in this loop."""
+    if force:
+        _recovery_required.add(session_id)
     existing = _recovery_tasks.get(session_id)
     if existing is not None and not existing.done():
         return existing
@@ -2636,7 +2696,7 @@ def _schedule_session_recovery(session_id: str) -> asyncio.Task | None:
         # the global watchdog will still discover the durable backlog later.
         return None
     task = loop.create_task(
-        _recover_session(session_id),
+        _recover_session(session_id, force=force),
         name=f"pan-recover-{session_id}",
     )
     _recovery_tasks[session_id] = task
@@ -2746,38 +2806,35 @@ async def _global_watchdog():
 
 
 async def _global_watchdog_tick():
-    """单轮扫描：queue_pending 非空 && 无活 worker → create_worker 恢复。
+    """单轮扫描：有持久积压/异常重建意图且无活 worker → create_worker 恢复。
 
     整个 tick 由 _global_watchdog 的 try/except 兜底，单个 session 的异常不会
     中断后续轮次。
     """
     for s in list(_sess.list_all()):
-        if not _has_dispatchable_items(s):
+        if not _has_dispatchable_items(s) and s.id not in _recovery_required:
             continue
         current = find_worker_by_session(s.id)
         if current and current.status in {"held", "restarting"}:
             continue
         if find_alive_worker_by_session(s.id) is not None:
             continue  # 已有活 worker → 正常
-        pending_recovery = _recovery_tasks.get(s.id)
-        if pending_recovery is not None and not pending_recovery.done():
-            # Drain the already scheduled attempt instead of racing a second
-            # create_worker call.  If it fails, the next watchdog tick retries.
-            try:
-                await pending_recovery
-            except Exception:
-                _log.warning("[Pan] Immediate recovery task failed for session=%s", s.id)
-            continue
-        # 无活 worker（从未 spawn，或注册了死进程尚未 pop）→ 交给 create_worker 自愈
+        # Use the same de-duplicated recovery path as lifecycle events.  The
+        # per-session spawn lock inside create_worker closes the final race
+        # with a simultaneous restart-or-start request.
         _log.info(
             "[Pan] Global watchdog recover: session=%s queue_pending=%d items, no live worker",
             s.id, len(s.queue_pending),
         )
-        created = await create_worker(s.id)
-        if isinstance(created, str):
+        recovery = _schedule_session_recovery(s.id)
+        if recovery is None:
+            continue
+        try:
+            await recovery
+        except Exception:
             _log.warning(
-                "[Pan] Global watchdog recover failed for session=%s: %s",
-                s.id, created,
+                "[Pan] Global watchdog recover failed for session=%s",
+                s.id,
             )
 
 
@@ -2799,6 +2856,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
             "type": "worker.result",
             "workerId": w.worker_id,
             "sessionId": w.session_id,
+            "generation": w.generation,
             "status": "error",
             "result": "Worker process dead",
             "taskSeq": w._current_seq,
@@ -2836,6 +2894,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
         "type": "worker.status",
         "workerId": w.worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
         "status": "running",
         "source": source,
         "sourceSessionId": w._current_source_session_id,
@@ -2935,6 +2994,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         "type": "worker.status",
         "workerId": w.worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
         "status": "running",
         "source": source,
         "sourceSessionId": w._current_source_session_id,
@@ -3192,6 +3252,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             "type": "worker.stream",
             "workerId": w.worker_id,
             "sessionId": w.session_id,
+            "generation": w.generation,
             "event": event,
         })
 
@@ -3205,6 +3266,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         "type": "worker.result",
         "workerId": w.worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
         "status": status,
         "result": result,
         "taskSeq": task_seq,
@@ -3298,15 +3360,25 @@ async def restart_or_start_worker(session_id: str) -> Worker | str:
     """
     if _sess.get(session_id) is None:
         return f"Session {session_id} not found"
+    recovery_pending = session_id in _recovery_required
     lock = await _session_spawn_lock(session_id)
     async with lock:
         alive = find_alive_worker_by_session(session_id)
         if alive is not None:
-            error = await restart_worker(alive.worker_id)
+            if recovery_pending and session_id not in _recovery_required:
+                # A watchdog/lifecycle recovery won the lock and already
+                # supplied the replacement.  Do not immediately respawn it
+                # again merely because the user clicked Restart meanwhile.
+                return alive
+            error = await _restart_worker_unlocked(alive.worker_id)
             if error:
                 return error
+            _recovery_required.discard(session_id)
             return alive
-        return await _create_worker(session_id)
+        result = await _create_worker(session_id)
+        if isinstance(result, Worker):
+            _recovery_required.discard(session_id)
+        return result
 
 
 def _spawn_system_prompt_args(adapter, s, mcp_on: bool) -> list[str] | None:
@@ -3351,7 +3423,7 @@ async def _create_worker(session_id: str) -> Worker | str:
         # Deliberately do NOT clear cli_session_id: resuming the cbc JSONL is
         # the intended context-continuity mechanism, and clearing it here would
         # force a cold start on every restart (#11, resolved by design).
-        await kill_worker(old.worker_id)
+        await _kill_worker_unlocked(old.worker_id)
 
     try:
         adapter = get_adapter(s.adapter)
@@ -3390,9 +3462,11 @@ async def _create_worker(session_id: str) -> Worker | str:
                adapter=adapter,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
                _task_done=asyncio.Event(),
-               _hist_flush_event=asyncio.Event())
+               _hist_flush_event=asyncio.Event(),
+               generation=_next_worker_generation(session_id))
     w.last_activity = time.monotonic()
     workers[worker_id] = w
+    _register_worker(w)
 
     if mode != "oneshot":
         w._stdout_task = asyncio.create_task(_read_stdout(w))
@@ -3405,6 +3479,7 @@ async def _create_worker(session_id: str) -> Worker | str:
         "type": "worker.spawned",
         "workerId": worker_id,
         "sessionId": session_id,
+        "generation": w.generation,
         "name": s.name,
         "status": w.status,
         "model": s.model or adapter.default_model,
@@ -3544,7 +3619,7 @@ async def _kill_process_tree(w: Worker) -> None:
         await wait_for_exit(process, "MCP process")
 
 
-async def takeover_worker(worker_id: str) -> str | None:
+async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     """Stop Pan's runtime and hold the Worker for an interactive takeover.
 
     Takeover launches a separate native CLI TUI with the same session/thread.
@@ -3579,11 +3654,15 @@ async def takeover_worker(worker_id: str) -> str | None:
     return None
 
 
-async def kill_worker(worker_id: str) -> str | None:
+async def _kill_worker_unlocked(
+    worker_id: str, *, recover: bool = False,
+) -> str | None:
     """Kill the Worker process. Does NOT touch the Session."""
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+
+    abnormal = w.status in {"running", "queued"}
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was stopped")
 
@@ -3616,13 +3695,75 @@ async def kill_worker(worker_id: str) -> str | None:
     if w._hist_dirty:
         await _flush_history_now(w)
 
-    workers.pop(worker_id, None)
+    workers.pop(w.worker_id, None)
+    _unregister_worker(w)
     await _bcast({
         "type": "worker.destroyed",
         "workerId": worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
     })
+    # A dead worker with an active turn or durable queue must be replaced
+    # promptly.  Idle workers with no queued work remain normally reclaimable.
+    has_pending = _has_dispatchable_items(_session(w))
+    if (recover and abnormal) or has_pending:
+        _schedule_session_recovery(w.session_id, force=recover and abnormal)
     return None
+
+
+async def kill_worker(worker_id: str, *, recover: bool = False) -> str | None:
+    """Serialized compatibility wrapper for worker-id callers."""
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    generation = w.generation
+    lock = await _session_spawn_lock(w.session_id)
+    async with lock:
+        current = workers.get(worker_id)
+        if current is not w or w.generation != generation:
+            # A concurrent restart already owns this lifecycle transition.
+            return None
+        return await _kill_worker_unlocked(worker_id, recover=recover)
+
+
+async def kill_session_worker(session_id: str) -> Worker | str | None:
+    """Kill the live worker for a session, if present."""
+    if _sess.get(session_id) is None:
+        return f"Session {session_id} not found"
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        w = find_alive_worker_by_session(session_id)
+        if w is None:
+            return None
+        error = await _kill_worker_unlocked(w.worker_id)
+        return error or w
+
+
+async def takeover_worker(worker_id: str) -> str | None:
+    """Serialized compatibility wrapper for worker-id callers."""
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    generation = w.generation
+    lock = await _session_spawn_lock(w.session_id)
+    async with lock:
+        current = workers.get(worker_id)
+        if current is not w or w.generation != generation:
+            return None
+        return await _takeover_worker_unlocked(worker_id)
+
+
+async def takeover_session_worker(session_id: str) -> Worker | str | None:
+    """Put the live worker for a session into takeover mode, if present."""
+    if _sess.get(session_id) is None:
+        return f"Session {session_id} not found"
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        w = find_alive_worker_by_session(session_id)
+        if w is None:
+            return None
+        error = await _takeover_worker_unlocked(w.worker_id)
+        return error or w
 
 
 async def cleanup_worker_background(worker_id: str, session_id: str):
@@ -3631,8 +3772,10 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
     Call via ``asyncio.create_task()`` from delete-session flows to avoid
     blocking the HTTP response on process termination.
     """
+    w = workers.get(worker_id)
+    if not w:
+        return
     try:
-        w = workers.get(worker_id)
         if not w:
             return
         _cancel_claude_permission_requests(worker_id, "Claude worker was cleaned up")
@@ -3654,6 +3797,7 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
         _log.warning("[Worker %s] BG cleanup error: %r", worker_id, exc)
     finally:
         workers.pop(worker_id, None)
+        _unregister_worker(w)
         # H2: worker 回收 → 名下 pending 的 taskId 标 error（与 kill_worker 一致）
         _mark_worker_tasks_error(worker_id, "worker cleanup")
         try:
@@ -3661,6 +3805,7 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
                 "type": "worker.destroyed",
                 "workerId": worker_id,
                 "sessionId": session_id,
+                "generation": w.generation,
             })
         except Exception as bcast_err:
             _log.warning("[Worker %s] BG cleanup bcast error: %r", worker_id, bcast_err)
@@ -3680,12 +3825,14 @@ def _maybe_restart_pending(w: Worker) -> None:
 async def _respawn_worker(w: Worker) -> None:
     """kill 当前进程 + 重新 spawn（resume 上下文），用于进程相关配置变更后生效。"""
     sid, wid = w.session_id, w.worker_id
+    generation = w.generation
+    lock = await _session_spawn_lock(sid)
     try:
-        await kill_worker(wid)
-    except Exception as e:
-        _log.warning("[Worker %s] respawn kill 异常: %s", wid, e)
-    try:
-        result = await create_worker(sid)
+        async with lock:
+            if workers.get(wid) is not w or w.generation != generation:
+                return
+            await _kill_worker_unlocked(wid)
+            result = await _create_worker(sid)
         if isinstance(result, Worker):
             _log.info("[Worker %s] respawn 完成 -> %s", wid, result.worker_id)
         else:
@@ -3750,7 +3897,7 @@ async def _restart_tasks(w: Worker):
     w._consume_task = asyncio.create_task(_consumer(w))
 
 
-async def restart_worker(worker_id: str) -> str | None:
+async def _restart_worker_unlocked(worker_id: str) -> str | None:
     """Restart a Worker process. Preserves the session."""
     w = workers.get(worker_id)
     if not w:
@@ -3762,7 +3909,7 @@ async def restart_worker(worker_id: str) -> str | None:
     # concurrent message, and _restart_tasks will recover it after the new
     # consumer exists.
     w.status = "restarting"
-    w.generation += 1
+    _bump_worker_generation(w)
 
     # cancel stale tasks FIRST — before killing the process.
     # _read_stdout detects EOF on process death and calls workers.pop(),
@@ -3804,13 +3951,28 @@ async def restart_worker(worker_id: str) -> str | None:
         "type": "worker.restarted",
         "workerId": worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
         "name": s.name if s else worker_id,
         "status": w.status,
     })
     return None
 
 
-async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) -> str | None:
+async def restart_worker(worker_id: str) -> str | None:
+    """Serialized compatibility wrapper for worker-id callers."""
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    generation = w.generation
+    lock = await _session_spawn_lock(w.session_id)
+    async with lock:
+        current = workers.get(worker_id)
+        if current is not w or w.generation != generation:
+            return None
+        return await _restart_worker_unlocked(worker_id)
+
+
+async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None = None) -> str | None:
     """Kill + re-spawn with extra args (model/mode switch)."""
     w = workers.get(worker_id)
     if not w:
@@ -3826,7 +3988,7 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
     if w._stdout_task:
         await _cancel_worker_task(w._stdout_task)
     w.status = "restarting"
-    w.generation += 1
+    _bump_worker_generation(w)
     if w._interrupt_guard_task and w._interrupt_guard_task is not asyncio.current_task():
         await _cancel_worker_task(w._interrupt_guard_task)
     await _stop_worker_tasks(w)
@@ -3852,9 +4014,24 @@ async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) ->
         "type": "worker.reconfigured",
         "workerId": worker_id,
         "sessionId": w.session_id,
+        "generation": w.generation,
         "status": "idle",
     })
     return None
+
+
+async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) -> str | None:
+    """Serialized compatibility wrapper for worker-id callers."""
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    generation = w.generation
+    lock = await _session_spawn_lock(w.session_id)
+    async with lock:
+        current = workers.get(worker_id)
+        if current is not w or w.generation != generation:
+            return None
+        return await _respawn_worker_unlocked(worker_id, extra_args)
 
 
 async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
@@ -3951,7 +4128,8 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
                    adapter=w.adapter,
                    status="idle", process=proc, pending_signal=asyncio.Queue(),
                    _task_done=asyncio.Event(),
-                   _hist_flush_event=asyncio.Event())
+                   _hist_flush_event=asyncio.Event(),
+                   generation=_next_worker_generation(new_session_id))
     # 注意：branch 不设 _replaying（与 create_worker/restart_worker 一致，现全局恒
     # False）。原注释假设"cbc --resume --fork-session 会把父会话历史重放到 stdout
     # 供 branch 空 history 填充"——worker-resume-replay 实测 fork+prompt **不重放**
@@ -3959,6 +4137,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     # 内部 fork 的 JSONL 承载（模型侧完整）；Pan 侧新 session 的 history 只记录新
     # 回合（父历史不回填 → 展示层缺父回合，属既有局限，非模型上下文缺陷）。
     workers[new_id] = new_w
+    _register_worker(new_w)
     new_w.last_activity = time.monotonic()
     new_w._stdout_task = asyncio.create_task(_read_stdout(new_w))
     new_w._consume_task = asyncio.create_task(_consumer(new_w))
@@ -3972,6 +4151,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         "type": "worker.spawned",
         "workerId": new_id,
         "sessionId": new_session_id,
+        "generation": new_w.generation,
         "name": s.name,
         "status": "idle",
         "parentWorkerId": worker_id,
@@ -4039,7 +4219,7 @@ async def steer_worker(worker_id: str, text: str) -> str | None:
     return None
 
 
-async def interrupt_worker(worker_id: str) -> str | None:
+async def _interrupt_worker_unlocked(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -4068,7 +4248,34 @@ async def interrupt_worker(worker_id: str) -> str | None:
                 _restart_if_native_interrupt_stalls(w, generation))
             return None
         _log.warning("[Worker %s] native interrupt write failed: %s; restarting", worker_id, err)
-    return await restart_worker(worker_id)
+    return await _restart_worker_unlocked(worker_id)
+
+
+async def interrupt_worker(worker_id: str) -> str | None:
+    """Serialized compatibility wrapper for worker-id callers."""
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    generation = w.generation
+    lock = await _session_spawn_lock(w.session_id)
+    async with lock:
+        current = workers.get(worker_id)
+        if current is not w or w.generation != generation:
+            return None
+        return await _interrupt_worker_unlocked(worker_id)
+
+
+async def interrupt_session_worker(session_id: str) -> Worker | str | None:
+    """Interrupt the live worker for a session, if present."""
+    if _sess.get(session_id) is None:
+        return f"Session {session_id} not found"
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        w = find_alive_worker_by_session(session_id)
+        if w is None:
+            return None
+        error = await _interrupt_worker_unlocked(w.worker_id)
+        return error or w
 
 
 _ACCEPTED_INPUT_ID_LIMIT = 256
@@ -4278,6 +4485,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
             "type": "worker.status",
             "workerId": w.worker_id,
             "sessionId": w.session_id,
+            "generation": w.generation,
             "status": "queued",
             "source": source,
             "sourceSessionId": source_sid,
@@ -4435,9 +4643,10 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         return {"status": "queued", "workerId": None, "sessionId": session_id,
                 "pendingSpawn": True}
     if force:
-        err = await restart_worker(w.worker_id)
-        if err:
-            return {"status": "error", "result": err}
+        restarted = await restart_or_start_worker(session_id)
+        if isinstance(restarted, str):
+            return {"status": "error", "result": restarted}
+        w = restarted
     send_err = await send_task(w.worker_id, text, source=source_type,
                                client_message_id=client_message_id,
                                source_session_id=source_sid)
@@ -4454,11 +4663,49 @@ def list_workers() -> list[Worker]:
     return list(workers.values())
 
 
+def list_live_workers() -> list[Worker]:
+    """Return only runtimes currently reusable by session controls."""
+    return [w for w in workers.values() if find_alive_worker_by_session(w.session_id) is w]
+
+
 def find_worker_by_session(session_id: str) -> Worker | None:
+    indexed = _workers_by_session.get(session_id)
+    if indexed is not None and workers.get(indexed.worker_id) is indexed:
+        return indexed
+    # Tests and legacy embedders may populate the public worker registry
+    # directly.  Keep that compatibility while repairing the index lazily.
     for w in workers.values():
         if w.session_id == session_id:
+            _register_worker(w)
             return w
+    _workers_by_session.pop(session_id, None)
     return None
+
+
+async def steer_session_worker(session_id: str, text: str) -> Worker | str | None:
+    """Steer the session's live worker without exposing its runtime id."""
+    if _sess.get(session_id) is None:
+        return f"Session {session_id} not found"
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        w = find_alive_worker_by_session(session_id)
+        if w is None:
+            return None
+        error = await steer_worker(w.worker_id, text)
+        return error or w
+
+
+async def send_session_control(session_id: str, control: dict) -> Worker | str | None:
+    """Send an out-of-band control to the session's current worker."""
+    if _sess.get(session_id) is None:
+        return f"Session {session_id} not found"
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        w = find_alive_worker_by_session(session_id)
+        if w is None:
+            return None
+        error = await send_control_message(w.worker_id, control)
+        return error or w
 
 
 def find_alive_worker_by_session(session_id: str) -> Worker | None:
@@ -4511,3 +4758,6 @@ async def shutdown_all():
         await _kill_process_tree(w)
         await _kill_takeover_terminal(w)
     workers.clear()
+    _workers_by_session.clear()
+    _worker_generations.clear()
+    _recovery_required.clear()

@@ -103,7 +103,7 @@ export function TopBar() {
   // WS-tracked worker (workerStore keeps currentWorkerId synced per-session
   // via refresh/syncToSession) only if it actually belongs to this session.
   const effectiveWorkerId =
-    currentSession.workerId ||
+    (currentSession.workerId && currentSession.workerStatus ? currentSession.workerId : null) ||
     (currentWorker &&
     currentWorker.sessionId === currentSession.id &&
     currentWorker.status !== 'offline'
@@ -202,7 +202,7 @@ export function TopBar() {
               variant="ghost"
               size="sm"
               onClick={() =>
-                interrupt(effectiveWorkerId)
+                interrupt(currentSession.id)
                   .then(() => showToast('Interrupt sent'))
                   .catch((e) => showToast(e.message, 'error'))
               }
@@ -215,7 +215,7 @@ export function TopBar() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  takeover(effectiveWorkerId)
+                  takeover(currentSession.id)
                     .then(() =>
                       showToast('PowerShell opened for takeover'),
                     )
@@ -231,7 +231,7 @@ export function TopBar() {
               size="sm"
               onClick={() => {
                 if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
-                killCurrent(effectiveWorkerId)
+                killCurrent(currentSession.id)
                   .then(() => showToast('Kill sent'))
                   .catch((e) => showToast(e.message, 'error'));
               }}

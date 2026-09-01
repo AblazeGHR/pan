@@ -139,21 +139,24 @@ export function useWebSocket() {
 
     // Worker spawned / restarted / reconfigured
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
+      if (!isCurrentWorkerEvent(e)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       clearInteractiveRequests(e.sessionId);
-      handleWorkerUpdate(e, 'idle');
+      if (!handleWorkerUpdate(e, 'idle')) return;
       refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) => {
+      if (!isCurrentWorkerEvent(e)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       clearInteractiveRequests(e.sessionId);
-      handleWorkerUpdate(e, 'idle');
+      if (!handleWorkerUpdate(e, 'idle')) return;
       refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) => {
+      if (!isCurrentWorkerEvent(e)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       clearInteractiveRequests(e.sessionId);
-      handleWorkerUpdate(e, 'idle');
+      if (!handleWorkerUpdate(e, 'idle')) return;
       refreshAgentQueue(e.sessionId);
     }));
 
@@ -161,10 +164,11 @@ export function useWebSocket() {
     // 崩溃/销毁是低频事件，且流式片段已逐块落盘，刷新让列表吸收已持久化的
     // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
+      if (!isCurrentWorkerEvent(e, true)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
-      handleWorkerUpdate(e, null);
+      if (!handleWorkerUpdate(e, null, true)) return;
       refreshAgentQueue(e.sessionId);
       // A destroyed worker may be the only event after a user queued text
       // while it was running.  Do not wait for a stale idle status or a later
@@ -173,10 +177,11 @@ export function useWebSocket() {
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
+      if (!isCurrentWorkerEvent(e, true)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);
       if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
-      handleWorkerUpdate(e, null);
+      if (!handleWorkerUpdate(e, null, true)) return;
       refreshAgentQueue(e.sessionId);
       useQueueStore.getState().flush(true);
       scheduleRefreshSessions();
@@ -184,7 +189,7 @@ export function useWebSocket() {
 
     // Worker status update
     unsubscribers.push(wsClient.on('worker.status', (e: StreamEvent) => {
-      handleWorkerUpdate(e, e.status ?? 'idle');
+      if (!handleWorkerUpdate(e, e.status ?? 'idle')) return;
       // A task/report remains in the durable server queue until the provider
       // hand-off boundary (stream write+drain, or one-shot process creation).
       // Refresh on this transition so the panel converges after hand-off while
@@ -208,6 +213,7 @@ export function useWebSocket() {
     // Stream events (real-time message chunks)
     unsubscribers.push(wsClient.on('worker.stream', (e: StreamEvent) => {
       if (!e.sessionId || !e.event) return;
+      if (!isCurrentWorkerEvent(e)) return;
       if (e.event.type === 'codex.thread_status' && e.event.native_status) {
         useWorkerStore.getState().updateNativeStatus(
           e.sessionId,
@@ -338,6 +344,7 @@ export function useWebSocket() {
 
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
+      if (!isCurrentWorkerEvent(e)) return;
       const sessionStore = useSessionStore.getState();
       clearInteractiveRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {
@@ -404,11 +411,27 @@ export function useWebSocket() {
   }, []);
 }
 
+function isCurrentWorkerEvent(e: StreamEvent, terminal = false): boolean {
+  if (!e.sessionId) return false;
+  const known = useWorkerStore.getState().workers[e.sessionId];
+  if (
+    known &&
+    e.generation !== undefined &&
+    known.generation !== undefined &&
+    e.generation < known.generation
+  ) return false;
+  // A late terminal event from an older worker must not clear the replacement.
+  if (terminal && known?.id && e.workerId && known.id !== e.workerId) return false;
+  return true;
+}
+
 function handleWorkerUpdate(
   e: StreamEvent,
   status: string | null,
-): void {
-  if (!e.sessionId) return;
+  terminal = false,
+): boolean {
+  if (!e.sessionId) return false;
+  if (!isCurrentWorkerEvent(e, terminal)) return false;
   const sessStore = useSessionStore.getState();
   sessStore.updateSession(e.sessionId, {
     // A destroy/crash event is authoritative even though older event payloads
@@ -417,7 +440,7 @@ function handleWorkerUpdate(
     workerStatus: status,
   });
   const workerStore = useWorkerStore.getState();
-  workerStore.updateWorker(e.sessionId, e.workerId ?? null, status);
+  workerStore.updateWorker(e.sessionId, e.workerId ?? null, status, e.generation, terminal);
 
   // 队列自动发送：worker 变 idle 且属于当前 session → 发送队首 1 条
   // （发送后 worker 变 queued/running，不再是 idle，天然防重复；result→idle 再取下一条）
@@ -427,6 +450,7 @@ function handleWorkerUpdate(
   ) {
     useQueueStore.getState().flush();
   }
+  return true;
 }
 
 /** Python `json.dumps(input, separators=(',',':'), ensure_ascii=True)` 兼容的

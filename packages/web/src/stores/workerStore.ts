@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import type { WorkerInfo, SettingsBody, ApiGenericResponse } from '@/types';
 import {
-  spawnWorker,
-  killWorker,
+  killSessionWorker,
   restartOrStartWorker,
-  workerSettings,
-  interruptWorker,
-  steerWorker,
-  takeoverWorker,
+  interruptSessionWorker,
+  steerSessionWorker,
+  takeoverSessionWorker,
+  patchSession,
   listWorkers,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -40,15 +39,17 @@ interface WorkerStore {
 
   // Actions
   startWorker: (sessionId: string, settings?: SettingsBody) => Promise<void>;
-  killCurrent: (workerId: string) => Promise<void>;
-  interrupt: (workerId: string) => Promise<void>;
-  steer: (workerId: string, text: string) => Promise<void>;
+  killCurrent: (sessionId: string) => Promise<void>;
+  interrupt: (sessionId: string) => Promise<void>;
+  steer: (sessionId: string, text: string) => Promise<void>;
   restart: (sessionId: string, settings?: SettingsBody) => Promise<void>;
-  takeover: (workerId: string) => Promise<ApiGenericResponse>;
+  takeover: (sessionId: string) => Promise<ApiGenericResponse>;
   updateWorker: (
     sessionId: string,
     workerId: string | null,
     status: string | null,
+    generation?: number,
+    terminal?: boolean,
   ) => void;
   updateNativeStatus: (
     sessionId: string,
@@ -75,54 +76,55 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
   currentWorker: null,
 
   startWorker: async (sessionId, settings) => {
+    if (settings) await patchSession(sessionId, settings);
+    const result = await restartOrStartWorker(sessionId);
+    if (result.workerId) {
+      useWorkerStore.getState().updateWorker(
+        sessionId,
+        result.workerId,
+        result.status || 'idle',
+      );
+      useSessionStore.getState().updateSession(sessionId, {
+        workerId: result.workerId,
+        workerStatus: result.status || 'idle',
+      });
+    }
+  },
+
+  killCurrent: async (sessionId) => {
     try {
-      const result = await spawnWorker(sessionId, settings);
-      const workerId = result.workerId;
-      if (workerId) {
-        set((s) => {
-          const worker: WorkerInfo = { id: workerId, sessionId, status: 'idle' };
-          const workers = { ...s.workers, [sessionId]: worker };
-          return {
-            currentWorkerId: workerId,
-            workers,
-            currentWorker: findWorker(workers, workerId),
-          };
-        });
-      }
+      await killSessionWorker(sessionId);
+      set((s) => {
+        const workers = { ...s.workers };
+        delete workers[sessionId];
+        const currentSessionId = useSessionStore.getState().currentSessionId;
+        const currentWorkerId = currentSessionId === sessionId ? null : s.currentWorkerId;
+        return {
+          workers,
+          currentWorkerId,
+          currentWorker: findWorker(workers, currentWorkerId),
+        };
+      });
     } catch (e) {
       throw e;
     }
   },
 
-  killCurrent: async (workerId) => {
+  interrupt: async (sessionId) => {
     try {
-      await killWorker(workerId);
-      set({ currentWorkerId: null, currentWorker: null });
+      await interruptSessionWorker(sessionId);
     } catch (e) {
       throw e;
     }
   },
 
-  interrupt: async (workerId) => {
-    try {
-      await interruptWorker(workerId);
-    } catch (e) {
-      throw e;
-    }
-  },
-
-  steer: async (workerId, text) => {
-    await steerWorker(workerId, text);
+  steer: async (sessionId, text) => {
+    await steerSessionWorker(sessionId, text);
   },
 
   restart: async (sessionId, settings) => {
     if (settings) {
-      const workerId = useWorkerStore.getState().workers[sessionId]?.id;
-      if (!workerId) {
-        await restartOrStartWorker(sessionId);
-        return;
-      }
-      await workerSettings(workerId, settings);
+      await patchSession(sessionId, settings);
     } else {
       const result = await restartOrStartWorker(sessionId);
       if (result.workerId) {
@@ -139,19 +141,27 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
     }
   },
 
-  takeover: async (workerId) => {
-    const result = await takeoverWorker(workerId);
+  takeover: async (sessionId) => {
+    const result = await takeoverSessionWorker(sessionId);
     return result;
   },
 
-  updateWorker: (sessionId, workerId, status) => {
+  updateWorker: (sessionId, workerId, status, generation, terminal = false) => {
     if (!sessionId) return;
 
     const previous = useWorkerStore.getState().workers[sessionId];
+    if (
+      previous &&
+      generation !== undefined &&
+      previous.generation !== undefined &&
+      generation < previous.generation
+    ) return;
+    if (terminal && previous?.id && workerId && previous.id !== workerId) return;
     const now: WorkerInfo = {
       id: workerId || '',
       sessionId,
       status: (status as WorkerInfo['status']) || 'offline',
+      ...(generation !== undefined ? { generation } : previous?.generation !== undefined ? { generation: previous.generation } : {}),
       ...(status === 'idle' || status === null || status === undefined
         ? {}
         : previous?.nativeStatus
@@ -287,6 +297,7 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
           id: w.workerId,
           sessionId: w.sessionId,
           status,
+          ...(w.generation !== undefined ? { generation: w.generation } : {}),
           ...(status !== 'idle' && previous?.nativeStatus
             ? { nativeStatus: previous.nativeStatus }
             : {}),
