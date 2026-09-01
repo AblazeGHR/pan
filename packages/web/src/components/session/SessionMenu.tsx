@@ -90,11 +90,14 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox }:
     );
   };
 
-  const handleReimport = () => {
+  const handleReimport = async () => {
     onClose();
-    reimport(session.id).catch((e) =>
-      showToast(e.message || 'Reimport failed', 'error'),
-    );
+    try {
+      await reimport(session.id);
+      showToast('Session reimported');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Reimport failed', 'error');
+    }
   };
 
   const handleBranch = () => {
