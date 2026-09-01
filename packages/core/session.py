@@ -146,12 +146,11 @@ def _strip_delivery_marks(history: list[dict]) -> list[dict]:
 # wrote them as top-level fields; migration lives in _from_data / __post_init__.
 _PAN_ACCESS_KEYS = ("restrict_to_managed", "can_claim_unmanaged", "auto_claim_created")
 
-# Fields introduced by the newer at-most-once queue implementation.  This
-# branch predates that implementation and intentionally keeps
-# ``queue_pending`` as its only persisted queue state.  Session files are
-# shared across checkouts, so a rollback must be able to load files written by
-# the newer checkout instead of failing the whole application startup.
-_FORWARD_COMPAT_FIELDS = ("queue_delivery_ledger", "queue_revision")
+# Queue receipts written by the previous queue implementation are retained as
+# compatibility metadata.  They are not a second queue: ``queue_pending`` is
+# still the only durable delivery queue.  Keeping the receipt ledger here lets
+# a late taskId/clientMessageId retry resolve to the original receipt after an
+# upgrade instead of creating a second queue item.
 
 
 @dataclass(init=False)
@@ -178,6 +177,8 @@ class Session:
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
+    queue_delivery_ledger: dict = field(default_factory=dict)  # legacy receipt compatibility
+    queue_revision: int = 0  # legacy/API revision compatibility
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
     # Browser-originated messages are acknowledged only after the queue item is
     # durable.  Keep a bounded receipt ledger so a WebSocket reconnect can
@@ -222,6 +223,8 @@ class Session:
                  managed_by: str | None = None,
                  readonly_session: bool = False,
                  queue_pending: list | None = None,
+                 queue_delivery_ledger: dict | None = None,
+                 queue_revision: int = 0,
                  task_seq: int = 0,
                  accepted_input_ids: list[str] | None = None,
                   report_subscriptions=None,
@@ -261,6 +264,13 @@ class Session:
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
+        self.queue_delivery_ledger = (
+            queue_delivery_ledger if isinstance(queue_delivery_ledger, dict) else {}
+        )
+        try:
+            self.queue_revision = int(queue_revision or 0)
+        except (TypeError, ValueError):
+            self.queue_revision = 0
         self.task_seq = task_seq
         self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
@@ -340,12 +350,6 @@ class Session:
         Old top-level capability fields are migrated into nested pan_access
         (and the old keys removed) so pre-refactor JSON keeps loading.
         """
-        # A newer checkout may have persisted queue delivery bookkeeping that
-        # this rolled-back checkout does not understand.  It is safe to drop
-        # these fields here: this implementation does not read them, while
-        # ``queue_pending`` remains available for the legacy consumer.
-        for key in _FORWARD_COMPAT_FIELDS:
-            data.pop(key, None)
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
             ("cbc_session_id", "cli_session_id"),
@@ -389,6 +393,8 @@ class Session:
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
+            "queue_delivery_ledger": self.queue_delivery_ledger,
+            "queue_revision": self.queue_revision,
             "task_seq": self.task_seq,
             "accepted_input_ids": self.accepted_input_ids,
             "report_subscriptions": sorted(self.report_subscriptions),

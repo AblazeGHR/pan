@@ -291,7 +291,7 @@ def test_wake_worker_auto_spawn_skips_live_worker(monkeypatch):
     asyncio.run(worker._wake_worker("ses_qq", auto_spawn=True))
     assert spawned == [], "live worker must only be woken, not re-spawned"
     assert w.pending_signal.qsize() == 1
-    assert w.pending_signal.get_nowait() == {"type": "report_signal"}
+    assert w.pending_signal.get_nowait() == {"type": "queue_signal"}
     _cleanup()
 
 

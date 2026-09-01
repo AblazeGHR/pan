@@ -619,7 +619,7 @@ export type AgentQueueKind = 'task' | 'report' | 'qq';
 
 /** 后端落盘队列 queue_pending 的归一化条目（task/report/qq 异构 → 统一形状）。 */
 export interface AgentQueueItem {
-  /** task 项为后端 uuid；report/qq 无 id 字段，由后端按内容 sha1 生成稳定 id。 */
+    /** 新写入项都有后端 queueItemId；旧数据没有 id 时由后端内容哈希兜底。 */
   id: string;
   kind: AgentQueueKind;
   text: string;
@@ -633,8 +633,8 @@ export interface AgentQueueItem {
     workerId?: string;
     qqTarget?: string;
     time?: string;
-    /** queued=尚未被 Worker 接管；in_flight/uncertain 仅兼容旧版遗留数据，当前版本接管即出队。 */
-    dispatchState?: 'queued' | 'in_flight' | 'uncertain';
+      /** queued=可修改待发送；其余状态是 hand-off 过渡态，通常不会出现在 GET /queue。 */
+    dispatchState?: 'queued' | 'reserved' | 'writing' | 'sent_to_cli' | 'in_flight' | 'uncertain';
   };
 }
 

@@ -223,8 +223,8 @@ export async function retrySessionQueueItem(
   sessionId: string,
   itemId: string,
 ): Promise<ApiSessionQueueResponse & { item?: AgentQueueItem }> {
-  // Kept for API compatibility; the server intentionally rejects retries
-  // because a consumed item must never be executed a second time.
+  // Retry addresses the original durable queue receipt. The server clears its
+  // backoff and re-arms that same item; it never creates a second queue row.
   const data = await request<ApiSessionQueueResponse & { item?: AgentQueueItem }>(
     `${BASE}/sessions/${sessionId}/queue/${itemId}/retry`,
     { method: 'POST' },
@@ -248,10 +248,14 @@ export async function reorderSessionQueue(
 }
 
 /** Send a message to a session, queuing it server-side when no worker exists. */
-export async function sendSession(sessionId: string, text: string): Promise<ApiGenericResponse> {
+export async function sendSession(
+  sessionId: string,
+  text: string,
+  clientMessageId?: string,
+): Promise<ApiGenericResponse> {
   const data = await request<ApiGenericResponse>(`${BASE}/send`, {
     method: 'POST',
-    body: JSON.stringify({ sessionId, text, source: 'user' }),
+    body: JSON.stringify({ sessionId, text, source: 'user', ...(clientMessageId ? { clientMessageId } : {}) }),
   });
   if (data.error) throw new Error(data.error);
   return data;

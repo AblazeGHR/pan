@@ -174,11 +174,11 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     onSent: (ok: boolean) => void,
   ): void {
     let settled = false;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const timer: { id?: ReturnType<typeof setTimeout> } = {};
     const finish = (ok: boolean): void => {
       if (settled) return;
       settled = true;
-      if (timeout) clearTimeout(timeout);
+      if (timer.id) clearTimeout(timer.id);
       offAccepted();
       offRejected();
       onSent(ok);
@@ -217,7 +217,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     }
     // An accepted ack can be lost with the connection. Keep the entry and
     // retry the same id; the backend receipt ledger makes that safe.
-    timeout = setTimeout(() => finish(false), 10_000);
+    timer.id = setTimeout(() => finish(false), 10_000);
   }
 
   /** 把编辑中的条目按原位置插回队列（原值），并清除编辑态。 */
@@ -523,8 +523,11 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       try {
         await deleteSessionQueueItem(sid, id);
       } catch (e) {
-        // not_found = 已被 worker 消费：以服务端为准刷新视图
-        if (e instanceof Error && e.message.includes('not_found')) {
+        // 队列项可能已跨过 hand-off 边界或已被删除：以服务端为准刷新视图。
+        if (
+          e instanceof Error &&
+          (e.message.includes('not_found') || e.message.includes('queue_item_not_pending'))
+        ) {
           void get().loadAgentQueue(sid);
           return;
         }

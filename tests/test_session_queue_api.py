@@ -157,18 +157,40 @@ def test_get_queue_normalizes_legacy_no_type_text_as_user_task(monkeypatch):
     _cleanup()
 
 
-def test_retry_queue_item_is_disabled(monkeypatch):
-    """严格 at-most-once 语义拒绝可能造成第二次执行的 retry。"""
+def test_retry_queue_item_rearms_original_receipt(monkeypatch):
+    """retry clears backoff on the original queued item without duplicating it."""
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     monkeypatch.setattr("packages.web.server.worker._schedule_session_recovery", lambda _sid: None)
     s = _setup_session("ses_q")
-    task = dict(TASK_A, deliveryState="in_flight")
+    task = dict(TASK_A, deliveryState="queued", nextAttemptAt=9999999999,
+                lastDeliveryError="temporary")
     s.queue_pending = [task]
 
     r = asyncio.run(srv.api_session_queue_retry("ses_q", "task-aaa"))
 
-    assert r == {"ok": False, "error": "Queue retry disabled by at-most-once policy"}
-    assert s.queue_pending == [task]
+    assert r["ok"] is True
+    assert r["item"]["id"] == "task-aaa"
+    assert len(s.queue_pending) == 1
+    assert s.queue_pending[0]["deliveryState"] == "queued"
+    assert "nextAttemptAt" not in s.queue_pending[0]
+    _cleanup()
+
+
+def test_retry_legacy_report_by_stable_hash_id(monkeypatch):
+    """Old report rows without an id still retry the original receipt."""
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    monkeypatch.setattr("packages.web.server.worker._schedule_session_recovery", lambda _sid: None)
+    s = _setup_session("ses_q")
+    report = dict(REPORT_PLAIN, nextAttemptAt=9999999999, lastDeliveryError="temporary")
+    s.queue_pending = [report]
+    item_id = srv._queue_item_id(report)
+
+    r = asyncio.run(srv.api_session_queue_retry("ses_q", item_id))
+
+    assert r["ok"] is True
+    assert r["item"]["id"] == item_id
+    assert len(s.queue_pending) == 1
+    assert "nextAttemptAt" not in s.queue_pending[0]
     _cleanup()
 
 

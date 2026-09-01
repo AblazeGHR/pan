@@ -30,8 +30,8 @@ function queueItemOrigin(item: AgentQueueItem): 'user' | 'agent' {
 }
 
 /**
- * 待发送队列面板：单行截断 + hover 操作（编辑/上移/下移/删除）、行内编辑、
- * 批量拼接发送勾选、清空按钮、空态。默认折叠，由 InputRow 的 ^ 按钮控制。
+ * 队列面板：服务端 queue_pending 是权威待发送列表；localStorage 只作为
+ * 旧客户端/断网 outbox 保留。默认折叠，由 InputRow 的 ^ 按钮控制。
  */
 export function SendQueuePanel() {
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
@@ -90,52 +90,46 @@ export function SendQueuePanel() {
     >
       <div className="overflow-hidden">
         <div className="px-3 pt-2 pb-1">
-          {/* Header */}
-          <div className="flex items-center gap-2 pb-1.5">
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
-              <ClipboardList size={14} />
-              待发送
-              <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none text-text-secondary">
-                {total}
-              </span>
-              {sendingId && <Loader2 size={12} className="animate-spin text-accent" />}
-            </span>
-            <div className="flex-1" />
-            <label className="inline-flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer select-none hover:text-text-primary transition-colors">
-              <input
-                type="checkbox"
-                checked={batchSend}
-                onChange={toggleBatchSend}
-                className="accent-accent h-3.5 w-3.5 rounded border-border-default"
-                title="勾选后 worker 空闲时把全部消息拼接成一条发出"
-              />
-              拼接发送
-            </label>
-            {total > 0 && (
-              <button
-                onClick={clear}
-                className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-text-tertiary hover:bg-danger/10 hover:text-danger transition-colors"
-                title="清空发送队列"
-              >
-                <Trash2 size={12} />
-                清空
-              </button>
-            )}
-          </div>
-
-          {/* List */}
-          <div className="queue-list-scroll max-h-[35vh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary/60">
-            {total === 0 ? (
-              <div className="px-3 py-3 text-center text-xs text-text-tertiary">
-                队列为空 — worker 忙时发送的消息会排队等待
+          {/* localStorage outbox 仅是旧客户端/断网兼容层；正常输入不会进入这里。 */}
+          {total > 0 && (
+            <>
+              <div className="flex items-center gap-2 pb-1.5">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+                  <ClipboardList size={14} />
+                  本地离线待发送（兼容 outbox）
+                  <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none text-text-secondary">
+                    {total}
+                  </span>
+                  {sendingId && <Loader2 size={12} className="animate-spin text-accent" />}
+                </span>
+                <div className="flex-1" />
+                <label className="inline-flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer select-none hover:text-text-primary transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={batchSend}
+                    onChange={toggleBatchSend}
+                    className="accent-accent h-3.5 w-3.5 rounded border-border-default"
+                    title="勾选后 worker 空闲时把全部消息拼接成一条发出"
+                  />
+                  拼接发送
+                </label>
+                <button
+                  onClick={clear}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-text-tertiary hover:bg-danger/10 hover:text-danger transition-colors"
+                  title="清空发送队列"
+                >
+                  <Trash2 size={12} />
+                  清空
+                </button>
               </div>
-            ) : (
-              <div className="p-1">
-                {displayItems.map((item, index) => {
-                  const isEditing = edit?.id === item.id;
-                  const isHead = index === 0;
-                  const isLast = index === displayItems.length - 1;
-                  const isSending = sendingId === item.id;
+
+              <div className="queue-list-scroll max-h-[35vh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary/60">
+                <div className="p-1">
+                  {displayItems.map((item, index) => {
+                    const isEditing = edit?.id === item.id;
+                    const isHead = index === 0;
+                    const isLast = index === displayItems.length - 1;
+                    const isSending = sendingId === item.id;
 
                   return (
                     <div
@@ -227,22 +221,23 @@ export function SendQueuePanel() {
                       )}
                     </div>
                   );
-                })}
-                {batchSending && (
-                  <div className="px-2 py-1.5 text-xs text-accent">正在拼接发送全部消息…</div>
-                )}
+                  })}
+                  {batchSending && (
+                    <div className="px-2 py-1.5 text-xs text-accent">正在拼接发送全部消息…</div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
 
-          {/* Agent queue group（只读展示 + 移动/删除，无编辑/批量/清空）。
-              agent 队列为空或尚未加载时不显示该组。 */}
+          {/* 服务端统一 FIFO 队列：前端输入、agent task、report、QQ 都来自同一
+              Session.queue_pending；这里按服务端顺序显示为一个列表。 */}
           {agentItems.length > 0 && (
             <div className="mt-2">
               <div className="flex items-center gap-1.5 pb-1.5">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
                   <Bot size={14} />
-                  服务端队列（Agent/用户）
+                  统一服务端待发送队列（FIFO）
                   <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] leading-none text-text-secondary">
                     {agentItems.length}
                   </span>
@@ -252,7 +247,7 @@ export function SendQueuePanel() {
                 <div className="p-1">
                   {agentItems.map((item, index) => {
                     const dispatchState = item.meta?.dispatchState ?? 'queued';
-                    const inFlight = dispatchState === 'in_flight';
+                    const inFlight = dispatchState !== 'queued';
                     return (
                       <div
                         key={item.id}
@@ -264,7 +259,7 @@ export function SendQueuePanel() {
                         {inFlight && (
                           <span
                             className="shrink-0 text-[10px] text-accent"
-                            title="worker 已认领，正在等待结果"
+                            title="该项正在进行 CLI 交接，暂不允许修改"
                           >
                             执行中
                           </span>
@@ -278,7 +273,7 @@ export function SendQueuePanel() {
                         <span className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
                           <button
                             className={ROW_BTN}
-                            disabled={index === 0}
+                            disabled={inFlight || index === 0}
                             onClick={() => moveAgentItem(item.id, -1)}
                             title="上移"
                           >
@@ -286,7 +281,7 @@ export function SendQueuePanel() {
                           </button>
                           <button
                             className={ROW_BTN}
-                            disabled={index === agentItems.length - 1}
+                            disabled={inFlight || index === agentItems.length - 1}
                             onClick={() => moveAgentItem(item.id, 1)}
                             title="下移"
                           >
@@ -294,6 +289,7 @@ export function SendQueuePanel() {
                           </button>
                           <button
                             className={ROW_BTN + ' text-danger hover:bg-danger/10'}
+                            disabled={inFlight}
                             onClick={() => removeAgentItem(item.id)}
                             title="删除（不确认）"
                           >
@@ -305,6 +301,12 @@ export function SendQueuePanel() {
                   })}
                 </div>
               </div>
+            </div>
+          )}
+
+          {total === 0 && agentItems.length === 0 && (
+            <div className="rounded-md border border-border-muted bg-bg-secondary/60 px-3 py-3 text-center text-xs text-text-tertiary">
+              待发送队列为空
             </div>
           )}
         </div>
