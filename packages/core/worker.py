@@ -2657,6 +2657,19 @@ def _schedule_session_recovery(session_id: str) -> asyncio.Task | None:
 
 def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
     """Wake a session once its earliest persisted retry becomes due."""
+    session = _sess.get(session_id)
+    if session is None or not any(
+        isinstance(item, dict)
+        and _queue_item_kind(item) is not None
+        and _delivery_state(item) == _DELIVERY_QUEUED
+        and isinstance(item.get("nextAttemptAt"), (int, float))
+        and item.get("nextAttemptAt") > time.time()
+        for item in (session.queue_pending or [])
+    ):
+        # Immediate queue items already have a queue_signal.  Only create a
+        # timer for an item that is actually waiting for persisted backoff;
+        # otherwise the timer would emit a duplicate wakeup on every spawn.
+        return None
     existing = _queue_retry_tasks.get(session_id)
     if existing is not None and not existing.done():
         return existing

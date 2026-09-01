@@ -468,7 +468,8 @@ def test_api_send_by_session_id_delegates(monkeypatch):
     _cleanup()
     captured = {}
 
-    async def fake_send_session(session_id, text, source="agent", force=False):
+    async def fake_send_session(session_id, text, source="agent", force=False,
+                                client_message_id=None, source_session_id=None):
         captured.update(session_id=session_id, text=text, force=force)
         return {"status": "queued", "workerId": None, "sessionId": session_id,
                 "pendingSpawn": True}
@@ -488,7 +489,8 @@ def test_api_send_workerid_resolves_session(monkeypatch):
     _setup_worker(s.id, worker_id="worker-h1")
     captured = {}
 
-    async def fake_send_session(session_id, text, source="agent", force=False):
+    async def fake_send_session(session_id, text, source="agent", force=False,
+                                client_message_id=None, source_session_id=None):
         captured.update(session_id=session_id, force=force)
         return {"status": "queued", "workerId": "worker-h1", "sessionId": session_id}
 
@@ -505,7 +507,8 @@ def test_api_send_error_translation(monkeypatch):
     """send_session error → 端点翻译为 {"error": ...}（与 /api/task 约定一致）。"""
     _cleanup()
 
-    async def fake_send_session(session_id, text, source="agent", force=False):
+    async def fake_send_session(session_id, text, source="agent", force=False,
+                                client_message_id=None, source_session_id=None):
         return {"status": "error", "result": f"Session {session_id} not found"}
 
     monkeypatch.setattr(worker, "send_session", fake_send_session)
