@@ -411,8 +411,10 @@ function handleWorkerUpdate(
   if (!e.sessionId) return;
   const sessStore = useSessionStore.getState();
   sessStore.updateSession(e.sessionId, {
-    workerId: e.workerId ?? undefined,
-    workerStatus: status ?? undefined,
+    // A destroy/crash event is authoritative even though older event payloads
+    // may omit workerId.  Do not turn its explicit null into "leave unchanged".
+    workerId: status === null ? null : e.workerId ?? undefined,
+    workerStatus: status,
   });
   const workerStore = useWorkerStore.getState();
   workerStore.updateWorker(e.sessionId, e.workerId ?? null, status);

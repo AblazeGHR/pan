@@ -423,6 +423,18 @@ export async function restartWorker(workerId: string): Promise<ApiGenericRespons
   return data;
 }
 
+/** Restart the live worker for a session, or start one when it has gone away. */
+export async function restartOrStartWorker(
+  sessionId: string,
+): Promise<ApiGenericResponse> {
+  const data = await request<ApiGenericResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/restart`,
+    { method: 'POST' },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 export async function workerSettings(
   workerId: string,
   settings: SettingsBody,

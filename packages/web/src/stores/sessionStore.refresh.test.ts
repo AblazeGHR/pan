@@ -149,6 +149,32 @@ describe('sessionStore refresh staleness guards', () => {
     expect(s.workerId).toBe('w1');
   });
 
+  it('preserves explicit WS nulls instead of restoring a stale workerId', async () => {
+    useSessionStore.setState({
+      sessions: [mk('A', 'A', { workerStatus: 'idle', workerId: 'w1' })],
+      currentSessionId: null,
+    });
+    act(() => {
+      useSessionStore.getState().updateSession('A', {
+        workerStatus: null,
+        workerId: null,
+      });
+    });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().loadSessions();
+    });
+    await act(async () => {
+      resolveNextFetch([mk('A', 'A', { workerStatus: 'idle', history: [] })]);
+      await promise!;
+    });
+
+    const s = useSessionStore.getState().sessions[0]!;
+    expect(s.workerStatus).toBeNull();
+    expect(s.workerId).toBeNull();
+  });
+
   it('keeps idle set right before a refresh over a transient done snapshot', async () => {
     // Mirrors the worker.result path: handleWorkerUpdate sets idle, then a
     // (debounced) refresh starts; its snapshot lands in the backend's transient

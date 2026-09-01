@@ -10,6 +10,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -60,6 +61,38 @@ def _setup_worker(session_id, worker_id="worker-test"):
     )
     worker.workers[w.worker_id] = w
     return w
+
+
+def test_restart_or_start_creates_when_session_has_no_live_worker(monkeypatch):
+    _setup_session("ses_control")
+    created = object()
+    create = AsyncMock(return_value=created)
+    restart = AsyncMock()
+    monkeypatch.setattr(worker, "_create_worker", create)
+    monkeypatch.setattr(worker, "restart_worker", restart)
+    monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: None)
+
+    result = asyncio.run(worker.restart_or_start_worker("ses_control"))
+
+    assert result is created
+    create.assert_awaited_once_with("ses_control")
+    restart.assert_not_awaited()
+
+
+def test_restart_or_start_restarts_live_worker_without_creating(monkeypatch):
+    _setup_session("ses_control")
+    live = SimpleNamespace(worker_id="worker-live")
+    create = AsyncMock()
+    restart = AsyncMock(return_value=None)
+    monkeypatch.setattr(worker, "_create_worker", create)
+    monkeypatch.setattr(worker, "restart_worker", restart)
+    monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: live)
+
+    result = asyncio.run(worker.restart_or_start_worker("ses_control"))
+
+    assert result is live
+    restart.assert_awaited_once_with("worker-live")
+    create.assert_not_awaited()
 
 
 # ── global watchdog tick ──

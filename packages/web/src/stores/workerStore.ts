@@ -3,7 +3,7 @@ import type { WorkerInfo, SettingsBody, ApiGenericResponse } from '@/types';
 import {
   spawnWorker,
   killWorker,
-  restartWorker,
+  restartOrStartWorker,
   workerSettings,
   interruptWorker,
   steerWorker,
@@ -43,7 +43,7 @@ interface WorkerStore {
   killCurrent: (workerId: string) => Promise<void>;
   interrupt: (workerId: string) => Promise<void>;
   steer: (workerId: string, text: string) => Promise<void>;
-  restart: (workerId: string, settings?: SettingsBody) => Promise<void>;
+  restart: (sessionId: string, settings?: SettingsBody) => Promise<void>;
   takeover: (workerId: string) => Promise<ApiGenericResponse>;
   updateWorker: (
     sessionId: string,
@@ -115,11 +115,27 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
     await steerWorker(workerId, text);
   },
 
-  restart: async (workerId, settings) => {
+  restart: async (sessionId, settings) => {
     if (settings) {
+      const workerId = useWorkerStore.getState().workers[sessionId]?.id;
+      if (!workerId) {
+        await restartOrStartWorker(sessionId);
+        return;
+      }
       await workerSettings(workerId, settings);
     } else {
-      await restartWorker(workerId);
+      const result = await restartOrStartWorker(sessionId);
+      if (result.workerId) {
+        useWorkerStore.getState().updateWorker(
+          sessionId,
+          result.workerId,
+          result.status || 'idle',
+        );
+        useSessionStore.getState().updateSession(sessionId, {
+          workerId: result.workerId,
+          workerStatus: result.status || 'idle',
+        });
+      }
     }
   },
 

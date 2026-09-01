@@ -62,7 +62,7 @@ export function TopBar() {
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const { showToast, toggleTuiView, tuiViewEnabled } =
     useUIStore();
-  const { restart, startWorker, killCurrent, interrupt, takeover } =
+  const { restart, killCurrent, interrupt, takeover } =
     useWorkerStore();
   const { isMobile } = useMediaQuery();
 
@@ -104,10 +104,12 @@ export function TopBar() {
   // via refresh/syncToSession) only if it actually belongs to this session.
   const effectiveWorkerId =
     currentSession.workerId ||
-    (currentWorker && currentWorker.sessionId === currentSession.id
+    (currentWorker &&
+    currentWorker.sessionId === currentSession.id &&
+    currentWorker.status !== 'offline'
       ? currentWorker.id
-      : null) ||
-    null;
+      : null);
+  const hasWorker = Boolean(effectiveWorkerId);
 
   const handleCopy = (text: string) => {
     navigator.clipboard
@@ -182,13 +184,13 @@ export function TopBar() {
             {nativeRateLimitLabel}
           </span>
         )}
-        {effectiveWorkerId && (
+        {hasWorker && effectiveWorkerId && (
           <>
             <Button
               variant="ghost"
               size="sm"
               onClick={() =>
-                restart(effectiveWorkerId)
+                restart(currentSession.id)
                   .then(() => showToast('Restarted worker'))
                   .catch((e) => showToast(e.message, 'error'))
               }
@@ -239,12 +241,12 @@ export function TopBar() {
             </Button>
           </>
         )}
-        {!effectiveWorkerId && (
+        {!hasWorker && (
           <Button
             variant="primary"
             size="sm"
             onClick={() =>
-              startWorker(currentSession.id || '')
+              restart(currentSession.id || '')
                 .then(() => showToast('Worker started'))
                 .catch((e) => showToast(e.message, 'error'))
             }

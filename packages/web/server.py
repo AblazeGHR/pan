@@ -3597,6 +3597,22 @@ async def api_restart(worker_id: str):
     return {"workerId": worker_id, "status": "restarted"}
 
 
+@app.post("/api/sessions/{session_id}/worker/restart")
+async def api_restart_or_start(session_id: str):
+    """Restart the session's live worker, or start it when it is gone."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    result = await worker.restart_or_start_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    return {
+        "workerId": result.worker_id,
+        "sessionId": session_id,
+        "status": result.status,
+    }
+
+
 @app.post("/api/worker/{worker_id}/settings")
 async def api_worker_settings(worker_id: str, data: dict):
     """Apply model/mode/thinking settings to a session and respawn the worker."""

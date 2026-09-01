@@ -3288,6 +3288,27 @@ async def create_worker(session_id: str) -> Worker | str:
         return await _create_worker(session_id)
 
 
+async def restart_or_start_worker(session_id: str) -> Worker | str:
+    """Atomically restart a live session worker, or create one if absent.
+
+    The session lock covers the liveness decision and lifecycle transition, so
+    a destroy/recovery race cannot turn two near-simultaneous clicks into two
+    workers.  ``_create_worker`` is used under the lock to avoid re-entering
+    ``create_worker`` and deadlocking.
+    """
+    if _sess.get(session_id) is None:
+        return f"Session {session_id} not found"
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        alive = find_alive_worker_by_session(session_id)
+        if alive is not None:
+            error = await restart_worker(alive.worker_id)
+            if error:
+                return error
+            return alive
+        return await _create_worker(session_id)
+
+
 def _spawn_system_prompt_args(adapter, s, mcp_on: bool) -> list[str] | None:
     """stream spawn 的 --system-prompt 注入决策（_create_worker 用）。
 
