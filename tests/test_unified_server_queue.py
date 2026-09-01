@@ -76,21 +76,50 @@ def test_task_id_stays_idempotent_after_pending_row_is_removed(monkeypatch):
     _cleanup()
 
 
-def test_server_snapshot_keeps_nonretryable_item_after_queue_pending_delete(monkeypatch):
+def test_ledger_receipts_deduplicate_client_and_task_keys_after_pending_delete(monkeypatch):
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
     item, error = asyncio.run(worker._persist_task_item(
-        value, "已写入", "user", None, None, "snapshot-once", None))
+        value, "首次发送", "agent", None, "task-once", "client-once"))
+    assert error is None
+    stdin = _Stdin()
+    current = _write_worker(value, item, stdin)
+
+    asyncio.run(worker._consumer_stream(current, "首次发送", "agent", value))
+    receipt = dict(value.queue_delivery_ledger[item["queueItemId"]])
+
+    duplicate = asyncio.run(worker.enqueue_user_message(
+        value.id, "幂等重试", "client-once"))
+    task_duplicate, task_error = asyncio.run(worker._persist_task_item(
+        value, "幂等重试", "agent", None, "task-once", None))
+
+    assert duplicate["duplicate"] is True
+    assert duplicate["queueItemId"] == item["queueItemId"]
+    assert duplicate["item"] == receipt
+    assert task_duplicate is None and task_error is None
+    assert value.queue_pending == []
+    assert len(value.queue_delivery_ledger) == 1
+    assert stdin.writes == [b'{"message":"x"}\n']
+    _cleanup()
+
+
+@pytest.mark.parametrize("state", ["sent_to_cli", "write_failed", "unknown_after_crash"])
+def test_server_pending_snapshot_hides_nonretryable_ledger_rows(monkeypatch, state):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item, error = asyncio.run(worker._persist_task_item(
+        value, "已处理", "user", None, None, f"snapshot-{state}", None))
     assert error is None
     value.queue_pending.remove(item)
-    value.queue_delivery_ledger[item["queueItemId"]]["deliveryState"] = "sent_to_cli"
+    value.queue_delivery_ledger[item["queueItemId"]]["deliveryState"] = state
 
     result = asyncio.run(server.api_session_queue(value.id))
 
     assert result["queueRevision"] == value.queue_revision
-    assert result["items"][0]["queueItemId"] == item["queueItemId"]
-    assert result["items"][0]["meta"]["dispatchState"] == "sent_to_cli"
+    assert result["items"] == []
+    assert item["queueItemId"] in value.queue_delivery_ledger
     _cleanup()
 
 

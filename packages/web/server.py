@@ -1802,15 +1802,13 @@ def _serialize_queue_item(item, session=None) -> dict | None:
 def _session_queue_items(s) -> list[dict]:
     items = []
     seen: set[str] = set()
-    # queue_pending is the ordered retryable portion.
-    source_items = [it for it in (s.queue_pending or []) if isinstance(it, dict)]
-    # The ledger supplies the reserved/sent/failed/unknown snapshot rows that
-    # have intentionally left the retryable queue.
-    source_items += [
-        it for it in (getattr(s, "queue_delivery_ledger", {}) or {}).values()
-        if isinstance(it, dict) and worker._delivery_state(it) not in {
-            worker._DELIVERY_QUEUED, "deleted"
-        }
+    # The pending API is intentionally narrower than the delivery ledger:
+    # queue_pending is the only source for items still awaiting delivery.
+    # Reserved/sent/failed/unknown records remain in the ledger for idempotency
+    # and diagnostics, but must disappear from this snapshot immediately.
+    source_items = [
+        it for it in (s.queue_pending or [])
+        if isinstance(it, dict) and worker._delivery_state(it) == worker._DELIVERY_QUEUED
     ]
     source_items.sort(key=lambda it: (it.get("position", 10**9), str(it.get("createdAt", ""))))
     for it in source_items:

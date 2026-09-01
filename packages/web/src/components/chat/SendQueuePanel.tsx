@@ -17,7 +17,8 @@ function label(item: AgentQueueItem): string {
 export function SendQueuePanel() {
   const sessionId = useSessionStore((state) => state.currentSessionId);
   const open = useQueueStore((state) => state.panelOpen);
-  const items = useQueueStore((state) => sessionId ? state.queues[sessionId] : undefined) ?? EMPTY;
+  const items = (useQueueStore((state) => sessionId ? state.queues[sessionId] : undefined) ?? EMPTY)
+    .filter((item) => item.meta?.dispatchState === 'queued');
   const edit = useQueueStore((state) => sessionId ? state.edits[sessionId] : null);
   const load = useQueueStore((state) => state.loadForSession);
   const startEdit = useQueueStore((state) => state.startEdit);
@@ -67,10 +68,8 @@ export function SendQueuePanel() {
             ) : (
               <div className="p-1">
                 {displayItems.map((item, index) => {
-                  const state = item.meta?.dispatchState ?? 'queued';
-                  const queued = state === 'queued';
                   const editing = edit?.id === item.id;
-                  const editable = queued && item.source === 'user';
+                  const editable = item.source === 'user';
                   return (
                     <div key={item.id} className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
                       {editing ? (
@@ -82,13 +81,12 @@ export function SendQueuePanel() {
                       ) : (
                         <>
                           <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1 py-px text-[10px] leading-tight text-text-secondary">{label(item)} {item.kind}</span>
-                          {state !== 'queued' && <span className="shrink-0 text-[10px] text-accent">{state === 'sent_to_cli' ? '已写入 CLI' : state === 'unknown_after_crash' ? '崩溃后不确定' : state === 'write_failed' ? '写入失败' : '预留中'}</span>}
                           <span className="flex-1 min-w-0 truncate text-text-primary" title={item.text}>{item.text}</span>
                           <span className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 max-md:opacity-100">
                             {editable && <button className={BUTTON} onClick={() => startEdit(item.id)} title="编辑"><Pencil size={12} /></button>}
-                            <button className={BUTTON} disabled={!queued || index === 0} onClick={() => move(item.id, -1)} title="上移"><ArrowUp size={12} /></button>
-                            <button className={BUTTON} disabled={!queued || index === displayItems.length - 1} onClick={() => move(item.id, 1)} title="下移"><ArrowDown size={12} /></button>
-                            <button className={BUTTON + ' text-danger hover:bg-danger/10'} disabled={!queued} onClick={() => void remove(item.id)} title="删除"><Trash2 size={12} /></button>
+                            <button className={BUTTON} disabled={index === 0} onClick={() => move(item.id, -1)} title="上移"><ArrowUp size={12} /></button>
+                            <button className={BUTTON} disabled={index === displayItems.length - 1} onClick={() => move(item.id, 1)} title="下移"><ArrowDown size={12} /></button>
+                            <button className={BUTTON + ' text-danger hover:bg-danger/10'} onClick={() => void remove(item.id)} title="删除"><Trash2 size={12} /></button>
                           </span>
                         </>
                       )}
