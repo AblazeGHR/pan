@@ -337,20 +337,35 @@ class TestApplyMCPServers:
             srv._resolve_mcp_server_configs(["broken"])
 
 
-def test_default_manifest_list_exposes_pan_without_putting_it_in_root(monkeypatch):
-    """The default catalog includes packages/mcp without duplicating pan in root."""
+def test_root_manifest_alone_exposes_pan_and_dedups_with_package(monkeypatch):
+    """Root-only loading provides pan+pan-qq; adding the package manifest dedups.
+
+    New users pointing at just ``manifest.json`` must get a usable Pan MCP
+    server. When the first-party package manifest is also loaded (the default
+    catalog), the later entry wins by name without duplicating either server.
+    """
     from packages.core.config import DEFAULT_PLUGIN_MANIFESTS
     from packages.core.manifest_loader import load_manifests
 
+    repo_root = str(Path(__file__).resolve().parents[1])
     monkeypatch.delenv("PAN_PYTHON", raising=False)
+
     root_cfg = load_manifests(["manifest.json"])
-    assert {server.name for server in root_cfg.mcp_servers} == {"pan-qq"}
+    servers = {server.name: server for server in root_cfg.mcp_servers}
+    assert set(servers) == {"pan", "pan-qq"}
+    assert servers["pan"].command == sys.executable
+    assert servers["pan"].args == ["-m", "packages.mcp.server"]
+    assert servers["pan"].cwd == repo_root
 
     cfg = load_manifests(DEFAULT_PLUGIN_MANIFESTS)
     servers = {server.name: server for server in cfg.mcp_servers}
-    assert set(servers) >= {"pan", "pan-qq"}
+    assert set(servers) == {"pan", "pan-qq"}
+    assert [server.name for server in cfg.mcp_servers].count("pan") == 1
+    assert [server.name for server in cfg.mcp_servers].count("pan-qq") == 1
+    # The later package manifest wins by the documented loader rule, resolving
+    # to the same shared interpreter and repo-root cwd as the root declaration.
     assert servers["pan"].command == sys.executable
-    assert servers["pan"].cwd == str(Path(__file__).resolve().parents[1])
+    assert servers["pan"].cwd == repo_root
 
 
 def test_missing_config_uses_project_and_first_party_manifests(tmp_path, monkeypatch):

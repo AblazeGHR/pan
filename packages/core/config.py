@@ -7,8 +7,12 @@ from pathlib import Path
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config.json"
 
-# The root manifest owns project templates/characters; the package manifest
-# owns Pan's first-party MCP servers. Keep both in the committed default so a
+# The root manifest owns project templates/characters and self-describes the
+# Pan MCP servers, so a root-only load (e.g. a new user pointing at
+# ``manifest.json``) is immediately usable. The package manifest re-declares
+# the first-party MCP servers with the same resolved config; when both are
+# loaded the later entry wins by the loader's dedup rule, so the default
+# catalog stays free of duplicates. Keep both in the committed default so a
 # clean worktree without a local config.json has the same core catalog as the
 # normal main configuration. User-supplied plugin_manifests still replaces
 # this list, allowing explicit [] to disable all manifests.
