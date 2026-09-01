@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
@@ -7,6 +7,9 @@ import {
   reloadConfig,
   fetchRemoteStatus,
   restartRemoteTunnel,
+  fetchMainRestartStatus,
+  restartMainService,
+  fetchHealth,
   updateWorkerSettings,
   fetchCodexModels,
   refreshCodexOfficialModels,
@@ -14,6 +17,7 @@ import {
 import type {
   ApiConfigReloadResponse,
   ApiRemoteStatusResponse,
+  ApiMainRestartStatusResponse,
   ApiModelsResponse,
 } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
@@ -34,6 +38,8 @@ const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
 type SettingsTab = 'general' | 'notifications' | 'adapter';
 
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
+type MainRestartState =
+  'idle' | 'confirming' | 'restarting' | 'restored' | 'timeout' | 'cancelled' | 'error';
 
 function SwitchRow({
   label,
@@ -57,9 +63,7 @@ function SwitchRow({
       <span className="min-w-0">
         <span className="block text-xs text-text-primary">{label}</span>
         {hint && (
-          <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-            {hint}
-          </span>
+          <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">{hint}</span>
         )}
       </span>
       <span
@@ -99,9 +103,7 @@ function ReloadRow({
     >
       <span className="min-w-0">
         <span className="block text-xs text-text-primary">{label}</span>
-        <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-          {hint}
-        </span>
+        <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">{hint}</span>
       </span>
       <span className="shrink-0 text-[11px] text-text-tertiary">
         {busy ? 'Reloading…' : action}
@@ -152,9 +154,7 @@ function WorkerEditModal({
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-border-default px-4 py-3">
           <div>
-            <h3 className="text-sm font-semibold text-text-primary">
-              Edit worker config
-            </h3>
+            <h3 className="text-sm font-semibold text-text-primary">Edit worker config</h3>
             <p className="mt-0.5 text-[11px] text-text-tertiary">
               Saved to config.json and applied without restart.
             </p>
@@ -194,9 +194,7 @@ function WorkerEditModal({
               </p>
             </div>
           ))}
-          {loading && (
-            <p className="text-[11px] text-text-tertiary">Loading current values…</p>
-          )}
+          {loading && <p className="text-[11px] text-text-tertiary">Loading current values…</p>}
           {error && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
               {error}
@@ -233,11 +231,7 @@ function WorkerEditModal({
  * Render the plugin half of a config-reload result: path-list diff
  * (added/removed manifests) + the freshly loaded template counts.
  */
-function PluginResult({
-  plugin,
-}: {
-  plugin: NonNullable<ApiConfigReloadResponse['plugin']>;
-}) {
+function PluginResult({ plugin }: { plugin: NonNullable<ApiConfigReloadResponse['plugin']> }) {
   const beforeSet = new Set(plugin.before);
   const afterSet = new Set(plugin.after);
   const added = plugin.after.filter((p) => !beforeSet.has(p));
@@ -260,9 +254,8 @@ function PluginResult({
         </div>
       ))}
       <div>
-        templates: {plugin.sessionTemplates ?? '?'} · servers:{' '}
-        {plugin.mcpServers ?? '?'} · characters: {plugin.characters ?? '?'} ·
-        routes: {plugin.commandRoutes ?? '?'}
+        templates: {plugin.sessionTemplates ?? '?'} · servers: {plugin.mcpServers ?? '?'} ·
+        characters: {plugin.characters ?? '?'} · routes: {plugin.commandRoutes ?? '?'}
       </div>
     </>
   );
@@ -300,11 +293,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   // Which section owns the current reloadResult/reloadError — each reload
   // section renders the outcome under its own rows instead of cross-fading
   // results between sections.
-  const [reloadSection, setReloadSection] = useState<'config' | 'other' | null>(
-    null,
-  );
-  const [reloadResult, setReloadResult] =
-    useState<ApiConfigReloadResponse | null>(null);
+  const [reloadSection, setReloadSection] = useState<'config' | 'other' | null>(null);
+  const [reloadResult, setReloadResult] = useState<ApiConfigReloadResponse | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
 
   const [codexModels, setCodexModels] = useState<ApiModelsResponse | null>(null);
@@ -333,9 +323,15 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   // Remote tunnel state — fetched when the modal opens. The whole
   // "Remote / Tunnel" section only renders when config.json has a remote
   // section AND remote.enabled is true (backend /api/remote/status).
-  const [remoteStatus, setRemoteStatus] =
-    useState<ApiRemoteStatusResponse | null>(null);
+  const [remoteStatus, setRemoteStatus] = useState<ApiRemoteStatusResponse | null>(null);
   const [remoteBusy, setRemoteBusy] = useState(false);
+  const [mainRestartStatus, setMainRestartStatus] = useState<ApiMainRestartStatusResponse | null>(
+    null,
+  );
+  const [mainRestartState, setMainRestartState] = useState<MainRestartState>('idle');
+  const [mainRestartError, setMainRestartError] = useState<string | null>(null);
+  const recoveryAbortRef = useRef<AbortController | null>(null);
+  const recoveryCancelledRef = useRef(false);
   const showToast = useUIStore((s) => s.showToast);
 
   useEffect(() => {
@@ -351,6 +347,44 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     return () => {
       cancelled = true;
     };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetchMainRestartStatus()
+      .then((s) => {
+        if (!cancelled) {
+          setMainRestartStatus(s);
+          if (s.pending) {
+            setMainRestartState('restarting');
+          } else {
+            setMainRestartError(null);
+          }
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setMainRestartStatus({
+            available: false,
+            pending: false,
+            platform: 'unknown',
+            reason: e instanceof Error ? e.message : String(e),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // Closing the modal stops only the browser-side health check.  It cannot
+  // cancel a restart already accepted by the server, which is intentional.
+  useEffect(() => {
+    if (open) return;
+    recoveryCancelledRef.current = true;
+    recoveryAbortRef.current?.abort();
+    recoveryAbortRef.current = null;
   }, [open]);
 
   useEffect(() => {
@@ -384,6 +418,83 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       setCodexRefreshError(e instanceof Error ? e.message : String(e));
     } finally {
       setCodexRefreshBusy(false);
+    }
+  };
+
+  const cancelMainRestartCheck = () => {
+    recoveryCancelledRef.current = true;
+    recoveryAbortRef.current?.abort();
+    recoveryAbortRef.current = null;
+    setMainRestartState('cancelled');
+    setMainRestartError(null);
+  };
+
+  const waitForMainRestartRecovery = async () => {
+    const controller = new AbortController();
+    recoveryAbortRef.current = controller;
+    const wait = (milliseconds: number) =>
+      new Promise<void>((resolve, reject) => {
+        const timer = window.setTimeout(resolve, milliseconds);
+        const abort = () => {
+          window.clearTimeout(timer);
+          reject(new DOMException('Health check cancelled', 'AbortError'));
+        };
+        controller.signal.addEventListener('abort', abort, { once: true });
+      });
+
+    try {
+      // Avoid treating the still-running old process as the recovered one.
+      await wait(1000);
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (controller.signal.aborted)
+          throw new DOMException('Health check cancelled', 'AbortError');
+        const probe = new AbortController();
+        const forwardAbort = () => probe.abort();
+        controller.signal.addEventListener('abort', forwardAbort, { once: true });
+        const timeout = window.setTimeout(() => probe.abort(), 1000);
+        try {
+          await fetchHealth(probe.signal);
+          if (!controller.signal.aborted) {
+            setMainRestartState('restored');
+            setMainRestartStatus((previous) =>
+              previous ? { ...previous, pending: false } : previous,
+            );
+            showToast('Pan main service is back online', 'info');
+          }
+          return;
+        } catch {
+          // The expected connection refusal during stop/start is retried.
+        } finally {
+          window.clearTimeout(timeout);
+        }
+        await wait(750);
+      }
+      setMainRestartState('timeout');
+      setMainRestartError('Pan was restarted, but health check timed out after 16 seconds.');
+      showToast('Pan restart health check timed out', 'error');
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setMainRestartState('error');
+      setMainRestartError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (recoveryAbortRef.current === controller) recoveryAbortRef.current = null;
+    }
+  };
+
+  const handleMainRestart = async () => {
+    recoveryCancelledRef.current = false;
+    setMainRestartState('restarting');
+    setMainRestartError(null);
+    setMainRestartStatus((previous) => (previous ? { ...previous, pending: true } : previous));
+    try {
+      await restartMainService();
+      if (recoveryCancelledRef.current) return;
+      showToast('Pan restart scheduled; waiting for service recovery', 'info');
+      void waitForMainRestartRecovery();
+    } catch (e) {
+      setMainRestartStatus((previous) => (previous ? { ...previous, pending: false } : previous));
+      setMainRestartState('error');
+      setMainRestartError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -434,8 +545,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       const b = r.worker?.before ?? {};
       setWorkerValues({
         timeout_sec: b.timeout_sec !== undefined ? String(b.timeout_sec) : '',
-        task_timeout_sec:
-          b.task_timeout_sec !== undefined ? String(b.task_timeout_sec) : '',
+        task_timeout_sec: b.task_timeout_sec !== undefined ? String(b.task_timeout_sec) : '',
         idle_sec: b.idle_sec !== undefined ? String(b.idle_sec) : '',
       });
     } catch (e) {
@@ -636,237 +746,318 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </div>
               </div>
               <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                These settings only control warning Toasts. Other adapter status,
-                chat output, and interactive prompts are unchanged.
+                These settings only control warning Toasts. Other adapter status, chat output, and
+                interactive prompts are unchanged.
               </p>
             </section>
           ) : (
-          <>
-          {/* Session list grouping */}
-          <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-              Session list
-            </h3>
-            <label className="block text-xs text-text-secondary mb-1">
-              Default group by
-            </label>
-            <select
-              value={defaultGroupBy}
-              onChange={(e) => setDefaultGroupBy(e.target.value as GroupMode)}
-              className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
-            >
-              {GROUP_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-              Applies to the session list as the default grouping. You can still
-              cycle grouping per view with the group button.
-            </p>
-          </section>
+            <>
+              {/* Session list grouping */}
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Session list
+                </h3>
+                <label className="block text-xs text-text-secondary mb-1">Default group by</label>
+                <select
+                  value={defaultGroupBy}
+                  onChange={(e) => setDefaultGroupBy(e.target.value as GroupMode)}
+                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
+                >
+                  {GROUP_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Applies to the session list as the default grouping. You can still cycle grouping
+                  per view with the group button.
+                </p>
+              </section>
 
-          {/* Message visibility */}
-          <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-              Message visibility
-            </h3>
-            <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-              <SwitchRow
-                label="Show meta-agent info"
-                hint="////by agent"
-                checked={showMetaAgent}
-                onChange={setShowMetaAgent}
-              />
-              <SwitchRow
-                label="Show task-agent info"
-                hint="@@@@by agent"
-                checked={showTaskAgent}
-                onChange={setShowTaskAgent}
-              />
-              <SwitchRow
-                label="Show QQ messages"
-                hint="@@@@by qq"
-                checked={showQQ}
-                onChange={setShowQQ}
-              />
-            </div>
-          </section>
+              {/* Message visibility */}
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Message visibility
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Show meta-agent info"
+                    hint="////by agent"
+                    checked={showMetaAgent}
+                    onChange={setShowMetaAgent}
+                  />
+                  <SwitchRow
+                    label="Show task-agent info"
+                    hint="@@@@by agent"
+                    checked={showTaskAgent}
+                    onChange={setShowTaskAgent}
+                  />
+                  <SwitchRow
+                    label="Show QQ messages"
+                    hint="@@@@by qq"
+                    checked={showQQ}
+                    onChange={setShowQQ}
+                  />
+                </div>
+              </section>
 
-          {/* Configuration reload — POST /api/config/reload, original
+              {/* Configuration reload — POST /api/config/reload, original
               scopes. The worker row opens an edit dialog instead (PUT
               /api/settings/worker: save + hot-apply in one step); a save
               shows its before→after in this section's result block below.
               plugin/memory live in the "Other hot-reload" section
               below; ui settings are read live per request and need no
               reload; frontend/port/logging/remote are startup-frozen. */}
-          <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-              Configuration reload
-            </h3>
-            <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-              <ReloadRow
-                label="Reload adapters"
-                hint="Adapter model lists (config.json per-adapter models)"
-                busy={reloadScope === 'adapters'}
-                onClick={() => handleReload('adapters')}
-              />
-              <ReloadRow
-                label="Edit worker config"
-                hint="Worker timeout_sec / task_timeout_sec / idle_sec"
-                busy={false}
-                action="Edit"
-                onClick={openWorkerEdit}
-              />
-            </div>
-            {reloadError && reloadSection === 'config' && (
-              <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
-                {reloadError}
-              </div>
-            )}
-            {!reloadError && reloadResult && reloadSection === 'config' && (
-              <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
-                {reloadResult.adapters?.map((a) => (
-                  <div key={a.name}>
-                    {a.name}: {a.modelsBefore ?? '?'} → {a.modelsAfter ?? '?'}{' '}
-                    models
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Configuration reload
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <ReloadRow
+                    label="Reload adapters"
+                    hint="Adapter model lists (config.json per-adapter models)"
+                    busy={reloadScope === 'adapters'}
+                    onClick={() => handleReload('adapters')}
+                  />
+                  <ReloadRow
+                    label="Edit worker config"
+                    hint="Worker timeout_sec / task_timeout_sec / idle_sec"
+                    busy={false}
+                    action="Edit"
+                    onClick={openWorkerEdit}
+                  />
+                </div>
+                {reloadError && reloadSection === 'config' && (
+                  <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                    {reloadError}
                   </div>
-                ))}
-                {reloadResult.worker &&
-                  WORKER_KEYS.map((k) => {
-                    const before = reloadResult.worker?.before[k];
-                    const after = reloadResult.worker?.after[k];
-                    return (
-                      <div key={k}>
-                        worker.{k}: {before ?? '?'} → {after ?? '?'}
-                        {before !== undefined && before !== after
-                          ? ' (changed)'
-                          : ''}
+                )}
+                {!reloadError && reloadResult && reloadSection === 'config' && (
+                  <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
+                    {reloadResult.adapters?.map((a) => (
+                      <div key={a.name}>
+                        {a.name}: {a.modelsBefore ?? '?'} → {a.modelsAfter ?? '?'} models
                       </div>
-                    );
-                  })}
-              </div>
-            )}
-            <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-              Applies config.json changes without restarting the server.
-            </p>
-          </section>
+                    ))}
+                    {reloadResult.worker &&
+                      WORKER_KEYS.map((k) => {
+                        const before = reloadResult.worker?.before[k];
+                        const after = reloadResult.worker?.after[k];
+                        return (
+                          <div key={k}>
+                            worker.{k}: {before ?? '?'} → {after ?? '?'}
+                            {before !== undefined && before !== after ? ' (changed)' : ''}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Applies config.json changes without restarting the server.
+                </p>
+              </section>
 
-          {/* Other hot-reload — newer POST /api/config/reload scopes.
+              {/* Other hot-reload — newer POST /api/config/reload scopes.
               plugin re-applies the plugin_manifests LIST from config.json,
               so manifest files added to / removed from the list take effect
               (/api/manifest/reload only re-reads the already-registered
               files). memory re-reads the memory.enabled injection switch.
               frontend / port / logging / remote stay startup-frozen. */}
-          <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-              Other hot-reload
-            </h3>
-            <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-              <ReloadRow
-                label="Reload plugin manifests"
-                hint="plugin_manifests list in config.json (add/remove manifests)"
-                busy={reloadScope === 'plugin'}
-                onClick={() => handleReload('plugin')}
-              />
-              <ReloadRow
-                label="Reload memory config"
-                hint="memory.enabled injection switch"
-                busy={reloadScope === 'memory'}
-                onClick={() => handleReload('memory')}
-              />
-            </div>
-            {reloadError && reloadSection === 'other' && (
-              <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
-                {reloadError}
-              </div>
-            )}
-            {!reloadError && reloadResult && reloadSection === 'other' && (
-              <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
-                {reloadResult.plugin && <PluginResult plugin={reloadResult.plugin} />}
-                {reloadResult.memory && (
-                  <div>
-                    memory.enabled:{' '}
-                    {String(reloadResult.memory.before.enabled ?? '?')} →{' '}
-                    {String(reloadResult.memory.after.enabled ?? '?')}
-                    {reloadResult.memory.before.enabled !== undefined &&
-                    reloadResult.memory.before.enabled !==
-                      reloadResult.memory.after.enabled
-                      ? ' (changed)'
-                      : ''}
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Other hot-reload
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <ReloadRow
+                    label="Reload plugin manifests"
+                    hint="plugin_manifests list in config.json (add/remove manifests)"
+                    busy={reloadScope === 'plugin'}
+                    onClick={() => handleReload('plugin')}
+                  />
+                  <ReloadRow
+                    label="Reload memory config"
+                    hint="memory.enabled injection switch"
+                    busy={reloadScope === 'memory'}
+                    onClick={() => handleReload('memory')}
+                  />
+                </div>
+                {reloadError && reloadSection === 'other' && (
+                  <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                    {reloadError}
                   </div>
                 )}
-              </div>
-            )}
-            <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-              frontend / port / logging / remote are startup-frozen and need a
-              server restart to apply.
-            </p>
-          </section>
+                {!reloadError && reloadResult && reloadSection === 'other' && (
+                  <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
+                    {reloadResult.plugin && <PluginResult plugin={reloadResult.plugin} />}
+                    {reloadResult.memory && (
+                      <div>
+                        memory.enabled: {String(reloadResult.memory.before.enabled ?? '?')} →{' '}
+                        {String(reloadResult.memory.after.enabled ?? '?')}
+                        {reloadResult.memory.before.enabled !== undefined &&
+                        reloadResult.memory.before.enabled !== reloadResult.memory.after.enabled
+                          ? ' (changed)'
+                          : ''}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  frontend / port / logging / remote are startup-frozen and need a server restart to
+                  apply.
+                </p>
+              </section>
 
-          {/* Remote / Tunnel — cloudflared tunnel managed by
+              {/* Main Pan service — deliberately separate from worker and tunnel
+              restarts. The API only schedules a detached supervisor; the
+              browser expects a short disconnect while Pan is replaced. */}
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Pan service
+                </h3>
+                {mainRestartState === 'confirming' ? (
+                  <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-3">
+                    <p className="text-xs text-text-primary">
+                      Restart the Pan main service? The dashboard will briefly disconnect and all
+                      workers will be stopped; durable queued work is recovered by the new service
+                      process.
+                    </p>
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMainRestartState('idle')}
+                        className="rounded border border-border-default px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleMainRestart}
+                        className="rounded bg-warning px-3 py-1.5 text-xs text-black hover:opacity-90"
+                      >
+                        Confirm restart
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={
+                      !mainRestartStatus?.available ||
+                      mainRestartState === 'restarting' ||
+                      Boolean(mainRestartStatus?.pending)
+                    }
+                    onClick={() => setMainRestartState('confirming')}
+                    className="w-full flex items-center justify-between gap-3 rounded-md border border-border-muted bg-bg-primary px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-xs text-text-primary">
+                        Restart Pan main service
+                      </span>
+                      <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
+                        {mainRestartState === 'restarting'
+                          ? 'Waiting for /api/health (max 16 seconds)'
+                          : mainRestartStatus?.available
+                            ? 'Applies startup-only config changes'
+                            : mainRestartStatus?.reason || 'Checking restart support…'}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[11px] text-text-tertiary">
+                      {mainRestartState === 'restarting' ? 'Restarting…' : 'Restart'}
+                    </span>
+                  </button>
+                )}
+                {mainRestartState === 'restarting' && (
+                  <button
+                    type="button"
+                    onClick={cancelMainRestartCheck}
+                    className="mt-2 text-[11px] text-text-tertiary hover:text-text-primary underline underline-offset-2"
+                  >
+                    Stop checking (restart continues)
+                  </button>
+                )}
+                {mainRestartState === 'restored' && (
+                  <p className="mt-1.5 text-[11px] text-success">
+                    Pan main service is healthy again.
+                  </p>
+                )}
+                {mainRestartError && (
+                  <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                    {mainRestartError}
+                  </div>
+                )}
+                {mainRestartState === 'cancelled' && (
+                  <p className="mt-1.5 text-[11px] text-text-tertiary">
+                    Health checking stopped; the scheduled restart was not cancelled.
+                  </p>
+                )}
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Restarts this Pan instance through scripts/stop_pan.bat and scripts/start_pan.bat.
+                  Worker and Remote/Tunnel restart controls are separate.
+                </p>
+              </section>
+
+              {/* Remote / Tunnel — cloudflared tunnel managed by
               scripts/start_cf.ps1. Only rendered when config.json has a
               remote section with enabled=true (the tunnel itself is optional;
               without it the section would be dead UI). Restart kills only
               Pan's own tunnel process (temp-yml command-line match) and
               re-runs start_cf.ps1, picking up port + remote.protocol. */}
-          {remoteStatus?.available && remoteStatus.enabled && (
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                Remote / Tunnel
-              </h3>
-              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+              {remoteStatus?.available && remoteStatus.enabled && (
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                    Remote / Tunnel
+                  </h3>
+                  <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                    <button
+                      type="button"
+                      disabled={remoteBusy}
+                      onClick={handleRemoteRestart}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-xs text-text-primary">
+                          Restart tunnel
+                          <span
+                            className={`ml-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${
+                              remoteStatus.running ? 'bg-success' : 'bg-danger'
+                            }`}
+                            aria-hidden
+                          />
+                        </span>
+                        <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
+                          cloudflared · {remoteStatus.running ? 'running' : 'stopped'}
+                          {remoteStatus.protocol ? ` · ${remoteStatus.protocol}` : ''}
+                          {remoteStatus.port ? ` · :${remoteStatus.port}` : ''}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[11px] text-text-tertiary">
+                        {remoteBusy ? 'Restarting…' : 'Restart'}
+                      </span>
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                    Kills Pan's own cloudflared (temp-yml match only — the cloudflared-ssh service
+                    is untouched) and re-runs scripts/start_cf.ps1 with the current config.json.
+                  </p>
+                </section>
+              )}
+
+              {/* Reset */}
+              <div className="border-t border-border-muted pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-[11px] text-text-tertiary leading-relaxed sm:max-w-md">
+                  Hiding affects frontend display only — original messages stay in session history
+                  and reappear when toggled back on.
+                </p>
                 <button
                   type="button"
-                  disabled={remoteBusy}
-                  onClick={handleRemoteRestart}
-                  className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={resetSettings}
+                  className="shrink-0 text-[11px] text-text-tertiary hover:text-text-primary underline underline-offset-2"
                 >
-                  <span className="min-w-0">
-                    <span className="block text-xs text-text-primary">
-                      Restart tunnel
-                      <span
-                        className={`ml-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${
-                          remoteStatus.running ? 'bg-success' : 'bg-danger'
-                        }`}
-                        aria-hidden
-                      />
-                    </span>
-                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-                      cloudflared · {remoteStatus.running ? 'running' : 'stopped'}
-                      {remoteStatus.protocol ? ` · ${remoteStatus.protocol}` : ''}
-                      {remoteStatus.port ? ` · :${remoteStatus.port}` : ''}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-[11px] text-text-tertiary">
-                    {remoteBusy ? 'Restarting…' : 'Restart'}
-                  </span>
+                  Reset to defaults
                 </button>
               </div>
-              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                Kills Pan's own cloudflared (temp-yml match only — the
-                cloudflared-ssh service is untouched) and re-runs
-                scripts/start_cf.ps1 with the current config.json.
-              </p>
-            </section>
-          )}
-
-          {/* Reset */}
-          <div className="border-t border-border-muted pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <p className="text-[11px] text-text-tertiary leading-relaxed sm:max-w-md">
-              Hiding affects frontend display only — original messages stay in
-              session history and reappear when toggled back on.
-            </p>
-            <button
-              type="button"
-              onClick={resetSettings}
-              className="shrink-0 text-[11px] text-text-tertiary hover:text-text-primary underline underline-offset-2"
-            >
-              Reset to defaults
-            </button>
-          </div>
-          </>
+            </>
           )}
         </div>
       </div>
@@ -878,9 +1069,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           loading={workerLoading}
           saving={workerSaving}
           error={workerEditError}
-          onValueChange={(k, v) =>
-            setWorkerValues((prev) => ({ ...prev, [k]: v }))
-          }
+          onValueChange={(k, v) => setWorkerValues((prev) => ({ ...prev, [k]: v }))}
           onSave={handleWorkerSave}
           onClose={() => setWorkerEditOpen(false)}
         />

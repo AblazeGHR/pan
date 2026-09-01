@@ -14,6 +14,15 @@ set "BASE_DIR=%CD%"
 popd
 set "SCRIPT_DIR=%~dp0"
 set "PID_FILE=%BASE_DIR%\data\process.pid"
+set "PAN_START_BASE=%BASE_DIR%"
+
+REM ---- 0. Refuse duplicate Pan instances before touching caches/PIDs ----
+REM     Match the project root and main.py, never a bare python.exe.
+for /f "delims=" %%p in ('powershell -NoProfile -Command "$base=$env:PAN_START_BASE; $p=Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match [regex]::Escape($base) -and $_.CommandLine -match 'main\.py' }; if ($p) { $p | Select-Object -First 1 -ExpandProperty ProcessId }"') do set "EXISTING_MAIN_PID=%%p"
+if defined EXISTING_MAIN_PID (
+    echo [ERROR] Pan Core is already running for this checkout, PID=%EXISTING_MAIN_PID%
+    exit /b 2
+)
 
 mkdir "%BASE_DIR%\data" 2>nul
 
@@ -27,7 +36,6 @@ del /s /f /q "%BASE_DIR%\*.pyo" 2>nul
 set "PYTHON=%BASE_DIR%\.venv\Scripts\python.exe"
 if not exist "%PYTHON%" (
     echo [ERROR] Virtual env python not found: %PYTHON%
-    pause
     exit /b 1
 )
 

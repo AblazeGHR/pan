@@ -1,12 +1,21 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, fireEvent, cleanup, waitFor, act } from '@testing-library/react';
 import { AppSettingsModal } from './AppSettingsModal';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 
-const { fetchCodexModelsMock, refreshCodexOfficialModelsMock } = vi.hoisted(() => ({
+const {
+  fetchCodexModelsMock,
+  refreshCodexOfficialModelsMock,
+  fetchMainRestartStatusMock,
+  restartMainServiceMock,
+  fetchHealthMock,
+} = vi.hoisted(() => ({
   fetchCodexModelsMock: vi.fn(),
   refreshCodexOfficialModelsMock: vi.fn(),
+  fetchMainRestartStatusMock: vi.fn(),
+  restartMainServiceMock: vi.fn(),
+  fetchHealthMock: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -17,6 +26,9 @@ vi.mock('@/services/api', async (importOriginal) => {
       enabled: false,
       running: false,
     }),
+    fetchMainRestartStatus: fetchMainRestartStatusMock,
+    restartMainService: restartMainServiceMock,
+    fetchHealth: fetchHealthMock,
     fetchCodexModels: fetchCodexModelsMock,
     refreshCodexOfficialModels: refreshCodexOfficialModelsMock,
   };
@@ -54,6 +66,20 @@ describe('AppSettingsModal', () => {
       before: ['gpt-5-codex'],
       after: ['gpt-5.1-codex', 'gpt-5-mini'],
     });
+    fetchMainRestartStatusMock.mockResolvedValue({
+      available: true,
+      pending: false,
+      platform: 'nt',
+    });
+    restartMainServiceMock.mockResolvedValue({
+      ok: true,
+      status: 'scheduled',
+      requestId: 'restart-1',
+    });
+    fetchHealthMock.mockResolvedValue({ status: 'ok', version: 'test' });
+    fetchMainRestartStatusMock.mockClear();
+    restartMainServiceMock.mockClear();
+    fetchHealthMock.mockClear();
   });
 
   it('renders nothing when closed', () => {
@@ -85,30 +111,27 @@ describe('AppSettingsModal', () => {
 
   it('loads and replaces the Codex whitelist on the Adapter tab', async () => {
     render(<AppSettingsModal open onClose={() => {}} />);
-    const adapterTab = Array.from(
-      document.body.querySelectorAll<HTMLButtonElement>('button'),
-    ).find((button) => button.textContent?.includes('Adapter'))!;
+    const adapterTab = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.includes('Adapter'),
+    )!;
     fireEvent.click(adapterTab);
 
-    await waitFor(() =>
-      expect(cardEl().textContent).toContain('gpt-5-codex, gpt-5-mini'),
-    );
+    await waitFor(() => expect(cardEl().textContent).toContain('gpt-5-codex, gpt-5-mini'));
     fireEvent.click(
-      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
-        (button) => button.textContent?.includes('替换为官方模型目录'),
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+        button.textContent?.includes('替换为官方模型目录'),
       )!,
     );
-    await waitFor(() =>
-      expect(cardEl().textContent).toContain('after: gpt-5.1-codex, gpt-5-mini'),
-    );
+    await waitFor(() => expect(cardEl().textContent).toContain('after: gpt-5.1-codex, gpt-5-mini'));
     expect(refreshCodexOfficialModelsMock).toHaveBeenCalledTimes(1);
   });
 
   it('toggles the Codex terminal input popup option and persists it', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(
-      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
-        .find((button) => button.textContent?.includes('Adapter'))!,
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+        button.textContent?.includes('Adapter'),
+      )!,
     );
     const terminalSwitch = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
@@ -153,9 +176,7 @@ describe('AppSettingsModal', () => {
 
   it('toggles a setting through a switch and writes the store', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
-    const switches = Array.from(
-      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
-    );
+    const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
     expect(switches).toHaveLength(3);
     // meta-agent is on by default; toggle it off.
     expect(switches[0]!.getAttribute('aria-checked')).toBe('true');
@@ -181,9 +202,9 @@ describe('AppSettingsModal', () => {
       notifications: { codexWarningToast: false },
     });
     render(<AppSettingsModal open onClose={() => {}} />);
-    const resetBtn = Array.from(
-      document.body.querySelectorAll<HTMLElement>('button'),
-    ).find((b) => b.textContent?.includes('Reset to defaults'))!;
+    const resetBtn = Array.from(document.body.querySelectorAll<HTMLElement>('button')).find((b) =>
+      b.textContent?.includes('Reset to defaults'),
+    )!;
     fireEvent.click(resetBtn);
     const s = useAppSettingsStore.getState();
     expect(s.defaultGroupBy).toBe(DEFAULT_SETTINGS.defaultGroupBy);
@@ -191,5 +212,114 @@ describe('AppSettingsModal', () => {
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
     expect(s.notifications.codexWarningToast).toBe(true);
+  });
+
+  it('requires confirmation and reports successful main-service recovery', async () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const restartButton = await waitFor(() => {
+      const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
+        (b) => b.textContent?.includes('Restart Pan main service'),
+      );
+      expect(button).toBeTruthy();
+      return button!;
+    });
+
+    fireEvent.click(restartButton);
+    expect(cardEl().textContent).toContain('Confirm restart');
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+        b.textContent?.includes('Confirm restart'),
+      )!,
+    );
+    expect(restartMainServiceMock).toHaveBeenCalledTimes(1);
+    expect(cardEl().textContent).toContain('Waiting for /api/health');
+
+    // The first probe is delayed so a still-live old process cannot be
+    // mistaken for the replacement.  Health resolves on the first probe.
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 1050));
+    });
+    await waitFor(() => expect(cardEl().textContent).toContain('healthy again'));
+    expect(fetchHealthMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows stopping the bounded health check and does not call health forever', async () => {
+    vi.useFakeTimers();
+    try {
+      render(<AppSettingsModal open onClose={() => {}} />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      fireEvent.click(
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+          b.textContent?.includes('Restart Pan main service'),
+        )!,
+      );
+      fireEvent.click(
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+          b.textContent?.includes('Confirm restart'),
+        )!,
+      );
+      fireEvent.click(
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+          b.textContent?.includes('Stop checking'),
+        )!,
+      );
+      expect(cardEl().textContent).toContain('Health checking stopped');
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+      expect(fetchHealthMock).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('disables the main-service control when restart scripts are unavailable', async () => {
+    fetchMainRestartStatusMock.mockResolvedValueOnce({
+      available: false,
+      pending: false,
+      platform: 'posix',
+      reason: 'main service restart is available only on Windows',
+    });
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const button = await waitFor(() => {
+      const found = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
+        (b) => b.textContent?.includes('Restart Pan main service'),
+      );
+      expect(found).toBeTruthy();
+      expect(found!.disabled).toBe(true);
+      return found!;
+    });
+    expect(button.disabled).toBe(true);
+    await waitFor(() => expect(cardEl().textContent).toContain('available only on Windows'));
+  });
+
+  it('shows a finite timeout when the restarted service never becomes healthy', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchHealthMock.mockRejectedValue(new Error('connection refused'));
+      render(<AppSettingsModal open onClose={() => {}} />);
+      await act(async () => {
+        await vi.runOnlyPendingTimersAsync();
+      });
+      fireEvent.click(
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+          b.textContent?.includes('Restart Pan main service'),
+        )!,
+      );
+      fireEvent.click(
+        Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+          b.textContent?.includes('Confirm restart'),
+        )!,
+      );
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+      expect(cardEl().textContent).toContain('health check timed out');
+      expect(fetchHealthMock).toHaveBeenCalledTimes(20);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

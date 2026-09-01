@@ -468,6 +468,29 @@ export interface ApiRemoteRestartResponse {
   restarted?: boolean;
 }
 
+// Main Pan service restart (detached scripts/restart_pan.ps1 supervisor).
+export interface ApiMainRestartStatusResponse {
+  available: boolean;
+  pending: boolean;
+  platform: string;
+  reason?: string;
+  requestId?: string;
+}
+
+export interface ApiMainRestartResponse {
+  ok: boolean;
+  status: 'scheduled' | 'disabled' | 'busy' | 'error';
+  message?: string;
+  error?: string;
+  pending?: boolean;
+  requestId?: string;
+}
+
+export interface ApiHealthResponse {
+  status: string;
+  version?: string;
+}
+
 // ── Import types ──
 
 export interface CbcProject {

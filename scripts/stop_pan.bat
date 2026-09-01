@@ -12,6 +12,7 @@ set "BASE_DIR=%CD%"
 popd
 set "PID_FILE=%BASE_DIR%\data\process.pid"
 set "QQ_PID_FILE=%BASE_DIR%\data\qq_bot.pid"
+set "PAN_STOP_BASE=%BASE_DIR%"
 
 REM ---- 0. Read QQ bridge PID (written by main.py when it spawns bot.py) ----
 set "QQ_PID="
@@ -29,21 +30,36 @@ if exist "%PID_FILE%" (
 
 REM ---- 2. Kill QQ bridge first — it may outlive a hard-killed main.py ----
 if defined QQ_PID (
-    taskkill /PID %QQ_PID% /T /F >nul 2>&1 && echo [OK] QQ bridge killed, PID=%QQ_PID%
+    powershell -NoProfile -Command "$base=$env:PAN_STOP_BASE; $p=Get-CimInstance Win32_Process -Filter \"ProcessId=%QQ_PID%\"; if ($p -and $p.CommandLine -and $p.CommandLine -match [regex]::Escape($base) -and $p.CommandLine -match 'bot\.py') { exit 0 }; exit 1" >nul 2>&1
+    if errorlevel 1 (
+        echo [WARN] Recorded QQ pid does not belong to this Pan checkout, skipping PID=%QQ_PID%
+    ) else (
+        taskkill /PID %QQ_PID% /T /F >nul 2>&1 && echo [OK] QQ bridge killed, PID=%QQ_PID%
+    )
 ) else (
     echo [INFO] No QQ pid recorded, will match by command line below...
 )
 
 REM ---- 3. Kill Pan Core (process tree includes the QQ bot child) ----
 if defined MAIN_PID (
-    taskkill /PID %MAIN_PID% /T /F >nul 2>&1 && echo [OK] Pan Core killed, PID=%MAIN_PID%
+    powershell -NoProfile -Command "$base=$env:PAN_STOP_BASE; $p=Get-CimInstance Win32_Process -Filter \"ProcessId=%MAIN_PID%\"; if ($p -and $p.Name -match '^python(\.exe)?$' -and $p.CommandLine -and $p.CommandLine -match [regex]::Escape($base) -and $p.CommandLine -match 'main\.py') { exit 0 }; exit 1" >nul 2>&1
+    if errorlevel 1 (
+        echo [WARN] Recorded MAIN pid does not belong to this Pan checkout, skipping PID=%MAIN_PID%
+    ) else (
+        taskkill /PID %MAIN_PID% /T /F >nul 2>&1 && echo [OK] Pan Core killed, PID=%MAIN_PID%
+    )
 ) else (
     echo [WARN] No MAIN pid recorded, matching by command line...
 )
 
 REM ---- 4. Kill cloudflared tunnel (optional service) ----
 if defined CF_PID (
-    taskkill /PID %CF_PID% /T /F >nul 2>&1 && echo [OK] cloudflared killed, PID=%CF_PID%
+    powershell -NoProfile -Command "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=%CF_PID%\"; if ($p -and $p.Name -match '^cloudflared(\.exe)?$' -and $p.CommandLine -and $p.CommandLine -match 'pan_cf_config_') { exit 0 }; exit 1" >nul 2>&1
+    if errorlevel 1 (
+        echo [WARN] Recorded CF pid is not Pan's marked tunnel, skipping PID=%CF_PID%
+    ) else (
+        taskkill /PID %CF_PID% /T /F >nul 2>&1 && echo [OK] cloudflared killed, PID=%CF_PID%
+    )
 )
 
 REM ---- 5. Fallback: precise command-line match, NEVER kill all python.exe ----

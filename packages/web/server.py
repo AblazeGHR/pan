@@ -12,6 +12,9 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
+import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -134,6 +137,108 @@ DASHBOARD_FILE = _WEB_DIR / "index.html"
 MOBILE_DASHBOARD_FILE = _WEB_DIR / "mobile.html"
 REACT_DIST_DIR = _WEB_DIR / "dist"
 REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
+
+# Main-service restart is intentionally a tiny state machine in the current
+# process.  The state only prevents double-clicks/racing HTTP requests before
+# this process exits; the detached supervisor does the actual stop/start work.
+_main_restart_lock = threading.Lock()
+_main_restart_pending = False
+_main_restart_request_id: str | None = None
+
+
+def _main_restart_paths() -> dict[str, Path]:
+    scripts = _PROJECT_DIR / "scripts"
+    return {
+        "supervisor": scripts / "restart_pan.ps1",
+        "stop": scripts / "stop_pan.bat",
+        "start": scripts / "start_pan.bat",
+    }
+
+
+def _main_restart_status() -> dict:
+    paths = _main_restart_paths()
+    available = os.name == "nt" and all(path.is_file() for path in paths.values())
+    missing = [str(path) for path in paths.values() if not path.is_file()]
+    with _main_restart_lock:
+        pending = _main_restart_pending
+        request_id = _main_restart_request_id
+    result = {
+        "available": available,
+        "pending": pending,
+        "platform": os.name,
+    }
+    if request_id:
+        result["requestId"] = request_id
+    if not available:
+        result["reason"] = (
+            "main service restart is available only on Windows"
+            if os.name != "nt"
+            else "restart scripts are missing: " + ", ".join(missing)
+        )
+    return result
+
+
+def _clear_main_restart_state(request_id: str) -> None:
+    global _main_restart_pending, _main_restart_request_id
+    with _main_restart_lock:
+        if _main_restart_request_id == request_id:
+            _main_restart_pending = False
+            _main_restart_request_id = None
+
+
+def _watch_main_restart(process: subprocess.Popen, request_id: str) -> None:
+    """Release the in-process duplicate guard if the supervisor exits early."""
+    try:
+        process.wait()
+    except Exception as exc:  # noqa: BLE001 - the service must stay healthy
+        _log(f"[main-restart] supervisor monitor failed: {exc}")
+    finally:
+        # restart_pan.ps1 has a short launcher hop which starts the actual
+        # supervisor and then exits.  Keep the guard through the normal
+        # stop/start window so a second HTTP request cannot race that child.
+        time.sleep(30)
+        _clear_main_restart_state(request_id)
+
+
+def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
+    """Launch a hidden, detached PowerShell supervisor.
+
+    The supervisor is deliberately not awaited here.  It starts a second
+    PowerShell process before running stop_pan.bat, so taskkill /T against the
+    current Pan process cannot take the restart orchestration with it.
+    """
+    script = _main_restart_paths()["supervisor"]
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-Root",
+        str(_PROJECT_DIR),
+        "-RequestId",
+        request_id,
+    ]
+    flags = (
+        getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    )
+    startupinfo = None
+    if os.name == "nt" and hasattr(subprocess, "STARTUPINFO"):
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
+    return subprocess.Popen(
+        command,
+        cwd=str(_PROJECT_DIR),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        creationflags=flags,
+        startupinfo=startupinfo,
+    )
 
 # Production switch: config.json frontend 字段
 # "coexist"（默认）→ React SPA / + Vanilla /vanilla/（+ React /react/ 兼容保留）
@@ -847,6 +952,68 @@ from packages.core import __version__
 async def health():
     """Health check: process liveness + Pan version."""
     return {"status": "ok", "version": __version__}
+
+
+@app.get("/api/main/restart/status")
+async def api_main_restart_status():
+    """Report whether the safe Windows main-service restart is available."""
+    return _main_restart_status()
+
+
+@app.post("/api/main/restart")
+async def api_main_restart():
+    """Schedule a detached restart of this Pan instance.
+
+    Returning before the supervisor stops this process is essential: waiting
+    for stop/start inside this request would turn the expected disconnect into
+    an HTTP failure in the browser.  ``restart_pan.ps1`` owns the subsequent
+    stop/start chain and uses this checkout's scripts only.
+    """
+    global _main_restart_pending, _main_restart_request_id
+
+    status = _main_restart_status()
+    if not status["available"]:
+        return {
+            "ok": False,
+            "status": "disabled",
+            "error": status.get("reason", "main restart is unavailable"),
+        }
+
+    with _main_restart_lock:
+        if _main_restart_pending:
+            return {
+                "ok": False,
+                "status": "busy",
+                "pending": True,
+                "error": "Pan main-service restart is already scheduled",
+                "requestId": _main_restart_request_id,
+            }
+        request_id = uuid.uuid4().hex
+        _main_restart_pending = True
+        _main_restart_request_id = request_id
+
+    try:
+        process = _launch_main_restart_supervisor(request_id)
+    except (OSError, ValueError) as exc:
+        _clear_main_restart_state(request_id)
+        return {
+            "ok": False,
+            "status": "error",
+            "error": f"failed to schedule Pan restart: {exc}",
+        }
+
+    threading.Thread(
+        target=_watch_main_restart,
+        args=(process, request_id),
+        name="pan-main-restart-supervisor",
+        daemon=True,
+    ).start()
+    return {
+        "ok": True,
+        "status": "scheduled",
+        "message": "Pan main-service restart scheduled",
+        "requestId": request_id,
+    }
 
 
 def _directory_roots() -> list[Path]:
