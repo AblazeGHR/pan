@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { wsClient } from '@/services/ws';
-import { sendWorkerControl } from '@/services/api';
+import { sendSessionWorkerControl } from '@/services/api';
 import type { UserInputQuestion, UserInputRequest } from '@/types';
 
 function questionOptions(question: UserInputQuestion): Array<{ label: string; description?: string }> {
@@ -26,12 +26,12 @@ function UserInputForm({ request }: { request: UserInputRequest }) {
     };
     const sent = wsClient.send({
       type: 'worker_control',
-      workerId: request.workerId,
+      sessionId: request.sessionId,
       control,
     });
     if (!sent) {
       try {
-        await sendWorkerControl(request.workerId, control);
+        await sendSessionWorkerControl(request.sessionId, control);
       } catch (error) {
         showToast((error as Error).message || '回答未发送', 'error');
         return;

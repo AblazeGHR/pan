@@ -189,6 +189,8 @@ export interface StreamEvent {
   type: string;
   sessionId?: string;
   workerId?: string;
+  /** Monotonic runtime generation, used to ignore late lifecycle events. */
+  generation?: number;
   event?: WorkerEvent;
   message?: string;
   status?: string;
@@ -579,6 +581,7 @@ export interface WorkerItem {
   workerId: string;
   sessionId: string;
   status: string;
+  generation?: number;
 }
 
 export interface ApiWorkerListResponse {
@@ -727,6 +730,7 @@ export interface WorkerInfo {
   id: string;
   sessionId?: string;
   status: 'idle' | 'running' | 'held' | 'offline';
+  generation?: number;
   model?: string;
   name?: string;
   nativeStatus?: {

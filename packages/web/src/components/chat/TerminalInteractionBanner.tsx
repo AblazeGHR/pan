@@ -5,7 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { wsClient } from '@/services/ws';
-import { sendWorkerControl } from '@/services/api';
+import { sendSessionWorkerControl } from '@/services/api';
 import type { TerminalInteraction } from '@/types';
 
 function TerminalForm({ interaction }: { interaction: TerminalInteraction }) {
@@ -18,12 +18,12 @@ function TerminalForm({ interaction }: { interaction: TerminalInteraction }) {
     setSending(true);
     const sent = wsClient.send({
       type: 'worker_control',
-      workerId: interaction.workerId,
+      sessionId: interaction.sessionId,
       control,
     });
     if (!sent) {
       try {
-        await sendWorkerControl(interaction.workerId, control);
+        await sendSessionWorkerControl(interaction.sessionId, control);
       } catch (error) {
         showToast((error as Error).message || '终端输入未发送', 'error');
         setSending(false);

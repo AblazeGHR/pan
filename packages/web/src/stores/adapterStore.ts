@@ -14,7 +14,6 @@ import {
   fetchAdapters,
   fetchCliStatus,
   patchSession,
-  workerSettings,
 } from '@/services/api';
 
 interface AdapterStore {
@@ -36,7 +35,6 @@ interface AdapterStore {
   getConfig: () => AdapterConfig | null;
   applySettings: (
     sessionId: string,
-    workerId?: string | null,
     settings?: SettingsBody,
   ) => Promise<Session | ApiGenericResponse>;
   updateSyncedSettings: (settings: SyncedSettings) => void;
@@ -107,14 +105,9 @@ export const useAdapterStore = create<AdapterStore>((set, get) => ({
     return adapterConfigs[currentAdapter] ?? null;
   },
 
-  applySettings: async (sessionId, workerId, settings) => {
+  applySettings: async (sessionId, settings) => {
     if (!settings) return {} as ApiGenericResponse;
-
-    if (workerId) {
-      return await workerSettings(workerId, settings);
-    } else {
-      return await patchSession(sessionId, settings);
-    }
+    return await patchSession(sessionId, settings);
   },
 
   updateSyncedSettings: (settings) => {

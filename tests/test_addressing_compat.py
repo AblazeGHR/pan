@@ -382,8 +382,8 @@ def test_mcp_worker_send_force_by_session_with_worker_restarts(monkeypatch):
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
     r = mcp_server.worker_send_force(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
-    assert any(c[1] == "/api/worker/worker-9/restart" for c in fake.calls), fake.calls
-    assert any(c[1] == "/api/task" and c[2]["workerId"] == "worker-9"
+    assert any(c[1] == "/api/sessions/ses_child/worker/restart" for c in fake.calls), fake.calls
+    assert any(c[1] == "/api/task" and c[2]["sessionId"] == "ses_child"
                for c in fake.calls), fake.calls
     _cleanup()
 
@@ -427,7 +427,7 @@ def test_mcp_worker_kill_by_session_id_with_worker(monkeypatch):
     monkeypatch.setattr(mcp_server, "_api", fake)
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", "ses_ma")
     r = mcp_server.worker_kill(session_id="ses_child")
-    assert any(c[1] == "/api/kill/worker-7" for c in fake.calls), fake.calls
+    assert any(c[1] == "/api/sessions/ses_child/worker/kill" for c in fake.calls), fake.calls
     _cleanup()
 
 

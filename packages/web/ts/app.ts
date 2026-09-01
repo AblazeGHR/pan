@@ -61,6 +61,7 @@ interface StreamEvent {
   type: string;
   sessionId?: string;
   workerId?: string;
+  generation?: number;
   event?: WorkerEvent;
   message?: string;
   status?: string;
@@ -274,6 +275,7 @@ let _renderedFor: { sessionId: string | null; tailRole: string; tailContent: str
 // snapshot when the WS update is newer than the in-flight fetch.
 const _wsWorkerState: Map<string, { workerId: string | null; status: string | null }> = new Map();
 const _wsWorkerTs: Map<string, number> = new Map();
+const _wsWorkerGeneration: Map<string, number> = new Map();
 /** Timestamp when the currently in-flight /api/sessions fetch started. */
 let _refreshStartedAt = 0;
 
@@ -433,23 +435,23 @@ function onWsMessage(e: MessageEvent): void {
     case 'worker.spawned':
     case 'worker.restarted':
     case 'worker.reconfigured':
-      _applyWorkerUpdate(d.sessionId, d.workerId, 'idle');
+      _applyWorkerUpdate(d.sessionId, d.workerId, 'idle', d.generation);
       break;
     case 'worker.destroyed':
     case 'worker.crashed':
-      _applyWorkerUpdate(d.sessionId, null, null);
+      _applyWorkerUpdate(d.sessionId, null, null, d.generation, true);
       break;
     case 'worker.stream':
-      if (d.sessionId === currentSessionId && d.event) {
+      if (_isCurrentWorkerEvent(d) && d.sessionId === currentSessionId && d.event) {
         appendEvent(d.event);
       }
       break;
     case 'worker.result':
       if (d.sessionId === currentSessionId) appendResult(d);
-      _applyWorkerUpdate(d.sessionId, d.workerId, 'idle');
+      _applyWorkerUpdate(d.sessionId, d.workerId, 'idle', d.generation);
       break;
     case 'worker.status':
-      _applyWorkerUpdate(d.sessionId, d.workerId, d.status?? 'idle');
+      _applyWorkerUpdate(d.sessionId, d.workerId, d.status?? 'idle', d.generation);
       break;
     case 'session.renamed':
     case 'session.updated':
@@ -468,9 +470,14 @@ function onWsMessage(e: MessageEvent): void {
 function _applyWorkerUpdate(
   sessionId: string | undefined,
   workerId: string | undefined | null,
-  status: string | null
+  status: string | null,
+  generation?: number,
+  terminal = false,
 ): void {
   if (!sessionId) return;
+
+  if (!_isCurrentWorkerEvent({ sessionId, workerId, generation }, terminal)) return;
+  if (generation !== undefined) _wsWorkerGeneration.set(sessionId, generation);
 
   _wsWorkerState.set(sessionId, { workerId: workerId ?? null, status });
   _wsWorkerTs.set(sessionId, Date.now());
@@ -508,6 +515,22 @@ function _applyWorkerUpdate(
     if (!found) renderSessionList();
   }
   scheduleRefreshSessions();
+}
+
+function _isCurrentWorkerEvent(
+  event: Pick<StreamEvent, 'sessionId' | 'workerId' | 'generation'>,
+  terminal = false,
+): boolean {
+  if (!event.sessionId) return false;
+  const knownGeneration = _wsWorkerGeneration.get(event.sessionId);
+  if (
+    event.generation !== undefined &&
+    knownGeneration !== undefined &&
+    event.generation < knownGeneration
+  ) return false;
+  const known = _wsWorkerState.get(event.sessionId);
+  if (terminal && known?.workerId && event.workerId && known.workerId !== event.workerId) return false;
+  return true;
 }
 
 // ── Session list ──
@@ -555,6 +578,7 @@ function refreshSessions(): void {
         if (!modelData.find((x: Session) => x.id === sid)) {
           _wsWorkerTs.delete(sid);
           _wsWorkerState.delete(sid);
+          _wsWorkerGeneration.delete(sid);
         }
       });
       renderSessionList();
@@ -1504,30 +1528,18 @@ function onThinkingToggle(): void {
 function applySettings(): void {
   if (!currentSessionId) return;
 
-  // Worker-level settings can only be changed when idle.
-  // Use Restart to apply settings + respawn while worker is running/held.
-  const s = modelData.find((x: Session) => x.id === currentSessionId);
-  if (s && (s.workerStatus === 'running' || s.workerStatus === 'held')) {
-    toast('Cannot change settings while worker is busy. Use Restart instead.');
-    return;
-  }
-
-  if (!currentWorkerId) {
-    // no worker: persist settings to session via PATCH
-    fetch('/api/sessions/' + currentSessionId, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(_buildSettingsBody()),
-    })
-      .then((r: Response) => r.json())
-      .then((d: ApiGenericResponse) => {
-        if (d.error) { toast(d.error); return; }
-        markSettingsApplied();
-      });
-    return;
-  }
-
-  _postWorkerSettings();
+  // Settings are session state.  The backend decides whether an existing
+  // worker can apply them now or needs a serialized respawn.
+  fetch('/api/sessions/' + currentSessionId, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(_buildSettingsBody()),
+  })
+    .then((r: Response) => r.json())
+    .then((d: ApiGenericResponse) => {
+      if (d.error) { toast(d.error); return; }
+      markSettingsApplied();
+    });
 }
 
 /** Build the settings payload object from panel values. */
@@ -1547,20 +1559,6 @@ function _buildSettingsBody(): Record<string, unknown> {
   return body;
 }
 
-/** POST current panel settings to the worker (always allowed, triggers respawn). */
-function _postWorkerSettings(): void {
-  fetch('/api/worker/' + currentWorkerId + '/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(_buildSettingsBody()),
-  })
-    .then((r: Response) => r.json())
-    .then((d: ApiGenericResponse) => {
-      if (d.error) { toast(d.error); return; }
-      markSettingsApplied();
-    });
-}
-
 /** Called after successful settings apply — update baseline and hide button. */
 function markSettingsApplied(): void {
   lastSyncedSettings = {
@@ -1576,35 +1574,35 @@ function markSettingsApplied(): void {
 // ── Worker actions (restart / interrupt / takeover / kill) ──
 
 function restartWorker(): void {
-  if (currentWorkerId) {
-    // Restart is always allowed — post panel settings + respawn, no busy check.
-    _postWorkerSettings();
-  } else {
-    const body = _buildSettingsBody();
-    body.sessionId = currentSessionId;
-    fetch('/api/spawn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+  if (!currentSessionId) return;
+  const apply = hasPendingChanges()
+    ? fetch('/api/sessions/' + currentSessionId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(_buildSettingsBody()),
+      }).then((r: Response) => r.json())
+    : Promise.resolve({} as ApiGenericResponse);
+  apply.then((settings: ApiGenericResponse) => {
+    if (settings.error) { toast(settings.error); return; }
+    return fetch('/api/sessions/' + currentSessionId + '/worker/restart', { method: 'POST' });
+  })
+    .then((r: Response | undefined) => r ? r.json() : undefined)
+    .then((d: ApiGenericResponse | undefined) => {
+      if (!d) return;
+      if (d.error) { toast('Worker restart failed: ' + d.error); return; }
+      currentWorkerId = d.workerId ?? null;
+      updateTopBar();
+      markSettingsApplied();
     })
-      .then((r: Response) => r.json())
-      .then((d: ApiGenericResponse) => {
-        if (d.error) {
-          toast('Spawn failed: ' + d.error);
-          return;
-        }
-        currentWorkerId = d.workerId?? null;
-        updateTopBar();
-      });
-  }
+    .catch(() => toast('Worker restart failed: network error'));
 }
 
 function interruptWorker(): void {
-  if (!currentWorkerId) {
+  if (!currentSessionId) {
     toast('No worker running');
     return;
   }
-  fetch('/api/worker/' + currentWorkerId + '/interrupt', { method: 'POST' })
+  fetch('/api/sessions/' + currentSessionId + '/worker/interrupt', { method: 'POST' })
     .then((r: Response) => r.json())
     .then((d: ApiGenericResponse) => {
       if (d.error) toast(d.error);
@@ -1612,11 +1610,11 @@ function interruptWorker(): void {
 }
 
 function takeover(): void {
-  if (!currentWorkerId) {
+  if (!currentSessionId) {
     toast('No worker running');
     return;
   }
-  fetch('/api/worker/' + currentWorkerId + '/takeover', { method: 'POST' })
+  fetch('/api/sessions/' + currentSessionId + '/worker/takeover', { method: 'POST' })
     .then((r: Response) => r.json())
     .then((d: ApiGenericResponse) => {
       if (d.error) {
@@ -1635,11 +1633,11 @@ function takeover(): void {
 }
 
 function takeoverMobile(): void {
-  if (!currentWorkerId) {
+  if (!currentSessionId) {
     toast('No worker running');
     return;
   }
-  fetch('/api/worker/' + currentWorkerId + '/takeover-command')
+  fetch('/api/sessions/' + currentSessionId + '/worker/takeover-command')
     .then((r: Response) => r.json())
     .then((d: any) => {
       if (d.error) {
@@ -1661,15 +1659,14 @@ function takeoverMobile(): void {
 }
 
 function killWorker(): void {
-  if (!currentWorkerId) {
+  if (!currentSessionId) {
     toast('No worker running');
     return;
   }
   if (!confirm('Kill worker ' + currentWorkerId + '?')) return;
-  const deadId = currentWorkerId;
   currentWorkerId = null;
   updateTopBar();
-  fetch('/api/kill/' + deadId, { method: 'POST' })
+  fetch('/api/sessions/' + currentSessionId + '/worker/kill', { method: 'POST' })
     .then((r: Response) => r.json())
     .then((d: ApiGenericResponse) => {
       if (d.error) toast(d.error);
@@ -2203,25 +2200,29 @@ function _sendText(text: string, onSent: (ok: boolean) => void): void {
   }
 
   if (!currentWorkerId) {
-    const body: Record<string, unknown> = {
-      sessionId: sid,
-    };
-    if (hasPendingChanges()) {
-      Object.assign(body, _buildSettingsBody());
-    }
-    fetch('/api/spawn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    const apply = hasPendingChanges()
+      ? fetch('/api/sessions/' + sid, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(_buildSettingsBody()),
+        }).then((r: Response) => r.json())
+      : Promise.resolve({} as ApiGenericResponse);
+    apply.then((settings: ApiGenericResponse) => {
+      if (settings.error) {
+        throw new Error('Settings failed: ' + settings.error);
+      }
+      return fetch('/api/sessions/' + sid + '/worker/restart', { method: 'POST' });
     })
-      .then((r: Response) => r.json())
-      .then((d: ApiGenericResponse) => {
+      .then((r: Response | undefined) => r ? r.json() : undefined)
+      .then((d: ApiGenericResponse | undefined) => {
+        if (!d) return;
         if (d.error) {
-          toast('Spawn failed: ' + d.error);
+          toast('Worker start failed: ' + d.error);
           onSent(false);
           return;
         }
         currentWorkerId = d.workerId ?? null;
+        markSettingsApplied();
         doSend();
       })
       .catch(function () {
@@ -2233,19 +2234,25 @@ function _sendText(text: string, onSent: (ok: boolean) => void): void {
 
   // worker exists: if panel has unapplied changes, apply them first, then send
   if (hasPendingChanges()) {
-    fetch('/api/worker/' + currentWorkerId + '/settings', {
-      method: 'POST',
+    fetch('/api/sessions/' + sid, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(_buildSettingsBody()),
     })
       .then((r: Response) => r.json())
       .then((d: ApiGenericResponse) => {
+        if (d.error) throw new Error(d.error);
+        return fetch('/api/sessions/' + sid + '/worker/restart', { method: 'POST' });
+      })
+      .then((r: Response) => r.json())
+      .then((d: ApiGenericResponse) => {
         if (d.error) { toast(d.error); onSent(false); return; }
+        currentWorkerId = d.workerId ?? currentWorkerId;
         markSettingsApplied();
         doSend();
       })
       .catch(function () {
-        toast('Failed to apply settings: network error');
+        toast('Failed to apply settings or restart worker');
         onSent(false);
       });
     return;

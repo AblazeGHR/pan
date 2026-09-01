@@ -192,7 +192,7 @@ export function InputRow() {
   const applySetting = async (key: string, value: unknown) => {
     if (!currentSession) return;
     try {
-      await applySettings(currentSession.id, undefined, { [key]: value });
+      await applySettings(currentSession.id, { [key]: value });
       await loadSessions();
     } catch (e) {
       showToast((e as Error).message || 'Failed', 'error');
@@ -249,7 +249,7 @@ export function InputRow() {
     async (text: string) => {
       if (!currentSessionId || !text.trim() || !currentSession?.workerId) return;
       try {
-        await steer(currentSession.workerId, text);
+        await steer(currentSessionId, text);
         if (inputRef.current) inputRef.current.value = '';
         setInputDraft(currentSessionId, '');
         addMessage({ role: 'user', content: text });
