@@ -642,7 +642,7 @@ export interface AgentQueueItem {
     workerId?: string;
     qqTarget?: string;
     time?: string;
-    /** queued=尚未被 Worker 接管；in_flight/uncertain 仅兼容旧版遗留数据，当前版本接管即出队。 */
+    /** queued=仍待本地 CLI 交接；reserved/writing 只在恢复事件中短暂存在。 */
     dispatchState?: QueueDispatchState;
     revision?: number;
   };

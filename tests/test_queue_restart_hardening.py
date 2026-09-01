@@ -61,12 +61,13 @@ def test_offline_user_message_is_a_durable_user_task(monkeypatch):
 
     assert result["status"] == "queued"
     assert result["pendingSpawn"] is True
-    assert s.queue_pending == [{
-        "type": "task", "id": s.queue_pending[0]["id"],
-        "text": "do not turn me into an agent report", "source": "user",
-        "seq": 1, "taskId": None, "deliveryState": "queued",
-        "clientMessageId": "browser-1",
-    }]
+    assert len(s.queue_pending) == 1
+    assert s.queue_pending[0]["type"] == "task"
+    assert s.queue_pending[0]["text"] == "do not turn me into an agent report"
+    assert s.queue_pending[0]["source"] == "user"
+    assert s.queue_pending[0]["seq"] == 1
+    assert s.queue_pending[0]["deliveryState"] == "queued"
+    assert s.queue_pending[0]["clientMessageId"] == "browser-1"
     assert s.accepted_input_ids == ["browser-1"]
     _cleanup()
 
@@ -421,8 +422,7 @@ for line in sys.stdin:
             await asyncio.sleep(0.2)
             assert s.last_result is None
             assert s.queue_pending == [], "interrupt must not requeue a consumed task"
-            assert await worker.retry_pending_item(s.id, "missing") == \
-                "Queue retry disabled by at-most-once policy"
+            assert await worker.retry_pending_item(s.id, "missing") == "Queue item not found"
             await asyncio.sleep(0.2)
             assert s.last_result is None, "replacement worker must not replay the task"
             assert s.queue_pending == []

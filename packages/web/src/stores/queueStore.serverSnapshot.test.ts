@@ -14,13 +14,19 @@ vi.mock('@/services/api', () => api);
 import { useQueueStore } from './queueStore';
 import { useSessionStore } from './sessionStore';
 
-function item(id: string, text: string, revision = 1) {
+function item(
+  id: string,
+  text: string,
+  revision = 1,
+  source: 'user' | 'agent' | 'report' | 'qq' = 'user',
+  kind: 'task' | 'report' | 'qq' = 'task',
+) {
   return {
     id,
     queueItemId: id,
     text,
-    source: 'user' as const,
-    kind: 'task' as const,
+    source,
+    kind,
     createdAt: '2026-09-01T00:00:00Z',
     meta: { dispatchState: 'queued' as const, revision },
   };
@@ -78,5 +84,24 @@ describe('server-backed queue snapshot', () => {
     expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'hello', expect.any(String));
     expect(useQueueStore.getState().queues.s1).toEqual([queued]);
     expect(useQueueStore.getState().queues.s1?.[0]?.id).toBe('q-native');
+  });
+
+  it('reorders queued items across user, agent, report, and QQ sources', async () => {
+    const user = item('q-user', 'user');
+    const agent = item('q-agent', 'agent', 1, 'agent');
+    const report = item('q-report', 'report', 1, 'report', 'report');
+    const qq = item('q-qq', 'qq', 1, 'qq', 'qq');
+    const current = snapshot([user, agent, report, qq], 7);
+    const reordered = snapshot([user, report, agent, qq], 8);
+    useQueueStore.setState({ queues: { s1: current }, queueRevisions: { s1: 7 } });
+    api.reorderSessionQueue.mockResolvedValue(reordered);
+
+    await useQueueStore.getState().moveQueueItem('q-agent', 1);
+
+    expect(api.reorderSessionQueue).toHaveBeenCalledWith(
+      's1', ['q-user', 'q-report', 'q-agent', 'q-qq'], 7,
+    );
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id))
+      .toEqual(['q-user', 'q-report', 'q-agent', 'q-qq']);
   });
 });

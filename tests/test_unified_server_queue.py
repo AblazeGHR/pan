@@ -20,6 +20,9 @@ async def _save(_session):
 
 
 def _cleanup():
+    for retry in list(worker._queue_retry_tasks.values()):
+        retry.cancel()
+    worker._queue_retry_tasks.clear()
     worker.workers.clear()
     worker._task_status.clear()
     worker._inflight_task_ids.clear()
@@ -77,6 +80,34 @@ def test_task_id_stays_idempotent_after_pending_row_is_removed(monkeypatch):
 
 
 def test_ledger_receipts_deduplicate_client_and_task_keys_after_pending_delete(monkeypatch):
+    _cleanup()
+
+
+def test_task_id_retry_after_handoff_returns_durable_receipt(monkeypatch):
+    """A stale in-memory error must not hide a task already handed to the CLI."""
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item, error = asyncio.run(worker._persist_task_item(
+        value, "首次发送", "agent", None, "task-receipt", None))
+    assert error is None
+    stdin = _Stdin()
+    current = _write_worker(value, item, stdin)
+    current._current_task_id = "task-receipt"
+    asyncio.run(worker._consumer_stream(current, "首次发送", "agent", value))
+    receipt = dict(value.queue_delivery_ledger[item["queueItemId"]])
+    worker._task_status["task-receipt"] = {
+        "status": "error", "result": "worker exited", "taskId": "task-receipt",
+    }
+
+    result = asyncio.run(worker.assign(
+        value.id, "重复发送", source="agent", task_id="task-receipt"))
+
+    assert result["status"] == "sent_to_cli"
+    assert result["duplicate"] is True
+    assert result["receipt"] == receipt
+    assert value.queue_pending == []
+    assert stdin.writes == [b'{"message":"x"}\n']
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
@@ -193,9 +224,13 @@ class _Stdin:
         if self.mode == "fail":
             raise OSError("pipe closed")
         self.writes.append(data)
+        if self.mode == "short":
+            return len(data) - 1
         return len(data)
 
     async def drain(self):
+        if self.mode == "drain_fail":
+            raise OSError("drain failed")
         if self.mode == "cancel":
             raise asyncio.CancelledError()
 
@@ -203,7 +238,7 @@ class _Stdin:
 def _write_worker(value, item, stdin):
     process = _Process()
     process.stdin = stdin
-    value.queue_pending = []
+    value.queue_pending = [item]
     value.queue_delivery_ledger[item["queueItemId"]] = dict(item)
     value.queue_delivery_ledger[item["queueItemId"]]["deliveryState"] = "reserved"
     current = worker.Worker(
@@ -216,8 +251,14 @@ def _write_worker(value, item, stdin):
     return current
 
 
-@pytest.mark.parametrize("mode,expected", [("ok", "sent_to_cli"), ("fail", "write_failed"), ("cancel", "unknown_after_crash")])
-def test_cli_write_outcomes_are_non_retryable(monkeypatch, mode, expected):
+@pytest.mark.parametrize("mode,expected", [
+    ("ok", "sent_to_cli"),
+    ("fail", "queued"),
+    ("short", "queued"),
+    ("drain_fail", "queued"),
+    ("cancel", "queued"),
+])
+def test_cli_write_outcomes_commit_or_requeue(monkeypatch, mode, expected):
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
@@ -235,11 +276,113 @@ def test_cli_write_outcomes_are_non_retryable(monkeypatch, mode, expected):
 
     asyncio.run(scenario())
     assert value.queue_delivery_ledger[item["queueItemId"]]["deliveryState"] == expected
-    assert value.queue_pending == []
+    if expected == "sent_to_cli":
+        assert value.queue_pending == []
+    else:
+        assert value.queue_pending == [item]
     _cleanup()
 
 
-def test_recovery_classifies_reserved_as_unknown_and_does_not_signal(monkeypatch):
+class _OneShotStdout:
+    async def read(self, _size):
+        return b""
+
+
+class _OneShotProcess:
+    returncode = 0
+    stdout = _OneShotStdout()
+
+    async def wait(self):
+        return self.returncode
+
+    def kill(self):
+        self.returncode = -9
+
+
+def _queue_item(value, qid, *, source="user", kind="task", text="x"):
+    item = {"type": kind, "kind": kind, "queueItemId": qid, "id": qid,
+            "source": source, "text": text, "deliveryState": "reserved",
+            "revision": 1}
+    value.queue_pending.append(item)
+    value.queue_delivery_ledger[qid] = dict(item)
+    return item
+
+
+def test_one_shot_spawn_success_dequeues_after_argv_handoff(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item = _queue_item(value, "q-one-shot")
+    current = worker.Worker(
+        worker_id="w-one-shot", session_id=value.id, adapter=CbcAdapter(),
+        status="idle", process=None, pending_signal=asyncio.Queue(),
+        _task_done=asyncio.Event(), _hist_flush_event=asyncio.Event(),
+        _current_queue_item=item,
+    )
+    worker.workers[current.worker_id] = current
+    spawned = []
+
+    async def create(*args, **kwargs):
+        spawned.append(args)
+        return _OneShotProcess()
+
+    monkeypatch.setattr(current.adapter, "oneshot_args", lambda _s, _text: ["fake-cli", "prompt"])
+    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", create)
+
+    asyncio.run(worker._consumer_oneshot(current, "x", "user", value))
+
+    assert spawned == [("fake-cli", "prompt")]
+    assert value.queue_pending == []
+    assert value.queue_delivery_ledger["q-one-shot"]["deliveryState"] == "sent_to_cli"
+    _cleanup()
+
+
+def test_one_shot_spawn_failure_requeues_same_item(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item = _queue_item(value, "q-one-shot-fail")
+    current = worker.Worker(
+        worker_id="w-one-shot-fail", session_id=value.id, adapter=CbcAdapter(),
+        status="idle", process=None, pending_signal=asyncio.Queue(),
+        _task_done=asyncio.Event(), _hist_flush_event=asyncio.Event(),
+        _current_queue_item=item,
+    )
+    worker.workers[current.worker_id] = current
+    monkeypatch.setattr(current.adapter, "oneshot_args", lambda _s, _text: ["missing-cli"])
+
+    async def fail(*_args, **_kwargs):
+        raise OSError("spawn failed")
+
+    monkeypatch.setattr(worker.asyncio, "create_subprocess_exec", fail)
+    asyncio.run(worker._consumer_oneshot(current, "x", "user", value))
+
+    assert [entry["queueItemId"] for entry in value.queue_pending] == ["q-one-shot-fail"]
+    assert value.queue_pending[0]["deliveryState"] == "queued"
+    assert value.queue_delivery_ledger["q-one-shot-fail"]["deliveryState"] == "queued"
+    _cleanup()
+
+
+def test_report_batch_write_failure_requeues_every_item(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    first = _queue_item(value, "q-report-1", source="report", kind="report", text="r1")
+    second = _queue_item(value, "q-report-2", source="report", kind="report", text="r2")
+    current = _write_worker(value, first, _Stdin("fail"))
+    current._current_queue_item = None
+    current._current_report_items = [first, second]
+    current._current_serialized = b'{"message":"batch"}'
+    value.queue_pending = [first, second]
+    asyncio.run(worker._consumer_stream(current, "batch", "report", value))
+
+    assert [entry["queueItemId"] for entry in value.queue_pending] == [
+        "q-report-1", "q-report-2"]
+    assert all(entry["deliveryState"] == "queued" for entry in value.queue_pending)
+    _cleanup()
+
+
+def test_recovery_returns_reserved_to_queued_and_signals(monkeypatch):
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
@@ -253,8 +396,11 @@ def test_recovery_classifies_reserved_as_unknown_and_does_not_signal(monkeypatch
         _task_done=asyncio.Event(), _hist_flush_event=asyncio.Event(),
     )
     assert worker._recover_pending_signals(current, value) is True
-    assert value.queue_delivery_ledger[item["queueItemId"]]["deliveryState"] == "unknown_after_crash"
-    assert current.pending_signal.empty()
+    assert value.queue_delivery_ledger[item["queueItemId"]]["deliveryState"] == "queued"
+    assert len(value.queue_pending) == 1
+    assert value.queue_pending[0]["queueItemId"] == item["queueItemId"]
+    assert value.queue_pending[0]["lastDeliveryState"] == "reserved"
+    assert current.pending_signal.get_nowait() == {"type": "task_signal", "id": "q-crash"}
     _cleanup()
 
 
@@ -280,7 +426,11 @@ def test_claim_and_delete_are_serialized_without_double_dispatch(monkeypatch):
 
     claimed, deleted = asyncio.run(scenario())
     assert (claimed is not None) ^ (deleted.get("ok") is True)
-    assert len(value.queue_pending) == 0
+    if claimed is not None:
+        assert len(value.queue_pending) == 1
+        assert value.queue_pending[0]["deliveryState"] == "reserved"
+    else:
+        assert value.queue_pending == []
     if claimed is not None:
         assert value.queue_delivery_ledger[item["id"]]["deliveryState"] == "reserved"
     _cleanup()

@@ -26,7 +26,7 @@ export function SendQueuePanel() {
   const saveEdit = useQueueStore((state) => state.saveEdit);
   const cancelEdit = useQueueStore((state) => state.cancelEdit);
   const remove = useQueueStore((state) => state.removeAgentItem);
-  const move = useQueueStore((state) => state.moveAgentItem);
+  const move = useQueueStore((state) => state.moveQueueItem);
   const clear = useQueueStore((state) => state.clear);
 
   useEffect(() => { load(sessionId); }, [load, sessionId]);

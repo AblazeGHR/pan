@@ -279,8 +279,8 @@ export async function retrySessionQueueItem(
   item?: AgentQueueItem;
   error?: { code?: string; message?: string } | string;
 }> {
-  // Kept for API compatibility; the server intentionally rejects retries
-  // because a consumed item must never be executed a second time.
+  // Kept for API compatibility; the server restores the same queue identity
+  // when the local CLI hand-off failed or was interrupted.
   const data = await request<Omit<ApiSessionQueueResponse, 'error'> & {
     item?: AgentQueueItem;
     error?: { code?: string; message?: string } | string;

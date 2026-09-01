@@ -1917,7 +1917,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
 
 @app.delete("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_delete(session_id: str, item_id: str):
-    """Remove one still-queued item; non-retryable items remain auditable."""
+    """Remove one still-queued item; delivery receipts remain auditable."""
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
@@ -1958,20 +1958,23 @@ async def api_session_queue_delete(session_id: str, item_id: str):
 
 @app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
 async def api_session_queue_retry(session_id: str, item_id: str):
-    """Compatibility endpoint; queue retry is disabled by at-most-once policy."""
+    """Requeue a failed or interrupted item using its existing queue identity."""
     result = await worker.retry_pending_item(session_id, item_id)
     if isinstance(result, str):
         return {"ok": False, "error": result}
-    return {"ok": True, "item": _serialize_queue_item(result, sess.get(session_id))}
+    item = result.get("item", result) if isinstance(result, dict) else result
+    return {"ok": True, "item": _serialize_queue_item(item, sess.get(session_id)),
+            "status": result.get("status") if isinstance(result, dict) else None}
 
 
 @app.patch("/api/sessions/{session_id}/queue/order")
 async def api_session_queue_order(session_id: str, data: dict):
     """Reorder all still-queued sources within the persisted queue.
 
-    Body: {"order": ["id1", ...]} — the relative order of task ids in `order`
-    becomes the new task sequence; tasks not mentioned keep their relative
-    order at the end of the task run. Returns the reordered normalized items.
+    Body: {"orderedIds": ["id1", ...]} — the relative order of every queued
+    source (user, agent, report, QQ, or system) in `orderedIds` becomes the new
+    pending sequence; omitted queued items keep their relative order at the end.
+    Returns the reordered normalized items.
     """
     s = sess.get(session_id)
     if not s:
@@ -1996,7 +1999,7 @@ async def api_session_queue_order(session_id: str, data: dict):
         old_pending = list(s.queue_pending or [])
         old_positions = {id(it): it.get("position") for it in old_pending}
         old_queue_revision = s.queue_revision
-        # Keep any legacy non-retryable rows in their existing slots while
+        # Keep any reserved/writing rows in their existing slots while
         # applying the requested order to every still-queued source.
         queued_slots = [index for index, it in enumerate(old_pending)
                         if isinstance(it, dict)

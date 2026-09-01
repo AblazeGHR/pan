@@ -6,7 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { sendSession, spawnWorker, patchSession } from '@/services/api';
+import { enqueueSessionMessage, sendSession, spawnWorker, patchSession } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import type { AdapterConfig } from '@/types';
 
@@ -26,6 +26,18 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     patchSession: vi.fn(async () => ({})),
     fetchSessions: vi.fn(async () => []),
+    enqueueSessionMessage: vi.fn(async (_sessionId: string, text: string) => ({
+      item: {
+        id: `q-${text.replace(/\s+/g, '-')}`,
+        queueItemId: `q-${text.replace(/\s+/g, '-')}`,
+        text,
+        source: 'user',
+        kind: 'task',
+        createdAt: '2026-09-01T00:00:00Z',
+        meta: { dispatchState: 'queued', revision: 1 },
+      },
+      queueRevision: 1,
+    })),
     sendSession: vi.fn(async () => ({ status: 'queued' })),
     spawnWorker: vi.fn(async () => ({ workerId: 'w-new' })),
   };
@@ -69,6 +81,7 @@ beforeEach(() => {
   });
   vi.mocked(patchSession).mockClear();
   vi.mocked(sendSession).mockClear();
+  vi.mocked(enqueueSessionMessage).mockClear();
   vi.mocked(spawnWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
   Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
@@ -77,7 +90,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('InputRow send queue wiring', () => {
-  it('enqueues when worker busy, clears input, shows badge + panel row, and does NOT add to chat history', () => {
+  it('enqueues through the server when worker busy, then shows the pending row', async () => {
     setBusySession();
     render(<InputRow />);
 
@@ -85,10 +98,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'queued msg' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
-    // 入队成功、输入框清空
-    const q = useQueueStore.getState().queues['s1'] ?? [];
-    expect(q.length).toBe(1);
-    expect(q[0]?.text).toBe('queued msg');
+    await waitFor(() => expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('queued msg'));
     expect((textarea as HTMLTextAreaElement).value).toBe('');
     // 排队消息不上屏：它不在服务端 history 中，伪装进聊天会在刷新后凭空消失
     expect(useSessionStore.getState().currentMessages).toEqual([]);
@@ -99,11 +109,10 @@ describe('InputRow send queue wiring', () => {
     // 点击 ^ 展开面板 → 显示队列项（排队消息的唯一 UI 呈现处）
     fireEvent.click(screen.getByLabelText('发送队列'));
     expect(screen.getByText('queued msg')).toBeTruthy();
-    expect(screen.getByText('待发送')).toBeTruthy();
   });
 
-  it('still renders queued messages from localStorage after a page reload', () => {
-    // 预置上一页留下的队列（localStorage 持久化）
+  it('does not render a stale localStorage queue after a page reload', async () => {
+    // Legacy localStorage is not a business source of truth.
     localStorage.setItem(
       'pan.sendQueue.s1',
       JSON.stringify([{ id: 'q1', text: 'survivor msg', createdAt: 1, status: 'pending' }]),
@@ -113,14 +122,12 @@ describe('InputRow send queue wiring', () => {
     useQueueStore.setState({ queues: {}, edits: {}, batchSend: {} });
     render(<InputRow />);
 
-    // SendQueuePanel mount effect loadForSession → 从 localStorage 恢复并渲染
     fireEvent.click(screen.getByLabelText('发送队列'));
-    expect(screen.getByText('survivor msg')).toBeTruthy();
-    // 聊天历史（服务端拉取）中不含它
+    await waitFor(() => expect(screen.queryByText('survivor msg')).toBeNull());
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
-  it('still sends directly when worker is idle', () => {
+  it('also queues when worker is idle; Provider delivery is not a UI ack', async () => {
     useSessionStore.setState({
       currentSessionId: 's1',
       currentMessages: [],
@@ -145,13 +152,11 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'direct msg' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
-    const q = useQueueStore.getState().queues['s1'] ?? [];
-    expect(q.length).toBe(0);
-    expect(useSessionStore.getState().currentMessages.length).toBe(1);
-    expect(useSessionStore.getState().currentMessages[0]?.content).toBe('direct msg');
+    await waitFor(() => expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('direct msg'));
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
-  it('uses durable HTTP fallback when WS is unavailable during first spawn', async () => {
+  it('uses the durable HTTP enqueue path when WS is unavailable', async () => {
     useSessionStore.setState({
       currentSessionId: 's1',
       currentMessages: [],
@@ -178,13 +183,10 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'survive reconnect' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
-    await waitFor(() => {
-      expect(spawnWorker).toHaveBeenCalledWith('s1', undefined);
-      expect(sendSession).toHaveBeenCalledWith('s1', 'survive reconnect');
-    });
-    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual([
-      'survive reconnect',
-    ]);
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1', 'survive reconnect', expect.any(String),
+    ));
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 });
 

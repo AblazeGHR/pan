@@ -36,6 +36,8 @@ interface QueueStore {
   flush: (_forceOffline?: boolean) => void;
   removeSession: (sessionId: string) => void;
   removeAgentItem: (id: string) => Promise<void>;
+  /** Move any queued source; the legacy name remains an API alias. */
+  moveQueueItem: (id: string, delta: number) => Promise<void>;
   moveAgentItem: (id: string, delta: number) => Promise<void>;
 }
 
@@ -135,7 +137,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     const sid = useSessionStore.getState().currentSessionId;
     if (sid) set((state) => ({ edits: { ...state.edits, [sid]: null } }));
   },
-  move: (id, delta) => { void get().moveAgentItem(id, delta); },
+  move: (id, delta) => { void get().moveQueueItem(id, delta); },
 
   clear: () => {
     const sid = useSessionStore.getState().currentSessionId;
@@ -182,14 +184,17 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     }
   },
 
-  moveAgentItem: async (id, delta) => {
+  moveQueueItem: async (id, delta) => {
     const sid = useSessionStore.getState().currentSessionId;
     if (!sid) return;
-    const current = get().queues[sid] ?? [];
+    // The panel and the order API both operate on the real pending view.
+    // Ignore stale delivery-ledger rows that may still be present in an old
+    // in-memory snapshot; they are not movable queue entries.
+    const current = (get().queues[sid] ?? [])
+      .filter((item) => item.meta?.dispatchState === 'queued');
     const index = current.findIndex((item) => item.id === id);
     const target = index + delta;
     if (index < 0 || target < 0 || target >= current.length) return;
-    if (current[index]?.meta?.dispatchState !== 'queued' || current[target]?.meta?.dispatchState !== 'queued') return;
     const next = current.slice(); [next[index], next[target]] = [next[target]!, next[index]!];
     setSnapshot(set, sid, next);
     try {
@@ -197,6 +202,9 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       setSnapshot(set, sid, items, items.queueRevision);
     } catch { await get().loadAgentQueue(sid); }
   },
+
+  // Compatibility for callers that still use the old agent-specific name.
+  moveAgentItem: async (id, delta) => get().moveQueueItem(id, delta),
 }));
 
 useSessionStore.subscribe((state, previous) => {

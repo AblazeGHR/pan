@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const api = vi.hoisted(() => ({
   fetchSessionQueue: vi.fn(),
@@ -16,13 +16,19 @@ import { SendQueuePanel } from './SendQueuePanel';
 import { useQueueStore } from '@/stores/queueStore';
 import { useSessionStore } from '@/stores/sessionStore';
 
-function item(id: string, text: string, dispatchState: 'queued' | 'sent_to_cli' | 'write_failed' | 'unknown_after_crash') {
+function item(
+  id: string,
+  text: string,
+  dispatchState: 'queued' | 'sent_to_cli' | 'write_failed' | 'unknown_after_crash',
+  source: 'user' | 'agent' | 'report' | 'qq' = 'user',
+  kind: 'task' | 'report' | 'qq' = 'task',
+) {
   return {
     id,
     queueItemId: id,
     text,
-    source: 'user' as const,
-    kind: 'task' as const,
+    source,
+    kind,
     createdAt: '2026-09-01T00:00:00Z',
     meta: { dispatchState, revision: 1 },
   };
@@ -51,6 +57,8 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => cleanup());
+
 describe('SendQueuePanel pending-only view', () => {
   it('does not render delivery-ledger terminal or uncertain states', async () => {
     render(<SendQueuePanel />);
@@ -60,5 +68,23 @@ describe('SendQueuePanel pending-only view', () => {
     expect(screen.queryByText('已写入 CLI')).toBeNull();
     expect(screen.queryByText('写入失败')).toBeNull();
     expect(screen.queryByText('崩溃未知')).toBeNull();
+  });
+
+  it('shows reorder controls for non-user sources and sends their native ids', async () => {
+    const user = item('q-user', '用户', 'queued');
+    const agent = item('q-agent', 'Agent', 'queued', 'agent');
+    const report = item('q-report', '报告', 'queued', 'report', 'report');
+    const qq = item('q-qq', 'QQ', 'queued', 'qq', 'qq');
+    api.fetchSessionQueue.mockResolvedValue(snapshot([user, agent, report, qq]));
+    api.reorderSessionQueue.mockResolvedValue(snapshot([user, report, agent, qq]));
+    render(<SendQueuePanel />);
+
+    await waitFor(() => expect(screen.getByText('Agent task')).toBeTruthy());
+    const agentRow = screen.getByText('Agent task').closest('div');
+    expect(agentRow).toBeTruthy();
+    fireEvent.click(within(agentRow!).getByTitle('下移'));
+    await waitFor(() => expect(api.reorderSessionQueue).toHaveBeenCalledWith(
+      's1', ['q-user', 'q-report', 'q-agent', 'q-qq'], 2,
+    ));
   });
 });
