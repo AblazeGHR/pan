@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import { SessionList } from './SessionList';
-import { resolveDropZone, DRAG_HIT } from './sessionDrag';
+import { resolveDropZone, DRAG_HIT, decideManagerDrop } from './sessionDrag';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Session } from '@/types';
@@ -259,6 +259,111 @@ describe('SessionList drag interactions', () => {
   });
 });
 
+describe('decideManagerDrop (tree management semantics)', () => {
+  // Tree: A manages B and C; D is an independent root.
+  const tree = [
+    mk('A', 'A'),
+    mk('B', 'B', { managedBy: 'A' }),
+    mk('C', 'C', { managedBy: 'A' }),
+    mk('D', 'D'),
+  ];
+
+  it('center drop → the target manages the dragged session', () => {
+    // D dropped on A's center → A manages D.
+    expect(decideManagerDrop(tree, 'D', 'A', 'center')).toEqual({
+      newManager: 'A',
+      blockedByCycle: false,
+    });
+    // B dropped on A's center again → A manages B (already true, no cycle).
+    expect(decideManagerDrop(tree, 'B', 'A', 'center')).toEqual({
+      newManager: 'A',
+      blockedByCycle: false,
+    });
+  });
+
+  it('edge drop on a child row adopts that group', () => {
+    // D (root) dropped next to child B of A → D joins A's group.
+    expect(decideManagerDrop(tree, 'D', 'B', 'after')).toEqual({
+      newManager: 'A',
+      blockedByCycle: false,
+    });
+    expect(decideManagerDrop(tree, 'D', 'B', 'before')).toEqual({
+      newManager: 'A',
+      blockedByCycle: false,
+    });
+  });
+
+  it('edge drop on a top-level slot leaves the current group', () => {
+    // B (child of A) dropped before root D → top level (managedBy null).
+    expect(decideManagerDrop(tree, 'B', 'D', 'before')).toEqual({
+      newManager: null,
+      blockedByCycle: false,
+    });
+    // B dropped after leaf root D → top level.
+    expect(decideManagerDrop(tree, 'B', 'D', 'after')).toEqual({
+      newManager: null,
+      blockedByCycle: false,
+    });
+  });
+
+  it('edge after a manager row with children = its first-child slot', () => {
+    // D dropped after manager row A → D becomes A's first child.
+    expect(decideManagerDrop(tree, 'D', 'A', 'after')).toEqual({
+      newManager: 'A',
+      blockedByCycle: false,
+    });
+    // B dropped after its own manager A → reorders to first child (stays).
+    expect(decideManagerDrop(tree, 'B', 'A', 'after')).toEqual({
+      newManager: 'A',
+      blockedByCycle: false,
+    });
+  });
+
+  it('blocks moving a session under itself', () => {
+    // A dropped after child B's row would join A's own group as its own child.
+    expect(decideManagerDrop(tree, 'A', 'B', 'after')).toEqual({
+      newManager: 'A',
+      blockedByCycle: true,
+    });
+    expect(decideManagerDrop(tree, 'A', 'B', 'center')).toEqual({
+      newManager: 'B',
+      blockedByCycle: true,
+    });
+  });
+
+  it('blocks moving a session under its own descendant (deep)', () => {
+    // Chain A → B → G. Dropping A next to G (child of B) would nest A
+    // under B — B is A's descendant → blocked. Dropping A on G's center
+    // (G manages A) → G is A's descendant → blocked.
+    const deep = [
+      mk('A', 'A'),
+      mk('B', 'B', { managedBy: 'A' }),
+      mk('G', 'G', { managedBy: 'B' }),
+    ];
+    expect(decideManagerDrop(deep, 'A', 'G', 'after')).toEqual({
+      newManager: 'B',
+      blockedByCycle: true,
+    });
+    expect(decideManagerDrop(deep, 'A', 'G', 'center')).toEqual({
+      newManager: 'G',
+      blockedByCycle: true,
+    });
+    // Moving B (mid-level) under G (its own child) is blocked too.
+    expect(decideManagerDrop(deep, 'B', 'G', 'center')).toEqual({
+      newManager: 'G',
+      blockedByCycle: true,
+    });
+  });
+
+  it('allows moving a sibling next to another sibling of the same group', () => {
+    // C dropped on B's row (both children of A) → stays in A's group.
+    expect(decideManagerDrop(tree, 'C', 'B', 'before')).toEqual({
+      newManager: 'A',
+      blockedByCycle: false,
+    });
+  });
+});
+
 describe('manager-tree drag interactions', () => {
   // Tree: B manages A and A2; C is an independent root.
   // preorder in the tree = B, A, A2, C (children render under their manager).
@@ -326,6 +431,72 @@ describe('manager-tree drag interactions', () => {
 
     expect(useUIStore.getState().customOrder).toEqual(['A', 'A2', 'C', 'B']);
     expect(cardOrder(container)).toEqual(['C', 'B', 'A', 'A2']);
+  });
+
+  it('edge drop on another group child row moves the session into that group', () => {
+    // Tree: B manages A; M2 manages E (independent root M2).
+    useSessionStore.setState({
+      sessions: [
+        mk('B', 'B', { updatedAt: new Date(Date.now() - 60_000).toISOString() }),
+        mk('A', 'A', { managedBy: 'B', updatedAt: new Date(Date.now() - 4 * 60_000).toISOString() }),
+        mk('M2', 'M2', { updatedAt: new Date(Date.now() - 7 * 60_000).toISOString() }),
+        mk('E', 'E', { managedBy: 'M2', updatedAt: new Date(Date.now() - 8 * 60_000).toISOString() }),
+      ],
+      currentSessionId: null,
+      multiSelectMode: false,
+    });
+    stubCardRects({ B: 0, A: 64, M2: 128, E: 192 });
+
+    const { container } = render(<SessionList />);
+    // A (child of B) dropped on E's TOP band (E spans 192-256, top band
+    // ≈192-212) → A joins M2's group before E.
+    fireEvent.pointerDown(handleOf(container, 'A'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(200);
+    expect(container.querySelector('[data-insert-line="before"]')).not.toBeNull();
+    pointerUp();
+
+    expect(useSessionStore.getState().sessions.find((s) => s.id === 'A')!.managedBy).toBe('M2');
+    expect(useUIStore.getState().customOrder).toEqual(['B', 'M2', 'A', 'E']);
+    expect(cardOrder(container)).toEqual(['B', 'M2', 'A', 'E']);
+    expect(useUIStore.getState().toastQueue.some((t) => t.message.includes('移入'))).toBe(true);
+  });
+
+  it('edge drop on a top-level slot moves a child out of its group', () => {
+    const { container } = render(<SessionList />);
+    // A (child of B) dropped on root C's TOP band → A becomes an
+    // independent root before C.
+    fireEvent.pointerDown(handleOf(container, 'A'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(200); // C spans 192-256, top band ≈ 192-212
+    pointerUp();
+
+    expect(useSessionStore.getState().sessions.find((s) => s.id === 'A')!.managedBy).toBeNull();
+    expect(useUIStore.getState().customOrder).toEqual(['B', 'A2', 'A', 'C']);
+    expect(cardOrder(container)).toEqual(['B', 'A2', 'A', 'C']);
+    expect(useUIStore.getState().toastQueue.some((t) => t.message.includes('移出'))).toBe(true);
+  });
+
+  it('blocks dropping a manager onto its own child (center)', () => {
+    // Tree: A manages B. Dragging A onto B's center would make B manage A.
+    useSessionStore.setState({
+      sessions: [
+        mk('A', 'A', { updatedAt: new Date(Date.now() - 60_000).toISOString() }),
+        mk('B', 'B', { managedBy: 'A', updatedAt: new Date(Date.now() - 4 * 60_000).toISOString() }),
+      ],
+      currentSessionId: null,
+      multiSelectMode: false,
+    });
+    stubCardRects({ A: 0, B: 64 });
+
+    const { container } = render(<SessionList />);
+    fireEvent.pointerDown(handleOf(container, 'A'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(96); // B center
+    pointerUp();
+
+    const a = useSessionStore.getState().sessions.find((s) => s.id === 'A')!;
+    expect(a.managedBy).toBeUndefined(); // unchanged (blocked drop)
+    expect(useSessionStore.getState().sessions.find((s) => s.id === 'B')!.managedBy).toBe('A');
+    expect(useUIStore.getState().toastQueue.some((t) => t.message.includes('禁止'))).toBe(true);
+    expect(useUIStore.getState().sortBy).toBe('recent'); // no sort switch on a blocked drop
   });
 });
 

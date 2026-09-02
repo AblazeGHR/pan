@@ -4,7 +4,8 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { matchesSpecialFilters } from '@/utils/sessionFilters';
-import { resolveDropZone } from './sessionDrag';
+import { resolveDropZone, decideManagerDrop } from './sessionDrag';
+import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { FolderOpen, Loader2 } from 'lucide-react';
@@ -358,43 +359,99 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   onPointerUpRef.current = () => {
     const dragCurrent = dragIdRef.current;
     const target = dropTargetRef.current;
-    if (dragCurrent && target) {
-      const state = useSessionStore.getState();
-      const dragged = state.sessions.find((s) => s.id === dragCurrent);
-      const targetSession = state.sessions.find((s) => s.id === target.id);
-      if (dragged && targetSession) {
-        if (target.zone === 'center') {
-          // Mock "B manage A": A becomes managed by B (local state only).
-          state.updateSession(dragged.id, { managedBy: targetSession.id });
-          showToast(
-            `[Mock] 「${targetSession.name}」现在管理「${dragged.name}」`,
-          );
-        } else {
-          // Mock reorder: rebuild the order with A inserted at the boundary,
-          // switch to custom sort and keep it until the next manual Sort
-          // click. The authoritative "visible order" is the DOM card order
-          // (flat list, or preorder of the manager tree) so the insertion
-          // boundary always matches what the user saw.
-          const domCards =
-            listRef.current?.querySelectorAll<HTMLElement>('[data-session-card-id]');
-          const domIds = domCards
-            ? [...domCards].map((el) => el.dataset.sessionCardId ?? '').filter(Boolean)
-            : filteredRef.current.map((s) => s.id);
-          const ids = domIds.filter((x) => x !== dragged.id);
-          const tIdx = ids.indexOf(targetSession.id);
-          if (tIdx >= 0) {
-            ids.splice(target.zone === 'before' ? tIdx : tIdx + 1, 0, dragged.id);
-            for (const s of state.sessions) {
-              if (!ids.includes(s.id)) ids.push(s.id);
-            }
-            const pos = ids.indexOf(dragged.id) + 1;
-            useUIStore.getState().setCustomOrder(ids);
-            useUIStore.getState().setSortBy('custom');
-            showToast(
-              `[Mock] 「${dragged.name}」已插入到第 ${pos} 位（自定义排序）`,
-            );
-          }
+    if (!dragCurrent || !target) {
+      finishDrag();
+      return;
+    }
+    const state = useSessionStore.getState();
+    const dragged = state.sessions.find((s) => s.id === dragCurrent);
+    const targetSession = state.sessions.find((s) => s.id === target.id);
+    if (!dragged || !targetSession) {
+      finishDrag();
+      return;
+    }
+
+    // Manager-tree semantics: decide where this drop wants the dragged
+    // session to live (center → target manages it; edge slot → adopt that
+    // slot's group context), and reject management cycles up front.
+    const { newManager, blockedByCycle } = decideManagerDrop(
+      filteredRef.current,
+      dragged.id,
+      targetSession.id,
+      target.zone,
+    );
+
+    if (blockedByCycle) {
+      showToast(
+        `[Mock] 禁止：不能把「${dragged.name}」移入自己或其下级的组内（会形成递归管理）`,
+        'error',
+      );
+      finishDrag();
+      return;
+    }
+
+    if (target.zone === 'center') {
+      // Mock "B manage A": A becomes managed by B (local state only).
+      const already = dragged.managedBy === targetSession.id;
+      if (!already) {
+        state.updateSession(dragged.id, { managedBy: targetSession.id });
+        if (isMockMode()) {
+          applyMockSessionUpdate(dragged.id, { managedBy: targetSession.id });
         }
+      }
+      showToast(
+        already
+          ? `[Mock] 「${targetSession.name}」已在管理「${dragged.name}」`
+          : `[Mock] 「${targetSession.name}」现在管理「${dragged.name}」`,
+      );
+      finishDrag();
+      return;
+    }
+
+    // Edge drop: (optionally) move the dragged session between groups, then
+    // insert it at the exact boundary the user saw. The authoritative
+    // "visible order" is the DOM card order (flat list, or preorder of the
+    // manager tree). Entering a group = adopt that manager; landing on a
+    // top-level slot = leave the current group (managedBy → null).
+    const oldManager = dragged.managedBy ?? null;
+    const managerChanged = newManager !== oldManager;
+    if (managerChanged) {
+      state.updateSession(dragged.id, { managedBy: newManager });
+      if (isMockMode()) {
+        applyMockSessionUpdate(dragged.id, { managedBy: newManager });
+      }
+    }
+
+    const domCards = listRef.current?.querySelectorAll<HTMLElement>('[data-session-card-id]');
+    const domIds = domCards
+      ? [...domCards].map((el) => el.dataset.sessionCardId ?? '').filter(Boolean)
+      : filteredRef.current.map((s) => s.id);
+    const ids = domIds.filter((x) => x !== dragged.id);
+    const tIdx = ids.indexOf(targetSession.id);
+    if (tIdx >= 0) {
+      ids.splice(target.zone === 'before' ? tIdx : tIdx + 1, 0, dragged.id);
+      for (const s of state.sessions) {
+        if (!ids.includes(s.id)) ids.push(s.id);
+      }
+      const pos = ids.indexOf(dragged.id) + 1;
+      useUIStore.getState().setCustomOrder(ids);
+      useUIStore.getState().setSortBy('custom');
+
+      const newManagerName = newManager
+        ? state.sessions.find((s) => s.id === newManager)?.name ?? newManager
+        : null;
+      if (managerChanged && newManager !== null) {
+        showToast(
+          `[Mock] 「${dragged.name}」已移入「${newManagerName}」的组，插入到第 ${pos} 位`,
+        );
+      } else if (managerChanged && oldManager !== null) {
+        showToast(
+          `[Mock] 「${dragged.name}」已移出「${
+            state.sessions.find((s) => s.id === oldManager)?.name ?? oldManager
+          }」的管理，作为独立会话插入到第 ${pos} 位`,
+        );
+      } else {
+        showToast(`[Mock] 「${dragged.name}」已插入到第 ${pos} 位（自定义排序）`);
       }
     }
     finishDrag();

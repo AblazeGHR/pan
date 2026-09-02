@@ -20,7 +20,9 @@ export function isMockMode(): boolean {
   }
 }
 
-// ── In-memory mock DB ──
+// ── Mock DB (seeded once, then persisted so reloads keep demo state) ──
+
+const MOCK_DB_KEY = 'pan:mockSessions';
 
 const now = Date.now();
 const min = 60_000;
@@ -37,58 +39,110 @@ function mkSession(partial: Partial<Session> & { id: string; name: string }): Se
   };
 }
 
-const mockSessions: Session[] = [
-  mkSession({
-    id: 'mock-alpha',
-    name: 'Alpha 主控',
-    workerStatus: 'running',
-    model: 'mock-model-x',
-    workdir: 'D:/project/alpha',
-    updatedAt: new Date(now - 2 * min).toISOString(),
-    history: [
-      { role: 'user', content: 'mock 用户消息' },
-      { role: 'assistant', content: 'mock 回复：这是无后端演示数据。' },
-    ],
-  }),
-  mkSession({
-    id: 'mock-bravo',
-    name: 'Bravo 执行器',
-    workerStatus: 'idle',
-    model: 'mock-model-y',
-    workdir: 'D:/project/bravo',
-    updatedAt: new Date(now - 20 * min).toISOString(),
-  }),
-  mkSession({
-    id: 'mock-charlie',
-    name: 'Charlie 巡检',
-    workerStatus: 'idle',
-    workdir: 'D:/project/charlie',
-    updatedAt: new Date(now - 3 * 60 * min).toISOString(),
-  }),
-  mkSession({
-    id: 'mock-delta',
-    name: 'Delta 报表',
-    workerStatus: null,
-    workdir: 'D:/project/alpha',
-    updatedAt: new Date(now - 26 * 60 * min).toISOString(),
-  }),
-  mkSession({
-    id: 'mock-echo',
-    name: 'Echo 文档',
-    workerStatus: 'held',
-    workdir: 'D:/project/echo',
-    managedBy: 'mock-bravo',
-    updatedAt: new Date(now - 30 * 60 * min).toISOString(),
-  }),
-  mkSession({
-    id: 'mock-foxtrot',
-    name: 'Foxtrot 实验',
-    workerStatus: null,
-    updatedAt: new Date(now - 50 * 60 * min).toISOString(),
-  }),
-];
+function seedSessions(): Session[] {
+  return [
+    mkSession({
+      id: 'mock-alpha',
+      name: 'Alpha 主控',
+      workerStatus: 'running',
+      model: 'mock-model-x',
+      workdir: 'D:/project/alpha',
+      updatedAt: new Date(now - 2 * min).toISOString(),
+      history: [
+        { role: 'user', content: 'mock 用户消息' },
+        { role: 'assistant', content: 'mock 回复：这是无后端演示数据。' },
+      ],
+    }),
+    mkSession({
+      id: 'mock-bravo',
+      name: 'Bravo 执行器',
+      workerStatus: 'idle',
+      model: 'mock-model-y',
+      workdir: 'D:/project/bravo',
+      updatedAt: new Date(now - 20 * min).toISOString(),
+    }),
+    mkSession({
+      id: 'mock-charlie',
+      name: 'Charlie 巡检',
+      workerStatus: 'idle',
+      workdir: 'D:/project/charlie',
+      updatedAt: new Date(now - 3 * 60 * min).toISOString(),
+    }),
+    mkSession({
+      id: 'mock-delta',
+      name: 'Delta 报表',
+      workerStatus: null,
+      workdir: 'D:/project/alpha',
+      updatedAt: new Date(now - 26 * 60 * min).toISOString(),
+    }),
+    mkSession({
+      id: 'mock-echo',
+      name: 'Echo 文档',
+      workerStatus: 'held',
+      workdir: 'D:/project/echo',
+      managedBy: 'mock-bravo',
+      updatedAt: new Date(now - 30 * 60 * min).toISOString(),
+    }),
+    mkSession({
+      id: 'mock-foxtrot',
+      name: 'Foxtrot 实验',
+      workerStatus: null,
+      updatedAt: new Date(now - 50 * 60 * min).toISOString(),
+    }),
+  ];
+}
+
+function loadSessions(): Session[] {
+  try {
+    const raw = localStorage.getItem(MOCK_DB_KEY);
+    if (raw) {
+      const arr: unknown = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return arr as Session[];
+      }
+    }
+  } catch {
+    // fall through to seeding
+  }
+  const seeded = seedSessions();
+  try {
+    localStorage.setItem(MOCK_DB_KEY, JSON.stringify(seeded));
+  } catch {
+    // storage unavailable — keep in-memory only
+  }
+  return seeded;
+}
+
+export const mockSessions: Session[] = loadSessions();
+
+function persistSessions(): void {
+  try {
+    localStorage.setItem(MOCK_DB_KEY, JSON.stringify(mockSessions));
+  } catch {
+    // no-op
+  }
+}
 
 const findSession = (id: string) => mockSessions.find((s) => s.id === id);
+
+/** Keep the mock DB in sync with local drag/management mutations so a reload
+ *  (which re-fetches /api/sessions) reflects what the user just did. */
+export function applyMockSessionUpdate(id: string, patch: Partial<Session>): void {
+  const session = findSession(id);
+  if (session) {
+    Object.assign(session, patch);
+    persistSessions();
+  }
+}
+
+/** Reset the demo data to its seeded state (used by the DemoBadge reset). */
+export function resetMockData(): void {
+  try {
+    localStorage.removeItem(MOCK_DB_KEY);
+  } catch {
+    // no-op
+  }
+}
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
