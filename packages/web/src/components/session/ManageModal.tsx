@@ -137,7 +137,14 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [cancelBusy, setCancelBusy] = useState(false);
+  // Busy flag shared by the three "Managed by" actions (unmanage / reports /
+  // readonly) so they cannot race each other.
+  const [managedBusy, setManagedBusy] = useState(false);
+  // Full session of the manager shown in section 1. The managed session's own
+  // summary/detail never says whether its manager subscribes to its reports
+  // (that state lives on the manager), so fetch the manager to mirror the
+  // exact toggle the manager's own row would show for this session.
+  const [managerDetail, setManagerDetail] = useState<Session | null>(null);
   const [savingFlag, setSavingFlag] = useState<keyof PanAccess | null>(null);
   // Catalog of all manifest-declared MCP servers (for the multi-select list).
   const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([]);
@@ -160,7 +167,8 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
       setQuery('');
       setShowAll(false);
       setBusyId(null);
-      setCancelBusy(false);
+      setManagedBusy(false);
+      setManagerDetail(null);
       setSavingFlag(null);
       setDetailSession(null);
       setMcpServers([]);
@@ -195,6 +203,42 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
     const m = sessions.find((s) => s.id === managedBy);
     return m ? m.name || 'Untitled' : null;
   }, [managedBy, sessions]);
+
+  // Fetch the manager's full session while this session is managed by someone
+  // else, so section 1 can mirror the manager's row controls for this session
+  // (report subscription state only lives on the manager).
+  useEffect(() => {
+    let alive = true;
+    if (open && managedBy && managerId && managedBy !== managerId) {
+      setManagerDetail(null);
+      fetchSession(managedBy)
+        .then((m) => {
+          if (alive) setManagerDetail(m);
+        })
+        .catch(() => {
+          if (alive) setManagerDetail(null);
+        });
+    } else {
+      setManagerDetail(null);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [open, managedBy, managerId]);
+
+  // Section 1 state — mirrors the row the manager would see for this session:
+  //   - managedBy set  → the manager's "Managed" toggle is on → offer Unmanage.
+  //   - managerDetail.reportSubscriptions includes us → manager's "Subscribed"
+  //     toggle is on → offer Stop reports (claim auto-subscribes, so default on
+  //     while the manager snapshot is still loading).
+  //   - our own readonlySession → manager's "Readonly" row toggle is on.
+  const managerSubscribesToSelf =
+    !!managedBy &&
+    (managerDetail
+      ? (managerDetail.reportSubscriptions ?? []).includes(managerId ?? '')
+      : true);
+  const isManagedReadonly =
+    (detailSession?.readonlySession ?? session?.readonlySession) === true;
 
   const panAccess: PanAccess = detailSession?.panAccess ?? {};
 
@@ -239,12 +283,15 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
 
   const visible = showAll ? filtered : filtered.slice(0, SHOW_LIMIT);
 
-  // Break the incoming manage link. The backend only checks that the passed
+  // ── Section 1 actions (mirror the manager's row controls for this session) ──
+
+  // Unmanage: break the incoming manage link. Mirrors the manager's "Managed"
+  // row toggle for this session. The backend only checks that the passed
   // managerId matches this session's current manager — it does not require the
   // manager itself to be the caller, so the managed session can detach.
   const cancelManagedBy = async () => {
-    if (!managerId || !managedBy || cancelBusy) return;
-    setCancelBusy(true);
+    if (!managerId || !managedBy || managedBusy) return;
+    setManagedBusy(true);
     try {
       await unclaimSession(managedBy, managerId);
       setDetailSession((d) => (d ? { ...d, managedBy: null } : d));
@@ -253,7 +300,60 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Unclaim failed', 'error');
     } finally {
-      setCancelBusy(false);
+      setManagedBusy(false);
+    }
+  };
+
+  // Reports: mirror the manager's Subscribe row toggle — start/stop the
+  // manager receiving this session's completion reports. This must only touch
+  // the report subscription: it never changes the managedBy relationship.
+  const toggleManagedReports = async (next: boolean) => {
+    if (!managerId || !managedBy || managedBusy) return;
+    setManagedBusy(true);
+    const label = managedByLabel || managedBy;
+    try {
+      if (next) {
+        await reportSubscribe(managedBy, managerId);
+        showToast(`Now reporting to "${label}"`);
+      } else {
+        await reportUnsubscribe(managedBy, managerId);
+        showToast(`Stopped reports to "${label}"`);
+      }
+      // Keep the manager snapshot honest so the button reflects the new state
+      // even before a reload (summary lists carry no reportSubscriptions).
+      setManagerDetail((m) => {
+        if (!m) return m;
+        const subs = new Set(m.reportSubscriptions ?? []);
+        if (next) subs.add(managerId!);
+        else subs.delete(managerId!);
+        return { ...m, reportSubscriptions: [...subs] };
+      });
+      await loadSessions();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Report update failed', 'error');
+    } finally {
+      setManagedBusy(false);
+    }
+  };
+
+  // Read-only: mirror the manager's Readonly row toggle for this session — set
+  // or clear this session's persistent readonly state (which blocks the
+  // manager's outbound operations to it). Only updates locally after success.
+  const toggleManagedReadonly = async (enabled: boolean) => {
+    if (!managerId || !managedBy || managedBusy) return;
+    setManagedBusy(true);
+    try {
+      await setSessionReadonly(managedBy, managerId, enabled);
+      setDetailSession((d) => (d ? { ...d, readonlySession: enabled } : d));
+      useSessionStore.getState().updateSession(managerId, {
+        readonlySession: enabled,
+      });
+      showToast(enabled ? 'Readonly enabled' : 'Readonly disabled');
+      await loadSessions();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Readonly update failed', 'error');
+    } finally {
+      setManagedBusy(false);
     }
   };
 
@@ -437,10 +537,10 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
           {/* ── Section 1: Managed by ── */}
           <section className="flex flex-col gap-2">
             <SectionHeader
-              title="Managed by / 被谁管理"
+              title="Managed by"
               subtitle="The manager (parent) session that claimed this session."
             />
-            <div className="flex items-center gap-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2">
+            <div className="flex flex-col gap-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2 sm:flex-row sm:items-center">
               <div className="flex-1 min-w-0">
                 {managedBy ? (
                   <>
@@ -450,20 +550,71 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                     <div className="text-[11px] text-text-tertiary truncate">{managedBy}</div>
                   </>
                 ) : (
-                  <div className="text-sm text-text-tertiary">Unmanaged / 未托管</div>
+                  <div className="text-sm text-text-tertiary">Unmanaged</div>
                 )}
               </div>
               {managedBy && (
-                <button
-                  type="button"
-                  onClick={cancelManagedBy}
-                  disabled={cancelBusy}
-                  title="Break the manage link (this session becomes unmanaged)"
-                  className="shrink-0 inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60 disabled:pointer-events-none"
-                >
-                  <Unlink size={12} />
-                  取消被管理 / Cancel manage by
-                </button>
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                  {/* Unmanage: removes the manage link (mirrors the manager's
+                      "Managed" row action for this session). */}
+                  <button
+                    type="button"
+                    onClick={cancelManagedBy}
+                    disabled={managedBusy}
+                    title="Break the manage link (this session becomes unmanaged)"
+                    className="shrink-0 inline-flex items-center whitespace-nowrap gap-0.5 sm:gap-1 rounded border border-border-default bg-bg-tertiary px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60 disabled:pointer-events-none"
+                  >
+                    <Unlink size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    Unmanage
+                  </button>
+                  {/* Reports: mirrors the manager's Subscribe row action for this
+                      session — start/stop the manager's completion-report
+                      subscription without changing the manage link. */}
+                  <button
+                    type="button"
+                    onClick={() => toggleManagedReports(!managerSubscribesToSelf)}
+                    disabled={managedBusy}
+                    title={
+                      managerSubscribesToSelf
+                        ? 'Stop sending completion reports to the manager (the manage link stays)'
+                        : 'Resume sending completion reports to the manager'
+                    }
+                    className={`shrink-0 inline-flex items-center whitespace-nowrap gap-0.5 sm:gap-1 rounded border px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium transition-colors disabled:opacity-60 disabled:pointer-events-none ${
+                      managerSubscribesToSelf
+                        ? 'border-accent/50 bg-accent/10 text-accent'
+                        : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                    }`}
+                  >
+                    <Bell size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    {managerSubscribesToSelf ? 'Stop reports' : 'Start reports'}
+                  </button>
+                  {/* Read-only: mirrors the manager's Readonly row action for this
+                      session — block/allow the manager's messages, tasks, and
+                      notifications to this session. */}
+                  <button
+                    type="button"
+                    onClick={() => toggleManagedReadonly(!isManagedReadonly)}
+                    disabled={managedBusy}
+                    aria-pressed={isManagedReadonly}
+                    title={
+                      isManagedReadonly
+                        ? 'Click to allow messages, tasks, and notifications'
+                        : 'Click to block manager messages, tasks, and notifications'
+                    }
+                    className={`shrink-0 inline-flex items-center whitespace-nowrap gap-0.5 sm:gap-1 rounded border px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium transition-colors disabled:opacity-60 disabled:pointer-events-none ${
+                      isManagedReadonly
+                        ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+                        : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                    }`}
+                  >
+                    {isManagedReadonly ? (
+                      <Lock size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    ) : (
+                      <Unlock size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                    )}
+                    Readonly
+                  </button>
+                </div>
               )}
             </div>
           </section>
