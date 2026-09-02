@@ -173,6 +173,7 @@ class Session:
     last_result: dict | None = None
     created_at: str = ""
     updated_at: str = ""
+    order: int | None = None  # 用户自定义展示顺序（None = 未排序，按 created_at 排在末尾）
     managed: list[str] = field(default_factory=list)  # session ids this session manages
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
@@ -223,6 +224,7 @@ class Session:
                  last_result: dict | None = None,
                  created_at: str = "",
                  updated_at: str = "",
+                 order: int | None = None,
                  managed: list[str] | None = None,
                  managed_by: str | None = None,
                  readonly_session: bool = False,
@@ -264,6 +266,10 @@ class Session:
         self.last_result = last_result
         self.created_at = created_at
         self.updated_at = updated_at
+        try:
+            self.order = int(order) if order is not None else None
+        except (TypeError, ValueError):
+            self.order = None  # 落盘 JSON 中 order 损坏时降级为未排序
         self.managed = managed if managed is not None else []
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
@@ -393,6 +399,7 @@ class Session:
             "last_result": self.last_result,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "order": self.order,
             "managed": self.managed,
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
@@ -937,7 +944,48 @@ def list_all() -> list[Session]:
                         pass
         _all_loaded = True
     # after initial load, cache is always current (create/save/delete sync it)
-    return sorted(_cache.values(), key=lambda s: s.created_at)
+    # 排序：显式 order 优先（升序）；未排序（order=None）按 created_at 排在末尾，
+    # 因此新建 session 自然出现在列表底部，已有自定义顺序不被打乱。
+    return sorted(_cache.values(),
+                  key=lambda s: (s.order is None,
+                                 s.order if s.order is not None else 0,
+                                 s.created_at))
+
+
+def apply_order(ordered_ids: list[str]) -> str | None:
+    """Persist a user-defined display order for the session list.
+
+    ``ordered_ids`` is the desired display order (as submitted by the
+    dashboard after a drag & drop). Sessions not listed keep their current
+    relative order (list_all() ordering) and are appended after the listed
+    ones. Afterwards every session carries an explicit integer ``order``
+    value, so the ranking is dense and stable across restarts.
+
+    Consistency:
+    - delete: the session file (and its order) disappears; remaining
+      relative order is unaffected (gaps in order values are harmless);
+    - create: new sessions start with order=None and sort to the end until
+      the next reorder;
+    - rename: order is untouched.
+
+    Returns None on success, or an error message string when ordered_ids
+    contains duplicates or unknown session ids (nothing is modified then).
+    """
+    if len(set(ordered_ids)) != len(ordered_ids):
+        return "ordered session ids contain duplicates"
+    all_sessions = list_all()
+    by_id = {s.id: s for s in all_sessions}
+    unknown = [sid for sid in ordered_ids if sid not in by_id]
+    if unknown:
+        return f"Unknown session id(s): {', '.join(unknown)}"
+    listed = [by_id[sid] for sid in ordered_ids]
+    listed_ids = set(ordered_ids)
+    rest = [s for s in all_sessions if s.id not in listed_ids]
+    for i, s in enumerate(listed + rest):
+        if s.order != i:
+            s.order = i
+            save(s)
+    return None
 
 
 # ── migration helpers ──

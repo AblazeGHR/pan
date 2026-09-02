@@ -426,6 +426,7 @@ def _session_to_api(s: sess.Session):
         "totalUsage": s.total_usage,
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
+        "order": s.order,
         "managed": s.managed,
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
@@ -484,6 +485,7 @@ def _session_summary(s: sess.Session) -> dict:
         "cliSessionId": s.cli_session_id,
         "workerStatus": w.status if w else None,
         "updatedAt": s.updated_at,
+        "order": s.order,
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
         "agentLevel": sess.agent_level(s.id),
@@ -1617,6 +1619,45 @@ async def api_create_session(data: dict):
         "name": s.name,
     })
     return _session_to_api(s)
+
+
+@app.post("/api/sessions/order")
+async def api_sessions_order(data: dict):
+    """Persist a custom display order for the session list (drag & drop).
+
+    Body: {"sessionIds": ["ses_a", "ses_b", ...]} — desired display order.
+    - sessionIds must be an array of unique, existing session id strings;
+    - sessions not listed keep their current relative order after the
+      listed ones (partial reorder is allowed);
+    - afterwards every session carries an explicit integer order value;
+      sessions created later (order=None) sort to the end until reordered.
+
+    Response: {"ok": true, "order": [full session id order]} or
+    {"ok": false, "error": {code, message}}. Broadcasts
+    {"type": "session.orderUpdated", "order": [...]}.
+
+    快捷管理（拖到另一张卡片正中间 = 由对方 manage）不需要新端点：直接复用
+    POST /api/claim（managerId=被拖入的卡片 B，sessionId=A）。
+    """
+    ids = data.get("sessionIds")
+    if not isinstance(ids, list) or \
+            not all(isinstance(i, str) and i.strip() for i in ids):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "sessionIds (array of session id strings) is required"}}
+    ids = [i.strip() for i in ids]
+    if len(set(ids)) != len(ids):
+        return {"ok": False, "error": {
+            "code": "duplicate_session_ids",
+            "message": "sessionIds contains duplicates"}}
+    err = sess.apply_order(ids)
+    if err:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": err}}
+    order = [s.id for s in sess.list_all()]
+    await broadcast({"type": "session.orderUpdated", "order": order})
+    return {"ok": True, "order": order}
 
 
 @app.get("/api/sessions/{session_id}")
