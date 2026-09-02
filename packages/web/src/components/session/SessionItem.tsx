@@ -179,9 +179,9 @@ export const SessionItem = memo(function SessionItem({
           aria-label={`Drag ${session.name}`}
           title={session.workerStatus ?? 'offline'}
           onPointerDown={(e) => onDragHandlePointerDown?.(e, session.id)}
-          className="drag-gutter relative z-[5] shrink-0 flex items-center justify-center w-5 self-stretch -my-2 -ml-1 mr-0.5 cursor-grab active:cursor-grabbing select-none touch-none hover:bg-bg-hover/60 rounded-l-sm"
+          className="drag-gutter relative z-[5] shrink-0 flex items-center justify-center w-5 self-stretch -my-2 -ml-1 -mr-1 cursor-grab active:cursor-grabbing select-none touch-none hover:bg-bg-hover/60 rounded-l-sm"
         >
-          <span aria-hidden="true" className="drag-matrix pointer-events-none absolute inset-0 rounded-l-sm" />
+          <span aria-hidden="true" className="drag-matrix pointer-events-none absolute inset-x-0 top-[10px] bottom-[10px] rounded-sm" />
           <span className="relative z-[1] flex items-center">
             <WorkerDot status={session.workerStatus} />
           </span>
