@@ -502,8 +502,10 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               </span>
             </div>
 
-            {/* Candidate list */}
-            <div className="max-h-56 overflow-y-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
+            {/* Candidate list — vertical scroll for length, horizontal scroll on
+                narrow screens so the action buttons are never crushed (the name
+                column keeps a min-width and truncates instead). */}
+            <div className="max-h-56 overflow-y-auto overflow-x-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
               {visible.length === 0 && (
                 <div className="py-4 text-center text-sm text-text-tertiary">
                   No matching sessions
@@ -516,12 +518,15 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                 return (
                   <div
                     key={c.id}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                    className={`flex items-center gap-1.5 sm:gap-2 whitespace-nowrap px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
                       busyId !== null ? 'pointer-events-none opacity-70' : ''
                     }`}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-text-primary truncate">
+                    {/* min-w-32 keeps the name readable on narrow screens; flex
+                        otherwise collapses it to ~0 next to the shrink-0 buttons.
+                        truncate + title preserve the full name for long labels. */}
+                    <div className="flex-1 min-w-32">
+                      <div className="text-sm text-text-primary truncate" title={c.name || 'Untitled'}>
                         {c.name || 'Untitled'}
                       </div>
                       <div className="text-[11px] text-text-tertiary truncate">{c.id}</div>
@@ -541,13 +546,13 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                           ? 'Click to stop managing'
                           : 'Click to manage (also subscribes to reports)'
                       }
-                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                      className={`shrink-0 inline-flex items-center whitespace-nowrap gap-0.5 sm:gap-1 rounded border px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium transition-colors ${
                         isManaged
                           ? 'border-accent/50 bg-accent/10 text-accent'
                           : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                       }`}
                     >
-                      {isManaged ? <Check size={12} /> : <Star size={12} />}
+                      {isManaged ? <Check size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Star size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                       {isManaged ? 'Managed' : 'Manage'}
                     </button>
                     {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
@@ -560,13 +565,13 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                           ? 'Click to unsubscribe from reports'
                           : 'Click to subscribe to completion reports'
                       }
-                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+                      className={`shrink-0 inline-flex items-center whitespace-nowrap gap-0.5 sm:gap-1 rounded border px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium transition-colors ${
                         isSubscribed
                           ? 'border-accent/50 bg-accent/10 text-accent'
                           : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                       }`}
                     >
-                      {isSubscribed ? <Check size={12} /> : <Bell size={12} />}
+                      {isSubscribed ? <Check size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Bell size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                       {isSubscribed ? 'Subscribed' : 'Subscribe'}
                     </button>
                     {/* Readonly is available only for sessions this manager currently manages. */}
@@ -580,13 +585,13 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                         : isReadonly
                           ? 'Click to allow messages, tasks, and notifications'
                           : 'Click to block manager messages, tasks, and notifications'}
-                      className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none ${
+                      className={`shrink-0 inline-flex items-center whitespace-nowrap gap-0.5 sm:gap-1 rounded border px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none ${
                         isReadonly
                           ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
                           : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                       }`}
                     >
-                      {isReadonly ? <Lock size={12} /> : <Unlock size={12} />}
+                      {isReadonly ? <Lock size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Unlock size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                       {isReadonly ? 'Readonly' : 'Readonly'}
                     </button>
                   </div>
