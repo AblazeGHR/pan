@@ -20,7 +20,7 @@ function mk(id: string, name: string, extra: Partial<Session> = {}): Session {
 }
 
 // ── Deterministic layout for hit-testing (jsdom has no real layout) ──
-// Four cards, 64px tall each: A 0-64, B 64-128, C 128-192, D 192-256.
+// Cards are 64px tall; top Y per session id comes from the map below.
 const CARD_H = 64;
 const layout: Record<string, number> = { A: 0, B: 64, C: 128, D: 192 };
 const NULL_RECT = {
@@ -29,20 +29,20 @@ const NULL_RECT = {
 };
 let rectSpy: ReturnType<typeof vi.spyOn> | null = null;
 
-function stubCardRects() {
+function stubCardRects(layoutMap: Record<string, number> = layout) {
   rectSpy = vi
     .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
     .mockImplementation(function (this: HTMLElement) {
       const id = this.dataset?.sessionCardId;
-      if (id && layout[id] !== undefined) {
+      if (id && layoutMap[id] !== undefined) {
         return {
           ...NULL_RECT,
-          top: layout[id],
-          bottom: layout[id] + CARD_H,
+          top: layoutMap[id],
+          bottom: layoutMap[id] + CARD_H,
           height: CARD_H,
           width: 300,
           right: 300,
-          y: layout[id],
+          y: layoutMap[id],
         };
       }
       return { ...NULL_RECT };
@@ -246,10 +246,86 @@ describe('SessionList drag interactions', () => {
     expect(useSessionStore.getState().currentSessionId).toBeNull();
   });
 
-  it('no drag handle outside the flat list (grouped mode)', () => {
-    useUIStore.setState({ groupBy: 'manager' });
+  it('no drag handle in the workdir-grouped list (only flat + manager)', () => {
+    useUIStore.setState({ groupBy: 'workdir' });
     const { container } = render(<SessionList />);
     expect(container.querySelector('[data-testid="drag-handle"]')).toBeNull();
+  });
+
+  it('manager tree: drag handle exists on roots and children', () => {
+    useUIStore.setState({ groupBy: 'manager' });
+    const { container } = render(<SessionList />);
+    expect(container.querySelectorAll('[data-testid="drag-handle"]').length).toBe(4);
+  });
+});
+
+describe('manager-tree drag interactions', () => {
+  // Tree: B manages A and A2; C is an independent root.
+  // preorder in the tree = B, A, A2, C (children render under their manager).
+  const managerLayout = { B: 0, A: 64, A2: 128, C: 192 };
+
+  beforeEach(() => {
+    useUIStore.setState({ groupBy: 'manager', sortBy: 'recent', customOrder: [], toastQueue: [] });
+    useSessionStore.setState({
+      sessions: [
+        // Deterministic recent order: B, A, A2, C → filtered order, so the
+        // manager tree preorder is B, A, A2, C (children under their manager).
+        mk('B', 'B', { updatedAt: new Date(Date.now() - 60_000).toISOString() }),
+        mk('A', 'A', { managedBy: 'B', updatedAt: new Date(Date.now() - 4 * 60_000).toISOString() }),
+        mk('A2', 'A2', { managedBy: 'B', updatedAt: new Date(Date.now() - 5 * 60_000).toISOString() }),
+        mk('C', 'C', { updatedAt: new Date(Date.now() - 9 * 60_000).toISOString() }),
+      ],
+      currentSessionId: null,
+      multiSelectMode: false,
+      sessionsLoading: false,
+    });
+    stubCardRects(managerLayout);
+  });
+
+  function handleOf(container: HTMLElement, id: string): Element {
+    const card = container.querySelector(`[data-session-card-id="${id}"]`)!;
+    const handle = card.querySelector('[data-testid="drag-handle"]')!;
+    return handle;
+  }
+
+  it('center drop on a root mocks "root manages dragged session" in the tree', () => {
+    const { container } = render(<SessionList />);
+    // C (root) dropped on B's center band (B spans 0-64, center ≈ 32).
+    fireEvent.pointerDown(handleOf(container, 'C'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(32);
+    expect(container.querySelector('[data-drag-center]')).not.toBeNull();
+    pointerUp();
+
+    expect(useSessionStore.getState().sessions.find((s) => s.id === 'C')!.managedBy).toBe('B');
+    expect(useUIStore.getState().sortBy).toBe('recent'); // manage does not switch sort
+  });
+
+  it('edge drop between siblings reorders children under the same manager', () => {
+    const { container } = render(<SessionList />);
+    // Drag A2 (2nd child) onto A's TOP edge band (A spans 64-128; top band ≈ 64-84)
+    // → A2 should render as the first child of B.
+    fireEvent.pointerDown(handleOf(container, 'A2'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(75);
+    expect(container.querySelector('[data-insert-line="before"]')).not.toBeNull();
+    pointerUp();
+
+    expect(useUIStore.getState().customOrder).toEqual(['B', 'A2', 'A', 'C']);
+    expect(useUIStore.getState().sortBy).toBe('custom');
+    expect(cardOrder(container)).toEqual(['B', 'A2', 'A', 'C']);
+  });
+
+  it('edge drop past the last root moves the whole subtree after it', () => {
+    const { container } = render(<SessionList />);
+    // Drag B (first root, with children A/A2) onto C's BOTTOM edge band
+    // (C spans 192-256; bottom band ≈ 236-256) → B lands after C, and its
+    // children render beneath it: preorder becomes C, B, A, A2.
+    fireEvent.pointerDown(handleOf(container, 'B'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(245);
+    expect(container.querySelector('[data-insert-line="after"]')).not.toBeNull();
+    pointerUp();
+
+    expect(useUIStore.getState().customOrder).toEqual(['A', 'A2', 'C', 'B']);
+    expect(cardOrder(container)).toEqual(['C', 'B', 'A', 'A2']);
   });
 });
 

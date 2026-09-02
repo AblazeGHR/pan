@@ -370,10 +370,17 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             `[Mock] 「${targetSession.name}」现在管理「${dragged.name}」`,
           );
         } else {
-          // Mock reorder: rebuild the visible order with A inserted at the
-          // boundary, switch to custom sort and keep it until the next
-          // manual Sort click.
-          const ids = filteredRef.current.map((s) => s.id).filter((x) => x !== dragged.id);
+          // Mock reorder: rebuild the order with A inserted at the boundary,
+          // switch to custom sort and keep it until the next manual Sort
+          // click. The authoritative "visible order" is the DOM card order
+          // (flat list, or preorder of the manager tree) so the insertion
+          // boundary always matches what the user saw.
+          const domCards =
+            listRef.current?.querySelectorAll<HTMLElement>('[data-session-card-id]');
+          const domIds = domCards
+            ? [...domCards].map((el) => el.dataset.sessionCardId ?? '').filter(Boolean)
+            : filteredRef.current.map((s) => s.id);
+          const ids = domIds.filter((x) => x !== dragged.id);
           const tIdx = ids.indexOf(targetSession.id);
           if (tIdx >= 0) {
             ids.splice(target.zone === 'before' ? tIdx : tIdx + 1, 0, dragged.id);
@@ -419,7 +426,46 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   }, []);
 
   const dragSession = dragId ? sessions.find((s) => s.id === dragId) : null;
-  const dragEnabled = groupBy === 'none' && !multiSelectMode;
+  // Drag works in the flat list AND the manager tree (same semantics:
+  // center → manage, edge → insert into the visible order). Grouped-by-dir
+  // lists stay non-draggable.
+  const dragEnabled = (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
+
+  // Per-card drag props for memoized SessionItem (stable refs + primitives
+  // keep unrelated cards from re-rendering).
+  const dragPropsFor = useCallback(
+    (session: Session) =>
+      dragEnabled
+        ? {
+            dragEnabled: true,
+            onDragHandlePointerDown: handleDragPointerDown,
+            isDragSource: session.id === dragId,
+            isCenterTarget: session.id === centerTargetId,
+            insertZone: insertTarget?.id === session.id ? insertTarget.zone : null,
+          }
+        : {},
+    [dragEnabled, handleDragPointerDown, dragId, centerTargetId, insertTarget],
+  );
+
+  const ghostEl = dragEnabled && dragSession && (
+    <div
+      ref={ghostMountRef}
+      data-drag-ghost
+      aria-hidden="true"
+      className="fixed left-0 top-0 z-[60] w-56 pointer-events-none rounded border border-dashed border-accent bg-bg-secondary/95 px-3 py-2 shadow-panel"
+      style={{ willChange: 'transform' }}
+    >
+      <div className="flex items-center gap-2">
+        <WorkerDot status={dragSession.workerStatus} />
+        <span className="text-sm text-text-primary font-medium truncate">
+          {dragSession.name || 'Untitled'}
+        </span>
+      </div>
+      <div className="mt-1 text-[10px] text-text-tertiary">
+        中心 = 交给管理 · 边缘 = 插入排序
+      </div>
+    </div>
+  );
 
   // Recursive collapse/expand: collapsing a manager node also collapses every
   // descendant; expanding it expands the whole subtree (same for un-collapse).
@@ -484,7 +530,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
   if (groupBy === 'manager' && managerTree.length > 0) {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col" ref={listRef}>
         {managerTree.map((node) => (
           <ManagerNodeView
             key={node.session.id}
@@ -498,8 +544,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             onMenu={handleMenu}
             onToggle={handleToggleManagerNode}
             onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
+            dragPropsFor={dragPropsFor}
           />
         ))}
+        {ghostEl}
       </div>
     );
   }
@@ -547,33 +595,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
           onSelect={handleSelect}
           onMenu={handleMenu}
-          dragEnabled={dragEnabled}
-          onDragHandlePointerDown={dragEnabled ? handleDragPointerDown : undefined}
-          isDragSource={session.id === dragId}
-          isCenterTarget={session.id === centerTargetId}
-          insertZone={insertTarget?.id === session.id ? insertTarget.zone : null}
+          {...dragPropsFor(session)}
         />
       ))}
-      {/* Drag ghost: floats near the cursor; the real cards never move. */}
-      {dragEnabled && dragSession && (
-        <div
-          ref={ghostMountRef}
-          data-drag-ghost
-          aria-hidden="true"
-          className="fixed left-0 top-0 z-[60] w-56 pointer-events-none rounded border border-dashed border-accent bg-bg-secondary/95 px-3 py-2 shadow-panel"
-          style={{ willChange: 'transform' }}
-        >
-          <div className="flex items-center gap-2">
-            <WorkerDot status={dragSession.workerStatus} />
-            <span className="text-sm text-text-primary font-medium truncate">
-              {dragSession.name || 'Untitled'}
-            </span>
-          </div>
-          <div className="mt-1 text-[10px] text-text-tertiary">
-            中心 = 交给管理 · 边缘 = 插入排序
-          </div>
-        </div>
-      )}
+      {ghostEl}
     </div>
   );
 }
@@ -590,6 +615,8 @@ interface ManagerNodeViewProps {
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
   onToggleHidden?: (id: string) => void;
+  /** Drag demo: per-session drag props factory (stable identity). */
+  dragPropsFor: (session: Session) => Record<string, unknown>;
 }
 
 /**
@@ -608,6 +635,7 @@ function ManagerNodeView({
   onMenu,
   onToggle,
   onToggleHidden,
+  dragPropsFor,
 }: ManagerNodeViewProps) {
   const session = node.session;
   const hasChildren = node.children.length > 0;
@@ -630,6 +658,7 @@ function ManagerNodeView({
         }}
         onSelect={onSelect}
         onMenu={onMenu}
+        {...dragPropsFor(session)}
       />
       {hasChildren && !collapsed && (
         <div className="ml-0" data-tree-children>
@@ -647,6 +676,7 @@ function ManagerNodeView({
               onMenu={onMenu}
               onToggle={onToggle}
               onToggleHidden={onToggleHidden}
+              dragPropsFor={dragPropsFor}
             />
           ))}
         </div>
@@ -670,6 +700,8 @@ interface ManagerChildViewProps {
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
   onToggleHidden?: (id: string) => void;
+  /** Drag demo: per-session drag props factory (stable identity). */
+  dragPropsFor: (session: Session) => Record<string, unknown>;
 }
 
 /**
@@ -699,6 +731,7 @@ function ManagerChildView({
   onMenu,
   onToggle,
   onToggleHidden,
+  dragPropsFor,
 }: ManagerChildViewProps) {
   const session = child.session;
   const hasChildren = child.children.length > 0;
@@ -745,6 +778,7 @@ function ManagerChildView({
           }}
           onSelect={onSelect}
           onMenu={onMenu}
+          {...dragPropsFor(session)}
         />
       </div>
       {/* The child's own children */}
@@ -764,6 +798,7 @@ function ManagerChildView({
               onMenu={onMenu}
               onToggle={onToggle}
               onToggleHidden={onToggleHidden}
+              dragPropsFor={dragPropsFor}
             />
           ))}
         </div>
