@@ -2876,7 +2876,15 @@ async def api_spawn(data: dict):
 
 
 def _request_source_metadata(data: dict, default: str = "agent"):
-    """Parse the two independent source fields at an HTTP boundary."""
+    """Parse the two independent source fields at an HTTP boundary.
+
+    只读校验（不覆盖/改写 data）：source 缺失时按 default（agent），显式传入
+    的 source 必须在合法集合内（worker.SOURCE_TYPES，含未来 meta-agent /
+    automation），非法类型或未知字符串直接拒绝——HTTP handler 不得在调用本函数
+    前把客户端 source 无条件覆盖为 agent。sourceSessionId 校验其确为存在的
+    Session。返回 (source_type, source_session_id, None) 或
+    (None, None, {"error": ...})。
+    """
     source_type, error = worker._normalize_source_type(data.get("source"), default)
     if error:
         return None, None, {"error": error}
@@ -2901,9 +2909,9 @@ async def api_task(data: dict):
     """Send a task to a Worker by worker_id or session_id."""
     worker_id = data.get("workerId")
     session_id = data.get("sessionId")
-    source_data = dict(data)
-    source_data["source"] = "agent"
-    source_type, source_session_id, source_error = _request_source_metadata(source_data)
+    # source 是开放但受校验的来源元数据：先校验再走流程（缺省 agent，未知/
+    # 非法 source 直接拒绝），绝不把客户端传入的 source 无条件覆盖为 agent。
+    source_type, source_session_id, source_error = _request_source_metadata(data)
     if source_error:
         return source_error
     if session_id:
@@ -3004,17 +3012,17 @@ async def api_send(data: dict):
         return {"error": "text is required"}
     if not worker_id and not session_id:
         return {"error": "workerId or sessionId required"}
+    # source 契约先于寻址/投递校验：缺省 agent，非法类型/未知字符串拒绝，
+    # 合法 source 保留透传（与 /api/task、/api/notify 同约定）。
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
     if worker_id and not session_id:
         w = worker.get_worker(worker_id)
         if not w:
             return {"error": "Worker not found"}
         session_id = w.session_id
     target = sess.get(session_id)
-    source_data = dict(data)
-    source_data["source"] = "agent"
-    source_type, source_session_id, source_error = _request_source_metadata(source_data)
-    if source_error:
-        return source_error
     if source_session_id and not target:
         return {"error": f"Session {session_id} not found"}
     denied = _source_access_error(target, source_session_id)
@@ -3051,14 +3059,12 @@ async def api_notify(data: dict):
     text = data.get("text")
     if not target or not text:
         return {"error": "targetSessionId and text are required"}
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
     target_session = sess.get(target)
     if not target_session:
         return {"error": f"Session {target} not found"}
-    source_data = dict(data)
-    source_data["source"] = "agent"
-    source_type, source_session_id, source_error = _request_source_metadata(source_data)
-    if source_error:
-        return source_error
     denied = _source_access_error(target_session, source_session_id)
     if denied:
         return denied
@@ -3084,9 +3090,8 @@ async def api_assign(data: dict):
         return {"ok": False, "error": {"code": "missing_params",
                                        "message": "sessionId and text are required"}}
     task_id = data.get("taskId")
-    source_data = dict(data)
-    source_data["source"] = "agent"
-    source_type, source_session_id, source_error = _request_source_metadata(source_data)
+    # 同其它 HTTP handler：source 契约先校验（缺省 agent，非法拒绝，合法保留）。
+    source_type, source_session_id, source_error = _request_source_metadata(data)
     if source_error:
         return {"status": "error", "result": source_error["error"]}
     target = sess.get(session_id)

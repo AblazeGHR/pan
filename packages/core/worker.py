@@ -1936,14 +1936,31 @@ def _has_dispatchable_items(s) -> bool:
     )
 
 
-_TASK_SOURCES = {"user", "agent", "system_prompt", "report"}
+# 合法 queue 行 source 标签（来源元数据，开放但受校验）。source 只是描述
+# 消息/报告来自哪个来源，不是身份或权限凭证——授权继续由 sourceSessionId +
+# managed/readonly 校验承担（_validate_source_metadata / HTTP _source_access_error）。
+#
+# 既有合法来源（当前调用链与历史数据）：
+#   user          浏览器/用户消息（enqueue_user_message）
+#   agent         agent 发起的消息；HTTP /api/* 与 worker 层缺省值
+#   system_prompt worker 注入 system prompt 的任务
+#   report        订阅制 report / zombie / notice 落盘行
+# 已规划的未来外部来源（open 集合，新增来源先在此登记再使用）：
+#   meta-agent    外部 meta-agent 编排（未来 external orchestration）
+#   automation    定时 / 脚本 / CI 自动化
+SOURCE_TYPES = {"user", "agent", "system_prompt", "report",
+                "meta-agent", "automation"}
 
 
 def _normalize_source_type(source, default: str = "agent") -> tuple[str | None, str | None]:
-    """Normalize the fixed source type without ever treating an ID as one."""
+    """Normalize the source-type label without ever treating an ID as one.
+
+    source 是开放但受校验的来源元数据：缺省/空值取 default，显式传入的值必须
+    在 SOURCE_TYPES 白名单内（含未来 external meta-agent / automation）。
+    """
     if source is None or source == "":
         source = default
-    if not isinstance(source, str) or source not in _TASK_SOURCES:
+    if not isinstance(source, str) or source not in SOURCE_TYPES:
         return None, f"Unknown task source: {source}"
     return source, None
 
@@ -1981,7 +1998,7 @@ def _task_source(item: dict) -> str | None:
         # Pre-L4 agent sends carried source=agent; an unmarked text envelope is
         # therefore safest as a dashboard/user task, never an agent report.
         return "user"
-    return source if isinstance(source, str) and source in _TASK_SOURCES else None
+    return source if isinstance(source, str) and source in SOURCE_TYPES else None
 
 
 def _migrate_legacy_task_items(s) -> bool:
