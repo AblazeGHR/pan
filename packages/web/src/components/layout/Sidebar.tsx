@@ -59,7 +59,7 @@ export function Sidebar() {
     searchQuery,
     setSearchQuery,
     sortBy,
-    setSortBy,
+    cycleSortBy,
     specialFilters,
     toggleSpecialFilter,
     clearSpecialFilters,
@@ -384,15 +384,18 @@ export function Sidebar() {
               )}
             </div>
             <button
-              onClick={() => setSortBy(sortBy === 'recent' ? 'name' : 'recent')}
-              className={`p-1 rounded transition-colors ${
-                sortBy === 'name'
+              onClick={cycleSortBy}
+              className={`flex items-center gap-1 p-1 rounded transition-colors ${
+                sortBy !== 'recent'
                   ? 'text-accent bg-accent/10'
                   : 'text-text-tertiary hover:text-text-primary'
               }`}
-              title={`Sort by ${sortBy === 'recent' ? 'name' : 'recent'}`}
+              title={`Sort: ${sortBy} (click to cycle recent → name → custom)`}
             >
               <ArrowUpDown size={14} />
+              <span className="text-[10px] leading-none">
+                {sortBy === 'custom' ? 'custom' : sortBy === 'name' ? 'name' : 'recent'}
+              </span>
             </button>
             <button
               onClick={cycleGroupBy}

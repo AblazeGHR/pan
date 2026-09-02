@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
+import type { DropZone } from './sessionDrag';
 import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 
 interface SessionItemProps {
@@ -19,6 +20,16 @@ interface SessionItemProps {
   /** id 由组件内部回传，父级可传稳定引用（配合 React.memo 避免无关卡片重渲染）。 */
   onSelect?: (id: string) => void;
   onMenu?: (e: React.MouseEvent, id: string) => void;
+  /** Enable the "∷" drag handle next to the status dot (flat list only). */
+  dragEnabled?: boolean;
+  /** Pointer-down on the drag handle (start a drag). */
+  onDragHandlePointerDown?: (e: React.PointerEvent, id: string) => void;
+  /** Drag feedback: this card is the one being dragged (stays in place). */
+  isDragSource?: boolean;
+  /** Drag feedback: pointer is over this card's CENTER band (→ mock manage). */
+  isCenterTarget?: boolean;
+  /** Drag feedback: pointer is over this card's edge band (→ insert here). */
+  insertZone?: DropZone | null;
 }
 
 function shortWorkdir(workdir?: string): string {
@@ -65,6 +76,11 @@ export const SessionItem = memo(function SessionItem({
   onToggleChildren,
   onSelect,
   onMenu,
+  dragEnabled = false,
+  onDragHandlePointerDown,
+  isDragSource = false,
+  isCenterTarget = false,
+  insertZone = null,
 }: SessionItemProps) {
   const isPending = session.id.startsWith('__pending_');
   // Preview comes from the summary endpoint's lastMessage (the list carries no
@@ -90,13 +106,71 @@ export const SessionItem = memo(function SessionItem({
 
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-border-default border-l-[3px] transition-colors ${
+      data-session-card-id={session.id}
+      onClick={handleClick}
+      className={`relative flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-border-default border-l-[3px] transition-colors ${
         isActive
           ? 'bg-bg-tertiary border-l-accent'
           : 'bg-bg-secondary hover:bg-bg-tertiary/60 border-l-text-tertiary/50'
-      } ${isPending ? 'opacity-50' : ''} ${isHidden ? 'opacity-50' : ''}`}
-      onClick={handleClick}
+      } ${isPending ? 'opacity-50' : ''} ${isHidden ? 'opacity-50' : ''} ${
+        isDragSource ? 'opacity-60 outline-2 outline-offset-[-2px] outline-dashed outline-accent/70' : ''
+      } ${isCenterTarget ? 'ring-2 ring-accent z-[1]' : ''}`}
     >
+      {/* Drag feedback: insert line at the top edge (= boundary above this card). */}
+      {insertZone === 'before' && (
+        <>
+          <span
+            aria-hidden
+            data-insert-line="before"
+            className="pointer-events-none absolute top-0 left-0 right-0 h-[6px] bg-accent rounded-b z-10 shadow-[0_0_10px_2px_rgba(96,165,250,0.6)]"
+          />
+          <span
+            aria-hidden
+            data-insert-band="before"
+            className="pointer-events-none absolute top-0 left-0 right-0 h-[30%] bg-accent/10 z-0"
+          />
+        </>
+      )}
+      {/* Drag feedback: insert line at the bottom edge (= boundary below). */}
+      {insertZone === 'after' && (
+        <>
+          <span
+            aria-hidden
+            data-insert-line="after"
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-[6px] bg-accent rounded-t z-10 shadow-[0_0_10px_2px_rgba(96,165,250,0.6)]"
+          />
+          <span
+            aria-hidden
+            data-insert-band="after"
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-[30%] bg-accent/10 z-0"
+          />
+        </>
+      )}
+      {/* Drag feedback: center-band tint (generous "manage" hit zone visual). */}
+      {isCenterTarget && (
+        <span
+          aria-hidden
+          data-drag-center
+          className="pointer-events-none absolute inset-x-0 top-[30%] bottom-[30%] bg-accent/10 z-0"
+        />
+      )}
+
+      {dragEnabled && !isPending && !multiSelectMode && (
+        <span
+          data-testid="drag-handle"
+          role="button"
+          aria-label={`Drag ${session.name}`}
+          title="拖动：放到卡片中心 = 交给管理；放到卡片边缘 = 插入排序"
+          onPointerDown={(e) => onDragHandlePointerDown?.(e, session.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="relative z-[5] shrink-0 flex items-center justify-center w-6 self-stretch -my-2 -ml-1 mr-0.5 cursor-grab active:cursor-grabbing select-none touch-none text-text-tertiary/60 hover:text-text-primary hover:bg-bg-hover rounded"
+        >
+          <span className="text-[11px] leading-none font-bold tracking-tighter" aria-hidden="true">
+            ::
+          </span>
+        </span>
+      )}
+
       {multiSelectMode ? (
         <input
           type="checkbox"

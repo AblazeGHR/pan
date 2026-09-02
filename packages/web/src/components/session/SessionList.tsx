@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { matchesSpecialFilters } from '@/utils/sessionFilters';
+import { resolveDropZone } from './sessionDrag';
 import type { Session } from '@/types';
+import { WorkerDot } from '@/components/worker/WorkerDot';
 import { FolderOpen, Loader2 } from 'lucide-react';
 
 interface SessionListProps {
@@ -98,11 +100,13 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     specialFilters,
     hiddenSessionIds,
     collapsedGroups,
+    customOrder,
     toggleGroupCollapse,
     addCollapsedGroups,
     removeCollapsedGroups,
     pruneCollapsedGroups,
     pruneHiddenSessions,
+    showToast,
   } = useUIStore();
   const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
 
@@ -172,6 +176,16 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     }
 
     filtered.sort((a, b) => {
+      if (sortBy === 'custom') {
+        // Manual drag order; ids missing from customOrder fall back to their
+        // current relative order (ranked after every mapped id).
+        const rank = (id: string) => {
+          const i = customOrder.indexOf(id);
+          return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+        };
+        const diff = rank(a.id) - rank(b.id);
+        if (diff !== 0) return diff;
+      }
       if (sortBy === 'name') {
         return a.name.localeCompare(b.name);
       }
@@ -220,7 +234,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     const allHidden = !multiSelectMode && sessions.length > 0 && base.length === 0;
 
     return { filtered, grouped: groups, managerTree, allHidden };
-  }, [sessions, searchQuery, sortBy, groupBy, specialFilters, hiddenSessionIds, multiSelectMode]);
+  }, [sessions, searchQuery, sortBy, customOrder, groupBy, specialFilters, hiddenSessionIds, multiSelectMode]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
@@ -251,6 +265,161 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     const store = useUIStore.getState();
     store.setSessionHidden(id, !store.hiddenSessionIds.has(id));
   }, []);
+
+  // ── Drag-to-reorder / drag-to-manage (demo) ──
+  // Pointer-events based so it works for mouse AND touch. During a drag the
+  // original card stays in place (nothing moves); feedback is a floating
+  // ghost near the cursor plus per-card highlight (center band → manage,
+  // edge band → insert line). Drop executes a local mock action.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [centerTargetId, setCenterTargetId] = useState<string | null>(null);
+  const [insertTarget, setInsertTarget] = useState<{
+    id: string;
+    zone: 'before' | 'after';
+  } | null>(null);
+  // Latest hit-test result, read on pointerup without re-subscribing handlers.
+  const dropTargetRef = useRef<{ id: string; zone: 'before' | 'center' | 'after' } | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  // Last pointer position, re-applied when the ghost mounts mid-drag.
+  const ghostPosRef = useRef<{ x: number; y: number } | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  // Latest visible (filtered+sorted) order, for computing the insert result.
+  const filteredRef = useRef<Session[]>([]);
+  useEffect(() => {
+    filteredRef.current = filtered;
+  }, [filtered]);
+
+  const clearDragFeedback = useCallback(() => {
+    setCenterTargetId(null);
+    setInsertTarget(null);
+    dropTargetRef.current = null;
+  }, []);
+
+  const positionGhost = useCallback((x: number, y: number) => {
+    ghostPosRef.current = { x, y };
+    if (ghostRef.current) {
+      ghostRef.current.style.transform = `translate(${x + 14}px, ${y + 14}px)`;
+    }
+  }, []);
+
+  // Callback ref: apply the last pointer position the moment the ghost mounts
+  // (positionGhost may have run before the ghost existed on pointerdown).
+  const ghostMountRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      ghostRef.current = el;
+      if (el && ghostPosRef.current) {
+        el.style.transform = `translate(${ghostPosRef.current.x + 14}px, ${ghostPosRef.current.y + 14}px)`;
+      }
+    },
+    [],
+  );
+
+  const hitTest = useCallback((clientY: number) => {
+    const dragCurrent = dragIdRef.current;
+    const cards = listRef.current?.querySelectorAll<HTMLElement>('[data-session-card-id]');
+    if (!dragCurrent || !cards) return;
+    for (const el of cards) {
+      if (el.dataset.sessionCardId === dragCurrent) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.height === 0) continue;
+      if (clientY >= rect.top && clientY < rect.bottom) {
+        const id = el.dataset.sessionCardId!;
+        const zone = resolveDropZone(rect.top, rect.height, clientY);
+        dropTargetRef.current = { id, zone };
+        setCenterTargetId(zone === 'center' ? id : null);
+        setInsertTarget(
+          zone === 'center' ? null : { id, zone },
+        );
+        return;
+      }
+    }
+    clearDragFeedback();
+  }, [clearDragFeedback]);
+
+  const finishDrag = useCallback(() => {
+    window.removeEventListener('pointermove', onPointerMoveRef.current);
+    window.removeEventListener('pointerup', onPointerUpRef.current);
+    window.removeEventListener('pointercancel', onPointerCancelRef.current);
+    setDragId(null);
+    dragIdRef.current = null;
+    clearDragFeedback();
+  }, [clearDragFeedback]);
+
+  // Listener wrappers live in refs so add/remove always target the same
+  // function instances across mounts.
+  const onPointerMoveRef = useRef<(e: PointerEvent) => void>(() => {});
+  const onPointerUpRef = useRef<(e: PointerEvent) => void>(() => {});
+  const onPointerCancelRef = useRef<(e: PointerEvent) => void>(() => {});
+  onPointerMoveRef.current = (e) => {
+    positionGhost(e.clientX, e.clientY);
+    hitTest(e.clientY);
+  };
+  onPointerUpRef.current = () => {
+    const dragCurrent = dragIdRef.current;
+    const target = dropTargetRef.current;
+    if (dragCurrent && target) {
+      const state = useSessionStore.getState();
+      const dragged = state.sessions.find((s) => s.id === dragCurrent);
+      const targetSession = state.sessions.find((s) => s.id === target.id);
+      if (dragged && targetSession) {
+        if (target.zone === 'center') {
+          // Mock "B manage A": A becomes managed by B (local state only).
+          state.updateSession(dragged.id, { managedBy: targetSession.id });
+          showToast(
+            `[Mock] 「${targetSession.name}」现在管理「${dragged.name}」`,
+          );
+        } else {
+          // Mock reorder: rebuild the visible order with A inserted at the
+          // boundary, switch to custom sort and keep it until the next
+          // manual Sort click.
+          const ids = filteredRef.current.map((s) => s.id).filter((x) => x !== dragged.id);
+          const tIdx = ids.indexOf(targetSession.id);
+          if (tIdx >= 0) {
+            ids.splice(target.zone === 'before' ? tIdx : tIdx + 1, 0, dragged.id);
+            for (const s of state.sessions) {
+              if (!ids.includes(s.id)) ids.push(s.id);
+            }
+            const pos = ids.indexOf(dragged.id) + 1;
+            useUIStore.getState().setCustomOrder(ids);
+            useUIStore.getState().setSortBy('custom');
+            showToast(
+              `[Mock] 「${dragged.name}」已插入到第 ${pos} 位（自定义排序）`,
+            );
+          }
+        }
+      }
+    }
+    finishDrag();
+  };
+  onPointerCancelRef.current = () => finishDrag();
+
+  const handleDragPointerDown = useCallback(
+    (e: React.PointerEvent, id: string) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragIdRef.current = id;
+      setDragId(id);
+      positionGhost(e.clientX, e.clientY);
+      window.addEventListener('pointermove', onPointerMoveRef.current);
+      window.addEventListener('pointerup', onPointerUpRef.current);
+      window.addEventListener('pointercancel', onPointerCancelRef.current);
+    },
+    [positionGhost],
+  );
+
+  // Safety net: unmount mid-drag removes the window listeners.
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', onPointerMoveRef.current);
+      window.removeEventListener('pointerup', onPointerUpRef.current);
+      window.removeEventListener('pointercancel', onPointerCancelRef.current);
+    };
+  }, []);
+
+  const dragSession = dragId ? sessions.find((s) => s.id === dragId) : null;
+  const dragEnabled = groupBy === 'none' && !multiSelectMode;
 
   // Recursive collapse/expand: collapsing a manager node also collapses every
   // descendant; expanding it expands the whole subtree (same for un-collapse).
@@ -366,7 +535,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" ref={listRef}>
       {filtered.map((session) => (
         <SessionItem
           key={session.id}
@@ -378,8 +547,33 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
           onSelect={handleSelect}
           onMenu={handleMenu}
+          dragEnabled={dragEnabled}
+          onDragHandlePointerDown={dragEnabled ? handleDragPointerDown : undefined}
+          isDragSource={session.id === dragId}
+          isCenterTarget={session.id === centerTargetId}
+          insertZone={insertTarget?.id === session.id ? insertTarget.zone : null}
         />
       ))}
+      {/* Drag ghost: floats near the cursor; the real cards never move. */}
+      {dragEnabled && dragSession && (
+        <div
+          ref={ghostMountRef}
+          data-drag-ghost
+          aria-hidden="true"
+          className="fixed left-0 top-0 z-[60] w-56 pointer-events-none rounded border border-dashed border-accent bg-bg-secondary/95 px-3 py-2 shadow-panel"
+          style={{ willChange: 'transform' }}
+        >
+          <div className="flex items-center gap-2">
+            <WorkerDot status={dragSession.workerStatus} />
+            <span className="text-sm text-text-primary font-medium truncate">
+              {dragSession.name || 'Untitled'}
+            </span>
+          </div>
+          <div className="mt-1 text-[10px] text-text-tertiary">
+            中心 = 交给管理 · 边缘 = 插入排序
+          </div>
+        </div>
+      )}
     </div>
   );
 }
