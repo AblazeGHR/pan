@@ -1,7 +1,18 @@
-"""Regression coverage for source type vs source Session ID metadata."""
+"""Regression coverage for source type vs source Session ID metadata.
+
+source 契约（方案 B，2026-09-02 确认）：
+- source 是开放但受校验的来源元数据，合法集合集中维护在 worker.SOURCE_TYPES。
+- HTTP handler 在投递前校验客户端传入的 source（_request_source_metadata）：
+  非法类型 / 未知字符串按既有格式拒绝（"Unknown task source: ..."）；缺省
+  取 agent；合法 source（含既有 user/agent/system_prompt/report 与已规划的
+  meta-agent/automation）原样保留透传——绝不无条件覆盖为 agent。
+- source 只是来源元数据，不是身份或权限凭证：身份/授权继续由 sourceSessionId
+  + managed/readonly 校验承担（_source_access_error），本文件不改变该语义。
+"""
 
 import asyncio
 import sys
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -13,6 +24,15 @@ from packages.core import session as _sess
 from packages.core import worker
 from packages.core.adapters import CbcAdapter
 from packages.web import server
+
+
+# endpoint name → body；target 为 session "target"（调用前需 _session("target")）。
+HTTP_ENDPOINT_BODIES = {
+    "assign": {"sessionId": "target", "text": "x"},
+    "task": {"sessionId": "target", "text": "x"},
+    "send": {"sessionId": "target", "text": "x"},
+    "notify": {"targetSessionId": "target", "text": "x"},
+}
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +69,43 @@ def _worker(sid, wid="worker-1"):
     return value
 
 
+def _task_envelope(sid, text, **extra):
+    """一个符合当前统一队列契约的 task 行（_persist_task_item 形状）。"""
+    item = {
+        "type": "task", "kind": "task", "id": sid, "queueItemId": sid,
+        "text": text, "source": "agent", "seq": 1, "taskId": None,
+        "deliveryState": "queued", "dispatchState": "queued",
+        "revision": 1, "createdAt": time.time(),
+    }
+    item.update(extra)
+    return item
+
+
+# ── worker 层：合法集合与规范化 ──
+
+
+def test_source_types_remain_open_but_validated():
+    # 既有合法来源全部保留
+    for source in ("user", "agent", "system_prompt", "report"):
+        assert worker._normalize_source_type(source) == (source, None), source
+    # 已规划的未来外部来源纳入白名单
+    assert worker._normalize_source_type("meta-agent") == ("meta-agent", None)
+    assert worker._normalize_source_type("automation") == ("automation", None)
+    # 缺省 agent 语义不变
+    assert worker._normalize_source_type(None) == ("agent", None)
+    assert worker._normalize_source_type("") == ("agent", None)
+
+
+def test_source_type_rejects_unknown_strings_and_illegal_types():
+    for bad in ("caller", "ses_123", "meta", "bot", 42, ["agent"], {"s": "agent"}):
+        normalized, error = worker._normalize_source_type(bad)
+        assert normalized is None, bad
+        assert isinstance(error, str) and error.startswith("Unknown task source"), bad
+
+
+# ── worker 层：source 元数据持久化 / readonly ──
+
+
 def test_send_session_persists_source_type_and_session_id(monkeypatch):
     target = _session("target")
     caller = _session("caller")
@@ -62,6 +119,21 @@ def test_send_session_persists_source_type_and_session_id(monkeypatch):
     assert target.queue_pending[0]["source"] == "agent"
     assert target.queue_pending[0]["sourceSessionId"] == "caller"
     assert target.queue_pending[0]["type"] == "task"
+
+
+def test_send_session_accepts_future_external_sources(monkeypatch):
+    """未来 external meta-agent / automation source 在 worker 层同样合法。"""
+    target = _session("target")
+    caller = _session("caller")
+    monkeypatch.setattr(_sess, "save_async", AsyncMock())
+    monkeypatch.setattr(worker, "_schedule_session_recovery", lambda _sid: None)
+
+    result = asyncio.run(worker.send_session(
+        target.id, "task", source="meta-agent", source_session_id=caller.id))
+
+    assert result["status"] == "queued"
+    assert target.queue_pending[0]["source"] == "meta-agent"
+    assert target.queue_pending[0]["sourceSessionId"] == "caller"
 
 
 def test_readonly_uses_source_session_id_and_not_source_type(monkeypatch):
@@ -82,14 +154,47 @@ def test_readonly_uses_source_session_id_and_not_source_type(monkeypatch):
     assert child.queue_pending == before
 
 
+# ── HTTP 层：非法 source 在投递前拒绝（不 spawn） ──
+
+
+@pytest.mark.parametrize("endpoint", ["assign", "task", "send", "notify"])
+@pytest.mark.parametrize("bad_source", [
+    "caller",          # session id 被误填到 source 字段
+    "ses_unknown",     # 未知字符串
+    "random-label",    # 未登记的未来来源
+    42,                # 非法类型：非字符串
+    ["agent"],         # 非法类型：list
+    {"s": "agent"},    # 非法类型：dict
+])
+def test_http_rejects_unknown_or_illegal_source_without_spawning(
+        monkeypatch, endpoint, bad_source):
+    """未知/非法 source 按既有错误格式拒绝，且不触发真实 CLI spawn。"""
+    _session("target")
+    spawned = AsyncMock()
+    monkeypatch.setattr(worker, "create_worker", spawned)
+
+    result = asyncio.run(getattr(server, f"api_{endpoint}")(
+        {**HTTP_ENDPOINT_BODIES[endpoint], "source": bad_source}))
+
+    if endpoint == "assign":
+        assert result["status"] == "error"
+        assert "Unknown task source" in result["result"]
+    else:
+        assert "Unknown task source" in str(result)
+    spawned.assert_not_awaited()
+
+
 @pytest.mark.parametrize("endpoint, body", [
     ("assign", {"sessionId": "target", "text": "x"}),
     ("task", {"sessionId": "target", "text": "x"}),
     ("send", {"sessionId": "target", "text": "x"}),
     ("notify", {"targetSessionId": "target", "text": "x"}),
 ])
-def test_http_rejects_session_id_in_source_field(endpoint, body):
+def test_http_rejects_session_id_in_source_field(monkeypatch, endpoint, body):
+    """回归：session id 误用作 source 时必须报 Unknown task source。"""
     _session("target")
+    spawned = AsyncMock()
+    monkeypatch.setattr(worker, "create_worker", spawned)
     result = asyncio.run(getattr(server, f"api_{endpoint}")(
         {**body, "source": "caller"}))
     if endpoint == "assign":
@@ -97,6 +202,10 @@ def test_http_rejects_session_id_in_source_field(endpoint, body):
         assert "Unknown task source" in result["result"]
     else:
         assert "Unknown task source" in str(result)
+    spawned.assert_not_awaited()
+
+
+# ── HTTP 层：合法 source 校验后保留透传（不覆盖、不 spawn 真实 CLI） ──
 
 
 def test_http_paths_forward_independent_fields(monkeypatch):
@@ -148,6 +257,76 @@ def test_http_paths_forward_independent_fields(monkeypatch):
         assert captured[key][3]["source_session_id"] == "caller"
 
 
+@pytest.mark.parametrize("source", ["meta-agent", "automation"])
+def test_http_paths_forward_planned_external_sources(monkeypatch, source):
+    """已规划的 meta-agent / automation source 校验通过并原样透传。"""
+    _session("target")
+    _session("caller")
+    _worker("target")
+    captured = {}
+
+    async def fake_send_task(worker_id, text, source="agent", **kwargs):
+        captured["task"] = (source, kwargs)
+        return None
+
+    async def fake_send_session(session_id, text, source="agent", **kwargs):
+        captured["send"] = (source, kwargs)
+        return {"status": "queued", "sessionId": session_id}
+
+    async def fake_notify(session_id, text, source="agent", **kwargs):
+        captured["notify"] = (source, kwargs)
+        return {"ok": True, "sessionId": session_id}
+
+    async def fake_assign(session_id, text, source="agent", **kwargs):
+        captured["assign"] = (source, kwargs)
+        return {"status": "queued", "sessionId": session_id}
+
+    monkeypatch.setattr(worker, "send_task", fake_send_task)
+    monkeypatch.setattr(worker, "send_session", fake_send_session)
+    monkeypatch.setattr(worker, "enqueue_notice", fake_notify)
+    monkeypatch.setattr(worker, "assign", fake_assign)
+
+    assert asyncio.run(server.api_task({
+        "workerId": "worker-1", "sessionId": "target", "text": "t",
+        "source": source, "sourceSessionId": "caller"}))[
+            "status"] == "queued"
+    assert asyncio.run(server.api_send({
+        "sessionId": "target", "text": "s", "source": source,
+        "sourceSessionId": "caller"}))[
+            "status"] == "queued"
+    assert asyncio.run(server.api_notify({
+        "targetSessionId": "target", "text": "n", "source": source,
+        "sourceSessionId": "caller"}))[
+            "ok"] is True
+    assert asyncio.run(server.api_assign({
+        "sessionId": "target", "text": "a", "source": source,
+        "sourceSessionId": "caller"}))[
+            "status"] == "queued"
+
+    for key in ("task", "send", "notify", "assign"):
+        assert captured[key][0] == source
+        assert captured[key][1]["source_session_id"] == "caller"
+
+
+def test_http_paths_default_to_agent_when_source_omitted(monkeypatch):
+    """source 缺省仍走 agent（与覆盖前行为一致），合法 agent 保留透传。"""
+    _session("target")
+    _session("caller")
+    _worker("target")
+    captured = {}
+
+    async def fake_send_task(worker_id, text, source="agent", **kwargs):
+        captured["source"] = source
+        return None
+
+    monkeypatch.setattr(worker, "send_task", fake_send_task)
+
+    assert asyncio.run(server.api_task({
+        "workerId": "worker-1", "sessionId": "target", "text": "t",
+        "sourceSessionId": "caller"}))["status"] == "queued"
+    assert captured["source"] == "agent"
+
+
 def test_unknown_source_session_is_rejected_without_spawning(monkeypatch):
     _session("target")
     spawned = AsyncMock()
@@ -162,14 +341,15 @@ def test_unknown_source_session_is_rejected_without_spawning(monkeypatch):
     spawned.assert_not_awaited()
 
 
+# ── 持久化 / 恢复链路保留 source 元数据 ──
+
+
 def test_recovery_retains_source_session_id_metadata(monkeypatch):
     source = _session("source")
     target = _session("target")
-    item = {
-        "type": "task", "id": "task-1", "text": "recover me",
-        "source": "agent", "sourceSessionId": source.id,
-        "seq": 1, "taskId": "idempotent-1", "deliveryState": "queued",
-    }
+    item = _task_envelope(
+        "task-1", "recover me", source="agent", sourceSessionId=source.id,
+        taskId="idempotent-1")
     target.queue_pending = [item]
     w = _worker(target.id)
 
@@ -183,11 +363,8 @@ def test_recovery_retains_source_session_id_metadata(monkeypatch):
 def test_task_history_receipt_retains_source_metadata(monkeypatch):
     source = _session("source")
     target = _session("target")
-    target.queue_pending = [{
-        "type": "task", "id": "task-1", "text": "record me",
-        "source": "agent", "sourceSessionId": source.id,
-        "seq": 1, "taskId": None, "deliveryState": "queued",
-    }]
+    target.queue_pending = [_task_envelope(
+        "task-1", "record me", source="agent", sourceSessionId=source.id)]
     w = _worker(target.id)
 
     async def fake_stream(_worker, _text, _source, _session):
