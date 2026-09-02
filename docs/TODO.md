@@ -35,6 +35,7 @@
 | ~~R2 补 3 个集成测试~~ | **已完成（2026-08-29）**：新增 Codex stream 序号/终态配对、WS 中途断线后新序号补发，以及超时→kill→同 taskId 重试回归覆盖 | 阶段计划与进度.md |
 | 测试夹具用户名 | `tests/test_kimi_adapter.py:19` `KIMI_TEST_WORKDIR` 含本机用户名，其他机器跑测试失败（2026-08-27 核对仍存在） | 跨设备移植报告 / 阶段计划与进度.md |
 | Python 依赖环境收敛 | 依赖审计（2026-09-02）发现 Pan `.venv`、C 盘全局 Python 和 Miniforge 存在同栈副本及版本漂移；先生成/核对锁定依赖并评估仓库外 canonical venv（建议 `D:\pan-venv`），再决定是否收敛或清理，当前不迁移/删除现有环境 | 依赖共享审计-2026-09-02 |
+| Pan main service restart 实机链路 | 实机点击后未观察到主服务/worker 重新创建：8768 仍由原进程树监听，`process.pid` 记录的主 PID 与实际监听 PID 不一致，`pan-restart.log` 无本次记录。待服务空闲时验证并修复 `POST /api/main/restart` → detached supervisor → `stop_pan.bat` → `start_pan.bat` 全链路；补充 supervisor 失败反馈、PID/子进程归属和新 PID/启动时间验收，不能只以 `scheduled` 作为成功。 | 服务空闲且允许中断时 |
 | opencode handoff 复验 | 原 worker_handoff 已移除；新 `agent_assign`（别名 worker_assign）/`session_handoff` 链路下 opencode stream 完成信号是否仍超时未复验 | design/opencode-adaptation.md |
 | opencode fork event 溯源 | fork 经 DB 复制，假定从 session/message/part 恢复；若还需 event 溯源行需补 | design/opencode-adaptation.md |
 | HTTP 全链路 sanity（kimi MCP） | 独立端口起 server 走 `/api/sessions`+`/api/spawn`+`/api/task` 链路未跑（worker 级集成已覆盖，低风险） | design/kimi-mcp-solution.md |
