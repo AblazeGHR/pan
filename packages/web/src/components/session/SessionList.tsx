@@ -4,7 +4,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { matchesSpecialFilters } from '@/utils/sessionFilters';
-import { resolveDropZone, decideManagerDrop } from './sessionDrag';
+import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
@@ -242,6 +242,13 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // 避免把易变的状态放进依赖数组导致回调每渲染都变。
   const handleSelect = useCallback(
     (id: string) => {
+      // A click fired right after a drag release must not select the session
+      // that was just dragged (the pointerup landed back on the gutter).
+      if (didDragRef.current) {
+        didDragRef.current = false;
+        if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+        return;
+      }
       const store = useSessionStore.getState();
       if (store.multiSelectMode) {
         store.toggleSelection(id);
@@ -281,6 +288,19 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // Latest hit-test result, read on pointerup without re-subscribing handlers.
   const dropTargetRef = useRef<{ id: string; zone: 'before' | 'center' | 'after' } | null>(null);
   const dragIdRef = useRef<string | null>(null);
+  // Press tracking for the drag-start threshold: a press must move beyond
+  // DRAG_START_THRESHOLD_PX before it becomes a real drag; otherwise the
+  // pointerup is treated as a plain click (select) on the session.
+  const pressRef = useRef<{
+    id: string;
+    x: number;
+    y: number;
+    dragging: boolean;
+  } | null>(null);
+  // True once a real drag ran; the click that follows a drag release must not
+  // select the session. Cleared on the next press / after a short delay.
+  const didDragRef = useRef(false);
+  const didDragClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
   // Last pointer position, re-applied when the ghost mounts mid-drag.
   const ghostPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -344,7 +364,14 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     window.removeEventListener('pointercancel', onPointerCancelRef.current);
     setDragId(null);
     dragIdRef.current = null;
+    pressRef.current = null;
     clearDragFeedback();
+    // Keep didDrag set briefly so the click fired right after a drag release
+    // is still suppressed, but never swallow a later genuine click.
+    if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+    didDragClearTimerRef.current = setTimeout(() => {
+      didDragRef.current = false;
+    }, 600);
   }, [clearDragFeedback]);
 
   // Listener wrappers live in refs so add/remove always target the same
@@ -353,10 +380,29 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const onPointerUpRef = useRef<(e: PointerEvent) => void>(() => {});
   const onPointerCancelRef = useRef<(e: PointerEvent) => void>(() => {});
   onPointerMoveRef.current = (e) => {
+    const press = pressRef.current;
+    if (!press) return;
+    if (!press.dragging) {
+      // Drag-start threshold: small movements are still a click.
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_START_THRESHOLD_PX) {
+        return;
+      }
+      press.dragging = true;
+      didDragRef.current = true;
+      dragIdRef.current = press.id;
+      setDragId(press.id);
+    }
     positionGhost(e.clientX, e.clientY);
     hitTest(e.clientY);
   };
   onPointerUpRef.current = () => {
+    const press = pressRef.current;
+    // A press released without crossing the threshold is a plain click: let
+    // the browser's click select the session; nothing else to do here.
+    if (!press?.dragging) {
+      finishDrag();
+      return;
+    }
     const dragCurrent = dragIdRef.current;
     const target = dropTargetRef.current;
     if (!dragCurrent || !target) {
@@ -398,12 +444,9 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         if (isMockMode()) {
           applyMockSessionUpdate(dragged.id, { managedBy: targetSession.id });
         }
+        showToast(`[Mock] 「${targetSession.name}」现在管理「${dragged.name}」`);
       }
-      showToast(
-        already
-          ? `[Mock] 「${targetSession.name}」已在管理「${dragged.name}」`
-          : `[Mock] 「${targetSession.name}」现在管理「${dragged.name}」`,
-      );
+      // Already managed by the target → silent no-op (no toast for that).
       finishDrag();
       return;
     }
@@ -433,25 +476,24 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       for (const s of state.sessions) {
         if (!ids.includes(s.id)) ids.push(s.id);
       }
-      const pos = ids.indexOf(dragged.id) + 1;
       useUIStore.getState().setCustomOrder(ids);
       useUIStore.getState().setSortBy('custom');
 
-      const newManagerName = newManager
-        ? state.sessions.find((s) => s.id === newManager)?.name ?? newManager
-        : null;
-      if (managerChanged && newManager !== null) {
-        showToast(
-          `[Mock] 「${dragged.name}」已移入「${newManagerName}」的组，插入到第 ${pos} 位`,
-        );
-      } else if (managerChanged && oldManager !== null) {
-        showToast(
-          `[Mock] 「${dragged.name}」已移出「${
-            state.sessions.find((s) => s.id === oldManager)?.name ?? oldManager
-          }」的管理，作为独立会话插入到第 ${pos} 位`,
-        );
-      } else {
-        showToast(`[Mock] 「${dragged.name}」已插入到第 ${pos} 位（自定义排序）`);
+      // Toast ONLY when this drop changes a management relationship; a pure
+      // position move reorders silently.
+      if (managerChanged) {
+        const newManagerName = newManager
+          ? state.sessions.find((s) => s.id === newManager)?.name ?? newManager
+          : null;
+        if (newManager !== null) {
+          showToast(`[Mock] 「${dragged.name}」已移入「${newManagerName}」的组`);
+        } else if (oldManager !== null) {
+          showToast(
+            `[Mock] 「${dragged.name}」已移出「${
+              state.sessions.find((s) => s.id === oldManager)?.name ?? oldManager
+            }」的管理`,
+          );
+        }
       }
     }
     finishDrag();
@@ -463,14 +505,14 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
-      dragIdRef.current = id;
-      setDragId(id);
-      positionGhost(e.clientX, e.clientY);
+      if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+      didDragRef.current = false;
+      pressRef.current = { id, x: e.clientX, y: e.clientY, dragging: false };
       window.addEventListener('pointermove', onPointerMoveRef.current);
       window.addEventListener('pointerup', onPointerUpRef.current);
       window.addEventListener('pointercancel', onPointerCancelRef.current);
     },
-    [positionGhost],
+    [],
   );
 
   // Safety net: unmount mid-drag removes the window listeners.
@@ -479,6 +521,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       window.removeEventListener('pointermove', onPointerMoveRef.current);
       window.removeEventListener('pointerup', onPointerUpRef.current);
       window.removeEventListener('pointercancel', onPointerCancelRef.current);
+      if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
     };
   }, []);
 

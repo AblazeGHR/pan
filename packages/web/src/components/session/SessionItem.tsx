@@ -155,22 +155,6 @@ export const SessionItem = memo(function SessionItem({
         />
       )}
 
-      {dragEnabled && !isPending && !multiSelectMode && (
-        <span
-          data-testid="drag-handle"
-          role="button"
-          aria-label={`Drag ${session.name}`}
-          title="拖动：放到卡片中心 = 交给管理；放到卡片边缘 = 插入排序"
-          onPointerDown={(e) => onDragHandlePointerDown?.(e, session.id)}
-          onClick={(e) => e.stopPropagation()}
-          className="relative z-[5] shrink-0 flex items-center justify-center w-6 self-stretch -my-2 -ml-1 mr-0.5 cursor-grab active:cursor-grabbing select-none touch-none text-text-tertiary/60 hover:text-text-primary hover:bg-bg-hover rounded"
-        >
-          <span className="text-[11px] leading-none font-bold tracking-tighter" aria-hidden="true">
-            ::
-          </span>
-        </span>
-      )}
-
       {multiSelectMode ? (
         <input
           type="checkbox"
@@ -183,7 +167,28 @@ export const SessionItem = memo(function SessionItem({
         />
       ) : null}
 
-      <WorkerDot status={session.workerStatus} />
+      {/* Merged drag gutter: the status indicator AND the drag zone share one
+          narrow column (full card height). The whole column — indicator
+          included — responds to dragging; a dot-matrix texture fills the
+          column around the centered indicator as a visual affordance.
+          Clicking without moving still selects the session (drag threshold). */}
+      {dragEnabled && !isPending && !multiSelectMode ? (
+        <span
+          data-testid="drag-handle"
+          role="button"
+          aria-label={`Drag ${session.name}`}
+          title={session.workerStatus ?? 'offline'}
+          onPointerDown={(e) => onDragHandlePointerDown?.(e, session.id)}
+          className="drag-gutter relative z-[5] shrink-0 flex items-center justify-center w-5 self-stretch -my-2 -ml-1 mr-0.5 cursor-grab active:cursor-grabbing select-none touch-none hover:bg-bg-hover/60 rounded-l-sm"
+        >
+          <span aria-hidden="true" className="drag-matrix pointer-events-none absolute inset-0 rounded-l-sm" />
+          <span className="relative z-[1] flex items-center">
+            <WorkerDot status={session.workerStatus} />
+          </span>
+        </span>
+      ) : (
+        <WorkerDot status={session.workerStatus} />
+      )}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">

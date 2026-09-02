@@ -135,7 +135,7 @@ describe('SessionList drag interactions', () => {
     rectSpy = null;
   });
 
-  it('shows a ghost near the cursor while dragging; original cards stay in place', () => {
+  it('shows a ghost near the cursor once the drag threshold is crossed; original cards stay in place', () => {
     const { container } = render(<SessionList />);
     expect(cardOrder(container)).toEqual(['A', 'B', 'C', 'D']);
     expect(container.querySelector('[data-drag-ghost]')).toBeNull();
@@ -143,7 +143,11 @@ describe('SessionList drag interactions', () => {
     const handle = container.querySelector('[data-testid="drag-handle"]');
     fireEvent.pointerDown(handle!, { button: 0, clientX: 10, clientY: 10 });
 
-    // Ghost appears and names the dragged session.
+    // Below the drag-start threshold there is no ghost yet (still a click).
+    expect(container.querySelector('[data-drag-ghost]')).toBeNull();
+
+    // Cross the threshold → the ghost appears and names the dragged session.
+    pointerMove(30);
     const ghost = container.querySelector('[data-drag-ghost]');
     expect(ghost).not.toBeNull();
     expect(ghost!.textContent).toContain('Alpha');
@@ -194,8 +198,8 @@ describe('SessionList drag interactions', () => {
     expect(useUIStore.getState().customOrder).toEqual(['B', 'A', 'C', 'D']);
     // …and the mode switched to custom immediately.
     expect(useUIStore.getState().sortBy).toBe('custom');
-    // Toast reports the mock reorder.
-    expect(useUIStore.getState().toastQueue.some((t) => t.message.includes('插入'))).toBe(true);
+    // A pure position move does NOT toast (only management changes do).
+    expect(useUIStore.getState().toastQueue.length).toBe(0);
 
     // DOM reflects the new custom order.
     expect(cardOrder(container)).toEqual(['B', 'A', 'C', 'D']);
@@ -238,10 +242,25 @@ describe('SessionList drag interactions', () => {
     expect(cardOrder(container)).toEqual(['C', 'A', 'D', 'B']);
   });
 
-  it('drag start does not trigger card selection', () => {
+  it('a plain click on the drag gutter selects the session (threshold)', () => {
     const { container } = render(<SessionList />);
     const handle = container.querySelector('[data-testid="drag-handle"]')!;
     fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10 });
+    // No movement → the click (without a drag) selects the card.
+    fireEvent.click(handle);
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
+  });
+
+  it('a click fired right after a real drag does NOT select the dragged session', () => {
+    const { container } = render(<SessionList />);
+    const handle = container.querySelector('[data-testid="drag-handle"]')!;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 10, clientY: 10 });
+    pointerMove(96); // drag A onto B's center
+    pointerUp();
+    expect(useSessionStore.getState().sessions.find((s) => s.id === 'A')!.managedBy).toBe('B');
+
+    // A stray click landing back on the gutter after the release must be
+    // ignored (the drag already finished on pointerup).
     fireEvent.click(handle);
     expect(useSessionStore.getState().currentSessionId).toBeNull();
   });

@@ -37,6 +37,10 @@ export const DRAG_HIT = {
   minEdgePx: 20,
 } as const;
 
+/** Movement (px) before a press on the drag gutter becomes a real drag;
+ *  a press released under this distance is treated as a plain click (select). */
+export const DRAG_START_THRESHOLD_PX = 5;
+
 /** Pure hit-test: classify a pointer Y against a card's vertical extent. */
 export function resolveDropZone(
   cardTop: number,
