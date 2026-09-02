@@ -3576,15 +3576,6 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     w._current_task_id = None
 
 
-async def _consumer_mcp(w: Worker, text: str, source: str, s):
-    """Deprecated alias for _consumer_oneshot.
-
-    cbc 特定拼装已搬入 CbcAdapter.oneshot_args（adapter-architecture P1 建议 4）。
-    保留别名以兼容既有测试；下个 PR 删除。
-    """
-    return await _consumer_oneshot(w, text, source, s)
-
-
 # ── lifecycle ──
 
 # spawn 防重复（立项 4.5）：同一 session 的并发 create_worker 通过 per-session

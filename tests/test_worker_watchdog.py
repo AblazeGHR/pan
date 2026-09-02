@@ -279,7 +279,7 @@ def test_mcp_idle_worker_reclaimed():
     """MCP one-shot worker (process=None) idle past idle_sec → killed.
 
     MCP watchdog does idle reclamation but never timeout (running is left
-    to the read timeout in _consumer_mcp).
+    to the read timeout in _consumer_oneshot).
     """
     _cleanup()
     killed = []
@@ -523,8 +523,8 @@ def test_watchdog_self_cancel_regression():
     _cleanup()
 
 
-def test_consumer_mcp_refreshes_last_activity_on_idle(monkeypatch, tmp_path):
-    """M3 回归: _consumer_mcp 置 idle 时必须刷新 last_activity。
+def test_consumer_oneshot_refreshes_last_activity_on_idle(monkeypatch, tmp_path):
+    """M3 回归: _consumer_oneshot 置 idle 时必须刷新 last_activity。
 
     旧行为: MCP 任务全程不刷新 last_activity，任务耗时被算进 idle 时长，
     接近 timeout 的任务完成后 watchdog 下一 tick 就把它当空闲回收。
@@ -572,13 +572,13 @@ def test_consumer_mcp_refreshes_last_activity_on_idle(monkeypatch, tmp_path):
     monkeypatch.setattr(_sess, "save_async", fake_save)
 
     async def run():
-        await worker._consumer_mcp(w, "hello", "agent", s)
+        await worker._consumer_oneshot(w, "hello", "agent", s)
 
     asyncio.run(run())
 
     assert w.status == "idle", f"expected idle, got {w.status}"
     assert w.last_activity > 0, f"last_activity not refreshed: {w.last_activity}"
-    print("PASS: _consumer_mcp refreshes last_activity on idle")
+    print("PASS: _consumer_oneshot refreshes last_activity on idle")
     _cleanup()
 
 
@@ -675,6 +675,6 @@ if __name__ == "__main__":
     test_watchdog_queued_timeout_reports_zombie()
     test_watchdog_idle_reclaim_no_zombie()
     test_watchdog_self_cancel_regression()
-    test_consumer_mcp_refreshes_last_activity_on_idle()
+    test_consumer_oneshot_refreshes_last_activity_on_idle()
     test_idle_reclaim_with_real_stdout_loop()
     print("\n=== ALL WATCHDOG TESTS PASSED ===")

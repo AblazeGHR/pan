@@ -1,11 +1,11 @@
-"""Tests for cli_session_id binding protection in _consumer_mcp.
+"""Tests for cli_session_id binding protection in _consumer_oneshot.
 
 Covers the meta-root corruption fix (#bind-override):
 1. _extract_cbc_error parses cbc's structured error (resume failure).
-2. _consumer_mcp NEVER overwrites an existing cli_session_id with an
+2. _consumer_oneshot NEVER overwrites an existing cli_session_id with an
    unrelated captured id.
-3. _consumer_mcp captures cli_session_id when the session has none yet.
-4. _consumer_mcp surfaces cbc's error message instead of "(no output)"
+3. _consumer_oneshot captures cli_session_id when the session has none yet.
+4. _consumer_oneshot surfaces cbc's error message instead of "(no output)"
    when resume fails (returncode 0, error event, no result event).
 """
 
@@ -22,7 +22,7 @@ from packages.core.adapters import CbcAdapter
 
 
 class MockProc:
-    """Minimal asyncio subprocess mock for _consumer_mcp's read()/wait()."""
+    """Minimal asyncio subprocess mock for _consumer_oneshot's read()/wait()."""
 
     def __init__(self, output: bytes, returncode: int = 0):
         self.returncode = returncode
@@ -105,7 +105,7 @@ def test_extract_cbc_error_ignores_non_json_lines():
 
 # ── binding protection ──
 
-def test_consumer_mcp_keeps_existing_binding_on_mismatch():
+def test_consumer_oneshot_keeps_existing_binding_on_mismatch():
     """A captured init session_id that differs from the existing binding must
     NOT overwrite it — the real cbc session id is the binding ground truth."""
     _cleanup()
@@ -119,7 +119,7 @@ def test_consumer_mcp_keeps_existing_binding_on_mismatch():
                new=AsyncMock(return_value=MockProc(init + result))), \
          patch.object(worker, "_bcast", new=AsyncMock()), \
          patch.object(worker._sess, "save_async", new=AsyncMock()):
-        asyncio.run(worker._consumer_mcp(w, "hi", "test", s))
+        asyncio.run(worker._consumer_oneshot(w, "hi", "test", s))
 
     assert s.cli_session_id == "existing-good-cbc-id", \
         f"existing binding clobbered: {s.cli_session_id}"
@@ -128,7 +128,7 @@ def test_consumer_mcp_keeps_existing_binding_on_mismatch():
     _cleanup()
 
 
-def test_consumer_mcp_captures_binding_when_empty():
+def test_consumer_oneshot_captures_binding_when_empty():
     """A fresh session (no cli_session_id yet) must capture the init id."""
     _cleanup()
     s = _setup_session(cli_session_id=None)
@@ -141,14 +141,14 @@ def test_consumer_mcp_captures_binding_when_empty():
                new=AsyncMock(return_value=MockProc(init + result))), \
          patch.object(worker, "_bcast", new=AsyncMock()), \
          patch.object(worker._sess, "save_async", new=AsyncMock()):
-        asyncio.run(worker._consumer_mcp(w, "hi", "test", s))
+        asyncio.run(worker._consumer_oneshot(w, "hi", "test", s))
 
     assert s.cli_session_id == "fresh-cbc-id"
     assert s.last_result["status"] == "done"
     _cleanup()
 
 
-def test_consumer_mcp_keeps_binding_when_no_init_event():
+def test_consumer_oneshot_keeps_binding_when_no_init_event():
     """Resume failure (cbc exits 0 with an error event and NO init event) must
     leave the existing binding untouched."""
     _cleanup()
@@ -161,7 +161,7 @@ def test_consumer_mcp_keeps_binding_when_no_init_event():
                new=AsyncMock(return_value=MockProc(err, returncode=0))), \
          patch.object(worker, "_bcast", new=AsyncMock()), \
          patch.object(worker._sess, "save_async", new=AsyncMock()):
-        asyncio.run(worker._consumer_mcp(w, "hi", "test", s))
+        asyncio.run(worker._consumer_oneshot(w, "hi", "test", s))
 
     assert s.cli_session_id == "existing-good-cbc-id"
     assert s.last_result["status"] == "error"
@@ -170,7 +170,7 @@ def test_consumer_mcp_keeps_binding_when_no_init_event():
     _cleanup()
 
 
-def test_consumer_mcp_surfaces_cbc_error_on_exit0():
+def test_consumer_oneshot_surfaces_cbc_error_on_exit0():
     """Silent exit-0 failure must show cbc's error text, not '(no output)'."""
     _cleanup()
     s = _setup_session(cli_session_id=None)
@@ -182,7 +182,7 @@ def test_consumer_mcp_surfaces_cbc_error_on_exit0():
                new=AsyncMock(return_value=MockProc(err, returncode=0))), \
          patch.object(worker, "_bcast", new=AsyncMock()), \
          patch.object(worker._sess, "save_async", new=AsyncMock()):
-        asyncio.run(worker._consumer_mcp(w, "hi", "test", s))
+        asyncio.run(worker._consumer_oneshot(w, "hi", "test", s))
 
     assert s.last_result["status"] == "error"
     assert "No conversation found" in s.last_result["result"]

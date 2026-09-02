@@ -309,7 +309,7 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
   - 新增 `_consumer_oneshot`（通用，从 `_consumer_mcp` 提炼，argv 来源改为 `adapter.oneshot_args`；移除所有 `hasattr` 探测；错误提取改 `getattr(adapter,"extract_oneshot_error",None)` 兜底通用启发式）。
   - `_consumer`：`use_mcp = _use_oneshot_mcp(s)` → `mode = resolve_execution_mode(adapter, s)`；分派到 `_consumer_oneshot` / `_consumer_stream`。
   - `_create_worker`：`use_mcp` 分支 → `mode` 分支；oneshot 时 `proc=None`、不起 `_read_stdout`；system_prompt 注入按 `mode` 守卫（oneshot 跳过，因 `oneshot_args` 已注入）。
-  - 删除或保留 `_consumer_mcp`（建议保留为 thin wrapper 一版过渡，下个 PR 删除）。
+  - `_consumer_mcp` 兼容别名已在后续 cleanup 中删除；相关回归测试直接调用 `_consumer_oneshot`。
 - **验证**：
   - cbc session：配 MCP + `output_mode=oneshot` → 发消息，确认逐任务 spawn 短进程、结果/历史/实时 stream 广播与改造前一致（端到端对照）。
   - cbc session：配 MCP + `output_mode=stream` → stream+MCP 长驻路径仍正常。
@@ -373,7 +373,7 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
 ## 10. 验收清单（Done 标准）
 
 - [ ] `CliAdapter` 含 `execution_modes` 与 `oneshot_args`；cbc 实现、kimi/opencode 仅 stream。
-- [ ] worker 无 `hasattr(adapter, 'base_args_stream'|'mcp_args')` 探测；`_consumer_mcp` 被通用 `_consumer_oneshot` 取代。
+- [x] worker 无 `hasattr(adapter, 'base_args_stream'|'mcp_args')` 探测；`_consumer_mcp` 已被通用 `_consumer_oneshot` 取代。
 - [ ] `output_mode` 显式持久化；未设置按 §3 默认解析；旧 oneshot session 保留。
 - [ ] 后端对越界 `output_mode` 返回 400；worker 防御性 clamp。
 - [ ] `/api/adapter/config` 与 `_session_to_api` 暴露 `executionModes`。
@@ -399,7 +399,7 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
 - **kimi / opencode**：`execution_modes = ["stream"]`；`oneshot_args` 返回 `[]`（防御兜底，永不进入 oneshot 路径）。
 - **worker** `packages/core/worker.py`：
   - 删除 `_use_oneshot_mcp` 判定矩阵。
-  - `_consumer_mcp` → 通用 `_consumer_oneshot`（argv 来自 `adapter.oneshot_args`；移除 `hasattr(base_args_stream|mcp_args)` 探测；错误提取改 `getattr(adapter, "extract_oneshot_error", _extract_cbc_error)` 兜底）。保留 `_consumer_mcp` 为 deprecated 别名（调用 `_consumer_oneshot`）以兼容既有测试。
+  - `_consumer_mcp` → 通用 `_consumer_oneshot`（argv 来自 `adapter.oneshot_args`；移除 `hasattr(base_args_stream|mcp_args)` 探测；错误提取改 `getattr(adapter, "extract_oneshot_error", _extract_cbc_error)` 兜底）。后续 cleanup 已移除 deprecated 别名，测试直接覆盖 `_consumer_oneshot`。
   - `_consumer` 与 report consumer 改用 `resolve_execution_mode` 分派。
   - `_create_worker`：`mode == "oneshot"` → 不 spawn 长驻进程、不起 `_read_stdout`；system_prompt 注入按 mode 守卫（oneshot 由 `oneshot_args` 逐任务注入）。
 - **server** `packages/web/server.py`：
@@ -410,7 +410,7 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
 
 - 新增单测 `tests/test_cbc_oneshot_args.py`：逐元素比对 `CbcAdapter.oneshot_args` 与旧 `_consumer_mcp` argv 拼装（覆盖 有/无 mcp、system_prompt、resume、effort/permission、prompt 末参位置），全部通过；并断言三个 adapter 的 `execution_modes` 声明正确。
 - `tests/test_worker_output_mode.py`：原 `_use_oneshot_mcp` 矩阵测试改为 `resolve_execution_mode` 测试，**明确覆盖新语义**——`output_mode="oneshot"` 无 MCP 现在解析为 `oneshot`（旧语义为 stream）。新增 one-shot-only adapter 的 clamp 与 `_apply_output_mode` 拒绝 stream 测试。
-- 回归：`tests/test_worker_cli_session_binding.py`（4 项，走 `_consumer_mcp` 别名）、`tests/test_worker_watchdog.py`（13 项）全部通过；全量 `tests/` 仅 1 项预存失败 `test_kimi_adapter.py::test_adapter_metadata`（`assert kimi.supports_resume is False`，但 kimi 已提交值为 `True`，与本方案无关，未改动 kimi 的 `supports_resume`）。
+- 回归：`tests/test_worker_cli_session_binding.py`（4 项，直接覆盖 `_consumer_oneshot`）、`tests/test_worker_watchdog.py`（13 项）全部通过；全量测试基线以当前 main 验证结果为准。
 
 ### 11.3 三路径行为核对（cbc）
 
