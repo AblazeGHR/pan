@@ -65,7 +65,7 @@ function persistGroupBy(mode: GroupMode) {
 function loadSortBy(): SortMode {
   try {
     const v = localStorage.getItem('pan:sortBy');
-    return v === 'name' ? 'name' : 'recent';
+    return v === 'name' || v === 'custom' ? v : 'recent';
   } catch {
     return 'recent';
   }
@@ -74,6 +74,27 @@ function loadSortBy(): SortMode {
 function persistSortBy(mode: SortMode) {
   try {
     localStorage.setItem('pan:sortBy', mode);
+  } catch {
+    // no-op
+  }
+}
+
+/** Manual session order for the "custom" sort mode (drag-reorder result). */
+function loadCustomOrder(): string[] {
+  try {
+    const v = localStorage.getItem('pan:customOrder');
+    if (!v) return [];
+    const arr: unknown = JSON.parse(v);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((x): x is string => typeof x === 'string');
+  } catch {
+    return [];
+  }
+}
+
+function persistCustomOrder(order: string[]) {
+  try {
+    localStorage.setItem('pan:customOrder', JSON.stringify(order));
   } catch {
     // no-op
   }
@@ -105,7 +126,8 @@ function persistHiddenSessions(ids: Set<string>) {
 // ── Store ──
 
 export type GroupMode = 'none' | 'workdir' | 'manager';
-export type SortMode = 'recent' | 'name';
+/** 'custom' = manual drag order (see customOrder); UI label 自定义排序 / Custom. */
+export type SortMode = 'recent' | 'name' | 'custom';
 export type Theme = 'dark' | 'light';
 
 function loadTheme(): Theme {
@@ -140,6 +162,9 @@ interface UIStore {
   groupBy: GroupMode;
   searchQuery: string;
   sortBy: SortMode;
+  /** Manual session-id order backing the 'custom' sort mode (drag reorder).
+   *  Ids not present keep their current relative order after the mapped ones. */
+  customOrder: string[];
   /** Active special filters (see utils/sessionFilters); composable with the
    *  text search and cleared individually. Not persisted (like searchQuery). */
   specialFilters: Set<SpecialFilterId>;
@@ -172,6 +197,10 @@ interface UIStore {
   cycleGroupBy: () => void;
   setSearchQuery: (q: string) => void;
   setSortBy: (mode: SortMode) => void;
+  /** Cycle recent → name → custom → recent (sidebar Sort button). */
+  cycleSortBy: () => void;
+  /** Replace the manual custom order (persisted). */
+  setCustomOrder: (order: string[]) => void;
   toggleSpecialFilter: (id: SpecialFilterId) => void;
   clearSpecialFilters: () => void;
   /** Mark a session hidden (Select mode eye button) or shown again. */
@@ -208,6 +237,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   groupBy: loadGroupBy(),
   searchQuery: '',
   sortBy: loadSortBy(),
+  customOrder: loadCustomOrder(),
   specialFilters: new Set<SpecialFilterId>(),
   hiddenSessionIds: loadHiddenSessions(),
   collapsedGroups: new Set<string>(),
@@ -369,6 +399,18 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setSortBy: (mode) => {
     set({ sortBy: mode });
     persistSortBy(mode);
+  },
+
+  cycleSortBy: () => {
+    const order: SortMode[] = ['recent', 'name', 'custom'];
+    const next = order[(order.indexOf(get().sortBy) + 1) % order.length]!;
+    set({ sortBy: next });
+    persistSortBy(next);
+  },
+
+  setCustomOrder: (order) => {
+    set({ customOrder: [...order] });
+    persistCustomOrder(order);
   },
 
   toggleSpecialFilter: (id) => {

@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { matchesSpecialFilters } from '@/utils/sessionFilters';
+import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
+import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
 import type { Session } from '@/types';
+import { WorkerDot } from '@/components/worker/WorkerDot';
 import { FolderOpen, Loader2 } from 'lucide-react';
 
 interface SessionListProps {
@@ -98,11 +101,13 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     specialFilters,
     hiddenSessionIds,
     collapsedGroups,
+    customOrder,
     toggleGroupCollapse,
     addCollapsedGroups,
     removeCollapsedGroups,
     pruneCollapsedGroups,
     pruneHiddenSessions,
+    showToast,
   } = useUIStore();
   const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
 
@@ -172,6 +177,16 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     }
 
     filtered.sort((a, b) => {
+      if (sortBy === 'custom') {
+        // Manual drag order; ids missing from customOrder fall back to their
+        // current relative order (ranked after every mapped id).
+        const rank = (id: string) => {
+          const i = customOrder.indexOf(id);
+          return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+        };
+        const diff = rank(a.id) - rank(b.id);
+        if (diff !== 0) return diff;
+      }
       if (sortBy === 'name') {
         return a.name.localeCompare(b.name);
       }
@@ -220,13 +235,20 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     const allHidden = !multiSelectMode && sessions.length > 0 && base.length === 0;
 
     return { filtered, grouped: groups, managerTree, allHidden };
-  }, [sessions, searchQuery, sortBy, groupBy, specialFilters, hiddenSessionIds, multiSelectMode]);
+  }, [sessions, searchQuery, sortBy, customOrder, groupBy, specialFilters, hiddenSessionIds, multiSelectMode]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
   // 避免把易变的状态放进依赖数组导致回调每渲染都变。
   const handleSelect = useCallback(
     (id: string) => {
+      // A click fired right after a drag release must not select the session
+      // that was just dragged (the pointerup landed back on the gutter).
+      if (didDragRef.current) {
+        didDragRef.current = false;
+        if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+        return;
+      }
       const store = useSessionStore.getState();
       if (store.multiSelectMode) {
         store.toggleSelection(id);
@@ -251,6 +273,299 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     const store = useUIStore.getState();
     store.setSessionHidden(id, !store.hiddenSessionIds.has(id));
   }, []);
+
+  // ── Drag-to-reorder / drag-to-manage (demo) ──
+  // Pointer-events based so it works for mouse AND touch. During a drag the
+  // original card stays in place (nothing moves); feedback is a floating
+  // ghost near the cursor plus per-card highlight (center band → manage,
+  // edge band → insert line). Drop executes a local mock action.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [centerTargetId, setCenterTargetId] = useState<string | null>(null);
+  const [insertTarget, setInsertTarget] = useState<{
+    id: string;
+    zone: 'before' | 'after';
+  } | null>(null);
+  // Latest hit-test result, read on pointerup without re-subscribing handlers.
+  const dropTargetRef = useRef<{ id: string; zone: 'before' | 'center' | 'after' } | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+  // Press tracking for the drag-start threshold: a press must move beyond
+  // DRAG_START_THRESHOLD_PX before it becomes a real drag; otherwise the
+  // pointerup is treated as a plain click (select) on the session.
+  const pressRef = useRef<{
+    id: string;
+    x: number;
+    y: number;
+    dragging: boolean;
+  } | null>(null);
+  // True once a real drag ran; the click that follows a drag release must not
+  // select the session. Cleared on the next press / after a short delay.
+  const didDragRef = useRef(false);
+  const didDragClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  // Last pointer position, re-applied when the ghost mounts mid-drag.
+  const ghostPosRef = useRef<{ x: number; y: number } | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  // Latest visible (filtered+sorted) order, for computing the insert result.
+  const filteredRef = useRef<Session[]>([]);
+  useEffect(() => {
+    filteredRef.current = filtered;
+  }, [filtered]);
+
+  const clearDragFeedback = useCallback(() => {
+    setCenterTargetId(null);
+    setInsertTarget(null);
+    dropTargetRef.current = null;
+  }, []);
+
+  const positionGhost = useCallback((x: number, y: number) => {
+    ghostPosRef.current = { x, y };
+    if (ghostRef.current) {
+      ghostRef.current.style.transform = `translate(${x + 14}px, ${y + 14}px)`;
+    }
+  }, []);
+
+  // Callback ref: apply the last pointer position the moment the ghost mounts
+  // (positionGhost may have run before the ghost existed on pointerdown).
+  const ghostMountRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      ghostRef.current = el;
+      if (el && ghostPosRef.current) {
+        el.style.transform = `translate(${ghostPosRef.current.x + 14}px, ${ghostPosRef.current.y + 14}px)`;
+      }
+    },
+    [],
+  );
+
+  const hitTest = useCallback((clientY: number) => {
+    const dragCurrent = dragIdRef.current;
+    const cards = listRef.current?.querySelectorAll<HTMLElement>('[data-session-card-id]');
+    if (!dragCurrent || !cards) return;
+    for (const el of cards) {
+      if (el.dataset.sessionCardId === dragCurrent) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.height === 0) continue;
+      if (clientY >= rect.top && clientY < rect.bottom) {
+        const id = el.dataset.sessionCardId!;
+        const zone = resolveDropZone(rect.top, rect.height, clientY);
+        dropTargetRef.current = { id, zone };
+        setCenterTargetId(zone === 'center' ? id : null);
+        setInsertTarget(
+          zone === 'center' ? null : { id, zone },
+        );
+        return;
+      }
+    }
+    clearDragFeedback();
+  }, [clearDragFeedback]);
+
+  const finishDrag = useCallback(() => {
+    window.removeEventListener('pointermove', onPointerMoveRef.current);
+    window.removeEventListener('pointerup', onPointerUpRef.current);
+    window.removeEventListener('pointercancel', onPointerCancelRef.current);
+    setDragId(null);
+    dragIdRef.current = null;
+    pressRef.current = null;
+    clearDragFeedback();
+    // Keep didDrag set briefly so the click fired right after a drag release
+    // is still suppressed, but never swallow a later genuine click.
+    if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+    didDragClearTimerRef.current = setTimeout(() => {
+      didDragRef.current = false;
+    }, 600);
+  }, [clearDragFeedback]);
+
+  // Listener wrappers live in refs so add/remove always target the same
+  // function instances across mounts.
+  const onPointerMoveRef = useRef<(e: PointerEvent) => void>(() => {});
+  const onPointerUpRef = useRef<(e: PointerEvent) => void>(() => {});
+  const onPointerCancelRef = useRef<(e: PointerEvent) => void>(() => {});
+  onPointerMoveRef.current = (e) => {
+    const press = pressRef.current;
+    if (!press) return;
+    if (!press.dragging) {
+      // Drag-start threshold: small movements are still a click.
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_START_THRESHOLD_PX) {
+        return;
+      }
+      press.dragging = true;
+      didDragRef.current = true;
+      dragIdRef.current = press.id;
+      setDragId(press.id);
+    }
+    positionGhost(e.clientX, e.clientY);
+    hitTest(e.clientY);
+  };
+  onPointerUpRef.current = () => {
+    const press = pressRef.current;
+    // A press released without crossing the threshold is a plain click: let
+    // the browser's click select the session; nothing else to do here.
+    if (!press?.dragging) {
+      finishDrag();
+      return;
+    }
+    const dragCurrent = dragIdRef.current;
+    const target = dropTargetRef.current;
+    if (!dragCurrent || !target) {
+      finishDrag();
+      return;
+    }
+    const state = useSessionStore.getState();
+    const dragged = state.sessions.find((s) => s.id === dragCurrent);
+    const targetSession = state.sessions.find((s) => s.id === target.id);
+    if (!dragged || !targetSession) {
+      finishDrag();
+      return;
+    }
+
+    // Manager-tree semantics: decide where this drop wants the dragged
+    // session to live (center → target manages it; edge slot → adopt that
+    // slot's group context), and reject management cycles up front.
+    const { newManager, blockedByCycle } = decideManagerDrop(
+      filteredRef.current,
+      dragged.id,
+      targetSession.id,
+      target.zone,
+    );
+
+    if (blockedByCycle) {
+      showToast(
+        `[Mock] 禁止：不能把「${dragged.name}」移入自己或其下级的组内（会形成递归管理）`,
+        'error',
+      );
+      finishDrag();
+      return;
+    }
+
+    if (target.zone === 'center') {
+      // Mock "B manage A": A becomes managed by B (local state only).
+      const already = dragged.managedBy === targetSession.id;
+      if (!already) {
+        state.updateSession(dragged.id, { managedBy: targetSession.id });
+        if (isMockMode()) {
+          applyMockSessionUpdate(dragged.id, { managedBy: targetSession.id });
+        }
+        showToast(`[Mock] 「${targetSession.name}」现在管理「${dragged.name}」`);
+      }
+      // Already managed by the target → silent no-op (no toast for that).
+      finishDrag();
+      return;
+    }
+
+    // Edge drop: (optionally) move the dragged session between groups, then
+    // insert it at the exact boundary the user saw. The authoritative
+    // "visible order" is the DOM card order (flat list, or preorder of the
+    // manager tree). Entering a group = adopt that manager; landing on a
+    // top-level slot = leave the current group (managedBy → null).
+    const oldManager = dragged.managedBy ?? null;
+    const managerChanged = newManager !== oldManager;
+    if (managerChanged) {
+      state.updateSession(dragged.id, { managedBy: newManager });
+      if (isMockMode()) {
+        applyMockSessionUpdate(dragged.id, { managedBy: newManager });
+      }
+    }
+
+    const domCards = listRef.current?.querySelectorAll<HTMLElement>('[data-session-card-id]');
+    const domIds = domCards
+      ? [...domCards].map((el) => el.dataset.sessionCardId ?? '').filter(Boolean)
+      : filteredRef.current.map((s) => s.id);
+    const ids = domIds.filter((x) => x !== dragged.id);
+    const tIdx = ids.indexOf(targetSession.id);
+    if (tIdx >= 0) {
+      ids.splice(target.zone === 'before' ? tIdx : tIdx + 1, 0, dragged.id);
+      for (const s of state.sessions) {
+        if (!ids.includes(s.id)) ids.push(s.id);
+      }
+      useUIStore.getState().setCustomOrder(ids);
+      useUIStore.getState().setSortBy('custom');
+
+      // Toast ONLY when this drop changes a management relationship; a pure
+      // position move reorders silently.
+      if (managerChanged) {
+        const newManagerName = newManager
+          ? state.sessions.find((s) => s.id === newManager)?.name ?? newManager
+          : null;
+        if (newManager !== null) {
+          showToast(`[Mock] 「${dragged.name}」已移入「${newManagerName}」的组`);
+        } else if (oldManager !== null) {
+          showToast(
+            `[Mock] 「${dragged.name}」已移出「${
+              state.sessions.find((s) => s.id === oldManager)?.name ?? oldManager
+            }」的管理`,
+          );
+        }
+      }
+    }
+    finishDrag();
+  };
+  onPointerCancelRef.current = () => finishDrag();
+
+  const handleDragPointerDown = useCallback(
+    (e: React.PointerEvent, id: string) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+      didDragRef.current = false;
+      pressRef.current = { id, x: e.clientX, y: e.clientY, dragging: false };
+      window.addEventListener('pointermove', onPointerMoveRef.current);
+      window.addEventListener('pointerup', onPointerUpRef.current);
+      window.addEventListener('pointercancel', onPointerCancelRef.current);
+    },
+    [],
+  );
+
+  // Safety net: unmount mid-drag removes the window listeners.
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', onPointerMoveRef.current);
+      window.removeEventListener('pointerup', onPointerUpRef.current);
+      window.removeEventListener('pointercancel', onPointerCancelRef.current);
+      if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+    };
+  }, []);
+
+  const dragSession = dragId ? sessions.find((s) => s.id === dragId) : null;
+  // Drag works in the flat list AND the manager tree (same semantics:
+  // center → manage, edge → insert into the visible order). Grouped-by-dir
+  // lists stay non-draggable.
+  const dragEnabled = (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
+
+  // Per-card drag props for memoized SessionItem (stable refs + primitives
+  // keep unrelated cards from re-rendering).
+  const dragPropsFor = useCallback(
+    (session: Session) =>
+      dragEnabled
+        ? {
+            dragEnabled: true,
+            onDragHandlePointerDown: handleDragPointerDown,
+            isDragSource: session.id === dragId,
+            isCenterTarget: session.id === centerTargetId,
+            insertZone: insertTarget?.id === session.id ? insertTarget.zone : null,
+          }
+        : {},
+    [dragEnabled, handleDragPointerDown, dragId, centerTargetId, insertTarget],
+  );
+
+  const ghostEl = dragEnabled && dragSession && (
+    <div
+      ref={ghostMountRef}
+      data-drag-ghost
+      aria-hidden="true"
+      className="fixed left-0 top-0 z-[60] w-56 pointer-events-none rounded border border-dashed border-accent bg-bg-secondary/95 px-3 py-2 shadow-panel"
+      style={{ willChange: 'transform' }}
+    >
+      <div className="flex items-center gap-2">
+        <WorkerDot status={dragSession.workerStatus} />
+        <span className="text-sm text-text-primary font-medium truncate">
+          {dragSession.name || 'Untitled'}
+        </span>
+      </div>
+      <div className="mt-1 text-[10px] text-text-tertiary">
+        中心 = 交给管理 · 边缘 = 插入排序
+      </div>
+    </div>
+  );
 
   // Recursive collapse/expand: collapsing a manager node also collapses every
   // descendant; expanding it expands the whole subtree (same for un-collapse).
@@ -315,7 +630,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
   if (groupBy === 'manager' && managerTree.length > 0) {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col" ref={listRef}>
         {managerTree.map((node) => (
           <ManagerNodeView
             key={node.session.id}
@@ -329,8 +644,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             onMenu={handleMenu}
             onToggle={handleToggleManagerNode}
             onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
+            dragPropsFor={dragPropsFor}
           />
         ))}
+        {ghostEl}
       </div>
     );
   }
@@ -366,7 +683,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" ref={listRef}>
       {filtered.map((session) => (
         <SessionItem
           key={session.id}
@@ -378,8 +695,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
           onSelect={handleSelect}
           onMenu={handleMenu}
+          {...dragPropsFor(session)}
         />
       ))}
+      {ghostEl}
     </div>
   );
 }
@@ -396,6 +715,8 @@ interface ManagerNodeViewProps {
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
   onToggleHidden?: (id: string) => void;
+  /** Drag demo: per-session drag props factory (stable identity). */
+  dragPropsFor: (session: Session) => Record<string, unknown>;
 }
 
 /**
@@ -414,6 +735,7 @@ function ManagerNodeView({
   onMenu,
   onToggle,
   onToggleHidden,
+  dragPropsFor,
 }: ManagerNodeViewProps) {
   const session = node.session;
   const hasChildren = node.children.length > 0;
@@ -436,6 +758,7 @@ function ManagerNodeView({
         }}
         onSelect={onSelect}
         onMenu={onMenu}
+        {...dragPropsFor(session)}
       />
       {hasChildren && !collapsed && (
         <div className="ml-0" data-tree-children>
@@ -453,6 +776,7 @@ function ManagerNodeView({
               onMenu={onMenu}
               onToggle={onToggle}
               onToggleHidden={onToggleHidden}
+              dragPropsFor={dragPropsFor}
             />
           ))}
         </div>
@@ -476,6 +800,8 @@ interface ManagerChildViewProps {
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
   onToggleHidden?: (id: string) => void;
+  /** Drag demo: per-session drag props factory (stable identity). */
+  dragPropsFor: (session: Session) => Record<string, unknown>;
 }
 
 /**
@@ -505,6 +831,7 @@ function ManagerChildView({
   onMenu,
   onToggle,
   onToggleHidden,
+  dragPropsFor,
 }: ManagerChildViewProps) {
   const session = child.session;
   const hasChildren = child.children.length > 0;
@@ -551,6 +878,7 @@ function ManagerChildView({
           }}
           onSelect={onSelect}
           onMenu={onMenu}
+          {...dragPropsFor(session)}
         />
       </div>
       {/* The child's own children */}
@@ -570,6 +898,7 @@ function ManagerChildView({
               onMenu={onMenu}
               onToggle={onToggle}
               onToggleHidden={onToggleHidden}
+              dragPropsFor={dragPropsFor}
             />
           ))}
         </div>

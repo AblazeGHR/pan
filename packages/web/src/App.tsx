@@ -5,6 +5,8 @@ import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
 import { DetailPanel } from './components/detail/DetailPanel';
 import { CliStatusBanner } from './components/layout/CliStatusBanner';
+import { DemoBadge } from './demo/DemoBadge';
+import { isMockMode } from './demo/mockBackend';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useUIStore } from './stores/uiStore';
 import { Outlet, useNavigate } from 'react-router-dom';
@@ -141,6 +143,7 @@ function Layout() {
       {/* Resize handle gutter — grid column 4 (0-width) */}
 
       <ToastContainer />
+      {isMockMode() && <DemoBadge />}
       <DetailPanel />
       <CommandPalette />
     </div>

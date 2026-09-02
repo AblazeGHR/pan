@@ -92,6 +92,22 @@ pre, code, textarea, input[type="text"] {
   font-family: var(--font-mono);
 }
 
+/* ── Drag-gutter dot-matrix texture ── */
+
+/* Shared drag column behind the session status dot: a subtle dot-matrix /
+   frosted texture that adapts to the active theme via currentColor. */
+.drag-matrix {
+  background-image: radial-gradient(circle, currentColor 0.9px, transparent 1.3px);
+  background-size: 6px 6px;
+  background-position: center;
+  color: var(--color-text-tertiary);
+  opacity: 0.65;
+}
+
+.drag-gutter:hover .drag-matrix {
+  opacity: 1;
+}
+
 /* ── Toast animations ── */
 
 @keyframes toast-in {

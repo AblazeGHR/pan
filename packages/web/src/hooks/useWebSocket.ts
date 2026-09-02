@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { wsClient } from '@/services/ws';
 import { fetchSessionHistory } from '@/services/api';
+import { isMockMode } from '@/demo/mockBackend';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -51,6 +52,13 @@ function refreshAgentQueue(sessionId?: string): void {
  */
 export function useWebSocket() {
   useEffect(() => {
+    // Mock/no-backend demo (?mock=1): no WS connection. The initial list is
+    // served by the intercepted fetch in mockBackend.
+    if (isMockMode()) {
+      useSessionStore.getState().loadSessions();
+      return;
+    }
+
     wsClient.connect();
 
     // 初始加载兜底：StrictMode dev 下 effect 会 setup→cleanup→setup 重跑，
