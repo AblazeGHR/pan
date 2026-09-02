@@ -265,6 +265,14 @@ export interface ApiClaimResponse {
   error?: ApiErrorInfo;
 }
 
+/** POST /api/sessions/order — custom display order (drag & drop) response. */
+export interface ApiSessionOrderResponse {
+  ok?: boolean;
+  /** Full session id order after the reorder (authoritative server order). */
+  order?: string[];
+  error?: { code?: string; message?: string };
+}
+
 export interface ApiReportSubscribeResponse {
   managerId?: string;
   sessionId?: string;

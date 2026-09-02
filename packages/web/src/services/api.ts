@@ -30,6 +30,7 @@ import type {
   ApiFsGenericResponse,
   FsEntry,
   ApiClaimResponse,
+  ApiSessionOrderResponse,
   ApiReportSubscribeResponse,
   ApiReadonlyResponse,
   ApiQqContactsResponse,
@@ -321,6 +322,28 @@ export async function sendSession(sessionId: string, text: string): Promise<ApiG
 }
 
 // ── Session management (claim / unclaim) ──
+
+/** Persist a custom display order for the session list (drag & drop).
+ *  Body: {"sessionIds": [full desired order]}. Partial reorders are allowed
+ *  server-side (unlisted sessions keep their current relative order), but the
+ *  UI always submits a full order. Returns the authoritative full order. */
+export async function reorderSessions(
+  sessionIds: string[],
+): Promise<{ ok: true; order: string[] }> {
+  const data = await request<ApiSessionOrderResponse>(`${BASE}/sessions/order`, {
+    method: 'POST',
+    body: JSON.stringify({ sessionIds }),
+  });
+  if (data.ok === false) {
+    const error = data.error;
+    const err = new Error(
+      error?.message || 'Reorder failed',
+    ) as Error & { code?: string };
+    err.code = error?.code || 'reorder_failed';
+    throw err;
+  }
+  return { ok: true, order: data.order || [] };
+}
 
 export async function claimSession(
   managerId: string,

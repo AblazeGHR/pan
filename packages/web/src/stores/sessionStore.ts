@@ -14,6 +14,8 @@ import {
   branchSession,
   reimportSession,
 } from '@/services/api';
+import { isMockMode } from '@/demo/mockBackend';
+import { useUIStore } from '@/stores/uiStore';
 
 interface SessionStore {
   // State
@@ -198,6 +200,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         });
         return { sessions: merged };
       });
+
+      // 服务端 order 驱动：custom 排序模式下，把服务端返回的 session 顺序
+      // 同步进 customOrder（另一客户端重排 / 本地 customOrder 过期时仍以服务端
+      // 为准）。mock demo 无后端，顺序归 localStorage 管，跳过。
+      if (!isMockMode() && useUIStore.getState().sortBy === 'custom') {
+        useUIStore.getState().setCustomOrder(sessions.map((s) => s.id));
+      }
 
       // Restore current session messages after refresh — but NEVER clobber the
       // live-rendered messages with a stale snapshot. While streaming, the

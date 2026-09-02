@@ -415,6 +415,13 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('sessions.deleted', () => {
       scheduleRefreshSessions();
     }));
+    // Custom session order persisted (POST /api/sessions/order broadcast). A
+    // debounced full-list refresh re-reads the server snapshot; in custom sort
+    // mode loadSessions aligns customOrder with the authoritative order, so a
+    // reorder from another client is reflected here too.
+    unsubscribers.push(wsClient.on('session.orderUpdated', () => {
+      scheduleRefreshSessions();
+    }));
 
     // Error
     unsubscribers.push(wsClient.on('error', (e: StreamEvent) => {

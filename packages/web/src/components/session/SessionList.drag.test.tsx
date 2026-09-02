@@ -103,9 +103,12 @@ describe('resolveDropZone (宽松命中区域)', () => {
   });
 });
 
-describe('SessionList drag interactions', () => {
+describe('SessionList drag interactions (mock demo)', () => {
   beforeEach(() => {
     localStorage.clear();
+    // These interactions exercise the ?mock=1/no-backend demo branch. The real
+    // backend branch (no mock flag) is covered by SessionList.drag.realBackend.test.tsx.
+    localStorage.setItem('pan:mockDemo', '1');
     useSessionStore.setState({
       sessions: [
         mk('A', 'Alpha', { updatedAt: new Date(Date.now() - 60_000).toISOString() }),
@@ -383,12 +386,14 @@ describe('decideManagerDrop (tree management semantics)', () => {
   });
 });
 
-describe('manager-tree drag interactions', () => {
+describe('manager-tree drag interactions (mock demo)', () => {
   // Tree: B manages A and A2; C is an independent root.
   // preorder in the tree = B, A, A2, C (children render under their manager).
   const managerLayout = { B: 0, A: 64, A2: 128, C: 192 };
 
   beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('pan:mockDemo', '1'); // mock/no-backend branch
     useUIStore.setState({ groupBy: 'manager', sortBy: 'recent', customOrder: [], toastQueue: [] });
     useSessionStore.setState({
       sessions: [

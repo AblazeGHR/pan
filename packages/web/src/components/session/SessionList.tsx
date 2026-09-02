@@ -5,7 +5,9 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { matchesSpecialFilters } from '@/utils/sessionFilters';
 import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
+import type { DropZone } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
+import { claimSession, unclaimSession, reorderSessions } from '@/services/api';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { FolderOpen, Loader2 } from 'lucide-react';
@@ -85,6 +87,107 @@ function collectDescendantIds(node: ManagerNode): string[] {
   };
   walk(node);
   return ids;
+}
+
+/** Full desired session order after an EDGE drop: the dragged session is
+ *  removed and re-inserted right next to the target card (before/after), every
+ *  session that is not visible in the DOM (e.g. collapsed/hidden) keeps its
+ *  current relative position after the visible ones. */
+function buildDropOrderIds(
+  allSessions: Session[],
+  listEl: HTMLElement | null,
+  fallback: Session[],
+  dragId: string,
+  targetId: string,
+  zone: DropZone,
+): string[] {
+  const isRealId = (id: string) => id.length > 0 && !id.startsWith('__pending_');
+  const domCards = listEl?.querySelectorAll<HTMLElement>('[data-session-card-id]');
+  const domIds = domCards
+    ? [...domCards].map((el) => el.dataset.sessionCardId ?? '').filter(isRealId)
+    : fallback.map((s) => s.id).filter(isRealId);
+  const ids = domIds.filter((x) => x !== dragId);
+  const tIdx = ids.indexOf(targetId);
+  if (tIdx >= 0) {
+    ids.splice(zone === 'before' ? tIdx : tIdx + 1, 0, dragId);
+    for (const s of allSessions) {
+      if (isRealId(s.id) && !ids.includes(s.id)) ids.push(s.id);
+    }
+  }
+  return ids;
+}
+
+interface RealDropParams {
+  draggedId: string;
+  draggedName: string;
+  targetName: string;
+  /** Current manager of the dragged session (null = top-level root). */
+  oldManager: string | null;
+  /** Manager the dragged session should have after the drop. */
+  newManager: string | null;
+  /** 'center' → manage-only (no reorder); edge zones also reorder. */
+  zone: DropZone;
+  /** Full desired order (only meaningful for edge drops). */
+  orderIds: string[];
+}
+
+/**
+ * Real-backend persistence for a finished drag. Called ONLY outside mock mode.
+ *
+ * Local state is mutated only AFTER the server confirms, so a failed drop
+ * never fakes success: on error we toast the server message and let the
+ * authoritative list refresh reconcile any partial server-side effect
+ * (e.g. unclaim succeeded but the follow-up claim failed).
+ */
+async function persistSessionDrop(p: RealDropParams): Promise<void> {
+  const sessionStore = useSessionStore.getState();
+  const ui = useUIStore.getState();
+  const { draggedId, draggedName, targetName, oldManager, newManager, zone, orderIds } = p;
+  const findLabel = (id: string | null) =>
+    id ? (sessionStore.sessions.find((s) => s.id === id)?.name ?? id) : null;
+
+  // 1) Management transition (B manage A / move between groups / leave group).
+  //    Server enforces exclusivity, so changing managers = unclaim old first.
+  if (oldManager !== newManager) {
+    try {
+      if (oldManager) await unclaimSession(oldManager, draggedId);
+      if (newManager) await claimSession(newManager!, draggedId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '服务端拒绝';
+      ui.showToast(`管理关系更新失败：${msg}`, 'error');
+      void sessionStore.loadSessions(); // reconcile any partial unclaim
+      return;
+    }
+    sessionStore.updateSession(draggedId, { managedBy: newManager });
+    if (newManager) {
+      const managerName = zone === 'center' ? targetName : findLabel(newManager) ?? newManager;
+      ui.showToast(
+        zone === 'center'
+          ? `「${targetName}」现在管理「${draggedName}」`
+          : `「${draggedName}」已移入「${managerName}」的组`,
+      );
+    } else {
+      ui.showToast(`「${draggedName}」已移出「${findLabel(oldManager) ?? oldManager}」的管理`);
+    }
+  }
+
+  // 2) Persist the display order (edge drops only) and adopt the custom sort
+  //    mode, exactly like the mock demo. The returned order is authoritative.
+  if (zone !== 'center') {
+    try {
+      const res = await reorderSessions(orderIds);
+      const order = res.order && res.order.length > 0 ? res.order : orderIds;
+      const u = useUIStore.getState();
+      u.setCustomOrder(order);
+      u.setSortBy('custom');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '排序失败';
+      ui.showToast(`排序失败：${msg}`, 'error');
+    }
+  }
+
+  // Reconcile the local list with the server snapshot (managed lists / order).
+  void sessionStore.loadSessions();
 }
 
 export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps) {
@@ -179,13 +282,17 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     filtered.sort((a, b) => {
       if (sortBy === 'custom') {
         // Manual drag order; ids missing from customOrder fall back to their
-        // current relative order (ranked after every mapped id).
+        // current relative order (ranked after every mapped id). Two unmapped
+        // ids keep their input (= authoritative server) relative order instead
+        // of re-sorting by updatedAt, so the server-persisted order survives a
+        // refresh even when customOrder is partial/stale.
         const rank = (id: string) => {
           const i = customOrder.indexOf(id);
           return i === -1 ? Number.MAX_SAFE_INTEGER : i;
         };
         const diff = rank(a.id) - rank(b.id);
         if (diff !== 0) return diff;
+        if (rank(a.id) === Number.MAX_SAFE_INTEGER) return 0;
       }
       if (sortBy === 'name') {
         return a.name.localeCompare(b.name);
@@ -416,6 +523,12 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       finishDrag();
       return;
     }
+    // A pending placeholder (mid-creation) has no server identity — dropping
+    // onto/from one would submit an unknown id to /api/claim or the order API.
+    if (dragged.id.startsWith('__pending_') || targetSession.id.startsWith('__pending_')) {
+      finishDrag();
+      return;
+    }
 
     // Manager-tree semantics: decide where this drop wants the dragged
     // session to live (center → target manages it; edge slot → adopt that
@@ -428,11 +541,46 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     );
 
     if (blockedByCycle) {
+      const prefix = isMockMode() ? '[Mock] ' : '';
       showToast(
-        `[Mock] 禁止：不能把「${dragged.name}」移入自己或其下级的组内（会形成递归管理）`,
+        `${prefix}禁止：不能把「${dragged.name}」移入自己或其下级的组内（会形成递归管理）`,
         'error',
       );
       finishDrag();
+      return;
+    }
+
+    const oldManager = dragged.managedBy ?? null;
+    const managerChanged = newManager !== oldManager;
+
+    // ── 非 mock 模式：真实持久化。拖到两张卡片之间 → POST /api/sessions/order；
+    //    拖到卡片中心（B manage A）或拖出/移入管理组 → POST /api/unclaim 与
+    //    /api/claim。只在服务端确认成功后更新本地状态；失败仅弹错误 toast，绝不
+    //    假装成功。mock demo（?mock=1）走下方原本地分支，保持行为不变。
+    if (!isMockMode()) {
+      // center 落点但 A 已由 target 管理 → 与 mock 分支一致的静默 no-op。
+      if (target.zone === 'center' && !managerChanged) {
+        finishDrag();
+        return;
+      }
+      const orderIds = buildDropOrderIds(
+        state.sessions,
+        listRef.current,
+        filteredRef.current,
+        dragged.id,
+        targetSession.id,
+        target.zone,
+      );
+      finishDrag();
+      void persistSessionDrop({
+        draggedId: dragged.id,
+        draggedName: dragged.name || 'Untitled',
+        targetName: targetSession.name || targetSession.id,
+        oldManager,
+        newManager,
+        zone: target.zone,
+        orderIds,
+      });
       return;
     }
 
@@ -456,8 +604,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     // "visible order" is the DOM card order (flat list, or preorder of the
     // manager tree). Entering a group = adopt that manager; landing on a
     // top-level slot = leave the current group (managedBy → null).
-    const oldManager = dragged.managedBy ?? null;
-    const managerChanged = newManager !== oldManager;
+    // (oldManager / managerChanged already computed above, shared with the
+    //  real-backend branch.)
     if (managerChanged) {
       state.updateSession(dragged.id, { managedBy: newManager });
       if (isMockMode()) {

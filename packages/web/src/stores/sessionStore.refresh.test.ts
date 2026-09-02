@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
 import type { Message, Session } from '@/types';
 
 function mk(id: string, name: string, extra?: Partial<Session>): Session {
@@ -314,5 +315,27 @@ describe('sessionStore refresh staleness guards', () => {
       await p1!;
     });
     expect(useSessionStore.getState().sessionsLoading).toBe(false);
+  });
+
+  it('drives customOrder from the authoritative server order in custom sort mode', async () => {
+    // Custom sort + a server snapshot that reflects a drag reorder (real mode,
+    // no pan:mockDemo flag): loadSessions must align customOrder with the
+    // server order so a stale/partial local order can never override it.
+    useSessionStore.setState({ sessions: [], currentSessionId: null });
+    useUIStore.setState({ sortBy: 'custom', customOrder: ['A', 'B'] });
+    try {
+      let promise: Promise<void>;
+      act(() => {
+        promise = useSessionStore.getState().loadSessions();
+      });
+      await act(async () => {
+        resolveNextFetch([mk('B', 'B'), mk('C', 'C'), mk('A', 'A')]);
+        await promise!;
+      });
+
+      expect(useUIStore.getState().customOrder).toEqual(['B', 'C', 'A']);
+    } finally {
+      useUIStore.setState({ sortBy: 'recent', customOrder: [] });
+    }
   });
 });
