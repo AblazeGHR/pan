@@ -246,7 +246,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
     - [编排层对底层 CLI 无感知](#编排层对底层-cli-无感知)
   - [配置](#配置)
   - [API 概览](#api-概览)
-    - [HTTP（`packages/web/server.py`，86 个端点）](#httppackageswebserverpy86-个端点)
+    - [HTTP（`packages/web/server.py`）](#httppackageswebserverpy)
     - [WebSocket](#websocket)
     - [MCP Server（`packages/mcp/server.py`）](#mcp-serverpackagesmcpserverpy)
   - [通道与集成](#通道与集成)
@@ -508,13 +508,13 @@ pnpm dev       # 开发模式：Vite HMR + 代理到后端
 | 目录 | 职责 |
 |------|------|
 | `packages/core/` | Core 模块：进程管理 + 消息路由 + Memory + Adapter。所有外部模块仅通过 HTTP/WS API 与 Core 通信 |
-| `packages/web/` | Web 通道：FastAPI 路由 + WebSocket + Dashboard（86 个 HTTP 端点） |
+| `packages/web/` | Web 通道：FastAPI 路由 + WebSocket + Dashboard（约 99 个 HTTP 路由，2026-09-03 统计） |
 | `packages/qq/` | QQ 通道：NoneBot2 桥接 + 通道插件化 + pan-qq MCP |
 | `packages/mcp/` | MCP Server：编排工具集 + pan-qq，可独立启动 |
 | `packages/remote/` | Cloudflare Tunnel 远程通道 |
 | `scripts/` | 启动 / 停止 / 隧道 / 预提交脚本 |
 | `docs/` | 文档（git 跟踪；`docs/skills/pan/SKILL.md` 是编排知识单一事实源） |
-| `tests/` | 测试（53 个 Python 文件） |
+| `tests/` | 测试（63 个 Python 测试文件 + conftest，`python -m pytest tests/ -q` 收集 806 项，2026-09-03 统计） |
 
 ## 多 CLI 适配
 
@@ -526,7 +526,7 @@ Worker 与具体 CLI 解耦：每种 CLI Agent 对应一个实现 `CliAdapter` �
 | `kimi` | Kimi CLI | stream（wrapper 长驻） | wrapper 内逐条 `kimi -p` |
 | `opencode` | OpenCode CLI | stream（wrapper 长驻） | wrapper 内逐条 `opencode run --format json` |
 | `claude` | Claude Code CLI | stream + oneshot | 默认 `--input-format stream-json`；可选 `outputMode: "oneshot"`，MCP 经 `--mcp-config` 注入 |
-| `codex` | OpenAI Codex CLI | stream（wrapper 长驻） | wrapper 内逐条 `codex exec --json`，MCP 经 `-c mcp_servers.*` 内联注入（零文件污染） |
+| `codex` | OpenAI Codex CLI | stream（wrapper 长驻） | wrapper → 原生 `codex app-server --stdio` 长驻桥（thread/turn 原生语义），不再逐轮 `codex exec`；MCP 经 `-c mcp_servers.*` 内联注入（零文件污染） |
 
 配套的 `SessionsProvider` 协议（`packages/core/adapters/base.py`）把各 CLI 的原生会话存储（历史 / usage / 标题 / fork）统一为同一套读写接口；server 按 adapter 名取 provider，新增一个 CLI 无需再写 import / branch / rename 的分派逻辑（`/api/adapters/{adapter}/sessions[/import]` 通用端点）。
 
@@ -603,21 +603,36 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 
 ## API 概览
 
-### HTTP（`packages/web/server.py`，86 个端点）
+### HTTP（`packages/web/server.py`）
+
+> 约 99 个 HTTP 路由（2026-09-03 统计）；完整字段与请求体见 [`docs/skills/pan/references/http-api.md`](docs/skills/pan/references/http-api.md)。
 
 **Session 管理**
 
 ```
-GET    /api/sessions                    → 列举所有 Session
+GET    /api/sessions                    → 列举所有 Session（?summary=1 精简）
 POST   /api/sessions                    → 创建 Session
 GET    /api/sessions/{id}               → 获取 Session 详情
 GET    /api/sessions/{id}/history       → 获取历史消息（分页）
+GET    /api/sessions/{id}/managers      → 上级 manager 链
 PATCH  /api/sessions/{id}               → 更新 Session（含 requireRestart 语义）
 POST   /api/sessions/{id}/rename        → 重命名
 POST   /api/sessions/{id}/branch        → 分支 Session
 POST   /api/sessions/{id}/handoff       → 替身交接（创建孪生 Session 接替）
 DELETE /api/sessions/{id}               → 删除 Session
 POST   /api/sessions/batch-delete       → 批量删除
+POST   /api/sessions/order              → 持久化自定义显示顺序（前端拖拽排序）
+```
+
+**会话队列（持久 inbox，`queue_pending`）**
+
+```
+GET    /api/sessions/{id}/queue         → 服务端队列快照（仅仍 queued 的项）
+POST   /api/sessions/{id}/queue         → 用户消息入队（返回 queueItemId，落盘确认）
+PATCH  /api/sessions/{id}/queue/order   → 重排整个队列
+PATCH  /api/sessions/{id}/queue/{item_id}  → 编辑队列项（仅 user 源、queued）
+DELETE /api/sessions/{id}/queue/{item_id}  → 删除队列项
+POST   /api/sessions/{id}/queue/{item_id}/retry → 重试（保留原 queueItemId）
 ```
 
 **Worker 管理**
@@ -640,10 +655,12 @@ GET    /api/worker/{id}/takeover-command → 生成接管命令（不执行）
 
 ```
 POST   /api/assign                      → 异步派发任务（taskId 幂等）
+POST   /api/notify                      → 持久化后台任务通知（agent_notify 后端）
 POST   /api/report-subscribe            → 订阅 Worker 报告（同时建立 managed 关系）
 POST   /api/report-unsubscribe          → 退订报告
-POST   /api/claim                       → 绑定 managed 关系
+POST   /api/claim                       → 绑定 managed 关系（可一键把 Session 拖入对方管理）
 POST   /api/unclaim                     → 解除 managed 关系（同时退订报告）
+POST   /api/readonly                    → 对已管理 Session 设置/清除只读（拒绝外来任务）
 ```
 
 **QQ 绑定**
@@ -713,12 +730,12 @@ GET    /api/worker/{id}/takeover-command → 生成 takeover 命令
 ### WebSocket
 
 ```
-WS   /ws           Dashboard：仅接收 user_inject；广播全部事件
+WS   /ws           Dashboard：接收 user_inject（入队）/ worker_control / sync_interactive（交互快照回放）；广播全部事件
 WS   /ws/agent     Meta-Agent：subscribe（按 eventTypes / sessionIds 过滤 + 重连补发）、
                    reconnect、task、spawn、assign、send、kill、list
 ```
 
-广播事件：`worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`、`session.created` / `session.updated` / `session.renamed` / `session.deleted` / `sessions.deleted`、`error`。
+广播事件：`worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`、`session.created` / `session.updated` / `session.renamed` / `session.deleted` / `session.orderUpdated` / `sessions.deleted`、`queue.item_added` / `queue.item_updated` / `queue.item_removed` / `queue.snapshot`、`error`。完整协议见 `docs/skills/pan/references/ws-protocol.md`。
 
 ### MCP Server（`packages/mcp/server.py`）
 
@@ -780,6 +797,7 @@ Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部
 | `qq_read_conversation` | 读取 QQ 会话对话记录（本地落盘，非框架缓存） |
 | `qq_read_inbox` | 读取 QQ 会话待处理消息（selective 模式下由编排者消费） |
 | `qq_list_contacts` | 列出可联系的 QQ 会话（好友 / 群合并去重） |
+| `qq_send_file` | 向 QQ 私聊/群聊发送文件（本地路径或 URL） |
 | `qq_bind` / `qq_unbind` | 绑定 / 解绑当前 Pan session 到 QQ 会话（订阅其 inbox 更新提醒） |
 
 #### 接入方式

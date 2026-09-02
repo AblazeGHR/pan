@@ -13,9 +13,9 @@
 |---|----|------|--------|
 | D1 | **workdir 放行策略** | `_ALLOWED_WORKDIR_ROOTS=None` 对绝对路径直接放行，结合 `/api/fs/*` 可读写删任意目录——鉴权推迟后唯一实际安全边界（A 白名单根目录 / B 绝对路径只读 / C 维持现状） | **优先决策** |
 | D2 | **manifest 信任模型** | `_parse_mcp_server` 不校验 command/args/env/cwd，manifest 可声明任意可执行文件被 CLI 子进程执行（A 视为受信记录在案 / B 校验 + command 白名单） | 中 |
-| D3 | **server.py 拆分** | God object，70+ HTTP 路由横跨多领域（A 按领域拆 Router / B 抽公共 helper / C service 层） | 中 |
+| D3 | **server.py 拆分** | God object，约 99 个 HTTP 路由横跨多领域（2026-09-03 统计；早前「70+」为旧基线）（A 按领域拆 Router / B 抽公共 helper / C service 层） | 中 |
 | D4 | **legacy app.ts 去留** | God file；现挂 `/vanilla` 稳定备份入口（倾向 A 冻结，只修 bug） | 低 |
-| D5 | **enrich 协议 sync→async** | ⚠️ 2026-08-27 复核：`time.sleep(0.2)` 已移至 `cbc/adapter.py:448`（`enrich_after_result` 内），worker 侧出现 `asyncio.to_thread` 迹象——是否仍阻塞事件循环**待复核**后再决策 | 低 |
+| D5 | **enrich 协议 sync→async** | ⚠️ 2026-09-03 复核：`time.sleep(0.2)` 仍在 `cbc/adapter.py:475`（`enrich_after_result` 内，行号随代码漂移；kimi 侧 `:450` 为 `sleep(0.3)`），是否阻塞事件循环/是否走 `asyncio.to_thread` **待复核**后再决策 | 低 |
 | ~~D6~~ | ~~kimi fork 判定~~ | **已解决（2026-08-27 核对）**：`kimi/adapter.py` `fork_args` 已实现目录复制 fork（调 `kimi_sessions.fork_kimi_session`），不再无条件返回 `[]` | ✅ |
 | D7 | **Session 原子写 + 缓存锁** | `write_text` 非原子 + `save_async` 并发写 + `_cache` 无锁（临时文件 + `os.replace` + `threading.Lock`） | 中 |
 | D8 | **广播并发发送** | `broadcast` 对同一 WS 无锁并发 `send_json`（慢客户端超时已修，连接级锁未做） | 低 |
@@ -33,7 +33,7 @@
 | L5 MCP 隔离细节 | 隔离的权限边界、claim 释放时机、与报告订阅的交互 | 阶段计划与进度.md |
 | ~~R1 idle 覆盖边缘窗口~~ | **已解决（2026-08-29）**：watchdog 在 idle 回收前检查 `pending_signal` 与持久 `queue_pending`，有待消费工作时保留 worker；补回归测试 | 阶段计划与进度.md |
 | ~~R2 补 3 个集成测试~~ | **已完成（2026-08-29）**：新增 Codex stream 序号/终态配对、WS 中途断线后新序号补发，以及超时→kill→同 taskId 重试回归覆盖 | 阶段计划与进度.md |
-| 测试夹具用户名 | `tests/test_kimi_adapter.py:19` `KIMI_TEST_WORKDIR` 含本机用户名，其他机器跑测试失败（2026-08-27 核对仍存在） | 跨设备移植报告 / 阶段计划与进度.md |
+| ~~测试夹具用户名~~ | ~~`tests/test_kimi_adapter.py:19` `KIMI_TEST_WORKDIR` 含本机用户名，其他机器跑测试失败~~ **已缓解（2026-09-03 核对）**：夹具仍含本机路径，但已由 `skipif`（目录不存在即跳过，reason="kimi test workdir absent (machine-local data)"）兜底，其他机器不再失败而是跳过该组 | 跨设备移植报告 / 阶段计划与进度.md |
 | Python 依赖环境收敛 | 依赖审计（2026-09-02）发现 Pan `.venv`、C 盘全局 Python 和 Miniforge 存在同栈副本及版本漂移；先生成/核对锁定依赖并评估仓库外 canonical venv（建议 `D:\pan-venv`），再决定是否收敛或清理，当前不迁移/删除现有环境 | 依赖共享审计-2026-09-02 |
 | Pan main service restart 实机链路 | 实机点击后未观察到主服务/worker 重新创建：8768 仍由原进程树监听，`process.pid` 记录的主 PID 与实际监听 PID 不一致，`pan-restart.log` 无本次记录。待服务空闲时验证并修复 `POST /api/main/restart` → detached supervisor → `stop_pan.bat` → `start_pan.bat` 全链路；补充 supervisor 失败反馈、PID/子进程归属和新 PID/启动时间验收，不能只以 `scheduled` 作为成功。 | 服务空闲且允许中断时 |
 | opencode handoff 复验 | 原 worker_handoff 已移除；新 `agent_assign`（别名 worker_assign）/`session_handoff` 链路下 opencode stream 完成信号是否仍超时未复验 | design/opencode-adaptation.md |
@@ -63,24 +63,26 @@
 | gemini adapter | 调研表已列，未接 | 有需求时 | design/adapter-architecture.md §6 |
 | aider 接入 | 收益最低（无 resume/结构化输出） | 低优先级 | design/adapter-architecture.md §7 |
 | P1 oneshot Legacy 前端跟随 | `ts/app.ts` 补 executionModes / output mode UI | 低优先可选 | design/adapter-p1-oneshot.md |
-| `_extract_cbc_error` 收编 adapter | 仍在 `worker.py:1119`（2026-08-27 核对）；可搬进 adapter 作可选收尾 | 低优先可选 | design/adapter-p1-oneshot.md |
+| `_extract_cbc_error` 收编 adapter | 仍在 `worker.py:3188`（2026-09-03 核对，行号随重构漂移）；可搬进 adapter 作可选收尾 | 低优先可选 | design/adapter-p1-oneshot.md |
 | kimi MCP 方案 A 兜底 | 合并用户级 mcp.json；仅设计保留，未落地 | 方案 C 失效时 | design/kimi-mcp-solution.md |
-| 服务端消息队列 | `Session.send_queue` + CRUD API，客户端退化为镜像 | 远期方向 | archive/design-message-queue.md |
+| ~~服务端消息队列~~ | ~~`Session.send_queue` + CRUD API，客户端退化为镜像~~ **已实现（2026-09-01 第一版，2026-09-03 复核）**：`Session.queue_pending` 统一为服务端权威队列 + `/api/sessions/{id}/queue` CRUD/编辑/排序/retry 端点，用户消息落盘确认后才 accepted；现行语义见 `docs/design/queue-at-most-once.md`、`docs/plans&overviews/统一服务端消息队列改动计划.md` | ✅ 已实现 | archive/design-message-queue.md（已归档） |
 | session_import 增强 | import 端点 `_check_session_name` 校验、`action="browse"` 文件树浏览 | 可选，量大时 | archive/design-import-session-mcp.md |
 | QQ 富媒体 / 全事件上行 / 反向控制 | QQ 通道后续方向 | 有需求时 | archive/qq-llm-management-survey.md |
-| LICENSE | 仓库未附开源许可证 | 发布前 | README.md |
+| ~~LICENSE~~ | ~~仓库未附开源许可证~~ **已解决（2026-09-03 核对）**：仓库根已有 `LICENSE`（git 跟踪），README.md 末附许可证段 | 发布前 | README.md |
 
 ---
 
 ## 四、前端细化（活跃计划）
 
-来源：`docs/frontend-polish-plan.md`（全部未动工，其中 P1-1 已核实无对应组件目录）。
+来源：`docs/frontend-polish-plan.md`。**2026-09-03 复核现状**：P0-2 的自定义排序/拖拽已在 main 落地（同层拖拽 = `POST /api/sessions/order` 真实 API，拖入其他 manager 卡片正中 = `claim`/`unclaim`；`?mock=1` 演示模式除外）；其余方向仍开放，明细如下：
 
-- [ ] P0-1 消息交互打磨
-- [ ] P0-2 会话列表打磨
-- [ ] P1-1 记忆 / 搜索面板（memory/search 前端零使用）
-- [ ] P1-2 设置 / Postbox 打磨
+- [ ] P0-1 消息交互打磨（流式布局稳定 / 长代码块与表格的折叠复制 / 重新生成）
+- [x] P0-2 会话列表打磨（**部分**）：搜索/过滤（subagent/metaagent）、分组视图、**自定义排序 + 拖拽**已在 main（2026-08-27~09-03，`1d705dc`/`11c187f`/`80d4efa`/`11420d7`）。仍缺：**置顶/归档**（Session 无 `pinned`/`archived` 字段，前端无对应开关）
+- [ ] P1-1 记忆 / 搜索面板（`memory/*` API 前端仍零使用，无 memory 面板组件——2026-09-03 复核）
+- [ ] P1-2 设置 / Postbox 打磨（模型/effort 设置、联系人搜索等）
 - [ ] P2 批量视觉/交互打磨
+
+> 注：`docs/frontend-polish-plan.md` 侦察期的「56 HTTP 端点」「17 个测试文件」等数字已被 README/http-api.md 更新取代（2026-09-03 约 99 路由、React vitest 测试文件数见仓库现状），不再引用。
 
 ---
 
@@ -92,7 +94,7 @@
 |--------|----|------|
 | 高 | config.json 去机器化 | `remote.config_path` 可空 + `PAN_CF_CONFIG` / `%USERPROFILE%` 兜底；`plugin_manifests` 移除仓库外引用或改环境变量占位（本机配置，整体拷贝迁移必改） |
 | 高 | .mcp.json / data/mcp-configs 相对化 | 用仓库根推导 command/cwd（或 `${PAN_ROOT}` 占位符） |
-| 中 | server.py 残余 CWD 依赖 | 约 L691/1838/1953/2095/2264 共 5 处 `Path.cwd()` 兜底（2026-08-27 复核仍在），是否改仓库根推导待决策（与 D1 可合并考虑） |
+| 中 | server.py 残余 CWD 依赖 | 多处 `Path.cwd()` 兜底（2026-08-27 复核仍在；行号随重构漂移，详见 `docs/跨设备移植报告-2026-08-19.md` §二·改），是否改仓库根推导待决策（与 D1 可合并考虑） |
 | 中 | 历史会话迁移 | `~/.codebuddy/projects`、`~/.kimi-code`、`~/.claude/projects`、`~/.codex` 整体拷贝 + 保持项目路径一致 |
 | 中 | CDN vendor 本地化 | `packages/web/index.html` 等的 jsdelivr（katex/marked/highlight）+ Google Fonts，离线机器前端渲染失效 |
 | 低 | tunnel 凭据 | 整体拷贝带上 `.cloudflared`；否则切 `quick_tunnel: true` |

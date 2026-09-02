@@ -183,6 +183,8 @@ python -m packages.mcp.server --transport stdio
 
 左侧 Sidebar 是会话列表；Chat 与当前 Session 对话；Editor 浏览和编辑当前 Session 的 `workdir`；顶栏有 **Start、Restart、Interrupt、Takeover、Kill**。右键会话菜单包含当前可见的 Rename、Branch、Manage、Postbox、Delete 等操作。
 
+会话卡片支持**拖拽**：同层拖动改变列表显示顺序（持久化到服务端，等价自定义排序 `POST /api/sessions/order`）；把一张卡片拖到另一张卡片正中会快速建立/解除管理关系（等价 Manage 面板的 Manage/Managed，走 claim/unclaim）。
+
 ### 5.1 Manage 面板
 
 **Manage** 打开 `Manage Sessions`，不是打开 Worker 终端，而是管理关系、完成报告订阅、MCP 权限和 MCP server 的面板。它有四部分：

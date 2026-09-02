@@ -98,6 +98,8 @@ Install `docs/skills/pan/SKILL.md` into the Agent CLI’s skill location. Verify
 
 The Sidebar lists Sessions; Chat talks to the selected Session; Editor accesses its workdir. The top bar exposes **Start**, **Restart**, **Interrupt**, **Takeover**, and **Kill**. A session context menu contains actions including **Manage** and **Postbox**.
 
+Session cards support **drag & drop**: dragging within the same level changes the display order (persisted server-side, equivalent to the custom sort `POST /api/sessions/order`); dropping a card onto the center of another card quickly establishes/releases the managed relationship (equivalent to Manage/Managed in the Manage panel, via claim/unclaim).
+
 **Manage Sessions** has four areas: **Managed by** (parent manager), **Manages** (Manage/Managed relationship buttons and independent Subscribe/Subscribed report buttons), **Pan Access**, and **MCP Server** selection. **Postbox** is for QQ inbox subscriptions, not Worker completion reports.
 
 ## 6. Manage and parent-child relationships

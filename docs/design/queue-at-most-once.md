@@ -1,5 +1,8 @@
 # Durable queue hand-off semantics
 
+> 状态：现行实现语义契约（2026-09-03 复核，对应 main 的 `queue_pending`/`queue_delivery_ledger`
+> 代码）。服务端权威队列 API 见 `docs/skills/pan/references/http-api.md`「会话队列 / 排序」。
+
 `Session.queue_pending` is the only durable delivery queue for dashboard/user
 tasks, agent tasks, reports and QQ reminders. `Worker.pending_signal` is an
 in-memory wake-up channel only: it contains no message body and is discarded
