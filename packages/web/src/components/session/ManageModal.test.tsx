@@ -74,8 +74,137 @@ describe('ManageModal', () => {
     await waitFor(() =>
       expect(apiMock.unclaimSession).toHaveBeenCalledWith('mgr', 's1'),
     );
-    expect(await screen.findByText('Unmanaged / 未托管')).toBeTruthy();
+    // Unmanage must not be mislabeled as a report toggle, and only unclaim is
+    // allowed to drop the manage link.
+    expect(apiMock.reportUnsubscribe).not.toHaveBeenCalled();
+    expect(await screen.findByText('Unmanaged')).toBeTruthy();
     expect(screen.queryByTitle(/Break the manage link/)).toBeNull();
+  });
+
+  // fetchSession resolves the panel's session ("s1") and its manager ("mgr")
+  // separately so section 1 can mirror the manager's row controls for s1.
+  function mockManagedByParent(extra?: Partial<Session>) {
+    apiMock.fetchSession.mockImplementation(async (id: string) => {
+      if (id === 'mgr') {
+        return mk('mgr', 'Boss', {
+          managed: ['s1'],
+          reportSubscriptions: ['s1'],
+        });
+      }
+      return mk('s1', 'Child', {
+        managedBy: 'mgr',
+        managed: [],
+        reportSubscriptions: [],
+        ...extra,
+      });
+    });
+  }
+
+  it('mirrors the manager row for a managed session with concise English actions', async () => {
+    mockManagedByParent();
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    const box = section(0);
+    expect(await screen.findByTitle(/Break the manage link/)).toBeTruthy();
+    expect(box.getByText('Boss')).toBeTruthy();
+    expect(box.getByText('mgr')).toBeTruthy();
+    // The manager auto-subscribes on claim, so "Stop reports" is the active state.
+    expect(box.getByRole('button', { name: 'Stop reports' })).toBeTruthy();
+    const readonly = box.getByRole('button', { name: 'Readonly' });
+    expect(readonly.getAttribute('aria-pressed')).toBe('false');
+    expect(box.queryByText('Unmanaged')).toBeNull();
+  });
+
+  it('stops reports without breaking management (report-unsubscribe only)', async () => {
+    mockManagedByParent();
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    const stop = await screen.findByRole('button', { name: 'Stop reports' });
+    fireEvent.click(stop);
+    await waitFor(() =>
+      expect(apiMock.reportUnsubscribe).toHaveBeenCalledWith('mgr', 's1'),
+    );
+    // Only report-unsubscribe ran: management must stay intact.
+    expect(apiMock.unclaimSession).not.toHaveBeenCalled();
+    expect(apiMock.reportSubscribe).not.toHaveBeenCalled();
+
+    // Still managed: the manager stays listed and the button flips so the user
+    // can resume reports.
+    const box = section(0);
+    expect(box.getByText('Boss')).toBeTruthy();
+    expect(box.queryByText('Unmanaged')).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Start reports' })).toBeTruthy();
+
+    // Resuming reports re-subscribes (mirror of the manager's Subscribe action).
+    fireEvent.click(section(0).getByRole('button', { name: 'Start reports' }));
+    await waitFor(() =>
+      expect(apiMock.reportSubscribe).toHaveBeenCalledWith('mgr', 's1'),
+    );
+    expect(await screen.findByRole('button', { name: 'Stop reports' })).toBeTruthy();
+    expect(box.getByText('Boss')).toBeTruthy();
+  });
+
+  it('toggles managed readonly via the readonly endpoint and reflects success', async () => {
+    mockManagedByParent({ readonlySession: false });
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    const readonly = await waitFor(() =>
+      section(0).getByRole('button', { name: 'Readonly' }),
+    );
+    expect(readonly.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(readonly);
+    await waitFor(() =>
+      expect(apiMock.setSessionReadonly).toHaveBeenCalledWith('mgr', 's1', true),
+    );
+    // The readonly path must not touch management or report subscriptions.
+    expect(apiMock.unclaimSession).not.toHaveBeenCalled();
+    expect(apiMock.reportUnsubscribe).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(readonly.getAttribute('aria-pressed')).toBe('true'),
+    );
+    expect(section(0).getByText('Boss')).toBeTruthy();
+  });
+
+  it('does not fake readonly success when the readonly call fails', async () => {
+    mockManagedByParent({ readonlySession: false });
+    apiMock.setSessionReadonly.mockRejectedValueOnce(new Error('readonly failed'));
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    const readonly = await waitFor(() =>
+      section(0).getByRole('button', { name: 'Readonly' }),
+    );
+    fireEvent.click(readonly);
+    await waitFor(() =>
+      expect(apiMock.setSessionReadonly).toHaveBeenCalledWith('mgr', 's1', true),
+    );
+    // No optimistic local update on failure: the toggle stays off and the
+    // manage link is untouched.
+    expect(readonly.getAttribute('aria-pressed')).toBe('false');
+    expect(section(0).getByText('Boss')).toBeTruthy();
+    expect(apiMock.unclaimSession).not.toHaveBeenCalled();
+  });
+
+  it('hides managed-by actions when the session is unmanaged', async () => {
+    apiMock.fetchSession.mockResolvedValue(
+      mk('s1', 'Solo', { managed: [], reportSubscriptions: [] }),
+    );
+    useSessionStore.setState({
+      sessions: [mk('s1', 'Solo')],
+      currentSessionId: 's1',
+      loadSessions: vi.fn(async () => {}),
+    });
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+
+    const box = section(0);
+    expect(await screen.findByText('Unmanaged')).toBeTruthy();
+    expect(box.queryByRole('button', { name: 'Unmanage' })).toBeNull();
+    expect(box.queryByRole('button', { name: 'Stop reports' })).toBeNull();
+    expect(box.queryByRole('button', { name: 'Readonly' })).toBeNull();
   });
 
   it('patches a single pan_access flag without touching the others', async () => {
