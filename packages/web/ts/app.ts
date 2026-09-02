@@ -60,16 +60,13 @@ interface WorkerEvent {
 interface StreamEvent {
   type: string;
   sessionId?: string;
-  workerId?: string | null;
+  workerId?: string;
   generation?: number;
   event?: WorkerEvent;
   message?: string;
   status?: string;
   name?: string;
   cliSessionId?: string;
-  queueItemId?: string;
-  queueRevision?: number;
-  item?: QueuedMessage;
 }
 
 interface ApiSessionsResponse {
@@ -161,33 +158,12 @@ interface SyncedSettings {
   outputMode: string;
 }
 
-/** 服务端队列项（Session.queue_pending 的归一化视图）。 */
-type QueueDispatchState =
-  | 'queued'
-  | 'reserved'
-  | 'writing'
-  | 'sent_to_cli'
-  | 'write_failed'
-  | 'unknown_after_crash'
-  | 'deleted';
-
+/** 客户端发送队列项（localStorage 按 sessionId 持久化）。 */
 interface QueuedMessage {
-  id: string;
-  queueItemId: string;
-  kind: 'task' | 'report' | 'qq';
-  text: string;
-  createdAt: number | string;
-  source?: string;
-  meta?: {
-    dispatchState?: QueueDispatchState;
-    revision?: number;
-  };
-}
-
-interface ApiSessionQueueResponse {
-  items?: QueuedMessage[];
-  queueRevision?: number;
-  error?: string | { code?: string; message?: string };
+  id: string;        // 唯一标识（重排/编辑/删除的 key）
+  text: string;      // 原文（渲染时单行截断，存全文）
+  createdAt: number; // 入队时间戳
+  status: 'pending'; // 首版恒 pending，预留扩展
 }
 
 // ── State ──
@@ -237,26 +213,31 @@ let _historyLoadEnd: number = 0;
  *  rather than user scroll-up; signals the callback to scroll to bottom. */
 let _loadOlderToBottom: boolean = false;
 const _inputDrafts: Map<string, string> = new Map();
-/** Legacy localStorage key is cleanup-only; the business queue is server-side. */
+/** 发送队列：localStorage key 前缀 + 每 session 上限 */
 const _QUEUE_KEY_PREFIX = 'pan.sendQueue.';
 const _QUEUE_MAX = 50;
-/** 内存镜像：按 sessionId 隔离；只缓存最近一次服务端快照。 */
+/** 批量拼接发送开关的 localStorage key 前缀（per-session 布尔） */
+const _BATCH_KEY_PREFIX = 'pan.sendQueue.batch.';
+/** 批量拼接发送在单飞锁 `_queueSendingId` 中使用的哨兵值（真实队列项 id 不可能等于它） */
+const _BATCH_SENDING_ID = '__batch__';
+/** 内存镜像：按 sessionId 隔离，随 storage 读写同步 */
 const _queueCache: Map<string, QueuedMessage[]> = new Map();
-const _queueRevision: Map<string, number> = new Map();
-const _queueLoadVersion: Map<string, number> = new Map();
-/** 编辑态仅存在内存；该 key 只用于清理由旧版页面留下的标记。 */
+/** 当前正在发送的队列项 id（防 idle 事件重复触发导致同一条被发两次）；
+ *  批量拼接发送时置为 `_BATCH_SENDING_ID`，拼接消息也算 1 条发送中。 */
+let _queueSendingId: string | null = null;
+/** 编辑中出队消息的待恢复记录（localStorage 按 session 持久化，刷新/切换 session 后恢复）。
+ *  编辑中的消息从队列出队后写入；保存/取消时清除。 */
 const _QUEUE_EDIT_KEY_PREFIX = 'pan.sendQueue.edit.';
 interface QueuedEditPending {
-  id: string;          // 服务端队列项 id
+  id: string;          // 出队消息 id（恢复后仍是原 id，保证不重复）
   sessionId: string;   // 所属 session
-  index: number;       // 原位置（仅用于编辑行显示）
-  originalText: string; // 原文（取消时恢复显示）
+  index: number;       // 原位置（保存/取消时插回）
+  originalText: string; // 原文（取消 / 刷新恢复用）
   draftText: string;   // 编辑框当前内容（仅内存，重绘时保留）
-  createdAt: number | string; // 原入队时间（仅用于编辑态显示）
-  revision?: number;   // 开始编辑时的服务端队列 revision
+  createdAt: number;   // 原入队时间（插回时保留，恢复后顺序一致）
 }
 /** 当前编辑中的出队消息（全局同一时刻至多一条）。
- *  编辑期间服务端队列项仍存在，保存时用 revision 防止覆盖并发修改。 */
+ *  编辑期间该消息不在队列里，flushQueue()/getQueue() 都看不到，不可能被自动发出。 */
 let _editingPending: QueuedEditPending | null = null;
 /** Per-session set of unread thinking/tool content hashes */
 const _sessionUnread: Map<string, Set<string>> = new Map();
@@ -439,10 +420,7 @@ var _wsUrl: string = wsProtocol + location.host + '/ws';
 
 function connectWs(): void {
   ws = new WebSocket(_wsUrl);
-  ws.onopen = function () {
-    refreshSessions();
-    if (currentSessionId) void loadQueue(currentSessionId);
-  };
+  ws.onopen = refreshSessions;
   ws.onmessage = onWsMessage;
   ws.onclose = function () {
     console.warn('[WS] disconnected, reconnecting in 3s');
@@ -478,13 +456,6 @@ function onWsMessage(e: MessageEvent): void {
     case 'session.renamed':
     case 'session.updated':
       refreshSessions();
-      break;
-    case 'queue.item_added':
-    case 'queue.item_updated':
-    case 'queue.item_removed':
-    case 'queue.snapshot':
-    case 'queue.item_delivered':
-      if (d.sessionId) void loadQueue(d.sessionId);
       break;
     // session.created / session.deleted: 乐观UI已处理，不触发WS刷新
     case 'error':
@@ -852,11 +823,12 @@ function selectSession(id: string): void {
   renderSessionList();
   updateTopBar();
   renderMessages(s.history || []);
-  // 切回 session：清理旧版编辑标记，再从服务端读取队列真相。
+  // 切回 session：恢复上次被中断编辑的待恢复项（刷新 / 切换遗留），再渲染队列
   _restoreInterruptedEdit(id);
+  // 切换 session：从 localStorage 恢复该会话的发送队列并尝试自动发送
   renderQueuePanel();
   updateQueueBadge();
-  void loadQueue(id);
+  flushQueue();
   // 重新选中同一 session 且仍在编辑：重绘后恢复编辑框焦点
   if (_editingPending && _editingPending.sessionId === id) {
     const listEl = document.getElementById('queueList');
@@ -1701,7 +1673,7 @@ function killWorker(): void {
     });
 }
 
-// ── Send queue (server-side, unified across all sources) ──
+// ── Send queue (client-side, localStorage per session) ──
 
 function _genQueueId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -1710,59 +1682,105 @@ function _genQueueId(): string {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
-async function loadQueue(sessionId: string): Promise<QueuedMessage[]> {
-  const version = (_queueLoadVersion.get(sessionId) || 0) + 1;
-  _queueLoadVersion.set(sessionId, version);
+function loadQueue(sessionId: string): QueuedMessage[] {
   try {
-    const response = await fetch('/api/sessions/' + encodeURIComponent(sessionId) + '/queue');
-    const data: ApiSessionQueueResponse = await response.json();
-    if (!response.ok || data.error) {
-      throw new Error(_queueError(data.error) || '读取发送队列失败');
-    }
-    const items = Array.isArray(data.items) ? data.items.slice(0, _QUEUE_MAX) : [];
-    if (_queueLoadVersion.get(sessionId) !== version) return getQueue(sessionId);
-    _queueCache.set(sessionId, items);
-    if (typeof data.queueRevision === 'number') _queueRevision.set(sessionId, data.queueRevision);
-    if (currentSessionId === sessionId) {
-      renderQueuePanel();
-      updateQueueBadge();
-    }
-    return items;
-  } catch (error) {
-    if (currentSessionId === sessionId) toast('读取发送队列失败：' + _errorMessage(error));
-    return getQueue(sessionId);
+    const raw = localStorage.getItem(_QUEUE_KEY_PREFIX + sessionId);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(function (x: unknown): x is Record<string, unknown> {
+        return !!x && typeof x === 'object' && typeof (x as Record<string, unknown>).text === 'string';
+      })
+      .map(function (x): QueuedMessage {
+        const anyX = x as Record<string, unknown>;
+        return {
+          id: typeof anyX.id === 'string' ? anyX.id : _genQueueId(),
+          text: String(anyX.text),
+          createdAt: typeof anyX.createdAt === 'number' ? anyX.createdAt : Date.now(),
+          status: 'pending',
+        };
+      })
+      .slice(0, _QUEUE_MAX);
+  } catch (e) {
+    return [];
   }
 }
 
 function getQueue(sessionId: string): QueuedMessage[] {
-  return _queueCache.get(sessionId) || [];
+  let q = _queueCache.get(sessionId);
+  if (q) return q;
+  q = loadQueue(sessionId);
+  _queueCache.set(sessionId, q);
+  return q;
 }
 
-function _queueError(error: ApiSessionQueueResponse['error']): string {
-  if (typeof error === 'string') return error;
-  return error && typeof error.message === 'string' ? error.message : '';
-}
-
-function _errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error || '未知错误');
-}
-
-function persistQueue(sessionId: string, queue: QueuedMessage[], revision?: number): void {
+function persistQueue(sessionId: string, queue: QueuedMessage[]): void {
   _queueCache.set(sessionId, queue.slice());
-  if (revision !== undefined) _queueRevision.set(sessionId, revision);
+  try {
+    localStorage.setItem(_QUEUE_KEY_PREFIX + sessionId, JSON.stringify(queue));
+  } catch (e) {
+    console.warn('[sendQueue] persist failed', e);
+  }
 }
 
 /** 删除 session 对应的队列存储（session 删除时清理孤儿 key）。
  *  同时清理该 session 的编辑待恢复记录，并放弃指向它的内存编辑态。 */
 function _removeQueueStorage(sessionId: string): void {
   _queueCache.delete(sessionId);
-  _queueRevision.delete(sessionId);
-  _queueLoadVersion.delete(sessionId);
   try {
     localStorage.removeItem(_QUEUE_KEY_PREFIX + sessionId);
+    localStorage.removeItem(_BATCH_KEY_PREFIX + sessionId);
   } catch (e) { /* ignore */ }
   if (_editingPending && _editingPending.sessionId === sessionId) _editingPending = null;
   _clearEditPendingStorage(sessionId);
+}
+
+// ── 批量拼接发送开关（per-session，localStorage 布尔）──
+
+function _batchKey(sessionId: string): string {
+  return _BATCH_KEY_PREFIX + sessionId;
+}
+
+function isBatchEnabled(sessionId: string): boolean {
+  try {
+    return localStorage.getItem(_batchKey(sessionId)) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function setBatchEnabled(sessionId: string, on: boolean): void {
+  try {
+    if (on) localStorage.setItem(_batchKey(sessionId), '1');
+    else localStorage.removeItem(_batchKey(sessionId));
+  } catch (e) { /* ignore */ }
+}
+
+/** 勾选/取消"拼接发送"：状态按当前 session 立即持久化（渲染时由 renderQueuePanel 恢复）。 */
+function onBatchToggle(): void {
+  if (!currentSessionId) return;
+  const cb = document.getElementById('queueBatchToggle') as HTMLInputElement | null;
+  if (!cb) return;
+  setBatchEnabled(currentSessionId, cb.checked);
+}
+
+// ── 编辑中出队消息的待恢复记录（localStorage 按 session 持久化）──
+// 编辑开始时消息即从队列出队；若此时刷新页面或切换 session，编辑态随内存丢失，
+// 靠这份记录把消息插回队列，避免"编辑到一半页面刷新 → 消息丢失"。
+
+/** 待恢复记录落盘（原文 + 原位置；草稿 draftText 只存内存，不落盘）。 */
+function _persistEditPending(p: QueuedEditPending): void {
+  try {
+    localStorage.setItem(_QUEUE_EDIT_KEY_PREFIX + p.sessionId, JSON.stringify({
+      id: p.id,
+      text: p.originalText,
+      index: p.index,
+      createdAt: p.createdAt,
+    }));
+  } catch (e) {
+    console.warn('[sendQueue] persist edit pending failed', e);
+  }
 }
 
 /** 清除 session 的待恢复记录（保存/取消/删除 session 时）。 */
@@ -1772,8 +1790,31 @@ function _clearEditPendingStorage(sessionId: string): void {
   } catch (e) { /* ignore */ }
 }
 
-/** 入队：服务端负责持久化、幂等和唤醒 Worker；本地只保留快照。 */
-async function enqueueMessage(text: string): Promise<void> {
+/** 读取 session 的待恢复项（被中断的编辑，刷新/切换 session 后由 _restoreInterruptedEdit 插回）。 */
+function _loadEditPending(sessionId: string): QueuedEditPending | null {
+  try {
+    const raw = localStorage.getItem(_QUEUE_EDIT_KEY_PREFIX + sessionId);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const d = parsed as Record<string, unknown>;
+    if (typeof d.id !== 'string' || typeof d.text !== 'string') return null;
+    return {
+      id: d.id,
+      sessionId: sessionId,
+      index: typeof d.index === 'number' ? d.index : 0,
+      originalText: d.text,
+      draftText: d.text,
+      createdAt: typeof d.createdAt === 'number' ? d.createdAt : Date.now(),
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/** 入队：trim 校验 → 上限校验 → push → 持久化 → 刷新面板/角标。
+ *  入队不上屏（不调用 addMessage），避免"已发"假象。 */
+function enqueueMessage(text: string): void {
   if (!currentSessionId) return;
   const sid = currentSessionId;
   const queue = getQueue(sid);
@@ -1781,69 +1822,60 @@ async function enqueueMessage(text: string): Promise<void> {
     toast('发送队列已满（上限 ' + _QUEUE_MAX + ' 条）');
     return;
   }
-  try {
-    const response = await fetch('/api/sessions/' + encodeURIComponent(sid) + '/queue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text, clientMessageId: _genQueueId() }),
-    });
-    const data: ApiSessionQueueResponse & { ok?: boolean; item?: QueuedMessage } = await response.json();
-    if (!response.ok || data.ok === false || data.error) {
-      throw new Error(_queueError(data.error) || '消息尚未入队');
-    }
-    if (typeof data.queueRevision === 'number') _queueRevision.set(sid, data.queueRevision);
-    const input = document.getElementById('chatInput') as HTMLInputElement;
-    input.value = '';
-    _inputDrafts.delete(sid);
-    await loadQueue(sid);
-    toast('已加入服务端队列');
-  } catch (error) {
-    toast('消息尚未入队：' + _errorMessage(error));
-  }
+  const item: QueuedMessage = {
+    id: _genQueueId(),
+    text: text,
+    createdAt: Date.now(),
+    status: 'pending',
+  };
+  queue.push(item);
+  persistQueue(sid, queue);
+  const input = document.getElementById('chatInput') as HTMLInputElement;
+  input.value = '';
+  _inputDrafts.delete(sid);
+  renderQueuePanel();
+  updateQueueBadge();
+  toast('已加入发送队列（' + queue.length + ' 条待发）');
 }
 
-async function removeQueued(id: string): Promise<void> {
+function removeQueued(id: string): void {
   if (!currentSessionId) return;
   const sid = currentSessionId;
   const queue = getQueue(sid);
   const idx = queue.findIndex(function (x) { return x.id === id; });
   if (idx < 0) return;
-  try {
-    const response = await fetch('/api/sessions/' + encodeURIComponent(sid) + '/queue/' + encodeURIComponent(id), {
-      method: 'DELETE',
-    });
-    const data: ApiSessionQueueResponse & { ok?: boolean } = await response.json();
-    if (!response.ok || data.ok === false || data.error) {
-      throw new Error(_queueError(data.error) || '队列项删除失败');
-    }
-    await loadQueue(sid);
-    toast('已从发送队列删除');
-  } catch (error) {
-    toast('队列项删除失败：' + _errorMessage(error));
-    void loadQueue(sid);
-  }
+  queue.splice(idx, 1);
+  persistQueue(sid, queue);
+  renderQueuePanel();
+  updateQueueBadge();
+  toast('已从发送队列删除');
 }
 
-/** 保存编辑：只允许服务端接受 queued user task 的文本更新。 */
-async function saveQueuedEdit(text: string): Promise<void> {
+/** 把编辑中的出队消息插回队列，返回实际插入位置。
+ *  原位置仍有效（index <= 队列长度）则插回原位置；
+ *  否则编辑期间队列已变化（前面的项被发走/删除、队列被清空等），插入队首——此时该消息
+ *  已比原位置更靠前，保存/取消后让它尽快被处理（自动 flush 从队首取）更符合用户意图。 */
+function _reinsertQueued(p: QueuedEditPending, text: string): number {
+  const queue = getQueue(p.sessionId);
+  const idx = p.index <= queue.length ? p.index : 0;
+  const item: QueuedMessage = { id: p.id, text: text, createdAt: p.createdAt, status: 'pending' };
+  queue.splice(idx, 0, item);
+  persistQueue(p.sessionId, queue);
+  return idx;
+}
+
+/** 保存编辑：把编辑后的文本按原位置（或队首）插回队列，清除编辑态与待恢复记录。 */
+function saveQueuedEdit(text: string): void {
   const p = _editingPending;
   if (!p) return;
-  try {
-    const response = await fetch('/api/sessions/' + encodeURIComponent(p.sessionId) + '/queue/' + encodeURIComponent(p.id), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text, expectedRevision: p.revision }),
-    });
-    const data: ApiSessionQueueResponse & { ok?: boolean; item?: QueuedMessage } = await response.json();
-    if (!response.ok || data.ok === false || data.error) {
-      throw new Error(_queueError(data.error) || '队列项更新失败');
-    }
-    _editingPending = null;
-    _clearEditPendingStorage(p.sessionId);
-    await loadQueue(p.sessionId);
-  } catch (error) {
-    toast('队列项更新失败：' + _errorMessage(error));
-    void loadQueue(p.sessionId);
+  _editingPending = null;
+  _clearEditPendingStorage(p.sessionId);
+  const idx = _reinsertQueued(p, text);
+  if (currentSessionId === p.sessionId) {
+    renderQueuePanel();
+    updateQueueBadge();
+    // 插回队首且 worker 空闲 → 立即发送（与 moveQueued 到队首的行为一致）
+    if (idx === 0) flushQueue();
   }
 }
 
@@ -1853,6 +1885,7 @@ function cancelQueuedEdit(): void {
   if (!p) return;
   _editingPending = null;
   _clearEditPendingStorage(p.sessionId);
+  _reinsertQueued(p, p.originalText);
   if (currentSessionId === p.sessionId) {
     renderQueuePanel();
     updateQueueBadge();
@@ -1860,7 +1893,7 @@ function cancelQueuedEdit(): void {
 }
 
 /** 重排：↑(-1) / ↓(+1) 与相邻项 swap；提到队首且 worker 空闲 → 立即触发发送。 */
-async function moveQueued(id: string, delta: number): Promise<void> {
+function moveQueued(id: string, delta: number): void {
   if (!currentSessionId) return;
   const sid = currentSessionId;
   const queue = getQueue(sid);
@@ -1871,48 +1904,18 @@ async function moveQueued(id: string, delta: number): Promise<void> {
   const tmp = queue[idx];
   queue[idx] = queue[target];
   queue[target] = tmp;
-  const revision = _queueRevision.get(sid);
-  persistQueue(sid, queue, revision);
+  persistQueue(sid, queue);
   renderQueuePanel();
   updateQueueBadge();
-  try {
-    const response = await fetch('/api/sessions/' + encodeURIComponent(sid) + '/queue/order', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderedIds: queue.map(function (item) { return item.id; }),
-        expectedQueueRevision: revision,
-      }),
-    });
-    const data: ApiSessionQueueResponse = await response.json();
-    if (!response.ok || data.error) throw new Error(_queueError(data.error) || '队列排序失败');
-    persistQueue(sid, Array.isArray(data.items) ? data.items : [], data.queueRevision);
-    if (currentSessionId === sid) renderQueuePanel();
-    updateQueueBadge();
-  } catch (error) {
-    toast('队列排序失败：' + _errorMessage(error));
-    await loadQueue(sid);
-  }
+  if (target === 0) flushQueue();
 }
 
-async function clearQueue(): Promise<void> {
+function clearQueue(): void {
   if (!currentSessionId) return;
-  const sid = currentSessionId;
-  const ids = getQueue(sid).map(function (item) { return item.id; });
-  try {
-    await Promise.all(ids.map(async function (id) {
-      const response = await fetch('/api/sessions/' + encodeURIComponent(sid) + '/queue/' + encodeURIComponent(id), { method: 'DELETE' });
-      const data: ApiSessionQueueResponse & { ok?: boolean } = await response.json();
-      if (!response.ok || data.ok === false || data.error) {
-        throw new Error(_queueError(data.error) || '队列项删除失败');
-      }
-    }));
-    await loadQueue(sid);
-    toast('已清空发送队列');
-  } catch (error) {
-    toast('清空发送队列失败：' + _errorMessage(error));
-    void loadQueue(sid);
-  }
+  persistQueue(currentSessionId, []);
+  renderQueuePanel();
+  updateQueueBadge();
+  toast('已清空发送队列');
 }
 
 /** 面板开关：class 控制显隐；打开时渲染 + 把滚动按钮上移避免遮挡。 */
@@ -1950,35 +1953,33 @@ function renderQueuePanel(): void {
   const countEl = document.getElementById('queueCount');
   const clearBtn = document.getElementById('queueClearBtn');
   const queue = currentSessionId ? getQueue(currentSessionId) : [];
-  const visibleQueue = _editingPending && _editingPending.sessionId === currentSessionId
-    ? queue.filter(function (item) { return item.id !== _editingPending!.id; })
-    : queue;
-  const editIdx = _editingPending && _editingPending.index <= visibleQueue.length ? _editingPending.index : 0;
+  // 恢复当前 session 的批量拼接开关（session 切换 / 面板打开时）
+  const batchCb = document.getElementById('queueBatchToggle') as HTMLInputElement | null;
+  if (batchCb) batchCb.checked = currentSessionId ? isBatchEnabled(currentSessionId) : false;
+  // 编辑中的出队项显示位置：原位置仍有效则插在原位置，否则放队首（与保存时插回策略一致）
+  const editIdx = _editingPending && _editingPending.index <= queue.length ? _editingPending.index : 0;
   if (countEl) countEl.textContent = String(queue.length);
   if (clearBtn) clearBtn.style.display = queue.length > 0 ? '' : 'none';
   listEl.innerHTML = '';
-  if (visibleQueue.length === 0) {
+  if (queue.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'queue-empty';
-    empty.textContent = queue.length === 0 ? '队列为空' : '';
-    if (empty.textContent) listEl.appendChild(empty);
+    empty.textContent = '队列为空';
+    listEl.appendChild(empty);
+    // 编辑中的出队项仍在编辑态：空队列下编辑行放最前（不占队列长度、不影响角标）
     _insertEditRow(listEl, editIdx);
     updateQueueBadge();
     return;
   }
-  visibleQueue.forEach(function (item, index) {
+  queue.forEach(function (item, index) {
     const row = document.createElement('div');
     row.className = 'queue-row';
     row.dataset.id = item.id;
 
     const text = document.createElement('span');
     text.className = 'queue-text';
-    const source = item.source || item.kind || 'unknown';
-    const sourceLabel: Record<string, string> = {
-      user: '用户', agent: 'Agent', report: '报告', qq: 'QQ', system: '系统',
-    };
-    text.textContent = '[' + (sourceLabel[source] || source) + '] ' + item.text;
-    text.title = item.text;
+    text.textContent = item.text;
+    text.title = item.text; // hover 显示全文
     row.appendChild(text);
 
     const actions = document.createElement('span');
@@ -1991,7 +1992,7 @@ function renderQueuePanel(): void {
     btnUp.disabled = index === 0;
     const btnDown = document.createElement('button');
     btnDown.type = 'button'; btnDown.className = 'q-btn'; btnDown.textContent = '\u2193'; btnDown.title = '下移';
-    btnDown.disabled = index === visibleQueue.length - 1;
+    btnDown.disabled = index === queue.length - 1;
     const btnDel = document.createElement('button');
     btnDel.type = 'button'; btnDel.className = 'q-btn q-btn-danger'; btnDel.textContent = '\uD83D\uDDD1'; btnDel.title = '删除';
 
@@ -2000,7 +2001,7 @@ function renderQueuePanel(): void {
     btnDown.addEventListener('click', function (e) { e.stopPropagation(); moveQueued(item.id, 1); });
     btnDel.addEventListener('click', function (e) { e.stopPropagation(); removeQueued(item.id); });
 
-    if (item.kind === 'task' && item.source === 'user') actions.appendChild(btnEdit);
+    actions.appendChild(btnEdit);
     actions.appendChild(btnUp);
     actions.appendChild(btnDown);
     actions.appendChild(btnDel);
@@ -2048,7 +2049,10 @@ function _insertEditRow(listEl: HTMLElement, index: number): void {
   listEl.insertBefore(row, ref);
 }
 
-/** 进入行内编辑态：保留服务端队列项，只在保存时 PATCH 原 queue item。 */
+/** 进入行内编辑态：先把消息从队列出队（内存 _queueCache + persistQueue 落盘），
+ *  记录原位置与原文，再把该行替换为 textarea。
+ *  编辑期间消息不在队列，flushQueue()/getQueue() 都看不到它，不可能被自动发出；
+ *  保存/取消时按原位置插回。 */
 function startEditQueued(id: string): void {
   if (!currentSessionId) return;
   const sid = currentSessionId;
@@ -2058,7 +2062,10 @@ function startEditQueued(id: string): void {
   const idx = queue.findIndex(function (x) { return x.id === id; });
   if (idx < 0) return;
   const item = queue[idx];
-  if (item.kind !== 'task' || item.source !== 'user') return;
+  // 1) 出队：编辑期间该消息不在队列，自动发送（逐条/批量拼接）都不会碰到它
+  queue.splice(idx, 1);
+  persistQueue(sid, queue);
+  // 2) 记录原位置 + 原文，并作为待恢复项落盘（刷新/切换 session 后插回，避免丢消息）
   _editingPending = {
     id: id,
     sessionId: sid,
@@ -2066,9 +2073,8 @@ function startEditQueued(id: string): void {
     originalText: item.text,
     draftText: item.text,
     createdAt: item.createdAt,
-    revision: typeof item.meta?.revision === 'number' ? item.meta.revision : undefined,
   };
-  _clearEditPendingStorage(sid);
+  _persistEditPending(_editingPending);
   renderQueuePanel();
   updateQueueBadge();
   // 3) 聚焦重绘后插入的编辑行
@@ -2083,14 +2089,81 @@ function startEditQueued(id: string): void {
   }
 }
 
-/** 清理旧版 localStorage 编辑标记；服务端队列项始终保留，不需要客户端回插。 */
+/** 刷新 / 切换回 session 时恢复被中断的编辑：待恢复项（localStorage）若不在队列中
+ *  则按原位置插回（原位置已失效则追加队尾），随后清除待恢复标记。
+ *  保存/取消已正常完成的编辑没有待恢复项，此函数为 no-op。 */
 function _restoreInterruptedEdit(sessionId: string): void {
+  // 该 session 当前仍在编辑中（内存态存在）则不是"被中断"，无需恢复
+  if (_editingPending && _editingPending.sessionId === sessionId) return;
+  const p = _loadEditPending(sessionId);
+  if (!p) return;
   _clearEditPendingStorage(sessionId);
+  const queue = getQueue(sessionId);
+  // 队列中已有同 id 项（保存成功过 / 已恢复过）则无需恢复
+  if (queue.some(function (x) { return x.id === p.id; })) return;
+  const item: QueuedMessage = { id: p.id, text: p.originalText, createdAt: p.createdAt, status: 'pending' };
+  // 恢复时插入原位置；原位置已超出队列（前面的项被发走/删除）则追加队尾，
+  // 避免插到队首打乱现有待发顺序。
+  const idx = p.index <= queue.length ? p.index : queue.length;
+  queue.splice(idx, 0, item);
+  persistQueue(sessionId, queue);
 }
 
-/** 服务端 Worker 消费队列；旧版页面只需要重新拉取服务端快照。 */
+/** 自动发送队列（逐条串行 / 批量拼接两种模式）：worker idle / offline（可 spawn）时发送，
+ *  发送成功后出队（逐条 shift 队首；批量清空）并持久化；失败（WS closed / spawn 失败 / held）保留待重试。
+ *  `_queueSendingId` 防同一条在异步窗口内被 idle 事件重复触发两次。 */
 function flushQueue(): void {
-  if (currentSessionId) void loadQueue(currentSessionId);
+  if (!currentSessionId) return;
+  const sid = currentSessionId;
+  const queue = getQueue(sid);
+  if (queue.length === 0) return;
+  if (_queueSendingId) return; // 已有 1 条在发送中，等下一次 idle 事件
+  const s = modelData.find(function (x) { return x.id === sid; });
+  const status = s ? (s.workerStatus || 'offline') : 'offline';
+  if (status === 'held') return; // takeover：服务端硬拒，跳过自动发送
+  if (status !== 'idle' && status !== 'offline') return; // queued/running/…：等 idle 事件
+
+  // 批量拼接发送（勾选"拼接发送"时）：把队列中全部项的 text 用分隔符拼成一条发出。
+  // 分隔符 `\n\n---\n\n` 用于明确区分各条原文；编辑中的消息已出队、不参与拼接。
+  if (isBatchEnabled(sid)) {
+    // 防御性过滤：编辑中的出队消息理论上不在队列里，双保险避免拼进标记为编辑中的项
+    const editId = _editingPending ? _editingPending.id : null;
+    const items = queue.filter(function (x) { return x.id !== editId; });
+    if (items.length === 0) return; // 队列中无可发项（全部在编辑中），直接 return
+    const joinedIds = new Set(items.map(function (x) { return x.id; }));
+    const joined = items.map(function (x) { return x.text; }).join('\n\n---\n\n');
+    _queueSendingId = _BATCH_SENDING_ID; // 拼接消息也算 1 条发送中，复用单飞锁
+    _sendText(joined, function (ok) {
+      _queueSendingId = null;
+      if (!ok) return; // 发送失败：保留队列待下次重试
+      if (currentSessionId === sid) addMessage('user', joined);
+      const q = getQueue(sid);
+      // 只清掉本次拼接发出的项：编辑中的出队项不在队列里（在 _editingPending + 待恢复记录），
+      // 拼接发送在途期间新入队的项（含保存/取消后插回的编辑项）也保留，避免误清。
+      const remain = q.filter(function (x) { return !joinedIds.has(x.id); });
+      persistQueue(sid, remain);
+      if (currentSessionId === sid) renderQueuePanel();
+      updateQueueBadge();
+    });
+    return;
+  }
+
+  const head = queue[0];
+  _queueSendingId = head.id;
+  _sendText(head.text, function (ok) {
+    _queueSendingId = null;
+    if (!ok) return; // 发送失败：保留队首待下次重试
+    if (currentSessionId === sid) addMessage('user', head.text);
+    const q = getQueue(sid);
+    // 按 id 精确删除已发送项：即使发送在途期间用户重排/删除了其它项也不误删
+    const sentIdx = q.findIndex(function (x) { return x.id === head.id; });
+    if (sentIdx >= 0) {
+      q.splice(sentIdx, 1);
+      persistQueue(sid, q);
+    }
+    if (currentSessionId === sid) renderQueuePanel();
+    updateQueueBadge();
+  });
 }
 
 // ── Send message ──
@@ -2196,8 +2269,18 @@ function send(): void {
     return;
   }
   if (!text) return;
-  // 所有状态统一进入 Session.queue_pending，由服务端决定何时交接给 Worker。
-  void enqueueMessage(text);
+  const s = modelData.find((x: Session) => x.id === currentSessionId);
+  if (s && (s.workerStatus === 'running' || s.workerStatus === 'held')) {
+    // worker 忙：不再拒绝，改为入队（空闲后自动逐条发送）
+    enqueueMessage(text);
+    return;
+  }
+  input.value = '';
+  _inputDrafts.delete(currentSessionId);
+  const sid = currentSessionId;
+  _sendText(text, function (ok) {
+    if (ok && currentSessionId === sid) addMessage('user', text);
+  });
 }
 
 // ── New Session (modal) ──
