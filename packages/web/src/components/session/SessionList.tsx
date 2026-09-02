@@ -675,8 +675,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
   const dragSession = dragId ? sessions.find((s) => s.id === dragId) : null;
   // Drag works in the flat list AND the manager tree (same semantics:
-  // center → manage, edge → insert into the visible order). Grouped-by-dir
-  // lists stay non-draggable.
+  // center → manage, edge → sibling slot at the target row's level).
+  // Grouped-by-dir lists stay non-draggable.
   const dragEnabled = (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
 
   // Per-card drag props for memoized SessionItem (stable refs + primitives
@@ -695,22 +695,78 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     [dragEnabled, handleDragPointerDown, dragId, centerTargetId, insertTarget],
   );
 
+  // Ghost feedback: as the dragged session hovers a drop zone, preview on the
+  // floating mini-card whether the drop will (a) change a management relation
+  // (「管理」 lights), (b) only sort to a sibling slot (「排序」, the right chip,
+  // lights), or (c) BOTH when the slot lies in a different group's level and
+  // the session must also adopt that group's manager. Blocked (cycle) drops
+  // light nothing.
+  const ghostFeedback = useMemo(() => {
+    if (!dragId) return null;
+    const targetId = centerTargetId ?? insertTarget?.id ?? null;
+    if (!targetId) return null;
+    const zone: DropZone = insertTarget ? insertTarget.zone : 'center';
+    const draggedS = sessions.find((s) => s.id === dragId);
+    const targetS = sessions.find((s) => s.id === targetId);
+    if (!draggedS || !targetS) return null;
+    const { newManager, blockedByCycle } = decideManagerDrop(
+      filtered,
+      dragId,
+      targetId,
+      zone,
+    );
+    const currentManager = draggedS.managedBy ?? null;
+    const manageChange =
+      zone === 'center' ? targetId !== currentManager : newManager !== currentManager;
+    const orderChange = zone !== 'center';
+    return {
+      blocked: blockedByCycle,
+      manage: manageChange && !blockedByCycle,
+      order: orderChange && !blockedByCycle,
+    };
+  }, [dragId, centerTargetId, insertTarget, sessions, filtered]);
+
   const ghostEl = dragEnabled && dragSession && (
     <div
       ref={ghostMountRef}
       data-drag-ghost
+      data-ghost-manage-lit={ghostFeedback?.manage ? '1' : '0'}
+      data-ghost-order-lit={ghostFeedback?.order ? '1' : '0'}
       aria-hidden="true"
-      className="fixed left-0 top-0 z-[60] w-56 pointer-events-none rounded border border-dashed border-accent bg-bg-secondary/95 px-3 py-2 shadow-panel"
+      className="fixed left-0 top-0 z-[60] w-64 pointer-events-none rounded border border-dashed border-accent bg-bg-secondary/95 px-3 py-2 shadow-panel"
       style={{ willChange: 'transform' }}
     >
       <div className="flex items-center gap-2">
         <WorkerDot status={dragSession.workerStatus} />
-        <span className="text-sm text-text-primary font-medium truncate">
+        <span className="text-sm text-text-primary font-medium truncate min-w-0 flex-1">
           {dragSession.name || 'Untitled'}
+        </span>
+        {/* Outcome preview chips: 「管理」left, 「排序」right. */}
+        <span
+          data-ghost-manage
+          data-lit={ghostFeedback?.manage ? '1' : '0'}
+          className={`shrink-0 rounded px-1.5 py-px text-[10px] leading-tight transition-colors ${
+            ghostFeedback?.manage
+              ? 'bg-accent text-white font-medium'
+              : 'text-text-tertiary/70 border border-border-default'
+          }`}
+        >
+          管理
+        </span>
+        <span
+          data-ghost-order
+          data-lit={ghostFeedback?.order ? '1' : '0'}
+          className={`shrink-0 rounded px-1.5 py-px text-[10px] leading-tight transition-colors ${
+            ghostFeedback?.order
+              ? 'bg-accent text-white font-medium'
+              : 'text-text-tertiary/70 border border-border-default'
+          }`}
+        >
+          排序
         </span>
       </div>
       <div className="mt-1 text-[10px] text-text-tertiary">
-        中心 = 交给管理 · 边缘 = 插入排序
+        中心 = 交给管理 · 边缘 = 同级排序
       </div>
     </div>
   );

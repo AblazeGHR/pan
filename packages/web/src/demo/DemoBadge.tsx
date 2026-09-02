@@ -30,8 +30,9 @@ export function DemoBadge() {
           <ul className="mt-1 list-disc pl-4 space-y-0.5">
             <li>拖动卡片左侧 <span className="font-bold">::</span> 把手开始拖拽（原卡片保持原位）</li>
             <li>放到另一张卡片<span className="font-medium">中心</span> = 交给对方管理</li>
-            <li>放到卡片<span className="font-medium">边缘 / 两卡之间</span> = 移入该组（移向顶层则移出管理）</li>
+            <li>放到卡片<span className="font-medium">边缘 / 两卡之间</span> = 同级排序；跨组时自动移入/移出管理</li>
             <li>禁止移入自己或下级的组（会提示并取消）</li>
+            <li>小卡片上的「管理 / 排序」会预览本次落点会改变什么</li>
             <li>排序会切到 custom；点 Sort 循环 recent → name → custom</li>
           </ul>
           <button

@@ -328,15 +328,17 @@ describe('decideManagerDrop (tree management semantics)', () => {
     });
   });
 
-  it('edge after a manager row with children = its first-child slot', () => {
-    // D dropped after manager row A → D becomes A's first child.
+  it('edge after a manager row sorts at that row level (never becomes its child)', () => {
+    // D (root) dropped after manager row A → A is a root, so the slot is a
+    // top-level sibling AFTER A's whole subtree, NOT A's first child slot.
     expect(decideManagerDrop(tree, 'D', 'A', 'after')).toEqual({
-      newManager: 'A',
+      newManager: null,
       blockedByCycle: false,
     });
-    // B dropped after its own manager A → reorders to first child (stays).
+    // B (A's own child) dropped after manager row A → B leaves A's group and
+    // is placed at top level after A's subtree.
     expect(decideManagerDrop(tree, 'B', 'A', 'after')).toEqual({
-      newManager: 'A',
+      newManager: null,
       blockedByCycle: false,
     });
   });
@@ -521,6 +523,50 @@ describe('manager-tree drag interactions (mock demo)', () => {
     expect(useSessionStore.getState().sessions.find((s) => s.id === 'B')!.managedBy).toBe('A');
     expect(useUIStore.getState().toastQueue.some((t) => t.message.includes('禁止'))).toBe(true);
     expect(useUIStore.getState().sortBy).toBe('recent'); // no sort switch on a blocked drop
+  });
+
+  function ghostLits(container: HTMLElement): { manage: string | null; order: string | null } {
+    const ghost = container.querySelector('[data-drag-ghost]');
+    return {
+      manage: ghost?.getAttribute('data-ghost-manage-lit') ?? null,
+      order: ghost?.getAttribute('data-ghost-order-lit') ?? null,
+    };
+  }
+
+  it('ghost lights only 排序 for a sibling slot inside the same group', () => {
+    // A (child of B) hovered over A2's top band (same manager B) → reorder only.
+    const { container } = render(<SessionList />);
+    fireEvent.pointerDown(handleOf(container, 'A'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(135); // A2 spans 128-192, top band ≈ 128-148
+    expect(ghostLits(container)).toEqual({ manage: '0', order: '1' });
+    pointerUp();
+  });
+
+  it('ghost lights only 管理 over a center manage target', () => {
+    // C (root) hovered over B's center band → B will manage C, no ordering.
+    const { container } = render(<SessionList />);
+    fireEvent.pointerDown(handleOf(container, 'C'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(32); // B spans 0-64, center ≈ 32
+    expect(ghostLits(container)).toEqual({ manage: '1', order: '0' });
+    pointerUp();
+  });
+
+  it('ghost lights BOTH when the slot belongs to another level/group', () => {
+    // A (child of B) hovered over root C's top band → A leaves B's group and
+    // is sorted at root level: management AND ordering both change.
+    const { container } = render(<SessionList />);
+    fireEvent.pointerDown(handleOf(container, 'A'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(200); // C spans 192-256, top band ≈ 192-212
+    expect(ghostLits(container)).toEqual({ manage: '1', order: '1' });
+    pointerUp();
+  });
+
+  it('ghost lights nothing while over the dragged session itself or empty space', () => {
+    const { container } = render(<SessionList />);
+    fireEvent.pointerDown(handleOf(container, 'A'), { button: 0, clientX: 5, clientY: 5 });
+    pointerMove(2500); // far below the list → no target card
+    expect(ghostLits(container)).toEqual({ manage: '0', order: '0' });
+    pointerUp();
   });
 });
 

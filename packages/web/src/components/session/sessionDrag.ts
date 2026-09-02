@@ -105,12 +105,17 @@ export interface ManagerDropDecision {
  * Decide the management outcome of a drop in the manager tree:
  *
  *  - CENTER on target T → T manages the dragged session (newManager = T).
- *  - EDGE (before/after) on a CHILD row → the dragged session joins that
- *    child's manager group next to it (newManager = child's manager).
- *  - EDGE before a ROOT row → top-level slot (newManager = null); dropping a
- *    managed child here MOVES IT OUT of its group.
- *  - EDGE after a ROOT row → if that root has children the slot is its
- *    first-child position (newManager = root); otherwise top level.
+ *  - EDGE (before/after) on ANY row → the dragged session becomes a sibling
+ *    of that row AT THAT ROW'S LEVEL, i.e. it adopts the row's own manager
+ *    (newManager = parentOf(row), null for a root row). There is NO special
+ *    "bottom edge of a manager row = its first-child slot" rule: dropping
+ *    below manager C only sorts the dragged session after C's whole subtree
+ *    at C's level (a root C never gains a child via an edge drop — only a
+ *    CENTER drop makes C manage something).
+ *
+ * Concretely, an edge drop that lands next to a row whose manager differs
+ * from the dragged session's current manager ENTERS / LEAVES a group, while
+ * an edge drop at the same level as the dragged session is a pure reorder.
  *
  * A drop is blocked when newManager is the dragged session itself or one of
  * its own descendants (would create a management cycle / recursive nesting).
@@ -128,17 +133,10 @@ export function decideManagerDrop(
     // Center = the target manages the dragged session.
     newManager = targetId;
   } else {
-    const tParent = edges.parentOf.get(targetId);
-    if (tParent !== undefined) {
-      // Target is a child row → drop lands inside its manager's group.
-      newManager = tParent;
-    } else if (zone === 'after' && (edges.childrenOf.get(targetId) ?? []).length > 0) {
-      // Target is a manager row → after its row is the first-child slot.
-      newManager = targetId;
-    } else {
-      // Target is a top-level row: before it (or after a leaf) → top level.
-      newManager = null;
-    }
+    // Edge = a sibling slot at the TARGET ROW's level: adopt the row's own
+    // manager (root rows yield null → the dragged session becomes a root too,
+    // i.e. leaves its current group when it was managed).
+    newManager = edges.parentOf.get(targetId) ?? null;
   }
 
   const blockedByCycle =
