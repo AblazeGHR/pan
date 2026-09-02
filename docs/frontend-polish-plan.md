@@ -2,6 +2,12 @@
 
 > 1 级 meta-agent：agent-frontend-polish（dsV4flash）
 > 侦察日期：2026-08-26。仅侦察+规划，具体实现派发 hy3 worker。
+>
+> **状态（2026-09-03 复核）**：本计划为 2026-08-26 的规划快照。此后多项已绕过该分支直接在
+> main 落地：会话自定义排序 + 拖拽（真实 `/api/sessions/order`、跨 manager 拖拽走 claim/unclaim，
+> `1d705dc`/`11c187f`/`80d4efa`）、Manage「Managed by」镜像父级控制（`11420d7`）、会话搜索/过滤/
+> 分组等列表头部控件（main 已有）。**仍开放的方向以 `docs/TODO.md` §四为准**；下文侦察数字仅代表
+> 2026-08-26 状态，不作为当前现状。
 
 ## 一、前端现状摘要
 
@@ -22,8 +28,8 @@
 
 ### 后端 API 能力（前端可挖掘）
 
-- 56 HTTP 端点：Session / Worker（含 interrupt/takeover/restart）/ 编排（handoff/assign/report-subscribe/claim/unclaim）/ QQ（subscribe/unsubscribe/contacts）/ Character/Memory（memory/index、search、stats、inject）/ FS / Adapter 导入（cbc、kimi）
-- WS：`/ws` 广播 worker.* 12 种 + session.* 5 种 + error；`/ws/agent` 订阅过滤 + 重连补发
+- 约 99 个 HTTP 路由（2026-09-03 统计；侦察期「56 端点」为旧数）：Session / Worker（含 interrupt/takeover/restart）/ 队列（`/api/sessions/{id}/queue` CRUD、排序）/ 编排（handoff/assign/notify/report-subscribe/claim/unclaim/readonly）/ QQ（subscribe/unsubscribe/contacts）/ Character/Memory（memory/index、search、stats、inject）/ FS / Adapter 导入（cbc、kimi、通用 `/api/adapters/{adapter}/sessions`）
+- WS：`/ws` 广播 worker.* 12 种 + session.* 6 种（含 orderUpdated）+ queue.item_* + error；`/ws/agent` 订阅过滤 + 重连补发
 - **空白点：memory/search、cbc/sessions 搜索等 API 前端零使用**
 
 ## 二、细化方向与优先级
@@ -31,7 +37,7 @@
 | 优先级 | 方向 | 现状判断 | 涉及文件 |
 |---|---|---|---|
 | P0 | 消息流式渲染/交互增强 | 流式布局抖动、长代码块/表格无折叠复制、无重新生成 | ChatMessages.tsx、MessageBubble.tsx、MarkdownRenderer.tsx |
-| P0 | 会话列表增强 | 有树形/分组/多选，缺搜索过滤、置顶/归档 | SessionList.tsx、SessionItem.tsx、sessionStore.ts |
+| P0 | 会话列表增强 | 有树形/分组/多选。**2026-09-03：自定义排序/搜索/过滤已在 main 落地**；仍缺置顶/归档（无 pinned/archived 字段） | SessionList.tsx、SessionItem.tsx、sessionStore.ts |
 | P1 | 记忆/搜索面板（最大空白） | 后端 memory/* API 前端零使用 | 新建 components/memory/*、services/api.ts |
 | P1 | 设置面板深化 | adapter/模型/effort 配置 UI 较粗 | AppSettingsModal.tsx、SettingsPopover.tsx、adapterStore.ts |
 | P1 | QQ postbox 体验 | 有订阅弹窗，缺联系人搜索/状态展示 | PostboxModal.tsx、api.ts |

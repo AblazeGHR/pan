@@ -457,7 +457,8 @@ node 解析后的 argv**，裸 `["cbc"]` 在 Windows 上会 FileNotFoundError。
 ## 6. codex（OpenAI Codex CLI）
 
 > 以下记录 Codex CLI 与 Pan wrapper 的特殊行为、已落地的兼容处理，以及仍待实测的遗留问题。
-> 基础 adapter 改造已提交到 `feature/codex-models`；原生 app-server 体验增强继续在该工作树推进。
+> 该实现已随 codex adapter 合入 main（2026-08-27 起，含原生 app-server 体验增强）；以下描述即
+> main 现状（2026-09-03 复核）。
 
 ### 6.1 execution_modes = `["stream"]`（原生 app-server 桥接）
 

@@ -477,13 +477,13 @@ The serving route is controlled by the `frontend` field in `config.json`:
 | Directory | Responsibility |
 |-----------|----------------|
 | `packages/core/` | Core module: process management + message routing + Memory + Adapters. All external modules talk to Core only over HTTP/WS APIs |
-| `packages/web/` | Web channel: FastAPI routes + WebSocket + Dashboard (69 HTTP endpoints) |
+| `packages/web/` | Web channel: FastAPI routes + WebSocket + Dashboard (~99 HTTP routes, counted 2026-09-03) |
 | `packages/qq/` | QQ channel: NoneBot2 bridge + pluggable channels + pan-qq MCP |
 | `packages/mcp/` | MCP Server: orchestration toolset + pan-qq, can be started standalone |
 | `packages/remote/` | Cloudflare Tunnel remote channel |
 | `scripts/` | Start / stop / tunnel / pre-commit scripts |
 | `docs/` | Documentation (git-tracked; `docs/skills/pan/SKILL.md` is the single source of truth for orchestration knowledge) |
-| `tests/` | Tests (53 Python files) |
+| `tests/` | Tests (63 Python test files + conftest; `python -m pytest tests/ -q` collects 806, counted 2026-09-03) |
 
 ## Multi-CLI Adapters
 
@@ -495,7 +495,7 @@ Workers are decoupled from any specific CLI: each CLI Agent has an adapter imple
 | `kimi` | Kimi CLI | stream (long-running wrapper) | Calls `kimi -p` per message inside a wrapper |
 | `opencode` | OpenCode CLI | stream (long-running wrapper) | Calls `opencode run --format json` per message inside a wrapper |
 | `claude` | Claude Code CLI | stream + one-shot | Default `--input-format stream-json`; optional `outputMode: "oneshot"`; MCP injected via `--mcp-config` |
-| `codex` | OpenAI Codex CLI | stream (long-running wrapper) | Calls `codex exec --json` per message inside a wrapper; MCP injected inline via `-c mcp_servers.*` overrides (zero file pollution) |
+| `codex` | OpenAI Codex CLI | stream (long-running wrapper) | Long-lived bridge through the native `codex app-server --stdio` (native thread/turn semantics) instead of per-message `codex exec`; MCP injected inline via `-c mcp_servers.*` overrides (zero file pollution) |
 
 The companion `SessionsProvider` protocol (`packages/core/adapters/base.py`) unifies each CLI's native session storage (history / usage / title / fork) behind a single read/write interface. The server resolves the provider by adapter name, so adding a new CLI needs no per-CLI import / branch / rename dispatch logic (generic endpoint: `/api/adapters/{adapter}/sessions[/import]`).
 
@@ -572,21 +572,36 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 
 ## API Overview
 
-### HTTP (`packages/web/server.py`, 86 endpoints)
+### HTTP (`packages/web/server.py`)
+
+> ~99 HTTP routes (counted 2026-09-03); full fields and request bodies live in [`docs/skills/pan/references/http-api.md`](docs/skills/pan/references/http-api.md).
 
 **Session management**
 
 ```
-GET    /api/sessions                    → list all Sessions
+GET    /api/sessions                    → list all Sessions (?summary=1 lean)
 POST   /api/sessions                    → create a Session
 GET    /api/sessions/{id}               → get Session details
 GET    /api/sessions/{id}/history       → get message history (paginated)
+GET    /api/sessions/{id}/managers      → upper manager chain
 PATCH  /api/sessions/{id}               → update a Session (incl. requireRestart semantics)
 POST   /api/sessions/{id}/rename        → rename
 POST   /api/sessions/{id}/branch        → branch a Session
 POST   /api/sessions/{id}/handoff       → session handoff (create a twin Session to take over)
 DELETE /api/sessions/{id}               → delete a Session
 POST   /api/sessions/batch-delete       → batch delete
+POST   /api/sessions/order              → persist a custom display order (drag & drop)
+```
+
+**Session queue (durable inbox, `queue_pending`)**
+
+```
+GET    /api/sessions/{id}/queue         → server-side queue snapshot (queued items only)
+POST   /api/sessions/{id}/queue         → enqueue a user message (returns queueItemId after durable write)
+PATCH  /api/sessions/{id}/queue/order   → reorder the whole queue
+PATCH  /api/sessions/{id}/queue/{item_id}  → edit a queue item (user source, queued only)
+DELETE /api/sessions/{id}/queue/{item_id}  → delete a queue item
+POST   /api/sessions/{id}/queue/{item_id}/retry → retry (same queueItemId, no copy)
 ```
 
 **Worker management**
@@ -609,10 +624,12 @@ GET    /api/worker/{id}/takeover-command → generate a takeover command (not ex
 
 ```
 POST   /api/assign                      → asynchronously dispatch a task (taskId idempotent)
+POST   /api/notify                      → durable background-task notification (backend of agent_notify)
 POST   /api/report-subscribe            → subscribe to Worker reports (also establishes the managed relation)
 POST   /api/report-unsubscribe          → unsubscribe from reports
-POST   /api/claim                       → bind a managed relation
+POST   /api/claim                       → bind a managed relation (also used when dragging a Session under another manager)
 POST   /api/unclaim                     → unbind a managed relation (also unsubscribes reports)
+POST   /api/readonly                    → set/clear readonly on a managed Session (rejects foreign tasks)
 ```
 
 **QQ binding**
@@ -682,12 +699,12 @@ GET    /api/worker/{id}/takeover-command → generate a takeover command
 ### WebSocket
 
 ```
-WS   /ws           Dashboard: receives user_inject only; broadcasts all events
+WS   /ws           Dashboard: receives user_inject (enqueue) / worker_control / sync_interactive (interactive snapshot replay); broadcasts all events
 WS   /ws/agent     Meta-Agent: subscribe (filter by eventTypes / sessionIds + replay on reconnect),
                    reconnect, task, spawn, assign, send, kill, list
 ```
 
-Broadcast events: `worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`, `session.created` / `session.updated` / `session.renamed` / `session.deleted` / `sessions.deleted`, `error`.
+Broadcast events: `worker.stream` / `worker.result` / `worker.status` / `worker.spawned` / `worker.crashed` / `worker.zombie` / `worker.destroyed` / `worker.restarted` / `worker.reconfigured`, `session.created` / `session.updated` / `session.renamed` / `session.deleted` / `session.orderUpdated` / `sessions.deleted`, `queue.item_added` / `queue.item_updated` / `queue.item_removed` / `queue.snapshot`, `error`. Full protocol: `docs/skills/pan/references/ws-protocol.md`.
 
 ### MCP Server (`packages/mcp/server.py`)
 
@@ -748,6 +765,7 @@ Pan is not just for humans — **any external agent that speaks MCP (Model Conte
 | `qq_read_conversation` | Read a QQ chat's history (local persistence, not framework cache) |
 | `qq_read_inbox` | Read a QQ chat's pending inbox messages (selective mode) |
 | `qq_list_contacts` | List reachable QQ chats (friends / groups merged) |
+| `qq_send_file` | Send a file to a QQ chat (DM / group; local path or URL) |
 | `qq_bind` / `qq_unbind` | Bind / unbind the current Pan session to a QQ chat (inbox update reminders) |
 
 #### How to connect

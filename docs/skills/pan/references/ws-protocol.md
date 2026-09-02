@@ -38,7 +38,9 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `worker.stream` | `workerId, sessionId, event` | 原始 stream 事件（默认不订阅，防 context 爆炸） |
 | `worker.spawned` | `sessionId, workerId, name, status, model` | worker 生成 |
 | `session.created/updated/renamed/deleted` | `sessionId, name?...` | session 生命周期 |
+| `session.orderUpdated` | `order: [sessionIds]` | 列表自定义顺序持久化后广播（2026-09 起，拖拽排序） |
 | `sessions.deleted` | `sessionIds` | 批量删除 |
+| `queue.item_added` / `queue.item_updated` / `queue.item_removed` | `sessionId, queueItemId, queueRevision, item?` | 服务端队列（`queue_pending`）增量事件；`queue.snapshot` 为全量快照 |
 | `assign.result` / `send.result` | 含 `status/result` | WS 主动调用（type=assign/send）的同步应答 |
 | `subscribed` / `error` | — | 协议握手 / 错误 |
 
@@ -51,6 +53,13 @@ React dashboard 使用 `ws://127.0.0.1:<port>/ws`。连接建立后发送：
 ```json
 {"type":"sync_interactive"}
 ```
+
+Dashboard 端其它入站消息（浏览器发送即**持久化入队**，`accepted` = 已落盘而非 Provider 完成）：
+
+| 消息 | 格式 | 说明 |
+|------|------|------|
+| user_inject | `{"type":"user_inject","sessionId":"ses_...","text":"...","clientMessageId"?: "browser-uuid"}` | 浏览器发消息——进入服务端权威队列（等价 `POST /api/sessions/{id}/queue`），回 `user_inject.accepted` / `user_inject.rejected` |
+| worker_control | `{"type":"worker_control","sessionId"|"workerId": "...", "control": {...}}` | 向运行中 worker 注入原生控制（Codex 审批 / user_input / terminal 等） |
 
 服务端会把仍由**存活 worker**持有的 Codex 原生审批、用户输入、MCP elicitation
 和 terminal interaction，以带 `replayed: true` 的 `worker.stream` 事件补发，同时回放

@@ -42,6 +42,20 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `GET` | `/api/models` | `?adapter=cbc` | `{"models": [...], "default": "..."}` |
 | `GET` | `/api/adapters` | — | 注册的 adapter 与能力（supportsResume/supportsFork） |
 
+### 会话队列 / 排序（2026-09-03 补录，无 MCP 等价工具，直调或前端使用）
+
+| 方法 | URL | Body / 参数 | 返回 |
+|------|-----|------------|------|
+| `POST` | `/api/sessions/order` | `{"sessionIds": ["ses_a", "ses_b", ...]}`（期望显示顺序；部分重排允许——未列出的 session 按原相对顺序排在列出的后面） | `{"ok": true, "order": [全量 session id 顺序]}`；广播 `session.orderUpdated`。**Dashboard 同层拖拽排序**即此端点 |
+| `GET` | `/api/sessions/{id}/queue` | — | `{"items": [...], "queueRevision": N}`——只含仍 `queued` 的项（`reserved`/`writing`/`sent_to_cli` 不在 pending 视图中） |
+| `POST` | `/api/sessions/{id}/queue` | `{"text": "...", "clientMessageId"?: "browser-uuid"}` | 用户消息**持久化入队**（`source`/`kind` 由服务端强制为 `user`/`task`）；返回 `{"ok": true, "item": {...queueItemId...}, "queueRevision": N, "duplicate": bool}` |
+| `PATCH` | `/api/sessions/{id}/queue/order` | `{"orderedIds": [...], "expectedQueueRevision"?: N}` | 重排全部来源（user/agent/report/qq/system）的 queued 项 |
+| `PATCH` | `/api/sessions/{id}/queue/{item_id}` | `{"text": "...", "expectedRevision"?: N}` | 编辑队列项：**仅 user 源 + queued** 可编辑；否则 `queue_item_readonly` / `queue_item_not_editable`；revision 冲突 `queue_revision_conflict` |
+| `DELETE` | `/api/sessions/{id}/queue/{item_id}` | — | 删除仍 queued 的项；已被 Worker claim（reserved/writing/sent）返回 `queue_item_not_deletable` |
+| `POST` | `/api/sessions/{id}/queue/{item_id}/retry` | — | 重试原 `queueItemId`（清除 backoff，不创建副本） |
+
+> Dashboard 拖拽的管理变更（把卡片拖到另一 manager 卡片正中）复用既有端点，不需要新排序端点：`POST /api/claim`（`managerId`=被拖入的 manager，`sessionId`=被拖动的 session），随后 `POST /api/unclaim` 解除旧 manager 关系。`GET /api/sessions?summary=1` 返回的精简字段含 `order`。
+
 ### 导入 / 设置 / Manifest（排查 / 维护用，2026-08-27 补录）
 
 | 方法 | URL | 说明 |

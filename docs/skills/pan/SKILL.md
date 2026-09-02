@@ -193,7 +193,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 ## 4. HTTP API 与 WS 协议（技术细节 → 引用子文档）
 
 - **HTTP API 清单**（批量删除 / rename / branch / PATCH 更新 / handoff / 字段命名映射 / Windows curl 中文编码坑 / 轮询兜底策略）→ [`references/http-api.md`](references/http-api.md)。
-  - MCP 能覆盖的编排操作一律走 MCP（§5）：批量删除用 `session_batch_delete`（**MCP 已覆盖**）；仅 **rename / branch** 无 MCP 工具，需 HTTP 直调（见子文档）。
+  - MCP 能覆盖的编排操作一律走 MCP（§5）：批量删除用 `session_batch_delete`（**MCP 已覆盖**）；仅 **rename / branch** 无 MCP 工具，需 HTTP 直调（见子文档）。会话队列/列表自定义顺序类端点（`/api/sessions/order`、`/api/sessions/{id}/queue*`）也**无 MCP 等价**，属前端/Dashboard 使用，编排一般不需要。
 - **/ws/agent 订阅协议与 monitor_workers.py 盯梢模板**（测试 / 排障 / 外部协调者用）→ [`references/ws-protocol.md`](references/ws-protocol.md)。
   - meta-agent 编排完成通知**不走 WS**，一律用 §3 `report_subscribe`；WS 仅当确实需要**外部**（非 meta-agent）实时盯梢时才用。
 
@@ -205,7 +205,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 >
 > **巡检优先 `session_list(summary=true)`**：旧版 `session_list` 返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§10.2 G8）。**现在 `session_list(summary=true)` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），用于巡检/查归属**；确认某个 session 详情再用 `session_get(session_id, limit=15)`。查"自己管了哪些"直接用 `session_managed()`。
 >
-> **pan-qq 独立 MCP（2026-08-22 起）**：QQ 能力不在本 server。`packages/qq/mcp.py`（manifest `mcp_servers` 加 `pan-qq`）提供 6 个工具：`qq_send_message` / `qq_read_conversation` / `qq_list_contacts` / `qq_read_inbox` / `qq_bind` / `qq_unbind`。selective 模式下 meta-agent 用它做 QQ 选择性收发与 inbox 订阅——`qq_bind` 后该 QQ 会话新消息会以 `@@@@by qq` 提醒推入你的 `queue_pending`（§7.6）。SMA session template 已默认挂载 pan-qq。
+> **pan-qq 独立 MCP（2026-08-22 起）**：QQ 能力不在本 server。`packages/qq/mcp.py`（manifest `mcp_servers` 加 `pan-qq`）提供 7 个工具：`qq_send_message` / `qq_read_conversation` / `qq_list_contacts` / `qq_read_inbox` / `qq_send_file`（2026-09 新增，本地路径或 URL）/ `qq_bind` / `qq_unbind`。selective 模式下 meta-agent 用它做 QQ 选择性收发与 inbox 订阅——`qq_bind` 后该 QQ 会话新消息会以 `@@@@by qq` 提醒推入你的 `queue_pending`（§7.6）。SMA session template 已默认挂载 pan-qq。
 
 ### 会话管理
 
@@ -215,6 +215,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 | `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 CLI 历史会话**（cbc 项目 / kimi 工作区 / opencode、claude、codex 会话，adapter 以实际为准）。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。opencode/claude/codex 使用通用 provider 端点，`cwd` 可选（不传表示列出全部原生会话）；import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → agent_assign → session_get` |
 | `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
 | `session_managed` | (无) | 返回调用者管理的 session 摘要 `[{id, name, workerStatus, updatedAt}]`（需 `PAN_AGENT_SESSION_ID`） |
+| `manager_chain` | (无) | 返回调用方（`PAN_AGENT_SESSION_ID`）的**上级 manager 链**（从最近一级 manager 逐级向上，每级含 `level/id/name/workerStatus/lastResultStatus`）。需调用方身份；独立 MCP 进程（无身份）不可用 |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
 | `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用（单一事实源）、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。改 `mcp_servers`（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
@@ -292,6 +293,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
+| `permission_prompt` | (无) | **Claude Code 审批桥**：当 claude adapter 以 `--permission-prompt-tool mcp__pan__permission_prompt` 长驻运行时，Claude 的非交互权限请求经本工具转发到 Dashboard 审批栏，返回 `allow`/`deny` 结构化决策（超时默认 360s 自动拒绝）。普通编排流程**不会**主动调用它；只有在 Dashboard 上批准 Claude 工具调用时才间接生效 |
 | `model_list` | `adapter?` | 列出可用模型 |
 | `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§11 完全一致 |
 
@@ -368,11 +370,11 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 ### 7.6 pending_signal 队列（+ 落盘 queue_pending）
 
-- 每个 Worker 有一个内存 `pending_signal`（asyncio.Queue），consumer 循环阻塞在它上面。
-- **普通任务**：入队 `{text, source, seq, taskId}` → consumer 取出 → 执行。
-- **报告信号**：入队 `{"type":"report_signal"}` ——**只负责唤醒**，报告正文在 meta-agent 的**落盘队列** `Session.queue_pending`（真源）。consumer 被唤醒后从落盘队列批量拉取，拼接成一条消息（`─────` 分隔 + 来源标注）处理；报告批次在收到 `done/error/cancelled` 等终态结果后才确认出队，worker 在执行期间崩溃会由恢复流程重投，避免报告丢失。
-- **QQ 提醒信号（2026-08-22 起）**：`/api/qq/notify` 被 QQ 插件调用后，`enqueue_qq_reminder` 对所有订阅了该 QQ 会话的 session append `{"type":"qq","qqTarget":...}` 到其 `queue_pending` 并唤醒（同一 `report_signal` 通道）——即订阅者 worker 会收到 `@@@@by qq` 抬头提醒（镜像 report 链路，见 §3）。
-- 落盘真源 + 内存信号：服务重启不丢报告；全局 watchdog 看到 `queue_pending` 非空无活 worker 会自动拉起。
+- 每个 Worker 有一个内存 `pending_signal`（asyncio.Queue，只放 `{"type": ...}` 无正文唤醒信号），consumer 循环阻塞在它上面。消息正文一律在**落盘队列** `Session.queue_pending`（typed envelope，`queueItemId`/`source`/`deliveryState`/`revision`），不放进内存队列。
+- **普通任务**：入队 `{type:"task", id, text, source, taskId?, clientMessageId?}` → consumer 唤醒 → `queued→reserved→writing→sent_to_cli` 交接。
+- **报告信号**：入队 `{"type":"report_signal"}`——只负责唤醒，报告正文在 meta-agent 的落盘队列（真源）。consumer 被唤醒后从落盘队列取 FIFO 头部交付单元（连续 report/QQ 段合并为一个交付单元），拼接成一条消息（`─────` 分隔 + 来源标注）处理。**出队边界 = 本地 CLI 交接成功**（stdin 完整写入 + drain，或 one-shot 进程创建成功并持久化 `sent_to_cli`），**不是**业务终态；交接前崩溃 → 恢复流程按 backoff 归队重投，交接后（at-most-once 边界）不因 provider 无终态而重投——接受窄重复窗口而非静默丢失（语义见 `docs/design/queue-at-most-once.md`）。
+- **QQ 提醒信号（2026-08-22 起）**：`/api/qq/notify` 被 QQ 插件调用后，`enqueue_qq_reminder` 对所有订阅了该 QQ 会话的 session append `{"type":"qq","kind":"qq",...}` 到其 `queue_pending` 并唤醒（同一信号通道）——即订阅者 worker 会收到 `@@@@by qq` 抬头提醒（与报告同队列/同出队边界，见 §3）。
+- 落盘真源 + 内存信号：服务重启不丢未交接项；`queue_delivery_ledger` 是已越过交接边界的幂等收据（**不是第二条队列**）；全局 watchdog 看到 `queue_pending` 非空无活 worker 会自动拉起。
 
 ### 7.7 其他约定
 
@@ -587,7 +589,7 @@ curl http://127.0.0.1:8768/api/session-templates
   "permission_mode": "default",
   "mcp_mode": "always",
   "mcp_servers": ["pan-qq"],
-  "system_prompt": "你是某人的聊天秘书，通过 QQ 交流，语气自然。可用工具：mcp__pan-qq__*（qq_send_message / qq_read_conversation / qq_list_contacts / qq_read_inbox / qq_bind / qq_unbind）。"
+  "system_prompt": "你是某人的聊天秘书，通过 QQ 交流，语气自然。可用工具：mcp__pan-qq__*（qq_send_message / qq_read_conversation / qq_list_contacts / qq_read_inbox / qq_send_file / qq_bind / qq_unbind）。"
 }
 ```
 
