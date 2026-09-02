@@ -273,6 +273,29 @@ def test_patch_order_all_sources(monkeypatch):
     _cleanup()
 
 
+def test_patch_order_http_route_precedes_item_route(monkeypatch):
+    """The literal /order path must not be captured as item_id='order'."""
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(_sess, "save", _noop_save)
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    s = _setup_session("ses_q")
+    import copy
+    mixed = copy.deepcopy(MIXED)
+    s.queue_pending = mixed
+    ids = [srv._queue_item_id(item) for item in mixed]
+
+    with TestClient(srv.app) as client:
+        response = client.patch(
+            "/api/sessions/ses_q/queue/order",
+            json={"orderedIds": [ids[2], ids[1], ids[4], ids[0], ids[3]]},
+        )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == [
+        ids[2], ids[1], ids[4], ids[0], ids[3]]
+    _cleanup()
+
+
 def test_patch_order_partial_keeps_tail_order(monkeypatch):
     """只指定部分 queued id 时，其余所有来源按原相对顺序追加。"""
     monkeypatch.setattr(_sess, "save", _noop_save)
@@ -330,5 +353,4 @@ if __name__ == "__main__":
     test_patch_order_unknown_and_missing()
     test_patch_order_session_not_found()
     print("\n=== ALL SESSION QUEUE API TESTS PASSED ===")
-
 

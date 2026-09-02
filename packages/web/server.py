@@ -1881,6 +1881,12 @@ def _queue_error(code: str, message: str, s=None) -> dict:
     return response
 
 
+@app.patch("/api/sessions/{session_id}/queue/order")
+async def api_session_queue_order_route(session_id: str, data: dict):
+    """Route the static order path before the dynamic item-id path below."""
+    return await api_session_queue_order(session_id, data)
+
+
 @app.patch("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_update(session_id: str, item_id: str, data: dict):
     """Edit only a queued user task, retaining its durable identity."""
@@ -1993,7 +1999,6 @@ async def api_session_queue_retry(session_id: str, item_id: str):
             "status": result.get("status") if isinstance(result, dict) else None}
 
 
-@app.patch("/api/sessions/{session_id}/queue/order")
 async def api_session_queue_order(session_id: str, data: dict):
     """Reorder all still-queued sources within the persisted queue.
 
