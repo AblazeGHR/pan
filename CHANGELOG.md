@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-03
+
+### Added
+
+- **Session ordering and drag-and-drop management**：支持持久化自定义排序、拖拽排序，以及将 Session 拖入 manager 建立管理关系。
+- **Durable session queue**：补齐服务端队列的查看、编辑、排序、删除和重试 API，并同步队列事件。
+- **Source metadata 扩展**：开放 `meta-agent` 与 `automation` 来源类型，为外部 meta-agent 和自动化调用预留入口。
+- **Manage controls**：在 Session 管理界面支持解除管理、停止/恢复汇报和 readonly 控制。
+- **Documentation refresh**：同步 HTTP/WS/MCP/API 文档、用户手册和当前待办，归档已完成的一次性调研文档。
+
+### Changed
+
+- Codex adapter 使用原生 `codex app-server --stdio` 长驻桥接，保留 thread/turn 语义。
+- React Dashboard 的拖拽行为已连接真实 `/api/sessions/order`、`/api/claim` 和 `/api/unclaim` 后端接口。
+
+### Fixed
+
+- 清理 legacy consumer MCP alias，减少重复编排入口。
+- 修正 source metadata 在 HTTP 边界被无条件覆盖的问题，非法来源会在 worker 启动前拒绝。
+
 ## [0.1.0] - 2026-08-28
 
 首个公开版本。Pan 是一个光谱式的可扩展中间层：往浅用是最小可用的「Session 与 Agent CLI 管理器」，往深用是完整可扩展的「Agent 集群管理协作系统 + MCP 工具层」。
@@ -37,5 +57,6 @@
 - delivery 语义收敛：reports / tasks 改为 session 级投递（`51c6d6f`）
 - QQ bot 解释器路径收敛为 `config.json` 的 `qq.python` 单一事实源（`aa430a0`）
 
-[Unreleased]: https://github.com/AblazeGHR/pan/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/AblazeGHR/pan/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/AblazeGHR/pan/releases/tag/v0.3.0
 [0.1.0]: https://github.com/AblazeGHR/pan/releases/tag/v0.1.0
