@@ -347,6 +347,9 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
   // 避免把易变的状态放进依赖数组导致回调每渲染都变。
+  //
+  // 卡片主体点击（非 checkbox / eye / chevron 区域）在两种模式下语义一致：
+  // 打开该 Session。select 模式不再吞掉点击——选中/取消只由 checkbox 负责。
   const handleSelect = useCallback(
     (id: string) => {
       // A click fired right after a drag release must not select the session
@@ -357,15 +360,19 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         return;
       }
       const store = useSessionStore.getState();
-      if (store.multiSelectMode) {
-        store.toggleSelection(id);
-      } else if (!id.startsWith('__pending_')) {
+      if (!id.startsWith('__pending_')) {
         store.selectSession(id);
         onSessionClick?.(id);
       }
     },
     [onSessionClick],
   );
+
+  // Select-mode checkbox: toggle selection without opening the session.
+  // Read via getState() so the callback reference stays stable (React.memo).
+  const handleToggleSelect = useCallback((id: string) => {
+    useSessionStore.getState().toggleSelection(id);
+  }, []);
 
   const handleMenu = useCallback(
     (e: React.MouseEvent, id: string) => {
@@ -845,6 +852,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
             collapsedGroups={collapsedGroups}
             hiddenIds={hiddenSessionIds}
             onSelect={handleSelect}
+            onToggleSelect={handleToggleSelect}
             onMenu={handleMenu}
             onToggle={handleToggleManagerNode}
             onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
@@ -877,6 +885,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
                 isHidden={hiddenSessionIds.has(session.id)}
                 onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
                 onSelect={handleSelect}
+                onToggleSelect={handleToggleSelect}
                 onMenu={handleMenu}
               />
             ))}
@@ -898,6 +907,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
           isHidden={hiddenSessionIds.has(session.id)}
           onToggleHidden={multiSelectMode ? handleToggleHidden : undefined}
           onSelect={handleSelect}
+          onToggleSelect={handleToggleSelect}
           onMenu={handleMenu}
           {...dragPropsFor(session)}
         />
@@ -916,6 +926,7 @@ interface ManagerNodeViewProps {
   /** Select-mode hidden ids (eye button source). */
   hiddenIds: Set<string>;
   onSelect: (id: string) => void;
+  onToggleSelect?: (id: string) => void;
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
   onToggleHidden?: (id: string) => void;
@@ -936,6 +947,7 @@ function ManagerNodeView({
   collapsedGroups,
   hiddenIds,
   onSelect,
+  onToggleSelect,
   onMenu,
   onToggle,
   onToggleHidden,
@@ -954,13 +966,14 @@ function ManagerNodeView({
         multiSelectMode={multiSelectMode}
         isHidden={hiddenIds.has(session.id)}
         onToggleHidden={onToggleHidden}
-        expandable={hasChildren && !multiSelectMode}
+        expandable={hasChildren}
         expanded={!collapsed}
         onToggleChildren={(e) => {
           e.stopPropagation();
           onToggle(node);
         }}
         onSelect={onSelect}
+        onToggleSelect={onToggleSelect}
         onMenu={onMenu}
         {...dragPropsFor(session)}
       />
@@ -977,6 +990,7 @@ function ManagerNodeView({
               collapsedGroups={collapsedGroups}
               hiddenIds={hiddenIds}
               onSelect={onSelect}
+              onToggleSelect={onToggleSelect}
               onMenu={onMenu}
               onToggle={onToggle}
               onToggleHidden={onToggleHidden}
@@ -1001,6 +1015,7 @@ interface ManagerChildViewProps {
   /** Select-mode hidden ids (eye button source). */
   hiddenIds: Set<string>;
   onSelect: (id: string) => void;
+  onToggleSelect?: (id: string) => void;
   onMenu?: (e: React.MouseEvent, id: string) => void;
   onToggle: (node: ManagerNode) => void;
   onToggleHidden?: (id: string) => void;
@@ -1032,6 +1047,7 @@ function ManagerChildView({
   collapsedGroups,
   hiddenIds,
   onSelect,
+  onToggleSelect,
   onMenu,
   onToggle,
   onToggleHidden,
@@ -1074,13 +1090,14 @@ function ManagerChildView({
           multiSelectMode={multiSelectMode}
           isHidden={hiddenIds.has(session.id)}
           onToggleHidden={onToggleHidden}
-          expandable={hasChildren && !multiSelectMode}
+          expandable={hasChildren}
           expanded={!collapsed}
           onToggleChildren={(e) => {
             e.stopPropagation();
             onToggle(child);
           }}
           onSelect={onSelect}
+          onToggleSelect={onToggleSelect}
           onMenu={onMenu}
           {...dragPropsFor(session)}
         />
@@ -1099,6 +1116,7 @@ function ManagerChildView({
               collapsedGroups={collapsedGroups}
               hiddenIds={hiddenIds}
               onSelect={onSelect}
+              onToggleSelect={onToggleSelect}
               onMenu={onMenu}
               onToggle={onToggle}
               onToggleHidden={onToggleHidden}

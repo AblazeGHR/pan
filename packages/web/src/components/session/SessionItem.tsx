@@ -13,6 +13,10 @@ interface SessionItemProps {
   isHidden?: boolean;
   /** Select-mode only: eye button callback (id returned by the component). */
   onToggleHidden?: (id: string) => void;
+  /** Select-mode only: checkbox toggle (select/deselect) callback. Kept
+   *  separate from onSelect so the checkbox toggles selection while a click
+   *  on the card body still opens the session. */
+  onToggleSelect?: (id: string) => void;
   /** Show a collapse/expand chevron (used for manager groups with children). */
   expandable?: boolean;
   expanded?: boolean;
@@ -71,6 +75,7 @@ export const SessionItem = memo(function SessionItem({
   multiSelectMode = false,
   isHidden = false,
   onToggleHidden,
+  onToggleSelect,
   expandable = false,
   expanded = true,
   onToggleChildren,
@@ -156,15 +161,26 @@ export const SessionItem = memo(function SessionItem({
       )}
 
       {multiSelectMode ? (
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => {
-            e.stopPropagation();
-            onSelect?.(session.id);
-          }}
-          className="shrink-0 accent-accent"
-        />
+        // Selection hit zone: a label wrapping the checkbox. Generous padding
+        // (-my-2 stretches it across the full card height) makes the small
+        // native checkbox easy to tap on mobile; the negative margins cancel
+        // the card's own padding so the layout is unchanged. stopPropagation
+        // keeps the click from reaching the card (which opens the session);
+        // the label itself forwards the click onto the input, so tapping
+        // anywhere in the zone toggles selection exactly once.
+        <label
+          data-testid="select-checkbox-zone"
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 flex items-center p-2 -my-2 -ml-1 cursor-pointer"
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect?.(session.id)}
+            aria-label={`Select ${session.name || 'session'}`}
+            className="accent-accent"
+          />
+        </label>
       ) : null}
 
       {/* Merged drag gutter: the status indicator AND the drag zone share one
@@ -242,14 +258,17 @@ export const SessionItem = memo(function SessionItem({
             e.stopPropagation();
             onToggleHidden(session.id);
           }}
-          className="shrink-0 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
+          className="shrink-0 flex items-center p-2 -my-2 -ml-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
           title={isHidden ? 'Show session' : 'Hide session'}
         >
           {isHidden ? <Eye size={14} /> : <EyeOff size={14} />}
         </button>
       ) : null}
 
-      {!multiSelectMode && !isPending && expandable && (
+      {/* Chevron stays available in select mode: expanding/collapsing a
+          manager group must not be swallowed by the selection UI. The button
+          stopPropagation keeps the card click (open session) from firing. */}
+      {!isPending && expandable && (
         <button
           onClick={(e) => {
             e.stopPropagation();
