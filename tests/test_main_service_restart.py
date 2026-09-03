@@ -5,6 +5,7 @@ never call stop_pan.bat/start_pan.bat and never touch a real Pan listener.
 """
 
 import asyncio
+import json
 import os
 import sys
 from pathlib import Path
@@ -117,3 +118,31 @@ def test_supervisor_script_is_a_stop_then_start_chain():
     assert "start_pan.bat" in text
     assert "Start-Sleep -Seconds 1" in text
     assert "-Supervisor" in text
+
+
+def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
+    root = Path(__file__).resolve().parent.parent
+    start = (root / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    start_main = (root / "scripts" / "start_main.ps1").read_text(encoding="utf-8")
+    stop = (root / "scripts" / "stop_pan.bat").read_text(encoding="utf-8")
+    config = json.loads((root / "config.example.json").read_text(encoding="utf-8"))
+
+    # A double-clicked batch file must leave enough evidence for failures that
+    # happen before Pan's file logger is initialized, and the server must not
+    # depend on the launcher's console lifetime in either window mode.
+    assert "[bool]$ConsoleHidden = $true" in start_main
+    assert "startup.console_hidden" in start_main
+    assert "-WindowStyle Hidden" in start_main
+    assert "-WindowStyle Normal" in start_main
+    assert "-RedirectStandardOutput $StdoutFile" in start_main
+    assert "-RedirectStandardError $StderrFile" in start_main
+    assert "-StdoutFile \"%PAN_STDOUT%\"" in start
+    assert "-StderrFile \"%PAN_STDERR%\"" in start
+    assert config["startup"]["console_hidden"] is True
+
+    # Prefixes such as D:\\project\\Pan-test must not be treated as this
+    # checkout.  Start and stop use the same boundary-aware contract.
+    assert ".Contains($root)" in start
+    assert ".Contains($root)" in stop
+    assert "Replace('\\\\','/')" not in stop
+    assert "Replace('\\','/')" in stop

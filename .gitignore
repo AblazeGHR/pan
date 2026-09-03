@@ -63,6 +63,7 @@ _pan_codex_e2e*.log
 .codex/
 
 # Secrets / 本机绑定信息防误提交（注意：scripts/kimi-mcp-probe/*.log 历史上已被追踪，
+.private
 # gitignore 不影响已追踪文件，仅拦截新增）
 auth_token*
 *.env

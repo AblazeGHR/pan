@@ -2796,8 +2796,8 @@ async def api_config_reload(data: dict | None = None):
     same config. Per-item failures are collected into ``errors`` and reported
     with ``reloaded: false`` instead of a 500. The response always carries
     ``requiresRestart`` — fields that are startup-frozen by nature and can
-    never hot-apply (frontend route mounting, bound port, logging handlers,
-    the external remote tunnel process).
+    never hot-apply (frontend route mounting, bound port, logging handlers, the
+    Windows startup console window, and the external remote tunnel process).
     """
     scope = (data or {}).get("scope") or "all"
     if scope not in ("adapters", "worker", "plugin", "memory", "all"):
@@ -2849,7 +2849,7 @@ async def api_config_reload(data: dict | None = None):
             result["plugin"] = plugin_entry
 
     # Startup-frozen fields a config.json edit can never hot-apply.
-    result["requiresRestart"] = ["frontend", "port", "logging", "remote"]
+    result["requiresRestart"] = ["frontend", "port", "logging", "remote", "startup"]
 
     if errors:
         result["reloaded"] = False

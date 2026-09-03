@@ -18,7 +18,7 @@ set "PAN_START_BASE=%BASE_DIR%"
 
 REM ---- 0. Refuse duplicate Pan instances before touching caches/PIDs ----
 REM     Match the project root and main.py, never a bare python.exe.
-for /f "delims=" %%p in ('powershell -NoProfile -Command "$base=$env:PAN_START_BASE.Replace('\','/').TrimEnd('/'); $p=Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -and $_.CommandLine.Replace('\','/').Contains($base) -and $_.CommandLine.Contains('main.py') }; if ($p) { $p | Select-Object -First 1 -ExpandProperty ProcessId }"') do set "EXISTING_MAIN_PID=%%p"
+for /f "delims=" %%p in ('powershell -NoProfile -Command "$base=$env:PAN_START_BASE.Replace('\','/').TrimEnd('/'); $root=$base+'/'; $p=Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -and $_.CommandLine.Replace('\','/').Contains($root) -and $_.CommandLine.Contains('main.py') }; if ($p) { $p | Select-Object -First 1 -ExpandProperty ProcessId }"') do set "EXISTING_MAIN_PID=%%p"
 if defined EXISTING_MAIN_PID (
     echo [ERROR] Pan Core is already running for this checkout, PID=%EXISTING_MAIN_PID%
     exit /b 2
@@ -42,6 +42,8 @@ if not exist "%PYTHON%" (
 set "MAIN_PY=%BASE_DIR%\main.py"
 set "PID_MAIN=%BASE_DIR%\data\main_pid.txt"
 set "PID_CF=%BASE_DIR%\data\cf_pid.txt"
+set "PAN_STDOUT=%BASE_DIR%\data\logs\pan-console.out.log"
+set "PAN_STDERR=%BASE_DIR%\data\logs\pan-console.err.log"
 set "MAIN_PID="
 set "CF_PID="
 del "%PID_MAIN%" "%PID_CF%" 2>nul
@@ -53,7 +55,7 @@ if not defined PAN_PORT (
 if not defined PAN_PORT set "PAN_PORT=8768"
 
 REM ---- 2. Start main.py ----
-powershell -NoProfile -File "%SCRIPT_DIR%start_main.ps1" -Python "%PYTHON%" -MainPy "%MAIN_PY%" -WorkDir "%BASE_DIR%" -PidFile "%PID_MAIN%"
+powershell -NoProfile -File "%SCRIPT_DIR%start_main.ps1" -Python "%PYTHON%" -MainPy "%MAIN_PY%" -WorkDir "%BASE_DIR%" -PidFile "%PID_MAIN%" -StdoutFile "%PAN_STDOUT%" -StderrFile "%PAN_STDERR%"
 if errorlevel 1 (
     echo [ERROR] Failed to launch Pan Core.
     goto :start_failed

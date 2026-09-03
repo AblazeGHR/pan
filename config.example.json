@@ -3,6 +3,17 @@
 
   "port": 8768,
 
+  "startup": {
+    "_字段说明": {
+      "console_hidden": {
+        "默认值": true,
+        "可选值": [true, false],
+        "说明": "scripts/start_pan.bat 启动时是否隐藏 Pan 控制台；false 显示独立控制台。仅影响脚本启动，直接运行 python main.py 仍为前台模式"
+      }
+    },
+    "console_hidden": true
+  },
+
   "_frontend说明": {
     "frontend": {
       "默认值": "coexist",

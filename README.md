@@ -585,6 +585,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | `remote.quick_tunnel` | true | true 用临时 URL；false 用 named tunnel（需 `remote.config_path`） |
 | `remote.status_port` | 8769 | Remote 状态服务端口 |
 | `logging` | INFO / `data/logs/pan.log` | 日志级别、轮转、控制台输出 |
+| `startup.console_hidden` | true | `scripts\start_pan.bat` 是否隐藏独立 Pan 控制台；设为 `false` 可显示启动和运行日志窗口 |
 | `plugin_manifests` | `["manifest.json", "packages/mcp/manifest.json"]` | 根项目模板 + Pan MCP 清单；外部/private manifest 可在本地 config.json 追加 |
 
 **环境变量**：

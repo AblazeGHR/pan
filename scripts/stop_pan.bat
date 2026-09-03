@@ -42,7 +42,7 @@ if defined QQ_PID (
 
 REM ---- 3. Kill Pan Core (process tree includes the QQ bot child) ----
 if defined MAIN_PID (
-    powershell -NoProfile -Command "$base=$env:PAN_STOP_BASE; $p=Get-CimInstance Win32_Process -Filter \"ProcessId=%MAIN_PID%\"; if ($p -and $p.Name -match '^python(\.exe)?$' -and $p.CommandLine -and $p.CommandLine -match [regex]::Escape($base) -and $p.CommandLine -match 'main\.py') { exit 0 }; exit 1" >nul 2>&1
+    powershell -NoProfile -Command "$base=$env:PAN_STOP_BASE.Replace('\','/').TrimEnd('/'); $root=$base+'/'; $p=Get-CimInstance Win32_Process -Filter \"ProcessId=%MAIN_PID%\"; if ($p -and $p.Name -match '^python(\.exe)?$' -and $p.CommandLine -and $p.CommandLine.Replace('\','/').Contains($root) -and $p.CommandLine.Contains('main.py')) { exit 0 }; exit 1" >nul 2>&1
     if errorlevel 1 (
         echo [WARN] Recorded MAIN pid does not belong to this Pan checkout, skipping PID=%MAIN_PID%
     ) else (
@@ -64,7 +64,7 @@ if defined CF_PID (
 
 REM ---- 5. Fallback: precise command-line match, NEVER kill all python.exe ----
 REM     5a. main.py whose command line contains this project root
-powershell -NoProfile -Command "$base='%BASE_DIR%'; $p = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match [regex]::Escape($base) -and $_.CommandLine -match 'main\.py' }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
+powershell -NoProfile -Command "$base=$env:PAN_STOP_BASE.Replace('\','/').TrimEnd('/'); $root=$base+'/'; $p = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine.Replace('\','/').Contains($root) -and $_.CommandLine.Contains('main.py') }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
 
 REM     5b. QQ bridge bot.py — runs under an interpreter OUTSIDE the project
 REM         .venv (nonebot lives there). Resolve the same way main.py does:
