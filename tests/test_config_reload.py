@@ -96,10 +96,10 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "CONFIG_FILE", cfg_path)
     # reload 会覆盖 worker 模块级变量：登记当前值，teardown 自动恢复。
     # _MEMORY_ENABLED 例外：import srv 时 load_memory_config() 读的是真实
-    # config.json（可能 enabled=false），测试需要已知起始值 True 才可断言。
+    # config.json（可能 enabled=false），测试需要已知起始值 False 才可断言。
     for attr in ("_WORKER_TIMEOUT_SEC", "_WORKER_TASK_TIMEOUT_SEC", "_WORKER_IDLE_SEC"):
         monkeypatch.setattr(worker, attr, getattr(worker, attr))
-    monkeypatch.setattr(worker, "_MEMORY_ENABLED", True)
+    monkeypatch.setattr(worker, "_MEMORY_ENABLED", False)
     # plugin 分支需要已初始化的 manager（生产中 lifespan 保证，测试里手动给）
     mgr = CharacterManager(str(tmp_path / "data"))
     mgr.load_manifest([manifest_a])
@@ -391,28 +391,30 @@ def test_reload_plugin_scope_in_all():
 
 def test_reload_memory_enabled_toggle():
     cfg = _read_cfg()
-    cfg["memory"] = {"enabled": False}
+    cfg["memory"] = {"enabled": True}
     _write_config(config.CONFIG_FILE, cfg)
 
     r = asyncio.run(srv.api_config_reload({"scope": "memory"}))
     assert r["reloaded"] is True
+    assert r["memory"]["before"] == {"enabled": False}
+    assert r["memory"]["after"] == {"enabled": True}
+    assert worker._MEMORY_ENABLED is True
+
+    # 改回 false 后再 reload 恢复
+    cfg["memory"] = {"enabled": False}
+    _write_config(config.CONFIG_FILE, cfg)
+    r = asyncio.run(srv.api_config_reload({"scope": "memory"}))
     assert r["memory"]["before"] == {"enabled": True}
     assert r["memory"]["after"] == {"enabled": False}
     assert worker._MEMORY_ENABLED is False
 
-    # 改回 true 后再 reload 恢复
-    cfg["memory"] = {"enabled": True}
-    _write_config(config.CONFIG_FILE, cfg)
-    r = asyncio.run(srv.api_config_reload({"scope": "memory"}))
-    assert worker._MEMORY_ENABLED is True
 
-
-def test_reload_memory_default_true_when_key_missing():
-    """config 无 memory 段：默认开启，reload 幂等。"""
+def test_reload_memory_default_false_when_key_missing():
+    """config 无 memory 段：默认关闭，reload 幂等。"""
     r = asyncio.run(srv.api_config_reload({"scope": "memory"}))
     assert r["reloaded"] is True
-    assert r["memory"]["before"] == {"enabled": True}
-    assert r["memory"]["after"] == {"enabled": True}
+    assert r["memory"]["before"] == {"enabled": False}
+    assert r["memory"]["after"] == {"enabled": False}
 
 
 if __name__ == "__main__":

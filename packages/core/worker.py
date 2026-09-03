@@ -99,10 +99,11 @@ def reload_worker_config() -> dict:
 
 
 # ── Memory injection 开关（config.json -> memory.enabled）──
-# 默认开启（保持既有行为）；设 false 可完全跳过 embedding 记忆注入，
+# 默认关闭：config.json 缺省 memory 段时不做 embedding 记忆注入，
 # 避免首次加载 bge 模型 + huggingface 网络重试阻塞 worker 任务。
+# 需要记忆注入的角色，在 config.json 显式配 "memory": { "enabled": true }。
 
-_MEMORY_ENABLED = True
+_MEMORY_ENABLED = False
 
 
 def load_memory_config():
@@ -110,9 +111,11 @@ def load_memory_config():
 
     config.json:
         "memory": { "enabled": false }
+
+    缺省该键（config 无 memory 段）→ 视为关闭（默认 false）。
     """
     global _MEMORY_ENABLED
-    _MEMORY_ENABLED = bool(load_config().get("memory", {}).get("enabled", True))
+    _MEMORY_ENABLED = bool(load_config().get("memory", {}).get("enabled", False))
 
 
 def reload_memory_config() -> dict:
