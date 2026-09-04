@@ -249,6 +249,12 @@ def test_eof_reports_zombie_for_running(monkeypatch):
         pass
 
     monkeypatch.setattr(_sess, "save_async", noop_save)
+    # EOF（abnormal）还会调度 force recovery；stub 掉真实 spawn，防止
+    # asyncio.run 收尾取消 spawn 中途的 recovery 任务在 Proactor 上死锁。
+    async def _no_spawn(session_id):
+        return "spawn suppressed by test"
+
+    monkeypatch.setattr(worker, "create_worker", _no_spawn)
     child = _sess.Session(id="ses_child", name="child")
     child.managed_by = "ses_mgr"
     _sess._cache["ses_child"] = child

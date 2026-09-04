@@ -238,10 +238,27 @@ def test_queue_retry_addresses_original_item(monkeypatch):
     task.update({"nextAttemptAt": 9999999999, "lastDeliveryError": "closed"})
     s.queue_pending = [task]
     monkeypatch.setattr(_sess, "save_async", _noop_save)
+    # retry 后无活 worker → 调度恢复；stub 防止 teardown 取消 spawn 中途的
+    # recovery 任务在 Windows Proactor 上死锁（同 test_addressing_compat）。
+    spawned = []
 
-    result = asyncio.run(worker.retry_pending_item(s.id, task["id"]))
+    async def fake_create(session_id):
+        spawned.append(session_id)
+        return "spawn suppressed by test"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+
+    async def scenario():
+        result = await worker.retry_pending_item(s.id, task["id"])
+        recovery = worker._recovery_tasks.get(s.id)
+        if recovery is not None:
+            await asyncio.wait_for(recovery, timeout=1)
+        return result
+
+    result = asyncio.run(scenario())
     assert result["item"] == task
     assert s.queue_pending == [task]
     assert "nextAttemptAt" not in task
     assert "lastDeliveryError" not in task
+    assert spawned == ["ses_mgr"], "retry without live worker must schedule recovery"
     _cleanup()

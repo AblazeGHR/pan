@@ -110,7 +110,14 @@ def test_assign_task_id_idempotent_pending():
 
 
 def test_assign_task_id_idempotent_after_complete():
-    """已完成 taskId 重复 assign → 返回缓存结果，不重复入队。"""
+    """已完成 taskId 重复 assign → 不重复入队。
+
+    当前契约（durable-first，队列/ledger 优先于进程内注册表）：
+    - CLI hand-off 提交后队列行被消费、ledger 行保留 sent_to_cli 回执
+      → 重发返回 sent_to_cli 回执（不能把已到达 CLI 的任务变成二次执行）；
+    - ledger 回执清理后 → 进程内 done 注册表兜底返回原结果。
+    旧契约下仅更新 _task_status 即返回 done 的状态在现行实现中不可达。
+    """
     _cleanup()
     s = _setup_session()
     w = _setup_worker(s.id)
@@ -118,17 +125,24 @@ def test_assign_task_id_idempotent_after_complete():
 
     async def scenario():
         r1 = await worker.assign(s.id, "job", task_id=tid)
-        # 模拟完成路径：worker.py 完成时把 _task_status 更新为 done
+        # 模拟完成路径：hand-off 提交（commit）后队列行被消费，ledger 保留回执
+        item = next(it for it in s.queue_pending if it.get("taskId") == tid)
+        s.queue_pending.remove(item)
+        s.queue_delivery_ledger[item["queueItemId"]]["deliveryState"] = "sent_to_cli"
+        r2 = await worker.assign(s.id, "job", task_id=tid)
+        # ledger 回执被清理后 → done 注册表兜底
+        s.queue_delivery_ledger.pop(item["queueItemId"], None)
         worker._task_status[tid] = {"status": "done", "result": "the answer",
                                     "workerId": w.worker_id, "taskId": tid,
                                     "ts": time.monotonic()}
-        r2 = await worker.assign(s.id, "job", task_id=tid)
-        return r1, r2
+        r3 = await worker.assign(s.id, "job", task_id=tid)
+        return r1, r2, r3
 
-    r1, r2 = asyncio.run(scenario())
+    r1, r2, r3 = asyncio.run(scenario())
 
     assert r1["status"] == "queued", f"got {r1}"
-    assert r2["status"] == "done" and r2["result"] == "the answer", f"got {r2}"
+    assert r2["status"] == "sent_to_cli" and r2["duplicate"] is True, f"got {r2}"
+    assert r3["status"] == "done" and r3["result"] == "the answer", f"got {r3}"
     assert w.pending_signal.qsize() == 1, f"task re-enqueued: qsize={w.pending_signal.qsize()}"
     print("PASS: assign taskId idempotent after complete")
     _cleanup()

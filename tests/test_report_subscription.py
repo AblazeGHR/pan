@@ -14,11 +14,32 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 # Make packages importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core import worker, session as _sess
 from packages.core.adapters import CbcAdapter
+
+
+@pytest.fixture(autouse=True)
+def _no_real_recovery_spawn(monkeypatch):
+    """无活 worker 的 enqueue 路径会调度立即恢复（fire-and-forget 任务）。
+
+    若让它真实 spawn cbc，asyncio.run 收尾取消 spawn 中途的 recovery 任务
+    会让 Windows Proactor 的 waiter future 永不完成 → _cancel_all_tasks
+    死锁 → 整个 pytest 进程挂死。本文件只测报告入队/消费语义，统一 stub；
+    recorder 供测试断言「recovery 确实被调度」的回归（yield 计数列表）。
+    """
+    spawned = []
+
+    async def _no_spawn(session_id):
+        spawned.append(session_id)
+        return "spawn suppressed by test fixture"
+
+    monkeypatch.setattr(worker, "create_worker", _no_spawn)
+    yield spawned
 
 
 def _cleanup():
@@ -69,7 +90,7 @@ def test_report_subscriptions_legacy_data_absent():
 
 # ── report enqueue ──
 
-def test_enqueue_report_subscribed(monkeypatch):
+def test_enqueue_report_subscribed(monkeypatch, _no_real_recovery_spawn):
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     _setup_session("ses_child", managed_by="ses_mgr")
@@ -93,6 +114,8 @@ def test_enqueue_report_subscribed(monkeypatch):
     assert r["sessionId"] == "ses_child"
     assert r["taskId"] == "task-1"
     assert r["workerId"] == "worker-1"
+    assert _no_real_recovery_spawn == ["ses_mgr"], \
+        "unsubscribed-worker report must schedule manager recovery"
     assert r["deliveryState"] == "queued"
     _cleanup()
 

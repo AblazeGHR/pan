@@ -32,24 +32,28 @@ class _FakeWS:
 
 
 def test_user_inject_without_worker_persists_and_acknowledges(monkeypatch):
-    """An open dashboard WS uses the durable session route when offline."""
+    """An open dashboard WS uses the durable session queue when offline.
+
+    契约（统一服务端队列）：user_inject 不再走 send_session，而是进入
+    enqueue_user_message 的规范队列；ack 携带 queueItemId / queueRevision。
+    """
     srv.ws_clients.clear()
     ws = _FakeWS({"type": "user_inject", "sessionId": "session-1", "text": "hello"})
     calls = []
 
-    async def fake_send_session(session_id, text, source="agent", **kwargs):
-        calls.append(("send_session", session_id, text, source, kwargs))
+    async def fake_enqueue_user_message(session_id, text, client_message_id=None):
+        calls.append(("enqueue_user_message", session_id, text, client_message_id))
         return {"status": "queued", "workerId": None, "sessionId": session_id,
-                "pendingSpawn": True}
+                "queueItemId": "q_test_1"}
 
-    monkeypatch.setattr(srv.worker, "send_session", fake_send_session)
+    monkeypatch.setattr(srv.worker, "enqueue_user_message", fake_enqueue_user_message)
 
     asyncio.run(srv.ws_endpoint(ws))
 
-    assert calls == [("send_session", "session-1", "hello", "user",
-                      {"client_message_id": None})]
+    assert calls == [("enqueue_user_message", "session-1", "hello", None)]
     assert ws.sent == [{"type": "user_inject.accepted", "sessionId": "session-1",
-                        "workerId": None, "clientMessageId": None}]
+                        "workerId": None, "clientMessageId": None,
+                        "queueItemId": "q_test_1", "queueRevision": 0}]
     assert ws not in srv.ws_clients
 
 
