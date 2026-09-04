@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, 'src'),
       },
     },
+    test: {
+      setupFiles: [path.resolve(__dirname, 'src/test-setup.ts')],
+    },
     server: {
       port: 5173,
       proxy: {

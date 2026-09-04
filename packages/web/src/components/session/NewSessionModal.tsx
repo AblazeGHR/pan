@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useSessionStore } from '@/stores/sessionStore';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
 import { fetchSessionTemplates, fetchDirectories, type DirectoryListResponse } from '@/services/api';
 import type { SessionTemplate } from '@/types';
-import { ChevronUp, Folder, FolderOpen, FolderPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronUp, Folder, FolderOpen, FolderPlus, Loader2 } from 'lucide-react';
 
 interface NewSessionModalProps {
   open: boolean;
@@ -74,22 +76,53 @@ function DirectoryBrowser({ path, onPathChange, onSelect, onCancel }: DirectoryB
 
   return (
     <div className="flex flex-col gap-3" data-testid="directory-browser">
+      {/* Breadcrumb: the first crumb is the roots level (Windows drive list /
+          POSIX roots). The backend reports parent=null for a drive root (e.g.
+          "D:\"), so without this crumb there is no way back to the level where
+          no drive is selected yet. The current path is shown by the readout
+          box below, so the crumb stays link-only. */}
+      {path !== '' && (
+        <div className="flex items-center gap-1 text-xs" data-testid="directory-breadcrumb">
+          <button
+            type="button"
+            className="text-accent hover:underline"
+            onClick={() => goTo('')}
+          >
+            盘符列表
+          </button>
+          <span className="text-text-tertiary">/</span>
+        </div>
+      )}
       <div className="rounded border border-border-muted bg-bg-primary px-3 py-2 text-xs text-text-secondary break-all">
         {data?.current || path || '服务器文件系统根位置'}
       </div>
       <div className="flex items-center gap-2">
-        <Button type="button" size="sm" variant="secondary" disabled={!data?.parent || loading} onClick={() => data?.parent && goTo(data.parent)}>
+        {/* 上一级: a drive root (or filesystem root) reports parent=null from
+            the backend; going up from there means returning to the
+            drive/roots list (path=''), so the button stays enabled. */}
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={!path || loading}
+          onClick={() => goTo(data?.parent ?? '')}
+        >
           <ChevronUp size={14} /> 上一级
         </Button>
         <span className="text-xs text-text-tertiary">仅按需加载当前层目录</span>
       </div>
-      <div className="min-h-32 rounded border border-border-muted bg-bg-primary">
+      {/* Fixed-height scroll window with an always-styled scrollbar, so a
+          large directory can never overflow the screen. */}
+      <div
+        data-testid="directory-entries"
+        className="dir-scroll h-64 overflow-y-auto rounded border border-border-muted bg-bg-primary"
+      >
         {loading && <div className="flex items-center gap-2 p-4 text-sm text-text-secondary"><Loader2 size={15} className="animate-spin" />加载中…</div>}
         {!loading && error && <div className="p-4 text-sm text-danger">加载失败：{error}</div>}
         {!loading && !error && data && data.entries.length === 0 && <div className="p-4 text-sm text-text-tertiary">空目录</div>}
         {!error && data?.entries.map((entry) => (
           <button key={entry.path} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary" onClick={() => goTo(entry.path)}>
-            <Folder size={15} className="text-text-tertiary" />
+            <Folder size={15} className="shrink-0 text-text-tertiary" />
             <span className="truncate">{entry.name}</span>
           </button>
         ))}
@@ -129,6 +162,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const createNewSession = useSessionStore((s) => s.createNewSession);
   const sessions = useSessionStore((s) => s.sessions);
   const showToast = useUIStore((s) => s.showToast);
+  const { isMobile } = useMediaQuery();
 
   // A template may pin its own adapter (manifest `adapter` field). When the
   // selected template carries an adapter, the adapter selector is locked to it.
@@ -165,6 +199,16 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       requestAnimationFrame(() => nameRef.current?.focus());
     }
   }, [open, loadCliStatus]);
+
+  // Full-screen mobile page closes on Escape too (parity with <Modal>).
+  useEffect(() => {
+    if (!open || !isMobile) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open, isMobile, onClose]);
 
   // Choose cbc when it is available, otherwise the first available adapter.
   // If a template pins an unavailable adapter, leave the selection empty so
@@ -291,10 +335,16 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const execModes = config?.executionModes || ['stream'];
   const showOutputMode = execModes.length > 1;
+  const createDisabled =
+    submitting ||
+    cliStatusLoading ||
+    !!cliStatusError ||
+    !hasAvailableAdapter ||
+    !selectedAdapterAvailable ||
+    lockedAdapterUnavailable;
 
-  return (
-    <Modal open={open} onClose={onClose} title="New Session" size="lg">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+  const formBody = (
+    <form id="new-session-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         {/* Adapter select — availability comes from /api/cli/status. */}
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">
@@ -453,25 +503,74 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button
+        {/* Actions — desktop keeps them inside the dialog. On mobile they
+            move to the fixed full-screen footer; the submit button there is
+            associated with the form via the HTML `form` attribute. */}
+        {!isMobile && (
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={createDisabled}
+            >
+              {submitting ? 'Creating...' : 'Create'}
+            </Button>
+          </div>
+        )}
+      </form>
+  );
+
+  // Mobile: the create-session settings page renders as a full-screen page
+  // (not a desktop-style centered dialog). Portal to <body> for the same
+  // reason as <Modal>: the mobile sidebar container is transformed, which
+  // would clamp position:fixed descendants. Safe-area insets keep the header
+  // clear of notches and the footer above the home indicator; the middle
+  // section scrolls independently.
+  if (isMobile) {
+    return createPortal(
+      <div
+        data-testid="new-session-fullscreen"
+        role="dialog"
+        aria-modal="true"
+        aria-label="New Session"
+        className="fixed inset-0 z-40 flex flex-col bg-bg-primary"
+      >
+        <header className="flex shrink-0 items-center gap-2 border-b border-border-muted px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+          <button
             type="button"
-            variant="ghost"
             onClick={onClose}
-            disabled={submitting}
+            aria-label="Back"
+            className="rounded p-1.5 text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
           >
+            <ArrowLeft size={18} />
+          </button>
+          <h2 className="text-base font-semibold text-text-primary">New Session</h2>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{formBody}</div>
+        <footer className="flex shrink-0 justify-end gap-2 border-t border-border-muted bg-bg-primary px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={submitting || cliStatusLoading || !!cliStatusError || !hasAvailableAdapter || !selectedAdapterAvailable || lockedAdapterUnavailable}
-          >
+          <Button type="submit" form="new-session-form" variant="primary" disabled={createDisabled}>
             {submitting ? 'Creating...' : 'Create'}
           </Button>
-        </div>
-      </form>
+        </footer>
+      </div>,
+      document.body,
+    );
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="New Session" size="lg">
+      {formBody}
     </Modal>
   );
 }
