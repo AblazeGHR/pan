@@ -333,6 +333,14 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
   };
 
+  // Closed → render nothing. The Sidebar keeps this component always mounted
+  // and toggles `open`; without this guard the mobile branch below would
+  // portal the full-screen page even while the creation flow is closed (the
+  // desktop path is safe because <Modal> already returns null when closed).
+  // Placed after every hook call and before any render branch, so hook order
+  // stays unconditional.
+  if (!open) return null;
+
   const execModes = config?.executionModes || ['stream'];
   const showOutputMode = execModes.length > 1;
   const createDisabled =

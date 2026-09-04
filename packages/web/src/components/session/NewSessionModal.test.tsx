@@ -262,6 +262,24 @@ describe('NewSessionModal mobile full-screen page', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('regression: mobile + open=false renders nothing (no fullscreen page, no overlay)', () => {
+    // Sidebar keeps the component mounted and toggles open; the mobile
+    // branch must not portal the full-screen page while closed.
+    mockMatchMedia(true);
+    render(<NewSessionModal open={false} onClose={() => {}} />);
+
+    expect(screen.queryByTestId('new-session-fullscreen')).toBeNull();
+    expect(document.querySelector('.modal-overlay')).toBeNull();
+    expect(document.body.textContent).toBe('');
+  });
+
+  it('regression: desktop + open=false renders nothing', () => {
+    render(<NewSessionModal open={false} onClose={() => {}} />);
+
+    expect(screen.queryByTestId('new-session-fullscreen')).toBeNull();
+    expect(document.querySelector('.modal-overlay')).toBeNull();
+  });
 });
 
 describe('NewSessionModal directory browser window and hierarchy', () => {
