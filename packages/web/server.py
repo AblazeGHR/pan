@@ -100,6 +100,10 @@ async def lifespan(app: FastAPI):
     
     yield
     worker.stop_global_watchdog()
+    # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
+    # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
+    # spawn 中途导致 Windows Proactor 循环无法退出。
+    await worker.drain_recoveries()
     await worker.shutdown_all()
     # Release cached MemoryManagers + loaded embedding models (#20).
     try:
