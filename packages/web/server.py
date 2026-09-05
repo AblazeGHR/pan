@@ -318,8 +318,12 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
     launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-restart-launcher.log"
     launcher_log.parent.mkdir(parents=True, exist_ok=True)
+    # Windows DETACHED_PROCESS can report a successful Popen while the
+    # powershell.exe child never executes its -File script.  CREATE_NO_WINDOW
+    # provides the required non-console launch while CREATE_NEW_PROCESS_GROUP
+    # keeps this supervisor outside the old Pan process-group cleanup.
     flags = (
-        getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
     )
     # Keep the handle open only across Popen.  subprocess duplicates the
