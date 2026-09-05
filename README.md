@@ -356,7 +356,7 @@ cd ../..
 # 4. 启动
 python main.py
 # → http://127.0.0.1:8768
-#   main 分支默认 8768；test 分支默认 8767；可用 PAN_PORT 覆盖
+#   代码默认端口保持 8768；测试/隔离运行时使用 8767 或 8765；可用 PAN_PORT 覆盖
 
 ```
 
@@ -379,7 +379,8 @@ bash scripts/stop.sh    # 停止
 
 | 端口 | 用途 |
 |------|------|
-| 8768 | Pan 主服务（`main` 分支默认；`test` 分支为 8767；由 `config.json` 的 `port` 控制） |
+| 8768 | Pan 应用端口（代码默认；实用应用使用；由 `config.json` 的 `port` 控制） |
+| 8767 / 8765 | `main` 或 `test` 工作树的测试/隔离运行端口，按需选择 |
 | 8769 | Remote 状态服务（`remote.status_port`） |
 | 8080 | QQ 插件（NoneBot）HTTP API，不对外 |
 | 3001 / 3002 | NapCat / LLOneBot 正向 WS 网关 |
@@ -396,7 +397,7 @@ bash scripts/stop.sh    # 停止
 | `PAN_QQ_MODE` | — | 覆盖 `qq.mode` |
 | `ONEBOT_WS_URLS` / `ONEBOT_ACCESS_TOKEN` | — | QQ 通道 WS 地址 / token，可写入 `packages/qq/.env` |
 
-main 分支默认访问 <http://127.0.0.1:8768>，test 分支默认使用 8767；也可在 `config.json` 设置 `port` 或用 `PAN_PORT` 覆盖。改端口后，浏览器地址和 `PAN_API_URL` 必须使用同一个端口。
+代码默认访问 <http://127.0.0.1:8768>，面向用户的默认端口不变。开发测试或隔离运行 `main` / `test` 工作树时，应在本地 `config.json` 或 `PAN_PORT` 中选择 `8767` 或 `8765`，避免占用应用端口 8768。改端口后，浏览器地址、`PAN_API_URL` 和对应的 `PAN_AGENT_SESSION_ID` 所属 Pan 实例必须使用同一个端口。
 
 ### 首次使用：从 Dashboard 完成第一个任务
 
@@ -568,7 +569,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 
 | 配置 | 默认值 | 说明 |
 |------|--------|------|
-| `port` | 8768 | 主服务端口（main 分支）；test 分支 8767 |
+| `port` | 8768 | 主服务端口默认值（面向用户保持 8768；测试/隔离运行时改为 8767 或 8765） |
 | `frontend` | `coexist` | `coexist` / `react` / `legacy` |
 | `cbc.model` | `deepseek-v4-flash` | cbc 默认模型 |
 | `cbc.models` | `[]` | 不填 = 自动识别（cbc `--help` 解析）；填写 = 限制可用模型 |
@@ -870,12 +871,12 @@ python -m packages.remote
 ## 运行须知
 
 - **安全模型**：API 无鉴权，默认绑定 `127.0.0.1`（loopback）是有意为之。把 `PAN_HOST` 改成非 loopback 会把所有端点暴露到网络（`main.py` 启动时会告警）。安全重点在边界校验：workdir 路径逃逸校验、character_id 格式校验。
-- **端口速查**：Pan 主服务 8768（main）/ 8767（test）；Remote 状态 8769；NoneBot2 8080（不对外）；NapCat 3001 / LLOneBot 3002。
+- **端口速查**：Pan 应用/默认端口 8768；main/test 测试或隔离运行使用 8767 或 8765；Remote 状态 8769；NoneBot2 8080（不对外）；NapCat 3001 / LLOneBot 3002。
 - **Worker 超时语义**：stream running 按**任务运行时长**判定卡死（`worker.task_timeout_sec`，默认 1800s）；queued 用静默超时（`worker.timeout_sec`，默认 300s）——长思考 / 大文件读取不会被误杀。
 - **Worker 双模式**：`stream` 长驻（可挂载 MCP）；`one-shot` 一次性（仅 `output_mode=oneshot` 时启用）。派发统一走 `agent_assign` / `agent_send`（`worker_assign` / `worker_send` 为兼容别名；阻塞式 `worker_handoff` 已于 2026-08-26 移除，串行依赖同样走 assign + report_subscribe）。
 - **Memory 依赖与降级**：`minimal-requirements.txt` 不含 ML 链；启用向量检索需 `sentence-transformers`（web 端默认 embedding provider）。可选库缺失时懒加载 + ImportError 兜底自动降级，不影响 Core 启动；`jieba` 缺失会显著降低中文检索质量。
 - **QQ bot 进程管理**：main.py 按 `qq.enabled` 统一 spawn / 终止（写 `data/qq_bot.pid`）；`scripts/stop_pan.bat` 精确树杀，不全局杀 python.exe。
-- **worktree 无独立 .venv**：在 git worktree 里测试 / 运行时，统一使用主仓库的 `.venv`。
+- **依赖与 worktree**：`main` 应保持完整的 Python/前端依赖；小改动可直接在 `main` 合并并测试。不确定的大改动优先在 `test` 或独立 worktree 验证，Python 使用 `Pan-main/.venv`，前端 `node_modules` 可复用 `main` 的依赖或在隔离 worktree 单独安装。
 - **Python 版本**：仓库无版本声明文件（无 pyproject.toml / .python-version），实际运行环境为 Python 3.14.5。
 
 ## 文档

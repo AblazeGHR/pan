@@ -86,14 +86,14 @@ bash scripts/start.sh
 
 | 端口/变量 | 用途 |
 |---|---|
-| `8768` | main 分支 Pan 主服务默认端口 |
-| `8767` | test 分支约定端口 |
+| `8768` | Pan 面向用户的默认应用端口（代码默认值不变） |
+| `8767` / `8765` | main/test 工作树的测试或隔离运行端口 |
 | `PAN_PORT` | 覆盖主服务端口 |
 | `PAN_API_URL` | MCP server 访问 Pan 主服务的地址，默认 `http://127.0.0.1:8768` |
 | `PAN_PYTHON` | manifest 中 stdio MCP server 使用的 Python 解释器 |
 | `9740` | MCP server 的 SSE/streamable-http 默认端口，不是 Pan 主服务端口 |
 
-使用 `report_subscribe` 时必须三者一致：MCP 配置中的目标地址、`PAN_API_URL`、`PAN_AGENT_SESSION_ID` 所属的 Pan 实例必须是同一服务（同一端口）。把 MCP 指到 8768、而调用者 Session 实际在 8767，会出现“找不到 manager”、订阅无效或 404。
+开发测试时可将 main/test 工作树配置为 8767 或 8765，以避开应用端口 8768；代码默认端口仍为 8768。使用 `report_subscribe` 时必须三者一致：MCP 配置中的目标地址、`PAN_API_URL`、`PAN_AGENT_SESSION_ID` 所属的 Pan 实例必须是同一服务（同一端口）。
 
 ---
 

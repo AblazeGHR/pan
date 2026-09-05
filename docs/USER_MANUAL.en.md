@@ -55,7 +55,7 @@ Set-Location packages/web; pnpm install; pnpm build; Set-Location ../..
 python main.py
 ```
 
-Open <http://127.0.0.1:8768>. `main` defaults to 8768; the test branch convention is 8767. `PAN_PORT` overrides the server port and `PAN_API_URL` controls where the MCP server connects. For `report_subscribe`, the MCP target, `PAN_API_URL`, and the `PAN_AGENT_SESSION_ID` Session must belong to the same Pan instance and port.
+Open <http://127.0.0.1:8768>. The code/application default remains 8768; use 8767 or 8765 for `main`/`test` test or isolated runs. `PAN_PORT` overrides the server port and `PAN_API_URL` controls where the MCP server connects. For `report_subscribe`, the MCP target, `PAN_API_URL`, and the `PAN_AGENT_SESSION_ID` Session must belong to the same Pan instance and port.
 
 ## 3. Your first task
 

@@ -21,7 +21,7 @@ Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（Meta-Agent）通
    - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3 / §10.2 G9）。
 2. 编排主链路：`session_create → report_subscribe（订阅）→ agent_assign → queue_pending 收完成报告 → session_get 查结果 → session_delete 收尾`。
 3. **完成通知只有一条编排路径**：MCP `report_subscribe` → 报告落到自己的**落盘队列 `queue_pending`**（meta-agent 内部订阅，§3）。外部 WS 盯梢（`/ws/agent` / `monitor_workers.py`）仅**测试/排障/外部协调者**用，不是编排路径（§4）。
-4. 端口约定：main 分支默认 **8768**（test 分支 8767）；MCP server 默认连 `PAN_API_URL`（8768）。**关键**：MCP server 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务**同实例**（§3 三对齐），否则 `report_subscribe` / `qq_bind` 失效（§10.2 G9）。端口不符时用 `PAN_API_URL` 覆盖。
+4. 端口约定：代码默认/应用端口保持 **8768**；main/test 的测试或隔离运行使用 **8767 或 8765**，按运行实例配置。MCP server 默认连 `PAN_API_URL`（8768）。**关键**：MCP server 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务**同实例**（§3 三对齐），否则 `report_subscribe` / `qq_bind` 失效（§10.2 G9）。端口不符时用 `PAN_API_URL` 覆盖。
 
 ## 0.5 面向最终用户：怎么回复「怎么玩转 Pan」
 
@@ -378,7 +378,7 @@ meta-agent 编排 worker 时，完成通知**一律走内部订阅**：MCP `repo
 
 ### 7.7 其他约定
 
-- **端口**：`main` 分支默认 **8768**；test 分支 8767。MCP server 默认 `PAN_API_URL=http://127.0.0.1:8768` ——**MCP 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务一致**，否则 `[WinError 10061] 连接被拒`（踩坑 #11）或 report_subscribe / qq_bind 失效（§10.2 G9）。
+- **端口**：代码默认/应用端口 **8768**；main/test 测试或隔离运行使用 **8767 或 8765**。MCP server 默认 `PAN_API_URL=http://127.0.0.1:8768` ——**MCP 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务一致**，否则 `[WinError 10061] 连接被拒`（踩坑 #11）或 report_subscribe / qq_bind 失效（§10.2 G9）。
 - **API 无鉴权、绑 loopback**（127.0.0.1）——不要在非本机环境暴露端口。
 - **MCP deferred 判定**：工具搜不到 ≠ 未连接。`ToolSearch` 搜得到 = deferred（`.mcp.json` 路径）；搜不到 = 未连接（多半 `--mcp-config` 没传或 cwd 错）。`--mcp-config` 路径下工具应直接可见。
 - **带 character 的 session 首次任务**会被 memory 加载阻塞（embedding 首次加载 + 网络重试），可配 `memory.enabled: false` 或依赖 15s 超时降级（踩坑 #12）。
@@ -414,7 +414,7 @@ A: 重新 `session_create` 并指定新 `model`；或 `session_update` 改 model
 A: 回收只杀进程不删 session。`workerStatus` 变 `null` 后直接 `agent_spawn` 或 `agent_assign`，自动重建。
 
 **Q: MCP 工具连不上 Pan？**
-A: `PAN_API_URL` 端口要指向实际运行的 port（main 分支 8768，MCP 默认 8768）。MCP server 用 `--pan-url` 或环境变量覆盖。
+A: `PAN_API_URL` 端口要指向实际运行的 port（应用/代码默认 8768；测试或隔离运行可用 8767/8765）。MCP server 用 `--pan-url` 或环境变量覆盖。
 
 **Q: report_subscribe 后没收到完成报告？**
 A: 检查 §3 前置条件：目标 session 是否有 `managed_by`、是否已 `report_subscribe`、你的环境是否有 `PAN_AGENT_SESSION_ID`（report 工具仅 Pan 内 session 可用）、manager 与目标是否**同实例**（§10.2 G9 / G10）。
@@ -566,7 +566,7 @@ curl -X POST http://127.0.0.1:8768/api/manifest/reload
 curl http://127.0.0.1:8768/api/session-templates
 ```
 
-> 端口按 §0/§7.7：`main` 8768、`test` 8767，用 `PAN_API_URL` 或对应端口。API 无鉴权、绑 loopback（§7.7），不要在非本机暴露。
+> 端口按 §0/§7.7：应用/代码默认 8768；main/test 测试或隔离运行用 8767/8765，用 `PAN_API_URL` 或对应端口。API 无鉴权、绑 loopback（§7.7），不要在非本机暴露。
 
 ### 12.5 如何使用模板
 

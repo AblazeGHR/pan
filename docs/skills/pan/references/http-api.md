@@ -7,7 +7,7 @@ description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills
 
 > 供 `docs/skills/pan/SKILL.md` 引用。**meta-agent 编排一律走 MCP 工具**（见 SKILL.md §6）；本文件是 HTTP 直调与排查用的技术细节，含 MCP 覆盖不到的端点（rename / branch）、以及直调/排查所需的请求体与字段约定。
 
-Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`（main 分支默认 **8768**、test 分支 8767；`config.json` 的 `port` 字段，`PAN_PORT` 环境变量可覆盖）。全部返回 JSON；错误通常返回 `{"error": "..."}`。**API 无鉴权、绑 loopback（127.0.0.1）**——不要在非本机环境暴露端口。
+Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`（代码默认 **8768**；main/test 测试或隔离运行使用 8767 或 8765；由 `config.json` 的 `port` 字段或 `PAN_PORT` 环境变量覆盖）。全部返回 JSON；错误通常返回 `{"error": "..."}`。**API 无鉴权、绑 loopback（127.0.0.1）**——不要在非本机环境暴露端口。
 
 ## 端点清单
 
