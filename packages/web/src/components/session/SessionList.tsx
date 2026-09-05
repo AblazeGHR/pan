@@ -3,7 +3,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
-import { matchesSpecialFilters } from '@/utils/sessionFilters';
+import { matchesSessionSearch, matchesSpecialFilters } from '@/utils/sessionFilters';
 import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
 import type { DropZone } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
@@ -270,13 +270,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.workdir?.toLowerCase().includes(q) ||
-          s.adapter?.toLowerCase().includes(q),
-      );
+      filtered = filtered.filter((s) => matchesSessionSearch(s, searchQuery));
     }
 
     filtered.sort((a, b) => {

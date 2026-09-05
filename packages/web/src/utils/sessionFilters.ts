@@ -58,6 +58,15 @@ export function isMetaAgent(session: Session): boolean {
   return true;
 }
 
+/** True when the session matches the shared Session-list search input. */
+export function matchesSessionSearch(session: Session, query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+
+  return [session.name, session.id, session.cliSessionId, session.workdir, session.adapter]
+    .some((value) => String(value ?? '').toLowerCase().includes(normalizedQuery));
+}
+
 /** True when the session passes every active special filter. */
 export function matchesSpecialFilters(
   session: Session,
