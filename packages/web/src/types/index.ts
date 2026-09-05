@@ -32,8 +32,6 @@ export interface Session {
   workdir?: string;
   workerStatus?: string | null;
   workerId?: string | null;
-  /** Last Worker state confirmed through an explicit Pan lifecycle action. */
-  lastLegalWorkerState?: string | null;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
   managedBy?: string | null;
   /** True when the managing session has blocked outbound operations to this session. */
@@ -515,26 +513,6 @@ export interface ApiMainRestartResponse {
   accepted?: boolean;
   phase?: ApiMainRestartStatusResponse['phase'];
   jobId?: string;
-  message?: string;
-  error?: string;
-  pending?: boolean;
-  requestId?: string;
-}
-
-// Main Pan service stop-only exit (detached scripts/exit_pan.ps1 supervisor).
-export interface ApiMainExitStatusResponse {
-  available: boolean;
-  pending: boolean;
-  stage?: 'idle' | 'scheduled' | 'stopping_workers' | 'stopping_service' | 'error' | string;
-  platform: string;
-  reason?: string;
-  error?: string;
-  requestId?: string;
-}
-
-export interface ApiMainExitResponse {
-  ok: boolean;
-  status: 'scheduled' | 'disabled' | 'busy' | 'error';
   message?: string;
   error?: string;
   pending?: boolean;

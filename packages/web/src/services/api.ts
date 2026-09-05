@@ -46,8 +46,6 @@ import type {
   ApiRemoteRestartResponse,
   ApiMainRestartStatusResponse,
   ApiMainRestartResponse,
-  ApiMainExitStatusResponse,
-  ApiMainExitResponse,
   ApiHealthResponse,
 } from '@/types';
 
@@ -765,18 +763,6 @@ export async function restartMainService(): Promise<ApiMainRestartResponse> {
     method: 'POST',
   });
   if (!data.ok) throw new Error(data.error || `Pan restart ${data.status}`);
-  return data;
-}
-
-export async function fetchMainExitStatus(): Promise<ApiMainExitStatusResponse> {
-  return request<ApiMainExitStatusResponse>(`${BASE}/main/exit/status`);
-}
-
-export async function exitMainService(): Promise<ApiMainExitResponse> {
-  const data = await request<ApiMainExitResponse>(`${BASE}/main/exit`, {
-    method: 'POST',
-  });
-  if (!data.ok) throw new Error(data.error || `Pan exit ${data.status}`);
   return data;
 }
 

@@ -166,15 +166,6 @@ _main_restart_lock = threading.Lock()
 _main_restart_pending = False
 _main_restart_request_id: str | None = None
 
-# Main-service exit has a separate state machine.  It never shares the
-# restart supervisor: once the workers are stopped the detached supervisor
-# only stops this checkout's main service and never starts it again.
-_main_exit_lock = threading.Lock()
-_main_exit_pending = False
-_main_exit_request_id: str | None = None
-_main_exit_stage = "idle"
-_main_exit_error: str | None = None
-
 
 def _main_restart_paths() -> dict[str, Path]:
     scripts = _PROJECT_DIR / "scripts"
@@ -311,66 +302,6 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         command += ["-OldPid", str(job["oldPid"])]
     if job.get("oldPidCreatedAt") is not None:
         command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
-    flags = (
-        getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
-        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
-    )
-    startupinfo = None
-    if os.name == "nt" and hasattr(subprocess, "STARTUPINFO"):
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
-    return subprocess.Popen(
-        command,
-        cwd=str(_PROJECT_DIR),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        creationflags=flags,
-        startupinfo=startupinfo,
-    )
-
-
-def _main_exit_paths() -> dict[str, Path]:
-    return {"supervisor": _PROJECT_DIR / "scripts" / "exit_pan.ps1"}
-
-
-def _main_exit_status() -> dict:
-    script = _main_exit_paths()["supervisor"]
-    available = os.name == "nt" and script.is_file()
-    with _main_exit_lock:
-        pending = _main_exit_pending
-        request_id = _main_exit_request_id
-        stage = _main_exit_stage
-        error = _main_exit_error
-    result = {
-        "available": available,
-        "pending": pending,
-        "stage": stage,
-        "platform": os.name,
-    }
-    if request_id:
-        result["requestId"] = request_id
-    if error:
-        result["error"] = error
-    if not available:
-        result["reason"] = (
-            "main service exit is available only on Windows"
-            if os.name != "nt"
-            else f"exit supervisor is missing: {script}"
-        )
-    return result
-
-
-def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
-    """Launch the stop-only detached exit supervisor."""
-    script = _main_exit_paths()["supervisor"]
-    command = [
-        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
-        "-File", str(script), "-Root", str(_PROJECT_DIR),
-        "-RequestId", request_id,
-    ]
     flags = (
         getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
@@ -561,7 +492,6 @@ def _session_to_api(s: sess.Session):
         "workdir": s.workdir,
         "history": s.history,
         "lastResult": s.last_result,
-        "lastLegalWorkerState": s.last_legal_worker_state,
         "rawUsage": s.raw_usage,
         "totalUsage": s.total_usage,
         "createdAt": s.created_at,
@@ -575,7 +505,6 @@ def _session_to_api(s: sess.Session):
         "qqSubscriptions": sorted(s.qq_subscriptions),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
-        "lastLegalWorkerState": s.last_legal_worker_state,
         "mcpEnabled": bool(ac.get("mcp_servers")),
         "mcpLocked": mcp_lock_reason is not None,
         "mcpLockReason": mcp_lock_reason,
@@ -625,7 +554,6 @@ def _session_summary(s: sess.Session) -> dict:
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
         "workerStatus": w.status if w else None,
-        "lastLegalWorkerState": s.last_legal_worker_state,
         "updatedAt": s.updated_at,
         "order": s.order,
         "managedBy": s.managed_by,
@@ -1343,99 +1271,6 @@ async def api_main_restart():
         "phase": "requested",
         "jobId": job["jobId"],
         "message": "Pan main-service restart scheduled",
-        "requestId": request_id,
-    }
-
-
-async def _perform_main_exit(request_id: str) -> None:
-    """Stop Workers, persist confirmed legal offline states, then stop Pan."""
-    global _main_exit_pending, _main_exit_stage, _main_exit_error
-    with _main_exit_lock:
-        if _main_exit_request_id != request_id:
-            return
-        _main_exit_stage = "stopping_workers"
-    try:
-        await worker.shutdown_all(mark_legal_offline=True)
-    except Exception as exc:  # still hand off to the stop-only supervisor
-        _log(f"[main-exit] worker shutdown failed: {exc}")
-        with _main_exit_lock:
-            _main_exit_error = str(exc)
-
-    with _main_exit_lock:
-        if _main_exit_request_id != request_id:
-            return
-        _main_exit_stage = "stopping_service"
-    try:
-        _launch_main_exit_supervisor(request_id)
-    except (OSError, ValueError) as exc:
-        with _main_exit_lock:
-            _main_exit_pending = False
-            _main_exit_stage = "error"
-            _main_exit_error = f"failed to schedule Pan exit: {exc}"
-        _log(f"[main-exit] supervisor launch failed: {exc}")
-        return
-    with _main_exit_lock:
-        _main_exit_stage = "scheduled"
-
-
-@app.get("/api/main/exit/status")
-async def api_main_exit_status():
-    """Report stop-only Pan exit availability and pending stage."""
-    return _main_exit_status()
-
-
-@app.post("/api/main/exit")
-async def api_main_exit():
-    """Schedule a legal, stop-only shutdown of this Pan instance.
-
-    The HTTP response is returned before Worker draining and service stop.  No
-    health-recovery wait follows: this operation intentionally makes the
-    service unavailable.
-    """
-    global _main_exit_pending, _main_exit_request_id, _main_exit_stage, _main_exit_error
-
-    status = _main_exit_status()
-    if not status["available"]:
-        return {
-            "ok": False,
-            "status": "disabled",
-            "error": status.get("reason", "main service exit is unavailable"),
-        }
-    with _main_restart_lock:
-        if _main_restart_pending:
-            return {
-                "ok": False,
-                "status": "busy",
-                "pending": True,
-                "error": "Pan main-service restart is already scheduled",
-                "requestId": _main_restart_request_id,
-            }
-    with _main_exit_lock:
-        if _main_exit_pending:
-            return {
-                "ok": False,
-                "status": "busy",
-                "pending": True,
-                "error": "Pan main-service exit is already scheduled",
-                "requestId": _main_exit_request_id,
-            }
-        request_id = uuid.uuid4().hex
-        _main_exit_pending = True
-        _main_exit_request_id = request_id
-        _main_exit_stage = "scheduled"
-        _main_exit_error = None
-
-    # Close spawn/recovery/queue gates synchronously, before the background
-    # task gets its first scheduling opportunity.
-    worker.begin_shutdown()
-    asyncio.create_task(
-        _perform_main_exit(request_id),
-        name="pan-main-exit",
-    )
-    return {
-        "ok": True,
-        "status": "scheduled",
-        "message": "Pan main-service exit scheduled; this service will stop",
         "requestId": request_id,
     }
 
