@@ -24,6 +24,9 @@ import packages.web.server as web_srv
 # ── shared fixtures / fakes ──
 
 def _cleanup():
+    for task in list(worker._recovery_tasks.values()):
+        task.cancel()
+    worker._recovery_tasks.clear()
     worker.workers.clear()
     worker._task_status.clear()
     worker._spawn_locks.clear()
@@ -140,9 +143,24 @@ def test_send_session_no_worker_enqueues_pending(monkeypatch):
     _cleanup()
     s = _setup_session("ses_b")
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    # send_session 的 pendingSpawn 语义 = 立即调度恢复；恢复本身不得在本测试
+    # 内真实 spawn cbc 进程（Windows 下 asyncio.run 收尾取消 spawn 中途的
+    # recovery 任务会在 Proactor 循环里死锁，整个 pytest 进程挂死）。
+    spawned = []
+
+    async def fake_create(session_id):
+        spawned.append(session_id)
+        return "spawn suppressed by test"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
 
     async def scenario():
-        return await worker.send_session(s.id, "offline msg")
+        result = await worker.send_session(s.id, "offline msg")
+        # 让被调度的立即恢复任务在本循环内跑完，teardown 无悬挂任务。
+        recovery = worker._recovery_tasks.get(s.id)
+        if recovery is not None:
+            await asyncio.wait_for(recovery, timeout=1)
+        return result
 
     result = asyncio.run(scenario())
     assert result["status"] == "queued", result
@@ -153,6 +171,7 @@ def test_send_session_no_worker_enqueues_pending(monkeypatch):
     item = s.queue_pending[0]
     assert item["type"] == "task" and item["text"] == "offline msg"
     assert item["id"], "item 必须带 id（task_signal 按 id 认领）"
+    assert spawned == ["ses_b"], "pendingSpawn 必须立即调度恢复，而非只等 watchdog"
     _cleanup()
 
 
@@ -166,13 +185,26 @@ def test_send_session_dead_process_worker_enqueues(monkeypatch):
     worker.workers["worker-dead"] = worker.Worker(
         worker_id="worker-dead", session_id=s.id, adapter=CbcAdapter(),
         status="idle", process=proc, pending_signal=asyncio.Queue())
+    # 同 test_send_session_no_worker_enqueues_pending：恢复不得真实 spawn。
+    spawned = []
+
+    async def fake_create(session_id):
+        spawned.append(session_id)
+        return "spawn suppressed by test"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
 
     async def scenario():
-        return await worker.send_session(s.id, "to dead worker")
+        result = await worker.send_session(s.id, "to dead worker")
+        recovery = worker._recovery_tasks.get(s.id)
+        if recovery is not None:
+            await asyncio.wait_for(recovery, timeout=1)
+        return result
 
     result = asyncio.run(scenario())
     assert result["status"] == "queued" and result["pendingSpawn"] is True, result
     assert s.queue_pending and s.queue_pending[0]["text"] == "to dead worker"
+    assert spawned == ["ses_c"], "dead process must trigger recovery"
     _cleanup()
 
 

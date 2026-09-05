@@ -68,7 +68,7 @@ def test_timeout_kills_running_worker():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -101,7 +101,7 @@ def test_active_running_worker_not_killed():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -130,7 +130,7 @@ def test_queued_worker_timeout_killed():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -160,7 +160,7 @@ def test_idle_worker_reclaimed():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -190,7 +190,7 @@ def test_idle_worker_with_pending_work_not_reclaimed():
     s = _setup_session()
     s.queue_pending = [{"type": "task", "id": "pending-1", "text": "job"}]
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
 
     worker._WATCHDOG_TICK_SEC = 0.01
@@ -219,7 +219,7 @@ def test_held_worker_skipped():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -248,7 +248,7 @@ def test_watchdog_exits_when_worker_removed():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -284,7 +284,7 @@ def test_mcp_idle_worker_reclaimed():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -314,7 +314,7 @@ def test_mcp_running_worker_not_timeout_killed():
     _cleanup()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -368,7 +368,7 @@ def test_watchdog_task_timeout_reports_zombie(monkeypatch):
     # an immediately recovered manager may consume the report in the same tick.
     monkeypatch.setattr(worker, "_wake_worker", no_wake)
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -408,7 +408,7 @@ def test_watchdog_queued_timeout_reports_zombie(monkeypatch):
 
     monkeypatch.setattr(worker, "_wake_worker", no_wake)
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 
@@ -443,7 +443,7 @@ def test_watchdog_idle_reclaim_no_zombie(monkeypatch):
     _, mgr = _setup_managed_pair()
     killed = []
 
-    async def fake_kill(worker_id):
+    async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
         return None
 

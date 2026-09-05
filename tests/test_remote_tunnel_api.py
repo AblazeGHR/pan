@@ -96,6 +96,10 @@ def _run_start_cf_dry(base: Path, protocol, source_yml: str = _SOURCE_YML):
         "TMP": str(temp_dir),
         "PATH": r"C:\Windows\System32",
     }
+    # 隔离宿主环境泄漏的 PAN_PORT：脚本（与 main.py 一致）按
+    # PAN_PORT > config.json port > 8768 取端口，宿主导出的 PAN_PORT 会把
+    # 临时 yml 命名成 pan_cf_config_<leaked>.yml，dry-run 断言随之失真。
+    env.pop("PAN_PORT", None)
     r = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
          "-File", str(scripts / "start_cf.ps1")],

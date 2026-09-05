@@ -296,6 +296,12 @@ def _bump_worker_generation(w: Worker) -> None:
 # duplicate workers.  The global watchdog remains the retry/fallback path when
 # a spawn fails or the service was not able to schedule this task.
 _recovery_tasks: dict[str, asyncio.Task] = {}
+# Set once the service shutdown begins.  Recovery spawn is fire-and-forget:
+# cancelling a task mid real create_subprocess_exec leaves the Windows
+# Proactor waiter unresolved forever, so shutdown drains in-flight recovery
+# tasks with a bounded wait instead, and no new recovery may be scheduled
+# after the flag is raised.
+_shutdown_started: bool = False
 # Sessions whose worker died during an active turn.  Keep retry intent beyond
 # the first best-effort spawn so a transient CLI launch failure is retried by
 # the service watchdog; successful/normal idle paths remove the marker.
@@ -459,6 +465,12 @@ def _mcp_configured(s: _sess.Session | None) -> bool:
 # （刷新会导致 stream worker 的 idle 回收 / queued 静默超时永不触发，
 # 回归来源 252c41d）。活性基准见 _read_stdout 的有效输出路径。
 _STDOUT_READ_TIMEOUT_SEC: float = 60.0
+
+# Shutdown drain: how long a cancelled-but-unresponsive recovery task (mid
+# real subprocess spawn on the Windows Proactor loop) is waited for before
+# giving up.  Giving up is safe: the dangling task only produces a warning at
+# loop close, while awaiting it forever deadlocks the shutdown.
+_DRAIN_CANCEL_GRACE_SEC: float = 1.0
 
 _PENDING_INTERACTION_TYPES = frozenset({
     "approval.request",
@@ -2925,6 +2937,11 @@ def _schedule_session_recovery(
     session_id: str, *, force: bool = False,
 ) -> asyncio.Task | None:
     """Schedule at most one recovery attempt for a session in this loop."""
+    if _shutdown_started:
+        # The service is winding down; a fresh recovery spawn would race the
+        # loop teardown (see _shutdown_started).  The durable queue keeps the
+        # work; the next start recovers it.
+        return None
     if force:
         _recovery_required.add(session_id)
     existing = _recovery_tasks.get(session_id)
@@ -2954,6 +2971,38 @@ def _schedule_session_recovery(
 
     task.add_done_callback(_finish)
     return task
+
+
+async def drain_recoveries(timeout: float = 10.0) -> int:
+    """Bounded shutdown drain for fire-and-forget recovery tasks.
+
+    Must run on a still-healthy loop (uvicorn lifespan shutdown).  Recovery
+    tasks that are mid real ``create_subprocess_exec`` can never observe
+    cancellation on the Windows Proactor loop — their waiter future stays
+    unresolved — so this function:
+
+    1. raises ``_shutdown_started`` so no new recovery gets scheduled;
+    2. lets in-flight recoveries finish naturally within ``timeout``;
+    3. cancels stragglers but waits only ``_DRAIN_CANCEL_GRACE_SEC`` and then
+       gives up on them (dangling tasks only produce a "Task was destroyed"
+       warning at loop close; awaiting them unboundedly is what deadlocked
+       the shutdown).
+
+    Returns the number of tasks that were still pending when the drain began.
+    """
+    global _shutdown_started
+    _shutdown_started = True
+    inflight = [t for t in list(_recovery_tasks.values()) if not t.done()]
+    _recovery_tasks.clear()
+    if inflight:
+        _log.info("[Pan] Shutdown: draining %d in-flight recovery task(s)", len(inflight))
+        await asyncio.wait(set(inflight), timeout=timeout)
+        stragglers = [t for t in inflight if not t.done()]
+        for t in stragglers:
+            t.cancel()
+        if stragglers:
+            await asyncio.wait(set(stragglers), timeout=_DRAIN_CANCEL_GRACE_SEC)
+    return len(inflight)
 
 
 def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
@@ -5146,7 +5195,7 @@ def find_alive_worker_by_session(session_id: str) -> Worker | None:
     return None
 
 
-async def shutdown_all():
+async def shutdown_all(*, recovery_drain_timeout: float = 10.0):
     """关闭所有 worker 的 cbc 进程树 + takeover 终端。
 
     使用 psutil 递归杀进程树（避免 node.exe 等孤儿进程）。
@@ -5154,9 +5203,12 @@ async def shutdown_all():
     for task in list(_queue_retry_tasks.values()):
         await _cancel_worker_task(task)
     _queue_retry_tasks.clear()
-    for task in list(_recovery_tasks.values()):
-        await _cancel_worker_task(task)
-    _recovery_tasks.clear()
+    # Recovery tasks are handled by drain_recoveries' bounded wait (a task
+    # cancelled mid real subprocess spawn may never finish on the Windows
+    # Proactor loop; awaiting it unboundedly deadlocks the shutdown).  If the
+    # caller skipped drain_recoveries, fall back to a best-effort bounded
+    # drain here so shutdown can never block indefinitely on them.
+    await drain_recoveries(timeout=recovery_drain_timeout)
     ids = list(workers.keys())
     for wid in ids:
         w = workers.get(wid)

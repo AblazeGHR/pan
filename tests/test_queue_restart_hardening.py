@@ -35,6 +35,32 @@ def _cleanup():
     worker.set_broadcaster(None)
 
 
+async def _drain_recovery(monkeypatch):
+    """把 fire-and-forget 的 recovery 任务在本循环内收尾。
+
+    teardown（asyncio.run 收尾）取消正处在真实 create_subprocess_exec 中途的
+    recovery 任务会让 Windows Proactor 的 waiter future 永不完成，
+    _cancel_all_tasks 死锁，整个 pytest 进程挂死。因此：
+
+    1. 先等在途 recovery 自然完成（spawn 的都是 fake CLI，很快）；
+    2. stub _spawn_process，边界之后任何新调度的 recovery 都不再真实 spawn；
+    3. 取消并收尾剩余 recovery 任务（此刻不在 spawn 中途，取消是安全的）。
+    """
+    inflight = [t for t in worker._recovery_tasks.values() if not t.done()]
+    if inflight:
+        await asyncio.wait(set(inflight), timeout=10)
+
+    async def _no_spawn(session_id, adapter, extra_args=None):
+        return "spawn suppressed during cleanup"
+
+    monkeypatch.setattr(worker, "_spawn_process", _no_spawn)
+    rest = [t for t in worker._recovery_tasks.values() if not t.done()]
+    for t in rest:
+        t.cancel()
+    if rest:
+        await asyncio.gather(*rest, return_exceptions=True)
+
+
 def _session(sid="ses-hardening"):
     s = _sess.Session(id=sid, name=sid, adapter="cbc", model="test")
     _sess._cache[s.id] = s
@@ -54,10 +80,26 @@ def test_offline_user_message_is_a_durable_user_task(monkeypatch):
     _cleanup()
     s = _session()
     monkeypatch.setattr(_sess, "save_async", _save_noop)
+    # pendingSpawn 的立即恢复不得真实 spawn cbc：asyncio.run 收尾时取消
+    # spawn 中途的 recovery 任务会让 Windows Proactor 死锁，挂死整个 pytest。
+    spawned = []
 
-    result = asyncio.run(worker.send_session(
-        s.id, "do not turn me into an agent report", source="user",
-        client_message_id="browser-1"))
+    async def fake_create(session_id):
+        spawned.append(session_id)
+        return "spawn suppressed by test"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+
+    async def scenario():
+        result = await worker.send_session(
+            s.id, "do not turn me into an agent report", source="user",
+            client_message_id="browser-1")
+        recovery = worker._recovery_tasks.get(s.id)
+        if recovery is not None:
+            await asyncio.wait_for(recovery, timeout=1)
+        return result
+
+    result = asyncio.run(scenario())
 
     assert result["status"] == "queued"
     assert result["pendingSpawn"] is True
@@ -69,6 +111,7 @@ def test_offline_user_message_is_a_durable_user_task(monkeypatch):
     assert s.queue_pending[0]["deliveryState"] == "queued"
     assert s.queue_pending[0]["clientMessageId"] == "browser-1"
     assert s.accepted_input_ids == ["browser-1"]
+    assert spawned == ["ses-hardening"], "pendingSpawn must schedule immediate recovery"
     _cleanup()
 
 
@@ -178,6 +221,15 @@ def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch):
     _cleanup()
     s = _session("ses-ws-hardening")
     monkeypatch.setattr(_sess, "save_async", _save_noop)
+    # TestClient portal 循环内 recovery 会真实 spawn cbc；portal 关闭时取消
+    # spawn 中途的任务同样会 Proactor 死锁。stub 掉并计数。
+    spawned = []
+
+    async def fake_create(session_id):
+        spawned.append(session_id)
+        return "spawn suppressed by test"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
 
     with TestClient(server.app) as client:
         with client.websocket_connect("/ws") as ws:
@@ -199,10 +251,26 @@ def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch):
     assert s.accepted_input_ids[0] == "browser-ws-1"
     assert [entry.get("content") for entry in s.history
             if entry.get("role") == "user"].count("offline dashboard input") <= 1
+    assert spawned == ["ses-ws-hardening"], "offline dashboard input must schedule recovery"
     _cleanup()
 
 
 def test_restart_migrates_legacy_user_text_to_task_not_report(monkeypatch):
+    _cleanup()
+    s = _session()
+    # This is the historical direct-signal shape that previously fell through
+    # the report branch after a process death.
+    s.queue_pending = [{"text": "legacy dashboard input", "source": "user"}]
+    w = _worker(s)
+
+    changed = worker._recover_pending_signals(w, s)
+    signal = w.pending_signal.get_nowait()
+
+    assert changed is True
+    assert signal["type"] == "queue_signal"
+    assert s.queue_pending[0]["type"] == "task"
+    assert s.queue_pending[0]["source"] == "user"
+    assert "result" not in s.queue_pending[0]
     _cleanup()
 
 
@@ -237,21 +305,6 @@ def test_non_durable_direct_signal_is_ignored(monkeypatch):
 
     asyncio.run(scenario())
     assert received == [], "body-bearing signals have no at-most-once receipt"
-    _cleanup()
-    s = _session()
-    # This is the historical direct-signal shape that previously fell through
-    # the report branch after a process death.
-    s.queue_pending = [{"text": "legacy dashboard input", "source": "user"}]
-    w = _worker(s)
-
-    changed = worker._recover_pending_signals(w, s)
-    signal = w.pending_signal.get_nowait()
-
-    assert changed is True
-    assert signal["type"] == "queue_signal"
-    assert s.queue_pending[0]["type"] == "task"
-    assert s.queue_pending[0]["source"] == "user"
-    assert "result" not in s.queue_pending[0]
     _cleanup()
 
 
@@ -303,6 +356,70 @@ def test_restart_waits_for_old_consumer_cleanup_before_recovery(monkeypatch):
 def test_interrupt_reaps_old_stream_process_before_replaying_task(tmp_path, monkeypatch):
     """A real subprocess must be gone before restart recovery reuses its task."""
     _cleanup()
+    fake_cli = tmp_path / "fake_cbc.py"
+    fast_marker = tmp_path / "fast"
+    fake_cli.write_text(
+        """import json, os, sys, time
+for line in sys.stdin:
+    msg = json.loads(line)
+    if msg.get('type') != 'user':
+        continue
+    if not os.path.exists(os.environ['PAN_TEST_FAST']):
+        time.sleep(30)
+    print(json.dumps({'type':'result','result':'replayed','is_error':False}), flush=True)
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(CbcAdapter, "_resolve_cbc_argv",
+                        lambda _self: [sys.executable, str(fake_cli)])
+    monkeypatch.setenv("PAN_TEST_FAST", str(fast_marker))
+    monkeypatch.setattr(worker, "_DEFAULTS_INITIALIZED", True)
+    s = _session("ses-process-hardening")
+    s.workdir = str(tmp_path)
+
+    async def scenario():
+        original_save = _sess.save_async
+        _sess.save_async = _save_noop
+        try:
+            w = await worker.create_worker(s.id)
+            assert isinstance(w, worker.Worker)
+            assert await worker.assign(s.id, "long task", task_id="task-process") == {
+                "status": "queued", "workerId": w.worker_id,
+                "sessionId": s.id, "taskId": "task-process",
+            }
+            for _ in range(100):
+                if w.status == "running":
+                    break
+                await asyncio.sleep(0.01)
+            assert w.status == "running"
+            # 显式等待 "long task" 被 worker 认领（queue 出队），再中断；
+            # 否则未认领的任务会被归队，干扰后续不重放断言。
+            for _ in range(300):
+                if not s.queue_pending:
+                    break
+                await asyncio.sleep(0.01)
+            assert not s.queue_pending, "worker must claim the assigned task before interrupt"
+            old_pid = w.process.pid
+            fast_marker.write_text("1", encoding="ascii")
+            assert await worker.interrupt_worker(w.worker_id) is None
+            assert not psutil.pid_exists(old_pid)
+            await asyncio.sleep(0.2)
+            assert s.last_result is None
+            assert s.queue_pending == [], "completed hand-off must not requeue a consumed task"
+            assert await worker.retry_pending_item(s.id, "missing") == \
+                "Queue item missing not found"
+            await asyncio.sleep(0.2)
+            assert s.last_result is None, "replacement worker must not replay the task"
+            assert s.queue_pending == []
+        finally:
+            active = worker.find_worker_by_session(s.id)
+            if active:
+                await worker.kill_worker(active.worker_id)
+            await _drain_recovery(monkeypatch)
+            _sess.save_async = original_save
+
+    asyncio.run(scenario())
+    _cleanup()
 
 
 def test_running_restart_does_not_replay_consumed_task(tmp_path, monkeypatch):
@@ -344,7 +461,14 @@ for line in sys.stdin:
                 await asyncio.sleep(0.01)
             assert w.status == "running"
             assert (await worker.assign(s.id, "second", task_id="restart-2"))["status"] == "queued"
-            assert [item["text"] for item in s.queue_pending] == ["second"]
+            # 契约（405b3e0）：worker 认领（receipt）即从持久队列消费。
+            # w.status=="running" 不保证已认领，显式等待认领完成再断言。
+            for _ in range(300):
+                if [item["text"] for item in s.queue_pending] == ["second"]:
+                    break
+                await asyncio.sleep(0.01)
+            assert [item["text"] for item in s.queue_pending] == ["second"], \
+                "worker receipt must consume the claimed task from the durable queue"
             fast_marker.write_text("1", encoding="ascii")
             assert await worker.restart_worker(w.worker_id) is None
             await asyncio.sleep(0.2)
@@ -359,62 +483,7 @@ for line in sys.stdin:
             active = worker.find_worker_by_session(s.id)
             if active:
                 await worker.kill_worker(active.worker_id)
-            _sess.save_async = original_save
-
-    asyncio.run(scenario())
-    _cleanup()
-    fake_cli = tmp_path / "fake_cbc.py"
-    fast_marker = tmp_path / "fast"
-    fake_cli.write_text(
-        """import json, os, sys, time
-for line in sys.stdin:
-    msg = json.loads(line)
-    if msg.get('type') != 'user':
-        continue
-    if not os.path.exists(os.environ['PAN_TEST_FAST']):
-        time.sleep(30)
-    print(json.dumps({'type':'result','result':'replayed','is_error':False}), flush=True)
-""",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(CbcAdapter, "_resolve_cbc_argv",
-                        lambda _self: [sys.executable, str(fake_cli)])
-    monkeypatch.setenv("PAN_TEST_FAST", str(fast_marker))
-    monkeypatch.setattr(worker, "_DEFAULTS_INITIALIZED", True)
-    s = _session("ses-process-hardening")
-    s.workdir = str(tmp_path)
-
-    async def scenario():
-        original_save = _sess.save_async
-        _sess.save_async = _save_noop
-        try:
-            w = await worker.create_worker(s.id)
-            assert isinstance(w, worker.Worker)
-            assert await worker.assign(s.id, "long task", task_id="task-process") == {
-                "status": "queued", "workerId": w.worker_id,
-                "sessionId": s.id, "taskId": "task-process",
-            }
-            for _ in range(100):
-                if w.status == "running":
-                    break
-                await asyncio.sleep(0.01)
-            assert w.status == "running"
-            old_pid = w.process.pid
-            fast_marker.write_text("1", encoding="ascii")
-            assert await worker.interrupt_worker(w.worker_id) is None
-            assert not psutil.pid_exists(old_pid)
-            await asyncio.sleep(0.2)
-            assert s.last_result is None
-            assert s.queue_pending == [], "completed hand-off must not requeue a consumed task"
-            assert await worker.retry_pending_item(s.id, "missing") == \
-                "Queue item missing not found"
-            await asyncio.sleep(0.2)
-            assert s.last_result is None, "replacement worker must not replay the task"
-            assert s.queue_pending == []
-        finally:
-            active = worker.find_worker_by_session(s.id)
-            if active:
-                await worker.kill_worker(active.worker_id)
+            await _drain_recovery(monkeypatch)
             _sess.save_async = original_save
 
     asyncio.run(scenario())

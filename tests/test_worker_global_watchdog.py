@@ -36,6 +36,10 @@ def _cleanup():
     worker._task_status.clear()
     worker._spawn_locks.clear()  # per-session asyncio.Lock 绑定事件循环，测试间需清掉
     worker._recovery_required.clear()
+    for task in list(worker._recovery_tasks.values()):
+        task.cancel()
+    worker._recovery_tasks.clear()
+    worker._shutdown_started = False  # drain 测试必须复位，防止泄漏到后续用例
     _sess._cache.clear()
     _sess._all_loaded = False  # 重置磁盘加载标记，避免残留 session 混入
     worker.set_broadcaster(None)
@@ -462,6 +466,97 @@ def test_enqueue_qq_reminder_auto_spawns_for_dead_session(monkeypatch):
     assert delivered == 1
     assert spawned == ["ses_sub"], f"QQ enqueue must auto-spawn, got {spawned}"
     assert s.queue_pending[-1]["type"] == "qq", "item must be persisted to queue_pending"
+    _cleanup()
+
+
+# ── shutdown drain（方案 C：关闭收尾有界 drain recovery）──
+
+
+def test_drain_recoveries_waits_for_inflight_recovery(monkeypatch):
+    """关闭 drain：在途 recovery 自然完成，不取消、返回在途计数。"""
+    _cleanup()
+    _setup_session("ses_drain_ok")
+    finished = asyncio.Event()
+
+    async def fake_create(session_id):
+        await finished.wait()
+        return "spawned"
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+
+    async def scenario():
+        task = worker._schedule_session_recovery("ses_drain_ok", force=True)
+        assert task is not None
+        drain = asyncio.create_task(worker.drain_recoveries(timeout=2.0))
+        await asyncio.sleep(0.05)  # 让 drain 进入等待、recovery 卡在 fake_create
+        assert worker._shutdown_started is True, "drain must raise the shutdown flag"
+        finished.set()
+        pending_count = await asyncio.wait_for(drain, timeout=2)
+        return task, pending_count
+
+    task, pending_count = asyncio.run(scenario())
+    assert pending_count == 1
+    assert worker._recovery_tasks == {}, "finished recovery must be cleared"
+    assert task.cancelled() is False, "in-flight recovery must complete, not cancel"
+    _cleanup()
+
+
+def test_drain_recoveries_times_out_and_cancels_bounded(monkeypatch):
+    """超时 straggler 被取消，drain 本身有界返回（不无限期 await）。"""
+    _cleanup()
+    _setup_session("ses_drain_stuck")
+
+    async def fake_create(session_id):
+        await asyncio.Event().wait()  # 永不完成（模拟 spawn 卡住的可取消任务）
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+
+    async def scenario():
+        assert worker._schedule_session_recovery("ses_drain_stuck", force=True) is not None
+        return await asyncio.wait_for(
+            worker.drain_recoveries(timeout=0.05), timeout=5)
+
+    pending_count = asyncio.run(scenario())
+    assert pending_count == 1
+    assert worker._recovery_tasks == {}, "stragglers must be dropped from the registry"
+    assert worker._shutdown_started is True
+    _cleanup()
+
+
+def test_no_new_recovery_scheduled_after_shutdown_started(monkeypatch):
+    """关闭开始后 _schedule_session_recovery 不再调度新任务（持久队列留给下次启动）。"""
+    _cleanup()
+    monkeypatch.setattr(worker, "_shutdown_started", True)
+    _setup_session("ses_shutdown_guard")
+
+    assert worker._schedule_session_recovery("ses_shutdown_guard", force=True) is None
+    assert worker._recovery_tasks == {}
+    _cleanup()
+
+
+def test_shutdown_all_returns_boundedly_with_stuck_recovery(monkeypatch):
+    """回归：shutdown_all 不得无限期 await 取消中的 recovery 任务。
+
+    旧实现对 recovery 任务走 _cancel_worker_task（cancel + 无限期 gather），
+    取消打在真实 create_subprocess_exec 中途时 waiter 永不完成 → 关闭挂死。
+    现在必须经 drain_recoveries 的有界等待收尾。
+    """
+    _cleanup()
+    _setup_session("ses_shutdown_stuck")
+
+    async def fake_create(session_id):
+        await asyncio.Event().wait()  # 可取消但永不自然完成
+
+    monkeypatch.setattr(worker, "create_worker", fake_create)
+
+    async def scenario():
+        assert worker._schedule_session_recovery("ses_shutdown_stuck", force=True) is not None
+        return await asyncio.wait_for(
+            worker.shutdown_all(recovery_drain_timeout=0.05), timeout=5)
+
+    asyncio.run(scenario())
+    assert worker._recovery_tasks == {}
+    assert worker._shutdown_started is True
     _cleanup()
 
 

@@ -282,8 +282,13 @@ def test_concurrent_handoffs_allocate_distinct_archive_names():
 
     archived_names = {archived.name for archived, _ in results}
     replacement_names = {replacement.name for _, replacement in results}
-    assert archived_names == {"(archive) dev", "(archive) dev-1"}
-    assert replacement_names == {"dev-1", "dev-2"}
+    # 并发契约：`_available_name` 语义是「首个未占用名」（handoff 文档第 5 条
+    # 也规定 B → 原名），后完成的 handoff 允许复用先前归档腾出的原名——10 次
+    # 实测 1 次出现替换名 {"dev", "dev-1"}。因此并发下唯一硬性保证是：
+    # 归档名带 (archive) 前缀、两组名字各自唯一、四个名字两两不同（无碰撞）。
+    assert all(name.startswith("(archive) dev") for name in archived_names), archived_names
+    assert len(archived_names) == 2, archived_names
+    assert len(replacement_names) == 2, replacement_names
     assert len(archived_names | replacement_names) == 4
     _cleanup()
 

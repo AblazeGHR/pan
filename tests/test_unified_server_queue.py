@@ -15,6 +15,25 @@ from packages.core.adapters import CbcAdapter  # noqa: E402
 import packages.web.server as server  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _no_real_recovery_spawn(monkeypatch):
+    """无活 worker 的入队路径会调度立即恢复（fire-and-forget 任务）。
+
+    若让它真实 spawn cbc，asyncio.run 收尾取消 spawn 中途的 recovery 任务
+    会让 Windows Proactor 的 waiter future 永不完成 → _cancel_all_tasks
+    死锁 → 整个 pytest 进程挂死。本文件只测队列语义，统一 stub；
+    recorder 供测试断言「recovery 确实被调度」的回归（yield 计数列表）。
+    """
+    spawned = []
+
+    async def _no_spawn(session_id):
+        spawned.append(session_id)
+        return "spawn suppressed by test fixture"
+
+    monkeypatch.setattr(worker, "create_worker", _no_spawn)
+    yield spawned
+
+
 async def _save(_session):
     return None
 
@@ -37,7 +56,8 @@ def _session(sid="ses-unified", **kwargs):
     return value
 
 
-def test_user_enqueue_is_server_idempotent_and_uses_native_queue_id(monkeypatch):
+def test_user_enqueue_is_server_idempotent_and_uses_native_queue_id(
+        monkeypatch, _no_real_recovery_spawn):
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
     value = _session()
@@ -55,6 +75,8 @@ def test_user_enqueue_is_server_idempotent_and_uses_native_queue_id(monkeypatch)
     assert len(value.queue_delivery_ledger) == 1
     assert value.queue_pending[0]["source"] == "user"
     assert value.queue_pending[0]["kind"] == "task"
+    assert _no_real_recovery_spawn == [value.id], \
+        "offline user enqueue must schedule immediate recovery"
     _cleanup()
 
 
