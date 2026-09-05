@@ -14,7 +14,7 @@ import { SessionMenu } from '@/components/session/SessionMenu';
 import { SessionDetailsModal } from '@/components/session/SessionDetailsModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
-import { SPECIAL_FILTERS } from '@/utils/sessionFilters';
+import { SPECIAL_FILTERS, getSessionListCandidates } from '@/utils/sessionFilters';
 import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
 import { AppSettingsModal } from './AppSettingsModal';
@@ -63,6 +63,7 @@ export function Sidebar() {
     sortBy,
     cycleSortBy,
     specialFilters,
+    hiddenSessionIds,
     toggleSpecialFilter,
     clearSpecialFilters,
     collapsedGroups,
@@ -120,6 +121,32 @@ export function Sidebar() {
     }
     return [] as string[];
   }, [sessions, groupBy]);
+
+  const selectableSessions = useMemo(
+    () => getSessionListCandidates(sessions, {
+      multiSelectMode: true,
+      hiddenSessionIds,
+      searchQuery,
+      specialFilters,
+    }),
+    [sessions, hiddenSessionIds, searchQuery, specialFilters],
+  );
+  const selectableIds = useMemo(
+    () => selectableSessions.map((session) => session.id),
+    [selectableSessions],
+  );
+  const allSelectableSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+
+  const handleToggleSelectAll = () => {
+    const selectable = new Set(selectableIds);
+    const next = new Set(selectedIds);
+    if (allSelectableSelected) {
+      for (const id of selectable) next.delete(id);
+    } else {
+      for (const id of selectable) next.add(id);
+    }
+    useSessionStore.setState({ selectedIds: next });
+  };
 
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
@@ -493,6 +520,15 @@ export function Sidebar() {
                 {selectedIds.size} selected
               </span>
               <div className="flex-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleSelectAll}
+                disabled={selectableIds.length === 0}
+                aria-label={allSelectableSelected ? 'Deselect all visible sessions' : 'Select all visible sessions'}
+              >
+                {allSelectableSelected ? 'Deselect all' : 'Select all'}
+              </Button>
               <Button
                 variant="danger"
                 size="sm"
