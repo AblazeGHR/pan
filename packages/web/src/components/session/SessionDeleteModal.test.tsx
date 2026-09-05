@@ -14,6 +14,11 @@ describe('SessionDeleteModal', () => {
   it('reports recursive and normal counts, and confirms the checked cascade', () => {
     const onConfirm = vi.fn();
     render(<SessionDeleteModal sessions={sessions} specialIds={['parent']} normalIds={['plain']} descendantCount={2} onClose={vi.fn()} onConfirm={onConfirm} onCancelSpecial={vi.fn()} />);
+    const overlay = document.body.querySelector<HTMLElement>('.modal-overlay');
+    const card = document.body.querySelector<HTMLElement>('.modal-card');
+    expect(overlay?.className).toContain('p-4');
+    expect(card?.className).toContain('w-full');
+    expect(card?.className).toContain('max-w-lg');
     expect(screen.getByText(/up to 3 managed sessions recursively/)).toBeTruthy();
     expect(screen.getByText(/1 session without children will also be deleted/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Delete selected' }));
