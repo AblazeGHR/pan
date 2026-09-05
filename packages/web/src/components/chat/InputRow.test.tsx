@@ -361,6 +361,27 @@ describe('InputRow responsive composer controls', () => {
     document.dispatchEvent(new Event('pointerup'));
   });
 
+  it('opens the desktop queue above a short composer without changing its height', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const root = screen.getByTestId('input-row');
+    const handle = screen.getByTestId('desktop-composer-resize');
+
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 500 }));
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 560 }));
+    await waitFor(() => expect(root.getAttribute('style')).toContain('height: 120px'));
+
+    fireEvent.click(screen.getByLabelText('发送队列'));
+    const anchor = screen.getByTestId('send-queue-anchor');
+    expect(anchor.className).toContain('absolute');
+    expect(anchor.className).toContain('bottom-full');
+    expect(anchor.className).toContain('z-20');
+    expect(root.getAttribute('style')).toContain('height: 120px');
+    expect(screen.getByPlaceholderText(/Type a message/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
+    document.dispatchEvent(new Event('pointerup'));
+  });
+
   it('shows only the mobile fullscreen control and enters/exits with click or Escape', async () => {
     mockMatchMedia(true);
     setBusySession();
@@ -398,6 +419,16 @@ describe('InputRow responsive composer controls', () => {
     expect(card.className).toContain('max-md:h-[100dvh]');
     expect(card.className).toContain('max-md:max-h-[100dvh]');
     expect(card.className).toContain('max-md:rounded-none');
+  });
+
+  it('keeps the queue in the mobile composer flow instead of using desktop positioning', () => {
+    mockMatchMedia(true);
+    setBusySession();
+    render(<InputRow />);
+
+    const anchor = screen.getByTestId('send-queue-anchor');
+    expect(anchor.className).toContain('shrink-0');
+    expect(anchor.className).not.toContain('absolute');
   });
 });
 

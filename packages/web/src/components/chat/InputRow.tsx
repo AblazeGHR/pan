@@ -475,7 +475,7 @@ export function InputRow() {
   return (
     <div
       data-testid="input-row"
-      className={`flex shrink-0 w-full flex-col border-t border-border-default bg-bg-primary ${
+      className={`relative flex shrink-0 w-full flex-col border-t border-border-default bg-bg-primary ${
         isMobile && mobileFullscreen ? 'fixed inset-0 z-50 h-[100dvh] overflow-hidden pt-[var(--safe-top)]' : ''
       }`}
       style={!isMobile ? { height: `${composerHeight}px` } : undefined}
@@ -492,7 +492,12 @@ export function InputRow() {
         />
       )}
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
-      <SendQueuePanel />
+      <div
+        data-testid="send-queue-anchor"
+        className={isMobile ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'}
+      >
+        <SendQueuePanel />
+      </div>
 
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
           右侧内容列：pill 行 + textarea/Send 行。 */}
