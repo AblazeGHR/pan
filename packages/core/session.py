@@ -171,6 +171,10 @@ class Session:
     workdir: str = ""
     history: list[dict] = field(default_factory=list)
     last_result: dict | None = None
+    # Last Worker state reached through an explicitly successful Pan
+    # lifecycle transition.  This is deliberately separate from the live
+    # worker status, which is derived from the in-memory Worker runtime.
+    last_legal_worker_state: str | None = None
     created_at: str = ""
     updated_at: str = ""
     order: int | None = None  # 用户自定义展示顺序（None = 未排序，按 created_at 排在末尾）
@@ -222,6 +226,7 @@ class Session:
                  workdir: str = "",
                  history: list[dict] | None = None,
                  last_result: dict | None = None,
+                 last_legal_worker_state: str | None = None,
                  created_at: str = "",
                  updated_at: str = "",
                  order: int | None = None,
@@ -264,6 +269,10 @@ class Session:
         self.workdir = workdir
         self.history = history if history is not None else []
         self.last_result = last_result
+        self.last_legal_worker_state = (
+            last_legal_worker_state if isinstance(last_legal_worker_state, str)
+            else None
+        )
         self.created_at = created_at
         self.updated_at = updated_at
         try:
@@ -360,6 +369,11 @@ class Session:
         Old top-level capability fields are migrated into nested pan_access
         (and the old keys removed) so pre-refactor JSON keeps loading.
         """
+        # Accept the API spelling as a defensive compatibility bridge for
+        # hand-authored/older metadata, while the canonical session JSON keeps
+        # the repository's existing snake_case field style.
+        if "last_legal_worker_state" not in data and "lastLegalWorkerState" in data:
+            data["last_legal_worker_state"] = data.pop("lastLegalWorkerState")
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
             ("cbc_session_id", "cli_session_id"),
@@ -397,6 +411,7 @@ class Session:
             "workdir": self.workdir,
             "history": self.history,
             "last_result": self.last_result,
+            "last_legal_worker_state": self.last_legal_worker_state,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "order": self.order,
