@@ -289,7 +289,7 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
     job = background_jobs.find_service_job(request_id, registry_root)
     if not job:
         raise ValueError("durable restart Job not found")
-    command = [
+    powershell_args = [
         "powershell.exe",
         "-NoProfile",
         "-NonInteractive",
@@ -307,15 +307,19 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         str(registry_root),
         "-Port",
         str(job["port"]),
-        # The API process is already a detached Windows process.  Enter the
-        # real supervisor directly instead of relying on a second
-        # Start-Process hop, which can disappear before it writes any log.
+        # The shell launcher enters the real supervisor directly instead of
+        # relying on restart_pan.ps1's second Start-Process hop.
         "-Supervisor",
     ]
     if job.get("oldPid"):
-        command += ["-OldPid", str(job["oldPid"])]
+        powershell_args += ["-OldPid", str(job["oldPid"])]
     if job.get("oldPidCreatedAt") is not None:
-        command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
+        powershell_args += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
+    # A new process group does not change the parent PID relationship.  The
+    # old Pan service's stop_pan.bat uses taskkill /T, so launch through the
+    # short-lived `start` shell and let it exit after CreateProcess succeeds;
+    # the PowerShell supervisor is then no longer below the old Pan tree.
+    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + powershell_args
     launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-restart-launcher.log"
     launcher_log.parent.mkdir(parents=True, exist_ok=True)
     # Windows DETACHED_PROCESS can report a successful Popen while the

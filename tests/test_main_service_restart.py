@@ -88,7 +88,8 @@ def test_restart_returns_scheduled_before_supervisor_finishes(tmp_path, monkeypa
     assert result["ok"] is True
     assert result["status"] == "scheduled"
     assert result["requestId"]
-    assert calls[0][0][0] == "powershell.exe"
+    assert calls[0][0][0:6] == ["cmd.exe", "/d", "/c", "start", "", "/b"]
+    assert calls[0][0][6] == "powershell.exe"
     assert "-NonInteractive" in calls[0][0]
     assert str(tmp_path / "scripts" / "restart_pan.ps1") in calls[0][0]
     assert calls[0][1]["cwd"] == str(tmp_path)
@@ -132,7 +133,8 @@ def test_restart_launcher_enters_supervisor_directly_with_durable_binding(tmp_pa
 
     srv._launch_main_restart_supervisor(request_id)
     command = calls[0][0]
-    assert command[0:7] == [
+    assert command[0:6] == ["cmd.exe", "/d", "/c", "start", "", "/b"]
+    assert command[6:13] == [
         "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
         "-File", str(scripts / "restart_pan.ps1"),
     ]
