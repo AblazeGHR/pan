@@ -17,8 +17,9 @@ set "PID_FILE=%BASE_DIR%\data\process.pid"
 set "PAN_START_BASE=%BASE_DIR%"
 
 REM ---- 0. Refuse duplicate Pan instances before touching caches/PIDs ----
-REM     Match the project root and main.py, never a bare python.exe.
-for /f "delims=" %%p in ('powershell -NoProfile -Command "$base=$env:PAN_START_BASE.Replace('\','/').TrimEnd('/'); $root=$base+'/'; $p=Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -and $_.CommandLine.Replace('\','/').Contains($root) -and $_.CommandLine.Contains('main.py') }; if ($p) { $p | Select-Object -First 1 -ExpandProperty ProcessId }"') do set "EXISTING_MAIN_PID=%%p"
+REM     Match the checkout boundary and a known Pan entry marker.  The
+REM     launcher may be python/pythonw/uvicorn and need not spell main.py.
+for /f "delims=" %%p in ('powershell -NoProfile -Command "$base=$env:PAN_START_BASE.Replace('\','/').TrimEnd('/'); $root=$base+'/'; $p=Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(python|pythonw|uvicorn)(\.exe)?$' -and $_.CommandLine -and $_.CommandLine.Replace('\','/').Contains($root) -and (($_.CommandLine -match 'main\.py') -or ($_.CommandLine -match 'packages[\\/]web[\\/]server') -or ($_.CommandLine -match 'uvicorn')) }; if ($p) { $p | Select-Object -First 1 -ExpandProperty ProcessId }"') do set "EXISTING_MAIN_PID=%%p"
 if defined EXISTING_MAIN_PID (
     echo [ERROR] Pan Core is already running for this checkout, PID=%EXISTING_MAIN_PID%
     exit /b 2
