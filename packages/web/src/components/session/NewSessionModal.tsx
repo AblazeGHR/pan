@@ -126,7 +126,7 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
         {!loading && !error && data && data.entries.length === 0 && <div className="p-4 text-sm text-text-tertiary">空目录</div>}
         {!error && data?.entries.map((entry) => (
           <button key={entry.path} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary" onClick={() => entry.isDirectory ? goTo(entry.path) : onSelect(entry.path)}>
-            {entry.isDirectory ? <Folder size={15} className="shrink-0 text-text-tertiary" /> : <span className="w-[15px] shrink-0 text-center text-text-tertiary">·</span>}
+            {entry.isDirectory ? <Folder size={15} className="shrink-0 text-text-tertiary" /> : <span aria-hidden="true" className="w-[15px] shrink-0 text-center text-text-tertiary">·</span>}
             <span className="truncate">{entry.name}</span>
           </button>
         ))}

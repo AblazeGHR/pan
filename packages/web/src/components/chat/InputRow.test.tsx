@@ -151,7 +151,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
     const file = new File(['client'], 'client.txt', { type: 'text/plain' });
     fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
-    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith('s1', file));
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith('s1', file, expect.any(Function)));
     await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('client.txt'));
 
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });

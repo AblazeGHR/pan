@@ -77,14 +77,15 @@ describe('NewSessionModal working directory browser', () => {
   });
 
   it('passes the file-mode flag only when explicitly enabled', async () => {
+    const attachmentsPath = 'D:\\attachments';
     apiMock.fetchDirectories.mockResolvedValueOnce({
-      current: 'D:\\attachments',
+      current: attachmentsPath,
       parent: 'D:\\',
-      entries: [{ name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false }],
+      entries: [{ name: 'report.txt', path: `${attachmentsPath}\\report.txt`, isDirectory: false }],
     });
     render(
       <DirectoryBrowser
-        path="D:\\attachments"
+        path={attachmentsPath}
         fileMode
         onPathChange={() => {}}
         onSelect={() => {}}
@@ -92,7 +93,7 @@ describe('NewSessionModal working directory browser', () => {
       />,
     );
     await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
-    expect(apiMock.fetchDirectories).toHaveBeenCalledWith('D:\\attachments', true);
+    expect(apiMock.fetchDirectories).toHaveBeenCalledWith(attachmentsPath, true);
   });
 
   it('loads the next layer on click and writes the selected current directory', async () => {
