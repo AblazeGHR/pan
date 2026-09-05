@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -83,12 +84,12 @@ function ModelPill({
   // 复用带搜索过滤的 ModelSelect（与 SettingsPopover 保持一致），仅通过
   // buttonClassName / menuClassName 适配 pill 外观与向上展开的交互。
   return (
-    <div data-model-pill className="relative">
+    <div data-model-pill className="relative min-w-0 max-w-full shrink">
       <ModelSelect
         value={current}
         options={models}
         onChange={(m) => onApply('model', m)}
-        buttonClassName={PILL_CLASS + ' font-semibold'}
+        buttonClassName={PILL_CLASS + ' min-w-0 max-w-full font-semibold'}
         menuClassName="absolute left-0 bottom-full mb-1 z-40 min-w-[160px] w-max"
       />
     </div>
@@ -109,6 +110,8 @@ function PermissionPill({
   onApply: (key: string, value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{ left: number; bottom: number } | null>(null);
   const current = sessionMode || defaultMode;
   const active = modes.find((m) => m.value === current);
   // Keep the collapsed toolbar pill compact; the expanded menu still shows
@@ -119,25 +122,44 @@ function PermissionPill({
     if (!open) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('[data-perm-pill]')) setOpen(false);
+      if (!target.closest('[data-perm-pill]') && !target.closest('[data-permission-menu]')) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      setMenuPosition(null);
+      return;
+    }
+    const update = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (rect) setMenuPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
   if (!show) return null;
 
   return (
-    <div data-perm-pill className="relative">
+    <div data-perm-pill className="relative min-w-0 max-w-full shrink">
       <button
+        ref={buttonRef}
         className={PILL_CLASS + ' ' + permBorderClass(current)}
         onClick={() => setOpen(!open)}
       >
-        <span>{label}</span>
+        <span className="min-w-0 truncate">{label}</span>
         <ChevronDown size={12} />
       </button>
-      {open && (
-        <div className="absolute bottom-full mb-1 left-0 min-w-[160px] rounded-md border border-border-default bg-bg-primary shadow-lg z-30">
+      {open && menuPosition && createPortal(
+        <div data-permission-menu style={{ position: 'fixed', left: menuPosition.left, bottom: menuPosition.bottom }} className="z-[60] mb-1 min-w-[160px] rounded-md border border-border-default bg-bg-primary shadow-lg">
           {modes.map((m) => (
             <div
               key={m.value}
@@ -153,7 +175,7 @@ function PermissionPill({
               {m.label}
             </div>
           ))}
-        </div>
+        </div>, document.body,
       )}
     </div>
   );
@@ -172,8 +194,8 @@ function ThinkingToggle({
 
   return (
     <button
-      className={
-        PILL_CLASS +
+        className={
+          PILL_CLASS +
         (enabled ? ' bg-accent/10 border-accent/50 text-accent' : '')
       }
       onClick={() => onApply('alwaysThinkingEnabled', !enabled)}
@@ -187,6 +209,7 @@ function ThinkingToggle({
 
 export function InputRow() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentSession = useCurrentSession();
@@ -505,10 +528,11 @@ export function InputRow() {
         {/* 右侧内容列 */}
         <div className={`flex-1 min-w-0 flex flex-col gap-2 ${mobileFullscreen ? 'min-h-0' : ''}`}>
           {currentSession && (
-            <div data-testid="input-control-row" className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-clip">
+            <div data-testid="input-control-row" className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-visible">
               <div className="flex shrink-0 items-center gap-1">
                 <div data-settings-popover className="relative">
                   <button
+                    ref={settingsButtonRef}
                     onClick={() => setSettingsOpen((v) => !v)}
                     title="Session settings"
                     aria-label="Session settings"
@@ -516,11 +540,12 @@ export function InputRow() {
                   >
                     <Settings size={14} />
                   </button>
-                  <SettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+                  <SettingsPopover anchorRef={settingsButtonRef} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
                 </div>
                 <div className="relative">
-                  <button onClick={togglePanel} title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'} aria-label="发送队列" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                  <button onClick={togglePanel} title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'} aria-label="发送队列" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
                     <ChevronUp size={14} className={`transition-transform duration-200 ${panelOpen ? 'rotate-180' : ''}`} />
+                    <span className="ml-1 hidden text-xs md:inline">Queue</span>
                   </button>
                   {queueCount > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">{queueCount > 99 ? '99+' : queueCount}</span>}
                 </div>
@@ -563,14 +588,14 @@ export function InputRow() {
                   ))}
                 </select>
               )}
-              <div className="relative order-last shrink-0">
+              <div className="relative order-last shrink-0 md:ml-auto">
                 <button type="button" aria-label="添加附件" title="添加附件" onClick={() => setAttachmentMenuOpen((open) => !open)} className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
                   <Paperclip size={14} />
                 </button>
-                {attachmentMenuOpen && <div className="absolute bottom-full right-0 z-30 mb-1 min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
+                {attachmentMenuOpen && createPortal(<div data-testid="attachment-menu" className="fixed bottom-20 right-3 z-[60] min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { setAttachmentBrowserPath(''); setAttachmentBrowserOpen(true); }}><FileIcon size={14} /> 服务端附件</button>
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { clientAttachmentInputRef.current?.click(); setAttachmentMenuOpen(false); }}><Paperclip size={14} /> 客户端附件</button>
-                </div>}
+                </div>, document.body)}
               </div>
               {isMobile && (
                 <button
