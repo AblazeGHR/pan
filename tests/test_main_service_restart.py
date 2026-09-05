@@ -118,6 +118,13 @@ def test_supervisor_script_is_a_stop_then_start_chain():
     assert "start_pan.bat" in text
     assert "Start-Sleep -Seconds 1" in text
     assert "-Supervisor" in text
+    # The request-side hop must preserve the durable Job identity and the
+    # checkout/port metadata when it creates the actual detached supervisor.
+    hop = text.split("if (-not $Supervisor)", 1)[1].split("try {", 1)[0]
+    for argument in ("-Root", "-RequestId", "-JobId", "-RegistryRoot", "-Port", "-Supervisor"):
+        assert f'"{argument}"' in hop
+    assert '"-OldPid", $OldPid' in hop
+    assert '"-OldPidCreatedAt", $OldPidCreatedAt' in hop
 
 
 def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
@@ -125,6 +132,7 @@ def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
     start = (root / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
     start_main = (root / "scripts" / "start_main.ps1").read_text(encoding="utf-8")
     stop = (root / "scripts" / "stop_pan.bat").read_text(encoding="utf-8")
+    probe = (root / "scripts" / "start_pan_probe.ps1").read_text(encoding="utf-8")
     config = json.loads((root / "config.example.json").read_text(encoding="utf-8"))
 
     # A double-clicked batch file must leave enough evidence for failures that
@@ -142,7 +150,30 @@ def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
 
     # Prefixes such as D:\\project\\Pan-test must not be treated as this
     # checkout.  Start and stop use the same boundary-aware contract.
-    assert ".Contains($root)" in start
+    assert ".Contains($root)" in probe
     assert ".Contains($root)" in stop
     assert "Replace('\\\\','/')" not in stop
     assert "Replace('\\','/')" in stop
+
+
+def test_startup_batch_delegates_nested_powershell_to_parser_safe_helper():
+    root = Path(__file__).resolve().parent.parent
+    start = (root / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    probe = (root / "scripts" / "start_pan_probe.ps1").read_text(encoding="utf-8")
+
+    assert "start_pan_probe.ps1" in start
+    assert "-Action ExistingMainPid" in start
+    assert "-Action Port" in start
+    assert "-Action RemoteState" in start
+    assert "-Action QuickState" in start
+    assert "-Action QuickUrl" in start
+    assert "-Action Ready" in start
+    assert "-Action ProcessAlive" in start
+    # These commands used to put PowerShell control-flow parentheses inside
+    # CMD's parenthesized FOR/IF blocks.  The only remaining inline probe is
+    # the simple process sleep, which has no PowerShell control-flow syntax.
+    assert "for ($" not in start
+    assert "Where-Object" not in start
+    assert "ConvertFrom-Json" not in start
+    assert "Invoke-WebRequest" not in start
+    assert "ValidateSet" in probe
