@@ -3,7 +3,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
-import { matchesSessionSearch, matchesSpecialFilters } from '@/utils/sessionFilters';
+import { getSessionListCandidates } from '@/utils/sessionFilters';
 import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
 import type { DropZone } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
@@ -253,25 +253,15 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   }, [sessions, pruneHiddenSessions]);
 
   const { filtered, grouped, managerTree, allHidden } = useMemo(() => {
-    // Hidden sessions never take part in the normal list — they are excluded
-    // up front so text search, special filters, sorting and grouping all
-    // operate on the visible set. Select mode bypasses the exclusion so a
-    // permanently hidden session is always reachable (recovery path).
-    const base = multiSelectMode
-      ? [...sessions]
-      : sessions.filter((s) => !hiddenSessionIds.has(s.id));
-
-    let filtered = base;
-
-    if (specialFilters.size > 0) {
-      filtered = filtered.filter((s) =>
-        matchesSpecialFilters(s, sessions, specialFilters),
-      );
-    }
-
-    if (searchQuery.trim()) {
-      filtered = filtered.filter((s) => matchesSessionSearch(s, searchQuery));
-    }
+    // The candidate selector is shared with Sidebar's bulk-selection control.
+    // It includes hidden sessions in select mode, but not sessions removed by
+    // search/special filters; grouping/collapse only affects presentation.
+    const filtered = [...getSessionListCandidates(sessions, {
+      multiSelectMode,
+      hiddenSessionIds,
+      searchQuery,
+      specialFilters,
+    })];
 
     filtered.sort((a, b) => {
       if (sortBy === 'custom') {
@@ -333,7 +323,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     const managerTree = groupBy === 'manager' ? buildManagerTree(filtered) : [];
 
     // Normal mode, sessions exist, but every one of them is hidden.
-    const allHidden = !multiSelectMode && sessions.length > 0 && base.length === 0;
+    const allHidden =
+      !multiSelectMode &&
+      sessions.length > 0 &&
+      sessions.every((session) => hiddenSessionIds.has(session.id));
 
     return { filtered, grouped: groups, managerTree, allHidden };
   }, [sessions, searchQuery, sortBy, customOrder, groupBy, specialFilters, hiddenSessionIds, multiSelectMode]);

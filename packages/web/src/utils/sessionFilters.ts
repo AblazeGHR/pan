@@ -78,3 +78,34 @@ export function matchesSpecialFilters(
   if (filters.has('metaagent') && !isMetaAgent(session)) return false;
   return true;
 }
+
+/**
+ * Return the sessions that SessionList can operate on for the current view.
+ * Select mode deliberately includes sessions hidden from the normal list,
+ * while search and special filters keep their usual meaning. Grouping and
+ * collapsed groups are intentionally not inputs: selection covers the full
+ * filtered result, not only cards currently present in the DOM.
+ */
+export function getSessionListCandidates(
+  sessions: Session[],
+  options: {
+    multiSelectMode: boolean;
+    hiddenSessionIds: Set<string>;
+    searchQuery: string;
+    specialFilters: Set<SpecialFilterId>;
+  },
+): Session[] {
+  const base = options.multiSelectMode
+    ? sessions
+    : sessions.filter((session) => !options.hiddenSessionIds.has(session.id));
+
+  let candidates = base.filter((session) =>
+    matchesSpecialFilters(session, sessions, options.specialFilters),
+  );
+  if (options.searchQuery.trim()) {
+    candidates = candidates.filter((session) =>
+      matchesSessionSearch(session, options.searchQuery),
+    );
+  }
+  return candidates;
+}
