@@ -189,6 +189,113 @@ def test_pan_port_default_remains_8768():
     assert 'set "PAN_PORT=8767"' not in start
 
 
+# ── start_pan.bat quick/named branching (static regression) ──
+
+
+def test_start_pan_branches_on_quick_tunnel():
+    text = (REPO_ROOT / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    # branches on remote.quick_tunnel; default is quick (matches main.py)
+    assert "quick_tunnel" in text
+    assert "PAN_QUICK_STATE" in text
+    assert 'set "PAN_QUICK_STATE=quick"' in text
+    # quick branch: dedicated launcher, forwards the local Pan port, no yml
+    assert "start_cf_quick.ps1" in text
+    assert '-Port "%PAN_PORT%"' in text
+    # named branch: existing start_cf.ps1 entry point preserved
+    assert "start_cf.ps1" in text
+    # both branches feed the same PID file consumed by data/process.pid
+    assert text.count('-PidFile "%PID_CF%"') == 2
+    # quick-tunnel log marker is written to data/logs (stop_pan matching)
+    assert "pan_cf_quick_" in text
+    # quick URL hint: log path is announced and URL polled from it
+    assert "Quick tunnel log:" in text
+    assert "trycloudflare" in text
+    # branch happens after the enabled-gate (skip still comes first)
+    assert text.index("PAN_REMOTE_STATE") < text.index("PAN_QUICK_STATE")
+
+
+def test_start_pan_quick_failure_keeps_core():
+    text = (REPO_ROOT / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    assert (
+        "cloudflared quick tunnel failed to start, continuing with Pan Core only."
+        in text
+    )
+    # a tunnel failure must never route to the kill-Pan branch
+    fail_idx = text.index("quick tunnel failed to start")
+    assert ":start_failed" not in text[fail_idx:text.rindex(":remote_tunnel_done")]
+
+
+def test_stop_pan_matches_quick_and_named_tunnels():
+    text = (REPO_ROOT / "scripts" / "stop_pan.bat").read_text(encoding="utf-8")
+    # PID-file check + fallback command-line scan both accept both markers
+    assert text.count("pan_cf_(config|quick)_") == 2
+    assert "pan_cf_config_'" not in text  # no stale named-only matcher left
+
+
+def test_start_cf_quick_command_shape():
+    text = (REPO_ROOT / "scripts" / "start_cf_quick.ps1").read_text(encoding="utf-8")
+    assert "'tunnel'" in text
+    assert "'--url'" in text
+    assert "http://127.0.0.1:$Port" in text
+    # no config.yml anywhere in the quick path
+    assert "--config" not in text
+    # logfile gives the URL a home AND marks the cmdline for stop matching
+    assert "'--logfile'" in text
+    assert "pan_cf_quick_" in text
+    # PID lands in the caller-provided pid file (data/process.pid lifecycle)
+    assert "$PidFile" in text
+
+
+def test_start_cf_quick_dry_run_failure(tmp_path):
+    """PATH stripped → cloudflared unresolvable → clean exit 1, no PID file."""
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    shutil.copy(REPO_ROOT / "scripts" / "start_cf_quick.ps1", scripts / "start_cf_quick.ps1")
+    pid_file = tmp_path / "cf_pid.txt"
+    env = {
+        **os.environ,
+        "PATH": r"C:\Windows\System32",
+        "TEMP": str(tmp_path), "TMP": str(tmp_path),
+    }
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+         "-File", str(scripts / "start_cf_quick.ps1"),
+         "-PidFile", str(pid_file), "-Port", str(TEST_PORT)],
+        capture_output=True, env=env, timeout=60,
+        encoding="utf-8", errors="replace",
+    )
+    assert r.returncode != 0
+    assert not pid_file.exists()
+    assert "cloudflared not found" in (r.stdout + r.stderr)
+
+
+# ── config.example.json remote documentation ──
+
+
+def test_config_example_documents_quick_tunnel():
+    example = json.loads(
+        (REPO_ROOT / "config.example.json").read_text(encoding="utf-8")
+    )
+    remote = example["remote"]
+    assert remote["enabled"] is False
+    assert remote["quick_tunnel"] is True
+    docs = json.dumps(remote["_字段说明"], ensure_ascii=False)
+    for keyword in [
+        "trycloudflare",           # quick URL shape + instability
+        "start_pan.bat",           # script branches on this field
+        "config_path",             # named tunnel requirements
+        "named tunnel",
+        "PAN_CF_CONFIG",           # named fallback strategy documented
+        "protocol",
+        "status_port",
+        "pan_cf_quick",            # quick log location
+    ]:
+        assert keyword in docs, f"missing keyword: {keyword}"
+    # config_path required only for the named branch
+    assert "quick_tunnel=false 时必填" in docs
+    assert "quick_tunnel=true 时忽略" in docs
+
+
 # ── process matcher isolation ──
 
 
