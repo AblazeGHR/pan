@@ -26,6 +26,13 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     patchSession: vi.fn(async () => ({})),
     fetchSessions: vi.fn(async () => []),
+    fetchDirectories: vi.fn(async () => ({
+      current: 'D:\\attachments',
+      parent: 'D:\\',
+      entries: [
+        { name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false },
+      ],
+    })),
     enqueueSessionMessage: vi.fn(async (_sessionId: string, text: string) => ({
       item: {
         id: `q-${text.replace(/\s+/g, '-')}`,
@@ -90,6 +97,40 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('InputRow send queue wiring', () => {
+  it('selects server files, renders attachment chips, and enqueues formatted paths', async () => {
+    setBusySession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+
+    expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt');
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: '请阅读' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1', '请阅读 @"D:\\attachments\\report.txt"', expect.any(String),
+    ));
+    await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+  });
+
+  it('keeps attachments after a failed enqueue and allows cancelling one', async () => {
+    setBusySession();
+    vi.mocked(enqueueSessionMessage).mockRejectedValueOnce(new Error('offline'));
+    render(<InputRow />);
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(screen.getByTestId('server-attachments')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /取消附件/ }));
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+  });
+
   it('enqueues through the server when worker busy, then shows the pending row', async () => {
     setBusySession();
     render(<InputRow />);

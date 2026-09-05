@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 
-def call(path=None):
+def call(path=None, include_files=False):
     from packages.web.server import list_directories
 
-    return asyncio.run(list_directories(path))
+    return asyncio.run(list_directories(path, include_files=include_files))
 
 
 def test_directory_roots_are_listed_without_recursive_scan(monkeypatch, tmp_path):
@@ -40,6 +40,22 @@ def test_directory_listing_returns_only_direct_child_directories(tmp_path):
     assert result["parent"] == str(root.resolve().parent)
     assert [entry["name"] for entry in result["entries"]] == ["a-dir", "z-dir"]
     assert all(entry["isDirectory"] for entry in result["entries"])
+
+
+def test_directory_listing_in_file_mode_includes_files_but_does_not_recurse(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "z-dir").mkdir()
+    (root / "z-dir" / "hidden.txt").write_text("nested", encoding="utf-8")
+    (root / "a.txt").write_text("附件", encoding="utf-8")
+
+    result = call(str(root), include_files=True)
+
+    assert [(entry["name"], entry["isDirectory"]) for entry in result["entries"]] == [
+        ("a.txt", False),
+        ("z-dir", True),
+    ]
+    assert all("hidden.txt" not in entry["name"] for entry in result["entries"])
 
 
 def test_directory_listing_rejects_missing_and_non_directory(tmp_path):
