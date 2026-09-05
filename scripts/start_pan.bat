@@ -95,7 +95,7 @@ set "PAN_REMOTE_STATE="
 for /f "delims=" %%r in ('powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action RemoteState -BaseDir "%BASE_DIR%"') do set "PAN_REMOTE_STATE=%%r"
 if not defined PAN_REMOTE_STATE set "PAN_REMOTE_STATE=invalid"
 if /i not "%PAN_REMOTE_STATE%"=="enabled" (
-    echo [INFO] remote.enabled is not explicitly true (%PAN_REMOTE_STATE%), skipping Cloudflare Tunnel.
+    echo [INFO] remote.enabled is not explicitly true ^(%PAN_REMOTE_STATE%^), skipping Cloudflare Tunnel.
     goto :remote_tunnel_done
 )
 REM ---- 4b. Resolve remote.quick_tunnel (default quick, matches main.py) ----

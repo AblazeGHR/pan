@@ -177,3 +177,21 @@ def test_startup_batch_delegates_nested_powershell_to_parser_safe_helper():
     assert "ConvertFrom-Json" not in start
     assert "Invoke-WebRequest" not in start
     assert "ValidateSet" in probe
+
+
+def test_startup_batch_escapes_parentheses_in_remote_disabled_echo():
+    start = (Path(__file__).resolve().parent.parent / "scripts" / "start_pan.bat").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "echo [INFO] remote.enabled is not explicitly true ^(%PAN_REMOTE_STATE%^), "
+        "skipping Cloudflare Tunnel."
+    ) in start
+    assert "echo [INFO] remote.enabled is not explicitly true (%PAN_REMOTE_STATE%)," not in start
+
+    # Every literal parenthesis on an echo line must be caret-escaped. This
+    # protects future conditional-block messages from the same CMD regression.
+    for line in start.splitlines():
+        if line.lstrip().lower().startswith("echo "):
+            assert "(" not in line.replace("^(", "")
+            assert ")" not in line.replace("^)", "")
