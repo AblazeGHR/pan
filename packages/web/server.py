@@ -2477,13 +2477,25 @@ async def api_delete_session(session_id: str):
 
 @app.post("/api/sessions/batch-delete")
 async def api_batch_delete_sessions(data: dict):
-    """Delete multiple sessions and their workers at once."""
+    """Delete sessions and workers, optionally expanding managed descendants.
+
+    ``sessionIds`` retains the historical exact-delete behavior.  When
+    ``cascadeSessionIds`` is supplied, the server expands those roots from
+    their persisted ``managed`` lists, deduplicates shared descendants, and
+    deletes child sessions before their parents.  This keeps the browser from
+    having to guess a nested relationship graph.
+    """
     session_ids = data.get("sessionIds", [])
     if not session_ids:
         return {"error": "sessionIds is required"}
 
+    cascade_ids = [sid for sid in data.get("cascadeSessionIds", [])
+                   if sid in session_ids]
+    ordered_ids = list(dict.fromkeys(
+        sess.expand_managed_descendants(cascade_ids) + list(session_ids)
+    ))
     deleted = 0
-    for sid in session_ids:
+    for sid in ordered_ids:
         sess.release(sid)  # 清理 managed 关系 + 各 manager 的 report 订阅残留（B1）
         w = worker.find_worker_by_session(sid)
         if w:
@@ -2497,10 +2509,10 @@ async def api_batch_delete_sessions(data: dict):
 
     await broadcast({
         "type": "sessions.deleted",
-        "sessionIds": session_ids,
+        "sessionIds": ordered_ids,
     })
 
-    return {"deleted": deleted}
+    return {"deleted": deleted, "sessionIds": ordered_ids}
 
 
 @app.get("/api/models")
