@@ -218,10 +218,13 @@ export async function deleteSession(id: string): Promise<ApiGenericResponse> {
   return data;
 }
 
-export async function batchDeleteSessions(sessionIds: string[]): Promise<ApiBatchDeleteResponse> {
+export async function batchDeleteSessions(
+  sessionIds: string[],
+  cascadeSessionIds: string[] = [],
+): Promise<ApiBatchDeleteResponse> {
   const data = await request<ApiBatchDeleteResponse>(`${BASE}/sessions/batch-delete`, {
     method: 'POST',
-    body: JSON.stringify({ sessionIds }),
+    body: JSON.stringify({ sessionIds, cascadeSessionIds }),
   });
   if (data.error) throw new Error(data.error);
   return data;

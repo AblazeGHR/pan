@@ -24,13 +24,14 @@ interface SessionMenuProps {
   onPostbox?: (id: string) => void;
   /** Open the session details modal for this session. */
   onDetails?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
-export function SessionMenu({ session, position, onClose, onManage, onPostbox, onDetails }: SessionMenuProps) {
+export function SessionMenu({ session, position, onClose, onManage, onPostbox, onDetails, onDelete }: SessionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   // 挂载前先用点击锚点，量取菜单尺寸后按视口空间翻转/收敛到最终落点。
   const [placement, setPlacement] = useState<{ x: number; y: number }>(() => position);
-  const { rename, removeSession, reimport, branch, toggleMultiSelect } =
+  const { rename, reimport, branch, toggleMultiSelect } =
     useSessionStore();
   const { showToast } = useUIStore();
 
@@ -115,10 +116,11 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
 
   const handleDelete = () => {
     onClose();
+    if (onDelete) {
+      onDelete(session.id);
+      return;
+    }
     if (!confirm(`Delete session ${session.id.slice(0, 12)}...?`)) return;
-    removeSession(session.id).catch((e) =>
-      showToast(e.message || 'Delete failed', 'error'),
-    );
   };
 
   const handleMultiSelect = () => {

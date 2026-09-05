@@ -649,6 +649,32 @@ def delete(session_id: str):
     _newline_terminated_jsonl.discard(str(hist_path))  # 文件已删，缓存作废
 
 
+def expand_managed_descendants(root_ids: list[str]) -> list[str]:
+    """Return existing descendants of roots in child-before-parent order.
+
+    ``managed`` is the authoritative persisted relationship for deletion.
+    Missing child ids are ignored, and a visited set makes corrupt cycles and
+    shared descendants harmless. Roots are not included in the result.
+    """
+    visited: set[str] = set()
+    root_set = set(root_ids)
+    descendants: list[str] = []
+
+    def visit(session_id: str) -> None:
+        current = get(session_id)
+        if current is None or session_id in visited:
+            return
+        visited.add(session_id)
+        for child_id in current.managed:
+            visit(child_id)
+        if session_id not in root_set:
+            descendants.append(session_id)
+
+    for root_id in root_ids:
+        visit(root_id)
+    return descendants
+
+
 def claim(manager_id: str, session_id: str) -> str | None:
     """Set a bidirectional managed relationship (立项 4.2).
 
