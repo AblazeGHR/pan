@@ -318,6 +318,21 @@ body {
     border-bottom: none !important;
     animation: sheet-up 260ms cubic-bezier(0.4, 0, 0.2, 1);
   }
+
+  /* The attachment picker opts into a true viewport modal. Keep this after
+     the generic bottom-sheet rules: those rules intentionally use !important
+     and must continue to win for every other Modal call site. */
+  .modal-overlay.modal-overlay--mobile-fullscreen {
+    align-items: center !important;
+  }
+  .modal-overlay .modal-card.modal-card--mobile-fullscreen {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    max-width: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    animation: none;
+  }
 }
 
 /* ── Deprecated Bubble view (formerly named TUI) ── */
