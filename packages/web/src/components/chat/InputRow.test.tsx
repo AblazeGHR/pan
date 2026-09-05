@@ -421,14 +421,30 @@ describe('InputRow responsive composer controls', () => {
     expect(card.className).toContain('max-md:rounded-none');
   });
 
-  it('keeps the queue in the mobile composer flow instead of using desktop positioning', () => {
+  it('opens the ordinary mobile queue above the composer', () => {
     mockMatchMedia(true);
     setBusySession();
     render(<InputRow />);
 
     const anchor = screen.getByTestId('send-queue-anchor');
+    expect(anchor.className).toContain('absolute');
+    expect(anchor.className).toContain('bottom-full');
+  });
+
+  it('keeps the queue in fullscreen mobile flow so it stays inside the viewport', () => {
+    mockMatchMedia(true);
+    setBusySession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '全屏输入' }));
+    const anchor = screen.getByTestId('send-queue-anchor');
+    const root = screen.getByTestId('input-row');
     expect(anchor.className).toContain('shrink-0');
     expect(anchor.className).not.toContain('absolute');
+    expect(root.className).toContain('fixed');
+    expect(root.className).toContain('overflow-hidden');
+    expect(screen.getByPlaceholderText(/Type a message/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
   });
 });
 

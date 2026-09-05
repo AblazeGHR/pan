@@ -494,7 +494,7 @@ export function InputRow() {
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
       <div
         data-testid="send-queue-anchor"
-        className={isMobile ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'}
+        className={isMobile && mobileFullscreen ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'}
       >
         <SendQueuePanel />
       </div>
