@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { NewSessionModal } from './NewSessionModal';
+import { DirectoryBrowser, NewSessionModal } from './NewSessionModal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import type { ApiCliStatusResponse } from '@/types';
@@ -74,6 +74,26 @@ describe('NewSessionModal working directory browser', () => {
     await waitFor(() => expect(screen.getByText('D:\\')).toBeTruthy());
     expect(apiMock.fetchDirectories).toHaveBeenCalledWith(undefined);
     expect(apiMock.fetchDirectories).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the file-mode flag only when explicitly enabled', async () => {
+    const attachmentsPath = 'D:\\attachments';
+    apiMock.fetchDirectories.mockResolvedValueOnce({
+      current: attachmentsPath,
+      parent: 'D:\\',
+      entries: [{ name: 'report.txt', path: `${attachmentsPath}\\report.txt`, isDirectory: false }],
+    });
+    render(
+      <DirectoryBrowser
+        path={attachmentsPath}
+        fileMode
+        onPathChange={() => {}}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
+    expect(apiMock.fetchDirectories).toHaveBeenCalledWith(attachmentsPath, true);
   });
 
   it('loads the next layer on click and writes the selected current directory', async () => {

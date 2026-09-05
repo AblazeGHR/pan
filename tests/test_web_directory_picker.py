@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 
-def call(path=None):
+def call(path=None, include_files=False):
     from packages.web.server import list_directories
 
-    return asyncio.run(list_directories(path))
+    return asyncio.run(list_directories(path, include_files=include_files))
 
 
 def test_directory_roots_are_listed_without_recursive_scan(monkeypatch, tmp_path):
@@ -40,6 +40,22 @@ def test_directory_listing_returns_only_direct_child_directories(tmp_path):
     assert result["parent"] == str(root.resolve().parent)
     assert [entry["name"] for entry in result["entries"]] == ["a-dir", "z-dir"]
     assert all(entry["isDirectory"] for entry in result["entries"])
+
+
+def test_directory_listing_in_file_mode_includes_files_but_does_not_recurse(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "z-dir").mkdir()
+    (root / "z-dir" / "hidden.txt").write_text("nested", encoding="utf-8")
+    (root / "a.txt").write_text("附件", encoding="utf-8")
+
+    result = call(str(root), include_files=True)
+
+    assert [(entry["name"], entry["isDirectory"]) for entry in result["entries"]] == [
+        ("a.txt", False),
+        ("z-dir", True),
+    ]
+    assert all("hidden.txt" not in entry["name"] for entry in result["entries"])
 
 
 def test_directory_listing_rejects_missing_and_non_directory(tmp_path):
@@ -74,3 +90,63 @@ def test_directory_listing_reports_permission_error(monkeypatch, tmp_path):
     with pytest.raises(HTTPException) as error:
         call(str(directory))
     assert error.value.status_code == 403
+
+
+def test_attachment_upload_is_session_isolated_and_avoids_name_collisions(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    monkeypatch.setattr(server, "ATTACHMENTS_DIR", tmp_path / "attachments")
+    monkeypatch.setattr(server.sess, "get", lambda session_id: object() if session_id in {"ses_a", "ses_b"} else None)
+
+    async def upload(session_id, body, filename):
+        from urllib.parse import quote
+        from starlette.requests import Request
+
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request = Request({
+            "type": "http",
+            "method": "POST",
+            "path": f"/api/sessions/{session_id}/attachments",
+            "headers": [(b"x-filename", quote(filename).encode("ascii"))],
+        }, receive)
+        return await server.upload_session_attachment(session_id, request)
+
+    first = asyncio.run(upload("ses_a", b"one", r"C:\fakepath\same.txt"))
+    second = asyncio.run(upload("ses_a", b"two", r"C:\fakepath\same.txt"))
+    other_session = asyncio.run(upload("ses_b", b"three", "same.txt"))
+
+    assert first["path"] != second["path"]
+    assert Path(first["path"]).read_bytes() == b"one"
+    assert Path(second["path"]).read_bytes() == b"two"
+    assert Path(first["path"]).parent != Path(other_session["path"]).parent
+    assert Path(other_session["path"]).read_bytes() == b"three"
+    assert "fakepath" not in first["path"]
+
+
+def test_attachment_upload_rejects_unknown_session(monkeypatch, tmp_path):
+    import packages.web.server as server
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(server, "ATTACHMENTS_DIR", tmp_path / "attachments")
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: None)
+
+    async def run():
+        from starlette.requests import Request
+
+        async def receive():
+            return {"type": "http.request", "body": b"data", "more_body": False}
+
+        request = Request({"type": "http", "method": "POST", "path": "/attachments", "headers": []}, receive)
+        return await server.upload_session_attachment("ses_missing", request, "file.txt")
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(run())
+    assert error.value.status_code == 404

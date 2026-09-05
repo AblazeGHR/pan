@@ -66,6 +66,7 @@ interface SessionStore {
     },
   ) => Promise<void>;
   removeSession: (id: string) => Promise<void>;
+  removeSessions: (ids: string[], cascadeIds?: string[]) => Promise<void>;
   batchRemoveSessions: () => Promise<void>;
   rename: (id: string, name: string) => Promise<void>;
   branch: (id: string, name: string) => Promise<void>;
@@ -479,6 +480,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await get().loadSessions();
     } catch {
       await get().loadSessions(); // Recover
+    }
+  },
+
+  removeSessions: async (ids: string[], cascadeIds: string[] = []) => {
+    const selected = new Set(ids.filter((id) => !id.startsWith('__pending_')));
+    if (selected.size === 0) return;
+    set((s) => ({
+      sessions: s.sessions.filter((session) => !selected.has(session.id)),
+      currentSessionId: s.currentSessionId && selected.has(s.currentSessionId)
+        ? null : s.currentSessionId,
+      currentMessages: s.currentSessionId && selected.has(s.currentSessionId)
+        ? [] : s.currentMessages,
+      selectedIds: new Set(),
+      multiSelectMode: false,
+    }));
+    try {
+      await batchDeleteSessions([...selected], cascadeIds.filter((id) => selected.has(id)));
+      await get().loadSessions();
+    } catch {
+      await get().loadSessions();
     }
   },
 

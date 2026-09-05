@@ -90,6 +90,13 @@ goto :start_failed
 echo [OK] Pan Core API ready on 127.0.0.1:%PAN_PORT%
 
 REM ---- 4. Start cloudflared (optional) ----
+set "PAN_REMOTE_STATE="
+for /f "delims=" %%r in ('powershell -NoProfile -Command "$cfgPath=Join-Path $env:PAN_START_BASE 'config.json'; try { if (-not (Test-Path -LiteralPath $cfgPath)) { 'missing' } else { $cfg=Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json; if ($cfg.remote -and ($cfg.remote.PSObject.Properties.Name -contains 'enabled') -and ($cfg.remote.enabled -is [bool]) -and $cfg.remote.enabled) { 'enabled' } else { 'disabled' } } } catch { 'invalid' }"') do set "PAN_REMOTE_STATE=%%r"
+if not defined PAN_REMOTE_STATE set "PAN_REMOTE_STATE=invalid"
+if /i not "%PAN_REMOTE_STATE%"=="enabled" (
+    echo [INFO] remote.enabled is not explicitly true (%PAN_REMOTE_STATE%), skipping Cloudflare Tunnel.
+    goto :remote_tunnel_done
+)
 where.exe cloudflared >nul 2>&1
 if errorlevel 1 (
     echo [WARN] cloudflared not found in PATH, skipping remote tunnel.
@@ -99,6 +106,8 @@ if errorlevel 1 (
         echo [WARN] cloudflared failed to start, continuing with Pan Core only.
     ) else if exist "%PID_CF%" set /p CF_PID=<"%PID_CF%"
 )
+
+:remote_tunnel_done
 if defined CF_PID echo [OK] cloudflared started, PID=%CF_PID%
 
 REM ---- 5. Save PIDs ----

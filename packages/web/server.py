@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import unquote
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
@@ -54,6 +55,7 @@ from packages.core.config import (
 from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
+from packages.core import background_jobs
 
 # ── logging ──
 
@@ -85,6 +87,7 @@ async def lifespan(app: FastAPI):
     # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
     worker.start_global_watchdog()
+    background_jobs.start_recovery_loop()
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -100,6 +103,7 @@ async def lifespan(app: FastAPI):
     
     yield
     worker.stop_global_watchdog()
+    await background_jobs.stop_recovery_loop()
     # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
     # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
     # spawn 中途导致 Windows Proactor 循环无法退出。
@@ -149,6 +153,7 @@ _WEB_DIR = Path(__file__).resolve().parent
 _PROJECT_DIR = _WEB_DIR.parent.parent  # packages/web/ → packages/ → project root
 DATA_DIR = _PROJECT_DIR / "data"
 WORKDIRS_DIR = DATA_DIR / "workdirs"
+ATTACHMENTS_DIR = DATA_DIR / "attachments"
 DASHBOARD_FILE = _WEB_DIR / "index.html"
 MOBILE_DASHBOARD_FILE = _WEB_DIR / "mobile.html"
 REACT_DIST_DIR = _WEB_DIR / "dist"
@@ -1204,8 +1209,64 @@ def _resolve_directory(path: str | None) -> Path | None:
     return Path(path.strip()).resolve(strict=True)
 
 
+def _attachment_session_dir(session_id: str) -> Path:
+    """Return a filesystem-safe, session-isolated attachment directory."""
+    session_hash = hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:12]
+    safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", session_id).strip("._") or "session"
+    return ATTACHMENTS_DIR / f"{safe_id[:80]}-{session_hash}"
+
+
+def _attachment_filename(raw_name: str | None) -> str:
+    """Normalize a browser filename without treating it as a server path."""
+    name = unquote(raw_name or "").replace("\\", "/").rsplit("/", 1)[-1]
+    name = re.sub(r"[<>:\"|?*\x00-\x1f]", "_", name).strip(" .")
+    return name or "attachment"
+
+
+@app.post("/api/sessions/{session_id}/attachments")
+async def upload_session_attachment(session_id: str, request: Request, filename: str | None = None):
+    """Persist one browser-uploaded file under the target session directory.
+
+    The request body is the raw file bytes.  ``X-Filename`` is preferred so
+    names containing non-ASCII characters survive URL handling; the query
+    parameter remains a simple fallback for clients that cannot set headers.
+    """
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    raw_name = request.headers.get("x-filename") or filename
+    safe_name = _attachment_filename(raw_name)
+    target_dir = _attachment_session_dir(session_id)
+    temp_path = target_dir / f".upload-{uuid.uuid4().hex}.tmp"
+    target_path = target_dir / f"{uuid.uuid4().hex}_{safe_name}"
+    total = 0
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        with temp_path.open("wb") as output:
+            async for chunk in request.stream():
+                if not chunk:
+                    continue
+                output.write(chunk)
+                total += len(chunk)
+        os.replace(temp_path, target_path)
+        return {
+            "ok": True,
+            "filename": safe_name,
+            "path": str(target_path.resolve()),
+            "size": total,
+        }
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="Attachment storage permission denied") from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail="Attachment upload failed") from exc
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 @app.get("/api/directories")
-async def list_directories(path: str | None = None):
+async def list_directories(path: str | None = None, include_files: bool = False):
     """List one directory level on the Pan server (never recursive).
 
     ``path`` omitted/empty returns the server's filesystem roots.  The API is
@@ -1233,6 +1294,12 @@ async def list_directories(path: str | None = None):
                             "name": item.name,
                             "path": str(Path(item.path)),
                             "isDirectory": True,
+                        })
+                    elif include_files and item.is_file(follow_symlinks=False):
+                        entries.append({
+                            "name": item.name,
+                            "path": str(Path(item.path)),
+                            "isDirectory": False,
                         })
                 except OSError:
                     # A directory can disappear or become inaccessible during
@@ -2413,13 +2480,25 @@ async def api_delete_session(session_id: str):
 
 @app.post("/api/sessions/batch-delete")
 async def api_batch_delete_sessions(data: dict):
-    """Delete multiple sessions and their workers at once."""
+    """Delete sessions and workers, optionally expanding managed descendants.
+
+    ``sessionIds`` retains the historical exact-delete behavior.  When
+    ``cascadeSessionIds`` is supplied, the server expands those roots from
+    their persisted ``managed`` lists, deduplicates shared descendants, and
+    deletes child sessions before their parents.  This keeps the browser from
+    having to guess a nested relationship graph.
+    """
     session_ids = data.get("sessionIds", [])
     if not session_ids:
         return {"error": "sessionIds is required"}
 
+    cascade_ids = [sid for sid in data.get("cascadeSessionIds", [])
+                   if sid in session_ids]
+    ordered_ids = list(dict.fromkeys(
+        sess.expand_managed_descendants(cascade_ids) + list(session_ids)
+    ))
     deleted = 0
-    for sid in session_ids:
+    for sid in ordered_ids:
         sess.release(sid)  # 清理 managed 关系 + 各 manager 的 report 订阅残留（B1）
         w = worker.find_worker_by_session(sid)
         if w:
@@ -2433,10 +2512,10 @@ async def api_batch_delete_sessions(data: dict):
 
     await broadcast({
         "type": "sessions.deleted",
-        "sessionIds": session_ids,
+        "sessionIds": ordered_ids,
     })
 
-    return {"deleted": deleted}
+    return {"deleted": deleted, "sessionIds": ordered_ids}
 
 
 @app.get("/api/models")
@@ -2444,6 +2523,53 @@ async def api_models(adapter: str = "cbc"):
     """Return model list and default for a given adapter."""
     a = _safe_adapter(adapter)
     return {"models": a.supported_models, "default": a.default_model}
+
+
+# ── Durable background jobs ──
+
+@app.post("/api/background-jobs")
+async def api_background_job_start(data: dict):
+    target = data.get("targetSessionId")
+    argv = data.get("argv")
+    cwd = data.get("cwd")
+    try:
+        return background_jobs.start(target, argv, cwd, label=data.get("label"))
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {"code": "runner_spawn_failed", "message": str(exc)}}
+
+
+@app.get("/api/background-jobs")
+async def api_background_job_list(targetSessionId: str | None = None):
+    jobs = background_jobs.list_jobs()
+    if targetSessionId:
+        jobs = [j for j in jobs if j.get("targetSessionId") == targetSessionId]
+    return {"jobs": jobs}
+
+
+@app.get("/api/background-jobs/{job_id}")
+async def api_background_job_get(job_id: str):
+    job = background_jobs.get(job_id)
+    return job or {"ok": False, "error": {"code": "job_not_found", "message": "job not found"}}
+
+
+@app.post("/api/background-jobs/{job_id}/cancel")
+async def api_background_job_cancel(job_id: str):
+    try:
+        return background_jobs.cancel(job_id)
+    except ValueError as exc:
+        code = "cancel_unsafe" if "safely cancel" in str(exc) else "job_not_found"
+        return {"ok": False, "error": {"code": code, "message": str(exc)}}
+
+
+@app.post("/api/background-jobs/{job_id}/retry")
+async def api_background_job_retry(job_id: str):
+    try:
+        return background_jobs.retry(job_id)
+    except ValueError as exc:
+        code = "job_not_retryable" if "cannot be retried" in str(exc) else "invalid_job"
+        return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
 @app.get("/api/adapter/config")

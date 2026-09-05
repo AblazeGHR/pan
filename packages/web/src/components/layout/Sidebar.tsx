@@ -12,6 +12,8 @@ import { ManageModal } from '@/components/session/ManageModal';
 import { PostboxModal } from '@/components/session/PostboxModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
 import { SessionDetailsModal } from '@/components/session/SessionDetailsModal';
+import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
+import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
 import { SPECIAL_FILTERS } from '@/utils/sessionFilters';
 import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
@@ -44,7 +46,7 @@ export function Sidebar() {
   const { isMobile } = useMediaQuery();
 
   // Session store
-  const { multiSelectMode, exitMultiSelect, selectedIds, batchRemoveSessions, sessions } =
+  const { multiSelectMode, exitMultiSelect, selectedIds, batchRemoveSessions, removeSessions, removeSession, sessions } =
     useSessionStore();
   const currentSession = useCurrentSession();
 
@@ -86,6 +88,12 @@ export function Sidebar() {
   const [detailsSessionId, setDetailsSessionId] = useState<string | null>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [deleteRequest, setDeleteRequest] = useState<{
+    ids: string[];
+    specialIds: string[];
+    normalIds: string[];
+    descendantCount: number;
+  } | null>(null);
 
   // Init editor tree when on editor route and session changes
   useEffect(() => {
@@ -115,11 +123,50 @@ export function Sidebar() {
 
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} selected session(s)?`)) return;
-    const count = selectedIds.size;
-    batchRemoveSessions()
-      .then(() => showToast(`Deleted ${count} session(s)`))
-      .catch((e) => showToast(e.message || 'Batch delete failed', 'error'));
+    const ids = [...selectedIds];
+    const specialIds = ids.filter((id) => {
+      const session = sessions.find((s) => s.id === id);
+      return session ? hasManagedChildren(session) : false;
+    });
+    const normalIds = ids.filter((id) => !specialIds.includes(id));
+    if (specialIds.length === 0) {
+      if (!confirm(`Delete ${ids.length} selected session(s)?`)) return;
+      batchRemoveSessions().then(() => showToast(`Deleted ${ids.length} session(s)`));
+      return;
+    }
+    setDeleteRequest({
+      ids,
+      specialIds,
+      normalIds,
+      descendantCount: collectDescendantIds(sessions, specialIds).length,
+    });
+  };
+
+  const handleDeleteRequest = (ids: string[]) => {
+    const firstId = ids[0];
+    if (!firstId) return;
+    const specialIds = ids.filter((id) => {
+      const session = sessions.find((s) => s.id === id);
+      return session ? hasManagedChildren(session) : false;
+    });
+    if (specialIds.length === 0) {
+      if (!confirm(`Delete session ${firstId.slice(0, 12)}...?`)) return;
+      removeSession(firstId).catch((e) => showToast(e.message || 'Delete failed', 'error'));
+      return;
+    }
+    setDeleteRequest({
+      ids,
+      specialIds,
+      normalIds: ids.filter((id) => !specialIds.includes(id)),
+      descendantCount: collectDescendantIds(sessions, specialIds).length,
+    });
+  };
+
+  const deleteNormalAfterSpecialCancel = () => {
+    const request = deleteRequest;
+    setDeleteRequest(null);
+    if (!request || request.normalIds.length === 0) return;
+    void removeSessions(request.normalIds);
   };
 
   const quickNew = useCallback(() => {
@@ -324,8 +371,19 @@ export function Sidebar() {
                 placeholder="Filter..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1 pl-6 pr-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
+                className="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1 pl-6 pr-6 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 px-1 text-text-tertiary hover:text-text-primary"
+                  aria-label="Clear session search"
+                  title="Clear session search"
+                >
+                  ×
+                </button>
+              )}
             </div>
             <div className="relative">
               <button
@@ -471,9 +529,26 @@ export function Sidebar() {
               }}
               onPostbox={setPostboxSessionId}
               onDetails={setDetailsSessionId}
+              onDelete={(id) => handleDeleteRequest([id])}
             />
           )}
         </>
+      )}
+
+      {deleteRequest && (
+        <SessionDeleteModal
+          sessions={sessions}
+          specialIds={deleteRequest.specialIds}
+          normalIds={deleteRequest.normalIds}
+          descendantCount={deleteRequest.descendantCount}
+          onClose={deleteNormalAfterSpecialCancel}
+          onCancelSpecial={deleteNormalAfterSpecialCancel}
+          onConfirm={(cascade) => {
+            const request = deleteRequest;
+            setDeleteRequest(null);
+            void removeSessions(request.ids, cascade ? request.specialIds : []);
+          }}
+        />
       )}
 
       {/* ── Editor route content ── */}

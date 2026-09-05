@@ -1,6 +1,6 @@
 # Pan User Manual
 
-> A beginner-oriented guide to installing Pan, creating the first Session, using an SMA/Meta-Agent, dispatching work asynchronously, receiving reports, and delivering changes. Claims here follow the current React Dashboard, `packages/mcp/server.py`, `packages/web/server.py`, `packages/core/worker.py`, and `manifest.json`.
+> A beginner-oriented guide to installing Pan, creating the first Session, using an MA (meta-agent; SMA template), dispatching work asynchronously, receiving reports, and delivering changes. Claims here follow the current React Dashboard, `packages/mcp/server.py`, `packages/web/server.py`, `packages/core/worker.py`, and `manifest.json`.
 
 **[中文](./USER_MANUAL.md) · English**
 
@@ -22,15 +22,18 @@
 
 ## 1. Pan in one minute
 
-Pan organizes CLI Agents as a supervisor and executors. A Meta-Agent (SMA, Super Meta-Agent) can decompose your goal, create or reuse child Sessions, dispatch tasks asynchronously, subscribe to reports, verify results, and summarize delivery.
+Pan organizes CLI Agents as a supervisor and executors. You talk to a single meta-agent (MA; Pan's built-in template is named SMA, Super Meta-Agent), which decomposes your goal, creates or reuses child Sessions, dispatches tasks asynchronously to task-agents (TA), subscribes to reports, verifies results, and summarizes delivery.
+
+> **Unified terminology — three layers: role (MA/TA) — identity (Session) — process (Worker).** MA/TA are responsibility roles; a Session is the persistent orchestration identity carrying an MA or a TA; a Worker is the temporary CLI process that actually runs an MA or TA session — **there are both MA Workers and TA Workers**; never equate a Worker with a TA.
 
 | Term | Meaning |
 |---|---|
-| Agent | The logical orchestration object, addressed through a Session ID |
-| Session | The persistent container holding history, model, adapter, workdir, relationships, and queues (`ses_...`) |
-| Worker | The temporary CLI process executing for one Session |
+| Agent (legacy term) | The historical name for the orchestration object; the object is now addressed as a `Session` (Agent = Session, kept for compatibility). MA/TA are the roles running on it |
+| Session | The persistent container (identity layer) carrying an MA or TA identity: history, model, adapter, workdir, relationships, and queues (`ses_...`) |
+| Worker | The temporary CLI process (process layer) running under a Session — both MA Workers and TA Workers exist; watchdog-reclaimable and re-spawnable; neither equals deleting the Session nor the TA itself |
 | Adapter | The CLI integration, currently including `cbc`, `kimi`, `opencode`, `claude`, and `codex` |
-| Meta-Agent/SMA | A Session with Pan MCP and orchestration permissions; it supervises rather than doing every task itself |
+| MA (meta-agent) / SMA | The supervisor role, not a different kind of process: a Session with Pan MCP and orchestration permissions (SMA is the built-in template); it decomposes, dispatches, subscribes to reports, and accepts results — and also runs in a Worker |
+| TA (task-agent) | The execution role: a Session carrying out concrete dev / test / research / doc tasks, dispatched by the MA via `agent_assign` |
 
 Killing or watchdog-reclaiming a Worker does not delete its Session. Use a regular Session for a simple question; use SMA for parallel work, consolidated delivery, or long-running collaboration.
 
@@ -55,7 +58,7 @@ Set-Location packages/web; pnpm install; pnpm build; Set-Location ../..
 python main.py
 ```
 
-Open <http://127.0.0.1:8768>. `main` defaults to 8768; the test branch convention is 8767. `PAN_PORT` overrides the server port and `PAN_API_URL` controls where the MCP server connects. For `report_subscribe`, the MCP target, `PAN_API_URL`, and the `PAN_AGENT_SESSION_ID` Session must belong to the same Pan instance and port.
+Open <http://127.0.0.1:8768>. The code/application default remains 8768; use 8767 or 8765 for `main`/`test` test or isolated runs. `PAN_PORT` overrides the server port and `PAN_API_URL` controls where the MCP server connects. For `report_subscribe`, the MCP target, `PAN_API_URL`, and the `PAN_AGENT_SESSION_ID` Session must belong to the same Pan instance and port.
 
 ## 3. Your first task
 
@@ -92,7 +95,7 @@ $env:PAN_API_URL = "http://127.0.0.1:8768"
 python -m packages.mcp.server --transport stdio
 ```
 
-Install `docs/skills/pan/SKILL.md` into the Agent CLI’s skill location. Verify with `pan_handbook()`, then run a small `session_list(summary=true)` and a `report_subscribe` + `agent_assign` test. A standalone MCP process has no `PAN_AGENT_SESSION_ID`, so identity-dependent tools such as claim and report subscription are unavailable. Full Meta-Agent behavior needs MCP, the skill, and a Pan-managed Session.
+Install `docs/skills/pan/SKILL.md` into the Agent CLI’s skill location. Verify with `pan_handbook()`, then run a small `session_list(summary=true)` and a `report_subscribe` + `agent_assign` test. A standalone MCP process has no `PAN_AGENT_SESSION_ID`, so identity-dependent tools such as claim and report subscription are unavailable. Full MA (meta-agent) behavior needs MCP, the skill, and a Pan-managed Session.
 
 ## 5. Dashboard guide
 
@@ -117,7 +120,7 @@ If a managed child should remain in the management tree but temporarily reject t
 
 ## 7. Subscribe and completion reports
 
-The normal Meta-Agent flow is:
+The normal MA flow is:
 
 ```text
 report_subscribe → agent_assign → Worker done/error → manager queue_pending → session_get

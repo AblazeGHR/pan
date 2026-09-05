@@ -63,6 +63,13 @@ export interface DirectoryListResponse {
   entries: DirectoryEntry[];
 }
 
+export interface SessionAttachmentUploadResponse {
+  ok: boolean;
+  filename: string;
+  path: string;
+  size: number;
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -74,9 +81,49 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchDirectories(path?: string): Promise<DirectoryListResponse> {
-  const query = path ? `?path=${encodeURIComponent(path)}` : '';
+export async function fetchDirectories(path?: string, includeFiles = false): Promise<DirectoryListResponse> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  if (includeFiles) params.set('include_files', 'true');
+  const query = params.toString() ? `?${params.toString()}` : '';
   return request<DirectoryListResponse>(`${BASE}/directories${query}`);
+}
+
+export async function uploadSessionAttachment(
+  sessionId: string,
+  file: File,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<SessionAttachmentUploadResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/sessions/${encodeURIComponent(sessionId)}/attachments`);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded, event.total);
+    };
+    xhr.onload = () => {
+      let data: Partial<SessionAttachmentUploadResponse> & { detail?: string } = {};
+      try {
+        data = JSON.parse(xhr.responseText || '{}');
+      } catch {
+        // The status text below is more useful than exposing a JSON parse error.
+      }
+      if (xhr.status < 200 || xhr.status >= 300 || !data.ok || !data.path) {
+        reject(new Error(data.detail || `HTTP ${xhr.status}: ${xhr.statusText}`));
+        return;
+      }
+      onProgress?.(data.size ?? file.size, data.size ?? file.size);
+      resolve(data as SessionAttachmentUploadResponse);
+    };
+    xhr.onerror = () => reject(new Error('附件上传失败，请检查网络连接'));
+    xhr.onabort = () => reject(new Error('附件上传已取消'));
+    try {
+      xhr.send(file);
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
 }
 
 // ── Sessions ──
@@ -171,10 +218,13 @@ export async function deleteSession(id: string): Promise<ApiGenericResponse> {
   return data;
 }
 
-export async function batchDeleteSessions(sessionIds: string[]): Promise<ApiBatchDeleteResponse> {
+export async function batchDeleteSessions(
+  sessionIds: string[],
+  cascadeSessionIds: string[] = [],
+): Promise<ApiBatchDeleteResponse> {
   const data = await request<ApiBatchDeleteResponse>(`${BASE}/sessions/batch-delete`, {
     method: 'POST',
-    body: JSON.stringify({ sessionIds }),
+    body: JSON.stringify({ sessionIds, cascadeSessionIds }),
   });
   if (data.error) throw new Error(data.error);
   return data;

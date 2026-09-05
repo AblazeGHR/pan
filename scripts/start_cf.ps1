@@ -7,23 +7,40 @@ param(
 $BASE_DIR = Split-Path $PSScriptRoot -Parent
 $cfgPath = Join-Path $BASE_DIR 'config.json'
 
+$cfg = $null
 $port = $null
 $cfConfig = $null
 
-if (Test-Path $cfgPath) {
-    try {
-        $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
-        # Port precedence matches main.py: PAN_PORT env > config.json "port" > 8768
-        if ($env:PAN_PORT) {
-            $port = $env:PAN_PORT
-        } elseif ($cfg.port) {
-            $port = $cfg.port
-        }
-        # cloudflared config file is config.json -> remote.config_path
-        if ($cfg.remote -and $cfg.remote.config_path) {
-            $cfConfig = $cfg.remote.config_path
-        }
-    } catch { }
+if (-not (Test-Path -LiteralPath $cfgPath)) {
+    Write-Host '[Remote] config.json not found; remote.enabled is not true, skipping Cloudflare Tunnel.'
+    exit 0
+}
+
+try {
+    $cfg = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json
+} catch {
+    Write-Host "[Remote] failed to parse config.json; skipping Cloudflare Tunnel: $($_.Exception.Message)"
+    exit 0
+}
+
+$enabledProperty = $cfg.remote -and ($cfg.remote.PSObject.Properties.Name -contains 'enabled')
+$remoteEnabled = $enabledProperty -and ($cfg.remote.enabled -is [bool]) -and $cfg.remote.enabled
+if (-not $remoteEnabled) {
+    Write-Host '[Remote] remote.enabled is not explicitly true; skipping Cloudflare Tunnel.'
+    exit 0
+}
+
+if ($cfg) {
+    # Port precedence matches main.py: PAN_PORT env > config.json "port" > 8768
+    if ($env:PAN_PORT) {
+        $port = $env:PAN_PORT
+    } elseif ($cfg.port) {
+        $port = $cfg.port
+    }
+    # cloudflared config file is config.json -> remote.config_path
+    if ($cfg.remote -and $cfg.remote.config_path) {
+        $cfConfig = $cfg.remote.config_path
+    }
 }
 
 if (-not $port) { $port = 8768 }

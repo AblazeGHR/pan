@@ -6,7 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { enqueueSessionMessage, sendSession, spawnWorker, patchSession } from '@/services/api';
+import { enqueueSessionMessage, sendSession, spawnWorker, patchSession, uploadSessionAttachment } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import type { AdapterConfig } from '@/types';
 
@@ -26,6 +26,19 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     patchSession: vi.fn(async () => ({})),
     fetchSessions: vi.fn(async () => []),
+    fetchDirectories: vi.fn(async () => ({
+      current: 'D:\\attachments',
+      parent: 'D:\\',
+      entries: [
+        { name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false },
+      ],
+    })),
+    uploadSessionAttachment: vi.fn(async (_sessionId: string, file: File) => ({
+      ok: true,
+      filename: file.name,
+      path: `D:\\attachments\\uploaded\\${file.name}`,
+      size: file.size,
+    })),
     enqueueSessionMessage: vi.fn(async (_sessionId: string, text: string) => ({
       item: {
         id: `q-${text.replace(/\s+/g, '-')}`,
@@ -64,6 +77,19 @@ function setBusySession() {
   });
 }
 
+function mockMatchMedia(matches: boolean) {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
+
 beforeEach(() => {
   localStorage.clear();
   useSessionStore.setState({
@@ -82,14 +108,123 @@ beforeEach(() => {
   vi.mocked(patchSession).mockClear();
   vi.mocked(sendSession).mockClear();
   vi.mocked(enqueueSessionMessage).mockClear();
+  vi.mocked(uploadSessionAttachment).mockClear();
   vi.mocked(spawnWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
   Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('InputRow send queue wiring', () => {
+  it('selects server files, renders attachment chips, and enqueues formatted paths', async () => {
+    setBusySession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+
+    expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt');
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: '请阅读' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1', '请阅读 @"D:\\attachments\\report.txt"', expect.any(String),
+    ));
+    await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+  });
+
+  it('keeps attachments after a failed enqueue and allows cancelling one', async () => {
+    setBusySession();
+    vi.mocked(enqueueSessionMessage).mockRejectedValueOnce(new Error('offline'));
+    render(<InputRow />);
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(screen.getByTestId('server-attachments')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: /取消附件/ }));
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+  });
+
+  it('uploads client files and combines them with server attachments on send', async () => {
+    setBusySession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['client'], 'client.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith('s1', file, expect.any(Function)));
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('client.txt'));
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1', '合并发送 @"D:\\attachments\\report.txt" @"D:\\attachments\\uploaded\\client.txt"', expect.any(String),
+    ));
+  });
+
+  it('shows deterministic aggregate progress and blocks send until upload completes', async () => {
+    setBusySession();
+    let finishUpload!: (value: Awaited<ReturnType<typeof uploadSessionAttachment>>) => void;
+    vi.mocked(uploadSessionAttachment).mockImplementationOnce(async (_sessionId, file, onProgress) => {
+      onProgress?.(4, file.size);
+      return new Promise((resolve) => { finishUpload = resolve; });
+    });
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['12345678'], 'progress.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('50%');
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中');
+    });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+
+    finishUpload({ ok: true, filename: file.name, path: 'D:\\attachments\\progress.txt', size: file.size });
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('100%');
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成');
+    });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps failed uploads visible with a retry action', async () => {
+    setBusySession();
+    vi.mocked(uploadSessionAttachment)
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({ ok: true, filename: 'retry.txt', path: 'D:\\attachments\\retry.txt', size: 5 });
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['retry'], 'retry.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('失败');
+      expect(screen.getByRole('button', { name: '重试上传 retry.txt' })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: '重试上传 retry.txt' }));
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+  });
+
   it('enqueues through the server when worker busy, then shows the pending row', async () => {
     setBusySession();
     render(<InputRow />);
@@ -187,6 +322,45 @@ describe('InputRow send queue wiring', () => {
       's1', 'survive reconnect', expect.any(String),
     ));
     expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+});
+
+describe('InputRow responsive composer controls', () => {
+  it('renders the desktop resize handle and changes height by pointer drag', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const handle = await waitFor(() => screen.getByTestId('desktop-composer-resize'));
+    const root = screen.getByTestId('input-row');
+    expect(root.getAttribute('style')).toContain('height: 180px');
+
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 500 }));
+    await waitFor(() => expect(handle.className).toContain('bg-accent/50'));
+    const move = new MouseEvent('pointermove', { bubbles: true, clientY: 400 });
+    handle.dispatchEvent(move);
+    await waitFor(() => expect(root.getAttribute('style')).toContain('height: 280px'));
+    document.dispatchEvent(new Event('pointerup'));
+  });
+
+  it('shows only the mobile fullscreen control and enters/exits with click or Escape', async () => {
+    mockMatchMedia(true);
+    setBusySession();
+    render(<InputRow />);
+
+    await waitFor(() => expect(screen.getByTestId('mobile-input-fullscreen')).toBeTruthy());
+    expect(screen.queryByTestId('desktop-composer-resize')).toBeNull();
+    const root = screen.getByTestId('input-row');
+    const enter = screen.getByRole('button', { name: '全屏输入' });
+
+    fireEvent.click(enter);
+    expect(root.className).toContain('fixed');
+    expect(screen.getByRole('button', { name: '退出全屏输入' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(root.className).not.toContain('fixed');
+
+    fireEvent.click(screen.getByRole('button', { name: '全屏输入' }));
+    expect(root.className).toContain('fixed');
+    fireEvent.click(screen.getByRole('button', { name: '退出全屏输入' }));
+    expect(root.className).not.toContain('fixed');
   });
 });
 

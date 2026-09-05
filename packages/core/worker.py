@@ -2685,7 +2685,8 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
 
 async def enqueue_notice(target_session_id: str, text: str,
                          source: str = "agent",
-                         source_session_id: str | None = None) -> dict:
+                         source_session_id: str | None = None,
+                         event_id: str | None = None) -> dict:
     """向显式指定的 session 投递一条提醒（MCP agent_notify 的后端实现）。
 
     复刻 _enqueue_report 的持久化投递三步（append 落盘队列 + save_async +
@@ -2712,6 +2713,17 @@ async def enqueue_notice(target_session_id: str, text: str,
         return {"ok": False, "error": {
             "code": "session_not_found",
             "message": f"Session {target_session_id} not found"}}
+    # A terminal background event is retried by Pan after crashes.  Search both
+    # the pending queue and the durable delivery ledger: the queue row may have
+    # already crossed the provider boundary and therefore no longer be queued.
+    if event_id:
+        all_items = list(target.queue_pending or []) + list(
+            (getattr(target, "queue_delivery_ledger", {}) or {}).values())
+        if any(isinstance(item, dict) and item.get("eventId") == event_id
+               for item in all_items):
+            return {"ok": True, "sessionId": target_session_id,
+                    "pending": len(target.queue_pending or []),
+                    "duplicate": True, "eventId": event_id}
     source_type, source_sid, source_error = _validate_source_metadata(
         target, source, source_session_id)
     if source_error:
@@ -2739,6 +2751,8 @@ async def enqueue_notice(target_session_id: str, text: str,
         "revision": 1,
         "createdAt": time.time(),
     }
+    if event_id:
+        item["eventId"] = event_id
     item["queueItemId"] = item["id"]
     if source_sid is not None:
         item["sourceSessionId"] = source_sid
