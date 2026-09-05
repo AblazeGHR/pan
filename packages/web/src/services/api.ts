@@ -63,6 +63,13 @@ export interface DirectoryListResponse {
   entries: DirectoryEntry[];
 }
 
+export interface SessionAttachmentUploadResponse {
+  ok: boolean;
+  filename: string;
+  path: string;
+  size: number;
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -80,6 +87,30 @@ export async function fetchDirectories(path?: string, includeFiles = false): Pro
   if (includeFiles) params.set('include_files', 'true');
   const query = params.toString() ? `?${params.toString()}` : '';
   return request<DirectoryListResponse>(`${BASE}/directories${query}`);
+}
+
+export async function uploadSessionAttachment(
+  sessionId: string,
+  file: File,
+): Promise<SessionAttachmentUploadResponse> {
+  const res = await fetch(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/attachments`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-Filename': encodeURIComponent(file.name),
+      },
+      body: file,
+    },
+  );
+  const data = await res.json().catch(() => ({})) as Partial<SessionAttachmentUploadResponse> & {
+    detail?: string;
+  };
+  if (!res.ok || !data.ok || !data.path) {
+    throw new Error(data.detail || `HTTP ${res.status}: ${res.statusText}`);
+  }
+  return data as SessionAttachmentUploadResponse;
 }
 
 // ── Sessions ──

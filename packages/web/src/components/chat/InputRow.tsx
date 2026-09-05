@@ -8,7 +8,8 @@ import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { DirectoryBrowser } from '@/components/session/NewSessionModal';
-import { ChevronDown, ChevronUp, CornerUpRight, File, Paperclip, Settings, X } from 'lucide-react';
+import { uploadSessionAttachment } from '@/services/api';
+import { ChevronDown, ChevronUp, CornerUpRight, File as FileIcon, Paperclip, Settings, X } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
 const PILL_CLASS =
@@ -31,6 +32,24 @@ function permBorderClass(value: string): string {
   if (value === 'bypass') return 'border-danger/50';
   if (value === 'yolo' || value === 'acceptEdits') return 'border-warning/50';
   return 'border-border-default';
+}
+
+type AttachmentStatus = 'uploading' | 'ready' | 'error';
+
+interface PendingAttachment {
+  id: string;
+  name: string;
+  path?: string;
+  file?: File;
+  status: AttachmentStatus;
+  error?: string;
+}
+
+function attachmentId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 // ── pill sub-components ──
@@ -169,7 +188,8 @@ export function InputRow() {
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [attachmentBrowserOpen, setAttachmentBrowserOpen] = useState(false);
   const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
-  const [serverAttachments, setServerAttachments] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const clientAttachmentInputRef = useRef<HTMLInputElement>(null);
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
@@ -214,13 +234,58 @@ export function InputRow() {
     inputRef.current.value = draft || '';
   }, [currentSessionId]);
 
+  useEffect(() => {
+    setAttachments([]);
+    setAttachmentBrowserOpen(false);
+    setAttachmentMenuOpen(false);
+  }, [currentSessionId]);
+
+  const uploadClientAttachment = useCallback(async (attachment: PendingAttachment) => {
+    if (!currentSessionId || !attachment.file) return;
+    try {
+      const uploaded = await uploadSessionAttachment(currentSessionId, attachment.file);
+      setAttachments((current) => current.map((item) => item.id === attachment.id
+        ? { ...item, name: uploaded.filename || item.name, path: uploaded.path, status: 'ready', error: undefined }
+        : item));
+    } catch (error) {
+      setAttachments((current) => current.map((item) => item.id === attachment.id
+        ? { ...item, status: 'error', error: error instanceof Error ? error.message : String(error) }
+        : item));
+    }
+  }, [currentSessionId]);
+
+  const handleClientFiles = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!currentSessionId || files.length === 0) return;
+    const added = files.map((file) => ({
+      id: attachmentId(),
+      name: file.name,
+      file,
+      status: 'uploading' as const,
+    }));
+    setAttachments((current) => [...current, ...added]);
+    void Promise.all(added.map((attachment) => uploadClientAttachment(attachment)));
+  }, [currentSessionId, uploadClientAttachment]);
+
   const handleSend = useCallback(
     async (text: string) => {
       if (!currentSessionId) {
         showToast('Select a session first');
         return;
       }
-      const attachmentText = serverAttachments.map((path) => `@"${path}"`).join(' ');
+      if (attachments.some((attachment) => attachment.status === 'uploading')) {
+        showToast('附件仍在上传，请稍候', 'error');
+        return;
+      }
+      if (attachments.some((attachment) => attachment.status === 'error')) {
+        showToast('有附件上传失败，请重试或取消', 'error');
+        return;
+      }
+      const attachmentText = attachments
+        .filter((attachment): attachment is PendingAttachment & { path: string } => attachment.status === 'ready' && !!attachment.path)
+        .map((attachment) => `@"${attachment.path}"`)
+        .join(' ');
       const message = [text.trim(), attachmentText].filter(Boolean).join(' ');
       if (!message) return;
 
@@ -231,7 +296,7 @@ export function InputRow() {
       if (ok) {
         if (inputRef.current) inputRef.current.value = '';
         setInputDraft(currentSessionId, '');
-        setServerAttachments([]);
+        setAttachments([]);
       }
     },
     [
@@ -239,7 +304,7 @@ export function InputRow() {
       showToast,
       setInputDraft,
       enqueue,
-      serverAttachments,
+      attachments,
     ],
   );
 
@@ -398,17 +463,34 @@ export function InputRow() {
           )}
 
           {/* Textarea + Send row */}
-          {serverAttachments.length > 0 && (
+          {attachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5" data-testid="server-attachments">
-              {serverAttachments.map((path) => (
-                <span key={path} className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary" title={path}>
-                  <File size={13} className="shrink-0" />
-                  <span className="truncate">{path.split(/[\\/]/).pop() || path}</span>
+              {attachments.map((attachment) => (
+                <span key={attachment.id} className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary" title={attachment.path || attachment.name}>
+                  <FileIcon size={13} className="shrink-0" />
+                  <span className="truncate">{attachment.name}</span>
+                  {attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
+                  {attachment.status === 'error' && (
+                    <button
+                      type="button"
+                      className="text-danger hover:underline"
+                      aria-label={`重试上传 ${attachment.name}`}
+                      onClick={() => {
+                        setAttachments((current) => current.map((item) => item.id === attachment.id
+                          ? { ...item, status: 'uploading', error: undefined }
+                          : item));
+                        void uploadClientAttachment({ ...attachment, status: 'uploading' });
+                      }}
+                    >
+                      重试
+                    </button>
+                  )}
+                  {attachment.error && <span className="max-w-[180px] truncate text-danger" title={attachment.error}>({attachment.error})</span>}
                   <button
                     type="button"
-                    aria-label={`取消附件 ${path}`}
+                    aria-label={`取消附件 ${attachment.name}`}
                     className="ml-1 text-danger hover:text-danger/80"
-                    onClick={() => setServerAttachments((current) => current.filter((item) => item !== path))}
+                    onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
                   >
                     <X size={13} />
                   </button>
@@ -419,14 +501,17 @@ export function InputRow() {
           {attachmentBrowserOpen && (
             <div className="rounded-lg border border-border-default bg-bg-secondary p-4" aria-label="Server attachment browser">
               <div className="mb-3 flex items-center gap-2 text-sm font-medium text-text-primary">
-                <File size={16} /> 选择服务端附件
+                <FileIcon size={16} /> 选择服务端附件
               </div>
               <DirectoryBrowser
                 path={attachmentBrowserPath}
                 fileMode
                 onPathChange={setAttachmentBrowserPath}
                 onSelect={(selectedPath) => {
-                  setServerAttachments((current) => current.includes(selectedPath) ? current : [...current, selectedPath]);
+                  const name = selectedPath.split(/[\\/]/).pop() || selectedPath;
+                  setAttachments((current) => current.some((item) => item.path === selectedPath)
+                    ? current
+                    : [...current, { id: attachmentId(), name, path: selectedPath, status: 'ready' }]);
                   setAttachmentBrowserOpen(false);
                   setAttachmentMenuOpen(false);
                 }}
@@ -435,6 +520,14 @@ export function InputRow() {
             </div>
           )}
           <div className="flex gap-2">
+            <input
+              ref={clientAttachmentInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              data-testid="client-attachment-input"
+              onChange={handleClientFiles}
+            />
             <textarea
               ref={inputRef}
               id="chatInput"
@@ -481,10 +574,17 @@ export function InputRow() {
                           setAttachmentBrowserOpen(true);
                         }}
                       >
-                        <File size={14} /> 服务端附件
+                        <FileIcon size={14} /> 服务端附件
                       </button>
-                      <button type="button" disabled className="flex w-full cursor-not-allowed items-center gap-2 px-3 py-2 text-left text-xs text-text-tertiary">
-                        <Paperclip size={14} /> 客户端附件（暂不可用）
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover"
+                        onClick={() => {
+                          clientAttachmentInputRef.current?.click();
+                          setAttachmentMenuOpen(false);
+                        }}
+                      >
+                        <Paperclip size={14} /> 客户端附件
                       </button>
                     </div>
                   )}
