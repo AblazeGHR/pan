@@ -94,6 +94,56 @@ def test_restart_returns_scheduled_before_supervisor_finishes(tmp_path, monkeypa
     assert calls[0][1]["stdin"] is srv.subprocess.DEVNULL
 
 
+def test_restart_launcher_enters_supervisor_directly_with_durable_binding(tmp_path, monkeypatch):
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "restart_pan.ps1").write_text("# test placeholder", encoding="utf-8")
+    (tmp_path / "data" / "background_jobs").mkdir(parents=True)
+    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
+
+    request_id = "request-direct-supervisor"
+    registry = tmp_path / "data" / "background_jobs"
+    job = srv.background_jobs.create_service_job(
+        request_id=request_id,
+        operation="restart",
+        root=str(tmp_path),
+        port=8770,
+        old_pid=42072,
+        old_pid_created_at=1757127877.0,
+        registry_root=registry,
+    )
+    calls = []
+
+    class FakeProcess:
+        pid = 4242
+
+    monkeypatch.setattr(
+        srv.subprocess,
+        "Popen",
+        lambda command, **kwargs: calls.append((command, kwargs)) or FakeProcess(),
+    )
+
+    srv._launch_main_restart_supervisor(request_id)
+    command = calls[0][0]
+    assert command[0:6] == [
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", str(scripts / "restart_pan.ps1"),
+    ]
+    for argument, value in (
+        ("-Root", str(tmp_path)),
+        ("-RequestId", request_id),
+        ("-JobId", job["jobId"]),
+        ("-RegistryRoot", str(registry)),
+        ("-Port", "8770"),
+        ("-OldPid", "42072"),
+        ("-OldPidCreatedAt", "1757127877.0"),
+    ):
+        assert command[command.index(argument) + 1] == value
+    assert command[command.index("-Supervisor") + 1:] == [
+        "-OldPid", "42072", "-OldPidCreatedAt", "1757127877.0",
+    ]
+
+
 def test_restart_spawn_failure_clears_duplicate_guard(tmp_path, monkeypatch):
     _fake_scripts(tmp_path)
     monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)

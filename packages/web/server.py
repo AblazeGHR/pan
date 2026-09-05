@@ -306,6 +306,10 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         str(registry_root),
         "-Port",
         str(job["port"]),
+        # The API process is already a detached Windows process.  Enter the
+        # real supervisor directly instead of relying on a second
+        # Start-Process hop, which can disappear before it writes any log.
+        "-Supervisor",
     ]
     if job.get("oldPid"):
         command += ["-OldPid", str(job["oldPid"])]
