@@ -136,6 +136,34 @@ def test_supervisor_persists_ready_only_after_all_checks(monkeypatch, tmp_path):
     assert saved["newPidCreatedAt"] == 13.5
 
 
+def test_exit_supervisor_persists_offline_only_after_verified_stop(monkeypatch, tmp_path):
+    registry = tmp_path / "registry"
+    job = jobs.create_service_job(
+        request_id="request-exit", operation="exit", root=str(tmp_path), port=8765,
+        old_pid=41, old_pid_created_at=12.5, registry_root=registry,
+    )
+    jobs.transition_service_job(job["jobId"], "stopping_workers", registry_root=registry)
+    jobs.transition_service_job(job["jobId"], "stopping_service", registry_root=registry)
+    identity_results = iter(({"ok": True}, {"ok": False}))
+    monkeypatch.setattr(
+        main_lifecycle, "service_process_identity",
+        lambda *args: next(identity_results),
+    )
+    monkeypatch.setattr(main_lifecycle, "listener_owner", lambda port: None)
+    monkeypatch.setattr(
+        main_lifecycle, "_run_script",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0),
+    )
+    monkeypatch.setattr(main_lifecycle, "READY_POLL_SEC", 0)
+
+    assert main_lifecycle.run_supervisor(
+        job["jobId"], str(tmp_path), 8765, 41, 12.5, str(registry),
+    ) == 0
+    saved = jobs.get(job["jobId"], registry)
+    assert saved["phase"] == "offline"
+    assert saved["status"] == "completed"
+
+
 def test_stop_script_checks_identity_variants_and_nonzero_stop_result():
     root = Path(__file__).resolve().parents[1]
     text = (root / "scripts" / "stop_pan.bat").read_text(encoding="utf-8")

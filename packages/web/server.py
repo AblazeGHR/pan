@@ -333,14 +333,38 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
 
 
 def _main_exit_paths() -> dict[str, Path]:
-    return {"supervisor": _PROJECT_DIR / "scripts" / "exit_pan.ps1"}
+    scripts = _PROJECT_DIR / "scripts"
+    return {"supervisor": scripts / "exit_pan.ps1", "stop": scripts / "stop_pan.bat"}
 
 
 def _main_exit_status() -> dict:
-    script = _main_exit_paths()["supervisor"]
-    available = os.name == "nt" and script.is_file()
+    paths = _main_exit_paths()
+    available = os.name == "nt" and all(path.is_file() for path in paths.values())
+    missing = [str(path) for path in paths.values() if not path.is_file()]
+    registry_root = _main_restart_registry_root()
+    port = _main_restart_port()
+    active_job = next(
+        (job for job in background_jobs.list_jobs(registry_root)
+         if job.get("kind") == background_jobs.SERVICE_LIFECYCLE_KIND
+         and job.get("operation") == "exit"
+         and str(Path(str(job.get("root", ""))).expanduser().resolve())
+         == str(_PROJECT_DIR.expanduser().resolve())
+         and int(job.get("port", -1)) == port
+         and (job.get("phase") in background_jobs.SERVICE_ACTIVE_PHASES
+              or job.get("status") in {"pending", "running"})),
+        None,
+    )
+    latest_job = next(
+        (job for job in background_jobs.list_jobs(registry_root)
+         if job.get("kind") == background_jobs.SERVICE_LIFECYCLE_KIND
+         and job.get("operation") == "exit"
+         and str(Path(str(job.get("root", ""))).expanduser().resolve())
+         == str(_PROJECT_DIR.expanduser().resolve())
+         and int(job.get("port", -1)) == port),
+        None,
+    )
     with _main_exit_lock:
-        pending = _main_exit_pending
+        pending = bool(active_job) or (_main_exit_pending and latest_job is None)
         request_id = _main_exit_request_id
         stage = _main_exit_stage
         error = _main_exit_error
@@ -349,8 +373,13 @@ def _main_exit_status() -> dict:
         "pending": pending,
         "stage": stage,
         "platform": os.name,
+        "port": port,
     }
-    if request_id:
+    job = active_job or latest_job
+    if job:
+        result.update(_main_restart_job_view(job))
+        result["stage"] = job.get("phase")
+    elif request_id:
         result["requestId"] = request_id
     if error:
         result["error"] = error
@@ -358,7 +387,7 @@ def _main_exit_status() -> dict:
         result["reason"] = (
             "main service exit is available only on Windows"
             if os.name != "nt"
-            else f"exit supervisor is missing: {script}"
+            else "exit scripts are missing: " + ", ".join(missing)
         )
     return result
 
@@ -366,11 +395,20 @@ def _main_exit_status() -> dict:
 def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
     """Launch the stop-only detached exit supervisor."""
     script = _main_exit_paths()["supervisor"]
+    registry_root = _main_restart_registry_root()
+    job = background_jobs.find_service_job(request_id, registry_root)
+    if not job or job.get("operation") != "exit":
+        raise ValueError("durable exit Job not found")
     command = [
         "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
         "-File", str(script), "-Root", str(_PROJECT_DIR),
-        "-RequestId", request_id,
+        "-RequestId", request_id, "-JobId", job["jobId"],
+        "-RegistryRoot", str(registry_root), "-Port", str(job["port"]),
     ]
+    if job.get("oldPid"):
+        command += ["-OldPid", str(job["oldPid"])]
+    if job.get("oldPidCreatedAt") is not None:
+        command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
     flags = (
         getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
@@ -1350,10 +1388,21 @@ async def api_main_restart():
 async def _perform_main_exit(request_id: str) -> None:
     """Stop Workers, persist confirmed legal offline states, then stop Pan."""
     global _main_exit_pending, _main_exit_stage, _main_exit_error
+    registry_root = _main_restart_registry_root()
+    job = background_jobs.find_service_job(request_id, registry_root)
+    if not job or job.get("operation") != "exit":
+        return
     with _main_exit_lock:
         if _main_exit_request_id != request_id:
             return
         _main_exit_stage = "stopping_workers"
+    try:
+        background_jobs.transition_service_job(
+            job["jobId"], "stopping_workers", registry_root=registry_root,
+        )
+    except (OSError, ValueError) as exc:
+        _log(f"[main-exit] failed to record worker-stop phase: {exc}")
+        return
     try:
         await worker.shutdown_all(mark_legal_offline=True)
     except Exception as exc:  # still hand off to the stop-only supervisor
@@ -1366,8 +1415,19 @@ async def _perform_main_exit(request_id: str) -> None:
             return
         _main_exit_stage = "stopping_service"
     try:
+        background_jobs.transition_service_job(
+            job["jobId"], "stopping_service", registry_root=registry_root,
+            error=_main_exit_error,
+        )
+    except (OSError, ValueError) as exc:
+        _log(f"[main-exit] failed to record service-stop phase: {exc}")
+        return
+    try:
         _launch_main_exit_supervisor(request_id)
     except (OSError, ValueError) as exc:
+        background_jobs.transition_service_job(
+            job["jobId"], "failed", registry_root=registry_root, error=str(exc),
+        )
         with _main_exit_lock:
             _main_exit_pending = False
             _main_exit_stage = "error"
@@ -1401,15 +1461,16 @@ async def api_main_exit():
             "status": "disabled",
             "error": status.get("reason", "main service exit is unavailable"),
         }
-    with _main_restart_lock:
-        if _main_restart_pending:
-            return {
-                "ok": False,
-                "status": "busy",
-                "pending": True,
-                "error": "Pan main-service restart is already scheduled",
-                "requestId": _main_restart_request_id,
-            }
+    restart_status = _main_restart_status()
+    if restart_status.get("pending"):
+        return {
+            "ok": False,
+            "status": "busy",
+            "pending": True,
+            "error": "Pan main-service restart is already scheduled",
+            "requestId": restart_status.get("requestId"),
+            "jobId": restart_status.get("jobId"),
+        }
     with _main_exit_lock:
         if _main_exit_pending:
             return {
@@ -1419,7 +1480,29 @@ async def api_main_exit():
                 "error": "Pan main-service exit is already scheduled",
                 "requestId": _main_exit_request_id,
             }
-        request_id = uuid.uuid4().hex
+    registry_root = _main_restart_registry_root()
+    port = status.get("port", _main_restart_port())
+    old_pid = main_lifecycle.listener_owner(port)
+    old_pid_created_at = main_lifecycle.process_create_time(old_pid)
+    request_id = uuid.uuid4().hex
+    try:
+        job = background_jobs.create_service_job(
+            request_id=request_id, operation="exit", root=str(_PROJECT_DIR), port=port,
+            old_pid=old_pid, old_pid_created_at=old_pid_created_at,
+            registry_root=registry_root,
+        )
+    except background_jobs.ServiceJobBusy as exc:
+        existing = exc.job
+        return {
+            "ok": False, "status": "busy", "pending": True,
+            "error": "Pan main-service exit is already scheduled",
+            "requestId": existing.get("requestId"), "jobId": existing.get("jobId"),
+            "phase": existing.get("phase"),
+        }
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "status": "error", "error": f"failed to record Pan exit: {exc}"}
+
+    with _main_exit_lock:
         _main_exit_pending = True
         _main_exit_request_id = request_id
         _main_exit_stage = "scheduled"
@@ -1435,6 +1518,9 @@ async def api_main_exit():
     return {
         "ok": True,
         "status": "scheduled",
+        "accepted": True,
+        "phase": "requested",
+        "jobId": job["jobId"],
         "message": "Pan main-service exit scheduled; this service will stop",
         "requestId": request_id,
     }

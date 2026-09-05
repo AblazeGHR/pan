@@ -455,7 +455,7 @@ _LEGAL_WORKER_STATES = frozenset({
 
 
 async def _record_legal_worker_state(
-    w: Worker, state: str, source: str,
+    w: Worker, state: str, source: str, *, persist: bool = True,
 ) -> bool:
     """Persist a state reached by an explicit, successful Pan transition.
 
@@ -470,14 +470,15 @@ async def _record_legal_worker_state(
     if s is None:
         return False
     s.last_legal_worker_state = state
-    try:
-        await _sess.save_async(s)
-    except Exception as exc:  # keep lifecycle behavior compatible on I/O failure
-        _log.warning(
-            "[Worker %s] failed to persist legal state=%s source=%s: %s",
-            w.worker_id, state, source, exc,
-        )
-        return False
+    if persist:
+        try:
+            await _sess.save_async(s)
+        except Exception as exc:  # keep lifecycle behavior compatible on I/O failure
+            _log.warning(
+                "[Worker %s] failed to persist legal state=%s source=%s: %s",
+                w.worker_id, state, source, exc,
+            )
+            return False
     _log.info(
         "[Worker %s] legal state=%s source=%s session=%s",
         w.worker_id, state, source, w.session_id,
@@ -739,6 +740,11 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
         }
         _ack_current_task(w, s)
         _ack_current_reports(w, s)
+        # The existing terminal-result save should also persist the final
+        # legal state, avoiding extra full-session writes on this hot path.
+        await _record_legal_worker_state(w, "error", "task/error", persist=False)
+        w.status = "idle"
+        await _record_legal_worker_state(w, "idle", "task/error-complete", persist=False)
         await _sess.save_async(s)
     await _bcast({
         "type": "worker.result",
@@ -759,8 +765,9 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
     w._current_task_id = None
     w._current_source_session_id = None
     w.status = "idle"
-    await _record_legal_worker_state(w, "error", "task/error")
-    await _record_legal_worker_state(w, "idle", "task/error-complete")
+    if s is None:
+        await _record_legal_worker_state(w, "error", "task/error", persist=False)
+        await _record_legal_worker_state(w, "idle", "task/error-complete", persist=False)
     _signal_task_done(w)
 
 
@@ -962,7 +969,14 @@ async def _read_stdout(w: Worker):
                     _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
                 # A1 result 立即落盘：同时 flush 防抖缓冲的流式块 + last_result，
                 # 由单写者防抖任务（若在跑）完成，避免双写竞态。
+                result_status = w.status
+                await _record_legal_worker_state(w, result_status, "task/complete", persist=False)
+                w.status = "idle"
+                await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
                 await _flush_history_now(w)
+                # Keep the live status semantics unchanged until the result
+                # event and task ledger have been published below.
+                w.status = result_status
 
             # taskSeq 已在上方（last_result 补存处）统一用 _current_seq。
             task_seq = w._current_seq
@@ -990,9 +1004,7 @@ async def _read_stdout(w: Worker):
                     "ts": time.monotonic(),
                 }
             w._current_task_id = None
-            await _record_legal_worker_state(w, w.status, "task/complete")
             w.status = "idle"
-            await _record_legal_worker_state(w, "idle", "task/complete-idle")
             # A3：idle 过渡即时广播（前端此前靠 result 推断，存在延迟）
             await _bcast({
                 "type": "worker.status",
@@ -3668,6 +3680,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         prev_credit = prev_total.get("credit", 0) if prev_total else 0
         new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
         _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
+    await _record_legal_worker_state(w, status, "task/complete", persist=False)
+    w.status = "idle"
+    await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
     await _sess.save_async(s)
 
     # Broadcast assistant events as worker.stream so the frontend displays the
@@ -3685,9 +3700,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     # M3: 置 idle 同步刷新活性时间——MCP 任务全程不刷新 last_activity，若不在此
     # 重置，任务耗时会被算进 idle 时长，刚忙完就可能被 watchdog 立即回收。
     w.last_activity = time.monotonic()
-    await _record_legal_worker_state(w, status, "task/complete")
     w.status = "idle"
-    await _record_legal_worker_state(w, "idle", "task/complete-idle")
     _maybe_restart_pending(w)
     task_seq = w._current_seq
     await _bcast({

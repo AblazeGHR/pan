@@ -174,12 +174,58 @@ def _fail(job_id: str, phase: str, message: str, registry_root: str | None = Non
     return 1
 
 
+def run_exit_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None,
+                        old_pid_created_at: float | None = None,
+                        registry_root: str | None = None) -> int:
+    """Stop one verified Pan service and persist the legal offline terminal state."""
+    root_path = Path(root).expanduser().resolve()
+    job = background_jobs.get(job_id, registry_root) or {}
+    log_path = job.get("logPath")
+    try:
+        old_pid = old_pid if old_pid is not None else job.get("oldPid")
+        old_pid_created_at = (
+            old_pid_created_at if old_pid_created_at is not None
+            else job.get("oldPidCreatedAt")
+        )
+        if not old_pid or old_pid_created_at is None:
+            return _fail(job_id, "failed", "current service identity could not be verified", registry_root)
+        if not service_process_identity(old_pid, str(root_path), old_pid_created_at)["ok"]:
+            return _fail(job_id, "failed", "current service identity could not be verified", registry_root)
+        background_jobs.transition_service_job(
+            job_id, "stopping_service", registry_root=registry_root,
+        )
+        stop = _run_script(
+            root_path / "scripts" / "stop_pan.bat", root_path, log_path, STOP_TIMEOUT_SEC,
+        )
+        if stop.returncode != 0:
+            return _fail(job_id, "failed", f"stop_pan.bat failed with exit code {stop.returncode}", registry_root)
+        deadline = time.monotonic() + STOP_TIMEOUT_SEC
+        while time.monotonic() < deadline:
+            if listener_owner(port) is None and not service_process_identity(
+                    old_pid, str(root_path), old_pid_created_at).get("ok"):
+                background_jobs.transition_service_job(
+                    job_id, "offline", registry_root=registry_root,
+                    oldPid=old_pid, oldPidCreatedAt=old_pid_created_at, error=None,
+                )
+                return 0
+            time.sleep(READY_POLL_SEC)
+        return _fail(job_id, "timed_out", "Pan service remained alive after stop", registry_root)
+    except subprocess.TimeoutExpired as exc:
+        return _fail(job_id, "timed_out", f"stop script timed out: {exc}", registry_root)
+    except Exception as exc:
+        return _fail(job_id, "failed", str(exc), registry_root)
+
+
 def run_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None,
                    old_pid_created_at: float | None = None,
                    registry_root: str | None = None) -> int:
     """Run the durable requested -> stopping -> ... -> ready sequence."""
     root_path = Path(root).expanduser().resolve()
     job = background_jobs.get(job_id, registry_root) or {}
+    if job.get("operation") == "exit":
+        return run_exit_supervisor(
+            job_id, root, port, old_pid, old_pid_created_at, registry_root,
+        )
     log_path = job.get("logPath")
     try:
         if old_pid and not service_process_identity(old_pid, str(root_path), old_pid_created_at)["ok"]:

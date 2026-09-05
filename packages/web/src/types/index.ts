@@ -525,11 +525,20 @@ export interface ApiMainRestartResponse {
 export interface ApiMainExitStatusResponse {
   available: boolean;
   pending: boolean;
-  stage?: 'idle' | 'scheduled' | 'stopping_workers' | 'stopping_service' | 'error' | string;
+  stage?: 'idle' | 'scheduled' | 'stopping_workers' | 'stopping_service' | 'offline' | 'error' | string;
   platform: string;
+  port?: number;
   reason?: string;
-  error?: string;
+  error?: string | null;
   requestId?: string;
+  jobId?: string;
+  phase?: 'requested' | 'stopping_workers' | 'stopping_service' | 'offline' | 'failed' | 'timed_out';
+  jobStatus?: string;
+  root?: string;
+  oldPid?: number | null;
+  oldPidCreatedAt?: number | null;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface ApiMainExitResponse {
@@ -539,6 +548,9 @@ export interface ApiMainExitResponse {
   error?: string;
   pending?: boolean;
   requestId?: string;
+  accepted?: boolean;
+  phase?: ApiMainExitStatusResponse['phase'];
+  jobId?: string;
 }
 
 export interface ApiHealthResponse {

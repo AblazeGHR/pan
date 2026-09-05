@@ -34,8 +34,11 @@ _stop_recovery = asyncio.Event()
 # they do not have a target Session and never participate in queue_pending.
 BACKGROUND_PROCESS_KIND = "background-process"
 SERVICE_LIFECYCLE_KIND = "main-lifecycle"
-SERVICE_ACTIVE_PHASES = frozenset({"requested", "stopping", "stopped", "starting"})
-SERVICE_TERMINAL_PHASES = frozenset({"ready", "failed", "timed_out"})
+SERVICE_ACTIVE_PHASES = frozenset({
+    "requested", "stopping", "stopping_workers", "stopping_service",
+    "stopped", "starting",
+})
+SERVICE_TERMINAL_PHASES = frozenset({"ready", "offline", "failed", "timed_out"})
 
 
 def _root(registry_root: str | Path | None = None) -> Path:
@@ -418,16 +421,24 @@ def transition_service_job(job_id: str, phase: str, *, registry_root: str | Path
         if not current or current.get("kind", BACKGROUND_PROCESS_KIND) != SERVICE_LIFECYCLE_KIND:
             raise ValueError("service lifecycle Job not found")
         previous = current.get("phase")
-        allowed = {
-            "requested": {"stopping", "failed", "timed_out"},
-            "stopping": {"stopped", "failed", "timed_out"},
-            "stopped": {"starting", "failed", "timed_out"},
-            "starting": {"ready", "failed", "timed_out"},
-            "ready": set(), "failed": set(), "timed_out": set(),
-        }
+        if current.get("operation") == "exit":
+            allowed = {
+                "requested": {"stopping_workers", "failed", "timed_out"},
+                "stopping_workers": {"stopping_service", "failed", "timed_out"},
+                "stopping_service": {"offline", "failed", "timed_out"},
+                "offline": set(), "failed": set(), "timed_out": set(),
+            }
+        else:
+            allowed = {
+                "requested": {"stopping", "failed", "timed_out"},
+                "stopping": {"stopped", "failed", "timed_out"},
+                "stopped": {"starting", "failed", "timed_out"},
+                "starting": {"ready", "failed", "timed_out"},
+                "ready": set(), "failed": set(), "timed_out": set(),
+            }
         if phase != previous and phase not in allowed.get(previous, set()):
             raise ValueError(f"invalid service lifecycle transition: {previous} -> {phase}")
-        status = "completed" if phase == "ready" else (
+        status = "completed" if phase in {"ready", "offline"} else (
             phase if phase in {"failed", "timed_out"} else "running")
         current.update(changes)
         current.update(phase=phase, status=status, updatedAt=time.time())

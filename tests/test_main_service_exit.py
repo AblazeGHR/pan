@@ -15,13 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import packages.core.worker as worker  # noqa: E402
 import packages.web.server as srv  # noqa: E402
 from packages.core.adapters.cbc import CbcAdapter  # noqa: E402
-from packages.core import session as sess  # noqa: E402
+from packages.core import background_jobs, session as sess  # noqa: E402
 
 
 def _fake_exit_script(tmp_path: Path) -> None:
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     (scripts / "exit_pan.ps1").write_text("# test placeholder", encoding="utf-8")
+    (scripts / "stop_pan.bat").write_text("@echo off", encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -90,6 +91,9 @@ def test_exit_schedules_worker_shutdown_and_stop_only_supervisor(tmp_path, monke
     result = asyncio.run(run_request())
     assert result["ok"] is True
     assert result["status"] == "scheduled"
+    assert result["accepted"] is True
+    assert result["phase"] == "requested"
+    assert result["jobId"]
     assert worker._shutdown_started is True
     assert calls[0] == ("shutdown", {"mark_legal_offline": True})
     assert calls[1][0] == "supervisor"
@@ -143,3 +147,19 @@ def test_exit_supervisor_is_stop_only_and_checkout_scoped():
     assert "start_pan.bat" not in text
     assert "-Supervisor" in text
     assert "main.py" in text
+
+
+def test_exit_status_recovers_persisted_job_without_memory_state(tmp_path, monkeypatch):
+    _fake_exit_script(tmp_path)
+    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
+    registry = tmp_path / "data" / "background_jobs"
+    job = background_jobs.create_service_job(
+        request_id="request-exit-after-reload", operation="exit",
+        root=str(tmp_path), port=8768, registry_root=registry,
+    )
+    monkeypatch.setattr(srv, "_main_exit_pending", False)
+    monkeypatch.setattr(srv, "_main_exit_request_id", None)
+    status = asyncio.run(srv.api_main_exit_status())
+    assert status["pending"] is True
+    assert status["jobId"] == job["jobId"]
+    assert status["phase"] == "requested"
