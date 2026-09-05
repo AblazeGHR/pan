@@ -22,6 +22,11 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `POST` | `/api/sessions/{id}/handoff` | `{"handoffPrompt": "...", "copySettings": true, "adapter"?: "...", "model"?: "...", "permissionMode"?: "..."}` | **替身交接**：创建孪生 session B 接替 A（见 SKILL.md §2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填 |
 | `POST` | `/api/readonly` | `{"managerId": "...", "sessionId": "...", "readonlySession": true}` | 设置或清除已由 `managerId` 管理的 session 的持久只读状态；不能借此认领 session。只读目标拒绝其他 session 的任务/消息/通知，返回 `readonly_session` |
 | `POST` | `/api/notify` | `{"targetSessionId": "...", "text": "...", "source"?: "..."}` | 持久化后台任务完成/状态通知到目标 `queue_pending`；无活 worker 时自动唤醒/spawn。该路由供 MCP `agent_notify` 使用，权限隔离由 MCP 层执行，不是普通任务派发 |
+| `POST` | `/api/background-jobs` | `{"targetSessionId":"...", "argv":[...], "cwd":"...", "label"?:"..."}` | 创建脱离 Worker 生命周期的持久后台 Job；argv 不经 shell，MVP 的 cwd 仅允许 Pan 项目目录内 |
+| `GET` | `/api/background-jobs[?targetSessionId=...]` | — | 列出 Job Registry 记录 |
+| `GET` | `/api/background-jobs/{jobId}` | — | 查询 Job 事实、PID、日志和通知状态 |
+| `POST` | `/api/background-jobs/{jobId}/cancel` | — | 取消并杀完整进程树（PID 创建时间必须匹配；无法安全确认时返回 `cancel_unsafe`） |
+| `POST` | `/api/background-jobs/{jobId}/retry` | — | 用新 jobId 重试原命令 |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<meta-agent session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}`。**等价 MCP 工具：`report_subscribe`（编排首选）** |
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}`。等价 MCP 工具：`report_unsubscribe` |
 | `POST` | `/api/claim` | `{"managerId": "...", "sessionId": "..."}` | 认领会话建立 managed 关系（带 `_check_access(claim=True)` 隔离检查；目标已被他人管理则拒绝）。等价 MCP 工具：`session_claim`（claim 自动 report_subscribe） |
