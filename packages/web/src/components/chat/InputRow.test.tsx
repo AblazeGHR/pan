@@ -550,6 +550,40 @@ describe('InputRow pill visibility', () => {
   });
 });
 
+describe('InputRow control row layout contract', () => {
+  it('keeps desktop attachment in the control row, separate from textarea and Send', () => {
+    mockMatchMedia(false);
+    setModelAndPermissionSession();
+    render(<InputRow />);
+    const controls = screen.getByTestId('input-control-row');
+    expect(controls.className).toContain('flex-nowrap');
+    expect(controls.querySelector('[data-perm-pill]')).toBeTruthy();
+    expect(controls.querySelector('button[aria-label="添加附件"]')).toBeTruthy();
+    expect(controls.compareDocumentPosition(screen.getByRole('button', { name: 'Send' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: '添加附件' }).closest('[data-testid="input-control-row"]')).toBe(controls);
+  });
+
+  it('orders mobile settings, queue, model, effort, attachment and fullscreen, hiding Thinking first', () => {
+    mockMatchMedia(true);
+    setModelAndPermissionSession();
+    render(<InputRow />);
+    const controls = screen.getByTestId('input-control-row');
+    const labels = Array.from(controls.querySelectorAll('button, select')).map((node) => node.getAttribute('aria-label') || node.getAttribute('title') || node.textContent?.trim());
+    expect(labels.findIndex((label) => label === 'Session settings')).toBeLessThan(labels.findIndex((label) => label === '发送队列'));
+    const modelIndex = labels.findIndex((label) => label?.includes('模型') || label?.includes('opencode'));
+    expect(labels.findIndex((label) => label === '发送队列')).toBeLessThan(modelIndex);
+    const effortIndex = labels.findIndex((label) => label === 'Effort');
+    if (effortIndex >= 0) {
+      expect(modelIndex).toBeLessThan(effortIndex);
+      expect(effortIndex).toBeLessThan(labels.findIndex((label) => label === '添加附件'));
+    }
+    expect(labels.findIndex((label) => label === '添加附件')).toBeLessThan(labels.findIndex((label) => label === '全屏输入'));
+    expect(controls.className).toContain('flex-nowrap');
+    expect(screen.getByRole('button', { name: 'Send' }).closest('[data-testid="input-control-row"]')).toBeNull();
+    expect(controls.querySelector('[data-testid="thinking-toggle"]')).toBeNull();
+  });
+});
+
 describe('InputRow ModelPill search', () => {
   it('opens a searchable dropdown and filters models by keyword', () => {
     setModelSession();
