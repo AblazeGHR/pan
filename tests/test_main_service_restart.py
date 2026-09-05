@@ -95,6 +95,7 @@ def test_restart_returns_scheduled_before_supervisor_finishes(tmp_path, monkeypa
     assert calls[0][1]["stdin"] is srv.subprocess.DEVNULL
     assert calls[0][1]["stdout"].name == str(tmp_path / "data" / "logs" / "pan-restart-launcher.log")
     assert calls[0][1]["stderr"] is srv.subprocess.STDOUT
+    assert "startupinfo" not in calls[0][1]
     assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "DETACHED_PROCESS", 0x00000008)
     assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
 

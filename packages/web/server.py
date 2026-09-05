@@ -322,11 +322,6 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
     )
-    startupinfo = None
-    if os.name == "nt" and hasattr(subprocess, "STARTUPINFO"):
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
     # Keep the handle open only across Popen.  subprocess duplicates the
     # redirected standard handle for the detached child before this closes it.
     # This captures PowerShell parameter/parser/startup failures that happen
@@ -340,7 +335,6 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
             stderr=subprocess.STDOUT,
             close_fds=True,
             creationflags=flags,
-            startupinfo=startupinfo,
         )
 
 
