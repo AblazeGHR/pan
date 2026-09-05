@@ -54,7 +54,9 @@ describe('Modal', () => {
     const overlay = document.body.querySelector<HTMLElement>('.modal-overlay')!;
     const card = cardEl();
     expect(overlay.className).toContain('p-0 md:p-4');
+    expect(overlay.className).toContain('modal-overlay--mobile-fullscreen');
     expect(card.className).toContain('max-md:h-[100dvh]');
+    expect(card.className).toContain('modal-card--mobile-fullscreen');
     expect(card.className).toContain('max-md:rounded-none');
   });
 });
