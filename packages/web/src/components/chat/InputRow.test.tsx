@@ -161,6 +161,54 @@ describe('InputRow send queue wiring', () => {
     ));
   });
 
+  it('shows deterministic aggregate progress and blocks send until upload completes', async () => {
+    setBusySession();
+    let finishUpload!: (value: Awaited<ReturnType<typeof uploadSessionAttachment>>) => void;
+    vi.mocked(uploadSessionAttachment).mockImplementationOnce(async (_sessionId, file, onProgress) => {
+      onProgress?.(4, file.size);
+      return new Promise((resolve) => { finishUpload = resolve; });
+    });
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['12345678'], 'progress.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('50%');
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中');
+    });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+
+    finishUpload({ ok: true, filename: file.name, path: 'D:\\attachments\\progress.txt', size: file.size });
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('100%');
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成');
+    });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps failed uploads visible with a retry action', async () => {
+    setBusySession();
+    vi.mocked(uploadSessionAttachment)
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({ ok: true, filename: 'retry.txt', path: 'D:\\attachments\\retry.txt', size: 5 });
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['retry'], 'retry.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('失败');
+      expect(screen.getByRole('button', { name: '重试上传 retry.txt' })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: '重试上传 retry.txt' }));
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+  });
+
   it('enqueues through the server when worker busy, then shows the pending row', async () => {
     setBusySession();
     render(<InputRow />);

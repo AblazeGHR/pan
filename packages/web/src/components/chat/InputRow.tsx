@@ -42,6 +42,9 @@ interface PendingAttachment {
   path?: string;
   file?: File;
   status: AttachmentStatus;
+  loadedBytes?: number;
+  totalBytes?: number;
+  fileKey?: string;
   error?: string;
 }
 
@@ -50,6 +53,10 @@ function attachmentId(): string {
     return crypto.randomUUID();
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function clientFileKey(file: File): string {
+  return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
 }
 
 // ── pill sub-components ──
@@ -243,9 +250,23 @@ export function InputRow() {
   const uploadClientAttachment = useCallback(async (attachment: PendingAttachment) => {
     if (!currentSessionId || !attachment.file) return;
     try {
-      const uploaded = await uploadSessionAttachment(currentSessionId, attachment.file);
+      const uploaded = await uploadSessionAttachment(
+        currentSessionId,
+        attachment.file,
+        (loaded, total) => setAttachments((current) => current.map((item) => item.id === attachment.id
+          ? { ...item, loadedBytes: loaded, totalBytes: total }
+          : item)),
+      );
       setAttachments((current) => current.map((item) => item.id === attachment.id
-        ? { ...item, name: uploaded.filename || item.name, path: uploaded.path, status: 'ready', error: undefined }
+        ? {
+            ...item,
+            name: uploaded.filename || item.name,
+            path: uploaded.path,
+            status: 'ready',
+            loadedBytes: uploaded.size,
+            totalBytes: uploaded.size,
+            error: undefined,
+          }
         : item));
     } catch (error) {
       setAttachments((current) => current.map((item) => item.id === attachment.id
@@ -258,15 +279,24 @@ export function InputRow() {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
     if (!currentSessionId || files.length === 0) return;
-    const added = files.map((file) => ({
+    const uploadingOrReady = new Set(
+      attachments
+        .filter((attachment) => attachment.status !== 'error' && attachment.fileKey)
+        .map((attachment) => attachment.fileKey),
+    );
+    const added = files.filter((file) => !uploadingOrReady.has(clientFileKey(file))).map((file) => ({
       id: attachmentId(),
       name: file.name,
       file,
+      fileKey: clientFileKey(file),
+      loadedBytes: 0,
+      totalBytes: file.size,
       status: 'uploading' as const,
     }));
+    if (added.length === 0) return;
     setAttachments((current) => [...current, ...added]);
     void Promise.all(added.map((attachment) => uploadClientAttachment(attachment)));
-  }, [currentSessionId, uploadClientAttachment]);
+  }, [attachments, currentSessionId, uploadClientAttachment]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -357,6 +387,25 @@ export function InputRow() {
     currentSession?.adapter === 'codex' &&
     currentSession.workerStatus === 'running' &&
     !!currentSession.workerId;
+  const clientAttachments = attachments.filter((attachment) => !!attachment.file);
+  const uploadTotalBytes = clientAttachments.reduce(
+    (total, attachment) => total + (attachment.totalBytes ?? attachment.file?.size ?? 0),
+    0,
+  );
+  const uploadLoadedBytes = clientAttachments.reduce((loaded, attachment) => loaded + (
+    attachment.status === 'ready'
+      ? (attachment.totalBytes ?? attachment.file?.size ?? 0)
+      : (attachment.loadedBytes ?? 0)
+  ), 0);
+  const uploadPercent = uploadTotalBytes > 0
+    ? Math.min(100, Math.floor((uploadLoadedBytes / uploadTotalBytes) * 100))
+    : clientAttachments.every((attachment) => attachment.status === 'ready') ? 100 : 0;
+  const uploadStatus = clientAttachments.some((attachment) => attachment.status === 'uploading')
+    ? '上传中'
+    : clientAttachments.some((attachment) => attachment.status === 'error')
+      ? '失败'
+      : '已完成';
+  const attachmentsBlocked = attachments.some((attachment) => attachment.status !== 'ready');
 
   return (
     <div className="shrink-0 w-full border-t border-border-default bg-bg-primary">
@@ -463,13 +512,35 @@ export function InputRow() {
           )}
 
           {/* Textarea + Send row */}
+          {clientAttachments.length > 0 && (
+            <div className="flex flex-col gap-1.5" data-testid="attachment-upload-progress">
+              <div className="flex items-center justify-between text-xs text-text-secondary">
+                <span>客户端附件：{uploadStatus}</span>
+                <span>{uploadPercent}%</span>
+              </div>
+              <div
+                className="h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary"
+                role="progressbar"
+                aria-label="客户端附件上传进度"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={uploadPercent}
+              >
+                <div
+                  className={`h-full transition-[width] ${uploadStatus === '失败' ? 'bg-danger' : 'bg-accent'}`}
+                  style={{ width: `${uploadPercent}%` }}
+                />
+              </div>
+            </div>
+          )}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5" data-testid="server-attachments">
               {attachments.map((attachment) => (
                 <span key={attachment.id} className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary" title={attachment.path || attachment.name}>
                   <FileIcon size={13} className="shrink-0" />
                   <span className="truncate">{attachment.name}</span>
-                  {attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
+                  {attachment.file && attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
+                  {attachment.file && attachment.status === 'ready' && <span className="text-accent">已完成</span>}
                   {attachment.status === 'error' && (
                     <button
                       type="button"
@@ -592,7 +663,9 @@ export function InputRow() {
                 <button
                   type="button"
                   onClick={() => handleSend(inputRef.current?.value || '')}
-                  className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
+                  disabled={attachmentsBlocked}
+                  title={attachmentsBlocked ? '请等待附件上传完成，或重试/取消失败附件' : 'Send'}
+                  className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Send
                 </button>
