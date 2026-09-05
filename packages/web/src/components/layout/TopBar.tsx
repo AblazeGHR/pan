@@ -77,20 +77,6 @@ export function TopBar() {
   }
 
   const status = currentSession.workerStatus || 'offline';
-  const nativeStatus = currentWorker?.sessionId === currentSession.id
-    ? currentWorker.nativeStatus
-    : undefined;
-  const nativeLabel = nativeStatus?.activeFlags?.includes('waitingOnApproval')
-    ? 'waiting for approval'
-      : nativeStatus?.activeFlags?.includes('waitingOnUserInput')
-        ? 'waiting for input'
-        : nativeStatus?.type === 'systemError'
-          ? `system error${nativeStatus.message || nativeStatus.error
-            ? `: ${nativeStatus.message || nativeStatus.error}`
-            : ''}`
-      : nativeStatus?.type === 'active'
-        ? 'active'
-        : undefined;
   const nativeUsageLabel = currentWorker?.sessionId === currentSession.id
     ? liveUsageLabel(currentWorker.nativeUsage)
     : undefined;
@@ -137,11 +123,6 @@ export function TopBar() {
             {tuiViewEnabled ? <Monitor size={16} /> : <MessageSquare size={16} />}
           </button>
         </div>
-        {currentSession.model && (
-          <span className="hidden md:inline text-xs text-text-tertiary">
-            {currentSession.model}
-          </span>
-        )}
         <div className="hidden md:flex items-center gap-1 text-xs text-text-secondary">
           <span
             className="cursor-pointer hover:text-text-primary"
@@ -164,10 +145,6 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <span className="hidden md:inline text-xs text-text-tertiary mr-1">
-          {nativeLabel || status}
-          {effectiveWorkerId ? ` (${effectiveWorkerId})` : ' (no worker)'}
-        </span>
         {nativeUsageLabel && (
           <span
             className="hidden md:inline text-xs text-text-tertiary mr-1"

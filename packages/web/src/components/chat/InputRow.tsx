@@ -9,6 +9,7 @@ import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { DirectoryBrowser } from '@/components/session/NewSessionModal';
+import { Modal } from '@/components/ui/Modal';
 import { uploadSessionAttachment } from '@/services/api';
 import { ChevronDown, ChevronUp, CornerUpRight, Expand, File as FileIcon, Minimize2, Paperclip, Settings, X } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
@@ -234,6 +235,11 @@ export function InputRow() {
     } catch (e) {
       showToast((e as Error).message || 'Failed', 'error');
     }
+  };
+
+  const closeAttachmentBrowser = () => {
+    setAttachmentBrowserOpen(false);
+    setAttachmentMenuOpen(false);
   };
 
   // Restore draft when session changes. Reads from getState() so it does not
@@ -469,7 +475,7 @@ export function InputRow() {
   return (
     <div
       data-testid="input-row"
-      className={`flex shrink-0 w-full flex-col border-t border-border-default bg-bg-primary ${
+      className={`relative flex shrink-0 w-full flex-col border-t border-border-default bg-bg-primary ${
         isMobile && mobileFullscreen ? 'fixed inset-0 z-50 h-[100dvh] overflow-hidden pt-[var(--safe-top)]' : ''
       }`}
       style={!isMobile ? { height: `${composerHeight}px` } : undefined}
@@ -486,7 +492,12 @@ export function InputRow() {
         />
       )}
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
-      <SendQueuePanel />
+      <div
+        data-testid="send-queue-anchor"
+        className={isMobile && mobileFullscreen ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'}
+      >
+        <SendQueuePanel />
+      </div>
 
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
           右侧内容列：pill 行 + textarea/Send 行。 */}
@@ -657,11 +668,15 @@ export function InputRow() {
               ))}
             </div>
           )}
-          {attachmentBrowserOpen && (
-            <div className="rounded-lg border border-border-default bg-bg-secondary p-4" aria-label="Server attachment browser">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-text-primary">
-                <FileIcon size={16} /> 选择服务端附件
-              </div>
+          <Modal
+            open={attachmentBrowserOpen}
+            onClose={closeAttachmentBrowser}
+            title="选择服务端附件"
+            size="xl"
+            mobileFullscreen={isMobile}
+            className="md:max-h-[90vh]"
+          >
+            <div aria-label="Server attachment browser">
               <DirectoryBrowser
                 path={attachmentBrowserPath}
                 fileMode
@@ -674,10 +689,10 @@ export function InputRow() {
                   setAttachmentBrowserOpen(false);
                   setAttachmentMenuOpen(false);
                 }}
-                onCancel={() => setAttachmentBrowserOpen(false)}
+                onCancel={closeAttachmentBrowser}
               />
             </div>
-          )}
+          </Modal>
           <div className="flex min-h-0 flex-1 gap-2">
             <input
               ref={clientAttachmentInputRef}
