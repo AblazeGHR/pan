@@ -40,12 +40,34 @@ describe('Sidebar Session search controls', () => {
   });
 
   it('clears the query and restores the unfiltered state', () => {
-    useUIStore.setState({ searchQuery: 'pan-session' });
+    useSessionStore.setState({
+      sessions: [
+        {
+          id: 'pan-alpha',
+          name: 'Alpha session',
+          alwaysThinkingEnabled: false,
+          effort: '',
+          history: [],
+        },
+        {
+          id: 'pan-beta',
+          name: 'Beta session',
+          alwaysThinkingEnabled: false,
+          effort: '',
+          history: [],
+        },
+      ],
+    });
+    useUIStore.setState({ searchQuery: 'alpha' });
     renderSidebar();
+
+    expect(screen.getByText('Alpha session')).toBeTruthy();
+    expect(screen.queryByText('Beta session')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear session search' }));
 
     expect(useUIStore.getState().searchQuery).toBe('');
     expect(screen.queryByRole('button', { name: 'Clear session search' })).toBeNull();
+    expect(screen.getByText('Beta session')).toBeTruthy();
   });
 });
