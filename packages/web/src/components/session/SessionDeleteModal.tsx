@@ -17,7 +17,7 @@ export function SessionDeleteModal({ sessions, specialIds, normalIds, descendant
   const [cascade, setCascade] = useState(true);
   const totalSelected = specialIds.length + normalIds.length;
   return (
-    <Modal open title="Confirm session deletion" onClose={onClose} size="sm">
+    <Modal open title="Confirm session deletion" onClose={onClose} size="md">
       <div className="space-y-3 text-sm text-text-secondary">
         <p>
           This request includes {totalSelected} selected session{totalSelected === 1 ? '' : 's'}.
