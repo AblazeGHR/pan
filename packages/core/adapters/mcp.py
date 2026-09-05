@@ -58,6 +58,10 @@ def _pan_runtime_env(entry: dict) -> dict:
             if inherited else import_root
         )
     api_url = os.environ.get(_PAN_API_URL_ENV)
+    if not api_url:
+        port = os.environ.get("PAN_PORT")
+        if port:
+            api_url = f"http://127.0.0.1:{port}"
     if api_url and _PAN_API_URL_ENV not in env:
         env[_PAN_API_URL_ENV] = api_url
     if isinstance(command, str) and command and _PAN_PYTHON_ENV not in env:

@@ -515,6 +515,34 @@ def test_result_usage_cache_bridges_enrich():
     print("PASS: result usage cache bridges extract_result_text → enrich_after_result")
 
 
+def test_result_usage_prefers_unambiguous_native_transcript_model():
+    """A gateway model alias must not overwrite the native transcript model."""
+    a = ClaudeAdapter()
+    sid = "native-model-override-sid"
+    result_ev = {
+        "type": "result",
+        "is_error": False,
+        "result": "final text",
+        "session_id": sid,
+        "usage": {"input_tokens": 10, "output_tokens": 4},
+        "total_cost_usd": 0.5,
+        "modelUsage": {"claude-haiku-4-5": {"input_tokens": 10}},
+    }
+    a.extract_result_text(result_ev)
+    s = _make_session(adapter_config={"cli_session_id": sid})
+    native_model = "deepseek-ai/DeepSeek-V4-Flash"
+    with patch.object(
+        claude_adapter,
+        "_read_claude_jsonl_usage",
+        return_value=[{"model": native_model, "rawUsage": {"prompt_tokens": 10}}],
+    ):
+        entries = a.enrich_after_result(s)
+    assert entries is not None and len(entries) == 1
+    assert entries[0]["model"] == native_model
+    assert entries[0]["rawUsage"]["cost"] == 0.5
+    print("PASS: native transcript model overrides gateway usage alias")
+
+
 # ── takeover ──
 
 def test_takeover_command_resume():

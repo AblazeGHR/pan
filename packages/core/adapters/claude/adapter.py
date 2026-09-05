@@ -548,6 +548,22 @@ class ClaudeAdapter:
         try:
             entry = _PENDING_RESULT_USAGE.pop(s.cli_session_id, None)
             if entry is not None:
+                # Some compatibility gateways rewrite result.modelUsage to a
+                # Claude catalog name even though the native transcript keeps
+                # the model that actually generated the turn.  Keep the
+                # result event's token/cost numbers, but prefer an unambiguous
+                # model from that transcript so usage is attributed correctly.
+                native_entries = _read_claude_jsonl_usage(s) or []
+                native_models = {
+                    str(item.get("model"))
+                    for item in native_entries
+                    if isinstance(item, dict) and item.get("model")
+                }
+                if len(native_models) == 1:
+                    native_model = next(iter(native_models))
+                    if entry.get("model") != native_model:
+                        entry = dict(entry)
+                        entry["model"] = native_model
                 # 用最新 model 回填 s.model（result 事件无单 model 字段时用 s.model）
                 if not s.model and entry.get("model"):
                     s.model = entry["model"]

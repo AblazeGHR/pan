@@ -148,6 +148,34 @@ class TestCbcMCPArgs:
         assert env["PAN_PYTHON"] == sys.executable
         assert env["PYTHONPATH"] == str(Path(__file__).resolve().parents[1])
 
+    def test_pan_server_runtime_env_derives_api_url_from_port(self, monkeypatch):
+        """An isolated Pan instance must be addressable without extra env setup."""
+        monkeypatch.delenv("PAN_API_URL", raising=False)
+        monkeypatch.setenv("PAN_PORT", "8769")
+        adapter = CbcAdapter()
+        s = _make_session(mcp_servers=[{
+            "name": "pan",
+            "command": sys.executable,
+            "args": ["-m", "packages.mcp.server"],
+        }])
+        adapter.mcp_args(s)
+        env = _read_mcp_json(s)["mcpServers"]["pan"]["env"]
+        assert env["PAN_API_URL"] == "http://127.0.0.1:8769"
+
+    def test_pan_server_explicit_api_url_wins_over_port(self, monkeypatch):
+        """PAN_API_URL remains the explicit override when both are present."""
+        monkeypatch.setenv("PAN_API_URL", "http://127.0.0.1:8770")
+        monkeypatch.setenv("PAN_PORT", "8769")
+        adapter = CbcAdapter()
+        s = _make_session(mcp_servers=[{
+            "name": "pan",
+            "command": sys.executable,
+            "args": ["-m", "packages.mcp.server"],
+        }])
+        adapter.mcp_args(s)
+        env = _read_mcp_json(s)["mcpServers"]["pan"]["env"]
+        assert env["PAN_API_URL"] == "http://127.0.0.1:8770"
+
     def test_pan_env_merges_existing_env(self):
         """Injection merges on top of any existing env passthrough."""
         adapter = CbcAdapter()
