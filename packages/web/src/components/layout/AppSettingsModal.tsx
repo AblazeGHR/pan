@@ -455,6 +455,14 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
         try {
           await fetchHealth(probe.signal);
           if (!controller.signal.aborted) {
+            const persisted = await fetchMainRestartStatus().catch(() => null);
+            if (persisted?.phase === 'failed' || persisted?.phase === 'timed_out') {
+              setMainRestartStatus(persisted);
+              setMainRestartState(persisted.phase === 'timed_out' ? 'timeout' : 'error');
+              setMainRestartError(persisted.error || 'Pan restart failed in the supervisor.');
+              showToast(persisted.error || 'Pan restart failed', 'error');
+              return;
+            }
             setMainRestartState('restored');
             setMainRestartStatus((previous) =>
               previous ? { ...previous, pending: false } : previous,
@@ -469,9 +477,17 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
         }
         await wait(750);
       }
-      setMainRestartState('timeout');
-      setMainRestartError('Pan was restarted, but health check timed out after 16 seconds.');
-      showToast('Pan restart health check timed out', 'error');
+      const persisted = await fetchMainRestartStatus().catch(() => null);
+      if (persisted?.phase === 'failed' || persisted?.phase === 'timed_out') {
+        setMainRestartStatus(persisted);
+        setMainRestartState(persisted.phase === 'timed_out' ? 'timeout' : 'error');
+        setMainRestartError(persisted.error || 'Pan restart failed in the supervisor.');
+        showToast(persisted.error || 'Pan restart failed', 'error');
+      } else {
+        setMainRestartState('timeout');
+        setMainRestartError('Pan was restarted, but health check timed out after 16 seconds.');
+        showToast('Pan restart health check timed out', 'error');
+      }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
       setMainRestartState('error');
