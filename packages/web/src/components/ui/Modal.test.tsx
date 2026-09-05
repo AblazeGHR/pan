@@ -43,4 +43,18 @@ describe('Modal', () => {
     );
     expect(cardEl().className).toContain('max-w-sm');
   });
+
+  it('supports caller-scoped mobile fullscreen presentation', () => {
+    render(
+      <Modal open onClose={() => {}} title="Test" size="xl" mobileFullscreen>
+        <div>content</div>
+      </Modal>,
+    );
+
+    const overlay = document.body.querySelector<HTMLElement>('.modal-overlay')!;
+    const card = cardEl();
+    expect(overlay.className).toContain('p-0 md:p-4');
+    expect(card.className).toContain('max-md:h-[100dvh]');
+    expect(card.className).toContain('max-md:rounded-none');
+  });
 });

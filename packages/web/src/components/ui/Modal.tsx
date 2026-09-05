@@ -9,6 +9,8 @@ interface ModalProps {
   children: ReactNode;
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Enable viewport-filling presentation on small screens for this caller. */
+  mobileFullscreen?: boolean;
 }
 
 const sizeClasses: Record<string, string> = {
@@ -18,7 +20,15 @@ const sizeClasses: Record<string, string> = {
   xl: 'max-w-4xl',
 };
 
-export function Modal({ open, onClose, title, children, className = '', size = 'md' }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  className = '',
+  size = 'md',
+  mobileFullscreen = false,
+}: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,13 +50,13 @@ export function Modal({ open, onClose, title, children, className = '', size = '
   return createPortal(
     <div
       ref={overlayRef}
-      className="modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
+      className={`modal-overlay fixed inset-0 z-40 flex items-center justify-center bg-black/50 ${mobileFullscreen ? 'p-0 md:p-4' : 'p-4'}`}
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
     >
       <div
-        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-h-[85vh] flex flex-col overflow-hidden ${sizeClasses[size]} ${className}`}
+        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-h-[85vh] flex flex-col overflow-hidden ${sizeClasses[size]} ${mobileFullscreen ? 'max-md:h-[100dvh] max-md:max-h-[100dvh] max-md:max-w-none max-md:rounded-none max-md:border-0' : ''} ${className}`}
       >
         {title && (
           <div className="flex items-center justify-between border-b border-border-default px-4 py-3">

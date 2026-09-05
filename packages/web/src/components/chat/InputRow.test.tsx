@@ -126,6 +126,8 @@ describe('InputRow send queue wiring', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    expect(screen.queryByTestId('directory-browser')?.closest('.modal-card')).toBeTruthy();
+    expect(screen.queryByLabelText('Server attachment browser')?.closest('[data-testid="input-row"]')).toBeNull();
     await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
 
@@ -138,6 +140,24 @@ describe('InputRow send queue wiring', () => {
       's1', '请阅读 @"D:\\attachments\\report.txt"', expect.any(String),
     ));
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+  });
+
+  it('closes the server browser with its close button and backdrop', async () => {
+    setBusySession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => expect(screen.getByTestId('directory-browser')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByTestId('directory-browser')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => expect(screen.getByTestId('directory-browser')).toBeTruthy());
+    fireEvent.click(document.body.querySelector('.modal-overlay')!);
+    expect(screen.queryByTestId('directory-browser')).toBeNull();
   });
 
   it('keeps attachments after a failed enqueue and allows cancelling one', async () => {
@@ -361,6 +381,23 @@ describe('InputRow responsive composer controls', () => {
     expect(root.className).toContain('fixed');
     fireEvent.click(screen.getByRole('button', { name: '退出全屏输入' }));
     expect(root.className).not.toContain('fixed');
+  });
+
+  it('uses a viewport-filling modal for server attachments on mobile', async () => {
+    mockMatchMedia(true);
+    setBusySession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => expect(screen.getByTestId('directory-browser')).toBeTruthy());
+
+    const overlay = document.body.querySelector('.modal-overlay')!;
+    const card = document.body.querySelector('.modal-card')!;
+    expect(overlay.className).toContain('p-0 md:p-4');
+    expect(card.className).toContain('max-md:h-[100dvh]');
+    expect(card.className).toContain('max-md:max-h-[100dvh]');
+    expect(card.className).toContain('max-md:rounded-none');
   });
 });
 
