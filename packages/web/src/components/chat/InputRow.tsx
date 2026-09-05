@@ -502,63 +502,29 @@ export function InputRow() {
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
           右侧内容列：pill 行 + textarea/Send 行。 */}
       <div className="flex min-h-0 flex-1 gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
-        {/* 左列竖排：gear 在上、^ 在下，gap-1 紧挨 */}
-        <div className="flex flex-col gap-1 shrink-0 self-start">
-          {currentSession && (
-            <div data-settings-popover className="relative">
-              <button
-                onClick={() => setSettingsOpen((v) => !v)}
-                title="Session settings"
-                aria-label="Session settings"
-                className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
-                  settingsOpen
-                    ? 'border-accent/50 bg-accent/10 text-accent'
-                    : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                }`}
-              >
-                <Settings size={14} />
-              </button>
-              <SettingsPopover
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-              />
-            </div>
-          )}
-          {/* ^ 队列开关：非空时高亮 + 角标 */}
-          <div className="relative">
-            <button
-              onClick={togglePanel}
-              title={
-                queueCount > 0
-                  ? `发送队列（${queueCount} 条待发）`
-                  : '发送队列'
-              }
-              aria-label="发送队列"
-              className={`flex h-9 w-9 items-center justify-center rounded border transition-colors ${
-                panelOpen || queueCount > 0
-                  ? 'border-accent/50 bg-accent/10 text-accent'
-                  : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
-              }`}
-            >
-              <ChevronUp
-                size={16}
-                className={`transition-transform duration-200 ${
-                  panelOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-            {queueCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">
-                {queueCount > 99 ? '99+' : queueCount}
-              </span>
-            )}
-          </div>
-        </div>
-
         {/* 右侧内容列 */}
         <div className={`flex-1 min-w-0 flex flex-col gap-2 ${mobileFullscreen ? 'min-h-0' : ''}`}>
           {currentSession && (
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div data-testid="input-control-row" className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-clip">
+              <div className="flex shrink-0 items-center gap-1">
+                <div data-settings-popover className="relative">
+                  <button
+                    onClick={() => setSettingsOpen((v) => !v)}
+                    title="Session settings"
+                    aria-label="Session settings"
+                    className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${settingsOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
+                  >
+                    <Settings size={14} />
+                  </button>
+                  <SettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+                </div>
+                <div className="relative">
+                  <button onClick={togglePanel} title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'} aria-label="发送队列" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                    <ChevronUp size={14} className={`transition-transform duration-200 ${panelOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {queueCount > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">{queueCount > 99 ? '99+' : queueCount}</span>}
+                </div>
+              </div>
               <ModelPill
                 sessionModel={currentSession.model || ''}
                 defaultModel={config?.defaultModel || ''}
@@ -575,11 +541,13 @@ export function InputRow() {
                   onApply={applySetting}
                 />
               </div>
-              <ThinkingToggle
+              <div className="hidden md:flex shrink-0">
+                <ThinkingToggle
                 enabled={currentSession.alwaysThinkingEnabled}
                 show={showThinking}
                 onApply={applySetting}
-              />
+                />
+              </div>
               {showEffort && validEffortValues.length > 0 && (
                 <select
                   value={currentEffort}
@@ -595,6 +563,15 @@ export function InputRow() {
                   ))}
                 </select>
               )}
+              <div className="relative order-last shrink-0">
+                <button type="button" aria-label="添加附件" title="添加附件" onClick={() => setAttachmentMenuOpen((open) => !open)} className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                  <Paperclip size={14} />
+                </button>
+                {attachmentMenuOpen && <div className="absolute bottom-full right-0 z-30 mb-1 min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
+                  <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { setAttachmentBrowserPath(''); setAttachmentBrowserOpen(true); }}><FileIcon size={14} /> 服务端附件</button>
+                  <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { clientAttachmentInputRef.current?.click(); setAttachmentMenuOpen(false); }}><Paperclip size={14} /> 客户端附件</button>
+                </div>}
+              </div>
               {isMobile && (
                 <button
                   type="button"
@@ -602,7 +579,7 @@ export function InputRow() {
                   aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
                   title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
                   onClick={() => setMobileFullscreen((current) => !current)}
-                  className="ml-auto flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
                 >
                   {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
                 </button>
@@ -728,41 +705,6 @@ export function InputRow() {
                 </button>
               )}
               <div className="flex items-center gap-1">
-                <div className="relative">
-                  <button
-                    type="button"
-                    aria-label="添加附件"
-                    title="添加附件"
-                    onClick={() => setAttachmentMenuOpen((open) => !open)}
-                    className={`flex h-9 w-9 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
-                  >
-                    <Paperclip size={16} />
-                  </button>
-                  {attachmentMenuOpen && (
-                    <div className="absolute bottom-full right-0 z-30 mb-1 min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover"
-                        onClick={() => {
-                          setAttachmentBrowserPath('');
-                          setAttachmentBrowserOpen(true);
-                        }}
-                      >
-                        <FileIcon size={14} /> 服务端附件
-                      </button>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover"
-                        onClick={() => {
-                          clientAttachmentInputRef.current?.click();
-                          setAttachmentMenuOpen(false);
-                        }}
-                      >
-                        <Paperclip size={14} /> 客户端附件
-                      </button>
-                    </div>
-                  )}
-                </div>
                 <button
                   type="button"
                   onClick={() => handleSend(inputRef.current?.value || '')}
