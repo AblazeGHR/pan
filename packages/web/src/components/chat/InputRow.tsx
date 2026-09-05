@@ -7,7 +7,8 @@ import { useQueueStore } from '@/stores/queueStore';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
-import { ChevronDown, ChevronUp, CornerUpRight, Settings } from 'lucide-react';
+import { DirectoryBrowser } from '@/components/session/NewSessionModal';
+import { ChevronDown, ChevronUp, CornerUpRight, File, Paperclip, Settings, X } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
 const PILL_CLASS =
@@ -165,6 +166,10 @@ export function InputRow() {
   const { steer } = useWorkerStore();
   const { showToast } = useUIStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [attachmentBrowserOpen, setAttachmentBrowserOpen] = useState(false);
+  const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
+  const [serverAttachments, setServerAttachments] = useState<string[]>([]);
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
@@ -215,15 +220,18 @@ export function InputRow() {
         showToast('Select a session first');
         return;
       }
-      if (!text.trim()) return;
+      const attachmentText = serverAttachments.map((path) => `@"${path}"`).join(' ');
+      const message = [text.trim(), attachmentText].filter(Boolean).join(' ');
+      if (!message) return;
 
       // Every user message goes to the server queue.  Clear the input only
       // after the server returns a durable queueItemId; a network failure is
       // not an offline accepted queue state.
-      const ok = await enqueue(text);
+      const ok = await enqueue(message);
       if (ok) {
         if (inputRef.current) inputRef.current.value = '';
         setInputDraft(currentSessionId, '');
+        setServerAttachments([]);
       }
     },
     [
@@ -231,6 +239,7 @@ export function InputRow() {
       showToast,
       setInputDraft,
       enqueue,
+      serverAttachments,
     ],
   );
 
@@ -389,6 +398,42 @@ export function InputRow() {
           )}
 
           {/* Textarea + Send row */}
+          {serverAttachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5" data-testid="server-attachments">
+              {serverAttachments.map((path) => (
+                <span key={path} className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary" title={path}>
+                  <File size={13} className="shrink-0" />
+                  <span className="truncate">{path.split(/[\\/]/).pop() || path}</span>
+                  <button
+                    type="button"
+                    aria-label={`取消附件 ${path}`}
+                    className="ml-1 text-danger hover:text-danger/80"
+                    onClick={() => setServerAttachments((current) => current.filter((item) => item !== path))}
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {attachmentBrowserOpen && (
+            <div className="rounded-lg border border-border-default bg-bg-secondary p-4" aria-label="Server attachment browser">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-text-primary">
+                <File size={16} /> 选择服务端附件
+              </div>
+              <DirectoryBrowser
+                path={attachmentBrowserPath}
+                fileMode
+                onPathChange={setAttachmentBrowserPath}
+                onSelect={(selectedPath) => {
+                  setServerAttachments((current) => current.includes(selectedPath) ? current : [...current, selectedPath]);
+                  setAttachmentBrowserOpen(false);
+                  setAttachmentMenuOpen(false);
+                }}
+                onCancel={() => setAttachmentBrowserOpen(false)}
+              />
+            </div>
+          )}
           <div className="flex gap-2">
             <textarea
               ref={inputRef}
@@ -415,12 +460,43 @@ export function InputRow() {
                   Steer
                 </button>
               )}
-              <button
-                onClick={() => handleSend(inputRef.current?.value || '')}
-                className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
-              >
-                Send
-              </button>
+              <div className="flex items-center gap-1">
+                <div className="relative">
+                  <button
+                    type="button"
+                    aria-label="添加附件"
+                    title="添加附件"
+                    onClick={() => setAttachmentMenuOpen((open) => !open)}
+                    className={`flex h-9 w-9 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
+                  >
+                    <Paperclip size={16} />
+                  </button>
+                  {attachmentMenuOpen && (
+                    <div className="absolute bottom-full right-0 z-30 mb-1 min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover"
+                        onClick={() => {
+                          setAttachmentBrowserPath('');
+                          setAttachmentBrowserOpen(true);
+                        }}
+                      >
+                        <File size={14} /> 服务端附件
+                      </button>
+                      <button type="button" disabled className="flex w-full cursor-not-allowed items-center gap-2 px-3 py-2 text-left text-xs text-text-tertiary">
+                        <Paperclip size={14} /> 客户端附件（暂不可用）
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSend(inputRef.current?.value || '')}
+                  className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end"
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </div>
         </div>

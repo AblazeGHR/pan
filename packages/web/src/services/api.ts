@@ -74,8 +74,11 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchDirectories(path?: string): Promise<DirectoryListResponse> {
-  const query = path ? `?path=${encodeURIComponent(path)}` : '';
+export async function fetchDirectories(path?: string, includeFiles = false): Promise<DirectoryListResponse> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  if (includeFiles) params.set('include_files', 'true');
+  const query = params.toString() ? `?${params.toString()}` : '';
   return request<DirectoryListResponse>(`${BASE}/directories${query}`);
 }
 

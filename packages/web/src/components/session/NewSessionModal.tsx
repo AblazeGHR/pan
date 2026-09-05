@@ -30,12 +30,13 @@ function manifestLabel(t: SessionTemplate): string {
 
 interface DirectoryBrowserProps {
   path: string;
+  fileMode?: boolean;
   onPathChange: (path: string) => void;
   onSelect: (path: string) => void;
   onCancel: () => void;
 }
 
-function DirectoryBrowser({ path, onPathChange, onSelect, onCancel }: DirectoryBrowserProps) {
+export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelect, onCancel }: DirectoryBrowserProps) {
   const cacheRef = useRef(new Map<string, DirectoryListResponse>());
   const requestIdRef = useRef(0);
   const [data, setData] = useState<DirectoryListResponse | null>(null);
@@ -52,7 +53,7 @@ function DirectoryBrowser({ path, onPathChange, onSelect, onCancel }: DirectoryB
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
-    fetchDirectories(path || undefined)
+    fetchDirectories(path || undefined, fileMode)
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         cacheRef.current.set(path, result);
@@ -67,7 +68,7 @@ function DirectoryBrowser({ path, onPathChange, onSelect, onCancel }: DirectoryB
         if (requestId === requestIdRef.current) setLoading(false);
       });
     return () => { requestIdRef.current += 1; };
-  }, [path]);
+  }, [path, fileMode]);
 
   const goTo = (nextPath: string) => {
     requestIdRef.current += 1;
@@ -121,17 +122,19 @@ function DirectoryBrowser({ path, onPathChange, onSelect, onCancel }: DirectoryB
         {!loading && error && <div className="p-4 text-sm text-danger">加载失败：{error}</div>}
         {!loading && !error && data && data.entries.length === 0 && <div className="p-4 text-sm text-text-tertiary">空目录</div>}
         {!error && data?.entries.map((entry) => (
-          <button key={entry.path} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary" onClick={() => goTo(entry.path)}>
-            <Folder size={15} className="shrink-0 text-text-tertiary" />
+          <button key={entry.path} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary" onClick={() => entry.isDirectory ? goTo(entry.path) : onSelect(entry.path)}>
+            {entry.isDirectory ? <Folder size={15} className="shrink-0 text-text-tertiary" /> : <span className="w-[15px] shrink-0 text-center text-text-tertiary">·</span>}
             <span className="truncate">{entry.name}</span>
           </button>
         ))}
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" onClick={onCancel}>取消</Button>
-        <Button type="button" variant="primary" disabled={!data?.current || loading || !!error} onClick={() => data?.current && onSelect(data.current)}>
-          选择当前目录
-        </Button>
+        {!fileMode && (
+          <Button type="button" variant="primary" disabled={!data?.current || loading || !!error} onClick={() => data?.current && onSelect(data.current)}>
+            选择当前目录
+          </Button>
+        )}
       </div>
     </div>
   );

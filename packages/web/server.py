@@ -1205,7 +1205,7 @@ def _resolve_directory(path: str | None) -> Path | None:
 
 
 @app.get("/api/directories")
-async def list_directories(path: str | None = None):
+async def list_directories(path: str | None = None, include_files: bool = False):
     """List one directory level on the Pan server (never recursive).
 
     ``path`` omitted/empty returns the server's filesystem roots.  The API is
@@ -1233,6 +1233,12 @@ async def list_directories(path: str | None = None):
                             "name": item.name,
                             "path": str(Path(item.path)),
                             "isDirectory": True,
+                        })
+                    elif include_files and item.is_file(follow_symlinks=False):
+                        entries.append({
+                            "name": item.name,
+                            "path": str(Path(item.path)),
+                            "isDirectory": False,
                         })
                 except OSError:
                     # A directory can disappear or become inaccessible during
