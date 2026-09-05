@@ -53,7 +53,10 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
-    fetchDirectories(path || undefined, fileMode)
+    const request = fileMode
+      ? fetchDirectories(path || undefined, true)
+      : fetchDirectories(path || undefined);
+    request
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         cacheRef.current.set(path, result);
