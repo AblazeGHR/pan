@@ -54,7 +54,7 @@ if defined MAIN_PID (
 
 REM ---- 4. Kill cloudflared tunnel (optional service) ----
 if defined CF_PID (
-    powershell -NoProfile -Command "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=%CF_PID%\"; if ($p -and $p.Name -match '^cloudflared(\.exe)?$' -and $p.CommandLine -and $p.CommandLine -match 'pan_cf_config_') { exit 0 }; exit 1" >nul 2>&1
+    powershell -NoProfile -Command "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=%CF_PID%\"; if ($p -and $p.Name -match '^cloudflared(\.exe)?$' -and $p.CommandLine -and $p.CommandLine -match 'pan_cf_(config|quick)_') { exit 0 }; exit 1" >nul 2>&1
     if errorlevel 1 (
         echo [WARN] Recorded CF pid is not Pan's marked tunnel, skipping PID=%CF_PID%
     ) else (
@@ -74,8 +74,10 @@ REM         (bare "python" interpreters fall back to the project root, since
 REM         bot.py's own path already contains it).
 powershell -NoProfile -Command "$py=''; if ($env:PAN_QQ_PYTHON) { $py=$env:PAN_QQ_PYTHON } else { try { $c=Get-Content -Raw '%BASE_DIR%\config.json' | ConvertFrom-Json; if ($c.qq.python) { $py=$c.qq.python } } catch {} }; if (-not $py) { $py='E:\software\miniforge\python.exe' }; $frag=Split-Path -Parent $py; if (-not $frag) { $frag='%BASE_DIR%' }; $p = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'bot\.py' -and $_.CommandLine -match [regex]::Escape($frag) }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
 
-REM     5c. cloudflared whose command line uses our temp tunnel config marker
-powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'pan_cf_config_' }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
+REM     5c. cloudflared belonging to Pan: command line carries either the
+REM         named-tunnel temp yml marker (pan_cf_config_) or the quick-tunnel
+REM         logfile marker (pan_cf_quick_) — never a bare service config
+powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'pan_cf_(config|quick)_' }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
 
 REM ---- 6. Clean up pid files ----
 if exist "%PID_FILE%" del "%PID_FILE%" 2>nul
