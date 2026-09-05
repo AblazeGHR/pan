@@ -581,7 +581,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | `qq.enabled` | true | 是否启动 QQ bot（main.py 按此统一 spawn / 终止） |
 | `qq.mode` | `mirror` | `mirror` 全量镜像自动回复 / `selective` 选择性发送（消息只进 inbox，由 meta-agent 经 pan-qq MCP 决策） |
 | `qq.channel` | `napcat` | QQ 通道：`napcat` / `llonebot`（OneBot 11 网关插件化切换） |
-| `remote.enabled` | false | 是否启用 Cloudflare Tunnel |
+| `remote.enabled` | false | 是否启用 Cloudflare Tunnel；不控制 Pan Core、Web UI 或普通 `/api/*`（即使为 false，主服务仍按 `port` 启动） |
 | `remote.quick_tunnel` | true | true 用临时 URL；false 用 named tunnel（需 `remote.config_path`） |
 | `remote.status_port` | 8769 | Remote 状态服务端口 |
 | `logging` | INFO / `data/logs/pan.log` | 日志级别、轮转、控制台输出 |
@@ -856,8 +856,10 @@ python -m packages.remote
 ```
 
 - `quick_tunnel: true` → 输出 `*.trycloudflare.com` 临时 URL；`false` → 需 `remote.config_path` 指定 named tunnel 的 yml
+- `remote.enabled` 只控制 Tunnel：必须明确设为 `true`，`scripts/start_pan.bat` / `scripts/start_cf.ps1` 才会检查并启动 `cloudflared`；它不控制 Pan Core、Web UI 或普通 `/api/*`。`config.json.port` 独立控制主服务端口，默认仍为 8768。
 - 状态服务：`curl http://127.0.0.1:8769/status`
 - 公网域名来自 `config_path` 指向的 yml 的 `ingress.hostname`；tunnel 暴露的是 Pan 主端口（`config.port`）
+- Remote status/restart 接口只管理 Tunnel，不改变主服务的启动语义。
 
 ## ⚠️ 安全提示
 

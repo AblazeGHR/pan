@@ -81,7 +81,7 @@ def _run_start_cf_dry(base: Path, protocol, source_yml: str = _SOURCE_YML):
     src_yml = base / "cf.yml"
     src_yml.write_text(source_yml, encoding="utf-8")
 
-    remote = {"config_path": str(src_yml)}
+    remote = {"enabled": True, "config_path": str(src_yml)}
     if protocol is not None:
         remote["protocol"] = protocol
     (base / "config.json").write_text(
@@ -147,6 +147,46 @@ def test_ps1_replaces_existing_protocol_line(tmp_path):
     text = _read_yml(out)
     lines = [ln for ln in text.splitlines() if ln.strip().startswith("protocol:")]
     assert lines == ["protocol: http2"]
+
+
+def test_ps1_disabled_does_not_create_temp_config(tmp_path):
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    shutil.copy(REPO_ROOT / "scripts" / "start_cf.ps1", scripts / "start_cf.ps1")
+    (tmp_path / "config.json").write_text(
+        json.dumps({"port": TEST_PORT, "remote": {"enabled": False}}),
+        encoding="utf-8",
+    )
+    temp_dir = tmp_path / "temp"
+    temp_dir.mkdir()
+    env = {**os.environ, "TEMP": str(temp_dir), "TMP": str(temp_dir),
+           "PATH": r"C:\Windows\System32"}
+    env.pop("PAN_PORT", None)
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+         "-File", str(scripts / "start_cf.ps1")],
+        capture_output=True, env=env, timeout=60,
+        encoding="utf-8", errors="replace",
+    )
+    assert r.returncode == 0
+    assert not list(temp_dir.glob("pan_cf_config_*.yml"))
+    assert "skipping Cloudflare Tunnel" in (r.stdout + r.stderr)
+
+
+def test_start_pan_checks_remote_enabled_before_cloudflared_lookup():
+    text = (REPO_ROOT / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    assert "remote.enabled" in text
+    assert 'if /i not "%PAN_REMOTE_STATE%"=="enabled"' in text
+    assert "skipping Cloudflare Tunnel" in text
+    assert text.index("PAN_REMOTE_STATE") < text.index("where.exe cloudflared")
+
+
+def test_pan_port_default_remains_8768():
+    example = json.loads((REPO_ROOT / "config.example.json").read_text(encoding="utf-8"))
+    start = (REPO_ROOT / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    assert example["port"] == 8768
+    assert 'set "PAN_PORT=8768"' in start
+    assert 'set "PAN_PORT=8767"' not in start
 
 
 # ── process matcher isolation ──
