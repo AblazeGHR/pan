@@ -551,6 +551,26 @@ describe('InputRow pill visibility', () => {
 });
 
 describe('InputRow control row layout contract', () => {
+  it('uses a wider Queue control and right-aligns desktop attachment', () => {
+    mockMatchMedia(false);
+    setModelAndPermissionSession();
+    render(<InputRow />);
+    expect(screen.getByText('Queue')).toBeTruthy();
+    expect(screen.getByText('Queue').closest('button')?.className).toContain('md:w-auto');
+    expect(screen.getByRole('button', { name: '添加附件' }).parentElement?.className).toContain('md:ml-auto');
+  });
+
+  it('shows both attachment choices outside the clipped control row', () => {
+    setModelAndPermissionSession();
+    render(<InputRow />);
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    const menu = screen.getByTestId('attachment-menu');
+    expect(menu).toBeTruthy();
+    expect(menu.parentElement).toBe(document.body);
+    expect(screen.getByRole('button', { name: /服务端附件$/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '客户端附件' })).toBeTruthy();
+  });
+
   it('keeps desktop attachment in the control row, separate from textarea and Send', () => {
     mockMatchMedia(false);
     setModelAndPermissionSession();

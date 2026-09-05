@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -519,8 +520,9 @@ export function InputRow() {
                   <SettingsPopover open={settingsOpen} onClose={() => setSettingsOpen(false)} />
                 </div>
                 <div className="relative">
-                  <button onClick={togglePanel} title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'} aria-label="发送队列" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                  <button onClick={togglePanel} title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'} aria-label="发送队列" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
                     <ChevronUp size={14} className={`transition-transform duration-200 ${panelOpen ? 'rotate-180' : ''}`} />
+                    <span className="ml-1 hidden text-xs md:inline">Queue</span>
                   </button>
                   {queueCount > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">{queueCount > 99 ? '99+' : queueCount}</span>}
                 </div>
@@ -563,14 +565,14 @@ export function InputRow() {
                   ))}
                 </select>
               )}
-              <div className="relative order-last shrink-0">
+              <div className="relative order-last shrink-0 md:ml-auto">
                 <button type="button" aria-label="添加附件" title="添加附件" onClick={() => setAttachmentMenuOpen((open) => !open)} className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
                   <Paperclip size={14} />
                 </button>
-                {attachmentMenuOpen && <div className="absolute bottom-full right-0 z-30 mb-1 min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
+                {attachmentMenuOpen && createPortal(<div data-testid="attachment-menu" className="fixed bottom-20 right-3 z-[60] min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { setAttachmentBrowserPath(''); setAttachmentBrowserOpen(true); }}><FileIcon size={14} /> 服务端附件</button>
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { clientAttachmentInputRef.current?.click(); setAttachmentMenuOpen(false); }}><Paperclip size={14} /> 客户端附件</button>
-                </div>}
+                </div>, document.body)}
               </div>
               {isMobile && (
                 <button
