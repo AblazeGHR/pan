@@ -27,6 +27,7 @@ Tools exposed:
     - agent_send_force: Force-push to an agent (restart + send; no live worker → queue)
     - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
       persisted queue + immediate auto-spawn when no live worker)
+    - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
     - agent_list: List all agents (= sessions) — alias of session_list
     - worker_spawn / worker_task / worker_assign / worker_send / worker_send_force /
@@ -1338,6 +1339,58 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
         body["source"] = "agent"
         body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/notify", body)
+
+
+@mcp.tool()
+def agent_background_start(argv: list[str], cwd: str, target_session_id: str | None = None,
+                           label: str | None = None) -> dict:
+    """Start a durable background process; target defaults to this Agent Session."""
+    target = target_session_id or ((_caller_identity() or {}).get("id"))
+    if not target:
+        return {"ok": False, "error": {"code": "target_session_required", "message": "no current Agent Session"}}
+    denied = _check_access(target, claim=False)
+    if denied:
+        return denied
+    return _api("POST", "/api/background-jobs", {
+        "targetSessionId": target, "argv": argv, "cwd": cwd, "label": label})
+
+
+@mcp.tool()
+def agent_background_get(job_id: str) -> dict:
+    job = _api("GET", f"/api/background-jobs/{quote(job_id, safe='')}")
+    target = job.get("targetSessionId") if isinstance(job, dict) else None
+    denied = _check_access(target) if target else None
+    return denied or job
+
+
+@mcp.tool()
+def agent_background_list(target_session_id: str | None = None) -> dict:
+    if target_session_id:
+        denied = _check_access(target_session_id)
+        if denied:
+            return denied
+    elif (_caller_identity() or {}).get("id"):
+        target_session_id = (_caller_identity() or {}).get("id")
+    path = "/api/background-jobs"
+    if target_session_id:
+        path += "?targetSessionId=" + quote(target_session_id, safe="")
+    return _api("GET", path)
+
+
+@mcp.tool()
+def agent_background_cancel(job_id: str) -> dict:
+    job = agent_background_get(job_id)
+    if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
+        return job
+    return _api("POST", f"/api/background-jobs/{quote(job_id, safe='')}/cancel")
+
+
+@mcp.tool()
+def agent_background_retry(job_id: str) -> dict:
+    job = agent_background_get(job_id)
+    if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
+        return job
+    return _api("POST", f"/api/background-jobs/{quote(job_id, safe='')}/retry")
 
 
 @mcp.tool()

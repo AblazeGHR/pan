@@ -55,6 +55,7 @@ from packages.core.config import (
 from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
+from packages.core import background_jobs
 
 # ── logging ──
 
@@ -86,6 +87,7 @@ async def lifespan(app: FastAPI):
     # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
     worker.start_global_watchdog()
+    background_jobs.start_recovery_loop()
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -101,6 +103,7 @@ async def lifespan(app: FastAPI):
     
     yield
     worker.stop_global_watchdog()
+    await background_jobs.stop_recovery_loop()
     # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
     # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
     # spawn 中途导致 Windows Proactor 循环无法退出。
@@ -2508,6 +2511,51 @@ async def api_models(adapter: str = "cbc"):
     """Return model list and default for a given adapter."""
     a = _safe_adapter(adapter)
     return {"models": a.supported_models, "default": a.default_model}
+
+
+# ── Durable background jobs ──
+
+@app.post("/api/background-jobs")
+async def api_background_job_start(data: dict):
+    target = data.get("targetSessionId")
+    argv = data.get("argv")
+    cwd = data.get("cwd")
+    try:
+        return background_jobs.start(target, argv, cwd, label=data.get("label"))
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {"code": "runner_spawn_failed", "message": str(exc)}}
+
+
+@app.get("/api/background-jobs")
+async def api_background_job_list(targetSessionId: str | None = None):
+    jobs = background_jobs.list_jobs()
+    if targetSessionId:
+        jobs = [j for j in jobs if j.get("targetSessionId") == targetSessionId]
+    return {"jobs": jobs}
+
+
+@app.get("/api/background-jobs/{job_id}")
+async def api_background_job_get(job_id: str):
+    job = background_jobs.get(job_id)
+    return job or {"ok": False, "error": {"code": "job_not_found", "message": "job not found"}}
+
+
+@app.post("/api/background-jobs/{job_id}/cancel")
+async def api_background_job_cancel(job_id: str):
+    try:
+        return background_jobs.cancel(job_id)
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "job_not_found", "message": str(exc)}}
+
+
+@app.post("/api/background-jobs/{job_id}/retry")
+async def api_background_job_retry(job_id: str):
+    try:
+        return background_jobs.retry(job_id)
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
 
 
 @app.get("/api/adapter/config")
