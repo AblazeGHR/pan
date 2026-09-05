@@ -448,6 +448,59 @@ def _session(w: Worker) -> _sess.Session | None:
     return _sess.get(w.session_id)
 
 
+_LEGAL_WORKER_STATES = frozenset({
+    "queued", "running", "done", "error", "cancelled", "idle",
+    "restarting", "held", "offline",
+})
+
+
+async def _record_legal_worker_state(
+    w: Worker, state: str, source: str, *, persist: bool = True,
+) -> bool:
+    """Persist a state reached by an explicit, successful Pan transition.
+
+    ``worker.status`` remains the live runtime truth and is broadcast at its
+    existing call sites.  This separate ledger is intentionally never called
+    from EOF/zombie handling: an observed process death is not evidence that
+    Pan legally stopped that worker.
+    """
+    if state not in _LEGAL_WORKER_STATES:
+        raise ValueError(f"unsupported legal worker state: {state}")
+    s = _session(w)
+    if s is None:
+        return False
+    s.last_legal_worker_state = state
+    if persist:
+        try:
+            await _sess.save_async(s)
+        except Exception as exc:  # keep lifecycle behavior compatible on I/O failure
+            _log.warning(
+                "[Worker %s] failed to persist legal state=%s source=%s: %s",
+                w.worker_id, state, source, exc,
+            )
+            return False
+    _log.info(
+        "[Worker %s] legal state=%s source=%s session=%s",
+        w.worker_id, state, source, w.session_id,
+    )
+    return True
+
+
+def _runtime_stopped(w: Worker) -> bool:
+    """Return true only after all tracked provider runtimes are stopped."""
+    for process in (w.process, w._mcp_proc):
+        if process is not None and getattr(process, "returncode", None) is None:
+            return False
+    return True
+
+
+def begin_shutdown() -> None:
+    """Close the service gate before an orderly Pan exit begins."""
+    global _shutdown_started
+    _shutdown_started = True
+    stop_global_watchdog()
+
+
 def _mcp_configured(s: _sess.Session | None) -> bool:
     """Session 是否配置了 MCP 工具（mcp_servers 非空）。
 
@@ -687,6 +740,11 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
         }
         _ack_current_task(w, s)
         _ack_current_reports(w, s)
+        # The existing terminal-result save should also persist the final
+        # legal state, avoiding extra full-session writes on this hot path.
+        await _record_legal_worker_state(w, "error", "task/error", persist=False)
+        w.status = "idle"
+        await _record_legal_worker_state(w, "idle", "task/error-complete", persist=False)
         await _sess.save_async(s)
     await _bcast({
         "type": "worker.result",
@@ -707,6 +765,9 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
     w._current_task_id = None
     w._current_source_session_id = None
     w.status = "idle"
+    if s is None:
+        await _record_legal_worker_state(w, "error", "task/error", persist=False)
+        await _record_legal_worker_state(w, "idle", "task/error-complete", persist=False)
     _signal_task_done(w)
 
 
@@ -864,6 +925,7 @@ async def _read_stdout(w: Worker):
             if w._replaying:
                 w._replaying = False
                 w.status = "idle"
+                await _record_legal_worker_state(w, "idle", "task/replay-complete")
                 _signal_task_done(w)
                 _maybe_restart_pending(w)
                 continue
@@ -907,7 +969,14 @@ async def _read_stdout(w: Worker):
                     _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
                 # A1 result 立即落盘：同时 flush 防抖缓冲的流式块 + last_result，
                 # 由单写者防抖任务（若在跑）完成，避免双写竞态。
+                result_status = w.status
+                await _record_legal_worker_state(w, result_status, "task/complete", persist=False)
+                w.status = "idle"
+                await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
                 await _flush_history_now(w)
+                # Keep the live status semantics unchanged until the result
+                # event and task ledger have been published below.
+                w.status = result_status
 
             # taskSeq 已在上方（last_result 补存处）统一用 _current_seq。
             task_seq = w._current_seq
@@ -2547,6 +2616,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
 
     未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
     """
+    if _shutdown_started:
+        return
     s = _sess.get(session_id)
     if not s or not s.managed_by:
         return
@@ -2600,6 +2671,8 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
     ``auto_spawn`` 参数以兼容旧调用方；现在所有无活 worker 的唤醒都合并为
     一个 session 级恢复任务，避免并发报告/QQ 提醒重复 spawn。
     """
+    if _shutdown_started:
+        return
     mw = find_worker_by_session(session_id)
     if (mw and mw.pending_signal is not None
             and not (mw.process is not None and mw.process.returncode is not None)):
@@ -2639,6 +2712,8 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
     "botUin": "<bot_uin>"?, ...}，_format_report_batch 按 type=qq 分支渲染为
     `@@@@by qq` 抬头（bot_uin 非空时抬头带 `| bot <uin>`）。
     """
+    if _shutdown_started:
+        return 0
     target_key = f"{target_type}:{target_id}"
     bot_key = f"{target_key}@{bot_uin}" if bot_uin else None
     item = {
@@ -2708,6 +2783,10 @@ async def enqueue_notice(target_session_id: str, text: str,
     返回 {"ok": True, "sessionId": ..., "pending": <队列长度>}；session
     不存在返回 {"ok": False, "error": {...}}。
     """
+    if _shutdown_started:
+        return {"ok": False, "error": {
+            "code": "pan_shutting_down",
+            "message": "Pan main service is shutting down"}}
     target = _sess.get(target_session_id)
     if not target:
         return {"ok": False, "error": {
@@ -3189,6 +3268,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
     # 用「任务运行时长」作为 running 超时判据，避免误杀静默思考中的任务。
     w._task_started_at = time.monotonic()
     w.status = "running"
+    await _record_legal_worker_state(w, "running", "task/start")
 
     # Clear before writing.  A fast provider can emit init+result before the
     # status/save broadcasts below; clearing after the write would erase that
@@ -3333,6 +3413,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             on_handoff = lambda: _commit_queue_handoff(w, s, standalone_items)
 
     w.status = "running"
+    await _record_legal_worker_state(w, "running", "task/start")
     await _bcast({
         "type": "worker.status",
         "workerId": w.worker_id,
@@ -3599,6 +3680,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         prev_credit = prev_total.get("credit", 0) if prev_total else 0
         new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
         _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
+    await _record_legal_worker_state(w, status, "task/complete", persist=False)
+    w.status = "idle"
+    await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
     await _sess.save_async(s)
 
     # Broadcast assistant events as worker.stream so the frontend displays the
@@ -3693,8 +3777,12 @@ async def create_worker(session_id: str) -> Worker | str:
     - One-shot MCP mode: no long-running process. Each task spawns a one-shot
       cbc process. Used when MCP configured and output_mode unset/oneshot.
     """
+    if _shutdown_started:
+        return "Pan main service is shutting down"
     lock = await _session_spawn_lock(session_id)
     async with lock:
+        if _shutdown_started:
+            return "Pan main service is shutting down"
         return await _create_worker(session_id)
 
 
@@ -3706,11 +3794,15 @@ async def restart_or_start_worker(session_id: str) -> Worker | str:
     workers.  ``_create_worker`` is used under the lock to avoid re-entering
     ``create_worker`` and deadlocking.
     """
+    if _shutdown_started:
+        return "Pan main service is shutting down"
     if _sess.get(session_id) is None:
         return f"Session {session_id} not found"
     recovery_pending = session_id in _recovery_required
     lock = await _session_spawn_lock(session_id)
     async with lock:
+        if _shutdown_started:
+            return "Pan main service is shutting down"
         alive = find_alive_worker_by_session(session_id)
         if alive is not None:
             if recovery_pending and session_id not in _recovery_required:
@@ -3822,6 +3914,10 @@ async def _create_worker(session_id: str) -> Worker | str:
     if not _DEFAULTS_INITIALIZED:
         load_worker_config()
     w._watchdog_task = asyncio.create_task(_watchdog(w))
+
+    # Spawn/start succeeded: this is the first legal lifecycle fact for this
+    # Worker.  A later EOF/zombie path must not replace it.
+    await _record_legal_worker_state(w, "idle", "create/start")
 
     await _bcast({
         "type": "worker.spawned",
@@ -3978,6 +4074,8 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    if _shutdown_started:
+        return "Pan main service is shutting down"
     if w.status == "held":
         return "Worker already in takeover mode"
 
@@ -3994,6 +4092,8 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     clear_native_runtime_state(w)
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    if _runtime_stopped(w):
+        await _record_legal_worker_state(w, "held", "pan/takeover")
     w.process = None
     w._mcp_proc = None
     if w._hist_dirty:
@@ -4036,6 +4136,9 @@ async def _kill_worker_unlocked(
     await _stop_worker_tasks(w)
     await _kill_process_tree(w)
     await _kill_takeover_terminal(w)
+
+    if _runtime_stopped(w):
+        await _record_legal_worker_state(w, "offline", "pan/kill")
 
     # H2: worker 被杀 → 名下 pending 的 taskId 标 error（防止幂等重试永久卡 pending）
     _mark_worker_tasks_error(worker_id, "worker killed")
@@ -4280,6 +4383,8 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
 
     # kill existing cbc process tree（psutil 递归杀，避免 node.exe 孤儿）
     await _kill_process_tree(w)
+    if _runtime_stopped(w):
+        await _record_legal_worker_state(w, "offline", "pan/restart-stop")
     w.process = None
 
     # One-shot workers deliberately have no long-running stream process.
@@ -4289,6 +4394,7 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
         w.status = "idle"
         await _restart_tasks(w)
+        await _record_legal_worker_state(w, "idle", "pan/restart-start")
         s = _session(w)
         await _bcast({
             "type": "worker.restarted",
@@ -4307,6 +4413,7 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
         return f"Spawn failed ({w.session_id}): {proc}"
     w.process = proc
     w.status = "idle"
+    await _record_legal_worker_state(w, "idle", "pan/restart-start")
     # resume 不再置 _replaying（worker-resume-replay 结论）：cbc stdin 有 prompt
     # 时不重放 stdout 历史，首个 result 即任务结果；若仍置 True，_read_stdout
     # 会把首个 result 当 replay 结束丢弃（L507-512 continue）→ 任务永不完成。
@@ -4326,6 +4433,8 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
 
 async def restart_worker(worker_id: str) -> str | None:
     """Serialized compatibility wrapper for worker-id callers."""
+    if _shutdown_started:
+        return "Pan main service is shutting down"
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -4365,6 +4474,8 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
 
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    if _runtime_stopped(w):
+        await _record_legal_worker_state(w, "offline", "pan/respawn-stop")
     w.process = None
 
     # Settings changes can also request a respawn.  Keep one-shot sessions on
@@ -4373,6 +4484,7 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
         w.status = "idle"
         await _restart_tasks(w)
+        await _record_legal_worker_state(w, "idle", "pan/respawn-start")
         await _bcast({
             "type": "worker.reconfigured",
             "workerId": worker_id,
@@ -4389,6 +4501,7 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
         return proc
     w.process = proc
     w.status = "idle"
+    await _record_legal_worker_state(w, "idle", "pan/respawn-start")
     await _restart_tasks(w)
 
     await _bcast({
@@ -4403,6 +4516,8 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
 
 async def respawn_worker(worker_id: str, extra_args: list[str] | None = None) -> str | None:
     """Serialized compatibility wrapper for worker-id callers."""
+    if _shutdown_started:
+        return "Pan main service is shutting down"
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -4697,6 +4812,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              client_message_id: str | None,
                              source_session_id: str | None = None) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
+    if _shutdown_started:
+        return None, "Pan main service is shutting down"
     source_type, source_sid, source_error = _validate_source_metadata(
         s, source, source_session_id)
     if source_error:
@@ -4946,6 +5063,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     # queued：任务已入队、consumer 尚未取出。若队列前面还有任务，保持 queued 直到轮到它。
     if w.status in ("idle", "queued"):
         w.status = "queued"
+        await _record_legal_worker_state(w, "queued", "task/queued")
         await _bcast({
             "type": "worker.status",
             "workerId": w.worker_id,
@@ -4986,6 +5104,8 @@ async def assign(session_id: str, text: str, source: str = "agent",
     - 进行中 → 返回 {"status": "pending", "taskId": ...}，不重复入队
     用于超时后安全重试 / 并发去重。不带 task_id 行为不变。
     """
+    if _shutdown_started:
+        return {"status": "error", "result": "Pan main service is shutting down"}
     target = _sess.get(session_id)
     if target is None:
         return {"status": "error", "result": f"Session {session_id} not found"}
@@ -5102,6 +5222,8 @@ async def send_session(session_id: str, text: str, source: str = "agent",
       补发无正文 queue_signal 分发——「send = 写给 agent」。
     - held（takeover 模式）→ 透传错误，不吞错不入队。
     """
+    if _shutdown_started:
+        return {"status": "error", "result": "Pan main service is shutting down"}
     target = _sess.get(session_id)
     if target is None:
         return {"status": "error", "result": f"Session {session_id} not found"}
@@ -5209,7 +5331,10 @@ def find_alive_worker_by_session(session_id: str) -> Worker | None:
     return None
 
 
-async def shutdown_all(*, recovery_drain_timeout: float = 10.0):
+async def shutdown_all(
+    *, recovery_drain_timeout: float = 10.0,
+    mark_legal_offline: bool = False,
+):
     """关闭所有 worker 的 cbc 进程树 + takeover 终端。
 
     使用 psutil 递归杀进程树（避免 node.exe 等孤儿进程）。
@@ -5242,6 +5367,8 @@ async def shutdown_all(*, recovery_drain_timeout: float = 10.0):
             await _flush_history_now(w)
         await _kill_process_tree(w)
         await _kill_takeover_terminal(w)
+        if mark_legal_offline and _runtime_stopped(w):
+            await _record_legal_worker_state(w, "offline", "pan/main-exit")
     workers.clear()
     _workers_by_session.clear()
     _worker_generations.clear()

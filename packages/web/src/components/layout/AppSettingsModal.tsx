@@ -9,6 +9,8 @@ import {
   restartRemoteTunnel,
   fetchMainRestartStatus,
   restartMainService,
+  fetchMainExitStatus,
+  exitMainService,
   fetchHealth,
   updateWorkerSettings,
   fetchCodexModels,
@@ -18,6 +20,7 @@ import type {
   ApiConfigReloadResponse,
   ApiRemoteStatusResponse,
   ApiMainRestartStatusResponse,
+  ApiMainExitStatusResponse,
   ApiModelsResponse,
 } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
@@ -40,6 +43,7 @@ type SettingsTab = 'general' | 'notifications' | 'adapter';
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
 type MainRestartState =
   'idle' | 'confirming' | 'restarting' | 'restored' | 'timeout' | 'cancelled' | 'error';
+type MainExitState = 'idle' | 'confirming' | 'exiting' | 'exited' | 'error';
 
 function SwitchRow({
   label,
@@ -330,6 +334,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   );
   const [mainRestartState, setMainRestartState] = useState<MainRestartState>('idle');
   const [mainRestartError, setMainRestartError] = useState<string | null>(null);
+  const [mainExitStatus, setMainExitStatus] = useState<ApiMainExitStatusResponse | null>(null);
+  const [mainExitState, setMainExitState] = useState<MainExitState>('idle');
+  const [mainExitError, setMainExitError] = useState<string | null>(null);
   const recoveryAbortRef = useRef<AbortController | null>(null);
   const recoveryCancelledRef = useRef(false);
   const showToast = useUIStore((s) => s.showToast);
@@ -343,6 +350,32 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       })
       .catch(() => {
         /* modal still usable without the remote section */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetchMainExitStatus()
+      .then((s) => {
+        if (!cancelled) {
+          setMainExitStatus(s);
+          if (s.pending) setMainExitState('exiting');
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setMainExitStatus({
+            available: false,
+            pending: false,
+            platform: 'unknown',
+            stage: 'error',
+            reason: e instanceof Error ? e.message : String(e),
+          });
+        }
       });
     return () => {
       cancelled = true;
@@ -455,6 +488,14 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
         try {
           await fetchHealth(probe.signal);
           if (!controller.signal.aborted) {
+            const persisted = await fetchMainRestartStatus().catch(() => null);
+            if (persisted?.phase === 'failed' || persisted?.phase === 'timed_out') {
+              setMainRestartStatus(persisted);
+              setMainRestartState(persisted.phase === 'timed_out' ? 'timeout' : 'error');
+              setMainRestartError(persisted.error || 'Pan restart failed in the supervisor.');
+              showToast(persisted.error || 'Pan restart failed', 'error');
+              return;
+            }
             setMainRestartState('restored');
             setMainRestartStatus((previous) =>
               previous ? { ...previous, pending: false } : previous,
@@ -469,9 +510,17 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
         }
         await wait(750);
       }
-      setMainRestartState('timeout');
-      setMainRestartError('Pan was restarted, but health check timed out after 16 seconds.');
-      showToast('Pan restart health check timed out', 'error');
+      const persisted = await fetchMainRestartStatus().catch(() => null);
+      if (persisted?.phase === 'failed' || persisted?.phase === 'timed_out') {
+        setMainRestartStatus(persisted);
+        setMainRestartState(persisted.phase === 'timed_out' ? 'timeout' : 'error');
+        setMainRestartError(persisted.error || 'Pan restart failed in the supervisor.');
+        showToast(persisted.error || 'Pan restart failed', 'error');
+      } else {
+        setMainRestartState('timeout');
+        setMainRestartError('Pan was restarted, but health check timed out after 16 seconds.');
+        showToast('Pan restart health check timed out', 'error');
+      }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
       setMainRestartState('error');
@@ -495,6 +544,21 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       setMainRestartStatus((previous) => (previous ? { ...previous, pending: false } : previous));
       setMainRestartState('error');
       setMainRestartError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleMainExit = async () => {
+    setMainExitState('exiting');
+    setMainExitError(null);
+    setMainExitStatus((previous) => (previous ? { ...previous, pending: true } : previous));
+    try {
+      await exitMainService();
+      setMainExitState('exited');
+      showToast('Pan exit scheduled; this service will stop', 'info');
+    } catch (e) {
+      setMainExitStatus((previous) => (previous ? { ...previous, pending: false } : previous));
+      setMainExitState('error');
+      setMainExitError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -994,6 +1058,82 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
                   Restarts this Pan instance through scripts/stop_pan.bat and scripts/start_pan.bat.
                   Worker and Remote/Tunnel restart controls are separate.
+                </p>
+              </section>
+
+              {/* Stop-only Pan exit — intentionally has no health-recovery
+              polling because this action makes the current service unavailable. */}
+              <section className="mt-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Exit Pan service
+                </h3>
+                {mainExitState === 'confirming' ? (
+                  <div className="rounded-md border border-danger/40 bg-danger/10 px-3 py-3">
+                    <p className="text-xs text-text-primary">
+                      Stop this Pan service and all live Workers? Pan will not restart and the
+                      dashboard will disconnect after the stop is scheduled.
+                    </p>
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMainExitState('idle')}
+                        className="rounded border border-border-default px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleMainExit}
+                        className="rounded bg-danger px-3 py-1.5 text-xs text-white hover:opacity-90"
+                      >
+                        Confirm exit
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={
+                      !mainExitStatus?.available ||
+                      mainExitState === 'exiting' ||
+                      mainExitState === 'exited' ||
+                      Boolean(mainExitStatus?.pending) ||
+                      mainRestartState === 'restarting' ||
+                      Boolean(mainRestartStatus?.pending)
+                    }
+                    onClick={() => setMainExitState('confirming')}
+                    className="w-full flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-bg-primary px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-xs text-text-primary">Exit Pan main service</span>
+                      <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
+                        {mainExitState === 'exiting'
+                          ? 'Stopping Workers and Pan…'
+                          : mainExitState === 'exited'
+                            ? 'Exit scheduled; this service will go offline'
+                            : mainExitStatus?.available
+                              ? 'Stops this Pan instance without restarting it'
+                              : mainExitStatus?.reason || 'Checking exit support…'}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[11px] text-text-tertiary">
+                      {mainExitState === 'exiting' ? 'Exiting…' : 'Exit'}
+                    </span>
+                  </button>
+                )}
+                {mainExitState === 'exited' && (
+                  <p className="mt-1.5 text-[11px] text-success">
+                    Pan exit is scheduled. No health-recovery check will run.
+                  </p>
+                )}
+                {mainExitError && (
+                  <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                    {mainExitError}
+                  </div>
+                )}
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Pan first closes its own live Workers through the internal shutdown path, then a
+                  detached stop-only supervisor stops this checkout. Restart remains separate.
                 </p>
               </section>
 

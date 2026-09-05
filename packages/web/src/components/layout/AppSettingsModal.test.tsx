@@ -10,12 +10,16 @@ const {
   fetchMainRestartStatusMock,
   restartMainServiceMock,
   fetchHealthMock,
+  fetchMainExitStatusMock,
+  exitMainServiceMock,
 } = vi.hoisted(() => ({
   fetchCodexModelsMock: vi.fn(),
   refreshCodexOfficialModelsMock: vi.fn(),
   fetchMainRestartStatusMock: vi.fn(),
   restartMainServiceMock: vi.fn(),
   fetchHealthMock: vi.fn(),
+  fetchMainExitStatusMock: vi.fn(),
+  exitMainServiceMock: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -28,6 +32,8 @@ vi.mock('@/services/api', async (importOriginal) => {
     }),
     fetchMainRestartStatus: fetchMainRestartStatusMock,
     restartMainService: restartMainServiceMock,
+    fetchMainExitStatus: fetchMainExitStatusMock,
+    exitMainService: exitMainServiceMock,
     fetchHealth: fetchHealthMock,
     fetchCodexModels: fetchCodexModelsMock,
     refreshCodexOfficialModels: refreshCodexOfficialModelsMock,
@@ -77,9 +83,22 @@ describe('AppSettingsModal', () => {
       requestId: 'restart-1',
     });
     fetchHealthMock.mockResolvedValue({ status: 'ok', version: 'test' });
+    fetchMainExitStatusMock.mockResolvedValue({
+      available: true,
+      pending: false,
+      platform: 'nt',
+      stage: 'idle',
+    });
+    exitMainServiceMock.mockResolvedValue({
+      ok: true,
+      status: 'scheduled',
+      requestId: 'exit-1',
+    });
     fetchMainRestartStatusMock.mockClear();
     restartMainServiceMock.mockClear();
     fetchHealthMock.mockClear();
+    fetchMainExitStatusMock.mockClear();
+    exitMainServiceMock.mockClear();
   });
 
   it('renders nothing when closed', () => {
@@ -241,6 +260,51 @@ describe('AppSettingsModal', () => {
     });
     await waitFor(() => expect(cardEl().textContent).toContain('healthy again'));
     expect(fetchHealthMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires confirmation and schedules a stop-only Pan exit without health polling', async () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const exitButton = await waitFor(() => {
+      const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
+        (b) => b.textContent?.includes('Exit Pan main service'),
+      );
+      expect(button).toBeTruthy();
+      return button!;
+    });
+
+    fireEvent.click(exitButton);
+    expect(cardEl().textContent).toContain('Confirm exit');
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+        b.textContent?.includes('Confirm exit'),
+      )!,
+    );
+    await waitFor(() => expect(exitMainServiceMock).toHaveBeenCalledTimes(1));
+    expect(cardEl().textContent).toContain('No health-recovery check will run');
+    expect(fetchHealthMock).not.toHaveBeenCalled();
+  });
+
+  it('shows an unavailable exit control and API error state', async () => {
+    fetchMainExitStatusMock.mockResolvedValueOnce({
+      available: false,
+      pending: false,
+      platform: 'posix',
+      stage: 'idle',
+      reason: 'main service exit is available only on Windows',
+    });
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const button = await waitFor(() => {
+      const found = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
+        (b) => b.textContent?.includes('Exit Pan main service'),
+      );
+      expect(found).toBeTruthy();
+      expect(found!.disabled).toBe(true);
+      return found!;
+    });
+    expect(button.disabled).toBe(true);
+    await waitFor(() =>
+      expect(cardEl().textContent).toContain('main service exit is available only on Windows'),
+    );
   });
 
   it('allows stopping the bounded health check and does not call health forever', async () => {

@@ -16,18 +16,16 @@ if (-not $Root) {
 }
 
 $Root = (Resolve-Path -LiteralPath $Root).Path
-$ScriptDir = Join-Path $Root "scripts"
-$StopScript = Join-Path $ScriptDir "stop_pan.bat"
-$StartScript = Join-Path $ScriptDir "start_pan.bat"
+$StopScript = Join-Path $Root "scripts\stop_pan.bat"
+$ConfigPath = Join-Path $Root "config.json"
 $LogDir = Join-Path $Root "data\logs"
-$LogFile = Join-Path $LogDir "pan-restart.log"
+$LogFile = Join-Path $LogDir "pan-exit.log"
 if (-not $RegistryRoot) { $RegistryRoot = Join-Path $Root "data\background_jobs" }
 if (-not $Port) {
     $Port = 8768
-    $configPath = Join-Path $Root "config.json"
-    if (Test-Path -LiteralPath $configPath) {
+    if (Test-Path -LiteralPath $ConfigPath) {
         try {
-            $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+            $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
             if ($config.port) { $Port = [int]$config.port }
         } catch { }
     }
@@ -35,21 +33,26 @@ if (-not $Port) {
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
-function Write-RestartLog([string]$Message) {
+function Write-ExitLog([string]$Message) {
     $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -LiteralPath $LogFile -Value "[$stamp] $Message"
 }
 
 if (-not $Supervisor) {
-    # The request process launches this first, short-lived hop.  The second
-    # PowerShell process is the real supervisor and owns the stop/start chain;
-    # it is started hidden before the current Pan process is stopped.
+    # The second PowerShell process is detached before the current Pan
+    # process is stopped.  The stop script does not match this supervisor:
+    # its checkout-bound process rule requires main.py.
     $arguments = @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-File", $PSCommandPath,
         "-Root", $Root,
         "-RequestId", $RequestId,
+        "-JobId", $JobId,
+        "-RegistryRoot", $RegistryRoot,
+        "-Port", $Port,
+        "-OldPid", $OldPid,
+        "-OldPidCreatedAt", $OldPidCreatedAt,
         "-Supervisor"
     )
     Start-Process -FilePath "powershell.exe" -ArgumentList $arguments `
@@ -61,24 +64,17 @@ try {
     if (-not (Test-Path -LiteralPath $StopScript -PathType Leaf)) {
         throw "stop script not found: $StopScript"
     }
-    if (-not (Test-Path -LiteralPath $StartScript -PathType Leaf)) {
-        throw "start script not found: $StartScript"
-    }
-
-    Write-RestartLog "supervisor started request=$RequestId job=$JobId root=$Root port=$Port"
     if (-not $JobId) { throw "durable lifecycle Job id is required" }
+    Write-ExitLog "supervisor started request=$RequestId job=$JobId root=$Root port=$Port"
     $Python = Join-Path $Root ".venv\Scripts\python.exe"
     if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
         $PythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
         if (-not $PythonCommand) { throw "Pan Python interpreter not found" }
         $Python = $PythonCommand.Source
     }
-
-    # The detached supervisor delegates both stop_pan.bat and start_pan.bat
-    # to the durable Python lifecycle runner.  The runner verifies the target
-    # checkout, listener owner, PID creation time, and /api/health before it
-    # records ready; neither script's launch return alone means success.
-    Start-Sleep -Seconds 1
+    # The lifecycle runner invokes only stop_pan.bat and verifies that this
+    # checkout's listener and verified old service process are gone.  It never
+    # invokes a start/restart script for the exit operation.
     $runnerArgs = @(
         "-m", "packages.core.main_lifecycle", "--supervise",
         "--job-id", $JobId, "--root", $Root, "--port", $Port,
@@ -88,11 +84,11 @@ try {
     if ($OldPidCreatedAt) { $runnerArgs += @("--old-pid-created-at", $OldPidCreatedAt) }
     & $Python @runnerArgs *>> $LogFile
     if ($LASTEXITCODE -ne 0) {
-        throw "durable Pan lifecycle supervisor failed with exit code $LASTEXITCODE"
+        throw "durable Pan exit supervisor failed with exit code $LASTEXITCODE"
     }
-    Write-RestartLog "Pan restart lifecycle completed request=$RequestId job=$JobId"
+    Write-ExitLog "Pan exit lifecycle completed request=$RequestId job=$JobId"
 }
 catch {
-    Write-RestartLog "Pan restart failed request=$RequestId error=$($_.Exception.Message)"
+    Write-ExitLog "Pan exit failed request=$RequestId error=$($_.Exception.Message)"
     exit 1
 }
