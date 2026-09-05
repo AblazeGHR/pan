@@ -292,6 +292,7 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
     command = [
         "powershell.exe",
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
@@ -315,6 +316,8 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         command += ["-OldPid", str(job["oldPid"])]
     if job.get("oldPidCreatedAt") is not None:
         command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
+    launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-restart-launcher.log"
+    launcher_log.parent.mkdir(parents=True, exist_ok=True)
     flags = (
         getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
@@ -324,16 +327,21 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
-    return subprocess.Popen(
-        command,
-        cwd=str(_PROJECT_DIR),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        creationflags=flags,
-        startupinfo=startupinfo,
-    )
+    # Keep the handle open only across Popen.  subprocess duplicates the
+    # redirected standard handle for the detached child before this closes it.
+    # This captures PowerShell parameter/parser/startup failures that happen
+    # before restart_pan.ps1 can create its own pan-restart.log.
+    with launcher_log.open("ab") as log:
+        return subprocess.Popen(
+            command,
+            cwd=str(_PROJECT_DIR),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            creationflags=flags,
+            startupinfo=startupinfo,
+        )
 
 
 def _main_exit_paths() -> dict[str, Path]:

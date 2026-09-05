@@ -89,9 +89,14 @@ def test_restart_returns_scheduled_before_supervisor_finishes(tmp_path, monkeypa
     assert result["status"] == "scheduled"
     assert result["requestId"]
     assert calls[0][0][0] == "powershell.exe"
+    assert "-NonInteractive" in calls[0][0]
     assert str(tmp_path / "scripts" / "restart_pan.ps1") in calls[0][0]
     assert calls[0][1]["cwd"] == str(tmp_path)
     assert calls[0][1]["stdin"] is srv.subprocess.DEVNULL
+    assert calls[0][1]["stdout"].name == str(tmp_path / "data" / "logs" / "pan-restart-launcher.log")
+    assert calls[0][1]["stderr"] is srv.subprocess.STDOUT
+    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "DETACHED_PROCESS", 0x00000008)
+    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
 
 
 def test_restart_launcher_enters_supervisor_directly_with_durable_binding(tmp_path, monkeypatch):
@@ -125,8 +130,8 @@ def test_restart_launcher_enters_supervisor_directly_with_durable_binding(tmp_pa
 
     srv._launch_main_restart_supervisor(request_id)
     command = calls[0][0]
-    assert command[0:6] == [
-        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+    assert command[0:7] == [
+        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
         "-File", str(scripts / "restart_pan.ps1"),
     ]
     for argument, value in (
@@ -142,6 +147,10 @@ def test_restart_launcher_enters_supervisor_directly_with_durable_binding(tmp_pa
     assert command[command.index("-Supervisor") + 1:] == [
         "-OldPid", "42072", "-OldPidCreatedAt", "1757127877.0",
     ]
+    assert calls[0][1]["stdout"].name == str(
+        tmp_path / "data" / "logs" / "pan-restart-launcher.log"
+    )
+    assert calls[0][1]["stderr"] is srv.subprocess.STDOUT
 
 
 def test_restart_spawn_failure_clears_duplicate_guard(tmp_path, monkeypatch):
