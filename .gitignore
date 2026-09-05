@@ -25,6 +25,12 @@ Thumbs.db
 # Runtime data
 data/
 
+# 测试输出转储（本地运行产物）
+tests/out.json
+
+# assets 合并暂存（手工归并占位）
+_assets_merge_hold/
+
 # Personal notes
 privatenote.md
 devNote.md
