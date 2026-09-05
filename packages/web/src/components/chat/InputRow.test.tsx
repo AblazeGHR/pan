@@ -77,6 +77,19 @@ function setBusySession() {
   });
 }
 
+function mockMatchMedia(matches: boolean) {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
+
 beforeEach(() => {
   localStorage.clear();
   useSessionStore.setState({
@@ -101,7 +114,10 @@ beforeEach(() => {
   Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('InputRow send queue wiring', () => {
   it('selects server files, renders attachment chips, and enqueues formatted paths', async () => {
@@ -306,6 +322,43 @@ describe('InputRow send queue wiring', () => {
       's1', 'survive reconnect', expect.any(String),
     ));
     expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+});
+
+describe('InputRow responsive composer controls', () => {
+  it('renders the desktop resize handle and changes height by pointer drag', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const handle = await waitFor(() => screen.getByTestId('desktop-composer-resize'));
+    const root = screen.getByTestId('input-row');
+    expect(root.getAttribute('style')).toContain('height: 180px');
+
+    fireEvent.pointerDown(handle, { clientY: 500 });
+    fireEvent.pointerMove(document, { clientY: 400 });
+    expect(root.getAttribute('style')).toContain('height: 280px');
+    fireEvent.pointerUp(document);
+  });
+
+  it('shows only the mobile fullscreen control and enters/exits with click or Escape', async () => {
+    mockMatchMedia(true);
+    setBusySession();
+    render(<InputRow />);
+
+    await waitFor(() => expect(screen.getByTestId('mobile-input-fullscreen')).toBeTruthy());
+    expect(screen.queryByTestId('desktop-composer-resize')).toBeNull();
+    const root = screen.getByTestId('input-row');
+    const enter = screen.getByRole('button', { name: '全屏输入' });
+
+    fireEvent.click(enter);
+    expect(root.className).toContain('fixed');
+    expect(screen.getByRole('button', { name: '退出全屏输入' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(root.className).not.toContain('fixed');
+
+    fireEvent.click(screen.getByRole('button', { name: '全屏输入' }));
+    expect(root.className).toContain('fixed');
+    fireEvent.click(screen.getByRole('button', { name: '退出全屏输入' }));
+    expect(root.className).not.toContain('fixed');
   });
 });
 

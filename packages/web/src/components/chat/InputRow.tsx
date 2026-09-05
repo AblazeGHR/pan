@@ -4,12 +4,13 @@ import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useQueueStore } from '@/stores/queueStore';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { DirectoryBrowser } from '@/components/session/NewSessionModal';
 import { uploadSessionAttachment } from '@/services/api';
-import { ChevronDown, ChevronUp, CornerUpRight, File as FileIcon, Paperclip, Settings, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, CornerUpRight, Expand, File as FileIcon, Minimize2, Paperclip, Settings, X } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
 const PILL_CLASS =
@@ -185,13 +186,18 @@ function ThinkingToggle({
 
 export function InputRow() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentSession = useCurrentSession();
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { steer } = useWorkerStore();
   const { showToast } = useUIStore();
+  const { isMobile } = useMediaQuery();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(180);
+  const [resizing, setResizing] = useState(false);
+  const [mobileFullscreen, setMobileFullscreen] = useState(false);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [attachmentBrowserOpen, setAttachmentBrowserOpen] = useState(false);
   const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
@@ -246,6 +252,51 @@ export function InputRow() {
     setAttachmentBrowserOpen(false);
     setAttachmentMenuOpen(false);
   }, [currentSessionId]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileFullscreen(false);
+      setResizing(false);
+      resizeStartRef.current = null;
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (isMobile || !resizing) return;
+    const handlePointerMove = (event: PointerEvent) => {
+      const start = resizeStartRef.current;
+      if (!start) return;
+      setComposerHeight(Math.min(520, Math.max(120, start.height + start.y - event.clientY)));
+    };
+    const stopResizing = () => {
+      resizeStartRef.current = null;
+      setResizing(false);
+    };
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', stopResizing);
+    document.addEventListener('pointercancel', stopResizing);
+    return () => {
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', stopResizing);
+      document.removeEventListener('pointercancel', stopResizing);
+    };
+  }, [isMobile, resizing]);
+
+  useEffect(() => {
+    if (!isMobile || !mobileFullscreen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileFullscreen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMobile, mobileFullscreen]);
+
+  const handleResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isMobile) return;
+    event.preventDefault();
+    resizeStartRef.current = { y: event.clientY, height: composerHeight };
+    setResizing(true);
+  };
 
   const uploadClientAttachment = useCallback(async (attachment: PendingAttachment) => {
     if (!currentSessionId || !attachment.file) return;
@@ -408,13 +459,29 @@ export function InputRow() {
   const attachmentsBlocked = attachments.some((attachment) => attachment.status !== 'ready');
 
   return (
-    <div className="shrink-0 w-full border-t border-border-default bg-bg-primary">
+    <div
+      data-testid="input-row"
+      className={`shrink-0 w-full border-t border-border-default bg-bg-primary ${
+        isMobile && mobileFullscreen ? 'fixed inset-0 z-50 h-[100dvh] overflow-hidden pt-[var(--safe-top)]' : ''
+      }`}
+      style={!isMobile ? { height: `${composerHeight}px` } : undefined}
+    >
+      {!isMobile && (
+        <div
+          data-testid="desktop-composer-resize"
+          role="separator"
+          aria-label="调整输入区高度"
+          aria-orientation="horizontal"
+          onPointerDown={handleResizePointerDown}
+          className={`h-1 w-full shrink-0 cursor-ns-resize touch-none hover:bg-accent/50 ${resizing ? 'bg-accent/50' : ''}`}
+        />
+      )}
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
       <SendQueuePanel />
 
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
           右侧内容列：pill 行 + textarea/Send 行。 */}
-      <div className="flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
+      <div className={`flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3 ${mobileFullscreen ? 'min-h-0 flex-1' : ''}`}>
         {/* 左列竖排：gear 在上、^ 在下，gap-1 紧挨 */}
         <div className="flex flex-col gap-1 shrink-0 self-start">
           {currentSession && (
@@ -469,7 +536,7 @@ export function InputRow() {
         </div>
 
         {/* 右侧内容列 */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2">
+        <div className={`flex-1 min-w-0 flex flex-col gap-2 ${mobileFullscreen ? 'min-h-0' : ''}`}>
           {currentSession && (
             <div className="flex items-center gap-1.5 flex-wrap">
               <ModelPill
@@ -507,6 +574,18 @@ export function InputRow() {
                     </option>
                   ))}
                 </select>
+              )}
+              {isMobile && (
+                <button
+                  type="button"
+                  data-testid="mobile-input-fullscreen"
+                  aria-label={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                  title={mobileFullscreen ? '退出全屏输入' : '全屏输入'}
+                  onClick={() => setMobileFullscreen((current) => !current)}
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+                >
+                  {mobileFullscreen ? <Minimize2 size={14} /> : <Expand size={14} />}
+                </button>
               )}
             </div>
           )}
@@ -590,7 +669,7 @@ export function InputRow() {
               />
             </div>
           )}
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${mobileFullscreen ? 'min-h-0 flex-1' : ''}`}>
             <input
               ref={clientAttachmentInputRef}
               type="file"
@@ -607,7 +686,7 @@ export function InputRow() {
               enterKeyHint="send"
               inputMode="text"
               autoCapitalize="sentences"
-              className="flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent"
+              className={`flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent ${mobileFullscreen ? 'min-h-0' : ''}`}
               onChange={(e) => {
                 if (currentSessionId) setInputDraft(currentSessionId, e.target.value);
               }}
