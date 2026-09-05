@@ -571,6 +571,21 @@ describe('InputRow control row layout contract', () => {
     expect(screen.getByRole('button', { name: '客户端附件' })).toBeTruthy();
   });
 
+  it('keeps settings, model and permission menus visible outside the composer clipping contexts', async () => {
+    setModelAndPermissionSession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Session settings' }));
+    expect(screen.getByText('Permission Mode', { selector: 'label' })).toBeTruthy();
+    expect(screen.getByText('Permission Mode', { selector: 'label' }).closest('[data-settings-popover]')?.parentElement).toBe(document.body);
+
+    fireEvent.click(screen.getByTestId('input-control-row').querySelector('button[title="opencode/big-pickle"]')!);
+    await waitFor(() => expect(screen.getByPlaceholderText('筛选模型…').closest('[data-model-select-menu]')?.parentElement).toBe(document.body));
+    fireEvent.click(document.body.querySelector('[data-perm-pill] button')!);
+    await waitFor(() => expect(document.querySelector('[data-permission-menu]')).toBeTruthy());
+    expect(document.querySelector('[data-permission-menu]')?.parentElement).toBe(document.body);
+  });
+
   it('keeps desktop attachment in the control row, separate from textarea and Send', () => {
     mockMatchMedia(false);
     setModelAndPermissionSession();

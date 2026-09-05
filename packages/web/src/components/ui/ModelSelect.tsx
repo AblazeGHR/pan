@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 interface ModelSelectProps {
   /** 当前选中的模型 ID（可能不在 options 中——会话可能持有历史模型）。 */
@@ -38,6 +39,7 @@ export function ModelSelect({
 }: ModelSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top?: number; bottom?: number; width: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -46,6 +48,34 @@ export function ModelSelect({
     'flex w-full items-center justify-between gap-1 truncate rounded border border-border-default bg-bg-tertiary px-2 py-1 text-left text-xs text-text-primary hover:bg-bg-hover';
   const menuClass =
     menuClassName ?? 'absolute left-0 top-full z-40 mt-1 w-full';
+
+  const updateMenuPosition = () => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const opensUp = menuClass.includes('bottom-full');
+    setMenuPosition(opensUp
+      ? { left: rect.left, bottom: window.innerHeight - rect.top + 4, width: Math.max(rect.width, 160) }
+      : { left: rect.left, top: rect.bottom + 4, width: Math.max(rect.width, 160) });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPosition(null);
+      return;
+    }
+    updateMenuPosition();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => updateMenuPosition();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
 
   // 当前值不在 options 中时插入顶部，保证历史模型始终可选中/可显示。
   const allOptions = options.includes(value) ? options : [value, ...options];
@@ -61,7 +91,8 @@ export function ModelSelect({
   useEffect(() => {
     if (!open) return;
     const onMouseDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as HTMLElement;
+      if (!rootRef.current?.contains(target) && !target.closest('[data-model-select-menu]')) setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -96,9 +127,11 @@ export function ModelSelect({
         </span>
       </button>
 
-      {open && (
+      {open && menuPosition && createPortal(
         <div
-          className={`${menuClass} rounded border border-border-default bg-bg-secondary shadow-xl`}
+          data-model-select-menu
+          style={{ position: 'fixed', left: menuPosition.left, top: menuPosition.top, bottom: menuPosition.bottom, width: menuPosition.width }}
+          className={`${menuClass.replace(/\babsolute\b/g, 'fixed')} rounded border border-border-default bg-bg-secondary shadow-xl`}
         >
           <input
             ref={inputRef}
@@ -137,7 +170,8 @@ export function ModelSelect({
               </li>
             ))}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

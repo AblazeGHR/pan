@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useCallback, useEffect, useLayoutEffect, useState, type RefObject } from 'react';
 import { useCurrentSession, useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -11,6 +12,7 @@ import type { AdapterConfig, PermissionMode, Session } from '@/types';
 interface SettingsPopoverProps {
   open: boolean;
   onClose: () => void;
+  anchorRef?: RefObject<HTMLElement | null>;
 }
 
 function supportsSetting(
@@ -27,7 +29,7 @@ function supportsSetting(
  * never covers the textarea). Compact replacement for the old right-side
  * SettingsPanel: model / permission mode / thinking+effort / worker actions.
  */
-export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
+export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverProps) {
   const session = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const showToast = useUIStore((s) => s.showToast);
@@ -43,6 +45,31 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
   // Manage/Postbox). The settings fields are also merged into the store so the
   // toolbar pills / effort select reflect them too.
   const [detailSession, setDetailSession] = useState<Session | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState<{ left: number; bottom: number } | null>(null);
+  const updatePopoverPosition = () => {
+    const rect = anchorRef?.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPopoverPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPopoverPosition(null);
+      return;
+    }
+    updatePopoverPosition();
+  }, [open, anchorRef]);
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => updatePopoverPosition();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, anchorRef]);
   useEffect(() => {
     if (!open || !session?.id) return;
     setDetailSession(null);
@@ -155,10 +182,13 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
   const currentOutputMode =
     s.outputMode ?? (execModes.includes('stream') ? 'stream' : execModes[0]);
 
-  return (
+  if (!popoverPosition) return null;
+
+  return createPortal(
     <div
       data-settings-popover
-      className="absolute bottom-full mb-1 left-0 z-30 w-72 max-h-[60vh] overflow-y-auto rounded-md border border-border-default bg-bg-primary shadow-xl p-3 space-y-3"
+      style={{ position: 'fixed', left: popoverPosition.left, bottom: popoverPosition.bottom }}
+      className="z-[60] mb-1 w-72 max-w-[calc(100vw-1rem)] max-h-[60vh] overflow-y-auto rounded-md border border-border-default bg-bg-primary shadow-xl p-3 space-y-3"
     >
       {/* Model — ModelSelect 支持关键字过滤（opencode 几十上百个模型时可快速检索） */}
       <div>
@@ -309,6 +339,7 @@ export function SettingsPopover({ open, onClose }: SettingsPopoverProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
