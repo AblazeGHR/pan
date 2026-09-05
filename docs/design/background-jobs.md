@@ -63,3 +63,27 @@ future callbacks must add a short-lived token or signed event boundary.
 The current API follows Pan's existing loopback/no-auth model. No new remote
 binding or tunnel exposure is introduced. A retry creates a new Job ID and
 keeps the original terminal event identity intact.
+
+## Service lifecycle Jobs
+
+The same Registry also stores service-level Jobs with `kind="main-lifecycle"`.
+These records deliberately have no `targetSessionId`, are never projected to
+`queue_pending`, and use checkout `root` plus `port` for duplicate detection.
+A main restart is recorded before the detached supervisor is spawned:
+
+`requested -> stopping -> stopped -> starting -> ready`
+
+The terminal failure phases are `failed` and `timed_out`. Records retain the
+API `requestId`, operation, checkout root, port, old/new PID and PID creation
+times, timestamps, log path, and the last error. The HTTP status endpoint reads
+the persisted record after a Pan process restart, so an in-flight request still
+blocks a duplicate and a supervisor failure remains visible. Readiness is
+accepted only when the target port is owned by a new process whose creation
+time, checkout marker, Pan entry marker, and `/api/health` response all verify.
+
+The PowerShell file remains a detached two-hop launcher, but its second hop
+delegates stop/start and these checks to `packages.core.main_lifecycle`. The
+helper invokes the existing checkout-scoped `stop_pan.bat` and `start_pan.bat`;
+it does not recursively kill its own supervisor. Exit integration can attach
+to `create_service_job` and `transition_service_job` later without changing
+the Session or background-process contracts.
