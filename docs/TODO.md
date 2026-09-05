@@ -66,7 +66,7 @@
 | `_extract_cbc_error` 收编 adapter | 仍在 `worker.py:3188`（2026-09-03 核对，行号随重构漂移）；可搬进 adapter 作可选收尾 | 低优先可选 | design/adapter-p1-oneshot.md |
 | kimi MCP 方案 A 兜底 | 合并用户级 mcp.json；仅设计保留，未落地 | 方案 C 失效时 | design/kimi-mcp-solution.md |
 | ~~服务端消息队列~~ | ~~`Session.send_queue` + CRUD API，客户端退化为镜像~~ **已实现（2026-09-01 第一版，2026-09-03 复核）**：`Session.queue_pending` 统一为服务端权威队列 + `/api/sessions/{id}/queue` CRUD/编辑/排序/retry 端点，用户消息落盘确认后才 accepted；现行语义见 `docs/design/queue-at-most-once.md`、`docs/plans&overviews/统一服务端消息队列改动计划.md` | ✅ 已实现 | archive/design-message-queue.md（已归档） |
-| 附件发送与客户端上传 | **长期搁置，未实现**：附件发送未来应根据 Adapter 能力选择渲染；当前第一阶段 `@"<path>"` 仅作为兼容性起点。后续需支持能力探测、统一 `AttachmentRef`/metadata、Adapter-specific/native payload，以及 Adapter 不支持原生附件时的文本 fallback。客户端附件未来通过浏览器上传到 `data/attachments`，按 session/随机 ID 隔离，上传成功后再进入现有队列；需另行明确大小、类型、配额、清理、路径稳定性、上传失败和队列重试等问题。客户端上传和能力化渲染均属于后续任务，当前不视为已实现。 | 长期搁置 | 本条 |
+| Adapter 能力驱动的附件渲染 | **服务端附件和客户端上传（含上传进度）已实现**；当前消息使用 `@"<path>"` 文本兼容格式。后续仍需能力探测、统一 `AttachmentRef`/metadata、按 Adapter 渲染 native payload，并在不支持原生附件时保留文本 fallback；另需制定附件大小/类型/配额/清理等策略 | 后续附件协议与 Adapter 能力支持 | design/adapter-architecture.md |
 | session_import 增强 | import 端点 `_check_session_name` 校验、`action="browse"` 文件树浏览 | 可选，量大时 | archive/design-import-session-mcp.md |
 | QQ 富媒体 / 全事件上行 / 反向控制 | QQ 通道后续方向 | 有需求时 | archive/qq-llm-management-survey.md |
 | ~~LICENSE~~ | ~~仓库未附开源许可证~~ **已解决（2026-09-03 核对）**：仓库根已有 `LICENSE`（git 跟踪），README.md 末附许可证段 | 发布前 | README.md |

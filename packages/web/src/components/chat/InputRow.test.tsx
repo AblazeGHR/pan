@@ -6,7 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { enqueueSessionMessage, sendSession, spawnWorker, patchSession } from '@/services/api';
+import { enqueueSessionMessage, sendSession, spawnWorker, patchSession, uploadSessionAttachment } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import type { AdapterConfig } from '@/types';
 
@@ -32,6 +32,12 @@ vi.mock('@/services/api', async (importOriginal) => {
       entries: [
         { name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false },
       ],
+    })),
+    uploadSessionAttachment: vi.fn(async (_sessionId: string, file: File) => ({
+      ok: true,
+      filename: file.name,
+      path: `D:\\attachments\\uploaded\\${file.name}`,
+      size: file.size,
     })),
     enqueueSessionMessage: vi.fn(async (_sessionId: string, text: string) => ({
       item: {
@@ -89,6 +95,7 @@ beforeEach(() => {
   vi.mocked(patchSession).mockClear();
   vi.mocked(sendSession).mockClear();
   vi.mocked(enqueueSessionMessage).mockClear();
+  vi.mocked(uploadSessionAttachment).mockClear();
   vi.mocked(spawnWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
   Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
@@ -129,6 +136,77 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() => expect(screen.getByTestId('server-attachments')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /取消附件/ }));
     expect(screen.queryByTestId('server-attachments')).toBeNull();
+  });
+
+  it('uploads client files and combines them with server attachments on send', async () => {
+    setBusySession();
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['client'], 'client.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith('s1', file));
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('client.txt'));
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1', '合并发送 @"D:\\attachments\\report.txt" @"D:\\attachments\\uploaded\\client.txt"', expect.any(String),
+    ));
+  });
+
+  it('shows deterministic aggregate progress and blocks send until upload completes', async () => {
+    setBusySession();
+    let finishUpload!: (value: Awaited<ReturnType<typeof uploadSessionAttachment>>) => void;
+    vi.mocked(uploadSessionAttachment).mockImplementationOnce(async (_sessionId, file, onProgress) => {
+      onProgress?.(4, file.size);
+      return new Promise((resolve) => { finishUpload = resolve; });
+    });
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['12345678'], 'progress.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('50%');
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中');
+    });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+
+    finishUpload({ ok: true, filename: file.name, path: 'D:\\attachments\\progress.txt', size: file.size });
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('100%');
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成');
+    });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps failed uploads visible with a retry action', async () => {
+    setBusySession();
+    vi.mocked(uploadSessionAttachment)
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({ ok: true, filename: 'retry.txt', path: 'D:\\attachments\\retry.txt', size: 5 });
+    render(<InputRow />);
+
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
+    const file = new File(['retry'], 'retry.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('失败');
+      expect(screen.getByRole('button', { name: '重试上传 retry.txt' })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: '重试上传 retry.txt' }));
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
   });
 
   it('enqueues through the server when worker busy, then shows the pending row', async () => {
