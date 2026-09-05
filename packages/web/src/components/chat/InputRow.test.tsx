@@ -333,10 +333,12 @@ describe('InputRow responsive composer controls', () => {
     const root = screen.getByTestId('input-row');
     expect(root.getAttribute('style')).toContain('height: 180px');
 
-    fireEvent.pointerDown(handle, { clientY: 500 });
-    fireEvent.pointerMove(document, { clientY: 400 });
-    expect(root.getAttribute('style')).toContain('height: 280px');
-    fireEvent.pointerUp(document);
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 500 }));
+    await waitFor(() => expect(handle.className).toContain('bg-accent/50'));
+    const move = new MouseEvent('pointermove', { bubbles: true, clientY: 400 });
+    handle.dispatchEvent(move);
+    await waitFor(() => expect(root.getAttribute('style')).toContain('height: 280px'));
+    document.dispatchEvent(new Event('pointerup'));
   });
 
   it('shows only the mobile fullscreen control and enters/exits with click or Escape', async () => {

@@ -262,7 +262,7 @@ export function InputRow() {
   }, [isMobile]);
 
   useEffect(() => {
-    if (isMobile || !resizing) return;
+    if (isMobile) return;
     const handlePointerMove = (event: PointerEvent) => {
       const start = resizeStartRef.current;
       if (!start) return;
@@ -280,7 +280,7 @@ export function InputRow() {
       document.removeEventListener('pointerup', stopResizing);
       document.removeEventListener('pointercancel', stopResizing);
     };
-  }, [isMobile, resizing]);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!isMobile || !mobileFullscreen) return;
@@ -296,6 +296,14 @@ export function InputRow() {
     event.preventDefault();
     resizeStartRef.current = { y: event.clientY, height: composerHeight };
     setResizing(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isMobile) return;
+    const start = resizeStartRef.current;
+    if (!start) return;
+    setComposerHeight(Math.min(520, Math.max(120, start.height + start.y - event.clientY)));
   };
 
   const uploadClientAttachment = useCallback(async (attachment: PendingAttachment) => {
@@ -461,7 +469,7 @@ export function InputRow() {
   return (
     <div
       data-testid="input-row"
-      className={`shrink-0 w-full border-t border-border-default bg-bg-primary ${
+      className={`flex shrink-0 w-full flex-col border-t border-border-default bg-bg-primary ${
         isMobile && mobileFullscreen ? 'fixed inset-0 z-50 h-[100dvh] overflow-hidden pt-[var(--safe-top)]' : ''
       }`}
       style={!isMobile ? { height: `${composerHeight}px` } : undefined}
@@ -473,6 +481,7 @@ export function InputRow() {
           aria-label="调整输入区高度"
           aria-orientation="horizontal"
           onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
           className={`h-1 w-full shrink-0 cursor-ns-resize touch-none hover:bg-accent/50 ${resizing ? 'bg-accent/50' : ''}`}
         />
       )}
@@ -481,7 +490,7 @@ export function InputRow() {
 
       {/* 左列：settings gear（有会话时）+ 队列开关 ^ 上下垂直紧凑堆叠，节省一行。
           右侧内容列：pill 行 + textarea/Send 行。 */}
-      <div className={`flex gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3 ${mobileFullscreen ? 'min-h-0 flex-1' : ''}`}>
+      <div className="flex min-h-0 flex-1 gap-2 px-3 pt-2 pb-[max(16px,var(--safe-bottom))] md:pb-3">
         {/* 左列竖排：gear 在上、^ 在下，gap-1 紧挨 */}
         <div className="flex flex-col gap-1 shrink-0 self-start">
           {currentSession && (
@@ -669,7 +678,7 @@ export function InputRow() {
               />
             </div>
           )}
-          <div className={`flex gap-2 ${mobileFullscreen ? 'min-h-0 flex-1' : ''}`}>
+          <div className="flex min-h-0 flex-1 gap-2">
             <input
               ref={clientAttachmentInputRef}
               type="file"
@@ -686,7 +695,7 @@ export function InputRow() {
               enterKeyHint="send"
               inputMode="text"
               autoCapitalize="sentences"
-              className={`flex-1 rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent ${mobileFullscreen ? 'min-h-0' : ''}`}
+              className="min-h-0 flex-1 resize-none rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
               onChange={(e) => {
                 if (currentSessionId) setInputDraft(currentSessionId, e.target.value);
               }}
