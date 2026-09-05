@@ -97,14 +97,32 @@ if /i not "%PAN_REMOTE_STATE%"=="enabled" (
     echo [INFO] remote.enabled is not explicitly true (%PAN_REMOTE_STATE%), skipping Cloudflare Tunnel.
     goto :remote_tunnel_done
 )
+REM ---- 4b. Resolve remote.quick_tunnel (default quick, matches main.py) ----
+set "PAN_QUICK_STATE="
+for /f "delims=" %%q in ('powershell -NoProfile -Command "$cfg=Get-Content -LiteralPath (Join-Path $env:PAN_START_BASE 'config.json') -Raw | ConvertFrom-Json; if ($cfg.remote -and ($cfg.remote.PSObject.Properties.Name -contains 'quick_tunnel')) { if ($cfg.remote.quick_tunnel) { 'quick' } else { 'named' } } else { 'quick' }"') do set "PAN_QUICK_STATE=%%q"
+if not defined PAN_QUICK_STATE set "PAN_QUICK_STATE=quick"
+
 where.exe cloudflared >nul 2>&1
 if errorlevel 1 (
     echo [WARN] cloudflared not found in PATH, skipping remote tunnel.
-) else (
+    goto :remote_tunnel_done
+)
+set "PAN_CF_QUICK_LOG=%BASE_DIR%\data\logs\pan_cf_quick_%PAN_PORT%.log"
+if /i "%PAN_QUICK_STATE%"=="named" (
     powershell -NoProfile -File "%SCRIPT_DIR%start_cf.ps1" -PidFile "%PID_CF%"
     if errorlevel 1 (
         echo [WARN] cloudflared failed to start, continuing with Pan Core only.
     ) else if exist "%PID_CF%" set /p CF_PID=<"%PID_CF%"
+) else (
+    powershell -NoProfile -File "%SCRIPT_DIR%start_cf_quick.ps1" -PidFile "%PID_CF%" -Port "%PAN_PORT%" -LogFile "%PAN_CF_QUICK_LOG%"
+    if errorlevel 1 (
+        echo [WARN] cloudflared quick tunnel failed to start, continuing with Pan Core only.
+    ) else if exist "%PID_CF%" set /p CF_PID=<"%PID_CF%"
+)
+
+if defined CF_PID if /i not "%PAN_QUICK_STATE%"=="named" (
+    echo [INFO] Quick tunnel log: %PAN_CF_QUICK_LOG%
+    powershell -NoProfile -Command "$log=$env:PAN_CF_QUICK_LOG; $url=$null; for ($i=0; $i -lt 30; $i++) { if (Test-Path -LiteralPath $log) { $m = Select-String -LiteralPath $log -Pattern 'https://[a-zA-Z0-9\-]+\.trycloudflare\.com' | Select-Object -First 1; if ($m) { $url=$m.Matches[0].Value; break } }; Start-Sleep -Milliseconds 500 }; if ($url) { Write-Host ('[OK] Quick tunnel URL: ' + $url) } else { Write-Host ('[INFO] trycloudflare.com URL not captured yet; watch the log file above.') }"
 )
 
 :remote_tunnel_done
