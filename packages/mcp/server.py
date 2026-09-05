@@ -1357,6 +1357,12 @@ def agent_background_start(argv: list[str], cwd: str, target_session_id: str | N
 
 @mcp.tool()
 def agent_background_get(job_id: str) -> dict:
+    """Get durable Job Registry facts, including status, PID identity and log path.
+
+    Access is limited to a Job targeting the current Agent Session or one of
+    its managed Sessions. This reads Runner state; it does not read or consume
+    the target Session's queue_pending.
+    """
     job = _api("GET", f"/api/background-jobs/{quote(job_id, safe='')}")
     target = job.get("targetSessionId") if isinstance(job, dict) else None
     denied = _check_access(target) if target else None
@@ -1365,6 +1371,11 @@ def agent_background_get(job_id: str) -> dict:
 
 @mcp.tool()
 def agent_background_list(target_session_id: str | None = None) -> dict:
+    """List durable background Jobs; default scope is the current Agent Session.
+
+    An explicit target must be the current or a managed Session. Returned Jobs
+    are Registry facts and may remain visible after the target Session is gone.
+    """
     if target_session_id:
         denied = _check_access(target_session_id)
         if denied:
@@ -1379,6 +1390,11 @@ def agent_background_list(target_session_id: str | None = None) -> dict:
 
 @mcp.tool()
 def agent_background_cancel(job_id: str) -> dict:
+    """Cancel an owned Job and terminate its verified process tree.
+
+    The Runner PID/task PID creation time must be verifiable; otherwise the
+    operation returns ``cancel_unsafe`` and never kills an unrelated PID.
+    """
     job = agent_background_get(job_id)
     if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
         return job
@@ -1387,6 +1403,11 @@ def agent_background_cancel(job_id: str) -> dict:
 
 @mcp.tool()
 def agent_background_retry(job_id: str) -> dict:
+    """Retry an owned terminal Job as a new Job ID.
+
+    Only completed, failed, or cancelled Jobs are retryable. starting/running
+    Jobs return ``job_not_retryable`` and must be cancelled first.
+    """
     job = agent_background_get(job_id)
     if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
         return job
