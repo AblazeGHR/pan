@@ -27,8 +27,6 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `GET` | `/api/background-jobs/{jobId}` | — | 查询 Job 事实、PID、日志和通知状态 |
 | `POST` | `/api/background-jobs/{jobId}/cancel` | — | 取消并杀完整进程树（PID 创建时间必须匹配；无法安全确认时返回 `cancel_unsafe`） |
 | `POST` | `/api/background-jobs/{jobId}/retry` | — | 用新 jobId 重试原命令 |
-| `GET` | `/api/main/restart/status` | — | 读取当前 checkout/port 的持久化 main-lifecycle Job；`pending` 只表示 requested/stopping/stopped/starting，终态含 `ready`/`failed`/`timed_out` 与 PID/错误字段 |
-| `POST` | `/api/main/restart` | — | 原子登记 service lifecycle Job 后返回 `status:"scheduled"`, `accepted:true`, `phase:"requested"`；重复请求返回 `busy` 与已有 `requestId`/`jobId`，不会绑定 Session 或进入 `queue_pending` |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<MA session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}`。**等价 MCP 工具：`report_subscribe`（编排首选）** |
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}`。等价 MCP 工具：`report_unsubscribe` |
 | `POST` | `/api/claim` | `{"managerId": "...", "sessionId": "..."}` | 认领会话建立 managed 关系（带 `_check_access(claim=True)` 隔离检查；目标已被他人管理则拒绝）。等价 MCP 工具：`session_claim`（claim 自动 report_subscribe） |

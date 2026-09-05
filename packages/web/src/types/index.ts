@@ -491,28 +491,13 @@ export interface ApiMainRestartStatusResponse {
   available: boolean;
   pending: boolean;
   platform: string;
-  port?: number;
   reason?: string;
   requestId?: string;
-  jobId?: string;
-  phase?: 'requested' | 'stopping' | 'stopped' | 'starting' | 'ready' | 'failed' | 'timed_out';
-  jobStatus?: string;
-  root?: string;
-  oldPid?: number | null;
-  oldPidCreatedAt?: number | null;
-  newPid?: number | null;
-  newPidCreatedAt?: number | null;
-  error?: string | null;
-  createdAt?: number;
-  updatedAt?: number;
 }
 
 export interface ApiMainRestartResponse {
   ok: boolean;
   status: 'scheduled' | 'disabled' | 'busy' | 'error';
-  accepted?: boolean;
-  phase?: ApiMainRestartStatusResponse['phase'];
-  jobId?: string;
   message?: string;
   error?: string;
   pending?: boolean;

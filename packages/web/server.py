@@ -56,7 +56,6 @@ from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 from packages.core import background_jobs
-from packages.core import main_lifecycle
 
 # ── logging ──
 
@@ -160,8 +159,9 @@ MOBILE_DASHBOARD_FILE = _WEB_DIR / "mobile.html"
 REACT_DIST_DIR = _WEB_DIR / "dist"
 REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
 
-# Main-service restart compatibility aliases.  Durable Registry records are
-# authoritative; these names remain for older in-process callers/tests only.
+# Main-service restart is intentionally a tiny state machine in the current
+# process.  The state only prevents double-clicks/racing HTTP requests before
+# this process exits; the detached supervisor does the actual stop/start work.
 _main_restart_lock = threading.Lock()
 _main_restart_pending = False
 _main_restart_request_id: str | None = None
@@ -176,71 +176,19 @@ def _main_restart_paths() -> dict[str, Path]:
     }
 
 
-def _main_restart_registry_root() -> Path:
-    return _PROJECT_DIR / "data" / "background_jobs"
-
-
-def _main_restart_port() -> int:
-    value = os.environ.get("PAN_PORT")
-    if value:
-        try:
-            return int(value)
-        except ValueError:
-            pass
-    try:
-        config = json.loads((_PROJECT_DIR / "config.json").read_text(encoding="utf-8"))
-        return int(config.get("port") or 8768)
-    except (OSError, ValueError, TypeError):
-        return 8768
-
-
-def _main_restart_job_view(job: dict | None) -> dict:
-    if not job:
-        return {}
-    return {
-        "jobId": job.get("jobId"), "requestId": job.get("requestId"),
-        "phase": job.get("phase"), "jobStatus": job.get("status"),
-        "root": job.get("root"), "port": job.get("port"),
-        "oldPid": job.get("oldPid"), "oldPidCreatedAt": job.get("oldPidCreatedAt"),
-        "newPid": job.get("newPid"), "newPidCreatedAt": job.get("newPidCreatedAt"),
-        "error": job.get("error"), "createdAt": job.get("createdAt"),
-        "updatedAt": job.get("updatedAt"),
-    }
-
-
 def _main_restart_status() -> dict:
     paths = _main_restart_paths()
     available = os.name == "nt" and all(path.is_file() for path in paths.values())
     missing = [str(path) for path in paths.values() if not path.is_file()]
-    registry_root = _main_restart_registry_root()
-    port = _main_restart_port()
-    active_job = background_jobs.get_active_service_job(
-        str(_PROJECT_DIR), port, registry_root
-    )
-    latest_job = next(
-        (job for job in background_jobs.list_jobs(registry_root)
-         if job.get("kind") == background_jobs.SERVICE_LIFECYCLE_KIND
-         and str(Path(str(job.get("root", ""))).expanduser().resolve())
-         == str(_PROJECT_DIR.expanduser().resolve())
-         and int(job.get("port", -1)) == port),
-        None,
-    )
     with _main_restart_lock:
-        # The in-memory values remain only as a compatibility fallback for
-        # older callers/tests.  A persisted terminal Job always wins, so a
-        # failed supervisor cannot leave a stale process-local guard behind.
-        pending = bool(active_job) or (_main_restart_pending and latest_job is None)
+        pending = _main_restart_pending
         request_id = _main_restart_request_id
     result = {
         "available": available,
         "pending": pending,
         "platform": os.name,
-        "port": port,
     }
-    job = active_job or latest_job
-    if job:
-        result.update(_main_restart_job_view(job))
-    elif request_id:
+    if request_id:
         result["requestId"] = request_id
     if not available:
         result["reason"] = (
@@ -260,12 +208,17 @@ def _clear_main_restart_state(request_id: str) -> None:
 
 
 def _watch_main_restart(process: subprocess.Popen, request_id: str) -> None:
-    """Legacy hook retained for callers that used to patch the old watcher.
-
-    New restart requests do not start this thread or use a timed in-memory
-    guard; the detached lifecycle Job owns all progress and failure state.
-    """
-    _clear_main_restart_state(request_id)
+    """Release the in-process duplicate guard if the supervisor exits early."""
+    try:
+        process.wait()
+    except Exception as exc:  # noqa: BLE001 - the service must stay healthy
+        _log(f"[main-restart] supervisor monitor failed: {exc}")
+    finally:
+        # restart_pan.ps1 has a short launcher hop which starts the actual
+        # supervisor and then exits.  Keep the guard through the normal
+        # stop/start window so a second HTTP request cannot race that child.
+        time.sleep(30)
+        _clear_main_restart_state(request_id)
 
 
 def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
@@ -276,10 +229,6 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
     current Pan process cannot take the restart orchestration with it.
     """
     script = _main_restart_paths()["supervisor"]
-    registry_root = _main_restart_registry_root()
-    job = background_jobs.find_service_job(request_id, registry_root)
-    if not job:
-        raise ValueError("durable restart Job not found")
     command = [
         "powershell.exe",
         "-NoProfile",
@@ -291,17 +240,7 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         str(_PROJECT_DIR),
         "-RequestId",
         request_id,
-        "-JobId",
-        job["jobId"],
-        "-RegistryRoot",
-        str(registry_root),
-        "-Port",
-        str(job["port"]),
     ]
-    if job.get("oldPid"):
-        command += ["-OldPid", str(job["oldPid"])]
-    if job.get("oldPidCreatedAt") is not None:
-        command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
     flags = (
         getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
@@ -1195,7 +1134,7 @@ async def api_main_restart_status():
 
 @app.post("/api/main/restart")
 async def api_main_restart():
-    """Accept a durable detached restart of this Pan instance.
+    """Schedule a detached restart of this Pan instance.
 
     Returning before the supervisor stops this process is essential: waiting
     for stop/start inside this request would turn the expected disconnect into
@@ -1211,65 +1150,39 @@ async def api_main_restart():
             "status": "disabled",
             "error": status.get("reason", "main restart is unavailable"),
         }
-    if status.get("pending"):
-        return {
-            "ok": False,
-            "status": "busy",
-            "pending": True,
-            "error": "Pan main-service restart is already scheduled",
-            "requestId": status.get("requestId"),
-            "jobId": status.get("jobId"),
-            "phase": status.get("phase"),
-        }
 
-    registry_root = _main_restart_registry_root()
-    port = status["port"]
-    old_pid = main_lifecycle.listener_owner(port)
-    old_pid_created_at = main_lifecycle.process_create_time(old_pid)
-    request_id = uuid.uuid4().hex
-    try:
-        job = background_jobs.create_service_job(
-            request_id=request_id, operation="restart", root=str(_PROJECT_DIR), port=port,
-            old_pid=old_pid, old_pid_created_at=old_pid_created_at,
-            registry_root=registry_root,
-        )
-    except background_jobs.ServiceJobBusy as exc:
-        existing = exc.job
-        return {
-            "ok": False, "status": "busy", "pending": True,
-            "error": "Pan main-service restart is already scheduled",
-            "requestId": existing.get("requestId"), "jobId": existing.get("jobId"),
-            "phase": existing.get("phase"),
-        }
-    except (OSError, ValueError) as exc:
-        return {"ok": False, "status": "error", "error": f"failed to record Pan restart: {exc}"}
-
-    # Keep these names for older in-process integrations; durable registry
-    # state is authoritative for status and duplicate detection.
     with _main_restart_lock:
+        if _main_restart_pending:
+            return {
+                "ok": False,
+                "status": "busy",
+                "pending": True,
+                "error": "Pan main-service restart is already scheduled",
+                "requestId": _main_restart_request_id,
+            }
+        request_id = uuid.uuid4().hex
         _main_restart_pending = True
         _main_restart_request_id = request_id
 
     try:
-        _launch_main_restart_supervisor(request_id)
+        process = _launch_main_restart_supervisor(request_id)
     except (OSError, ValueError) as exc:
-        background_jobs.transition_service_job(
-            job["jobId"], "failed", registry_root=registry_root,
-            error=f"failed to spawn restart supervisor: {exc}",
-        )
         _clear_main_restart_state(request_id)
         return {
             "ok": False,
             "status": "error",
             "error": f"failed to schedule Pan restart: {exc}",
-            "jobId": job["jobId"],
         }
+
+    threading.Thread(
+        target=_watch_main_restart,
+        args=(process, request_id),
+        name="pan-main-restart-supervisor",
+        daemon=True,
+    ).start()
     return {
         "ok": True,
         "status": "scheduled",
-        "accepted": True,
-        "phase": "requested",
-        "jobId": job["jobId"],
         "message": "Pan main-service restart scheduled",
         "requestId": request_id,
     }
@@ -2629,10 +2542,7 @@ async def api_background_job_start(data: dict):
 
 @app.get("/api/background-jobs")
 async def api_background_job_list(targetSessionId: str | None = None):
-    # Service lifecycle Jobs share the durable Registry but are not ordinary
-    # Session-targeted background commands and must not leak into this API.
-    jobs = [job for job in background_jobs.list_jobs()
-            if job.get("kind") == background_jobs.BACKGROUND_PROCESS_KIND]
+    jobs = background_jobs.list_jobs()
     if targetSessionId:
         jobs = [j for j in jobs if j.get("targetSessionId") == targetSessionId]
     return {"jobs": jobs}
