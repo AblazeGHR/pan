@@ -2547,7 +2547,8 @@ async def api_background_job_cancel(job_id: str):
     try:
         return background_jobs.cancel(job_id)
     except ValueError as exc:
-        return {"ok": False, "error": {"code": "job_not_found", "message": str(exc)}}
+        code = "cancel_unsafe" if "safely cancel" in str(exc) else "job_not_found"
+        return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
 @app.post("/api/background-jobs/{job_id}/retry")
@@ -2555,7 +2556,8 @@ async def api_background_job_retry(job_id: str):
     try:
         return background_jobs.retry(job_id)
     except ValueError as exc:
-        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
+        code = "job_not_retryable" if "cannot be retried" in str(exc) else "invalid_job"
+        return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
 @app.get("/api/adapter/config")

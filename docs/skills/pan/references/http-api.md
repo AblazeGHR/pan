@@ -25,7 +25,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `POST` | `/api/background-jobs` | `{"targetSessionId":"...", "argv":[...], "cwd":"...", "label"?:"..."}` | 创建脱离 Worker 生命周期的持久后台 Job；argv 不经 shell，MVP 的 cwd 仅允许 Pan 项目目录内 |
 | `GET` | `/api/background-jobs[?targetSessionId=...]` | — | 列出 Job Registry 记录 |
 | `GET` | `/api/background-jobs/{jobId}` | — | 查询 Job 事实、PID、日志和通知状态 |
-| `POST` | `/api/background-jobs/{jobId}/cancel` | — | 取消并杀完整进程树（PID 创建时间匹配） |
+| `POST` | `/api/background-jobs/{jobId}/cancel` | — | 取消并杀完整进程树（PID 创建时间必须匹配；无法安全确认时返回 `cancel_unsafe`） |
 | `POST` | `/api/background-jobs/{jobId}/retry` | — | 用新 jobId 重试原命令 |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<meta-agent session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}`。**等价 MCP 工具：`report_subscribe`（编排首选）** |
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}`。等价 MCP 工具：`report_unsubscribe` |
