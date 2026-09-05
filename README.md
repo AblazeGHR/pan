@@ -1,6 +1,6 @@
 # Pan
 
-> 一个入口，管理所有任务——只跟一个 Meta-Agent 对话，它拆解并调度一整支 CLI Agent 工人团队并行干活。
+> 一个入口，管理所有任务——只跟一个 Meta-Agent（meta-agent，简称 MA）对话，它拆解并调度一整支 task-agent（TA）团队并行干活。
 
 **[English](./README.en.md) · 中文**
 
@@ -18,21 +18,21 @@
 ---
 ## 🧭 它是做什么的？（三句话讲明白）
 
-- 👔 **一个主管（Meta-Agent）**：不亲自干活，负责招人、派活、听汇报、验收——像个项目经理。
-- 🧑‍💻 **一群工人（Agent/Worker）**：每个 Agent（= Session）是一个持久身份的 AI 会话，有自己的记忆、人设和工具，在各自session干活，互不干扰；Worker 是它的临时 CLI 进程实例（进程是顺带的，可随时重建）。
-- 🧍 **你站在中间**：像站在中控室大屏前的厂长——看得见每个工人在干嘛，随时可以插话、改派，或者直接接管某个 Worker 的终端自己上手。
+- 👔 **一个主管（Meta-Agent，meta-agent，简称 MA）**：不亲自干活，负责招人、派活、听汇报、验收——像个项目经理。MA 是职责角色：它以一个 Session（持久编排身份）存在，实际运行在自己的 Worker 进程中。
+- 🧑‍💻 **一群帮手（task-agent，TA）**：每个 TA 也以一个 Session（= 持久身份的 AI 会话）存在，有自己的记忆、人设和工具，在各自 workdir 干活，互不干扰；Worker 是实际运行 MA 或 TA 会话的临时 CLI 进程实例（进程是顺带的，可随时重建）。
+- 🧍 **你站在中间**：像站在中控室大屏前的厂长——看得见每个帮手在干嘛，随时可以插话、改派，或者直接接管某个 Worker 的终端自己上手。
 
 Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，让"多个 AI 一起干活"从「手动在多个终端窗口之间来回切换」变成「一条有条不紊的流水线」。
 
 ## 💡 为什么选 Pan（30 秒看懂差异化）
 
-单体的 AI 编程助手是"一对一"的：你说一句，它干一件，然后大眼瞪小眼。**Pan 让你只跟一个 Meta-Agent 对话，就能同时指挥一整支 AI 工人团队。**
+单体的 AI 编程助手是"一对一"的：你说一句，它干一件，然后大眼瞪小眼。**Pan 让你只跟一个 MA（Meta-Agent）对话，就能同时指挥一整支 AI 帮手团队。**
 
 | 你想解决的问题 | Pan 的答案 |
 |---------------|-----------|
-| **多任务并行**：同时推进几个模块/项目，手动切换多个终端窗口 | 👔 **Meta-Agent 自动拆解派活**：拆不拆、怎么拆，编排方法论替你判断；多个 Worker 在各自独立 git worktree 里并行干活 |
+| **多任务并行**：同时推进几个模块/项目，手动切换多个终端窗口 | 👔 **MA 自动拆解派活**：拆不拆、怎么拆，编排方法论替你判断；多个 TA 在各自独立 git worktree 里并行干活 |
 | **换 CLI 就丢上下文**：从 A 助手切到 B 助手，历史对话全没了，重头再来 | 🔁 **替身交接（session_handoff）**：想换就换，新 CLI 接管整个关系网，精简摘要随行——同任务跨 CLI 无缝继续，还省上下文 |
-| **一个厂商锁死**：模型/助手被某个 CLI 生态绑定 | 🔌 **多 CLI 协议化适配**：cbc / kimi / opencode / claude / codex 已支持，集群对底层 CLI 无感知，写模型规则就能让 Meta-Agent 按任务类型路由到合适的 adapter |
+| **一个厂商锁死**：模型/助手被某个 CLI 生态绑定 | 🔌 **多 CLI 协议化适配**：cbc / kimi / opencode / claude / codex 已支持，集群对底层 CLI 无感知，写模型规则就能让 MA 按任务类型路由到合适的 adapter |
 | **AI 没有记忆**：每次开工都要重新交代背景和偏好 | 🧠 **Memory + Character**：向量 + 全文混合检索，开工自动注入相关记忆；人设跨 Session 保持同一身份 |
 | **AI 干到一半卡死**：进程挂了、任务跑飞了没人管 | 🐕 **Watchdog 自愈**：卡死 / 静默超时自动清理；进程异常死亡，落盘队列自动重建 Worker 接着干 |
 | **人不在电脑前**：想用 QQ 遥控、公网远程查看 | 🚪 **多渠道指挥**：Web Dashboard / QQ / Cloudflare 公网隧道 / MCP，同一个调度台从哪儿都能进来 |
@@ -44,13 +44,13 @@ Pan 就是那个**调度台**：管进程、管会话、管记忆、管汇报，
 | 深度 | 你可以把 Pan 当作… | 这一层有什么 | 适合谁 |
 |------|-------------------|-------------|--------|
 | 🟢 **最小可用** | **Session 与 Agent CLI 管理器** | 多会话管理（创建 / 重命名 / 分支 / 删除）、多 CLI 适配（cbc / kimi / opencode / claude / codex）、历史会话导入、进程启停与终端接管、Web Dashboard | 个人开发者 / 小团队：只想统一管理手头的 AI CLI 会话，一个界面看清所有会话 |
-| 🟡 **典型协作** | **多 Agent 协作调度台** | 上一档全部 + Meta-Agent 编排（assign / claim / report-subscribe）、落盘收件箱、branch 分身、Memory + Character（记忆与人设）、Watchdog 自愈 | 重度 AI 用户：让 AI 分担多任务并行推进，团队「有记忆、坏不了」 |
+| 🟡 **典型协作** | **多 Agent 协作调度台** | 上一档全部 + MA 编排（assign / claim / report-subscribe）、落盘收件箱、branch 分身、Memory + Character（记忆与人设）、Watchdog 自愈 | 重度 AI 用户：让 AI 分担多任务并行推进，团队「有记忆、坏不了」 |
 | 🔴 **完整集群** | **Agent 集群管理协作系统 + MCP 工具层** | 上一档全部 + SMA 编排模板与完整方法论、并行 Worker 团队（各自独立 git worktree）、替身交接（跨 CLI 换人不丢上下文）、多渠道指挥（Web / QQ / Remote / MCP）、任意外部 Agent 经 MCP 接管编排 | 进阶玩家 / 自动化重度场景：AI 团队接管整条工作流，你只做拆解确认与验收 |
 
 两个端点，一句话概括：
 
-- **往浅用**：只开一个 Session、挂一个 CLI，Pan 就是一个顺手的「Session 与 Agent CLI 管理器」——你完全不必理解 Meta-Agent、收件箱、编排这些概念，它们只是在后台等你；
-- **往深用**：一键创建 SMA 模板会话，Meta-Agent 拆解派活、一支 Worker 团队并行干活、报告自动落盘投递——Pan 成为完整的「Agent 集群管理协作系统 + MCP 工具层」，任何支持 MCP 的外部 Agent 都能进来当主管。
+- **往浅用**：只开一个 Session、挂一个 CLI，Pan 就是一个顺手的「Session 与 Agent CLI 管理器」——你完全不必理解 MA、收件箱、编排这些概念，它们只是在后台等你；
+- **往深用**：一键创建 SMA 模板会话，MA 拆解派活、一支 TA 团队并行干活、报告自动落盘投递——Pan 成为完整的「Agent 集群管理协作系统 + MCP 工具层」，任何支持 MCP 的外部 Agent 都能进来当主管。
 
 关键在于：**每一档都建立在前一档之上，深度能力是叠加启用的，不是另一套系统。** 你今天把它当会话管理器用，明天想上编排，不需要迁移任何东西——只是开始用更多工具而已。下文介绍的所有功能都属于光谱中的某一层：用到哪层，读到哪层即可。
 
@@ -60,9 +60,9 @@ Pan 的出发点不是造一个更复杂的工具，而是减轻一种负担—�
 
 我亲自从零一点点构思，开发了这套agent 管理、集群、调度与交流系统，并在这个系统刚刚可以使用起，我就Bootstrapping地用这套系统来开发它自己。过程中随着功能一点点增加，我能清晰的感受到：认知负担在两侧同时下降，效率与质量在两侧同时上升。
 
-**人这一侧**：过去并行推进多个任务，要在七八个终端之间来回切换，注意力被迫分散，并行的体验极端痛苦；现在只需与一个 Meta-Agent 对话，享受纯净的上下文。可以更加专注于决策，而不是看agent具体的行为，试错。meta-agent会筛选后上报具体的情况，我也可以快速定位需要注意的地方。注意力重新回到线性，人的决策变得更高效快速。
+**人这一侧**：过去并行推进多个任务，要在七八个终端之间来回切换，注意力被迫分散，并行的体验极端痛苦；现在只需与一个 MA 对话，享受纯净的上下文。可以更加专注于决策，而不是看 agent 具体的行为，试错。MA 会筛选后上报具体的情况，我也可以快速定位需要注意的地方。注意力重新回到线性，人的决策变得更高效快速。
 
-**agent 这一侧**：各司其职——Meta-Agent 不会被细节的 context 淹没，拥有了更好的全局观；Task-Agent 享受由具有全局观的 agent 写出的超高质量 prompt，返工比例大幅下降；而 Meta-Agent 在拆解任务、安排并行与串行、划定依赖与边界上的编排能力，令人惊叹，让待办以意想不到的并行关系被解决。第一次看到它把一整页混乱的待办快速地排序，筛选出串行和并行的内容并一次性派出7个worker工作时，我终于完全相信了这个项目的价值。
+**agent 这一侧**：各司其职——MA 不会被细节的 context 淹没，拥有了更好的全局观；task-agent（TA）享受由具有全局观的 agent 写出的超高质量 prompt，返工比例大幅下降；而 MA 在拆解任务、安排并行与串行、划定依赖与边界上的编排能力，令人惊叹，让待办以意想不到的并行关系被解决。第一次看到它把一整页混乱的待办快速地排序，筛选出串行和并行的内容并一次性派出 7 个 worker 进程工作时，我终于完全相信了这个项目的价值。
 
 最终结果是：效率至少提升了十倍。质量我无法量化衡量，但是相比于我最初一个终端一个终端地输入prompt，到这个系统的功能不断增多到如今，我个人的体验就像是从原始时代一步步走到了信息时代一样。
 
@@ -70,14 +70,15 @@ Pan 的出发点不是造一个更复杂的工具，而是减轻一种负担—�
 
 | 通俗说法 | 专业概念 | 说明 |
 |---------|---------|------|
-| 👔 项目经理 | **Meta-Agent / SMA** | 不干活，只调度：招人、派活、听汇报、验收 |
-| 🧑‍💻 全职员工 | **stream Worker** | 长驻的 AI 会话，随叫随到，可连续对话多轮，还能挂载 MCP 工具 |
+| 👔 项目经理 | **meta-agent（MA）/ SMA** | 不干活，只调度：招人、派活、听汇报、验收。角色，不是进程；以 Session 身份存在，运行在自己的 Worker 中（SMA 是 Pan 内置 MA 模板） |
+| 🧑‍💻 执行任务的员工 | **task-agent（TA）** | 承接具体开发 / 测试 / 调研 / 文档任务的 agent，由 MA 经 `agent_assign` 派发；同样以 Session 身份存在、运行在 Worker 中 |
+| 🧑‍💻 全职员工 | **stream Worker** | 长驻运行的 CLI 进程形态，随叫随到，可连续对话多轮，还能挂载 MCP 工具（Worker 是进程，不是身份；MA/TA 皆运行于 Worker） |
 | 🧳 外包临时工 | **one-shot Worker** | 一次任务开一个新进程，自带全套工具箱，干完即走 |
 | 🔌 不同的工具品牌 | **CLI Adapter** | 每种 CLI Agent 一个协议化适配器（cbc / kimi / opencode / claude / codex），切换不改业务层 |
 | 🔁 替身接管你的工作 | **session_handoff** | 创建孪生 Session 接替旧会话：关系网 / 报告订阅 / QQ 绑定全移交，上下文精简摘要随行 |
 | 📤 "这事交给你了，干完汇报" | **assign** | 异步派发：发完就去忙别的，完工后收到报告 |
-| 📬 "以后有活自动派给你" | **report-subscribe** | 订阅制报告：工人完工后自动把报告投到主管的收件箱（落盘不丢） |
-| 🔗 "你归我管了" | **claim** | 建立主管 ↔ 工人的双向管理绑定 |
+| 📬 "以后有活自动派给你" | **report-subscribe** | 订阅制报告：TA 完工后自动把报告投到 MA 的收件箱（落盘不丢） |
+| 🔗 "你归我管了" | **claim** | 建立主管 ↔ Session（TA）的双向管理绑定 |
 | 🌿 复制一个分身去试另一条路 | **branch** | 从现有 Session fork 出独立分支，继承模型/记忆/工具，互不影响 |
 | 🎛️ 老板抢过键盘自己上 | **takeover** | 把 AI 会话夺回人类终端亲自接管（进程重启 + 置 held） |
 | 🧠 员工的长期记忆 | **Memory** | 向量 + 全文（FTS5）混合检索，开工前自动注入相关记忆 |
@@ -89,19 +90,19 @@ Pan 的出发点不是造一个更复杂的工具，而是减轻一种负担—�
 
 ## 👔 Meta-Agent 编排：一支 AI 团队，一个主管
 
-Meta-Agent 不是某个特殊的程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件（能发指令、能收情报、有身份），就能扮演"主管"。
+Meta-Agent 不是某个特殊的程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件（能发指令、能收情报、有身份），就能扮演"主管"（即 meta-agent，MA）。
 
-在 Pan 里，"多任务并行"不是靠开多个终端窗口手动拼，而是把一条指令拆成一支并行 Worker 团队——这是真实可运行的工作流：
+在 Pan 里，"多任务并行"不是靠开多个终端窗口手动拼，而是把一条指令拆成一支并行 TA 团队——这是真实可运行的工作流：
 
 ```
 你：项目 A 的三个模块并行开发，项目 B 的 bug 查一下，下午 3 点提醒我开会。
 
 SMA（决策三问 → 拆解 → 派活）：
-├─ worker-a1 · 项目 A · 模块 1 开发   （worktree-1）
-├─ worker-a2 · 项目 A · 模块 2 开发   （worktree-2）
-├─ worker-a3 · 项目 A · 模块 3 开发   （worktree-3）
-├─ worker-b1 · 项目 B · 排查 bug
-└─ worker-l1 · 生活 · 3 点开会提醒
+├─ ta-a1 · 项目 A · 模块 1 开发   （worktree-1）
+├─ ta-a2 · 项目 A · 模块 2 开发   （worktree-2）
+├─ ta-a3 · 项目 A · 模块 3 开发   （worktree-3）
+├─ ta-b1 · 项目 B · 排查 bug
+└─ ta-l1 · 生活 · 3 点开会提醒
 
 你（过一会儿）：汇报进展。
 → SMA 收回全部结果，trust-but-verify 逐项验收，汇总成一份报告。
@@ -133,7 +134,7 @@ Pan 的 Worker 不绑死在任何一个 CLI 生态里——每种 CLI Agent 对�
 
 ## 🎯 一个入口，管理你的一切任务
 
-你可能同时在忙的，是同一项目的几个并行子任务、几个不同项目的进展、甚至和生活相关的琐事（日程、提醒、自动化）。而对 Meta-Agent 来说，它们都只是**可以并发调度的 Worker 进程**——你不必分别盯着每个终端：
+你可能同时在忙的，是同一项目的几个并行子任务、几个不同项目的进展、甚至和生活相关的琐事（日程、提醒、自动化）。而对 MA 来说，它们都只是**可以并发调度的 TA 会话（及其 Worker 进程）**——你不必分别盯着每个终端：
 
 对你来说，从头到尾只是一次对话；对它们来说，是一支并行协作的团队。而你随时保有最终指挥权——旁观、插话、接管，都可以。
 
@@ -142,8 +143,8 @@ Pan 的 Worker 不绑死在任何一个 CLI 生态里——每种 CLI Agent 对�
 派出去的任务怎么收回结果？Pan 的答案是**订阅制 + 落盘队列**——把"逐个追问"变成"自动投递"：
 
 - **订阅即接管**：订阅一个 Session 报告的同时，托管关系（claim）也一并建立——一步到位，不用分两步操作；
-- **自动投递**：被托管的 Worker 每次完成（或出错），报告自动投进主管的专属收件箱（`queue_pending`），主管不用挨个去问；
-- **落盘不丢**：收件箱写在磁盘上——Meta-Agent 中途掉线，重连后报告还在，一条不漏；
+- **自动投递**：被托管的 TA 每次完成（或出错），报告自动投进 MA 的专属收件箱（`queue_pending`），不用挨个去问；
+- **落盘不丢**：收件箱写在磁盘上——MA 中途掉线，重连后报告还在，一条不漏；
 - **归属清晰**：每个 Session 只属于一个主管（`managed_by`），谁管的谁收，星形拓扑一目了然，别人也无法越权订阅。
 
 所以对主管来说，管理一堆任务 = 管理一个收件箱：**派活 → 回来看收件箱 → 验收 → 合并汇报**。
@@ -154,14 +155,14 @@ Pan 的 Worker 不绑死在任何一个 CLI 生态里——每种 CLI Agent 对�
 
 ```mermaid
 sequenceDiagram
-    participant Meta as 主管 (Meta-Agent)
-    participant A as Worker A
-    participant B as Worker B
-    participant C as Worker C
+    participant Meta as 主管 (MA)
+    participant A as TA A
+    participant B as TA B
+    participant C as TA C
     Meta->>A: assign 调研方案 X
     Meta->>B: assign 调研方案 Y
     Meta->>C: assign 调研方案 Z
-    Note over A,C: 三个 Worker 并行工作（各自独立 worktree）
+    Note over A,C: 三个 TA 并行工作（各自独立 worktree）
     A-->>Meta: result 报告 X
     B-->>Meta: result 报告 Y
     C-->>Meta: result 报告 Z
@@ -189,7 +190,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 | 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | **推荐 React SPA**（`/react/`，当前唯一维护的前端）；旧版 Vanilla 已弃用（deprecated），仅经 `/vanilla` 作后备访问；`frontend` 配置控制路由分配（`coexist` / `react` / `legacy`） |
 | 💬 **QQ Bridge** | NapCat / LLOneBot | OneBot 11 网关**插件化**：两个通道只是 `QQChannel` 的薄子类，业务层零改动；`mirror` 全量镜像 / `selective` 选择性发送双模式 |
 | 🌐 **Remote** | Cloudflare Tunnel | 一键暴露到公网，出门在外也能管 |
-| 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | 让任意 Agent CLI 当主管：MCP 工具 + 事件流订阅，Meta-Agent 的接入通道 |
+| 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | 让任意 Agent CLI 当主管：MCP 工具 + 事件流订阅，MA 的接入通道 |
 
 > 各通道的启动 / 配置 / 切换细节，见下文「[通道与集成](#通道与集成)」。
 
@@ -199,7 +200,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 - 🛡️ **自愈的调度台**：Worker 卡死？Watchdog 自动清理（静默超时 / 任务时长超时 / 空闲回收三档）；进程异常死亡？落盘队列会自动重建 Worker 接着干。
 - 📬 **Managed 订阅收件箱**：每个主管都有一个落盘收件箱，被托管的 Worker 完工自动投递报告——派完活不用盯，回来看一眼收件箱就行。
 - 🔁 **切换 CLI 不丢上下文**：替身交接让"换喜欢的 Agent"成为常态操作，同任务在不同 CLI 间无缝切换、节省上下文。
-- 🔌 **不绑死任何 CLI 生态**：协议化 adapter + 集群无感知，新 CLI 接入是注册一行的事，Meta-Agent 按模型规则路由。
+- 🔌 **不绑死任何 CLI 生态**：协议化 adapter + 集群无感知，新 CLI 接入是注册一行的事，MA 按模型规则路由。
 - 🖐️ **人与 AI 平等**：任何一个 Worker，你都能随时中断、接管终端、fork 分身，或者直接上手。
 - 🧠 **有记忆有性格**：Memory 向量 + 全文混合检索自动注入，Character 人设跨 Session 保持。
 - 🚪 **跨通道指挥**：Dashboard、QQ、公网隧道、MCP——同一个调度台，从哪儿都能进来管。
@@ -267,7 +268,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 
 ## 简介
 
-Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Worker 架构下，一个「Meta-Agent 主管」通过 MCP 工具与 WebSocket 事件流，同时指挥多个 Worker（每个 Worker 是独立运行的 CLI Agent 会话）并行推进任务，每个 Worker 在独立的 git worktree 中工作。你可以在 Web Dashboard、QQ、公网隧道或任意 Agent CLI 上指挥它，也随时可以旁观、插话或接管某个 Worker 的终端。
+Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Worker 架构下，一个「MA 主管」（meta-agent）通过 MCP 工具与 WebSocket 事件流，同时指挥多个 TA 会话（每个会话独立运行，由临时 Worker 进程承载）并行推进任务，每个 TA 在独立的 git worktree 中工作。你可以在 Web Dashboard、QQ、公网隧道或任意 Agent CLI 上指挥它，也随时可以旁观、插话或接管某个 Worker 的终端。
 
 - **技术栈**：Python + FastAPI + WebSocket + SQLite（FTS5 全文检索）+ 可选 embedding 向量检索；前端为 React（当前唯一维护并推荐的前端）+ Vanilla JS（已弃用 deprecated，仅作后备）。
 
@@ -282,7 +283,7 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 
 ## 特性
 
-- **Meta-Agent 编排（SMA）**：一个主管完成「拆解 → 并行派发 → 订阅汇报 → trust-but-verify 验收 → 合并交付」的完整编排闭环。
+- **MA 编排（SMA 模板）**：一个主管完成「拆解 → 并行派发 → 订阅汇报 → trust-but-verify 验收 → 合并交付」的完整编排闭环。
 - **多 CLI 协议化适配**：`CliAdapter` 协议 + 注册表，内置 **cbc / kimi / opencode / claude / codex** 五个 adapter，编排层对底层 CLI 无感知。
 - **替身交接（session_handoff）**：切换 CLI 时创建孪生会话接替旧会话，关系网 / 订阅 / 报告随行，只携带精简摘要，避免上下文膨胀。
 - **Managed 订阅收件箱**：订阅制报告落盘投递，主管「派完活回来看收件箱」，掉线重连不丢报告。
@@ -294,16 +295,19 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 
 ## 核心概念
 
+> **三层模型**：**角色（MA/TA）— 身份（Session）— 进程（Worker）**。MA/TA 是职责角色；Session 是持久编排身份，承载 MA 或 TA；Worker 是临时 CLI 进程，实际运行 MA 或 TA 的 Session——既有 MA Worker 也有 TA Worker，不要把 Worker 与 TA 划等号。
+
 | 概念 | 说明 |
 |------|------|
-| **Agent = Session** | 逻辑编排对象：持久身份（`ses_<16hex>`），拥有收件箱 `queue_pending`、agentLevel、managedBy 链；投递/编排语义都绑在它上面。独立于 Worker 生命周期 |
-| **Worker** | 物理执行体：临时的 CLI 进程实例，属于某 Agent；`stream` 长驻 / `one-shot` 一次性两种形态，可随时 kill / 重建（进程是顺带的） |
-| **Meta-Agent（SMA）** | 主管角色：不亲自干活，只负责拆解、派活、听汇报、验收 |
+| **MA（meta-agent）** | 编排角色：不亲自干活，只负责拆解、派活、听汇报、验收；以 Session 身份存在（内置 SMA 模板即 MA），运行在自己的 Worker 中 |
+| **TA（task-agent）** | 执行角色：承接具体开发 / 测试 / 调研 / 文档任务；同样以 Session 身份存在、运行在 Worker 中 |
+| **Session** | 持久编排对象（身份层，旧称 "Agent"）：持久身份（`ses_<16hex>`），拥有收件箱 `queue_pending`、agentLevel、managedBy 链；投递/编排语义都绑在它上面。独立于 Worker 生命周期 |
+| **Worker** | 物理执行体（进程层）：临时 CLI 进程实例，实际运行某个 MA 或 TA 的 Session；`stream` 长驻 / `one-shot` 一次性两种形态，可随时 kill / 重建（进程是顺带的） |
 | **CLI Adapter** | 每种 CLI Agent 一个协议化适配器（cbc / kimi / opencode / claude / codex） |
 | **session_handoff** | 替身交接：创建孪生 Session 接替旧会话，关系网 / 订阅 / 报告随行 |
 | **assign** | 异步派发任务（taskId 幂等），完工后收到报告 |
-| **report-subscribe** | 订阅制报告：Worker 完工自动把报告投到主管的落盘收件箱 |
-| **claim** | 建立主管 ↔ Worker 的双向管理绑定 |
+| **report-subscribe** | 订阅制报告：TA 完工自动把报告投到 MA 的落盘收件箱 |
+| **claim** | 建立主管 ↔ Session（TA）的双向管理绑定 |
 | **branch** | 从现有 Session fork 出独立分支，继承模型 / 记忆 / 工具 |
 | **takeover** | 把 AI 会话夺回人类终端亲自接管 |
 | **Watchdog** | 每个 Worker 一只：卡死 / 超时自动清理；全局级自动补员 |
@@ -407,7 +411,7 @@ bash scripts/stop.sh    # 停止
 2. 创建后，会话卡片会显示状态点、adapter、模型和消息数。模型、权限模式、思考档位等设置可以稍后在会话设置中修改。
 3. 选中会话，点击顶栏 **Start** 启动 Worker；在底部输入任务并按 **Enter** 发送，Shift+Enter 换行。Worker 忙碌时消息会进入发送队列，空闲后按顺序处理。
 4. 状态点含义为：绿色 idle、蓝色 running、黄色已被人工接管、红色 error。回复会逐条显示，工具调用可在右侧 DetailPanel 查看原始输出。
-5. 任务完成后可继续多轮追问，或切换到 **Editor** 浏览/编辑会话工作目录中的文件；不再需要时右键会话 → Delete。完整 UI 操作见[用户手册第 4 章](docs/USER_MANUAL.md#4-ui-使用指南)。
+5. 任务完成后可继续多轮追问，或切换到 **Editor** 浏览/编辑会话工作目录中的文件；不再需要时右键会话 → Delete。完整 UI 操作见[用户手册第 5 章](docs/USER_MANUAL.md#5-dashboard-界面操作)。
 
 #### 直接问 SMA：创建带参数的会话
 
@@ -427,10 +431,10 @@ bash scripts/stop.sh    # 停止
 
 1. 新建会话，模板选择 **SMA(NoAdapter)**；
 2. 提出目标，例如“并行调研方案 A / B / C，分别给出结论，最后汇总对比报告”；
-3. SMA 使用 `session_create`、`worker_assign`、`report_subscribe` 管理子会话，完成报告进入它的 `queue_pending` 收件箱；
+3. SMA 使用 `session_create`、`agent_assign`、`report_subscribe` 管理子会话，完成报告进入它的 `queue_pending` 收件箱；
 4. SMA 汇总并验收后向你交付结果，必要时用 `session_batch_delete` 清理子会话。
 
-简单问题或改一行代码可以直接使用普通会话；多任务并行、需要汇总交付或长期协作时更适合交给 SMA。子会话删除不会删除磁盘上的 workdir，需保留产物时请先落盘。完整建议见[用户手册第 6 章](docs/USER_MANUAL.md#6-最佳实践)。
+简单问题或改一行代码可以直接使用普通会话；多任务并行、需要汇总交付或长期协作时更适合交给 SMA。子会话删除不会删除磁盘上的 workdir，需保留产物时请先落盘。完整建议见[用户手册第 4 章](docs/USER_MANUAL.md#4-两种获得meta-agent能力的方式)。
 
 ### 配置要点
 
@@ -450,11 +454,11 @@ bash scripts/stop.sh    # 停止
 - `bypassPermissions` 默认不逐条审批命令和文件修改，适合可信环境；`default` / `acceptEdits` 更保守。Pan 默认无鉴权并绑定 `127.0.0.1`，不要把 `PAN_HOST` 改为公网地址而不做额外保护。
 - `worker.timeout_sec` 是无输出静默超时，`task_timeout_sec` 是 stream 任务总时长上限，`idle_sec` 是任务完成后的空闲回收时间。
 
-QQ 需要先运行 NapCat（3001）或 LLOneBot（3002），在 `qq.channel` 选择网关；`qq.mode` 为 `mirror` 时自动回复，为 `selective` 时只进收件箱由编排者处理。不使用 QQ 时可设置 `qq.enabled=false`。MCP 会话级注入、外部 Agent 接入和完整字段表见[用户手册第 5、9、12 章](docs/USER_MANUAL.md#5-配置方法)。
+QQ 需要先运行 NapCat（3001）或 LLOneBot（3002），在 `qq.channel` 选择网关；`qq.mode` 为 `mirror` 时自动回复，为 `selective` 时只进收件箱由编排者处理。不使用 QQ 时可设置 `qq.enabled=false`。MCP 会话级注入、外部 Agent 接入和完整字段表见[用户手册第 4、12 章](docs/USER_MANUAL.md#12-mcp模板和端口对齐排障)。
 
 ### 停止与常见限制
 
-Ctrl+C 可优雅退出；也可使用 `scripts/stop_pan.bat` / `scripts/stop.sh`。macOS/Linux 路径大小写敏感；后台启动时 PATH 可能不同，修改 CLI 或 PATH 后要重启 Pan。API 默认无鉴权，Remote/Cloudflare Tunnel 会把主端口暴露到公网；使用前必须评估风险。Worker 被 watchdog 回收后可重新 Start，Session 历史仍会保留；删除 Session 不会删除其 workdir。更多排障见[用户手册第 10、11 章](docs/USER_MANUAL.md#10-故障排查)。
+Ctrl+C 可优雅退出；也可使用 `scripts/stop_pan.bat` / `scripts/stop.sh`。macOS/Linux 路径大小写敏感；后台启动时 PATH 可能不同，修改 CLI 或 PATH 后要重启 Pan。API 默认无鉴权，Remote/Cloudflare Tunnel 会把主端口暴露到公网；使用前必须评估风险。Worker 被 watchdog 回收后可重新 Start，Session 历史仍会保留；删除 Session 不会删除其 workdir。更多排障见[用户手册第 12、13 章](docs/USER_MANUAL.md#13-安全清理与常见问题)。
 
 ### 前端说明：推荐 React，Vanilla 已弃用（deprecated）
 
@@ -480,7 +484,7 @@ pnpm dev       # 开发模式：Vite HMR + 代理到后端
 ## 架构
 
 ```
-         Meta-Agent                   人类                    远程访问
+         Meta-Agent (MA)              人类                    远程访问
     (Agent CLI / MCP)           (Dashboard)            (Cloudflare Tunnel)
           │                          │                          │
    /ws/agent + MCP tools       /ws + HTTP               公网 URL + WS
@@ -535,7 +539,7 @@ Worker 与具体 CLI 解耦：每种 CLI Agent 对应一个实现 `CliAdapter` �
 
 ## Meta-Agent 编排
 
-Meta-Agent 不是某个特殊程序，而是一个**角色**——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件即可扮演「主管」：
+Meta-Agent 不是某个特殊程序，而是一个**角色**（meta-agent，MA）——任何一方（你的 Agent CLI、脚本、甚至另一个 Pan 会话）只要满足三个条件即可扮演「主管」：
 
 1. **能发指令**：通过 MCP 工具（如 `agent_spawn` / `agent_assign` / `agent_send` / `session_handoff`，兼容别名 `worker_*`）或 HTTP API；
 2. **能收情报**：通过 WebSocket 订阅事件流（`worker.result` / `worker.status` / `worker.crashed`…），或订阅制报告落盘到自己的收件箱；
@@ -554,7 +558,7 @@ Pan 的树状管理 UI 展示 SMA 与其子 session / Worker 的管理关系：S
 SMA 的调度遵循一套方法论（固化在 `docs/skills/pan/SKILL.md`）：
 
 1. **决策三问**——先判断拆不拆：① 能真并行吗？② 拆了更快吗？③ 精度关键吗？任一不过 → 自己做；全过 → 并行派发；
-2. **并行派发**：`agent_assign` 异步分发到多个 Agent（各自独立 git worktree，避免提交冲突），立即返回不阻塞；
+2. **并行派发**：`agent_assign` 异步分发到多个 TA 会话（各自独立 git worktree，避免提交冲突），立即返回不阻塞；
 3. **订阅制汇报**：`report_subscribe` 把完成报告自动投进主管的落盘收件箱，掉线重连报告不丢；
 4. **trust-but-verify 验收**：合并汇报前逐项核对改动、跑测试验证；
 5. **合并汇报**：收回全部结果，汇总成一份交付。
@@ -580,7 +584,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | `worker.task_timeout_sec` | 1800 | stream running 任务运行时长上限（长思考 / 大文件读取不误杀） |
 | `worker.idle_sec` | 300 | 空闲回收秒数（held / zombie 跳过） |
 | `qq.enabled` | true | 是否启动 QQ bot（main.py 按此统一 spawn / 终止） |
-| `qq.mode` | `mirror` | `mirror` 全量镜像自动回复 / `selective` 选择性发送（消息只进 inbox，由 meta-agent 经 pan-qq MCP 决策） |
+| `qq.mode` | `mirror` | `mirror` 全量镜像自动回复 / `selective` 选择性发送（消息只进 inbox，由 MA 经 pan-qq MCP 决策） |
 | `qq.channel` | `napcat` | QQ 通道：`napcat` / `llonebot`（OneBot 11 网关插件化切换） |
 | `remote.enabled` | false | 是否启用 Cloudflare Tunnel；不控制 Pan Core、Web UI 或普通 `/api/*`（即使为 false，主服务仍按 `port` 启动） |
 | `remote.quick_tunnel` | true | true 用临时 URL；false 用 named tunnel（需 `remote.config_path`） |
@@ -733,7 +737,7 @@ GET    /api/worker/{id}/takeover-command → 生成 takeover 命令
 
 ```
 WS   /ws           Dashboard：接收 user_inject（入队）/ worker_control / sync_interactive（交互快照回放）；广播全部事件
-WS   /ws/agent     Meta-Agent：subscribe（按 eventTypes / sessionIds 过滤 + 重连补发）、
+WS   /ws/agent     MA（meta-agent）：subscribe（按 eventTypes / sessionIds 过滤 + 重连补发）、
                    reconnect、task、spawn、assign、send、kill、list
 ```
 
@@ -755,7 +759,7 @@ WS   /ws/agent     Meta-Agent：subscribe（按 eventTypes / sessionIds 过滤 +
 
 ### 外部 Agent 调用 Pan（Meta-Agent / MCP）
 
-Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部 agent**（CodeBuddy、Claude Code、自定义脚本 agent……）都可以接管 Pan 的完整编排能力：会话管理、worker 派发、报告订阅、QQ 收件箱消费，扮演「Meta-Agent 主管」角色。也可以直接连 `/ws/agent` WebSocket 订阅事件流。
+Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部 agent**（CodeBuddy、Claude Code、自定义脚本 agent……）都可以接管 Pan 的完整编排能力：会话管理、TA 派发、报告订阅、QQ 收件箱消费，扮演「MA 主管」角色。也可以直接连 `/ws/agent` WebSocket 订阅事件流。
 
 #### MCP 工具一览
 
@@ -831,7 +835,7 @@ python -m packages.mcp.server --transport sse --port 9740
 
 #### 给你的 Agent CLI 装上 pan skill（强烈建议）
 
-**pan skill**（`SKILL.md`）是给「想当 Meta-Agent 主管」的 agent 准备的**冷启动手册**：把它配给你的 agent CLI 后，agent 开工即自动掌握 Pan 的编排链路（`session_create → report_subscribe → agent_assign → queue_pending`）、MCP 工具约定与踩坑，**无需你每次在提示词里从头教**——与 MCP 工具（方式 A 注入）配合，agent 即可直接上手当主管。
+**pan skill**（`SKILL.md`）是给「想当 MA（meta-agent）主管」的 agent 准备的**冷启动手册**：把它配给你的 agent CLI 后，agent 开工即自动掌握 Pan 的编排链路（`session_create → report_subscribe → agent_assign → queue_pending`）、MCP 工具约定与踩坑，**无需你每次在提示词里从头教**——与 MCP 工具（方式 A 注入）配合，agent 即可直接上手当主管。
 
 - **主源**：`docs/skills/pan/SKILL.md`（git 跟踪，随仓库更新）；
 - **支持 Agent Skills 的 CLI**（如 Claude Code 的 `.claude/skills/`、Codex 的 `~/.codex/skills/` 、cbc的 `.codebuddy/skills/`等）：把 `pan/SKILL.md` 按该 CLI 的 skill 目录约定放好即可。frontmatter 的 `name` / `description` 是 skill 的元信息（description 影响触发时机，建议保留原名）。
@@ -847,7 +851,7 @@ python -m packages.mcp.server --transport sse --port 9740
 
 QQ 接入被抽象为可切换的**通道（Channel）**：`QQChannel` 接口（`packages/qq/channels/base.py`）定义生命周期 / 消息回调 / 收发 / 联系人查询；NapCat 与 LLOneBot 都是 OneBot 11 网关的薄子类（`packages/qq/channels/`），业务层只依赖接口，切换网关零改动。
 
-`qq.mode` 控制桥接行为：`mirror`（全量镜像自动回复，默认）/ `selective`（消息只进 inbox + history，由 meta-agent 经 pan-qq MCP 决策回复）。`manifest.json` 的 `command_routes` 可声明 QQ 前缀命令直发外部 HTTP API（不走 LLM）。
+`qq.mode` 控制桥接行为：`mirror`（全量镜像自动回复，默认）/ `selective`（消息只进 inbox + history，由 MA 经 pan-qq MCP 决策回复）。`manifest.json` 的 `command_routes` 可声明 QQ 前缀命令直发外部 HTTP API（不走 LLM）。
 
 ### Remote（Cloudflare Tunnel）
 

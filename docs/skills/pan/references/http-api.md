@@ -5,7 +5,7 @@ description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills
 
 # Pan HTTP API 速查（引用文档）
 
-> 供 `docs/skills/pan/SKILL.md` 引用。**meta-agent 编排一律走 MCP 工具**（见 SKILL.md §6）；本文件是 HTTP 直调与排查用的技术细节，含 MCP 覆盖不到的端点（rename / branch）、以及直调/排查所需的请求体与字段约定。
+> 供 `docs/skills/pan/SKILL.md` 引用。**MA 编排一律走 MCP 工具**（见 SKILL.md §5）；本文件是 HTTP 直调与排查用的技术细节，含 MCP 覆盖不到的端点（rename / branch）、以及直调/排查所需的请求体与字段约定。
 
 Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`（代码默认 **8768**；main/test 测试或隔离运行使用 8767 或 8765；由 `config.json` 的 `port` 字段或 `PAN_PORT` 环境变量覆盖）。全部返回 JSON；错误通常返回 `{"error": "..."}`。**API 无鉴权、绑 loopback（127.0.0.1）**——不要在非本机环境暴露端口。
 
@@ -22,7 +22,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `POST` | `/api/sessions/{id}/handoff` | `{"handoffPrompt": "...", "copySettings": true, "adapter"?: "...", "model"?: "...", "permissionMode"?: "..."}` | **替身交接**：创建孪生 session B 接替 A（见 SKILL.md §2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填 |
 | `POST` | `/api/readonly` | `{"managerId": "...", "sessionId": "...", "readonlySession": true}` | 设置或清除已由 `managerId` 管理的 session 的持久只读状态；不能借此认领 session。只读目标拒绝其他 session 的任务/消息/通知，返回 `readonly_session` |
 | `POST` | `/api/notify` | `{"targetSessionId": "...", "text": "...", "source"?: "..."}` | 持久化后台任务完成/状态通知到目标 `queue_pending`；无活 worker 时自动唤醒/spawn。该路由供 MCP `agent_notify` 使用，权限隔离由 MCP 层执行，不是普通任务派发 |
-| `POST` | `/api/report-subscribe` | `{"managerId": "<meta-agent session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}`。**等价 MCP 工具：`report_subscribe`（编排首选）** |
+| `POST` | `/api/report-subscribe` | `{"managerId": "<MA session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}`。**等价 MCP 工具：`report_subscribe`（编排首选）** |
 | `POST` | `/api/report-unsubscribe` | 同上 | `{"subscribed": false, ...}`。等价 MCP 工具：`report_unsubscribe` |
 | `POST` | `/api/claim` | `{"managerId": "...", "sessionId": "..."}` | 认领会话建立 managed 关系（带 `_check_access(claim=True)` 隔离检查；目标已被他人管理则拒绝）。等价 MCP 工具：`session_claim`（claim 自动 report_subscribe） |
 | `POST` | `/api/unclaim` | `{"managerId": "...", "sessionId": "..."}` | 解除 managed 关系（同时退订该 session 报告）。等价 MCP 工具：`session_unclaim` |
@@ -84,7 +84,7 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `DELETE` | `/api/sessions/{id}` | —（无 body） | `{"sessionId","status":"deleted"}` |
 
 字段说明：
-- `POST /api/sessions`：`name` 省略默认 `'default'`（建议始终显式命名），且全局唯一（不能含空格、≤64 字符）；其余字段均可省略。`adapter` 默认 `cbc`；`workdir` 默认取 name（相对基准见 SKILL.md §8.1）；`permissionMode` 默认取 config；`characterId` 会给定时覆盖 adapter/model/permissionMode（见 `packages/web/server.py` `_build_session_params`）。
+- `POST /api/sessions`：`name` 省略默认 `'default'`（建议始终显式命名），且全局唯一（不能含空格、≤64 字符）；其余字段均可省略。`adapter` 默认 `cbc`；`workdir` 默认取 name（相对基准见 SKILL.md §7.1）；`permissionMode` 默认取 config；`characterId` 会给定时覆盖 adapter/model/permissionMode（见 `packages/web/server.py` `_build_session_params`）。
 - `POST /api/spawn`：已有 worker 会**先 kill 再新建**（一个 session 一个 worker）；`sessionId` 省略时等同 create+spawn（body 同 create 字段）。
 - `POST /api/assign`：`sessionId`、`text` **均必填**；缺参返回 `{"ok":false,"error":{...}}`。worker 不存在时自动 spawn。完成异步经报告订阅 / `lastResult` 返回。
 - `DELETE /api/sessions/{id}`：删除 session 并 kill 其 worker。
@@ -118,11 +118,11 @@ Windows 下 `curl -d '{"text":"中文…"}'` 内联中文 body 会报 `{"detail"
 
 ## 轮询兜底策略（report_subscribe 不可用时的 fallback）
 
-> **编排首选是内部订阅（`report_subscribe` → `queue_pending`，见 SKILL.md §3）**。仅当该路径不可用时（如 SKILL.md §11.2 G9 跨端口 / G10 版本落后）才用 `session_get` 轮询兜底。
+> **编排首选是内部订阅（`report_subscribe` → `queue_pending`，见 SKILL.md §3）**。仅当该路径不可用时（如 SKILL.md §10.2 G9 跨端口 / G10 版本落后）才用 `session_get` 轮询兜底。
 
 `GET /api/sessions/{id}` 看 `lastResult.status`（或 `session_list` 扫描全部 session，对 `done` 的读结果）。轮询粒度建议 ≥5s。
 
 **放弃/超时策略**：
 - **结束条件**：`lastResult.status` 变为 `done`（读 `result`）或 `error`（读 `result` 排查）→ 停止轮询。
 - **放弃条件一（worker 已死）**：轮询中发现 `workerStatus` 变 `null` 且 `lastResult.status` 仍是 `queued`/`running` → watchdog 已回收或进程已死，任务不会继续 → 停止本轮，`agent_spawn` 后重新 assign。
-- **放弃条件二（超时预算）**：为每轮任务设总预算。stream running 卡死判定基于**任务运行时长**（`worker.task_timeout_sec` 默认 1800s，见 SKILL.md §8.3），queued 静默超时 300s（`config.example.json`）、运行环境 config.json 实测 1200s——**轮询超过任务时长上限没有意义**：worker 要么已产出结果，要么已被 watchdog 判定卡死 kill。简单任务预算 60–120s；复杂任务预算取 `worker.task_timeout_sec` + 余量。到点仍无结果且 worker 存活 → 停止盲目轮询，先查卡死原因再决定重发。
+- **放弃条件二（超时预算）**：为每轮任务设总预算。stream running 卡死判定基于**任务运行时长**（`worker.task_timeout_sec` 默认 1800s，见 SKILL.md §7.3），queued 静默超时 300s（`config.example.json`）、运行环境 config.json 实测 1200s——**轮询超过任务时长上限没有意义**：worker 要么已产出结果，要么已被 watchdog 判定卡死 kill。简单任务预算 60–120s；复杂任务预算取 `worker.task_timeout_sec` + 余量。到点仍无结果且 worker 存活 → 停止盲目轮询，先查卡死原因再决定重发。

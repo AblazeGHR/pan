@@ -1,19 +1,19 @@
 ---
 name: pan-ws-protocol
-description: Pan /ws/agent 订阅协议与 monitor_workers.py 盯梢模板（测试/排障用引用文档，配合 docs/skills/pan/SKILL.md 使用）。meta-agent 编排完成通知一律走内部 report_subscribe → queue_pending（SKILL.md §3），本文件仅记录 WS 广播协议与外部盯梢工具供测试/排障/外部协调者使用。
+description: Pan /ws/agent 订阅协议与 monitor_workers.py 盯梢模板（测试/排障用引用文档，配合 docs/skills/pan/SKILL.md 使用）。MA 编排完成通知一律走内部 report_subscribe → queue_pending（SKILL.md §3），本文件仅记录 WS 广播协议与外部盯梢工具供测试/排障/外部协调者使用。
 ---
 
 # Pan /ws/agent 订阅协议与盯梢模板（测试/排障用）
 
-> **重要**：meta-agent 编排 worker 时，完成通知**一律走内部订阅**（MCP `report_subscribe` → 报告入自己的落盘队列 `queue_pending`，见 `docs/skills/pan/SKILL.md` §3），**不依赖 /ws/agent**。本文件只记录 WS 广播协议与 `monitor_workers.py` 盯梢脚本，供**测试 / 排障 / 外部（非 meta-agent）协调者**使用。
+> **重要**：MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**（MCP `report_subscribe` → 报告入自己的落盘队列 `queue_pending`，见 `docs/skills/pan/SKILL.md` §3），**不依赖 /ws/agent**。本文件只记录 WS 广播协议与 `monitor_workers.py` 盯梢脚本，供**测试 / 排障 / 外部（非 MA）协调者**使用。
 
 ## 与内部 report_subscribe 的区别
 
 | 维度 | 内部报告（report_subscribe） | WS 广播（/ws/agent） |
 |------|------------------------------|----------------------|
-| 送达 | 报告 append 到 meta-agent 落盘队列 `queue_pending`（跨服务重启不丢） | 实时推送，无落盘；断线需 `reconnect` 补发 |
+| 送达 | 报告 append 到 MA 落盘队列 `queue_pending`（跨服务重启不丢） | 实时推送，无落盘；断线需 `reconnect` 补发 |
 | 关系 | **订阅即接管**：自动建立 managed 关系（claim） | **不建立** managed 关系，只是广播监听 |
-| 适用 | meta-agent 编排自己的 subagent（**首选**） | 外部 CodeBuddy 会话 / 测试脚本实时盯梢 |
+| 适用 | MA 编排自己的 TA（**首选**） | 外部 CodeBuddy 会话 / 测试脚本实时盯梢 |
 | 异常感知 | zombie 报告也入 queue_pending（`{"status":"error","type":"zombie",...}`） | `worker.zombie` 事件广播 |
 
 ## /ws/agent 订阅协议
