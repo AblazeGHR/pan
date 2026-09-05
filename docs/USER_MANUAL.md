@@ -1,6 +1,6 @@
 # Pan 用户手册
 
-> 给第一次接触 Pan 的用户：从安装、创建第一个 Session，到让 Meta-Agent 自动派活、收报告和交付结果。本文以当前 React Dashboard、`packages/mcp/server.py`、`packages/web/server.py`、`packages/core/worker.py` 和根目录 `manifest.json` 的实际行为为准。
+> 给第一次接触 Pan 的用户：从安装、创建第一个 Session，到让 MA（meta-agent）自动派活、收报告和交付结果。本文以当前 React Dashboard、`packages/mcp/server.py`、`packages/web/server.py`、`packages/core/worker.py` 和根目录 `manifest.json` 的实际行为为准。
 
 **[English](./USER_MANUAL.en.md) · 中文**
 
@@ -25,25 +25,28 @@
 
 ## 1. 先用一句话理解 Pan
 
-Pan 是一个把多个 CLI Agent 组织成“一个主管、多个执行者”的编排平台。你可以只和一个 Meta-Agent（也叫 SMA，Super Meta-Agent）对话；它把目标拆成子任务，创建或复用会话，异步派发给不同的 Agent，收到完成报告后验收并汇总。
+Pan 是一个把多个 CLI Agent 组织成“一个主管、多个执行者”的编排平台。你可以只和一个 meta-agent（MA；Pan 内置模板名为 SMA，Super Meta-Agent）对话；它把目标拆成子任务，创建或复用会话，异步派发给不同的 task-agent（TA），收到完成报告后验收并汇总。
 
-### 1.1 五个容易混淆的名词
+### 1.1 容易混淆的名词
+
+> 统一术语分三层：**角色（MA/TA）— 身份（Session）— 进程（Worker）**。MA/TA 是职责角色；Session 是持久编排身份，承载 MA 或 TA；Worker 是临时 CLI 进程，实际运行 MA 或 TA 的会话——**既有 MA Worker 也有 TA Worker**，不要把 Worker 与 TA 划等号。
 
 | 名词 | 它是什么 | 生命周期与用途 |
 |---|---|---|
-| Agent | Pan 中可被编排的逻辑对象 | 实际上以一个 `Session` 身份存在，后续用 `session_id` 找它 |
-| Session | 持久化的会话容器 | 保存对话历史、模型、adapter、`workdir`、管理关系、待处理队列；ID 形如 `ses_...` |
-| Worker | Session 名下实际运行的 CLI 子进程 | 临时的物理执行体；可以被 watchdog 回收，也可以重新 spawn，不等于删除 Session |
+| Agent（旧称） | 编排对象的历史叫法 | 现统一为：编排对象通常以 `Session` 身份存在和寻址（Agent = Session，兼容说法）；MA/TA 是运行在其上的职责角色 |
+| Session | 持久化的会话容器（身份层） | 承载 MA 或 TA 身份；保存对话历史、模型、adapter、`workdir`、管理关系、待处理队列；ID 形如 `ses_...` |
+| Worker | Session 名下实际运行的 CLI 子进程（进程层） | 临时的物理执行体，既有 MA Worker 也有 TA Worker；可被 watchdog 回收、重新 spawn；不等于删除 Session，也不等于 TA 本身 |
 | Adapter | Pan 对某种 CLI 的适配器 | 当前注册表包括 `cbc`、`kimi`、`opencode`、`claude`、`codex`；是否可用以 Dashboard 的 CLI 检测为准 |
-| Meta-Agent / SMA | 主管角色，不是另一种进程 | 一个拥有 Pan MCP 工具和编排权限的 Session；负责拆解、派发、订阅报告、验收和汇总 |
+| MA（meta-agent）/ SMA | 主管角色，不是另一种进程 | 一个拥有 Pan MCP 工具和编排权限的 Session（SMA 是内置模板）；负责拆解、派发、订阅报告、验收和汇总；同样运行在 Worker 中 |
+| TA（task-agent） | 执行角色 | 承接具体开发、测试、调查或文档任务的 Session；由 MA 经 `agent_assign` 派发，完成后经 `report_subscribe` → `queue_pending` 回报验收 |
 
-可以把它想成：Session 是员工档案，Worker 是今天上班的进程，Adapter 是员工使用的工具类型，Meta-Agent 是项目经理。Worker 死了，档案和历史仍在；重新启动时 adapter 会尝试恢复已有 CLI 上下文。
+可以把它想成：Session 是员工档案，Worker 是今天上班的进程，Adapter 是员工使用的工具类型，MA/TA 是角色（项目经理 / 执行员工）。Worker 死了，档案和历史仍在；重新启动时 adapter 会尝试恢复已有 CLI 上下文。
 
 ### 1.2 什么时候用哪一种
 
 - 只问一个问题、改一行代码：创建普通 Session，直接聊天即可。
 - 多个模块并行、需要统一验收、任务较长：创建 SMA，让它管理子 Session。
-- 已经有一个外部 Agent CLI：给它挂 `pan` MCP，再安装 `docs/skills/pan/SKILL.md` 这份 skill，它就能成为 Meta-Agent。
+- 已经有一个外部 Agent CLI：给它挂 `pan` MCP，再安装 `docs/skills/pan/SKILL.md` 这份 skill，它就能成为 MA（meta-agent）。
 
 ---
 
@@ -121,7 +124,7 @@ bash scripts/start.sh
 
 ## 4. 两种获得 Meta-Agent 能力的方式
 
-两种方式的共同点都是：最终得到一个带 Pan MCP 的 Agent。区别是“能力从哪里来”：模板一次性预置；已有 Agent 则由你手工接线和安装规则。两者可以结合，但不要把“模板名”误认为“任何 Agent 自动拥有编排能力”。
+两种方式的共同点都是：最终得到一个带 Pan MCP 的 MA 会话（Session）。区别是“能力从哪里来”：模板一次性预置；已有 Agent 则由你手工接线和安装规则。两者可以结合，但不要把“模板名”误认为“任何 Agent 自动拥有编排能力”。
 
 ### 4.1 方式一：通过 Session Template 创建（推荐新用户）
 
@@ -227,7 +230,7 @@ ses_child.managedBy  = "ses_parent"
 
 ## 7. Subscribe、报告和 queue_pending
 
-Meta-Agent 先对目标 Session 调 `report_subscribe`，再调 `agent_assign`。目标 Worker 进入 `done` 或 `error` 时，Pan 把报告追加到 manager 的持久化 `queue_pending`：
+MA 先对目标 Session 调 `report_subscribe`，再调 `agent_assign`。目标 Worker 进入 `done` 或 `error` 时，Pan 把报告追加到 manager 的持久化 `queue_pending`：
 
 ```json
 {
@@ -245,7 +248,7 @@ Meta-Agent 先对目标 Session 调 `report_subscribe`，再调 `agent_assign`�
 
 ![Managed 与 Subscribed 按钮](../assets/4.png)
 
-普通 `agent_send` 只是向目标 Agent 发消息；没有订阅时，仍可读取目标 Session 的结果，但不会按 Meta-Agent 的 `queue_pending` 报告链自动唤醒。WebSocket 的 `worker.result` 是外部协调/排障通道；Meta-Agent 的正常路径是 `report_subscribe → queue_pending`，不要用 WS 盯梢替代它。
+普通 `agent_send` 只是向目标 Session 发消息；没有订阅时，仍可读取目标 Session 的结果，但不会按 MA 的 `queue_pending` 报告链自动唤醒。WebSocket 的 `worker.result` 是外部协调/排障通道；MA 的正常路径是 `report_subscribe → queue_pending`，不要用 WS 盯梢替代它。
 
 如果 `report_subscribe` 返回 404，通常是运行中的服务端版本没有该路由；如果返回 manager 不存在，优先检查三对齐。可以暂时用 `session_get` 查看 `lastResult.status`（`queued → running → done/error`）作为兜底。
 
@@ -314,7 +317,7 @@ agent_notify(
 
 并行开发最安全的安排是“一个子任务、一个独立 git worktree/分支、一个 Session”。给每个 Session 的 `workdir` 传绝对路径，避免依赖默认目录；若多个 Worker 必须共享同一目录，先确认不会同时改同一文件。
 
-给子 Agent 的任务应明确：只在指定 worktree 修改、不要操作别的 worktree、完成后运行测试并提交 commit、不要 push。SMA 收到报告后检查 `git status`、`git diff --check`、测试结果和 commit，再决定如何合并。合并/冲突解决由明确的一个工作目录负责；不要让多个 Worker 同时在同一分支执行 merge。
+给 TA（子会话）的任务应明确：只在指定 worktree 修改、不要操作别的 worktree、完成后运行测试并提交 commit、不要 push。SMA 收到报告后检查 `git status`、`git diff --check`、测试结果和 commit，再决定如何合并。合并/冲突解决由明确的一个工作目录负责；不要让多个 Worker 同时在同一分支执行 merge。
 
 ```text
 只在当前指定 worktree 修改。完成后运行相关测试和 git diff --check，提交一个清晰的 commit；不要 push。报告改动文件、验证结果和 commit hash。
@@ -405,5 +408,5 @@ HTTP 请求体使用 camelCase；MCP 层提供权限/身份检查，直接 HTTP/
 ## 关联文档
 
 - [`README.md`](../README.md)：项目概览和安装入口
-- [`docs/skills/pan/SKILL.md`](skills/pan/SKILL.md)：给 Meta-Agent 的冷启动 skill
+- [`docs/skills/pan/SKILL.md`](skills/pan/SKILL.md)：给 MA（meta-agent）的冷启动 skill
 - [`docs/pan-user-manual-images.txt`](pan-user-manual-images.txt)：本文图片截图清单
