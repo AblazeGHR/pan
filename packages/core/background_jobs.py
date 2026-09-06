@@ -167,6 +167,8 @@ def _normalize_job(job: dict | None) -> dict | None:
     result = dict(job)
     result.setdefault("kind", BACKGROUND_PROCESS_KIND)
     result.setdefault("operation", "run")
+    if result.get("kind") == SERVICE_LIFECYCLE_KIND:
+        result.setdefault("options", {})
     return result
 
 
@@ -377,12 +379,20 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
                        old_pid: int | None = None,
                        old_pid_created_at: float | None = None,
                        log_path: str | None = None,
+                       options: dict | None = None,
                        registry_root: str | Path | None = None) -> dict:
     """Atomically reserve a service lifecycle operation before spawning it."""
     if not request_id or not isinstance(request_id, str):
         raise ValueError("request_id is required")
     if not operation or not isinstance(operation, str):
         raise ValueError("operation is required")
+    if options is None:
+        options = {}
+    if not isinstance(options, dict):
+        raise ValueError("lifecycle options must be an object")
+    # Persist a detached JSON snapshot.  The supervisor must be able to read
+    # the same value in a different process after the request has returned.
+    frozen_options = json.loads(json.dumps(options, ensure_ascii=False, sort_keys=True))
     root_path = Path(root).expanduser().resolve()
     if not root_path.is_dir():
         raise ValueError("service root does not exist")
@@ -396,6 +406,7 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
     registry_path = str(_root(registry_root))
     job = {
         "jobId": job_id, "kind": SERVICE_LIFECYCLE_KIND, "operation": operation,
+        "options": frozen_options,
         "requestId": request_id, "phase": "requested", "status": "pending",
         "root": str(root_path), "port": port, "registryRoot": registry_path,
         "oldPid": old_pid, "oldPidCreatedAt": old_pid_created_at,

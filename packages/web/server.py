@@ -19,9 +19,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Annotated
 from urllib.parse import unquote
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -175,6 +176,72 @@ _main_exit_request_id: str | None = None
 _main_exit_stage = "idle"
 _main_exit_error: str | None = None
 
+# Phase-one main lifecycle options are intentionally empty.  Keep the
+# validation at the HTTP boundary so a future option cannot be accepted by
+# one operation and silently ignored by the other.
+_MAIN_LIFECYCLE_REQUEST_FIELDS = frozenset({"options"})
+_MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset()
+
+
+def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
+    """Validate and freeze the phase-one lifecycle request options once.
+
+    The returned mapping is JSON-shaped and is persisted in the lifecycle Job
+    before any worker gate or detached supervisor is touched.  ``None`` and
+    ``{}`` preserve the historical no-body behavior; ``options`` is the only
+    request envelope accepted for forward compatibility.
+    """
+    if payload is None:
+        return {}
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_lifecycle_request",
+                "operation": operation,
+                "message": "request body must be an object",
+            },
+        )
+
+    unknown_request_fields = sorted(set(payload) - _MAIN_LIFECYCLE_REQUEST_FIELDS)
+    if unknown_request_fields:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_lifecycle_request_fields",
+                "operation": operation,
+                "fields": unknown_request_fields,
+                "message": "unsupported lifecycle request field(s)",
+            },
+        )
+
+    options = payload.get("options", {})
+    if not isinstance(options, dict):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_lifecycle_options",
+                "operation": operation,
+                "message": "options must be an object",
+            },
+        )
+    unknown_options = sorted(set(options) - _MAIN_LIFECYCLE_SUPPORTED_OPTIONS)
+    if unknown_options:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_lifecycle_options",
+                "operation": operation,
+                "fields": unknown_options,
+                "message": "unsupported lifecycle option(s)",
+            },
+        )
+
+    # JSON request data is already detached from the caller.  Rebuild the
+    # mapping so later phases receive a canonical snapshot, not a live input
+    # object; the Job write is the cross-process source of truth.
+    return json.loads(json.dumps(options, ensure_ascii=False, sort_keys=True))
+
 
 def _main_restart_paths() -> dict[str, Path]:
     scripts = _PROJECT_DIR / "scripts"
@@ -208,6 +275,7 @@ def _main_restart_job_view(job: dict | None) -> dict:
         return {}
     return {
         "jobId": job.get("jobId"), "requestId": job.get("requestId"),
+        "operation": job.get("operation"), "options": dict(job.get("options") or {}),
         "phase": job.get("phase"), "jobStatus": job.get("status"),
         "root": job.get("root"), "port": job.get("port"),
         "oldPid": job.get("oldPid"), "oldPidCreatedAt": job.get("oldPidCreatedAt"),
@@ -1320,7 +1388,7 @@ async def api_main_restart_status():
 
 
 @app.post("/api/main/restart")
-async def api_main_restart():
+async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
     """Accept a durable detached restart of this Pan instance.
 
     Returning before the supervisor stops this process is essential: waiting
@@ -1329,6 +1397,8 @@ async def api_main_restart():
     stop/start chain and uses this checkout's scripts only.
     """
     global _main_restart_pending, _main_restart_request_id
+
+    options = _parse_main_lifecycle_options(payload, "restart")
 
     status = _main_restart_status()
     if not status["available"]:
@@ -1357,7 +1427,7 @@ async def api_main_restart():
         job = background_jobs.create_service_job(
             request_id=request_id, operation="restart", root=str(_PROJECT_DIR), port=port,
             old_pid=old_pid, old_pid_created_at=old_pid_created_at,
-            registry_root=registry_root,
+            registry_root=registry_root, options=options,
         )
     except background_jobs.ServiceJobBusy as exc:
         existing = exc.job
@@ -1461,7 +1531,7 @@ async def api_main_exit_status():
 
 
 @app.post("/api/main/exit")
-async def api_main_exit():
+async def api_main_exit(payload: Annotated[dict | None, Body()] = None):
     """Schedule a legal, stop-only shutdown of this Pan instance.
 
     The HTTP response is returned before Worker draining and service stop.  No
@@ -1469,6 +1539,8 @@ async def api_main_exit():
     service unavailable.
     """
     global _main_exit_pending, _main_exit_request_id, _main_exit_stage, _main_exit_error
+
+    options = _parse_main_lifecycle_options(payload, "exit")
 
     status = _main_exit_status()
     if not status["available"]:
@@ -1505,7 +1577,7 @@ async def api_main_exit():
         job = background_jobs.create_service_job(
             request_id=request_id, operation="exit", root=str(_PROJECT_DIR), port=port,
             old_pid=old_pid, old_pid_created_at=old_pid_created_at,
-            registry_root=registry_root,
+            registry_root=registry_root, options=options,
         )
     except background_jobs.ServiceJobBusy as exc:
         existing = exc.job
