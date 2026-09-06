@@ -11,6 +11,7 @@ Tools exposed:
     - session_managed: List the caller's managed sessions (summary)
     - manager_chain: Return the caller's manager chain (upper-level managers)
     - session_get: Get session details (optional history limit)
+    - session_usage: Get persisted session input/output/cache usage
     - session_update: Update session settings (model/effort/mcp etc.)
     - session_delete: Delete a session
     - session_batch_delete: Delete multiple sessions at once
@@ -666,6 +667,43 @@ def session_get(session_id: str, limit: int = 0) -> dict:
         result["historyTruncated"] = len(history) > limit
         result["historyTotal"] = len(history)
     return _strip_usage(result)
+
+
+@mcp.tool()
+def session_usage(session_id: str | None = None) -> dict:
+    """Query persisted input/output/cache usage for one Pan Session.
+
+    Args:
+        session_id: Target Pan Session. When omitted, use the current
+            ``PAN_AGENT_SESSION_ID``; explicit and bound targets both pass
+            through the existing managed-session access check.
+
+    Returns a stable view with ``input`` (prompt/input tokens), ``output``
+    (completion/output tokens), ``cache.read`` and ``cache.write`` tokens,
+    plus ``total.tokens`` (input + output only) and ``total.credit``. Cache is
+    not folded into input/output a second time. Missing fields are ``null``;
+    a stored numeric zero remains ``0``. The view projects persisted
+    ``Session.rawUsage`` first and falls back to legacy ``Session.totalUsage``;
+    it does not refresh provider state or return the historical raw payload.
+    ``updatedAt`` is Pan's Session persistence time, not a fabricated provider
+    event timestamp. Errors use ``missing_identity``, ``permission_denied``,
+    ``session_not_found``, or the underlying API error shape.
+
+    完整编排流程见 /pan skill。
+    """
+    target_session_id = session_id or os.environ.get("PAN_AGENT_SESSION_ID")
+    if not target_session_id:
+        return {"ok": False, "error": {
+            "code": "missing_identity",
+            "message": "session_id is required outside a Pan-managed session",
+        }}
+    denied = _check_access(target_session_id)
+    if denied:
+        return denied
+    return _api(
+        "GET",
+        f"/api/sessions/{quote(target_session_id, safe='')}/usage",
+    )
 
 
 @mcp.tool()

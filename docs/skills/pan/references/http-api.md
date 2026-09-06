@@ -46,9 +46,22 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `GET` | `/api/sessions` | — | `{"sessions": [...]}`（history 截断为最近 50 条，带 `historyTruncated`/`historyTotal`）——**轮询兜底用** |
 | `GET` | `/api/sessions/{id}` | — | 单个 session 完整（含 `lastResult`、`workerStatus`、`managedBy`、`reportSubscriptions`） |
 | `GET` | `/api/sessions/{id}/history` | `?limit=50&before=<index>` | `{"history", "total", "hasMore", "start"}` 分页 |
+| `GET` | `/api/sessions/{id}/usage` | — | 只读稳定用量视图：`{"ok":true,"sessionId","adapter","input","output","cache":{"read","write","total"},"total":{"tokens","credit"},"source","updatedAt"}`。值优先从持久化 `Session.rawUsage` 按 adapter 别名投影，旧会话无 raw 时回退 `Session.totalUsage`；不暴露历史 raw payload，不刷新 provider。缺失字段为 `null`，真实数值零为 `0`；`total.tokens=input+output`，cache 单独统计且不重复相加；`updatedAt` 是 Pan Session 持久化时间，不是 provider 事件时间。不存在返回 `session_not_found`。等价 MCP 工具：`session_usage` |
 | `GET` | `/api/models` | `?adapter=cbc` | `{"models": [...], "default": "..."}` |
 | `GET` | `/api/adapters` | — | 注册的 adapter 与能力（supportsResume/supportsFork） |
 | `GET` | `/api/codex/quota` | `?session_id=<Pan session id>&window=all|first|secondary` | 查询 live Codex app-server 事件快照。`first` = 五小时窗口，`secondary` = 周窗口；返回 `usedPercent`/`remainingPercent`、provider 原始窗口字段、来源及 `receivedAt`。兼容字段 `updatedAt` 与 `receivedAt` 都是 Pan Worker 收到 `account/rateLimits/updated` 的本地时间，不是 provider 原始更新时间；provider 未提供的绝对 used/remaining/limit 为 `null`。不会主动执行 `account/rateLimits/read`。省略 `session_id` 时要求恰好一个 live Codex Worker，多于一个返回 `quota_ambiguous`。等价 MCP 工具：`codex_quota` |
+
+`session_usage` 的兼容投影字段来源（每个 raw model entry 每种语义最多选一个别名，避免 Codex `cache_read_tokens` / `cached_input_tokens` 双写时重复累计）：
+
+| 语义 | cbc | kimi | claude / opencode | codex |
+|------|-----|------|-------------------|-------|
+| input | `prompt_tokens` | `prompt_tokens`（已含 `inputCacheRead`） | `prompt_tokens` | `prompt_tokens` 增量；reimport raw 兼容 `input_tokens` |
+| output | `completion_tokens` | `completion_tokens` | `completion_tokens` | `completion_tokens` 增量；reimport raw 兼容 `output_tokens` |
+| cache read | `prompt_cache_hit_tokens` | `prompt_cache_hit_tokens` | `cache_read_tokens` | `cache_read_tokens`；reimport raw 兼容 `cached_input_tokens` |
+| cache write | `prompt_cache_miss_tokens` | `prompt_cache_miss_tokens` | `cache_write_tokens` | `cache_write_tokens`；reimport raw 兼容 `cache_write_input_tokens` |
+| credit | `credit` | `credit` | `cost` | `credit` / `cost`（若存在） |
+
+Codex 的 live 增量游标仍由 adapter 的 `codex_prev_usage` 负责；本查询只读已落盘的 `rawUsage`/`totalUsage`，不推进游标、不改变计费累计。`total.tokens` 不把 cache 再加一遍；`total.credit` 是累计 credit/cost，不是账户余额。
 
 额度查询的权限边界是有意不同的：此 HTTP 直连接口是绑定 loopback 的本机受信管理接口，不提供 manager 身份认证，也不执行 managed 隔离；不要伪造 manager 参数。`codex_quota` MCP 工具在调用此接口前由 MCP caller 层执行 `_check_access`，managed 隔离由该层负责，不能把 HTTP 与 MCP 宣称为同一权限契约。
 

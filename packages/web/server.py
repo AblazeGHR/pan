@@ -2167,6 +2167,23 @@ async def api_get_session(session_id: str):
     return _session_to_api(s)
 
 
+@app.get("/api/sessions/{session_id}/usage")
+async def api_get_session_usage(session_id: str):
+    """Return the stable persisted input/output/cache usage projection.
+
+    This is a read-only view over Session.raw_usage / Session.total_usage. It
+    does not refresh provider state and, unlike the full session response, does
+    not expose the historical raw payload.
+    """
+    s = sess.get(session_id)
+    if not s:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {session_id} not found",
+        }}
+    return sess.session_usage_view(s)
+
+
 @app.get("/api/sessions/{session_id}/managers")
 async def api_session_managers(session_id: str):
     """Manager chain of a session, topmost first (level 1 = top).
