@@ -100,6 +100,37 @@ def test_wrapper_argparse_accepts_system_prompt():
     assert args.session_id is None
 
 
+def test_wrapper_argparse_accepts_system_prompt_file():
+    from packages.core.adapters.kimi import wrapper
+    args = wrapper._build_arg_parser().parse_args([
+        "--kimi-path", "kimi",
+        "--system-prompt-file", r"C:\work\.pan\system-prompts\ses-a.txt",
+    ])
+    assert args.system_prompt_file.endswith("ses-a.txt")
+
+
+def test_wrapper_reads_utf8_prompt_file_and_removes_it(tmp_path):
+    from packages.core.adapters.kimi import wrapper
+    path = tmp_path / "prompt.txt"
+    prompt = "中文\nemoji 😀\n"
+    path.write_text(prompt, encoding="utf-8", newline="")
+    assert wrapper._read_system_prompt_file(str(path)) == prompt
+    assert not path.exists()
+
+
+def test_wrapper_removes_prompt_file_when_read_fails(tmp_path):
+    from packages.core.adapters.kimi import wrapper
+    path = tmp_path / "broken-prompt.txt"
+    path.write_bytes(b"not valid utf8: \xff")
+    try:
+        wrapper._read_system_prompt_file(str(path))
+    except UnicodeDecodeError:
+        pass
+    else:
+        raise AssertionError("invalid UTF-8 prompt should fail closed")
+    assert not path.exists()
+
+
 def test_write_agent_file(tmp_path):
     from packages.core.adapters.kimi.wrapper import _write_agent_file
 

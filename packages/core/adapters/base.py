@@ -9,6 +9,12 @@ from typing import Protocol, runtime_checkable
 from ..session import Session
 
 
+# Conservative per-argument boundary for Windows CreateProcess prompt
+# transport.  Adapters may use a file-aware wrapper above this size; native
+# CLIs fall back to stdin injection.
+SYSTEM_PROMPT_ARG_MAX_CHARS = 4096
+
+
 @runtime_checkable
 class CliAdapter(Protocol):
     """CLI 工具适配器协议。
