@@ -18,7 +18,10 @@ from typing import Any
 from packages.core import background_jobs
 
 STOP_TIMEOUT_SEC = 20.0
-START_TIMEOUT_SEC = 45.0
+# start_pan.bat waits for the API and may also start the optional tunnel and
+# wait briefly for its URL.  Keep this budget separate from the later health
+# polling so a slow but valid startup is not mistaken for a failed restart.
+START_TIMEOUT_SEC = 90.0
 READY_POLL_SEC = 0.5
 SERVICE_ENTRY_MARKERS = ("main.py", "packages.web.server", "packages/web/server.py", "uvicorn")
 

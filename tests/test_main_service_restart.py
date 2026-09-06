@@ -230,7 +230,7 @@ def test_startup_batch_delegates_nested_powershell_to_parser_safe_helper():
     assert "-Action RemoteState" in start
     assert "-Action QuickState" in start
     assert "-Action QuickUrl" in start
-    assert "-Action Ready" in start
+    assert "-Action WaitReady" in start
     assert "-Action ProcessAlive" in start
     # These commands used to put PowerShell control-flow parentheses inside
     # CMD's parenthesized FOR/IF blocks.  The only remaining inline probe is
@@ -240,6 +240,33 @@ def test_startup_batch_delegates_nested_powershell_to_parser_safe_helper():
     assert "ConvertFrom-Json" not in start
     assert "Invoke-WebRequest" not in start
     assert "ValidateSet" in probe
+
+
+def test_startup_batch_does_not_block_on_unbounded_checkout_cache_sweep():
+    start = (Path(__file__).resolve().parent.parent / "scripts" / "start_pan.bat").read_text(
+        encoding="utf-8"
+    )
+
+    # The main service does not need a preflight bytecode purge.  A recursive
+    # sweep traverses data/workdirs and frontend dependencies and can prevent
+    # the restart supervisor from reaching main.py before its timeout.
+    assert "for /d /r" not in start.lower()
+    assert "del /s /f /q" not in start.lower()
+
+
+def test_startup_batch_uses_one_continuous_readiness_probe():
+    start = (Path(__file__).resolve().parent.parent / "scripts" / "start_pan.bat").read_text(
+        encoding="utf-8"
+    )
+    probe = (Path(__file__).resolve().parent.parent / "scripts" / "start_pan_probe.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert '-Action WaitReady' in start
+    assert 'for /l' not in start.lower()
+    assert 'Start-Sleep -Seconds 1' not in start
+    assert '"WaitReady"' in probe
+    assert 'Start-Sleep -Milliseconds 250' in probe
 
 
 def test_startup_batch_escapes_parentheses_in_remote_disabled_echo():

@@ -28,12 +28,11 @@ if defined EXISTING_MAIN_PID (
 
 mkdir "%BASE_DIR%\data" 2>nul
 
-REM ---- 1. Clean Python cache ----
-for /d /r "%BASE_DIR%" %%d in (__pycache__) do (
-    if exist "%%d" rmdir /s /q "%%d" 2>nul
-)
-del /s /f /q "%BASE_DIR%\*.pyc" 2>nul
-del /s /f /q "%BASE_DIR%\*.pyo" 2>nul
+REM ---- 1. Do not recursively sweep the checkout before startup ----
+REM     Python validates bytecode timestamps itself.  A full-tree cache sweep
+REM     also walks data\workdirs, frontend dependencies, and other user data;
+REM     on a busy checkout it can block long enough to make lifecycle restart
+REM     time out before main.py is even launched.
 
 set "PYTHON=%BASE_DIR%\.venv\Scripts\python.exe"
 if not exist "%PYTHON%" (
@@ -80,11 +79,13 @@ if errorlevel 1 (
 echo [OK] Pan Core process started, PID=%MAIN_PID%
 
 REM ---- 3. Wait for the HTTP API to come up ----
-for /l %%i in (1,1,30) do (
-    powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action Ready -BaseDir "%BASE_DIR%" -Port "%PAN_PORT%" >nul 2>&1
-    if not errorlevel 1 goto :server_ready
-    powershell -NoProfile -Command "Start-Sleep -Seconds 1" >nul 2>&1
-)
+REM     Keep the retry loop inside one PowerShell probe process.  Spawning a
+REM     new PowerShell once per second adds avoidable process startup latency.
+powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action WaitReady -BaseDir "%BASE_DIR%" -Port "%PAN_PORT%" -TimeoutSec 30 >nul 2>&1
+if errorlevel 1 goto :server_not_ready
+goto :server_ready
+
+:server_not_ready
 echo [ERROR] Pan Core did not become ready on port %PAN_PORT% within 30 seconds.
 goto :start_failed
 

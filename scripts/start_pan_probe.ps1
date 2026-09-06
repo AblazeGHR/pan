@@ -1,10 +1,11 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("ExistingMainPid", "Port", "RemoteState", "QuickState", "QuickUrl", "Ready", "ProcessAlive")]
+    [ValidateSet("ExistingMainPid", "Port", "RemoteState", "QuickState", "QuickUrl", "Ready", "WaitReady", "ProcessAlive")]
     [string]$Action,
     [string]$BaseDir,
     [int]$Port,
-    [string]$LogFile
+    [string]$LogFile,
+    [int]$TimeoutSec = 30
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,6 +29,22 @@ switch ($Action) {
         } catch {
             exit 1
         }
+    }
+    "WaitReady" {
+        $url = "http://127.0.0.1:$Port/api/sessions?summary=1"
+        $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSec))
+        do {
+            try {
+                Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2 | Out-Null
+                exit 0
+            } catch {
+                if ([DateTime]::UtcNow -ge $deadline) {
+                    exit 1
+                }
+                Start-Sleep -Milliseconds 250
+            }
+        } while ([DateTime]::UtcNow -lt $deadline)
+        exit 1
     }
     "ExistingMainPid" {
         $base = $BaseDir.Replace('\', '/').TrimEnd('/')
