@@ -242,7 +242,10 @@ def run_exit_supervisor(job_id: str, root: str, port: int, old_pid: int | None =
         )
         background_jobs.transition_service_job(
             job_id, "offline", registry_root=registry_root,
-            oldPid=old_pid, oldPidCreatedAt=old_pid_created_at, error=None,
+            # The service being offline does not imply that the whole Exit
+            # Job succeeded.  transition_service_job deliberately preserves
+            # any Worker/step error already recorded on the Job.
+            oldPid=old_pid, oldPidCreatedAt=old_pid_created_at,
         )
         return 0
     except _ServiceStopFailure as exc:
