@@ -50,8 +50,13 @@ if (-not $Supervisor) {
         "-File", $PSCommandPath,
         "-Root", $Root,
         "-RequestId", $RequestId,
+        "-JobId", $JobId,
+        "-RegistryRoot", $RegistryRoot,
+        "-Port", $Port,
         "-Supervisor"
     )
+    if ($OldPid) { $arguments += @("-OldPid", $OldPid) }
+    if ($OldPidCreatedAt) { $arguments += @("-OldPidCreatedAt", $OldPidCreatedAt) }
     Start-Process -FilePath "powershell.exe" -ArgumentList $arguments `
         -WorkingDirectory $Root -WindowStyle Hidden | Out-Null
     exit 0

@@ -19,7 +19,7 @@ set "PAN_START_BASE=%BASE_DIR%"
 REM ---- 0. Refuse duplicate Pan instances before touching caches/PIDs ----
 REM     Match the checkout boundary and a known Pan entry marker.  The
 REM     launcher may be python/pythonw/uvicorn and need not spell main.py.
-for /f "delims=" %%p in ('powershell -NoProfile -Command "$base=$env:PAN_START_BASE.Replace('\','/').TrimEnd('/'); $root=$base+'/'; $p=Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(python|pythonw|uvicorn)(\.exe)?$' -and $_.CommandLine -and $_.CommandLine.Replace('\','/').Contains($root) -and (($_.CommandLine -match 'main\.py') -or ($_.CommandLine -match 'packages[\\/]web[\\/]server') -or ($_.CommandLine -match 'uvicorn')) }; if ($p) { $p | Select-Object -First 1 -ExpandProperty ProcessId }"') do set "EXISTING_MAIN_PID=%%p"
+for /f "delims=" %%p in ('powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action ExistingMainPid -BaseDir "%BASE_DIR%"') do set "EXISTING_MAIN_PID=%%p"
 if defined EXISTING_MAIN_PID (
     echo [ERROR] Pan Core is already running for this checkout, PID=%EXISTING_MAIN_PID%
     exit /b 2
@@ -51,7 +51,7 @@ del "%PID_MAIN%" "%PID_CF%" 2>nul
 
 REM ---- 2. Resolve the port used by main.py for the readiness check ----
 if not defined PAN_PORT (
-    for /f "delims=" %%p in ('powershell -NoProfile -Command "$cfgPath=Join-Path $env:PAN_START_BASE 'config.json'; if (Test-Path -LiteralPath $cfgPath) { $cfg=Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json; if ($cfg.port) { $cfg.port } else { 8768 } } else { 8768 }"') do set "PAN_PORT=%%p"
+    for /f "delims=" %%p in ('powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action Port -BaseDir "%BASE_DIR%"') do set "PAN_PORT=%%p"
 )
 if not defined PAN_PORT set "PAN_PORT=8768"
 
@@ -71,7 +71,7 @@ if not defined MAIN_PID (
     goto :start_failed
 )
 set "PAN_MAIN_PID=%MAIN_PID%"
-powershell -NoProfile -Command "$p=Get-Process -Id $env:PAN_MAIN_PID -ErrorAction SilentlyContinue; if (-not $p) { exit 1 }" >nul 2>&1
+powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action ProcessAlive -BaseDir "%BASE_DIR%" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Pan Core exited immediately, PID=%MAIN_PID%.
     goto :start_failed
@@ -80,7 +80,7 @@ echo [OK] Pan Core process started, PID=%MAIN_PID%
 
 REM ---- 3. Wait for the HTTP API to come up ----
 for /l %%i in (1,1,30) do (
-    powershell -NoProfile -Command "$url='http://127.0.0.1:'+$env:PAN_PORT+'/api/sessions?summary=1'; try { Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
+    powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action Ready -BaseDir "%BASE_DIR%" -Port "%PAN_PORT%" >nul 2>&1
     if not errorlevel 1 goto :server_ready
     powershell -NoProfile -Command "Start-Sleep -Seconds 1" >nul 2>&1
 )
@@ -92,15 +92,15 @@ echo [OK] Pan Core API ready on 127.0.0.1:%PAN_PORT%
 
 REM ---- 4. Start cloudflared (optional) ----
 set "PAN_REMOTE_STATE="
-for /f "delims=" %%r in ('powershell -NoProfile -Command "$cfgPath=Join-Path $env:PAN_START_BASE 'config.json'; try { if (-not (Test-Path -LiteralPath $cfgPath)) { 'missing' } else { $cfg=Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json; if ($cfg.remote -and ($cfg.remote.PSObject.Properties.Name -contains 'enabled') -and ($cfg.remote.enabled -is [bool]) -and $cfg.remote.enabled) { 'enabled' } else { 'disabled' } } } catch { 'invalid' }"') do set "PAN_REMOTE_STATE=%%r"
+for /f "delims=" %%r in ('powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action RemoteState -BaseDir "%BASE_DIR%"') do set "PAN_REMOTE_STATE=%%r"
 if not defined PAN_REMOTE_STATE set "PAN_REMOTE_STATE=invalid"
 if /i not "%PAN_REMOTE_STATE%"=="enabled" (
-    echo [INFO] remote.enabled is not explicitly true (%PAN_REMOTE_STATE%), skipping Cloudflare Tunnel.
+    echo [INFO] remote.enabled is not explicitly true ^(%PAN_REMOTE_STATE%^), skipping Cloudflare Tunnel.
     goto :remote_tunnel_done
 )
 REM ---- 4b. Resolve remote.quick_tunnel (default quick, matches main.py) ----
 set "PAN_QUICK_STATE="
-for /f "delims=" %%q in ('powershell -NoProfile -Command "$cfg=Get-Content -LiteralPath (Join-Path $env:PAN_START_BASE 'config.json') -Raw | ConvertFrom-Json; if ($cfg.remote -and ($cfg.remote.PSObject.Properties.Name -contains 'quick_tunnel')) { if ($cfg.remote.quick_tunnel) { 'quick' } else { 'named' } } else { 'quick' }"') do set "PAN_QUICK_STATE=%%q"
+for /f "delims=" %%q in ('powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action QuickState -BaseDir "%BASE_DIR%"') do set "PAN_QUICK_STATE=%%q"
 if not defined PAN_QUICK_STATE set "PAN_QUICK_STATE=quick"
 
 where.exe cloudflared >nul 2>&1
@@ -123,7 +123,8 @@ if /i "%PAN_QUICK_STATE%"=="named" (
 
 if defined CF_PID if /i not "%PAN_QUICK_STATE%"=="named" (
     echo [INFO] Quick tunnel log: %PAN_CF_QUICK_LOG%
-    powershell -NoProfile -Command "$log=$env:PAN_CF_QUICK_LOG; $url=$null; for ($i=0; $i -lt 30; $i++) { if (Test-Path -LiteralPath $log) { $m = Select-String -LiteralPath $log -Pattern 'https://[a-zA-Z0-9\-]+\.trycloudflare\.com' | Select-Object -First 1; if ($m) { $url=$m.Matches[0].Value; break } }; Start-Sleep -Milliseconds 500 }; if ($url) { Write-Host ('[OK] Quick tunnel URL: ' + $url) } else { Write-Host ('[INFO] trycloudflare.com URL not captured yet; watch the log file above.') }"
+    REM Quick tunnel URL marker is emitted by start_pan_probe.ps1 from trycloudflare.com.
+    powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action QuickUrl -BaseDir "%BASE_DIR%" -LogFile "%PAN_CF_QUICK_LOG%"
 )
 
 :remote_tunnel_done

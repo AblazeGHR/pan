@@ -88,10 +88,73 @@ def test_restart_returns_scheduled_before_supervisor_finishes(tmp_path, monkeypa
     assert result["ok"] is True
     assert result["status"] == "scheduled"
     assert result["requestId"]
-    assert calls[0][0][0] == "powershell.exe"
+    assert calls[0][0][0:6] == ["cmd.exe", "/d", "/c", "start", "", "/b"]
+    assert calls[0][0][6] == "powershell.exe"
+    assert "-NonInteractive" in calls[0][0]
     assert str(tmp_path / "scripts" / "restart_pan.ps1") in calls[0][0]
     assert calls[0][1]["cwd"] == str(tmp_path)
     assert calls[0][1]["stdin"] is srv.subprocess.DEVNULL
+    assert calls[0][1]["stdout"].name == str(tmp_path / "data" / "logs" / "pan-restart-launcher.log")
+    assert calls[0][1]["stderr"] is srv.subprocess.STDOUT
+    assert "startupinfo" not in calls[0][1]
+    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NO_WINDOW", 0x08000000)
+    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    assert not calls[0][1]["creationflags"] & getattr(srv.subprocess, "DETACHED_PROCESS", 0x00000008)
+
+
+def test_restart_launcher_enters_supervisor_directly_with_durable_binding(tmp_path, monkeypatch):
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "restart_pan.ps1").write_text("# test placeholder", encoding="utf-8")
+    (tmp_path / "data" / "background_jobs").mkdir(parents=True)
+    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
+
+    request_id = "request-direct-supervisor"
+    registry = tmp_path / "data" / "background_jobs"
+    job = srv.background_jobs.create_service_job(
+        request_id=request_id,
+        operation="restart",
+        root=str(tmp_path),
+        port=8770,
+        old_pid=42072,
+        old_pid_created_at=1757127877.0,
+        registry_root=registry,
+    )
+    calls = []
+
+    class FakeProcess:
+        pid = 4242
+
+    monkeypatch.setattr(
+        srv.subprocess,
+        "Popen",
+        lambda command, **kwargs: calls.append((command, kwargs)) or FakeProcess(),
+    )
+
+    srv._launch_main_restart_supervisor(request_id)
+    command = calls[0][0]
+    assert command[0:6] == ["cmd.exe", "/d", "/c", "start", "", "/b"]
+    assert command[6:13] == [
+        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+        "-File", str(scripts / "restart_pan.ps1"),
+    ]
+    for argument, value in (
+        ("-Root", str(tmp_path)),
+        ("-RequestId", request_id),
+        ("-JobId", job["jobId"]),
+        ("-RegistryRoot", str(registry)),
+        ("-Port", "8770"),
+        ("-OldPid", "42072"),
+        ("-OldPidCreatedAt", "1757127877.0"),
+    ):
+        assert command[command.index(argument) + 1] == value
+    assert command[command.index("-Supervisor") + 1:] == [
+        "-OldPid", "42072", "-OldPidCreatedAt", "1757127877.0",
+    ]
+    assert calls[0][1]["stdout"].name == str(
+        tmp_path / "data" / "logs" / "pan-restart-launcher.log"
+    )
+    assert calls[0][1]["stderr"] is srv.subprocess.STDOUT
 
 
 def test_restart_spawn_failure_clears_duplicate_guard(tmp_path, monkeypatch):
@@ -118,6 +181,13 @@ def test_supervisor_script_is_a_stop_then_start_chain():
     assert "start_pan.bat" in text
     assert "Start-Sleep -Seconds 1" in text
     assert "-Supervisor" in text
+    # The request-side hop must preserve the durable Job identity and the
+    # checkout/port metadata when it creates the actual detached supervisor.
+    hop = text.split("if (-not $Supervisor)", 1)[1].split("try {", 1)[0]
+    for argument in ("-Root", "-RequestId", "-JobId", "-RegistryRoot", "-Port", "-Supervisor"):
+        assert f'"{argument}"' in hop
+    assert '"-OldPid", $OldPid' in hop
+    assert '"-OldPidCreatedAt", $OldPidCreatedAt' in hop
 
 
 def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
@@ -125,6 +195,7 @@ def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
     start = (root / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
     start_main = (root / "scripts" / "start_main.ps1").read_text(encoding="utf-8")
     stop = (root / "scripts" / "stop_pan.bat").read_text(encoding="utf-8")
+    probe = (root / "scripts" / "start_pan_probe.ps1").read_text(encoding="utf-8")
     config = json.loads((root / "config.example.json").read_text(encoding="utf-8"))
 
     # A double-clicked batch file must leave enough evidence for failures that
@@ -142,7 +213,48 @@ def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
 
     # Prefixes such as D:\\project\\Pan-test must not be treated as this
     # checkout.  Start and stop use the same boundary-aware contract.
-    assert ".Contains($root)" in start
+    assert ".Contains($root)" in probe
     assert ".Contains($root)" in stop
     assert "Replace('\\\\','/')" not in stop
     assert "Replace('\\','/')" in stop
+
+
+def test_startup_batch_delegates_nested_powershell_to_parser_safe_helper():
+    root = Path(__file__).resolve().parent.parent
+    start = (root / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    probe = (root / "scripts" / "start_pan_probe.ps1").read_text(encoding="utf-8")
+
+    assert "start_pan_probe.ps1" in start
+    assert "-Action ExistingMainPid" in start
+    assert "-Action Port" in start
+    assert "-Action RemoteState" in start
+    assert "-Action QuickState" in start
+    assert "-Action QuickUrl" in start
+    assert "-Action Ready" in start
+    assert "-Action ProcessAlive" in start
+    # These commands used to put PowerShell control-flow parentheses inside
+    # CMD's parenthesized FOR/IF blocks.  The only remaining inline probe is
+    # the simple process sleep, which has no PowerShell control-flow syntax.
+    assert "for ($" not in start
+    assert "Where-Object" not in start
+    assert "ConvertFrom-Json" not in start
+    assert "Invoke-WebRequest" not in start
+    assert "ValidateSet" in probe
+
+
+def test_startup_batch_escapes_parentheses_in_remote_disabled_echo():
+    start = (Path(__file__).resolve().parent.parent / "scripts" / "start_pan.bat").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "echo [INFO] remote.enabled is not explicitly true ^(%PAN_REMOTE_STATE%^), "
+        "skipping Cloudflare Tunnel."
+    ) in start
+    assert "echo [INFO] remote.enabled is not explicitly true (%PAN_REMOTE_STATE%)," not in start
+
+    # Every literal parenthesis on an echo line must be caret-escaped. This
+    # protects future conditional-block messages from the same CMD regression.
+    for line in start.splitlines():
+        if line.lstrip().lower().startswith("echo "):
+            assert "(" not in line.replace("^(", "")
+            assert ")" not in line.replace("^)", "")

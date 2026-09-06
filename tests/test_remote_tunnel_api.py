@@ -69,7 +69,7 @@ _SOURCE_YML = (
 def _run_start_cf_dry(base: Path, protocol, source_yml: str = _SOURCE_YML):
     """Run start_cf.ps1 in an isolated dir with cloudflared unresolvable.
 
-    The temp yml is written *before* Start-Process, so the script failing to
+    The checkout-scoped yml is written *before* Start-Process, so the script failing to
     find cloudflared.exe is expected — the generated yml is the artifact we
     assert on. TEMP is redirected into the isolated dir; PATH is stripped to
     System32 so no real cloudflared can ever be launched.
@@ -98,7 +98,7 @@ def _run_start_cf_dry(base: Path, protocol, source_yml: str = _SOURCE_YML):
     }
     # 隔离宿主环境泄漏的 PAN_PORT：脚本（与 main.py 一致）按
     # PAN_PORT > config.json port > 8768 取端口，宿主导出的 PAN_PORT 会把
-    # 临时 yml 命名成 pan_cf_config_<leaked>.yml，dry-run 断言随之失真。
+    # checkout-scoped yml 命名成 pan_cf_config_<leaked>.yml，dry-run 断言随之失真。
     env.pop("PAN_PORT", None)
     r = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
@@ -107,7 +107,7 @@ def _run_start_cf_dry(base: Path, protocol, source_yml: str = _SOURCE_YML):
         # PowerShell stderr may be GBK-encoded on zh-CN Windows.
         encoding="utf-8", errors="replace",
     )
-    out_yml = temp_dir / f"pan_cf_config_{TEST_PORT}.yml"
+    out_yml = base / "data" / "cloudflared" / f"pan_cf_config_{TEST_PORT}.yml"
     return r, out_yml
 
 
@@ -225,11 +225,26 @@ def test_start_pan_quick_failure_keeps_core():
     assert ":start_failed" not in text[fail_idx:text.rindex(":remote_tunnel_done")]
 
 
-def test_stop_pan_matches_quick_and_named_tunnels():
+def test_stop_pan_is_recorded_pid_and_checkout_scoped():
     text = (REPO_ROOT / "scripts" / "stop_pan.bat").read_text(encoding="utf-8")
-    # PID-file check + fallback command-line scan both accept both markers
-    assert text.count("pan_cf_(config|quick)_") == 2
-    assert "pan_cf_config_'" not in text  # no stale named-only matcher left
+    # Cloudflare is stopped only through the recorded PID. There must be no
+    # global process enumeration or marker-based kill fallback.
+    assert "if defined CF_PID" in text
+    assert "ProcessId='+$n" in text
+    assert "cloudflared.exe" in text
+    assert "Contains($root)" in text
+    assert text.count("pan_cf_(config|quick)_") == 1
+    assert "Filter \\\"Name='cloudflared.exe'\\\"" not in text
+    assert "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'cloudflared" not in text
+    cf_block = text[text.index("REM ---- 4."):text.index("REM ---- 5.")]
+    assert "ForEach-Object { taskkill /PID $_.ProcessId" not in cf_block
+    assert text.count("taskkill /PID %CF_PID%") == 1
+
+
+def test_start_cf_named_config_is_checkout_scoped():
+    text = (REPO_ROOT / "scripts" / "start_cf.ps1").read_text(encoding="utf-8")
+    assert "data\\cloudflared" in text
+    assert "pan_cf_config_$port.yml" in text
 
 
 def test_start_cf_quick_command_shape():
