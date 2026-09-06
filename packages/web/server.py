@@ -289,9 +289,10 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
     job = background_jobs.find_service_job(request_id, registry_root)
     if not job:
         raise ValueError("durable restart Job not found")
-    command = [
+    powershell_args = [
         "powershell.exe",
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
@@ -306,30 +307,43 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
         str(registry_root),
         "-Port",
         str(job["port"]),
+        # The shell launcher enters the real supervisor directly instead of
+        # relying on restart_pan.ps1's second Start-Process hop.
+        "-Supervisor",
     ]
     if job.get("oldPid"):
-        command += ["-OldPid", str(job["oldPid"])]
+        powershell_args += ["-OldPid", str(job["oldPid"])]
     if job.get("oldPidCreatedAt") is not None:
-        command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
+        powershell_args += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
+    # A new process group does not change the parent PID relationship.  The
+    # old Pan service's stop_pan.bat uses taskkill /T, so launch through the
+    # short-lived `start` shell and let it exit after CreateProcess succeeds;
+    # the PowerShell supervisor is then no longer below the old Pan tree.
+    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + powershell_args
+    launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-restart-launcher.log"
+    launcher_log.parent.mkdir(parents=True, exist_ok=True)
+    # Windows DETACHED_PROCESS can report a successful Popen while the
+    # powershell.exe child never executes its -File script.  CREATE_NO_WINDOW
+    # provides the required non-console launch while CREATE_NEW_PROCESS_GROUP
+    # keeps this supervisor outside the old Pan process-group cleanup.
     flags = (
-        getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
     )
-    startupinfo = None
-    if os.name == "nt" and hasattr(subprocess, "STARTUPINFO"):
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
-    return subprocess.Popen(
-        command,
-        cwd=str(_PROJECT_DIR),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        creationflags=flags,
-        startupinfo=startupinfo,
-    )
+    # Keep the handle open only across Popen.  subprocess duplicates the
+    # redirected standard handle for the detached child before this closes it.
+    # This captures PowerShell parameter/parser/startup failures that happen
+    # before restart_pan.ps1 can create its own pan-restart.log.
+    with launcher_log.open("ab") as log:
+        return subprocess.Popen(
+            command,
+            cwd=str(_PROJECT_DIR),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            creationflags=flags,
+        )
 
 
 def _main_exit_paths() -> dict[str, Path]:
@@ -393,41 +407,43 @@ def _main_exit_status() -> dict:
 
 
 def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
-    """Launch the stop-only detached exit supervisor."""
+    """Launch the stop-only exit supervisor outside the old Pan process tree."""
     script = _main_exit_paths()["supervisor"]
     registry_root = _main_restart_registry_root()
     job = background_jobs.find_service_job(request_id, registry_root)
     if not job or job.get("operation") != "exit":
         raise ValueError("durable exit Job not found")
-    command = [
-        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+    powershell_args = [
+        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
         "-File", str(script), "-Root", str(_PROJECT_DIR),
         "-RequestId", request_id, "-JobId", job["jobId"],
         "-RegistryRoot", str(registry_root), "-Port", str(job["port"]),
+        "-Supervisor",
     ]
     if job.get("oldPid"):
-        command += ["-OldPid", str(job["oldPid"])]
+        powershell_args += ["-OldPid", str(job["oldPid"])]
     if job.get("oldPidCreatedAt") is not None:
-        command += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
+        powershell_args += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
+    # CREATE_NEW_PROCESS_GROUP alone does not break the old Pan parent tree;
+    # stop_pan.bat uses taskkill /T.  The short-lived start shell creates the
+    # PowerShell child and exits before the stop-only supervisor runs.
+    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + powershell_args
+    launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-exit-launcher.log"
+    launcher_log.parent.mkdir(parents=True, exist_ok=True)
     flags = (
-        getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
     )
-    startupinfo = None
-    if os.name == "nt" and hasattr(subprocess, "STARTUPINFO"):
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
-    return subprocess.Popen(
-        command,
-        cwd=str(_PROJECT_DIR),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        creationflags=flags,
-        startupinfo=startupinfo,
-    )
+    with launcher_log.open("ab") as log:
+        return subprocess.Popen(
+            command,
+            cwd=str(_PROJECT_DIR),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            creationflags=flags,
+        )
 
 # Production switch: config.json frontend 字段
 # "coexist"（默认）→ React SPA / + Vanilla /vanilla/（+ React /react/ 兼容保留）
