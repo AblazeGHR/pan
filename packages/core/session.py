@@ -1104,8 +1104,26 @@ def compute_total_usage(raw_usage: dict | None) -> dict | None:
     for entry in raw_usage.values():
         ru = entry.get("rawUsage", {})
         total["prompt_tokens"] += ru.get("prompt_tokens", 0)
-        total["cache_hit_tokens"] += ru.get("prompt_cache_hit_tokens", 0)
-        total["cache_miss_tokens"] += ru.get("prompt_cache_miss_tokens", 0)
+        # Adapters historically used several names for the same cache
+        # counters. Prefer the canonical prompt_cache_* spelling when it is
+        # present; otherwise bridge provider-specific aliases. This prevents
+        # Codex/Claude/OpenCode cache reads from remaining stranded in
+        # raw_usage while totalUsage reports cache_hit_tokens=0, and avoids
+        # double-counting when both spellings are present.
+        total["cache_hit_tokens"] += next(
+            (ru[key] for key in (
+                "prompt_cache_hit_tokens", "cache_read_tokens",
+                "cached_input_tokens",
+            ) if key in ru and ru[key] is not None),
+            0,
+        )
+        total["cache_miss_tokens"] += next(
+            (ru[key] for key in (
+                "prompt_cache_miss_tokens", "cache_write_tokens",
+                "cache_write_input_tokens",
+            ) if key in ru and ru[key] is not None),
+            0,
+        )
         total["completion_tokens"] += ru.get("completion_tokens", 0)
         total["credit"] += ru.get("credit", 0) + ru.get("cost", 0)
     return total

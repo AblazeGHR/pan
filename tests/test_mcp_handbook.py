@@ -43,6 +43,7 @@ TOOLS = [
     mcp_server.agent_list,
     mcp_server.session_handoff,
     mcp_server.model_list,
+    mcp_server.codex_quota,
     mcp_server.pan_handbook,
 ]
 

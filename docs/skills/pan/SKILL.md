@@ -209,7 +209,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 
 ## 5. 可用 MCP 工具
 
-> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 43 个工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对，含 5 个 `agent_background_*` 工具）。
+> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 44 个工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对，含 5 个 `agent_background_*` 工具）。
 >
 > **命名分层（agent-naming 确立）**：`agent_*` 是**一等工具**（编排对象 = Session，承载 MA/TA 身份，以 session_id 寻址，无活进程也容忍）；`worker_*` 是**兼容别名（DEPRECATED）**，内部委托同一实现，仅 `worker_id` 进程寻址为别名独有遗留路径——新代码一律用 `agent_*`。`agent_background_*` 管理的是独立于 Session Worker 的持久 Job，不会把后台进程误算成 Worker。
 >
@@ -319,6 +319,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 |------|------|------|
 | `permission_prompt` | (无) | **Claude Code 审批桥**：当 claude adapter 以 `--permission-prompt-tool mcp__pan__permission_prompt` 长驻运行时，Claude 的非交互权限请求经本工具转发到 Dashboard 审批栏，返回 `allow`/`deny` 结构化决策（超时默认 360s 自动拒绝）。普通编排流程**不会**主动调用它；只有在 Dashboard 上批准 Claude 工具调用时才间接生效 |
 | `model_list` | `adapter?` | 列出可用模型 |
+| `codex_quota` | `window?`(`all`/`first`/`secondary`), `session_id?` | 查询 live Codex 账户额度；`first` = 五小时窗口，`secondary` = 周窗口。额度窗口参数不是 adapter fallback 或模型选择顺序；绝对 used/remaining/limit 缺失时返回 `null`，并保留 provider 来源与更新时间 |
 | `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§11 完全一致 |
 
 ## 6. 状态判断

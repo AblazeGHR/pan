@@ -36,6 +36,7 @@ Tools exposed:
       to the same implementation as agent_*.
     - session_history: Get paginated conversation history
     - model_list: List available AI models
+    - codex_quota: Query live Codex five-hour and weekly account quota windows
     - report_subscribe: Subscribe to completion reports (auto-claims the session if unmanaged — 订阅即接管)
     - report_unsubscribe: Unsubscribe from completion reports only (keeps the managed relationship; use session_unclaim to fully release)
     - permission_prompt: Bridge a Claude Code non-interactive permission request to the Pan dashboard
@@ -523,6 +524,42 @@ def session_list(summary: bool = False) -> list[dict] | dict:
             return result["sessions"]
         return result
     return _strip_usage(_api("GET", "/api/sessions"))
+
+
+@mcp.tool()
+def codex_quota(window: str = "all", session_id: str | None = None) -> dict:
+    """Query live Codex account quota from Pan's existing rate-limit path.
+
+    Args:
+        window: ``all`` (default), ``first`` for the five-hour window, or
+            ``secondary`` for the weekly window. These are quota window
+            selectors, not adapter fallback names or model selection order.
+        session_id: Codex Session to inspect. Omitted inside a Pan worker uses
+            ``PAN_AGENT_SESSION_ID``; outside a managed worker the backend
+            requires exactly one live Codex worker.
+
+    The response preserves the provider source and update time. The current
+    Codex provider normally supplies ``usedPercent``/reset metadata, so
+    absolute used/remaining/limit values are explicitly null when absent.
+    Errors such as missing snapshots, ambiguous workers, access denial, and
+    API connection failures are returned with an explicit ``ok:false`` shape.
+
+    完整编排流程见 /pan skill。
+    """
+    if window not in ("all", "first", "secondary"):
+        return {"ok": False, "error": {
+            "code": "invalid_window",
+            "message": "window must be one of 'all', 'first', or 'secondary'",
+        }}
+    target_session_id = session_id or os.environ.get("PAN_AGENT_SESSION_ID")
+    if target_session_id:
+        denied = _check_access(target_session_id)
+        if denied:
+            return denied
+    params = [("window", window)]
+    if target_session_id:
+        params.append(("session_id", target_session_id))
+    return _api("GET", "/api/codex/quota?" + urlencode(params))
 
 
 @mcp.tool()
