@@ -166,6 +166,8 @@ def format_cli_spawn_error(adapter_name: str, original: BaseException | None = N
             if check.missing
             else "当前 Pan 进程无法解析它的启动入口。"
         )
+        if original is not None:
+            detail += f" 原始错误：{original}"
         return (
             f"{prefix}{detail} {check.hint} "
             "安装或修改 PATH 后请重启 Pan；后台服务的 PATH 可能与终端不同。"

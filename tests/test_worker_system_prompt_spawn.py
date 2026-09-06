@@ -64,6 +64,28 @@ def test_codex_declares_capability():
     assert worker._spawn_system_prompt_args(adapter, s, mcp_on=True) == [
         "--system-prompt", "You are SMA."
     ]
+    assert adapter.supports_spawn_system_prompt_file is True
+
+
+def test_codex_long_prompt_uses_session_scoped_file_not_argv(tmp_path):
+    prompt = "中文首行\n" + ("line with unicode 😀\n" * 2000) + "末行"
+    s = _session_with_prompt()
+    s.workdir = str(tmp_path)
+    s.system_prompt = prompt
+    files: list[str] = []
+
+    args = worker._spawn_system_prompt_args(
+        get_adapter("codex"), s, mcp_on=True, prompt_file_sink=files,
+    )
+
+    assert args is not None
+    assert args[0] == "--system-prompt-file"
+    assert prompt not in args
+    assert len(args[1]) < 4096
+    assert Path(args[1]).is_file()
+    assert Path(args[1]).read_text(encoding="utf-8") == prompt
+    worker._cleanup_system_prompt_file(args[1])
+    assert not Path(args[1]).exists()
 
 
 # ── _spawn_system_prompt_args decision ──

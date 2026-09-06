@@ -79,6 +79,9 @@ class CliAdapter(Protocol):
     # ``--agent-file``）。False/缺省时 worker 退化为首条消息注入——若强传给
     # 不认识的子进程，argparse 会报 unrecognized arguments 直接 exit 2，表现
     # 为「发消息后永不回复」（SMA(NoAdapter)+kimi 卡死根因）。
+    # supports_spawn_system_prompt_file: bool — 可选的同一契约变体；worker 会把
+    # prompt 写入 session workdir 下的临时文件，并只传递文件路径。适用于
+    # Windows 命令行长度受限的 adapter；adapter 负责读取并删除该文件。
 
     # ── 进程启动 ──
 
