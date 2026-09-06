@@ -32,16 +32,39 @@ describe('Modal', () => {
     // on flex-shrink-with-margins — the cause of the squeezed-slit modals.
     expect(overlay.className).toContain('p-4');
     expect(card.className).toContain('w-full');
-    expect(card.className).toContain('max-w-2xl');
+    expect(card.className).toContain('max-w-[42rem]');
   });
 
-  it('applies the requested size class', () => {
+  it('uses explicit width values for named sizes instead of theme spacing tokens', () => {
     render(
-      <Modal open onClose={() => {}} title="Test" size="sm">
-        <div>content</div>
-      </Modal>,
+      <>
+        <Modal open onClose={() => {}} title="Small" size="sm">
+          <div>small</div>
+        </Modal>
+        <Modal open onClose={() => {}} title="Medium" size="md">
+          <div>medium</div>
+        </Modal>
+        <Modal open onClose={() => {}} title="Large" size="lg">
+          <div>large</div>
+        </Modal>
+        <Modal open onClose={() => {}} title="Extra Large" size="xl">
+          <div>extra large</div>
+        </Modal>
+      </>,
     );
-    expect(cardEl().className).toContain('max-w-sm');
+
+    const cards = Array.from(document.body.querySelectorAll<HTMLElement>('.modal-card'));
+    expect(cards).toHaveLength(4);
+    expect(cards.map((card) => card.className)).toEqual([
+      expect.stringContaining('max-w-[24rem]'),
+      expect.stringContaining('max-w-[32rem]'),
+      expect.stringContaining('max-w-[42rem]'),
+      expect.stringContaining('max-w-[56rem]'),
+    ]);
+    for (const card of cards) {
+      expect(card.className).not.toMatch(/\bmax-w-(sm|md|lg|xl)\b/);
+      expect(card.className).not.toContain('var(--spacing-lg)');
+    }
   });
 
   it('supports caller-scoped mobile fullscreen presentation', () => {
@@ -55,6 +78,7 @@ describe('Modal', () => {
     const card = cardEl();
     expect(overlay.className).toContain('p-0 md:p-4');
     expect(overlay.className).toContain('modal-overlay--mobile-fullscreen');
+    expect(card.className).toContain('max-w-[56rem]');
     expect(card.className).toContain('max-md:h-[100dvh]');
     expect(card.className).toContain('modal-card--mobile-fullscreen');
     expect(card.className).toContain('max-md:rounded-none');
