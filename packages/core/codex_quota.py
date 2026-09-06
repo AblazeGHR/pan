@@ -4,7 +4,9 @@ The Codex app-server emits account limits as ``primary`` and ``secondary``.
 Those names are provider protocol names, not adapter fallback or model
 selection order. Pan exposes the stable query names ``first`` (five hours)
 and ``secondary`` (one week) while retaining the provider snapshot verbatim
-per window.
+per window.  ``updatedAt`` is a compatibility field whose value is the local
+Pan Worker receive time; the provider's original update time is not present in
+this event path.  ``receivedAt`` makes that local timestamp explicit.
 """
 
 from __future__ import annotations
@@ -77,9 +79,17 @@ def format_codex_quota(
     session_id: str,
     worker_id: str,
     updated_at: str | None,
+    received_at: str | None = None,
     requested_window: str = "all",
 ) -> dict[str, Any]:
-    """Return the stable API/MCP shape for one live Codex rate-limit snapshot."""
+    """Return the stable API/MCP shape for one live Codex rate-limit snapshot.
+
+    ``updated_at`` is retained for response compatibility and means the same
+    local Pan receive time as ``received_at``.  It is never treated as a
+    provider-originated timestamp.
+    """
+    if received_at is None:
+        received_at = updated_at
     windows = {
         key: _window_snapshot(key, provider_key, name, label, rate_limits.get(provider_key))
         for key, provider_key, name, label in _WINDOWS
@@ -90,6 +100,7 @@ def format_codex_quota(
         "sessionId": session_id,
         "workerId": worker_id,
         "updatedAt": updated_at,
+        "receivedAt": received_at,
         "source": {
             "provider": "codex",
             "transport": "app-server",
@@ -97,6 +108,12 @@ def format_codex_quota(
             "sessionId": session_id,
             "workerId": worker_id,
             "updatedAt": updated_at,
+            "receivedAt": received_at,
+            "providerUpdatedAt": None,
+            "timestampMeaning": (
+                "updatedAt and receivedAt are local Pan Worker receive times; "
+                "the provider event's original update time is unavailable"
+            ),
         },
         "windows": windows,
     }

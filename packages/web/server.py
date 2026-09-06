@@ -4072,6 +4072,16 @@ async def api_codex_quota(session_id: str = "", window: str = "all"):
     neither name selects an adapter fallback or a model. Without a session id
     exactly one live Codex worker must be available, preventing an arbitrary
     account snapshot from being returned when multiple workers exist.
+
+    This is a loopback HTTP trusted-admin interface.  It has no manager
+    identity authentication and does not apply managed-session isolation;
+    callers must not invent or pass a manager parameter.  Managed isolation
+    is enforced by the MCP caller layer before it calls this endpoint.
+
+    The response is the live Worker event snapshot, not a provider pull.  The
+    compatibility ``updatedAt`` and explicit ``receivedAt`` fields are the
+    local Pan Worker receive time for ``account/rateLimits/updated``; the
+    provider's original update time is not fabricated or exposed.
     """
     if not validate_quota_window(window):
         return {"ok": False, "error": {
@@ -4127,6 +4137,10 @@ async def api_codex_quota(session_id: str = "", window: str = "all"):
         session_id=selected.session_id,
         worker_id=selected.worker_id,
         updated_at=getattr(selected, "native_rate_limits_updated_at", None),
+        received_at=(
+            getattr(selected, "native_rate_limits_received_at", None)
+            or getattr(selected, "native_rate_limits_updated_at", None)
+        ),
         requested_window=window,
     )
 

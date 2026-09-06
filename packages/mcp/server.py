@@ -538,11 +538,23 @@ def codex_quota(window: str = "all", session_id: str | None = None) -> dict:
             ``PAN_AGENT_SESSION_ID``; outside a managed worker the backend
             requires exactly one live Codex worker.
 
-    The response preserves the provider source and update time. The current
+    The MCP caller layer applies ``_check_access`` to the target session, so
+    restricted callers can query only their managed graph.  The underlying
+    loopback HTTP endpoint is a separate trusted-admin interface: it has no
+    manager identity authentication or managed isolation.  Do not pass a
+    fabricated manager parameter to HTTP; this MCP-layer check is the
+    isolation boundary.
+
+    The result is a live Worker event snapshot.  It does not actively execute
+    ``account/rateLimits/read`` or perform a real-time provider pull.  The
+    compatibility ``updatedAt`` and explicit ``receivedAt`` are local Pan
+    Worker receive times for ``account/rateLimits/updated``; the provider's
+    original update time is unavailable and is not fabricated.  The current
     Codex provider normally supplies ``usedPercent``/reset metadata, so
     absolute used/remaining/limit values are explicitly null when absent.
-    Errors such as missing snapshots, ambiguous workers, access denial, and
-    API connection failures are returned with an explicit ``ok:false`` shape.
+    Errors use explicit ``ok:false`` codes: ``invalid_window``,
+    ``session_not_found``, ``unsupported_provider``, ``quota_unavailable``,
+    ``quota_ambiguous``, ``permission_denied``, or ``api_error``.
 
     完整编排流程见 /pan skill。
     """
@@ -898,6 +910,8 @@ def session_readonly(session_id: str, enabled: bool = True) -> dict:
 
     This operation never claims a session: the caller must be its current
     manager. Use ``enabled=False`` to unreadonly it.
+
+    完整编排流程见 /pan skill。
     """
     manager_id = os.environ.get("PAN_AGENT_SESSION_ID")
     if not manager_id:
@@ -1074,6 +1088,8 @@ def permission_prompt(tool_name: str, input: dict | None = None) -> CallToolResu
     This is intentionally a narrow bridge: it resolves the Worker belonging to
     ``PAN_AGENT_SESSION_ID`` and never exposes arbitrary worker controls to the
     Claude process.
+
+    完整编排流程见 /pan skill。
     """
     session_id = os.environ.get("PAN_AGENT_SESSION_ID")
     if not session_id:
@@ -1381,7 +1397,10 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 @mcp.tool()
 def agent_background_start(argv: list[str], cwd: str, target_session_id: str | None = None,
                            label: str | None = None) -> dict:
-    """Start a durable background process; target defaults to this Agent Session."""
+    """Start a durable background process; target defaults to this Agent Session.
+
+    完整编排流程见 /pan skill。
+    """
     target = target_session_id or ((_caller_identity() or {}).get("id"))
     if not target:
         return {"ok": False, "error": {"code": "target_session_required", "message": "no current Agent Session"}}
@@ -1399,6 +1418,8 @@ def agent_background_get(job_id: str) -> dict:
     Access is limited to a Job targeting the current Agent Session or one of
     its managed Sessions. This reads Runner state; it does not read or consume
     the target Session's queue_pending.
+
+    完整编排流程见 /pan skill。
     """
     job = _api("GET", f"/api/background-jobs/{quote(job_id, safe='')}")
     target = job.get("targetSessionId") if isinstance(job, dict) else None
@@ -1412,6 +1433,8 @@ def agent_background_list(target_session_id: str | None = None) -> dict:
 
     An explicit target must be the current or a managed Session. Returned Jobs
     are Registry facts and may remain visible after the target Session is gone.
+
+    完整编排流程见 /pan skill。
     """
     if target_session_id:
         denied = _check_access(target_session_id)
@@ -1431,6 +1454,8 @@ def agent_background_cancel(job_id: str) -> dict:
 
     The Runner PID/task PID creation time must be verifiable; otherwise the
     operation returns ``cancel_unsafe`` and never kills an unrelated PID.
+
+    完整编排流程见 /pan skill。
     """
     job = agent_background_get(job_id)
     if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
@@ -1444,6 +1469,8 @@ def agent_background_retry(job_id: str) -> dict:
 
     Only completed, failed, or cancelled Jobs are retryable. starting/running
     Jobs return ``job_not_retryable`` and must be cancelled first.
+
+    完整编排流程见 /pan skill。
     """
     job = agent_background_get(job_id)
     if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:

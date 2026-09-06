@@ -33,6 +33,7 @@ def test_codex_quota_maps_first_to_five_hours_and_secondary_to_week():
         session_id="ses-codex",
         worker_id="worker-codex",
         updated_at="2026-09-07T01:02:03+00:00",
+        received_at="2026-09-07T01:02:03+00:00",
     )
 
     first = result["windows"]["first"]
@@ -56,7 +57,10 @@ def test_codex_quota_maps_first_to_five_hours_and_secondary_to_week():
     assert secondary["windowDurationMins"] == 10080
     assert secondary["raw"]["credits"]["balance"] == "500"
     assert result["updatedAt"] == "2026-09-07T01:02:03+00:00"
+    assert result["receivedAt"] == "2026-09-07T01:02:03+00:00"
     assert result["source"]["event"] == "account/rateLimits/updated"
+    assert result["source"]["providerUpdatedAt"] is None
+    assert "local Pan Worker receive time" in result["source"]["timestampMeaning"]
 
 
 def test_codex_quota_missing_provider_window_is_explicitly_unknown():
@@ -77,6 +81,7 @@ def test_codex_quota_missing_provider_window_is_explicitly_unknown():
         "limit": None,
     }
     assert result["updatedAt"] is None
+    assert result["receivedAt"] is None
 
 
 def test_codex_rate_limit_update_records_source_timestamp_and_clears_on_respawn():
@@ -90,10 +95,13 @@ def test_codex_rate_limit_update_records_source_timestamp_and_clears_on_respawn(
         "rate_limits": {"primary": {"usedPercent": 1}},
     })
     assert w.native_rate_limits == {"primary": {"usedPercent": 1}}
+    assert w.native_rate_limits_received_at
     assert w.native_rate_limits_updated_at
+    assert w.native_rate_limits_received_at == w.native_rate_limits_updated_at
 
     worker.clear_native_runtime_state(w)
     assert w.native_rate_limits is None
+    assert w.native_rate_limits_received_at is None
     assert w.native_rate_limits_updated_at is None
 
 

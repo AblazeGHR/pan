@@ -219,6 +219,10 @@ class Worker:
     # survives a completed turn, but it is still process-local and must be
     # cleared when the app-server is respawned.
     native_rate_limits: dict | None = None
+    # Local receive time for the latest rate-limit event.  The provider event
+    # does not carry a trustworthy original-update timestamp in this path.
+    native_rate_limits_received_at: str | None = None
+    # Compatibility alias retained for existing callers/API fields.
     native_rate_limits_updated_at: str | None = None
     # Current turn's native plan/diff snapshots for dashboard reconnect replay.
     native_plan: dict | None = None
@@ -569,10 +573,12 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
     if event_type == "codex.rate_limits":
         rate_limits = event.get("rate_limits")
         w.native_rate_limits = dict(rate_limits) if isinstance(rate_limits, dict) else None
-        w.native_rate_limits_updated_at = (
+        received_at = (
             datetime.now(timezone.utc).isoformat()
             if isinstance(rate_limits, dict) else None
         )
+        w.native_rate_limits_received_at = received_at
+        w.native_rate_limits_updated_at = received_at
         return
     if event_type == "codex.plan":
         plan = event.get("plan")
@@ -662,6 +668,7 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_status = None
     w.native_usage = None
     w.native_rate_limits = None
+    w.native_rate_limits_received_at = None
     w.native_rate_limits_updated_at = None
     w.native_plan = None
     w.native_diff = None

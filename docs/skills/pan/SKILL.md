@@ -319,7 +319,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 |------|------|------|
 | `permission_prompt` | (无) | **Claude Code 审批桥**：当 claude adapter 以 `--permission-prompt-tool mcp__pan__permission_prompt` 长驻运行时，Claude 的非交互权限请求经本工具转发到 Dashboard 审批栏，返回 `allow`/`deny` 结构化决策（超时默认 360s 自动拒绝）。普通编排流程**不会**主动调用它；只有在 Dashboard 上批准 Claude 工具调用时才间接生效 |
 | `model_list` | `adapter?` | 列出可用模型 |
-| `codex_quota` | `window?`(`all`/`first`/`secondary`), `session_id?` | 查询 live Codex 账户额度；`first` = 五小时窗口，`secondary` = 周窗口。额度窗口参数不是 adapter fallback 或模型选择顺序；绝对 used/remaining/limit 缺失时返回 `null`，并保留 provider 来源与更新时间 |
+| `codex_quota` | `window?`(`all`/`first`/`secondary`), `session_id?` | 查询 live Codex Worker 的事件快照；`first` = 五小时窗口，`secondary` = 周窗口。MCP caller 层先做 `_check_access`，受限 caller 只能查 managed graph；底层 loopback HTTP 直连是无 manager 认证的本机受信管理接口，两者不是同一权限契约。`updatedAt`（兼容字段）与 `receivedAt` 都是 Pan Worker 接收 `account/rateLimits/updated` 的本地时间，不是 provider 原始更新时间；不会主动执行 `account/rateLimits/read`，绝对 used/remaining/limit 缺失时返回 `null`。错误码：`invalid_window`、`session_not_found`、`unsupported_provider`、`quota_unavailable`、`quota_ambiguous` |
 | `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§11 完全一致 |
 
 ## 6. 状态判断

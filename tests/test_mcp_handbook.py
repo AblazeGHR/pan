@@ -8,8 +8,17 @@ Covers:
       session_delete) carry step-numbered call-chain guidance
 """
 
+import ast
 import sys
 from pathlib import Path
+
+import pytest
+
+# Importing FastMCP requires the real optional environment.  A missing
+# python-dotenv is an environment skip, never a product failure; do not shim
+# the dependency because this file is meant to test the real MCP module.
+pytest.importorskip("dotenv", reason="python-dotenv is required for FastMCP handbook tests")
+pytest.importorskip("mcp", reason="FastMCP package is required for MCP handbook tests")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -17,35 +26,33 @@ import packages.mcp.server as mcp_server
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SKILL_PATH = PROJECT_ROOT / "docs" / "skills" / "pan" / "SKILL.md"
+MCP_SERVER_PATH = PROJECT_ROOT / "packages" / "mcp" / "server.py"
 
-# All tools exposed by the Pan MCP server.
-TOOLS = [
-    mcp_server.session_create,
-    mcp_server.session_list,
-    mcp_server.session_get,
-    mcp_server.session_delete,
-    mcp_server.session_update,
-    mcp_server.session_history,
-    mcp_server.report_subscribe,
-    mcp_server.report_unsubscribe,
-    mcp_server.worker_spawn,
-    mcp_server.worker_task,
-    mcp_server.worker_kill,
-    mcp_server.worker_list,
-    mcp_server.worker_assign,
-    mcp_server.worker_send,
-    mcp_server.agent_spawn,
-    mcp_server.agent_task,
-    mcp_server.agent_assign,
-    mcp_server.agent_send,
-    mcp_server.agent_send_force,
-    mcp_server.agent_kill,
-    mcp_server.agent_list,
-    mcp_server.session_handoff,
-    mcp_server.model_list,
-    mcp_server.codex_quota,
-    mcp_server.pan_handbook,
-]
+def _mcp_tool_names_from_ast() -> list[str]:
+    """Return every top-level function currently decorated with @mcp.tool."""
+    tree = ast.parse(MCP_SERVER_PATH.read_text(encoding="utf-8"), str(MCP_SERVER_PATH))
+    names = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for decorator in node.decorator_list:
+            target = decorator.func if isinstance(decorator, ast.Call) else decorator
+            if (
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "mcp"
+                and target.attr == "tool"
+            ):
+                names.append(node.name)
+                break
+    return names
+
+
+# Keep this inventory derived from the source registration decorators.  It
+# automatically covers newly added tools instead of silently omitting them
+# from handbook/docstring checks, and explicitly includes codex_quota.
+TOOL_NAMES = _mcp_tool_names_from_ast()
+TOOLS = tuple(getattr(mcp_server, name) for name in TOOL_NAMES)
 
 SKILL_POINTER = "完整编排流程见 /pan skill。"
 
@@ -83,6 +90,11 @@ class TestPanHandbook:
 
 
 class TestDescriptionCallChain:
+    def test_ast_inventory_covers_all_registered_tools(self):
+        assert len(TOOL_NAMES) == len(set(TOOL_NAMES))
+        assert "codex_quota" in TOOL_NAMES
+        assert {tool.__name__ for tool in TOOLS} == set(TOOL_NAMES)
+
     def test_every_tool_ends_with_pan_skill_pointer(self):
         for tool in TOOLS:
             doc = tool.__doc__ or ""

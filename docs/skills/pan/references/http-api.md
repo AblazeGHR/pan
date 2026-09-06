@@ -48,7 +48,11 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | `GET` | `/api/sessions/{id}/history` | `?limit=50&before=<index>` | `{"history", "total", "hasMore", "start"}` 分页 |
 | `GET` | `/api/models` | `?adapter=cbc` | `{"models": [...], "default": "..."}` |
 | `GET` | `/api/adapters` | — | 注册的 adapter 与能力（supportsResume/supportsFork） |
-| `GET` | `/api/codex/quota` | `?session_id=<Pan session id>&window=all|first|secondary` | 查询 live Codex app-server 额度。`first` = 五小时窗口，`secondary` = 周窗口；返回 `usedPercent`/`remainingPercent`、provider 原始窗口字段、更新时间/来源；provider 未提供的绝对 used/remaining/limit 为 `null`。省略 `session_id` 时要求恰好一个 live Codex Worker，多于一个返回 `quota_ambiguous`。等价 MCP 工具：`codex_quota` |
+| `GET` | `/api/codex/quota` | `?session_id=<Pan session id>&window=all|first|secondary` | 查询 live Codex app-server 事件快照。`first` = 五小时窗口，`secondary` = 周窗口；返回 `usedPercent`/`remainingPercent`、provider 原始窗口字段、来源及 `receivedAt`。兼容字段 `updatedAt` 与 `receivedAt` 都是 Pan Worker 收到 `account/rateLimits/updated` 的本地时间，不是 provider 原始更新时间；provider 未提供的绝对 used/remaining/limit 为 `null`。不会主动执行 `account/rateLimits/read`。省略 `session_id` 时要求恰好一个 live Codex Worker，多于一个返回 `quota_ambiguous`。等价 MCP 工具：`codex_quota` |
+
+额度查询的权限边界是有意不同的：此 HTTP 直连接口是绑定 loopback 的本机受信管理接口，不提供 manager 身份认证，也不执行 managed 隔离；不要伪造 manager 参数。`codex_quota` MCP 工具在调用此接口前由 MCP caller 层执行 `_check_access`，managed 隔离由该层负责，不能把 HTTP 与 MCP 宣称为同一权限契约。
+
+额度查询错误码：`invalid_window`（窗口选择器不支持）、`session_not_found`（指定 Session 不存在）、`unsupported_provider`（指定 Session 不是 Codex）、`quota_unavailable`（没有 live Codex Worker 或没有事件快照）、`quota_ambiguous`（未指定 Session 且存在多个 live Codex Worker）。MCP 还可能在 caller 层返回 `permission_denied`；HTTP 直连不提供该 managed 身份检查。
 
 ### 会话队列 / 排序（2026-09-03 补录，无 MCP 等价工具，直调或前端使用）
 
