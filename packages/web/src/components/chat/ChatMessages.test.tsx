@@ -87,7 +87,10 @@ beforeEach(() => {
   useUIStore.setState({ tuiViewEnabled: true });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+});
 
 describe('ChatMessages scroll positioning', () => {
   it('scrolls to the bottom when history finishes loading after entering a session', () => {
@@ -204,6 +207,90 @@ describe('ChatMessages scroll positioning', () => {
       useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'new')] });
     });
     expect(scrollEl.scrollTop).toBe(0);
+  });
+
+  it('keeps the user position during streaming deltas to the current message', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+    scrollEl.scrollTop = 700;
+    fireEvent.scroll(scrollEl);
+
+    // A streaming update changes the same assistant message and its measured
+    // height, rather than appending a new message.
+    m.setTotalSize(2600);
+    act(() => {
+      useSessionStore.setState({
+        currentMessages: [...msgs(3), { role: 'assistant', content: 'm-3\nmore streamed text' }],
+      });
+    });
+
+    expect(scrollEl.scrollTop).toBe(700);
+  });
+
+  it('resumes following after the user returns near the bottom', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+    scrollEl.scrollTop = 500;
+    fireEvent.scroll(scrollEl);
+    m.setTotalSize(2200);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'paused')] });
+    });
+    expect(scrollEl.scrollTop).toBe(500);
+
+    // Explicitly returning to the bottom re-enables follow mode.
+    scrollEl.scrollTop = 1800;
+    fireEvent.scroll(scrollEl);
+    m.setTotalSize(2800);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(2, 'follow')] });
+    });
+    expect(scrollEl.scrollTop).toBe(2800);
+  });
+
+  it('preserves the viewport anchor when older history is loaded above it', async () => {
+    vi.useFakeTimers();
+    const loadOlderMessages = vi.fn(async () => {
+      // Simulate the store update caused by the async history response.
+      m.setTotalSize(3000);
+      useSessionStore.setState({
+        currentMessages: [...msgs(2, 'old'), ...msgs(4)],
+        historyLoading: false,
+      });
+    });
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: msgs(4),
+      hasMoreMessages: true,
+      historyLoading: false,
+      loadOlderMessages,
+    });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+
+    // Pagination is triggered near the top, but not at the exact top.
+    scrollEl.scrollTop = 100;
+    fireEvent.scroll(scrollEl);
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+    expect(scrollEl.scrollTop).toBe(1100);
   });
 
   it('shows a spinner instead of the empty state while history is loading, then the empty state after', () => {
