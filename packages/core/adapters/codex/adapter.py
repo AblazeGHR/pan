@@ -139,6 +139,9 @@ class CodexAdapter:
     # The wrapper translates worker's --system-prompt into Codex's native
     # developer_instructions config override on the first fresh turn.
     supports_spawn_system_prompt = True
+    # Long prompts use a session-scoped file so Windows CreateProcess never
+    # receives the prompt body as part of its command line.
+    supports_spawn_system_prompt_file = True
     # The native bridge accepts an out-of-band control JSON message, allowing
     # Pan's interrupt endpoint to stop a turn without killing the whole native
     # thread/app-server process.

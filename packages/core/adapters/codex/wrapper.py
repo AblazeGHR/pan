@@ -22,6 +22,7 @@ import os
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from queue import Queue
 
 
@@ -71,6 +72,21 @@ def _system_prompt_opts(system_prompt: str | None) -> list[str]:
     if not system_prompt:
         return []
     return ["-c", f"developer_instructions={json.dumps(system_prompt, ensure_ascii=False)}"]
+
+
+def _read_system_prompt_file(path: str | None) -> str | None:
+    """Read and remove a worker-owned prompt file without logging its contents."""
+    if not path:
+        return None
+    prompt_path = Path(path)
+    try:
+        with prompt_path.open("r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+    finally:
+        try:
+            prompt_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _build_codex_args(node: str, codex_js: str, text: str,
@@ -302,6 +318,8 @@ def main() -> int:
                         help="JSON list of codex-level option flags (model/permission/mcp/effort)")
     parser.add_argument("--system-prompt", default=None,
                         help="Pan system prompt, passed as Codex developer_instructions on the first fresh turn")
+    parser.add_argument("--system-prompt-file", default=None,
+                        help="Worker-owned UTF-8 file containing the first fresh-session system prompt")
     args = parser.parse_args()
 
     cwd = os.environ.get("PAN_CODEX_CWD") or os.getcwd()
@@ -311,13 +329,16 @@ def main() -> int:
             extra_opts = []
     except json.JSONDecodeError:
         extra_opts = []
+    system_prompt = args.system_prompt
+    if args.system_prompt_file:
+        system_prompt = _read_system_prompt_file(args.system_prompt_file)
     return _main_loop(
         node=args.node_path,
         codex_js=args.codex_path,
         extra_opts=extra_opts,
         initial_thread_id=args.thread_id,
         cwd=cwd,
-        system_prompt=args.system_prompt,
+        system_prompt=system_prompt,
     )
 
 

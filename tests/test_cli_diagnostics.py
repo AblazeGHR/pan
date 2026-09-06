@@ -52,6 +52,8 @@ def test_format_spawn_error_is_actionable(monkeypatch):
     assert "无法启动 fake" in message
     assert "PATH" in message
     assert "重启 Pan" in message
+    assert "原始错误" in message
+    assert "not found" in message
 
 
 def test_preflight_logs_missing_cli_without_raising(monkeypatch, caplog):

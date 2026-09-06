@@ -20,6 +20,7 @@ import inspect
 import json
 import logging
 import os
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -193,6 +194,7 @@ class Worker:
     adapter: CliAdapter       # CLI tool adapter instance
     status: str = "idle"      # idle | running | held | done | error | cancelled | queued | zombie
     process: asyncio.subprocess.Process | None = None
+    system_prompt_file: str | None = None  # fresh-spawn transport; removed with the worker
     _mcp_proc: asyncio.subprocess.Process | None = None  # in-flight one-shot MCP process
     _stdout_task: asyncio.Task | None = None
     _consume_task: asyncio.Task | None = None
@@ -1034,7 +1036,11 @@ async def _read_stdout(w: Worker):
     # stdout task may still observe EOF in that tiny window; the restart owns
     # the transition and will clean up the process itself.
     if w.status == "restarting" or workers.get(w.worker_id) is not w:
+        _cleanup_system_prompt_file(w.system_prompt_file)
+        w.system_prompt_file = None
         return
+    _cleanup_system_prompt_file(w.system_prompt_file)
+    w.system_prompt_file = None
     code = w.process.returncode if w.process else "unknown"
     _log.info("[Worker %s] %s 进程退出，返回码 %s", w.worker_id, adapter.name, code)
     _cancel_claude_permission_requests(w.worker_id, "Claude worker exited")
@@ -3821,7 +3827,42 @@ async def restart_or_start_worker(session_id: str) -> Worker | str:
         return result
 
 
-def _spawn_system_prompt_args(adapter, s, mcp_on: bool) -> list[str] | None:
+def _write_system_prompt_file(s, prompt: str) -> str:
+    """Write one fresh-session prompt under that session's checkout/workdir."""
+    workdir = Path(s.workdir or os.getcwd()).resolve()
+    directory = workdir / ".pan" / "system-prompts"
+    directory.mkdir(parents=True, exist_ok=True)
+    safe_session_id = "".join(
+        char if char.isalnum() or char in "-_" else "_" for char in str(s.id)
+    )[:80] or "session"
+    fd, raw_path = tempfile.mkstemp(
+        prefix=f"{safe_session_id}-", suffix=".txt", dir=str(directory), text=False,
+    )
+    path = Path(raw_path)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(prompt)
+    except Exception:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+    return str(path)
+
+
+def _cleanup_system_prompt_file(path: str | None) -> None:
+    if not path:
+        return
+    try:
+        Path(path).unlink(missing_ok=True)
+    except OSError:
+        _log.warning("failed to remove temporary system prompt file: %s", path)
+
+
+def _spawn_system_prompt_args(
+    adapter, s, mcp_on: bool, prompt_file_sink: list[str] | None = None,
+) -> list[str] | None:
     """stream spawn 的 --system-prompt 注入决策（_create_worker 用）。
 
     返回传给 ``_spawn_process`` 的 extra_args（含该 flag）或 None：
@@ -3838,6 +3879,10 @@ def _spawn_system_prompt_args(adapter, s, mcp_on: bool) -> list[str] | None:
     if not (s.system_prompt and not s.cli_session_id):
         return None
     if getattr(adapter, "supports_spawn_system_prompt", False):
+        if getattr(adapter, "supports_spawn_system_prompt_file", False) and prompt_file_sink is not None:
+            path = _write_system_prompt_file(s, s.system_prompt)
+            prompt_file_sink.append(path)
+            return ["--system-prompt-file", path]
         return ["--system-prompt", s.system_prompt]
     return None
 
@@ -3881,6 +3926,7 @@ async def _create_worker(session_id: str) -> Worker | str:
 
     mcp_on = _mcp_configured(s)
     mode = resolve_execution_mode(adapter, s)
+    prompt_files: list[str] = []
 
     if mode == "oneshot":
         # One-shot mode: no long-running process, consumer spawns per-task
@@ -3892,15 +3938,18 @@ async def _create_worker(session_id: str) -> Worker | str:
         # If MCP is configured (mcp_on, output_mode="stream"), the process is
         # spawned with --mcp-config (build_spawn_args -> mcp_args) so the
         # long-running stream keeps MCP tools (cbc >= 2.137.0).
-        extra_args = _spawn_system_prompt_args(adapter, s, mcp_on)
+        extra_args = _spawn_system_prompt_args(adapter, s, mcp_on, prompt_files)
         spawn_injected = extra_args is not None
         proc = await _spawn_process(session_id, adapter=adapter, extra_args=extra_args)
         if isinstance(proc, str):
+            for path in prompt_files:
+                _cleanup_system_prompt_file(path)
             return proc
 
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
+               system_prompt_file=prompt_files[0] if prompt_files else None,
                _task_done=asyncio.Event(),
                _hist_flush_event=asyncio.Event(),
                generation=_next_worker_generation(session_id))
@@ -4061,6 +4110,8 @@ async def _kill_process_tree(w: Worker) -> None:
             except (ProcessLookupError, Exception):
                 pass
         await wait_for_exit(process, "MCP process")
+    _cleanup_system_prompt_file(w.system_prompt_file)
+    w.system_prompt_file = None
 
 
 async def _takeover_worker_unlocked(worker_id: str) -> str | None:
@@ -4311,8 +4362,8 @@ async def _spawn_process(session_id: str,
             stderr=asyncio.subprocess.STDOUT,
             cwd=s.workdir or None,
         )
-    except FileNotFoundError:
-        return format_cli_spawn_error(adapter.name)
+    except FileNotFoundError as e:
+        return format_cli_spawn_error(adapter.name, e)
     except ValueError as e:
         return f"MCP configuration error for {adapter.name}: {e}"
     except OSError as e:

@@ -25,6 +25,7 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 from queue import Empty, Queue
 from typing import Any
 
@@ -43,6 +44,21 @@ _INTERACTIVE_USER_INPUT_METHOD = "item/tool/requestUserInput"
 _INTERACTIVE_PERMISSION_METHOD = "item/permissions/requestApproval"
 _INTERACTIVE_ELICITATION_METHOD = "mcpServer/elicitation/request"
 _TERMINAL_INTERACTION_METHOD = "item/commandExecution/terminalInteraction"
+
+
+def _read_system_prompt_file(path: str | None) -> str | None:
+    """Read and remove the worker-owned UTF-8 prompt file, preserving newlines."""
+    if not path:
+        return None
+    prompt_path = Path(path)
+    try:
+        with prompt_path.open("r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+    finally:
+        try:
+            prompt_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 _CANCELLED_TURN_STATUSES = {"interrupted", "cancelled", "canceled"}
 
 
@@ -1081,6 +1097,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--thread-id", default=None)
     parser.add_argument("--codex-extra-args", default="[]")
     parser.add_argument("--system-prompt", default=None)
+    parser.add_argument("--system-prompt-file", default=None)
     args = parser.parse_args(argv)
     try:
         extra = json.loads(args.codex_extra_args)
@@ -1089,11 +1106,15 @@ def main(argv: list[str] | None = None) -> int:
     except json.JSONDecodeError:
         extra = []
 
+    system_prompt = args.system_prompt
+    if args.system_prompt_file:
+        system_prompt = _read_system_prompt_file(args.system_prompt_file)
+
     app = AppServer(args.node_path, args.codex_path,
                     os.environ.get("PAN_CODEX_CWD") or os.getcwd(), extra)
     app.initial_thread_id = args.thread_id
-    if args.system_prompt and not args.thread_id:
-        app.config["developer_instructions"] = args.system_prompt
+    if system_prompt and not args.thread_id:
+        app.config["developer_instructions"] = system_prompt
     pan_queue: Queue[dict[str, Any] | None] = Queue()
     control_queue: Queue[dict[str, Any] | None] = Queue()
     app.control_queue = control_queue
