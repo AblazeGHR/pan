@@ -927,6 +927,26 @@ def test_system_prompt_opts():
     print("PASS: _system_prompt_opts")
 
 
+def test_system_prompt_file_round_trip_preserves_unicode_and_newlines(tmp_path):
+    prompt = "中文\r\nsecond line\nemoji 😀\r\n" + ("x" * 31_456)
+    path = tmp_path / "system-prompt.txt"
+    path.write_text(prompt, encoding="utf-8", newline="")
+
+    assert codex_wrapper._read_system_prompt_file(str(path)) == prompt
+    assert not path.exists()
+    print("PASS: system prompt file round trip")
+
+
+def test_app_server_system_prompt_file_round_trip(tmp_path):
+    prompt = "app-server 中文\nline two\r\n" + ("z" * 8_000)
+    path = tmp_path / "app-server-system-prompt.txt"
+    path.write_text(prompt, encoding="utf-8", newline="")
+
+    assert app_server_wrapper._read_system_prompt_file(str(path)) == prompt
+    assert not path.exists()
+    print("PASS: app-server system prompt file round trip")
+
+
 def test_app_server_option_translation():
     opts = [
         "-c", 'model="gpt-test"',
