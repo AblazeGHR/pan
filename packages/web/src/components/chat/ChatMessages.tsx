@@ -50,10 +50,14 @@ export function ChatMessages() {
   // the virtualizer's measurements settle, instead of the initial estimate.
   const totalSize = virtualizer.getTotalSize();
 
-  // Whether the user is "pinned" to the bottom of the chat (within the
-  // threshold). Starts true so the first message load of a session scrolls
-  // down; updated on every scroll event. A session switch resets it to true.
-  const isPinnedRef = useRef(true);
+  // Whether the user wants the view to follow the bottom. This is deliberately
+  // state held outside React rendering: a streaming delta can arrive between
+  // renders, and a render must not infer "follow" from a transient scrollTop.
+  // Starts true so the first message load of a session scrolls down; a user
+  // scroll past the threshold opts out until they return near the bottom (or
+  // explicitly press the scroll-to-bottom button).
+  const shouldFollowBottomRef = useRef(true);
+  const paginationAnchorRef = useRef<{ top: number; height: number } | null>(null);
 
   // Scroll-to-bottom when new messages arrive if already near bottom
   const isNearBottom = useCallback((): boolean => {
@@ -68,6 +72,7 @@ export function ChatMessages() {
   const scrollToBottom = useCallback(() => {
     const el = parentRef.current;
     if (el) {
+      shouldFollowBottomRef.current = true;
       el.scrollTop = el.scrollHeight;
     }
   }, []);
@@ -80,7 +85,7 @@ export function ChatMessages() {
   // measures the real heights (totalSize changes) — we force the scroll down
   // even though the fresh container's scrollTop starts at 0.
   useEffect(() => {
-    if (isPinnedRef.current || isNearBottom()) {
+    if (shouldFollowBottomRef.current) {
       scrollToBottom();
     }
   }, [currentMessages, totalSize, isNearBottom, scrollToBottom]);
@@ -95,7 +100,7 @@ export function ChatMessages() {
       // Track the user's scroll anchor: pinned when within the bottom
       // threshold, unpinned once they scroll up past it. Programmatic scrolls
       // (scrollToBottom) also fire scroll events and correctly re-pin.
-      isPinnedRef.current =
+      shouldFollowBottomRef.current =
         el.scrollHeight - el.scrollTop - el.clientHeight <
         SCROLL_BOTTOM_THRESHOLD;
 
@@ -103,11 +108,22 @@ export function ChatMessages() {
       timer = setTimeout(() => {
         timer = null;
         if (el.scrollTop <= 200 && hasMoreMessages && !historyLoading) {
-          const prevScroll = el.scrollHeight;
+          // Keep the message currently under the user's eyes in place. The
+          // old code used only the height delta, which was correct at exactly
+          // scrollTop=0 but jumped down when pagination began at any other
+          // position. Disable native scroll anchoring so this is the only
+          // restoration applied after the prepend.
+          paginationAnchorRef.current = {
+            top: el.scrollTop,
+            height: el.scrollHeight,
+          };
           loadOlderMessages().then(() => {
             // Preserve scroll position after DOM has updated
             requestAnimationFrame(() => {
-              el.scrollTop = el.scrollHeight - prevScroll;
+              const anchor = paginationAnchorRef.current;
+              if (!anchor) return;
+              el.scrollTop = anchor.top + el.scrollHeight - anchor.height;
+              paginationAnchorRef.current = null;
             });
           });
         }
@@ -126,7 +142,8 @@ export function ChatMessages() {
   // loads (async) and again after the virtualizer measures the real heights.
   // The rAF re-scroll covers the same-frame layout of the freshly swapped DOM.
   useEffect(() => {
-    isPinnedRef.current = true;
+    shouldFollowBottomRef.current = true;
+    paginationAnchorRef.current = null;
     scrollToBottom();
     const raf = requestAnimationFrame(scrollToBottom);
     return () => cancelAnimationFrame(raf);
@@ -158,6 +175,7 @@ export function ChatMessages() {
       <div
         ref={parentRef}
         className={`flex-1 min-h-0 overflow-auto ${!tuiViewEnabled ? 'bubble-mode' : ''}`}
+        style={{ overflowAnchor: 'none' }}
       >
         <div
           style={{
