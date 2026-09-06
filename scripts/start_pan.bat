@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableExtensions
+REM Quick tunnel URL marker is emitted by start_pan_probe.ps1 from trycloudflare.com.
 cls
 
 REM ============================================================
