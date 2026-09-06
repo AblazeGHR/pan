@@ -123,6 +123,7 @@ if /i "%PAN_QUICK_STATE%"=="named" (
 
 if defined CF_PID if /i not "%PAN_QUICK_STATE%"=="named" (
     echo [INFO] Quick tunnel log: %PAN_CF_QUICK_LOG%
+    REM Quick tunnel URL marker is emitted by start_pan_probe.ps1 from trycloudflare.com.
     powershell -NoProfile -File "%SCRIPT_DIR%start_pan_probe.ps1" -Action QuickUrl -BaseDir "%BASE_DIR%" -LogFile "%PAN_CF_QUICK_LOG%"
 )
 
