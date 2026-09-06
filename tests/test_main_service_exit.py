@@ -99,6 +99,65 @@ def test_exit_schedules_worker_shutdown_and_stop_only_supervisor(tmp_path, monke
     assert calls[1][0] == "supervisor"
 
 
+def test_exit_launcher_uses_shell_detach_with_durable_binding(tmp_path, monkeypatch):
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "exit_pan.ps1").write_text("# test placeholder", encoding="utf-8")
+    (tmp_path / "data" / "background_jobs").mkdir(parents=True)
+    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
+
+    request_id = "request-exit-launcher"
+    registry = tmp_path / "data" / "background_jobs"
+    job = background_jobs.create_service_job(
+        request_id=request_id,
+        operation="exit",
+        root=str(tmp_path),
+        port=8770,
+        old_pid=9832,
+        old_pid_created_at=1757128183.0,
+        registry_root=registry,
+    )
+    calls = []
+
+    class FakeProcess:
+        pid = 4242
+
+    monkeypatch.setattr(
+        srv.subprocess,
+        "Popen",
+        lambda command, **kwargs: calls.append((command, kwargs)) or FakeProcess(),
+    )
+
+    srv._launch_main_exit_supervisor(request_id)
+    command = calls[0][0]
+    assert command[:6] == ["cmd.exe", "/d", "/c", "start", "", "/b"]
+    assert command[6:14] == [
+        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+        "-File", str(scripts / "exit_pan.ps1"), "-Root",
+    ]
+    for argument, value in (
+        ("-Root", str(tmp_path)),
+        ("-RequestId", request_id),
+        ("-JobId", job["jobId"]),
+        ("-RegistryRoot", str(registry)),
+        ("-Port", "8770"),
+        ("-OldPid", "9832"),
+        ("-OldPidCreatedAt", "1757128183.0"),
+    ):
+        assert command[command.index(argument) + 1] == value
+    assert command[command.index("-Supervisor") + 1:] == [
+        "-OldPid", "9832", "-OldPidCreatedAt", "1757128183.0",
+    ]
+    assert calls[0][1]["stdout"].name == str(
+        tmp_path / "data" / "logs" / "pan-exit-launcher.log"
+    )
+    assert calls[0][1]["stderr"] is srv.subprocess.STDOUT
+    assert "startupinfo" not in calls[0][1]
+    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NO_WINDOW", 0x08000000)
+    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    assert not calls[0][1]["creationflags"] & getattr(srv.subprocess, "DETACHED_PROCESS", 0x00000008)
+
+
 def test_exit_writes_offline_only_after_runtime_is_confirmed_stopped(tmp_path, monkeypatch):
     monkeypatch.setattr(sess, "SESSION_DIR", tmp_path)
     session = sess.create("exit-worker")

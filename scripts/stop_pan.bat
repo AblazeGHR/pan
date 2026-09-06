@@ -54,7 +54,7 @@ if defined MAIN_PID (
 
 REM ---- 4. Kill cloudflared tunnel (optional service) ----
 if defined CF_PID (
-    powershell -NoProfile -Command "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=%CF_PID%\"; if ($p -and $p.Name -match '^cloudflared(\.exe)?$' -and $p.CommandLine -and $p.CommandLine -match 'pan_cf_(config|quick)_') { exit 0 }; exit 1" >nul 2>&1
+    powershell -NoProfile -Command "$pidText=$env:CF_PID; $base=$env:PAN_STOP_BASE.Replace('\','/').TrimEnd('/'); $root=$base+'/'; $cfg=Join-Path $base 'config.json'; $port='8768'; try { if (Test-Path -LiteralPath $cfg) { $c=Get-Content -LiteralPath $cfg -Raw | ConvertFrom-Json; if ($c.port) { $port=[string]$c.port } } } catch {}; $p=$null; $n=0; if ([int]::TryParse($pidText,[ref]$n)) { $p=Get-CimInstance Win32_Process -Filter ('ProcessId='+$n) }; $cmd=if($p){$p.CommandLine.Replace('\','/')}else{''}; $isMarker=$cmd -match ('pan_cf_(config|quick)_'+[regex]::Escape($port)+'(\.yml|\.log)'); $isQuick=$cmd -match ('http://127\.0\.0\.1:'+[regex]::Escape($port)); if ($p -and $p.Name -ieq 'cloudflared.exe' -and $cmd -and $cmd.Contains($root) -and $isMarker -and (($cmd -match 'pan_cf_config_') -or $isQuick)) { exit 0 }; exit 1" >nul 2>&1
     if errorlevel 1 (
         echo [WARN] Recorded CF pid is not Pan's marked tunnel, skipping PID=%CF_PID%
     ) else (
@@ -73,11 +73,6 @@ REM         fallback. Require BOTH bot.py and that interpreter's directory
 REM         (bare "python" interpreters fall back to the project root, since
 REM         bot.py's own path already contains it).
 powershell -NoProfile -Command "$py=''; if ($env:PAN_QQ_PYTHON) { $py=$env:PAN_QQ_PYTHON } else { try { $c=Get-Content -Raw '%BASE_DIR%\config.json' | ConvertFrom-Json; if ($c.qq.python) { $py=$c.qq.python } } catch {} }; if (-not $py) { $py='E:\software\miniforge\python.exe' }; $frag=Split-Path -Parent $py; if (-not $frag) { $frag='%BASE_DIR%' }; $p = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'bot\.py' -and $_.CommandLine -match [regex]::Escape($frag) }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
-
-REM     5c. cloudflared belonging to Pan: command line carries either the
-REM         named-tunnel temp yml marker (pan_cf_config_) or the quick-tunnel
-REM         logfile marker (pan_cf_quick_) — never a bare service config
-powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -match 'pan_cf_(config|quick)_' }; if ($p) { $p | ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null } }" >nul 2>&1
 
 REM ---- 6. Clean up pid files ----
 REM ---- 6a. A successful taskkill is not enough: no target-port listener
