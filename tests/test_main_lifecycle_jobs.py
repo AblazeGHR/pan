@@ -1,5 +1,6 @@
 """Pure registry and mocked-supervisor coverage; no Pan process is started."""
 
+import asyncio
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -28,6 +29,20 @@ def test_legacy_job_json_gets_read_time_kind_defaults(tmp_path):
     assert loaded["operation"] == "run"
 
 
+def test_legacy_service_job_gets_read_time_empty_options_default(tmp_path):
+    path = tmp_path / "legacy-service"
+    jobs._save({
+        "jobId": "job_legacy-service", "kind": "main-lifecycle",
+        "operation": "restart", "createdAt": 1,
+    }, path)
+
+    loaded = jobs.get("job_legacy-service", path)
+
+    assert loaded["options"] == {}
+    raw = json.loads((path / "jobs" / "job_legacy-service.json").read_text(encoding="utf-8"))
+    assert "options" not in raw
+
+
 def test_service_job_is_durable_atomic_and_has_no_session_target(tmp_path):
     registry = tmp_path / "registry"
     job = jobs.create_service_job(
@@ -35,6 +50,8 @@ def test_service_job_is_durable_atomic_and_has_no_session_target(tmp_path):
         old_pid=41, old_pid_created_at=12.5, registry_root=registry,
     )
     assert job["kind"] == "main-lifecycle"
+    assert job["operation"] == "restart"
+    assert job["options"] == {}
     assert "targetSessionId" not in job
     assert jobs.get_active_service_job(str(tmp_path), 8765, registry)["jobId"] == job["jobId"]
 
@@ -162,6 +179,47 @@ def test_exit_supervisor_persists_offline_only_after_verified_stop(monkeypatch, 
     saved = jobs.get(job["jobId"], registry)
     assert saved["phase"] == "offline"
     assert saved["status"] == "completed"
+    assert saved["operation"] == "exit"
+    assert saved["options"] == {}
+
+
+@pytest.mark.parametrize(
+    ("operation", "endpoint"),
+    [("restart", web_server.api_main_restart), ("exit", web_server.api_main_exit)],
+)
+def test_empty_options_preserves_disabled_request_behavior(tmp_path, monkeypatch, operation, endpoint):
+    monkeypatch.setattr(web_server, "_PROJECT_DIR", tmp_path)
+
+    result = asyncio.run(endpoint({"options": {}}))
+
+    assert result["ok"] is False
+    assert result["status"] == "disabled"
+    assert operation in result["error"]
+
+
+@pytest.mark.parametrize(
+    ("operation", "endpoint"),
+    [("restart", web_server.api_main_restart), ("exit", web_server.api_main_exit)],
+)
+def test_unknown_lifecycle_option_is_rejected_before_any_side_effect(
+    tmp_path, monkeypatch, operation, endpoint,
+):
+    monkeypatch.setattr(web_server, "_PROJECT_DIR", tmp_path)
+    calls = []
+    monkeypatch.setattr(
+        web_server.background_jobs,
+        "create_service_job",
+        lambda **kwargs: calls.append(kwargs),
+    )
+
+    with pytest.raises(web_server.HTTPException) as caught:
+        asyncio.run(endpoint({"options": {"drain": True}}))
+
+    assert caught.value.status_code == 400
+    assert caught.value.detail["code"] == "unsupported_lifecycle_options"
+    assert caught.value.detail["operation"] == operation
+    assert caught.value.detail["fields"] == ["drain"]
+    assert calls == []
 
 
 def test_stop_script_checks_identity_variants_and_nonzero_stop_result():
