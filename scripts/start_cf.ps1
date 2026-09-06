@@ -70,7 +70,11 @@ if ($proto) {
     if ($content -notmatch "`n$") { $content += "`n" }
     $content += "protocol: $proto`n"
 }
-$tempConfig = Join-Path $env:TEMP "pan_cf_config_$port.yml"
+$runtimeDir = Join-Path $BASE_DIR 'data\cloudflared'
+if (-not (Test-Path -LiteralPath $runtimeDir)) {
+    New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
+}
+$tempConfig = Join-Path $runtimeDir "pan_cf_config_$port.yml"
 $content | Set-Content -Path $tempConfig -Encoding utf8
 
 $p = Start-Process -FilePath 'cloudflared.exe' -ArgumentList 'tunnel','--config',$tempConfig,'run' -WindowStyle Minimized -PassThru
