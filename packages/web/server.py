@@ -280,7 +280,8 @@ def _main_restart_job_view(job: dict | None) -> dict:
         "root": job.get("root"), "port": job.get("port"),
         "oldPid": job.get("oldPid"), "oldPidCreatedAt": job.get("oldPidCreatedAt"),
         "newPid": job.get("newPid"), "newPidCreatedAt": job.get("newPidCreatedAt"),
-        "error": job.get("error"), "createdAt": job.get("createdAt"),
+        "error": job.get("error"), "errors": list(job.get("errors") or []),
+        "createdAt": job.get("createdAt"),
         "updatedAt": job.get("updatedAt"),
     }
 
@@ -1503,7 +1504,7 @@ async def _perform_main_exit(request_id: str) -> None:
     try:
         background_jobs.transition_service_job(
             job["jobId"], "stopping_service", registry_root=registry_root,
-            error=_main_exit_error,
+            **({"error": _main_exit_error} if _main_exit_error else {}),
         )
     except (OSError, ValueError) as exc:
         _log(f"[main-exit] failed to record service-stop phase: {exc}")
