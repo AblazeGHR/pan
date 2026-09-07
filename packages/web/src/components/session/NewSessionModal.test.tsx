@@ -96,6 +96,44 @@ describe('NewSessionModal working directory browser', () => {
     expect(apiMock.fetchDirectories).toHaveBeenCalledWith(attachmentsPath, true);
   });
 
+  it('does not reuse directory-only cache data after switching to file mode', async () => {
+    const path = 'D:\\attachments';
+    apiMock.fetchDirectories
+      .mockResolvedValueOnce({
+        current: path,
+        parent: 'D:\\',
+        entries: [{ name: 'notes', path: `${path}\\notes`, isDirectory: true }],
+      })
+      .mockResolvedValueOnce({
+        current: path,
+        parent: 'D:\\',
+        entries: [{ name: 'report.txt', path: `${path}\\report.txt`, isDirectory: false }],
+      });
+    const view = render(
+      <DirectoryBrowser
+        path={path}
+        onPathChange={() => {}}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'notes' })).toBeTruthy());
+
+    view.rerender(
+      <DirectoryBrowser
+        path={path}
+        fileMode
+        onPathChange={() => {}}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
+
+    expect(apiMock.fetchDirectories).toHaveBeenNthCalledWith(2, path, true);
+    expect(screen.queryByRole('button', { name: 'notes' })).toBeNull();
+  });
+
   it('filters loaded files and directories by name or full path without changing selection paths', async () => {
     const onSelect = vi.fn();
     apiMock.fetchDirectories.mockResolvedValueOnce({

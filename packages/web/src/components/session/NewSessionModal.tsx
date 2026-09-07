@@ -46,7 +46,8 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
-    const cached = cacheRef.current.get(path);
+    const cacheKey = `${path}\u0000${fileMode ? 'files' : 'directories'}`;
+    const cached = cacheRef.current.get(cacheKey);
     if (cached) {
       setData(cached);
       setError(null);
@@ -61,7 +62,7 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
     request
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
-        cacheRef.current.set(path, result);
+        cacheRef.current.set(cacheKey, result);
         setData(result);
       })
       .catch((err: unknown) => {

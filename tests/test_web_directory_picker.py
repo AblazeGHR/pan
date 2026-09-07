@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -199,3 +200,48 @@ def test_fs_rename_keeps_normal_file_rename_behavior(monkeypatch, tmp_path):
     assert result == {"from": "old.txt", "to": "new.txt"}
     assert not (workdir / "old.txt").exists()
     assert (workdir / "new.txt").read_text(encoding="utf-8") == "content"
+
+
+def test_linux_renameat2_enosys_falls_back_without_overwriting(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    source = tmp_path / "old.txt"
+    target = tmp_path / "new.txt"
+    source.write_text("content", encoding="utf-8")
+
+    class RenameAt2:
+        argtypes = None
+        restype = None
+
+        def __call__(self, *_args):
+            return -1
+
+    class FakeLibc:
+        renameat2 = RenameAt2()
+
+    monkeypatch.setattr(server.ctypes, "CDLL", lambda *_args, **_kwargs: FakeLibc())
+    monkeypatch.setattr(server.ctypes, "get_errno", lambda: errno.ENOSYS)
+    monkeypatch.setattr(server.os, "name", "posix")
+    monkeypatch.setattr(server.sys, "platform", "linux")
+
+    server._rename_no_overwrite(source, target)
+
+    assert not source.exists()
+    assert target.read_text(encoding="utf-8") == "content"
+
+
+def test_directory_rename_fails_closed_when_atomic_no_overwrite_is_unavailable(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    source = tmp_path / "old-dir"
+    target = tmp_path / "new-dir"
+    source.mkdir()
+    monkeypatch.setattr(server.os, "name", "posix")
+    monkeypatch.setattr(server.sys, "platform", "darwin")
+
+    with pytest.raises(OSError) as error:
+        server._rename_no_overwrite(source, target)
+
+    assert error.value.errno == errno.ENOTSUP
+    assert source.is_dir()
+    assert not target.exists()

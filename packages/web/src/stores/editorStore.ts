@@ -10,23 +10,44 @@ export function setMonacoRef(m: any) {
   monacoRef = m;
 }
 
-// Writes for the same session/root/path must reach the filesystem in the
-// order in which saveFile was called. Separate store actions share this queue.
-const saveQueues = new Map<string, Promise<void>>();
+// File mutations for the same session/root must reach the filesystem in the
+// order in which the store actions were called. This covers save, rename, and
+// delete together: a save of the old path can never finish after a subsequent
+// rename/delete has committed and recreate that old path.
+const fileOperationQueues = new Map<string, Promise<void>>();
 
-function enqueueSave(key: string, operation: () => Promise<void>): Promise<void> {
-  const previous = saveQueues.get(key) ?? Promise.resolve();
+function enqueueFileOperation(key: string, operation: () => Promise<void>): Promise<void> {
+  const previous = fileOperationQueues.get(key) ?? Promise.resolve();
   const current = previous.then(operation, operation);
-  saveQueues.set(key, current);
+  fileOperationQueues.set(key, current);
   void current.then(
     () => {
-      if (saveQueues.get(key) === current) saveQueues.delete(key);
+      if (fileOperationQueues.get(key) === current) fileOperationQueues.delete(key);
     },
     () => {
-      if (saveQueues.get(key) === current) saveQueues.delete(key);
+      if (fileOperationQueues.get(key) === current) fileOperationQueues.delete(key);
     },
   );
   return current;
+}
+
+const openInvalidationGenerations = new Map<string, number>();
+
+function rootKey(root: RootSnapshot): string {
+  return [root.sessionId, root.workdir ?? ''].join('\u0000');
+}
+
+function openInvalidationKey(root: RootSnapshot, path: string): string {
+  return `${rootKey(root)}\u0000${path}`;
+}
+
+function currentOpenInvalidation(root: RootSnapshot, path: string): number {
+  return openInvalidationGenerations.get(openInvalidationKey(root, path)) ?? 0;
+}
+
+function invalidateOpen(root: RootSnapshot, path: string): void {
+  const key = openInvalidationKey(root, path);
+  openInvalidationGenerations.set(key, currentOpenInvalidation(root, path) + 1);
 }
 
 function disposeMonacoModels(paths: string[]) {
@@ -88,6 +109,8 @@ interface TreeRequestSnapshot extends RootSnapshot {
 
 interface OpenFileSnapshot extends RootSnapshot {
   requestGeneration: number;
+  path: string;
+  invalidationGeneration: number;
 }
 
 function captureRoot(
@@ -124,7 +147,11 @@ function isCurrentOpenRequest(
   state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration' | 'openRequestGeneration'>,
   snapshot: OpenFileSnapshot,
 ): boolean {
-  return isCurrentRoot(state, snapshot) && state.openRequestGeneration === snapshot.requestGeneration;
+  return (
+    isCurrentRoot(state, snapshot) &&
+    state.openRequestGeneration === snapshot.requestGeneration &&
+    currentOpenInvalidation(snapshot, snapshot.path) === snapshot.invalidationGeneration
+  );
 }
 
 // Language detection from file extension
@@ -272,6 +299,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!isExpanded) {
       // Expand — lazy load children if empty
       const node = findNode(tree, path);
+      if (!node || node.type !== 'dir') return;
       if (node && node.children && node.children.length === 0) {
         const previous = get();
         const root = captureRoot(previous);
@@ -280,7 +308,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           ...root,
           requestGeneration: previous.treeRequestGeneration + 1,
         };
-        set({ treeRequestGeneration: snapshot.requestGeneration });
+        set({ treeRequestGeneration: snapshot.requestGeneration, treeLoading: true });
         try {
           const children = await fetchTree(snapshot.sessionId, path, path);
           if (!isCurrentTreeRequest(get(), snapshot)) return;
@@ -289,11 +317,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             return {
               tree: replaceNode(s.tree, path, { children }),
               expanded: new Set([...s.expanded, path]),
+              treeLoading: false,
             };
           });
           return;
         } catch {
-          // keep collapsed on error
+          if (isCurrentTreeRequest(get(), snapshot)) {
+            set({ treeLoading: false });
+          }
+          // Keep the directory collapsed on error.
+          return;
         }
       }
     }
@@ -316,6 +349,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const snapshot: OpenFileSnapshot = {
       ...root,
       requestGeneration: state.openRequestGeneration + 1,
+      path,
+      invalidationGeneration: currentOpenInvalidation(root, path),
     };
 
     set({ selectedPath: path, openRequestGeneration: snapshot.requestGeneration });
@@ -344,6 +379,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   closeFile: (path: string) => {
+    const root = captureRoot(get());
+    if (root) invalidateOpen(root, path);
     set((s) => {
       const newOpen = s.openPaths.filter((p) => p !== path);
       const newDirty = new Set(s.dirty);
@@ -366,6 +403,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         dirty: newDirty,
         contents: newContents,
         activePath: newActive,
+        selectedPath: s.selectedPath === path ? newActive : s.selectedPath,
       };
     });
   },
@@ -391,8 +429,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const content = contents[path];
     if (content === undefined) return;
 
-    const queueKey = [snapshot.sessionId, snapshot.workdir ?? '', path].join('\u0000');
-    await enqueueSave(queueKey, async () => {
+    await enqueueFileOperation(rootKey(snapshot), async () => {
       try {
         await writeFile(snapshot.sessionId, path, content);
         if (!isCurrentRoot(get(), snapshot)) return;
@@ -430,44 +467,50 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
 
     try {
-      await renameFs(snapshot.sessionId, from, to);
-      if (!isCurrentRoot(get(), snapshot)) return;
-      set((s) => {
-        if (!isCurrentRoot(s, snapshot)) return {};
+      await enqueueFileOperation(rootKey(snapshot), async () => {
+        await renameFs(snapshot.sessionId, from, to);
+        if (!isCurrentRoot(get(), snapshot)) return;
+        invalidateOpen(snapshot, from);
+        set((s) => {
+          if (!isCurrentRoot(s, snapshot)) return {};
 
-        // Re-read state after the await so concurrent tabs and drafts survive.
-        const openPaths = s.openPaths
-          .map((path) => (path === from ? to : path))
-          .filter((path, index, paths) => paths.indexOf(path) === index);
-        const dirty = new Set(s.dirty);
-        if (dirty.delete(from)) dirty.add(to);
+          // Re-read state after the await so concurrent tabs and drafts survive.
+          const openPaths = s.openPaths
+            .map((path) => (path === from ? to : path))
+            .filter((path, index, paths) => paths.indexOf(path) === index);
+          const dirty = new Set(s.dirty);
+          if (dirty.delete(from)) dirty.add(to);
 
-        const contents = { ...s.contents };
-        if (Object.prototype.hasOwnProperty.call(contents, from)) {
-          contents[to] = contents[from]!;
-          delete contents[from];
-        }
+          const contents = { ...s.contents };
+          if (Object.prototype.hasOwnProperty.call(contents, from)) {
+            contents[to] = contents[from]!;
+            delete contents[from];
+          }
 
-        const mdViewMode = { ...s.mdViewMode };
-        if (Object.prototype.hasOwnProperty.call(mdViewMode, from)) {
-          mdViewMode[to] = mdViewMode[from]!;
-          delete mdViewMode[from];
-        }
+          const mdViewMode = { ...s.mdViewMode };
+          if (Object.prototype.hasOwnProperty.call(mdViewMode, from)) {
+            mdViewMode[to] = mdViewMode[from]!;
+            delete mdViewMode[from];
+          }
 
-        return {
-          openPaths,
-          activePath: s.activePath === from ? to : s.activePath,
-          selectedPath: s.selectedPath === from ? to : s.selectedPath,
-          dirty,
-          contents,
-          mdViewMode,
-        };
+          return {
+            openPaths,
+            activePath: s.activePath === from ? to : s.activePath,
+            selectedPath: s.selectedPath === from ? to : s.selectedPath,
+            dirty,
+            contents,
+            mdViewMode,
+          };
+        });
+        // Refresh parent dir
+        const parentPath = from.includes('/') ? from.substring(0, from.lastIndexOf('/')) : '';
+        void get().refreshTree(parentPath);
       });
-      // Refresh parent dir
-      const parentPath = from.includes('/') ? from.substring(0, from.lastIndexOf('/')) : '';
-      get().refreshTree(parentPath);
-    } catch {
-      // show error
+    } catch (error) {
+      useUIStore.getState().showToast(
+        `重命名失败：${error instanceof Error && error.message ? error.message : '未知错误'}`,
+        'error',
+      );
     }
   },
 
@@ -476,13 +519,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!snapshot) return;
 
     try {
-      await deleteFs(snapshot.sessionId, path);
-      if (!isCurrentRoot(get(), snapshot)) return;
-      // Close if open
-      get().closeFile(path);
-      // Refresh parent dir
-      const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
-      get().refreshTree(parentPath);
+      await enqueueFileOperation(rootKey(snapshot), async () => {
+        await deleteFs(snapshot.sessionId, path);
+        if (!isCurrentRoot(get(), snapshot)) return;
+        invalidateOpen(snapshot, path);
+        // Close if open
+        get().closeFile(path);
+        // Refresh parent dir
+        const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+        void get().refreshTree(parentPath);
+      });
     } catch {
       // show error
     }

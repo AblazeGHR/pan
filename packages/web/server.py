@@ -843,7 +843,12 @@ def _rename_no_overwrite(src: Path, dst: Path) -> None:
             if result == 0:
                 return
             error = ctypes.get_errno()
-            raise OSError(error, os.strerror(error), str(dst))
+            # Some Linux architectures expose renameat2 but return ENOSYS at
+            # runtime (for example under an older kernel/container). Fall
+            # through to the regular-file hard-link fallback in that case;
+            # other errors must remain visible to the caller.
+            if error != errno.ENOSYS:
+                raise OSError(error, os.strerror(error), str(dst))
 
     if src.is_file():
         os.link(src, dst)

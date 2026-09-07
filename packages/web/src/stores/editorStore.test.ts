@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEditorStore } from './editorStore';
 import { useUIStore } from '@/stores/uiStore';
-import { listFiles, readFile, renameFs, writeFile } from '@/services/api';
+import { deleteFs, listFiles, readFile, renameFs, writeFile } from '@/services/api';
 import type { ApiFsGenericResponse, ApiFsWriteResponse, FsEntry } from '@/types';
 
 vi.mock('@/services/api', () => ({
@@ -235,6 +235,77 @@ describe('editorStore async root protection', () => {
     expect(useEditorStore.getState().expanded).toEqual(new Set());
   });
 
+  it('sets and clears treeLoading around a lazy directory load', async () => {
+    let resolveChildren!: (entries: FsEntry[]) => void;
+    vi.mocked(listFiles).mockImplementationOnce(
+      () => new Promise<FsEntry[]>((resolve) => { resolveChildren = resolve; }),
+    );
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      tree: [{
+        name: 'src', path: 'src', type: 'dir', size: 0, modified: '', children: [], expanded: false,
+      }],
+    });
+
+    const expanding = useEditorStore.getState().toggleDir('src');
+    await Promise.resolve();
+    expect(useEditorStore.getState().treeLoading).toBe(true);
+    expect(useEditorStore.getState().expanded).toEqual(new Set());
+
+    resolveChildren([{ name: 'main.ts', type: 'file', size: 1, modified: '' }]);
+    await expanding;
+
+    expect(useEditorStore.getState().treeLoading).toBe(false);
+    expect(useEditorStore.getState().expanded).toEqual(new Set(['src']));
+  });
+
+  it('clears treeLoading and stays collapsed when lazy loading fails', async () => {
+    vi.mocked(listFiles).mockRejectedValueOnce(new Error('directory unavailable'));
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      tree: [{
+        name: 'src', path: 'src', type: 'dir', size: 0, modified: '', children: [], expanded: false,
+      }],
+    });
+
+    await useEditorStore.getState().toggleDir('src');
+
+    expect(useEditorStore.getState().treeLoading).toBe(false);
+    expect(useEditorStore.getState().expanded).toEqual(new Set());
+  });
+
+  it('does not let a stale toggle response expand after refreshTree wins', async () => {
+    let resolveChildren!: (entries: FsEntry[]) => void;
+    let resolveRefresh!: (entries: FsEntry[]) => void;
+    vi.mocked(listFiles)
+      .mockImplementationOnce(
+        () => new Promise<FsEntry[]>((resolve) => { resolveChildren = resolve; }),
+      )
+      .mockImplementationOnce(
+        () => new Promise<FsEntry[]>((resolve) => { resolveRefresh = resolve; }),
+      );
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      tree: [{
+        name: 'src', path: 'src', type: 'dir', size: 0, modified: '', children: [], expanded: false,
+      }],
+    });
+
+    const expanding = useEditorStore.getState().toggleDir('src');
+    const refreshing = useEditorStore.getState().refreshTree();
+    resolveRefresh([{ name: 'replacement.ts', type: 'file', size: 1, modified: '' }]);
+    await refreshing;
+    resolveChildren([{ name: 'stale.ts', type: 'file', size: 1, modified: '' }]);
+    await expanding;
+
+    expect(useEditorStore.getState().tree.map((node) => node.name)).toEqual(['replacement.ts']);
+    expect(useEditorStore.getState().expanded).toEqual(new Set());
+    expect(useEditorStore.getState().treeLoading).toBe(false);
+  });
+
   it('lets the newest same-root refreshTree response win', async () => {
     let resolveFirst!: (entries: FsEntry[]) => void;
     let resolveSecond!: (entries: FsEntry[]) => void;
@@ -305,6 +376,121 @@ describe('editorStore async root protection', () => {
     expect(useEditorStore.getState().dirty).toEqual(new Set());
   });
 
+  it('serializes save then rename so the old path cannot be recreated', async () => {
+    let resolveWrite!: (response: ApiFsWriteResponse) => void;
+    let resolveRename!: (response: ApiFsGenericResponse) => void;
+    const operations: string[] = [];
+    const disk = new Map([['old.ts', 'original']]);
+    vi.mocked(writeFile).mockImplementationOnce((_sessionId, path, content) => {
+      operations.push(`write:${path}:${content}`);
+      return new Promise<ApiFsWriteResponse>((resolve) => {
+        resolveWrite = (response) => {
+          disk.set(path, content);
+          resolve(response);
+        };
+      });
+    });
+    vi.mocked(renameFs).mockImplementationOnce((_sessionId, from, to) => {
+      operations.push(`rename:${from}->${to}`);
+      return new Promise<ApiFsGenericResponse>((resolve) => {
+        resolveRename = (response) => {
+          const value = disk.get(from);
+          if (value !== undefined) disk.set(to, value);
+          disk.delete(from);
+          resolve(response);
+        };
+      });
+    });
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      openPaths: ['old.ts'],
+      activePath: 'old.ts',
+      selectedPath: 'old.ts',
+      dirty: new Set(['old.ts']),
+      contents: { 'old.ts': 'draft' },
+    });
+
+    const saving = useEditorStore.getState().saveFile();
+    await Promise.resolve();
+    const renaming = useEditorStore.getState().renameFile('old.ts', 'new.ts');
+    await Promise.resolve();
+    expect(operations).toEqual(['write:old.ts:draft']);
+
+    resolveWrite({ path: 'old.ts', size: 5 });
+    await saving;
+    await Promise.resolve();
+    expect(operations).toEqual(['write:old.ts:draft', 'rename:old.ts->new.ts']);
+
+    resolveRename({});
+    await renaming;
+    expect([...disk.entries()]).toEqual([['new.ts', 'draft']]);
+    expect(useEditorStore.getState()).toMatchObject({
+      openPaths: ['new.ts'],
+      activePath: 'new.ts',
+      selectedPath: 'new.ts',
+      contents: { 'new.ts': 'draft' },
+    });
+    expect(useEditorStore.getState().contents['old.ts']).toBeUndefined();
+    expect(useEditorStore.getState().dirty).toEqual(new Set());
+  });
+
+  it('serializes save then delete so the old path stays deleted', async () => {
+    let resolveWrite!: (response: ApiFsWriteResponse) => void;
+    let resolveDelete!: (response: ApiFsGenericResponse) => void;
+    const operations: string[] = [];
+    const disk = new Map([['old.ts', 'original']]);
+    vi.mocked(writeFile).mockImplementationOnce((_sessionId, path, content) => {
+      operations.push(`write:${path}:${content}`);
+      return new Promise<ApiFsWriteResponse>((resolve) => {
+        resolveWrite = (response) => {
+          disk.set(path, content);
+          resolve(response);
+        };
+      });
+    });
+    vi.mocked(deleteFs).mockImplementationOnce((_sessionId, path) => {
+      operations.push(`delete:${path}`);
+      return new Promise<ApiFsGenericResponse>((resolve) => {
+        resolveDelete = (response) => {
+          disk.delete(path);
+          resolve(response);
+        };
+      });
+    });
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      openPaths: ['old.ts'],
+      activePath: 'old.ts',
+      selectedPath: 'old.ts',
+      dirty: new Set(['old.ts']),
+      contents: { 'old.ts': 'draft' },
+    });
+
+    const saving = useEditorStore.getState().saveFile();
+    await Promise.resolve();
+    const deleting = useEditorStore.getState().deleteFile('old.ts');
+    await Promise.resolve();
+    expect(operations).toEqual(['write:old.ts:draft']);
+
+    resolveWrite({ path: 'old.ts', size: 5 });
+    await saving;
+    await Promise.resolve();
+    expect(operations).toEqual(['write:old.ts:draft', 'delete:old.ts']);
+
+    resolveDelete({});
+    await deleting;
+    expect([...disk.entries()]).toEqual([]);
+    expect(useEditorStore.getState()).toMatchObject({
+      openPaths: [],
+      activePath: null,
+      selectedPath: null,
+      contents: {},
+    });
+    expect(useEditorStore.getState().dirty).toEqual(new Set());
+  });
+
   it('continues a queued save after an older write fails without clearing the newer draft', async () => {
     let rejectFirst!: (error: Error) => void;
     let resolveSecond!: (response: ApiFsWriteResponse) => void;
@@ -364,6 +550,33 @@ describe('editorStore async root protection', () => {
       contents: { 'b.ts': 'B content' },
     });
     expect(useEditorStore.getState().contents['a.ts']).toBeUndefined();
+  });
+
+  it('does not re-add a file when it is closed while opening', async () => {
+    let resolveRead!: (content: string) => void;
+    vi.mocked(readFile).mockImplementationOnce(
+      () => new Promise<string>((resolve) => { resolveRead = resolve; }),
+    );
+    useEditorStore.setState({ sessionId: 's1', workdir: 'D:\\project\\same' });
+
+    const opening = useEditorStore.getState().openFile('pending.ts');
+    await Promise.resolve();
+    useEditorStore.getState().closeFile('pending.ts');
+    expect(useEditorStore.getState()).toMatchObject({
+      selectedPath: null,
+      activePath: null,
+      openPaths: [],
+      contents: {},
+    });
+
+    resolveRead('late content');
+    await opening;
+    expect(useEditorStore.getState()).toMatchObject({
+      selectedPath: null,
+      activePath: null,
+      openPaths: [],
+      contents: {},
+    });
   });
 
   it('does not clear a newer draft when an older save completes', async () => {
@@ -460,6 +673,10 @@ describe('editorStore async root protection', () => {
       contents: { 'src/old.ts': 'source draft', 'src/new.ts': 'target draft' },
     });
     expect(useEditorStore.getState().dirty).toEqual(new Set(['src/old.ts', 'src/new.ts']));
+    expect(useUIStore.getState().toastQueue.at(-1)).toMatchObject({
+      type: 'error',
+      message: expect.stringContaining('重命名失败'),
+    });
   });
 
   it('rejects a rename when the target has editor state instead of overwriting it', async () => {
