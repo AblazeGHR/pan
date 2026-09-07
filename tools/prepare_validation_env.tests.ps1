@@ -54,18 +54,17 @@ function New-TempWorktree {
     return $root
 }
 
-# Safe cleanup of a temp worktree: remove ONLY junctions first, then the real dirs.
+# Safe cleanup of a temp worktree: use the script's -Undo for script-owned junctions.
+# If a test deliberately created an unowned wrong-target junction, remove that
+# test-owned reparse point directly; never recursively remove through a link.
 function Remove-TempWorktree {
     param([string]$Root)
+    Run-Main @('-Worktree', $Root, '-Undo') | Out-Null
     $nm = Join-Path $Root 'packages/web/node_modules'
     if (Test-Path -LiteralPath $nm) {
         $item = Get-Item -LiteralPath $nm -Force
         if ($item.LinkType) {
-            # rmdir (via cmd) removes only the junction, never the target contents.
-            $psi = [System.Diagnostics.ProcessStartInfo]::new('cmd.exe')
-            $psi.Arguments = "/c rmdir `"$nm`""
-            $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.WindowStyle = 'Hidden'
-            $p = [System.Diagnostics.Process]::Start($psi); $p.WaitForExit()
+            cmd /c "rmdir `"$nm`"" | Out-Null
         }
     }
     if (Test-Path -LiteralPath $Root) {
@@ -78,7 +77,7 @@ function Remove-TempWorktree {
 # ---------------------------------------------------------------------------
 try {
     $tokens = $null; $errors = $null
-    [System.Management.Automation.Language.Parser]::ParseFile($MainScript, [ref]$tokens, [ref]$errors)
+    [System.Management.Automation.Language.Parser]::ParseFile($MainScript, [ref]$tokens, [ref]$errors) | Out-Null
     if ($errors.Count -eq 0) { Note-Pass 'parser: main script compiles cleanly' }
     else { Note-Fail 'parser: main script has syntax errors' ($errors | Out-String) }
 } catch {
@@ -159,10 +158,42 @@ $canonAliveAfter = Test-Path -LiteralPath $CanonicalNodeModules
 $removed = -not (Test-Path -LiteralPath (Join-Path $wt7 'packages/web/node_modules'))
 if ($r7.ExitCode -eq 0 -and $removed -and $canonAliveAfter) { Note-Pass 'undo: junction removed, canonical intact' }
 else { Note-Fail 'undo: unexpected' "exit=$($r7.ExitCode); removed=$removed; canonBefore=$canonAliveBefore; canonAfter=$canonAliveAfter`n$($r7.Output)" }
+
+# ---------------------------------------------------------------------------
+# TEST 8: real directory at link path => fail-closed and preserved
+# ---------------------------------------------------------------------------
+$wt9 = New-TempWorktree
+$realNm = Join-Path $wt9 'packages/web/node_modules'
+New-Item -ItemType Directory -Path $realNm -Force | Out-Null
+$sentinel = Join-Path $realNm 'keep.txt'
+Set-Content -LiteralPath $sentinel -Value 'user data' -NoNewline
+$r9 = Run-Main @('-Worktree', $wt9, '-CanonicalNodeModules', $CanonicalNodeModules, '-CanonicalPython', $CanonicalPython)
+if ($r9.ExitCode -ne 0 -and (Test-Path -LiteralPath $sentinel)) { Note-Pass 'fail-closed: real node_modules directory preserved' }
+else { Note-Fail 'fail-closed: real directory was not preserved' "exit=$($r9.ExitCode)`n$($r9.Output)" }
+Remove-TempWorktree $wt9
+
+# ---------------------------------------------------------------------------
+# TEST 9: non-directory canonical target => fail-closed and no junction
+# ---------------------------------------------------------------------------
+$wt10 = New-TempWorktree
+$fileTarget = Join-Path $wt10 'not-a-directory.txt'
+Set-Content -LiteralPath $fileTarget -Value 'not a dependency directory' -NoNewline
+$r10 = Run-Main @('-Worktree', $wt10, '-CanonicalNodeModules', $fileTarget, '-CanonicalPython', $CanonicalPython)
+$notCreated10 = -not (Test-Path -LiteralPath (Join-Path $wt10 'packages/web/node_modules'))
+if ($r10.ExitCode -ne 0 -and $notCreated10) { Note-Pass 'fail-closed: non-directory canonical target rejected' }
+else { Note-Fail 'fail-closed: non-directory target not rejected' "exit=$($r10.ExitCode); notCreated=$notCreated10`n$($r10.Output)" }
+Remove-TempWorktree $wt10
+
+# ---------------------------------------------------------------------------
+# TEST 10: Undo is idempotent and does not remove canonical dependencies
+# ---------------------------------------------------------------------------
+$r7b = Run-Main @('-Worktree', $wt7, '-Undo')
+if ($r7b.ExitCode -eq 0 -and (Test-Path -LiteralPath $CanonicalNodeModules)) { Note-Pass 'undo: repeated undo is harmless and canonical intact' }
+else { Note-Fail 'undo: repeated undo failed' "exit=$($r7b.ExitCode)`n$($r7b.Output)" }
 Remove-TempWorktree $wt7
 
 # ---------------------------------------------------------------------------
-# TEST 8: Python import report (honest; dotenv/mcp/pytest/fastapi/httpx/pydantic expected OK)
+# TEST 11: Python import report (honest; dotenv/mcp/pytest/fastapi/httpx/pydantic expected OK)
 # ---------------------------------------------------------------------------
 $wt8 = New-TempWorktree
 $r8 = Run-Main @('-Worktree', $wt8, '-Check', '-CanonicalNodeModules', $CanonicalNodeModules, '-CanonicalPython', $CanonicalPython)

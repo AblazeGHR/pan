@@ -18,6 +18,7 @@
       * Python package repair (if ever needed) is opt-in via -FixPython and acts
         ONLY on the canonical venv, recording before/after evidence. Default is
         check-only; it will NOT install anything silently.
+      * -Check is fully read-only, even when an install switch is also supplied.
       * Native commands are launched via System.Diagnostics.Process so a missing
         package (e.g. playwright) is reported honestly instead of aborting the run.
 
@@ -174,6 +175,7 @@ function Get-LinkInfo {
     return @{
         Exists = $true
         IsLink = $isLink
+        IsJunction = ($item.LinkType -eq 'Junction')
         LinkType = $item.LinkType
         # Coerce to a single string. PowerShell unrolls single-element arrays, so an
         # explicit [string] cast keeps the full target path (not its first character).
@@ -225,6 +227,17 @@ function Assert-CanonicalTarget {
     Add-Report "$Label target verified (directory): $Target" 'OK'
 }
 
+function Assert-WorktreeLayout {
+    param([string]$Root)
+    if (-not (Test-Path -LiteralPath $Root -PathType Container -ErrorAction SilentlyContinue)) {
+        Fail-Closed "Worktree root does NOT exist or is not a directory (fail-closed): $Root"
+    }
+    $web = Join-Path $Root 'packages/web'
+    if (-not (Test-Path -LiteralPath $web -PathType Container -ErrorAction SilentlyContinue)) {
+        Fail-Closed "Worktree packages/web directory does NOT exist (fail-closed): $web"
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Python verification
 # ---------------------------------------------------------------------------
@@ -255,8 +268,8 @@ function Test-CanonicalPython {
 function Repair-CanonicalPython {
     param([string]$Python, [string[]]$Packages)
 
-    if (-not $FixPython) {
-        Add-Report 'Python repair not requested (-FixPython not set). Skipping. (default = check-only)' 'INFO'
+    if (-not $FixPython -or $Check) {
+        Add-Report 'Python repair skipped (default/check mode is read-only).' 'INFO'
         return
     }
     if ($Packages.Count -eq 0) {
@@ -300,6 +313,10 @@ function Test-Playwright {
         Add-Report "  Reuse by exporting PLAYWRIGHT_BROWSERS_PATH='$Cache' before any browser test." 'INFO'
     }
 
+    if (-not (Test-Path -LiteralPath $Python -PathType Leaf -ErrorAction SilentlyContinue)) {
+        Add-Report 'Skipping Playwright import check because canonical Python is unavailable.' 'WARN'
+        return
+    }
     $r = Invoke-Exe $Python "-c `"import playwright`""
     $hasPkg = ($r.ExitCode -eq 0)
 
@@ -313,13 +330,17 @@ function Test-Playwright {
     }
 
     if ($Install) {
+        if ($Check) {
+            Add-Report 'InstallPlaywright ignored because -Check is read-only; no network or filesystem write.' 'WARN'
+            return
+        }
         Add-Report 'InstallPlaywright requested: this will DOWNLOAD browser binaries over the NETWORK' 'WARN'
         Add-Report 'and grow the local browser cache. It does NOT guarantee browser E2E passes.' 'WARN'
-        if ($Cache) { $env:PLAYWRIGHT_BROWSERS_PATH = $Cache }
         if ($DryRun) {
             Add-Report "[dry-run] would run: $Python -m playwright install" 'INFO'
             return
         }
+        if ($Cache) { $env:PLAYWRIGHT_BROWSERS_PATH = $Cache }
         $ri = Invoke-Exe $Python "-m playwright install"
         $ri.Output -split "`n" | ForEach-Object { if ($_.Trim()) { Add-Report "  $_" } }
         Add-Report 'Playwright install attempted. Re-run Test-Playwright to confirm binaries; E2E still unverified until a real browser test runs.' 'WARN'
@@ -340,6 +361,10 @@ function Ensure-NodeModulesJunction {
 
     if ($info.Exists) {
         if ($info.IsLink) {
+            if (-not $info.IsJunction) {
+                Fail-Closed ("Existing link at '$linkPath' is '$($info.LinkType)', not a junction. " +
+                             'Refusing to modify it (fail-closed).')
+            }
             $want = Resolve-Normalized $Target
             $have = Resolve-Normalized $info.Target
             if ($want -eq $have) {
@@ -378,8 +403,11 @@ function Ensure-NodeModulesJunction {
     }
         # Verify
         $verify = Get-LinkInfo -Path $linkPath
-        if ($verify.IsLink -and ((Resolve-Normalized $verify.Target) -eq (Resolve-Normalized $Target))) {
+    if ($verify.IsJunction -and ((Resolve-Normalized $verify.Target) -eq (Resolve-Normalized $Target))) {
             Add-Report "Junction created and verified: $linkPath -> $($verify.Target)" 'OK'
+            $marker = Join-Path $parent '.pan-validation-node-modules.junction'
+            Set-Content -LiteralPath $marker -Value $Target -Encoding utf8 -NoNewline
+            Add-Report "Recorded script ownership marker: $marker" 'INFO'
     } else {
         Fail-Closed "Junction creation did not verify correctly. State unknown; inspect manually."
     }
@@ -399,6 +427,17 @@ function Undo-NodeModulesJunction {
         Fail-Closed ("Path at '$linkPath' is a REAL directory, not a junction. " +
                      "Refusing to delete. Manual intervention required.")
     }
+    if (-not $info.IsJunction) {
+        Fail-Closed ("Path at '$linkPath' is '$($info.LinkType)', not a junction. Refusing to delete.")
+    }
+    $marker = Join-Path (Split-Path -Parent $linkPath) '.pan-validation-node-modules.junction'
+    if (-not (Test-Path -LiteralPath $marker -PathType Leaf -ErrorAction SilentlyContinue)) {
+        Fail-Closed "Junction at '$linkPath' has no script ownership marker. Refusing to delete it."
+    }
+    $markerValue = (Get-Content -LiteralPath $marker -Raw).Trim()
+    if ((Resolve-Normalized $info.Target) -ne (Resolve-Normalized $markerValue)) {
+        Fail-Closed "Junction ownership marker does not match '$linkPath'. Refusing to delete it."
+    }
     if ($DryRun) {
         Add-Report "[dry-run] would remove junction: $linkPath (target: $($info.Target))" 'INFO'
         return
@@ -413,6 +452,7 @@ function Undo-NodeModulesJunction {
     if (Test-Path -LiteralPath $linkPath) {
         Fail-Closed "Failed to remove junction: $linkPath still exists."
     }
+    Remove-Item -LiteralPath $marker -Force -ErrorAction Stop
     Add-Report "Removed junction: $linkPath (canonical target untouched)" 'OK'
 }
 
@@ -422,6 +462,7 @@ function Undo-NodeModulesJunction {
 Add-Report "=== prepare_validation_env.ps1 ===" 'INFO'
 Add-Report "Mode: $(if ($Undo) { 'Undo' } elseif ($Check) { 'Check' } elseif ($DryRun) { 'DryRun' } else { 'Prepare' })" 'INFO'
 Add-Report "Worktree: $Worktree" 'INFO'
+Assert-WorktreeLayout -Root $Worktree
 
 if ($Undo) {
     Undo-NodeModulesJunction -Worktree $Worktree

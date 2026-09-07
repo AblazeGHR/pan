@@ -23,6 +23,7 @@
 - 已存在错误目标的 junction 或真实目录 → **报错退出，绝不删除**（需人工处理后重试）。
 - 校验 canonical Python 并以**报告**方式验证依赖导入；**不在任何 worktree 内创建 `.venv`**。
 - 提供 `-DryRun` / `-Check` 检查模式；**默认绝不递归删除任何目录**。
+- `-Check` 是严格只读模式；即使同时传入 `-FixPython` 或 `-InstallPlaywright`，也不会安装、联网或写入。
 
 ## 参数
 
@@ -38,7 +39,7 @@
 | `-FixPackages` | 空 | 与 `-FixPython` 配合，指定要装的包；**默认只检查不安装** |
 | `-PlaywrightCache` | 空 | 报告/建议共享浏览器缓存路径（`PLAYWRIGHT_BROWSERS_PATH`） |
 | `-InstallPlaywright` | 关 | **显式 opt-in**；会触发联网下载并占用本机缓存，**不**声称 E2E 通过 |
-| `-Undo` | 关 | 仅移除 worktree 内的 junction（不删 canonical） |
+| `-Undo` | 关 | 仅移除本脚本创建且带 ownership marker 的 worktree junction（不删 canonical）；陌生 junction、symlink、真实目录均拒绝 |
 | `-LogPath` | 空 | 追加可读报告 |
 
 ## 常用命令
@@ -61,7 +62,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/prepare_validation_env
 
 - **重复执行幂等**：正确 junction 直接复用，退出码 0。
 - **错误 junction fail-closed**：指向错误目标或真实目录时拒绝修改，退出码 2。
-- **只动 worktree 内 junction**：`-Undo` 只移除 `<Worktree>/packages/web/node_modules` 这个联接本身；canonical 依赖、真实目录、其它 worktree 一律不动。
+- **只动 worktree 内 junction**：创建后在 `packages/web/.pan-validation-node-modules.junction` 记录 ownership marker；`-Undo` 必须核对 marker、junction 类型和目标后才移除 `<Worktree>/packages/web/node_modules` 这个联接本身。canonical 依赖、真实目录、其它 worktree 一律不动。
 - **绝不递归删除**：脚本唯一会删除的是单个 junction（联接点），不会 `rm -rf` 任何目录。
 
 ## 运行自带测试（PowerShell parser + 行为）
@@ -73,7 +74,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/prepare_validation_env
 - 重复运行幂等复用；
 - 错误目标 / 缺失目标 fail-closed；
 - `-Check` / `-DryRun` 不创建 junction；
+- 真实目录、symlink、非目录 canonical 目标均 fail-closed 且保留原物；
 - `-Undo` 只移除 junction、canonical 完好；
+- 重复 `-Undo` 安全返回；
 - canonical Python 导入报告。
 
 ```powershell
@@ -84,6 +87,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/prepare_validation_env
 
 - 当前 `playwright` 未安装、无浏览器缓存，因此 **browser E2E 无法运行**，脚本不会声称其通过。
 - `-PlaywrightCache` 仅**报告**建议的共享缓存路径；`-InstallPlaywright` 是显式 opt-in，会**联网下载**并占用本机缓存，且下载后仍需真实浏览器测试才算 E2E 通过。
+- `-Check` 会屏蔽 `-InstallPlaywright` 的联网/写入请求；脚本只报告 Python 包状态，不宣称浏览器二进制已安装，也不宣称 E2E 完成。
 - 未覆盖：Playwright 浏览器下载、真实浏览器 E2E、跨卷 junction 的边界情况（如 worktree 与 canonical 不在同一卷时 junction 行为）。
 
 ## 撤销
