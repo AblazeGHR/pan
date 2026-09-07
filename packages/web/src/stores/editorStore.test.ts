@@ -21,6 +21,7 @@ beforeEach(() => {
     workdir: null,
     rootGeneration: 0,
     treeRequestGeneration: 0,
+    openRequestGeneration: 0,
     tree: [],
     treeLoading: false,
     expanded: new Set(),
@@ -258,6 +259,111 @@ describe('editorStore async root protection', () => {
     await first;
 
     expect(useEditorStore.getState().tree.map((node) => node.name)).toEqual(['new.ts']);
+    expect(useEditorStore.getState().treeLoading).toBe(false);
+  });
+
+  it('serializes same-path saves and writes the newest draft last', async () => {
+    let resolveFirst!: (response: ApiFsWriteResponse) => void;
+    let resolveSecond!: (response: ApiFsWriteResponse) => void;
+    const writes: string[] = [];
+    vi.mocked(writeFile)
+      .mockImplementationOnce((_sessionId, _path, content) => {
+        writes.push(content);
+        return new Promise<ApiFsWriteResponse>((resolve) => { resolveFirst = resolve; });
+      })
+      .mockImplementationOnce((_sessionId, _path, content) => {
+        writes.push(content);
+        return new Promise<ApiFsWriteResponse>((resolve) => { resolveSecond = resolve; });
+      });
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      activePath: 'src/current.ts',
+      openPaths: ['src/current.ts'],
+      dirty: new Set(['src/current.ts']),
+      contents: { 'src/current.ts': 'A' },
+    });
+
+    const first = useEditorStore.getState().saveFile();
+    await Promise.resolve();
+    useEditorStore.getState().markDirty('src/current.ts', 'B');
+    const second = useEditorStore.getState().saveFile();
+    await Promise.resolve();
+
+    expect(writes).toEqual(['A']);
+    expect(useEditorStore.getState().dirty).toEqual(new Set(['src/current.ts']));
+
+    resolveFirst({ path: 'src/current.ts', size: 1 });
+    await first;
+    expect(writes).toEqual(['A', 'B']);
+    expect(useEditorStore.getState().contents['src/current.ts']).toBe('B');
+    expect(useEditorStore.getState().dirty).toEqual(new Set(['src/current.ts']));
+
+    resolveSecond({ path: 'src/current.ts', size: 1 });
+    await second;
+    expect(useEditorStore.getState().contents['src/current.ts']).toBe('B');
+    expect(useEditorStore.getState().dirty).toEqual(new Set());
+  });
+
+  it('continues a queued save after an older write fails without clearing the newer draft', async () => {
+    let rejectFirst!: (error: Error) => void;
+    let resolveSecond!: (response: ApiFsWriteResponse) => void;
+    const writes: string[] = [];
+    vi.mocked(writeFile)
+      .mockImplementationOnce((_sessionId, _path, content) => {
+        writes.push(content);
+        return new Promise<ApiFsWriteResponse>((_resolve, reject) => { rejectFirst = reject; });
+      })
+      .mockImplementationOnce((_sessionId, _path, content) => {
+        writes.push(content);
+        return new Promise<ApiFsWriteResponse>((resolve) => { resolveSecond = resolve; });
+      });
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      activePath: 'src/current.ts',
+      openPaths: ['src/current.ts'],
+      dirty: new Set(['src/current.ts']),
+      contents: { 'src/current.ts': 'A' },
+    });
+
+    const first = useEditorStore.getState().saveFile();
+    await Promise.resolve();
+    useEditorStore.getState().markDirty('src/current.ts', 'B');
+    const second = useEditorStore.getState().saveFile();
+    rejectFirst(new Error('write failed'));
+    await first;
+    await Promise.resolve();
+
+    expect(writes).toEqual(['A', 'B']);
+    expect(useEditorStore.getState().dirty).toEqual(new Set(['src/current.ts']));
+    resolveSecond({ path: 'src/current.ts', size: 1 });
+    await second;
+    expect(useEditorStore.getState().dirty).toEqual(new Set());
+  });
+
+  it('lets the newest same-root open win when reads return out of order', async () => {
+    let resolveA!: (content: string) => void;
+    let resolveB!: (content: string) => void;
+    vi.mocked(readFile)
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { resolveA = resolve; }))
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { resolveB = resolve; }));
+    useEditorStore.setState({ sessionId: 's1', workdir: 'D:\\project\\same' });
+
+    const openingA = useEditorStore.getState().openFile('a.ts');
+    const openingB = useEditorStore.getState().openFile('b.ts');
+    resolveB('B content');
+    await openingB;
+    resolveA('A content');
+    await openingA;
+
+    expect(useEditorStore.getState()).toMatchObject({
+      selectedPath: 'b.ts',
+      activePath: 'b.ts',
+      openPaths: ['b.ts'],
+      contents: { 'b.ts': 'B content' },
+    });
+    expect(useEditorStore.getState().contents['a.ts']).toBeUndefined();
   });
 
   it('does not clear a newer draft when an older save completes', async () => {
@@ -325,6 +431,35 @@ describe('editorStore async root protection', () => {
     expect(useEditorStore.getState().dirty).toEqual(
       new Set(['src/new.ts', 'src/other.ts']),
     );
+  });
+
+  it('does not move editor state when the rename target appears during the request', async () => {
+    let rejectRename!: (error: Error) => void;
+    vi.mocked(renameFs).mockImplementationOnce(
+      () => new Promise<ApiFsGenericResponse>((_resolve, reject) => { rejectRename = reject; }),
+    );
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      openPaths: ['src/old.ts'],
+      activePath: 'src/old.ts',
+      selectedPath: 'src/old.ts',
+      dirty: new Set(['src/old.ts']),
+      contents: { 'src/old.ts': 'source draft' },
+    });
+
+    const renaming = useEditorStore.getState().renameFile('src/old.ts', 'src/new.ts');
+    await Promise.resolve();
+    useEditorStore.getState().markDirty('src/new.ts', 'target draft');
+    rejectRename(new Error('target already exists'));
+    await renaming;
+
+    expect(useEditorStore.getState()).toMatchObject({
+      openPaths: ['src/old.ts'],
+      activePath: 'src/old.ts',
+      contents: { 'src/old.ts': 'source draft', 'src/new.ts': 'target draft' },
+    });
+    expect(useEditorStore.getState().dirty).toEqual(new Set(['src/old.ts', 'src/new.ts']));
   });
 
   it('rejects a rename when the target has editor state instead of overwriting it', async () => {

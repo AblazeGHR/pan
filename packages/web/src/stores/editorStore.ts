@@ -10,6 +10,25 @@ export function setMonacoRef(m: any) {
   monacoRef = m;
 }
 
+// Writes for the same session/root/path must reach the filesystem in the
+// order in which saveFile was called. Separate store actions share this queue.
+const saveQueues = new Map<string, Promise<void>>();
+
+function enqueueSave(key: string, operation: () => Promise<void>): Promise<void> {
+  const previous = saveQueues.get(key) ?? Promise.resolve();
+  const current = previous.then(operation, operation);
+  saveQueues.set(key, current);
+  void current.then(
+    () => {
+      if (saveQueues.get(key) === current) saveQueues.delete(key);
+    },
+    () => {
+      if (saveQueues.get(key) === current) saveQueues.delete(key);
+    },
+  );
+  return current;
+}
+
 function disposeMonacoModels(paths: string[]) {
   if (!monacoRef) return;
   for (const path of paths) {
@@ -30,6 +49,8 @@ interface EditorStore {
   rootGeneration: number;
   /** Monotonic latest-request-wins sequence for tree/list responses. */
   treeRequestGeneration: number;
+  /** Monotonic latest-open-wins sequence for file content responses. */
+  openRequestGeneration: number;
   tree: FileNode[];
   treeLoading: boolean;
   expanded: Set<string>;
@@ -65,6 +86,10 @@ interface TreeRequestSnapshot extends RootSnapshot {
   requestGeneration: number;
 }
 
+interface OpenFileSnapshot extends RootSnapshot {
+  requestGeneration: number;
+}
+
 function captureRoot(
   state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration'>,
 ): RootSnapshot | null {
@@ -93,6 +118,13 @@ function isCurrentTreeRequest(
   snapshot: TreeRequestSnapshot,
 ): boolean {
   return isCurrentRoot(state, snapshot) && state.treeRequestGeneration === snapshot.requestGeneration;
+}
+
+function isCurrentOpenRequest(
+  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration' | 'openRequestGeneration'>,
+  snapshot: OpenFileSnapshot,
+): boolean {
+  return isCurrentRoot(state, snapshot) && state.openRequestGeneration === snapshot.requestGeneration;
 }
 
 // Language detection from file extension
@@ -140,6 +172,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   workdir: null,
   rootGeneration: 0,
   treeRequestGeneration: 0,
+  openRequestGeneration: 0,
   tree: [],
   treeLoading: false,
   expanded: new Set(),
@@ -169,6 +202,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       workdir,
       rootGeneration,
       treeRequestGeneration: requestGeneration,
+      openRequestGeneration: previous.openRequestGeneration + (rootChanged ? 1 : 0),
       treeLoading: true,
       tree: [],
       expanded: new Set(),
@@ -202,14 +236,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       ...root,
       requestGeneration: previous.treeRequestGeneration + 1,
     };
-    set({ treeRequestGeneration: snapshot.requestGeneration });
+    set({ treeRequestGeneration: snapshot.requestGeneration, treeLoading: true });
     try {
       const nodes = await fetchTree(snapshot.sessionId, dirPath || '', dirPath || '');
       if (!isCurrentTreeRequest(get(), snapshot)) return;
       set((s) => {
         if (!isCurrentTreeRequest(s, snapshot)) return {};
         if (!dirPath) {
-          return { tree: nodes };
+          return { tree: nodes, treeLoading: false };
         }
         // Replace only the subtree under dirPath
         function replaceInTree(t: FileNode[]): FileNode[] {
@@ -223,10 +257,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             return n;
           });
         }
-        return { tree: replaceInTree(s.tree) };
+        return { tree: replaceInTree(s.tree), treeLoading: false };
       });
     } catch {
-      // silently fail
+      if (isCurrentTreeRequest(get(), snapshot)) set({ treeLoading: false });
     }
   },
 
@@ -276,14 +310,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   openFile: async (path: string) => {
-    const snapshot = captureRoot(get());
-    if (!snapshot) return;
-    const { openPaths } = get();
+    const state = get();
+    const root = captureRoot(state);
+    if (!root) return;
+    const snapshot: OpenFileSnapshot = {
+      ...root,
+      requestGeneration: state.openRequestGeneration + 1,
+    };
 
-    set({ selectedPath: path });
+    set({ selectedPath: path, openRequestGeneration: snapshot.requestGeneration });
 
     // Already open — just switch active
-    if (openPaths.includes(path)) {
+    if (get().openPaths.includes(path)) {
       set({ activePath: path });
       return;
     }
@@ -291,9 +329,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     // Fetch content
     try {
       const content = await readFile(snapshot.sessionId, path);
-      if (!isCurrentRoot(get(), snapshot)) return;
+      if (!isCurrentOpenRequest(get(), snapshot)) return;
       set((s) => {
-        if (!isCurrentRoot(s, snapshot)) return {};
+        if (!isCurrentOpenRequest(s, snapshot)) return {};
         return {
           openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
           activePath: path,
@@ -353,19 +391,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const content = contents[path];
     if (content === undefined) return;
 
-    try {
-      await writeFile(snapshot.sessionId, path, content);
-      if (!isCurrentRoot(get(), snapshot)) return;
-      set((s) => {
-        // Do not clear a newer draft created while the write was in flight.
-        if (!isCurrentRoot(s, snapshot) || s.contents[path] !== content) return {};
-        const next = new Set(s.dirty);
-        next.delete(path);
-        return { dirty: next };
-      });
-    } catch {
-      // show error
-    }
+    const queueKey = [snapshot.sessionId, snapshot.workdir ?? '', path].join('\u0000');
+    await enqueueSave(queueKey, async () => {
+      try {
+        await writeFile(snapshot.sessionId, path, content);
+        if (!isCurrentRoot(get(), snapshot)) return;
+        set((s) => {
+          // Do not clear a newer draft created while the write was in flight.
+          if (!isCurrentRoot(s, snapshot) || s.contents[path] !== content) return {};
+          const next = new Set(s.dirty);
+          next.delete(path);
+          return { dirty: next };
+        });
+      } catch {
+        // show error
+      }
+    });
   },
 
   renameFile: async (from: string, to: string) => {

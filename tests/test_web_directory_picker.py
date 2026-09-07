@@ -1,6 +1,7 @@
 import asyncio
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -150,3 +151,51 @@ def test_attachment_upload_rejects_unknown_session(monkeypatch, tmp_path):
     with pytest.raises(HTTPException) as error:
         asyncio.run(run())
     assert error.value.status_code == 404
+
+
+def test_fs_rename_does_not_overwrite_target_that_appears_during_operation(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    source = workdir / "old.txt"
+    target = workdir / "new.txt"
+    source.write_text("source", encoding="utf-8")
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: SimpleNamespace(workdir=str(workdir)))
+    real_rename = server._rename_no_overwrite
+
+    def target_appears_then_rename(src, dst):
+        # Model the target being created after path checks but before the
+        # filesystem rename commits.
+        dst.write_text("target draft", encoding="utf-8")
+        return real_rename(src, dst)
+
+    monkeypatch.setattr(server, "_rename_no_overwrite", target_appears_then_rename)
+    result = asyncio.run(server.api_fs_rename({
+        "session_id": "ses_editor",
+        "from": "old.txt",
+        "to": "new.txt",
+    }))
+
+    assert "error" in result
+    assert source.read_text(encoding="utf-8") == "source"
+    assert target.read_text(encoding="utf-8") == "target draft"
+
+
+def test_fs_rename_keeps_normal_file_rename_behavior(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    (workdir / "old.txt").write_text("content", encoding="utf-8")
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: SimpleNamespace(workdir=str(workdir)))
+
+    result = asyncio.run(server.api_fs_rename({
+        "session_id": "ses_editor",
+        "from": "old.txt",
+        "to": "new.txt",
+    }))
+
+    assert result == {"from": "old.txt", "to": "new.txt"}
+    assert not (workdir / "old.txt").exists()
+    assert (workdir / "new.txt").read_text(encoding="utf-8") == "content"

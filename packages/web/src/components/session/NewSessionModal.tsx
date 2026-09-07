@@ -45,13 +45,14 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    const requestId = ++requestIdRef.current;
     const cached = cacheRef.current.get(path);
     if (cached) {
       setData(cached);
       setError(null);
+      setLoading(false);
       return;
     }
-    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     const request = fileMode
@@ -71,7 +72,9 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
       .finally(() => {
         if (requestId === requestIdRef.current) setLoading(false);
       });
-    return () => { requestIdRef.current += 1; };
+    return () => {
+      if (requestId === requestIdRef.current) requestIdRef.current += 1;
+    };
   }, [path, fileMode]);
 
   const goTo = (nextPath: string) => {

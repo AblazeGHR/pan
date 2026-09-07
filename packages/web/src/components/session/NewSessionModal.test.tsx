@@ -128,6 +128,50 @@ describe('NewSessionModal working directory browser', () => {
     expect(onSelect).toHaveBeenCalledWith('D:\\attachments\\Report.TXT');
   });
 
+  it('clears loading when returning to a cached path while an older request is pending', async () => {
+    let resolvePending!: (result: ReturnType<typeof layer>) => void;
+    apiMock.fetchDirectories
+      .mockResolvedValueOnce(layer('D:\\cached', [{ name: 'cached.txt', path: 'D:\\cached\\cached.txt' }]))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolvePending = resolve; }));
+    const view = render(
+      <DirectoryBrowser
+        path="D:\\cached"
+        fileMode
+        onPathChange={() => {}}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'cached.txt' })).toBeTruthy());
+
+    view.rerender(
+      <DirectoryBrowser
+        path="D:\\pending"
+        fileMode
+        onPathChange={() => {}}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('加载中…')).toBeTruthy());
+    view.rerender(
+      <DirectoryBrowser
+        path="D:\\cached"
+        fileMode
+        onPathChange={() => {}}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(screen.queryByText('加载中…')).toBeNull();
+    expect(screen.getByRole('button', { name: 'cached.txt' })).toBeTruthy();
+
+    resolvePending(layer('D:\\pending', [{ name: 'stale.txt', path: 'D:\\pending\\stale.txt' }]));
+    await Promise.resolve();
+    expect(screen.queryByRole('button', { name: 'stale.txt' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'cached.txt' })).toBeTruthy();
+  });
+
   it('keeps navigation and search local to the current directory', async () => {
     apiMock.fetchDirectories
       .mockResolvedValueOnce({
