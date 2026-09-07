@@ -26,6 +26,7 @@ interface EditorStore {
   // state
   sessionId: string | null;
   workdir: string | null;
+  rootGeneration: number;
   tree: FileNode[];
   treeLoading: boolean;
   expanded: Set<string>;
@@ -49,6 +50,35 @@ interface EditorStore {
   deleteFile: (path: string) => Promise<void>;
   downloadFile: (path: string) => void;
   setMdViewMode: (path: string, mode: 'edit' | 'preview' | 'split') => void;
+}
+
+interface RootSnapshot {
+  sessionId: string;
+  workdir: string | null;
+  generation: number;
+}
+
+function captureRoot(
+  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration'>,
+): RootSnapshot | null {
+  if (!state.sessionId) return null;
+  return {
+    sessionId: state.sessionId,
+    workdir: state.workdir,
+    generation: state.rootGeneration,
+  };
+}
+
+function isCurrentRoot(
+  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration'>,
+  snapshot: RootSnapshot | null,
+): boolean {
+  return Boolean(
+    snapshot &&
+    state.sessionId === snapshot.sessionId &&
+    state.workdir === snapshot.workdir &&
+    state.rootGeneration === snapshot.generation,
+  );
 }
 
 // Language detection from file extension
@@ -94,6 +124,7 @@ async function fetchTree(
 export const useEditorStore = create<EditorStore>((set, get) => ({
   sessionId: null,
   workdir: null,
+  rootGeneration: 0,
   tree: [],
   treeLoading: false,
   expanded: new Set(),
@@ -107,12 +138,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setRoot: async (sessionId: string, workdir: string) => {
     const previous = get();
     const rootChanged = previous.sessionId !== sessionId || previous.workdir !== workdir;
+    const rootGeneration = rootChanged ? previous.rootGeneration + 1 : previous.rootGeneration;
+    const snapshot: RootSnapshot = { sessionId, workdir, generation: rootGeneration };
 
     if (rootChanged) disposeMonacoModels(previous.openPaths);
 
     set({
       sessionId,
       workdir,
+      rootGeneration,
       treeLoading: true,
       tree: [],
       expanded: new Set(),
@@ -129,21 +163,23 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
     try {
       const rootNodes = await fetchTree(sessionId, '', '');
-      if (get().sessionId !== sessionId || get().workdir !== workdir) return;
+      if (!isCurrentRoot(get(), snapshot)) return;
       set({ tree: rootNodes, treeLoading: false });
     } catch {
-      if (get().sessionId === sessionId && get().workdir === workdir) {
+      if (isCurrentRoot(get(), snapshot)) {
         set({ treeLoading: false });
       }
     }
   },
 
   refreshTree: async (dirPath?: string) => {
-    const { sessionId } = get();
-    if (!sessionId) return;
+    const snapshot = captureRoot(get());
+    if (!snapshot) return;
     try {
-      const nodes = await fetchTree(sessionId, dirPath || '', dirPath || '');
+      const nodes = await fetchTree(snapshot.sessionId, dirPath || '', dirPath || '');
+      if (!isCurrentRoot(get(), snapshot)) return;
       set((s) => {
+        if (!isCurrentRoot(s, snapshot)) return {};
         if (!dirPath) {
           return { tree: nodes };
         }
@@ -167,8 +203,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   toggleDir: async (path: string) => {
-    const { sessionId, expanded, tree } = get();
-    if (!sessionId) return;
+    const snapshot = captureRoot(get());
+    if (!snapshot) return;
+    const { expanded, tree } = get();
 
     const isExpanded = expanded.has(path);
 
@@ -177,11 +214,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const node = findNode(tree, path);
       if (node && node.children && node.children.length === 0) {
         try {
-          const children = await fetchTree(sessionId, path, path);
-          set((s) => ({
-            tree: replaceNode(s.tree, path, { children }),
-            expanded: new Set([...s.expanded, path]),
-          }));
+          const children = await fetchTree(snapshot.sessionId, path, path);
+          if (!isCurrentRoot(get(), snapshot)) return;
+          set((s) => {
+            if (!isCurrentRoot(s, snapshot)) return {};
+            return {
+              tree: replaceNode(s.tree, path, { children }),
+              expanded: new Set([...s.expanded, path]),
+            };
+          });
           return;
         } catch {
           // keep collapsed on error
@@ -201,8 +242,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   openFile: async (path: string) => {
-    const { sessionId, openPaths } = get();
-    if (!sessionId) return;
+    const snapshot = captureRoot(get());
+    if (!snapshot) return;
+    const { openPaths } = get();
 
     set({ selectedPath: path });
 
@@ -214,12 +256,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     // Fetch content
     try {
-      const content = await readFile(sessionId, path);
-      set((s) => ({
-        openPaths: [...s.openPaths, path],
-        activePath: path,
-        contents: { ...s.contents, [path]: content },
-      }));
+      const content = await readFile(snapshot.sessionId, path);
+      if (!isCurrentRoot(get(), snapshot)) return;
+      set((s) => {
+        if (!isCurrentRoot(s, snapshot)) return {};
+        return {
+          openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
+          activePath: path,
+          contents: { ...s.contents, [path]: content },
+        };
+      });
     } catch {
       // show error — file may not be readable
     }
@@ -264,8 +310,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   saveFile: async (repath?: string) => {
-    const { sessionId, activePath, contents } = get();
-    if (!sessionId) return;
+    const snapshot = captureRoot(get());
+    if (!snapshot) return;
+    const { activePath, contents } = get();
     const path = repath || activePath;
     if (!path) return;
 
@@ -273,8 +320,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (content === undefined) return;
 
     try {
-      await writeFile(sessionId, path, content);
+      await writeFile(snapshot.sessionId, path, content);
+      if (!isCurrentRoot(get(), snapshot)) return;
       set((s) => {
+        if (!isCurrentRoot(s, snapshot)) return {};
         const next = new Set(s.dirty);
         next.delete(path);
         return { dirty: next };
@@ -285,11 +334,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   renameFile: async (from: string, to: string) => {
-    const { sessionId, openPaths, dirty, contents } = get();
-    if (!sessionId) return;
+    const snapshot = captureRoot(get());
+    if (!snapshot) return;
+    const { openPaths, dirty, contents } = get();
 
     try {
-      await renameFs(sessionId, from, to);
+      await renameFs(snapshot.sessionId, from, to);
+      if (!isCurrentRoot(get(), snapshot)) return;
       // Update open paths and dirty
       const newOpen = openPaths.map((p) => (p === from ? to : p));
       const newDirty = new Set<string>();
@@ -300,12 +351,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       for (const [k, v] of Object.entries(contents)) {
         newContents[k === from ? to : k] = v;
       }
-      set((s) => ({
-        openPaths: newOpen,
-        activePath: s.activePath === from ? to : s.activePath,
-        dirty: newDirty,
-        contents: newContents,
-      }));
+      set((s) => {
+        if (!isCurrentRoot(s, snapshot)) return {};
+        return {
+          openPaths: newOpen,
+          activePath: s.activePath === from ? to : s.activePath,
+          dirty: newDirty,
+          contents: newContents,
+        };
+      });
       // Refresh parent dir
       const parentPath = from.includes('/') ? from.substring(0, from.lastIndexOf('/')) : '';
       get().refreshTree(parentPath);
@@ -315,11 +369,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   deleteFile: async (path: string) => {
-    const { sessionId } = get();
-    if (!sessionId) return;
+    const snapshot = captureRoot(get());
+    if (!snapshot) return;
 
     try {
-      await deleteFs(sessionId, path);
+      await deleteFs(snapshot.sessionId, path);
+      if (!isCurrentRoot(get(), snapshot)) return;
       // Close if open
       get().closeFile(path);
       // Refresh parent dir
@@ -364,11 +419,7 @@ function findNode(nodes: FileNode[], path: string): FileNode | null {
   return null;
 }
 
-function replaceNode(
-  nodes: FileNode[],
-  path: string,
-  patch: Partial<FileNode>,
-): FileNode[] {
+function replaceNode(nodes: FileNode[], path: string, patch: Partial<FileNode>): FileNode[] {
   return nodes.map((n) => {
     if (n.path === path) {
       return { ...n, ...patch };

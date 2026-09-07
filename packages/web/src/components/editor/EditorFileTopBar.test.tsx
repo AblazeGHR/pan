@@ -16,16 +16,19 @@ vi.mock('@/services/api', () => ({
 }));
 
 function mockMatchMedia(matches: boolean) {
-  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-    matches,
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })));
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
 }
 
 beforeEach(() => {
@@ -38,14 +41,16 @@ beforeEach(() => {
   });
   useSessionStore.setState({
     currentSessionId: 's1',
-    sessions: [{
-      id: 's1',
-      name: 'Test',
-      workdir: 'D:\\project',
-      alwaysThinkingEnabled: false,
-      effort: '',
-      history: [],
-    }],
+    sessions: [
+      {
+        id: 's1',
+        name: 'Test',
+        workdir: 'D:\\project',
+        alwaysThinkingEnabled: false,
+        effort: '',
+        history: [],
+      },
+    ],
   });
   useUIStore.setState({ toastQueue: [], chatAttachmentRequests: [] });
   Object.defineProperty(navigator, 'clipboard', {
@@ -68,7 +73,9 @@ describe('EditorFileTopBar', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: '完整路径已复制' })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '完整路径已复制' })).toBeTruthy(),
+    );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('D:\\project\\src\\one.ts');
 
     rerender(
@@ -78,7 +85,9 @@ describe('EditorFileTopBar', () => {
     );
     expect(screen.getByRole('button', { name: '复制完整路径' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('D:\\project\\src\\two.ts'));
+    await waitFor(() =>
+      expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('D:\\project\\src\\two.ts'),
+    );
   });
 
   it('uses the session-relative operation path for download and chat on mobile', async () => {
@@ -94,9 +103,11 @@ describe('EditorFileTopBar', () => {
     expect(downloadFile).toHaveBeenCalledWith('src/two.ts');
     fireEvent.click(screen.getByRole('button', { name: '加入聊天' }));
 
-    await waitFor(() => expect(useUIStore.getState().chatAttachmentRequests).toEqual([
-      { sessionId: 's1', path: 'src/two.ts' },
-    ]));
+    await waitFor(() =>
+      expect(useUIStore.getState().chatAttachmentRequests).toEqual([
+        { sessionId: 's1', path: 'src/two.ts' },
+      ]),
+    );
   });
 
   it('keeps the mobile-only actions out of the desktop editor TopBar', () => {
@@ -125,7 +136,83 @@ describe('EditorFileTopBar', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
-    await waitFor(() => expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('复制路径失败'));
+    await waitFor(() =>
+      expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('复制路径失败'),
+    );
     expect(screen.getByRole('button', { name: '复制完整路径' })).toBeTruthy();
+  });
+
+  it('ignores a pending copy success after switching to another file', async () => {
+    let resolveCopy!: () => void;
+    const writeText = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCopy = resolve;
+        }),
+    );
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar operationPath="src/one.ts" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
+    rerender(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar operationPath="src/two.ts" />
+      </MemoryRouter>,
+    );
+    resolveCopy();
+    await waitFor(() => expect(screen.getByRole('button', { name: '复制完整路径' })).toBeTruthy());
+
+    expect(useUIStore.getState().toastQueue).toEqual([]);
+    expect(screen.queryByRole('button', { name: '完整路径已复制' })).toBeNull();
+  });
+
+  it('ignores a pending copy failure after switching workdir', async () => {
+    let rejectCopy!: (reason?: unknown) => void;
+    const writeText = vi.fn(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectCopy = reject;
+        }),
+    );
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar operationPath="src/one.ts" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
+    useSessionStore.setState({
+      sessions: [
+        {
+          id: 's1',
+          name: 'Test',
+          workdir: 'D:\\project\\new',
+          alwaysThinkingEnabled: false,
+          effort: '',
+          history: [],
+        },
+      ],
+    });
+    rerender(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar operationPath="src/one.ts" />
+      </MemoryRouter>,
+    );
+    rejectCopy(new Error('denied'));
+    await waitFor(() => expect(screen.getByRole('button', { name: '复制完整路径' })).toBeTruthy());
+
+    expect(useUIStore.getState().toastQueue).toEqual([]);
+    expect(screen.queryByRole('button', { name: '完整路径已复制' })).toBeNull();
   });
 });

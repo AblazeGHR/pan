@@ -31,6 +31,15 @@ export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
   const [copied, setCopied] = useState(false);
   const resetCopiedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayPath = getDisplayPath(currentSession?.workdir, operationPath);
+  const copyKey = `${currentSession?.id ?? ''}\u0000${currentSession?.workdir ?? ''}\u0000${operationPath}`;
+  const copyGenerationRef = useRef(0);
+  const copyKeyRef = useRef(copyKey);
+  // Invalidate pending copy callbacks during render so a promise resolving
+  // before the dependency effect runs cannot update the next file.
+  if (copyKeyRef.current !== copyKey) {
+    copyKeyRef.current = copyKey;
+    copyGenerationRef.current += 1;
+  }
   const copyLabel = currentSession?.workdir ? '复制完整路径' : '复制文件路径';
   const copiedLabel = currentSession?.workdir ? '完整路径已复制' : '文件路径已复制';
 
@@ -40,20 +49,34 @@ export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
       clearTimeout(resetCopiedRef.current);
       resetCopiedRef.current = null;
     }
-  }, [currentSession?.workdir, operationPath]);
-
-  useEffect(() => () => {
-    if (resetCopiedRef.current) clearTimeout(resetCopiedRef.current);
-  }, []);
+    return () => {
+      copyGenerationRef.current += 1;
+      if (resetCopiedRef.current) {
+        clearTimeout(resetCopiedRef.current);
+        resetCopiedRef.current = null;
+      }
+    };
+  }, [copyKey]);
 
   const handleCopy = async () => {
+    const copyGeneration = copyGenerationRef.current;
+    const copyKeyAtStart = copyKey;
     try {
       await copyText(displayPath);
+      if (copyGenerationRef.current !== copyGeneration || copyKeyRef.current !== copyKeyAtStart)
+        return;
       setCopied(true);
       showToast(`${currentSession?.workdir ? '完整路径' : '文件路径'}已复制`);
       if (resetCopiedRef.current) clearTimeout(resetCopiedRef.current);
-      resetCopiedRef.current = setTimeout(() => setCopied(false), 1600);
+      resetCopiedRef.current = setTimeout(() => {
+        if (copyGenerationRef.current !== copyGeneration || copyKeyRef.current !== copyKeyAtStart)
+          return;
+        setCopied(false);
+        resetCopiedRef.current = null;
+      }, 1600);
     } catch {
+      if (copyGenerationRef.current !== copyGeneration || copyKeyRef.current !== copyKeyAtStart)
+        return;
       setCopied(false);
       showToast('复制路径失败', 'error');
     }
@@ -74,7 +97,10 @@ export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
       data-testid="editor-file-topbar"
       className="flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"
     >
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary" title={displayPath}>
+      <span
+        className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"
+        title={displayPath}
+      >
         {displayPath}
       </span>
       <button
