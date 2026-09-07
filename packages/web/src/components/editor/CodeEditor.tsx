@@ -38,7 +38,7 @@ const beforeMount: BeforeMount = (monaco) => {
 };
 
 export function CodeEditor({ path, content }: CodeEditorProps) {
-  const saveFile = useEditorStore((s) => s.saveFile);
+  const requestSave = useEditorStore((s) => s.requestSave);
   const markDirty = useEditorStore((s) => s.markDirty);
   const activePath = useEditorStore((s) => s.activePath);
 
@@ -50,11 +50,11 @@ export function CodeEditor({ path, content }: CodeEditorProps) {
       editor.addCommand(
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
         () => {
-          saveFile();
+          requestSave();
         },
       );
     },
-    [saveFile],
+    [requestSave],
   );
 
   const handleChange = useCallback(

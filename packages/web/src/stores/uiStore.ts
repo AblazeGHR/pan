@@ -130,6 +130,11 @@ export type GroupMode = 'none' | 'workdir' | 'manager';
 export type SortMode = 'recent' | 'name' | 'custom';
 export type Theme = 'dark' | 'light';
 
+export interface ChatAttachmentRequest {
+  sessionId: string;
+  path: string;
+}
+
 function loadTheme(): Theme {
   try {
     const v = localStorage.getItem('pan:theme');
@@ -174,6 +179,8 @@ interface UIStore {
   collapsedGroups: Set<string>;
   filesCollapsed: boolean;
   theme: Theme;
+  /** One-shot requests from the editor to the mounted chat composer. */
+  chatAttachmentRequests: ChatAttachmentRequest[];
 
   showToast: (message: string, type?: ToastMessage['type']) => void;
   dismissToast: (id: string) => void;
@@ -218,6 +225,8 @@ interface UIStore {
   pruneCollapsedGroups: (validKeys: Set<string>) => void;
   toggleFilesCollapsed: () => void;
   toggleTheme: () => void;
+  requestChatAttachment: (sessionId: string, path: string) => void;
+  consumeChatAttachmentRequests: (sessionId: string, paths: string[]) => void;
 }
 
 let toastCounter = 0;
@@ -243,6 +252,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   collapsedGroups: new Set<string>(),
   filesCollapsed: false,
   theme: loadTheme(),
+  chatAttachmentRequests: [],
 
   showToast: (message, type = 'info') => {
     const id = `toast-${++toastCounter}`;
@@ -520,5 +530,24 @@ export const useUIStore = create<UIStore>((set, get) => ({
     const next = get().theme === 'dark' ? 'light' : 'dark';
     set({ theme: next });
     persistTheme(next);
+  },
+
+  requestChatAttachment: (sessionId, path) => {
+    if (!sessionId || !path) return;
+    set((s) => s.chatAttachmentRequests.some((request) =>
+      request.sessionId === sessionId && request.path === path,
+    ) ? s : {
+      chatAttachmentRequests: [...s.chatAttachmentRequests, { sessionId, path }],
+    });
+  },
+
+  consumeChatAttachmentRequests: (sessionId, paths) => {
+    if (paths.length === 0) return;
+    const pathSet = new Set(paths);
+    set((s) => ({
+      chatAttachmentRequests: s.chatAttachmentRequests.filter((request) =>
+        request.sessionId !== sessionId || !pathSet.has(request.path),
+      ),
+    }));
   },
 }));

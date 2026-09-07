@@ -19,7 +19,7 @@ function FileTreeItem({
   const toggleDir = useEditorStore((s) => s.toggleDir);
   const openFile = useEditorStore((s) => s.openFile);
   const renameFile = useEditorStore((s) => s.renameFile);
-  const deleteFile = useEditorStore((s) => s.deleteFile);
+  const requestDelete = useEditorStore((s) => s.requestDelete);
   const downloadFile = useEditorStore((s) => s.downloadFile);
 
   const isExpanded = expanded.has(node.path);
@@ -59,10 +59,7 @@ function FileTreeItem({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const confirmed = window.confirm(`Delete "${node.name}"?`);
-    if (confirmed) {
-      deleteFile(node.path);
-    }
+    requestDelete(node.path);
   };
 
   return (

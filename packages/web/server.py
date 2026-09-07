@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import ctypes
+import errno
 import hashlib
 import json
 import math
@@ -862,6 +864,75 @@ def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
     # raises ValueError if rel_path (after resolving .. etc.) escapes root
     target.relative_to(root)
     return target
+
+
+def _rename_no_overwrite(src: Path, dst: Path) -> None:
+    """Rename without replacing a target which appears concurrently.
+
+    ``os.replace`` is intentionally not used here: it unconditionally
+    replaces on POSIX and could destroy a draft created after the UI's
+    advisory target-state check. Windows MoveFileEx without
+    MOVEFILE_REPLACE_EXISTING and Linux renameat2(RENAME_NOREPLACE) provide
+    atomic no-overwrite behavior. Platforms without a proven atomic
+    no-overwrite primitive fail closed.
+    """
+    if src == dst:
+        if not src.exists():
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(src))
+        return
+
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        move_file_ex = kernel32.MoveFileExW
+        move_file_ex.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+        move_file_ex.restype = ctypes.c_int
+        # MOVEFILE_WRITE_THROUGH; omitting MOVEFILE_REPLACE_EXISTING is the
+        # no-overwrite guarantee and works for local and UNC paths.
+        if not move_file_ex(str(src), str(dst), 0x8):
+            error = ctypes.get_last_error()
+            raise OSError(error, os.strerror(error), str(dst))
+        return
+
+    if sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = getattr(libc, "renameat2", None)
+        if renameat2 is not None:
+            renameat2.argtypes = [
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            renameat2.restype = ctypes.c_int
+            result = renameat2(
+                -100,
+                os.fsencode(src),
+                -100,
+                os.fsencode(dst),
+                1,  # AT_FDCWD, RENAME_NOREPLACE
+            )
+            if result == 0:
+                return
+            error = ctypes.get_errno()
+            # Some Linux architectures expose renameat2 but return ENOSYS at
+            # runtime (for example under an older kernel/container). A
+            # link+unlink fallback is not safe: another actor can remove the
+            # source inode between those operations, and it cannot provide
+            # the same no-overwrite guarantee for directories. Fail closed.
+            if error != errno.ENOSYS:
+                raise OSError(error, os.strerror(error), str(dst))
+            raise OSError(
+                errno.ENOTSUP,
+                "atomic no-overwrite rename is unavailable on this Linux system",
+                str(dst),
+            )
+
+    raise OSError(
+        errno.ENOTSUP,
+        "atomic no-overwrite rename is unavailable on this platform",
+        str(dst),
+    )
 
 
 def _guarded_model(a, value) -> str | None:
@@ -5368,7 +5439,7 @@ async def api_fs_rename(data: dict):
     except ValueError as e:
         return {"error": str(e)}
     try:
-        os.replace(str(src), str(dst))
+        _rename_no_overwrite(src, dst)
         return {"from": frm, "to": to}
     except PermissionError:
         return {"error": f"Permission denied"}

@@ -42,15 +42,18 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
   const [data, setData] = useState<DirectoryListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const cached = cacheRef.current.get(path);
+    const requestId = ++requestIdRef.current;
+    const cacheKey = `${path}\u0000${fileMode ? 'files' : 'directories'}`;
+    const cached = cacheRef.current.get(cacheKey);
     if (cached) {
       setData(cached);
       setError(null);
+      setLoading(false);
       return;
     }
-    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     const request = fileMode
@@ -59,7 +62,7 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
     request
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
-        cacheRef.current.set(path, result);
+        cacheRef.current.set(cacheKey, result);
         setData(result);
       })
       .catch((err: unknown) => {
@@ -70,13 +73,22 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
       .finally(() => {
         if (requestId === requestIdRef.current) setLoading(false);
       });
-    return () => { requestIdRef.current += 1; };
+    return () => {
+      if (requestId === requestIdRef.current) requestIdRef.current += 1;
+    };
   }, [path, fileMode]);
 
   const goTo = (nextPath: string) => {
     requestIdRef.current += 1;
+    setSearchQuery('');
     onPathChange(nextPath);
   };
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const visibleEntries = data?.entries.filter((entry) => {
+    if (!normalizedSearch) return true;
+    return `${entry.name} ${entry.path}`.toLowerCase().includes(normalizedSearch);
+  }) ?? [];
 
   return (
     <div className="flex flex-col gap-3" data-testid="directory-browser">
@@ -115,6 +127,18 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
         </Button>
         <span className="text-xs text-text-tertiary">仅按需加载当前层目录</span>
       </div>
+      <label className="flex flex-col gap-1 text-xs text-text-secondary">
+        <span>筛选当前目录条目</span>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="按名称或路径筛选"
+          aria-label="筛选当前目录条目"
+          data-testid="directory-search"
+          className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
+        />
+      </label>
       {/* Fixed-height scroll window with an always-styled scrollbar, so a
           large directory can never overflow the screen. */}
       <div
@@ -124,7 +148,8 @@ export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelec
         {loading && <div className="flex items-center gap-2 p-4 text-sm text-text-secondary"><Loader2 size={15} className="animate-spin" />加载中…</div>}
         {!loading && error && <div className="p-4 text-sm text-danger">加载失败：{error}</div>}
         {!loading && !error && data && data.entries.length === 0 && <div className="p-4 text-sm text-text-tertiary">空目录</div>}
-        {!error && data?.entries.map((entry) => (
+        {!loading && !error && data && data.entries.length > 0 && visibleEntries.length === 0 && <div className="p-4 text-sm text-text-tertiary">没有匹配的条目</div>}
+        {!error && data && visibleEntries.map((entry) => (
           <button key={entry.path} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary" onClick={() => entry.isDirectory ? goTo(entry.path) : onSelect(entry.path)}>
             {entry.isDirectory ? <Folder size={15} className="shrink-0 text-text-tertiary" /> : <span aria-hidden="true" className="w-[15px] shrink-0 text-center text-text-tertiary">·</span>}
             <span className="truncate">{entry.name}</span>
