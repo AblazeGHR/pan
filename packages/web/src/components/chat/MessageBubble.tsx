@@ -2,8 +2,9 @@ import type { Message } from '@/types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ToolGroup } from './ToolGroup';
+import type { ToolGroupDisplayItem } from '@/utils/messageIdentity';
 
-type GroupedItem = Message | { type: 'tool_group'; items: Message[] };
+export type GroupedItem = Message | ToolGroupDisplayItem;
 type PrevRole = Message['role'] | 'tool' | null;
 
 /** Role used for spacing decisions. Tool groups behave like 'tool'. */
@@ -12,17 +13,21 @@ export function getItemRole(item: GroupedItem): PrevRole {
   return (item as Message).role;
 }
 
-/** Kimi-style variant-aware top margin.
+/** Kimi-style variant-aware top spacing.
  *  Mirrors kimi-cli's virtualized-message-list spacing rules:
- *  user mt-4, assistant-after-user mt-2, consecutive-assistant mt-1,
- *  tool mt-1.5, thinking mt-1. */
+ *  user pt-4, assistant-after-user pt-2, consecutive-assistant pt-1,
+ *  tool pt-1.5, thinking pt-1.
+ *
+ * Padding is intentional here. A margin inside a measured virtual row can
+ * collapse outside the row, making its cached height smaller than its painted
+ * content and allowing the next row to overlap it. */
 function marginTopClass(role: PrevRole, prevRole: PrevRole): string {
   if (!prevRole) return '';
-  if (role === 'user') return 'mt-4';
-  if (role === 'assistant') return prevRole === 'user' ? 'mt-2' : 'mt-1';
-  if (role === 'tool') return 'mt-1.5';
-  if (role === 'thinking') return 'mt-1';
-  return 'mt-1';
+  if (role === 'user') return 'pt-4';
+  if (role === 'assistant') return prevRole === 'user' ? 'pt-2' : 'pt-1';
+  if (role === 'tool') return 'pt-1.5';
+  if (role === 'thinking') return 'pt-1';
+  return 'pt-1';
 }
 
 interface MessageBubbleProps {
@@ -118,8 +123,8 @@ interface MessageDisplayItemProps {
 export function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItemProps) {
   if ('type' in item && item.type === 'tool_group') {
     return (
-      <div className={`${marginTopClass('tool', prevRole)} px-3 sm:px-6 lg:px-8`}>
-        <ToolGroup items={(item as { items: Message[] }).items} />
+      <div className={`${marginTopClass('tool', prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>
+        <ToolGroup items={item.items} />
       </div>
     );
   }

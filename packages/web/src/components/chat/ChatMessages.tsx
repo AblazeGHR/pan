@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
 import { filterVisibleMessages } from './messageFilter';
+import { getDisplayItemKey } from '@/utils/messageIdentity';
 import { ArrowDown, Loader2 } from 'lucide-react';
 const SCROLL_BOTTOM_THRESHOLD = 120;
 
@@ -43,12 +44,17 @@ export function ChatMessages() {
     getScrollElement: () => parentRef.current,
     estimateSize: () => 100,
     overscan: 5,
+    // The default key is the array index. Streaming replaces message objects,
+    // prepending history shifts indexes, and tool grouping changes row shapes;
+    // an index key lets Virtualizer reuse another row's height/DOM node.
+    getItemKey: (index) => getDisplayItemKey(grouped[index], index),
   });
   // Virtualized content height. Changes when messages are added/removed or
   // when items get measured after layout. Re-scrolling on this (while the user
   // is pinned to the bottom) is what lands the view at the *true* bottom once
   // the virtualizer's measurements settle, instead of the initial estimate.
   const totalSize = virtualizer.getTotalSize();
+  const virtualItems = virtualizer.getVirtualItems();
 
   // Whether the user wants the view to follow the bottom. This is deliberately
   // state held outside React rendering: a streaming delta can arrive between
@@ -179,27 +185,40 @@ export function ChatMessages() {
       >
         <div
           style={{
-            height: `${virtualizer.getTotalSize()}px`,
+            minHeight: `${totalSize}px`,
             width: '100%',
-            position: 'relative',
+            // Keep the virtual spacer and its rows in one formatting context
+            // so top spacing is measured as part of the scroll content.
+            display: 'flow-root',
           }}
         >
-          {virtualizer.getVirtualItems().map((vItem) => {
+          {virtualItems.map((vItem, virtualIndex) => {
             const item = grouped[vItem.index];
             if (!item) return null;
             const prevItem = grouped[vItem.index - 1];
             const prevRole = prevItem ? getItemRole(prevItem) : null;
+            const previousVirtualItem = virtualItems[virtualIndex - 1];
+            // The first rendered row reserves the omitted prefix. Subsequent
+            // rows use only a non-negative gap: if a streamed/collapsible row
+            // is taller than its last measurement, normal flow pushes the next
+            // row down instead of allowing stale absolute coordinates to
+            // overlap it. TanStack will measure the new height and settle the
+            // spacer on the next update.
+            const flowOffset = previousVirtualItem
+              ? Math.max(0, vItem.start - previousVirtualItem.start - previousVirtualItem.size)
+              : Math.max(0, vItem.start);
             return (
               <div
                 key={vItem.key}
                 data-index={vItem.index}
                 ref={virtualizer.measureElement}
                 style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
                   width: '100%',
-                  transform: `translateY(${vItem.start}px)`,
+                  marginTop: `${flowOffset}px`,
+                  // Keep child margins and collapsible content inside the
+                  // measured row's formatting context. The viewport may move
+                  // because of auto-scroll, but it must not alter row order.
+                  display: 'flow-root',
                 }}
               >
                 <MessageDisplayItem item={item} prevRole={prevRole} />
