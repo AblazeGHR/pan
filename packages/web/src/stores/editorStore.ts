@@ -1,12 +1,12 @@
 import { create } from 'zustand';
+import type { Monaco } from '@monaco-editor/react';
 import type { FileNode } from '@/types';
 import { listFiles, readFile, writeFile, renameFs, deleteFs } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
 
 // Module-level ref for Monaco model disposal on tab close.
-// Type is 'any' because monaco-editor is loaded dynamically via @monaco-editor/react.
-let monacoRef: any = null;
-export function setMonacoRef(m: any) {
+let monacoRef: Monaco | null = null;
+export function setMonacoRef(m: Monaco) {
   monacoRef = m;
 }
 
@@ -439,7 +439,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const newOpen = s.openPaths.filter((p) => p !== path);
       const newDirty = new Set(s.dirty);
       newDirty.delete(path);
-      const { [path]: _, ...newContents } = s.contents;
+      const newContents = { ...s.contents };
+      delete newContents[path];
       let newActive = s.activePath;
       if (s.activePath === path) {
         // Activate nearest tab

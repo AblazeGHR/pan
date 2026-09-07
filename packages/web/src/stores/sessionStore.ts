@@ -531,49 +531,37 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   rename: async (id: string, name: string) => {
-    try {
-      await renameSession(id, name);
-      set((s) => ({
-        sessions: s.sessions.map((session) =>
-          session.id === id ? { ...session, name } : session,
-        ),
-      }));
-    } catch (e) {
-      throw e;
-    }
+    await renameSession(id, name);
+    set((s) => ({
+      sessions: s.sessions.map((session) =>
+        session.id === id ? { ...session, name } : session,
+      ),
+    }));
   },
 
   branch: async (id: string, name: string) => {
-    try {
-      await branchSession(id, name);
-      await get().loadSessions();
-    } catch (e) {
-      throw e;
-    }
+    await branchSession(id, name);
+    await get().loadSessions();
   },
 
   reimport: async (id: string) => {
     const session = get().sessions.find((s) => s.id === id);
     if (!session?.cliSessionId) return;
 
-    try {
-      const newSession = await reimportSession(
-        id,
-        session.adapter || 'cbc',
-        session.cliSessionId,
-        session.workdir,
-      );
-      set((s) => ({
-        sessions: s.sessions.map((session) =>
-          session.id === id ? newSession : session,
-        ),
-        currentSessionId:
-          s.currentSessionId === id ? newSession.id : s.currentSessionId,
-        initialLoading: false,
-      }));
-    } catch (e) {
-      throw e;
-    }
+    const newSession = await reimportSession(
+      id,
+      session.adapter || 'cbc',
+      session.cliSessionId,
+      session.workdir,
+    );
+    set((s) => ({
+      sessions: s.sessions.map((session) =>
+        session.id === id ? newSession : session,
+      ),
+      currentSessionId:
+        s.currentSessionId === id ? newSession.id : s.currentSessionId,
+      initialLoading: false,
+    }));
   },
 
   setInputDraft: (id: string, draft: string) => {
