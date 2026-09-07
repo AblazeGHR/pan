@@ -57,6 +57,7 @@ from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 from packages.core import background_jobs
+from packages.core.codex_quota import format_codex_quota, validate_quota_window
 from packages.core import main_lifecycle
 
 # ── logging ──
@@ -2166,6 +2167,23 @@ async def api_get_session(session_id: str):
     return _session_to_api(s)
 
 
+@app.get("/api/sessions/{session_id}/usage")
+async def api_get_session_usage(session_id: str):
+    """Return the stable persisted input/output/cache usage projection.
+
+    This is a read-only view over Session.raw_usage / Session.total_usage. It
+    does not refresh provider state and, unlike the full session response, does
+    not expose the historical raw payload.
+    """
+    s = sess.get(session_id)
+    if not s:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {session_id} not found",
+        }}
+    return sess.session_usage_view(s)
+
+
 @app.get("/api/sessions/{session_id}/managers")
 async def api_session_managers(session_id: str):
     """Manager chain of a session, topmost first (level 1 = top).
@@ -4056,6 +4074,92 @@ async def api_cli_status():
         "available": [entry["name"] for entry in adapters if entry["available"]],
         "hasAvailable": any(entry["available"] for entry in adapters),
     }
+
+
+def _is_codex_worker(w) -> bool:
+    """Match only live workers backed by the Codex adapter."""
+    return getattr(getattr(w, "adapter", None), "name", "") == "codex"
+
+
+@app.get("/api/codex/quota")
+async def api_codex_quota(session_id: str = "", window: str = "all"):
+    """Query live Codex account windows from the app-server rate-limit cache.
+
+    ``first`` is the five-hour window and ``secondary`` is the weekly window;
+    neither name selects an adapter fallback or a model. Without a session id
+    exactly one live Codex worker must be available, preventing an arbitrary
+    account snapshot from being returned when multiple workers exist.
+
+    This is a loopback HTTP trusted-admin interface.  It has no manager
+    identity authentication and does not apply managed-session isolation;
+    callers must not invent or pass a manager parameter.  Managed isolation
+    is enforced by the MCP caller layer before it calls this endpoint.
+
+    The response is the live Worker event snapshot, not a provider pull.  The
+    compatibility ``updatedAt`` and explicit ``receivedAt`` fields are the
+    local Pan Worker receive time for ``account/rateLimits/updated``; the
+    provider's original update time is not fabricated or exposed.
+    """
+    if not validate_quota_window(window):
+        return {"ok": False, "error": {
+            "code": "invalid_window",
+            "message": "window must be one of 'all', 'first', or 'secondary'",
+        }}
+
+    if session_id:
+        target = sess.get(session_id)
+        if target is None:
+            return {"ok": False, "error": {
+                "code": "session_not_found",
+                "message": f"Session {session_id} not found",
+            }}
+        if target.adapter != "codex":
+            return {"ok": False, "error": {
+                "code": "unsupported_provider",
+                "message": f"Session {session_id} uses adapter {target.adapter!r}; Codex quota requires adapter 'codex'",
+            }}
+        candidates = [worker.find_alive_worker_by_session(session_id)]
+        candidates = [w for w in candidates if w is not None]
+    else:
+        candidates = [w for w in worker.list_live_workers() if _is_codex_worker(w)]
+
+    if not candidates:
+        return {"ok": False, "error": {
+            "code": "quota_unavailable",
+            "message": "No live Codex worker with a rate-limit snapshot is available",
+            "provider": "codex",
+        }}
+    if len(candidates) > 1:
+        return {"ok": False, "error": {
+            "code": "quota_ambiguous",
+            "message": "More than one live Codex worker is available; pass session_id",
+            "candidates": [
+                {"sessionId": w.session_id, "workerId": w.worker_id}
+                for w in candidates
+            ],
+        }}
+
+    selected = candidates[0]
+    rate_limits = getattr(selected, "native_rate_limits", None)
+    if not isinstance(rate_limits, dict) or not rate_limits:
+        return {"ok": False, "error": {
+            "code": "quota_unavailable",
+            "message": "Codex worker has not emitted account/rateLimits/updated",
+            "provider": "codex",
+            "sessionId": selected.session_id,
+            "workerId": selected.worker_id,
+        }}
+    return format_codex_quota(
+        rate_limits,
+        session_id=selected.session_id,
+        worker_id=selected.worker_id,
+        updated_at=getattr(selected, "native_rate_limits_updated_at", None),
+        received_at=(
+            getattr(selected, "native_rate_limits_received_at", None)
+            or getattr(selected, "native_rate_limits_updated_at", None)
+        ),
+        requested_window=window,
+    )
 
 
 # ── cbc Session Import ──
