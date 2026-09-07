@@ -1,0 +1,130 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { EditorFileTopBar } from './EditorFileTopBar';
+import { useEditorStore } from '@/stores/editorStore';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
+
+vi.mock('@/services/api', () => ({
+  listFiles: vi.fn(async () => []),
+  readFile: vi.fn(async () => ''),
+  writeFile: vi.fn(async () => undefined),
+  renameFs: vi.fn(async () => undefined),
+  deleteFs: vi.fn(async () => undefined),
+}));
+
+function mockMatchMedia(matches: boolean) {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
+
+beforeEach(() => {
+  mockMatchMedia(true);
+  useEditorStore.setState({
+    sessionId: 's1',
+    openPaths: ['src/one.ts', 'src/two.ts'],
+    activePath: 'src/one.ts',
+    downloadFile: vi.fn(),
+  });
+  useSessionStore.setState({
+    currentSessionId: 's1',
+    sessions: [{
+      id: 's1',
+      name: 'Test',
+      workdir: 'D:\\project',
+      alwaysThinkingEnabled: false,
+      effort: '',
+      history: [],
+    }],
+  });
+  useUIStore.setState({ toastQueue: [], chatAttachmentRequests: [] });
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe('EditorFileTopBar', () => {
+  it('copies the full path and gives temporary success feedback for each active file', async () => {
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar path={'D:\\project\\src\\one.ts'} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '完整路径已复制' })).toBeTruthy());
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('D:\\project\\src\\one.ts');
+
+    rerender(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar path={'D:\\project\\src\\two.ts'} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '完整路径已复制' }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('D:\\project\\src\\two.ts'));
+  });
+
+  it('uses editorStore.downloadFile and queues the current server path for chat on mobile', async () => {
+    const downloadFile = vi.fn();
+    useEditorStore.setState({ downloadFile });
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar path={'D:\\project\\src\\two.ts'} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '下载当前文件' }));
+    expect(downloadFile).toHaveBeenCalledWith('D:\\project\\src\\two.ts');
+    fireEvent.click(screen.getByRole('button', { name: '加入聊天' }));
+
+    await waitFor(() => expect(useUIStore.getState().chatAttachmentRequests).toEqual([
+      { sessionId: 's1', path: 'D:\\project\\src\\two.ts' },
+    ]));
+  });
+
+  it('keeps the mobile-only actions out of the desktop editor TopBar', () => {
+    mockMatchMedia(false);
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar path={'D:\\project\\src\\two.ts'} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('button', { name: '下载当前文件' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '加入聊天' })).toBeNull();
+  });
+
+  it('reports copy failure instead of showing a false success state', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+    });
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn() });
+    vi.spyOn(document, 'execCommand').mockReturnValue(false);
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar path={'D:\\project\\src\\one.ts'} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
+    await waitFor(() => expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('复制路径失败'));
+    expect(screen.getByRole('button', { name: '复制完整路径' })).toBeTruthy();
+  });
+});

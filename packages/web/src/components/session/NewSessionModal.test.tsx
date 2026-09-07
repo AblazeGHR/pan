@@ -96,6 +96,76 @@ describe('NewSessionModal working directory browser', () => {
     expect(apiMock.fetchDirectories).toHaveBeenCalledWith(attachmentsPath, true);
   });
 
+  it('filters loaded files and directories by name or full path without changing selection paths', async () => {
+    const onSelect = vi.fn();
+    apiMock.fetchDirectories.mockResolvedValueOnce({
+      current: 'D:\\attachments',
+      parent: 'D:\\',
+      entries: [
+        { name: 'Report.TXT', path: 'D:\\attachments\\Report.TXT', isDirectory: false },
+        { name: 'notes', path: 'D:\\attachments\\notes', isDirectory: true },
+        { name: 'archive.zip', path: 'D:\\attachments\\archive.zip', isDirectory: false },
+      ],
+    });
+    render(
+      <DirectoryBrowser
+        path="D:\\attachments"
+        fileMode
+        onPathChange={() => {}}
+        onSelect={onSelect}
+        onCancel={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Report.TXT' })).toBeTruthy());
+    const search = screen.getByTestId('directory-search');
+    fireEvent.change(search, { target: { value: 'REPORT' } });
+    expect(screen.getByRole('button', { name: 'Report.TXT' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'archive.zip' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'notes' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report.TXT' }));
+    expect(onSelect).toHaveBeenCalledWith('D:\\attachments\\Report.TXT');
+  });
+
+  it('keeps navigation and search local to the current directory', async () => {
+    apiMock.fetchDirectories
+      .mockResolvedValueOnce({
+        current: 'D:\\',
+        parent: null,
+        entries: [{ name: 'Projects', path: 'D:\\Projects', isDirectory: true }],
+      })
+      .mockResolvedValueOnce({
+        current: 'D:\\Projects',
+        parent: 'D:\\',
+        entries: [{ name: 'README.md', path: 'D:\\Projects\\README.md', isDirectory: false }],
+      });
+    const onPathChange = vi.fn();
+    const { rerender } = render(
+      <DirectoryBrowser
+        path="D:\\"
+        onPathChange={onPathChange}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Projects' })).toBeTruthy());
+    fireEvent.change(screen.getByTestId('directory-search'), { target: { value: 'missing' } });
+    fireEvent.click(screen.getByRole('button', { name: '盘符列表' }));
+    expect(onPathChange).toHaveBeenCalledWith('');
+
+    rerender(
+      <DirectoryBrowser
+        path="D:\\Projects"
+        onPathChange={onPathChange}
+        onSelect={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'README.md' })).toBeTruthy());
+    expect((screen.getByTestId('directory-search') as HTMLInputElement).value).toBe('');
+  });
+
   it('loads the next layer on click and writes the selected current directory', async () => {
     apiMock.fetchDirectories
       .mockResolvedValueOnce(layer('', [{ name: 'D:\\', path: 'D:\\' }]))

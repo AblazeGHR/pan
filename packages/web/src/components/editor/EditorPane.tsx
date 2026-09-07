@@ -1,5 +1,6 @@
 import { useEditorStore, languageFromPath } from '@/stores/editorStore';
 import { EditorTabs } from './EditorTabs';
+import { EditorFileTopBar } from './EditorFileTopBar';
 import { CodeEditor } from './CodeEditor';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { Eye, Pencil, Columns2 } from 'lucide-react';
@@ -52,6 +53,7 @@ export function EditorPane() {
           </div>
         )}
       </div>
+      {activePath && <EditorFileTopBar path={activePath} />}
 
       {!activePath ? (
         <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">

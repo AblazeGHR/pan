@@ -217,6 +217,8 @@ export function InputRow() {
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const { steer } = useWorkerStore();
   const { showToast } = useUIStore();
+  const chatAttachmentRequests = useUIStore((s) => s.chatAttachmentRequests);
+  const consumeChatAttachmentRequests = useUIStore((s) => s.consumeChatAttachmentRequests);
   const { isMobile } = useMediaQuery();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [composerHeight, setComposerHeight] = useState(180);
@@ -281,6 +283,31 @@ export function InputRow() {
     setAttachmentBrowserOpen(false);
     setAttachmentMenuOpen(false);
   }, [currentSessionId]);
+
+  // The editor can be a separate route, so it hands a server path to the
+  // mounted composer through a one-shot UI request. The actual attachment
+  // state, formatting, and queue submission remain owned by InputRow.
+  useEffect(() => {
+    if (!currentSessionId) return;
+    const requested = chatAttachmentRequests
+      .filter((request) => request.sessionId === currentSessionId)
+      .map((request) => request.path);
+    if (requested.length === 0) return;
+
+    setAttachments((current) => {
+      const existing = new Set(current.map((attachment) => attachment.path));
+      const additions = requested
+        .filter((path) => !existing.has(path))
+        .map((path) => ({
+          id: attachmentId(),
+          name: path.split(/[\\/]/).pop() || path,
+          path,
+          status: 'ready' as const,
+        }));
+      return additions.length > 0 ? [...current, ...additions] : current;
+    });
+    consumeChatAttachmentRequests(currentSessionId, requested);
+  }, [chatAttachmentRequests, consumeChatAttachmentRequests, currentSessionId]);
 
   useEffect(() => {
     if (!isMobile) {
@@ -702,6 +729,7 @@ export function InputRow() {
               multiple
               className="hidden"
               data-testid="client-attachment-input"
+              aria-label="选择客户端附件（系统文件选择器）"
               onChange={handleClientFiles}
             />
             <textarea
