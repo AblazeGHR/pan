@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -73,6 +73,8 @@ export function Sidebar() {
     toggleFilesCollapsed,
     theme,
     toggleTheme,
+    dragEnabled,
+    setDragEnabled,
   } = useUIStore();
 
   // Editor store
@@ -89,12 +91,71 @@ export function Sidebar() {
   const [detailsSessionId, setDetailsSessionId] = useState<string | null>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [showDragMenu, setShowDragMenu] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement | null>(null);
+  const sortPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sortLongPressedRef = useRef(false);
+  const sortPressStartRef = useRef<{ x: number; y: number } | null>(null);
   const [deleteRequest, setDeleteRequest] = useState<{
     ids: string[];
     specialIds: string[];
     normalIds: string[];
     descendantCount: number;
   } | null>(null);
+
+  const clearSortPress = useCallback(() => {
+    if (sortPressTimerRef.current) clearTimeout(sortPressTimerRef.current);
+    sortPressTimerRef.current = null;
+    sortPressStartRef.current = null;
+  }, []);
+
+  useEffect(() => clearSortPress, [clearSortPress]);
+
+  useEffect(() => {
+    if (!showDragMenu) return;
+    const closeOnOutsidePointer = (e: PointerEvent) => {
+      if (!sortMenuRef.current?.contains(e.target as Node)) setShowDragMenu(false);
+    };
+    const closeOnEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowDragMenu(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [showDragMenu]);
+
+  const handleSortPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    sortLongPressedRef.current = false;
+    clearSortPress();
+    sortPressStartRef.current = { x: e.clientX, y: e.clientY };
+    sortPressTimerRef.current = setTimeout(() => {
+      sortLongPressedRef.current = true;
+      setShowDragMenu(true);
+      sortPressTimerRef.current = null;
+    }, 550);
+  }, [clearSortPress]);
+
+  const handleSortPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const start = sortPressStartRef.current;
+    if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) clearSortPress();
+  }, [clearSortPress]);
+
+  const handleSortClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    if (sortLongPressedRef.current) {
+      e.preventDefault();
+      sortLongPressedRef.current = false;
+      return;
+    }
+    cycleSortBy();
+  }, [cycleSortBy]);
+
+  const handleSortPointerUp = useCallback(() => {
+    if (!sortLongPressedRef.current) clearSortPress();
+  }, [clearSortPress]);
 
   // Group keys for collapse-all (mirrors SessionList workdir/manager grouping)
   const groupKeys = useMemo(() => {
@@ -461,20 +522,52 @@ export function Sidebar() {
                 </>
               )}
             </div>
-            <button
-              onClick={cycleSortBy}
-              className={`flex items-center gap-1 p-1 rounded transition-colors ${
-                sortBy !== 'recent'
-                  ? 'text-accent bg-accent/10'
-                  : 'text-text-tertiary hover:text-text-primary'
-              }`}
-              title={`Sort: ${sortBy} (click to cycle recent → name → custom)`}
-            >
-              <ArrowUpDown size={14} />
-              <span className="text-[10px] leading-none">
-                {sortBy === 'custom' ? 'custom' : sortBy === 'name' ? 'name' : 'recent'}
-              </span>
-            </button>
+            <div ref={sortMenuRef} className="relative">
+              <button
+                onClick={handleSortClick}
+                onPointerDown={handleSortPointerDown}
+                onPointerMove={handleSortPointerMove}
+                onPointerUp={handleSortPointerUp}
+                onPointerCancel={clearSortPress}
+                aria-expanded={showDragMenu}
+                aria-label={`Sort sessions: ${sortBy}`}
+                className={`flex items-center gap-1 p-1 rounded transition-colors ${
+                  sortBy !== 'recent'
+                    ? 'text-accent bg-accent/10'
+                    : 'text-text-tertiary hover:text-text-primary'
+                }`}
+                title={`Sort: ${sortBy} (click to cycle recent → name → custom)`}
+              >
+                <ArrowUpDown size={14} />
+                <span className="text-[10px] leading-none">
+                  {sortBy === 'custom' ? 'custom' : sortBy === 'name' ? 'name' : 'recent'}
+                </span>
+              </button>
+              {showDragMenu && (
+                <div
+                  role="menu"
+                  aria-label="Session list options"
+                  className="absolute right-0 top-full mt-1 z-30 w-44 rounded border border-border-default bg-bg-primary shadow-lg py-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setShowDragMenu(false);
+                  }}
+                >
+                  <label
+                    role="menuitemcheckbox"
+                    aria-checked={dragEnabled}
+                    className="flex items-center gap-2 px-3 py-2 text-xs text-text-primary cursor-pointer hover:bg-bg-hover/40 select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={dragEnabled}
+                      onChange={(e) => setDragEnabled(e.target.checked)}
+                      className="accent-accent"
+                    />
+                    <span>拖动排序</span>
+                  </label>
+                </div>
+              )}
+            </div>
             <button
               onClick={cycleGroupBy}
               className={`flex items-center gap-1 p-1 rounded transition-colors ${

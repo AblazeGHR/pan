@@ -1,15 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('Sidebar Session search controls', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     localStorage.clear();
     useSessionStore.setState({ sessions: [], currentSessionId: null, multiSelectMode: false });
     useUIStore.setState({
@@ -18,6 +22,7 @@ describe('Sidebar Session search controls', () => {
       specialFilters: new Set(),
       groupBy: 'none',
       sortBy: 'recent',
+      dragEnabled: true,
     });
   });
 
@@ -135,5 +140,49 @@ describe('Sidebar Session search controls', () => {
     renderSidebar();
 
     expect((screen.getByRole('button', { name: 'Select all visible sessions' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('defaults drag sorting on and hides the handle when switched off', () => {
+    useSessionStore.setState({
+      sessions: [{ id: 'alpha', name: 'Alpha', alwaysThinkingEnabled: false, effort: '', history: [] }],
+    });
+    renderSidebar();
+
+    expect(screen.getByTestId('drag-handle')).toBeTruthy();
+    expect(useUIStore.getState().dragEnabled).toBe(true);
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Sort sessions: recent' }), {
+      pointerType: 'touch', clientX: 10, clientY: 10,
+    });
+    vi.advanceTimersByTime(600);
+    expect(screen.getByRole('menu', { name: 'Session list options' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('menuitemcheckbox'));
+
+    expect(useUIStore.getState().dragEnabled).toBe(false);
+    expect(screen.queryByTestId('drag-handle')).toBeNull();
+    expect(localStorage.getItem('pan:dragEnabled')).toBe('false');
+  });
+
+  it('opens the drag menu on long press without cycling sort', () => {
+    vi.useFakeTimers();
+    renderSidebar();
+    const sort = screen.getByRole('button', { name: 'Sort sessions: recent' });
+    fireEvent.pointerDown(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
+    vi.advanceTimersByTime(600);
+    fireEvent.pointerUp(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
+    fireEvent.click(sort);
+
+    expect(screen.getByRole('menu', { name: 'Session list options' })).toBeTruthy();
+    expect(useUIStore.getState().sortBy).toBe('recent');
+    vi.useRealTimers();
+  });
+
+  it('keeps a short press cycling sort', () => {
+    renderSidebar();
+    const sort = screen.getByRole('button', { name: 'Sort sessions: recent' });
+    fireEvent.pointerDown(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
+    fireEvent.click(sort);
+    expect(useUIStore.getState().sortBy).toBe('name');
   });
 });
