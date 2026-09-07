@@ -92,30 +92,22 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
   },
 
   killCurrent: async (sessionId) => {
-    try {
-      await killSessionWorker(sessionId);
-      set((s) => {
-        const workers = { ...s.workers };
-        delete workers[sessionId];
-        const currentSessionId = useSessionStore.getState().currentSessionId;
-        const currentWorkerId = currentSessionId === sessionId ? null : s.currentWorkerId;
-        return {
-          workers,
-          currentWorkerId,
-          currentWorker: findWorker(workers, currentWorkerId),
-        };
-      });
-    } catch (e) {
-      throw e;
-    }
+    await killSessionWorker(sessionId);
+    set((s) => {
+      const workers = { ...s.workers };
+      delete workers[sessionId];
+      const currentSessionId = useSessionStore.getState().currentSessionId;
+      const currentWorkerId = currentSessionId === sessionId ? null : s.currentWorkerId;
+      return {
+        workers,
+        currentWorkerId,
+        currentWorker: findWorker(workers, currentWorkerId),
+      };
+    });
   },
 
   interrupt: async (sessionId) => {
-    try {
-      await interruptSessionWorker(sessionId);
-    } catch (e) {
-      throw e;
-    }
+    await interruptSessionWorker(sessionId);
   },
 
   steer: async (sessionId, text) => {
