@@ -78,6 +78,9 @@ auth_token*
 # pytest temporary bases used by local adapter/worker regression runs
 .pytest-tmp*/
 
+# Local Playwright browser binaries used by isolated E2E validation
+.playwright-browsers/
+
 # README screenshots: keep only the three published images below
 /assets/*
 !/assets/创建SMA第一步（点击此处，新建带参数的session）.png
