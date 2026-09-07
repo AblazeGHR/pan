@@ -1401,6 +1401,82 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     ]);
   });
 
+  it('keeps thinking, tools, and content in arrival order across interleaved stream updates', () => {
+    renderHook(() => useWebSocket());
+
+    const stream = (event: Record<string, unknown>) => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', event,
+      });
+    };
+
+    act(() => {
+      // This is the shape emitted by the Codex app-server adapter: reasoning
+      // and command items can be visible before the answer text exists.
+      stream({
+        type: 'content.part', role: 'thinking', delta: true,
+        turn_id: 'turn-interleaved', item_id: 'thinking-1',
+        part: { type: 'think', think: 'plan ' },
+      });
+      stream({
+        type: 'assistant', role: 'assistant', delta: true,
+        turn_id: 'turn-interleaved', item_id: 'tool-1',
+        message: { content: [{ type: 'tool_use', name: 'Command', input: { command: 'one' } }] },
+      });
+      stream({
+        type: 'content.part', role: 'thinking', delta: true,
+        turn_id: 'turn-interleaved', item_id: 'thinking-2',
+        part: { type: 'think', think: 'subplan ' },
+      });
+      stream({
+        type: 'assistant', role: 'assistant', delta: true,
+        turn_id: 'turn-interleaved', item_id: 'tool-2',
+        message: { content: [{ type: 'tool_use', name: 'Command', input: { command: 'two' } }] },
+      });
+      stream({
+        type: 'content.part', role: 'assistant', delta: true,
+        turn_id: 'turn-interleaved', item_id: 'answer-1',
+        part: { type: 'text', text: 'Answer ' },
+      });
+      stream({
+        type: 'assistant', role: 'assistant', delta: true, replace: true,
+        turn_id: 'turn-interleaved', item_id: 'tool-2',
+        message: { content: [{ type: 'tool_use', name: 'Command', input: { command: 'two', output: 'done' } }] },
+      });
+      stream({
+        type: 'content.part', role: 'thinking', delta: true,
+        turn_id: 'turn-interleaved', item_id: 'thinking-1',
+        part: { type: 'think', think: 'done' },
+      });
+      stream({
+        type: 'content.part', role: 'assistant', delta: true,
+        turn_id: 'turn-interleaved', item_id: 'answer-1',
+        part: { type: 'text', text: 'body' },
+      });
+      stream({
+        type: 'thinking', role: 'thinking', final: true,
+        turn_id: 'turn-interleaved', item_id: 'thinking-2', content: 'subplan done',
+      });
+      stream({
+        type: 'thinking', role: 'thinking', final: true,
+        turn_id: 'turn-interleaved', item_id: 'thinking-1', content: 'plan done',
+      });
+      stream({
+        type: 'assistant', role: 'assistant', delta: true, replace: true,
+        turn_id: 'turn-interleaved', item_id: 'tool-1',
+        message: { content: [{ type: 'tool_use', name: 'Command', input: { command: 'one', output: 'done' } }] },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'thinking', content: 'plan done', nativeItemId: 'thinking-1' },
+      { role: 'tool', content: 'Command({"command":"one","output":"done"})', nativeItemId: 'tool-1' },
+      { role: 'thinking', content: 'subplan done', nativeItemId: 'thinking-2' },
+      { role: 'tool', content: 'Command({"command":"two","output":"done"})', nativeItemId: 'tool-2' },
+      { role: 'assistant', content: 'Answer body', nativeItemId: 'answer-1' },
+    ]);
+  });
+
   it('does not append background-session stream or result messages to the selected chat', () => {
     renderHook(() => useWebSocket());
 

@@ -11,21 +11,35 @@ import { useUIStore } from '@/stores/uiStore';
 // simulate: (a) history arriving after a session switch, (b) the virtualizer
 // re-measuring items and growing/shrinking the total size.
 const m = vi.hoisted(() => {
-  const state = { totalSize: 0 };
+  const state: {
+    totalSize: number;
+    virtualItems: Array<{ index: number; start: number; size: number }>;
+    options: { getItemKey?: (index: number) => string | number } | null;
+  } = { totalSize: 0, virtualItems: [], options: null };
   return {
     state,
     setTotalSize: (n: number) => {
       state.totalSize = n;
     },
+    setVirtualItems: (items: Array<{ index: number; start: number; size: number }>) => {
+      state.virtualItems = items;
+    },
   };
 });
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: () => ({
-    getTotalSize: () => m.state.totalSize,
-    getVirtualItems: () => [],
-    measureElement: () => {},
-  }),
+  useVirtualizer: (options: { getItemKey?: (index: number) => string | number }) => {
+    m.state.options = options;
+    return {
+      getTotalSize: () => m.state.totalSize,
+      getVirtualItems: () =>
+        m.state.virtualItems.map((item) => ({
+          ...item,
+          key: options.getItemKey?.(item.index) ?? item.index,
+        })),
+      measureElement: () => {},
+    };
+  },
 }));
 
 // ── jsdom has no layout engine. Give the chat scroll container a realistic
@@ -37,7 +51,7 @@ function mockScrollMetrics() {
     configurable: true,
     get(this: HTMLElement) {
       const child = this.firstElementChild as HTMLElement | null;
-      const h = child?.style?.height;
+      const h = child?.style?.height || child?.style?.minHeight;
       if (h) {
         const px = parseFloat(h);
         if (!Number.isNaN(px)) return px;
@@ -75,6 +89,8 @@ beforeEach(() => {
   }) as typeof cancelAnimationFrame;
 
   m.setTotalSize(0);
+  m.setVirtualItems([]);
+  m.state.options = null;
   useSessionStore.setState({
     currentSessionId: null,
     currentMessages: [],
@@ -313,5 +329,118 @@ describe('ChatMessages scroll positioning', () => {
     });
     expect(container.querySelector('.animate-spin')).toBeNull();
     expect(container.textContent).toContain('No messages yet. Start a conversation.');
+  });
+
+  it('keeps virtual item identity and DOM order when a preceding stream block appears', () => {
+    const thinking = {
+      role: 'thinking' as const,
+      content: 'planning',
+      nativeItemId: 'thinking-1',
+    };
+    const tool = {
+      role: 'tool' as const,
+      content: 'Command({"command":"true"})',
+      nativeItemId: 'tool-1',
+    };
+    const answer = {
+      role: 'assistant' as const,
+      content: 'answer',
+      nativeItemId: 'answer-1',
+    };
+
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [tool, answer] });
+    m.setVirtualItems([
+      { index: 0, start: 0, size: 120 },
+      { index: 1, start: 120, size: 120 },
+    ]);
+    const { container } = render(<ChatMessages />);
+
+    const initialGetItemKey = m.state.options?.getItemKey;
+    expect(initialGetItemKey).toBeTypeOf('function');
+    const toolKey = initialGetItemKey!(0);
+    const answerKey = initialGetItemKey!(1);
+
+    // A late thinking block is a normal history/stream update. The existing
+    // tool and answer must retain their identities after their indexes shift.
+    m.setVirtualItems([
+      { index: 0, start: 0, size: 120 },
+      { index: 1, start: 120, size: 120 },
+      { index: 2, start: 240, size: 120 },
+    ]);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [thinking, tool, answer] });
+    });
+
+    const nextGetItemKey = m.state.options?.getItemKey;
+    expect(nextGetItemKey).toBeTypeOf('function');
+    expect(nextGetItemKey!(1)).toBe(toolKey);
+    expect(nextGetItemKey!(2)).toBe(answerKey);
+    expect(
+      [...container.querySelectorAll('[data-index]')].map((node) =>
+        node.getAttribute('data-index'),
+      ),
+    ).toEqual(['0', '1', '2']);
+    const rows = [...container.querySelectorAll('[data-index]')] as HTMLElement[];
+    expect(rows.map((row) => row.style.position)).toEqual(['', '', '']);
+    expect(rows.map((row) => row.style.marginTop)).toEqual(['0px', '0px', '0px']);
+
+    // A stale measurement can report a later start before the preceding row's
+    // actual streamed height. The flow offset is clamped, so the browser's
+    // normal layout, rather than an absolute transform, keeps rows disjoint.
+    m.setVirtualItems([
+      { index: 0, start: 0, size: 240 },
+      { index: 1, start: 120, size: 120 },
+      { index: 2, start: 240, size: 120 },
+    ]);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [thinking, tool, answer] });
+    });
+    const overlappedRows = [...container.querySelectorAll('[data-index]')] as HTMLElement[];
+    expect(overlappedRows.map((row) => row.style.marginTop)).toEqual(['0px', '0px', '0px']);
+  });
+
+  it('keeps a tall streamed block in document flow while preserving a scrolled-up viewport', () => {
+    const messages = [
+      { role: 'thinking', content: 'planning', nativeItemId: 'thinking-1' },
+      { role: 'tool', content: 'Command({"command":"true"})', nativeItemId: 'tool-1' },
+      { role: 'assistant', content: 'short answer', nativeItemId: 'answer-1' },
+    ];
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: messages });
+    m.setTotalSize(1800);
+    m.setVirtualItems([
+      { index: 0, start: 0, size: 100 },
+      { index: 1, start: 100, size: 100 },
+      { index: 2, start: 200, size: 100 },
+    ]);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(1800);
+
+    // The user scrolls away from the bottom while the answer is still
+    // streaming. A later, much taller content delta must not auto-scroll or
+    // use an old absolute position to cover the tool/thinking rows.
+    scrollEl.scrollTop = 500;
+    fireEvent.scroll(scrollEl);
+    const tallAnswer = Array.from({ length: 100 }, (_, index) => `line ${index}`).join('\n');
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({
+        currentMessages: [
+          messages[0]!,
+          messages[1]!,
+          { ...messages[2]!, content: tallAnswer },
+        ],
+      });
+    });
+
+    expect(scrollEl.scrollTop).toBe(500);
+    expect(container.textContent).toContain('line 99');
+    const rows = [...container.querySelectorAll('[data-index]')] as HTMLElement[];
+    expect(rows.map((row) => row.getAttribute('data-index'))).toEqual(['0', '1', '2']);
+    // jsdom has no layout engine, so this verifies the structural guarantee:
+    // rows are normal-flow elements and there is no transform/absolute
+    // positioning that could paint the stale virtual coordinates on top of a
+    // newly expanded row. Browser geometry still needs a real-browser check.
+    expect(rows.every((row) => row.style.position === '' && !row.style.transform)).toBe(true);
   });
 });
