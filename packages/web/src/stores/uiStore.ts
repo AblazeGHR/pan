@@ -79,6 +79,23 @@ function persistSortBy(mode: SortMode) {
   }
 }
 
+function loadDragEnabled(): boolean {
+  try {
+    const v = localStorage.getItem('pan:dragEnabled');
+    return v === null ? true : v === 'true';
+  } catch {
+    return true;
+  }
+}
+
+function persistDragEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem('pan:dragEnabled', String(enabled));
+  } catch {
+    // no-op
+  }
+}
+
 /** Manual session order for the "custom" sort mode (drag-reorder result). */
 function loadCustomOrder(): string[] {
   try {
@@ -167,6 +184,8 @@ interface UIStore {
   groupBy: GroupMode;
   searchQuery: string;
   sortBy: SortMode;
+  /** Whether session drag/reorder affordances are enabled. Persisted. */
+  dragEnabled: boolean;
   /** Manual session-id order backing the 'custom' sort mode (drag reorder).
    *  Ids not present keep their current relative order after the mapped ones. */
   customOrder: string[];
@@ -206,6 +225,7 @@ interface UIStore {
   setSortBy: (mode: SortMode) => void;
   /** Cycle recent → name → custom → recent (sidebar Sort button). */
   cycleSortBy: () => void;
+  setDragEnabled: (enabled: boolean) => void;
   /** Replace the manual custom order (persisted). */
   setCustomOrder: (order: string[]) => void;
   toggleSpecialFilter: (id: SpecialFilterId) => void;
@@ -246,6 +266,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   groupBy: loadGroupBy(),
   searchQuery: '',
   sortBy: loadSortBy(),
+  dragEnabled: loadDragEnabled(),
   customOrder: loadCustomOrder(),
   specialFilters: new Set<SpecialFilterId>(),
   hiddenSessionIds: loadHiddenSessions(),
@@ -416,6 +437,11 @@ export const useUIStore = create<UIStore>((set, get) => ({
     const next = order[(order.indexOf(get().sortBy) + 1) % order.length]!;
     set({ sortBy: next });
     persistSortBy(next);
+  },
+
+  setDragEnabled: (enabled) => {
+    set({ dragEnabled: enabled });
+    persistDragEnabled(enabled);
   },
 
   setCustomOrder: (order) => {

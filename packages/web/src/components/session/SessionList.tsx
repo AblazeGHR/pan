@@ -211,6 +211,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     pruneCollapsedGroups,
     pruneHiddenSessions,
     showToast,
+    dragEnabled: dragPreference,
   } = useUIStore();
   const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
 
@@ -671,7 +672,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // Drag works in the flat list AND the manager tree (same semantics:
   // center → manage, edge → sibling slot at the target row's level).
   // Grouped-by-dir lists stay non-draggable.
-  const dragEnabled = (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
+  const dragEnabled = dragPreference && (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
 
   // Per-card drag props for memoized SessionItem (stable refs + primitives
   // keep unrelated cards from re-rendering).
