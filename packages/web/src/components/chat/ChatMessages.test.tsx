@@ -186,6 +186,60 @@ describe('ChatMessages scroll positioning', () => {
     expect(scrollEl.scrollTop).toBe(2600);
   });
 
+  it('does not auto-scroll when exactly 1px remains below the viewport', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    // 2000 - 1599 - 400 = 1px. Do not dispatch a scroll event: the strict
+    // distance check in the update effect must protect against measurement or
+    // render changes even if the browser has not emitted another scroll event.
+    scrollEl.scrollTop = 1599;
+    m.setTotalSize(2200);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'new')] });
+    });
+
+    expect(scrollEl.scrollTop).toBe(1599);
+  });
+
+  it('does not auto-scroll when the user is farther from the bottom', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+    scrollEl.scrollTop = 700;
+    fireEvent.scroll(scrollEl);
+    m.setTotalSize(2600);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'new')] });
+    });
+
+    expect(scrollEl.scrollTop).toBe(700);
+  });
+
+  it('does not pull an away-from-bottom user down on measurement changes', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    // Simulate a layout change occurring after the user has moved 1px up.
+    // No scroll event is dispatched so this specifically covers the
+    // measurement effect's direct bottom check.
+    scrollEl.scrollTop = 1599;
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4)] });
+    });
+
+    expect(scrollEl.scrollTop).toBe(1599);
+  });
+
   it('does NOT yank the user to the bottom when older messages are prepended while scrolled up', () => {
     useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
     m.setTotalSize(2000);
