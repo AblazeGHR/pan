@@ -16,6 +16,12 @@ export function setMonacoRef(m: any) {
 // rename/delete has committed and recreate that old path.
 const fileOperationQueues = new Map<string, Promise<void>>();
 
+// A path mutation invalidates saves which are submitted after that mutation,
+// even when those saves are already waiting behind an in-flight operation.
+// This is deliberately separate from the open-read generations: a save must
+// not recreate a source path after rename/delete has committed.
+const invalidatedFilePaths = new Map<string, Set<string>>();
+
 function enqueueFileOperation(key: string, operation: () => Promise<void>): Promise<void> {
   const previous = fileOperationQueues.get(key) ?? Promise.resolve();
   const current = previous.then(operation, operation);
@@ -31,7 +37,37 @@ function enqueueFileOperation(key: string, operation: () => Promise<void>): Prom
   return current;
 }
 
+function invalidateFilePath(root: RootSnapshot, path: string): void {
+  const paths = invalidatedFilePaths.get(rootKey(root)) ?? new Set<string>();
+  paths.add(path);
+  invalidatedFilePaths.set(rootKey(root), paths);
+}
+
+function clearFilePathInvalidation(root: RootSnapshot, path: string): void {
+  const paths = invalidatedFilePaths.get(rootKey(root));
+  if (!paths) return;
+  paths.delete(path);
+  if (paths.size === 0) invalidatedFilePaths.delete(rootKey(root));
+}
+
+function isFilePathInvalidated(root: RootSnapshot, path: string): boolean {
+  return invalidatedFilePaths.get(rootKey(root))?.has(path) ?? false;
+}
+
+function operationErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : '未知错误';
+}
+
 const openInvalidationGenerations = new Map<string, number>();
+
+// Vitest resets the Zustand state between cases, but these module-level
+// guards intentionally outlive that state in the browser. Keep a small reset
+// hook for store tests so one synthetic root cannot affect another case.
+export function resetEditorStoreOperationState(): void {
+  fileOperationQueues.clear();
+  invalidatedFilePaths.clear();
+  openInvalidationGenerations.clear();
+}
 
 function rootKey(root: RootSnapshot): string {
   return [root.sessionId, root.workdir ?? ''].join('\u0000');
@@ -365,6 +401,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     try {
       const content = await readFile(snapshot.sessionId, path);
       if (!isCurrentOpenRequest(get(), snapshot)) return;
+      clearFilePathInvalidation(snapshot, path);
       set((s) => {
         if (!isCurrentOpenRequest(s, snapshot)) return {};
         return {
@@ -373,8 +410,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           contents: { ...s.contents, [path]: content },
         };
       });
-    } catch {
-      // show error — file may not be readable
+    } catch (error) {
+      if (isCurrentOpenRequest(get(), snapshot)) {
+        useUIStore.getState().showToast(`打开文件失败：${operationErrorMessage(error)}`, 'error');
+      }
     }
   },
 
@@ -409,7 +448,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   setActive: (path: string) => {
-    set({ activePath: path, selectedPath: path });
+    // Selecting an already-open tab supersedes any deferred read for a
+    // different path. Without this generation bump, that old read could
+    // later steal active/selected state and re-add its tab.
+    set((s) => ({
+      activePath: path,
+      selectedPath: path,
+      openRequestGeneration: s.openRequestGeneration + 1,
+    }));
   },
 
   markDirty: (path: string, content: string) => {
@@ -429,8 +475,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const content = contents[path];
     if (content === undefined) return;
 
-    await enqueueFileOperation(rootKey(snapshot), async () => {
-      try {
+    try {
+      await enqueueFileOperation(rootKey(snapshot), async () => {
+        // A rename/delete requested before this save may still be in flight.
+        // Do not write the captured old path after that mutation completes.
+        // Re-check the root at execution time as well, because a queued save
+        // must not write into a root that the user has already left.
+        if (!isCurrentRoot(get(), snapshot) || isFilePathInvalidated(snapshot, path)) return;
         await writeFile(snapshot.sessionId, path, content);
         if (!isCurrentRoot(get(), snapshot)) return;
         set((s) => {
@@ -440,10 +491,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           next.delete(path);
           return { dirty: next };
         });
-      } catch {
-        // show error
+      });
+    } catch (error) {
+      if (isCurrentRoot(get(), snapshot)) {
+        useUIStore.getState().showToast(`保存文件失败：${operationErrorMessage(error)}`, 'error');
       }
-    });
+    }
   },
 
   renameFile: async (from: string, to: string) => {
@@ -466,10 +519,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return;
     }
 
+    // Also invalidate same-path rename requests. A missing source must fail
+    // closed and must not be followed by a deferred save that recreates it;
+    // a successful existing-source no-op clears this marker before later
+    // queued saves run.
+    invalidateFilePath(snapshot, from);
+
     try {
       await enqueueFileOperation(rootKey(snapshot), async () => {
         await renameFs(snapshot.sessionId, from, to);
         if (!isCurrentRoot(get(), snapshot)) return;
+        clearFilePathInvalidation(snapshot, to);
         invalidateOpen(snapshot, from);
         set((s) => {
           if (!isCurrentRoot(s, snapshot)) return {};
@@ -508,7 +568,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       });
     } catch (error) {
       useUIStore.getState().showToast(
-        `重命名失败：${error instanceof Error && error.message ? error.message : '未知错误'}`,
+        `重命名失败：${operationErrorMessage(error)}`,
         'error',
       );
     }
@@ -517,6 +577,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   deleteFile: async (path: string) => {
     const snapshot = captureRoot(get());
     if (!snapshot) return;
+
+    invalidateFilePath(snapshot, path);
 
     try {
       await enqueueFileOperation(rootKey(snapshot), async () => {
@@ -529,8 +591,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
         void get().refreshTree(parentPath);
       });
-    } catch {
-      // show error
+    } catch (error) {
+      if (isCurrentRoot(get(), snapshot)) {
+        useUIStore.getState().showToast(`删除文件失败：${operationErrorMessage(error)}`, 'error');
+      }
     }
   },
 

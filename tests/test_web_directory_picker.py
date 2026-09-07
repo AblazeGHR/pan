@@ -202,7 +202,7 @@ def test_fs_rename_keeps_normal_file_rename_behavior(monkeypatch, tmp_path):
     assert (workdir / "new.txt").read_text(encoding="utf-8") == "content"
 
 
-def test_linux_renameat2_enosys_falls_back_without_overwriting(monkeypatch, tmp_path):
+def test_linux_renameat2_enosys_fails_closed_without_link_unlink(monkeypatch, tmp_path):
     import packages.web.server as server
 
     source = tmp_path / "old.txt"
@@ -224,10 +224,17 @@ def test_linux_renameat2_enosys_falls_back_without_overwriting(monkeypatch, tmp_
     monkeypatch.setattr(server.os, "name", "posix")
     monkeypatch.setattr(server.sys, "platform", "linux")
 
-    server._rename_no_overwrite(source, target)
+    def forbidden_fallback(*_args, **_kwargs):
+        raise AssertionError("unsafe link+unlink fallback must not run")
 
-    assert not source.exists()
-    assert target.read_text(encoding="utf-8") == "content"
+    monkeypatch.setattr(server.os, "link", forbidden_fallback)
+    monkeypatch.setattr(Path, "unlink", forbidden_fallback)
+    with pytest.raises(OSError) as error:
+        server._rename_no_overwrite(source, target)
+
+    assert error.value.errno == errno.ENOTSUP
+    assert source.read_text(encoding="utf-8") == "content"
+    assert not target.exists()
 
 
 def test_directory_rename_fails_closed_when_atomic_no_overwrite_is_unavailable(monkeypatch, tmp_path):
@@ -245,3 +252,39 @@ def test_directory_rename_fails_closed_when_atomic_no_overwrite_is_unavailable(m
     assert error.value.errno == errno.ENOTSUP
     assert source.is_dir()
     assert not target.exists()
+
+
+def test_fs_rename_same_existing_path_is_a_safe_noop(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    source = workdir / "same.txt"
+    source.write_text("content", encoding="utf-8")
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: SimpleNamespace(workdir=str(workdir)))
+
+    result = asyncio.run(server.api_fs_rename({
+        "session_id": "ses_editor",
+        "from": "same.txt",
+        "to": "same.txt",
+    }))
+
+    assert result == {"from": "same.txt", "to": "same.txt"}
+    assert source.read_text(encoding="utf-8") == "content"
+
+
+def test_fs_rename_same_missing_path_is_an_error(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    monkeypatch.setattr(server.sess, "get", lambda _session_id: SimpleNamespace(workdir=str(workdir)))
+
+    result = asyncio.run(server.api_fs_rename({
+        "session_id": "ses_editor",
+        "from": "missing.txt",
+        "to": "missing.txt",
+    }))
+
+    assert "error" in result
+    assert "missing.txt" in result["error"]

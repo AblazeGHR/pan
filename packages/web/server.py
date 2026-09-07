@@ -803,10 +803,12 @@ def _rename_no_overwrite(src: Path, dst: Path) -> None:
     replaces on POSIX and could destroy a draft created after the UI's
     advisory target-state check. Windows MoveFileEx without
     MOVEFILE_REPLACE_EXISTING and Linux renameat2(RENAME_NOREPLACE) provide
-    atomic no-overwrite behavior. Other POSIX systems use an atomic hard-link
-    creation for regular files and fail closed for directories.
+    atomic no-overwrite behavior. Platforms without a proven atomic
+    no-overwrite primitive fail closed.
     """
     if src == dst:
+        if not src.exists():
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(src))
         return
 
     if os.name == "nt":
@@ -844,17 +846,23 @@ def _rename_no_overwrite(src: Path, dst: Path) -> None:
                 return
             error = ctypes.get_errno()
             # Some Linux architectures expose renameat2 but return ENOSYS at
-            # runtime (for example under an older kernel/container). Fall
-            # through to the regular-file hard-link fallback in that case;
-            # other errors must remain visible to the caller.
+            # runtime (for example under an older kernel/container). A
+            # link+unlink fallback is not safe: another actor can remove the
+            # source inode between those operations, and it cannot provide
+            # the same no-overwrite guarantee for directories. Fail closed.
             if error != errno.ENOSYS:
                 raise OSError(error, os.strerror(error), str(dst))
+            raise OSError(
+                errno.ENOTSUP,
+                "atomic no-overwrite rename is unavailable on this Linux system",
+                str(dst),
+            )
 
-    if src.is_file():
-        os.link(src, dst)
-        src.unlink()
-        return
-    raise OSError(errno.ENOTSUP, "atomic no-overwrite directory rename is unavailable", str(dst))
+    raise OSError(
+        errno.ENOTSUP,
+        "atomic no-overwrite rename is unavailable on this platform",
+        str(dst),
+    )
 
 
 def _guarded_model(a, value) -> str | None:

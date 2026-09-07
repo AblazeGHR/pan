@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useEditorStore } from './editorStore';
+import { resetEditorStoreOperationState, useEditorStore } from './editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { deleteFs, listFiles, readFile, renameFs, writeFile } from '@/services/api';
 import type { ApiFsGenericResponse, ApiFsWriteResponse, FsEntry } from '@/types';
@@ -15,6 +15,7 @@ vi.mock('@/services/api', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetEditorStoreOperationState();
   vi.mocked(listFiles).mockResolvedValue([]);
   useEditorStore.setState({
     sessionId: null,
@@ -491,6 +492,72 @@ describe('editorStore async root protection', () => {
     expect(useEditorStore.getState().dirty).toEqual(new Set());
   });
 
+  it('cancels a deferred save queued after rename so the old path is not recreated', async () => {
+    let resolveRename!: (response: ApiFsGenericResponse) => void;
+    const disk = new Map([['deferred-rename.ts', 'original']]);
+    vi.mocked(renameFs).mockImplementationOnce((_sessionId, from, to) =>
+      new Promise<ApiFsGenericResponse>((resolve) => {
+        resolveRename = (response) => {
+          const value = disk.get(from);
+          if (value !== undefined) disk.set(to, value);
+          disk.delete(from);
+          resolve(response);
+        };
+      }),
+    );
+
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      openPaths: ['deferred-rename.ts'],
+      activePath: 'deferred-rename.ts',
+      selectedPath: 'deferred-rename.ts',
+      dirty: new Set(['deferred-rename.ts']),
+      contents: { 'deferred-rename.ts': 'draft' },
+    });
+
+    const renaming = useEditorStore.getState().renameFile('deferred-rename.ts', 'renamed.ts');
+    await Promise.resolve();
+    const saving = useEditorStore.getState().saveFile('deferred-rename.ts');
+    resolveRename({});
+    await Promise.all([renaming, saving]);
+
+    expect(writeFile).not.toHaveBeenCalled();
+    expect([...disk.entries()]).toEqual([['renamed.ts', 'original']]);
+  });
+
+  it('cancels a deferred save queued after delete so the old path is not recreated', async () => {
+    let resolveDelete!: (response: ApiFsGenericResponse) => void;
+    const disk = new Map([['deferred-delete.ts', 'original']]);
+    vi.mocked(deleteFs).mockImplementationOnce((_sessionId, path) =>
+      new Promise<ApiFsGenericResponse>((resolve) => {
+        resolveDelete = (response) => {
+          disk.delete(path);
+          resolve(response);
+        };
+      }),
+    );
+
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      openPaths: ['deferred-delete.ts'],
+      activePath: 'deferred-delete.ts',
+      selectedPath: 'deferred-delete.ts',
+      dirty: new Set(['deferred-delete.ts']),
+      contents: { 'deferred-delete.ts': 'draft' },
+    });
+
+    const deleting = useEditorStore.getState().deleteFile('deferred-delete.ts');
+    await Promise.resolve();
+    const saving = useEditorStore.getState().saveFile('deferred-delete.ts');
+    resolveDelete({});
+    await Promise.all([deleting, saving]);
+
+    expect(writeFile).not.toHaveBeenCalled();
+    expect([...disk.entries()]).toEqual([]);
+  });
+
   it('continues a queued save after an older write fails without clearing the newer draft', async () => {
     let rejectFirst!: (error: Error) => void;
     let resolveSecond!: (response: ApiFsWriteResponse) => void;
@@ -550,6 +617,62 @@ describe('editorStore async root protection', () => {
       contents: { 'b.ts': 'B content' },
     });
     expect(useEditorStore.getState().contents['a.ts']).toBeUndefined();
+  });
+
+  it('does not let a pending open reclaim active state after selecting an existing tab', async () => {
+    let resolveRead!: (content: string) => void;
+    vi.mocked(readFile).mockImplementationOnce(
+      () => new Promise<string>((resolve) => { resolveRead = resolve; }),
+    );
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      openPaths: ['existing.ts'],
+      activePath: 'existing.ts',
+      selectedPath: 'existing.ts',
+      contents: { 'existing.ts': 'existing' },
+    });
+
+    const opening = useEditorStore.getState().openFile('pending-tab.ts');
+    await Promise.resolve();
+    useEditorStore.getState().setActive('existing.ts');
+    resolveRead('late content');
+    await opening;
+
+    expect(useEditorStore.getState()).toMatchObject({
+      activePath: 'existing.ts',
+      selectedPath: 'existing.ts',
+      openPaths: ['existing.ts'],
+      contents: { 'existing.ts': 'existing' },
+    });
+    expect(useEditorStore.getState().contents['pending-tab.ts']).toBeUndefined();
+  });
+
+  it('shows visible errors for failed open, save, and delete operations', async () => {
+    vi.mocked(readFile).mockRejectedValueOnce(new Error('read denied'));
+    useEditorStore.setState({ sessionId: 's1', workdir: 'D:\\project\\same' });
+    await useEditorStore.getState().openFile('failed-open.ts');
+    expect(useUIStore.getState().toastQueue.at(-1)).toMatchObject({
+      type: 'error', message: expect.stringContaining('打开文件失败'),
+    });
+
+    vi.mocked(writeFile).mockRejectedValueOnce(new Error('write denied'));
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      activePath: 'failed-save.ts',
+      contents: { 'failed-save.ts': 'draft' },
+    });
+    await useEditorStore.getState().saveFile();
+    expect(useUIStore.getState().toastQueue.at(-1)).toMatchObject({
+      type: 'error', message: expect.stringContaining('保存文件失败'),
+    });
+
+    vi.mocked(deleteFs).mockRejectedValueOnce(new Error('delete denied'));
+    await useEditorStore.getState().deleteFile('failed-delete.ts');
+    expect(useUIStore.getState().toastQueue.at(-1)).toMatchObject({
+      type: 'error', message: expect.stringContaining('删除文件失败'),
+    });
   });
 
   it('does not re-add a file when it is closed while opening', async () => {
