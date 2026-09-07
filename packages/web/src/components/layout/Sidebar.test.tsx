@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -154,7 +154,7 @@ describe('Sidebar Session search controls', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Sort sessions: recent' }), {
       pointerType: 'touch', clientX: 10, clientY: 10,
     });
-    vi.advanceTimersByTime(600);
+    act(() => vi.advanceTimersByTime(600));
     expect(screen.getByRole('menu', { name: 'Session list options' })).toBeTruthy();
     fireEvent.click(screen.getByRole('menuitemcheckbox'));
 
@@ -168,7 +168,7 @@ describe('Sidebar Session search controls', () => {
     renderSidebar();
     const sort = screen.getByRole('button', { name: 'Sort sessions: recent' });
     fireEvent.pointerDown(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
-    vi.advanceTimersByTime(600);
+    act(() => vi.advanceTimersByTime(600));
     fireEvent.pointerUp(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
     fireEvent.click(sort);
 
