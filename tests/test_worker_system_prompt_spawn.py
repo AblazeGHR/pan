@@ -46,6 +46,7 @@ def test_cbc_declares_capability():
 
 def test_kimi_declares_capability():
     assert get_adapter("kimi").supports_spawn_system_prompt is True
+    assert get_adapter("kimi").supports_spawn_system_prompt_file is True
 
 
 def test_opencode_does_not_declare_capability():
@@ -86,6 +87,26 @@ def test_codex_long_prompt_uses_session_scoped_file_not_argv(tmp_path):
     assert Path(args[1]).read_text(encoding="utf-8") == prompt
     worker._cleanup_system_prompt_file(args[1])
     assert not Path(args[1]).exists()
+
+
+def test_cbc_and_claude_long_prompt_fall_back_to_stdin_not_argv(tmp_path):
+    prompt = "中文首行\n" + ("long system instruction 😀\n" * 1000)
+    for name in ("cbc", "claude"):
+        s = _session_with_prompt()
+        s.adapter = name
+        s.workdir = str(tmp_path)
+        s.system_prompt = prompt
+        args = worker._spawn_system_prompt_args(get_adapter(name), s, mcp_on=True)
+        assert args is None, name
+
+
+def test_opencode_long_prompt_has_no_spawn_argv_path(tmp_path):
+    prompt = "x" * 10000
+    s = _session_with_prompt()
+    s.adapter = "opencode"
+    s.workdir = str(tmp_path)
+    s.system_prompt = prompt
+    assert worker._spawn_system_prompt_args(get_adapter("opencode"), s, mcp_on=True) is None
 
 
 # ── _spawn_system_prompt_args decision ──

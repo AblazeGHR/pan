@@ -40,12 +40,15 @@ from .adapters import (
     CliAdapter,
     resolve_execution_mode,
 )
+from .adapters.base import SYSTEM_PROMPT_ARG_MAX_CHARS
 from .config import load_config
 from .cli_diagnostics import format_cli_spawn_error
 
 _log = logging.getLogger(__name__)
 
-
+# Keep provider prompt bodies out of Windows CreateProcess command lines.  The
+# conservative boundary also leaves room for the rest of an adapter's argv;
+# short prompts retain the existing native flag path for compatibility.
 # ── Worker 生命周期配置（启动时读取一次，缓存）──
 
 _WORKER_TIMEOUT_SEC: float = 300.0       # 静默超时：queued 无输出 / MCP 读取超时超过该值 → kill
@@ -3896,6 +3899,12 @@ def _spawn_system_prompt_args(
             path = _write_system_prompt_file(s, s.system_prompt)
             prompt_file_sink.append(path)
             return ["--system-prompt-file", path]
+        # Adapters without a file-aware wrapper must fall back to the existing
+        # first-message stdin injection for long prompts.  In particular this
+        # covers native cbc/claude CLIs: passing the body as --system-prompt
+        # would put it back across the Windows CreateProcess argv boundary.
+        if len(s.system_prompt) > SYSTEM_PROMPT_ARG_MAX_CHARS:
+            return None
         return ["--system-prompt", s.system_prompt]
     return None
 
