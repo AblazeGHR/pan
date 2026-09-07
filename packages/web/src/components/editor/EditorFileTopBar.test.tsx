@@ -224,6 +224,9 @@ describe('getDisplayPath', () => {
     ['Windows drive root with slashes', 'C:/', '\\src\\a.ts', 'C:/src/a.ts'],
     ['UNC root', '\\\\server\\share\\', 'src/a.ts', '\\\\server\\share\\src\\a.ts'],
     ['mixed-separator workdir', 'C:\\project/', 'src\\a.ts', 'C:\\project\\src\\a.ts'],
+    ['mixed-separator workdir internals', 'C:\\project/sub\\nested/', 'src\\a.ts', 'C:\\project\\sub\\nested\\src\\a.ts'],
+    ['mixed-separator POSIX workdir', '/project\\sub/nested/', '\\src\\a.ts', '/project/sub/nested/src/a.ts'],
+    ['mixed-separator UNC workdir', '\\\\server/share\\team/', '/src\\a.ts', '\\\\server\\share\\team\\src\\a.ts'],
   ])('%s', (_label, workdir, operationPath, expected) => {
     expect(getDisplayPath(workdir, operationPath)).toBe(expected);
   });

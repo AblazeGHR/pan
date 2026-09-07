@@ -15,14 +15,32 @@ interface EditorFileTopBarProps {
 export function getDisplayPath(workdir: string | null | undefined, operationPath: string): string {
   if (!workdir) return operationPath;
 
-  const separator = workdir.includes('\\') ? '\\' : '/';
-  const normalizedWorkdir = workdir.replace(/[\\/]+$/, '');
-  const normalizedPath = operationPath.replace(/[\\/]+/g, separator).replace(/^[\\/]+/, '');
-  if (!normalizedWorkdir) {
-    // Keep a POSIX (or bare Windows) root instead of dropping its separator.
-    return `${separator}${normalizedPath}`;
+  // Pick the separator from the root syntax, then normalize every internal
+  // separator in the workdir and operation path to that same style. In
+  // particular, do not collapse the two leading separators of a UNC path.
+  const driveRoot = /^([A-Za-z]:)([\\/])/.exec(workdir);
+  const uncRoot = /^(\\\\|\/\/)/.exec(workdir);
+  const separator = driveRoot?.[2] ?? uncRoot?.[1]?.[0] ?? (workdir.startsWith('/') ? '/' : workdir.includes('\\') ? '\\' : '/');
+  const normalizedRest = (value: string) => value.replace(/[\\/]+/g, separator).replace(new RegExp(`${separator === '\\' ? '\\\\' : '\\/'}+$`), '');
+
+  let normalizedWorkdir: string;
+  if (driveRoot) {
+    const rest = normalizedRest(workdir.slice(3));
+    normalizedWorkdir = rest ? `${driveRoot[1]}${separator}${rest}` : `${driveRoot[1]}${separator}`;
+  } else if (uncRoot) {
+    const rest = normalizedRest(workdir.slice(2));
+    normalizedWorkdir = `${separator}${separator}${rest}`;
+  } else if (workdir.startsWith('/')) {
+    const rest = normalizedRest(workdir.slice(1));
+    normalizedWorkdir = rest ? `/${rest}` : '/';
+  } else {
+    normalizedWorkdir = normalizedRest(workdir);
   }
-  return normalizedWorkdir ? `${normalizedWorkdir}${separator}${normalizedPath}` : normalizedPath;
+
+  const normalizedPath = operationPath.replace(/[\\/]+/g, separator).replace(/^[\\/]+/, '');
+  if (!normalizedWorkdir || normalizedWorkdir === separator) return `${separator}${normalizedPath}`;
+  if (normalizedWorkdir.endsWith(separator)) return `${normalizedWorkdir}${normalizedPath}`;
+  return `${normalizedWorkdir}${separator}${normalizedPath}`;
 }
 
 export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {

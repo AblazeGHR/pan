@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FileNode } from '@/types';
 import { listFiles, readFile, writeFile, renameFs, deleteFs } from '@/services/api';
+import { useUIStore } from '@/stores/uiStore';
 
 // Module-level ref for Monaco model disposal on tab close.
 // Type is 'any' because monaco-editor is loaded dynamically via @monaco-editor/react.
@@ -27,6 +28,8 @@ interface EditorStore {
   sessionId: string | null;
   workdir: string | null;
   rootGeneration: number;
+  /** Monotonic latest-request-wins sequence for tree/list responses. */
+  treeRequestGeneration: number;
   tree: FileNode[];
   treeLoading: boolean;
   expanded: Set<string>;
@@ -58,6 +61,10 @@ interface RootSnapshot {
   generation: number;
 }
 
+interface TreeRequestSnapshot extends RootSnapshot {
+  requestGeneration: number;
+}
+
 function captureRoot(
   state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration'>,
 ): RootSnapshot | null {
@@ -79,6 +86,13 @@ function isCurrentRoot(
     state.workdir === snapshot.workdir &&
     state.rootGeneration === snapshot.generation,
   );
+}
+
+function isCurrentTreeRequest(
+  state: Pick<EditorStore, 'sessionId' | 'workdir' | 'rootGeneration' | 'treeRequestGeneration'>,
+  snapshot: TreeRequestSnapshot,
+): boolean {
+  return isCurrentRoot(state, snapshot) && state.treeRequestGeneration === snapshot.requestGeneration;
 }
 
 // Language detection from file extension
@@ -125,6 +139,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   sessionId: null,
   workdir: null,
   rootGeneration: 0,
+  treeRequestGeneration: 0,
   tree: [],
   treeLoading: false,
   expanded: new Set(),
@@ -139,7 +154,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const previous = get();
     const rootChanged = previous.sessionId !== sessionId || previous.workdir !== workdir;
     const rootGeneration = rootChanged ? previous.rootGeneration + 1 : previous.rootGeneration;
-    const snapshot: RootSnapshot = { sessionId, workdir, generation: rootGeneration };
+    const requestGeneration = previous.treeRequestGeneration + 1;
+    const snapshot: TreeRequestSnapshot = {
+      sessionId,
+      workdir,
+      generation: rootGeneration,
+      requestGeneration,
+    };
 
     if (rootChanged) disposeMonacoModels(previous.openPaths);
 
@@ -147,6 +168,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       sessionId,
       workdir,
       rootGeneration,
+      treeRequestGeneration: requestGeneration,
       treeLoading: true,
       tree: [],
       expanded: new Set(),
@@ -163,23 +185,29 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
     try {
       const rootNodes = await fetchTree(sessionId, '', '');
-      if (!isCurrentRoot(get(), snapshot)) return;
+      if (!isCurrentTreeRequest(get(), snapshot)) return;
       set({ tree: rootNodes, treeLoading: false });
     } catch {
-      if (isCurrentRoot(get(), snapshot)) {
+      if (isCurrentTreeRequest(get(), snapshot)) {
         set({ treeLoading: false });
       }
     }
   },
 
   refreshTree: async (dirPath?: string) => {
-    const snapshot = captureRoot(get());
-    if (!snapshot) return;
+    const previous = get();
+    const root = captureRoot(previous);
+    if (!root) return;
+    const snapshot: TreeRequestSnapshot = {
+      ...root,
+      requestGeneration: previous.treeRequestGeneration + 1,
+    };
+    set({ treeRequestGeneration: snapshot.requestGeneration });
     try {
       const nodes = await fetchTree(snapshot.sessionId, dirPath || '', dirPath || '');
-      if (!isCurrentRoot(get(), snapshot)) return;
+      if (!isCurrentTreeRequest(get(), snapshot)) return;
       set((s) => {
-        if (!isCurrentRoot(s, snapshot)) return {};
+        if (!isCurrentTreeRequest(s, snapshot)) return {};
         if (!dirPath) {
           return { tree: nodes };
         }
@@ -203,8 +231,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   toggleDir: async (path: string) => {
-    const snapshot = captureRoot(get());
-    if (!snapshot) return;
     const { expanded, tree } = get();
 
     const isExpanded = expanded.has(path);
@@ -213,11 +239,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       // Expand — lazy load children if empty
       const node = findNode(tree, path);
       if (node && node.children && node.children.length === 0) {
+        const previous = get();
+        const root = captureRoot(previous);
+        if (!root) return;
+        const snapshot: TreeRequestSnapshot = {
+          ...root,
+          requestGeneration: previous.treeRequestGeneration + 1,
+        };
+        set({ treeRequestGeneration: snapshot.requestGeneration });
         try {
           const children = await fetchTree(snapshot.sessionId, path, path);
-          if (!isCurrentRoot(get(), snapshot)) return;
+          if (!isCurrentTreeRequest(get(), snapshot)) return;
           set((s) => {
-            if (!isCurrentRoot(s, snapshot)) return {};
+            if (!isCurrentTreeRequest(s, snapshot)) return {};
             return {
               tree: replaceNode(s.tree, path, { children }),
               expanded: new Set([...s.expanded, path]),
@@ -337,6 +371,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   renameFile: async (from: string, to: string) => {
     const snapshot = captureRoot(get());
     if (!snapshot) return;
+
+    const current = get();
+    const targetHasEditorState =
+      current.openPaths.includes(to) ||
+      current.dirty.has(to) ||
+      Object.prototype.hasOwnProperty.call(current.contents, to) ||
+      Object.prototype.hasOwnProperty.call(current.mdViewMode, to) ||
+      current.activePath === to ||
+      current.selectedPath === to;
+    if (from !== to && targetHasEditorState) {
+      useUIStore.getState().showToast(
+        `无法重命名：目标路径已有打开或未保存的编辑器状态（${to}）`,
+        'error',
+      );
+      return;
+    }
 
     try {
       await renameFs(snapshot.sessionId, from, to);
