@@ -60,10 +60,10 @@ afterEach(() => {
 });
 
 describe('EditorFileTopBar', () => {
-  it('copies the full path and gives temporary success feedback for each active file', async () => {
+  it('copies the displayed full path and resets success feedback when the operation path changes', async () => {
     const { rerender } = render(
       <MemoryRouter initialEntries={['/editor']}>
-        <EditorFileTopBar path={'D:\\project\\src\\one.ts'} />
+        <EditorFileTopBar operationPath="src/one.ts" />
       </MemoryRouter>,
     );
 
@@ -73,28 +73,29 @@ describe('EditorFileTopBar', () => {
 
     rerender(
       <MemoryRouter initialEntries={['/editor']}>
-        <EditorFileTopBar path={'D:\\project\\src\\two.ts'} />
+        <EditorFileTopBar operationPath="src/two.ts" />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole('button', { name: '完整路径已复制' }));
+    expect(screen.getByRole('button', { name: '复制完整路径' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '复制完整路径' }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('D:\\project\\src\\two.ts'));
   });
 
-  it('uses editorStore.downloadFile and queues the current server path for chat on mobile', async () => {
+  it('uses the session-relative operation path for download and chat on mobile', async () => {
     const downloadFile = vi.fn();
     useEditorStore.setState({ downloadFile });
     render(
       <MemoryRouter initialEntries={['/editor']}>
-        <EditorFileTopBar path={'D:\\project\\src\\two.ts'} />
+        <EditorFileTopBar operationPath="src/two.ts" />
       </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: '下载当前文件' }));
-    expect(downloadFile).toHaveBeenCalledWith('D:\\project\\src\\two.ts');
+    expect(downloadFile).toHaveBeenCalledWith('src/two.ts');
     fireEvent.click(screen.getByRole('button', { name: '加入聊天' }));
 
     await waitFor(() => expect(useUIStore.getState().chatAttachmentRequests).toEqual([
-      { sessionId: 's1', path: 'D:\\project\\src\\two.ts' },
+      { sessionId: 's1', path: 'src/two.ts' },
     ]));
   });
 
@@ -102,7 +103,7 @@ describe('EditorFileTopBar', () => {
     mockMatchMedia(false);
     render(
       <MemoryRouter initialEntries={['/editor']}>
-        <EditorFileTopBar path={'D:\\project\\src\\two.ts'} />
+        <EditorFileTopBar operationPath="src/two.ts" />
       </MemoryRouter>,
     );
 
@@ -119,7 +120,7 @@ describe('EditorFileTopBar', () => {
     vi.spyOn(document, 'execCommand').mockReturnValue(false);
     render(
       <MemoryRouter initialEntries={['/editor']}>
-        <EditorFileTopBar path={'D:\\project\\src\\one.ts'} />
+        <EditorFileTopBar operationPath="src/one.ts" />
       </MemoryRouter>,
     );
 

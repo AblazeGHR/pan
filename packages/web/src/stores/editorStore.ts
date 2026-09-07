@@ -9,9 +9,23 @@ export function setMonacoRef(m: any) {
   monacoRef = m;
 }
 
+function disposeMonacoModels(paths: string[]) {
+  if (!monacoRef) return;
+  for (const path of paths) {
+    try {
+      const uri = monacoRef.Uri.parse(path);
+      const model = monacoRef.editor.getModel(uri);
+      if (model && !model.isDisposed()) model.dispose();
+    } catch {
+      // ignore
+    }
+  }
+}
+
 interface EditorStore {
   // state
   sessionId: string | null;
+  workdir: string | null;
   tree: FileNode[];
   treeLoading: boolean;
   expanded: Set<string>;
@@ -79,6 +93,7 @@ async function fetchTree(
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   sessionId: null,
+  workdir: null,
   tree: [],
   treeLoading: false,
   expanded: new Set(),
@@ -89,13 +104,37 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   contents: {},
   mdViewMode: {},
 
-  setRoot: async (sessionId: string, _workdir: string) => {
-    set({ sessionId, treeLoading: true, tree: [], expanded: new Set(), selectedPath: null });
+  setRoot: async (sessionId: string, workdir: string) => {
+    const previous = get();
+    const rootChanged = previous.sessionId !== sessionId || previous.workdir !== workdir;
+
+    if (rootChanged) disposeMonacoModels(previous.openPaths);
+
+    set({
+      sessionId,
+      workdir,
+      treeLoading: true,
+      tree: [],
+      expanded: new Set(),
+      selectedPath: null,
+      ...(rootChanged
+        ? {
+            openPaths: [],
+            activePath: null,
+            dirty: new Set<string>(),
+            contents: {},
+            mdViewMode: {},
+          }
+        : {}),
+    });
     try {
       const rootNodes = await fetchTree(sessionId, '', '');
+      if (get().sessionId !== sessionId || get().workdir !== workdir) return;
       set({ tree: rootNodes, treeLoading: false });
     } catch {
-      set({ treeLoading: false });
+      if (get().sessionId === sessionId && get().workdir === workdir) {
+        set({ treeLoading: false });
+      }
     }
   },
 
@@ -203,17 +242,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         }
       }
       // Dispose Monaco model
-      if (monacoRef) {
-        try {
-          const uri = monacoRef.Uri.parse(path);
-          const model = monacoRef.editor.getModel(uri);
-          if (model && !model.isDisposed()) {
-            model.dispose();
-          }
-        } catch {
-          // ignore
-        }
-      }
+      disposeMonacoModels([path]);
       return {
         openPaths: newOpen,
         dirty: newDirty,

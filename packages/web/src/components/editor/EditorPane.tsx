@@ -1,4 +1,5 @@
 import { useEditorStore, languageFromPath } from '@/stores/editorStore';
+import { useCurrentSession } from '@/stores/sessionStore';
 import { EditorTabs } from './EditorTabs';
 import { EditorFileTopBar } from './EditorFileTopBar';
 import { CodeEditor } from './CodeEditor';
@@ -6,7 +7,15 @@ import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { Eye, Pencil, Columns2 } from 'lucide-react';
 
 export function EditorPane() {
-  const activePath = useEditorStore((s) => s.activePath);
+  const currentSession = useCurrentSession();
+  const editorSessionId = useEditorStore((s) => s.sessionId);
+  const editorWorkdir = useEditorStore((s) => s.workdir);
+  const storedActivePath = useEditorStore((s) => s.activePath);
+  // During the session switch render/effect boundary, do not expose the old
+  // session's path to actions before setRoot has reset the editor store.
+  const editorRootMatchesSession =
+    editorSessionId === currentSession?.id && editorWorkdir === currentSession?.workdir;
+  const activePath = editorRootMatchesSession ? storedActivePath : null;
   const contents = useEditorStore((s) => s.contents);
   const mdViewMode = useEditorStore((s) => s.mdViewMode);
   const setMdViewMode = useEditorStore((s) => s.setMdViewMode);
@@ -31,9 +40,11 @@ export function EditorPane() {
   return (
     <div className="flex flex-col flex-1 min-w-0 bg-bg-primary">
       <div className="flex items-stretch">
-        <div className="flex-1 min-w-0">
-          <EditorTabs />
-        </div>
+        {editorRootMatchesSession && (
+          <div className="flex-1 min-w-0">
+            <EditorTabs />
+          </div>
+        )}
         {isMarkdown && activePath && (
           <div className="flex items-center gap-0.5 px-1.5 bg-bg-secondary border-b border-border-default">
             {modes.map((m) => (
@@ -53,7 +64,7 @@ export function EditorPane() {
           </div>
         )}
       </div>
-      {activePath && <EditorFileTopBar path={activePath} />}
+      {activePath && <EditorFileTopBar operationPath={activePath} />}
 
       {!activePath ? (
         <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">

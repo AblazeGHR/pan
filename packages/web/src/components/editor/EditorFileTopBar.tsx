@@ -8,10 +8,20 @@ import { useUIStore } from '@/stores/uiStore';
 import { copyText } from '@/utils/clipboard';
 
 interface EditorFileTopBarProps {
-  path: string;
+  /** Session-relative path used by backend operations and attachment queue. */
+  operationPath: string;
 }
 
-export function EditorFileTopBar({ path }: EditorFileTopBarProps) {
+function getDisplayPath(workdir: string | null | undefined, operationPath: string): string {
+  if (!workdir) return operationPath;
+
+  const separator = workdir.includes('\\') ? '\\' : '/';
+  const normalizedWorkdir = workdir.replace(/[\\/]+$/, '');
+  const normalizedPath = operationPath.replace(/[\\/]+/g, separator).replace(/^[\\/]+/, '');
+  return normalizedWorkdir ? `${normalizedWorkdir}${separator}${normalizedPath}` : normalizedPath;
+}
+
+export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
   const { isMobile } = useMediaQuery();
   const currentSession = useCurrentSession();
   const downloadFile = useEditorStore((s) => s.downloadFile);
@@ -20,6 +30,17 @@ export function EditorFileTopBar({ path }: EditorFileTopBarProps) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const resetCopiedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const displayPath = getDisplayPath(currentSession?.workdir, operationPath);
+  const copyLabel = currentSession?.workdir ? '复制完整路径' : '复制文件路径';
+  const copiedLabel = currentSession?.workdir ? '完整路径已复制' : '文件路径已复制';
+
+  useEffect(() => {
+    setCopied(false);
+    if (resetCopiedRef.current) {
+      clearTimeout(resetCopiedRef.current);
+      resetCopiedRef.current = null;
+    }
+  }, [currentSession?.workdir, operationPath]);
 
   useEffect(() => () => {
     if (resetCopiedRef.current) clearTimeout(resetCopiedRef.current);
@@ -27,9 +48,9 @@ export function EditorFileTopBar({ path }: EditorFileTopBarProps) {
 
   const handleCopy = async () => {
     try {
-      await copyText(path);
+      await copyText(displayPath);
       setCopied(true);
-      showToast('完整路径已复制');
+      showToast(`${currentSession?.workdir ? '完整路径' : '文件路径'}已复制`);
       if (resetCopiedRef.current) clearTimeout(resetCopiedRef.current);
       resetCopiedRef.current = setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -43,7 +64,7 @@ export function EditorFileTopBar({ path }: EditorFileTopBarProps) {
       showToast('当前没有可用的 session', 'error');
       return;
     }
-    requestChatAttachment(currentSession.id, path);
+    requestChatAttachment(currentSession.id, operationPath);
     showToast('文件已加入聊天附件');
     navigate('/');
   };
@@ -53,13 +74,13 @@ export function EditorFileTopBar({ path }: EditorFileTopBarProps) {
       data-testid="editor-file-topbar"
       className="flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"
     >
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary" title={path}>
-        {path}
+      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary" title={displayPath}>
+        {displayPath}
       </span>
       <button
         type="button"
-        aria-label={copied ? '完整路径已复制' : '复制完整路径'}
-        title={copied ? '完整路径已复制' : '复制完整路径'}
+        aria-label={copied ? copiedLabel : copyLabel}
+        title={copied ? copiedLabel : copyLabel}
         onClick={() => void handleCopy()}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"
       >
@@ -71,7 +92,7 @@ export function EditorFileTopBar({ path }: EditorFileTopBarProps) {
             type="button"
             aria-label="下载当前文件"
             title="下载当前文件"
-            onClick={() => downloadFile(path)}
+            onClick={() => downloadFile(operationPath)}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"
           >
             <Download size={14} />
