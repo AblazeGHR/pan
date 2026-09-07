@@ -32,6 +32,7 @@ beforeEach(() => {
     dirty: new Set(),
     contents: {},
     mdViewMode: {},
+    pendingLocation: null,
     pendingConfirmation: null,
   });
   useUIStore.setState({ toastQueue: [] });
@@ -618,6 +619,27 @@ describe('editorStore async root protection', () => {
       contents: { 'b.ts': 'B content' },
     });
     expect(useEditorStore.getState().contents['a.ts']).toBeUndefined();
+  });
+
+  it('publishes a line location only after the asynchronous file open succeeds', async () => {
+    let resolveRead!: (content: string) => void;
+    vi.mocked(readFile).mockImplementationOnce(
+      () => new Promise<string>((resolve) => { resolveRead = resolve; }),
+    );
+    useEditorStore.setState({ sessionId: 's1', workdir: 'D:\\project\\same' });
+
+    const opening = useEditorStore.getState().openFile('src/target.ts', {
+      path: 'src/target.ts', line: 42, endLine: 48,
+    });
+    await Promise.resolve();
+    expect(useEditorStore.getState().pendingLocation).toBeNull();
+
+    resolveRead('content');
+    await expect(opening).resolves.toBe(true);
+    expect(useEditorStore.getState()).toMatchObject({
+      activePath: 'src/target.ts',
+      pendingLocation: { path: 'src/target.ts', line: 42, endLine: 48 },
+    });
   });
 
   it('does not let a pending open reclaim active state after selecting an existing tab', async () => {

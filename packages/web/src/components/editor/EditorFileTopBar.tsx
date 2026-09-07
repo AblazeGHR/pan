@@ -23,6 +23,16 @@ export function getDisplayPath(workdir: string | null | undefined, operationPath
   const separator = driveRoot?.[2] ?? uncRoot?.[1]?.[0] ?? (workdir.startsWith('/') ? '/' : workdir.includes('\\') ? '\\' : '/');
   const normalizedRest = (value: string) => value.replace(/[\\/]+/g, separator).replace(new RegExp(`${separator === '\\' ? '\\\\' : '\\/'}+$`), '');
 
+  // Markdown links may open a server-absolute file. Do not prepend the
+  // current Session workdir to an already absolute operation path.
+  const operationIsUnc = /^(\\\\|\/\/)/.test(operationPath);
+  const operationIsDriveAbsolute = /^[A-Za-z]:[\\/]/.test(operationPath);
+  if (operationIsUnc) {
+    return `${separator}${separator}${operationPath.slice(2).replace(/[\\/]+/g, separator)}`;
+  }
+  if (operationIsDriveAbsolute) {
+    return operationPath.replace(/[\\/]+/g, separator);
+  }
   let normalizedWorkdir: string;
   if (driveRoot) {
     const rest = normalizedRest(workdir.slice(3));
