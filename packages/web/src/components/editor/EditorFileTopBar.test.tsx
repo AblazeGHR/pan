@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { EditorFileTopBar, getDisplayPath } from './EditorFileTopBar';
+import { EditorConfirmationModal } from './EditorConfirmationModal';
 import { useEditorStore } from '@/stores/editorStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { writeFile } from '@/services/api';
 
 vi.mock('@/services/api', () => ({
   listFiles: vi.fn(async () => []),
@@ -37,6 +39,9 @@ beforeEach(() => {
     sessionId: 's1',
     openPaths: ['src/one.ts', 'src/two.ts'],
     activePath: 'src/one.ts',
+    dirty: new Set(),
+    contents: {},
+    pendingConfirmation: null,
     downloadFile: vi.fn(),
   });
   useSessionStore.setState({
@@ -120,6 +125,39 @@ describe('EditorFileTopBar', () => {
 
     expect(screen.queryByRole('button', { name: '下载当前文件' })).toBeNull();
     expect(screen.queryByRole('button', { name: '加入聊天' })).toBeNull();
+  });
+
+  it('requires confirmation before saving and keeps cancellation side-effect free', async () => {
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project',
+      activePath: 'src/two.ts',
+      contents: { 'src/two.ts': 'draft' },
+      dirty: new Set(['src/two.ts']),
+    });
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar operationPath="src/two.ts" />
+        <EditorConfirmationModal />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '保存文件' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('src/two.ts');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: '保存文件' }));
+    expect(writeFile).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().dirty).toEqual(new Set(['src/two.ts']));
+
+    fireEvent.click(screen.getByRole('button', { name: '保存文件' }));
+    fireEvent.keyDown(document, { key: 'Enter' });
+    await waitFor(() => expect(writeFile).toHaveBeenCalledWith('s1', 'src/two.ts', 'draft'));
+    expect(useEditorStore.getState().dirty).toEqual(new Set());
   });
 
   it('reports copy failure instead of showing a false success state', async () => {

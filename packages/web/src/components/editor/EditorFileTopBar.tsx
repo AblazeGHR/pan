@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Copy, Download, MessageSquare } from 'lucide-react';
+import { Check, Copy, Download, MessageSquare, Save as SaveIcon } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
@@ -47,6 +47,8 @@ export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
   const { isMobile } = useMediaQuery();
   const currentSession = useCurrentSession();
   const downloadFile = useEditorStore((s) => s.downloadFile);
+  const requestSave = useEditorStore((s) => s.requestSave);
+  const isDirty = useEditorStore((s) => s.dirty.has(operationPath));
   const requestChatAttachment = useUIStore((s) => s.requestChatAttachment);
   const showToast = useUIStore((s) => s.showToast);
   const navigate = useNavigate();
@@ -125,6 +127,17 @@ export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
       >
         {displayPath}
       </span>
+      <button
+        type="button"
+        aria-label="保存文件"
+        title={isDirty ? '保存文件' : '文件没有未保存修改'}
+        disabled={!isDirty}
+        onClick={() => requestSave(operationPath)}
+        className="flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <SaveIcon size={14} />
+        <span className="hidden sm:inline text-[11px]">保存</span>
+      </button>
       <button
         type="button"
         aria-label={copied ? copiedLabel : copyLabel}

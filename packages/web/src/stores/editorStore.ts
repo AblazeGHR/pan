@@ -117,6 +117,7 @@ interface EditorStore {
   dirty: Set<string>;
   contents: Record<string, string>;
   mdViewMode: Record<string, 'edit' | 'preview' | 'split'>;
+  pendingConfirmation: EditorConfirmationRequest | null;
 
   // actions
   setRoot: (sessionId: string, workdir: string) => Promise<void>;
@@ -125,6 +126,10 @@ interface EditorStore {
   openFile: (path: string) => Promise<void>;
   closeFile: (path: string) => void;
   setActive: (path: string) => void;
+  requestSave: (repath?: string) => void;
+  requestDelete: (path: string) => void;
+  confirmPendingOperation: () => Promise<void>;
+  cancelPendingOperation: () => void;
   markDirty: (path: string, content: string) => void;
   saveFile: (repath?: string) => Promise<void>;
   renameFile: (from: string, to: string) => Promise<void>;
@@ -137,6 +142,14 @@ interface RootSnapshot {
   sessionId: string;
   workdir: string | null;
   generation: number;
+}
+
+export interface EditorConfirmationRequest {
+  kind: 'save' | 'delete';
+  path: string;
+  sessionId: string;
+  workdir: string | null;
+  rootGeneration: number;
 }
 
 interface TreeRequestSnapshot extends RootSnapshot {
@@ -245,6 +258,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   dirty: new Set(),
   contents: {},
   mdViewMode: {},
+  pendingConfirmation: null,
 
   setRoot: async (sessionId: string, workdir: string) => {
     const previous = get();
@@ -277,6 +291,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             dirty: new Set<string>(),
             contents: {},
             mdViewMode: {},
+            pendingConfirmation: null,
           }
         : {}),
     });
@@ -443,6 +458,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         contents: newContents,
         activePath: newActive,
         selectedPath: s.selectedPath === path ? newActive : s.selectedPath,
+        pendingConfirmation: s.pendingConfirmation?.path === path ? null : s.pendingConfirmation,
       };
     });
   },
@@ -456,6 +472,63 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       selectedPath: path,
       openRequestGeneration: s.openRequestGeneration + 1,
     }));
+  },
+
+  requestSave: (repath?: string) => {
+    const state = get();
+    const root = captureRoot(state);
+    const path = repath || state.activePath;
+    if (!root || !path || state.contents[path] === undefined) return;
+    set({
+      pendingConfirmation: {
+        kind: 'save',
+        path,
+        sessionId: root.sessionId,
+        workdir: root.workdir,
+        rootGeneration: root.generation,
+      },
+    });
+  },
+
+  requestDelete: (path: string) => {
+    const root = captureRoot(get());
+    if (!root || !path) return;
+    set({
+      pendingConfirmation: {
+        kind: 'delete',
+        path,
+        sessionId: root.sessionId,
+        workdir: root.workdir,
+        rootGeneration: root.generation,
+      },
+    });
+  },
+
+  confirmPendingOperation: async () => {
+    const pending = get().pendingConfirmation;
+    if (!pending) return;
+    set({ pendingConfirmation: null });
+
+    const current = captureRoot(get());
+    if (
+      !current ||
+      current.sessionId !== pending.sessionId ||
+      current.workdir !== pending.workdir ||
+      current.generation !== pending.rootGeneration
+    ) {
+      useUIStore.getState().showToast('文件上下文已变化，操作已取消', 'error');
+      return;
+    }
+
+    if (pending.kind === 'save') {
+      await get().saveFile(pending.path);
+    } else {
+      await get().deleteFile(pending.path);
+    }
+  },
+
+  cancelPendingOperation: () => {
+    set({ pendingConfirmation: null });
   },
 
   markDirty: (path: string, content: string) => {

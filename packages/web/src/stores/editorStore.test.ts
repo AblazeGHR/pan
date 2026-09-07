@@ -32,6 +32,7 @@ beforeEach(() => {
     dirty: new Set(),
     contents: {},
     mdViewMode: {},
+    pendingConfirmation: null,
   });
   useUIStore.setState({ toastQueue: [] });
 });
