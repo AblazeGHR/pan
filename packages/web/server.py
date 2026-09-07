@@ -855,15 +855,19 @@ def _resolve_workdir(workdir_name: str) -> Path:
 
 
 def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
-    """Resolve a relative path within a session's workdir, rejecting escapes."""
+    """Resolve a session-relative or absolute path on the Pan server.
+
+    The web editor intentionally permits opening files anywhere on the server
+    for now. A future security policy can add containment checks here without
+    changing the client-side link or editor flow.
+    """
     s = sess.get(session_id)
     if not s or not s.workdir:
         raise ValueError("session has no workdir")
-    root = Path(s.workdir).resolve()
-    target = (root / rel_path).resolve()
-    # raises ValueError if rel_path (after resolving .. etc.) escapes root
-    target.relative_to(root)
-    return target
+    target = Path(rel_path)
+    if not target.is_absolute():
+        target = Path(s.workdir) / target
+    return target.resolve()
 
 
 def _rename_no_overwrite(src: Path, dst: Path) -> None:

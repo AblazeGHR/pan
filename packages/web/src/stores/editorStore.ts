@@ -58,6 +58,14 @@ function operationErrorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : '未知错误';
 }
 
+function openFileErrorMessage(error: unknown): string {
+  const message = operationErrorMessage(error);
+  if (/not a file|not found|no such file|does not exist|enoent|http 404/i.test(message)) {
+    return `文件不存在${message ? `：${message}` : ''}`;
+  }
+  return message || '无法打开文件';
+}
+
 const openInvalidationGenerations = new Map<string, number>();
 
 // Vitest resets the Zustand state between cases, but these module-level
@@ -117,13 +125,16 @@ interface EditorStore {
   dirty: Set<string>;
   contents: Record<string, string>;
   mdViewMode: Record<string, 'edit' | 'preview' | 'split'>;
+  /** A one-shot location request produced by a Markdown file link. */
+  pendingLocation: EditorLocation | null;
   pendingConfirmation: EditorConfirmationRequest | null;
 
   // actions
   setRoot: (sessionId: string, workdir: string) => Promise<void>;
   refreshTree: (dirPath?: string) => Promise<void>;
   toggleDir: (path: string) => Promise<void>;
-  openFile: (path: string) => Promise<void>;
+  openFile: (path: string, location?: EditorLocation) => Promise<boolean>;
+  consumePendingLocation: (location: EditorLocation) => void;
   closeFile: (path: string) => void;
   setActive: (path: string) => void;
   requestSave: (repath?: string) => void;
@@ -150,6 +161,12 @@ export interface EditorConfirmationRequest {
   sessionId: string;
   workdir: string | null;
   rootGeneration: number;
+}
+
+export interface EditorLocation {
+  path: string;
+  line: number;
+  endLine?: number;
 }
 
 interface TreeRequestSnapshot extends RootSnapshot {
@@ -258,6 +275,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   dirty: new Set(),
   contents: {},
   mdViewMode: {},
+  pendingLocation: null,
   pendingConfirmation: null,
 
   setRoot: async (sessionId: string, workdir: string) => {
@@ -291,6 +309,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             dirty: new Set<string>(),
             contents: {},
             mdViewMode: {},
+            pendingLocation: null,
             pendingConfirmation: null,
           }
         : {}),
@@ -393,10 +412,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
-  openFile: async (path: string) => {
+  openFile: async (path: string, location?: EditorLocation) => {
     const state = get();
     const root = captureRoot(state);
-    if (!root) return;
+    if (!root) return false;
     const snapshot: OpenFileSnapshot = {
       ...root,
       requestGeneration: state.openRequestGeneration + 1,
@@ -408,14 +427,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     // Already open — just switch active
     if (get().openPaths.includes(path)) {
-      set({ activePath: path });
-      return;
+      set({ activePath: path, pendingLocation: location ?? null });
+      return true;
     }
 
     // Fetch content
     try {
       const content = await readFile(snapshot.sessionId, path);
-      if (!isCurrentOpenRequest(get(), snapshot)) return;
+      if (!isCurrentOpenRequest(get(), snapshot)) return false;
       clearFilePathInvalidation(snapshot, path);
       set((s) => {
         if (!isCurrentOpenRequest(s, snapshot)) return {};
@@ -423,13 +442,30 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
           activePath: path,
           contents: { ...s.contents, [path]: content },
+          pendingLocation: location ?? null,
         };
       });
+      return true;
     } catch (error) {
       if (isCurrentOpenRequest(get(), snapshot)) {
-        useUIStore.getState().showToast(`打开文件失败：${operationErrorMessage(error)}`, 'error');
+        set({ pendingLocation: null });
+        useUIStore.getState().showToast(`打开文件失败：${openFileErrorMessage(error)}`, 'error');
       }
+      return false;
     }
+  },
+
+  consumePendingLocation: (location: EditorLocation) => {
+    set((s) => {
+      const pending = s.pendingLocation;
+      if (
+        !pending ||
+        pending.path !== location.path ||
+        pending.line !== location.line ||
+        pending.endLine !== location.endLine
+      ) return {};
+      return { pendingLocation: null };
+    });
   },
 
   closeFile: (path: string) => {
@@ -459,6 +495,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         contents: newContents,
         activePath: newActive,
         selectedPath: s.selectedPath === path ? newActive : s.selectedPath,
+        pendingLocation: s.pendingLocation?.path === path ? null : s.pendingLocation,
         pendingConfirmation: s.pendingConfirmation?.path === path ? null : s.pendingConfirmation,
       };
     });
@@ -471,6 +508,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((s) => ({
       activePath: path,
       selectedPath: path,
+      pendingLocation: null,
       openRequestGeneration: s.openRequestGeneration + 1,
     }));
   },
