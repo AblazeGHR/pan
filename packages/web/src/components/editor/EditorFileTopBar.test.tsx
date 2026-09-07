@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { EditorFileTopBar } from './EditorFileTopBar';
+import { EditorFileTopBar, getDisplayPath } from './EditorFileTopBar';
 import { useEditorStore } from '@/stores/editorStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -214,5 +214,21 @@ describe('EditorFileTopBar', () => {
 
     expect(useUIStore.getState().toastQueue).toEqual([]);
     expect(screen.queryByRole('button', { name: '完整路径已复制' })).toBeNull();
+  });
+});
+
+describe('getDisplayPath', () => {
+  it.each([
+    ['POSIX root', '/', '/src\\a.ts', '/src/a.ts'],
+    ['Windows drive root with backslashes', 'C:\\', '/src/a.ts', 'C:\\src\\a.ts'],
+    ['Windows drive root with slashes', 'C:/', '\\src\\a.ts', 'C:/src/a.ts'],
+    ['UNC root', '\\\\server\\share\\', 'src/a.ts', '\\\\server\\share\\src\\a.ts'],
+    ['mixed-separator workdir', 'C:\\project/', 'src\\a.ts', 'C:\\project\\src\\a.ts'],
+  ])('%s', (_label, workdir, operationPath, expected) => {
+    expect(getDisplayPath(workdir, operationPath)).toBe(expected);
+  });
+
+  it('falls back to the operation path when there is no workdir', () => {
+    expect(getDisplayPath(undefined, '/src/a.ts')).toBe('/src/a.ts');
   });
 });

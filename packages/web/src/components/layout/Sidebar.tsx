@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -95,13 +95,6 @@ export function Sidebar() {
     normalIds: string[];
     descendantCount: number;
   } | null>(null);
-
-  // Init editor tree when on editor route and session changes
-  useEffect(() => {
-    if (isEditorRoute && currentSession?.id && currentSession?.workdir) {
-      useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
-    }
-  }, [isEditorRoute, currentSession?.id, currentSession?.workdir]);
 
   // Group keys for collapse-all (mirrors SessionList workdir/manager grouping)
   const groupKeys = useMemo(() => {

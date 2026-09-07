@@ -12,12 +12,16 @@ interface EditorFileTopBarProps {
   operationPath: string;
 }
 
-function getDisplayPath(workdir: string | null | undefined, operationPath: string): string {
+export function getDisplayPath(workdir: string | null | undefined, operationPath: string): string {
   if (!workdir) return operationPath;
 
   const separator = workdir.includes('\\') ? '\\' : '/';
   const normalizedWorkdir = workdir.replace(/[\\/]+$/, '');
   const normalizedPath = operationPath.replace(/[\\/]+/g, separator).replace(/^[\\/]+/, '');
+  if (!normalizedWorkdir) {
+    // Keep a POSIX (or bare Windows) root instead of dropping its separator.
+    return `${separator}${normalizedPath}`;
+  }
   return normalizedWorkdir ? `${normalizedWorkdir}${separator}${normalizedPath}` : normalizedPath;
 }
 

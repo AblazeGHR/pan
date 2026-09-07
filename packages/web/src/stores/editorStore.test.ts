@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEditorStore } from './editorStore';
-import { listFiles, readFile } from '@/services/api';
-import type { FsEntry } from '@/types';
+import { listFiles, readFile, renameFs, writeFile } from '@/services/api';
+import type { ApiFsGenericResponse, ApiFsWriteResponse, FsEntry } from '@/types';
 
 vi.mock('@/services/api', () => ({
   listFiles: vi.fn(async () => []),
@@ -190,5 +190,72 @@ describe('editorStore async root protection', () => {
     expect(useEditorStore.getState().sessionId).toBe('s2');
     expect(useEditorStore.getState().tree).toEqual([]);
     expect(useEditorStore.getState().expanded).toEqual(new Set());
+  });
+
+  it('does not clear a newer draft when an older save completes', async () => {
+    let resolveWrite!: () => void;
+    vi.mocked(writeFile).mockImplementationOnce(
+      () => new Promise<ApiFsWriteResponse>((resolve) => {
+        resolveWrite = () => resolve({ path: 'src/current.ts', size: 9 });
+      }),
+    );
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      activePath: 'src/current.ts',
+      openPaths: ['src/current.ts'],
+      dirty: new Set(['src/current.ts']),
+      contents: { 'src/current.ts': 'old draft' },
+    });
+
+    const saving = useEditorStore.getState().saveFile();
+    await Promise.resolve();
+    useEditorStore.getState().markDirty('src/current.ts', 'new draft');
+    resolveWrite();
+    await saving;
+
+    expect(useEditorStore.getState().contents['src/current.ts']).toBe('new draft');
+    expect(useEditorStore.getState().dirty).toEqual(new Set(['src/current.ts']));
+  });
+
+  it('renames from current state without losing a concurrent tab or draft', async () => {
+    let resolveRename!: () => void;
+    vi.mocked(renameFs).mockImplementationOnce(
+      () => new Promise<ApiFsGenericResponse>((resolve) => {
+        resolveRename = () => resolve({});
+      }),
+    );
+    useEditorStore.setState({
+      sessionId: 's1',
+      workdir: 'D:\\project\\same',
+      openPaths: ['src/old.ts'],
+      activePath: 'src/old.ts',
+      selectedPath: 'src/old.ts',
+      dirty: new Set(['src/old.ts']),
+      contents: { 'src/old.ts': 'old draft' },
+      mdViewMode: { 'src/old.ts': 'split' },
+    });
+
+    const renaming = useEditorStore.getState().renameFile('src/old.ts', 'src/new.ts');
+    await Promise.resolve();
+    await useEditorStore.getState().openFile('src/other.ts');
+    useEditorStore.getState().markDirty('src/old.ts', 'newer old draft');
+    useEditorStore.getState().markDirty('src/other.ts', 'other draft');
+    resolveRename();
+    await renaming;
+
+    expect(useEditorStore.getState()).toMatchObject({
+      openPaths: ['src/new.ts', 'src/other.ts'],
+      activePath: 'src/other.ts',
+      selectedPath: 'src/other.ts',
+      contents: {
+        'src/new.ts': 'newer old draft',
+        'src/other.ts': 'other draft',
+      },
+      mdViewMode: { 'src/new.ts': 'split' },
+    });
+    expect(useEditorStore.getState().dirty).toEqual(
+      new Set(['src/new.ts', 'src/other.ts']),
+    );
   });
 });

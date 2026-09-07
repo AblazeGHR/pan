@@ -323,7 +323,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       await writeFile(snapshot.sessionId, path, content);
       if (!isCurrentRoot(get(), snapshot)) return;
       set((s) => {
-        if (!isCurrentRoot(s, snapshot)) return {};
+        // Do not clear a newer draft created while the write was in flight.
+        if (!isCurrentRoot(s, snapshot) || s.contents[path] !== content) return {};
         const next = new Set(s.dirty);
         next.delete(path);
         return { dirty: next };
@@ -336,28 +337,39 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   renameFile: async (from: string, to: string) => {
     const snapshot = captureRoot(get());
     if (!snapshot) return;
-    const { openPaths, dirty, contents } = get();
 
     try {
       await renameFs(snapshot.sessionId, from, to);
       if (!isCurrentRoot(get(), snapshot)) return;
-      // Update open paths and dirty
-      const newOpen = openPaths.map((p) => (p === from ? to : p));
-      const newDirty = new Set<string>();
-      for (const p of dirty) {
-        newDirty.add(p === from ? to : p);
-      }
-      const newContents: Record<string, string> = {};
-      for (const [k, v] of Object.entries(contents)) {
-        newContents[k === from ? to : k] = v;
-      }
       set((s) => {
         if (!isCurrentRoot(s, snapshot)) return {};
+
+        // Re-read state after the await so concurrent tabs and drafts survive.
+        const openPaths = s.openPaths
+          .map((path) => (path === from ? to : path))
+          .filter((path, index, paths) => paths.indexOf(path) === index);
+        const dirty = new Set(s.dirty);
+        if (dirty.delete(from)) dirty.add(to);
+
+        const contents = { ...s.contents };
+        if (Object.prototype.hasOwnProperty.call(contents, from)) {
+          contents[to] = contents[from]!;
+          delete contents[from];
+        }
+
+        const mdViewMode = { ...s.mdViewMode };
+        if (Object.prototype.hasOwnProperty.call(mdViewMode, from)) {
+          mdViewMode[to] = mdViewMode[from]!;
+          delete mdViewMode[from];
+        }
+
         return {
-          openPaths: newOpen,
+          openPaths,
           activePath: s.activePath === from ? to : s.activePath,
-          dirty: newDirty,
-          contents: newContents,
+          selectedPath: s.selectedPath === from ? to : s.selectedPath,
+          dirty,
+          contents,
+          mdViewMode,
         };
       });
       // Refresh parent dir
