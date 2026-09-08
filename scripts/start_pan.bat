@@ -35,9 +35,38 @@ REM     on a busy checkout it can block long enough to make lifecycle restart
 REM     time out before main.py is even launched.
 
 set "PYTHON=%BASE_DIR%\.venv\Scripts\python.exe"
-if not exist "%PYTHON%" (
-    echo [ERROR] Virtual env python not found: %PYTHON%
+set "LOCAL_PYTHON=%PYTHON%"
+
+REM A copied/incomplete .venv can leave python.exe behind without
+REM pyvenv.cfg.  Checking only the file makes Start-Process report success
+REM and then the child exits immediately (usually with exit code 106).  Probe
+REM the interpreter and the two core runtime dependencies before using it.
+if exist "%PYTHON%" (
+    "%PYTHON%" -c "import fastapi, uvicorn, psutil" >nul 2>&1
+    if errorlevel 1 set "PYTHON="
+) else (
+    set "PYTHON="
+)
+
+REM If the checkout-local environment is unavailable, accept the first valid
+REM Python on PATH.  Validate every candidate because WindowsApps\python.exe
+REM can be an app-execution alias rather than a usable interpreter.
+if not defined PYTHON (
+    for /f "delims=" %%p in ('where.exe python.exe 2^>nul') do (
+        if not defined PYTHON (
+            "%%p" -c "import fastapi, uvicorn, psutil" >nul 2>&1
+            if not errorlevel 1 set "PYTHON=%%p"
+        )
+    )
+)
+if not defined PYTHON (
+    echo [ERROR] No usable Python interpreter with Pan Core dependencies was found.
+    echo         Checked: %LOCAL_PYTHON% and python.exe on PATH.
+    echo         Repair the environment with scripts\setup.bat.
     exit /b 1
+)
+if /i not "%PYTHON%"=="%LOCAL_PYTHON%" (
+    echo [WARN] Checkout .venv is unavailable; using fallback Python: %PYTHON%
 )
 
 set "MAIN_PY=%BASE_DIR%\main.py"
