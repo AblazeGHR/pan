@@ -1,0 +1,9 @@
+# 微信通道（iLink）依赖。
+# 全部已在根 requirements.txt 中（httpx/fastapi/uvicorn/mcp/websockets），
+# 故本插件可直接跑在项目主解释器上，不需要像 QQ 那样另配独立解释器。
+# 单独部署本插件时按此文件安装即可。
+httpx>=0.28.0
+fastapi
+uvicorn
+websockets
+mcp==1.28.1

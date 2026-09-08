@@ -85,8 +85,11 @@ def test_get_queue_mixed(monkeypatch):
     # qq
     assert items[4]["kind"] == "qq"
     assert items[4]["text"] == "hi from qq"
+    # 通道提醒统一分支后额外带 channel/canReply/channelTarget（qqTarget 保留兼容）
     assert items[4]["meta"] == {"qqTarget": "user:12345", "time": "12:00",
-                                  "revision": 1, "dispatchState": "queued"}
+                                  "revision": 1, "dispatchState": "queued",
+                                  "channel": "qq", "canReply": True,
+                                  "channelTarget": "user:12345"}
     _cleanup()
 
 

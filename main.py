@@ -8,6 +8,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from urllib.parse import urlparse
@@ -33,7 +34,19 @@ _QQ_DEFAULT_PYTHON = (
 # QQ bot 启动宽限期：spawn 后在此窗口内退出即视为"快速崩溃"，Pan Core 不受影响。
 _QQ_STARTUP_GRACE_SEC = 2.0
 
+# 微信 bot（packages/wechat/bot.py）与 QQ 平行：同是子进程、同用 pid 文件防
+# 重复 spawn，但两点不同：
+#   1. 解释器：只依赖项目主环境已有的 httpx/fastapi/uvicorn/mcp，不需要 QQ
+#      那套独立解释器解析链 → 默认 sys.executable（见 _resolve_wechat_python）。
+#   2. 健康检查：iLink 是公网 HTTPS 服务，本地没有可探测的对端端口（QQ 的
+#      NapCat 在本地 WS 端口上），所以不复制 TCP 可达性探测，只看快速崩溃。
+_WECHAT_BOT_PY = _PROJECT_ROOT / "packages" / "wechat" / "bot.py"
+_WECHAT_DIR = _WECHAT_BOT_PY.parent
+_WECHAT_PID_FILE = _PROJECT_ROOT / "data" / "wechat_bot.pid"
+_WECHAT_STARTUP_GRACE_SEC = 2.0
+
 _qq_proc: subprocess.Popen | None = None
+_wechat_proc: subprocess.Popen | None = None
 
 
 def _is_pid_alive(pid: int) -> bool:
@@ -156,6 +169,97 @@ def _stop_qq_bot() -> None:
     _QQ_PID_FILE.unlink(missing_ok=True)
 
 
+def _wechat_health_check() -> None:
+    """Background check right after spawn: detect a fast crash (logs only).
+
+    与 _qq_health_check 不同，这里**不做 TCP 可达性探测**：iLink 是公网 HTTPS
+    服务，插件的 8081 只是本地管理端口，探测本地端口既不能证明登录态、也不能
+    证明到 iLink 的连通性。因此只判「启动宽限期内是否已退出」。
+    """
+    proc = _wechat_proc
+    if proc is None:
+        return
+    try:
+        proc.wait(timeout=_WECHAT_STARTUP_GRACE_SEC)
+    except subprocess.TimeoutExpired:
+        return  # 子进程存活：登录态由插件自己上报，Pan Core 不介入
+    _log.warning(
+        "[Pan] WeChat bot exited during startup (code %s) — WeChat module "
+        "degraded (not logged in?), Pan Core continues without WeChat",
+        proc.returncode,
+    )
+
+
+def _stop_wechat_bot() -> None:
+    """Terminate the WeChat bot subprocess if still running (graceful path)."""
+    global _wechat_proc
+    if _wechat_proc is not None:
+        if _wechat_proc.poll() is None:
+            _wechat_proc.terminate()
+            try:
+                _wechat_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _wechat_proc.kill()
+                _wechat_proc.wait()
+            _log.info("[Pan] WeChat bot stopped (pid %s)", _wechat_proc.pid)
+        _wechat_proc = None
+    _WECHAT_PID_FILE.unlink(missing_ok=True)
+
+
+def _resolve_wechat_python() -> str:
+    """解析微信 bot 解释器路径。
+
+    微信插件只依赖项目主环境已有的 httpx/fastapi/uvicorn/mcp，所以**不需要**
+    QQ 那套「PAN_QQ_PYTHON > config qq.python > 平台默认 miniforge」解析链——
+    直接复用当前 Pan 进程的 sys.executable 即可（Pan 本身就跑在装了这些依赖的
+    解释器上）。仅保留 PAN_WECHAT_PYTHON 一个环境变量出口，供调试/临时切换。
+    """
+    return os.environ.get("PAN_WECHAT_PYTHON") or sys.executable
+
+
+def _spawn_wechat_bot() -> None:
+    """Start the WeChat bridge (packages/wechat/bot.py) if config wechat.enabled.
+
+    镜像 _spawn_qq_bot：子进程 + pid 文件防重复 spawn，由 main.py 的进程树
+    （stop_pan.bat / atexit）统一回收。
+    """
+    global _wechat_proc
+    from packages.core.config import load_config
+
+    cfg = load_config().get("wechat") or {}
+    if not cfg.get("enabled", False):
+        _log.info("[Pan] WeChat module disabled (wechat.enabled=false), skipping bot.py")
+        return
+
+    if _WECHAT_PID_FILE.exists():
+        try:
+            old_pid = int(_WECHAT_PID_FILE.read_text(encoding="utf-8").strip())
+        except ValueError:
+            old_pid = 0
+        if old_pid and _is_pid_alive(old_pid):
+            _log.warning("[Pan] WeChat bot pid %s still alive, skipping spawn — stop it first",
+                         old_pid)
+            return
+
+    python = _resolve_wechat_python()
+    try:
+        # 同 QQ：bot.py 顶层 `from packages.wechat import ...` 需要项目根在
+        # sys.path，子进程不继承父进程 sys.path → 显式注入 PYTHONPATH。
+        _wechat_proc = subprocess.Popen(
+            [python, str(_WECHAT_BOT_PY)],
+            cwd=str(_WECHAT_DIR),
+            env={**os.environ, "PYTHONPATH": str(_PROJECT_ROOT)},
+        )
+    except Exception as e:  # noqa: BLE001
+        _log.error("[Pan] WeChat bot spawn failed: %s", e)
+        _wechat_proc = None
+        return
+    _WECHAT_PID_FILE.write_text(str(_wechat_proc.pid), encoding="utf-8")
+    _log.info("[Pan] WeChat bot started (pid %s, %s)", _wechat_proc.pid, python)
+    threading.Thread(target=_wechat_health_check, name="wechat-health-check",
+                     daemon=True).start()
+
+
 def _resolve_qq_python() -> str:
     """解析 QQ bot 解释器路径（优先级链）：
 
@@ -272,6 +376,9 @@ if __name__ == "__main__":
     # qq.enabled, torn down when this server shuts down.
     _spawn_qq_bot()
     atexit.register(_stop_qq_bot)
+    # 微信桥（packages/wechat/bot.py）同属 Pan 进程树：wechat.enabled 时拉起。
+    _spawn_wechat_bot()
+    atexit.register(_stop_wechat_bot)
 
     config = uvicorn.Config(app, host=host, port=port, log_level="info", access_log=False)
     server = uvicorn.Server(config)
@@ -285,3 +392,4 @@ if __name__ == "__main__":
     # internally); make sure the QQ bot is torn down too.
     _stop_qq_bot()
     app.state.pan_uvicorn_server = None
+    _stop_wechat_bot()

@@ -1915,7 +1915,7 @@ def _select_queue_unit(s) -> list[dict] | None:
             return [item]
         unit = [item]
         for follower in pending[index + 1:]:
-            if (_queue_item_kind(follower) not in {"report", "qq"}
+            if (_queue_item_kind(follower) not in {"report", "qq", "wechat"}
                     or not _is_dispatchable(follower)):
                 break
             unit.append(follower)
@@ -2250,6 +2250,11 @@ async def _consumer(w: Worker):
 
 # ── 订阅制报告消费（立项 4.3）──
 
+# 通道 inbox 提醒的抬头前缀，按 type 取值（enqueue_channel_reminder 的 channel）。
+# 加新通道只需在此登记一行，无需改 _format_report_batch 的分支。
+_CHANNEL_HEADERS = {"qq": "@@@@by qq", "wechat": "@@@@by wechat"}
+
+
 def _format_report_batch(reports: list[dict]) -> str:
     """积压报告拼接为可读文本。
 
@@ -2266,16 +2271,21 @@ def _format_report_batch(reports: list[dict]) -> str:
 
     parts = []
     for r in reports:
-        # QQ inbox 更新提醒（type=qq）：与 agent 汇报同通道（queue_pending +
-        # report_signal），但抬头/字段不同。
-        if r.get("type") == "qq":
-            qq_target = r.get("qqTarget") or ""
+        # 通道 inbox 更新提醒（type=qq/wechat/…）：与 agent 汇报同通道
+        # （queue_pending + report_signal），但抬头/字段不同。
+        # 抬头按 channel 名渲染为 `@@@@by <channel>`（见 _CHANNEL_HEADERS）。
+        channel_name = _CHANNEL_HEADERS.get(r.get("type"))
+        if channel_name is not None:
+            qq_target = r.get("channelTarget") or r.get("qqTarget") or ""
             nickname = r.get("nickname") or ""
             bot_uin = str(r.get("botUin") or "")
             # 多账号：抬头带 bot 来源标识，agent 可见该会话由哪个 bot 收到
-            header = f"@@@@by qq : {qq_target} | {nickname}"
+            header = f"{channel_name} : {qq_target} | {nickname}"
             if bot_uin:
                 header += f" | bot {bot_uin}"
+            # 微信等不能主动推送的通道：告知 agent 此刻能否回复
+            if r.get("channel") == "wechat" and not r.get("canReply", True):
+                header += " | canReply: false"
             lines = [
                 header,
                 f"targetType: {_field_value(r.get('targetType'))}",
@@ -2540,9 +2550,9 @@ def _is_valid_task_item(item) -> bool:
 
 
 def _is_report_item(item) -> bool:
-    """Return whether a persisted item is an actual report/notice/QQ item."""
+    """Return whether a persisted item is an actual report/notice/通道 item."""
     return _queue_item_kind(item) == "report" or (
-        isinstance(item, dict) and item.get("type") == "qq"
+        isinstance(item, dict) and item.get("type") in {"qq", "wechat"}
     )
 
 
@@ -2601,8 +2611,10 @@ def _queue_item_kind(item: dict) -> str | None:
         return None
     if item.get("type") == "task":
         return "task"
-    if item.get("type") in {"report", "notice", "qq"}:
-        return "qq" if item.get("type") == "qq" else "report"
+    if item.get("type") in {"report", "notice", "qq", "wechat"}:
+        # 通道类提醒（qq/wechat）各自成一种 kind，抬头/字段渲染不同；
+        # report/notice 统一按 report 处理。
+        return item["type"] if item["type"] in {"qq", "wechat"} else "report"
     # Pre-redesign reports had no type but carried a result.  Preserve that
     # shape while ensuring a task envelope always wins over ``result``.
     if "result" in item:
@@ -3322,15 +3334,15 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
             item.setdefault("source", "report")
             item.setdefault("id", "q_" + uuid.uuid4().hex)
             changed = True
-        elif item.get("type") == "qq":
-            if item.get("source") != "qq":
-                item["source"] = "qq"
+        elif item.get("type") in {"qq", "wechat"}:
+            if item.get("source") != item["type"]:
+                item["source"] = item["type"]
                 changed = True
             if not item.get("id"):
                 item["id"] = "q_" + uuid.uuid4().hex
                 changed = True
         elif item.get("type") in {"report", "notice"} or (
-                item.get("type") not in {None, "task", "qq"}
+                item.get("type") not in {None, "task", "qq", "wechat"}
                 and "result" in item):
             if not item.get("source"):
                 item["source"] = "report"
@@ -3826,7 +3838,7 @@ async def _legacy_claim_pending_task(w: Worker, task_id: str | None) -> dict | N
 async def _consume_pending_reports(w: Worker, s):
     """Compatibility entry point that consumes the durable FIFO report unit."""
     unit = _select_queue_unit(s)
-    if unit and _queue_item_kind(unit[0]) in {"report", "qq"}:
+    if unit and _queue_item_kind(unit[0]) in {"report", "qq", "wechat"}:
         await _deliver_queue_unit(w, s, unit)
 
 
@@ -3950,33 +3962,47 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
             _schedule_session_recovery(session_id)
 
 
-async def enqueue_qq_reminder(target_type: str, target_id: str,
-                              nickname: str = "", text: str = "",
-                              time_str: str = "", bot_uin: str = "") -> int:
-    """QQ inbox 更新提醒入队：所有订阅了该 QQ 会话的 session 各收到一条提醒。
+async def enqueue_channel_reminder(
+    channel: str, target_type: str, target_id: str, *,
+    nickname: str = "", text: str = "", time_str: str = "",
+    bot_uin: str = "", can_reply: bool = True,
+) -> int:
+    """通道无关 inbox 提醒入队：订阅了该会话的 session 各收到一条提醒。
+
+    ``channel`` 决定订阅集合与提醒抬头（"qq" / "wechat" / 将来的 "feishu"）。
+    订阅字段保持平行（``qq_subscriptions`` / ``wechat_subscriptions``），但**读
+    取逻辑**在此泛化——``getattr(s, f"{channel}_subscriptions")`` 按通道名取集
+    合，将来加第三个通道只需传新 channel 值，无需在此处再加分支。未知 channel
+    取不到属性 → 空集合 → 返回 0（不抛，插件误配不应打挂 Pan Core）。
 
     多账号（bot_uin 非空）：命中两类订阅——不区分 bot 的旧键 ``<type>:<id>``
     与精确键 ``<type>:<id>@<bot_uin>``；bot_uin 为空（旧来源）仅命中旧键。
+    （目前仅 QQ 有多账号语义，微信走 bot_uin 空。）
 
     镜像 report 汇报链路：提醒项 append 到订阅者 session 的落盘 queue_pending，
     再唤醒其 worker consumer（无正文 queue_signal）。无活 worker 时立即 auto_spawn
-    恢复（事件驱动，消除 QQ 消息等待 watchdog tick 的最长 30s 延迟），spawn
+    恢复（事件驱动，消除消息等待 watchdog tick 的最长 30s 延迟），spawn
     失败打日志、由全局 watchdog 兜底。返回投递的订阅者数量。
 
-    提醒项格式：{"type": "qq", "qqTarget": "<scope>:<target_id>",
-    "botUin": "<bot_uin>"?, ...}，_format_report_batch 按 type=qq 分支渲染为
-    `@@@@by qq` 抬头（bot_uin 非空时抬头带 `| bot <uin>`）。
+    提醒项双写 ``qqTarget``（老代码/老前端与 pan-qq MCP 已在读的键，勿删）与
+    ``channelTarget``（新统一字段），并带 ``channel`` / ``canReply``。
+    ``_format_report_batch`` 按 ``type`` 渲染为 `@@@@by <channel>` 抬头。
     """
     if _shutdown_started:
         return 0
     target_key = f"{target_type}:{target_id}"
     bot_key = f"{target_key}@{bot_uin}" if bot_uin else None
     item = {
-        "type": "qq",
-        "kind": "qq",
+        "type": channel,
+        "kind": channel,
         "id": "q_" + uuid.uuid4().hex,
         "queueItemId": None,
+        # 双写兼容键：qqTarget 是老代码/老前端/pan-qq MCP 一直在读的字段，
+        # 即便通道是 wechat 也保留它，避免老消费方拿不到 target。
         "qqTarget": target_key,
+        "channelTarget": target_key,
+        "channel": channel,
+        "canReply": can_reply,
         "targetType": target_type,
         "targetId": str(target_id),
         "nickname": nickname,
@@ -3992,7 +4018,8 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
         item["botUin"] = str(bot_uin)
     delivered = 0
     for s in _list_sessions_shallow():
-        subs = s.qq_subscriptions or set()
+        # 未知 channel → getattr 取不到 → 空集合，安全返回 0。
+        subs = getattr(s, f"{channel}_subscriptions", set()) or set()
         if target_key not in subs and not (bot_key and bot_key in subs):
             continue
         # Each subscriber owns an independent durable delivery state.  Reusing
@@ -4011,6 +4038,20 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
         await _wake_worker(s.id, auto_spawn=True)
         delivered += 1
     return delivered
+
+
+async def enqueue_qq_reminder(target_type: str, target_id: str,
+                              nickname: str = "", text: str = "",
+                              time_str: str = "", bot_uin: str = "") -> int:
+    """QQ inbox 更新提醒入队（薄 wrapper，保留旧签名/旧调用方零改动）。
+
+    实现已泛化到 ``enqueue_channel_reminder("qq", ...)``；此处只做转调，行为
+    与字段与改造前完全一致（含 qqTarget 兼容键）。
+    """
+    return await enqueue_channel_reminder(
+        "qq", target_type, target_id,
+        nickname=nickname, text=text, time_str=time_str, bot_uin=bot_uin,
+    )
 
 
 async def enqueue_notice(target_session_id: str, text: str,
