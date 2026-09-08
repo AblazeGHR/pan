@@ -149,7 +149,7 @@ export function useWebSocket() {
     // Queue events are convergence hints. The server snapshot remains the
     // business source of truth, so a stale or duplicated event cannot create
     // a second local queue item.
-    for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.snapshot']) {
+    for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.item_delivered', 'queue.snapshot']) {
       unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => {
         useQueueStore.getState().applyQueueEvent(e);
         refreshAgentQueue(e.sessionId);
