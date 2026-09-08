@@ -89,6 +89,21 @@ describe('MarkdownRenderer', () => {
     expect(parseMarkdownFileLink('#section')).toBeNull();
   });
 
+  it('preserves local file hrefs through react-markdown URL sanitization', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <MarkdownRenderer content={'[windows](D:/work/file.md#L42) [uri](file:///C:/work/file.md#L3) [web](https://example.test)'} />
+      </MemoryRouter>,
+    );
+
+    const links = [...container.querySelectorAll('a')];
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      'D:/work/file.md#L42',
+      'file:///C:/work/file.md#L3',
+      'https://example.test',
+    ]);
+  });
+
   it('opens a relative link through the current Session workdir and preserves its line range', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>

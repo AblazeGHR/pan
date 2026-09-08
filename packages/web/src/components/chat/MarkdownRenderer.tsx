@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ReactMarkdown, { type ExtraProps } from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
@@ -14,6 +14,13 @@ import 'highlight.js/styles/github-dark.css';
 type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
 type PreProps = React.JSX.IntrinsicElements['pre'] & ExtraProps;
 type LinkProps = React.JSX.IntrinsicElements['a'] & ExtraProps;
+
+function transformMarkdownUrl(value: string): string {
+  // react-markdown's default sanitizer intentionally removes non-web schemes.
+  // Preserve only destinations that our local-file parser understands; all
+  // other URLs keep the library's safe default behavior.
+  return parseMarkdownFileLink(value) ? value : defaultUrlTransform(value);
+}
 
 function MarkdownLink({ href, children, node: _node, ...props }: LinkProps) {
   const navigate = useNavigate();
@@ -168,6 +175,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
           pre: PreBlock,
           a: MarkdownLink,
         }}
+        urlTransform={transformMarkdownUrl}
       >
         {content}
       </ReactMarkdown>
