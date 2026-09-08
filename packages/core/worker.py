@@ -1490,6 +1490,11 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
         "type": "queue.item_delivered",
         "sessionId": s.id,
         "queueItemIds": delivered_ids,
+        # The delivery event is the first client-visible proof that the
+        # pending rows crossed the provider hand-off boundary.  Include the
+        # post-removal revision so a delayed GET /queue cannot overwrite the
+        # delivered snapshot with an older response.
+        "queueRevision": getattr(s, "queue_revision", 0),
         "messages": [{
             "role": "user",
             "content": delivered_text,

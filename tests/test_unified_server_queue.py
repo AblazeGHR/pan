@@ -341,6 +341,7 @@ def test_successful_delivery_broadcasts_user_message_after_durable_commit(monkey
     assert value.queue_pending == []
     assert value.queue_delivery_ledger["q-event"]["deliveryState"] == "sent_to_cli"
     assert delivered["queueItemIds"] == ["q-event"]
+    assert delivered["queueRevision"] == value.queue_revision
     assert delivered["messages"] == [{
         "role": "user", "content": "shown", "queueItemIds": ["q-event"],
     }]

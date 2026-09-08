@@ -126,4 +126,25 @@ describe('server-backed queue store', () => {
     expect(api.deleteSessionQueueItem).toHaveBeenCalledWith('s1', 'q-first');
     expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual(['q-second']);
   });
+
+  it('removes delivered items immediately and records the delivery revision', () => {
+    const delivered = item('q-delivered', 'already handed off');
+    const stillQueued = item('q-still-queued', 'backlog');
+    useQueueStore.setState({
+      queues: { s1: snapshot([delivered, stillQueued], 4) },
+      agentQueues: { s1: snapshot([delivered, stillQueued], 4) },
+      queueRevisions: { s1: 4 },
+    });
+
+    useQueueStore.getState().applyQueueEvent({
+      type: 'queue.item_delivered',
+      sessionId: 's1',
+      queueItemIds: ['q-delivered'],
+      queueRevision: 5,
+    });
+
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id))
+      .toEqual(['q-still-queued']);
+    expect(useQueueStore.getState().queueRevisions.s1).toBe(5);
+  });
 });
