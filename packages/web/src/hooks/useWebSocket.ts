@@ -11,6 +11,7 @@ import {
   useAdapterStore,
 } from '@/stores/adapterStore';
 import type { StreamEvent, WorkerEvent, Message, UserInputQuestion } from '@/types';
+import { inheritMessageIdentity, rememberMessageIdentity } from '@/utils/messageIdentity';
 
 // ── Debounced full-list refresh (mirrors legacy app.ts scheduleRefreshSessions) ──
 // WS events can burst (rapid task completions, session updates); firing a full
@@ -148,7 +149,7 @@ export function useWebSocket() {
     // Queue events are convergence hints. The server snapshot remains the
     // business source of truth, so a stale or duplicated event cannot create
     // a second local queue item.
-    for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.snapshot']) {
+    for (const eventType of ['queue.item_added', 'queue.item_updated', 'queue.item_removed', 'queue.item_delivered', 'queue.snapshot']) {
       unsubscribers.push(wsClient.on(eventType, (e: StreamEvent) => {
         useQueueStore.getState().applyQueueEvent(e);
         refreshAgentQueue(e.sessionId);
@@ -624,6 +625,11 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
   if (t === 'system' && event.subtype === 'init') return;
   if (t === 'result') return;
 
+  // Stream arrival order is the display order: the first event for a native
+  // item reserves its position, and later deltas/completion replace that item
+  // in place. Thinking/tool blocks therefore stay before or after content
+  // according to the adapter's event semantics, never according to the
+  // render timing or the current viewport position.
   for (const b of extractBlocks(event)) {
     const store = useSessionStore.getState();
     const messages = store.currentMessages;
@@ -661,6 +667,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
     );
     if (event.replace && target?.role === b.role) {
       const updated = { ...target, content: b.content };
+      inheritMessageIdentity(updated, target);
       useSessionStore.setState({
         currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
       });
@@ -674,15 +681,18 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
           content,
           ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
         };
+        inheritMessageIdentity(updated, target);
         useSessionStore.setState({
           currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
         });
       } else {
-        useSessionStore.getState().addMessage({
+        const message = {
           role: b.role,
           content: b.content,
           ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
-        });
+        };
+        rememberMessageIdentity(message);
+        useSessionStore.getState().addMessage(message);
       }
       continue;
     }
@@ -698,6 +708,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
           content: b.content,
           ...(nativeItemId && !target.nativeItemId ? { nativeItemId } : {}),
         };
+        inheritMessageIdentity(updated, target);
         useSessionStore.setState({
           currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
         });
@@ -708,22 +719,31 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
       continue;
     }
     if (b.role === 'assistant') {
-      useSessionStore.getState().addMessage({
-        role: 'assistant', content: b.content,
+      const message = {
+        role: 'assistant',
+        content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
-      });
+      };
+      rememberMessageIdentity(message);
+      useSessionStore.getState().addMessage(message);
     } else if (b.role === 'thinking') {
       store.markUnread(b.content);
-      useSessionStore.getState().addMessage({
-        role: 'thinking', content: b.content,
+      const message = {
+        role: 'thinking',
+        content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
-      });
+      };
+      rememberMessageIdentity(message);
+      useSessionStore.getState().addMessage(message);
     } else if (b.role === 'tool') {
       store.markUnread(b.content);
-      useSessionStore.getState().addMessage({
-        role: 'tool', content: b.content,
+      const message = {
+        role: 'tool',
+        content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
-      });
+      };
+      rememberMessageIdentity(message);
+      useSessionStore.getState().addMessage(message);
     }
   }
 }

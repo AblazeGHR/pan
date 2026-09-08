@@ -167,6 +167,17 @@ def _normalize_job(job: dict | None) -> dict | None:
     result = dict(job)
     result.setdefault("kind", BACKGROUND_PROCESS_KIND)
     result.setdefault("operation", "run")
+    if result.get("kind") == SERVICE_LIFECYCLE_KIND:
+        result.setdefault("options", {})
+        # ``errors`` was added after the first lifecycle Job schema.  Keep
+        # old JSON readable and expose a legacy scalar error as one item,
+        # without rewriting the persisted record just by reading it.
+        errors = result.get("errors")
+        if not isinstance(errors, list):
+            errors = []
+        if result.get("error") and result["error"] not in errors:
+            errors.append(result["error"])
+        result["errors"] = errors
     return result
 
 
@@ -377,12 +388,20 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
                        old_pid: int | None = None,
                        old_pid_created_at: float | None = None,
                        log_path: str | None = None,
+                       options: dict | None = None,
                        registry_root: str | Path | None = None) -> dict:
     """Atomically reserve a service lifecycle operation before spawning it."""
     if not request_id or not isinstance(request_id, str):
         raise ValueError("request_id is required")
     if not operation or not isinstance(operation, str):
         raise ValueError("operation is required")
+    if options is None:
+        options = {}
+    if not isinstance(options, dict):
+        raise ValueError("lifecycle options must be an object")
+    # Persist a detached JSON snapshot.  The supervisor must be able to read
+    # the same value in a different process after the request has returned.
+    frozen_options = json.loads(json.dumps(options, ensure_ascii=False, sort_keys=True))
     root_path = Path(root).expanduser().resolve()
     if not root_path.is_dir():
         raise ValueError("service root does not exist")
@@ -396,10 +415,12 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
     registry_path = str(_root(registry_root))
     job = {
         "jobId": job_id, "kind": SERVICE_LIFECYCLE_KIND, "operation": operation,
+        "options": frozen_options,
         "requestId": request_id, "phase": "requested", "status": "pending",
         "root": str(root_path), "port": port, "registryRoot": registry_path,
         "oldPid": old_pid, "oldPidCreatedAt": old_pid_created_at,
         "newPid": None, "newPidCreatedAt": None, "error": None,
+        "errors": [],
         "createdAt": now, "updatedAt": now, "logPath": str(log_path),
     }
     with _lock, _registry_lock(_service_key(str(root_path), port), registry_path):
@@ -438,9 +459,31 @@ def transition_service_job(job_id: str, phase: str, *, registry_root: str | Path
             }
         if phase != previous and phase not in allowed.get(previous, set()):
             raise ValueError(f"invalid service lifecycle transition: {previous} -> {phase}")
-        status = "completed" if phase in {"ready", "offline"} else (
-            phase if phase in {"failed", "timed_out"} else "running")
+        # A successful service stop and a successful *Exit Job* are separate
+        # facts.  In particular, worker shutdown may have failed before the
+        # detached supervisor confirmed that the service itself is offline.
+        # Do not let the offline confirmation erase that failure.
+        requested_error = changes.get("error", ...)
+        if phase == "offline" and requested_error is None:
+            changes.pop("error", None)
+        errors = current.get("errors")
+        if not isinstance(errors, list):
+            errors = []
+        legacy_error = current.get("error")
+        if legacy_error and legacy_error not in errors:
+            errors.append(legacy_error)
+        new_error = changes.get("error")
+        if new_error and new_error not in errors:
+            errors.append(new_error)
+        if errors:
+            changes["errors"] = errors
+
         current.update(changes)
+        has_error = bool(current.get("error")) or bool(current.get("errors"))
+        status = ("failed" if phase == "offline" and has_error else "completed") if phase in {
+            "ready", "offline"
+        } else (
+            phase if phase in {"failed", "timed_out"} else "running")
         current.update(phase=phase, status=status, updatedAt=time.time())
         _atomic_write(path, current)
         return _normalize_job(current)

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from .base import CliAdapter
+from .base import CliAdapter, SYSTEM_PROMPT_ARG_MAX_CHARS
 
 
 def resolve_execution_mode(adapter: CliAdapter, s) -> str:
@@ -33,8 +33,18 @@ def resolve_execution_mode(adapter: CliAdapter, s) -> str:
         requested = ac.get("output_mode") or ""
     requested = str(requested).strip()
     if requested in modes:
-        return requested
-    # 非法/未设置 → 默认
-    if "stream" in modes:
+        selected = requested
+    else:
+        selected = "stream" if "stream" in modes else modes[0]
+
+    # cbc/claude oneshot_args have to put --system-prompt in the native CLI
+    # argv.  For an oversized prompt, prefer their stream transport instead;
+    # worker can then deliver the prompt through stdin (or a file-aware
+    # wrapper) and keep the body out of CreateProcess argv.  All current
+    # adapters with oneshot support also expose stream, while one-shot-only
+    # adapters retain their declared mode.
+    prompt = getattr(s, "system_prompt", None) if s is not None else None
+    if (selected == "oneshot" and "stream" in modes
+            and isinstance(prompt, str) and len(prompt) > SYSTEM_PROMPT_ARG_MAX_CHARS):
         return "stream"
-    return modes[0]
+    return selected

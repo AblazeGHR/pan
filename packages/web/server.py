@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import ctypes
+import errno
 import hashlib
 import json
 import math
@@ -19,9 +21,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Annotated
 from urllib.parse import unquote
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -56,6 +59,7 @@ from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 from packages.core import background_jobs
+from packages.core.codex_quota import format_codex_quota, validate_quota_window
 from packages.core import main_lifecycle
 
 # ── logging ──
@@ -175,6 +179,72 @@ _main_exit_request_id: str | None = None
 _main_exit_stage = "idle"
 _main_exit_error: str | None = None
 
+# Phase-one main lifecycle options are intentionally empty.  Keep the
+# validation at the HTTP boundary so a future option cannot be accepted by
+# one operation and silently ignored by the other.
+_MAIN_LIFECYCLE_REQUEST_FIELDS = frozenset({"options"})
+_MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset()
+
+
+def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
+    """Validate and freeze the phase-one lifecycle request options once.
+
+    The returned mapping is JSON-shaped and is persisted in the lifecycle Job
+    before any worker gate or detached supervisor is touched.  ``None`` and
+    ``{}`` preserve the historical no-body behavior; ``options`` is the only
+    request envelope accepted for forward compatibility.
+    """
+    if payload is None:
+        return {}
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_lifecycle_request",
+                "operation": operation,
+                "message": "request body must be an object",
+            },
+        )
+
+    unknown_request_fields = sorted(set(payload) - _MAIN_LIFECYCLE_REQUEST_FIELDS)
+    if unknown_request_fields:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_lifecycle_request_fields",
+                "operation": operation,
+                "fields": unknown_request_fields,
+                "message": "unsupported lifecycle request field(s)",
+            },
+        )
+
+    options = payload.get("options", {})
+    if not isinstance(options, dict):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_lifecycle_options",
+                "operation": operation,
+                "message": "options must be an object",
+            },
+        )
+    unknown_options = sorted(set(options) - _MAIN_LIFECYCLE_SUPPORTED_OPTIONS)
+    if unknown_options:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_lifecycle_options",
+                "operation": operation,
+                "fields": unknown_options,
+                "message": "unsupported lifecycle option(s)",
+            },
+        )
+
+    # JSON request data is already detached from the caller.  Rebuild the
+    # mapping so later phases receive a canonical snapshot, not a live input
+    # object; the Job write is the cross-process source of truth.
+    return json.loads(json.dumps(options, ensure_ascii=False, sort_keys=True))
+
 
 def _main_restart_paths() -> dict[str, Path]:
     scripts = _PROJECT_DIR / "scripts"
@@ -208,11 +278,13 @@ def _main_restart_job_view(job: dict | None) -> dict:
         return {}
     return {
         "jobId": job.get("jobId"), "requestId": job.get("requestId"),
+        "operation": job.get("operation"), "options": dict(job.get("options") or {}),
         "phase": job.get("phase"), "jobStatus": job.get("status"),
         "root": job.get("root"), "port": job.get("port"),
         "oldPid": job.get("oldPid"), "oldPidCreatedAt": job.get("oldPidCreatedAt"),
         "newPid": job.get("newPid"), "newPidCreatedAt": job.get("newPidCreatedAt"),
-        "error": job.get("error"), "createdAt": job.get("createdAt"),
+        "error": job.get("error"), "errors": list(job.get("errors") or []),
+        "createdAt": job.get("createdAt"),
         "updatedAt": job.get("updatedAt"),
     }
 
@@ -783,15 +855,88 @@ def _resolve_workdir(workdir_name: str) -> Path:
 
 
 def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
-    """Resolve a relative path within a session's workdir, rejecting escapes."""
+    """Resolve a session-relative or absolute path on the Pan server.
+
+    The web editor intentionally permits opening files anywhere on the server
+    for now. A future security policy can add containment checks here without
+    changing the client-side link or editor flow.
+    """
     s = sess.get(session_id)
     if not s or not s.workdir:
         raise ValueError("session has no workdir")
-    root = Path(s.workdir).resolve()
-    target = (root / rel_path).resolve()
-    # raises ValueError if rel_path (after resolving .. etc.) escapes root
-    target.relative_to(root)
-    return target
+    target = Path(rel_path)
+    if not target.is_absolute():
+        target = Path(s.workdir) / target
+    return target.resolve()
+
+
+def _rename_no_overwrite(src: Path, dst: Path) -> None:
+    """Rename without replacing a target which appears concurrently.
+
+    ``os.replace`` is intentionally not used here: it unconditionally
+    replaces on POSIX and could destroy a draft created after the UI's
+    advisory target-state check. Windows MoveFileEx without
+    MOVEFILE_REPLACE_EXISTING and Linux renameat2(RENAME_NOREPLACE) provide
+    atomic no-overwrite behavior. Platforms without a proven atomic
+    no-overwrite primitive fail closed.
+    """
+    if src == dst:
+        if not src.exists():
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(src))
+        return
+
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        move_file_ex = kernel32.MoveFileExW
+        move_file_ex.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+        move_file_ex.restype = ctypes.c_int
+        # MOVEFILE_WRITE_THROUGH; omitting MOVEFILE_REPLACE_EXISTING is the
+        # no-overwrite guarantee and works for local and UNC paths.
+        if not move_file_ex(str(src), str(dst), 0x8):
+            error = ctypes.get_last_error()
+            raise OSError(error, os.strerror(error), str(dst))
+        return
+
+    if sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = getattr(libc, "renameat2", None)
+        if renameat2 is not None:
+            renameat2.argtypes = [
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            renameat2.restype = ctypes.c_int
+            result = renameat2(
+                -100,
+                os.fsencode(src),
+                -100,
+                os.fsencode(dst),
+                1,  # AT_FDCWD, RENAME_NOREPLACE
+            )
+            if result == 0:
+                return
+            error = ctypes.get_errno()
+            # Some Linux architectures expose renameat2 but return ENOSYS at
+            # runtime (for example under an older kernel/container). A
+            # link+unlink fallback is not safe: another actor can remove the
+            # source inode between those operations, and it cannot provide
+            # the same no-overwrite guarantee for directories. Fail closed.
+            if error != errno.ENOSYS:
+                raise OSError(error, os.strerror(error), str(dst))
+            raise OSError(
+                errno.ENOTSUP,
+                "atomic no-overwrite rename is unavailable on this Linux system",
+                str(dst),
+            )
+
+    raise OSError(
+        errno.ENOTSUP,
+        "atomic no-overwrite rename is unavailable on this platform",
+        str(dst),
+    )
 
 
 def _guarded_model(a, value) -> str | None:
@@ -1320,7 +1465,7 @@ async def api_main_restart_status():
 
 
 @app.post("/api/main/restart")
-async def api_main_restart():
+async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
     """Accept a durable detached restart of this Pan instance.
 
     Returning before the supervisor stops this process is essential: waiting
@@ -1329,6 +1474,8 @@ async def api_main_restart():
     stop/start chain and uses this checkout's scripts only.
     """
     global _main_restart_pending, _main_restart_request_id
+
+    options = _parse_main_lifecycle_options(payload, "restart")
 
     status = _main_restart_status()
     if not status["available"]:
@@ -1357,7 +1504,7 @@ async def api_main_restart():
         job = background_jobs.create_service_job(
             request_id=request_id, operation="restart", root=str(_PROJECT_DIR), port=port,
             old_pid=old_pid, old_pid_created_at=old_pid_created_at,
-            registry_root=registry_root,
+            registry_root=registry_root, options=options,
         )
     except background_jobs.ServiceJobBusy as exc:
         existing = exc.job
@@ -1433,7 +1580,7 @@ async def _perform_main_exit(request_id: str) -> None:
     try:
         background_jobs.transition_service_job(
             job["jobId"], "stopping_service", registry_root=registry_root,
-            error=_main_exit_error,
+            **({"error": _main_exit_error} if _main_exit_error else {}),
         )
     except (OSError, ValueError) as exc:
         _log(f"[main-exit] failed to record service-stop phase: {exc}")
@@ -1461,7 +1608,7 @@ async def api_main_exit_status():
 
 
 @app.post("/api/main/exit")
-async def api_main_exit():
+async def api_main_exit(payload: Annotated[dict | None, Body()] = None):
     """Schedule a legal, stop-only shutdown of this Pan instance.
 
     The HTTP response is returned before Worker draining and service stop.  No
@@ -1469,6 +1616,8 @@ async def api_main_exit():
     service unavailable.
     """
     global _main_exit_pending, _main_exit_request_id, _main_exit_stage, _main_exit_error
+
+    options = _parse_main_lifecycle_options(payload, "exit")
 
     status = _main_exit_status()
     if not status["available"]:
@@ -1505,7 +1654,7 @@ async def api_main_exit():
         job = background_jobs.create_service_job(
             request_id=request_id, operation="exit", root=str(_PROJECT_DIR), port=port,
             old_pid=old_pid, old_pid_created_at=old_pid_created_at,
-            registry_root=registry_root,
+            registry_root=registry_root, options=options,
         )
     except background_jobs.ServiceJobBusy as exc:
         existing = exc.job
@@ -2091,6 +2240,23 @@ async def api_get_session(session_id: str):
     if not s:
         return {"error": "Session not found"}
     return _session_to_api(s)
+
+
+@app.get("/api/sessions/{session_id}/usage")
+async def api_get_session_usage(session_id: str):
+    """Return the stable persisted input/output/cache usage projection.
+
+    This is a read-only view over Session.raw_usage / Session.total_usage. It
+    does not refresh provider state and, unlike the full session response, does
+    not expose the historical raw payload.
+    """
+    s = sess.get(session_id)
+    if not s:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {session_id} not found",
+        }}
+    return sess.session_usage_view(s)
 
 
 @app.get("/api/sessions/{session_id}/managers")
@@ -3985,6 +4151,92 @@ async def api_cli_status():
     }
 
 
+def _is_codex_worker(w) -> bool:
+    """Match only live workers backed by the Codex adapter."""
+    return getattr(getattr(w, "adapter", None), "name", "") == "codex"
+
+
+@app.get("/api/codex/quota")
+async def api_codex_quota(session_id: str = "", window: str = "all"):
+    """Query live Codex account windows from the app-server rate-limit cache.
+
+    ``first`` is the five-hour window and ``secondary`` is the weekly window;
+    neither name selects an adapter fallback or a model. Without a session id
+    exactly one live Codex worker must be available, preventing an arbitrary
+    account snapshot from being returned when multiple workers exist.
+
+    This is a loopback HTTP trusted-admin interface.  It has no manager
+    identity authentication and does not apply managed-session isolation;
+    callers must not invent or pass a manager parameter.  Managed isolation
+    is enforced by the MCP caller layer before it calls this endpoint.
+
+    The response is the live Worker event snapshot, not a provider pull.  The
+    compatibility ``updatedAt`` and explicit ``receivedAt`` fields are the
+    local Pan Worker receive time for ``account/rateLimits/updated``; the
+    provider's original update time is not fabricated or exposed.
+    """
+    if not validate_quota_window(window):
+        return {"ok": False, "error": {
+            "code": "invalid_window",
+            "message": "window must be one of 'all', 'first', or 'secondary'",
+        }}
+
+    if session_id:
+        target = sess.get(session_id)
+        if target is None:
+            return {"ok": False, "error": {
+                "code": "session_not_found",
+                "message": f"Session {session_id} not found",
+            }}
+        if target.adapter != "codex":
+            return {"ok": False, "error": {
+                "code": "unsupported_provider",
+                "message": f"Session {session_id} uses adapter {target.adapter!r}; Codex quota requires adapter 'codex'",
+            }}
+        candidates = [worker.find_alive_worker_by_session(session_id)]
+        candidates = [w for w in candidates if w is not None]
+    else:
+        candidates = [w for w in worker.list_live_workers() if _is_codex_worker(w)]
+
+    if not candidates:
+        return {"ok": False, "error": {
+            "code": "quota_unavailable",
+            "message": "No live Codex worker with a rate-limit snapshot is available",
+            "provider": "codex",
+        }}
+    if len(candidates) > 1:
+        return {"ok": False, "error": {
+            "code": "quota_ambiguous",
+            "message": "More than one live Codex worker is available; pass session_id",
+            "candidates": [
+                {"sessionId": w.session_id, "workerId": w.worker_id}
+                for w in candidates
+            ],
+        }}
+
+    selected = candidates[0]
+    rate_limits = getattr(selected, "native_rate_limits", None)
+    if not isinstance(rate_limits, dict) or not rate_limits:
+        return {"ok": False, "error": {
+            "code": "quota_unavailable",
+            "message": "Codex worker has not emitted account/rateLimits/updated",
+            "provider": "codex",
+            "sessionId": selected.session_id,
+            "workerId": selected.worker_id,
+        }}
+    return format_codex_quota(
+        rate_limits,
+        session_id=selected.session_id,
+        worker_id=selected.worker_id,
+        updated_at=getattr(selected, "native_rate_limits_updated_at", None),
+        received_at=(
+            getattr(selected, "native_rate_limits_received_at", None)
+            or getattr(selected, "native_rate_limits_updated_at", None)
+        ),
+        requested_window=window,
+    )
+
+
 # ── cbc Session Import ──
 
 @app.get("/api/cbc/projects")
@@ -5191,7 +5443,7 @@ async def api_fs_rename(data: dict):
     except ValueError as e:
         return {"error": str(e)}
     try:
-        os.replace(str(src), str(dst))
+        _rename_no_overwrite(src, dst)
         return {"from": frm, "to": to}
     except PermissionError:
         return {"error": f"Permission denied"}

@@ -1,7 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import type { OnMount, BeforeMount } from '@monaco-editor/react';
-import { setMonacoRef, useEditorStore, languageFromPath } from '@/stores/editorStore';
+import {
+  setMonacoRef,
+  useEditorStore,
+  languageFromPath,
+  type EditorLocation,
+} from '@/stores/editorStore';
 
 interface CodeEditorProps {
   path: string | null;
@@ -38,23 +43,60 @@ const beforeMount: BeforeMount = (monaco) => {
 };
 
 export function CodeEditor({ path, content }: CodeEditorProps) {
-  const saveFile = useEditorStore((s) => s.saveFile);
+  const requestSave = useEditorStore((s) => s.requestSave);
   const markDirty = useEditorStore((s) => s.markDirty);
   const activePath = useEditorStore((s) => s.activePath);
+  const pendingLocation = useEditorStore((s) => s.pendingLocation);
+  const consumePendingLocation = useEditorStore((s) => s.consumePendingLocation);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+
+  const applyLocation = useCallback(
+    (editor: Parameters<OnMount>[0], location: EditorLocation | null) => {
+      if (!location || location.path !== path) return;
+      const model = editor.getModel();
+      const lineCount = model?.getLineCount() ?? location.line;
+      const line = Math.min(Math.max(1, location.line), lineCount);
+      const endLine = Math.min(
+        Math.max(line, location.endLine ?? line),
+        lineCount,
+      );
+      const endColumn = model?.getLineMaxColumn(endLine) ?? 1;
+
+      editor.setPosition({ lineNumber: line, column: 1 });
+      editor.revealLineInCenter(line);
+      editor.setSelection({
+        startLineNumber: line,
+        startColumn: 1,
+        endLineNumber: endLine,
+        endColumn,
+      });
+      consumePendingLocation(location);
+    },
+    [consumePendingLocation, path],
+  );
+
+  // The link may finish loading before Monaco mounts, or Monaco may mount
+  // before the async store update reaches React. Applying in both places
+  // makes location requests independent of that initialization timing.
+  useEffect(() => {
+    if (editorRef.current) applyLocation(editorRef.current, pendingLocation);
+  }, [applyLocation, pendingLocation]);
 
   const handleMount: OnMount = useCallback(
     (editor, monaco) => {
       setMonacoRef(monaco);
+      editorRef.current = editor;
+      applyLocation(editor, useEditorStore.getState().pendingLocation);
 
       // Register Ctrl+S
       editor.addCommand(
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
         () => {
-          saveFile();
+          requestSave();
         },
       );
     },
-    [saveFile],
+    [applyLocation, requestSave],
   );
 
   const handleChange = useCallback(

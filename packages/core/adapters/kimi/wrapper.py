@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from pathlib import Path
 from queue import Queue
 
 
@@ -50,6 +51,21 @@ def _write_agent_file(system_prompt: str, kimi_home: str | None) -> str:
     with open(base, "w", encoding="utf-8") as f:
         f.write(body)
     return base
+
+
+def _read_system_prompt_file(path: str | None) -> str | None:
+    """Read and remove the worker-owned UTF-8 prompt file."""
+    if not path:
+        return None
+    prompt_path = Path(path)
+    try:
+        with prompt_path.open("r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+    finally:
+        try:
+            prompt_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _forward_and_collect(stdout, session_id: str | None) -> tuple[str | None, str | None]:
@@ -266,6 +282,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--kimi-home", default=None)
     parser.add_argument("--system-prompt", default=None,
                         help="worker 注入的系统提示词（首轮转 --agent-file）")
+    parser.add_argument("--system-prompt-file", default=None,
+                        help="worker-owned UTF-8 file containing the system prompt")
     return parser
 
 
@@ -273,13 +291,16 @@ def main() -> int:
     args = _build_arg_parser().parse_args()
 
     cwd = os.environ.get("PAN_KIMI_CWD") or os.environ.get("CLICONDUCTOR_KIMI_CWD") or os.getcwd()
+    system_prompt = args.system_prompt
+    if args.system_prompt_file:
+        system_prompt = _read_system_prompt_file(args.system_prompt_file)
     return _main_loop(
         kimi_path=args.kimi_path,
         model=args.model,
         initial_session_id=args.session_id,
         cwd=cwd,
         kimi_home=args.kimi_home,
-        system_prompt=args.system_prompt,
+        system_prompt=system_prompt,
     )
 
 

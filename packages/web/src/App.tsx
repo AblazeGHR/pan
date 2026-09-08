@@ -3,6 +3,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sidebar } from './components/layout/Sidebar';
 import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
+import { EditorConfirmationModal } from './components/editor/EditorConfirmationModal';
 import { DetailPanel } from './components/detail/DetailPanel';
 import { CliStatusBanner } from './components/layout/CliStatusBanner';
 import { DemoBadge } from './demo/DemoBadge';
@@ -146,6 +147,7 @@ function Layout() {
       {isMockMode() && <DemoBadge />}
       <DetailPanel />
       <CommandPalette />
+      <EditorConfirmationModal />
     </div>
   );
 }

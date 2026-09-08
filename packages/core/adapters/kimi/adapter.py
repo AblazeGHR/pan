@@ -57,6 +57,9 @@ class KimiAdapter:
     # --agent-file 与 -p 组合生效、-S resume 后人设保留）。缺 False 的 adapter
     # 由 worker 退回首条消息注入（见 worker.py spawn 块）。
     supports_spawn_system_prompt = True
+    # The wrapper consumes this path and converts the UTF-8 contents to Kimi's
+    # native --agent-file without putting the prompt body in argv.
+    supports_spawn_system_prompt_file = True
 
     # 执行模式（adapter-p1-oneshot.md）：kimi 用 wrapper 长驻，worker 只走
     # stream；wrapper 内部逐条 `kimi -p` 的一次性语义对 worker 透明，故不暴露

@@ -1104,11 +1104,184 @@ def compute_total_usage(raw_usage: dict | None) -> dict | None:
     for entry in raw_usage.values():
         ru = entry.get("rawUsage", {})
         total["prompt_tokens"] += ru.get("prompt_tokens", 0)
-        total["cache_hit_tokens"] += ru.get("prompt_cache_hit_tokens", 0)
-        total["cache_miss_tokens"] += ru.get("prompt_cache_miss_tokens", 0)
+        # Adapters historically used several names for the same cache
+        # counters. Prefer the canonical prompt_cache_* spelling when it is
+        # present; otherwise bridge provider-specific aliases. This prevents
+        # Codex/Claude/OpenCode cache reads from remaining stranded in
+        # raw_usage while totalUsage reports cache_hit_tokens=0, and avoids
+        # double-counting when both spellings are present.
+        total["cache_hit_tokens"] += next(
+            (ru[key] for key in (
+                "prompt_cache_hit_tokens", "cache_read_tokens",
+                "cached_input_tokens",
+            ) if key in ru and ru[key] is not None),
+            0,
+        )
+        total["cache_miss_tokens"] += next(
+            (ru[key] for key in (
+                "prompt_cache_miss_tokens", "cache_write_tokens",
+                "cache_write_input_tokens",
+            ) if key in ru and ru[key] is not None),
+            0,
+        )
         total["completion_tokens"] += ru.get("completion_tokens", 0)
         total["credit"] += ru.get("credit", 0) + ru.get("cost", 0)
     return total
+
+
+# Keep this projection separate from ``compute_total_usage``: the latter is
+# the long-standing billing-compatible aggregate, while this view also reads
+# re-imported provider snapshots such as Codex input_tokens/output_tokens.
+_USAGE_VIEW_ALIASES = {
+    "input": ("prompt_tokens", "input_tokens"),
+    "output": ("completion_tokens", "output_tokens"),
+    "cache_read": (
+        "prompt_cache_hit_tokens", "cache_read_tokens", "cached_input_tokens",
+    ),
+    "cache_write": (
+        "prompt_cache_miss_tokens", "cache_write_tokens",
+        "cache_write_input_tokens",
+    ),
+    "credit": ("credit", "cost"),
+}
+
+
+def _usage_view_entries(raw_usage) -> list[dict]:
+    """Return model entries from current and legacy raw usage shapes."""
+    if isinstance(raw_usage, dict):
+        return [entry for entry in raw_usage.values() if isinstance(entry, dict)]
+    if isinstance(raw_usage, list):
+        return [entry for entry in raw_usage if isinstance(entry, dict)]
+    return []
+
+
+def _usage_view_number(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _usage_view_sum(entries: list[dict], aliases: tuple[str, ...]):
+    """Sum one field, selecting at most one alias per model entry.
+
+    ``None`` means no entry carried a numeric value. An explicit numeric zero
+    remains zero. Selecting one alias prevents compatibility names from being
+    counted twice when a provider payload contains more than one spelling.
+    """
+    found = False
+    total = 0
+    for entry in entries:
+        raw = entry.get("rawUsage")
+        if not isinstance(raw, dict):
+            raw = entry if any(key in entry for key in aliases) else None
+        if not isinstance(raw, dict):
+            continue
+        value = next(
+            (raw[key] for key in aliases
+             if key in raw and raw[key] is not None),
+            None,
+        )
+        value = _usage_view_number(value)
+        if value is not None:
+            total += value
+            found = True
+    return total if found else None
+
+
+def session_usage_view(s: Session) -> dict:
+    """Project persisted Session usage into a stable input/output/cache view.
+
+    This read-only view never refreshes provider state or mutates the session.
+    Non-empty ``raw_usage`` is primary; ``total_usage`` is a compatibility
+    fallback for old sessions that only have the derived aggregate. Cache is
+    reported separately and is not added to input/output again. Thus
+    ``total.tokens`` is ``input + output`` only.
+    """
+    raw_entries = _usage_view_entries(s.raw_usage)
+    if raw_entries:
+        values = {
+            name: _usage_view_sum(raw_entries, aliases)
+            for name, aliases in _USAGE_VIEW_ALIASES.items()
+        }
+        source_kind = "Session.rawUsage"
+        source_fields = {
+            "input": "rawUsage.prompt_tokens|input_tokens",
+            "output": "rawUsage.completion_tokens|output_tokens",
+            "cache.read": (
+                "rawUsage.prompt_cache_hit_tokens|cache_read_tokens|"
+                "cached_input_tokens"
+            ),
+            "cache.write": (
+                "rawUsage.prompt_cache_miss_tokens|cache_write_tokens|"
+                "cache_write_input_tokens"
+            ),
+            "credit": "rawUsage.credit|cost",
+        }
+    elif isinstance(s.total_usage, dict):
+        total_usage = s.total_usage
+        values = {
+            "input": _usage_view_number(total_usage.get("prompt_tokens"))
+                if "prompt_tokens" in total_usage else None,
+            "output": _usage_view_number(total_usage.get("completion_tokens"))
+                if "completion_tokens" in total_usage else None,
+            "cache_read": _usage_view_number(total_usage.get("cache_hit_tokens"))
+                if "cache_hit_tokens" in total_usage else None,
+            "cache_write": _usage_view_number(total_usage.get("cache_miss_tokens"))
+                if "cache_miss_tokens" in total_usage else None,
+            "credit": _usage_view_number(total_usage.get("credit"))
+                if "credit" in total_usage else None,
+        }
+        source_kind = "Session.totalUsage"
+        source_fields = {
+            "input": "totalUsage.prompt_tokens",
+            "output": "totalUsage.completion_tokens",
+            "cache.read": "totalUsage.cache_hit_tokens",
+            "cache.write": "totalUsage.cache_miss_tokens",
+            "credit": "totalUsage.credit",
+        }
+    else:
+        values = {name: None for name in _USAGE_VIEW_ALIASES}
+        source_kind = None
+        source_fields = {}
+
+    input_tokens = values["input"]
+    output_tokens = values["output"]
+    cache_read = values["cache_read"]
+    cache_write = values["cache_write"]
+    cache_total = (
+        cache_read + cache_write
+        if _usage_view_number(cache_read) is not None
+        and _usage_view_number(cache_write) is not None else None
+    )
+    total_tokens = (
+        input_tokens + output_tokens
+        if _usage_view_number(input_tokens) is not None
+        and _usage_view_number(output_tokens) is not None else None
+    )
+    return {
+        "ok": True,
+        "sessionId": s.id,
+        "adapter": s.adapter,
+        "input": input_tokens,
+        "output": output_tokens,
+        "cache": {
+            "read": cache_read,
+            "write": cache_write,
+            "total": cache_total,
+        },
+        "total": {
+            "tokens": total_tokens,
+            "credit": values["credit"],
+        },
+        "source": {
+            "kind": source_kind,
+            "fields": source_fields,
+            "updatedAt": "Session.updatedAt",
+            "updatedAtMeaning": (
+                "Pan session persistence time; provider event time is not "
+                "retained by the aggregate view"
+            ),
+        },
+        "updatedAt": s.updated_at or None,
+    }
 
 
 def _migrate_session_usage(s: Session):

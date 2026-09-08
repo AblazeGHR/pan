@@ -5,8 +5,8 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble';
 import { filterVisibleMessages } from './messageFilter';
+import { getDisplayItemKey } from '@/utils/messageIdentity';
 import { ArrowDown, Loader2 } from 'lucide-react';
-const SCROLL_BOTTOM_THRESHOLD = 120;
 
 export function ChatMessages() {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -43,30 +43,56 @@ export function ChatMessages() {
     getScrollElement: () => parentRef.current,
     estimateSize: () => 100,
     overscan: 5,
+    // The default key is the array index. Streaming replaces message objects,
+    // prepending history shifts indexes, and tool grouping changes row shapes;
+    // an index key lets Virtualizer reuse another row's height/DOM node.
+    getItemKey: (index) => getDisplayItemKey(grouped[index], index),
   });
   // Virtualized content height. Changes when messages are added/removed or
   // when items get measured after layout. Re-scrolling on this (while the user
   // is pinned to the bottom) is what lands the view at the *true* bottom once
   // the virtualizer's measurements settle, instead of the initial estimate.
   const totalSize = virtualizer.getTotalSize();
+  const virtualItems = virtualizer.getVirtualItems();
 
   // Whether the user wants the view to follow the bottom. This is deliberately
   // state held outside React rendering: a streaming delta can arrive between
   // renders, and a render must not infer "follow" from a transient scrollTop.
   // Starts true so the first message load of a session scrolls down; a user
-  // scroll past the threshold opts out until they return near the bottom (or
-  // explicitly press the scroll-to-bottom button).
+  // scroll away from the exact bottom opts out until they return to the exact
+  // bottom (or explicitly press the scroll-to-bottom button).
   const shouldFollowBottomRef = useRef(true);
+  // A newly selected session starts with an empty/unlaid-out container. Allow
+  // its first history render to establish the initial bottom position even
+  // though scrollTop is 0 before the content is mounted.
+  const initialScrollPendingRef = useRef(true);
+  const lastScrollMetricsRef = useRef<{
+    height: number;
+    top: number;
+    clientHeight: number;
+  } | null>(null);
   const paginationAnchorRef = useRef<{ top: number; height: number } | null>(null);
 
-  // Scroll-to-bottom when new messages arrive if already near bottom
-  const isNearBottom = useCallback((): boolean => {
+  // A positive distance, including a single pixel, means the user is not at
+  // the bottom. Clamp only negative browser rounding artefacts to zero.
+  const getDistanceFromBottom = useCallback((): number => {
     const el = parentRef.current;
-    if (!el) return true;
-    return (
-      el.scrollHeight - el.scrollTop - el.clientHeight <
-      SCROLL_BOTTOM_THRESHOLD
-    );
+    if (!el) return 0;
+    return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
+  }, []);
+
+  const isAtBottom = useCallback((): boolean => {
+    return getDistanceFromBottom() === 0;
+  }, [getDistanceFromBottom]);
+
+  const captureScrollMetrics = useCallback(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    lastScrollMetricsRef.current = {
+      height: el.scrollHeight,
+      top: el.scrollTop,
+      clientHeight: el.clientHeight,
+    };
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -74,21 +100,37 @@ export function ChatMessages() {
     if (el) {
       shouldFollowBottomRef.current = true;
       el.scrollTop = el.scrollHeight;
+      captureScrollMetrics();
     }
-  }, []);
+  }, [captureScrollMetrics]);
 
   // Auto-scroll on new messages / measurement-driven size changes — but only
   // when the user hasn't scrolled away from the bottom. This is ALSO what
   // lands the view at the bottom after entering a session: the session-change
-  // effect below resets isPinnedRef=true, so when the asynchronously-loaded
-  // history arrives (currentMessages changes) — and again once the virtualizer
-  // measures the real heights (totalSize changes) — we force the scroll down
-  // even though the fresh container's scrollTop starts at 0.
+  // effect below sets the initial-scroll flag, so when the asynchronously-
+  // loaded history arrives (currentMessages changes) — and again once the
+  // virtualizer measures the real heights (totalSize changes) — we scroll only
+  // when the container is truly at the bottom, except for that initial history
+  // render.
   useEffect(() => {
-    if (shouldFollowBottomRef.current) {
+    const el = parentRef.current;
+    const previous = lastScrollMetricsRef.current;
+    const grewWhilePinned = Boolean(
+      el &&
+        previous &&
+        el.scrollHeight !== previous.height &&
+        el.scrollTop === previous.top &&
+        Math.max(0, previous.height - previous.top - previous.clientHeight) === 0,
+    );
+    if (
+      shouldFollowBottomRef.current &&
+      (initialScrollPendingRef.current || isAtBottom() || grewWhilePinned)
+    ) {
+      initialScrollPendingRef.current = false;
       scrollToBottom();
     }
-  }, [currentMessages, totalSize, isNearBottom, scrollToBottom]);
+    captureScrollMetrics();
+  }, [currentMessages, totalSize, captureScrollMetrics, isAtBottom, scrollToBottom]);
 
   // Lazy load older messages on scroll to top
   useEffect(() => {
@@ -97,12 +139,11 @@ export function ChatMessages() {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const handler = () => {
-      // Track the user's scroll anchor: pinned when within the bottom
-      // threshold, unpinned once they scroll up past it. Programmatic scrolls
-      // (scrollToBottom) also fire scroll events and correctly re-pin.
-      shouldFollowBottomRef.current =
-        el.scrollHeight - el.scrollTop - el.clientHeight <
-        SCROLL_BOTTOM_THRESHOLD;
+      // Any positive distance opts out. Programmatic scrolls (scrollToBottom)
+      // also fire scroll events and re-pin only at the exact bottom.
+      initialScrollPendingRef.current = false;
+      shouldFollowBottomRef.current = isAtBottom();
+      captureScrollMetrics();
 
       if (timer) return;
       timer = setTimeout(() => {
@@ -135,7 +176,7 @@ export function ChatMessages() {
       el.removeEventListener('scroll', handler);
       if (timer) clearTimeout(timer);
     };
-  }, [hasMoreMessages, historyLoading, loadOlderMessages]);
+  }, [captureScrollMetrics, hasMoreMessages, historyLoading, isAtBottom, loadOlderMessages]);
 
   // Scroll to bottom when the session changes. Reset the pinned anchor first
   // so the auto-scroll effect above forces us down once this session's history
@@ -143,8 +184,17 @@ export function ChatMessages() {
   // The rAF re-scroll covers the same-frame layout of the freshly swapped DOM.
   useEffect(() => {
     shouldFollowBottomRef.current = true;
+    initialScrollPendingRef.current = true;
+    lastScrollMetricsRef.current = null;
     paginationAnchorRef.current = null;
     scrollToBottom();
+    // If this session already has a mounted message container, the session
+    // switch itself performed the initial positioning. Keep later updates
+    // subject to the strict bottom check; leave the flag pending only when
+    // history is still empty and its container has not mounted yet.
+    if (parentRef.current) {
+      initialScrollPendingRef.current = false;
+    }
     const raf = requestAnimationFrame(scrollToBottom);
     return () => cancelAnimationFrame(raf);
   }, [currentSessionId, scrollToBottom]);
@@ -179,27 +229,40 @@ export function ChatMessages() {
       >
         <div
           style={{
-            height: `${virtualizer.getTotalSize()}px`,
+            minHeight: `${totalSize}px`,
             width: '100%',
-            position: 'relative',
+            // Keep the virtual spacer and its rows in one formatting context
+            // so top spacing is measured as part of the scroll content.
+            display: 'flow-root',
           }}
         >
-          {virtualizer.getVirtualItems().map((vItem) => {
+          {virtualItems.map((vItem, virtualIndex) => {
             const item = grouped[vItem.index];
             if (!item) return null;
             const prevItem = grouped[vItem.index - 1];
             const prevRole = prevItem ? getItemRole(prevItem) : null;
+            const previousVirtualItem = virtualItems[virtualIndex - 1];
+            // The first rendered row reserves the omitted prefix. Subsequent
+            // rows use only a non-negative gap: if a streamed/collapsible row
+            // is taller than its last measurement, normal flow pushes the next
+            // row down instead of allowing stale absolute coordinates to
+            // overlap it. TanStack will measure the new height and settle the
+            // spacer on the next update.
+            const flowOffset = previousVirtualItem
+              ? Math.max(0, vItem.start - previousVirtualItem.start - previousVirtualItem.size)
+              : Math.max(0, vItem.start);
             return (
               <div
                 key={vItem.key}
                 data-index={vItem.index}
                 ref={virtualizer.measureElement}
                 style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
                   width: '100%',
-                  transform: `translateY(${vItem.start}px)`,
+                  marginTop: `${flowOffset}px`,
+                  // Keep child margins and collapsible content inside the
+                  // measured row's formatting context. The viewport may move
+                  // because of auto-scroll, but it must not alter row order.
+                  display: 'flow-root',
                 }}
               >
                 <MessageDisplayItem item={item} prevRole={prevRole} />
@@ -210,7 +273,7 @@ export function ChatMessages() {
       </div>
 
       {/* Scroll-to-bottom button */}
-      {!isNearBottom() && (
+      {!isAtBottom() && (
         <button
           onClick={scrollToBottom}
           className="absolute bottom-2 right-4 rounded-full bg-accent text-white p-2 shadow-lg hover:bg-accent-hover transition-colors z-10"

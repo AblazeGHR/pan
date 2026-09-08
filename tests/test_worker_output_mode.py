@@ -102,6 +102,15 @@ def test_oneshot_without_mcp_goes_oneshot():
     assert resolve_execution_mode(get_adapter("cbc"), s) == "oneshot"
 
 
+def test_long_system_prompt_never_selects_oneshot_for_cbc_or_claude():
+    prompt = "系统提示\n" + ("instruction 😀\n" * 1000)
+    for name in ("cbc", "claude"):
+        s = _session(output_mode="oneshot")
+        s.adapter = name
+        s.system_prompt = prompt
+        assert resolve_execution_mode(get_adapter(name), s) == "stream"
+
+
 def test_invalid_output_mode_clamps_to_stream():
     s = _session(mcp_servers=[{"name": "pan"}], output_mode="bogus")
     assert resolve_execution_mode(get_adapter("cbc"), s) == "stream"

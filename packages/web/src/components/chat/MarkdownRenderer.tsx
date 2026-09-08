@@ -1,13 +1,56 @@
 import React, { createContext, useContext, useState } from 'react';
-import ReactMarkdown, { type ExtraProps } from 'react-markdown';
+import { useNavigate } from 'react-router-dom';
+import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import { Copy, Check } from 'lucide-react';
+import { useCurrentSession } from '@/stores/sessionStore';
+import { useEditorStore } from '@/stores/editorStore';
+import { useUIStore } from '@/stores/uiStore';
+import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
 import 'highlight.js/styles/github-dark.css';
 
 type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
 type PreProps = React.JSX.IntrinsicElements['pre'] & ExtraProps;
+type LinkProps = React.JSX.IntrinsicElements['a'] & ExtraProps;
+
+function transformMarkdownUrl(value: string): string {
+  // react-markdown's default sanitizer intentionally removes non-web schemes.
+  // Preserve only destinations that our local-file parser understands; all
+  // other URLs keep the library's safe default behavior.
+  return parseMarkdownFileLink(value) ? value : defaultUrlTransform(value);
+}
+
+function MarkdownLink({ href, children, node: _node, ...props }: LinkProps) {
+  const navigate = useNavigate();
+  const currentSession = useCurrentSession();
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleClick = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!href) return;
+    const fileLink = parseMarkdownFileLink(href);
+    if (!fileLink) return;
+    event.preventDefault();
+
+    if (!currentSession?.id) {
+      showToast('当前没有可用的 Session，无法打开文件', 'error');
+      return;
+    }
+    if (!currentSession.workdir) {
+      showToast('当前 Session 没有工作目录，无法打开文件', 'error');
+      return;
+    }
+
+    // Keep the existing editor root in sync before opening. This also covers
+    // links clicked in Chat/DetailPanel before EditorView has mounted.
+    await useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
+    const opened = await useEditorStore.getState().openFile(fileLink.path, fileLink.location);
+    if (opened) navigate('/editor');
+  };
+
+  return <a href={href} onClick={(event) => void handleClick(event)} {...props}>{children}</a>;
+}
 
 /** True while rendering a <pre> subtree, i.e. a block-level code block.
  *  Inline code (backticks) is never wrapped in a <pre>. */
@@ -130,7 +173,9 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         components={{
           code: CodeBlock,
           pre: PreBlock,
+          a: MarkdownLink,
         }}
+        urlTransform={transformMarkdownUrl}
       >
         {content}
       </ReactMarkdown>

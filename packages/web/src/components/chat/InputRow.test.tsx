@@ -98,7 +98,7 @@ beforeEach(() => {
     sessions: [],
   });
   useQueueStore.setState({ queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false });
-  useUIStore.setState({ toastQueue: [] });
+  useUIStore.setState({ toastQueue: [], chatAttachmentRequests: [] });
   useAdapterStore.setState({
     adapters: [],
     adapterConfigs: {},
@@ -140,6 +140,21 @@ describe('InputRow send queue wiring', () => {
       's1', '请阅读 @"D:\\attachments\\report.txt"', expect.any(String),
     ));
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+  });
+
+  it('consumes an editor request through the existing server attachment and queue path', async () => {
+    setBusySession();
+    useUIStore.getState().requestChatAttachment('s1', 'D:\\project\\src\\main.ts');
+    render(<InputRow />);
+
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('main.ts'));
+    expect(useUIStore.getState().chatAttachmentRequests).toEqual([]);
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '审阅' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1', '审阅 @"D:\\project\\src\\main.ts"', expect.any(String),
+    ));
   });
 
   it('closes the server browser with its close button and backdrop', async () => {

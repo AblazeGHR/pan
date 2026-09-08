@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest",
+    "e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run.ps1",
     "gen:api": "openapi-typescript http://localhost:8768/api/openapi.json -o src/types/api.d.ts",
     "analyze": "vite-bundle-visualizer"
   },
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.10.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.0.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^26.1.1",

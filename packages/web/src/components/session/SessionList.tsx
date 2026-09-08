@@ -11,6 +11,7 @@ import { claimSession, unclaimSession, reorderSessions } from '@/services/api';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { FolderOpen, Loader2 } from 'lucide-react';
+import { getAutoScrollDelta, findScrollableAncestor } from './sessionDragAutoScroll';
 
 interface SessionListProps {
   onSessionClick?: (id: string) => void;
@@ -211,6 +212,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     pruneCollapsedGroups,
     pruneHiddenSessions,
     showToast,
+    dragEnabled: dragPreference,
   } = useUIStore();
   const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
 
@@ -406,6 +408,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   // Last pointer position, re-applied when the ghost mounts mid-drag.
   const ghostPosRef = useRef<{ x: number; y: number } | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const autoScrollContainerRef = useRef<HTMLElement | null>(null);
+  const autoScrollPointerYRef = useRef(0);
+  const autoScrollTickRef = useRef<() => void>(() => {});
   // Latest visible (filtered+sorted) order, for computing the insert result.
   const filteredRef = useRef<Session[]>([]);
   useEffect(() => {
@@ -459,10 +465,52 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     clearDragFeedback();
   }, [clearDragFeedback]);
 
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+    autoScrollContainerRef.current = null;
+  }, []);
+
+  // One animation loop owns scrolling for the whole drag. Pointer moves only
+  // update the latest Y, so no unbounded timer is created on touch devices.
+  autoScrollTickRef.current = () => {
+    const container = autoScrollContainerRef.current;
+    if (!container || !dragIdRef.current) {
+      stopAutoScroll();
+      return;
+    }
+    const delta = getAutoScrollDelta(
+      autoScrollPointerYRef.current,
+      container.getBoundingClientRect(),
+    );
+    if (delta === 0) {
+      stopAutoScroll();
+      return;
+    }
+    const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    const next = Math.max(0, Math.min(maxScrollTop, container.scrollTop + delta));
+    if (next !== container.scrollTop) container.scrollTop = next;
+    hitTest(autoScrollPointerYRef.current);
+    autoScrollFrameRef.current = requestAnimationFrame(autoScrollTickRef.current);
+  };
+
+  const updateAutoScroll = useCallback((clientY: number) => {
+    autoScrollPointerYRef.current = clientY;
+    if (!autoScrollContainerRef.current) {
+      autoScrollContainerRef.current = findScrollableAncestor(listRef.current);
+    }
+    if (autoScrollContainerRef.current && autoScrollFrameRef.current === null) {
+      autoScrollFrameRef.current = requestAnimationFrame(autoScrollTickRef.current);
+    }
+  }, []);
+
   const finishDrag = useCallback(() => {
     window.removeEventListener('pointermove', onPointerMoveRef.current);
     window.removeEventListener('pointerup', onPointerUpRef.current);
     window.removeEventListener('pointercancel', onPointerCancelRef.current);
+    stopAutoScroll();
     setDragId(null);
     dragIdRef.current = null;
     pressRef.current = null;
@@ -473,7 +521,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     didDragClearTimerRef.current = setTimeout(() => {
       didDragRef.current = false;
     }, 600);
-  }, [clearDragFeedback]);
+  }, [clearDragFeedback, stopAutoScroll]);
 
   // Listener wrappers live in refs so add/remove always target the same
   // function instances across mounts.
@@ -495,6 +543,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     }
     positionGhost(e.clientX, e.clientY);
     hitTest(e.clientY);
+    updateAutoScroll(e.clientY);
   };
   onPointerUpRef.current = () => {
     const press = pressRef.current;
@@ -664,14 +713,15 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       window.removeEventListener('pointerup', onPointerUpRef.current);
       window.removeEventListener('pointercancel', onPointerCancelRef.current);
       if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
+      stopAutoScroll();
     };
-  }, []);
+  }, [stopAutoScroll]);
 
   const dragSession = dragId ? sessions.find((s) => s.id === dragId) : null;
   // Drag works in the flat list AND the manager tree (same semantics:
   // center → manage, edge → sibling slot at the target row's level).
   // Grouped-by-dir lists stay non-draggable.
-  const dragEnabled = (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
+  const dragEnabled = dragPreference && (groupBy === 'none' || groupBy === 'manager') && !multiSelectMode;
 
   // Per-card drag props for memoized SessionItem (stable refs + primitives
   // keep unrelated cards from re-rendering).

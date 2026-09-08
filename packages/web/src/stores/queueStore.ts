@@ -26,6 +26,7 @@ interface QueueStore {
     type?: string;
     sessionId?: string;
     queueItemId?: string;
+    queueItemIds?: string[];
     queueRevision?: number;
     item?: Record<string, unknown>;
   }) => void;
@@ -165,6 +166,15 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       }
     } else if (event.type === 'queue.item_removed' && typeof id === 'string') {
       next = current.filter((candidate) => candidate.id !== id);
+    } else if (event.type === 'queue.item_delivered' && Array.isArray(event.queueItemIds)) {
+      const delivered = new Set(
+        event.queueItemIds.filter((queueItemId): queueItemId is string => (
+          typeof queueItemId === 'string' && queueItemId.length > 0
+        )),
+      );
+      if (delivered.size) {
+        next = current.filter((candidate) => !delivered.has(candidate.id));
+      }
     }
     if (next !== current || event.queueRevision !== undefined) {
       setSnapshot(set, sid, next, event.queueRevision);

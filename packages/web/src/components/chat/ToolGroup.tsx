@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, CircleCheck, CircleX, Loader2, Wrench } from 'l
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useDetailStore } from '@/stores/detailStore';
+import { getMessageIdentity } from '@/utils/messageIdentity';
 
 interface ToolGroupProps {
   items: Message[];
@@ -137,7 +138,7 @@ function StatusIcon({ status }: { status: ToolInfo['status'] }) {
 
 export function ToolGroup({ items }: ToolGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const unread = useSessionStore((s) => s.getUnread());
 
   if (items.length === 0) return null;
@@ -145,7 +146,7 @@ export function ToolGroup({ items }: ToolGroupProps) {
   const tools = items.map((t) => parseTool(t.content));
   const hasUnread = items.some((t) => unread.has(t.content));
 
-  const handleToolClick = (idx: number, tool: ToolInfo) => {
+  const handleToolClick = (key: string, tool: ToolInfo) => {
     // Open detail panel for this tool
     const detail = useDetailStore.getState();
     detail.openDetail({ type: 'tool', content: tool.rawContent, title: tool.name });
@@ -153,14 +154,14 @@ export function ToolGroup({ items }: ToolGroupProps) {
     // Keep existing expand/collapse behavior
     setExpandedTools((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
   return (
-    <div className="tool-group border border-border-default rounded-lg bg-bg-secondary mb-3">
+    <div className="tool-group border border-border-default rounded-lg bg-bg-secondary">
       {/* Group Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -179,35 +180,38 @@ export function ToolGroup({ items }: ToolGroupProps) {
       {/* Tool rows */}
       {isOpen && (
         <>
-          {tools.map((tool, i) => (
-            <div key={i}>
-              {i > 0 && <div className="border-t border-border-default" />}
+          {tools.map((tool, i) => {
+            const key = getMessageIdentity(items[i]!);
+            return (
+              <div key={key}>
+                {i > 0 && <div className="border-t border-border-default" />}
 
-              {/* Tool Row */}
-              <div
-                onClick={() => handleToolClick(i, tool)}
-                className="msg tool flex items-center gap-2 min-h-[30px] px-3 cursor-pointer hover:bg-bg-hover/30 transition-colors select-none"
-              >
-                <StatusIcon status={tool.status} />
-                <span className="text-xs font-mono text-text-primary truncate">{tool.name}</span>
-                {tool.argsPreview && (
-                  <span className="text-xs text-text-tertiary truncate">{tool.argsPreview}</span>
-                )}
-                <span className="ml-auto text-text-tertiary flex-shrink-0">
-                  {expandedTools.has(i) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </span>
-              </div>
-
-              {/* Expanded content */}
-              {expandedTools.has(i) && (
-                <div className="bg-bg-tertiary border-t border-border-default p-3 overflow-hidden">
-                  <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed text-text-secondary">
-                    {tool.args ? formatArgs(tool.args, tool.name) : tool.rawContent}
-                  </pre>
+                {/* Tool Row */}
+                <div
+                  onClick={() => handleToolClick(key, tool)}
+                  className="msg tool flex items-center gap-2 min-h-[30px] px-3 cursor-pointer hover:bg-bg-hover/30 transition-colors select-none"
+                >
+                  <StatusIcon status={tool.status} />
+                  <span className="text-xs font-mono text-text-primary truncate">{tool.name}</span>
+                  {tool.argsPreview && (
+                    <span className="text-xs text-text-tertiary truncate">{tool.argsPreview}</span>
+                  )}
+                  <span className="ml-auto text-text-tertiary flex-shrink-0">
+                    {expandedTools.has(key) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Expanded content */}
+                {expandedTools.has(key) && (
+                  <div className="bg-bg-tertiary border-t border-border-default p-3 overflow-hidden">
+                    <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed text-text-secondary">
+                      {tool.args ? formatArgs(tool.args, tool.name) : tool.rawContent}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </>
       )}
     </div>

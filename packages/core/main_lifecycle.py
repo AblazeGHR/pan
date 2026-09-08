@@ -177,6 +177,50 @@ def _fail(job_id: str, phase: str, message: str, registry_root: str | None = Non
     return 1
 
 
+class _ServiceStopFailure(RuntimeError):
+    def __init__(self, phase: str, message: str):
+        super().__init__(message)
+        self.phase = phase
+
+
+def _stop_service(*, job_id: str, root_path: Path, port: int, old_pid: int | None,
+                  old_pid_created_at: float | None, log_path: str | None,
+                  phase: str, require_verified_identity: bool,
+                  registry_root: str | None) -> None:
+    """Run the shared old-service stop stage for Exit and Restart.
+
+    The caller owns the operation-specific phases before and after this
+    helper.  In particular, this helper never changes Worker state and never
+    starts a service; it only verifies and stops the current Pan service.
+    """
+    if require_verified_identity:
+        if not old_pid or old_pid_created_at is None:
+            raise _ServiceStopFailure("failed", "current service identity could not be verified")
+        if not service_process_identity(old_pid, str(root_path), old_pid_created_at)["ok"]:
+            raise _ServiceStopFailure("failed", "current service identity could not be verified")
+    elif old_pid and not service_process_identity(
+            old_pid, str(root_path), old_pid_created_at)["ok"]:
+        raise _ServiceStopFailure("failed", "old service identity could not be verified")
+
+    background_jobs.transition_service_job(job_id, phase, registry_root=registry_root)
+    stop = _run_script(
+        root_path / "scripts" / "stop_pan.bat", root_path, log_path, STOP_TIMEOUT_SEC,
+    )
+    if stop.returncode != 0:
+        raise _ServiceStopFailure("failed", f"stop_pan.bat failed with exit code {stop.returncode}")
+
+    deadline = time.monotonic() + STOP_TIMEOUT_SEC
+    while time.monotonic() < deadline:
+        listener_gone = listener_owner(port) is None
+        process_gone = not old_pid or not service_process_identity(
+            old_pid, str(root_path), old_pid_created_at,
+        ).get("ok")
+        if listener_gone and process_gone:
+            return
+        time.sleep(READY_POLL_SEC)
+    raise _ServiceStopFailure("timed_out", "Pan service remained alive after stop")
+
+
 def run_exit_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None,
                         old_pid_created_at: float | None = None,
                         registry_root: str | None = None) -> int:
@@ -190,29 +234,22 @@ def run_exit_supervisor(job_id: str, root: str, port: int, old_pid: int | None =
             old_pid_created_at if old_pid_created_at is not None
             else job.get("oldPidCreatedAt")
         )
-        if not old_pid or old_pid_created_at is None:
-            return _fail(job_id, "failed", "current service identity could not be verified", registry_root)
-        if not service_process_identity(old_pid, str(root_path), old_pid_created_at)["ok"]:
-            return _fail(job_id, "failed", "current service identity could not be verified", registry_root)
+        _stop_service(
+            job_id=job_id, root_path=root_path, port=port, old_pid=old_pid,
+            old_pid_created_at=old_pid_created_at, log_path=log_path,
+            phase="stopping_service", require_verified_identity=True,
+            registry_root=registry_root,
+        )
         background_jobs.transition_service_job(
-            job_id, "stopping_service", registry_root=registry_root,
+            job_id, "offline", registry_root=registry_root,
+            # The service being offline does not imply that the whole Exit
+            # Job succeeded.  transition_service_job deliberately preserves
+            # any Worker/step error already recorded on the Job.
+            oldPid=old_pid, oldPidCreatedAt=old_pid_created_at,
         )
-        stop = _run_script(
-            root_path / "scripts" / "stop_pan.bat", root_path, log_path, STOP_TIMEOUT_SEC,
-        )
-        if stop.returncode != 0:
-            return _fail(job_id, "failed", f"stop_pan.bat failed with exit code {stop.returncode}", registry_root)
-        deadline = time.monotonic() + STOP_TIMEOUT_SEC
-        while time.monotonic() < deadline:
-            if listener_owner(port) is None and not service_process_identity(
-                    old_pid, str(root_path), old_pid_created_at).get("ok"):
-                background_jobs.transition_service_job(
-                    job_id, "offline", registry_root=registry_root,
-                    oldPid=old_pid, oldPidCreatedAt=old_pid_created_at, error=None,
-                )
-                return 0
-            time.sleep(READY_POLL_SEC)
-        return _fail(job_id, "timed_out", "Pan service remained alive after stop", registry_root)
+        return 0
+    except _ServiceStopFailure as exc:
+        return _fail(job_id, exc.phase, str(exc), registry_root)
     except subprocess.TimeoutExpired as exc:
         return _fail(job_id, "timed_out", f"stop script timed out: {exc}", registry_root)
     except Exception as exc:
@@ -225,31 +262,25 @@ def run_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None
     """Run the durable requested -> stopping -> ... -> ready sequence."""
     root_path = Path(root).expanduser().resolve()
     job = background_jobs.get(job_id, registry_root) or {}
+    # Operation and options are deliberately read from the durable Job here;
+    # the detached process must not depend on request-process memory or on a
+    # future caller re-supplying policy arguments.  Phase one has no active
+    # options, but validating the persisted shape keeps the boundary explicit.
+    persisted_options = job.get("options", {})
+    if not isinstance(persisted_options, dict):
+        return _fail(job_id, "failed", "persisted lifecycle options are invalid", registry_root)
     if job.get("operation") == "exit":
         return run_exit_supervisor(
             job_id, root, port, old_pid, old_pid_created_at, registry_root,
         )
     log_path = job.get("logPath")
     try:
-        if old_pid and not service_process_identity(old_pid, str(root_path), old_pid_created_at)["ok"]:
-            return _fail(job_id, "failed", "old service identity could not be verified", registry_root)
-        background_jobs.transition_service_job(job_id, "stopping", registry_root=registry_root)
-        stop = _run_script(root_path / "scripts" / "stop_pan.bat", root_path, log_path, STOP_TIMEOUT_SEC)
-        if stop.returncode != 0:
-            return _fail(job_id, "failed", f"stop_pan.bat failed with exit code {stop.returncode}", registry_root)
-        deadline = time.monotonic() + STOP_TIMEOUT_SEC
-        while time.monotonic() < deadline:
-            owner = listener_owner(port)
-            if owner is None:
-                break
-            time.sleep(READY_POLL_SEC)
-        else:
-            return _fail(job_id, "failed", "old listener remained after stop", registry_root)
-        if listener_owner(port) is not None:
-            return _fail(job_id, "failed", "old listener remained after stop", registry_root)
-        if old_pid and service_process_identity(
-                old_pid, str(root_path), old_pid_created_at).get("ok"):
-            return _fail(job_id, "failed", "old service process remained after stop", registry_root)
+        _stop_service(
+            job_id=job_id, root_path=root_path, port=port, old_pid=old_pid,
+            old_pid_created_at=old_pid_created_at, log_path=log_path,
+            phase="stopping", require_verified_identity=False,
+            registry_root=registry_root,
+        )
         background_jobs.transition_service_job(job_id, "stopped", registry_root=registry_root)
         background_jobs.transition_service_job(job_id, "starting", registry_root=registry_root)
         start = _run_script(root_path / "scripts" / "start_pan.bat", root_path, log_path, START_TIMEOUT_SEC)
@@ -270,6 +301,8 @@ def run_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None
             last_error = str(checks.get("error") or last_error)
             time.sleep(READY_POLL_SEC)
         return _fail(job_id, "timed_out", last_error, registry_root)
+    except _ServiceStopFailure as exc:
+        return _fail(job_id, exc.phase, str(exc), registry_root)
     except subprocess.TimeoutExpired as exc:
         return _fail(job_id, "timed_out", f"restart script timed out: {exc}", registry_root)
     except Exception as exc:
