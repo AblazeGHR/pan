@@ -9,13 +9,17 @@ jobs:
   pytest:
     # Project is Windows-centric (npm .CMD shim resolution, drive-letter paths
     # as test data, process-tree handling); run on Windows for fidelity.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
