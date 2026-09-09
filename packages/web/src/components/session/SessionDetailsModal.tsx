@@ -1,8 +1,10 @@
-import { Copy } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
+import { fetchSessionUsage } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
-import type { Session } from '@/types';
+import type { Session, SessionUsageView } from '@/types';
 import { copyText } from '@/utils/clipboard';
 import { normalizeCodexRateLimits, type CodexQuotaWindow } from '@/utils/codexRateLimits';
 
@@ -17,6 +19,33 @@ function displayValue(value: string | null | undefined, empty = '暂无 / 未建
 
 function formatAmount(value: number): string {
   return Number.isInteger(value) ? value.toLocaleString('en-US') : value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function formatMetric(value: number | null | undefined): string {
+  return value == null ? '暂无数据' : formatAmount(value);
+}
+
+function fallbackUsage(session: Session): SessionUsageView {
+  const total = session.totalUsage ?? {};
+  const input = total.prompt_tokens ?? total.input_tokens ?? null;
+  const output = total.completion_tokens ?? total.output_tokens ?? null;
+  const cacheRead = total.prompt_cache_hit_tokens ?? total.cache_read_tokens ?? total.cached_input_tokens ?? null;
+  const cacheWrite = total.prompt_cache_miss_tokens ?? total.cache_write_tokens ?? total.cache_write_input_tokens ?? null;
+  return {
+    sessionId: session.id,
+    adapter: session.adapter || '',
+    input,
+    output,
+    cache: {
+      read: cacheRead,
+      write: cacheWrite,
+      total: cacheRead != null && cacheWrite != null ? cacheRead + cacheWrite : null,
+    },
+    total: {
+      tokens: input != null && output != null ? input + output : null,
+      credit: total.credit ?? total.cost ?? null,
+    },
+  };
 }
 
 function formatResetTime(value: number | undefined): string | undefined {
@@ -40,10 +69,35 @@ function quotaDetails(window: CodexQuotaWindow): string[] {
 export function SessionDetailsModal({ session, onClose }: SessionDetailsModalProps) {
   const showToast = useUIStore((s) => s.showToast);
   const worker = useWorkerStore((s) => (session ? s.workers[session.id] : undefined));
+  const sessionId = session?.id;
+  const [usageExpanded, setUsageExpanded] = useState(false);
+  const [usage, setUsage] = useState<SessionUsageView | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [usageError, setUsageError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUsageExpanded(false);
+    setUsage(null);
+    setUsageLoading(false);
+    setUsageError(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!usageExpanded || !sessionId || usage) return;
+    let active = true;
+    setUsageLoading(true);
+    fetchSessionUsage(sessionId)
+      .then((result) => { if (active) setUsage(result); })
+      .catch((error) => {
+        if (active) setUsageError(error instanceof Error ? error.message : 'Usage 加载失败');
+      })
+      .finally(() => { if (active) setUsageLoading(false); });
+    return () => { active = false; };
+  }, [sessionId, usageExpanded, usage]);
 
   if (!session) return null;
 
-  const credit = session.totalUsage?.credit;
+  const usageView = usage ?? fallbackUsage(session);
   const copyValue = (label: string, value: string | undefined) => {
     if (!value) {
       showToast(`${label} 暂无可复制内容`, 'error');
@@ -111,26 +165,44 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             </div>
           );
         })}
-        {isCodex ? (
-          <div className="space-y-3" aria-label="Codex quota">
-            <div className="text-xs text-text-tertiary">Codex 额度（当前 Worker 快照）</div>
-            {!workerForSession || !workerOnline ? (
-              <div className="text-sm text-text-tertiary">当前 Worker 不可用，暂无额度数据</div>
-            ) : (
-              <>
-                {renderQuotaWindow('周额度', quotaWindows.weekly)}
-                {renderQuotaWindow('月额度', quotaWindows.monthly)}
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="min-w-0">
-            <div className="text-xs text-text-tertiary mb-1">额度（累计消费 credit）</div>
-            <div className="text-sm text-text-primary break-words">
-              {credit === undefined ? '暂无 usage 数据' : credit.toFixed(2)}
+        <section className="rounded border border-border-default overflow-hidden" aria-label="Usage">
+          <button
+            type="button"
+            aria-expanded={usageExpanded}
+            aria-controls="session-usage-details"
+            onClick={() => setUsageExpanded((expanded) => !expanded)}
+            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="font-medium">Usage</span>
+            <span className="flex items-center gap-1 text-xs text-text-tertiary">
+              {usageLoading ? '加载中…' : usageExpanded ? '收起' : '展开'}
+              {usageExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </span>
+          </button>
+          {usageExpanded && (
+            <div id="session-usage-details" role="region" aria-label="Usage details" className="space-y-3 border-t border-border-default px-3 py-3">
+              {usageError && <div className="text-xs text-text-tertiary">{usageError}，当前显示已有数据</div>}
+              {isCodex ? (
+                <div className="space-y-3" aria-label="Codex quota">
+                  <div className="text-xs text-text-tertiary">Quota（当前 Worker 快照）</div>
+                  {!workerForSession || !workerOnline ? (
+                    <div className="text-sm text-text-tertiary">当前 Worker 不可用，暂无 quota 数据</div>
+                  ) : <>{renderQuotaWindow('周额度', quotaWindows.weekly)}{renderQuotaWindow('月额度', quotaWindows.monthly)}</>}
+                </div>
+              ) : (
+                <div className="min-w-0">
+                  <div className="text-xs text-text-tertiary mb-1">Credits（累计）</div>
+                  <div className="text-sm text-text-primary break-words">{formatMetric(usageView.total.credit)}</div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-3 border-t border-border-muted pt-3 sm:grid-cols-3">
+                <div><div className="text-xs text-text-tertiary mb-1">输入 Token</div><div className="text-sm text-text-primary">{formatMetric(usageView.input)}</div></div>
+                <div><div className="text-xs text-text-tertiary mb-1">输出 Token</div><div className="text-sm text-text-primary">{formatMetric(usageView.output)}</div></div>
+                <div><div className="text-xs text-text-tertiary mb-1">缓存 Token</div><div className="text-sm text-text-primary break-words">{[usageView.cache.total != null ? `总计 ${formatMetric(usageView.cache.total)}` : null, usageView.cache.read != null ? `读 ${formatMetric(usageView.cache.read)}` : null, usageView.cache.write != null ? `写 ${formatMetric(usageView.cache.write)}` : null].filter(Boolean).join(' · ') || '暂无数据'}</div></div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </section>
       </div>
     </Modal>
   );

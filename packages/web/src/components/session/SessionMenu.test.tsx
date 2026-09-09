@@ -27,4 +27,15 @@ describe('SessionMenu details entry', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onDetails).toHaveBeenCalledWith(session.id);
   });
+
+  it('routes Rename to the in-app rename flow without using prompt', () => {
+    const onClose = vi.fn();
+    const onRename = vi.fn();
+    const promptSpy = vi.spyOn(window, 'prompt');
+    render(<SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={onClose} onRename={onRename} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onRename).toHaveBeenCalledWith(session.id);
+    expect(promptSpy).not.toHaveBeenCalled();
+  });
 });

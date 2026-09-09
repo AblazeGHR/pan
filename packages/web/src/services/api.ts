@@ -1,5 +1,6 @@
 import type {
   Session,
+  SessionUsageView,
   ApiSessionsResponse,
   ApiSessionResponse,
   ApiSessionHistoryResponse,
@@ -140,6 +141,12 @@ export async function fetchSessions(summary = false): Promise<Session[]> {
 export async function fetchSession(id: string): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/sessions/${id}`);
   if (data.error) throw new Error(data.error);
+  return data;
+}
+
+export async function fetchSessionUsage(id: string): Promise<SessionUsageView> {
+  const data = await request<SessionUsageView>(`${BASE}/sessions/${encodeURIComponent(id)}/usage`);
+  if (data.ok === false) throw new Error(data.error?.message || 'Failed to load session usage');
   return data;
 }
 
