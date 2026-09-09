@@ -109,9 +109,9 @@ DEFAULT_CONFIG: dict = {
     "frontend": "coexist",
     # 服务端口（环境变量 PAN_PORT 可覆盖）
     "port": 8768,
-    # Windows scripts/start_pan.bat 启动时的窗口行为。旧配置缺失时隐藏。
+    # Windows scripts/start_pan.bat 启动时的窗口行为。旧配置缺失时显示。
     "startup": {
-        "console_hidden": True,
+        "console_hidden": False,
     },
     # Built-in project + first-party Pan MCP manifests. External/private
     # manifests can be appended in config.json.

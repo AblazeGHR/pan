@@ -5,7 +5,7 @@ param(
     [string]$PidFile,
     [string]$StdoutFile,
     [string]$StderrFile,
-    [bool]$ConsoleHidden = $true
+    [bool]$ConsoleHidden = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,8 +30,8 @@ if (-not $PidFile) {
 
 # The launcher owns the console window, so read this launch-time option here
 # instead of making the Python service responsible for Windows UI state. Old
-# config.json files do not have the startup section and retain the safe
-# detached default (hidden).
+# config.json files do not have the startup section and retain the default
+# visible console behavior.
 $configPath = Join-Path $WorkDir "config.json"
 if (Test-Path -LiteralPath $configPath -PathType Leaf) {
     try {

@@ -201,7 +201,7 @@ def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
     # A double-clicked batch file must leave enough evidence for failures that
     # happen before Pan's file logger is initialized, and the server must not
     # depend on the launcher's console lifetime in either window mode.
-    assert "[bool]$ConsoleHidden = $true" in start_main
+    assert "[bool]$ConsoleHidden = $false" in start_main
     assert "startup.console_hidden" in start_main
     assert "-WindowStyle Hidden" in start_main
     assert "-WindowStyle Normal" in start_main
@@ -209,7 +209,7 @@ def test_startup_scripts_use_detached_diagnostics_and_checkout_boundaries():
     assert "-RedirectStandardError $StderrFile" in start_main
     assert "-StdoutFile \"%PAN_STDOUT%\"" in start
     assert "-StderrFile \"%PAN_STDERR%\"" in start
-    assert config["startup"]["console_hidden"] is True
+    assert config["startup"]["console_hidden"] is False
 
     # Prefixes such as D:\\project\\Pan-test must not be treated as this
     # checkout.  Start and stop use the same boundary-aware contract.
