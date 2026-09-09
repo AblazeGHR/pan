@@ -4622,7 +4622,8 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         if orig.cli_session_id and not s.cli_session_id:
             s.cli_session_id = orig.cli_session_id
         if not s.system_prompt:
-            s.system_prompt = orig.system_prompt
+            s.original_prompt = orig.original_prompt
+            s.handoff_prompt = orig.handoff_prompt
         if not s.character_id:
             s.character_id = orig.character_id
         if not s.session_template:

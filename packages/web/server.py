@@ -609,6 +609,9 @@ def _session_to_api(s: sess.Session):
         "canClaimUnmanaged": s.can_claim_unmanaged,
         "autoClaimCreated": s.auto_claim_created,
         "sessionTemplate": s.session_template,
+        "originalPrompt": s.original_prompt,
+        "handoffPrompt": s.handoff_prompt,
+        "systemPrompt": s.system_prompt,  # derived, read-only compatibility view
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
         "maxThinkingTokens": ac.get("max_thinking_tokens"),
@@ -846,6 +849,9 @@ def _build_session_params(
     external session from being recorded; normal session creation remains
     strict so a configured MCP server can never disappear silently.
     """
+    for key in ("originalPrompt", "handoffPrompt", "systemPrompt"):
+        if key in data and data[key] is not None and not isinstance(data[key], str):
+            raise ValueError(f"{key} must be a string or null")
     name = data.get("name", "default")
     workdir_name = data.get("workdir") or name
 
@@ -1001,7 +1007,8 @@ def _build_session_params(
         },
         "session_template": template_name,
         "pan_access": pan_access,
-        "system_prompt": data.get("systemPrompt") or template.system_prompt,
+        "original_prompt": data.get("originalPrompt", data.get("systemPrompt", template.system_prompt)),
+        "handoff_prompt": data.get("handoffPrompt"),
         "game_id": data.get("gameId") or None,
     }
     # Optional worker execution mode ("stream" | "oneshot"); validated against
@@ -1156,6 +1163,13 @@ def _apply_session_updates(s: sess.Session, data: dict):
     Validate-first：所有显式设置先整体通过 adapter 能力校验，任一非法即抛
     AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
     """
+    # systemPrompt was not a supported settings field. Reject effective-prompt
+    # writes explicitly so a detail response cannot become a recursive baseline.
+    if "systemPrompt" in data:
+        raise ValueError("systemPrompt is read-only; update originalPrompt or handoffPrompt")
+    for key in ("originalPrompt", "handoffPrompt"):
+        if key in data and data[key] is not None and not isinstance(data[key], str):
+            raise ValueError(f"{key} must be a string or null")
     _explicit = {
         key: data[key]
         for key in ("model", "permissionMode", "alwaysThinkingEnabled",
@@ -1194,6 +1208,13 @@ def _apply_session_updates(s: sess.Session, data: dict):
         # plugin to bind a RuleWhisper game_id to a group-scoped session so
         # LLM-driven MCP tool calls can pass it through.
         s.game_id = data["gameId"] or None
+    # Apply prompts after the other settings have accepted the request. These
+    # affect future fresh workers/handoffs; resumed CLI context already contains
+    # its prompt. Do not imply that respawning rewrites that context.
+    if "originalPrompt" in data:
+        s.original_prompt = data["originalPrompt"]
+    if "handoffPrompt" in data:
+        s.handoff_prompt = data["handoffPrompt"]
 
 
 _PAN_ACCESS_FIELDS = (
@@ -2676,7 +2697,8 @@ async def api_branch_session(session_id: str, data: dict):
         workdir=s.workdir,
         history=history,
         character_id=s.character_id,
-        system_prompt=s.system_prompt,
+        original_prompt=s.original_prompt,
+        handoff_prompt=s.handoff_prompt,
         adapter_config=new_adapter_config,
         pan_access=dict(s.pan_access),
     )
@@ -2699,8 +2721,8 @@ async def api_session_handoff(session_id: str, data: dict):
            "permissionMode"?}
 
     行为见 ``sess.handoff_session``：关系网接替 + B 自动 manage A + 可选设置
-    复制（不含 system_prompt）+ B.system_prompt = handoffPrompt 与 A 原
-    system_prompt 拼接 + 重命名（A → "(archive) <原名>"，B → "<原名>"）。
+    复制（不含旧交接简报）+ B.system_prompt = 本次 handoffPrompt 与 A.original_prompt
+    拼接 + 重命名（A → "(archive) <原名>"，B → "<原名>"）。
     """
     handoff_prompt = (data.get("handoffPrompt") or "").strip()
     if not handoff_prompt:
@@ -4225,6 +4247,8 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                 "name": name,
                 "sessionTemplate": data.get("sessionTemplate"),
                 **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
+                **{key: data[key] for key in ("originalPrompt", "handoffPrompt", "systemPrompt")
+                   if key in data},
             },
             resolve_workdir=False,
             strict_mcp=False,
@@ -4249,6 +4273,8 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         model=model,
         permission_mode=params.get("permission_mode"),
         session_template=params.get("session_template"),
+        original_prompt=params.get("original_prompt"),
+        handoff_prompt=params.get("handoff_prompt"),
         pan_access=params.get("pan_access"),
         adapter_config=params.get("adapter_config"),
     )
