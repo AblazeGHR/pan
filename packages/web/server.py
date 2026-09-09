@@ -65,8 +65,13 @@ from packages.core import main_lifecycle
 # ── logging ──
 
 def _log(msg: str):
-    """Print with HH:MM:SS prefix."""
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+    """Print with HH:MM:SS prefix without failing on narrow consoles."""
+    stream = sys.stdout
+    line = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
+    encoding = getattr(stream, "encoding", None)
+    if encoding:
+        line = line.encode(encoding, errors="backslashreplace").decode(encoding)
+    print(line, file=stream)
 
 
 # Comma-separated path prefixes to skip in request logging.
