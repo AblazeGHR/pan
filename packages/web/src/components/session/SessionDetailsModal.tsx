@@ -183,7 +183,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             <div id="session-usage-details" role="region" aria-label="Usage details" className="space-y-3 border-t border-border-default px-3 py-3">
               {usageError && <div className="text-xs text-text-tertiary">{usageError}，当前显示已有数据</div>}
               {isCodex ? (
-                <div className="space-y-3" aria-label="Codex quota">
+                <div className="space-y-3" role="region" aria-label="Codex quota">
                   <div className="text-xs text-text-tertiary">Quota（当前 Worker 快照）</div>
                   {!workerForSession || !workerOnline ? (
                     <div className="text-sm text-text-tertiary">当前 Worker 不可用，暂无 quota 数据</div>

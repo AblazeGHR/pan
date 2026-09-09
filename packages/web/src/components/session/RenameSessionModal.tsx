@@ -57,7 +57,14 @@ export function RenameSessionModal({ session, onClose }: RenameSessionModalProps
           id="rename-session-input"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Escape') onClose(); }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              // Modal also listens on document; prevent the same keypress from
+              // closing the dialog a second time through that global handler.
+              event.stopPropagation();
+              onClose();
+            }
+          }}
           disabled={submitting}
           autoComplete="off"
           className="w-full rounded border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"

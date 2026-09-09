@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { SessionDetailsModal } from './SessionDetailsModal';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -157,7 +157,7 @@ describe('SessionDetailsModal', () => {
 
     expect(screen.getByText(/已使用 12%/)).toBeTruthy();
     expect(screen.getByText('月额度')).toBeTruthy();
-    expect(screen.getAllByText('暂无数据')).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: 'Codex quota' })).getAllByText('暂无数据')).toHaveLength(1);
     expect(screen.queryByText(/已使用 91%/)).toBeNull();
   });
 
@@ -185,7 +185,7 @@ describe('SessionDetailsModal', () => {
     expect(screen.getAllByText('暂无 / 未建立')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
     expect(await screen.findByText('Credits（累计）')).toBeTruthy();
-    expect(screen.getByText('暂无数据')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Usage details' })).getAllByText('暂无数据')).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: '复制工作目录' }));
     expect(useUIStore.getState().toastQueue.at(-1)?.type).toBe('error');
   });
