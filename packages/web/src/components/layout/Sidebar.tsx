@@ -12,6 +12,7 @@ import { ManageModal } from '@/components/session/ManageModal';
 import { PostboxModal } from '@/components/session/PostboxModal';
 import { SessionMenu } from '@/components/session/SessionMenu';
 import { SessionDetailsModal } from '@/components/session/SessionDetailsModal';
+import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
 import { SPECIAL_FILTERS, getSessionListCandidates } from '@/utils/sessionFilters';
@@ -89,6 +90,7 @@ export function Sidebar() {
   const [manageSessionId, setManageSessionId] = useState<string | null>(null);
   const [postboxSessionId, setPostboxSessionId] = useState<string | null>(null);
   const [detailsSessionId, setDetailsSessionId] = useState<string | null>(null);
+  const [renameSessionId, setRenameSessionId] = useState<string | null>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showDragMenu, setShowDragMenu] = useState(false);
@@ -651,6 +653,7 @@ export function Sidebar() {
               }}
               onPostbox={setPostboxSessionId}
               onDetails={setDetailsSessionId}
+              onRename={setRenameSessionId}
               onDelete={(id) => handleDeleteRequest([id])}
             />
           )}
@@ -816,6 +819,10 @@ export function Sidebar() {
       <SessionDetailsModal
         session={detailsSessionId ? sessions.find((s) => s.id === detailsSessionId) ?? null : null}
         onClose={() => setDetailsSessionId(null)}
+      />
+      <RenameSessionModal
+        session={renameSessionId ? sessions.find((s) => s.id === renameSessionId) ?? null : null}
+        onClose={() => setRenameSessionId(null)}
       />
     </aside>
   );

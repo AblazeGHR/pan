@@ -67,6 +67,18 @@ export interface Session {
   updatedAt?: string;
 }
 
+export interface SessionUsageView {
+  ok?: boolean;
+  sessionId: string;
+  adapter: string;
+  input: number | null;
+  output: number | null;
+  cache: { read: number | null; write: number | null; total: number | null };
+  total: { tokens: number | null; credit: number | null };
+  updatedAt?: string | null;
+  error?: { code?: string | number; message?: string };
+}
+
 export interface WorkerEventContent {
   type: string;
   text?: string;

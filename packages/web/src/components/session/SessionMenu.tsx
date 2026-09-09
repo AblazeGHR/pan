@@ -24,14 +24,15 @@ interface SessionMenuProps {
   onPostbox?: (id: string) => void;
   /** Open the session details modal for this session. */
   onDetails?: (id: string) => void;
+  onRename?: (id: string) => void;
   onDelete?: (id: string) => void;
 }
 
-export function SessionMenu({ session, position, onClose, onManage, onPostbox, onDetails, onDelete }: SessionMenuProps) {
+export function SessionMenu({ session, position, onClose, onManage, onPostbox, onDetails, onRename, onDelete }: SessionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   // 挂载前先用点击锚点，量取菜单尺寸后按视口空间翻转/收敛到最终落点。
   const [placement, setPlacement] = useState<{ x: number; y: number }>(() => position);
-  const { rename, reimport, branch, toggleMultiSelect } =
+  const { reimport, branch, toggleMultiSelect } =
     useSessionStore();
   const { showToast } = useUIStore();
 
@@ -87,11 +88,7 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
 
   const handleRename = () => {
     onClose();
-    const newName = (prompt('New session name:') || '').trim();
-    if (!newName) return;
-    rename(session.id, newName).catch((e) =>
-      showToast(e.message || 'Rename failed', 'error'),
-    );
+    onRename?.(session.id);
   };
 
   const handleReimport = async () => {
