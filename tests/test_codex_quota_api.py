@@ -20,6 +20,11 @@ import packages.mcp.server as mcp_server
 import packages.web.server as web_server
 
 
+@pytest.fixture(autouse=True)
+def isolate_quota_store(tmp_path, monkeypatch):
+    monkeypatch.setenv("PAN_CODEX_QUOTA_DIR", str(tmp_path / "codex-quota"))
+
+
 def _rate_limits():
     return {
         "primary": {"usedPercent": 16, "windowDurationMins": 300},
@@ -99,6 +104,40 @@ def test_codex_quota_http_route_reports_remaining_contract_errors(monkeypatch):
     monkeypatch.setattr(web_server.worker, "list_live_workers", lambda: workers)
     ambiguous = asyncio.run(web_server.api_codex_quota())
     assert ambiguous["error"]["code"] == "quota_ambiguous"
+
+
+def test_codex_quota_http_route_reads_global_cache_without_worker(monkeypatch):
+    from packages.core.codex_quota_store import CodexQuotaStore, resolve_profile_identity
+
+    CodexQuotaStore(resolve_profile_identity()).update(
+        _rate_limits(),
+        observed_at="2026-09-09T01:02:03+00:00",
+        received_at="2026-09-09T01:02:04+00:00",
+    )
+    monkeypatch.setattr(web_server.sess, "get", lambda sid: SimpleNamespace(adapter="codex"))
+    monkeypatch.setattr(web_server.worker, "find_alive_worker_by_session", lambda sid: None)
+
+    result = asyncio.run(web_server.api_codex_quota(session_id="ses-offline", window="secondary"))
+    assert result["ok"] is True
+    assert result["cacheMode"] == "persisted"
+    assert result["workerId"] is None
+    assert result["sessionId"] == "ses-offline"
+    assert result["windows"]["secondary"]["kind"] == "weekly"
+    assert result["receivedAt"] == "2026-09-09T01:02:04+00:00"
+
+
+def test_codex_quota_http_route_reports_multiple_cached_profiles_as_ambiguous():
+    from packages.core.codex_quota_store import CodexProfile, CodexQuotaStore
+    from pathlib import Path
+
+    CodexQuotaStore(CodexProfile(Path("C:/codex/a"), None, None, "profile-a")).update(
+        _rate_limits(),
+    )
+    CodexQuotaStore(CodexProfile(Path("C:/codex/b"), None, None, "profile-b")).update(
+        _rate_limits(),
+    )
+    result = asyncio.run(web_server.api_codex_quota())
+    assert result["error"]["code"] == "quota_ambiguous"
 
 
 def test_http_and_mcp_quota_permission_boundaries_are_explicit(monkeypatch):

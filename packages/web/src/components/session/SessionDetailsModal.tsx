@@ -6,7 +6,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import type { Session, SessionUsageView } from '@/types';
 import { copyText } from '@/utils/clipboard';
-import { normalizeCodexRateLimits, type CodexQuotaWindow } from '@/utils/codexRateLimits';
+import { normalizeCodexQuotaProjection, normalizeCodexRateLimits, type CodexQuotaWindow } from '@/utils/codexRateLimits';
 
 interface SessionDetailsModalProps {
   session: Session | null;
@@ -78,7 +78,6 @@ function hasQuotaDetails(window: CodexQuotaWindow | undefined): window is CodexQ
 
 export function SessionDetailsModal({ session, onClose }: SessionDetailsModalProps) {
   const showToast = useUIStore((s) => s.showToast);
-  const worker = useWorkerStore((s) => (session ? s.workers[session.id] : undefined));
   const sessionId = session?.id;
   const [usageExpanded, setUsageExpanded] = useState(false);
   const [usage, setUsage] = useState<SessionUsageView | null>(null);
@@ -132,21 +131,26 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   ];
 
   const isCodex = session.adapter === 'codex';
+  const worker = useWorkerStore((s) => (session ? s.workers[session.id] : undefined));
   const workerForSession = worker?.sessionId === undefined || worker.sessionId === session.id ? worker : undefined;
   const workerOnline = Boolean(workerForSession && workerForSession.status !== 'offline');
   const normalizedQuotaWindows = isCodex && workerOnline
     ? normalizeCodexRateLimits(workerForSession?.nativeRateLimits)
     : {};
-  const quotaWindows = {
+  const liveQuotaWindows = {
     weekly: hasQuotaDetails(normalizedQuotaWindows.weekly) ? normalizedQuotaWindows.weekly : undefined,
     monthly: hasQuotaDetails(normalizedQuotaWindows.monthly) ? normalizedQuotaWindows.monthly : undefined,
   };
+  const cachedQuotaWindows = isCodex ? normalizeCodexQuotaProjection(usageView.codexQuota) : {};
+  const hasLiveQuota = Boolean(liveQuotaWindows.weekly || liveQuotaWindows.monthly);
+  const quotaWindows = hasLiveQuota ? liveQuotaWindows : cachedQuotaWindows;
+  const quotaIsCached = !hasLiveQuota && Boolean(usageView.codexQuota);
 
   const renderQuotaWindow = (label: string, window: CodexQuotaWindow | undefined) => (
     <div key={label} className="min-w-0">
       <div className="text-xs text-text-tertiary mb-1">{label}</div>
       <div className="text-sm text-text-primary break-words">
-        {window ? quotaDetails(window).join(' · ') : '暂无数据'}
+        {window ? quotaDetails(window).join(' · ') : null}
       </div>
     </div>
   );
@@ -222,11 +226,21 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
           {usageExpanded && (
             <div id="session-usage-details" role="region" aria-label="Usage details" className="space-y-3 border-t border-border-default px-3 py-3">
               {usageError && <div className="text-xs text-text-tertiary">{usageError}，当前显示已有数据</div>}
-              {isCodex && (quotaWindows.weekly || quotaWindows.monthly) ? (
+              {isCodex && (quotaWindows.weekly || quotaWindows.monthly || !workerOnline) ? (
                 <div className="space-y-3" role="region" aria-label="Codex quota">
-                  <div className="text-xs text-text-tertiary">Quota（当前 Worker 快照）</div>
-                  {quotaWindows.weekly && renderQuotaWindow('周额度', quotaWindows.weekly)}
-                  {quotaWindows.monthly && renderQuotaWindow('月额度', quotaWindows.monthly)}
+                  <div className="text-xs text-text-tertiary">
+                    {quotaIsCached
+                      ? `Quota${usageView.codexQuota?.stale ? '（最近缓存，可能已过期）' : '（最近缓存）'}`
+                      : 'Quota（当前 Worker 快照）'}
+                  </div>
+                  {quotaWindows.weekly || quotaWindows.monthly ? (
+                    <>
+                      {quotaWindows.weekly && renderQuotaWindow('周额度', quotaWindows.weekly)}
+                      {quotaWindows.monthly && renderQuotaWindow('月额度', quotaWindows.monthly)}
+                    </>
+                  ) : (
+                    <div className="text-sm text-text-tertiary">当前没有可用的周/月 quota 缓存</div>
+                  )}
                 </div>
               ) : !isCodex ? (
                 <div className="min-w-0">

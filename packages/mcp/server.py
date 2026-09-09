@@ -37,7 +37,7 @@ Tools exposed:
       to the same implementation as agent_*.
     - session_history: Get paginated conversation history
     - model_list: List available AI models
-    - codex_quota: Query live Codex five-hour and weekly account quota windows
+    - codex_quota: Query the latest cached/live Codex account quota windows
     - report_subscribe: Subscribe to completion reports (auto-claims the session if unmanaged — 订阅即接管)
     - report_unsubscribe: Unsubscribe from completion reports only (keeps the managed relationship; use session_unclaim to fully release)
     - permission_prompt: Bridge a Claude Code non-interactive permission request to the Pan dashboard
@@ -529,15 +529,17 @@ def session_list(summary: bool = False) -> list[dict] | dict:
 
 @mcp.tool()
 def codex_quota(window: str = "all", session_id: str | None = None) -> dict:
-    """Query live Codex account quota from Pan's existing rate-limit path.
+    """Query the latest Codex account quota from Pan's global profile cache.
 
     Args:
         window: ``all`` (default), ``first`` for the five-hour window, or
             ``secondary`` for the weekly window. These are quota window
             selectors, not adapter fallback names or model selection order.
-        session_id: Codex Session to inspect. Omitted inside a Pan worker uses
-            ``PAN_AGENT_SESSION_ID``; outside a managed worker the backend
-            requires exactly one live Codex worker.
+          session_id: Used for permission checks and live profile selection;
+              quota is account-scoped and does not belong to that Session.
+              Omitted inside a Pan worker uses ``PAN_AGENT_SESSION_ID``; when
+              there is no live worker, the backend can still return the latest
+              persisted profile snapshot.
 
     The MCP caller layer applies ``_check_access`` to the target session, so
     restricted callers can query only their managed graph.  The underlying
@@ -546,8 +548,9 @@ def codex_quota(window: str = "all", session_id: str | None = None) -> dict:
     fabricated manager parameter to HTTP; this MCP-layer check is the
     isolation boundary.
 
-    The result is a live Worker event snapshot.  It does not actively execute
-    ``account/rateLimits/read`` or perform a real-time provider pull.  The
+    The result may be a live app-server push, a persisted last-good snapshot,
+    or an optional read-only WHAM refresh. It does not execute a provider
+    OAuth/refresh flow. The
     compatibility ``updatedAt`` and explicit ``receivedAt`` are local Pan
     Worker receive times for ``account/rateLimits/updated``; the provider's
     original update time is unavailable and is not fabricated.  The current

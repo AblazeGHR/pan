@@ -59,7 +59,17 @@ from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 from packages.core import background_jobs
-from packages.core.codex_quota import format_codex_quota, validate_quota_window
+from packages.core.codex_quota import (
+    format_codex_quota_record,
+    validate_quota_window,
+)
+from packages.core.codex_quota_provider import CodexWhamProvider
+from packages.core.codex_quota_store import (
+    CodexProfile,
+    CodexQuotaStore,
+    is_stale,
+    resolve_profile_identity,
+)
 from packages.core import main_lifecycle
 
 # ── logging ──
@@ -2282,7 +2292,11 @@ async def api_get_session_usage(session_id: str):
             "code": "session_not_found",
             "message": f"Session {session_id} not found",
         }}
-    return sess.session_usage_view(s)
+    result = sess.session_usage_view(s)
+    if s.adapter == "codex":
+        quota = await api_codex_quota(session_id=session_id)
+        result["codexQuota"] = quota if quota.get("ok") else None
+    return result
 
 
 @app.get("/api/sessions/{session_id}/managers")
@@ -4183,24 +4197,155 @@ def _is_codex_worker(w) -> bool:
     return getattr(getattr(w, "adapter", None), "name", "") == "codex"
 
 
+_codex_wham_provider = CodexWhamProvider()
+
+
+def _codex_worker_profile_key(w, default_key: str) -> str:
+    """Return a live Worker's profile identity without persisting Worker IDs."""
+    value = getattr(w, "codex_profile_key", None)
+    if isinstance(value, str) and value:
+        return value
+    # Hand-built test/compat workers have no profile metadata. Treat each as
+    # unknown rather than silently claiming that two account snapshots share a
+    # profile.
+    worker_id = getattr(w, "worker_id", None)
+    return f"unknown-worker:{worker_id or id(w)}"
+
+
+async def _persist_live_codex_quota(w, store: CodexQuotaStore) -> bool:
+    rate_limits = getattr(w, "native_rate_limits", None)
+    if not isinstance(rate_limits, dict) or not rate_limits:
+        return False
+    observed_at = (
+        getattr(w, "native_rate_limits_updated_at", None)
+        or getattr(w, "native_rate_limits_received_at", None)
+    )
+    _, updated = await asyncio.to_thread(
+        store.update,
+        rate_limits,
+        observed_at=observed_at,
+        received_at=getattr(w, "native_rate_limits_received_at", None) or observed_at,
+        source="app-server-push",
+    )
+    return updated
+
+
+async def _codex_quota_for_request(
+    *,
+    session_id: str,
+    target_worker=None,
+    candidates: list | None = None,
+    requested_window: str = "all",
+) -> dict:
+    base_profile = resolve_profile_identity()
+    live_worker = target_worker
+    live_workers = candidates or []
+    selected_profile_key = base_profile.profile_key
+    live_snapshot_updated = False
+    if live_worker is not None:
+        worker_profile_key = getattr(live_worker, "codex_profile_key", None)
+        if isinstance(worker_profile_key, str) and worker_profile_key:
+            selected_profile_key = worker_profile_key
+    elif live_workers:
+        groups: dict[str, list] = {}
+        for candidate in live_workers:
+            groups.setdefault(_codex_worker_profile_key(candidate, base_profile.profile_key), []).append(candidate)
+        if len(groups) > 1:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "quota_ambiguous",
+                    "message": "More than one Codex profile is available; pass session_id",
+                    "candidates": [
+                        {"profileKey": key, "sessionIds": [w.session_id for w in values]}
+                        for key, values in groups.items()
+                    ],
+                },
+            }
+        same_profile = next(iter(groups.values()))
+        live_worker = max(
+            same_profile,
+            key=lambda value: (
+                getattr(value, "native_rate_limits_updated_at", None) or "",
+                getattr(value, "worker_id", None) or "",
+            ),
+        )
+        worker_profile_key = getattr(live_worker, "codex_profile_key", None)
+        if isinstance(worker_profile_key, str) and worker_profile_key:
+            selected_profile_key = worker_profile_key
+    else:
+        cached_profiles = CodexQuotaStore.available_profile_keys()
+        if len(cached_profiles) > 1:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "quota_ambiguous",
+                    "message": "More than one cached Codex profile is available; pass session_id",
+                    "candidates": [{"profileKey": key} for key in cached_profiles],
+                },
+            }
+
+    profile = base_profile if selected_profile_key == base_profile.profile_key else CodexProfile(
+        home=base_profile.home,
+        account_id=base_profile.account_id,
+        chatgpt_account_id=base_profile.chatgpt_account_id,
+        profile_key=selected_profile_key,
+    )
+    store = CodexQuotaStore(profile)
+    if live_worker is not None:
+        live_snapshot_updated = await _persist_live_codex_quota(live_worker, store)
+
+    record = store.load()
+    refresh = await _codex_wham_provider.maybe_refresh(store)
+    if refresh.record is not None:
+        record = refresh.record
+    if record is None:
+        error = {
+            "code": "quota_unavailable",
+            "message": "No Codex quota snapshot is available",
+            "provider": "codex",
+            "sessionId": session_id,
+        }
+        if refresh.error_code:
+            error["refresh"] = refresh.error_code
+        if refresh.credential_status:
+            error["credentialStatus"] = refresh.credential_status
+        return {"ok": False, "error": error}
+
+    stale = is_stale(record, _codex_wham_provider.ttl_seconds)
+    result = format_codex_quota_record(
+        record,
+        session_id=session_id or None,
+        worker_id=getattr(live_worker, "worker_id", None) if live_worker else None,
+        requested_window=requested_window,
+        stale=stale,
+    )
+    result["cacheMode"] = "live" if live_snapshot_updated else "persisted"
+    result["profileKey"] = profile.profile_key
+    if refresh.error_code and refresh.error_code != "feature_disabled":
+        result["refreshError"] = refresh.error_code
+        if refresh.credential_status:
+            result["credentialStatus"] = refresh.credential_status
+    return result
+
+
 @app.get("/api/codex/quota")
 async def api_codex_quota(session_id: str = "", window: str = "all"):
-    """Query live Codex account windows from the app-server rate-limit cache.
+    """Query global Codex account windows, preferring live push data.
 
     ``first`` is the five-hour window and ``secondary`` is the weekly window;
     neither name selects an adapter fallback or a model. Without a session id
-    exactly one live Codex worker must be available, preventing an arbitrary
-    account snapshot from being returned when multiple workers exist.
+    one Codex profile must be selected when multiple profiles are live. The
+    quota belongs to that provider profile rather than to a Pan Session.
 
     This is a loopback HTTP trusted-admin interface.  It has no manager
     identity authentication and does not apply managed-session isolation;
     callers must not invent or pass a manager parameter.  Managed isolation
     is enforced by the MCP caller layer before it calls this endpoint.
 
-    The response is the live Worker event snapshot, not a provider pull.  The
-    compatibility ``updatedAt`` and explicit ``receivedAt`` fields are the
-    local Pan Worker receive time for ``account/rateLimits/updated``; the
-    provider's original update time is not fabricated or exposed.
+    The response may be a live app-server push, a persisted last-good value, or
+    an optional WHAM refresh. ``observedAt``/``receivedAt`` are local Pan
+    times; the provider's original update time is not fabricated or exposed.
     """
     if not validate_quota_window(window):
         return {"ok": False, "error": {
@@ -4220,46 +4365,17 @@ async def api_codex_quota(session_id: str = "", window: str = "all"):
                 "code": "unsupported_provider",
                 "message": f"Session {session_id} uses adapter {target.adapter!r}; Codex quota requires adapter 'codex'",
             }}
-        candidates = [worker.find_alive_worker_by_session(session_id)]
-        candidates = [w for w in candidates if w is not None]
+        selected = worker.find_alive_worker_by_session(session_id)
+        return await _codex_quota_for_request(
+            session_id=session_id,
+            target_worker=selected,
+            requested_window=window,
+        )
     else:
         candidates = [w for w in worker.list_live_workers() if _is_codex_worker(w)]
-
-    if not candidates:
-        return {"ok": False, "error": {
-            "code": "quota_unavailable",
-            "message": "No live Codex worker with a rate-limit snapshot is available",
-            "provider": "codex",
-        }}
-    if len(candidates) > 1:
-        return {"ok": False, "error": {
-            "code": "quota_ambiguous",
-            "message": "More than one live Codex worker is available; pass session_id",
-            "candidates": [
-                {"sessionId": w.session_id, "workerId": w.worker_id}
-                for w in candidates
-            ],
-        }}
-
-    selected = candidates[0]
-    rate_limits = getattr(selected, "native_rate_limits", None)
-    if not isinstance(rate_limits, dict) or not rate_limits:
-        return {"ok": False, "error": {
-            "code": "quota_unavailable",
-            "message": "Codex worker has not emitted account/rateLimits/updated",
-            "provider": "codex",
-            "sessionId": selected.session_id,
-            "workerId": selected.worker_id,
-        }}
-    return format_codex_quota(
-        rate_limits,
-        session_id=selected.session_id,
-        worker_id=selected.worker_id,
-        updated_at=getattr(selected, "native_rate_limits_updated_at", None),
-        received_at=(
-            getattr(selected, "native_rate_limits_received_at", None)
-            or getattr(selected, "native_rate_limits_updated_at", None)
-        ),
+    return await _codex_quota_for_request(
+        session_id="",
+        candidates=candidates,
         requested_window=window,
     )
 

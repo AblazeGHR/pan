@@ -42,13 +42,22 @@ function readString(record: RecordValue, keys: string[]): string | undefined {
 }
 
 function windowDurationMinutes(record: RecordValue): number | undefined {
-  return readNumber(record, [
+  const minutes = readNumber(record, [
     'windowDurationMins',
     'window_duration_mins',
     'durationMins',
     'durationMinutes',
     'duration_minutes',
   ]);
+  if (minutes !== undefined) return minutes;
+  const seconds = readNumber(record, [
+    'windowDurationSeconds',
+    'window_duration_seconds',
+    'limit_window_seconds',
+    'durationSeconds',
+    'duration_seconds',
+  ]);
+  return seconds === undefined ? undefined : seconds / 60;
 }
 
 function classifyWindow(record: RecordValue, sourceKey: string): CodexQuotaWindowKind | undefined {
@@ -130,4 +139,41 @@ export function normalizeCodexRateLimits(rateLimits: Record<string, unknown> | u
     result[kind] = normalizeWindow(candidate.value, kind);
   }
   return result;
+}
+
+/** Normalize the stable backend quota projection used by Session Details. */
+export function normalizeCodexQuotaProjection(
+  quota: unknown,
+): CodexQuotaWindows {
+  if (!quota) return {};
+  const windows = asRecord(quota.windows);
+  const result: CodexQuotaWindows = {};
+  if (windows) {
+    for (const value of Object.values(windows)) {
+      const record = asRecord(value);
+      if (!record) continue;
+      const kind = record.kind;
+      if (kind !== 'weekly' && kind !== 'monthly') continue;
+      const usage = asRecord(record.usage) ?? {};
+      const normalized = normalizeWindow({
+        ...record,
+        ...usage,
+        usedPercent: usage.usedPercent,
+        remainingPercent: usage.remainingPercent,
+      }, kind);
+      if (!result[kind]) result[kind] = normalized;
+    }
+  }
+  if (Object.keys(result).length > 0) return result;
+
+  const rawSnapshots = asRecord(quota.rawSnapshots);
+  if (rawSnapshots) {
+    const snapshots = Object.values(rawSnapshots);
+    for (let index = snapshots.length - 1; index >= 0; index -= 1) {
+      const raw = asRecord(snapshots[index]);
+      const normalized = normalizeCodexRateLimits(raw ?? undefined);
+      if (normalized.weekly || normalized.monthly) return normalized;
+    }
+  }
+  return normalizeCodexRateLimits(asRecord(quota.raw) ?? undefined);
 }

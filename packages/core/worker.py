@@ -30,6 +30,7 @@ from pathlib import Path
 import psutil
 
 from . import session as _sess
+from . import codex_quota_store as _codex_quota_store
 
 READONLY_SESSION_ERROR = (
     "该 session 当前为只读，必须先取消对该 session 的 readonly 设置后才能发送信息、任务或回报"
@@ -227,6 +228,10 @@ class Worker:
     native_rate_limits_received_at: str | None = None
     # Compatibility alias retained for existing callers/API fields.
     native_rate_limits_updated_at: str | None = None
+    # The selected Codex auth profile is account-level metadata, not a
+    # persisted Worker identity. It is used only to route live updates to the
+    # matching global quota store.
+    codex_profile_key: str | None = None
     # Current turn's native plan/diff snapshots for dashboard reconnect replay.
     native_plan: dict | None = None
     native_diff: dict | None = None
@@ -557,7 +562,7 @@ def _interaction_key(event: dict) -> str | None:
     return None
 
 
-def _update_pending_interactions(w: Worker, event: dict) -> None:
+def _update_pending_interactions(w: Worker, event: dict) -> dict | None:
     """Track or retire a native interactive event for dashboard replay.
 
     This is deliberately worker-local and ephemeral.  If the native process
@@ -568,50 +573,55 @@ def _update_pending_interactions(w: Worker, event: dict) -> None:
     if event_type == "codex.thread_status":
         native_status = event.get("native_status")
         w.native_status = dict(native_status) if isinstance(native_status, dict) else None
-        return
+        return None
     if event_type == "codex.token_usage":
         token_usage = event.get("token_usage")
         w.native_usage = dict(token_usage) if isinstance(token_usage, dict) else None
-        return
+        return None
     if event_type == "codex.rate_limits":
         rate_limits = event.get("rate_limits")
-        w.native_rate_limits = dict(rate_limits) if isinstance(rate_limits, dict) else None
+        if not isinstance(rate_limits, dict) or not rate_limits:
+            w.native_rate_limits = None
+            w.native_rate_limits_received_at = None
+            w.native_rate_limits_updated_at = None
+            return None
+        w.native_rate_limits = dict(rate_limits)
         received_at = (
             datetime.now(timezone.utc).isoformat()
             if isinstance(rate_limits, dict) else None
         )
         w.native_rate_limits_received_at = received_at
         w.native_rate_limits_updated_at = received_at
-        return
+        return {"rate_limits": dict(rate_limits), "received_at": received_at}
     if event_type == "codex.plan":
         plan = event.get("plan")
         if isinstance(plan, list):
             w.native_plan = dict(event)
-        return
+        return None
     if event_type == "codex.diff":
         diff = event.get("diff")
         w.native_diff = dict(event) if isinstance(diff, str) and diff else None
-        return
+        return None
     if event_type in _PENDING_INTERACTION_TYPES:
         key = _interaction_key(event)
         if key is not None:
             w.pending_interactions[key] = dict(event)
-        return
+        return None
     if event_type == "codex.request_resolved":
         request_id = event.get("request_id")
         if request_id is not None:
             w.pending_interactions.pop(f"request:{request_id}", None)
-        return
+        return None
     if event_type == "claude.permission_resolved":
         request_id = event.get("request_id")
         if request_id is not None:
             w.pending_interactions.pop(f"request:{request_id}", None)
-        return
+        return None
     if event_type == "codex.item.completed":
         item_id = event.get("item_id")
         if item_id is not None:
             w.pending_interactions.pop(f"terminal:{item_id}", None)
-        return
+        return None
     if event_type == "result":
         w.pending_interactions.clear()
         w.native_status = None
@@ -874,7 +884,7 @@ async def _flush_history_now(w: Worker) -> None:
     if task is not None and not task.done():
         w._hist_flush_event.set()
         await asyncio.shield(task)  # 防抖任务独立完成落盘；调用方取消照常传播
-        return
+        return None
     s = _session(w)
     if s is None:
         w._hist_force_flush = False
@@ -907,7 +917,18 @@ async def _read_stdout(w: Worker):
         # Keep only native interactive prompts in the worker-local replay
         # cache.  The cache is consumed by the dashboard after a WS reconnect;
         # normal stream events remain live-only to avoid retaining history.
-        _update_pending_interactions(w, event)
+        quota_update = _update_pending_interactions(w, event)
+        if quota_update is not None:
+            try:
+                await asyncio.to_thread(
+                    _codex_quota_store.update_current_profile,
+                    quota_update["rate_limits"],
+                    observed_at=quota_update["received_at"],
+                    received_at=quota_update["received_at"],
+                    source="app-server-push",
+                )
+            except Exception:  # quota persistence must not kill the Worker stream
+                _log.exception("failed to persist Codex quota snapshot")
 
         # 提取 session_id + model 并写入 Session
         # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，
@@ -3979,7 +4000,11 @@ async def _create_worker(session_id: str) -> Worker | str:
                system_prompt_file=prompt_files[0] if prompt_files else None,
                _task_done=asyncio.Event(),
                _hist_flush_event=asyncio.Event(),
-               generation=_next_worker_generation(session_id))
+               generation=_next_worker_generation(session_id),
+               codex_profile_key=(
+                   _codex_quota_store.resolve_profile_identity().profile_key
+                   if getattr(adapter, "name", "") == "codex" else None
+               ))
     w.last_activity = time.monotonic()
     workers[worker_id] = w
     _register_worker(w)
@@ -4704,7 +4729,8 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
                    status="idle", process=proc, pending_signal=asyncio.Queue(),
                    _task_done=asyncio.Event(),
                    _hist_flush_event=asyncio.Event(),
-                   generation=_next_worker_generation(new_session_id))
+                   generation=_next_worker_generation(new_session_id),
+                   codex_profile_key=getattr(w, "codex_profile_key", None))
     # 注意：branch 不设 _replaying（与 create_worker/restart_worker 一致，现全局恒
     # False）。原注释假设"cbc --resume --fork-session 会把父会话历史重放到 stdout
     # 供 branch 空 history 填充"——worker-resume-replay 实测 fork+prompt **不重放**

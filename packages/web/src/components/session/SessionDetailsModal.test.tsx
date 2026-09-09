@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SessionDetailsModal } from './SessionDetailsModal';
 import { useUIStore } from '@/stores/uiStore';
-import { useWorkerStore } from '@/stores/workerStore';
 import * as api from '@/services/api';
 import type { Session } from '@/types';
 
@@ -23,7 +22,6 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   useUIStore.setState({ toastQueue: [] });
-  useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
 });
 
 beforeEach(() => {
@@ -131,17 +129,17 @@ describe('SessionDetailsModal', () => {
       adapter: 'codex',
       totalUsage: { credit: 999.99 },
     };
-    useWorkerStore.setState({
-      workers: {
-        [codex.id]: {
-          id: 'worker-codex-quota',
-          sessionId: codex.id,
-          status: 'running',
-          nativeRateLimits: {
-            primary: { windowDurationMins: 300, usedPercent: 5 },
-            secondary: { windowDurationMins: 10080, usedPercent: 25, remainingPercent: 75 },
-            monthly: { name: 'monthly', usedPercent: 40, remainingCredits: 12.5 },
-          },
+    vi.spyOn(api, 'fetchSessionUsage').mockResolvedValue({
+      sessionId: codex.id, adapter: 'codex', input: null, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
+      codexQuota: {
+        ok: true,
+        stale: true,
+        cacheMode: 'persisted',
+        windows: {
+          primary: { kind: 'five_hour', usage: { usedPercent: 5 } },
+          secondary: { kind: 'weekly', usage: { usedPercent: 25, remainingPercent: 75 } },
+          monthly: { kind: 'monthly', usage: { usedPercent: 40, remainingCredits: 12.5 } },
         },
       },
     });
@@ -151,6 +149,7 @@ describe('SessionDetailsModal', () => {
 
     expect(await screen.findByText('周额度')).toBeTruthy();
     expect(screen.getByText('月额度')).toBeTruthy();
+    expect(screen.getByText('Quota（最近缓存，可能已过期）')).toBeTruthy();
     expect(screen.getByText(/已使用 25%.*剩余 75%/)).toBeTruthy();
     expect(screen.getByText(/已使用 40%.*剩余 12\.5 credit/)).toBeTruthy();
     expect(screen.queryByText('999.99')).toBeNull();
@@ -183,20 +182,12 @@ describe('SessionDetailsModal', () => {
 
   it('does not borrow quota windows from another session and shows missing windows clearly', async () => {
     const codex: Session = { ...baseSession, id: 'ses_codex_target', adapter: 'codex' };
-    useWorkerStore.setState({
-      workers: {
-        [codex.id]: {
-          id: 'worker-codex-target',
-          sessionId: codex.id,
-          status: 'running',
-          nativeRateLimits: { secondary: { windowDurationMins: 10080, usedPercent: 12 } },
-        },
-        other: {
-          id: 'worker-other',
-          sessionId: 'other',
-          status: 'running',
-          nativeRateLimits: { monthly: { windowDurationMins: 43200, usedPercent: 91 } },
-        },
+    vi.spyOn(api, 'fetchSessionUsage').mockResolvedValue({
+      sessionId: codex.id, adapter: 'codex', input: null, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
+      codexQuota: {
+        ok: true,
+        windows: { secondary: { kind: 'weekly', usage: { usedPercent: 12 } } },
       },
     });
 
@@ -211,10 +202,9 @@ describe('SessionDetailsModal', () => {
 
   it('shows an explicit empty state when the current worker is offline or absent', async () => {
     const codex: Session = { ...baseSession, id: 'ses_codex_offline', adapter: 'codex' };
-    useWorkerStore.setState({
-      workers: {
-        [codex.id]: { id: 'worker-offline', sessionId: codex.id, status: 'offline' },
-      },
+    vi.spyOn(api, 'fetchSessionUsage').mockResolvedValue({
+      sessionId: codex.id, adapter: 'codex', input: null, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
     });
 
     render(<SessionDetailsModal session={codex} onClose={() => {}} />);
@@ -222,6 +212,7 @@ describe('SessionDetailsModal', () => {
 
     expect(await screen.findByText('输入 Token')).toBeTruthy();
     expect(screen.queryByLabelText('Codex quota')).toBeNull();
+    expect(await screen.findByText('当前没有可用的周/月 quota 缓存')).toBeTruthy();
     expect(screen.queryByText('周额度')).toBeNull();
     expect(screen.queryByText('月额度')).toBeNull();
   });

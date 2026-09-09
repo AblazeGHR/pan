@@ -77,7 +77,29 @@ export interface SessionUsageView {
   output: number | null;
   cache: { read: number | null; write: number | null; total: number | null };
   total: { tokens: number | null; credit: number | null };
+  /** Account-scoped Codex quota projection; never part of raw/total usage. */
+  codexQuota?: CodexQuotaProjection | null;
   updatedAt?: string | null;
+  error?: { code?: string | number; message?: string };
+}
+
+export interface CodexQuotaProjection {
+  ok?: boolean;
+  provider?: string;
+  profileKey?: string;
+  sessionId?: string | null;
+  workerId?: string | null;
+  observedAt?: string | null;
+  receivedAt?: string | null;
+  updatedAt?: string | null;
+  stale?: boolean;
+  cacheMode?: 'live' | 'persisted';
+  source?: Record<string, unknown> | string | null;
+  windows?: Record<string, Record<string, unknown>>;
+  rawSnapshots?: Record<string, unknown>;
+  raw?: Record<string, unknown> | null;
+  refreshError?: string;
+  credentialStatus?: string;
   error?: { code?: string | number; message?: string };
 }
 
