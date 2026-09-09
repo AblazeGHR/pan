@@ -356,7 +356,7 @@ def session_create(
         body["sessionTemplate"] = session_template
     if character_id:
         body["characterId"] = character_id
-    if system_prompt:
+    if system_prompt is not None:
         body["systemPrompt"] = system_prompt
     if game_id:
         body["gameId"] = game_id
@@ -778,15 +778,15 @@ def session_handoff(
        mcp_servers 等（**明确不含 system_prompt**；cli_session_id 清空——B 是
        全新会话，不继承 A 的 CLI 上下文）；false 时 B 用默认设置（此时必须显式
        传 adapter，否则报错）。
-    4. **B 的 system_prompt = handoff_prompt 与 A 原 system_prompt 拼接**（分
+    4. **B 的 system_prompt = 本次 handoff_prompt 与 A.original_prompt 拼接**（分
        「交接上下文 / 原 system prompt」两节）。
     5. **重命名**：A → `(archive) <原名>`，B → `<原名>`。
 
     Args:
         session_id: 被交接的 session（A）id
         handoff_prompt: 【必填】交接简报——由 session A 的 agent 编写，让 B 彻底
-            了解现状与重点（重要开发习惯、原 system_prompt 内容、现状、上下文
-            精华等）。将成为 B.system_prompt 的「交接上下文」部分。
+            了解现状与重点（重要开发习惯、现状、上下文精华等）。原始提示会自动
+            保留，无需重复抄入简报。仅本次简报成为 B.handoff_prompt，不叠加旧简报。
         copy_settings: 是否 1:1 复制 A 的设置（见上）。默认 true。
         adapter: 切换 adapter 时传入（copy_settings=false 时必填）
         model: 覆盖模型（copy_settings=true 时优先于复制值）
