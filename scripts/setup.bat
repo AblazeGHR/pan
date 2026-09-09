@@ -17,16 +17,22 @@ echo.
 REM ---- [1/5] .venv + minimal-requirements.txt (start_pan.bat:27 依赖此位置) ----
 echo ========== [1/5] .venv + minimal-requirements.txt ==========
 set "VPY=%ROOT%\.venv\Scripts\python.exe"
-if exist "%VPY%" (
-    echo [OK] .venv 已存在，复用
+set "VENV_READY="
+if exist "%VPY%" if exist "%ROOT%\.venv\pyvenv.cfg" (
+    "%VPY%" -c "import fastapi, uvicorn, psutil, mcp.server.fastmcp" >nul 2>&1
+    if not errorlevel 1 set "VENV_READY=1"
+)
+if defined VENV_READY (
+    echo [OK] .venv 已存在且核心/MCP 依赖可用，复用
 ) else (
+    if exist "%VPY%" echo [WARN] .venv 不完整或缺少核心/MCP 依赖，正在重建
     where py >nul 2>&1
     if !ERRORLEVEL! NEQ 0 (
         echo [FAIL] 未找到 py 启动器，也未存在 .venv — 请先安装 Python 3.10+
         set "VPY="
     ) else (
-        echo 用 py -3 创建 .venv ...
-        py -3 -m venv "%ROOT%\.venv"
+        echo 用 py -3 重建 .venv ...
+        py -3 -m venv --clear "%ROOT%\.venv"
         if exist "%VPY%" (echo [OK] .venv 创建成功) else (echo [FAIL] .venv 创建失败 & set "VPY=")
     )
 )
