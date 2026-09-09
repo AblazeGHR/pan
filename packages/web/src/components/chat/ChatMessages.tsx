@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useMemo } from 'react';
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -7,6 +7,11 @@ import { groupMessages, MessageDisplayItem, getItemRole } from './MessageBubble'
 import { filterVisibleMessages } from './messageFilter';
 import { getDisplayItemKey } from '@/utils/messageIdentity';
 import { ArrowDown, Loader2 } from 'lucide-react';
+
+// Keep the follow zone small enough that scrolling up to read older content
+// opts out, while absorbing normal wheel/touch settling and sub-pixel layout
+// rounding near the end of the list.
+export const SCROLL_BOTTOM_THRESHOLD = 48;
 
 export function ChatMessages() {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -59,9 +64,13 @@ export function ChatMessages() {
   // state held outside React rendering: a streaming delta can arrive between
   // renders, and a render must not infer "follow" from a transient scrollTop.
   // Starts true so the first message load of a session scrolls down; a user
-  // scroll away from the exact bottom opts out until they return to the exact
-  // bottom (or explicitly press the scroll-to-bottom button).
+  // scroll away from the follow zone opts out until they return to it (or
+  // explicitly press the scroll-to-bottom button).
   const shouldFollowBottomRef = useRef(true);
+  // Scroll events happen outside React rendering. Keep a renderable copy so
+  // the button appears/disappears immediately when the user crosses the
+  // follow boundary.
+  const [isNearBottom, setIsNearBottom] = useState(true);
   // A newly selected session starts with an empty/unlaid-out container. Allow
   // its first history render to establish the initial bottom position even
   // though scrollTop is 0 before the content is mounted.
@@ -73,16 +82,16 @@ export function ChatMessages() {
   } | null>(null);
   const paginationAnchorRef = useRef<{ top: number; height: number } | null>(null);
 
-  // A positive distance, including a single pixel, means the user is not at
-  // the bottom. Clamp only negative browser rounding artefacts to zero.
+  // Clamp only negative browser rounding artefacts to zero, then use the
+  // small follow zone below instead of requiring exact geometry equality.
   const getDistanceFromBottom = useCallback((): number => {
     const el = parentRef.current;
     if (!el) return 0;
     return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
   }, []);
 
-  const isAtBottom = useCallback((): boolean => {
-    return getDistanceFromBottom() === 0;
+  const isNearBottomPosition = useCallback((): boolean => {
+    return getDistanceFromBottom() <= SCROLL_BOTTOM_THRESHOLD;
   }, [getDistanceFromBottom]);
 
   const captureScrollMetrics = useCallback(() => {
@@ -100,6 +109,7 @@ export function ChatMessages() {
     if (el) {
       shouldFollowBottomRef.current = true;
       el.scrollTop = el.scrollHeight;
+      setIsNearBottom(true);
       captureScrollMetrics();
     }
   }, [captureScrollMetrics]);
@@ -120,17 +130,22 @@ export function ChatMessages() {
         previous &&
         el.scrollHeight !== previous.height &&
         el.scrollTop === previous.top &&
-        Math.max(0, previous.height - previous.top - previous.clientHeight) === 0,
+        Math.max(0, previous.height - previous.top - previous.clientHeight) <=
+          SCROLL_BOTTOM_THRESHOLD,
     );
+    const nearBottom = isNearBottomPosition();
+    let followedBottom = false;
     if (
       shouldFollowBottomRef.current &&
-      (initialScrollPendingRef.current || isAtBottom() || grewWhilePinned)
+      (initialScrollPendingRef.current || nearBottom || grewWhilePinned)
     ) {
       initialScrollPendingRef.current = false;
       scrollToBottom();
+      followedBottom = true;
     }
+    setIsNearBottom(followedBottom || nearBottom || grewWhilePinned);
     captureScrollMetrics();
-  }, [currentMessages, totalSize, captureScrollMetrics, isAtBottom, scrollToBottom]);
+  }, [currentMessages, totalSize, captureScrollMetrics, isNearBottomPosition, scrollToBottom]);
 
   // Lazy load older messages on scroll to top
   useEffect(() => {
@@ -139,10 +154,12 @@ export function ChatMessages() {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const handler = () => {
-      // Any positive distance opts out. Programmatic scrolls (scrollToBottom)
-      // also fire scroll events and re-pin only at the exact bottom.
+      // Scrolling beyond the follow zone opts out. Programmatic scrolls
+      // (scrollToBottom) also fire scroll events and re-pin at the bottom.
       initialScrollPendingRef.current = false;
-      shouldFollowBottomRef.current = isAtBottom();
+      const nearBottom = isNearBottomPosition();
+      shouldFollowBottomRef.current = nearBottom;
+      setIsNearBottom(nearBottom);
       captureScrollMetrics();
 
       if (timer) return;
@@ -176,7 +193,7 @@ export function ChatMessages() {
       el.removeEventListener('scroll', handler);
       if (timer) clearTimeout(timer);
     };
-  }, [captureScrollMetrics, hasMoreMessages, historyLoading, isAtBottom, loadOlderMessages]);
+  }, [captureScrollMetrics, hasMoreMessages, historyLoading, isNearBottomPosition, loadOlderMessages]);
 
   // Scroll to bottom when the session changes. Reset the pinned anchor first
   // so the auto-scroll effect above forces us down once this session's history
@@ -184,6 +201,7 @@ export function ChatMessages() {
   // The rAF re-scroll covers the same-frame layout of the freshly swapped DOM.
   useEffect(() => {
     shouldFollowBottomRef.current = true;
+    setIsNearBottom(true);
     initialScrollPendingRef.current = true;
     lastScrollMetricsRef.current = null;
     paginationAnchorRef.current = null;
@@ -273,7 +291,7 @@ export function ChatMessages() {
       </div>
 
       {/* Scroll-to-bottom button */}
-      {!isAtBottom() && (
+      {!isNearBottom && (
         <button
           onClick={scrollToBottom}
           className="absolute bottom-2 right-4 rounded-full bg-accent text-white p-2 shadow-lg hover:bg-accent-hover transition-colors z-10"
