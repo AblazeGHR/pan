@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act, fireEvent, cleanup } from '@testing-library/react';
-import { ChatMessages } from './ChatMessages';
+import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 
@@ -44,7 +44,7 @@ vi.mock('@tanstack/react-virtual', () => ({
 
 // ── jsdom has no layout engine. Give the chat scroll container a realistic
 // scrollHeight (the explicit height ChatMessages sets on the inner virtualizer
-// div) and a fixed clientHeight, so isNearBottom() / scrollToBottom() make
+// div) and a fixed clientHeight, so the bottom-zone / scrollToBottom() make
 // decisions from real numbers. ──
 function mockScrollMetrics() {
   Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
@@ -186,39 +186,45 @@ describe('ChatMessages scroll positioning', () => {
     expect(scrollEl.scrollTop).toBe(2600);
   });
 
-  it('does not auto-scroll when exactly 1px remains below the viewport', () => {
+  it('hides the button and follows new messages within the bottom threshold', () => {
     useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
     m.setTotalSize(2000);
     const { container } = render(<ChatMessages />);
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
     expect(scrollEl.scrollTop).toBe(2000);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
 
-    // 2000 - 1599 - 400 = 1px. Do not dispatch a scroll event: the strict
-    // distance check in the update effect must protect against measurement or
-    // render changes even if the browser has not emitted another scroll event.
-    scrollEl.scrollTop = 1599;
+    // 2000 - (2000 - 400 - threshold) - 400 = threshold.
+    scrollEl.scrollTop = 2000 - 400 - SCROLL_BOTTOM_THRESHOLD;
+    fireEvent.scroll(scrollEl);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
+
     m.setTotalSize(2200);
     act(() => {
       useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'new')] });
     });
 
-    expect(scrollEl.scrollTop).toBe(1599);
+    expect(scrollEl.scrollTop).toBe(2200);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
   });
 
-  it('does not auto-scroll when the user is farther from the bottom', () => {
+  it('shows the button and does not follow when the user is beyond the threshold', () => {
     useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
     m.setTotalSize(2000);
     const { container } = render(<ChatMessages />);
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
 
-    scrollEl.scrollTop = 700;
+    // One pixel beyond the follow zone must opt out.
+    scrollEl.scrollTop = 2000 - 400 - SCROLL_BOTTOM_THRESHOLD - 1;
     fireEvent.scroll(scrollEl);
+    expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
     m.setTotalSize(2600);
     act(() => {
       useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'new')] });
     });
 
-    expect(scrollEl.scrollTop).toBe(700);
+    expect(scrollEl.scrollTop).toBe(2000 - 400 - SCROLL_BOTTOM_THRESHOLD - 1);
+    expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
   });
 
   it('does not pull an away-from-bottom user down on measurement changes', () => {
@@ -228,16 +234,17 @@ describe('ChatMessages scroll positioning', () => {
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
     expect(scrollEl.scrollTop).toBe(2000);
 
-    // Simulate a layout change occurring after the user has moved 1px up.
+    // Simulate a layout change occurring after the user has moved well beyond
+    // the follow zone.
     // No scroll event is dispatched so this specifically covers the
     // measurement effect's direct bottom check.
-    scrollEl.scrollTop = 1599;
+    scrollEl.scrollTop = 700;
     m.setTotalSize(2400);
     act(() => {
       useSessionStore.setState({ currentMessages: [...msgs(4)] });
     });
 
-    expect(scrollEl.scrollTop).toBe(1599);
+    expect(scrollEl.scrollTop).toBe(700);
   });
 
   it('does NOT yank the user to the bottom when older messages are prepended while scrolled up', () => {
@@ -300,7 +307,7 @@ describe('ChatMessages scroll positioning', () => {
     expect(scrollEl.scrollTop).toBe(700);
   });
 
-  it('resumes following after the user returns near the bottom', () => {
+  it('hides the button and resumes following after the user returns near the bottom', () => {
     useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
     m.setTotalSize(2000);
     const { container } = render(<ChatMessages />);
@@ -308,20 +315,24 @@ describe('ChatMessages scroll positioning', () => {
 
     scrollEl.scrollTop = 500;
     fireEvent.scroll(scrollEl);
+    expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
     m.setTotalSize(2200);
     act(() => {
       useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'paused')] });
     });
     expect(scrollEl.scrollTop).toBe(500);
 
-    // Explicitly returning to the bottom re-enables follow mode.
-    scrollEl.scrollTop = 1800;
+    // Returning within the threshold re-enables follow mode and hides the
+    // button before the next message arrives.
+    scrollEl.scrollTop = 2200 - 400 - SCROLL_BOTTOM_THRESHOLD;
     fireEvent.scroll(scrollEl);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
     m.setTotalSize(2800);
     act(() => {
       useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(2, 'follow')] });
     });
     expect(scrollEl.scrollTop).toBe(2800);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
   });
 
   it('preserves the viewport anchor when older history is loaded above it', async () => {
