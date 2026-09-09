@@ -7,6 +7,16 @@ agent_* 工具、/api/send）以 Session 为寻址目标。
 
 Each session is stored as data/sessions/<id>.json.
 The ID format is ses_<16-hex-chars> (e.g. ses_a1b2c3d4e5f67890).
+
+Prompt schema: JSON persists original_prompt and handoff_prompt. system_prompt
+is a computed compatibility property and to_dict() export alias. Constructors
+still accept the legacy keyword. If original_prompt is absent, legacy text is
+preserved verbatim as the baseline, even if it already contains old handoffs;
+there is no reliable way to recover its author-intended original by splitting
+headings. Explicit original_prompt (including null/empty) takes precedence.
+Loading never rewrites files; the next save migrates to the canonical fields.
+New JSON requires a reader supporting this schema; old Pan versions that reject
+unknown Session fields cannot read it. No lossy downgrade is attempted.
 """
 
 from __future__ import annotations
@@ -18,7 +28,7 @@ import os
 import re
 import secrets
 import threading
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -145,6 +155,7 @@ def _strip_delivery_marks(history: list[dict]) -> list[dict]:
 # The three capability flags are stored nested under ``pan_access``. Old JSON
 # wrote them as top-level fields; migration lives in _from_data / __post_init__.
 _PAN_ACCESS_KEYS = ("restrict_to_managed", "can_claim_unmanaged", "auto_claim_created")
+_PROMPT_UNSET = object()  # distinguish an omitted original from explicit None/""
 
 # Queue receipts written by the previous queue implementation are retained as
 # compatibility metadata.  They are not a second queue: ``queue_pending`` is
@@ -164,7 +175,8 @@ class Session:
     adapter_config: dict = field(default_factory=dict)  # adapter-specific settings
     character_id: str | None = None   # bound character ID (for memory + assets)
     session_template: str | None = None  # session_template name this session was configured with (None = built-in default)
-    system_prompt: str | None = None  # injected at Worker spawn
+    original_prompt: str | None = None  # stable instructions, never a generated handoff
+    handoff_prompt: str | None = None  # only the latest handoff brief
     game_id: str | None = None        # RuleWhisper game identifier for MCP tool calls
     raw_usage: dict | None = None
     total_usage: dict | None = None
@@ -239,7 +251,9 @@ class Session:
                  task_seq: int = 0,
                  accepted_input_ids: list[str] | None = None,
                   report_subscriptions=None,
-                 qq_subscriptions=None):
+                 qq_subscriptions=None, *,
+                 original_prompt: str | None | object = _PROMPT_UNSET,
+                 handoff_prompt: str | None = None):
         """Manual init so legacy top-level capability kwargs still construct.
 
         ``pan_access`` is the single source of truth for the three capability
@@ -262,7 +276,11 @@ class Session:
         self.adapter_config = adapter_config if adapter_config is not None else {}
         self.character_id = character_id
         self.session_template = session_template
-        self.system_prompt = system_prompt
+        # Legacy prompts are opaque: even text resembling our handoff headings
+        # may be user-authored. Preserve it verbatim; never guess a split.
+        # Explicit canonical values (including None/"") beat the legacy alias.
+        self.original_prompt = system_prompt if original_prompt is _PROMPT_UNSET else original_prompt
+        self.handoff_prompt = handoff_prompt
         self.game_id = game_id
         self.raw_usage = raw_usage
         self.total_usage = total_usage
@@ -295,6 +313,36 @@ class Session:
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
         self.__post_init__()
+
+    @property
+    def system_prompt(self) -> str | None:
+        """Effective worker prompt; a compatibility view, never an inheritance source.
+
+        Keep stored text verbatim. Empty/whitespace-only briefs add no wrapper;
+        sessions without a brief retain their original prompt exactly.
+        """
+        brief = self.handoff_prompt
+        original = self.original_prompt
+        if not brief or not brief.strip():
+            return original
+        if not original or not original.strip():
+            return brief
+        return (
+            "【交接上下文（由被交接 session A 的 agent 编写）】\n"
+            f"{brief}\n\n"
+            "【原 session 的 system prompt】\n"
+            f"{original}"
+        )
+
+    @system_prompt.setter
+    def system_prompt(self, value: str | None):
+        """Legacy full-prompt replacement starts a new baseline without a brief.
+
+        Inheritance must copy the two canonical fields instead. Settings editors
+        should edit original_prompt to retain the current brief.
+        """
+        self.original_prompt = value
+        self.handoff_prompt = None
 
     # ── pan_access convenience accessors (capability flags) ──
 
@@ -405,6 +453,8 @@ class Session:
             "character_id": self.character_id,
             "session_template": self.session_template,
             "system_prompt": self.system_prompt,
+            "original_prompt": self.original_prompt,
+            "handoff_prompt": self.handoff_prompt,
             "game_id": self.game_id,
             "raw_usage": self.raw_usage,
             "total_usage": self.total_usage,
@@ -454,7 +504,9 @@ def create(name: str, model: str | None = None,
            cli_session_id: str | None = None,
            always_thinking_enabled: bool = False,
            effort: str = "",
-           max_thinking_tokens: int | None = None) -> Session:
+           max_thinking_tokens: int | None = None, *,
+           original_prompt: str | None | object = _PROMPT_UNSET,
+           handoff_prompt: str | None = None) -> Session:
     # build adapter_config
     ac = dict(adapter_config) if adapter_config else {}
     if cli_session_id and "cli_session_id" not in ac:
@@ -483,6 +535,8 @@ def create(name: str, model: str | None = None,
         character_id=character_id,
         session_template=session_template,
         system_prompt=system_prompt,
+        original_prompt=original_prompt,
+        handoff_prompt=handoff_prompt,
         game_id=game_id,
         raw_usage=raw_usage,
         total_usage=total_usage,
@@ -530,6 +584,10 @@ def _from_data_with_history(sid: str, data: dict) -> Session:
     - 新格式（增量）：jsonl 存在 → history 以 jsonl 为准（可能比主文件新）。
     同时设置进程内增量游标 s._hist_persisted（已在 jsonl 中的条数）。
     """
+    migrate_prompt = (
+        "original_prompt" not in data or "handoff_prompt" not in data
+        or "system_prompt" in data
+    )
     s = Session._from_data(data)
     _migrate_legacy_fields(s)
     _migrate_session_usage(s)
@@ -539,7 +597,9 @@ def _from_data_with_history(sid: str, data: dict) -> Session:
     else:
         _strip_delivery_marks(s.history)
     s._hist_persisted = len(s.history)
-    s._last_meta_sig = _meta_signature(s)
+    # Loading is read-only. The next explicit save writes canonical prompts,
+    # even when no other metadata changed (including old JSONL-backed stores).
+    s._last_meta_sig = None if migrate_prompt else _meta_signature(s)
     return s
 
 
@@ -623,6 +683,7 @@ def _save_sync(s: Session, force_full: bool = False):
         # （history 真源在 jsonl，主文件只是元数据镜像 + 存在标记）。
         if force_full or meta_sig != getattr(s, "_last_meta_sig", None):
             d = s.to_dict()
+            d.pop("system_prompt")  # derived API/export alias is not durable state
             d["history"] = s.history[-_MAIN_HISTORY_TAIL:]
             main_path = _path(s.id)
             tmp_path = main_path.with_suffix(".json.tmp")
@@ -844,8 +905,8 @@ def handoff_session(
        adapter_config、model、permission_mode、session_template、pan_access、
        mcp_servers 等，**明确不含 system_prompt**；cli_session_id 清空——B 是
        全新会话）；false 时 B 用默认设置（此时调用方应显式传 adapter）。
-    4. **B.system_prompt = handoff_prompt（A 新写）与 A 原 system_prompt 拼接**，
-       用「交接上下文 / 原 system prompt」两个分节引导。
+    4. **B.original_prompt = A.original_prompt，B.handoff_prompt = 本次简报**。
+       B.system_prompt 仅计算本次简报 + original_prompt，不继承旧简报。
     5. **重命名**：A → `(archive) <原名>`，B → `<原名>`。
     6. **解除 A 的原关系网**：A.managed / report_subscriptions / qq_subscriptions
        清空（A.managed_by 保留 = B，见第 2 条）。
@@ -881,16 +942,6 @@ def handoff_session(
         new_template = None
         new_game_id = None
 
-    # B 的 system_prompt = 交接 prompt（A 新写） + A 原 system_prompt 拼接
-    b_prompt = handoff_prompt.strip()
-    if a.system_prompt and a.system_prompt.strip():
-        b_prompt = (
-            "【交接上下文（由被交接 session A 的 agent 编写）】\n"
-            f"{b_prompt}\n\n"
-            "【原 session 的 system prompt】\n"
-            f"{a.system_prompt.strip()}"
-        )
-
     # Allocate and persist B while holding the same lock used by save().
     # This closes the check/create window between concurrent handoffs. A is
     # excluded because it is about to be archived and must not force a suffix.
@@ -903,7 +954,8 @@ def handoff_session(
             adapter_config=new_adapter_config,
             character_id=new_character_id,
             session_template=new_template,
-            system_prompt=b_prompt,
+            original_prompt=a.original_prompt,
+            handoff_prompt=handoff_prompt.strip(),
             game_id=new_game_id,
             pan_access=new_pan_access,
             workdir=a.workdir,

@@ -96,6 +96,9 @@ def test_import_cbc_template_and_pan_access(monkeypatch):
     s = next(x for x in _sess.list_all() if x.cli_session_id == sid)
     assert s.name == "my-imported"
     assert s.session_template == "meta-agent"
+    assert s.original_prompt == cm.get_session_template("meta-agent").system_prompt
+    assert s.handoff_prompt is None
+    assert resp["systemPrompt"] == s.original_prompt
     assert s.model == "hy3"  # from template
     assert s.restrict_to_managed is True  # explicit panAccess override
     assert s.auto_claim_created is True   # explicit panAccess override
@@ -173,7 +176,8 @@ def test_import_reimport_marks_reimported():
     ])
 
     existing = _sess.Session(id="ses_existing", name="old", model="test-model",
-                             adapter="cbc")
+                             adapter="cbc", original_prompt="stable rules",
+                             handoff_prompt="latest brief")
     existing.cli_session_id = sid
     existing.history = [{"role": "user", "content": "old"}]
     _sess._cache["ses_existing"] = existing
@@ -188,6 +192,12 @@ def test_import_reimport_marks_reimported():
     assert resp["reimported"] is True
     assert resp["id"] == "ses_existing"  # in-place overwrite
     assert resp["history"] == [{"role": "user", "content": "new"}]
+    assert resp["originalPrompt"] == "stable rules"
+    assert resp["handoffPrompt"] == "latest brief"
+    _sess._cache.clear()
+    reloaded = _sess.get(existing.id)
+    assert reloaded.original_prompt == "stable rules"
+    assert reloaded.handoff_prompt == "latest brief"
     _cleanup()
 
 
