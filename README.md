@@ -364,6 +364,8 @@ python main.py
 
 ```
 
+`minimal-requirements.txt` 只安装 Core/API/MCP 运行依赖，不包含 pytest、Memory ML 链或 QQ。开发测试时使用 `pip install -r dev-requirements.txt`；启用 Memory provider/索引能力时另装 `pip install -r memory-requirements.txt`。QQ 继续使用独立的 `packages/qq/requirements.txt`。根 `requirements.txt` 保留为兼容入口，会聚合运行时、开发测试和 Memory 可选层，但不会聚合 QQ。
+
 **按平台选择启动方式**：
 
 | 平台 | 安装依赖 | 启动 | 停止 |

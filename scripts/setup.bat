@@ -14,12 +14,12 @@ cd /d "%ROOT%"
 echo Pan setup - 仓库根: %ROOT%
 echo.
 
-REM ---- [1/5] .venv + minimal-requirements.txt (start_pan.bat:27 依赖此位置) ----
-echo ========== [1/5] .venv + minimal-requirements.txt ==========
+REM ---- [1/5] .venv + minimal-requirements.txt (runtime only) ----
+echo ========== [1/5] .venv + minimal-requirements.txt (runtime only) ==========
 set "VPY=%ROOT%\.venv\Scripts\python.exe"
 set "VENV_READY="
 if exist "%VPY%" if exist "%ROOT%\.venv\pyvenv.cfg" (
-    "%VPY%" -c "import fastapi, uvicorn, psutil, mcp.server.fastmcp" >nul 2>&1
+    "%VPY%" -c "import fastapi, uvicorn, websockets, psutil, httpx; from mcp.server.fastmcp import FastMCP" >nul 2>&1
     if not errorlevel 1 set "VENV_READY=1"
 )
 if defined VENV_READY (
@@ -38,7 +38,9 @@ if defined VENV_READY (
 )
 if defined VPY (
     "%VPY%" -m pip install -r "%ROOT%\minimal-requirements.txt"
-    if %ERRORLEVEL% EQU 0 (echo [OK] 核心依赖安装完成) else (echo [FAIL] 核心依赖安装失败 — Pan Core 无法启动)
+    if %ERRORLEVEL% EQU 0 (echo [OK] Core/API/MCP 运行依赖安装完成) else (echo [FAIL] 核心依赖安装失败 — Pan Core 无法启动)
+    echo [INFO] 测试依赖按需安装: "%VPY%" -m pip install -r "%ROOT%\dev-requirements.txt"
+    echo [INFO] Memory 可选层按需安装: "%VPY%" -m pip install -r "%ROOT%\memory-requirements.txt"
 )
 echo.
 

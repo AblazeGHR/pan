@@ -1,0 +1,6 @@
+# Development and test dependencies. Runtime installation stays in
+# minimal-requirements.txt; QQ remains a separate optional layer.
+-r minimal-requirements.txt
+
+pytest
+pytest-timeout

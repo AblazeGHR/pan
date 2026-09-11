@@ -2,5 +2,5 @@ fastapi
 uvicorn
 websockets
 psutil
+httpx>=0.28.0
 mcp==1.28.1
-pytest
