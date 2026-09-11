@@ -52,7 +52,7 @@ describe('ToastContainer', () => {
     expect(writeText).toHaveBeenCalledWith('First toast');
     expect(writeText).not.toHaveBeenCalledWith('Second toast');
 
-    fireEvent.animationEnd(screen.getByRole('alert'));
+    fireEvent.animationEnd(screen.getAllByRole('alert')[0]!);
     expect(useUIStore.getState().toastQueue.map((toast) => toast.message)).toEqual(['Second toast']);
   });
 
