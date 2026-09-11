@@ -235,7 +235,7 @@
 - 实现：`packages/core/notifications.py`、`packages/core/reminders.py`；Session/worker/Web/MCP 与 React msgBridge UI 已接入。MCP 工具为 `notification_send`、`reminder_register`、`reminder_list`、`reminder_cancel`，均要求 Pan 注入身份并经过 `_check_access`；`agent_notify` 未改义。
 - 工作树/分支：`D:\project\pan-worktrees\pan-notifications-msgbridge-20260911`；`feature/pan-notifications-msgbridge-20260911`；基于 `main@a0a8d7e`。`D:\project\Pan-main` 的 `docs/references/cli-adapter-special-behaviors.md` 与 `docs/developLog.md` 未触碰。
 - TA/session：未派发 TA；本 SMA worktree 直接实现与复核。
-- 提交：随本功能代码/测试/文档批次提交；最终 hash 以该 worktree 的 `git log` 核对并在交付报告列出。
+- 提交：功能代码/测试/文档批次 `c6aabca`（完整：`c6aabca01bb138e2a68c2a176d8ed9e629dc0542`）。
 - 测试/未验证项：`python -m pytest -q tests/test_notifications_reminders.py tests/test_session_schema_compat.py tests/test_session_handoff.py tests/test_mcp_isolation.py tests/test_worker_states.py tests/test_worker_output_mode.py tests/test_web_frontend.py`：全部通过；`pnpm exec vitest run`：413 passed，10 个既有 Toast/NewSession 测试因当前全量环境基线失败；msgBridge 定向 1 passed，相关 WS/SessionMenu 定向 66 passed；`pnpm run build` 通过；定向 eslint 0 errors（既有全量 lint 仍被 `SessionDetailsModal.tsx:134` Hook 规则阻断）。未启动服务、未操作 8768；未做真实 Windows toast、浏览器权限/后台通知、MCP live、移动端或 provider E2E。
 - 验收清单：
   - [ ] 合入 main
