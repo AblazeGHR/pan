@@ -830,8 +830,15 @@ _MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MiB
 _ALLOWED_WORKDIR_ROOTS: list[Path] | None = None
 
 
-def _resolve_workdir(workdir_name: str) -> Path:
-    """Resolve a workdir name to a Path, creating it."""
+def _resolve_workdir(workdir_name: str, *, strict_workdir: bool = False) -> Path:
+    """Resolve a workdir name to a Path.
+
+    Relative session names retain their historical private workdir behavior.
+    Absolute paths must already exist; a caller that wants a new absolute
+    directory must use the explicit directory-creation endpoint after user
+    confirmation. This prevents session creation from silently creating an
+    arbitrary path supplied by a client.
+    """
     p = Path(workdir_name)
     if p.is_absolute():
         if _ALLOWED_WORKDIR_ROOTS is not None:
@@ -846,8 +853,22 @@ def _resolve_workdir(workdir_name: str) -> Path:
                     f"Workdir {workdir_name!r} is outside allowed roots: "
                     f"{[str(r) for r in _ALLOWED_WORKDIR_ROOTS]}"
                 )
-        p.mkdir(parents=True, exist_ok=True)
-        return p
+        try:
+            resolved = p.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ValueError(
+                f"Workdir {workdir_name!r} does not exist; confirm directory creation first"
+            ) from exc
+        if not resolved.is_dir():
+            raise ValueError(f"Workdir {workdir_name!r} is not a directory")
+        return resolved
+
+    if strict_workdir:
+        if workdir_name in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9_.-]+", workdir_name):
+            raise ValueError(f"Invalid relative workdir path: {workdir_name!r}")
+        workdir = WORKDIRS_DIR / workdir_name
+        workdir.mkdir(parents=True, exist_ok=True)
+        return workdir.resolve()
 
     # Slug name — resolve under WORKDIRS_DIR
     # 非法字符不抛错：清理成安全 slug（替换为 -），避免合法 session 名
@@ -860,6 +881,61 @@ def _resolve_workdir(workdir_name: str) -> Path:
     workdir = WORKDIRS_DIR / workdir_name
     workdir.mkdir(parents=True, exist_ok=True)
     return workdir
+
+
+def _path_is_allowed(path: Path, roots: list[Path]) -> bool:
+    resolved = path.resolve(strict=False)
+    return any(
+        resolved == root.resolve(strict=False)
+        or root.resolve(strict=False) in resolved.parents
+        for root in roots
+    )
+
+
+def _create_directory(path: str) -> Path:
+    """Create one explicitly confirmed directory without expanding trust.
+
+    Existing external workspaces remain valid workdirs. New absolute trees are
+    only creatable below the configured allowlist; when no allowlist is
+    configured, only Pan's own workdir root is creatable. The parent must
+    already exist, so a typo cannot cause an arbitrary directory tree to be
+    manufactured.
+    """
+    raw = path.strip()
+    if not raw or "\x00" in raw or any(ord(char) < 32 for char in raw):
+        raise ValueError("Invalid directory path")
+    if sys.platform == "win32":
+        invalid = set('<>"|?*')
+        if any(char in invalid for char in raw):
+            raise ValueError("Invalid directory path")
+        for index, char in enumerate(raw):
+            if char == ":" and not (index == 1 and raw[0].isalpha()):
+                raise ValueError("Invalid directory path")
+    target = Path(raw)
+    if not target.is_absolute():
+        return _resolve_workdir(raw, strict_workdir=True)
+
+    if _ALLOWED_WORKDIR_ROOTS is not None:
+        roots = _ALLOWED_WORKDIR_ROOTS
+    else:
+        roots = [WORKDIRS_DIR]
+    if not _path_is_allowed(target, roots):
+        raise ValueError(f"Workdir {raw!r} is outside allowed roots: {[str(root) for root in roots]}")
+
+    try:
+        if target.exists():
+            if not target.is_dir():
+                raise ValueError(f"Workdir {raw!r} is not a directory")
+            return target.resolve(strict=True)
+        parent = target.parent.resolve(strict=True)
+        if not parent.is_dir() or not _path_is_allowed(parent, roots):
+            raise ValueError("Parent directory is outside allowed roots or does not exist")
+        target.mkdir(exist_ok=False)
+        return target.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ValueError("Parent directory is outside allowed roots or does not exist") from exc
+    except PermissionError as exc:
+        raise PermissionError("Directory creation permission denied") from exc
 
 
 def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
@@ -1003,7 +1079,8 @@ def _build_session_params(
         if key in data and data[key] is not None and not isinstance(data[key], str):
             raise ValueError(f"{key} must be a string or null")
     name = data.get("name", "default")
-    workdir_name = data.get("workdir") or name
+    explicit_workdir = data.get("workdir")
+    workdir_name = explicit_workdir or name
 
     # Resolve session_template first: the template's adapter participates in
     # the final adapter resolution (explicit request > template > "cbc"), so
@@ -1146,7 +1223,7 @@ def _build_session_params(
         or _guarded_permission_mode(a, template.permission_mode)
         or _guarded_permission_mode(a, config.get("permission_mode"))
         or None,
-        "workdir": str(_resolve_workdir(workdir_name)) if resolve_workdir else "",
+        "workdir": str(_resolve_workdir(workdir_name, strict_workdir=bool(explicit_workdir))) if resolve_workdir else "",
         "adapter_config": {
             "always_thinking_enabled": _thinking,
             "effort": _effort,
@@ -1792,6 +1869,21 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
             temp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@app.post("/api/directories")
+async def create_directory(data: dict):
+    """Create a directory only after the UI has obtained explicit consent."""
+    try:
+        path = data.get("path") if isinstance(data, dict) else None
+        if not isinstance(path, str):
+            raise ValueError("path is required")
+        created = _create_directory(path)
+        return {"ok": True, "path": str(created)}
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/directories")

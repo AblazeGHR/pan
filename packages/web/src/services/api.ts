@@ -66,6 +66,11 @@ export interface DirectoryListResponse {
   entries: DirectoryEntry[];
 }
 
+export interface DirectoryCreateResponse {
+  ok: true;
+  path: string;
+}
+
 export interface SessionAttachmentUploadResponse {
   ok: boolean;
   filename: string;
@@ -90,6 +95,15 @@ export async function fetchDirectories(path?: string, includeFiles = false): Pro
   if (includeFiles) params.set('include_files', 'true');
   const query = params.toString() ? `?${params.toString()}` : '';
   return request<DirectoryListResponse>(`${BASE}/directories${query}`);
+}
+
+export async function createDirectory(path: string): Promise<DirectoryCreateResponse> {
+  const data = await request<DirectoryCreateResponse | { ok: false; error?: string }>(`${BASE}/directories`, {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  });
+  if (!data.ok) throw new Error(data.error || '目录创建失败');
+  return data as DirectoryCreateResponse;
 }
 
 export async function uploadSessionAttachment(

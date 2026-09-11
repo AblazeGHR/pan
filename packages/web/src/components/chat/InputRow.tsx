@@ -9,9 +9,10 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
-import { DirectoryBrowser } from '@/components/session/NewSessionModal';
+import { DirectoryInput } from '@/components/session/DirectoryInput';
 import { Modal } from '@/components/ui/Modal';
-import { uploadSessionAttachment } from '@/services/api';
+import { fetchDirectories, uploadSessionAttachment } from '@/services/api';
+import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
 import { ChevronDown, ChevronUp, CornerUpRight, Expand, File as FileIcon, Minimize2, Paperclip, Settings, X } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
 
@@ -227,6 +228,7 @@ export function InputRow() {
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [attachmentBrowserOpen, setAttachmentBrowserOpen] = useState(false);
   const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
+  const [attachmentDirectoryError, setAttachmentDirectoryError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const clientAttachmentInputRef = useRef<HTMLInputElement>(null);
   const enqueue = useQueueStore((s) => s.enqueue);
@@ -265,6 +267,7 @@ export function InputRow() {
   const closeAttachmentBrowser = () => {
     setAttachmentBrowserOpen(false);
     setAttachmentMenuOpen(false);
+    setAttachmentDirectoryError(null);
   };
 
   // Restore draft when session changes. Reads from getState() so it does not
@@ -427,6 +430,31 @@ export function InputRow() {
         showToast('有附件上传失败，请重试或取消', 'error');
         return;
       }
+      const serverAttachments = attachments.filter(
+        (attachment) => !attachment.file && attachment.status === 'ready' && !!attachment.path,
+      );
+      try {
+        const valid = await Promise.all(
+          serverAttachments.map((attachment) => directoryEntryExists(attachment.path!, fetchDirectories)),
+        );
+        if (valid.some((exists) => !exists)) {
+          setAttachmentDirectoryError('当前目录非法');
+          const stalePath = serverAttachments[0]?.path;
+          if (stalePath) setAttachmentBrowserPath(parentDirectory(stalePath));
+          setAttachmentBrowserOpen(true);
+          setAttachmentMenuOpen(false);
+          showToast('当前目录非法', 'error');
+          return;
+        }
+      } catch {
+        setAttachmentDirectoryError('当前目录非法');
+        const stalePath = serverAttachments[0]?.path;
+        if (stalePath) setAttachmentBrowserPath(parentDirectory(stalePath));
+        setAttachmentBrowserOpen(true);
+        setAttachmentMenuOpen(false);
+        showToast('当前目录非法', 'error');
+        return;
+      }
       const attachmentText = attachments
         .filter((attachment): attachment is PendingAttachment & { path: string } => attachment.status === 'ready' && !!attachment.path)
         .map((attachment) => `@"${attachment.path}"`)
@@ -450,6 +478,10 @@ export function InputRow() {
       setInputDraft,
       enqueue,
       attachments,
+      setAttachmentDirectoryError,
+      setAttachmentBrowserPath,
+      setAttachmentBrowserOpen,
+      setAttachmentMenuOpen,
     ],
   );
 
@@ -706,10 +738,14 @@ export function InputRow() {
             className="md:max-h-[90vh]"
           >
             <div aria-label="Server attachment browser">
-              <DirectoryBrowser
-                path={attachmentBrowserPath}
+              <DirectoryInput
+                value={attachmentBrowserPath}
+                onChange={(path) => {
+                  setAttachmentDirectoryError(null);
+                  setAttachmentBrowserPath(path);
+                }}
                 fileMode
-                onPathChange={setAttachmentBrowserPath}
+                showRootsWhenEmpty
                 onSelect={(selectedPath) => {
                   const name = selectedPath.split(/[\\/]/).pop() || selectedPath;
                   setAttachments((current) => current.some((item) => item.path === selectedPath)
@@ -717,9 +753,10 @@ export function InputRow() {
                     : [...current, { id: attachmentId(), name, path: selectedPath, status: 'ready' }]);
                   setAttachmentBrowserOpen(false);
                   setAttachmentMenuOpen(false);
+                  setAttachmentDirectoryError(null);
                 }}
-                onCancel={closeAttachmentBrowser}
               />
+              {attachmentDirectoryError && <p className="mt-2 text-sm text-danger" data-testid="attachment-directory-error">{attachmentDirectoryError}</p>}
             </div>
           </Modal>
           <div className="flex min-h-0 flex-1 gap-2">
