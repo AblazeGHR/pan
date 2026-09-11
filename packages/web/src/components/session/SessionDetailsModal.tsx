@@ -229,9 +229,11 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
               {isCodex && (quotaWindows.weekly || quotaWindows.monthly || !workerOnline) ? (
                 <div className="space-y-3" role="region" aria-label="Codex quota">
                   <div className="text-xs text-text-tertiary">
-                    {quotaIsCached
-                      ? `Quota${usageView.codexQuota?.stale ? '（最近缓存，可能已过期）' : '（最近缓存）'}`
-                      : 'Quota（当前 Worker 快照）'}
+                    {hasLiveQuota
+                      ? 'Quota（当前 Worker 快照）'
+                      : quotaIsCached
+                        ? `Quota${usageView.codexQuota?.stale ? '（最近缓存，可能已过期）' : '（最近缓存）'}`
+                        : 'Quota'}
                   </div>
                   {quotaWindows.weekly || quotaWindows.monthly ? (
                     <>

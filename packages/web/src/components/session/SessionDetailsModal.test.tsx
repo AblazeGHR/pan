@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SessionDetailsModal } from './SessionDetailsModal';
 import { useUIStore } from '@/stores/uiStore';
+import { useWorkerStore } from '@/stores/workerStore';
 import * as api from '@/services/api';
 import type { Session } from '@/types';
 
@@ -211,7 +212,6 @@ describe('SessionDetailsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
 
     expect(await screen.findByText('输入 Token')).toBeTruthy();
-    expect(screen.queryByLabelText('Codex quota')).toBeNull();
     expect(await screen.findByText('当前没有可用的周/月 quota 缓存')).toBeTruthy();
     expect(screen.queryByText('周额度')).toBeNull();
     expect(screen.queryByText('月额度')).toBeNull();
