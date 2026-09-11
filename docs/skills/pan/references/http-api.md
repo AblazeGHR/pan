@@ -16,12 +16,16 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 | 方法 | URL | Body / 参数 | 返回 |
 |------|-----|------------|------|
 | `POST` | `/api/sessions/batch-delete` | `{"sessionIds": ["ses_a", "ses_b"]}` | `{"deleted": 2}`（含 kill worker、清理其他 session 的 report_subscriptions/managed 引用）。**MCP 等价工具：`session_batch_delete`（已有，逐个过 managed 隔离检查）** |
-| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "mcpServers": ["pan"], "forceMcp"?: true, "outputMode": "stream", "gameId": "..."}` | 更新后 session（设置**即时持久化**，worker 下次 (re)spawn 生效；**可中途更新 `mcpServers`**，中途换 adapter 才需 handoff）。`mcpServers` 传 manifest 中声明的**服务名列表**（服务端解析为完整配置）：非空即启用、`[]` 清空/禁用、**省略该字段 = 保持不变**（部分更新；`mcpEnabled` 仅是响应字段，请求体里传了会被忽略）；未知或不可用的 MCP server 返回 `error`，不会生成无效配置；模板 `mcp_mode=always/never` 锁死增删，body 带 `forceMcp: true` 跳过锁（UI 确认后使用）。改 `mcpServers`/`outputMode`（或有活 worker 时改其他进程相关字段：model/permission/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，重启自动完成：**idle worker 自动 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**——想立即切换仍可手动 agent_kill + agent_spawn（别名 worker_*）。**MCP 等价工具：`session_update`** |
+| `PATCH` | `/api/sessions/{id}` | `{"model": "...", "permissionMode": "...", "alwaysThinkingEnabled": true, "effort": "high", "maxThinkingTokens": 8192, "modelContextWindow": 262144, "modelAutoCompactTokenLimit": 200000, "mcpServers": ["pan"], "forceMcp"?: true, "outputMode": "stream", "gameId": "..."}` | 更新后 session（设置**即时持久化**，worker 下次 (re)spawn 生效；**可中途更新 `mcpServers`**，中途换 adapter 才需 handoff）。`modelContextWindow`/`modelAutoCompactTokenLimit` 是可选正整数 Codex 覆盖值；传 `null` 可清除。`mcpServers` 传 manifest 中声明的**服务名列表**（服务端解析为完整配置）：非空即启用、`[]` 清空/禁用、**省略该字段 = 保持不变**（部分更新；`mcpEnabled` 仅是响应字段，请求体里传了会被忽略）；未知或不可用的 MCP server 返回 `error`，不会生成无效配置；模板 `mcp_mode=always/never` 锁死增删，body 带 `forceMcp: true` 跳过锁（UI 确认后使用）。改上下文覆盖值、`mcpServers`/`outputMode`（或有活 worker 时改其他进程相关字段：model/permission/effort/thinking/MCP/outputMode）时带 `requireRestart: true`，重启自动完成：**idle worker 自动 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**——想立即切换仍可手动 agent_kill + agent_spawn（别名 worker_*）。**MCP 等价工具：`session_update`** |
 | `POST` | `/api/sessions/{id}/rename` | `{"name": "new-name"}` | `{"sessionId","name","status":"renamed"}`。**无 MCP 工具，需 HTTP 直调** |
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定）。**无 MCP 工具，需 HTTP 直调** |
 | `POST` | `/api/sessions/{id}/handoff` | `{"handoffPrompt": "...", "copySettings": true, "adapter"?: "...", "model"?: "...", "permissionMode"?: "..."}` | **替身交接**：创建孪生 session B 接替 A（见 SKILL.md §2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填 |
 | `POST` | `/api/readonly` | `{"managerId": "...", "sessionId": "...", "readonlySession": true}` | 设置或清除已由 `managerId` 管理的 session 的持久只读状态；不能借此认领 session。只读目标拒绝其他 session 的任务/消息/通知，返回 `readonly_session` |
 | `POST` | `/api/notify` | `{"targetSessionId": "...", "text": "...", "source"?: "..."}` | 持久化后台任务完成/状态通知到目标 `queue_pending`；无活 worker 时自动唤醒/spawn。该路由供 MCP `agent_notify` 使用，权限隔离由 MCP 层执行，不是普通任务派发 |
+| `POST` | `/api/notifications/send` | `{"sessionId":"...", "title":"...", "body":"...", "sourceSessionId":"..."}` | 发送 best-effort Pan 系统通知；MCP `notification_send` 使用，调用者身份和 managed 隔离由 MCP 层执行 |
+| `POST` | `/api/sessions/{id}/reminders` | `{"dueAt":"<absolute ISO-8601>", "title":"...", "body":"..."}` | 注册一次性持久提醒；MCP `reminder_register` 使用 |
+| `GET` | `/api/sessions/{id}/reminders` | — | 列出该 session 的待处理提醒；MCP `reminder_list` 使用 |
+| `DELETE` | `/api/sessions/{id}/reminders/{reminderId}` | — | 取消该 session 的待处理提醒；MCP `reminder_cancel` 使用 |
 | `POST` | `/api/background-jobs` | `{"targetSessionId":"...", "argv":[...], "cwd":"...", "label"?:"..."}` | 创建脱离 Worker 生命周期的持久后台 Job；argv 不经 shell，MVP 的 cwd 仅允许 Pan 项目目录内 |
 | `GET` | `/api/background-jobs[?targetSessionId=...]` | — | 列出 Job Registry 记录 |
 | `GET` | `/api/background-jobs/{jobId}` | — | 查询 Job 事实、PID、日志和通知状态 |
@@ -103,7 +107,7 @@ Codex 的 live 增量游标仍由 adapter 的 `codex_prev_usage` 负责；本查
 
 | 方法 | URL | Body | 返回 |
 |------|-----|------|------|
-| `POST` | `/api/sessions` | `{"name":"fix-h1","adapter":"cbc","model":"hy3","permissionMode":"bypassPermissions","workdir":"...","alwaysThinkingEnabled":false,"effort":"","maxThinkingTokens":8192,"mcpEnabled":false,"outputMode":"stream","characterId":"..."}` | 完整 session（关键：`id`、`workdir`、`workerStatus:null`）。**只建 session，不 spawn worker** |
+| `POST` | `/api/sessions` | `{"name":"fix-h1","adapter":"cbc","model":"hy3","permissionMode":"bypassPermissions","workdir":"...","alwaysThinkingEnabled":false,"effort":"","maxThinkingTokens":8192,"modelContextWindow":262144,"modelAutoCompactTokenLimit":200000,"mcpEnabled":false,"outputMode":"stream","characterId":"..."}` | 完整 session（关键：`id`、`workdir`、`workerStatus:null`）。两个上下文字段是可选正整数 Codex 覆盖值；**只建 session，不 spawn worker** |
 | `POST` | `/api/spawn` | `{"sessionId":"ses_..."}` | `{"workerId","sessionId","name","status","model"}` |
 | `POST` | `/api/assign` | `{"sessionId":"ses_...","text":"任务内容"}` | `{"status":"queued","workerId","sessionId"}` |
 | `DELETE` | `/api/sessions/{id}` | —（无 body） | `{"sessionId","status":"deleted"}` |
