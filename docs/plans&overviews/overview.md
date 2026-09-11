@@ -205,15 +205,15 @@
 
 - 调查结论：Core + MCP 运行时直接需要 `httpx`；`mcp`、`fastapi`、`uvicorn`、`websockets`、`psutil` 保持运行依赖；`pytest` 属于 dev/test，不应作为纯运行时 minimal 依赖；Memory ML 链保持 optional。
 - 实现：`minimal-requirements.txt` 仅含 Core/API/MCP 运行依赖；新增 `dev-requirements.txt`（基于 minimal，含 pytest/pytest-timeout）与 `memory-requirements.txt`（Memory provider/索引可选层）；根 `requirements.txt` 保留为兼容聚合入口，QQ 仍由 `packages/qq/requirements.txt` 独立提供。`scripts/setup.bat`/`setup.sh` 默认只装 minimal，`start_pan.bat`/setup 探测覆盖 `httpx` 与 `mcp.server.fastmcp`，缺失时给出修复命令；Memory=false 的 provider 导入边界由回归测试锁定。
-- 工作树/分支：`D:\project\pan-worktrees\minimal-requirements-memory-off-20260911`；`feature/minimal-requirements-memory-off-20260911`；基于当前 `main` HEAD `65f82b0`；实现与本条目同一提交，当前 HEAD hash 见交付记录。
+- 工作树/分支：实现工作树 `D:\project\pan-worktrees\minimal-requirements-memory-off-20260911` / `feature/minimal-requirements-memory-off-20260911` 基于 `main@65f82b0`；已合入 `D:\project\Pan-main` 的 `main`，合入提交 `421c591`（实现提交 `37199dc`）。
 - 测试/未验证项：`D:\project\Pan\.venv\Scripts\python.exe -m pytest tests/test_dependency_layers.py tests/test_cbc_import_guard.py tests/test_mcp_integration.py tests/test_memory_search.py -q`：60 passed；指定解释器实际导入 Core/API/MCP 链成功。`pytest-timeout` 未安装，因此该运行显示 pytest 配置 warning；另有既有 pydantic forward-reference warning。未安装根 `requirements.txt`，未启动服务或执行真实 API/MCP/browser E2E。
-- 状态：已实现并提交；未合入 main，未 push。
+- 状态：已实现并合入 main，未 push。
 - 验收清单：
-  - [ ] 合入 main
+  - [x] 合入 main
   - [ ] 开发者验收
   - [x] 基础依赖分层静态/定向测试通过
   - [ ] 真实 API/MCP 或 browser E2E 通过
-- 合入/push 状态：合入 main：否；push：否。
+- 合入/push 状态：合入 main：是（本地 `main@421c591`，未 push）；push：否。
 
 ## 五、计划要做的任务
 
