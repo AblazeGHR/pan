@@ -221,7 +221,14 @@ export function InputRow() {
   const currentSession = useCurrentSession();
   const addMessage = useSessionStore((s) => s.addMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
-  const { steer } = useWorkerStore();
+  const steer = useWorkerStore((s) => s.steer);
+  // The worker store is keyed by durable sessionId and is refreshed from the
+  // live worker registry independently of session summary refreshes.  Use that
+  // runtime state for Steer visibility so a stale session snapshot cannot hide
+  // a control that the session-level endpoint can still route successfully.
+  const currentWorker = useWorkerStore((s) => (
+    currentSessionId ? s.workers[currentSessionId] : null
+  ));
   const { showToast } = useUIStore();
   const chatAttachmentRequests = useUIStore((s) => s.chatAttachmentRequests);
   const consumeChatAttachmentRequests = useUIStore((s) => s.consumeChatAttachmentRequests);
@@ -501,7 +508,7 @@ export function InputRow() {
 
   const handleSteer = useCallback(
     async (text: string) => {
-      if (!currentSessionId || !text.trim() || !currentSession?.workerId) return;
+      if (!currentSessionId || !text.trim()) return;
       try {
         await steer(currentSessionId, text);
         if (inputRef.current) inputRef.current.value = '';
@@ -511,7 +518,7 @@ export function InputRow() {
         showToast((e as Error).message || 'Steer failed', 'error');
       }
     },
-    [currentSessionId, currentSession, steer, setInputDraft, addMessage, showToast],
+    [currentSessionId, steer, setInputDraft, addMessage, showToast],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -546,8 +553,8 @@ export function InputRow() {
         : validEffortValues[0] ?? '';
   const canSteer =
     currentSession?.adapter === 'codex' &&
-    currentSession.workerStatus === 'running' &&
-    !!currentSession.workerId;
+    currentWorker?.status === 'running' &&
+    !!currentWorker.id;
   const clientAttachments = attachments.filter((attachment) => !!attachment.file);
   const uploadTotalBytes = clientAttachments.reduce(
     (total, attachment) => total + (attachment.totalBytes ?? attachment.file?.size ?? 0),

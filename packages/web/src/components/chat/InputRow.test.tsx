@@ -6,8 +6,9 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patchSession, uploadSessionAttachment } from '@/services/api';
+import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patchSession, steerSessionWorker, uploadSessionAttachment } from '@/services/api';
 import { wsClient } from '@/services/ws';
+import { useWorkerStore } from '@/stores/workerStore';
 import type { AdapterConfig } from '@/types';
 
 vi.mock('@/services/ws', () => ({
@@ -56,6 +57,7 @@ vi.mock('@/services/api', async (importOriginal) => {
     })),
     sendSession: vi.fn(async () => ({ status: 'queued' })),
     spawnWorker: vi.fn(async () => ({ workerId: 'w-new' })),
+    steerSessionWorker: vi.fn(async () => ({ workerId: 'w-live', status: 'steer sent' })),
   };
 });
 
@@ -100,6 +102,7 @@ beforeEach(() => {
     currentMessages: [],
     sessions: [],
   });
+  useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
   useQueueStore.setState({ queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false });
   useUIStore.setState({ toastQueue: [], chatAttachmentRequests: [] });
   useAdapterStore.setState({
@@ -113,6 +116,7 @@ beforeEach(() => {
   vi.mocked(enqueueSessionMessage).mockClear();
   vi.mocked(uploadSessionAttachment).mockClear();
   vi.mocked(spawnWorker).mockClear();
+  vi.mocked(steerSessionWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
   Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
 });
@@ -123,6 +127,43 @@ afterEach(() => {
 });
 
 describe('InputRow send queue wiring', () => {
+  it('keeps Codex Steer visible and routes by sessionId when the session summary is stale', async () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: [],
+      sessions: [{
+        id: 's1',
+        name: 'Test',
+        adapter: 'codex',
+        model: null,
+        permissionMode: null,
+        alwaysThinkingEnabled: false,
+        effort: '',
+        // Simulate a stale /api/sessions summary racing with worker refresh.
+        workerStatus: 'offline',
+        workerId: null,
+        history: [],
+      }],
+    });
+    useWorkerStore.setState({
+      workers: { s1: { id: 'w-live', sessionId: 's1', status: 'running' } },
+      currentWorkerId: 'w-live',
+      currentWorker: { id: 'w-live', sessionId: 's1', status: 'running' },
+    });
+
+    render(<InputRow />);
+    expect(screen.getByRole('button', { name: 'Steer' })).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'continue with the latest result' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Steer' }));
+
+    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith(
+      's1', 'continue with the latest result',
+    ));
+  });
+
   it('selects server files, renders attachment chips, and enqueues standard Markdown links', async () => {
     setBusySession();
     render(<InputRow />);
