@@ -71,7 +71,11 @@
 - 当前实现工作树：`D:\project\pan-worktrees\codex-context-settings-luna-20260911`。
 - 分支：`feature/codex-context-settings-luna-20260911`，基线 main `4aa30a2`。
 - TA：`ses_ced6387755a609a5`，Codex `gpt-5.6-luna` high。
-- 状态：实现中，尚未提交、验收或合入 main。
+- 实现工作树当前改动：10 个已跟踪文件、2 个新增测试文件，代码尚未提交。
+- 已实现：Codex argv 只对显式正整数生成 `-c`；默认不传；恢复默认会删除两个 Session key；Web/MCP 创建与更新、branch/import、SettingsPopover More 折叠入口、idle respawn/running pending restart 均已接入。
+- 验证：compileall 通过；Codex argv 2 passed；HTTP 生命周期/校验/恢复默认/respawn 8 passed；branch 1 passed。MCP 测试因缺少 `mcp` 跳过；Vitest/lint/build 因 worktree 缺少 node_modules 和类型依赖未完成；未做真实 provider/Codex E2E。
+- 当前阻塞：TA 无法在 `D:\project\Pan\.git\worktrees\codex-context-settings-luna-20260911` 创建 `index.lock`，Git object database 只读，因此未形成 commit，不能进入验收或合并。
+- 状态：实现完成，提交与前端依赖验证阻塞，尚未验收或合入 main。
 
 ### 2. 附件选择与 New Session 目录输入统一改造
 
