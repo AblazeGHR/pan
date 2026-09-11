@@ -44,7 +44,7 @@ REM the interpreter and every dependency needed by both Pan Core and its
 REM stdio MCP server before using it.  Core-only Python is not a valid Pan
 REM runtime because manifests resolve ${PAN_PYTHON} to this interpreter.
 if exist "%PYTHON%" (
-    "%PYTHON%" -c "import fastapi, uvicorn, psutil, mcp.server.fastmcp" >nul 2>&1
+    "%PYTHON%" -c "import fastapi, uvicorn, websockets, psutil, httpx; from mcp.server.fastmcp import FastMCP" >nul 2>&1
     if errorlevel 1 set "PYTHON="
 ) else (
     set "PYTHON="
@@ -56,7 +56,7 @@ REM can be an app-execution alias rather than a usable interpreter.
 if not defined PYTHON (
     for /f "delims=" %%p in ('where.exe python.exe 2^>nul') do (
         if not defined PYTHON (
-            "%%p" -c "import fastapi, uvicorn, psutil, mcp.server.fastmcp" >nul 2>&1
+            "%%p" -c "import fastapi, uvicorn, websockets, psutil, httpx; from mcp.server.fastmcp import FastMCP" >nul 2>&1
             if not errorlevel 1 set "PYTHON=%%p"
         )
     )
@@ -64,7 +64,9 @@ if not defined PYTHON (
 if not defined PYTHON (
     echo [ERROR] No usable Python interpreter with Pan Core and MCP dependencies was found.
     echo         Checked: %LOCAL_PYTHON% and python.exe on PATH.
-    echo         Repair the environment with scripts\setup.bat.
+    echo         The probe requires fastapi, uvicorn, websockets, psutil, httpx,
+    echo         and mcp.server.fastmcp. Repair with scripts\setup.bat, or run:
+    echo         python -m pip install -r minimal-requirements.txt
     exit /b 1
 )
 if /i not "%PYTHON%"=="%LOCAL_PYTHON%" (

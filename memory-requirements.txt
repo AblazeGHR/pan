@@ -1,0 +1,9 @@
+# Optional Memory indexing/retrieval layer. Do not install this for the
+# default memory.enabled=false runtime.
+sentence-transformers
+watchdog>=4.0.0
+openai>=1.0.0
+llama-cpp-python>=0.3.0
+jieba
+numpy
+tiktoken

@@ -76,6 +76,8 @@ Set-Location ../..
 python main.py
 ```
 
+这里的 minimal 层只包含 Core/API/MCP 运行依赖（包括 `httpx` 和 `mcp.server.fastmcp`），不安装 pytest、Memory ML provider 或 QQ。开发测试时另执行 `pip install -r dev-requirements.txt`；启用 Memory 时另执行 `pip install -r memory-requirements.txt`。QQ 始终独立安装 `packages/qq/requirements.txt`。根 `requirements.txt` 是兼容的全量本地开发入口，不作为默认安装方案。
+
 然后打开 <http://127.0.0.1:8768>。已有配置的用户也可以使用 `scripts/setup.bat`、`scripts/start_pan.bat` 和 `scripts/stop_pan.bat`。
 
 macOS/Linux 可使用：
