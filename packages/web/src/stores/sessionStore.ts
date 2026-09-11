@@ -47,10 +47,12 @@ interface SessionStore {
   _touchSeq: number;
   // sessionId → touchSeq of the last workerStatus/workerId update (WS events).
   _sessionWsTouchedSeq: Record<string, number>;
+  _historyRefreshSeq: Record<string, number>;
 
   // Actions
   loadSessions: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
+  refreshCurrentSessionHistory: () => Promise<void>;
   loadOlderMessages: () => Promise<void>;
   createNewSession: (
     name: string,
@@ -135,6 +137,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   _loadSeq: 0,
   _touchSeq: 0,
   _sessionWsTouchedSeq: {},
+  _historyRefreshSeq: {},
 
   loadSessions: async () => {
     // Reserve this refresh's sequence + snapshot the touch counter so a stale
@@ -334,6 +337,43 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({ initialLoading: false });
       }
       console.warn('[sessionStore] selectSession fresh-history fetch failed', id);
+    }
+  },
+
+  refreshCurrentSessionHistory: async () => {
+    const sid = get().currentSessionId;
+    if (!sid) return;
+    const requestSeq = (get()._historyRefreshSeq[sid] ?? 0) + 1;
+    set((s) => ({
+      _historyRefreshSeq: { ...s._historyRefreshSeq, [sid]: requestSeq },
+    }));
+    try {
+      const data = await fetchSessionHistory(sid, 0, 50);
+      const current = get();
+      if (
+        current.currentSessionId !== sid ||
+        current._historyRefreshSeq[sid] !== requestSeq
+      ) return;
+      const serverHistory = data.history || [];
+      const keepLocal = isServerHistoryPrefix(current.currentMessages, serverHistory);
+      const lastServerMsg = serverHistory[serverHistory.length - 1];
+      set((s) => ({
+        sessions: s.sessions.map((session) => session.id === sid
+          ? {
+              ...session,
+              history: serverHistory,
+              historyTruncated: data.hasMore,
+              historyTotal: data.total,
+              lastMessage: lastServerMsg ? String(lastServerMsg.content).slice(0, 200) : '',
+            }
+          : session),
+        currentMessages: keepLocal ? s.currentMessages : serverHistory,
+        hasMoreMessages: data.hasMore,
+        historyLoadEnd: data.start,
+        initialLoading: false,
+      }));
+    } catch {
+      // A focus recovery is best effort; retain the stream and local snapshot.
     }
   },
 

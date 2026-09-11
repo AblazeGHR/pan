@@ -197,7 +197,23 @@
 
 ## 三、已完成但尚未合入 main 的改动
 
-当前暂无；新的已完成改动会在独立验收后列入本节。
+### 1. 浏览器后台恢复前端状态
+
+- 计划/目标：页面由后台节能、bfcache 或失焦恢复可见时，去重触发安全 WS 恢复，并刷新权威 sessions、workers、当前 history、queue 与 interactive 请求；保留草稿、滚动和本地状态，不整页 reload。
+- 调查结论：`wsClient` 是共享单例，不能因页面事件调用 `disconnect()`；已有 `loadSessions`/`selectSession` 的序列保护可复用，但恢复 history 需要额外按 session 的单飞序列，防止旧请求覆盖新 session。
+- 实现：`wsClient` 增加连接活动时间、新鲜度判断和不移除订阅者的 `reconnect()`；`useWebSocket` 集中监听 `visibilitychange`、`pageshow`、`focus`，100ms debounce + single-flight；陈旧连接交由 `open` 路径完成刷新，健康连接刷新 sessions/workers/current history/queue 并同步 interactive；mock mode 保持不建真实 WS。
+- 工作树：`D:\project\pan-worktrees\web-resume-on-focus-20260911`；提交前 dirty；未覆盖其他用户变更。
+- 分支：`feature/web-resume-on-focus-20260911`，基于当前 main HEAD `65f82b06`。
+- TA/任务：未派发 TA/session；SMA 直接实现与静态检查。
+- 提交：当前 HEAD（代码与 overview 同一功能提交；交付时以实际 HEAD 核对）。
+- 测试/未验证项：`pnpm exec vitest run src/hooks/useWebSocket.test.tsx src/stores/sessionStore.race.test.ts`：2 files / 51 tests passed；`pnpm run build` 通过；涉及文件 ESLint 通过；未做真实浏览器 visibility/bfcache、真实服务/WS/provider E2E。
+- 验收清单：
+  - [ ] 合入 main
+  - [ ] 开发者验收
+  - [x] 基础测试通过
+  - [ ] browser/mobile E2E 通过
+  - [x] 竞态与 mock mode 回归已由 jsdom 用例覆盖
+- 合入/push 状态：合入 main：否；push：否。
 
 ## 四、正在进行的任务/改动
 

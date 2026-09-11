@@ -16,7 +16,10 @@ const wsMock = vi.hoisted(() => {
   const handlers: Record<string, Array<(e: unknown) => void>> = {};
   return {
     handlers,
+    connect: vi.fn(),
     send: vi.fn(() => true),
+    reconnect: vi.fn(),
+    isConnectionFresh: vi.fn(() => true),
     on: vi.fn((type: string, h: (e: unknown) => void) => {
       (handlers[type] ??= []).push(h);
       return () => {
@@ -31,10 +34,12 @@ const wsMock = vi.hoisted(() => {
 
 vi.mock('@/services/ws', () => ({
   wsClient: {
-    connect: vi.fn(),
+    connect: wsMock.connect,
+    reconnect: wsMock.reconnect,
     on: wsMock.on,
     send: wsMock.send,
     isOpen: true,
+    isConnectionFresh: wsMock.isConnectionFresh,
   },
 }));
 
@@ -42,12 +47,16 @@ vi.mock('@/services/ws', () => ({
 // the server "has persisted" (the injected user message lives only server-side).
 const apiMock = vi.hoisted(() => ({
   fetchSessionHistory: vi.fn(),
+  fetchSessions: vi.fn(),
+  listWorkers: vi.fn(),
   fetchSessionQueue: vi.fn(),
   updateUiSettings: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => ({
   fetchSessionHistory: apiMock.fetchSessionHistory,
+  fetchSessions: apiMock.fetchSessions,
+  listWorkers: apiMock.listWorkers,
   fetchSessionQueue: apiMock.fetchSessionQueue,
   updateUiSettings: apiMock.updateUiSettings,
 }));
@@ -73,6 +82,12 @@ describe('useWebSocket worker.result wiring', () => {
   beforeEach(() => {
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
     wsMock.send.mockClear();
+    wsMock.connect.mockClear();
+    wsMock.reconnect.mockClear();
+    wsMock.isConnectionFresh.mockReturnValue(true);
+    apiMock.fetchSessions.mockReset().mockRejectedValue(new Error('not mocked'));
+    apiMock.listWorkers.mockReset().mockRejectedValue(new Error('not mocked'));
+    apiMock.fetchSessionHistory.mockReset();
     useSessionStore.setState({
       sessions: [
         mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
@@ -88,6 +103,7 @@ describe('useWebSocket worker.result wiring', () => {
       _loadSeq: 0,
       _touchSeq: 0,
       _sessionWsTouchedSeq: {},
+      _historyRefreshSeq: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
@@ -96,6 +112,71 @@ describe('useWebSocket worker.result wiring', () => {
     apiMock.fetchSessionQueue.mockResolvedValue([]);
     apiMock.updateUiSettings.mockReset();
     apiMock.updateUiSettings.mockResolvedValue({});
+  });
+
+  it('coalesces visible, focus, and pageshow into one authoritative recovery', async () => {
+    vi.useFakeTimers();
+    apiMock.fetchSessions.mockResolvedValue([
+      mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
+      mk('A', 'A', { history: [msg('user', 'u0')] }),
+    ]);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [msg('user', 'u0'), msg('assistant', 'fresh')],
+      total: 2, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new PageTransitionEvent('pageshow'));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(2); // initial load + recovery
+    expect(apiMock.listWorkers).toHaveBeenCalledTimes(2);
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledWith('A', 0, 50);
+    expect(useSessionStore.getState().currentMessages.at(-1)?.content).toBe('fresh');
+    apiMock.fetchSessions.mockReset().mockRejectedValue(new Error('not mocked'));
+    vi.useRealTimers();
+  });
+
+  it('reconnects a stale socket and lets the open path refresh state', () => {
+    vi.useFakeTimers();
+    wsMock.isConnectionFresh.mockReturnValue(false);
+    renderHook(() => useWebSocket());
+    wsMock.reconnect.mockClear();
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      vi.advanceTimersByTime(100);
+    });
+    expect(wsMock.reconnect).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('drops recovery history that completes after the selected session changes', async () => {
+    let resolveHistory!: (value: unknown) => void;
+    apiMock.fetchSessionHistory.mockReturnValueOnce(new Promise((resolve) => { resolveHistory = resolve; }));
+    const recovery = useSessionStore.getState().refreshCurrentSessionHistory();
+    useSessionStore.setState({
+      currentSessionId: 'B',
+      currentMessages: [msg('user', 'new-session')],
+    });
+    resolveHistory({ history: [msg('assistant', 'old-session')], total: 1, hasMore: false, start: 0 });
+    await recovery;
+    expect(useSessionStore.getState().currentSessionId).toBe('B');
+    expect(useSessionStore.getState().currentMessages).toEqual([msg('user', 'new-session')]);
   });
 
   it('requests pending native interactions when the singleton is already open', () => {
@@ -616,9 +697,22 @@ describe('useWebSocket worker.result wiring', () => {
   });
 });
 
+describe('useWebSocket mock mode recovery', () => {
+  it('does not create a real socket in mock mode', async () => {
+    wsMock.connect.mockClear();
+    window.history.pushState({}, '', '/?mock=1');
+    apiMock.fetchSessions.mockResolvedValue([]);
+    renderHook(() => useWebSocket());
+    await Promise.resolve();
+    expect(wsMock.connect).not.toHaveBeenCalled();
+    window.history.pushState({}, '', '/');
+  });
+});
+
 describe('useWebSocket agent-injected message sync', () => {
   beforeEach(() => {
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
+    apiMock.fetchSessions.mockReset().mockRejectedValue(new Error('not mocked'));
     apiMock.fetchSessionHistory.mockReset();
     apiMock.fetchSessionHistory.mockResolvedValue({
       history: [],
@@ -958,6 +1052,7 @@ describe('useWebSocket agent-injected message sync', () => {
 describe('useWebSocket worker.stream lastMessage preview', () => {
   beforeEach(() => {
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
+    apiMock.fetchSessions.mockReset().mockRejectedValue(new Error('not mocked'));
     useSessionStore.setState({
       sessions: [
         mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
