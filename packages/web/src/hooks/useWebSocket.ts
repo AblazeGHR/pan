@@ -421,6 +421,13 @@ export function useWebSocket() {
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e)) return;
+      const notification = e.notification as { title?: string; body?: string; browser?: boolean } | undefined;
+      // Permission is explicitly requested from msgBridge; completion events
+      // never prompt in the background.
+      if (notification?.browser && typeof window !== 'undefined' && 'Notification' in window
+        && Notification.permission === 'granted') {
+        new Notification(notification.title || 'Pan:', { body: notification.body || '' });
+      }
       const sessionStore = useSessionStore.getState();
       clearInteractiveRequests(e.sessionId);
       if (e.sessionId === sessionStore.currentSessionId) {

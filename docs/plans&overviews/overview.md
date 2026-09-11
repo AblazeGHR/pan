@@ -10,7 +10,7 @@
 
 | 分支 | 路径 | HEAD | 阶段状态 |
 |---|---|---|---|
-| `main` | `D:\project\Pan-main` | `5d1f214`（代码合入基线，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
+| `main` | `D:\project\Pan-main` | `a0a8d7e`（代码合入基线，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
 | `practical` | `D:\project\Pan` | `46d5879` | 与 main 同一当前基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的改动
@@ -228,11 +228,25 @@
 
 ## 三、已完成但尚未合入 main 的改动
 
-当前暂无；新的已完成改动会在独立验收后列入本节。
+### 1. Pan 通知、系统提醒与 msgBridge
+
+- 计划/目标：为浏览器/系统通知统一强制 `Pan:` 前缀；持久化 Session 完成通知开关；提供可恢复、一次性绝对 dueAt 系统提醒；以 msgBridge 替换 UI 旧 Postbox 名称，同时保留 QQ 标签页。
+- 调查/设计结论：复用 Session PATCH 与 `worker.result`；`agent_notify` 保持内部 agent queue 语义。旧 Session JSON 的 `notification_settings` 缺失时安全默认为关闭；handoff 与 native branch 复制该设置，`copySettings=false` 默认关闭。系统 sender 采用可注入接口，当前默认返回明确 `unsupported_system_notification`，不静默成功；通知失败不影响任务完成。
+- 实现：`packages/core/notifications.py`、`packages/core/reminders.py`；Session/worker/Web/MCP 与 React msgBridge UI 已接入。MCP 工具为 `notification_send`、`reminder_register`、`reminder_list`、`reminder_cancel`，均要求 Pan 注入身份并经过 `_check_access`；`agent_notify` 未改义。
+- 工作树/分支：`D:\project\pan-worktrees\pan-notifications-msgbridge-20260911`；`feature/pan-notifications-msgbridge-20260911`；基于 `main@a0a8d7e`。`D:\project\Pan-main` 的 `docs/references/cli-adapter-special-behaviors.md` 与 `docs/developLog.md` 未触碰。
+- TA/session：未派发 TA；本 SMA worktree 直接实现与复核。
+- 提交：随本功能代码/测试/文档批次提交；最终 hash 以该 worktree 的 `git log` 核对并在交付报告列出。
+- 测试/未验证项：`python -m pytest -q tests/test_notifications_reminders.py tests/test_session_schema_compat.py tests/test_session_handoff.py tests/test_mcp_isolation.py tests/test_worker_states.py tests/test_worker_output_mode.py tests/test_web_frontend.py`：全部通过；`pnpm exec vitest run`：413 passed，10 个既有 Toast/NewSession 测试因当前全量环境基线失败；msgBridge 定向 1 passed，相关 WS/SessionMenu 定向 66 passed；`pnpm run build` 通过；定向 eslint 0 errors（既有全量 lint 仍被 `SessionDetailsModal.tsx:134` Hook 规则阻断）。未启动服务、未操作 8768；未做真实 Windows toast、浏览器权限/后台通知、MCP live、移动端或 provider E2E。
+- 验收清单：
+  - [ ] 合入 main
+  - [ ] 开发者验收
+  - [ ] 基础测试/全量门禁无基线失败
+  - [ ] 真实 OS/browser/provider E2E
+- 合入/push 状态：合入 main：否（当前功能分支未合入）；push：否（未执行）。
 
 ## 四、正在进行的任务/改动
 
-当前暂无。
+当前暂无；本功能等待独立代码审阅、真实 sender 决策与开发者验收。
 
 ## 五、计划要做的任务
 
