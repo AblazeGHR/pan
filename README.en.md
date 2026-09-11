@@ -673,7 +673,7 @@ POST   /api/fs/delete                   → delete
 **Adapters / Import**
 
 ```
-GET    /api/models?adapter=cbc          → get the model list
+GET    /api/models?adapter=codex        → get Codex models (adapter may be any registered adapter)
 GET    /api/adapter/config?adapter=cbc  → Adapter configuration
 GET    /api/adapters                    → list available Adapters
 GET    /api/cli/status                  → check Agent CLI availability in the Pan process
@@ -758,7 +758,7 @@ Pan is not just for humans — **any external agent that speaks MCP (Model Conte
 | `worker_kill` | Kill a worker process (session data persists) |
 | `worker_list` | List running workers |
 | `agent_notify` | Persistently deliver a background-work completion/status notice to the caller or a managed Agent; not ordinary task dispatch |
-| `model_list` | List available models for an adapter |
+| `model_list` | List models for any registered adapter; pass the adapter explicitly, e.g. `model_list(adapter="codex")`; omission returns the adapter inventory and a structured error |
 | `pan_handbook` | Return the full Pan orchestration handbook (`docs/skills/pan/SKILL.md`) |
 
 **`pan-qq` server** (`packages/qq/mcp.py`, QQ channel):

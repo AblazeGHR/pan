@@ -1806,16 +1806,95 @@ def worker_kill(worker_id: str | None = None, session_id: str | None = None) -> 
 # Model / adapter info
 # ---------------------------------------------------------------------------
 
+
+def _adapter_inventory() -> tuple[list[dict], dict | None]:
+    """Return the registered adapter inventory without its misleading default.
+
+    ``/api/adapters`` also returns a top-level ``default`` for session creation.
+    That default is deliberately not copied into model-list responses because
+    it is not the adapter selected by the caller.
+    """
+    result = _api("GET", "/api/adapters")
+    if not isinstance(result, dict) or not isinstance(result.get("adapters"), list):
+        if isinstance(result, dict) and isinstance(result.get("error"), dict):
+            discovery_error = dict(result["error"])
+        else:
+            discovery_error = {
+                "code": "adapter_discovery_failed",
+                "message": "Pan did not return a registered adapter list",
+            }
+        return [], discovery_error
+
+    adapters = []
+    for item in result["adapters"]:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            continue
+        adapter_info = {
+            "name": item["name"],
+            "defaultModel": item.get("defaultModel"),
+        }
+        for key in ("supportsResume", "supportsFork"):
+            if key in item:
+                adapter_info[key] = item[key]
+        adapters.append(adapter_info)
+    return adapters, None
+
+
+def _model_list_error(code: str, message: str, available: list[dict]) -> dict:
+    """Build a machine-readable model-list error with an actionable hint."""
+    preferred = next(
+        (item["name"] for item in available if item.get("name") == "codex"),
+        next((item["name"] for item in available if item.get("name")), None),
+    )
+    result = {
+        "ok": False,
+        "error": {"code": code, "message": message},
+        "availableAdapters": available,
+    }
+    if preferred:
+        result["next"] = {"tool": "model_list", "adapter": preferred}
+        result["callHint"] = f"Call model_list(adapter='{preferred}') to list its models."
+    else:
+        result["callHint"] = "Call model_list(adapter='<registered adapter>') after an adapter is available."
+    return result
+
+
 @mcp.tool()
-def model_list(adapter: str = "cbc") -> dict:
-    """List available AI models for an adapter.
+def model_list(adapter: str | None = None) -> dict:
+    """List available AI models for one registered adapter.
 
     Args:
-        adapter: Adapter name ("cbc" or "kimi")
+        adapter: Registered adapter name (for example ``"codex"``). This is
+            required; omitted, empty, or whitespace-only values return the
+            registered adapter inventory instead of selecting an adapter.
 
     完整编排流程见 /pan skill。
     """
-    return _api("GET", f"/api/models?adapter={adapter}")
+    requested = adapter.strip() if isinstance(adapter, str) else ""
+    available, discovery_error = _adapter_inventory()
+    if not requested:
+        result = _model_list_error(
+            "adapter_required",
+            "adapter is required; choose one of the registered adapters in availableAdapters",
+            available,
+        )
+        if discovery_error:
+            result["adapterDiscoveryError"] = discovery_error
+        return result
+
+    available_names = {item["name"] for item in available}
+    if requested not in available_names:
+        result = _model_list_error(
+            "unknown_adapter",
+            f"Unknown adapter {requested!r}; choose a registered adapter from availableAdapters",
+            available,
+        )
+        result["adapter"] = requested
+        if discovery_error:
+            result["adapterDiscoveryError"] = discovery_error
+        return result
+
+    return _api("GET", f"/api/models?{urlencode({'adapter': requested})}")
 
 
 # ---------------------------------------------------------------------------

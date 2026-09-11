@@ -706,7 +706,7 @@ POST   /api/fs/delete                   → 删除
 **Adapter / 导入**
 
 ```
-GET    /api/models?adapter=cbc          → 获取模型列表
+GET    /api/models?adapter=codex        → 获取 Codex 模型列表（adapter 可为任一已注册 adapter）
 GET    /api/adapter/config?adapter=cbc  → Adapter 配置
 GET    /api/adapters                    → 列举可用 Adapter
 GET    /api/cli/status                  → 检查当前 Pan 进程能否找到各 Agent CLI
@@ -792,7 +792,7 @@ Pan 不只给人用——**任何支持 MCP（Model Context Protocol）的外部
 | `agent_list` | 列出全部 Agent（= Session 摘要，`session_list` 的别名） |
 | `agent_notify` | 向自己或自己管理的 Agent 持久化投递后台任务完成/状态通知；不是普通任务派发替代品 |
 | `worker_spawn` / `worker_task` / `worker_assign` / `worker_send` / `worker_send_force` / `worker_kill` / `worker_list` | **兼容别名（DEPRECATED）**：内部复用 `agent_*` 同一实现，建议改用 `agent_*`；仅 `worker_id` 进程寻址为别名独有遗留路径 |
-| `model_list` | 列出 adapter 可用模型 |
+| `model_list` | 列出任一已注册 adapter 的模型；必须显式传 adapter，例如 `model_list(adapter="codex")`，省略时返回 adapter 清单与结构化错误 |
 | `pan_handbook` | 返回完整 Pan 编排手册（`docs/skills/pan/SKILL.md`） |
 
 **`pan-qq` server**（`packages/qq/mcp.py`，QQ 通道）：
