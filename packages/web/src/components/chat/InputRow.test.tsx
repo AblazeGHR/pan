@@ -6,7 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { enqueueSessionMessage, sendSession, spawnWorker, patchSession, uploadSessionAttachment } from '@/services/api';
+import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patchSession, uploadSessionAttachment } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import type { AdapterConfig } from '@/types';
 
@@ -129,7 +129,7 @@ describe('InputRow send queue wiring', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
-    expect(screen.queryByTestId('directory-browser')?.closest('.modal-card')).toBeTruthy();
+    expect(screen.queryByTestId('directory-input-panel')?.closest('.modal-card')).toBeTruthy();
     expect(screen.queryByLabelText('Server attachment browser')?.closest('[data-testid="input-row"]')).toBeNull();
     await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
@@ -160,22 +160,41 @@ describe('InputRow send queue wiring', () => {
     ));
   });
 
+  it('revalidates a selected server attachment before enqueue and cancels on a stale path', async () => {
+    setBusySession();
+    vi.mocked(fetchDirectories)
+      .mockResolvedValueOnce({
+        current: 'D:\\attachments', parent: 'D:\\',
+        entries: [{ name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false }],
+      })
+      .mockResolvedValueOnce({ current: 'D:\\attachments', parent: 'D:\\', entries: [] });
+    render(<InputRow />);
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('当前目录非法'));
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+    expect(screen.getByTestId('server-attachments')).toBeTruthy();
+  });
+
   it('closes the server browser with its close button and backdrop', async () => {
     setBusySession();
     render(<InputRow />);
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
-    await waitFor(() => expect(screen.getByTestId('directory-browser')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('directory-input-panel')).toBeTruthy());
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-    expect(screen.queryByTestId('directory-browser')).toBeNull();
+    expect(screen.queryByTestId('directory-input-panel')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
-    await waitFor(() => expect(screen.getByTestId('directory-browser')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('directory-input-panel')).toBeTruthy());
     fireEvent.click(document.body.querySelector('.modal-overlay')!);
-    expect(screen.queryByTestId('directory-browser')).toBeNull();
+    expect(screen.queryByTestId('directory-input-panel')).toBeNull();
   });
 
   it('keeps attachments after a failed enqueue and allows cancelling one', async () => {
@@ -429,7 +448,7 @@ describe('InputRow responsive composer controls', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
-    await waitFor(() => expect(screen.getByTestId('directory-browser')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('directory-input-panel')).toBeTruthy());
 
     const overlay = document.body.querySelector('.modal-overlay')!;
     const card = document.body.querySelector('.modal-card')!;

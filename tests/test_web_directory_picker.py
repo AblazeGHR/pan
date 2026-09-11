@@ -94,6 +94,42 @@ def test_directory_listing_reports_permission_error(monkeypatch, tmp_path):
     assert error.value.status_code == 403
 
 
+def test_directory_creation_is_explicit_and_stays_inside_the_workdir_root(monkeypatch, tmp_path):
+    import packages.web.server as server
+    from fastapi import HTTPException
+
+    workdirs = tmp_path / "workdirs"
+    workdirs.mkdir()
+    monkeypatch.setattr(server, "WORKDIRS_DIR", workdirs)
+    monkeypatch.setattr(server, "_ALLOWED_WORKDIR_ROOTS", None)
+
+    created = asyncio.run(server.create_directory({"path": str(workdirs / "confirmed") }))
+    assert created == {"ok": True, "path": str((workdirs / "confirmed").resolve())}
+    assert (workdirs / "confirmed").is_dir()
+
+    outside = tmp_path / "outside"
+    with pytest.raises(HTTPException) as denied:
+        asyncio.run(server.create_directory({"path": str(outside)}))
+    assert denied.value.status_code == 400
+    assert not outside.exists()
+
+    with pytest.raises(HTTPException) as traversal:
+        asyncio.run(server.create_directory({"path": ".."}))
+    assert traversal.value.status_code == 400
+
+
+def test_absolute_workdir_creation_is_not_implicit(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    monkeypatch.setattr(server, "_ALLOWED_WORKDIR_ROOTS", [tmp_path])
+    with pytest.raises(ValueError, match="confirm directory creation first"):
+        server._resolve_workdir(str(tmp_path / "missing"))
+
+    created = asyncio.run(server.create_directory({"path": str(tmp_path / "confirmed") }))
+    assert created["ok"] is True
+    assert server._resolve_workdir(str(tmp_path / "confirmed")) == (tmp_path / "confirmed").resolve()
+
+
 def test_attachment_upload_is_session_isolated_and_avoids_name_collisions(monkeypatch, tmp_path):
     import packages.web.server as server
 
