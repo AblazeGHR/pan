@@ -72,18 +72,23 @@
 
 ### Context window 与压缩阈值
 
-- 状态：调查完成；未修改代码，待后续实现决策。
+- 状态：原生 Codex 运行时实验完成；CLI resume 与新配置生效已确认，自动压缩阈值行为仍未触发验证；Pan 尚未实现适配。
 - 工作树：`D:\project\pan-worktrees\context-window-threshold-experiment-luna-20260911`
 - 分支：`audit/context-window-threshold-experiment-luna-20260911`
 - 基线：`31e1ee310cbf1082b01a7f0282fc817f4a1f5a79`
-- TA：Codex `gpt-5.6-luna` high；本次没有启动实际测试模型，因此没有消耗模型 token。
+- 原生实验工作树：`D:\project\pan-worktrees\native-codex-config-resume-experiment-20260911`
+- 原生实验分支：`audit/native-codex-config-resume-20260911`
+- 原生实验 TA：Codex `gpt-5.6-luna` high；实际测试模型使用 `gpt-5.6-luna` low，提示词保持极短。
 - 目标：确认 `model_context_window` 与 `model_auto_compact_token_limit` 是否能在 Session 创建后修改，并在下一次 spawn/respawn 生效；区分运行中 App Server 热更新、Codex thread resume 和新进程读取配置。
-- 硬性限制：不使用 practical 服务、不触碰 8768；不触发真实 compact，不进行长对话；仅完成官方文档、CLI help、静态参数和进程内构造实验。
-- 结论：两个值都属于 Codex 启动配置，应作为可持久化的 Codex Session 设置；修改后通过 Worker respawn 重新启动 App Server，并保留原 `cli_session_id` 做 `thread/resume`。当前证据不支持运行中 App Server 热更新，也没有证据要求新建 Pan Session/Codex thread。
+- 硬性限制：不使用 practical 服务、不触碰 8768；不触发真实 compact，不进行长对话；原生实验只用命令行 `-c`，不使用 `--ignore-user-config`，不修改 `config.toml`/`auth.json`，允许真实 `CODEX_HOME` 产生运行时污染。
+- 原生实验结论：先创建真实 Codex thread，再用 `codex exec resume` 追加 `-c model_context_window=64000 -c model_auto_compact_token_limit=32000`，退出码为 0，thread ID 保持不变；运行事件中的 `model_context_window` 从 baseline 的 `258400` 变为 `60800`，证明已创建 thread 的 resume 可以接受并采用新的上下文窗口配置。请求值 `64000` 与回报值 `60800` 的差异原因尚未确认。
+- 压缩阈值结论：`model_auto_compact_token_limit=32000` 未报错，但因实验刻意不触发 compact，尚未确认其实际压缩行为。
+- 设计结论：两个值都属于 Codex 启动配置，应作为可持久化的 Codex Session 设置；修改后通过 Worker respawn 重新启动 App Server，并保留原 `cli_session_id` 做 `thread/resume`。当前证据不支持运行中 App Server 热更新，也没有证据要求新建 Pan Session/Codex thread。
 - 当前 Pan 尚未接入这两个字段；不能把当前代码行为误称为已支持。
 - 官方参考：[configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)、[config basics](https://learn.chatgpt.com/docs/config-file/config-basic)、[App Server](https://learn.chatgpt.com/docs/app-server)。
 - 已确认：`model_context_window`、`model_auto_compact_token_limit` 均为 `number` 配置键；后者未设置时使用模型默认值；`-c/--config key=value` 可传入。
-- 未验证：真实 App Server 启动后是否实际采用新值；同一 thread resume 后上下文窗口/compact 行为是否完全按新值运行；`config/value/write` 是否影响已运行进程；有效范围和边界值。
+- 未验证：`model_auto_compact_token_limit` 的实际触发行为；`model_context_window` 回报值与请求值差异的具体计算；`config/value/write` 是否影响已运行进程；有效范围和边界值。
+- 原生实验记录：thread `01a08f2d-c6bd-7d70-9634-0479890ceddb`；真实 `CODEX_HOME` 下观察到既有 Codex PID `33496`、`18884`、`31976`、`34480`，按约束未终止；未发现新建测试进程需要强制清理。
 - 产品建议：放入现有 Session Settings，不新增 new-session 专用输入；空值删除 override，不生成空字符串/0/default 的 `-c` 参数；修改后提示 Worker restart/respawn 后生效。
 
 ## 五、已完成的调查结论
