@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **React-only 前端**：退役并归档 Vanilla 前端，根路径固定跳转 `/react/`；移除 `/vanilla` 路由和 `frontend` 配置，React 构建缺失时返回 503。
+
 ## [0.3.0] - 2026-09-03
 
 ### Added
@@ -36,7 +40,7 @@
 - **Agent 编排（supervisor / worker）**：一个 Meta-Agent 主管拆解并调度一整支 CLI Agent 工人团队并行干活；Worker 在独立 git worktree 里干活，卡死 / 静默超时由 watchdog 自愈，进程异常死亡后落盘队列自动重建 Worker 接着干；session_handoff 替身交接，跨 CLI 无缝接管上下文
 - **多 CLI 适配**：cbc / kimi / opencode / claude / codex 五个内置 adapter（wrapper + stream 长驻、模型列表 TTL 缓存、sessions provider 导入历史会话），编排层对底层 CLI 无感知
 - **MCP Server**（`packages/mcp/server.py`）：向外部 AI（Meta-Agent / 编排 skill）暴露 agent_assign / agent_send / claim / report_subscribe / QQ 订阅等 `agent_*` 工具，支持 stdio 与 SSE / streamable-http
-- **双前端**：React SPA（`/react/`，主开发目标）+ legacy Vanilla JS（`/vanilla`，稳定备份），后端按 `frontend` 配置路由
+- **前端**：React SPA（`/react/`）；当时的 Vanilla 前端历史说明见 `docs/archive/vanilla-frontend-retirement.md`。
 - **QQ Bridge**：NoneBot2 bot 接入 QQ，通道插件化（NapCat / LLOneBot），session 绑定、inbox 推送提醒、NapCat 不可达自动降级
 - **Remote（Cloudflare Tunnel）**：quick tunnel / named tunnel 将 Pan 主端口暴露到公网，状态服务 8769
 - **Memory / Character**：向量 + 全文（jieba）混合检索，开工自动注入相关记忆；人设跨 Session 保持同一身份，可选 ML 依赖缺失时懒加载自动降级

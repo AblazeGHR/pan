@@ -80,7 +80,7 @@ The key: **every tier builds on the one before it — depth is additive, not a d
 | 🧠 Employee's long-term memory | **Memory** | Hybrid vector + full-text (FTS5) retrieval, auto-injected before work starts |
 | 🎭 An employee with personality | **Character** | Persona + dedicated memory store, keeping the same identity across Sessions |
 | 🐕 A supervisor who never sleeps | **Watchdog** | One per Worker: cleans up hangs / timeouts; the global level can also restock Workers |
-| 🖥️ Workshop monitoring screen | **Dashboard** | Watch every Worker's output live in the browser (React version primary; legacy Vanilla is deprecated, fallback only) |
+| 🖥️ Workshop monitoring screen | **Dashboard** | Watch every Worker's output live in the browser (React is the only frontend) |
 | 💬 Command via QQ | **QQ Bridge** | Turns QQ messages into Worker commands; NapCat / LLOneBot channels are switchable |
 | 🌐 Remote office | **Remote** | Cloudflare Tunnel exposing the control plane to the public internet |
 
@@ -183,7 +183,7 @@ One control plane, four entrances, switch anytime:
 
 | Channel | Entry | Description |
 |---------|-------|-------------|
-| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | **React SPA recommended** (`/react/`, the only maintained frontend); legacy Vanilla is deprecated, served at `/vanilla` as a fallback only; `frontend` config controls routing (`coexist` / `react` / `legacy`) |
+| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | React SPA (the only frontend); `/` redirects to `/react/`, and a missing React build returns 503 |
 | 💬 **QQ Bridge** | NapCat / LLOneBot | **Pluggable** OneBot 11 gateways: both channels are thin subclasses of `QQChannel`; zero business-code changes; `mirror` full mirror / `selective` dual modes |
 | 🌐 **Remote** | Cloudflare Tunnel | Expose to the public internet in one click — manage it from outside |
 | 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | Let any Agent CLI act as the supervisor: MCP tools + event-stream subscription, the MA access channel |
@@ -239,7 +239,7 @@ One control plane, four entrances, switch anytime:
 
 Pan is a **CLI Agent orchestration platform**. Built on a Supervisor/Worker architecture, one "MA" supervisor (meta-agent) directs multiple TA sessions (each running independently, carried by a temporary Worker process) through MCP tools and WebSocket event streams. Each TA works in its own git worktree, and you can command the platform from a web dashboard, QQ, a public tunnel, or any Agent CLI — and you can always watch, interrupt, or take over any Worker's terminal.
 
-- **Tech stack**: Python + FastAPI + WebSocket + SQLite (FTS5 full-text search) + optional embedding-based vector search; frontend: React (the only maintained and recommended frontend) + Vanilla JS (deprecated, fallback only).
+- **Tech stack**: Python + FastAPI + WebSocket + SQLite (FTS5 full-text search) + optional embedding-based vector search; frontend: React (the only frontend).
 
 Traditional one-to-one AI coding assistants work as "you say one thing, it does one thing." Pan upgrades this to **one-to-many**: you talk to a single supervisor, who orchestrates multiple Workers in parallel and consolidates the results into one deliverable for you.
 
@@ -259,7 +259,7 @@ Typical use cases:
 - **Self-healing Worker lifecycle** — `stream` / `one-shot` execution modes; a three-tier Watchdog timeout cleanup plus an on-disk queue that rebuilds Workers after an abnormal process exit.
 - **Memory + Character** — SQLite FTS5 + embedding hybrid retrieval; a Character (persona) and its memory store persist across Sessions as the same identity.
 - **Per-session MCP** — each Session can mount its own MCP Server; two servers ship built in: `pan` (38 orchestration tools) and `pan-qq` (6 QQ tools).
-- **Multi-channel access** — Web Dashboard (React is the only maintained frontend; legacy Vanilla deprecated, fallback only), QQ Bridge (pluggable NapCat / LLOneBot channels), Cloudflare Tunnel, and any Agent CLI (WS + MCP).
+- **Multi-channel access** — Web Dashboard (React is the only frontend), QQ Bridge (pluggable NapCat / LLOneBot channels), Cloudflare Tunnel, and any Agent CLI (WS + MCP).
 - **Session import** — historical sessions from cbc / kimi / opencode / claude / codex can be imported and reused, avoiding re-exploration and re-initialization.
 
 ## Core Concepts
@@ -309,7 +309,7 @@ codex --version
 
 At least one command should print a version. At startup, Pan logs a `ready/unavailable` status for every CLI. A missing optional CLI does not prevent Pan from starting, but creating a Worker with that adapter shows installation, PATH, and restart guidance. If all CLIs are missing, Workers cannot run. A background service may have a different PATH from your interactive terminal, so restart Pan after installing a CLI or changing PATH. Inspect `GET http://127.0.0.1:8768/api/cli/status` for live diagnostics.
 
-> **Frontend note**: the React Dashboard is the only maintained and recommended frontend. The legacy Vanilla frontend is deprecated and served only at `/vanilla` as a fallback; new users should not use it.
+> **Frontend note**: the React Dashboard is the only frontend. Visit the root URL or `/react/`.
 
 ### Install & Start
 
@@ -411,14 +411,12 @@ The repo-root `config.json` is gitignored and generated from `config.example.jso
 ```json
 {
   "port": 8768,
-  "frontend": "coexist",
   "cbc": { "model": "deepseek-v4-flash", "models": [], "permission_mode": "bypassPermissions" },
   "worker": { "timeout_sec": 300, "task_timeout_sec": 1800, "idle_sec": 300 }
 }
 ```
 
 - `models: []` auto-detects models available to the CLI; filling it restricts the UI choices.
-- Keep `frontend` as `coexist` (root redirects to React and legacy is only at `/vanilla`); `react` enables only React; `legacy` is deprecated.
 - `bypassPermissions` skips per-step approval for commands and file edits and is intended only for trusted environments; `default` / `acceptEdits` are more conservative. Pan has no authentication by default and binds to `127.0.0.1`.
 - `worker.timeout_sec` is the no-output silence timeout, `task_timeout_sec` caps total stream-task duration, and `idle_sec` reclaims an idle process after completion.
 
@@ -428,9 +426,9 @@ For QQ, start NapCat (3001) or LLOneBot (3002) first and set `qq.channel`; `qq.m
 
 Use Ctrl+C for a graceful exit, or `scripts/stop_pan.bat` / `scripts/stop.sh`. macOS/Linux paths are case-sensitive; a background service may have a different PATH, so restart Pan after changing a CLI or PATH. The API has no authentication by default, and Remote/Cloudflare Tunnel exposes the main port publicly; assess the risk before enabling it. A Worker reclaimed by the watchdog can be started again while Session history remains; deleting a Session does not delete its workdir. See [Chapters 12 and 13 of the User Manual](docs/USER_MANUAL.en.md#13-security-and-cleanup) for troubleshooting and security notes.
 
-### Frontend choice: React recommended, Vanilla deprecated
+### Frontend: React only
 
-**The React frontend is the only maintained and recommended frontend**: after step 3 above, just visit `http://127.0.0.1:{port}` (307-redirects to `/react/` by default).
+**The React frontend is the only frontend**: after step 3 above, just visit `http://127.0.0.1:{port}` (307-redirects to `/react/`).
 
 For development, use Vite HMR:
 
@@ -439,15 +437,7 @@ cd packages/web
 pnpm dev       # dev mode: Vite HMR + proxy to backend
 ```
 
-The serving route is controlled by the `frontend` field in `config.json`:
-
-| `frontend` | Behavior |
-|------------|----------|
-| `coexist` (default) | `/` 307-redirects to `/react/`; legacy frontend served at `/vanilla` |
-| `react` | React takes over `/` (no legacy entry) |
-| `legacy` | Legacy frontend only, `/` renders Vanilla directly (**deprecated; not recommended**) |
-
-> ⚠️ **The Vanilla (legacy) frontend is deprecated**: React is the only maintained and recommended frontend; Vanilla is no longer fixed and not recommended for any user. The `/vanilla` route remains accessible as a fallback. The backend API/WS evolves for React first; if a backend change breaks the legacy frontend, patch `ts/app.ts` to follow — do not constrain backend changes. If you really need the legacy frontend, compile it from the project root with `npx tsc` (`packages/web/ts/app.ts` → `static/js/app.js`).
+Routing is no longer controlled by a frontend setting: `/` always redirects to `/react/`. If `packages/web/dist/` is missing, `/` and `/react/` return an actionable 503; run `cd packages/web && pnpm build` to restore the dashboard.
 
 ## Architecture
 
@@ -542,7 +532,6 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `port` | 8768 | Main service port (main branch); test branch: 8767 |
-| `frontend` | `coexist` | `coexist` / `react` / `legacy` |
 | `cbc.model` | `deepseek-v4-flash` | Default cbc model |
 | `cbc.models` | `[]` | Empty = auto-detect (parsed from cbc `--help`); set = restrict available models |
 | `cbc.permission_mode` | `bypassPermissions` | cbc permission mode |
@@ -720,7 +709,7 @@ Launch: `python -m packages.mcp.server --transport stdio|sse|streamable-http [--
 
 ### Web / Dashboard
 
-- `http://127.0.0.1:{port}` — 307-redirects to the React Dashboard `/react/` by default (recommended); the legacy Vanilla Dashboard is deprecated, served at `/vanilla` as a fallback
+- `http://127.0.0.1:{port}` — 307-redirects to the only React Dashboard `/react/`
 - `ws://127.0.0.1:{port}/ws` — Dashboard WebSocket
 - `ws://127.0.0.1:{port}/ws/agent` — Meta-Agent WebSocket
 
@@ -862,10 +851,9 @@ Before using Pan, be aware of these defaults and evaluate your own trust boundar
 ## Contributing
 
 - Development uses a **git worktree parallel-branch** model: each feature is developed in its own worktree / branch and must pass tests before merging to main.
-- **Frontend source conventions** (see `CODEBUDDY.md`; **the legacy (Vanilla) frontend is deprecated**; React is the only maintained and recommended frontend):
-  - The legacy source lives in `packages/web/ts/app.ts`; `static/js/app.js` is a compiled artifact (gitignored). **Never edit the artifact directly**; if you really must touch it, run `npx tsc` from the project root;
+- **Frontend source conventions** (see `CODEBUDDY.md`; React is the only frontend):
   - The React source lives in `packages/web/src/`; the output `dist/` is gitignored. After editing, run `cd packages/web && pnpm build`;
-  - The pre-commit hook (`git config core.hooksPath scripts`) checks both: legacy (`tsc --noEmit`) and React (`pnpm build`).
+  - The pre-commit hook (`git config core.hooksPath scripts`) checks React TypeScript.
 - Run tests: `python -m pytest tests/ -q`.
 - If you change MCP tools / HTTP API / workdir conventions, update `docs/skills/pan/SKILL.md` (the single source of truth).
 

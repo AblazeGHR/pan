@@ -696,7 +696,7 @@ export interface ApiBatchDeleteResponse {
   error?: string;
 }
 
-// ── Send queue types (aligns with vanilla ts/app.ts QueuedMessage) ──
+// ── Send queue types ──
 
 export interface QueuedMessage {
   id: string; // 唯一标识（重排/编辑/删除的 key）

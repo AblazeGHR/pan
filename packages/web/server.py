@@ -174,8 +174,6 @@ _PROJECT_DIR = _WEB_DIR.parent.parent  # packages/web/ → packages/ → project
 DATA_DIR = _PROJECT_DIR / "data"
 WORKDIRS_DIR = DATA_DIR / "workdirs"
 ATTACHMENTS_DIR = DATA_DIR / "attachments"
-DASHBOARD_FILE = _WEB_DIR / "index.html"
-MOBILE_DASHBOARD_FILE = _WEB_DIR / "mobile.html"
 REACT_DIST_DIR = _WEB_DIR / "dist"
 REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
 
@@ -531,18 +529,6 @@ def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
             close_fds=True,
             creationflags=flags,
         )
-
-# Production switch: config.json frontend 字段
-# "coexist"（默认）→ React SPA / + Vanilla /vanilla/（+ React /react/ 兼容保留）
-# "react" → React SPA / + Vanilla /vanilla/
-# "legacy" → 仅旧前端 /（无 /vanilla、/react）
-FRONTEND_MODE = load_config().get("frontend", "coexist")
-
-_MOBILE_UA_RE = re.compile(
-    r"Mobile|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone|webOS",
-    re.IGNORECASE,
-)
-
 
 async def _send_ws(ws: WebSocket, data: dict):
     """单个客户端发送（带 2s 超时）；超时/失败由 broadcast 统一剔除。
@@ -1868,43 +1854,17 @@ async def favicon():
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    # react / coexist → redirect root to /react/ so the React SPA basename
-    # ("/react") matches the URL path and actually renders. Serving index.html
-    # directly at "/" left the router with a non-matching basename → blank.
-    if FRONTEND_MODE in ("react", "coexist") and REACT_DIST_EXISTS:
-        return RedirectResponse("/react/", status_code=307)
-
-    # legacy 模式（或 dist 缺失）→ Vanilla，保留移动端分流
-    ua = request.headers.get("user-agent", "")
-    if _MOBILE_UA_RE.search(ua):
+async def dashboard():
+    """Redirect to the React SPA, or explain that its build is unavailable."""
+    if not REACT_DIST_EXISTS:
         return HTMLResponse(
-            content=MOBILE_DASHBOARD_FILE.read_text(encoding="utf-8"),
-            headers={"Cache-Control": "no-cache"},
+            content=(
+                "React frontend is unavailable: packages/web/dist is missing. "
+                "Build it with `pnpm --dir packages/web build`."
+            ),
+            status_code=503,
         )
-    return HTMLResponse(
-        content=DASHBOARD_FILE.read_text(encoding="utf-8"),
-        headers={"Cache-Control": "no-cache"},
-    )
-
-
-# Vanilla 前端入口：coexist / react 模式下旧前端移至 /vanilla。
-# legacy 模式根路径即旧前端，无需 /vanilla。
-if FRONTEND_MODE != "legacy":
-
-    @app.get("/vanilla", response_class=HTMLResponse)
-    async def vanilla_dashboard(request: Request):
-        """Serve legacy Vanilla frontend (with mobile UA split) at /vanilla."""
-        ua = request.headers.get("user-agent", "")
-        if _MOBILE_UA_RE.search(ua):
-            return HTMLResponse(
-                content=MOBILE_DASHBOARD_FILE.read_text(encoding="utf-8"),
-                headers={"Cache-Control": "no-cache"},
-            )
-        return HTMLResponse(
-            content=DASHBOARD_FILE.read_text(encoding="utf-8"),
-            headers={"Cache-Control": "no-cache"},
-        )
+    return RedirectResponse("/react/", status_code=307)
 
 
 # ── WebSocket: Dashboard ──
@@ -3490,8 +3450,8 @@ async def api_config_reload(data: dict | None = None):
     same config. Per-item failures are collected into ``errors`` and reported
     with ``reloaded: false`` instead of a 500. The response always carries
     ``requiresRestart`` — fields that are startup-frozen by nature and can
-    never hot-apply (frontend route mounting, bound port, logging handlers, the
-    Windows startup console window, and the external remote tunnel process).
+    never hot-apply (the bound port, logging handlers, the Windows startup
+    console window, and the external remote tunnel process).
     """
     scope = (data or {}).get("scope") or "all"
     if scope not in ("adapters", "worker", "plugin", "memory", "all"):
@@ -3543,7 +3503,7 @@ async def api_config_reload(data: dict | None = None):
             result["plugin"] = plugin_entry
 
     # Startup-frozen fields a config.json edit can never hot-apply.
-    result["requiresRestart"] = ["frontend", "port", "logging", "remote", "startup"]
+    result["requiresRestart"] = ["port", "logging", "remote", "startup"]
 
     if errors:
         result["reloaded"] = False
@@ -5621,9 +5581,8 @@ async def api_fs_delete(data: dict):
         return {"error": str(e)}
 
 
-# ── React SPA (coexist: / + /react/* 均为 React) ──
-# Mount React at /react/ unless FRONTEND_MODE=legacy（/react 保留作兼容入口）
-if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
+# ── React SPA ──
+if REACT_DIST_EXISTS:
     react_name = (
         "react"
         if not app.routes or not any(
@@ -5655,6 +5614,18 @@ if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
         return FileResponse(
             REACT_DIST_DIR / "index.html",
             headers={"Cache-Control": "no-cache"},
+        )
+else:
+
+    @app.get("/react/", response_class=HTMLResponse)
+    async def react_unavailable():
+        """Return an actionable error when the React build is missing."""
+        return HTMLResponse(
+            content=(
+                "React frontend is unavailable: packages/web/dist is missing. "
+                "Build it with `pnpm --dir packages/web build`."
+            ),
+            status_code=503,
         )
 
 

@@ -175,7 +175,7 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 
 ### T2 前端适配（同一 worker 或独立 worker）
 - [x] React 前端：kimi adapter 的 settings 面板（supportedSettings 驱动，已通用）
-- [x] legacy ts/app.ts：已同步（流式事件渲染随 `render kimi streaming events` commit 修复）
+- [x] 当时的旧前端：已同步（流式事件渲染随 `render kimi streaming events` commit 修复）；该前端现已退役，记录仅供历史追溯。
 - [x] import 对话框 kimi 入口确认（/api/kimi/* 已存在）
 
 ### T3 测试验证（同一 worker，kimi-k2.6）

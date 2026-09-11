@@ -8,7 +8,7 @@
 
 - main.py（服务入口）
 - packages/core/（worker/session/watchdog/adapter/memory/manifest/character）
-- packages/web/（server.py HTTP/WS API + React 前端 src/ + legacy ts/app.ts）
+- packages/web/（server.py HTTP/WS API + React 前端 src/）
 - packages/mcp/（MCP server + monitor_workers）
 - packages/qq/（plugin + channels/onebot + bot + mcp）
 - tests/（覆盖缺口分析）
@@ -59,7 +59,7 @@
 
 ### H7. legacy 前端 markdown 裸渲染 XSS
 
-- `packages/web/ts/app.ts:350-354, 371, 1201-1204`
+- 旧前端代码位置（2026-08-27 快照；现已归档）
 - `marked.parse()` 输出未经 sanitize 直接 `innerHTML`（全仓库无 DOMPurify）。worker 输出是不可信内容 → `/` 页面存在存储型 XSS（`javascript:` 链接、内联 HTML、`<img onerror>`）。React 端走 react-markdown 默认转义，安全。
 - 修复：引入 DOMPurify 消毒，或 marked renderer 白名单。legacy 虽是备份但长期共存。
 

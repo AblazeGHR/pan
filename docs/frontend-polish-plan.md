@@ -1,4 +1,4 @@
-# Pan 前端细化计划（feat/frontend-polish）
+# Pan React 前端细化计划（历史规划快照）
 
 > 1 级 meta-agent：agent-frontend-polish（dsV4flash）
 > 侦察日期：2026-08-26。仅侦察+规划，具体实现派发 hy3 worker。
@@ -8,6 +8,9 @@
 > `1d705dc`/`11c187f`/`80d4efa`）、Manage「Managed by」镜像父级控制（`11420d7`）、会话搜索/过滤/
 > 分组等列表头部控件（main 已有）。**仍开放的方向以 `docs/TODO.md` §四为准**；下文侦察数字仅代表
 > 2026-08-26 状态，不作为当前现状。
+>
+> **退役说明（2026-09-11）**：Vanilla 前端已归档并移除。本文件只保留 React 方向的历史规划，
+> 不再执行任何旧前端维护项。
 
 ## 一、前端现状摘要
 
@@ -20,11 +23,6 @@
 - 组件（30+）：chat/、layout/、session/、detail/、editor/、ui/、worker/
 - 已有能力：树形/分组会话列表 + 虚拟滚动 + 多选批量删除；Markdown 渲染（GFM + KaTeX + highlight.js，双主题）；thinking/tool 分组；发送队列面板；命令面板（Ctrl+B/1/2）；Monaco 编辑器（文件树 + 多标签）；QQ postbox；Manage/Import/NewSession 弹窗；暗/亮双主题（data-theme）+ TUI 扁平模式；移动端适配（safe-area、<640px bottom-sheet、hamburger、visualViewport）
 - 测试：17 个测试文件（ChatMessages/InputRow/MarkdownRenderer/SessionList×3/useWebSocket/各 store 等），vitest
-
-### Legacy（/，稳定备份）
-
-- `packages/web/ts/app.ts` 3261 行单文件（编译产物 static/js/app.js 为 gitignored）
-- 决策（docs/阶段计划与进度.md D4）：**冻结，只修 bug**，不投入细化
 
 ### 后端 API 能力（前端可挖掘）
 
@@ -58,6 +56,5 @@
 ## 四、验收与约束
 
 - 每项 worker 交付：改动文件清单 + `cd packages/web && pnpm build` 通过 + 相关 vitest 通过
-- Legacy 改动仅限 bug 修复（npx tsc --noEmit 校验）
 - 只改本 worktree（feat/frontend-polish）；不动运行中服务；push 等用户指示
 - worker 产出由本 meta-agent 复核后自行 commit（本分支）
