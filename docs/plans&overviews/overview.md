@@ -2,122 +2,118 @@
 
 > 维护者：Pan SMA
 > 更新日期：2026-09-11
-> 说明：本文是当前任务、功能状态、工作树和主分支合并状态的总览。提交、测试和服务状态以实际 Git/TA 报告为准；未明确标记“已合入”的内容不得视为已进入主分支。
+> 本文只做项目阶段和功能索引：每个功能集中记录计划、调查结论、实现状态、工作树、测试和是否合入 main。长期约束、验收口径和编排记忆见 [constraints-and-acceptance.md](constraints-and-acceptance.md)。
 
-## 一、当前基线
+## 一、当前阶段
 
-| 对象 | 路径 | 分支 | HEAD | 状态 |
-|---|---|---|---|---|
-| main | `D:\project\Pan-main` | `main` | `8731518ab9deedf33fb8e006a7e348faf002c43a` | clean；当前主分支 |
-| practical | `D:\project\Pan` | `practical` | `1f05127f9d4a65ae315e532c449e748313e003dc` | clean；不得覆盖用户脚本 |
+当前处于“主分支功能整合 + Codex 能力扩展 + UI 目录交互改造”阶段。
 
-当前约束：
-
-- `8768` 是受保护的 Pan 服务，禁止重启、停止、修改或用于本次实验。
-- 需要服务验证时只允许使用明确隔离的 `8765`/`8767` 实例，并记录 PID、checkout、数据根和清理结果。
-- 禁止调用 `session_handoff` 或任何替身交接接口。
-- 新 TA 工作树统一放在 `D:\project\pan-worktrees`，且必须先用 `git worktree add` 实际注册，再交给 TA。
-- 未经明确授权不 push；当前本批内容均未 push。
-- `D:\project\Pan\scripts\setup.bat` 与 `scripts\start_pan.bat` 的用户修改必须保留，不得覆盖。
+| 分支 | 路径 | HEAD | 阶段状态 |
+|---|---|---|---|
+| `main` | `D:\project\Pan-main` | `4aa30a2` | 当前集成基线，clean |
+| `practical` | `D:\project\Pan` | `1f05127` | 较早的 practical 基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的功能
 
-| 功能 | 合入提交 | 当前状态 |
-|---|---|---|
-| Session prompt 拆分：`original_prompt` / `handoff_prompt`，避免交接简报递归叠加 | `bf73b5b`（由 practical 的 `77a2e66` 合入） | 已合入 main；未执行真实 handoff |
-| Session Details 基础 usage/rename 相关主分支承接 | `3c2a455`、`5d5491f` 等主分支历史 | 已在 main；与旧 TA feature 分支存在拓扑差异 |
-| practical 的 MCP 依赖检查脚本修复 | `9138a79` | 已合入 main；不得覆盖用户脚本 |
-| ChatMessages 底部跟随区域、Scroll to bottom 行为 | `51a159c`（基于 practical `1f05127`） | 已合入 main；保留 48px 底部跟随判定 |
-| Session Details / Rename / Usage / System prompt UI 整合 | `f497d351` | 已合入 main；未做真实浏览器/mobile E2E |
-| GitHub Windows 窄编码日志兼容 | `c734d6a` | 已包含在 main 当前历史；未 push 新分支 |
-| CI Python 3.12/3.14 调整 | `31e1ee3` | main 当前 HEAD；已合入并同步 origin/main |
+### main 与 practical 当前差异（本节置顶）
 
-## 三、已完成但尚未合入 main
+- `main` 当前为 `4aa30a2`，`practical` 当前为 `1f05127`；按当前 Git 历史，`practical` 没有领先 `main` 的独有提交，main 包含后续集成提交。
+- main 相对 practical 现已包含：prompt 拆分、Session usage/rename/UI 整合、ChatMessages 48px 底部跟随、Windows 窄编码日志兼容、CI 调整，以及本总览和原生 Codex 调查记录。
+- practical 仍是服务工作 checkout，保留用户对 `scripts/setup.bat`、`scripts/start_pan.bat` 的未提交修改；不得把 main 的文档或功能提交反向覆盖这些用户修改。
+- 当前未合入 main 的功能不因为存在于其他工作树或 practical 相关历史中而视为已集成。
 
-### 1. Codex 全局额度缓存
+### 1. Session prompt 拆分与非递归交接准备
 
-- 状态：实现完成，前端验证完成，待集成审查。
-- 工作树：`D:\project\pan-worktrees\codex-quota-cache-luna-20260909`
-- 分支：`feature/codex-quota-cache-luna-20260909`
-- 最终提交：`466782c209edfe29205c3e5e8388ce046cd5e899`
-- 父提交：`dd9ef954ea11be515ce6e5e91394c45e40ac081d`
-- 内容：全局 `data/codex/quota/<profile-key>.json` 缓存、app-server push 持久化、离线 API、profile 隔离、窗口时长归一化、可选 WHAM 刷新、Session Details API projection。
-- 验证：Python quota 回归 `97 passed`；全量 Vitest `46 files / 404 tests passed`；lint 0 errors；build 通过；compileall 和 diff check 通过。
-- 未完成项：未做真实服务/浏览器 E2E；未合入 main；未 push。
+- 计划/目标：将 Session JSON 的 `system_prompt` 拆为 `original_prompt` 与 `handoff_prompt`，计算兼容的 `systemPrompt`，避免旧简报在后续交接中递归叠加。
+- 实现：持久化字段、旧 JSON 兼容、worker/HTTP/MCP/导入/分支路径均分别传递原始提示和本次简报；不猜测拆分历史混合文本。
+- 合入：main `bf73b5b`；practical 中的承接提交为 `77a2e66`。
+- 状态：已合入 main；真实 handoff 按安全边界未执行。
 
 ### 2. Session Details / Rename / Usage / System prompt UI
 
-- 状态：已完成 main 基线整合并合入 main；旧 feature 分支仅作为历史来源保留。
-- 旧工作树：`D:\project\pan-worktrees\session-detail-usage-rename-20260909`
-- 旧分支最终提交：`e716f617fc670c620c01642f38869ff5735df389`
-- 包含：Session name 可复制、rename 预填并全选、Usage 默认折叠、Codex 只显示周/月额度、System prompt 默认折叠可展开、滚动按钮行为。
-- 旧分支验收结果：全量 Vitest `407 passed / 3 failed`；lint 通过；build 失败。原因是旧分支相对当前 main 基线过旧，且存在异步 quota 测试与 TypeScript 类型问题。
-- 整合提交：`f497d35196e7bbddde3aee564619871acc277edc`
-- 整合方式：以 main 为基线手工移植 main 缺失的 System prompt/quota 过滤和测试，保留 main 已有的 ChatMessages 48px bottom-follow；未机械覆盖旧实现。
-- 验证：全量 Vitest `46 files / 407 tests passed`；lint 0 errors；build 通过；Python 相关测试 `39 passed, 1 skipped`。
-- 未完成项：未做真实服务/浏览器/mobile E2E；Python MCP 用例仍缺少 `mcp` 环境依赖。
-- 已合入 main；未 push。
+- 计划/目标：完善 Session Details、rename、Usage、Codex quota 和可折叠 System prompt 展示。
+- 实现：Session name 复制；rename 预填原名并全选；Usage 默认折叠；Codex 只显示实际存在的周/月额度；System prompt 默认折叠、展开保留换行；不存在的额度直接省略；保留 ChatMessages 底部跟随行为。
+- 主分支整合：`f497d35196e7bbddde3aee564619871acc277edc`，以当前 main 为基线手工整合，未机械覆盖旧 feature 分支。
+- 历史工作树：`D:\project\pan-worktrees\session-detail-usage-rename-20260909`，旧分支 `feature/session-detail-usage-rename-20260909`，最终 `e716f617`。
+- 验证：main 整合后全量 Vitest `46 files / 407 tests passed`，lint 0 errors，build 通过；未做真实浏览器/mobile E2E。
+- 状态：已合入 main。
 
-### 3. MCP `model_list` adapter 发现改进
+### 3. ChatMessages 底部跟随与 Scroll to bottom
 
-- 状态：TA 报告完成，尚未完成主仓库集成验收。
-- 报告提交：`e66613e6fa4db7578381a5475a8b66193c2bf863`
-- 报告目录：`D:\project\pan-worktrees\mcp-model-list-adapter-discovery-20260909`
-- 内容：取消默认 CBC；无 adapter 时返回结构化 `adapter_required`、可用 adapter 和 Codex 调用提示；指定 `codex` 时返回 Codex 模型；未知 adapter 返回可行动错误。
-- 报告测试：`55 passed, 1 skipped`；compileall/diff check 通过。
-- 集成注意：该目录虽可作为独立 Git 仓库读取提交，但不在 `Pan-main` 的已注册 worktree 列表中；合入前必须核对基线和补丁，不能直接假定已处于主仓库拓扑。
-- 未合入 main；未 push；未做 live MCP E2E。
+- 计划/目标：到达底部时隐藏按钮，并在接近底部时跟随新消息但不吸附正在翻阅历史的用户。
+- 实现结论：底部距离 `<=48px` 视为跟随区并隐藏按钮；超过 `48px` 显示按钮且不自动吸附；保留内容增长前几何快照、分页和会话切换处理。
+- 合入：main `51a159c`，来源 practical `1f05127`。
+- 验证：前端相关及全量测试曾通过；真实浏览器/mobile 滚动物理行为未做 E2E。
+- 状态：已合入 main。
 
-## 四、已完成调查 / 待实现任务
+### 4. Windows 窄编码日志兼容与 CI
 
-### Context window 与压缩阈值
+- 计划/目标：修复 GitHub Windows runner 的 cp1252 stdout 无法输出 Unicode 箭头导致隔离 HTTP E2E readiness 失败。
+- 实现结论：日志输出对 stdout 编码做兼容处理，无法编码字符使用 `backslashreplace`；增加回归测试；CI Python 版本/测试配置同步调整。
+- 合入：`c734d6a`；后续 CI 提交 `31e1ee3` 已在 main 历史。
+- 验证：本地复现并修复原失败；Python workflow 测试、前端 Vitest、lint、build 均曾通过。
+- 状态：已合入 main。
 
-- 状态：原生 Codex 运行时实验完成；CLI resume 与新配置生效已确认，自动压缩阈值行为仍未触发验证；Pan 尚未实现适配。
-- 工作树：`D:\project\pan-worktrees\context-window-threshold-experiment-luna-20260911`
-- 分支：`audit/context-window-threshold-experiment-luna-20260911`
-- 基线：`31e1ee310cbf1082b01a7f0282fc817f4a1f5a79`
-- 原生实验工作树：`D:\project\pan-worktrees\native-codex-config-resume-experiment-20260911`
-- 原生实验分支：`audit/native-codex-config-resume-20260911`
-- 原生实验 TA：Codex `gpt-5.6-luna` high；实际测试模型使用 `gpt-5.6-luna` low，提示词保持极短。
-- 目标：确认 `model_context_window` 与 `model_auto_compact_token_limit` 是否能在 Session 创建后修改，并在下一次 spawn/respawn 生效；区分运行中 App Server 热更新、Codex thread resume 和新进程读取配置。
-- 硬性限制：不使用 practical 服务、不触碰 8768；不触发真实 compact，不进行长对话；原生实验只用命令行 `-c`，不使用 `--ignore-user-config`，不修改 `config.toml`/`auth.json`，允许真实 `CODEX_HOME` 产生运行时污染。
-- 原生实验结论：先创建真实 Codex thread，再用 `codex exec resume` 追加 `-c model_context_window=64000 -c model_auto_compact_token_limit=32000`，退出码为 0，thread ID 保持不变；运行事件中的 `model_context_window` 从 baseline 的 `258400` 变为 `60800`，证明已创建 thread 的 resume 可以接受并采用新的上下文窗口配置。请求值 `64000` 与回报值 `60800` 的差异原因尚未确认。
-- 压缩阈值结论：`model_auto_compact_token_limit=32000` 未报错，但因实验刻意不触发 compact，尚未确认其实际压缩行为。
-- 设计结论：两个值都属于 Codex 启动配置，应作为可持久化的 Codex Session 设置；修改后通过 Worker respawn 重新启动 App Server，并保留原 `cli_session_id` 做 `thread/resume`。当前证据不支持运行中 App Server 热更新，也没有证据要求新建 Pan Session/Codex thread。
-- 当前 Pan 尚未接入这两个字段；不能把当前代码行为误称为已支持。
-- 官方参考：[configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)、[config basics](https://learn.chatgpt.com/docs/config-file/config-basic)、[App Server](https://learn.chatgpt.com/docs/app-server)。
-- 已确认：`model_context_window`、`model_auto_compact_token_limit` 均为 `number` 配置键；后者未设置时使用模型默认值；`-c/--config key=value` 可传入。
-- 未验证：`model_auto_compact_token_limit` 的实际触发行为；`model_context_window` 回报值与请求值差异的具体计算；`config/value/write` 是否影响已运行进程；有效范围和边界值。
-- 原生实验记录：thread `01a08f2d-c6bd-7d70-9634-0479890ceddb`；真实 `CODEX_HOME` 下观察到既有 Codex PID `33496`、`18884`、`31976`、`34480`，按约束未终止；未发现新建测试进程需要强制清理。
-- 产品建议：放入现有 Session Settings，不新增 new-session 专用输入；空值删除 override，不生成空字符串/0/default 的 `-c` 参数；修改后提示 Worker restart/respawn 后生效。
+### 5. practical 启动脚本与 MCP 依赖检查
 
-## 五、已完成的调查结论
+- 计划/目标：让启动脚本正确检查 Pan Core 与 stdio MCP 的运行依赖，同时保留用户脚本修改。
+- 实现：依赖检查和 MCP 启动环境修复。
+- 合入：`9138a79`。
+- 状态：已合入 main；practical 用户脚本仍需保留，不可覆盖。
 
-### `model_context_window` 初步结论
+## 三、正在实现的功能
 
-- 正确调查使用了 Codex `gpt-5.6-luna` high。
-- 官方配置入口为 `config.toml` 或通用 `-c model_context_window=<number>`。
-- 当前 Pan 尚未支持该 Session 设置；直接传入会被忽略。
-- 预期产品方向是创建后 Session 设置 + Worker respawn，而不是 new-session 输入框；最终结论等待当前隔离实验确认。
+### 1. Codex Session 上下文窗口与压缩阈值设置
 
-### 无 memory 时的 minimal requirements
+- 计划/目标：在发送框旁的 Settings 中，Codex permission mode 后增加默认折叠的 More 区域，编辑 `model_context_window` 与 `model_auto_compact_token_limit`；默认不传值；提供恢复默认按钮。
+- 原生 Codex 调查结论：已创建 thread 使用 `codex exec resume` 追加两个 `-c` 参数成功，thread ID 不变；`model_context_window` 运行事件由 baseline `258400` 变为 `60800`；不要求新建 thread。压缩阈值参数接受但未触发验证。
+- 生命周期决策：按现有 model/effort 等进程相关设置处理——idle 自动 respawn，running 设置 `pending_restart`，任务结束回 idle 后自动 respawn，无 Worker 时下一次 spawn 生效。
+- 当前实现工作树：`D:\project\pan-worktrees\codex-context-settings-luna-20260911`。
+- 分支：`feature/codex-context-settings-luna-20260911`，基线 main `4aa30a2`。
+- TA：`ses_ced6387755a609a5`，Codex `gpt-5.6-luna` high。
+- 状态：实现中，尚未提交、验收或合入 main。
 
-- `minimal-requirements.txt` 缺少直接运行依赖 `httpx`。
-- `pytest` 属于 dev/test，不是 Core/MCP runtime 硬依赖。
-- Memory ML 依赖应保持 optional；关闭 memory 时不应进入 Core minimal。
-- 该次为只读审计，尚未产生代码提交。
+### 2. 附件选择与 New Session 目录输入统一改造
 
-## 六、待处理清单
+- 计划/目标：附件服务端选择窗口取消独立搜索目录；以输入最后一个 `\\` 前的目录为检索基准、之后为检索文本；非法目录显示“当前目录非法”；最终提交再次校验并阻止非法提交。New Session 复用同样规则，目录不存在时询问是否创建。
+- 设计重点：共享路径解析、存在性校验、检索和创建确认逻辑；覆盖 Windows 盘符、根目录、末尾反斜杠、空输入、权限/安全边界和提交前二次校验。
+- 当前实现工作树：`D:\project\pan-worktrees\attachment-directory-input-luna-20260911`。
+- 分支：`feature/attachment-directory-input-luna-20260911`，基线 main `4aa30a2`。
+- TA：`ses_560ae06acbb82693`，Codex `gpt-5.6-luna` high。
+- 状态：实现中，尚未提交、验收或合入 main。
 
-1. 根据 context window/compaction 调查结论，决定是否实现 Session Settings 支持；如实现，先做低成本 argv/respawn 验证，不触发真实 compact。
-2. 对 MCP `model_list` 提交建立正确的主仓库 integration worktree，核对补丁后再合入。
-3. 对 Codex quota 提交进行 integration review；必要时补真实隔离 E2E，但不得使用 practical/8768。
-4. 清理已完成且不再需要的历史 feature/integration worktree，先确认没有未提交用户文件。
-5. 合入前统一复核 `main`、`practical`、所有 feature worktree 的 clean 状态和未提交用户文件。
+## 四、已完成但尚未合入 main 的功能
 
-## 七、验收口径
+### 1. Codex 全局额度缓存
 
-- “TA 报告 done”不等于“已合入 main”。
-- “单元测试通过”不等于“真实服务 E2E 通过”。
-- 只有在主仓库正确拓扑中完成补丁审查、相关测试通过、工作树 clean，并明确执行 merge 后，才标记为“已合入 main”。
-- worktree 路径、分支、HEAD、测试命令和未验证项必须在本文件同步更新。
+- 计划/目标：额度属于 Codex profile/账号而非 Session；Worker 离线时仍可查看最近额度，并为后续主动查询保留扩展点。
+- 实现：`data/codex/quota/<profile-key>.json` 全局缓存；app-server push 持久化；profile 隔离；离线 API；窗口时长归一化；可选 WHAM 刷新；Session Details 使用 usage API projection。
+- 工作树：`D:\project\pan-worktrees\codex-quota-cache-luna-20260909`。
+- 分支/提交：`feature/codex-quota-cache-luna-20260909` @ `466782c209edfe29205c3e5e8388ce046cd5e899`，父提交 `dd9ef954`。
+- 验证：Python quota `97 passed`；全量 Vitest `46 files / 404 tests passed`；lint 0 errors；build、compileall、diff check 通过；未做真实服务/浏览器 E2E。
+- 状态：实现完成，待主仓库集成审查；未合入 main，未 push。
+
+### 2. MCP `model_list` adapter 发现改进
+
+- 计划/目标：没有 adapter 参数时不再静默选择 CBC，先返回可用 adapter；指定 adapter 后再查询其模型列表。
+- 实现结论：空 adapter 返回 `adapter_required`、`availableAdapters`、调用提示；未知 adapter 返回可行动错误；指定 `codex` 返回 Codex 模型；不逐个请求所有 adapter。
+- 工作树：`D:\project\pan-worktrees\mcp-model-list-adapter-discovery-20260909`（该目录是独立 Git 仓库，尚未纳入父仓库 worktree 拓扑）。
+- 提交：`e66613e6fa4db7578381a5475a8b66193c2bf863`。
+- 验证：`55 passed, 1 skipped`；compileall、diff check 通过；未做 live MCP E2E。
+- 状态：报告完成，需先核对仓库基线和补丁再集成；未合入 main，未 push。
+
+## 五、已完成调查但尚未实现的功能
+
+### Memory 关闭时的 minimal requirements 分层
+
+- 调查结论：Core + MCP 运行时直接需要 `httpx`；`mcp`、`fastapi`、`uvicorn`、`websockets`、`psutil` 保持运行依赖；`pytest` 属于 dev/test，不应作为纯运行时 minimal 依赖；Memory ML 链保持 optional。
+- 建议计划：补 `httpx>=0.28.0`；将 pytest/pytest-timeout 分入 dev/test；修正 setup/start 脚本的依赖探测；保持 QQ bot 与 Memory optional 分层。
+- 状态：只读审计完成，尚未实现或合入。
+
+## 六、下一步索引
+
+1. 完成并验收 Codex 两个 Session 设置，确认默认不传、恢复默认、值校验和 idle/pending_restart/respawn 生命周期。
+2. 完成并验收附件/New Session 目录输入，重点检查 Windows 路径边界、非法目录和创建确认。
+3. 对 Codex quota cache 建立正确的 main integration worktree，审查 API/UI 与全局存储语义后再合入。
+4. 对 MCP `model_list` 建立正确的主仓库 integration worktree，核对独立仓库基线后再合入。
+5. 决定是否实施 minimal requirements 分层建议。
