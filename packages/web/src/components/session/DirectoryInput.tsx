@@ -52,11 +52,16 @@ export function DirectoryInput({
   inputTestId = 'directory-input',
 }: DirectoryInputProps) {
   const requestIdRef = useRef(0);
+  const directoryClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [data, setData] = useState<DirectoryListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const parts = useMemo(() => parseDirectoryInput(value), [value]);
   const hasInput = parts.input.length > 0;
+
+  useEffect(() => () => {
+    if (directoryClickTimerRef.current) clearTimeout(directoryClickTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
@@ -108,6 +113,27 @@ export function DirectoryInput({
     onChange(appendSeparator(path));
   };
 
+  const handleDirectoryClick = (path: string) => {
+    // A directory click means "select" in New Session, but it may be the
+    // first click of a double-click used to enter the directory. Wait for
+    // the double-click event so the first click cannot finish the flow.
+    if (directoryClickTimerRef.current) clearTimeout(directoryClickTimerRef.current);
+    directoryClickTimerRef.current = setTimeout(() => {
+      directoryClickTimerRef.current = null;
+      chooseDirectory(path);
+    }, 250);
+  };
+
+  const handleDirectoryDoubleClick = (path: string) => {
+    if (directoryClickTimerRef.current) {
+      clearTimeout(directoryClickTimerRef.current);
+      directoryClickTimerRef.current = null;
+    }
+    // Double-clicking always enters a directory, including when a consumer's
+    // single-click semantics are to select it (New Session).
+    onChange(appendSeparator(path));
+  };
+
   return (
     <div className="flex flex-col gap-3" data-testid="directory-input-panel">
       <label className="flex flex-col gap-1 text-xs text-text-secondary">
@@ -142,7 +168,8 @@ export function DirectoryInput({
               key={entry.path}
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary"
-              onClick={() => entry.isDirectory ? chooseDirectory(entry.path) : onSelect?.(entry.path)}
+              onClick={() => entry.isDirectory ? handleDirectoryClick(entry.path) : onSelect?.(entry.path)}
+              onDoubleClick={() => entry.isDirectory && handleDirectoryDoubleClick(entry.path)}
             >
               {entry.isDirectory ? <Folder size={15} className="shrink-0 text-text-tertiary" /> : <FileIcon size={15} className="shrink-0 text-text-tertiary" />}
               <span className="truncate">{entry.name}</span>
