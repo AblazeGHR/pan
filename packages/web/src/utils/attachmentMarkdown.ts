@@ -16,7 +16,11 @@ export function escapeMarkdownLabel(displayName: string): string {
  * relative, absolute, or path traversal URL.
  */
 export function isSafeAttachmentHref(href: string): boolean {
-  if (!href || /[\u0000-\u001f\u007f\\]/.test(href) || !href.startsWith('/')) return false;
+  if (!href || !href.startsWith('/')) return false;
+  for (const character of href) {
+    const code = character.charCodeAt(0);
+    if (code < 0x20 || code === 0x7f || character === '\\') return false;
+  }
   try {
     const url = new URL(href, window.location.origin);
     if (url.origin !== window.location.origin || !INTERNAL_ATTACHMENT_PATH.test(url.pathname + url.search)) {

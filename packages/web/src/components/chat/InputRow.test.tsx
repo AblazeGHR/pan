@@ -147,6 +147,11 @@ describe('InputRow send queue wiring', () => {
 
   it('consumes an editor request through the existing server attachment and queue path', async () => {
     setBusySession();
+    vi.mocked(fetchDirectories).mockResolvedValueOnce({
+      current: 'D:\\project\\src',
+      parent: 'D:\\project',
+      entries: [{ name: 'main.ts', path: 'D:\\project\\src\\main.ts', isDirectory: false }],
+    });
     useUIStore.getState().requestChatAttachment('s1', 'D:\\project\\src\\main.ts');
     render(<InputRow />);
 
@@ -158,6 +163,7 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
       's1', '审阅 [main.ts](/api/fs/read?session_id=s1&path=D%3A%5Cproject%5Csrc%5Cmain.ts&download=1)', expect.any(String),
     ));
+    expect(fetchDirectories).toHaveBeenCalledWith('D:\\project\\src', true);
   });
 
   it('revalidates a selected server attachment before enqueue and cancels on a stale path', async () => {

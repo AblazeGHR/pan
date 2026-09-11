@@ -88,18 +88,19 @@ describe('Codex context settings in SettingsPopover', () => {
   });
 
   it('keeps More collapsed, edits positive integers, rejects invalid values, and restores defaults', async () => {
-    const { container, applySettings } = setup();
+    const { applySettings } = setup();
     await act(async () => {});
 
-    const more = container.querySelector('button[aria-expanded="false"]');
+    const more = Array.from(document.querySelectorAll('button[aria-expanded="false"]'))
+      .find((button) => button.textContent?.includes('More'));
     expect(more?.textContent).toContain('More');
-    expect(container.querySelector('input[aria-label="model_context_window"]')).toBeNull();
+    expect(document.querySelector('input[aria-label="model_context_window"]')).toBeNull();
 
     fireEvent.click(more!);
-    const contextInput = container.querySelector<HTMLInputElement>(
+    const contextInput = document.querySelector<HTMLInputElement>(
       'input[aria-label="model_context_window"]',
     );
-    const autoCompactInput = container.querySelector<HTMLInputElement>(
+    const autoCompactInput = document.querySelector<HTMLInputElement>(
       'input[aria-label="model_auto_compact_token_limit"]',
     );
     expect(contextInput?.value).toBe('64000');
@@ -107,18 +108,18 @@ describe('Codex context settings in SettingsPopover', () => {
 
     fireEvent.change(contextInput!, { target: { value: '0' } });
     fireEvent.blur(contextInput!);
-    expect(container.textContent).toContain('请输入正整数');
+    expect(document.body.textContent).toContain('请输入正整数');
     expect(applySettings).not.toHaveBeenCalled();
 
     fireEvent.change(contextInput!, { target: { value: '64001' } });
     await act(async () => fireEvent.blur(contextInput!));
     expect(applySettings).toHaveBeenCalledWith('session-1', { modelContextWindow: 64001 });
 
-    const restore = Array.from(container.querySelectorAll('button')).find(
+    const restore = Array.from(document.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Restore defaults'),
     );
     expect(restore).toBeDefined();
-    expect(restore).not.toBeDisabled();
+    expect((restore as HTMLButtonElement).disabled).toBe(false);
     await act(async () => fireEvent.click(restore!));
     expect(applySettings).toHaveBeenLastCalledWith('session-1', {
       modelContextWindow: null,

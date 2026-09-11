@@ -45,7 +45,7 @@ export function parseDirectoryInput(raw: string): DirectoryInputParts {
   if (/^[A-Za-z]:$/.test(directory)) directory += '\\';
   // A leading separator is a valid root-relative path. Keep the root rather
   // than turning it into an empty search base.
-  if (!directory && separatorIndex === 0) directory = input[0];
+  if (!directory && separatorIndex === 0) directory = input.charAt(0);
 
   return {
     input,
