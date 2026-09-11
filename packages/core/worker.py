@@ -30,6 +30,7 @@ from pathlib import Path
 import psutil
 
 from . import session as _sess
+from . import notifications as _notifications
 from . import codex_quota_store as _codex_quota_store
 
 READONLY_SESSION_ERROR = (
@@ -1021,6 +1022,7 @@ async def _read_stdout(w: Worker):
             task_seq = w._current_seq
             task_source_session_id = w._current_source_session_id
             result_text = adapter.extract_result_text(event)
+            completion_notification = _notifications.dispatch_completion(s, w.status, result_text) if s else None
             await _bcast({
                 "type": "worker.result",
                 "workerId": w.worker_id,
@@ -1030,6 +1032,7 @@ async def _read_stdout(w: Worker):
                 "result": result_text,
                 "taskSeq": task_seq,
                 "sourceSessionId": task_source_session_id,
+                **({"notification": completion_notification} if completion_notification else {}),
             })
             # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
             await _enqueue_report(w.session_id, w.status, result_text, w._current_task_id, w.worker_id)
@@ -3751,6 +3754,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     w.status = "idle"
     _maybe_restart_pending(w)
     task_seq = w._current_seq
+    completion_notification = _notifications.dispatch_completion(s, status, result)
     await _bcast({
         "type": "worker.result",
         "workerId": w.worker_id,
@@ -3759,6 +3763,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         "status": status,
         "result": result,
         "taskSeq": task_seq,
+        **({"notification": completion_notification} if completion_notification else {}),
     })
     # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
     await _enqueue_report(w.session_id, status, result, w._current_task_id, w.worker_id)

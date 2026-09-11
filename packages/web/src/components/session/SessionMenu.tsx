@@ -186,7 +186,7 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
       >
         <Mail size={12} className="text-text-tertiary shrink-0" />
-        Postbox
+        msgBridge
       </button>
       <button
         onClick={handleDetails}

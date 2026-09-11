@@ -8,6 +8,7 @@ import {
   qqSubscribe,
   qqUnsubscribe,
   fetchSession,
+  patchSession,
 } from '@/services/api';
 import type { QqChannelInfo, QqContact, Session } from '@/types';
 import { Search, Bell, Check } from 'lucide-react';
@@ -67,6 +68,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   // Full session fetched on open — the list is summary=1 driven and does not
   // carry `qqSubscriptions`.
   const [detailSession, setDetailSession] = useState<Session | null>(null);
+  const [tab, setTab] = useState<'qq' | 'system' | 'browser'>('qq');
 
   // Fetch bot channels + contacts (merged per-bot) + session detail on open
   useEffect(() => {
@@ -76,6 +78,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
     setBusyKey(null);
     setLoadError(null);
     setDetailSession(null);
+    setTab('qq');
     setItems([]);
     let cancelled = false;
     setLoading(true);
@@ -230,7 +233,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="QQ Postbox" size="lg">
+    <Modal open={open} onClose={onClose} title="msgBridge" size="lg">
       <div className="flex flex-col gap-3">
         {!sessionIdValue && (
           <div className="py-6 text-center text-sm text-text-tertiary">
@@ -240,6 +243,34 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
 
         {sessionIdValue && (
           <>
+            <div className="flex gap-1 border-b border-border-muted pb-2" role="tablist" aria-label="msgBridge">
+              {([['qq', 'QQ'], ['system', 'System'], ['browser', 'Browser']] as const).map(([value, label]) => (
+                <button key={value} role="tab" aria-selected={tab === value} onClick={() => setTab(value)}
+                  className={`px-3 py-1.5 text-xs rounded ${tab === value ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-bg-tertiary'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {tab === 'system' && (
+              <div className="space-y-3 text-sm">
+                <p className="text-xs text-text-secondary">Pan sends completion notifications from the backend. System delivery is best-effort and reports unsupported platforms.</p>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={detailSession?.notificationSettings?.system ?? false}
+                  onChange={async (e) => { if (!sessionIdValue) return; const value = e.target.checked; const next = await patchSession(sessionIdValue, { notificationSettings: { system: value } }); setDetailSession(next); await loadSessions(); }} /> Completion notifications</label>
+              </div>
+            )}
+            {tab === 'browser' && (
+              <div className="space-y-3 text-sm">
+                <p className="text-xs text-text-secondary">Browser permission is requested only by this button, never when a background completion arrives.</p>
+                <button type="button" className="rounded border border-border-default px-3 py-1.5 text-xs hover:bg-bg-tertiary"
+                  onClick={async () => { if (!('Notification' in window)) return; const permission = await Notification.requestPermission(); showToast(`Browser notifications: ${permission}`); }}>
+                  Request browser permission
+                </button>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={detailSession?.notificationSettings?.browser ?? false}
+                  onChange={async (e) => { if (!sessionIdValue) return; const value = e.target.checked; const next = await patchSession(sessionIdValue, { notificationSettings: { browser: value } }); setDetailSession(next); await loadSessions(); }} /> Completion notifications</label>
+                <div className="text-[11px] text-text-tertiary">Current permission: {'Notification' in window ? Notification.permission : 'unsupported'}</div>
+              </div>
+            )}
+            {tab === 'qq' && <>
             <div className="text-xs text-text-secondary">
               Subscribe this session to QQ conversation inbox updates.
               {bots.length > 1 &&
@@ -384,6 +415,7 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
                 )}
               </>
             )}
+            </>}
           </>
         )}
       </div>
