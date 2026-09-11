@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
@@ -691,7 +691,7 @@ def _session_to_api(s: sess.Session):
         "modelContextWindow": ac.get("model_context_window"),
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
-        "history": s.history,
+        "history": _api_history(s.id, s.history),
         "lastResult": s.last_result,
         "lastLegalWorkerState": s.last_legal_worker_state,
         "rawUsage": s.raw_usage,
@@ -750,7 +750,10 @@ def _session_summary(s: sess.Session) -> dict:
     if s.history:
         last = s.history[-1]
         if isinstance(last, dict):
-            last_text = str(last.get("content") or "")[:200]
+            last_text = _normalize_legacy_attachment_links(
+                s.id,
+                str(last.get("content") or ""),
+            )[:200]
     return {
         "id": s.id,
         "name": s.name,
@@ -1781,10 +1784,93 @@ def _attachment_session_dir(session_id: str) -> Path:
 
 
 def _attachment_filename(raw_name: str | None) -> str:
-    """Normalize a browser filename without treating it as a server path."""
+    """Return the original basename for display, never as a storage path.
+
+    The browser may send a URL-encoded name and, on some browsers, a legacy
+    fakepath.  Keep the user's basename (including spaces, Unicode and
+    Markdown punctuation) for the link label, while removing only path/control
+    characters that cannot safely be displayed as one filename.
+    """
     name = unquote(raw_name or "").replace("\\", "/").rsplit("/", 1)[-1]
-    name = re.sub(r"[<>:\"|?*\x00-\x1f]", "_", name).strip(" .")
-    return name or "attachment"
+    name = "".join(c for c in name if ord(c) >= 32 and c not in "\x7f")
+    return name if name.strip(" .") else "attachment"
+
+
+def _attachment_storage_filename(display_name: str) -> str:
+    """Create an opaque storage filename, retaining only a safe extension."""
+    suffix = Path(display_name).suffix
+    suffix = re.sub(r"[^A-Za-z0-9._-]", "", suffix)[:32]
+    return f"upload_{uuid.uuid4().hex}{suffix}"
+
+
+def _attachment_href(session_id: str, storage_filename: str) -> str:
+    """Build the only public href accepted for an uploaded attachment."""
+    return (
+        f"/api/attachments/{quote(storage_filename, safe='')}"
+        f"?session_id={quote(session_id, safe='')}"
+    )
+
+
+def _fs_download_href(session_id: str, path: str) -> str:
+    """Build a safe download href for an existing server-side file."""
+    return (
+        "/api/fs/read?"
+        f"session_id={quote(session_id, safe='')}&"
+        f"path={quote(path, safe='')}&download=1"
+    )
+
+
+def _markdown_label(display_name: str) -> str:
+    """Escape Markdown label punctuation without changing rendered text."""
+    return re.sub(r"([\\\[\]\(\)])", r"\\\1", display_name)
+
+
+def _attachment_markdown(display_name: str, href: str) -> str:
+    """Return a standard Markdown link for a trusted, server-built href."""
+    return f"[{_markdown_label(display_name)}]({href})"
+
+
+_LEGACY_ATTACHMENT_RE = re.compile(r'@"([^"\r\n]+)"')
+
+
+def _legacy_attachment_href(session_id: str, raw_path: str) -> str:
+    """Map an old absolute attachment path to a validated download route."""
+    try:
+        target = Path(raw_path).resolve()
+        attachment_root = _attachment_session_dir(session_id).resolve()
+        relative = target.relative_to(attachment_root)
+        if len(relative.parts) == 1 and relative.name:
+            return _attachment_href(session_id, relative.name)
+    except (OSError, RuntimeError, ValueError):
+        pass
+    # This preserves the existing fs/read permission and path validation for
+    # older server-file attachments whose original name was not persisted.
+    return _fs_download_href(session_id, raw_path)
+
+
+def _normalize_legacy_attachment_links(session_id: str, content: str) -> str:
+    """Make pre-Metadata ``@\"path\"`` history entries renderable Markdown."""
+    def replace(match: re.Match[str]) -> str:
+        raw_path = match.group(1)
+        display_name = _attachment_filename(raw_path)
+        return _attachment_markdown(
+            display_name,
+            _legacy_attachment_href(session_id, raw_path),
+        )
+
+    return _LEGACY_ATTACHMENT_RE.sub(replace, content)
+
+
+def _api_history(session_id: str, history: list[dict]) -> list[dict]:
+    """Serialize history with a compatibility view for old attachment text."""
+    normalized: list[dict] = []
+    for message in history:
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            normalized.append(message)
+            continue
+        content = _normalize_legacy_attachment_links(session_id, message["content"])
+        normalized.append({**message, "content": content})
+    return normalized
 
 
 @app.post("/api/sessions/{session_id}/attachments")
@@ -1798,10 +1884,11 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
     if sess.get(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     raw_name = request.headers.get("x-filename") or filename
-    safe_name = _attachment_filename(raw_name)
+    display_name = _attachment_filename(raw_name)
     target_dir = _attachment_session_dir(session_id)
     temp_path = target_dir / f".upload-{uuid.uuid4().hex}.tmp"
-    target_path = target_dir / f"{uuid.uuid4().hex}_{safe_name}"
+    storage_filename = _attachment_storage_filename(display_name)
+    target_path = target_dir / storage_filename
     total = 0
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -1814,7 +1901,13 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
         os.replace(temp_path, target_path)
         return {
             "ok": True,
-            "filename": safe_name,
+            # filename is retained as a compatibility alias for old clients;
+            # new clients must use displayName for the label and href for the
+            # download target.
+            "filename": display_name,
+            "displayName": display_name,
+            "storageFilename": storage_filename,
+            "href": _attachment_href(session_id, storage_filename),
             "path": str(target_path.resolve()),
             "size": total,
         }
@@ -1827,6 +1920,30 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
             temp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@app.get("/api/attachments/{storage_filename}")
+async def download_session_attachment(storage_filename: str, session_id: str):
+    """Download an uploaded attachment without exposing arbitrary filesystem paths."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if (
+        storage_filename != Path(storage_filename).name
+        or "/" in storage_filename
+        or "\\" in storage_filename
+        or not re.fullmatch(r"upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?", storage_filename)
+    ):
+        raise HTTPException(status_code=400, detail="Invalid attachment name")
+    attachment_root = _attachment_session_dir(session_id).resolve()
+    target = (attachment_root / storage_filename).resolve()
+    try:
+        target.relative_to(attachment_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid attachment path") from exc
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    media_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    return FileResponse(target, filename=target.name, media_type=media_type)
 
 
 @app.get("/api/directories")
@@ -2356,7 +2473,7 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     if before <= 0:
         before = total
     start = max(0, before - limit)
-    page = s.history[start:before]
+    page = _api_history(session_id, s.history[start:before])
     return {
         "history": page,
         "total": total,

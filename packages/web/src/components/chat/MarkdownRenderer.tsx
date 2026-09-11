@@ -9,6 +9,7 @@ import { useCurrentSession } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
+import { normalizeLegacyAttachmentLinks } from '@/utils/attachmentMarkdown';
 import 'highlight.js/styles/github-dark.css';
 
 type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
@@ -163,7 +164,9 @@ function PreBlock({ children }: PreProps) {
 }
 
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+  const currentSession = useCurrentSession();
   if (!content) return null;
+  const renderedContent = normalizeLegacyAttachmentLinks(content, currentSession?.id);
 
   return (
     <div className={`prose-kimi max-w-none break-words ${className}`}>
@@ -177,7 +180,7 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         }}
         urlTransform={transformMarkdownUrl}
       >
-        {content}
+        {renderedContent}
       </ReactMarkdown>
     </div>
   );
