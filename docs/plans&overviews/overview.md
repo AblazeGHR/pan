@@ -10,7 +10,7 @@
 
 | 分支 | 路径 | HEAD | 阶段状态 |
 |---|---|---|---|
-| `main` | `D:\project\Pan-main` | `0b23a86`（通知/msgBridge 已本地合入，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
+| `main` | `D:\project\Pan-main` | `cf7ff82`（本批 UI/skill/bug 修复已本地合入，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
 | `practical` | `D:\project\Pan` | `46d5879` | 与 main 同一当前基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的改动
@@ -254,7 +254,7 @@
 - 计划/目标：以 `packages/mcp/server.py` 的 `@mcp.tool()` 为事实源，保持 Pan skill 工具名、参数和关键语义同步，并区分 `worker_*` 兼容别名与一等工具。
 - 调查/实现：确认 Pan server 为 49 个工具（42 个一等工具、7 个 `worker_*` 兼容别名）；`pan-qq` 为独立 server 的 7 个工具。更新主源及 HTTP 引用，新增 stdlib-only `scripts/check_pan_skill_tools.py`。
 - 工作树/分支：`D:\project\pan-worktrees\pan-skill-tool-sync-20260912`；detached HEAD，基于 `main@0407dbf8e5e899530a001c5d1e1eafc82e1d4315`；提交后 clean。
-- 提交：`c5239c41f57b113ed6cf167b144f172c760f504a`；本批 integration 分支已整合，待合入 main，未 push。
+- 提交：`c5239c41f57b113ed6cf167b144f172c760f504a`；已随本批合并提交 `683f012`、`cf7ff82` 合入 main，未 push。
 - 验证：静态工具集合检查通过；`py_compile` 通过；定向 pytest `28 passed, 1 skipped`；`git diff --check` 通过。未启动服务，未访问 8765/8767/8768。
 - 同步副本：本 worktree 不存在 `.codebuddy/skills/pan/SKILL.md`；安装目录副本未修改，仍需在允许外部文件变更时另行同步。
 - 验收清单：
@@ -266,7 +266,7 @@
 - 现象：New Session 的目录搜索结果中双击文件夹，第一次 click 先执行目录选择，路径停留在父目录搜索结果，无法进入目标目录。
 - 根因/修复：目录按钮延迟单击选择 250ms；双击取消待执行选择并将输入更新为 `path\\`，由 `parseDirectoryInput` 触发目标目录请求；文件点击保持立即选择。
 - TA/session：`ses_84d74859358ed744`；工作树 `D:\project\pan-worktrees\pan-directory-input-doubleclick-20260912`。
-- 提交：`d793083165f7d7b3b9bb27a7b71a4ddf8d8b4499`；本批 integration 分支已整合，待合入 main，未 push。
+- 提交：`d793083165f7d7b3b9bb27a7b71a4ddf8d8b4499`；已随本批合并提交 `683f012` 合入 main，未 push。
 - 验证：目录双击回归、目录工具、InputRow 定向 Vitest，`tsc --noEmit`、改动文件 ESLint、`git diff --check` 通过；NewSessionModal 仍有 4 个既有 `Session 1`/`session-1` 断言失败。
 - 验收清单：
   - [ ] 合入 main
@@ -279,7 +279,7 @@
 - 现象：链接 `/D:/project/Pan-main/docs/plans&overviews/overview.md:20` 被当作 `/D:/...` 根路径，打开文件时报 `Not a file`。
 - 根因/修复：Markdown 文件链接归一化没有识别“单个前导斜杠 + Windows 盘符”；仅移除 `/D:/` 形式的前导斜杠，保留合法 Unix rooted path、UNC、file URL 和既有行号格式。
 - TA/session：`ses_8b78dbec02f828cf`；工作树 `D:\project\pan-worktrees\pan-markdown-windows-line-link-20260912`。
-- 提交：`051018fe2b6910bc9c05440e194d700776717601`；本批 integration 分支已整合，待合入 main，未 push。
+- 提交：`051018fe2b6910bc9c05440e194d700776717601`；已随本批合并提交 `683f012` 合入 main，未 push。
 - 验证：真实 `MarkdownRenderer` 点击链路与 Windows href 回归、Unix/UNC 兼容测试；13 tests passed，`tsc -b`、改动文件 ESLint、`git diff --check` 通过。未做真实服务/磁盘 E2E。
 - 验收清单：
   - [ ] 合入 main
@@ -292,7 +292,7 @@
 - 现象：Worker 实际 running，但前端因 session summary 快照暂时落后，Steer 控件消失。
 - 根因/修复：`InputRow` 改用同一 session 的 `workerStore` live running 状态和 session-level steer endpoint，不再依赖 stale `currentSession.workerStatus/workerId`。
 - TA/session：`ses_f3099786573947c4`；工作树 `D:\project\pan-worktrees\pan-steer-visibility-20260912`。
-- 提交：`8f69c96`；尚未合入 main，未 push。
+- 提交：`8f69c96`；已随合并提交 `cf7ff82` 合入 main，未 push。
 - 验证：相关 Vitest 99 passed，`tsc -b`、Python worker branch 2 passed、`git diff --check` 通过；未做真实浏览器/API E2E。
 - 验收清单：
   - [ ] 合入 main
