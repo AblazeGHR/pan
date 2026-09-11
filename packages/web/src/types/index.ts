@@ -29,6 +29,10 @@ export interface Session {
   alwaysThinkingEnabled: boolean;
   effort: string;
   maxThinkingTokens?: number;
+  /** Explicit Codex override; absent means Codex/model default. */
+  modelContextWindow?: number | null;
+  /** Explicit Codex override; absent means Codex/model default. */
+  modelAutoCompactTokenLimit?: number | null;
   workdir?: string;
   /** Calculated system prompt used for the current session, when available. */
   systemPrompt?: string | null;
@@ -696,7 +700,7 @@ export interface ApiBatchDeleteResponse {
   error?: string;
 }
 
-// ── Send queue types (aligns with vanilla ts/app.ts QueuedMessage) ──
+// ── Send queue types ──
 
 export interface QueuedMessage {
   id: string; // 唯一标识（重排/编辑/删除的 key）
@@ -788,6 +792,10 @@ export interface SettingsBody {
   forceMcp?: boolean;
   /** Worker execution mode; empty string clears (→ adapter default). */
   outputMode?: string;
+  /** Codex-only positive integer override; null removes the persisted key. */
+  modelContextWindow?: number | null;
+  /** Codex-only positive integer override; null removes the persisted key. */
+  modelAutoCompactTokenLimit?: number | null;
 }
 
 /** A single MCP server declared in the manifest (no secrets exposed). */

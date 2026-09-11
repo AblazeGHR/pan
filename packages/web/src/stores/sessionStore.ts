@@ -104,7 +104,7 @@ const EMPTY_UNREAD_SET: Set<string> = new Set();
  *  is exactly this — the backend persists each streamed block slightly after
  *  broadcasting it, so its history lags what we already show locally. Blindly
  *  overwriting `currentMessages` with such a prefix would wipe the in-flight
- *  assistant reply. Mirrors the legacy frontend's `_isServerHistoryPrefix`. */
+ *  assistant reply. */
 function isServerHistoryPrefix(
   localHistory: Message[],
   serverHistory: Message[],
@@ -284,8 +284,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     // 进入 session 后立即拉服务端最新历史替换快照。React 的快照只靠防抖
     // loadSessions 刷新，可能滞后或（在 _loadSeq 超驰/事件丢失时）过期——
-    // 这正是「vanilla 已更新、React 进入的对话历史还是旧的」的根因。
-    // vanilla 因每个 worker 事件都触发 refreshSessions，快照几乎总是新的。
+    // 事件刷新快照可能先于 history 持久化，不能覆盖正在流式显示的回复。
     try {
       const data: ApiSessionHistoryResponse = await fetchSessionHistory(
         id,

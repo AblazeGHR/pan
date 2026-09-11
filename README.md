@@ -84,7 +84,7 @@ Pan 的出发点不是造一个更复杂的工具，而是减轻一种负担—�
 | 🧠 员工的长期记忆 | **Memory** | 向量 + 全文（FTS5）混合检索，开工前自动注入相关记忆 |
 | 🎭 有性格的老员工 | **Character** | 人设 + 独立记忆库，跨 Session 保持同一身份 |
 | 🐕 不睡觉的监工 | **Watchdog** | 每个 Worker 配一只：卡死 / 摸鱼超时自动清理；全局级还能自动补员 |
-| 🖥️ 工位监控大屏 | **Dashboard** | 网页实时围观每个 Worker 的输出（React 新版为主；旧版 Vanilla 已弃用（deprecated），仅作后备） |
+| 🖥️ 工位监控大屏 | **Dashboard** | 网页实时围观每个 Worker 的输出（React 唯一前端） |
 | 💬 用 QQ 遥控 | **QQ Bridge** | 把 QQ 消息变成给 Worker 的指令；NapCat / LLOneBot 通道可切换 |
 | 🌐 远程办公室 | **Remote** | Cloudflare Tunnel，把调度台暴露到公网 |
 
@@ -187,7 +187,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 
 | 通道 | 入口 | 说明 |
 |------|------|------|
-| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | **推荐 React SPA**（`/react/`，当前唯一维护的前端）；旧版 Vanilla 已弃用（deprecated），仅经 `/vanilla` 作后备访问；`frontend` 配置控制路由分配（`coexist` / `react` / `legacy`） |
+| 🖥️ **Web Dashboard** | `http://127.0.0.1:{port}` | React SPA（唯一前端）；根路径跳转 `/react/`，React 构建缺失时返回 503 |
 | 💬 **QQ Bridge** | NapCat / LLOneBot | OneBot 11 网关**插件化**：两个通道只是 `QQChannel` 的薄子类，业务层零改动；`mirror` 全量镜像 / `selective` 选择性发送双模式 |
 | 🌐 **Remote** | Cloudflare Tunnel | 一键暴露到公网，出门在外也能管 |
 | 🔌 **MCP / WS** | `packages/mcp` + `/ws/agent` | 让任意 Agent CLI 当主管：MCP 工具 + 事件流订阅，MA 的接入通道 |
@@ -237,7 +237,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
     - [首次使用 SMA：推荐工作流与边界](#首次使用-sma推荐工作流与边界)
     - [配置要点](#配置要点)
     - [停止与常见限制](#停止与常见限制)
-    - [前端说明：推荐 React，Vanilla 已弃用（deprecated）](#前端说明推荐-reactvanilla-已弃用deprecated)
+    - [前端说明：React 是唯一前端](#前端说明react-是唯一前端)
   - [架构](#架构)
     - [模块划分](#模块划分)
   - [多 CLI 适配](#多-cli-适配)
@@ -270,7 +270,7 @@ assign(W1: 写技术方案) → 订阅报告 → 拿到方案 → assign(W2: 写
 
 Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Worker 架构下，一个「MA 主管」（meta-agent）通过 MCP 工具与 WebSocket 事件流，同时指挥多个 TA 会话（每个会话独立运行，由临时 Worker 进程承载）并行推进任务，每个 TA 在独立的 git worktree 中工作。你可以在 Web Dashboard、QQ、公网隧道或任意 Agent CLI 上指挥它，也随时可以旁观、插话或接管某个 Worker 的终端。
 
-- **技术栈**：Python + FastAPI + WebSocket + SQLite（FTS5 全文检索）+ 可选 embedding 向量检索；前端为 React（当前唯一维护并推荐的前端）+ Vanilla JS（已弃用 deprecated，仅作后备）。
+- **技术栈**：Python + FastAPI + WebSocket + SQLite（FTS5 全文检索）+ 可选 embedding 向量检索；前端为 React（唯一前端）。
 
 传统的一对一 AI 编程助手是「你说一句，它干一件」。Pan 把这种模式升级为**一对多**：你只跟一个主管对话，主管同时调度多个 Worker 并行干活，再汇总成一份结果回报给你。
 
@@ -290,7 +290,7 @@ Pan 是一个 **CLI Agent 编排调度平台**（orchestrator）：Supervisor/Wo
 - **Worker 生命周期自愈**：`stream` / `one-shot` 双执行模式；Watchdog 三档超时清理 + 落盘队列在进程异常死亡后自动重建 Worker。
 - **Memory + Character**：SQLite FTS5 + embedding 混合检索；人设（Character）与记忆库跨 Session 保持同一身份。
 - **会话级 MCP**：每个 Session 可挂载自己的 MCP Server；内置 `pan`（编排工具集）与 `pan-qq`（QQ 工具集）两个 server。
-- **多渠道接入**：Web Dashboard（React 为唯一维护前端；Legacy Vanilla 已弃用 deprecated，仅作后备）、QQ Bridge（NapCat / LLOneBot 通道插件化）、Cloudflare Tunnel、任意 Agent CLI（WS + MCP）。
+- **多渠道接入**：Web Dashboard（React 唯一前端）、QQ Bridge（NapCat / LLOneBot 通道插件化）、Cloudflare Tunnel、任意 Agent CLI（WS + MCP）。
 - **会话导入**：cbc / kimi / opencode / claude / codex 历史会话可导入复用，免去重新探索与初始化。
 
 ## 核心概念
@@ -340,7 +340,7 @@ codex --version
 
 至少一条命令应输出版本号。Pan 启动时会逐个报告 CLI 的 `ready/unavailable` 状态；缺少某个可选 CLI 不会阻止 Pan 启动，但用对应 adapter 创建 Worker 时会提示安装、PATH 和重启问题。如果所有 CLI 都缺失，Worker 无法运行。后台服务的 PATH 可能和交互式终端不同，安装 CLI 或修改 PATH 后请重启 Pan；运行中的诊断可通过 `GET http://127.0.0.1:8768/api/cli/status` 查看。
 
-> **前端说明**：React Dashboard 是当前唯一维护并推荐的前端。旧版 Vanilla 前端已弃用（deprecated），仅在 `/vanilla` 路由作后备访问，不建议新用户使用。
+> **前端说明**：React Dashboard 是唯一前端，访问根路径或 `/react/` 即可。
 
 ### 安装与启动
 
@@ -443,14 +443,12 @@ bash scripts/stop.sh    # 停止
 ```json
 {
   "port": 8768,
-  "frontend": "coexist",
   "cbc": { "model": "deepseek-v4-flash", "models": [], "permission_mode": "bypassPermissions" },
   "worker": { "timeout_sec": 300, "task_timeout_sec": 1800, "idle_sec": 300 }
 }
 ```
 
 - `models: []` 表示自动识别 CLI 可用模型；填写后会限制 UI 中的可选模型。
-- `frontend` 推荐保持 `coexist`（根路径跳转 React，旧版仅在 `/vanilla` 后备）；`react` 只启用 React；`legacy` 仅旧版且已弃用。
 - `bypassPermissions` 默认不逐条审批命令和文件修改，适合可信环境；`default` / `acceptEdits` 更保守。Pan 默认无鉴权并绑定 `127.0.0.1`，不要把 `PAN_HOST` 改为公网地址而不做额外保护。
 - `worker.timeout_sec` 是无输出静默超时，`task_timeout_sec` 是 stream 任务总时长上限，`idle_sec` 是任务完成后的空闲回收时间。
 
@@ -460,9 +458,9 @@ QQ 需要先运行 NapCat（3001）或 LLOneBot（3002），在 `qq.channel` 选
 
 Ctrl+C 可优雅退出；也可使用 `scripts/stop_pan.bat` / `scripts/stop.sh`。macOS/Linux 路径大小写敏感；后台启动时 PATH 可能不同，修改 CLI 或 PATH 后要重启 Pan。API 默认无鉴权，Remote/Cloudflare Tunnel 会把主端口暴露到公网；使用前必须评估风险。Worker 被 watchdog 回收后可重新 Start，Session 历史仍会保留；删除 Session 不会删除其 workdir。更多排障见[用户手册第 12、13 章](docs/USER_MANUAL.md#13-安全清理与常见问题)。
 
-### 前端说明：推荐 React，Vanilla 已弃用（deprecated）
+### 前端说明：React 是唯一前端
 
-**React 前端是当前唯一维护并推荐的前端**：完成上面的步骤 3 构建后，直接访问 `http://127.0.0.1:{port}`（默认 307 重定向到 `/react/`）。
+**React 前端是唯一前端**：完成上面的步骤 3 构建后，直接访问 `http://127.0.0.1:{port}`（307 重定向到 `/react/`）。
 
 开发模式下可用 Vite HMR 热更新：
 
@@ -471,15 +469,7 @@ cd packages/web
 pnpm dev       # 开发模式：Vite HMR + 代理到后端
 ```
 
-访问路由由 `config.json` 的 `frontend` 字段控制：
-
-| `frontend` | 行为 |
-|------------|------|
-| `coexist`（默认） | `/` 307 重定向到 `/react/`；旧前端移至 `/vanilla` |
-| `react` | React 接管 `/`（无旧前端入口） |
-| `legacy` | 仅旧前端，`/` 直接渲染 Vanilla（**已弃用 deprecated，不建议使用**） |
-
-> ⚠️ **Vanilla（legacy）前端已弃用（deprecated）**：React 是当前唯一维护并推荐的前端，vanilla 不再修复问题、不建议任何用户使用；`/vanilla` 路由仍可访问作为后备。后端 API/WS 优先为 React 演化；若后端变更破坏 legacy 前端，改 `ts/app.ts` 跟随，不约束后端。如确需使用 legacy 前端，须在项目根执行 `npx tsc` 编译（`packages/web/ts/app.ts` → `static/js/app.js`）。
+路由不再由前端配置控制：根路径固定跳转 `/react/`。如果 `packages/web/dist/` 不存在，根路径和 `/react/` 返回清晰的 503；执行 `cd packages/web && pnpm build` 后即可恢复。
 
 ## 架构
 
@@ -574,7 +564,6 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | 配置 | 默认值 | 说明 |
 |------|--------|------|
 | `port` | 8768 | 主服务端口默认值（面向用户保持 8768；测试/隔离运行时改为 8767 或 8765） |
-| `frontend` | `coexist` | `coexist` / `react` / `legacy` |
 | `cbc.model` | `deepseek-v4-flash` | cbc 默认模型 |
 | `cbc.models` | `[]` | 不填 = 自动识别（cbc `--help` 解析）；填写 = 限制可用模型 |
 | `cbc.permission_mode` | `bypassPermissions` | cbc 权限模式 |
@@ -753,7 +742,7 @@ WS   /ws/agent     MA（meta-agent）：subscribe（按 eventTypes / sessionIds 
 
 ### Web / Dashboard
 
-- `http://127.0.0.1:{port}` — 默认 307 重定向到 React Dashboard `/react/`（推荐）；旧版 Vanilla Dashboard 已弃用（deprecated），仍挂在 `/vanilla` 作后备
+- `http://127.0.0.1:{port}` — 307 重定向到唯一的 React Dashboard `/react/`
 - `ws://127.0.0.1:{port}/ws` — Dashboard WebSocket
 - `ws://127.0.0.1:{port}/ws/agent` — Meta-Agent WebSocket
 
@@ -897,10 +886,9 @@ python -m packages.remote
 ## 贡献
 
 - 开发采用 **git worktree 并行分支**模式：每个功能在独立 worktree / 分支上开发，合入 main 前先过测试。
-- **前端源码约定**（详见 `CODEBUDDY.md`；**legacy（Vanilla）前端已弃用（deprecated）**，React 为当前唯一维护并推荐的前端）：
-  - legacy 源码在 `packages/web/ts/app.ts`，`static/js/app.js` 是编译产物（gitignored），**禁止直接改产物**；如确需改动，从项目根执行 `npx tsc`；
+- **前端源码约定**（详见 `CODEBUDDY.md`；React 为唯一前端）：
   - React 源码在 `packages/web/src/`，产物 `dist/`（gitignored）；改完执行 `cd packages/web && pnpm build`；
-  - pre-commit（`git config core.hooksPath scripts`）会同时校验 legacy（`tsc --noEmit`）与 React（`pnpm build`）。
+  - pre-commit（`git config core.hooksPath scripts`）会校验 React TypeScript。
 - 运行测试：`python -m pytest tests/ -q`。
 - 若改动 MCP 工具 / HTTP API / workdir 约定，请同步更新 `docs/skills/pan/SKILL.md`（单一事实源）。
 

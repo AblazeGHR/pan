@@ -186,7 +186,7 @@ export function useWebSocket() {
 
     // Worker destroyed / crashed — 除就地更新状态点外触发防抖全量兜底：
     // 崩溃/销毁是低频事件，且流式片段已逐块落盘，刷新让列表吸收已持久化的
-    // 部分回复（镜像 vanilla _applyWorkerUpdate → scheduleRefreshSessions）。
+    // 部分回复（通过防抖刷新会话列表）。
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e, true)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);

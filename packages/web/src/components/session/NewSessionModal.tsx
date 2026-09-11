@@ -2,14 +2,16 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { DirectoryInput } from '@/components/session/DirectoryInput';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useSessionStore } from '@/stores/sessionStore';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
-import { fetchSessionTemplates, fetchDirectories, type DirectoryListResponse } from '@/services/api';
+import { createDirectory, fetchDirectories, fetchSessionTemplates } from '@/services/api';
+import { isMissingDirectoryError, parseDirectoryInput } from '@/utils/directoryInput';
 import type { SessionTemplate } from '@/types';
-import { ArrowLeft, ChevronUp, Folder, FolderOpen, FolderPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 interface NewSessionModalProps {
   open: boolean;
@@ -28,147 +30,6 @@ function manifestLabel(t: SessionTemplate): string {
   return 'manifest.json';
 }
 
-interface DirectoryBrowserProps {
-  path: string;
-  fileMode?: boolean;
-  onPathChange: (path: string) => void;
-  onSelect: (path: string) => void;
-  onCancel: () => void;
-}
-
-export function DirectoryBrowser({ path, fileMode = false, onPathChange, onSelect, onCancel }: DirectoryBrowserProps) {
-  const cacheRef = useRef(new Map<string, DirectoryListResponse>());
-  const requestIdRef = useRef(0);
-  const [data, setData] = useState<DirectoryListResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    const requestId = ++requestIdRef.current;
-    const cacheKey = `${path}\u0000${fileMode ? 'files' : 'directories'}`;
-    const cached = cacheRef.current.get(cacheKey);
-    if (cached) {
-      setData(cached);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    const request = fileMode
-      ? fetchDirectories(path || undefined, true)
-      : fetchDirectories(path || undefined);
-    request
-      .then((result) => {
-        if (requestId !== requestIdRef.current) return;
-        cacheRef.current.set(cacheKey, result);
-        setData(result);
-      })
-      .catch((err: unknown) => {
-        if (requestId !== requestIdRef.current) return;
-        setData(null);
-        setError(err instanceof Error ? err.message : '无法读取目录');
-      })
-      .finally(() => {
-        if (requestId === requestIdRef.current) setLoading(false);
-      });
-    return () => {
-      if (requestId === requestIdRef.current) requestIdRef.current += 1;
-    };
-  }, [path, fileMode]);
-
-  const goTo = (nextPath: string) => {
-    requestIdRef.current += 1;
-    setSearchQuery('');
-    onPathChange(nextPath);
-  };
-
-  const normalizedSearch = searchQuery.trim().toLowerCase();
-  const visibleEntries = data?.entries.filter((entry) => {
-    if (!normalizedSearch) return true;
-    return `${entry.name} ${entry.path}`.toLowerCase().includes(normalizedSearch);
-  }) ?? [];
-
-  return (
-    <div className="flex flex-col gap-3" data-testid="directory-browser">
-      {/* Breadcrumb: the first crumb is the roots level (Windows drive list /
-          POSIX roots). The backend reports parent=null for a drive root (e.g.
-          "D:\"), so without this crumb there is no way back to the level where
-          no drive is selected yet. The current path is shown by the readout
-          box below, so the crumb stays link-only. */}
-      {path !== '' && (
-        <div className="flex items-center gap-1 text-xs" data-testid="directory-breadcrumb">
-          <button
-            type="button"
-            className="text-accent hover:underline"
-            onClick={() => goTo('')}
-          >
-            盘符列表
-          </button>
-          <span className="text-text-tertiary">/</span>
-        </div>
-      )}
-      <div className="rounded border border-border-muted bg-bg-primary px-3 py-2 text-xs text-text-secondary break-all">
-        {data?.current || path || '服务器文件系统根位置'}
-      </div>
-      <div className="flex items-center gap-2">
-        {/* 上一级: a drive root (or filesystem root) reports parent=null from
-            the backend; going up from there means returning to the
-            drive/roots list (path=''), so the button stays enabled. */}
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          disabled={!path || loading}
-          onClick={() => goTo(data?.parent ?? '')}
-        >
-          <ChevronUp size={14} /> 上一级
-        </Button>
-        <span className="text-xs text-text-tertiary">仅按需加载当前层目录</span>
-      </div>
-      <label className="flex flex-col gap-1 text-xs text-text-secondary">
-        <span>筛选当前目录条目</span>
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="按名称或路径筛选"
-          aria-label="筛选当前目录条目"
-          data-testid="directory-search"
-          className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
-        />
-      </label>
-      {/* Fixed-height scroll window with an always-styled scrollbar, so a
-          large directory can never overflow the screen. */}
-      <div
-        data-testid="directory-entries"
-        className="dir-scroll h-64 overflow-y-auto rounded border border-border-muted bg-bg-primary"
-      >
-        {loading && <div className="flex items-center gap-2 p-4 text-sm text-text-secondary"><Loader2 size={15} className="animate-spin" />加载中…</div>}
-        {!loading && error && <div className="p-4 text-sm text-danger">加载失败：{error}</div>}
-        {!loading && !error && data && data.entries.length === 0 && <div className="p-4 text-sm text-text-tertiary">空目录</div>}
-        {!loading && !error && data && data.entries.length > 0 && visibleEntries.length === 0 && <div className="p-4 text-sm text-text-tertiary">没有匹配的条目</div>}
-        {!error && data && visibleEntries.map((entry) => (
-          <button key={entry.path} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary" onClick={() => entry.isDirectory ? goTo(entry.path) : onSelect(entry.path)}>
-            {entry.isDirectory ? <Folder size={15} className="shrink-0 text-text-tertiary" /> : <span aria-hidden="true" className="w-[15px] shrink-0 text-center text-text-tertiary">·</span>}
-            <span className="truncate">{entry.name}</span>
-          </button>
-        ))}
-      </div>
-      <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="ghost" onClick={onCancel}>取消</Button>
-        {!fileMode && (
-          <Button type="button" variant="primary" disabled={!data?.current || loading || !!error} onClick={() => data?.current && onSelect(data.current)}>
-            选择当前目录
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [name, setName] = useState('');
   const [workdir, setWorkdir] = useState('');
@@ -178,8 +39,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [sessionTemplate, setSessionTemplate] = useState('');
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [directoryBrowserOpen, setDirectoryBrowserOpen] = useState(false);
-  const [browserPath, setBrowserPath] = useState('');
+  const [directoryCreationPath, setDirectoryCreationPath] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
   const cliStatus = useAdapterStore((s) => s.cliStatus);
@@ -222,7 +82,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setOutputMode('');
       setSessionTemplate('');
       setSubmitting(false);
-      setDirectoryBrowserOpen(false);
+      setDirectoryCreationPath(null);
       fetchSessionTemplates()
         .then(setTemplates)
         .catch(() => setTemplates([]));
@@ -313,6 +173,18 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
   };
 
+  const createSession = async (requestedWorkdir: string | null) => {
+    const finalName = name.trim() || nextSessionDefaultName(sessions);
+    await createNewSession(
+      finalName,
+      requestedWorkdir,
+      adapter,
+      sessionTemplate || undefined,
+      { outputMode: outputMode || undefined },
+    );
+    onClose();
+  };
+
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
     if (submitting) return;
@@ -338,27 +210,41 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
     setSubmitting(true);
 
-    const finalName =
-      name.trim() || nextSessionDefaultName(sessions);
+    const requestedWorkdir = workdir.trim() ? parseDirectoryInput(workdir).candidate : null;
 
     try {
-      await createNewSession(
-        finalName,
-        workdir.trim() || null,
-        adapter,
-        sessionTemplate || undefined,
-        {
-          // model / permissionMode / alwaysThinkingEnabled / effort are no
-          // longer exposed at creation time — the backend applies its defaults
-          // and the user can change them later via the session settings.
-          outputMode: outputMode || undefined,
-        },
-      );
-      onClose();
+      if (requestedWorkdir) {
+        try {
+          await fetchDirectories(requestedWorkdir);
+        } catch (error: unknown) {
+          if (!isMissingDirectoryError(error)) throw error;
+          setDirectoryCreationPath(requestedWorkdir);
+          return;
+        }
+      }
+      await createSession(requestedWorkdir);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to create session';
       showToast(message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const confirmDirectoryCreation = async () => {
+    const path = directoryCreationPath;
+    if (!path || path !== (workdir.trim() ? parseDirectoryInput(workdir).candidate : '')) {
+      setDirectoryCreationPath(null);
+      return;
+    }
+    setDirectoryCreationPath(null);
+    setSubmitting(true);
+    try {
+      await createDirectory(path);
+      await createSession(path);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : '目录创建失败', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -381,6 +267,20 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     !hasAvailableAdapter ||
     !selectedAdapterAvailable ||
     lockedAdapterUnavailable;
+
+  const directoryConfirmation = directoryCreationPath && (
+    <Modal open title="创建工作目录" onClose={() => setDirectoryCreationPath(null)} size="sm">
+      <div className="flex flex-col gap-4">
+        <p className="break-all text-sm text-text-primary">
+          目录不存在，是否创建？<br />{directoryCreationPath}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => setDirectoryCreationPath(null)}>取消</Button>
+          <Button type="button" variant="primary" onClick={() => void confirmDirectoryCreation()}>创建目录</Button>
+        </div>
+      </div>
+    </Modal>
+  );
 
   const formBody = (
     <form id="new-session-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -492,55 +392,22 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           />
         </label>
 
-        {/* Workdir */}
-        <label className="flex flex-col gap-1">
+        {/* Workdir and its search text share one input. */}
+        <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-text-secondary">
             Working Directory{' '}
             <span className="font-normal text-text-tertiary">
               (optional)
             </span>
           </span>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={workdir}
-              onChange={(e) => setWorkdir(e.target.value)}
-              placeholder="/path/to/project"
-              className="min-w-0 flex-1 rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setBrowserPath(workdir.trim());
-                setDirectoryBrowserOpen(true);
-              }}
-              title="Choose a folder"
-              aria-label="Add folder"
-            >
-              <FolderPlus size={14} />
-              添加文件夹
-            </Button>
-          </div>
-        </label>
-
-        {directoryBrowserOpen && (
-          <div className="rounded-lg border border-border-default bg-bg-secondary p-4" aria-label="Directory browser panel">
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-text-primary">
-              <FolderOpen size={16} /> 选择服务端目录
-            </div>
-            <DirectoryBrowser
-              path={browserPath}
-              onPathChange={setBrowserPath}
-              onSelect={(selectedPath) => {
-                setWorkdir(selectedPath);
-                setDirectoryBrowserOpen(false);
-              }}
-              onCancel={() => setDirectoryBrowserOpen(false)}
-            />
-          </div>
-        )}
+          <DirectoryInput
+            value={workdir}
+            onChange={setWorkdir}
+            onSelect={setWorkdir}
+            selectDirectories
+            inputTestId="new-session-workdir-input"
+          />
+        </div>
 
         {/* Actions — desktop keeps them inside the dialog. On mobile they
             move to the fixed full-screen footer; the submit button there is
@@ -575,13 +442,14 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // section scrolls independently.
   if (isMobile) {
     return createPortal(
-      <div
-        data-testid="new-session-fullscreen"
-        role="dialog"
-        aria-modal="true"
-        aria-label="New Session"
-        className="fixed inset-0 z-40 flex flex-col bg-bg-primary"
-      >
+      <>
+        <div
+          data-testid="new-session-fullscreen"
+          role="dialog"
+          aria-modal="true"
+          aria-label="New Session"
+          className="fixed inset-0 z-40 flex flex-col bg-bg-primary"
+        >
         <header className="flex shrink-0 items-center gap-2 border-b border-border-muted px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
           <button
             type="button"
@@ -602,14 +470,19 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             {submitting ? 'Creating...' : 'Create'}
           </Button>
         </footer>
-      </div>,
+        </div>
+        {directoryConfirmation}
+      </>,
       document.body,
     );
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New Session" size="lg">
-      {formBody}
-    </Modal>
+    <>
+      <Modal open={open} onClose={onClose} title="New Session" size="lg">
+        {formBody}
+      </Modal>
+      {directoryConfirmation}
+    </>
   );
 }

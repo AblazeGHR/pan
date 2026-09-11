@@ -95,6 +95,10 @@ function pathFromFileUri(decoded: string): string | null {
  * URLs, mailto links, and document-only anchors.
  */
 export function parseMarkdownFileLink(href: string): MarkdownFileLink | null {
+  // Pan attachment/download hrefs are ordinary browser links. Keep them out
+  // of the editor-file classifier so clicking an attachment downloads the
+  // server-validated target instead of trying to open `/api/...` in Editor.
+  if (/^\/api\/(?:attachments\/|fs\/read(?:\?|$))/.test(href)) return null;
   const hashIndex = href.indexOf('#');
   const rawPath = hashIndex === -1 ? href : href.slice(0, hashIndex);
   const rawFragment = hashIndex === -1 ? '' : href.slice(hashIndex + 1);

@@ -12,8 +12,8 @@
 
 ### Pan
 
-- `http://127.0.0.1:{port}` — 默认 307 重定向到 React Dashboard `/react/`（`frontend: coexist` / `react` 时）
-- `http://127.0.0.1:{port}/vanilla` — 旧版 Vanilla Dashboard
+- `http://127.0.0.1:{port}` — 307 重定向到唯一的 React Dashboard `/react/`
+- React 构建缺失时根路径和 `/react/` 返回 503，并提示执行 `pnpm --dir packages/web build`
 - `ws://127.0.0.1:{port}/ws` — Dashboard WebSocket
 - `ws://127.0.0.1:{port}/ws/agent` — Meta-Agent WebSocket
 

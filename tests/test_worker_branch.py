@@ -59,6 +59,8 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
         adapter_config={
             "cli_session_id": "thread-parent",
             "effort": "low",
+            "model_context_window": 64000,
+            "model_auto_compact_token_limit": 60800,
             "mcp_servers": {"pan": {"command": "node"}},
         },
     )
@@ -123,6 +125,8 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
     assert child.handoff_prompt == "Latest brief."
     assert child.system_prompt == parent.system_prompt
     assert child.adapter_config["mcp_servers"] == {"pan": {"command": "node"}}
+    assert child.adapter_config["model_context_window"] == 64000
+    assert child.adapter_config["model_auto_compact_token_limit"] == 60800
     assert [item[0] for item in calls] == ["fork", "history", "usage"]
 
     worker.workers.clear()

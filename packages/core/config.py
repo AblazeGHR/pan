@@ -105,8 +105,6 @@ DEFAULT_CONFIG: dict = {
         # 默认 reasoning effort（-c model_reasoning_effort）："" | low | medium | high
         "effort": "",
     },
-    # 前端模式："coexist"（默认，/ 旧前端 + /react/ React）、"react"（/ React）、"legacy"（仅旧前端）
-    "frontend": "coexist",
     # 服务端口（环境变量 PAN_PORT 可覆盖）
     "port": 8768,
     # Windows scripts/start_pan.bat 启动时的窗口行为。旧配置缺失时显示。

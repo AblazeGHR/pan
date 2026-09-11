@@ -45,6 +45,12 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // Manage/Postbox). The settings fields are also merged into the store so the
   // toolbar pills / effort select reflect them too.
   const [detailSession, setDetailSession] = useState<Session | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [contextWindowInput, setContextWindowInput] = useState('');
+  const [autoCompactInput, setAutoCompactInput] = useState('');
+  const [contextWindowError, setContextWindowError] = useState('');
+  const [autoCompactError, setAutoCompactError] = useState('');
+  const [restoringCodexDefaults, setRestoringCodexDefaults] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState<{ left: number; bottom: number } | null>(null);
   const updatePopoverPosition = () => {
     const rect = anchorRef?.current?.getBoundingClientRect();
@@ -73,14 +79,23 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   useEffect(() => {
     if (!open || !session?.id) return;
     setDetailSession(null);
+    setMoreOpen(false);
+    setContextWindowInput(session.modelContextWindow?.toString() ?? '');
+    setAutoCompactInput(session.modelAutoCompactTokenLimit?.toString() ?? '');
+    setContextWindowError('');
+    setAutoCompactError('');
     fetchSession(session.id)
       .then((full) => {
         setDetailSession(full);
+        setContextWindowInput(full.modelContextWindow?.toString() ?? '');
+        setAutoCompactInput(full.modelAutoCompactTokenLimit?.toString() ?? '');
         useSessionStore.getState().updateSession(full.id, {
           model: full.model ?? undefined,
           permissionMode: full.permissionMode ?? undefined,
           alwaysThinkingEnabled: full.alwaysThinkingEnabled,
           effort: full.effort,
+          modelContextWindow: full.modelContextWindow,
+          modelAutoCompactTokenLimit: full.modelAutoCompactTokenLimit,
           workdir: full.workdir,
         });
       })
@@ -96,8 +111,8 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
     null;
 
   const applySetting = useCallback(
-    async (key: string, value: unknown) => {
-      if (!session) return;
+    async (key: string, value: unknown): Promise<boolean> => {
+      if (!session) return false;
       const patch: Record<string, unknown> = { [key]: value };
       // Codex exposes model-specific reasoning levels. Clear an effort that
       // the newly selected model cannot accept; empty means native default.
@@ -122,16 +137,64 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
         // change applies on next spawn / when the worker goes idle.
         if ((res as { requireRestart?: boolean }).requireRestart) {
           showToast(
-            '配置已保存，worker 将在下次空闲时重启以生效（或手动重启）',
+            '配置已保存，Worker 将自动 respawn 后生效；当前 turn 结束后切换',
             'info',
           );
         }
+        return true;
       } catch (e) {
         showToast((e as Error).message || 'Failed', 'error');
+        return false;
       }
     },
     [session, detailSession, config, effectiveWorkerId, applySettings, loadSessions, showToast],
   );
+
+  const updateCodexNumber = async (
+    key: 'modelContextWindow' | 'modelAutoCompactTokenLimit',
+    raw: string,
+    setError: (value: string) => void,
+  ) => {
+    if (!/^[1-9]\d*$/.test(raw)) {
+      setError('请输入正整数；如需交给 Codex 默认值，请使用“恢复默认”');
+      return;
+    }
+    const parsed = Number(raw);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      setError('请输入 JavaScript 安全范围内的正整数');
+      return;
+    }
+    setError('');
+    await applySetting(key, parsed);
+  };
+
+  const restoreCodexDefaults = async () => {
+    if (!session || restoringCodexDefaults) return;
+    setRestoringCodexDefaults(true);
+    try {
+      const ok = await applySettings(session.id, {
+        modelContextWindow: null,
+        modelAutoCompactTokenLimit: null,
+      });
+      setDetailSession((d) => (d ? {
+        ...d,
+        modelContextWindow: null,
+        modelAutoCompactTokenLimit: null,
+      } : d));
+      await loadSessions();
+      if (!(ok as { error?: string }).error) {
+        setContextWindowInput('');
+        setAutoCompactInput('');
+        setContextWindowError('');
+        setAutoCompactError('');
+        showToast('已清除 Codex 上下文覆盖，Worker 将自动 respawn 后使用模型默认值', 'info');
+      }
+    } catch (e) {
+      showToast((e as Error).message || 'Failed', 'error');
+    } finally {
+      setRestoringCodexDefaults(false);
+    }
+  };
 
   // Close on outside click (the gear button lives under [data-settings-popover]).
   useEffect(() => {
@@ -181,6 +244,12 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   const showOutputMode = execModes.length > 1;
   const currentOutputMode =
     s.outputMode ?? (execModes.includes('stream') ? 'stream' : execModes[0]);
+  const showCodexContext =
+    s.adapter === 'codex' &&
+    supportsSetting(config, 'modelContextWindow') &&
+    supportsSetting(config, 'modelAutoCompactTokenLimit');
+  const hasCodexOverrides =
+    s.modelContextWindow != null || s.modelAutoCompactTokenLimit != null;
 
   if (!popoverPosition) return null;
 
@@ -217,6 +286,88 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {/* Codex context controls stay behind a compact More disclosure. */}
+      {showCodexContext && (
+        <div className="border-t border-border-muted pt-2">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between text-left text-xs font-semibold text-text-secondary"
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((value) => !value)}
+          >
+            <span>More</span>
+            <span aria-hidden="true" className="text-text-muted">{moreOpen ? '▾' : '▸'}</span>
+          </button>
+          {moreOpen && (
+            <div className="mt-2 space-y-2">
+              <p className="text-[11px] leading-4 text-text-muted">
+                修改后需 Worker 自动 respawn/restart 后生效；当前 turn 不热更新。
+              </p>
+              <label className="block text-xs text-text-secondary">
+                <span className="mb-1 block">Context window</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={contextWindowInput}
+                  aria-label="model_context_window"
+                  onChange={(e) => {
+                    setContextWindowInput(e.target.value);
+                    if (e.target.value === '' || /^[1-9]\d*$/.test(e.target.value)) {
+                      setContextWindowError('');
+                    } else {
+                      setContextWindowError('请输入正整数');
+                    }
+                  }}
+                  onBlur={() => updateCodexNumber(
+                    'modelContextWindow',
+                    contextWindowInput,
+                    setContextWindowError,
+                  )}
+                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                />
+                {contextWindowError && <span className="mt-1 block text-[11px] text-danger">{contextWindowError}</span>}
+              </label>
+              <label className="block text-xs text-text-secondary">
+                <span className="mb-1 block">Auto-compact token limit</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={autoCompactInput}
+                  aria-label="model_auto_compact_token_limit"
+                  onChange={(e) => {
+                    setAutoCompactInput(e.target.value);
+                    if (e.target.value === '' || /^[1-9]\d*$/.test(e.target.value)) {
+                      setAutoCompactError('');
+                    } else {
+                      setAutoCompactError('请输入正整数');
+                    }
+                  }}
+                  onBlur={() => updateCodexNumber(
+                    'modelAutoCompactTokenLimit',
+                    autoCompactInput,
+                    setAutoCompactError,
+                  )}
+                  className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary"
+                />
+                {autoCompactError && <span className="mt-1 block text-[11px] text-danger">{autoCompactError}</span>}
+              </label>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!hasCodexOverrides || restoringCodexDefaults}
+                onClick={restoreCodexDefaults}
+              >
+                {restoringCodexDefaults ? 'Restoring…' : 'Restore defaults'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

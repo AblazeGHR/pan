@@ -14,7 +14,7 @@
 | D1 | **workdir 放行策略** | `_ALLOWED_WORKDIR_ROOTS=None` 对绝对路径直接放行，结合 `/api/fs/*` 可读写删任意目录——鉴权推迟后唯一实际安全边界（A 白名单根目录 / B 绝对路径只读 / C 维持现状） | **优先决策** |
 | D2 | **manifest 信任模型** | `_parse_mcp_server` 不校验 command/args/env/cwd，manifest 可声明任意可执行文件被 CLI 子进程执行（A 视为受信记录在案 / B 校验 + command 白名单） | 中 |
 | D3 | **server.py 拆分** | God object，约 99 个 HTTP 路由横跨多领域（2026-09-03 统计；早前「70+」为旧基线）（A 按领域拆 Router / B 抽公共 helper / C service 层） | 中 |
-| D4 | **legacy app.ts 去留** | God file；现挂 `/vanilla` 稳定备份入口（倾向 A 冻结，只修 bug） | 低 |
+| ~~D4~~ | ~~Vanilla app.ts 去留~~ | **已归档（2026-09-11）**：Vanilla 前端、旧入口和相关构建链已移除；React 为唯一前端 | ~~低~~ |
 | D5 | **enrich 协议 sync→async** | ⚠️ 2026-09-03 复核：`time.sleep(0.2)` 仍在 `cbc/adapter.py:475`（`enrich_after_result` 内，行号随代码漂移；kimi 侧 `:450` 为 `sleep(0.3)`），是否阻塞事件循环/是否走 `asyncio.to_thread` **待复核**后再决策 | 低 |
 | ~~D6~~ | ~~kimi fork 判定~~ | **已解决（2026-08-27 核对）**：`kimi/adapter.py` `fork_args` 已实现目录复制 fork（调 `kimi_sessions.fork_kimi_session`），不再无条件返回 `[]` | ✅ |
 | D7 | **Session 原子写 + 缓存锁** | `write_text` 非原子 + `save_async` 并发写 + `_cache` 无锁（临时文件 + `os.replace` + `threading.Lock`） | 中 |
@@ -62,11 +62,10 @@
 | kimi ACP 接入 | kimi 官方 stdio 长驻 JSON-RPC；需独立调研，产出 `kimi-acp-adaptation.md` | 另起一轮 | design/kimi-adaptation.md §6 |
 | gemini adapter | 调研表已列，未接 | 有需求时 | design/adapter-architecture.md §6 |
 | aider 接入 | 收益最低（无 resume/结构化输出） | 低优先级 | design/adapter-architecture.md §7 |
-| P1 oneshot Legacy 前端跟随 | `ts/app.ts` 补 executionModes / output mode UI | 低优先可选 | design/adapter-p1-oneshot.md |
 | `_extract_cbc_error` 收编 adapter | 仍在 `worker.py:3188`（2026-09-03 核对，行号随重构漂移）；可搬进 adapter 作可选收尾 | 低优先可选 | design/adapter-p1-oneshot.md |
 | kimi MCP 方案 A 兜底 | 合并用户级 mcp.json；仅设计保留，未落地 | 方案 C 失效时 | design/kimi-mcp-solution.md |
 | ~~服务端消息队列~~ | ~~`Session.send_queue` + CRUD API，客户端退化为镜像~~ **已实现（2026-09-01 第一版，2026-09-03 复核）**：`Session.queue_pending` 统一为服务端权威队列 + `/api/sessions/{id}/queue` CRUD/编辑/排序/retry 端点，用户消息落盘确认后才 accepted；现行语义见 `docs/design/queue-at-most-once.md`、`docs/plans&overviews/统一服务端消息队列改动计划.md` | ✅ 已实现 | archive/design-message-queue.md（已归档） |
-| Adapter 能力驱动的附件渲染 | **服务端附件和客户端上传（含上传进度）已实现**；当前消息使用 `@"<path>"` 文本兼容格式。后续仍需能力探测、统一 `AttachmentRef`/metadata、按 Adapter 渲染 native payload，并在不支持原生附件时保留文本 fallback；另需制定附件大小/类型/配额/清理等策略 | 后续附件协议与 Adapter 能力支持 | design/adapter-architecture.md |
+| Adapter 能力驱动的附件渲染 | **服务端附件和客户端上传（含上传进度）已实现**；聊天消息使用标准 Markdown `[displayName](href)`，上传响应区分原始显示名、随机存储名和安全下载 href，旧 `@"<path>"` 历史文本有兼容回退。后续仍需能力探测、统一 `AttachmentRef`/metadata、按 Adapter 渲染 native payload，并在不支持原生附件时保留 Markdown/text fallback；另需制定附件大小/类型/配额/清理等策略 | 后续附件协议与 Adapter 能力支持 | design/adapter-architecture.md |
 | session_import 增强 | import 端点 `_check_session_name` 校验、`action="browse"` 文件树浏览 | 可选，量大时 | archive/design-import-session-mcp.md |
 | QQ 富媒体 / 全事件上行 / 反向控制 | QQ 通道后续方向 | 有需求时 | archive/qq-llm-management-survey.md |
 | ~~LICENSE~~ | ~~仓库未附开源许可证~~ **已解决（2026-09-03 核对）**：仓库根已有 `LICENSE`（git 跟踪），README.md 末附许可证段 | 发布前 | README.md |

@@ -19,7 +19,7 @@
 2. QQ 模块：`pip install -r packages/qq/requirements.txt` 到任一解释器——main.py:24 默认 `E:\software\miniforge\python.exe`，可 `PAN_QQ_PYTHON` 覆盖
 3. PATH 里装 node + cbc/kimi/codex/opencode（缺哪个砍哪个 adapter）
 4. 可选：`cp config.example.json config.json`；QQ 连接来源是 **packages/qq/.env 的 `ONEBOT_WS_URLS`**（gitignored，新机器必须重建）
-5. 前端：`packages/web/` 内 `pnpm install && pnpm build`；legacy 走根目录 `npx tsc`
+5. 前端：`packages/web/` 内 `pnpm install && pnpm build`（React 是唯一前端）
 6. 远程通道才需要：cloudflared + named tunnel yml + `../ai_coc/pan_plugin/manifest.json`（仓库外兄弟项目）
 
 ### 阻塞项清单（没有就跑不起来）

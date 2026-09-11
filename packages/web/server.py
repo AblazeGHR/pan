@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
@@ -174,8 +174,6 @@ _PROJECT_DIR = _WEB_DIR.parent.parent  # packages/web/ → packages/ → project
 DATA_DIR = _PROJECT_DIR / "data"
 WORKDIRS_DIR = DATA_DIR / "workdirs"
 ATTACHMENTS_DIR = DATA_DIR / "attachments"
-DASHBOARD_FILE = _WEB_DIR / "index.html"
-MOBILE_DASHBOARD_FILE = _WEB_DIR / "mobile.html"
 REACT_DIST_DIR = _WEB_DIR / "dist"
 REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
 
@@ -532,18 +530,6 @@ def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
             creationflags=flags,
         )
 
-# Production switch: config.json frontend 字段
-# "coexist"（默认）→ React SPA / + Vanilla /vanilla/（+ React /react/ 兼容保留）
-# "react" → React SPA / + Vanilla /vanilla/
-# "legacy" → 仅旧前端 /（无 /vanilla、/react）
-FRONTEND_MODE = load_config().get("frontend", "coexist")
-
-_MOBILE_UA_RE = re.compile(
-    r"Mobile|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone|webOS",
-    re.IGNORECASE,
-)
-
-
 async def _send_ws(ws: WebSocket, data: dict):
     """单个客户端发送（带 2s 超时）；超时/失败由 broadcast 统一剔除。
 
@@ -702,8 +688,10 @@ def _session_to_api(s: sess.Session):
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
         "maxThinkingTokens": ac.get("max_thinking_tokens"),
+        "modelContextWindow": ac.get("model_context_window"),
+        "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
-        "history": s.history,
+        "history": _api_history(s.id, s.history),
         "lastResult": s.last_result,
         "lastLegalWorkerState": s.last_legal_worker_state,
         "rawUsage": s.raw_usage,
@@ -762,7 +750,10 @@ def _session_summary(s: sess.Session) -> dict:
     if s.history:
         last = s.history[-1]
         if isinstance(last, dict):
-            last_text = str(last.get("content") or "")[:200]
+            last_text = _normalize_legacy_attachment_links(
+                s.id,
+                str(last.get("content") or ""),
+            )[:200]
     return {
         "id": s.id,
         "name": s.name,
@@ -790,6 +781,8 @@ def _session_summary(s: sess.Session) -> dict:
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
+        "modelContextWindow": ac.get("model_context_window"),
+        "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
     }
 
@@ -840,8 +833,15 @@ _MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MiB
 _ALLOWED_WORKDIR_ROOTS: list[Path] | None = None
 
 
-def _resolve_workdir(workdir_name: str) -> Path:
-    """Resolve a workdir name to a Path, creating it."""
+def _resolve_workdir(workdir_name: str, *, strict_workdir: bool = False) -> Path:
+    """Resolve a workdir name to a Path.
+
+    Relative session names retain their historical private workdir behavior.
+    Absolute paths must already exist; a caller that wants a new absolute
+    directory must use the explicit directory-creation endpoint after user
+    confirmation. This prevents session creation from silently creating an
+    arbitrary path supplied by a client.
+    """
     p = Path(workdir_name)
     if p.is_absolute():
         if _ALLOWED_WORKDIR_ROOTS is not None:
@@ -856,8 +856,22 @@ def _resolve_workdir(workdir_name: str) -> Path:
                     f"Workdir {workdir_name!r} is outside allowed roots: "
                     f"{[str(r) for r in _ALLOWED_WORKDIR_ROOTS]}"
                 )
-        p.mkdir(parents=True, exist_ok=True)
-        return p
+        try:
+            resolved = p.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ValueError(
+                f"Workdir {workdir_name!r} does not exist; confirm directory creation first"
+            ) from exc
+        if not resolved.is_dir():
+            raise ValueError(f"Workdir {workdir_name!r} is not a directory")
+        return resolved
+
+    if strict_workdir:
+        if workdir_name in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9_.-]+", workdir_name):
+            raise ValueError(f"Invalid relative workdir path: {workdir_name!r}")
+        workdir = WORKDIRS_DIR / workdir_name
+        workdir.mkdir(parents=True, exist_ok=True)
+        return workdir.resolve()
 
     # Slug name — resolve under WORKDIRS_DIR
     # 非法字符不抛错：清理成安全 slug（替换为 -），避免合法 session 名
@@ -870,6 +884,61 @@ def _resolve_workdir(workdir_name: str) -> Path:
     workdir = WORKDIRS_DIR / workdir_name
     workdir.mkdir(parents=True, exist_ok=True)
     return workdir
+
+
+def _path_is_allowed(path: Path, roots: list[Path]) -> bool:
+    resolved = path.resolve(strict=False)
+    return any(
+        resolved == root.resolve(strict=False)
+        or root.resolve(strict=False) in resolved.parents
+        for root in roots
+    )
+
+
+def _create_directory(path: str) -> Path:
+    """Create one explicitly confirmed directory without expanding trust.
+
+    Existing external workspaces remain valid workdirs. New absolute trees are
+    only creatable below the configured allowlist; when no allowlist is
+    configured, only Pan's own workdir root is creatable. The parent must
+    already exist, so a typo cannot cause an arbitrary directory tree to be
+    manufactured.
+    """
+    raw = path.strip()
+    if not raw or "\x00" in raw or any(ord(char) < 32 for char in raw):
+        raise ValueError("Invalid directory path")
+    if sys.platform == "win32":
+        invalid = set('<>"|?*')
+        if any(char in invalid for char in raw):
+            raise ValueError("Invalid directory path")
+        for index, char in enumerate(raw):
+            if char == ":" and not (index == 1 and raw[0].isalpha()):
+                raise ValueError("Invalid directory path")
+    target = Path(raw)
+    if not target.is_absolute():
+        return _resolve_workdir(raw, strict_workdir=True)
+
+    if _ALLOWED_WORKDIR_ROOTS is not None:
+        roots = _ALLOWED_WORKDIR_ROOTS
+    else:
+        roots = [WORKDIRS_DIR]
+    if not _path_is_allowed(target, roots):
+        raise ValueError(f"Workdir {raw!r} is outside allowed roots: {[str(root) for root in roots]}")
+
+    try:
+        if target.exists():
+            if not target.is_dir():
+                raise ValueError(f"Workdir {raw!r} is not a directory")
+            return target.resolve(strict=True)
+        parent = target.parent.resolve(strict=True)
+        if not parent.is_dir() or not _path_is_allowed(parent, roots):
+            raise ValueError("Parent directory is outside allowed roots or does not exist")
+        target.mkdir(exist_ok=False)
+        return target.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ValueError("Parent directory is outside allowed roots or does not exist") from exc
+    except PermissionError as exc:
+        raise PermissionError("Directory creation permission denied") from exc
 
 
 def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
@@ -1009,11 +1078,13 @@ def _build_session_params(
     external session from being recorded; normal session creation remains
     strict so a configured MCP server can never disappear silently.
     """
+    _normalize_context_setting_keys(data)
     for key in ("originalPrompt", "handoffPrompt", "systemPrompt"):
         if key in data and data[key] is not None and not isinstance(data[key], str):
             raise ValueError(f"{key} must be a string or null")
     name = data.get("name", "default")
-    workdir_name = data.get("workdir") or name
+    explicit_workdir = data.get("workdir")
+    workdir_name = explicit_workdir or name
 
     # Resolve session_template first: the template's adapter participates in
     # the final adapter resolution (explicit request > template > "cbc"), so
@@ -1117,6 +1188,9 @@ def _build_session_params(
         explicit_settings["maxThinkingTokens"] = data["maxThinkingTokens"]
     if data.get("alwaysThinkingEnabled"):
         explicit_settings["alwaysThinkingEnabled"] = data["alwaysThinkingEnabled"]
+    for api_key, _native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data and data[api_key] is not None:
+            explicit_settings[api_key] = data[api_key]
     if explicit_settings:
         validate_session_settings(adapter_name, explicit_settings, current_model=_final_model)
 
@@ -1156,7 +1230,7 @@ def _build_session_params(
         or _guarded_permission_mode(a, template.permission_mode)
         or _guarded_permission_mode(a, config.get("permission_mode"))
         or None,
-        "workdir": str(_resolve_workdir(workdir_name)) if resolve_workdir else "",
+        "workdir": str(_resolve_workdir(workdir_name, strict_workdir=bool(explicit_workdir))) if resolve_workdir else "",
         "adapter_config": {
             "always_thinking_enabled": _thinking,
             "effort": _effort,
@@ -1171,6 +1245,11 @@ def _build_session_params(
         "handoff_prompt": data.get("handoffPrompt"),
         "game_id": data.get("gameId") or None,
     }
+    # These are deliberately added only when explicitly supplied.  In
+    # particular, do not synthesize a model/default value into Session JSON.
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data and data[api_key] is not None:
+            params["adapter_config"][native_key] = data[api_key]
     # Optional worker execution mode ("stream" | "oneshot"); validated against
     # the adapter's execution_modes. Unset/"auto" = automatic (existing behaviour).
     raw_mode = data.get("outputMode")
@@ -1314,7 +1393,28 @@ def _safe_adapter(adapter_name: str):
 _PROCESS_AFFECTING_FIELDS = {
     "model", "permissionMode", "alwaysThinkingEnabled", "effort",
     "maxThinkingTokens", "mcpServers", "outputMode",
+    "modelContextWindow", "modelAutoCompactTokenLimit",
 }
+
+_CODEX_CONTEXT_SETTING_ALIASES = {
+    # HTTP/MCP use camelCase like the rest of the session settings; accepting
+    # the native names as a compatibility bridge keeps hand-authored API
+    # requests and persisted migration tooling unambiguous.
+    "model_context_window": "modelContextWindow",
+    "model_auto_compact_token_limit": "modelAutoCompactTokenLimit",
+}
+_CODEX_CONTEXT_SETTING_KEYS = (
+    ("modelContextWindow", "model_context_window"),
+    ("modelAutoCompactTokenLimit", "model_auto_compact_token_limit"),
+)
+
+
+def _normalize_context_setting_keys(data: dict) -> None:
+    """Normalize native snake_case aliases into the public API spelling."""
+    for native_key, api_key in _CODEX_CONTEXT_SETTING_ALIASES.items():
+        if native_key in data:
+            data.setdefault(api_key, data[native_key])
+            data.pop(native_key, None)
 
 
 def _apply_session_updates(s: sess.Session, data: dict):
@@ -1323,6 +1423,7 @@ def _apply_session_updates(s: sess.Session, data: dict):
     Validate-first：所有显式设置先整体通过 adapter 能力校验，任一非法即抛
     AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
     """
+    _normalize_context_setting_keys(data)
     # systemPrompt was not a supported settings field. Reject effective-prompt
     # writes explicitly so a detail response cannot become a recursive baseline.
     if "systemPrompt" in data:
@@ -1333,7 +1434,8 @@ def _apply_session_updates(s: sess.Session, data: dict):
     _explicit = {
         key: data[key]
         for key in ("model", "permissionMode", "alwaysThinkingEnabled",
-                    "effort", "maxThinkingTokens", "outputMode")
+                    "effort", "maxThinkingTokens", "outputMode",
+                    "modelContextWindow", "modelAutoCompactTokenLimit")
         if key in data
     }
     if _explicit:
@@ -1356,6 +1458,9 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("effort", data["effort"])
     if "maxThinkingTokens" in data:
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data:
+            s.set_adapter_field(native_key, data[api_key])
     if "mcpServers" in data:
         # forceMcp:true（UI 强制解除模板锁确认后携带）跳过 always/never 校验。
         _apply_mcp_servers(s, data["mcpServers"], force=bool(data.get("forceMcp")))
@@ -1756,10 +1861,93 @@ def _attachment_session_dir(session_id: str) -> Path:
 
 
 def _attachment_filename(raw_name: str | None) -> str:
-    """Normalize a browser filename without treating it as a server path."""
+    """Return the original basename for display, never as a storage path.
+
+    The browser may send a URL-encoded name and, on some browsers, a legacy
+    fakepath.  Keep the user's basename (including spaces, Unicode and
+    Markdown punctuation) for the link label, while removing only path/control
+    characters that cannot safely be displayed as one filename.
+    """
     name = unquote(raw_name or "").replace("\\", "/").rsplit("/", 1)[-1]
-    name = re.sub(r"[<>:\"|?*\x00-\x1f]", "_", name).strip(" .")
-    return name or "attachment"
+    name = "".join(c for c in name if ord(c) >= 32 and c not in "\x7f")
+    return name if name.strip(" .") else "attachment"
+
+
+def _attachment_storage_filename(display_name: str) -> str:
+    """Create an opaque storage filename, retaining only a safe extension."""
+    suffix = Path(display_name).suffix
+    suffix = re.sub(r"[^A-Za-z0-9._-]", "", suffix)[:32]
+    return f"upload_{uuid.uuid4().hex}{suffix}"
+
+
+def _attachment_href(session_id: str, storage_filename: str) -> str:
+    """Build the only public href accepted for an uploaded attachment."""
+    return (
+        f"/api/attachments/{quote(storage_filename, safe='')}"
+        f"?session_id={quote(session_id, safe='')}"
+    )
+
+
+def _fs_download_href(session_id: str, path: str) -> str:
+    """Build a safe download href for an existing server-side file."""
+    return (
+        "/api/fs/read?"
+        f"session_id={quote(session_id, safe='')}&"
+        f"path={quote(path, safe='')}&download=1"
+    )
+
+
+def _markdown_label(display_name: str) -> str:
+    """Escape Markdown label punctuation without changing rendered text."""
+    return re.sub(r"([\\\[\]\(\)])", r"\\\1", display_name)
+
+
+def _attachment_markdown(display_name: str, href: str) -> str:
+    """Return a standard Markdown link for a trusted, server-built href."""
+    return f"[{_markdown_label(display_name)}]({href})"
+
+
+_LEGACY_ATTACHMENT_RE = re.compile(r'@"([^"\r\n]+)"')
+
+
+def _legacy_attachment_href(session_id: str, raw_path: str) -> str:
+    """Map an old absolute attachment path to a validated download route."""
+    try:
+        target = Path(raw_path).resolve()
+        attachment_root = _attachment_session_dir(session_id).resolve()
+        relative = target.relative_to(attachment_root)
+        if len(relative.parts) == 1 and relative.name:
+            return _attachment_href(session_id, relative.name)
+    except (OSError, RuntimeError, ValueError):
+        pass
+    # This preserves the existing fs/read permission and path validation for
+    # older server-file attachments whose original name was not persisted.
+    return _fs_download_href(session_id, raw_path)
+
+
+def _normalize_legacy_attachment_links(session_id: str, content: str) -> str:
+    """Make pre-Metadata ``@\"path\"`` history entries renderable Markdown."""
+    def replace(match: re.Match[str]) -> str:
+        raw_path = match.group(1)
+        display_name = _attachment_filename(raw_path)
+        return _attachment_markdown(
+            display_name,
+            _legacy_attachment_href(session_id, raw_path),
+        )
+
+    return _LEGACY_ATTACHMENT_RE.sub(replace, content)
+
+
+def _api_history(session_id: str, history: list[dict]) -> list[dict]:
+    """Serialize history with a compatibility view for old attachment text."""
+    normalized: list[dict] = []
+    for message in history:
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            normalized.append(message)
+            continue
+        content = _normalize_legacy_attachment_links(session_id, message["content"])
+        normalized.append({**message, "content": content})
+    return normalized
 
 
 @app.post("/api/sessions/{session_id}/attachments")
@@ -1773,10 +1961,11 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
     if sess.get(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     raw_name = request.headers.get("x-filename") or filename
-    safe_name = _attachment_filename(raw_name)
+    display_name = _attachment_filename(raw_name)
     target_dir = _attachment_session_dir(session_id)
     temp_path = target_dir / f".upload-{uuid.uuid4().hex}.tmp"
-    target_path = target_dir / f"{uuid.uuid4().hex}_{safe_name}"
+    storage_filename = _attachment_storage_filename(display_name)
+    target_path = target_dir / storage_filename
     total = 0
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -1789,7 +1978,13 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
         os.replace(temp_path, target_path)
         return {
             "ok": True,
-            "filename": safe_name,
+            # filename is retained as a compatibility alias for old clients;
+            # new clients must use displayName for the label and href for the
+            # download target.
+            "filename": display_name,
+            "displayName": display_name,
+            "storageFilename": storage_filename,
+            "href": _attachment_href(session_id, storage_filename),
             "path": str(target_path.resolve()),
             "size": total,
         }
@@ -1802,6 +1997,45 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
             temp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@app.get("/api/attachments/{storage_filename}")
+async def download_session_attachment(storage_filename: str, session_id: str):
+    """Download an uploaded attachment without exposing arbitrary filesystem paths."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if (
+        storage_filename != Path(storage_filename).name
+        or "/" in storage_filename
+        or "\\" in storage_filename
+        or not re.fullmatch(r"upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?", storage_filename)
+    ):
+        raise HTTPException(status_code=400, detail="Invalid attachment name")
+    attachment_root = _attachment_session_dir(session_id).resolve()
+    target = (attachment_root / storage_filename).resolve()
+    try:
+        target.relative_to(attachment_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid attachment path") from exc
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    media_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    return FileResponse(target, filename=target.name, media_type=media_type)
+
+
+@app.post("/api/directories")
+async def create_directory(data: dict):
+    """Create a directory only after the UI has obtained explicit consent."""
+    try:
+        path = data.get("path") if isinstance(data, dict) else None
+        if not isinstance(path, str):
+            raise ValueError("path is required")
+        created = _create_directory(path)
+        return {"ok": True, "path": str(created)}
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/directories")
@@ -1867,44 +2101,22 @@ async def favicon():
     return Response(content=svg, media_type="image/svg+xml")
 
 
-@app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    # react / coexist → redirect root to /react/ so the React SPA basename
-    # ("/react") matches the URL path and actually renders. Serving index.html
-    # directly at "/" left the router with a non-matching basename → blank.
-    if FRONTEND_MODE in ("react", "coexist") and REACT_DIST_EXISTS:
-        return RedirectResponse("/react/", status_code=307)
-
-    # legacy 模式（或 dist 缺失）→ Vanilla，保留移动端分流
-    ua = request.headers.get("user-agent", "")
-    if _MOBILE_UA_RE.search(ua):
-        return HTMLResponse(
-            content=MOBILE_DASHBOARD_FILE.read_text(encoding="utf-8"),
-            headers={"Cache-Control": "no-cache"},
-        )
+def _react_unavailable_response() -> HTMLResponse:
     return HTMLResponse(
-        content=DASHBOARD_FILE.read_text(encoding="utf-8"),
-        headers={"Cache-Control": "no-cache"},
+        content=(
+            "React frontend is unavailable: packages/web/dist is missing. "
+            "Build it with `pnpm --dir packages/web build`."
+        ),
+        status_code=503,
     )
 
 
-# Vanilla 前端入口：coexist / react 模式下旧前端移至 /vanilla。
-# legacy 模式根路径即旧前端，无需 /vanilla。
-if FRONTEND_MODE != "legacy":
-
-    @app.get("/vanilla", response_class=HTMLResponse)
-    async def vanilla_dashboard(request: Request):
-        """Serve legacy Vanilla frontend (with mobile UA split) at /vanilla."""
-        ua = request.headers.get("user-agent", "")
-        if _MOBILE_UA_RE.search(ua):
-            return HTMLResponse(
-                content=MOBILE_DASHBOARD_FILE.read_text(encoding="utf-8"),
-                headers={"Cache-Control": "no-cache"},
-            )
-        return HTMLResponse(
-            content=DASHBOARD_FILE.read_text(encoding="utf-8"),
-            headers={"Cache-Control": "no-cache"},
-        )
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    """Redirect to the React SPA, or explain that its build is unavailable."""
+    if not REACT_DIST_EXISTS:
+        return _react_unavailable_response()
+    return RedirectResponse("/react/", status_code=307)
 
 
 # ── WebSocket: Dashboard ──
@@ -2357,7 +2569,7 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     if before <= 0:
         before = total
     start = max(0, before - limit)
-    page = s.history[start:before]
+    page = _api_history(session_id, s.history[start:before])
     return {
         "history": page,
         "total": total,
@@ -2865,6 +3077,9 @@ async def api_branch_session(session_id: str, data: dict):
         "effort": s.adapter_config.get("effort", ""),
         "max_thinking_tokens": s.adapter_config.get("max_thinking_tokens"),
     }
+    for _api_key, _native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if _native_key in s.adapter_config:
+            new_adapter_config[_native_key] = s.adapter_config[_native_key]
     if s.adapter_config.get("mcp_servers"):
         new_adapter_config["mcp_servers"] = s.adapter_config["mcp_servers"]
 
@@ -3490,8 +3705,8 @@ async def api_config_reload(data: dict | None = None):
     same config. Per-item failures are collected into ``errors`` and reported
     with ``reloaded: false`` instead of a 500. The response always carries
     ``requiresRestart`` — fields that are startup-frozen by nature and can
-    never hot-apply (frontend route mounting, bound port, logging handlers, the
-    Windows startup console window, and the external remote tunnel process).
+    never hot-apply (the bound port, logging handlers, the Windows startup
+    console window, and the external remote tunnel process).
     """
     scope = (data or {}).get("scope") or "all"
     if scope not in ("adapters", "worker", "plugin", "memory", "all"):
@@ -3543,7 +3758,7 @@ async def api_config_reload(data: dict | None = None):
             result["plugin"] = plugin_entry
 
     # Startup-frozen fields a config.json edit can never hot-apply.
-    result["requiresRestart"] = ["frontend", "port", "logging", "remote", "startup"]
+    result["requiresRestart"] = ["port", "logging", "remote", "startup"]
 
     if errors:
         result["reloaded"] = False
@@ -4620,6 +4835,10 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                 "name": name,
                 "sessionTemplate": data.get("sessionTemplate"),
                 **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
+                **({key: data[key] for key in (
+                    "modelContextWindow", "modelAutoCompactTokenLimit",
+                    "model_context_window", "model_auto_compact_token_limit",
+                ) if key in data}),
                 **{key: data[key] for key in ("originalPrompt", "handoffPrompt", "systemPrompt")
                    if key in data},
             },
@@ -5621,9 +5840,8 @@ async def api_fs_delete(data: dict):
         return {"error": str(e)}
 
 
-# ── React SPA (coexist: / + /react/* 均为 React) ──
-# Mount React at /react/ unless FRONTEND_MODE=legacy（/react 保留作兼容入口）
-if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
+# ── React SPA ──
+if REACT_DIST_EXISTS:
     react_name = (
         "react"
         if not app.routes or not any(
@@ -5635,6 +5853,12 @@ if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
     @app.get(f"/{react_name}/", response_class=HTMLResponse)
     async def react_index_html():
         """Serve React index.html with no-cache so new builds are picked up on refresh."""
+        # The route table is built at import time, but the dist availability
+        # flag can change while the process is alive (and is intentionally
+        # patchable for startup/error-path checks). Do not let the static
+        # mount turn a missing build into a misleading 200 response.
+        if not REACT_DIST_EXISTS:
+            return _react_unavailable_response()
         return HTMLResponse(
             content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
             headers={"Cache-Control": "no-cache"},
@@ -5656,6 +5880,12 @@ if REACT_DIST_EXISTS and FRONTEND_MODE != "legacy":
             REACT_DIST_DIR / "index.html",
             headers={"Cache-Control": "no-cache"},
         )
+else:
+
+    @app.get("/react/", response_class=HTMLResponse)
+    async def react_unavailable():
+        """Return an actionable error when the React build is missing."""
+        return _react_unavailable_response()
 
 
 # ── Static files ──
