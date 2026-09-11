@@ -209,7 +209,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 
 ## 5. 可用 MCP 工具
 
-> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 44 个工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对，含 5 个 `agent_background_*` 工具）。
+> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 49 个实际暴露工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。其中 42 个是一等工具，7 个 `worker_*` 是仅为兼容旧调用保留的别名，不应作为新编排 API 使用。可重复执行 `python scripts/check_pan_skill_tools.py` 自检数量和清单完整性。
 >
 > **命名分层（agent-naming 确立）**：`agent_*` 是**一等工具**（编排对象 = Session，承载 MA/TA 身份，以 session_id 寻址，无活进程也容忍）；`worker_*` 是**兼容别名（DEPRECATED）**，内部委托同一实现，仅 `worker_id` 进程寻址为别名独有遗留路径——新代码一律用 `agent_*`。`agent_background_*` 管理的是独立于 Session Worker 的持久 Job，不会把后台进程误算成 Worker。
 >
@@ -221,14 +221,14 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
-| `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?`, `session_template?`, `character_id?`, `system_prompt?`, `game_id?`, `pan_access?` | 创建会话。`session_template` 用模板创建；`pan_access` 传能力字段 dict（`restrict_to_managed`/`can_claim_unmanaged`/`auto_claim_created`）；显式字段 > 模板值 > 默认值。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§7.1） |
+| `session_create` | `name`, `adapter?`, `model?`, `permission_mode?`, `workdir?`, `session_template?`, `character_id?`, `system_prompt?`, `game_id?`, `pan_access?`, `model_context_window?`, `model_auto_compact_token_limit?` | 创建会话。`session_template` 用模板创建；`pan_access` 传能力字段 dict（`restrict_to_managed`/`can_claim_unmanaged`/`auto_claim_created`）；显式字段 > 模板值 > 默认值。两个 Codex 上下文覆盖值均为可选正整数；省略不发送、不持久化，非 Codex adapter 显式传入会被拒绝。workdir 默认 `data/workdirs/<name>`，Pan 外目录用绝对路径（§7.1） |
 | `session_import` | `action`, `adapter?`, `project_dir?`, `cwd?`, `query?`, `limit?`, `session_id?`, `name?`, `session_template?`, `pan_access?` | **导入外部 CLI 历史会话**（cbc 项目 / kimi 工作区 / opencode、claude、codex 会话，adapter 以实际为准）。action: `list_projects`（cbc 项目）/ `list_workspaces`（kimi 工作区）/ `list_sessions` / `import`。opencode/claude/codex 使用通用 provider 端点，`cwd` 可选（不传表示列出全部原生会话）；import 仅建 session 不 spawn，workdir=外部项目路径（不在 data/workdirs/）；同一 `cli_session_id` 重复导入 = reimport 覆盖原 session 历史（受限 caller 只能覆盖自己管理的）；套用 `session_template`/`pan_access` 需后端支持（已实现）。导入后接主链：`report_subscribe → agent_assign → session_get` |
 | `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
 | `session_managed` | (无) | 返回调用者管理的 session 摘要 `[{id, name, workerStatus, updatedAt}]`（需 `PAN_AGENT_SESSION_ID`） |
 | `manager_chain` | (无) | 返回调用方（`PAN_AGENT_SESSION_ID`）的**上级 manager 链**（从最近一级 manager 逐级向上，每级含 `level/id/name/workerStatus/lastResultStatus`）。需调用方身份；独立 MCP 进程（无身份）不可用 |
 | `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
 | `session_usage` | `session_id?` | 查询当前或显式 Pan Session 的持久化 input/output/cache 用量；显式目标复用 `_check_access` managed 隔离。返回 `input`、`output`、`cache.read/write`、`total.tokens/credit`、`source`、`updatedAt`；缺失字段为 `null`，持久化零为 `0`，cache 不重复计入 input/output；优先 `Session.rawUsage`，旧数据回退 `Session.totalUsage`，不返回历史 raw payload |
-| `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用（单一事实源）、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。改 `mcp_servers`（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
+| `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?`, `model_context_window?`, `model_auto_compact_token_limit?`, `clear_model_context_window?`, `clear_model_auto_compact_token_limit?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。两个上下文覆盖值为可选正整数；省略保持当前设置，传对应 `clear_* = true` 持久化清除并交给 Codex/模型默认值。改 MCP 或任一上下文覆盖值（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查，等价 HTTP `POST /api/sessions/batch-delete`） |
 | `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 它与 A 原 system_prompt 拼接；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
@@ -294,6 +294,15 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 
 通知和完成报告共用持久队列的报告消费通道，但通知不会变成 `agent_assign` 任务，也不应拿来替代 `agent_assign`/`agent_send`。通知调用本身只负责可靠回报，不授予后台命令额外权限；命令执行与结果验证仍受原有审批、安全及 managed 隔离约束。
 
+### 系统通知与提醒
+
+| 工具 | 参数 | 说明 |
+|------|------|------|
+| `notification_send` | `title`, `body?`, `session_id?` | 向当前 session 或显式的自己/managed session 发送 best-effort Pan 系统通知；需要调用者身份，和用于持久任务回报的 `agent_notify` 分开 |
+| `reminder_register` | `due_at`, `title`, `body?`, `session_id?` | 为当前 session 或显式的自己/managed session 注册一次性、持久化的绝对 ISO-8601 提醒 |
+| `reminder_list` | `session_id?` | 列出当前 session 或显式 managed session 的待处理持久提醒 |
+| `reminder_cancel` | `reminder_id`, `session_id?` | 取消当前 session 或显式 managed session 的待处理提醒 |
+
 ### 报告订阅（MA 内部）
 
 | 工具 | 参数 | 说明 |
@@ -318,7 +327,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
-| `permission_prompt` | (无) | **Claude Code 审批桥**：当 claude adapter 以 `--permission-prompt-tool mcp__pan__permission_prompt` 长驻运行时，Claude 的非交互权限请求经本工具转发到 Dashboard 审批栏，返回 `allow`/`deny` 结构化决策（超时默认 360s 自动拒绝）。普通编排流程**不会**主动调用它；只有在 Dashboard 上批准 Claude 工具调用时才间接生效 |
+| `permission_prompt` | `tool_name`, `input?` | **Claude Code 审批桥**：当 claude adapter 以 `--permission-prompt-tool mcp__pan__permission_prompt` 长驻运行时，Claude 的非交互权限请求经本工具转发到 Dashboard 审批栏，返回 `allow`/`deny` 决策（超时默认 360s 自动拒绝）。普通编排流程**不会**主动调用它；只有在 Dashboard 上批准 Claude 工具调用时才间接生效 |
 | `model_list` | `adapter`（必填） | 列出指定的**任一已注册 adapter** 的模型与默认模型；省略、空串或空白值不会选择 CBC，而是返回 `adapter_required`、`availableAdapters` 和可执行提示。示例：`model_list(adapter="codex")` 查询 Codex（如 `gpt-5.6-luna`）模型 |
 | `codex_quota` | `window?`(`all`/`first`/`secondary`), `session_id?` | 查询 live Codex Worker 的事件快照；`first` = 五小时窗口，`secondary` = 周窗口。MCP caller 层先做 `_check_access`，受限 caller 只能查 managed graph；底层 loopback HTTP 直连是无 manager 认证的本机受信管理接口，两者不是同一权限契约。`updatedAt`（兼容字段）与 `receivedAt` 都是 Pan Worker 接收 `account/rateLimits/updated` 的本地时间，不是 provider 原始更新时间；不会主动执行 `account/rateLimits/read`，绝对 used/remaining/limit 缺失时返回 `null`。错误码：`invalid_window`、`session_not_found`、`unsupported_provider`、`quota_unavailable`、`quota_ambiguous` |
 | `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§11 完全一致 |
