@@ -64,7 +64,34 @@ describe('New Session directory input', () => {
     expect(apiMock.fetchDirectories).toHaveBeenCalledWith('D:\\workspace', false);
     expect(screen.queryByTestId('directory-search')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'app' }));
-    expect((input as HTMLInputElement).value).toBe('D:\\workspace\\app');
+    await waitFor(() => expect((input as HTMLInputElement).value).toBe('D:\\workspace\\app'));
+  });
+
+  it('enters a searched directory on double-click and refreshes the search base', async () => {
+    apiMock.fetchDirectories
+      .mockResolvedValueOnce(listing('D:\\workspace', [
+        { name: 'dir', path: 'D:\\workspace\\dir' },
+      ]))
+      .mockResolvedValueOnce(listing('D:\\workspace\\dir', [
+        { name: 'nested', path: 'D:\\workspace\\dir\\nested' },
+      ]));
+    render(<NewSessionModal open onClose={() => {}} />);
+    const input = screen.getByTestId('new-session-workdir-input');
+    fireEvent.change(input, { target: { value: 'D:\\workspace\\dir' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'dir' })).toBeTruthy());
+
+    const directoryButton = screen.getByRole('button', { name: 'dir' });
+    // Model the browser sequence: two clicks followed by dblclick.
+    fireEvent.click(directoryButton);
+    fireEvent.click(directoryButton);
+    fireEvent.doubleClick(directoryButton);
+
+    await waitFor(() => {
+      expect((input as HTMLInputElement).value).toBe('D:\\workspace\\dir\\');
+      expect(apiMock.fetchDirectories).toHaveBeenLastCalledWith('D:\\workspace\\dir', false);
+    });
+    expect(screen.queryByText(/检索“dir”/)).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'nested' })).toBeTruthy());
   });
 
   it('shows the exact invalid-directory message for a missing search base', async () => {
