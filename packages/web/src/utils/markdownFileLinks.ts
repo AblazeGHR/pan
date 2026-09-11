@@ -39,6 +39,37 @@ function parseLineLocation(fragment: string, path: string): EditorLocation | und
   return endLine === undefined ? { path, line } : { path, line, endLine };
 }
 
+interface ColonLineTarget {
+  path: string;
+  location?: EditorLocation;
+}
+
+/** Parse source-style `path:123` / `path:123-125` targets. */
+function parseColonLineTarget(path: string): ColonLineTarget {
+  const match = /^(.*):(\d+)(?:-(\d+))?$/.exec(path);
+  // A drive root such as `C:` is a path, never a line target.
+  if (!match || !match[1] || /^[A-Za-z]$/.test(match[1])) return { path };
+
+  const line = Number(match[2]);
+  const endLine = match[3] ? Number(match[3]) : undefined;
+  if (
+    Number.isSafeInteger(line) &&
+    line >= 1 &&
+    (endLine === undefined || (Number.isSafeInteger(endLine) && endLine >= line))
+  ) {
+    return {
+      path: match[1],
+      location: endLine === undefined
+        ? { path: match[1], line }
+        : { path: match[1], line, endLine },
+    };
+  }
+
+  // A malformed numeric target (for example :0 or a reversed range) should
+  // still open the underlying file rather than becoming part of its path.
+  return { path: match[1] };
+}
+
 function pathFromFileUri(decoded: string): string | null {
   // Handle file://C:/path, file:///C:/path and UNC file://server/share/path
   // without letting URL's browser-origin semantics reinterpret a drive letter.
@@ -76,10 +107,14 @@ export function parseMarkdownFileLink(href: string): MarkdownFileLink | null {
   const hasScheme = /^[A-Za-z][A-Za-z\d+.-]*:/.test(decodedPath);
   if (hasScheme && !isFileUri && !isWindowsAbsolutePath(decodedPath)) return null;
 
-  const path = normalizeFilePath(
-    isFileUri ? pathFromFileUri(decodedPath) ?? '' : decodedPath,
-  );
+  const decodedFilePath = isFileUri ? pathFromFileUri(decodedPath) ?? '' : decodedPath;
+  const colonTarget = parseColonLineTarget(decodedFilePath);
+  const path = normalizeFilePath(colonTarget.path);
   if (!path) return null;
-  const location = rawFragment ? parseLineLocation(rawFragment, path) : undefined;
+  const location = rawFragment
+    ? parseLineLocation(rawFragment, path)
+    : colonTarget.location
+      ? { ...colonTarget.location, path }
+      : undefined;
   return location ? { path, location } : { path };
 }

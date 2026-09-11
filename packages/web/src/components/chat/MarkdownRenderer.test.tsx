@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
@@ -16,6 +16,10 @@ vi.mock('@/services/api', () => ({
   renameFs: vi.fn(async () => undefined),
   deleteFs: vi.fn(async () => undefined),
 }));
+
+afterEach(() => {
+  cleanup();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -79,6 +83,21 @@ describe('MarkdownRenderer', () => {
     expect(parseMarkdownFileLink('docs/name%23with%2520percent.md')).toEqual({
       path: 'docs/name#with%20percent.md',
     });
+    expect(parseMarkdownFileLink('docs/My%20File.md:42-48')).toEqual({
+      path: 'docs/My File.md',
+      location: { path: 'docs/My File.md', line: 42, endLine: 48 },
+    });
+    expect(parseMarkdownFileLink('C:%5Cwork%5Cname%3Aarchive.md:7')).toEqual({
+      path: 'C:/work/name:archive.md',
+      location: { path: 'C:/work/name:archive.md', line: 7 },
+    });
+  });
+
+  it('strips malformed numeric line targets while preserving ordinary path colons', () => {
+    expect(parseMarkdownFileLink('docs/name:0')).toEqual({ path: 'docs/name' });
+    expect(parseMarkdownFileLink('docs/name:8-3')).toEqual({ path: 'docs/name' });
+    expect(parseMarkdownFileLink('docs/name:part.md')).toEqual({ path: 'docs/name:part.md' });
+    expect(parseMarkdownFileLink('C:/work/name:part.md')).toEqual({ path: 'C:/work/name:part.md' });
   });
 
   it('keeps web, mailto and document-only anchor destinations unchanged', () => {
@@ -118,6 +137,20 @@ describe('MarkdownRenderer', () => {
       workdir: 'D:\\project\\pan',
       activePath: 'docs/My File.md',
       pendingLocation: { path: 'docs/My File.md', line: 42, endLine: 48 },
+    });
+  });
+
+  it('opens source-style colon line targets without passing the suffix to the file API', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <MarkdownRenderer content="[open](docs/My%20File.md:42-48)" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'docs/My File.md'));
+    expect(useEditorStore.getState().pendingLocation).toEqual({
+      path: 'docs/My File.md', line: 42, endLine: 48,
     });
   });
 
