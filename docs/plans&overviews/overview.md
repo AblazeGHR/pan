@@ -10,7 +10,7 @@
 
 | 分支 | 路径 | HEAD | 阶段状态 |
 |---|---|---|---|
-| `main` | `D:\project\Pan-main` | `a0a8d7e`（代码合入基线，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
+| `main` | `D:\project\Pan-main` | `e4c1266`（通知/msgBridge 已本地合入，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
 | `practical` | `D:\project\Pan` | `46d5879` | 与 main 同一当前基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的改动
@@ -234,19 +234,19 @@
 - 调查/设计结论：复用 Session PATCH 与 `worker.result`；`agent_notify` 保持内部 agent queue 语义。旧 Session JSON 的 `notification_settings` 缺失时安全默认为关闭；handoff 与 native branch 复制该设置，`copySettings=false` 默认关闭。系统 sender 采用可注入接口，当前默认返回明确 `unsupported_system_notification`，不静默成功；通知失败不影响任务完成。
 - 实现：`packages/core/notifications.py`、`packages/core/reminders.py`；Session/worker/Web/MCP 与 React msgBridge UI 已接入。MCP 工具为 `notification_send`、`reminder_register`、`reminder_list`、`reminder_cancel`，均要求 Pan 注入身份并经过 `_check_access`；`agent_notify` 未改义。
 - 工作树/分支：`D:\project\pan-worktrees\pan-notifications-msgbridge-20260911`；`feature/pan-notifications-msgbridge-20260911`；基于 `main@a0a8d7e`。`D:\project\Pan-main` 的 `docs/references/cli-adapter-special-behaviors.md` 与 `docs/developLog.md` 未触碰。
-- TA/session：未派发 TA；本 SMA worktree 直接实现与复核。
-- 提交：功能代码/测试/文档批次 `c6aabca`（完整：`c6aabca01bb138e2a68c2a176d8ed9e629dc0542`）。
+- TA/session：`ses_b050dffa6d3fa226`；本批 TA 已完成，SMA 已完成合并后定向复核；下一批 Windows sender 补强仍在同一隔离 worktree 进行，未合入本批。
+- 提交：功能实现 `c6aabca`；本地合并提交 `e4c1266`；overview/用户手册随该批次提交记录为 `314f8fb`、`d79c017`、`222c33b`。
 - 测试/未验证项：按环境约定使用 `D:\project\Pan\.venv\Scripts\python.exe -m pytest -q tests/test_notifications_reminders.py tests/test_session_schema_compat.py tests/test_session_handoff.py tests/test_mcp_isolation.py tests/test_worker_states.py tests/test_worker_output_mode.py tests/test_web_frontend.py`：全部通过；未出现依赖缺失或代码失败。前端直接复用 `D:\project\Pan-main\packages\web\node_modules\.bin`：`vitest.CMD run src/components/session/PostboxModal.test.tsx src/components/session/SessionMenu.test.tsx src/components/session/SessionItem.test.tsx src/hooks/useWebSocket.test.tsx src/stores/sessionStore.refresh.test.ts` 为 5 files/67 tests passed，`tsc.CMD -b` 与 `vite.CMD build` 通过；定向 eslint 0 errors、1 个既有 Postbox hook warning。此前全量 Vitest 仍记录为 413 passed/10 个既有 Toast/NewSession 基线失败，全量 lint 仍被 `SessionDetailsModal.tsx:134` 阻断。未启动服务、未操作 8768；未做真实 Windows toast、浏览器权限/后台通知、MCP live、移动端或 provider E2E。
 - 验收清单：
-  - [ ] 合入 main
+  - [x] 合入 main
   - [ ] 开发者验收
   - [ ] 基础测试/全量门禁无基线失败
   - [ ] 真实 OS/browser/provider E2E
-- 合入/push 状态：合入 main：否（当前功能分支未合入）；push：否（未执行）。
+- 合入/push 状态：合入 main：是（本地 `e4c1266`）；push：否（未执行）。
 
 ## 四、正在进行的任务/改动
 
-当前暂无；本功能等待独立代码审阅、真实 sender 决策与开发者验收。
+下一批：Windows 系统 sender、系统提醒 loop/API 补测和真实 sender 决策；TA `ses_b050dffa6d3fa226` 在隔离 worktree 继续执行，尚未合入 main。本批仍等待开发者验收。
 
 ## 五、计划要做的任务
 
