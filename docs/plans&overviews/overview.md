@@ -10,7 +10,7 @@
 
 | 分支 | 路径 | HEAD | 阶段状态 |
 |---|---|---|---|
-| `main` | `D:\project\Pan-main` | `5d1f214`（代码合入基线，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
+| `main` | `D:\project\Pan-main` | `a0a8d7e`（代码合入基线，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
 | `practical` | `D:\project\Pan` | `46d5879` | 与 main 同一当前基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的改动
@@ -228,11 +228,25 @@
 
 ## 三、已完成但尚未合入 main 的改动
 
-当前暂无；新的已完成改动会在独立验收后列入本节。
+### 1. Pan 通知、系统提醒与 msgBridge
+
+- 计划/目标：为浏览器/系统通知统一强制 `Pan:` 前缀；持久化 Session 完成通知开关；提供可恢复、一次性绝对 dueAt 系统提醒；以 msgBridge 替换 UI 旧 Postbox 名称，同时保留 QQ 标签页。
+- 调查/设计结论：复用 Session PATCH 与 `worker.result`；`agent_notify` 保持内部 agent queue 语义。旧 Session JSON 的 `notification_settings` 缺失时安全默认为关闭；handoff 与 native branch 复制该设置，`copySettings=false` 默认关闭。系统 sender 采用可注入接口，Windows 使用 inbox PowerShell/.NET `NotifyIcon` 子进程，标题/body 作为独立参数传递；非 Windows 明确返回 `unsupported_system_notification`，Windows 子进程失败返回诊断错误，通知失败不影响任务完成。
+- 实现：`packages/core/notifications.py`、`packages/core/reminders.py`；Session/worker/Web/MCP 与 React msgBridge UI 已接入。MCP 工具为 `notification_send`、`reminder_register`、`reminder_list`、`reminder_cancel`，均要求 Pan 注入身份并经过 `_check_access`；`agent_notify` 未改义。提醒 loop 已抽取可测试的 claim-before-send 单轮执行。
+- 工作树/分支：`D:\project\pan-worktrees\pan-notifications-msgbridge-20260911`；`feature/pan-notifications-msgbridge-20260911`；基于 `main@a0a8d7e`。`D:\project\Pan-main` 的 `docs/references/cli-adapter-special-behaviors.md` 与 `docs/developLog.md` 未触碰。
+- TA/session：`ses_b050dffa6d3fa226`；任务状态：done；SMA 静态检查：本轮修复后通过。
+- 提交：最终功能/测试/文档修复将整理为同一代码提交；最终 hash 以交付时该 worktree 的 `git log` 核对。
+- 测试/未验证项：按环境约定使用 `D:\project\Pan\.venv\Scripts\python.exe -m pytest -q tests/test_notifications_reminders.py tests/test_session_schema_compat.py tests/test_session_handoff.py tests/test_mcp_isolation.py tests/test_worker_states.py tests/test_worker_output_mode.py tests/test_web_frontend.py`：sender Windows success/failure/non-Windows、API/MCP boundary、提醒 loop claim-before-send、prefix 和持久化测试全部通过；未出现依赖缺失或本轮代码失败。前端直接复用 `D:\project\Pan-main\packages\web\node_modules\.bin`：`vitest.CMD run src/components/session/PostboxModal.test.tsx src/components/session/SessionMenu.test.tsx src/components/session/SessionItem.test.tsx src/hooks/useWebSocket.test.tsx src/stores/sessionStore.refresh.test.ts` 覆盖 browser Notification 构造/权限 UX，为 5 files/67 tests passed；`tsc.CMD -b` 与 `vite.CMD build` 通过；定向 eslint 0 errors、1 个既有 Postbox hook warning。此前全量 Vitest 仍记录为 413 passed/10 个既有 Toast/NewSession 基线失败，全量 lint 仍被 `SessionDetailsModal.tsx:134` 阻断。未启动服务、未操作 8768；未做真实 Windows desktop session、真实浏览器权限/后台通知、MCP live、移动端或 provider E2E；NotifyIcon 在无交互桌面/服务账户下仍有运行时可见性风险。
+- 验收清单：
+  - [ ] 合入 main
+  - [ ] 开发者验收
+  - [ ] 基础测试/全量门禁无基线失败
+  - [ ] 真实 OS/browser/provider E2E
+- 合入/push 状态：合入 main：否（当前功能分支未合入）；push：否（未执行）。
 
 ## 四、正在进行的任务/改动
 
-当前暂无。
+当前暂无；本功能等待独立代码审阅、真实 sender 决策与开发者验收。
 
 ## 五、计划要做的任务
 

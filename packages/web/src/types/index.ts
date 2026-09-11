@@ -50,6 +50,7 @@ export interface Session {
   reportSubscriptions?: string[];
   /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
   qqSubscriptions?: string[];
+  notificationSettings?: { browser: boolean; system: boolean };
   /** MCP capability flags; only present on the full (non-summary) endpoint. */
   panAccess?: PanAccess;
   /** Whether MCP was ever enabled for this session (mcp_servers non-empty). */
@@ -238,6 +239,7 @@ export interface StreamEvent {
   event?: WorkerEvent;
   message?: string;
   status?: string;
+  notification?: { title?: string; body?: string; browser?: boolean; system?: Record<string, unknown> | null };
   cancelled?: boolean;
   name?: string;
   cliSessionId?: string;
@@ -796,6 +798,7 @@ export interface SettingsBody {
   modelContextWindow?: number | null;
   /** Codex-only positive integer override; null removes the persisted key. */
   modelAutoCompactTokenLimit?: number | null;
+  notificationSettings?: { browser?: boolean; system?: boolean };
 }
 
 /** A single MCP server declared in the manifest (no secrets exposed). */

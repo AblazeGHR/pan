@@ -32,6 +32,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from packages.core.notifications import normalize_notification_settings
+
 SESSION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sessions"
 
 # 增量持久化（方案 4）：history 落盘到独立的 <id>.history.jsonl 追加文件，
@@ -207,6 +209,7 @@ class Session:
     accepted_input_ids: list[str] = field(default_factory=list)
     report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
     qq_subscriptions: set[str] = field(default_factory=set)  # QQ conversations this session subscribes to ("user:<qq>"/"group:<group_id>")
+    notification_settings: dict = field(default_factory=dict)  # Pan completion notifications
 
     # ── adapter_config convenience accessors ──
 
@@ -251,7 +254,7 @@ class Session:
                  task_seq: int = 0,
                  accepted_input_ids: list[str] | None = None,
                   report_subscriptions=None,
-                 qq_subscriptions=None, *,
+                 qq_subscriptions=None, notification_settings=None, *,
                  original_prompt: str | None | object = _PROMPT_UNSET,
                  handoff_prompt: str | None = None):
         """Manual init so legacy top-level capability kwargs still construct.
@@ -312,6 +315,7 @@ class Session:
         self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
+        self.notification_settings = normalize_notification_settings(notification_settings)
         self.__post_init__()
 
     @property
@@ -475,6 +479,7 @@ class Session:
             "accepted_input_ids": self.accepted_input_ids,
             "report_subscriptions": sorted(self.report_subscriptions),
             "qq_subscriptions": sorted(self.qq_subscriptions),
+            "notification_settings": normalize_notification_settings(self.notification_settings),
         }
 
 
@@ -500,6 +505,7 @@ def create(name: str, model: str | None = None,
            restrict_to_managed: bool = False,
            can_claim_unmanaged: bool = False,
            auto_claim_created: bool = False,
+           notification_settings: dict | None = None,
            # backward-compat kwargs (migrated to adapter_config)
            cli_session_id: str | None = None,
            always_thinking_enabled: bool = False,
@@ -538,6 +544,7 @@ def create(name: str, model: str | None = None,
         original_prompt=original_prompt,
         handoff_prompt=handoff_prompt,
         game_id=game_id,
+        notification_settings=notification_settings,
         raw_usage=raw_usage,
         total_usage=total_usage,
         workdir=workdir,
@@ -932,6 +939,7 @@ def handoff_session(
         new_character_id = a.character_id
         new_template = a.session_template
         new_game_id = a.game_id
+        new_notification_settings = copy.deepcopy(a.notification_settings)
     else:
         new_adapter = adapter or "cbc"
         new_model = model
@@ -941,6 +949,7 @@ def handoff_session(
         new_character_id = None
         new_template = None
         new_game_id = None
+        new_notification_settings = None
 
     # Allocate and persist B while holding the same lock used by save().
     # This closes the check/create window between concurrent handoffs. A is
@@ -957,6 +966,7 @@ def handoff_session(
             original_prompt=a.original_prompt,
             handoff_prompt=handoff_prompt.strip(),
             game_id=new_game_id,
+            notification_settings=new_notification_settings,
             pan_access=new_pan_access,
             workdir=a.workdir,
         )

@@ -71,6 +71,7 @@ from packages.core.codex_quota_store import (
     resolve_profile_identity,
 )
 from packages.core import main_lifecycle
+from packages.core import notifications, reminders
 
 # ── logging ──
 
@@ -108,6 +109,7 @@ async def lifespan(app: FastAPI):
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
     worker.start_global_watchdog()
     background_jobs.start_recovery_loop()
+    reminder_task = asyncio.create_task(_reminder_loop())
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -122,6 +124,11 @@ async def lifespan(app: FastAPI):
         _log(f"[Pan] Character manifest not loaded: {e}")
     
     yield
+    reminder_task.cancel()
+    try:
+        await reminder_task
+    except asyncio.CancelledError:
+        pass
     worker.stop_global_watchdog()
     await background_jobs.stop_recovery_loop()
     # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
@@ -142,6 +149,27 @@ _character_manager: CharacterManager | None = None
 
 
 app = FastAPI(title="Pan", lifespan=lifespan)
+
+
+async def _reminder_loop():
+    """Recover persisted reminders after restart; claim-before-send is once-only."""
+    while True:
+        await _deliver_due_reminders()
+        await asyncio.sleep(1)
+
+
+async def _deliver_due_reminders() -> int:
+    """Claim due records before sending, returning the number of broadcasts."""
+    delivered = 0
+    for item in reminders.claim_due():
+        s = sess.get(item.get("sessionId", ""))
+        if not s:
+            continue
+        payload = notifications.dispatch_reminder(item.get("title", "Reminder"), item.get("body", ""))
+        await broadcast({"type": "notification.reminder", "sessionId": s.id,
+                         "reminderId": item["id"], "notification": payload})
+        delivered += 1
+    return delivered
 
 ws_clients: set[WebSocket] = set()
 agent_clients: set[WebSocket] = set()
@@ -705,6 +733,7 @@ def _session_to_api(s: sess.Session):
         "agentLevel": sess.agent_level(s.id),
         "reportSubscriptions": sorted(s.report_subscriptions),
         "qqSubscriptions": sorted(s.qq_subscriptions),
+        "notificationSettings": notifications.normalize_notification_settings(s.notification_settings),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "lastLegalWorkerState": s.last_legal_worker_state,
@@ -1473,6 +1502,13 @@ def _apply_session_updates(s: sess.Session, data: dict):
         # plugin to bind a RuleWhisper game_id to a group-scoped session so
         # LLM-driven MCP tool calls can pass it through.
         s.game_id = data["gameId"] or None
+    if "notificationSettings" in data:
+        if not isinstance(data["notificationSettings"], dict):
+            raise ValueError("notificationSettings must be an object")
+        current = notifications.normalize_notification_settings(s.notification_settings)
+        current.update({k: bool(data["notificationSettings"][k])
+                        for k in ("browser", "system") if k in data["notificationSettings"]})
+        s.notification_settings = current
     # Apply prompts after the other settings have accepted the request. These
     # affect future fresh workers/handoffs; resumed CLI context already contains
     # its prompt. Do not imply that respawning rewrites that context.
@@ -2399,6 +2435,44 @@ async def ws_agent_endpoint(ws: WebSocket):
 
 # ── Session API ──
 
+@app.post("/api/notifications/send")
+async def api_notification_send(data: dict):
+    """Send a best-effort Pan system notification for an accessible Session."""
+    session_id = data.get("sessionId")
+    s = sess.get(session_id) if isinstance(session_id, str) else None
+    if not s:
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    payload = notifications.dispatch_reminder(data.get("title", "Notification"), data.get("body", ""))
+    return {"ok": True, "notification": payload}
+
+
+@app.post("/api/sessions/{session_id}/reminders")
+async def api_register_reminder(session_id: str, data: dict):
+    if not sess.get(session_id):
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    try:
+        item = reminders.register(session_id, data.get("dueAt"), data.get("title", "Reminder"), data.get("body", ""))
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_due_at", "message": str(exc)}}
+    return {"ok": True, "reminder": item}
+
+
+@app.get("/api/sessions/{session_id}/reminders")
+async def api_list_reminders(session_id: str):
+    if not sess.get(session_id):
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    return {"ok": True, "reminders": reminders.list_for_session(session_id)}
+
+
+@app.delete("/api/sessions/{session_id}/reminders/{reminder_id}")
+async def api_cancel_reminder(session_id: str, reminder_id: str):
+    if not sess.get(session_id):
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    item = reminders.cancel(session_id, reminder_id)
+    if not item:
+        return {"ok": False, "error": {"code": "reminder_not_found", "message": "Reminder not found or already delivered"}}
+    return {"ok": True, "reminder": item}
+
 @app.get("/api/sessions")
 async def api_list_sessions(summary: int = 0):
     """List all sessions (includes worker status if active).
@@ -3101,6 +3175,7 @@ async def api_branch_session(session_id: str, data: dict):
         handoff_prompt=s.handoff_prompt,
         adapter_config=new_adapter_config,
         pan_access=dict(s.pan_access),
+        notification_settings=dict(s.notification_settings),
     )
 
     await broadcast({

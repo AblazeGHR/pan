@@ -28,6 +28,8 @@ Tools exposed:
     - agent_send_force: Force-push to an agent (restart + send; no live worker → queue)
     - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
       persisted queue + immediate auto-spawn when no live worker)
+    - notification_send: Send a Pan system notification to self or managed session
+    - reminder_register/list/cancel: Manage durable one-shot reminders
     - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
     - agent_list: List all agents (= sessions) — alias of session_list
@@ -210,6 +212,14 @@ def _check_access(session_id: str, claim: bool = False) -> dict | None:
         "code": "permission_denied",
         "message": f"session {caller['id']} is restricted to its managed sessions; "
                    f"{session_id} is not in its managed list"}}
+
+
+def _require_caller() -> tuple[dict | None, dict | None]:
+    caller = _caller_identity()
+    if not caller:
+        return None, {"ok": False, "error": {"code": "missing_identity",
+            "message": "PAN_AGENT_SESSION_ID is required for notification/reminder tools"}}
+    return caller, None
 
 
 def _auto_claim(session_id: str) -> None:
@@ -1459,6 +1469,53 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
         body["source"] = "agent"
         body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/notify", body)
+
+
+@mcp.tool()
+def notification_send(title: str, body: str = "", session_id: str | None = None) -> dict:
+    """Send a best-effort Pan system notification; separate from agent_notify."""
+    caller, error = _require_caller()
+    if error: return error
+    target = session_id or caller["id"]
+    denied = _check_access(target)
+    if denied: return denied
+    return _api("POST", "/api/notifications/send", {
+        "sessionId": target, "title": title, "body": body,
+        "sourceSessionId": caller["id"]})
+
+
+@mcp.tool()
+def reminder_register(due_at: str, title: str, body: str = "", session_id: str | None = None) -> dict:
+    """Register a durable one-shot absolute ISO-8601 reminder."""
+    caller, error = _require_caller()
+    if error: return error
+    target = session_id or caller["id"]
+    denied = _check_access(target)
+    if denied: return denied
+    return _api("POST", f"/api/sessions/{quote(target, safe='')}/reminders",
+                {"dueAt": due_at, "title": title, "body": body})
+
+
+@mcp.tool()
+def reminder_list(session_id: str | None = None) -> dict:
+    """List pending durable reminders for self or a managed Session."""
+    caller, error = _require_caller()
+    if error: return error
+    target = session_id or caller["id"]
+    denied = _check_access(target)
+    if denied: return denied
+    return _api("GET", f"/api/sessions/{quote(target, safe='')}/reminders")
+
+
+@mcp.tool()
+def reminder_cancel(reminder_id: str, session_id: str | None = None) -> dict:
+    """Cancel a pending durable reminder for self or a managed Session."""
+    caller, error = _require_caller()
+    if error: return error
+    target = session_id or caller["id"]
+    denied = _check_access(target)
+    if denied: return denied
+    return _api("DELETE", f"/api/sessions/{quote(target, safe='')}/reminders/{quote(reminder_id, safe='')}")
 
 
 @mcp.tool()
