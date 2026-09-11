@@ -447,6 +447,24 @@ describe('useWebSocket worker.result wiring', () => {
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
+  it('constructs a browser Notification from a granted Pan completion payload without requesting permission', () => {
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1', status: 'done', result: 'reply',
+        notification: { title: 'Pan: demo completed', body: 'reply', browser: true },
+      });
+    });
+
+    expect(BrowserNotification).toHaveBeenCalledWith('Pan: demo completed', { body: 'reply' });
+    expect(BrowserNotification).not.toHaveProperty('requestPermission');
+    vi.unstubAllGlobals();
+  });
+
   it('appends the [DONE] notice for the current session without duplicating history', () => {
     renderHook(() => useWebSocket());
 

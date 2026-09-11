@@ -154,14 +154,22 @@ app = FastAPI(title="Pan", lifespan=lifespan)
 async def _reminder_loop():
     """Recover persisted reminders after restart; claim-before-send is once-only."""
     while True:
-        for item in reminders.claim_due():
-            s = sess.get(item.get("sessionId", ""))
-            if not s:
-                continue
-            payload = notifications.dispatch_reminder(item.get("title", "Reminder"), item.get("body", ""))
-            await broadcast({"type": "notification.reminder", "sessionId": s.id,
-                             "reminderId": item["id"], "notification": payload})
+        await _deliver_due_reminders()
         await asyncio.sleep(1)
+
+
+async def _deliver_due_reminders() -> int:
+    """Claim due records before sending, returning the number of broadcasts."""
+    delivered = 0
+    for item in reminders.claim_due():
+        s = sess.get(item.get("sessionId", ""))
+        if not s:
+            continue
+        payload = notifications.dispatch_reminder(item.get("title", "Reminder"), item.get("body", ""))
+        await broadcast({"type": "notification.reminder", "sessionId": s.id,
+                         "reminderId": item["id"], "notification": payload})
+        delivered += 1
+    return delivered
 
 ws_clients: set[WebSocket] = set()
 agent_clients: set[WebSocket] = set()

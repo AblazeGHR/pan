@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import base64
 
 import pytest
 
@@ -54,6 +55,53 @@ def test_done_dispatch_browser_payload_and_system_failure_is_nonfatal(monkeypatc
     notifications.set_system_sender(notifications.default_system_sender)
 
 
+def test_windows_sender_success_passes_normalized_args_without_real_notification(monkeypatch):
+    monkeypatch.setattr(notifications.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(notifications.shutil, "which", lambda name: "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
+    completed = type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+    run = monkeypatch.setattr(notifications.subprocess, "run", lambda *args, **kwargs: completed)
+    result = notifications.default_system_sender("user title", "body")
+    assert result == {"ok": True, "method": "windows.powershell.notifyicon"}
+    # The mock above proves no real child process was launched; inspect a second
+    # call to verify user data is carried only inside the encoded command.
+    calls = []
+    monkeypatch.setattr(notifications.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)) or completed)
+    notifications.default_system_sender("Pan: user title", "$(bad); \"quoted\"")
+    argv = calls[0][0][0]
+    assert argv[-1] != "$(bad); \"quoted\""
+    assert "$(bad)" not in argv[-1]
+
+
+def test_windows_notifyicon_encoded_script_has_valid_preamble_and_payload_order():
+    title = "中文标题 $()"
+    body = '中文正文；"quoted"；$(Get-Date);'
+    encoded = notifications._windows_notifyicon_command(title, body)
+    decoded = base64.b64decode(encoded).decode("utf-16le")
+
+    assert not decoded.startswith("param()")
+    assert decoded.index("$title =") < decoded.index("Add-Type -AssemblyName System.Windows.Forms")
+    assert decoded.index("$body =") < decoded.index("Add-Type -AssemblyName System.Windows.Forms")
+    assert "New-Object System.Windows.Forms.NotifyIcon" in decoded
+    assert "$notify.ShowBalloonTip(5000)" in decoded
+    assert "Start-Sleep -Seconds 6" in decoded
+    assert title not in decoded
+    assert body not in decoded
+
+
+def test_windows_sender_failure_and_non_windows_are_diagnostic(monkeypatch):
+    monkeypatch.setattr(notifications.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(notifications.shutil, "which", lambda name: "powershell.exe")
+    failed = type("Completed", (), {"returncode": 7, "stdout": "", "stderr": "toast failed"})()
+    monkeypatch.setattr(notifications.subprocess, "run", lambda *args, **kwargs: failed)
+    result = notifications.default_system_sender("title", "body")
+    assert result["code"] == "windows_system_notification_failed"
+    monkeypatch.setattr(notifications.shutil, "which", lambda name: None)
+    unavailable = notifications.default_system_sender("title", "body")
+    assert unavailable["code"] == "windows_powershell_unavailable"
+    monkeypatch.setattr(notifications.platform, "system", lambda: "Linux")
+    assert notifications.default_system_sender("title", "body")["code"] == "unsupported_system_notification"
+
+
 def test_session_patch_and_api_response_expose_notification_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "SESSION_DIR", tmp_path)
     session._cache.clear()
@@ -73,3 +121,36 @@ def test_mcp_notification_tools_require_identity_and_check_access(monkeypatch):
     })
     denied = mcp_server.reminder_list("ses_other")
     assert denied["error"]["code"] == "permission_denied"
+def test_reminder_loop_claims_before_send_and_broadcasts_once(monkeypatch):
+    item = {"id": "rem_1", "sessionId": "ses_a", "title": "Pan: title", "body": "body"}
+    claimed = []
+    broadcasts = []
+    target = session.Session("ses_a", "demo")
+    monkeypatch.setattr(web_server.reminders, "claim_due", lambda: claimed.append(True) or [item])
+    monkeypatch.setattr(web_server.sess, "get", lambda sid: target)
+    monkeypatch.setattr(web_server.notifications, "dispatch_reminder", lambda title, body: {"title": title, "body": body, "system": {"ok": True}})
+    async def capture(event):
+        broadcasts.append(event)
+    monkeypatch.setattr(web_server, "broadcast", capture)
+    import asyncio
+    assert asyncio.run(web_server._deliver_due_reminders()) == 1
+    assert claimed == [True]
+    assert broadcasts[0]["reminderId"] == "rem_1"
+
+
+def test_reminder_api_register_list_cancel_and_invalid_due_at(tmp_path, monkeypatch):
+    import asyncio
+    monkeypatch.setattr(session, "SESSION_DIR", tmp_path / "sessions")
+    monkeypatch.setattr(reminders, "REMINDER_PATH", tmp_path / "reminders.json")
+    session._cache.clear()
+    s = session.create("api-reminder")
+    future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    created = asyncio.run(web_server.api_register_reminder(s.id, {"dueAt": future, "title": "title", "body": "body"}))
+    assert created["ok"] is True
+    reminder_id = created["reminder"]["id"]
+    listed = asyncio.run(web_server.api_list_reminders(s.id))
+    assert listed["reminders"][0]["id"] == reminder_id
+    cancelled = asyncio.run(web_server.api_cancel_reminder(s.id, reminder_id))
+    assert cancelled["ok"] is True
+    invalid = asyncio.run(web_server.api_register_reminder(s.id, {"dueAt": "2030-01-01T00:00:00"}))
+    assert invalid["error"]["code"] == "invalid_due_at"
