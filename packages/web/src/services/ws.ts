@@ -19,6 +19,7 @@ class WsClient {
   private retryAttempt = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private url: string;
+  private lastActivityAt = 0;
 
   constructor(url?: string) {
     const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -33,11 +34,13 @@ class WsClient {
 
     this.ws.onopen = () => {
       this.retryAttempt = 0;
+      this.lastActivityAt = Date.now();
       this.startHeartbeat();
       this.emit('open', { type: 'open' });
     };
 
     this.ws.onmessage = (e: MessageEvent) => {
+      this.lastActivityAt = Date.now();
       try {
         const data: StreamEvent = JSON.parse(e.data as string);
         this.dispatch(data);
@@ -66,6 +69,26 @@ class WsClient {
       this.ws = null;
     }
     this.stopHeartbeat();
+    this.lastActivityAt = 0;
+  }
+
+  /** Replaces only this client's stale socket; subscribers remain attached. */
+  reconnect(): void {
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onmessage = null;
+      this.ws.onopen = null;
+      this.ws.onerror = null;
+      this.ws.close();
+      this.ws = null;
+    }
+    this.stopHeartbeat();
+    this.lastActivityAt = 0;
+    this.connect();
+  }
+
+  isConnectionFresh(maxAgeMs = HEARTBEAT_INTERVAL * 2): boolean {
+    return this.isOpen && this.lastActivityAt > 0 && Date.now() - this.lastActivityAt <= maxAgeMs;
   }
 
   send(data: Record<string, unknown>): boolean {

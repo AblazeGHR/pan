@@ -134,17 +134,69 @@ export function useWebSocket() {
       wsClient.send({ type: 'sync_interactive' });
     };
 
+    const refreshAuthoritativeState = (): void => {
+      const sessionId = useSessionStore.getState().currentSessionId;
+      void useSessionStore.getState().loadSessions();
+      void useWorkerStore.getState().refresh();
+      if (sessionId) {
+        void useSessionStore.getState().refreshCurrentSessionHistory();
+        void useQueueStore.getState().loadAgentQueue(sessionId);
+      }
+      syncInteractiveRequests();
+    };
+
     // Open handler — refresh sessions and restore live native prompts on connect
     unsubscribers.push(wsClient.on('open', () => {
       useSessionStore.getState().loadSessions();
       useWorkerStore.getState().refresh();
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
+      // An open event is the completion point for a focus-triggered stale
+      // reconnect. Refresh the selected session and queue here so recovery
+      // does not race a new socket with HTTP snapshots.
+      const sessionId = useSessionStore.getState().currentSessionId;
+      if (sessionId) {
+        void useSessionStore.getState().refreshCurrentSessionHistory();
+        void useQueueStore.getState().loadAgentQueue(sessionId);
+      }
       syncInteractiveRequests();
     }));
     // If the singleton was already open before this hook mounted (HMR/route
     // remount), no new `open` event will arrive; sync explicitly as well.
     if (wsClient.isOpen) syncInteractiveRequests();
+
+    // Browser lifecycle events are only signals. The singleton connection
+    // layer remains the single owner of reconnect/open synchronization.
+    let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+    let recoveryInFlight: Promise<void> | null = null;
+    const recover = (): void => {
+      if (recoveryTimer) clearTimeout(recoveryTimer);
+      recoveryTimer = setTimeout(() => {
+        recoveryTimer = null;
+        if (recoveryInFlight) return;
+        recoveryInFlight = (async () => {
+          const fresh = typeof wsClient.isConnectionFresh === 'function'
+            ? wsClient.isConnectionFresh()
+            : wsClient.isOpen;
+          if (!fresh) {
+            // reconnect() preserves all subscribers and its open handler above
+            // performs the authoritative refresh once the new socket is live.
+            if (typeof wsClient.reconnect === 'function') wsClient.reconnect();
+            else wsClient.connect();
+            return;
+          }
+          refreshAuthoritativeState();
+        })().finally(() => {
+          recoveryInFlight = null;
+        });
+      }, 100);
+    };
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === 'visible') recover();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pageshow', recover);
+    window.addEventListener('focus', recover);
 
     // Queue events are convergence hints. The server snapshot remains the
     // business source of truth, so a stale or duplicated event cannot create
@@ -438,6 +490,10 @@ export function useWebSocket() {
       streamPreviewTimers.clear();
       streamPreviewPending.clear();
       streamPreviewLastFlush.clear();
+      if (recoveryTimer) clearTimeout(recoveryTimer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pageshow', recover);
+      window.removeEventListener('focus', recover);
     };
   }, []);
 }
