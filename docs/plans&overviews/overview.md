@@ -10,14 +10,14 @@
 
 | 分支 | 路径 | HEAD | 阶段状态 |
 |---|---|---|---|
-| `main` | `D:\project\Pan-main` | `ec3500c`（含本次合入 `5d1f214`，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
+| `main` | `D:\project\Pan-main` | `5d1f214`（代码合入基线，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
 | `practical` | `D:\project\Pan` | `46d5879` | 与 main 同一当前基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的改动
 
 ### main 与 practical 当前差异（本节置顶）
 
-- `main`（`ec3500c`，未 push）比 `practical`（`46d5879`）多：Toast 点击复制（`31b792b`、`8119bf3`）、Codex 全局额度缓存（`97930f7`、`6159644`、`b1770f9`）、MCP model_list adapter 发现（`0e431e5`）、Markdown 行号链接跳转（`cea2611`）、React-only/Vanilla 退役（`5ffd395c`、`2947d0c`）、Codex 上下文设置（`a9843c1`）、附件 Markdown/目录输入整合（`240d858`、`9c0852b`、`cd09841`、`4444371`）、Memory 关闭时 minimal requirements 分层（`421c591`）、浏览器后台恢复（`5d1f214`）。
+- `main`（代码基线 `5d1f214`，未 push）比 `practical`（`46d5879`）多：Toast 点击复制（`31b792b`、`8119bf3`）、Codex 全局额度缓存（`97930f7`、`6159644`、`b1770f9`）、MCP model_list adapter 发现（`0e431e5`）、Markdown 行号链接跳转（`cea2611`）、React-only/Vanilla 退役（`5ffd395c`、`2947d0c`）、Codex 上下文设置（`a9843c1`）、附件 Markdown/目录输入整合（`240d858`、`9c0852b`、`cd09841`、`4444371`）、Memory 关闭时 minimal requirements 分层（`421c591`）、浏览器后台恢复（`5d1f214`）。
 
 ### 1. Session prompt 拆分与非递归交接准备
 
