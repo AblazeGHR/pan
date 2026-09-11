@@ -272,7 +272,7 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
 - `Session`（API 形态）已有 `outputMode?: string | null`（核对 types:199 附近有无，无则补）。
 - `services/api.ts` 的 adapter config 解析补 `executionModes`。
 
-### 6.5 Legacy（packages/web/ts/app.ts）
+### 6.5 已退役前端（历史记录）
 
 - `adapterConfig` 类型补 `executionModes: string[]`（:132）；`supportedSettings()` 旁新增 `executionModes()` 取值。
 - 设置渲染处（:2752 起的 show/hide 逻辑）增加 output mode 选择器：当 `executionModes().length > 1` 显示；one-shot-only 时只渲染唯一项。
@@ -335,8 +335,8 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
   - one-shot-only adapter（临时把某 adapter 设成 `["oneshot"]` 验证）→ 选择器不渲染或单选项。
 
 ### 步骤 5 — Legacy 前端跟随（可选，低优先）
-- **文件**：`packages/web/ts/app.ts`
-- **验证**：`npx tsc --noEmit`（项目根）通过；手动核对设置项出现。
+- 本节记录的是退役前端在当时方案中的适配要求，不再作为实施计划。
+- 当前前端统一使用 `packages/web` 的 Vite/TypeScript 构建。
 
 ### 步骤 6 — 文档与收尾
 - 更新 `docs/design/adapter-architecture.md` §2 标注"已立项实现于 adapter-p1-oneshot.md"；删除其中过时的"kimi=oneshot"措辞（改为"worker 层 stream，wrapper 内部一次性"）。
@@ -379,7 +379,7 @@ const showOutputMode = execModes.length > 1;   // 单模式 adapter 不显示切
 - [ ] `/api/adapter/config` 与 `_session_to_api` 暴露 `executionModes`。
 - [ ] React 设置弹窗按 `executionModes` 渲染 output mode；one-shot-only 不出现 stream。
 - [ ] 步骤 1/2/3 各有对应验证（单测 + 端到端对照）通过。
-- [ ] `pnpm build` 与 `npx tsc --noEmit` 通过。
+- [ ] `pnpm build` 通过（历史验收项，当前实现以 React 为准）。
 - [ ] kimi/opencode 回归测试通过（零行为变化）。
 
 ---
@@ -427,5 +427,5 @@ kimi/opencode：始终 `mode=="stream"`，零行为变化。
 
 **（2026-08-27 注：阶段二已完成**——`packages/web/src/components/SettingsPopover.tsx` 已按 `config.executionModes` 渲染 Output Mode 选择器。以下为当时的前置条件记录。**）**
 
-`fe-adapter-entry` 正在改 `packages/web/src/`（NewSessionModal / api.ts / sessionStore / ts/app.ts）。阶段一**未触碰任何前端文件**。开始前需 `git status` 确认其前端改动已提交，避免冲突。本阶段后端已为前端准备好：`/api/adapter/config` 与 `session` 响应均含 `executionModes`，前端据此渲染 Output Mode 选择器即可（详见 §6）。
+`fe-adapter-entry` 当时正在改 `packages/web/src/`（NewSessionModal / api.ts / sessionStore）。阶段一**未触碰任何前端文件**。开始前需 `git status` 确认其前端改动已提交，避免冲突。本阶段后端已为前端准备好：`/api/adapter/config` 与 `session` 响应均含 `executionModes`，前端据此渲染 Output Mode 选择器即可（详见 §6）。
 

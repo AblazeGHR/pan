@@ -110,22 +110,13 @@ if %ERRORLEVEL% EQU 0 (
     call pnpm install
     if !ERRORLEVEL! EQU 0 (
         call pnpm build
-        if !ERRORLEVEL! EQU 0 (echo [OK] React SPA 构建完成) else (echo [WARN] React 构建失败 — legacy 仍可用)
+        if !ERRORLEVEL! EQU 0 (echo [OK] React SPA 构建完成) else (echo [WARN] React 构建失败 — /react/ 不可用)
     ) else (
         echo [WARN] pnpm install 失败 — 跳过 React 构建
     )
     popd
 ) else (
     echo [WARN] 未找到 pnpm — 跳过 React 构建。安装: corepack enable 或 npm i -g pnpm
-)
-where npx >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    pushd "%ROOT%"
-    call npx tsc
-    if !ERRORLEVEL! EQU 0 (echo [OK] Legacy 前端编译完成) else (echo [WARN] Legacy 编译失败)
-    popd
-) else (
-    echo [WARN] 未找到 npx/node — 跳过 legacy 编译
 )
 echo.
 

@@ -8,7 +8,7 @@
 #   2. QQ 模块依赖 (packages/qq/requirements.txt，可用 PAN_QQ_PYTHON 覆盖)
 #   3. PATH 检查: node + cbc/kimi/codex/opencode 等 CLI
 #   4. config.json 复制提示 + packages/qq/.env 重建提醒
-#   5. 前端构建: React (pnpm) + legacy (根目录 npx tsc)
+#   5. 前端构建: React (pnpm)
 #
 # 单步失败不中断后续步骤，最后汇总。
 # 用法: bash scripts/setup.sh
@@ -166,30 +166,18 @@ fi
 # ------------------------------------------------------------
 # [5/5] 前端构建
 #   React SPA: packages/web/ 内 pnpm install && pnpm build (产物 dist/，gitignored)
-#   Legacy:    根目录 npx tsc (产物 static/js/app.js，gitignored)
 # ------------------------------------------------------------
-step "5/5" "构建前端 (React + legacy)"
+step "5/5" "构建前端 (React)"
 
 if command -v pnpm >/dev/null 2>&1; then
     echo "pnpm install && pnpm build (packages/web/) ..."
     if (cd "$ROOT/packages/web" && pnpm install && pnpm build); then
         ok "React SPA 构建完成 (packages/web/dist/)"
     else
-        warn "React SPA 构建失败 — /react/ 不可用；legacy 前端仍可作为备用"
+        warn "React SPA 构建失败 — /react/ 不可用"
     fi
 else
     warn "未找到 pnpm — 跳过 React 构建。安装: corepack enable  或  npm install -g pnpm"
-fi
-
-if command -v node >/dev/null 2>&1 && [ "$MISSING_REQUIRED" -eq 0 ]; then
-    echo "npx tsc (根目录, legacy 前端) ..."
-    if npx tsc; then
-        ok "Legacy 前端编译完成 (packages/web/static/js/app.js)"
-    else
-        warn "Legacy 前端编译失败 — /vanilla 不可用；React 前端仍可作为主用"
-    fi
-else
-    warn "node 不可用 — 跳过 legacy 编译"
 fi
 
 # ------------------------------------------------------------

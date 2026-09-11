@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-commit hook — ensures both frontends compile cleanly.
+# pre-commit hook — ensures the React frontend compiles cleanly.
 #
 # Install: ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
 
@@ -7,18 +7,6 @@ set -e
 
 staged=$(git diff --cached --name-only)
 
-# Old frontend (Vanilla JS)
-if echo "$staged" | grep -q 'packages/web/ts/app.ts'; then
-  echo "pre-commit: checking legacy frontend..."
-  npx tsc --noEmit 2>&1 || {
-    echo ""
-    echo "Legacy TypeScript compilation failed. Fix errors and try again."
-    exit 1
-  }
-  echo "Legacy frontend OK"
-fi
-
-# New frontend (React)
 if echo "$staged" | grep -q 'packages/web/src/'; then
   echo "pre-commit: checking React frontend..."
   cd packages/web && npx tsc -b --noEmit 2>&1 || {

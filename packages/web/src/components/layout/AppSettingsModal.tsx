@@ -871,8 +871,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               /api/settings/worker: save + hot-apply in one step); a save
               shows its before→after in this section's result block below.
               plugin/memory live in the "Other hot-reload" section
-              below; ui settings are read live per request and need no
-              reload; frontend/port/logging/remote are startup-frozen. */}
+              below; ui settings are read live per request and need no reload. */}
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                   Configuration reload
@@ -926,8 +925,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               plugin re-applies the plugin_manifests LIST from config.json,
               so manifest files added to / removed from the list take effect
               (/api/manifest/reload only re-reads the already-registered
-              files). memory re-reads the memory.enabled injection switch.
-              frontend / port / logging / remote stay startup-frozen. */}
+              files). memory re-reads the memory.enabled injection switch. */}
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                   Other hot-reload
@@ -967,8 +965,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   </div>
                 )}
                 <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  frontend / port / logging / remote are startup-frozen and need a server restart to
-                  apply.
+                  port / logging / remote are startup-frozen and need a server restart to apply.
                 </p>
               </section>
 

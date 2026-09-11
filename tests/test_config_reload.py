@@ -189,7 +189,7 @@ def test_reload_default_scope_all_includes_everything():
     assert "plugin" in r
     assert "memory" in r
     assert r["plugin"]["applied"] is True
-    assert "frontend" in r["requiresRestart"]
+    assert "frontend" not in r["requiresRestart"]
 
 
 def test_reload_worker_scope_skips_adapters():
