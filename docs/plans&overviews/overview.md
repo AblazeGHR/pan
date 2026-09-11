@@ -68,18 +68,23 @@
 - 集成注意：该目录虽可作为独立 Git 仓库读取提交，但不在 `Pan-main` 的已注册 worktree 列表中；合入前必须核对基线和补丁，不能直接假定已处于主仓库拓扑。
 - 未合入 main；未 push；未做 live MCP E2E。
 
-## 四、正在调查的任务
+## 四、已完成调查 / 待实现任务
 
 ### Context window 与压缩阈值
 
-- 状态：调查与低成本隔离实验进行中。
+- 状态：调查完成；未修改代码，待后续实现决策。
 - 工作树：`D:\project\pan-worktrees\context-window-threshold-experiment-luna-20260911`
 - 分支：`audit/context-window-threshold-experiment-luna-20260911`
 - 基线：`31e1ee310cbf1082b01a7f0282fc817f4a1f5a79`
-- TA：Codex `gpt-5.6-luna` high；隔离测试模型使用 Luna low。
+- TA：Codex `gpt-5.6-luna` high；本次没有启动实际测试模型，因此没有消耗模型 token。
 - 目标：确认 `model_context_window` 与 `model_auto_compact_token_limit` 是否能在 Session 创建后修改，并在下一次 spawn/respawn 生效；区分运行中 App Server 热更新、Codex thread resume 和新进程读取配置。
-- 硬性限制：不使用 practical 服务、不触碰 8768；避免触发真实 compact 或消耗大量额度；优先 CLI help、静态参数、argv、临时 `CODEX_HOME` 和低成本生命周期实验。
-- 当前未产生代码提交，不涉及合入。
+- 硬性限制：不使用 practical 服务、不触碰 8768；不触发真实 compact，不进行长对话；仅完成官方文档、CLI help、静态参数和进程内构造实验。
+- 结论：两个值都属于 Codex 启动配置，应作为可持久化的 Codex Session 设置；修改后通过 Worker respawn 重新启动 App Server，并保留原 `cli_session_id` 做 `thread/resume`。当前证据不支持运行中 App Server 热更新，也没有证据要求新建 Pan Session/Codex thread。
+- 当前 Pan 尚未接入这两个字段；不能把当前代码行为误称为已支持。
+- 官方参考：[configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)、[config basics](https://learn.chatgpt.com/docs/config-file/config-basic)、[App Server](https://learn.chatgpt.com/docs/app-server)。
+- 已确认：`model_context_window`、`model_auto_compact_token_limit` 均为 `number` 配置键；后者未设置时使用模型默认值；`-c/--config key=value` 可传入。
+- 未验证：真实 App Server 启动后是否实际采用新值；同一 thread resume 后上下文窗口/compact 行为是否完全按新值运行；`config/value/write` 是否影响已运行进程；有效范围和边界值。
+- 产品建议：放入现有 Session Settings，不新增 new-session 专用输入；空值删除 override，不生成空字符串/0/default 的 `-c` 参数；修改后提示 Worker restart/respawn 后生效。
 
 ## 五、已完成的调查结论
 
@@ -99,7 +104,7 @@
 
 ## 六、待处理清单
 
-1. 等待 context window/compaction 隔离实验报告，决定是否实现 Session 设置。
+1. 根据 context window/compaction 调查结论，决定是否实现 Session Settings 支持；如实现，先做低成本 argv/respawn 验证，不触发真实 compact。
 2. 对 MCP `model_list` 提交建立正确的主仓库 integration worktree，核对补丁后再合入。
 3. 对 Codex quota 提交进行 integration review；必要时补真实隔离 E2E，但不得使用 practical/8768。
 4. 清理已完成且不再需要的历史 feature/integration worktree，先确认没有未提交用户文件。
