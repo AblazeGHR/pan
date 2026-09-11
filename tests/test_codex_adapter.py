@@ -110,6 +110,35 @@ def test_build_spawn_args_with_resume():
     print("PASS: build_spawn_args with resume")
 
 
+def test_build_spawn_args_context_overrides_use_toml_integers():
+    args = _adapter().build_spawn_args(_session(adapter_config={
+        "model_context_window": 64000,
+        "model_auto_compact_token_limit": 60800,
+    }))
+    extra = json.loads(args[args.index("--codex-extra-args") + 1])
+    assert 'model_context_window=64000' in extra
+    assert 'model_auto_compact_token_limit=60800' in extra
+    assert 'model_context_window="64000"' not in extra
+    assert 'model_auto_compact_token_limit="60800"' not in extra
+
+
+def test_build_spawn_args_context_overrides_are_omitted_when_unset():
+    args = _adapter().build_spawn_args(_session())
+    extra = json.loads(args[args.index("--codex-extra-args") + 1])
+    assert not any("model_context_window" in value for value in extra)
+    assert not any("model_auto_compact_token_limit" in value for value in extra)
+
+
+def test_build_spawn_args_ignores_malformed_legacy_context_values():
+    args = _adapter().build_spawn_args(_session(adapter_config={
+        "model_context_window": 0,
+        "model_auto_compact_token_limit": -1,
+    }))
+    extra = json.loads(args[args.index("--codex-extra-args") + 1])
+    assert not any("model_context_window" in value for value in extra)
+    assert not any("model_auto_compact_token_limit" in value for value in extra)
+
+
 def test_permission_mode_args():
     a = _adapter()
     s = _session()

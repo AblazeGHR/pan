@@ -140,6 +140,21 @@ def validate_output_mode(a: CliAdapter, mode: str) -> None:
         )
 
 
+def validate_positive_integer_setting(a: CliAdapter, key: str, value) -> None:
+    """Validate an optional numeric adapter override.
+
+    ``None`` is the explicit clear operation and is handled by callers.  A
+    value that is present must be a real positive integer: bool, float, empty
+    string, zero, and negative values are never valid native config values.
+    """
+    require_setting(a, key)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise AdapterCapabilityError(
+            f"{key} must be a positive integer or null, got {value!r} "
+            f"(adapter '{a.name}')"
+        )
+
+
 def validate_session_settings(
     adapter_name: str,
     settings: dict,
@@ -159,7 +174,9 @@ def validate_session_settings(
       ``current_model``（session 当前 model）；
     - maxThinkingTokens：目前没有任何 adapter 消费 → 一律拒绝，不再
       伪成功持久化；
-    - outputMode：须在 execution_modes 内。
+    - outputMode：须在 execution_modes 内；
+    - modelContextWindow / modelAutoCompactTokenLimit：非 None 时必须是
+      正整数，且 adapter 必须声明该设置。
     """
     a = resolve_adapter(adapter_name)
     model = settings.get("model") or current_model
@@ -182,6 +199,9 @@ def validate_session_settings(
             )
     if settings.get("outputMode"):
         validate_output_mode(a, str(settings["outputMode"]))
+    for key in ("modelContextWindow", "modelAutoCompactTokenLimit"):
+        if key in settings and settings[key] is not None:
+            validate_positive_integer_setting(a, key, settings[key])
 
 
 def sanitize_adapter_config(
@@ -213,6 +233,18 @@ def sanitize_adapter_config(
             out.pop("thinking", None)
     # maxThinkingTokens 无 adapter 消费，跨 adapter 复制一律丢弃。
     out.pop("max_thinking_tokens", None)
+    if a.name != "codex":
+        # These are native Codex config overrides, not generic session
+        # settings. A handoff to another adapter must not retain them.
+        out.pop("model_context_window", None)
+        out.pop("model_auto_compact_token_limit", None)
+    else:
+        for key in ("model_context_window", "model_auto_compact_token_limit"):
+            value = out.get(key)
+            if value is None or (
+                isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            ):
+                out.pop(key, None)
     if out.get("output_mode") and out["output_mode"] not in a.execution_modes:
         out.pop("output_mode")
     return out

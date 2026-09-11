@@ -13,8 +13,10 @@
 """
 
 import asyncio
+import json
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -106,6 +108,45 @@ def test_create_valid_model_succeeds(monkeypatch):
 
 
 def test_create_max_thinking_tokens_rejected(monkeypatch):
+    _cleanup()
+
+
+def test_codex_context_settings_are_optional_and_not_synthesized(monkeypatch):
+    _cleanup()
+    _patch_caps(monkeypatch)
+    monkeypatch.setattr(srv, "_resolve_mcp_server_configs", lambda _: [])
+    suffix = uuid.uuid4().hex[:8]
+    with patch.object(srv, "broadcast", new=AsyncMock()):
+        default = asyncio.run(srv.api_create_session(
+            {"name": f"codex-context-default-{suffix}", "adapter": "codex",
+             "model": "gpt-5.1-codex"}))
+        configured = asyncio.run(srv.api_create_session(
+            {"name": f"codex-context-configured-{suffix}", "adapter": "codex",
+             "model": "gpt-5.1-codex", "modelContextWindow": 64000,
+             "modelAutoCompactTokenLimit": 60800}))
+    assert "error" not in default, default
+    assert "model_context_window" not in _sess.get(default["id"]).adapter_config
+    assert "model_auto_compact_token_limit" not in _sess.get(default["id"]).adapter_config
+    assert configured["modelContextWindow"] == 64000
+    assert configured["modelAutoCompactTokenLimit"] == 60800
+    configured_config = _sess.get(configured["id"]).adapter_config
+    assert configured_config["model_context_window"] == 64000
+    assert configured_config["model_auto_compact_token_limit"] == 60800
+    persisted = json.loads(_sess._path(configured["id"]).read_text(encoding="utf-8"))
+    assert persisted["adapter_config"]["model_context_window"] == 64000
+    assert persisted["adapter_config"]["model_auto_compact_token_limit"] == 60800
+    _cleanup()
+
+
+@pytest.mark.parametrize("value", ["", 0, -1, 1.5, True])
+def test_codex_context_settings_reject_non_positive_integers(monkeypatch, value):
+    _cleanup()
+    _patch_caps(monkeypatch)
+    s = _make("ses-context-invalid", "context-invalid", adapter="codex",
+              model="gpt-5.1-codex")
+    with pytest.raises(ValueError, match="modelContextWindow"):
+        srv._apply_session_updates(s, {"modelContextWindow": value})
+    assert "model_context_window" not in s.adapter_config
     _cleanup()
     _patch_caps(monkeypatch)
     with patch.object(srv, "broadcast", new=AsyncMock()):
@@ -204,6 +245,63 @@ def test_patch_codex_per_model_effort_enforced(monkeypatch):
 
 
 def test_apply_session_updates_raises_without_mutation(monkeypatch):
+    _cleanup()
+
+
+def test_codex_context_restore_deletes_keys_and_marks_idle_worker_for_respawn(monkeypatch):
+    _cleanup()
+    _patch_caps(monkeypatch)
+    s = _make("ses-context-idle", "context-idle", adapter="codex",
+              model="gpt-5.1-codex",
+              adapter_config={"model_context_window": 64000,
+                              "model_auto_compact_token_limit": 60800})
+    live = type("Live", (), {"worker_id": "worker-context-idle", "status": "idle", "process": object(),
+                              "pending_restart": False})()
+    monkeypatch.setattr(srv.worker, "find_alive_worker_by_session", lambda _: live)
+    created = []
+
+    def fake_create_task(coro):
+        created.append(coro)
+        coro.close()
+        return object()
+
+    monkeypatch.setattr(srv.asyncio, "create_task", fake_create_task)
+    with patch.object(srv, "broadcast", new=AsyncMock()):
+        result = asyncio.run(srv.api_update_session("ses-context-idle", {
+            "modelContextWindow": None,
+            "modelAutoCompactTokenLimit": None,
+        }))
+    assert result["requireRestart"] is True
+    assert "model_context_window" not in s.adapter_config
+    assert "model_auto_compact_token_limit" not in s.adapter_config
+    persisted = json.loads(_sess._path(s.id).read_text(encoding="utf-8"))
+    assert "model_context_window" not in persisted["adapter_config"]
+    assert "model_auto_compact_token_limit" not in persisted["adapter_config"]
+    assert live.pending_restart is False
+    assert len(created) == 1
+    argv = CodexAdapter().build_spawn_args(s)
+    assert "model_context_window" not in " ".join(argv)
+    assert "model_auto_compact_token_limit" not in " ".join(argv)
+    _cleanup()
+
+
+def test_codex_context_update_marks_running_worker_pending_restart(monkeypatch):
+    _cleanup()
+    _patch_caps(monkeypatch)
+    s = _make("ses-context-running", "context-running", adapter="codex",
+              model="gpt-5.1-codex")
+    live = type("Live", (), {"worker_id": "worker-context-running", "status": "running", "process": object(),
+                              "pending_restart": False})()
+    monkeypatch.setattr(srv.worker, "find_alive_worker_by_session", lambda _: live)
+    with patch.object(srv, "broadcast", new=AsyncMock()):
+        result = asyncio.run(srv.api_update_session("ses-context-running", {
+            "modelContextWindow": 64000,
+            "modelAutoCompactTokenLimit": 60800,
+        }))
+    assert result["requireRestart"] is True
+    assert live.pending_restart is True
+    assert s.adapter_config["model_context_window"] == 64000
+    assert s.adapter_config["model_auto_compact_token_limit"] == 60800
     _cleanup()
     _patch_caps(monkeypatch)
     s = _make("ses_p8", "p8", model="hy3", permission_mode="plan")

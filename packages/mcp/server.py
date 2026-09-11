@@ -316,6 +316,8 @@ def session_create(
     system_prompt: str | None = None,
     game_id: str | None = None,
     pan_access: dict | None = None,
+    model_context_window: int | None = None,
+    model_auto_compact_token_limit: int | None = None,
 ) -> dict:
     """Create a new session (persistent conversation container).
 
@@ -335,6 +337,9 @@ def session_create(
         game_id: RuleWhisper game binding.
         pan_access: Capability flags dict, keys: restrictToManaged /
             canClaimUnmanaged / autoClaimCreated (all default False).
+        model_context_window / model_auto_compact_token_limit: Optional
+            positive Codex config overrides. Omitted values are not sent and
+            are not persisted; non-Codex adapters reject explicit values.
 
     Priority (explicit field > sessionTemplate template value > default):
     arguments explicitly passed here override the session_template's values,
@@ -362,6 +367,10 @@ def session_create(
         body["gameId"] = game_id
     if pan_access:
         body["panAccess"] = pan_access
+    if model_context_window is not None:
+        body["modelContextWindow"] = model_context_window
+    if model_auto_compact_token_limit is not None:
+        body["modelAutoCompactTokenLimit"] = model_auto_compact_token_limit
     result = _strip_usage(_api("POST", "/api/sessions", body))
     # meta-agent 创建的 session 自动归其管理（立项 4.2）
     if isinstance(result, dict) and result.get("id"):
@@ -972,13 +981,18 @@ def session_update(
     max_thinking_tokens: int | None = None,
     mcp_servers: list[str] | None = None,
     game_id: str | None = None,
+    model_context_window: int | None = None,
+    model_auto_compact_token_limit: int | None = None,
+    clear_model_context_window: bool = False,
+    clear_model_auto_compact_token_limit: bool = False,
 ) -> dict:
     """Update session-level settings without spawning a worker.
 
     Settings persist on the session immediately and take effect when the
     worker next (re)spawns — a managed Agent's mcp_servers can be switched
     mid-session at any time (unlike adapter, which requires session_handoff).
-    Changing mcp_servers always sets requireRestart: true in the response;
+    Changing mcp_servers or either Codex context override always sets
+    requireRestart: true in the response;
     with a live worker, any process-affecting change (model/permission_mode/
     effort/thinking/mcp_servers) sets it too. The restart is automatic:
     idle worker → respawned immediately; running worker → respawned when it
@@ -1001,6 +1015,10 @@ def session_update(
              不产生无效配置；模板 mcp_mode=always/never 锁死增删（本工具无
              forceMcp 旁路，仅 HTTP PATCH 带 forceMcp:true 可解锁）。
         game_id: RuleWhisper game binding; pass "" to clear
+        model_context_window / model_auto_compact_token_limit: Optional
+            positive Codex overrides. Omitted values preserve the current
+            setting. Use the matching clear_* flag to persistently remove it
+            and delegate to Codex/model defaults.
 
     权限边界：_check_access 管理隔离——受限 caller（restrictToManaged）只能
     更新自己管理的 session。
@@ -1025,6 +1043,14 @@ def session_update(
         body["mcpServers"] = mcp_servers
     if game_id is not None:
         body["gameId"] = game_id or None
+    if model_context_window is not None:
+        body["modelContextWindow"] = model_context_window
+    elif clear_model_context_window:
+        body["modelContextWindow"] = None
+    if model_auto_compact_token_limit is not None:
+        body["modelAutoCompactTokenLimit"] = model_auto_compact_token_limit
+    elif clear_model_auto_compact_token_limit:
+        body["modelAutoCompactTokenLimit"] = None
     return _strip_usage(_api("PATCH", f"/api/sessions/{session_id}", body))
 
 

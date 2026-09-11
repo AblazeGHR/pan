@@ -193,8 +193,12 @@ class CodexAdapter:
         {"value": "bypass", "label": "bypass (--dangerously-bypass-approvals-and-sandbox)"},
         {"value": "approve", "label": "approve-for-me (workspace-write + auto-approve)"},
     ]
-    # 前端展示的设置项
-    supported_settings = ["model", "permissionMode", "effort"]
+    # 前端展示的设置项。context/auto-compact 使用 Codex 原生 config.toml
+    # 字段名，但 API/UI 仍沿用现有 session settings 的 camelCase 约定。
+    supported_settings = [
+        "model", "permissionMode", "effort",
+        "modelContextWindow", "modelAutoCompactTokenLimit",
+    ]
 
     # ── 路径解析（避开 .CMD shim 中文乱码） ──
 
@@ -234,6 +238,22 @@ class CodexAdapter:
         if effort:
             return ["-c", _c_override("model_reasoning_effort", effort)]
         return []
+
+    def context_window_args(self, s: Session) -> list[str]:
+        """Return explicitly configured Codex context/compaction overrides.
+
+        Pan deliberately has no defaults here.  Omitting a key delegates to
+        Codex/the selected model, including on ``exec resume``.  Validation is
+        performed at the session API boundary; this method is also defensive
+        for malformed legacy JSON.
+        """
+        opts: list[str] = []
+        for key in ("model_context_window", "model_auto_compact_token_limit"):
+            value = s.adapter_config.get(key)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                continue
+            opts.extend(["-c", _c_override(key, value)])
+        return opts
 
     def permission_mode_args(self, s: Session) -> list[str]:
         """权限模式 → codex exec 参数（fresh 与 resume 均生效）。
@@ -282,6 +302,7 @@ class CodexAdapter:
         codex_opts.extend(self.model_args(s))
         codex_opts.extend(self.permission_mode_args(s))
         codex_opts.extend(self.effort_args(s))
+        codex_opts.extend(self.context_window_args(s))
         codex_opts.extend(self.mcp_args(s))
         if codex_opts:
             args.extend(["--codex-extra-args", json.dumps(codex_opts, ensure_ascii=False)])
