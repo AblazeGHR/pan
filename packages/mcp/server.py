@@ -1473,7 +1473,10 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 
 @mcp.tool()
 def notification_send(title: str, body: str = "", session_id: str | None = None) -> dict:
-    """Send a best-effort Pan system notification; separate from agent_notify."""
+    """Send a best-effort Pan system notification; separate from agent_notify.
+
+    完整编排流程见 /pan skill。
+    """
     caller, error = _require_caller()
     if error: return error
     target = session_id or caller["id"]
@@ -1486,7 +1489,10 @@ def notification_send(title: str, body: str = "", session_id: str | None = None)
 
 @mcp.tool()
 def reminder_register(due_at: str, title: str, body: str = "", session_id: str | None = None) -> dict:
-    """Register a durable one-shot absolute ISO-8601 reminder."""
+    """Register a durable one-shot absolute ISO-8601 reminder.
+
+    完整编排流程见 /pan skill。
+    """
     caller, error = _require_caller()
     if error: return error
     target = session_id or caller["id"]
@@ -1498,7 +1504,10 @@ def reminder_register(due_at: str, title: str, body: str = "", session_id: str |
 
 @mcp.tool()
 def reminder_list(session_id: str | None = None) -> dict:
-    """List pending durable reminders for self or a managed Session."""
+    """List pending durable reminders for self or a managed Session.
+
+    完整编排流程见 /pan skill。
+    """
     caller, error = _require_caller()
     if error: return error
     target = session_id or caller["id"]
@@ -1509,7 +1518,10 @@ def reminder_list(session_id: str | None = None) -> dict:
 
 @mcp.tool()
 def reminder_cancel(reminder_id: str, session_id: str | None = None) -> dict:
-    """Cancel a pending durable reminder for self or a managed Session."""
+    """Cancel a pending durable reminder for self or a managed Session.
+
+    完整编排流程见 /pan skill。
+    """
     caller, error = _require_caller()
     if error: return error
     target = session_id or caller["id"]

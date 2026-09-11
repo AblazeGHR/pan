@@ -249,7 +249,17 @@
 
 ## 四、正在进行的任务/改动
 
-当前暂无。
+### Pan MCP 工具清单与 skill 同步审计
+
+- 计划/目标：以 `packages/mcp/server.py` 的 `@mcp.tool()` 为事实源，保持 Pan skill 工具名、参数和关键语义同步，并区分 `worker_*` 兼容别名与一等工具。
+- 调查/实现：确认 Pan server 为 49 个工具（42 个一等工具、7 个 `worker_*` 兼容别名）；`pan-qq` 为独立 server 的 7 个工具。更新主源及 HTTP 引用，新增 stdlib-only `scripts/check_pan_skill_tools.py`。
+- 工作树/分支：`D:\project\pan-worktrees\pan-skill-tool-sync-20260912`；detached HEAD，基于 `main@0407dbf8e5e899530a001c5d1e1eafc82e1d4315`；提交后 clean。
+- 提交：`875cb0436557f610e8ff3451d0396615d6edc0ba`；未合入 main，未 push。
+- 验证：静态工具集合检查通过；`py_compile` 通过；定向 pytest `28 passed, 1 skipped`；`git diff --check` 通过。未启动服务，未访问 8765/8767/8768。
+- 同步副本：本 worktree 不存在 `.codebuddy/skills/pan/SKILL.md`；安装目录副本未修改，仍需在允许外部文件变更时另行同步。
+- 验收清单：
+  - [ ] 合入 main
+  - [ ] 开发者验收
 
 ## 五、计划要做的任务
 
