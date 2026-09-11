@@ -78,6 +78,9 @@ def test_windows_sender_failure_and_non_windows_are_diagnostic(monkeypatch):
     monkeypatch.setattr(notifications.subprocess, "run", lambda *args, **kwargs: failed)
     result = notifications.default_system_sender("title", "body")
     assert result["code"] == "windows_system_notification_failed"
+    monkeypatch.setattr(notifications.shutil, "which", lambda name: None)
+    unavailable = notifications.default_system_sender("title", "body")
+    assert unavailable["code"] == "windows_powershell_unavailable"
     monkeypatch.setattr(notifications.platform, "system", lambda: "Linux")
     assert notifications.default_system_sender("title", "body")["code"] == "unsupported_system_notification"
 
