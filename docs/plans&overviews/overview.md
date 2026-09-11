@@ -10,7 +10,7 @@
 
 | 分支 | 路径 | HEAD | 阶段状态 |
 |---|---|---|---|
-| `main` | `D:\project\Pan-main` | `71af0f5`（通知/msgBridge 待本次整合，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
+| `main` | `D:\project\Pan-main` | `0b23a86`（通知/msgBridge 已本地合入，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
 | `practical` | `D:\project\Pan` | `46d5879` | 与 main 同一当前基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的改动
@@ -226,27 +226,30 @@
   - [ ] 真实 API/MCP 或 browser E2E 通过
 - 合入/push 状态：合入 main：是（本地 `main@421c591`）；push：否。
 
-## 三、已完成但尚未合入 main 的改动
-
-### 1. Pan 通知、系统提醒与 msgBridge
+### 16. Pan 通知、系统提醒与 msgBridge
 
 - 计划/目标：为浏览器/系统通知统一强制 `Pan:` 前缀；持久化 Session 完成通知开关；提供可恢复、一次性绝对 dueAt 系统提醒；以 msgBridge 替换 UI 旧 Postbox 名称，同时保留 QQ 标签页。
 - 调查/设计结论：复用 Session PATCH 与 `worker.result`；`agent_notify` 保持内部 agent queue 语义。旧 Session JSON 的 `notification_settings` 缺失时安全默认为关闭；handoff 与 native branch 复制该设置，`copySettings=false` 默认关闭。系统 sender 采用可注入接口，Windows 使用 inbox PowerShell/.NET `NotifyIcon` 子进程，标题/body 作为独立参数传递；非 Windows 明确返回 `unsupported_system_notification`，Windows 子进程失败返回诊断错误，通知失败不影响任务完成。
 - 实现：`packages/core/notifications.py`、`packages/core/reminders.py`；Session/worker/Web/MCP 与 React msgBridge UI 已接入。MCP 工具为 `notification_send`、`reminder_register`、`reminder_list`、`reminder_cancel`，均要求 Pan 注入身份并经过 `_check_access`；`agent_notify` 未改义。提醒 loop 已抽取可测试的 claim-before-send 单轮执行。
-- 工作树/分支：当前整合工作树 `D:\project\pan-worktrees\pan-notifications-premerge-20260911`，detached `main@71af0f5`，处于与 `1033582` 的 staged merge；原 feature worktree clean。`D:\project\Pan-main` 的 `docs/references/cli-adapter-special-behaviors.md` 与 `docs/developLog.md` 未触碰。
+- 来源/整合：feature `1033582`，Windows encoded PowerShell 前导修复 `5406953`；integration merge commit `0b23a86`。来源与整合 worktree 均未触碰 `D:\project\Pan-main` 的 `docs/references/cli-adapter-special-behaviors.md` 与 `docs/developLog.md`，两者原有用户修改已保留。
 - TA/session：`ses_b050dffa6d3fa226`、`ses_57a57c3cf407782a`、`ses_79800ea706f8a813`；任务状态：done；SMA 静态检查：通过。
-- 提交：feature `1033582`；Windows encoded PowerShell 前导修复 `5406953` 已整合进当前 staged merge；integration merge commit 待创建。
-- 测试/未验证项：当前 staged 内容执行 `D:\project\Pan\.venv\Scripts\python.exe -m pytest -q tests/test_notifications_reminders.py tests/test_session_schema_compat.py tests/test_session_handoff.py tests/test_mcp_isolation.py tests/test_worker_states.py tests/test_worker_output_mode.py tests/test_web_frontend.py`：95 passed；`compileall -q packages tests` 通过。隔离 worktree 自有依赖下前端通知相关 Vitest 5 files/68 tests passed，`tsc -b`、`vite build`、相关 ESLint 通过。真实 Windows PowerShell sender 进程返回 0；真实 FastAPI/API、live MCP、granted browser worker.result Notification、reminder claim/deliver 与 raw `/ws` frame 均通过；Chromium 默认权限在当前环境为 `denied`，无法验证 `default`，桌面 Toast 可见性未由截图确认。既有标准 browser harness 仍为 3 项通过、exact-bottom 1 项基线失败；全量 Vitest/lint 的既有基线失败仍未处理。未操作 8768；provider/mobile E2E 未做。
+- 测试/未验证项：当前整合内容执行 `D:\project\Pan\.venv\Scripts\python.exe -m pytest -q tests/test_notifications_reminders.py tests/test_session_schema_compat.py tests/test_session_handoff.py tests/test_mcp_isolation.py tests/test_worker_states.py tests/test_worker_output_mode.py tests/test_web_frontend.py`：95 passed；`compileall -q packages tests` 通过。隔离 worktree 自有依赖下前端通知相关 Vitest 5 files/68 tests passed，`tsc -b`、`vite build`、相关 ESLint 通过。真实 Windows PowerShell sender 进程返回 0；真实 FastAPI/API、live MCP、granted browser worker.result Notification、reminder claim/deliver 与 raw `/ws` frame 均通过；Chromium 默认权限在当前环境为 `denied`，无法验证 `default`，桌面 Toast 可见性未由截图确认。既有标准 browser harness 仍为 3 项通过、exact-bottom 1 项基线失败；全量 Vitest/lint 的既有基线失败仍未处理。未操作 8768；provider/mobile E2E 未做。
+- 状态：已实现并合入 main；尚未开发者验收。
 - 验收清单：
-  - [ ] 合入 main
+  - [x] 合入 main
   - [ ] 开发者验收
-  - [ ] 基础测试/全量门禁无基线失败
-  - [ ] 真实 OS/browser/provider E2E
-- 合入/push 状态：合入 main：否（当前整合提交尚未创建）；push：否（未执行）。
+  - [x] 定向基础测试通过
+  - [ ] 全量门禁无基线失败
+  - [ ] 完整 OS/browser/provider E2E
+- 合入/push 状态：合入 main：是（本地 `main@0b23a86`）；push：否。
+
+## 三、已完成但尚未合入 main 的改动
+
+当前暂无。
 
 ## 四、正在进行的任务/改动
 
-当前暂无；本功能已完成代码审阅和真实链路 E2E，待创建 integration merge commit、合入 main 与开发者验收。
+当前暂无。
 
 ## 五、计划要做的任务
 
