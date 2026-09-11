@@ -145,8 +145,9 @@ export function normalizeCodexRateLimits(rateLimits: Record<string, unknown> | u
 export function normalizeCodexQuotaProjection(
   quota: unknown,
 ): CodexQuotaWindows {
-  if (!quota) return {};
-  const windows = asRecord(quota.windows);
+  const quotaRecord = asRecord(quota);
+  if (!quotaRecord) return {};
+  const windows = asRecord(quotaRecord.windows);
   const result: CodexQuotaWindows = {};
   if (windows) {
     for (const value of Object.values(windows)) {
@@ -166,7 +167,7 @@ export function normalizeCodexQuotaProjection(
   }
   if (Object.keys(result).length > 0) return result;
 
-  const rawSnapshots = asRecord(quota.rawSnapshots);
+  const rawSnapshots = asRecord(quotaRecord.rawSnapshots);
   if (rawSnapshots) {
     const snapshots = Object.values(rawSnapshots);
     for (let index = snapshots.length - 1; index >= 0; index -= 1) {
@@ -175,5 +176,5 @@ export function normalizeCodexQuotaProjection(
       if (normalized.weekly || normalized.monthly) return normalized;
     }
   }
-  return normalizeCodexRateLimits(asRecord(quota.raw) ?? undefined);
+  return normalizeCodexRateLimits(asRecord(quotaRecord.raw) ?? undefined);
 }
