@@ -87,6 +87,37 @@ describe('MarkdownRenderer', () => {
     expect(parseMarkdownFileLink('mailto:user@example.test')).toBeNull();
     expect(parseMarkdownFileLink('#L42')).toBeNull();
     expect(parseMarkdownFileLink('#section')).toBeNull();
+    expect(parseMarkdownFileLink('/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1')).toBeNull();
+    expect(parseMarkdownFileLink('/api/fs/read?session_id=s1&path=x&download=1')).toBeNull();
+  });
+
+  it('renders attachment hrefs as clickable standard Markdown and preserves ordinary links', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <MarkdownRenderer content={'[需求说明 \\[最终\\].md](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1) [普通链接](https://example.test/a_(b))'} />
+      </MemoryRouter>,
+    );
+
+    const links = [...container.querySelectorAll('a')];
+    expect(links.map((link) => ({ text: link.textContent, href: link.getAttribute('href') }))).toEqual([
+      {
+        text: '需求说明 [最终].md',
+        href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+      },
+      { text: '普通链接', href: 'https://example.test/a_(b)' },
+    ]);
+  });
+
+  it('recovers a legacy attachment without display metadata using a safe download href', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <MarkdownRenderer content={'请打开 @"D:\\old\\upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"'} />
+      </MemoryRouter>,
+    );
+
+    const link = container.querySelector('a');
+    expect(link?.textContent).toBe('upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md');
+    expect(link?.getAttribute('href')).toBe('/api/fs/read?session_id=s1&path=D%3A%5Cold%5Cupload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md&download=1');
   });
 
   it('preserves local file hrefs through react-markdown URL sanitization', () => {

@@ -68,7 +68,12 @@ export interface DirectoryListResponse {
 
 export interface SessionAttachmentUploadResponse {
   ok: boolean;
+  /** Compatibility alias; new UI labels use displayName. */
   filename: string;
+  displayName?: string;
+  storageFilename?: string;
+  href?: string;
+  /** Legacy absolute storage path, never used as the Markdown label. */
   path: string;
   size: number;
 }

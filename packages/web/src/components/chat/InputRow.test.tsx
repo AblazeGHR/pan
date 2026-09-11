@@ -36,6 +36,9 @@ vi.mock('@/services/api', async (importOriginal) => {
     uploadSessionAttachment: vi.fn(async (_sessionId: string, file: File) => ({
       ok: true,
       filename: file.name,
+      displayName: file.name,
+      storageFilename: `upload_${'a'.repeat(32)}${file.name.includes('.') ? `.${file.name.split('.').pop()}` : ''}`,
+      href: `/api/attachments/upload_${'a'.repeat(32)}${file.name.includes('.') ? `.${file.name.split('.').pop()}` : ''}?session_id=s1`,
       path: `D:\\attachments\\uploaded\\${file.name}`,
       size: file.size,
     })),
@@ -120,7 +123,7 @@ afterEach(() => {
 });
 
 describe('InputRow send queue wiring', () => {
-  it('selects server files, renders attachment chips, and enqueues formatted paths', async () => {
+  it('selects server files, renders attachment chips, and enqueues standard Markdown links', async () => {
     setBusySession();
     render(<InputRow />);
 
@@ -137,7 +140,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '请阅读 @"D:\\attachments\\report.txt"', expect.any(String),
+      's1', '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)', expect.any(String),
     ));
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
   });
@@ -153,7 +156,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '审阅 @"D:\\project\\src\\main.ts"', expect.any(String),
+      's1', '审阅 [main.ts](/api/fs/read?session_id=s1&path=D%3A%5Cproject%5Csrc%5Cmain.ts&download=1)', expect.any(String),
     ));
   });
 
@@ -208,7 +211,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '合并发送 @"D:\\attachments\\report.txt" @"D:\\attachments\\uploaded\\client.txt"', expect.any(String),
+      's1', '合并发送 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1) [client.txt](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1)', expect.any(String),
     ));
   });
 

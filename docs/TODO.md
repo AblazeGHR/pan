@@ -66,7 +66,7 @@
 | `_extract_cbc_error` 收编 adapter | 仍在 `worker.py:3188`（2026-09-03 核对，行号随重构漂移）；可搬进 adapter 作可选收尾 | 低优先可选 | design/adapter-p1-oneshot.md |
 | kimi MCP 方案 A 兜底 | 合并用户级 mcp.json；仅设计保留，未落地 | 方案 C 失效时 | design/kimi-mcp-solution.md |
 | ~~服务端消息队列~~ | ~~`Session.send_queue` + CRUD API，客户端退化为镜像~~ **已实现（2026-09-01 第一版，2026-09-03 复核）**：`Session.queue_pending` 统一为服务端权威队列 + `/api/sessions/{id}/queue` CRUD/编辑/排序/retry 端点，用户消息落盘确认后才 accepted；现行语义见 `docs/design/queue-at-most-once.md`、`docs/plans&overviews/统一服务端消息队列改动计划.md` | ✅ 已实现 | archive/design-message-queue.md（已归档） |
-| Adapter 能力驱动的附件渲染 | **服务端附件和客户端上传（含上传进度）已实现**；当前消息使用 `@"<path>"` 文本兼容格式。后续仍需能力探测、统一 `AttachmentRef`/metadata、按 Adapter 渲染 native payload，并在不支持原生附件时保留文本 fallback；另需制定附件大小/类型/配额/清理等策略 | 后续附件协议与 Adapter 能力支持 | design/adapter-architecture.md |
+| Adapter 能力驱动的附件渲染 | **服务端附件和客户端上传（含上传进度）已实现**；聊天消息使用标准 Markdown `[displayName](href)`，上传响应区分原始显示名、随机存储名和安全下载 href，旧 `@"<path>"` 历史文本有兼容回退。后续仍需能力探测、统一 `AttachmentRef`/metadata、按 Adapter 渲染 native payload，并在不支持原生附件时保留 Markdown/text fallback；另需制定附件大小/类型/配额/清理等策略 | 后续附件协议与 Adapter 能力支持 | design/adapter-architecture.md |
 | session_import 增强 | import 端点 `_check_session_name` 校验、`action="browse"` 文件树浏览 | 可选，量大时 | archive/design-import-session-mcp.md |
 | QQ 富媒体 / 全事件上行 / 反向控制 | QQ 通道后续方向 | 有需求时 | archive/qq-llm-management-survey.md |
 | ~~LICENSE~~ | ~~仓库未附开源许可证~~ **已解决（2026-09-03 核对）**：仓库根已有 `LICENSE`（git 跟踪），README.md 末附许可证段 | 发布前 | README.md |
