@@ -16,6 +16,11 @@ function decodeUrlPart(value: string): string | null {
 function normalizeFilePath(path: string): string {
   const isUncPath = path.startsWith('\\\\') || path.startsWith('//');
   const normalized = path.replace(/[\\/]+/g, '/');
+  // Markdown destinations commonly turn a Windows absolute path into a
+  // root-relative href (`/D:/...`). Treat only this drive-letter shape as a
+  // Windows path; ordinary Unix-rooted paths such as `/docs/readme.md` stay
+  // unchanged.
+  if (/^\/[A-Za-z]:(?:\/|$)/.test(normalized)) return normalized.slice(1);
   if (/^[A-Za-z]:\/$/.test(normalized) || normalized === '/') return normalized;
   if (/^[A-Za-z]:\//.test(normalized)) return normalized;
   if (isUncPath) return `//${normalized.replace(/^\/+/, '')}`;

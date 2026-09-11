@@ -80,6 +80,13 @@ describe('MarkdownRenderer', () => {
       path: 'C:/work/My File.md',
       location: { path: 'C:/work/My File.md', line: 42 },
     });
+    expect(parseMarkdownFileLink('/D:/project/Pan-main/docs/plans&overviews/overview.md:20')).toEqual({
+      path: 'D:/project/Pan-main/docs/plans&overviews/overview.md',
+      location: {
+        path: 'D:/project/Pan-main/docs/plans&overviews/overview.md',
+        line: 20,
+      },
+    });
     expect(parseMarkdownFileLink('docs/name%23with%2520percent.md')).toEqual({
       path: 'docs/name#with%20percent.md',
     });
@@ -90,6 +97,14 @@ describe('MarkdownRenderer', () => {
     expect(parseMarkdownFileLink('C:%5Cwork%5Cname%3Aarchive.md:7')).toEqual({
       path: 'C:/work/name:archive.md',
       location: { path: 'C:/work/name:archive.md', line: 7 },
+    });
+    expect(parseMarkdownFileLink('/docs/readme.md#L3')).toEqual({
+      path: '/docs/readme.md',
+      location: { path: '/docs/readme.md', line: 3 },
+    });
+    expect(parseMarkdownFileLink('\\\\server\\share\\readme.md#L3')).toEqual({
+      path: '//server/share/readme.md',
+      location: { path: '//server/share/readme.md', line: 3 },
     });
   });
 
@@ -168,6 +183,24 @@ describe('MarkdownRenderer', () => {
       workdir: 'D:\\project\\pan',
       activePath: 'docs/My File.md',
       pendingLocation: { path: 'docs/My File.md', line: 42, endLine: 48 },
+    });
+  });
+
+  it('opens a root-relative Windows drive href without the synthetic leading slash', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <MarkdownRenderer content="[open](/D:/project/Pan-main/docs/plans&overviews/overview.md:20)" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith(
+      's1',
+      'D:/project/Pan-main/docs/plans&overviews/overview.md',
+    ));
+    expect(useEditorStore.getState().pendingLocation).toEqual({
+      path: 'D:/project/Pan-main/docs/plans&overviews/overview.md',
+      line: 20,
     });
   });
 
