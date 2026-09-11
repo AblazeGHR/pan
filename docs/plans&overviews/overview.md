@@ -10,14 +10,14 @@
 
 | 分支 | 路径 | HEAD | 阶段状态 |
 |---|---|---|---|
-| `main` | `D:\project\Pan-main` | 本次本地整合提交（未 push） | 当前集成基线；工作树有未提交文档修改 |
+| `main` | `D:\project\Pan-main` | `ec3500c`（含本次合入 `5d1f214`，未 push） | 当前集成基线；工作树有用户未提交文档修改 |
 | `practical` | `D:\project\Pan` | `46d5879` | 与 main 同一当前基线，clean；保留用户脚本修改 |
 
 ## 二、已合入 main 的改动
 
 ### main 与 practical 当前差异（本节置顶）
 
-- `main`（本次本地整合提交）比 `practical`（`46d5879`）多：Toast 点击复制（`31b792b`、`8119bf3`）、Codex 全局额度缓存（`97930f7`、`6159644`、`b1770f9`）、MCP model_list adapter 发现（`0e431e5`）、Markdown 行号链接跳转（`cea2611`）、React-only/Vanilla 退役（`5ffd395c`、`2947d0c`）、Codex 上下文设置（`a9843c1`）、附件 Markdown/目录输入整合（`240d858`、`9c0852b`、`cd09841`、`4444371`）。
+- `main`（`ec3500c`，未 push）比 `practical`（`46d5879`）多：Toast 点击复制（`31b792b`、`8119bf3`）、Codex 全局额度缓存（`97930f7`、`6159644`、`b1770f9`）、MCP model_list adapter 发现（`0e431e5`）、Markdown 行号链接跳转（`cea2611`）、React-only/Vanilla 退役（`5ffd395c`、`2947d0c`）、Codex 上下文设置（`a9843c1`）、附件 Markdown/目录输入整合（`240d858`、`9c0852b`、`cd09841`、`4444371`）、Memory 关闭时 minimal requirements 分层（`421c591`）、浏览器后台恢复（`5d1f214`）。
 
 ### 1. Session prompt 拆分与非递归交接准备
 
@@ -195,41 +195,44 @@
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：是（本次本地整合）；push：否。
 
-## 三、已完成但尚未合入 main 的改动
-
-### 1. 浏览器后台恢复前端状态
+### 14. 浏览器后台恢复前端状态
 
 - 计划/目标：页面由后台节能、bfcache 或失焦恢复可见时，去重触发安全 WS 恢复，并刷新权威 sessions、workers、当前 history、queue 与 interactive 请求；保留草稿、滚动和本地状态，不整页 reload。
 - 调查结论：`wsClient` 是共享单例，不能因页面事件调用 `disconnect()`；已有 `loadSessions`/`selectSession` 的序列保护可复用，但恢复 history 需要额外按 session 的单飞序列，防止旧请求覆盖新 session。
-- 实现：`wsClient` 增加连接活动时间、新鲜度判断和不移除订阅者的 `reconnect()`；`useWebSocket` 集中监听 `visibilitychange`、`pageshow`、`focus`，100ms debounce + single-flight；陈旧连接交由 `open` 路径完成刷新，健康连接刷新 sessions/workers/current history/queue 并同步 interactive；mock mode 保持不建真实 WS。
-- 工作树：`D:\project\pan-worktrees\web-resume-on-focus-20260911`；本次修正提交后 clean；未覆盖其他用户变更。
-- 分支：`feature/web-resume-on-focus-20260911`，基于当前 main HEAD `65f82b06`。
-- TA/任务：`ses_151c0fd646c12633`；任务已 done；SMA 完成最小修正复核。
-- 提交：本次修正提交（代码与 overview 同一提交，交付时以实际 HEAD 核对）。
+- 实现：`wsClient` 增加连接活动时间、新鲜度判断和不移除订阅者的 `reconnect()`；新鲜度仅由 open/服务端消息更新，heartbeat 发送不伪造活跃；`useWebSocket` 集中监听 `visibilitychange`、`pageshow`、`focus`，100ms debounce + single-flight；陈旧连接交由 open 路径完成刷新，健康连接刷新 sessions/workers/current history/queue 并同步 interactive；mock mode 保持不建真实 WS。
+- 来源工作树/分支：`D:\project\pan-worktrees\web-resume-on-focus-20260911` / `feature/web-resume-on-focus-20260911`，基于 `main@65f82b0`；来源提交 `a25a123`、修正提交 `77dd322`，本地合入提交 `5d1f214`；来源工作树 clean。
+- TA/任务：`ses_151c0fd646c12633`；任务 done；SMA 已完成独立复核。
 - 测试/未验证项：`pnpm exec vitest run src/hooks/useWebSocket.test.tsx src/stores/sessionStore.race.test.ts`：2 files / 52 tests passed；`pnpm run build` 通过；涉及文件 ESLint 通过；未做真实 browser visibility/bfcache、服务/WS/provider E2E。
+- 状态：已实现并合入 main；尚未开发者验收。
 - 验收清单：
-  - [ ] 合入 main
+  - [x] 合入 main
   - [ ] 开发者验收
   - [x] 基础测试通过
   - [ ] browser/mobile E2E 通过
   - [x] 竞态与 mock mode 回归已由 jsdom 用例覆盖
-- 合入/push 状态：合入 main：否；push：否。
+- 合入/push 状态：合入 main：是（本地 `main@5d1f214`）；push：否。
 
-## 四、正在进行的任务/改动
-
-### 1. Memory 关闭时的 minimal requirements 分层
+### 15. Memory 关闭时的 minimal requirements 分层
 
 - 调查结论：Core + MCP 运行时直接需要 `httpx`；`mcp`、`fastapi`、`uvicorn`、`websockets`、`psutil` 保持运行依赖；`pytest` 属于 dev/test，不应作为纯运行时 minimal 依赖；Memory ML 链保持 optional。
-- 实现：`minimal-requirements.txt` 仅含 Core/API/MCP 运行依赖；新增 `dev-requirements.txt`（基于 minimal，含 pytest/pytest-timeout）与 `memory-requirements.txt`（Memory provider/索引可选层）；根 `requirements.txt` 保留为兼容聚合入口，QQ 仍由 `packages/qq/requirements.txt` 独立提供。`scripts/setup.bat`/`setup.sh` 默认只装 minimal，`start_pan.bat`/setup 探测覆盖 `httpx` 与 `mcp.server.fastmcp`，缺失时给出修复命令；Memory=false 的 provider 导入边界由回归测试锁定。
-- 工作树/分支：实现工作树 `D:\project\pan-worktrees\minimal-requirements-memory-off-20260911` / `feature/minimal-requirements-memory-off-20260911` 基于 `main@65f82b0`；已合入 `D:\project\Pan-main` 的 `main`，合入提交 `421c591`（实现提交 `37199dc`）。
+- 实现：`minimal-requirements.txt` 仅含 Core/API/MCP 运行依赖；新增 `dev-requirements.txt`（基于 minimal，含 pytest/pytest-timeout）与 `memory-requirements.txt`（Memory provider/索引可选层）；根 `requirements.txt` 保留为兼容聚合入口，QQ 仍由 `packages/qq/requirements.txt` 独立提供。`scripts/setup.bat`/`setup.sh` 的 Core 步骤使用 minimal，`start_pan.bat`/setup 探测覆盖 `httpx` 与 `mcp.server.fastmcp`，缺失时给出修复命令；Memory=false 的 provider 导入边界由回归测试锁定。
+- 来源工作树/分支：`D:\project\pan-worktrees\minimal-requirements-memory-off-20260911` / `feature/minimal-requirements-memory-off-20260911`，基于 `main@65f82b0`；实现提交 `37199dc`，本地合入提交 `421c591`；来源工作树 clean。
 - 测试/未验证项：`D:\project\Pan\.venv\Scripts\python.exe -m pytest tests/test_dependency_layers.py tests/test_cbc_import_guard.py tests/test_mcp_integration.py tests/test_memory_search.py -q`：60 passed；指定解释器实际导入 Core/API/MCP 链成功。`pytest-timeout` 未安装，因此该运行显示 pytest 配置 warning；另有既有 pydantic forward-reference warning。未安装根 `requirements.txt`，未启动服务或执行真实 API/MCP/browser E2E。
-- 状态：已实现并合入 main，未 push。
+- 状态：已实现并合入 main；尚未开发者验收。
 - 验收清单：
   - [x] 合入 main
   - [ ] 开发者验收
   - [x] 基础依赖分层静态/定向测试通过
   - [ ] 真实 API/MCP 或 browser E2E 通过
-- 合入/push 状态：合入 main：是（本地 `main@421c591`，未 push）；push：否。
+- 合入/push 状态：合入 main：是（本地 `main@421c591`）；push：否。
+
+## 三、已完成但尚未合入 main 的改动
+
+当前暂无；新的已完成改动会在独立验收后列入本节。
+
+## 四、正在进行的任务/改动
+
+当前暂无。
 
 ## 五、计划要做的任务
 
