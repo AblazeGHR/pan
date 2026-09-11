@@ -36,6 +36,17 @@ export function ToastContainer() {
     });
   };
 
+  const copyAndDismiss = (id: string, message: string) => {
+    startExit(id);
+    void (async () => {
+      try {
+        await navigator.clipboard?.writeText(message);
+      } catch {
+        // Clipboard access is best-effort; dismissal must remain reliable.
+      }
+    })();
+  };
+
   if (toastQueue.length === 0) return null;
 
   const iconFor = (type: string) => {
@@ -58,13 +69,29 @@ export function ToastContainer() {
             exitingIds.has(toast.id) ? 'toast-exit' : ''
           } ${toast.type === 'error' ? 'bg-danger text-white' : 'bg-accent text-white'}`}
           role="alert"
+          aria-live="polite"
           onAnimationEnd={() => {
             if (exitingIds.has(toast.id)) dismissToast(toast.id);
           }}
         >
-          {iconFor(toast.type)}
-          <span className="text-sm flex-1">{toast.message}</span>
           <button
+            type="button"
+            aria-label={`Copy toast message: ${toast.message}`}
+            onClick={() => copyAndDismiss(toast.id, toast.message)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                copyAndDismiss(toast.id, toast.message);
+              }
+            }}
+            className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+          >
+            {iconFor(toast.type)}
+            <span className="text-sm">{toast.message}</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss toast"
             onClick={() => startExit(toast.id)}
             className="opacity-70 hover:opacity-100 transition-opacity shrink-0"
           >
