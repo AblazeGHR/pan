@@ -2101,17 +2101,21 @@ async def favicon():
     return Response(content=svg, media_type="image/svg+xml")
 
 
+def _react_unavailable_response() -> HTMLResponse:
+    return HTMLResponse(
+        content=(
+            "React frontend is unavailable: packages/web/dist is missing. "
+            "Build it with `pnpm --dir packages/web build`."
+        ),
+        status_code=503,
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
     """Redirect to the React SPA, or explain that its build is unavailable."""
     if not REACT_DIST_EXISTS:
-        return HTMLResponse(
-            content=(
-                "React frontend is unavailable: packages/web/dist is missing. "
-                "Build it with `pnpm --dir packages/web build`."
-            ),
-            status_code=503,
-        )
+        return _react_unavailable_response()
     return RedirectResponse("/react/", status_code=307)
 
 
@@ -5849,6 +5853,12 @@ if REACT_DIST_EXISTS:
     @app.get(f"/{react_name}/", response_class=HTMLResponse)
     async def react_index_html():
         """Serve React index.html with no-cache so new builds are picked up on refresh."""
+        # The route table is built at import time, but the dist availability
+        # flag can change while the process is alive (and is intentionally
+        # patchable for startup/error-path checks). Do not let the static
+        # mount turn a missing build into a misleading 200 response.
+        if not REACT_DIST_EXISTS:
+            return _react_unavailable_response()
         return HTMLResponse(
             content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
             headers={"Cache-Control": "no-cache"},
@@ -5875,13 +5885,7 @@ else:
     @app.get("/react/", response_class=HTMLResponse)
     async def react_unavailable():
         """Return an actionable error when the React build is missing."""
-        return HTMLResponse(
-            content=(
-                "React frontend is unavailable: packages/web/dist is missing. "
-                "Build it with `pnpm --dir packages/web build`."
-            ),
-            status_code=503,
-        )
+        return _react_unavailable_response()
 
 
 # ── Static files ──
