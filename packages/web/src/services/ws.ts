@@ -149,7 +149,6 @@ class WsClient {
     this.heartbeatTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'ping' }));
-        this.lastActivityAt = Date.now();
       }
     }, HEARTBEAT_INTERVAL);
   }
