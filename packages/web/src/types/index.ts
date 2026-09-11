@@ -30,6 +30,8 @@ export interface Session {
   effort: string;
   maxThinkingTokens?: number;
   workdir?: string;
+  /** Calculated system prompt used for the current session, when available. */
+  systemPrompt?: string | null;
   workerStatus?: string | null;
   workerId?: string | null;
   /** Last Worker state confirmed through an explicit Pan lifecycle action. */

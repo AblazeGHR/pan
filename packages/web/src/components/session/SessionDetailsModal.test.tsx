@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SessionDetailsModal } from './SessionDetailsModal';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -26,6 +26,10 @@ afterEach(() => {
   useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
 });
 
+beforeEach(() => {
+  vi.spyOn(api, 'fetchSessionUsage').mockRejectedValue(new Error('usage unavailable'));
+});
+
 describe('SessionDetailsModal', () => {
   it('keeps Usage collapsed by default and shows all session identifiers', () => {
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
@@ -36,10 +40,30 @@ describe('SessionDetailsModal', () => {
     expect(screen.getByText(baseSession.workdir!)).toBeTruthy();
     expect(screen.getByText(baseSession.id)).toBeTruthy();
     expect(screen.getByText(baseSession.cliSessionId!)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /System prompt/ }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('region', { name: 'System prompt content' })).toBeNull();
+  });
+
+  it('expands the current system prompt and preserves its line breaks', () => {
+    const session = { ...baseSession, systemPrompt: 'You are a careful assistant.\nUse concise answers.' };
+    render(<SessionDetailsModal session={session} onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /System prompt/ }));
+
+    expect(screen.getByRole('region', { name: 'System prompt content' }).textContent).toBe(session.systemPrompt);
+    expect(screen.getByRole('button', { name: /Usage/ })).toBeTruthy();
+  });
+
+  it('shows the missing system prompt state when the prompt is blank', () => {
+    render(<SessionDetailsModal session={{ ...baseSession, systemPrompt: '   ' }} onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /System prompt/ }));
+
+    expect(screen.getByRole('region', { name: 'System prompt content' }).textContent).toContain('暂无 / 未建立');
   });
 
   it('loads persisted usage on expand and renders credits plus token metrics', async () => {
-    vi.spyOn(api, 'fetchSessionUsage').mockResolvedValue({
+    vi.mocked(api.fetchSessionUsage).mockResolvedValue({
       sessionId: baseSession.id, adapter: 'cbc', input: 101, output: 202,
       cache: { read: 30, write: 4, total: 34 }, total: { tokens: 303, credit: 12.3456 },
     });
@@ -133,6 +157,30 @@ describe('SessionDetailsModal', () => {
     expect(screen.queryByText('已使用 5%')).toBeNull();
   });
 
+  it('omits five-hour, unknown, and empty quota windows when no supported window exists', async () => {
+    const codex: Session = { ...baseSession, id: 'ses_codex_no_supported_quota', adapter: 'codex' };
+    useWorkerStore.setState({ workers: { [codex.id]: {
+      id: 'worker-no-supported-quota',
+      sessionId: codex.id,
+      status: 'running',
+      nativeRateLimits: {
+        primary: { windowDurationMins: 300, usedPercent: 5 },
+        unknown: { usedPercent: 77 },
+        monthly: {},
+      },
+    } } });
+
+    render(<SessionDetailsModal session={codex} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+
+    expect(await screen.findByText('输入 Token')).toBeTruthy();
+    expect(screen.queryByLabelText('Codex quota')).toBeNull();
+    expect(screen.queryByText('周额度')).toBeNull();
+    expect(screen.queryByText('月额度')).toBeNull();
+    expect(screen.queryByText('已使用 5%')).toBeNull();
+    expect(screen.queryByText('已使用 77%')).toBeNull();
+  });
+
   it('does not borrow quota windows from another session and shows missing windows clearly', async () => {
     const codex: Session = { ...baseSession, id: 'ses_codex_target', adapter: 'codex' };
     useWorkerStore.setState({
@@ -155,9 +203,9 @@ describe('SessionDetailsModal', () => {
     render(<SessionDetailsModal session={codex} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
 
+    expect(await screen.findByText('输入 Token')).toBeTruthy();
     expect(screen.getByText(/已使用 12%/)).toBeTruthy();
-    expect(screen.getByText('月额度')).toBeTruthy();
-    expect(within(screen.getByRole('region', { name: 'Codex quota' })).getAllByText('暂无数据')).toHaveLength(1);
+    expect(screen.queryByText('月额度')).toBeNull();
     expect(screen.queryByText(/已使用 91%/)).toBeNull();
   });
 
@@ -172,7 +220,8 @@ describe('SessionDetailsModal', () => {
     render(<SessionDetailsModal session={codex} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
 
-    expect(await screen.findByText('当前 Worker 不可用，暂无 quota 数据')).toBeTruthy();
+    expect(await screen.findByText('输入 Token')).toBeTruthy();
+    expect(screen.queryByLabelText('Codex quota')).toBeNull();
     expect(screen.queryByText('周额度')).toBeNull();
     expect(screen.queryByText('月额度')).toBeNull();
   });
@@ -185,7 +234,7 @@ describe('SessionDetailsModal', () => {
     expect(screen.getAllByText('暂无 / 未建立')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
     expect(await screen.findByText('Credits（累计）')).toBeTruthy();
-    expect(within(screen.getByRole('region', { name: 'Usage details' })).getAllByText('暂无数据')).toHaveLength(4);
+    expect(screen.getAllByText('暂无数据')).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: '复制工作目录' }));
     expect(useUIStore.getState().toastQueue.at(-1)?.type).toBe('error');
   });

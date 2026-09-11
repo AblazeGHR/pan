@@ -66,6 +66,16 @@ function quotaDetails(window: CodexQuotaWindow): string[] {
   return details.length > 0 ? details : ['暂无可用额度字段'];
 }
 
+function hasQuotaDetails(window: CodexQuotaWindow | undefined): window is CodexQuotaWindow {
+  return Boolean(window && (
+    window.usedPercent !== undefined ||
+    window.remainingPercent !== undefined ||
+    window.usedAmount !== undefined ||
+    window.remainingAmount !== undefined ||
+    window.resetsAt !== undefined
+  ));
+}
+
 export function SessionDetailsModal({ session, onClose }: SessionDetailsModalProps) {
   const showToast = useUIStore((s) => s.showToast);
   const worker = useWorkerStore((s) => (session ? s.workers[session.id] : undefined));
@@ -74,12 +84,14 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   const [usage, setUsage] = useState<SessionUsageView | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState<string | null>(null);
+  const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
 
   useEffect(() => {
     setUsageExpanded(false);
     setUsage(null);
     setUsageLoading(false);
     setUsageError(null);
+    setSystemPromptExpanded(false);
   }, [sessionId]);
 
   useEffect(() => {
@@ -122,9 +134,13 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   const isCodex = session.adapter === 'codex';
   const workerForSession = worker?.sessionId === undefined || worker.sessionId === session.id ? worker : undefined;
   const workerOnline = Boolean(workerForSession && workerForSession.status !== 'offline');
-  const quotaWindows = isCodex && workerOnline
+  const normalizedQuotaWindows = isCodex && workerOnline
     ? normalizeCodexRateLimits(workerForSession?.nativeRateLimits)
     : {};
+  const quotaWindows = {
+    weekly: hasQuotaDetails(normalizedQuotaWindows.weekly) ? normalizedQuotaWindows.weekly : undefined,
+    monthly: hasQuotaDetails(normalizedQuotaWindows.monthly) ? normalizedQuotaWindows.monthly : undefined,
+  };
 
   const renderQuotaWindow = (label: string, window: CodexQuotaWindow | undefined) => (
     <div key={label} className="min-w-0">
@@ -165,6 +181,30 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             </div>
           );
         })}
+        <section className="rounded border border-border-default overflow-hidden" aria-label="System prompt">
+          <button
+            type="button"
+            aria-expanded={systemPromptExpanded}
+            aria-controls="session-system-prompt"
+            onClick={() => setSystemPromptExpanded((expanded) => !expanded)}
+            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="font-medium">System prompt</span>
+            <span className="flex items-center gap-1 text-xs text-text-tertiary">
+              {systemPromptExpanded ? '收起' : '展开'}
+              {systemPromptExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </span>
+          </button>
+          {systemPromptExpanded && (
+            <div id="session-system-prompt" role="region" aria-label="System prompt content" className="border-t border-border-default px-3 py-3">
+              {session.systemPrompt?.trim() ? (
+                <div className="whitespace-pre-wrap break-words text-sm text-text-primary">{session.systemPrompt}</div>
+              ) : (
+                <div className="text-sm text-text-tertiary">暂无 / 未建立</div>
+              )}
+            </div>
+          )}
+        </section>
         <section className="rounded border border-border-default overflow-hidden" aria-label="Usage">
           <button
             type="button"
@@ -182,19 +222,18 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
           {usageExpanded && (
             <div id="session-usage-details" role="region" aria-label="Usage details" className="space-y-3 border-t border-border-default px-3 py-3">
               {usageError && <div className="text-xs text-text-tertiary">{usageError}，当前显示已有数据</div>}
-              {isCodex ? (
+              {isCodex && (quotaWindows.weekly || quotaWindows.monthly) ? (
                 <div className="space-y-3" role="region" aria-label="Codex quota">
                   <div className="text-xs text-text-tertiary">Quota（当前 Worker 快照）</div>
-                  {!workerForSession || !workerOnline ? (
-                    <div className="text-sm text-text-tertiary">当前 Worker 不可用，暂无 quota 数据</div>
-                  ) : <>{renderQuotaWindow('周额度', quotaWindows.weekly)}{renderQuotaWindow('月额度', quotaWindows.monthly)}</>}
+                  {quotaWindows.weekly && renderQuotaWindow('周额度', quotaWindows.weekly)}
+                  {quotaWindows.monthly && renderQuotaWindow('月额度', quotaWindows.monthly)}
                 </div>
-              ) : (
+              ) : !isCodex ? (
                 <div className="min-w-0">
                   <div className="text-xs text-text-tertiary mb-1">Credits（累计）</div>
                   <div className="text-sm text-text-primary break-words">{formatMetric(usageView.total.credit)}</div>
                 </div>
-              )}
+              ) : null}
               <div className="grid grid-cols-1 gap-3 border-t border-border-muted pt-3 sm:grid-cols-3">
                 <div><div className="text-xs text-text-tertiary mb-1">输入 Token</div><div className="text-sm text-text-primary">{formatMetric(usageView.input)}</div></div>
                 <div><div className="text-xs text-text-tertiary mb-1">输出 Token</div><div className="text-sm text-text-primary">{formatMetric(usageView.output)}</div></div>
