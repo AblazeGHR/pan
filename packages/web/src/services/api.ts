@@ -168,6 +168,8 @@ export interface CreateSessionSettings {
   alwaysThinkingEnabled?: boolean;
   effort?: string;
   outputMode?: string;
+  modelContextWindow?: number;
+  modelAutoCompactTokenLimit?: number;
 }
 
 export async function createSession(
@@ -188,6 +190,10 @@ export async function createSession(
     body.alwaysThinkingEnabled = settings.alwaysThinkingEnabled;
   if (settings?.effort) body.effort = settings.effort;
   if (settings?.outputMode) body.outputMode = settings.outputMode;
+  if (settings?.modelContextWindow !== undefined)
+    body.modelContextWindow = settings.modelContextWindow;
+  if (settings?.modelAutoCompactTokenLimit !== undefined)
+    body.modelAutoCompactTokenLimit = settings.modelAutoCompactTokenLimit;
   const data = await request<ApiSessionResponse>(`${BASE}/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),

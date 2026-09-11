@@ -692,6 +692,8 @@ def _session_to_api(s: sess.Session):
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
         "maxThinkingTokens": ac.get("max_thinking_tokens"),
+        "modelContextWindow": ac.get("model_context_window"),
+        "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
         "history": s.history,
         "lastResult": s.last_result,
@@ -780,6 +782,8 @@ def _session_summary(s: sess.Session) -> dict:
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
+        "modelContextWindow": ac.get("model_context_window"),
+        "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
     }
 
@@ -999,6 +1003,7 @@ def _build_session_params(
     external session from being recorded; normal session creation remains
     strict so a configured MCP server can never disappear silently.
     """
+    _normalize_context_setting_keys(data)
     for key in ("originalPrompt", "handoffPrompt", "systemPrompt"):
         if key in data and data[key] is not None and not isinstance(data[key], str):
             raise ValueError(f"{key} must be a string or null")
@@ -1107,6 +1112,9 @@ def _build_session_params(
         explicit_settings["maxThinkingTokens"] = data["maxThinkingTokens"]
     if data.get("alwaysThinkingEnabled"):
         explicit_settings["alwaysThinkingEnabled"] = data["alwaysThinkingEnabled"]
+    for api_key, _native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data and data[api_key] is not None:
+            explicit_settings[api_key] = data[api_key]
     if explicit_settings:
         validate_session_settings(adapter_name, explicit_settings, current_model=_final_model)
 
@@ -1161,6 +1169,11 @@ def _build_session_params(
         "handoff_prompt": data.get("handoffPrompt"),
         "game_id": data.get("gameId") or None,
     }
+    # These are deliberately added only when explicitly supplied.  In
+    # particular, do not synthesize a model/default value into Session JSON.
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data and data[api_key] is not None:
+            params["adapter_config"][native_key] = data[api_key]
     # Optional worker execution mode ("stream" | "oneshot"); validated against
     # the adapter's execution_modes. Unset/"auto" = automatic (existing behaviour).
     raw_mode = data.get("outputMode")
@@ -1304,7 +1317,28 @@ def _safe_adapter(adapter_name: str):
 _PROCESS_AFFECTING_FIELDS = {
     "model", "permissionMode", "alwaysThinkingEnabled", "effort",
     "maxThinkingTokens", "mcpServers", "outputMode",
+    "modelContextWindow", "modelAutoCompactTokenLimit",
 }
+
+_CODEX_CONTEXT_SETTING_ALIASES = {
+    # HTTP/MCP use camelCase like the rest of the session settings; accepting
+    # the native names as a compatibility bridge keeps hand-authored API
+    # requests and persisted migration tooling unambiguous.
+    "model_context_window": "modelContextWindow",
+    "model_auto_compact_token_limit": "modelAutoCompactTokenLimit",
+}
+_CODEX_CONTEXT_SETTING_KEYS = (
+    ("modelContextWindow", "model_context_window"),
+    ("modelAutoCompactTokenLimit", "model_auto_compact_token_limit"),
+)
+
+
+def _normalize_context_setting_keys(data: dict) -> None:
+    """Normalize native snake_case aliases into the public API spelling."""
+    for native_key, api_key in _CODEX_CONTEXT_SETTING_ALIASES.items():
+        if native_key in data:
+            data.setdefault(api_key, data[native_key])
+            data.pop(native_key, None)
 
 
 def _apply_session_updates(s: sess.Session, data: dict):
@@ -1313,6 +1347,7 @@ def _apply_session_updates(s: sess.Session, data: dict):
     Validate-first：所有显式设置先整体通过 adapter 能力校验，任一非法即抛
     AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
     """
+    _normalize_context_setting_keys(data)
     # systemPrompt was not a supported settings field. Reject effective-prompt
     # writes explicitly so a detail response cannot become a recursive baseline.
     if "systemPrompt" in data:
@@ -1323,7 +1358,8 @@ def _apply_session_updates(s: sess.Session, data: dict):
     _explicit = {
         key: data[key]
         for key in ("model", "permissionMode", "alwaysThinkingEnabled",
-                    "effort", "maxThinkingTokens", "outputMode")
+                    "effort", "maxThinkingTokens", "outputMode",
+                    "modelContextWindow", "modelAutoCompactTokenLimit")
         if key in data
     }
     if _explicit:
@@ -1346,6 +1382,9 @@ def _apply_session_updates(s: sess.Session, data: dict):
         s.set_adapter_field("effort", data["effort"])
     if "maxThinkingTokens" in data:
         s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data:
+            s.set_adapter_field(native_key, data[api_key])
     if "mcpServers" in data:
         # forceMcp:true（UI 强制解除模板锁确认后携带）跳过 always/never 校验。
         _apply_mcp_servers(s, data["mcpServers"], force=bool(data.get("forceMcp")))
@@ -2851,6 +2890,9 @@ async def api_branch_session(session_id: str, data: dict):
         "effort": s.adapter_config.get("effort", ""),
         "max_thinking_tokens": s.adapter_config.get("max_thinking_tokens"),
     }
+    for _api_key, _native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if _native_key in s.adapter_config:
+            new_adapter_config[_native_key] = s.adapter_config[_native_key]
     if s.adapter_config.get("mcp_servers"):
         new_adapter_config["mcp_servers"] = s.adapter_config["mcp_servers"]
 
@@ -4504,6 +4546,10 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                 "name": name,
                 "sessionTemplate": data.get("sessionTemplate"),
                 **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
+                **({key: data[key] for key in (
+                    "modelContextWindow", "modelAutoCompactTokenLimit",
+                    "model_context_window", "model_auto_compact_token_limit",
+                ) if key in data}),
                 **{key: data[key] for key in ("originalPrompt", "handoffPrompt", "systemPrompt")
                    if key in data},
             },
