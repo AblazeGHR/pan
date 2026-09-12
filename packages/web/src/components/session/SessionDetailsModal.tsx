@@ -78,6 +78,7 @@ function hasQuotaDetails(window: CodexQuotaWindow | undefined): window is CodexQ
 
 export function SessionDetailsModal({ session, onClose }: SessionDetailsModalProps) {
   const showToast = useUIStore((s) => s.showToast);
+  const worker = useWorkerStore((s) => (session ? s.workers[session.id] : undefined));
   const sessionId = session?.id;
   const [usageExpanded, setUsageExpanded] = useState(false);
   const [usage, setUsage] = useState<SessionUsageView | null>(null);
@@ -131,7 +132,6 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   ];
 
   const isCodex = session.adapter === 'codex';
-  const worker = useWorkerStore((s) => (session ? s.workers[session.id] : undefined));
   const workerForSession = worker?.sessionId === undefined || worker.sessionId === session.id ? worker : undefined;
   const workerOnline = Boolean(workerForSession && workerForSession.status !== 'offline');
   const normalizedQuotaWindows = isCodex && workerOnline
