@@ -30,6 +30,24 @@ beforeEach(() => {
 });
 
 describe('SessionDetailsModal', () => {
+  it('keeps hook order while opening and closing from a null session', () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<SessionDetailsModal session={null} onClose={onClose} />);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    expect(() => {
+      rerender(<SessionDetailsModal session={baseSession} onClose={onClose} />);
+    }).not.toThrow();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByText(baseSession.id)).toBeTruthy();
+
+    expect(() => {
+      rerender(<SessionDetailsModal session={null} onClose={onClose} />);
+    }).not.toThrow();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('keeps Usage collapsed by default and shows all session identifiers', () => {
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
