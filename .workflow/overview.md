@@ -7,17 +7,17 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`3311ee5`；最近业务整合为 `c1a5ace`；未 push。
+- `main`：`f76bcd1`；最近业务整合为 `c1a5ace`，随后提交工作流状态记录；未 push。
 - `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
 - `main` 既有 dirty/untracked：`docs/plans&overviews/overview.md`、`docs/references/cli-adapter-special-behaviors.md`、`.vite/`、`docs/developLog.md`；均属既有用户内容或本地文件，未纳入本次提交。
 - 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧文档仍保留在原位置。
 
 ## 工作流控制
 
-- 整体状态：MA 已完成，等待开发者验收或新的用户任务
-- 当前焦点：无；当前已获授权的实现、验证和本地整合动作已完成
-- 可执行：无
-- TA 执行中：无
+- 整体状态：TA 正在实现附件拖动到发送输入框的 UI demo，等待 TA 报告
+- 当前焦点：T-021；只做前端 demo，等待开发者确认交互后再决定后端实现
+- 可执行：等待 TA 完成 UI demo、测试和启动说明
+- TA 执行中：`ses_f1bebe98cb738ec3`（`worker-2`，Codex `gpt-5.6-luna`，high）
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -270,8 +270,23 @@
 
 ## 三、正在进行的任务/改动
 
-当前暂无。
+### T-021：消息附件拖动到发送输入框的 UI demo
+
+- 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 执行模式：先做 UI demo；开发者确认后再拆分/启动后端实现
+- 当前阶段：TA 实现中，未合入 main
+- 目标：附件从消息栏拖入发送输入框时显示文字中的插入光标；释放后在光标位置插入保留附件图标和文件名的可视化附件节点，而不是普通链接文字。节点作为整体可删除，前后可继续输入。
+- TA/任务：`ses_f1bebe98cb738ec3`；`attachment-dnd-ui-demo-20260913`；Worker `worker-2`
+- 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于 `main@f76bcd1`
+- 有序待办：
+  - [ ] 实现拖动、插入光标和附件节点 UI
+  - [ ] 添加回归测试并完成定向验证
+  - [ ] 提供 demo 启动方法和已知限制
+  - [ ] 开发者确认 UI demo
+  - [ ] 进入后端实现（需开发者确认后）
+  - [ ] 合入 main（仅后端完成并测试通过后按 `AUTH-001` 执行）
+  - [ ] 开发者验收
 
 ## 四、计划要做的任务
 
-当前暂无。新需求必须分配新的 `T-nnn`，不得复用已完成任务 ID。
+后端附件拖动/发送协议与持久化实现：等待 T-021 UI demo 经开发者确认后建立新的 `T-nnn`，不得复用 `T-021`。

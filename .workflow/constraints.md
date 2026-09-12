@@ -77,3 +77,4 @@
 | 任务 | Git | TA 模型 | MA 自主权 | 其他 |
 |---|---|---|---|---|
 | `T-001`–`T-020` | `GIT-1`、`GIT-2` | `MODEL-1`；轻量核对可用 `MODEL-2` | `AUTONOMY-1` | 按功能追加 `TEST-1`/`TEST-2` |
+| `T-021` | `GIT-2`；UI demo 暂不合入 | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；开发者确认后再进入后端与 `GIT-1` |
