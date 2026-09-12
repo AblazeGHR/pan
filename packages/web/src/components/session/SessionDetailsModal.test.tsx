@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SessionDetailsModal } from './SessionDetailsModal';
 import { useUIStore } from '@/stores/uiStore';
-import { useWorkerStore } from '@/stores/workerStore';
 import * as api from '@/services/api';
 import type { Session } from '@/types';
 
@@ -26,6 +25,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  vi.spyOn(api, 'fetchSession').mockRejectedValue(new Error('session details unavailable'));
   vi.spyOn(api, 'fetchSessionUsage').mockRejectedValue(new Error('usage unavailable'));
 });
 
@@ -69,6 +69,34 @@ describe('SessionDetailsModal', () => {
 
     expect(screen.getByRole('region', { name: 'System prompt content' }).textContent).toBe(session.systemPrompt);
     expect(screen.getByRole('button', { name: /Usage/ })).toBeTruthy();
+  });
+
+  it('loads the persisted system prompt after opening from a summary session', async () => {
+    const summarySession: Session = { ...baseSession, systemPrompt: undefined };
+    const fullSession: Session = {
+      ...summarySession,
+      systemPrompt: 'Persisted session instructions.\nKeep the response concise.',
+    };
+    vi.mocked(api.fetchSession).mockResolvedValue(fullSession);
+
+    render(<SessionDetailsModal session={summarySession} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /System prompt/ }));
+
+    expect(screen.getByText('暂无 / 未建立')).toBeTruthy();
+    await waitFor(() => expect(
+      screen.getByRole('region', { name: 'System prompt content' }).textContent,
+    ).toBe(fullSession.systemPrompt));
+    expect(api.fetchSession).toHaveBeenCalledWith(summarySession.id);
+  });
+
+  it('keeps the summary fallback when loading the full session fails', async () => {
+    const summarySession: Session = { ...baseSession, systemPrompt: undefined };
+    render(<SessionDetailsModal session={summarySession} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /System prompt/ }));
+
+    await waitFor(() => expect(api.fetchSession).toHaveBeenCalledWith(summarySession.id));
+    expect(screen.getByRole('region', { name: 'System prompt content' }).textContent)
+      .toContain('暂无 / 未建立');
   });
 
   it('shows the missing system prompt state when the prompt is blank', () => {
@@ -141,7 +169,7 @@ describe('SessionDetailsModal', () => {
     expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('Session name 暂无可复制内容');
   });
 
-  it('shows only provider-proven weekly and monthly codex windows', async () => {
+  it('shows provider-proven five-hour, weekly and monthly codex windows', async () => {
     const codex: Session = {
       ...baseSession,
       id: 'ses_codex_quota',
@@ -166,37 +194,40 @@ describe('SessionDetailsModal', () => {
     render(<SessionDetailsModal session={codex} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
 
+    expect(await screen.findByText('五小时额度')).toBeTruthy();
     expect(await screen.findByText('周额度')).toBeTruthy();
     expect(screen.getByText('月额度')).toBeTruthy();
     expect(screen.getByText('Quota（最近缓存，可能已过期）')).toBeTruthy();
     expect(screen.getByText(/已使用 25%.*剩余 75%/)).toBeTruthy();
     expect(screen.getByText(/已使用 40%.*剩余 12\.5 credit/)).toBeTruthy();
     expect(screen.queryByText('999.99')).toBeNull();
-    expect(screen.queryByText('已使用 5%')).toBeNull();
+    expect(screen.getByText(/已使用 5%/)).toBeTruthy();
   });
 
-  it('omits five-hour, unknown, and empty quota windows when no supported window exists', async () => {
+  it('omits unknown and empty quota windows when no provider data exists', async () => {
     const codex: Session = { ...baseSession, id: 'ses_codex_no_supported_quota', adapter: 'codex' };
-    useWorkerStore.setState({ workers: { [codex.id]: {
-      id: 'worker-no-supported-quota',
-      sessionId: codex.id,
-      status: 'running',
-      nativeRateLimits: {
-        primary: { windowDurationMins: 300, usedPercent: 5 },
-        unknown: { usedPercent: 77 },
-        monthly: {},
+    vi.spyOn(api, 'fetchSessionUsage').mockResolvedValue({
+      sessionId: codex.id, adapter: 'codex', input: null, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
+      codexQuota: {
+        ok: true,
+        windows: {
+          first: { kind: 'unknown', usage: { usedPercent: 5 } },
+          secondary: { kind: 'weekly', usage: {} },
+          monthly: {},
+        },
       },
-    } } });
+    });
 
     render(<SessionDetailsModal session={codex} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
 
     expect(await screen.findByText('输入 Token')).toBeTruthy();
-    expect(screen.queryByLabelText('Codex quota')).toBeNull();
+    expect(screen.getByLabelText('Codex quota')).toBeTruthy();
     expect(screen.queryByText('周额度')).toBeNull();
     expect(screen.queryByText('月额度')).toBeNull();
     expect(screen.queryByText('已使用 5%')).toBeNull();
-    expect(screen.queryByText('已使用 77%')).toBeNull();
+    expect(screen.getByText('当前没有可用的五小时/周/月 quota 缓存')).toBeTruthy();
   });
 
   it('does not borrow quota windows from another session and shows missing windows clearly', async () => {
@@ -230,7 +261,7 @@ describe('SessionDetailsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
 
     expect(await screen.findByText('输入 Token')).toBeTruthy();
-    expect(await screen.findByText('当前没有可用的周/月 quota 缓存')).toBeTruthy();
+    expect(await screen.findByText('当前没有可用的五小时/周/月 quota 缓存')).toBeTruthy();
     expect(screen.queryByText('周额度')).toBeNull();
     expect(screen.queryByText('月额度')).toBeNull();
   });
