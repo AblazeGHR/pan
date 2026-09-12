@@ -4,12 +4,14 @@ import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markd
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, File as FileIcon } from 'lucide-react';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
 import { normalizeLegacyAttachmentLinks } from '@/utils/attachmentMarkdown';
+import { isSafeAttachmentHref } from '@/utils/attachmentMarkdown';
+import { writeAttachmentDragPayload } from '@/utils/attachmentDrag';
 import 'highlight.js/styles/github-dark.css';
 
 type CodeProps = React.JSX.IntrinsicElements['code'] & ExtraProps;
@@ -27,6 +29,7 @@ function MarkdownLink({ href, children, node: _node, ...props }: LinkProps) {
   const navigate = useNavigate();
   const currentSession = useCurrentSession();
   const showToast = useUIStore((s) => s.showToast);
+  const draggableAttachment = !!href && isSafeAttachmentHref(href);
 
   const handleClick = async (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!href) return;
@@ -50,7 +53,37 @@ function MarkdownLink({ href, children, node: _node, ...props }: LinkProps) {
     if (opened) navigate('/editor');
   };
 
-  return <a href={href} onClick={(event) => void handleClick(event)} {...props}>{children}</a>;
+  const handleDragStart = (event: React.DragEvent<HTMLAnchorElement>) => {
+    if (!draggableAttachment || !href) return;
+    writeAttachmentDragPayload(event.dataTransfer, {
+      displayName: extractLinkText(children),
+      href,
+    });
+  };
+
+  return (
+    <a
+      href={href}
+      draggable={draggableAttachment}
+      data-testid={draggableAttachment ? 'draggable-attachment' : undefined}
+      onDragStart={handleDragStart}
+      onClick={(event) => void handleClick(event)}
+      {...props}
+    >
+      {draggableAttachment && <FileIcon size={13} className="mr-1 inline-block align-[-2px]" aria-hidden="true" />}
+      {children}
+    </a>
+  );
+}
+
+function extractLinkText(node: React.ReactNode): string {
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractLinkText).join('');
+  if (React.isValidElement(node)) {
+    return extractLinkText((node.props as { children?: React.ReactNode }).children);
+  }
+  return 'attachment';
 }
 
 /** True while rendering a <pre> subtree, i.e. a block-level code block.

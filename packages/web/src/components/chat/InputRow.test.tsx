@@ -10,6 +10,7 @@ import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patc
 import { wsClient } from '@/services/ws';
 import { useWorkerStore } from '@/stores/workerStore';
 import type { AdapterConfig } from '@/types';
+import { ATTACHMENT_DRAG_MIME } from '@/utils/attachmentDrag';
 
 vi.mock('@/services/ws', () => ({
   wsClient: {
@@ -184,6 +185,42 @@ describe('InputRow send queue wiring', () => {
       's1', '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)', expect.any(String),
     ));
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+  });
+
+  it('drops a message attachment into the editor and queues it at the text caret', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: '请先 后续' } });
+    const editor = screen.getByTestId('rich-text-composer');
+    const text = editor.querySelector('span')?.firstChild;
+    const range = document.createRange();
+    range.setStart(text!, 3);
+    range.collapse(true);
+    vi.stubGlobal('document', Object.assign(document, {
+      caretRangeFromPoint: vi.fn(() => range),
+    }));
+    const payload = {
+      displayName: '接口说明.md',
+      href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
+    };
+    const dataTransfer = {
+      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
+      dropEffect: 'copy',
+    } as unknown as DataTransfer;
+
+    fireEvent.dragOver(editor, { dataTransfer, clientX: 40, clientY: 12 });
+    expect(screen.getByTestId('attachment-drop-caret')).toBeTruthy();
+    fireEvent.drop(editor, { dataTransfer, clientX: 40, clientY: 12 });
+
+    expect(screen.getByRole('group', { name: '附件 接口说明.md' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1',
+      '请先 [接口说明.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1)后续',
+      expect.any(String),
+    ));
   });
 
   it('consumes an editor request through the existing server attachment and queue path', async () => {

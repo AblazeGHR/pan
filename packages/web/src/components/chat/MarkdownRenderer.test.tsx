@@ -142,6 +142,24 @@ describe('MarkdownRenderer', () => {
     ]);
   });
 
+  it('marks safe attachment links as draggable sources with the file icon', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <MarkdownRenderer content={'[接口说明.md](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1)'} />
+      </MemoryRouter>,
+    );
+    const link = container.querySelector('[data-testid="draggable-attachment"]') as HTMLAnchorElement;
+    const setData = vi.fn();
+    fireEvent.dragStart(link, { dataTransfer: { setData, effectAllowed: 'none' } });
+
+    expect(link.draggable).toBe(true);
+    expect(link.querySelector('svg')).toBeTruthy();
+    expect(setData).toHaveBeenCalledWith(
+      'application/x-pan-attachment',
+      expect.stringContaining('接口说明.md'),
+    );
+  });
+
   it('recovers a legacy attachment without display metadata using a safe download href', () => {
     const { container } = render(
       <MemoryRouter>

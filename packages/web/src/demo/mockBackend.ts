@@ -51,6 +51,10 @@ function seedSessions(): Session[] {
       history: [
         { role: 'user', content: 'mock 用户消息' },
         { role: 'assistant', content: 'mock 回复：这是无后端演示数据。' },
+        {
+          role: 'assistant',
+          content: '可拖动这份附件到下方输入框中间： [接口说明.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=mock-alpha)',
+        },
       ],
     }),
     mkSession({
