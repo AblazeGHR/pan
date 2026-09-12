@@ -4,6 +4,14 @@
 >
 > 维护者：Pan SMA；迁移日期：2026-09-12
 
+## 当前项目事实
+
+- 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
+- `main`：`3311ee5`；最近业务整合为 `c1a5ace`；未 push。
+- `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
+- `main` 既有 dirty/untracked：`docs/plans&overviews/overview.md`、`docs/references/cli-adapter-special-behaviors.md`、`.vite/`、`docs/developLog.md`；均属既有用户内容或本地文件，未纳入本次提交。
+- 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧文档仍保留在原位置。
+
 ## 工作流控制
 
 - 整体状态：MA 已完成，等待开发者验收或新的用户任务
