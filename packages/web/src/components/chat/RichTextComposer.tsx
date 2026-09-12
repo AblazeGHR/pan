@@ -10,6 +10,7 @@ import {
 import { File as FileIcon, X } from 'lucide-react';
 import {
   readAttachmentDragPayload,
+  writeAttachmentDragPayload,
   type AttachmentDragPayload,
 } from '@/utils/attachmentDrag';
 
@@ -30,7 +31,7 @@ export interface RichTextComposerHandle {
 
 interface RichTextComposerProps {
   initialText?: string;
-  attachments: Array<{ id: string; displayName: string }>;
+  attachments: Array<{ id: string; displayName: string; href?: string; path?: string }>;
   onChange: (value: ComposerValue) => void;
   onAttachmentDrop: (payload: AttachmentDragPayload) => string | null;
   onRemoveAttachment: (attachmentId: string) => void;
@@ -61,6 +62,15 @@ function mergeTextParts(parts: ComposerPart[]): ComposerPart[] {
 
 function partLength(part: ComposerPart): number {
   return part.type === 'text' ? part.value.length : 1;
+}
+
+function attachmentOffset(parts: ComposerPart[], attachmentId: string): number | null {
+  let offset = 0;
+  for (const part of parts) {
+    if (part.type === 'attachment' && part.attachmentId === attachmentId) return offset;
+    offset += partLength(part);
+  }
+  return null;
 }
 
 function valueFromParts(parts: ComposerPart[]): ComposerValue {
@@ -267,6 +277,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
 }, ref) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [parts, setParts] = useState<ComposerPart[]>(() => initialText ? [{ type: 'text', value: initialText }] : EMPTY_PARTS);
+  const partsRef = useRef(parts);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
   const dropOffsetRef = useRef<number | null>(null);
   const pendingCaretOffsetRef = useRef<number | null>(null);
@@ -278,6 +289,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   useImperativeHandle(ref, () => ({
     replaceText: (text: string) => {
       const nextParts: ComposerPart[] = text ? [{ type: 'text', value: text }] : EMPTY_PARTS;
+      partsRef.current = nextParts;
       setParts(nextParts);
       publish(nextParts);
     },
@@ -295,12 +307,16 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   const handleInput = () => {
     if (!editorRef.current) return;
     const nextParts = readParts(editorRef.current);
-    setParts(nextParts);
+    // The browser-mutated DOM is the source of truth during ordinary typing.
+    // Re-rendering it on every input lets React reconcile against a stale
+    // contenteditable tree and can duplicate text next to an inline node.
+    partsRef.current = nextParts;
     publish(nextParts);
   };
 
   const removeAt = (attachmentId: string) => {
-    const nextParts = removeAttachment(parts, attachmentId);
+    const nextParts = removeAttachment(partsRef.current, attachmentId);
+    partsRef.current = nextParts;
     setParts(nextParts);
     publish(nextParts);
     onRemoveAttachment(attachmentId);
@@ -312,7 +328,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     if (range?.collapsed && editorRef.current && (event.key === 'Backspace' || event.key === 'Delete')) {
       const offset = selectionOffset(editorRef.current, range.startContainer, range.startOffset);
       const targetOffset = event.key === 'Backspace' ? (offset ?? 0) - 1 : (offset ?? 0);
-      const target = parts.reduce<{ id: string | null; cursor: number }>((result, part) => {
+      const target = partsRef.current.reduce<{ id: string | null; cursor: number }>((result, part) => {
         if (result.id) return result;
         if (part.type === 'attachment' && result.cursor === targetOffset) result.id = part.attachmentId;
         result.cursor += partLength(part);
@@ -360,14 +376,23 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     if (!payload) return;
     event.preventDefault();
     const attachmentId = onAttachmentDrop(payload);
-    const offset = dropOffsetRef.current ?? parts.reduce((total, part) => total + partLength(part), 0);
+    const currentParts = partsRef.current;
+    const offset = dropOffsetRef.current ?? currentParts.reduce((total, part) => total + partLength(part), 0);
     dropOffsetRef.current = null;
     setDropIndicator(null);
     if (!attachmentId) return;
-    const nextParts = insertAttachment(parts, offset, attachmentId);
+    const sourceOffset = payload.attachmentId
+      ? attachmentOffset(currentParts, payload.attachmentId)
+      : null;
+    const withoutSource = payload.attachmentId
+      ? removeAttachment(currentParts, payload.attachmentId)
+      : currentParts;
+    const adjustedOffset = sourceOffset !== null && offset > sourceOffset ? offset - 1 : offset;
+    const nextParts = insertAttachment(withoutSource, adjustedOffset, attachmentId);
+    partsRef.current = nextParts;
     setParts(nextParts);
     publish(nextParts);
-    pendingCaretOffsetRef.current = offset + 1;
+    pendingCaretOffsetRef.current = adjustedOffset + 1;
   };
 
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
@@ -405,9 +430,21 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
               key={part.attachmentId}
               data-composer-attachment={part.attachmentId}
               contentEditable={false}
+              draggable={!!attachment.href}
               role="group"
               aria-label={`附件 ${attachment.displayName}`}
               className="composer-attachment-node mx-0.5 inline-flex max-w-full select-none items-center gap-1 rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 align-baseline text-xs text-accent"
+              onDragStart={(event) => {
+                if (!attachment.href) return;
+                event.stopPropagation();
+                writeAttachmentDragPayload(event.dataTransfer, {
+                  displayName: attachment.displayName,
+                  href: attachment.href,
+                  path: attachment.path,
+                  attachmentId: attachment.id,
+                  source: 'composer',
+                });
+              }}
             >
               <FileIcon size={13} className="shrink-0" aria-hidden="true" />
               <span className="max-w-[14rem] truncate">{attachment.displayName}</span>

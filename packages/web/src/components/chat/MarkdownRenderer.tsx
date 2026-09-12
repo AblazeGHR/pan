@@ -58,6 +58,7 @@ function MarkdownLink({ href, children, node: _node, ...props }: LinkProps) {
     writeAttachmentDragPayload(event.dataTransfer, {
       displayName: extractLinkText(children),
       href,
+      source: 'message',
     });
   };
 

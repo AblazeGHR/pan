@@ -14,7 +14,8 @@ import { Modal } from '@/components/ui/Modal';
 import { RichTextComposer, type ComposerValue, type RichTextComposerHandle } from '@/components/chat/RichTextComposer';
 import { fetchDirectories, uploadSessionAttachment } from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
-import type { AttachmentDragPayload } from '@/utils/attachmentDrag';
+import { writeAttachmentDragPayload, type AttachmentDragPayload } from '@/utils/attachmentDrag';
+import { isMockMode, mockUploadSessionAttachment } from '@/demo/mockBackend';
 import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
 import { ChevronDown, ChevronUp, CornerUpRight, Expand, File as FileIcon, Minimize2, Paperclip, Settings, X } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
@@ -393,7 +394,8 @@ export function InputRow() {
     const sessionId = currentSessionId;
     if (!sessionId || !attachment.file) return;
     try {
-      const uploaded = await uploadSessionAttachment(
+      const upload = isMockMode() ? mockUploadSessionAttachment : uploadSessionAttachment;
+      const uploaded = await upload(
         sessionId,
         attachment.file,
         (loaded, total) => setAttachments((current) => current.map((item) => item.id === attachment.id
@@ -450,6 +452,11 @@ export function InputRow() {
 
   const handleAttachmentDrop = useCallback((payload: AttachmentDragPayload): string | null => {
     if (!currentSessionId) return null;
+    if (payload.attachmentId) {
+      return attachments.some((attachment) => attachment.id === payload.attachmentId)
+        ? payload.attachmentId
+        : null;
+    }
     const id = attachmentId();
     setAttachments((current) => [...current, {
       id,
@@ -459,7 +466,7 @@ export function InputRow() {
       status: 'ready',
     }]);
     return id;
-  }, [currentSessionId]);
+  }, [attachments, currentSessionId]);
 
   const handleRemoveComposerAttachment = useCallback((attachmentIdToRemove: string) => {
     setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentIdToRemove));
@@ -617,6 +624,8 @@ export function InputRow() {
       ? '失败'
       : '已完成';
   const attachmentsBlocked = attachments.some((attachment) => attachment.status !== 'ready');
+  const embeddedAttachmentIds = new Set(composerValueRef.current.attachmentIds);
+  const visibleAttachmentChips = attachments.filter((attachment) => !embeddedAttachmentIds.has(attachment.id));
 
   return (
     <div
@@ -757,10 +766,26 @@ export function InputRow() {
               </div>
             </div>
           )}
-          {attachments.length > 0 && (
+          {visibleAttachmentChips.length > 0 && (
             <div className="flex flex-wrap gap-1.5" data-testid="server-attachments">
-              {attachments.map((attachment) => (
-                <span key={attachment.id} className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary" title={attachment.path || attachment.displayName}>
+              {visibleAttachmentChips.map((attachment) => (
+                <span
+                  key={attachment.id}
+                  draggable={attachment.status === 'ready' && !!attachment.href}
+                  data-testid={attachment.status === 'ready' && attachment.href ? 'draggable-attachment-chip' : undefined}
+                  onDragStart={(event) => {
+                    if (attachment.status !== 'ready' || !attachment.href) return;
+                    writeAttachmentDragPayload(event.dataTransfer, {
+                      displayName: attachment.displayName,
+                      href: attachment.href,
+                      path: attachment.path,
+                      attachmentId: attachment.id,
+                      source: 'attachment-chip',
+                    });
+                  }}
+                  className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary"
+                  title={attachment.path || attachment.displayName}
+                >
                   <FileIcon size={13} className="shrink-0" />
                   <span className="truncate">{attachment.displayName}</span>
                   {attachment.file && attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
@@ -860,7 +885,7 @@ export function InputRow() {
               key={currentSessionId || 'no-session'}
               ref={composerRef}
               initialText={composerText}
-              attachments={attachments.map(({ id, displayName }) => ({ id, displayName }))}
+              attachments={attachments.map(({ id, displayName, href, path }) => ({ id, displayName, href, path }))}
               onChange={handleComposerChange}
               onAttachmentDrop={handleAttachmentDrop}
               onRemoveAttachment={handleRemoveComposerAttachment}

@@ -8,6 +8,7 @@
  */
 
 import type { Session } from '@/types';
+import type { SessionAttachmentUploadResponse } from '@/services/api';
 
 export function isMockMode(): boolean {
   try {
@@ -146,6 +147,40 @@ export function resetMockData(): void {
   } catch {
     // no-op
   }
+}
+
+/**
+ * UI-only upload simulation used by the direct-file picker in mock mode.
+ * Keeping this outside the fetch interceptor matters because the real upload
+ * helper uses XMLHttpRequest and must remain untouched in normal mode.
+ */
+export async function mockUploadSessionAttachment(
+  sessionId: string,
+  file: File,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<SessionAttachmentUploadResponse> {
+  const total = file.size;
+  onProgress?.(0, total);
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  onProgress?.(Math.floor(total * 0.55), total);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  onProgress?.(total, total);
+  const tokenSource = `${sessionId}:${file.name}:${file.size}`;
+  let token = '';
+  for (let index = 0; index < tokenSource.length; index += 1) {
+    token += (tokenSource.charCodeAt(index) % 36).toString(36);
+  }
+  const token32 = token.padEnd(32, '0').slice(0, 32);
+  const extension = file.name.match(/\.[A-Za-z0-9]{1,32}$/)?.[0] || '';
+  return {
+    ok: true,
+    filename: file.name,
+    displayName: file.name,
+    storageFilename: `upload_${token32}${extension}`,
+    href: `/api/attachments/upload_${token32}${extension}?session_id=${encodeURIComponent(sessionId)}`,
+    path: `D:\\mock-uploads\\${sessionId}\\${file.name}`,
+    size: file.size,
+  };
 }
 
 function jsonResponse(body: unknown): Response {

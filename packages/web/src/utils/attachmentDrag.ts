@@ -6,6 +6,8 @@ export interface AttachmentDragPayload {
   displayName: string;
   href: string;
   path?: string;
+  attachmentId?: string;
+  source?: 'message' | 'attachment-chip' | 'composer';
 }
 
 /** Put the small, UI-only attachment description on the native drag payload. */
@@ -40,6 +42,10 @@ export function readAttachmentDragPayload(
       displayName: value.displayName,
       href: value.href,
       ...(typeof value.path === 'string' ? { path: value.path } : {}),
+      ...(typeof value.attachmentId === 'string' ? { attachmentId: value.attachmentId } : {}),
+      ...(value.source === 'message' || value.source === 'attachment-chip' || value.source === 'composer'
+        ? { source: value.source }
+        : {}),
     };
   } catch {
     return null;

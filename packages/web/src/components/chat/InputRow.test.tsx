@@ -223,6 +223,40 @@ describe('InputRow send queue wiring', () => {
     ));
   });
 
+  it('simulates direct client upload in mock mode, then reuses its chip as an inline node', async () => {
+    window.history.pushState({}, '', '/?mock=1');
+    setBusySession();
+    render(<InputRow />);
+    const file = new File(['demo upload'], 'direct.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'));
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+    const chip = screen.getByTestId('draggable-attachment-chip');
+    expect(chip.textContent).toContain('direct.txt');
+
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      getData: (type: string) => data.get(type) || '',
+      setData: (type: string, value: string) => data.set(type, value),
+      effectAllowed: 'copy',
+      dropEffect: 'copy',
+    } as unknown as DataTransfer;
+    fireEvent.dragStart(chip, { dataTransfer });
+    fireEvent.drop(screen.getByTestId('rich-text-composer'), { dataTransfer });
+
+    expect(screen.getByRole('group', { name: '附件 direct.txt' })).toBeTruthy();
+    expect(screen.queryByTestId('draggable-attachment-chip')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1',
+      expect.stringMatching(/^\[direct\.txt\]\(\/api\/attachments\/upload_[a-z0-9]{32}\.txt\?session_id=s1\)$/),
+      expect.any(String),
+    ));
+    window.history.pushState({}, '', '/');
+  });
+
   it('consumes an editor request through the existing server attachment and queue path', async () => {
     setBusySession();
     vi.mocked(fetchDirectories).mockResolvedValueOnce({
