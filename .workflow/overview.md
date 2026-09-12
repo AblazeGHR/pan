@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-021 UI demo 已完成，等待开发者确认交互
-- 当前焦点：T-021；只做前端 demo，等待开发者确认后再决定后端实现
-- 可执行：开发者启动并验证 demo；确认后建立新的后端任务
-- TA 执行中：无；`ses_f1bebe98cb738ec3` 已 done，Worker idle
+- 整体状态：T-021 UI demo 根据开发者反馈进行第二轮修复，等待 TA 报告
+- 当前焦点：T-021；继续只做前端 demo，后端仍等待开发者确认
+- 可执行：等待 TA 修复文字重复、附件节点重拖动和直接上传 mock
+- TA 执行中：`ses_f1bebe98cb738ec3`（`worker-2`，Codex `gpt-5.6-luna`，high）
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -274,16 +274,19 @@
 
 - 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：先做 UI demo；开发者确认后再拆分/启动后端实现
-- 当前阶段：TA 已完成，等待开发者确认，未合入 main
+- 当前阶段：TA 根据开发者反馈修复中，未合入 main
 - 目标：附件从消息栏拖入发送输入框时显示文字中的插入光标；释放后在光标位置插入保留附件图标和文件名的可视化附件节点，而不是普通链接文字。节点作为整体可删除，前后可继续输入。
 - TA/任务：`ses_f1bebe98cb738ec3`；`attachment-dnd-ui-demo-20260913`；Worker `worker-2`
 - 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于 `main@f76bcd1`
 - 提交：`29a3e786b52e7b0742e2c23d6d084ed422ef4988`；未合入、未 push；TA worktree clean
 - 测试/未验证：定向 Vitest 45/45、`tsc -b`、ESLint、build、diff check 通过；Vite mock URL HTTP 200；全量 Vitest 仍有 10 个既有测试失败；真实 browser/mobile E2E 和真实服务/API 发送链路未验证
+- 开发者反馈（2026-09-13）：附件旁输入文字会重复；已插入附件不能继续拖动调整位置；需要补齐一次性直接上传附件的 mock 流程。
+- 跟进任务：`attachment-dnd-ui-demo-followup-20260913`，复用上述 TA/Worker 和分支；当前 follow-up 尚未提交。
 - 有序待办：
   - [x] 实现拖动、插入光标和附件节点 UI
   - [x] 添加回归测试并完成定向验证
   - [x] 提供 demo 启动方法和已知限制
+  - [ ] 修复开发者反馈并补充回归测试
   - [ ] 开发者确认 UI demo
   - [ ] 进入后端实现（需开发者确认后）
   - [ ] 合入 main（仅后端完成并测试通过后按 `AUTH-001` 执行）
