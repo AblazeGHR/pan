@@ -1,4 +1,4 @@
-export type CodexQuotaWindowKind = 'weekly' | 'monthly';
+export type CodexQuotaWindowKind = 'five_hour' | 'weekly' | 'monthly';
 
 export interface CodexQuotaWindow {
   kind: CodexQuotaWindowKind;
@@ -10,6 +10,7 @@ export interface CodexQuotaWindow {
 }
 
 export interface CodexQuotaWindows {
+  fiveHour?: CodexQuotaWindow;
   weekly?: CodexQuotaWindow;
   monthly?: CodexQuotaWindow;
 }
@@ -65,6 +66,7 @@ function classifyWindow(record: RecordValue, sourceKey: string): CodexQuotaWindo
   if (duration !== undefined) {
     // An explicit provider duration wins over a label. In particular, a 5h
     // primary window must never be presented as a week or a month.
+    if (duration >= 4.5 * 60 && duration <= 5.5 * 60) return 'five_hour';
     if (duration === 7 * 24 * 60) return 'weekly';
     if (duration >= 28 * 24 * 60 && duration <= 31 * 24 * 60) return 'monthly';
     return undefined;
@@ -112,9 +114,10 @@ function normalizeWindow(record: RecordValue, kind: CodexQuotaWindowKind): Codex
 }
 
 /**
- * Normalize only windows whose provider data proves that they are weekly or
- * monthly. The raw app-server snapshot is intentionally untyped because its
- * schema is provider-owned and can add fields without a Pan release.
+ * Normalize only windows whose provider data proves that they are five-hour,
+ * weekly, or monthly. The raw app-server snapshot is intentionally untyped
+ * because its schema is provider-owned and can add fields without a Pan
+ * release.
  */
 export function normalizeCodexRateLimits(rateLimits: Record<string, unknown> | undefined): CodexQuotaWindows {
   if (!rateLimits) return {};
@@ -135,8 +138,10 @@ export function normalizeCodexRateLimits(rateLimits: Record<string, unknown> | u
   const result: CodexQuotaWindows = {};
   for (const candidate of candidates) {
     const kind = classifyWindow(candidate.value, candidate.sourceKey);
-    if (!kind || result[kind]) continue;
-    result[kind] = normalizeWindow(candidate.value, kind);
+    if (!kind) continue;
+    const resultKey = kind === 'five_hour' ? 'fiveHour' : kind;
+    if (result[resultKey]) continue;
+    result[resultKey] = normalizeWindow(candidate.value, kind);
   }
   return result;
 }
@@ -154,7 +159,7 @@ export function normalizeCodexQuotaProjection(
       const record = asRecord(value);
       if (!record) continue;
       const kind = record.kind;
-      if (kind !== 'weekly' && kind !== 'monthly') continue;
+      if (kind !== 'five_hour' && kind !== 'weekly' && kind !== 'monthly') continue;
       const usage = asRecord(record.usage) ?? {};
       const normalized = normalizeWindow({
         ...record,
@@ -162,7 +167,8 @@ export function normalizeCodexQuotaProjection(
         usedPercent: usage.usedPercent,
         remainingPercent: usage.remainingPercent,
       }, kind);
-      if (!result[kind]) result[kind] = normalized;
+      const resultKey = kind === 'five_hour' ? 'fiveHour' : kind;
+      if (!result[resultKey]) result[resultKey] = normalized;
     }
   }
   if (Object.keys(result).length > 0) return result;
@@ -173,7 +179,7 @@ export function normalizeCodexQuotaProjection(
     for (let index = snapshots.length - 1; index >= 0; index -= 1) {
       const raw = asRecord(snapshots[index]);
       const normalized = normalizeCodexRateLimits(raw ?? undefined);
-      if (normalized.weekly || normalized.monthly) return normalized;
+      if (normalized.fiveHour || normalized.weekly || normalized.monthly) return normalized;
     }
   }
   return normalizeCodexRateLimits(asRecord(quotaRecord.raw) ?? undefined);

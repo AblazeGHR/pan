@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { fetchSessionUsage } from '@/services/api';
+import { fetchSession, fetchSessionUsage } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
-import { useWorkerStore } from '@/stores/workerStore';
 import type { Session, SessionUsageView } from '@/types';
 import { copyText } from '@/utils/clipboard';
-import { normalizeCodexQuotaProjection, normalizeCodexRateLimits, type CodexQuotaWindow } from '@/utils/codexRateLimits';
+import { normalizeCodexQuotaProjection, type CodexQuotaWindow } from '@/utils/codexRateLimits';
 
 interface SessionDetailsModalProps {
   session: Session | null;
@@ -78,13 +77,13 @@ function hasQuotaDetails(window: CodexQuotaWindow | undefined): window is CodexQ
 
 export function SessionDetailsModal({ session, onClose }: SessionDetailsModalProps) {
   const showToast = useUIStore((s) => s.showToast);
-  const worker = useWorkerStore((s) => (session ? s.workers[session.id] : undefined));
   const sessionId = session?.id;
   const [usageExpanded, setUsageExpanded] = useState(false);
   const [usage, setUsage] = useState<SessionUsageView | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageError, setUsageError] = useState<string | null>(null);
   const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
+  const [detailSession, setDetailSession] = useState<Session | null>(null);
 
   useEffect(() => {
     setUsageExpanded(false);
@@ -92,6 +91,21 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     setUsageLoading(false);
     setUsageError(null);
     setSystemPromptExpanded(false);
+    setDetailSession(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let active = true;
+    fetchSession(sessionId)
+      .then((full) => {
+        if (active) setDetailSession(full);
+      })
+      .catch(() => {
+        // The summary session remains the fallback when the detail request
+        // fails, so opening Details is still useful during a transient error.
+      });
+    return () => { active = false; };
   }, [sessionId]);
 
   useEffect(() => {
@@ -109,7 +123,11 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
 
   if (!session) return null;
 
-  const usageView = usage ?? fallbackUsage(session);
+  // Sidebar sessions come from summary=1 and intentionally omit detail-only
+  // fields such as systemPrompt. Render that snapshot immediately, then use
+  // the complete session fetched for this open modal once it arrives.
+  const displayedSession = detailSession ?? session;
+  const usageView = usage ?? fallbackUsage(displayedSession);
   const copyValue = (label: string, value: string | undefined) => {
     if (!value) {
       showToast(`${label} 暂无可复制内容`, 'error');
@@ -125,26 +143,20 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   };
 
   const rows: Array<{ label: string; value: string; rawValue?: string }> = [
-    { label: 'Session name', value: displayValue(session.name), rawValue: session.name || undefined },
-    { label: '工作目录', value: displayValue(session.workdir), rawValue: session.workdir },
-    { label: 'Session ID', value: session.id, rawValue: session.id },
-    { label: 'CLI ID', value: displayValue(session.cliSessionId), rawValue: session.cliSessionId ?? undefined },
+    { label: 'Session name', value: displayValue(displayedSession.name), rawValue: displayedSession.name || undefined },
+    { label: '工作目录', value: displayValue(displayedSession.workdir), rawValue: displayedSession.workdir },
+    { label: 'Session ID', value: displayedSession.id, rawValue: displayedSession.id },
+    { label: 'CLI ID', value: displayValue(displayedSession.cliSessionId), rawValue: displayedSession.cliSessionId ?? undefined },
   ];
 
-  const isCodex = session.adapter === 'codex';
-  const workerForSession = worker?.sessionId === undefined || worker.sessionId === session.id ? worker : undefined;
-  const workerOnline = Boolean(workerForSession && workerForSession.status !== 'offline');
-  const normalizedQuotaWindows = isCodex && workerOnline
-    ? normalizeCodexRateLimits(workerForSession?.nativeRateLimits)
-    : {};
-  const liveQuotaWindows = {
+  const isCodex = displayedSession.adapter === 'codex';
+  const normalizedQuotaWindows = isCodex ? normalizeCodexQuotaProjection(usageView.codexQuota) : {};
+  const quotaWindows = {
+    fiveHour: hasQuotaDetails(normalizedQuotaWindows.fiveHour) ? normalizedQuotaWindows.fiveHour : undefined,
     weekly: hasQuotaDetails(normalizedQuotaWindows.weekly) ? normalizedQuotaWindows.weekly : undefined,
     monthly: hasQuotaDetails(normalizedQuotaWindows.monthly) ? normalizedQuotaWindows.monthly : undefined,
   };
-  const cachedQuotaWindows = isCodex ? normalizeCodexQuotaProjection(usageView.codexQuota) : {};
-  const hasLiveQuota = Boolean(liveQuotaWindows.weekly || liveQuotaWindows.monthly);
-  const quotaWindows = hasLiveQuota ? liveQuotaWindows : cachedQuotaWindows;
-  const quotaIsCached = !hasLiveQuota && Boolean(usageView.codexQuota);
+  const quotaIsCached = Boolean(usageView.codexQuota);
 
   const renderQuotaWindow = (label: string, window: CodexQuotaWindow | undefined) => (
     <div key={label} className="min-w-0">
@@ -201,8 +213,8 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
           </button>
           {systemPromptExpanded && (
             <div id="session-system-prompt" role="region" aria-label="System prompt content" className="border-t border-border-default px-3 py-3">
-              {session.systemPrompt?.trim() ? (
-                <div className="whitespace-pre-wrap break-words text-sm text-text-primary">{session.systemPrompt}</div>
+              {displayedSession.systemPrompt?.trim() ? (
+                <div className="whitespace-pre-wrap break-words text-sm text-text-primary">{displayedSession.systemPrompt}</div>
               ) : (
                 <div className="text-sm text-text-tertiary">暂无 / 未建立</div>
               )}
@@ -226,30 +238,29 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
           {usageExpanded && (
             <div id="session-usage-details" role="region" aria-label="Usage details" className="space-y-3 border-t border-border-default px-3 py-3">
               {usageError && <div className="text-xs text-text-tertiary">{usageError}，当前显示已有数据</div>}
-              {isCodex && (quotaWindows.weekly || quotaWindows.monthly || !workerOnline) ? (
+              {isCodex ? (
                 <div className="space-y-3" role="region" aria-label="Codex quota">
                   <div className="text-xs text-text-tertiary">
-                    {hasLiveQuota
-                      ? 'Quota（当前 Worker 快照）'
-                      : quotaIsCached
-                        ? `Quota${usageView.codexQuota?.stale ? '（最近缓存，可能已过期）' : '（最近缓存）'}`
-                        : 'Quota'}
+                    {quotaIsCached
+                      ? `Quota${usageView.codexQuota?.stale ? '（最近缓存，可能已过期）' : '（最近缓存）'}`
+                      : 'Quota'}
                   </div>
-                  {quotaWindows.weekly || quotaWindows.monthly ? (
+                  {quotaWindows.fiveHour || quotaWindows.weekly || quotaWindows.monthly ? (
                     <>
+                      {quotaWindows.fiveHour && renderQuotaWindow('五小时额度', quotaWindows.fiveHour)}
                       {quotaWindows.weekly && renderQuotaWindow('周额度', quotaWindows.weekly)}
                       {quotaWindows.monthly && renderQuotaWindow('月额度', quotaWindows.monthly)}
                     </>
                   ) : (
-                    <div className="text-sm text-text-tertiary">当前没有可用的周/月 quota 缓存</div>
+                    <div className="text-sm text-text-tertiary">当前没有可用的五小时/周/月 quota 缓存</div>
                   )}
                 </div>
-              ) : !isCodex ? (
+              ) : (
                 <div className="min-w-0">
                   <div className="text-xs text-text-tertiary mb-1">Credits（累计）</div>
                   <div className="text-sm text-text-primary break-words">{formatMetric(usageView.total.credit)}</div>
                 </div>
-              ) : null}
+              )}
               <div className="grid grid-cols-1 gap-3 border-t border-border-muted pt-3 sm:grid-cols-3">
                 <div><div className="text-xs text-text-tertiary mb-1">输入 Token</div><div className="text-sm text-text-primary">{formatMetric(usageView.input)}</div></div>
                 <div><div className="text-xs text-text-tertiary mb-1">输出 Token</div><div className="text-sm text-text-primary">{formatMetric(usageView.output)}</div></div>

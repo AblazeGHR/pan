@@ -1,9 +1,13 @@
+import { useEffect, useState } from 'react';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { Button } from '@/components/ui/Button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { fetchSessionUsage } from '@/services/api';
+import { normalizeCodexQuotaProjection, type CodexQuotaWindow } from '@/utils/codexRateLimits';
+import type { CodexQuotaProjection } from '@/types';
 import {
   MessageSquare,
   Monitor,
@@ -43,28 +47,64 @@ function liveUsageLabel(usage: Record<string, unknown> | undefined): string | un
   return `${formatTokenCount(current)} tok${context}`;
 }
 
-function liveRateLimitLabel(rateLimits: Record<string, unknown> | undefined): string | undefined {
-  if (!rateLimits) return undefined;
-  const windows = ['primary', 'secondary']
-    .map((key) => rateLimits[key])
-    .filter((value): value is Record<string, unknown> =>
-      !!value && typeof value === 'object',
-    );
-  const used = windows
-    .map((window) => tokenCount(window.usedPercent))
-    .filter((value): value is number => value !== null);
-  if (used.length === 0) return undefined;
-  return `quota ${used.map((value) => `${Math.round(value)}%`).join(' / ')}`;
+function hasQuotaDetails(window: CodexQuotaWindow | undefined): window is CodexQuotaWindow {
+  return Boolean(window && (
+    window.usedPercent !== undefined ||
+    window.remainingPercent !== undefined ||
+    window.usedAmount !== undefined ||
+    window.remainingAmount !== undefined ||
+    window.resetsAt !== undefined
+  ));
+}
+
+function quotaWindowLabel(window: CodexQuotaWindow): string {
+  if (window.usedPercent !== undefined) return `${Math.round(window.usedPercent)}%`;
+  if (window.remainingPercent !== undefined) return `剩余 ${Math.round(window.remainingPercent)}%`;
+  if (window.usedAmount) return `已使用 ${window.usedAmount.value} ${window.usedAmount.unit}`;
+  if (window.remainingAmount) return `剩余 ${window.remainingAmount.value} ${window.remainingAmount.unit}`;
+  return '有数据';
+}
+
+function cachedQuotaLabel(quota: unknown): string | undefined {
+  const normalized = normalizeCodexQuotaProjection(quota);
+  const windows: Array<[string, CodexQuotaWindow | undefined]> = [
+    ['5h', normalized.fiveHour],
+    ['周', normalized.weekly],
+    ['月', normalized.monthly],
+  ];
+  const available = windows.flatMap(([label, window]) => (
+    hasQuotaDetails(window) ? [`${label} ${quotaWindowLabel(window)}`] : []
+  ));
+  return available.length > 0 ? `quota ${available.join(' / ')}` : undefined;
 }
 
 export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
+  const [codexQuota, setCodexQuota] = useState<CodexQuotaProjection | null>(null);
   const { showToast, toggleTuiView, tuiViewEnabled } =
     useUIStore();
   const { restart, killCurrent, interrupt, takeover } =
     useWorkerStore();
   const { isMobile } = useMediaQuery();
+
+  useEffect(() => {
+    const sessionId = currentSession?.id;
+    if (!sessionId || currentSession.adapter !== 'codex') {
+      setCodexQuota(null);
+      return;
+    }
+    let active = true;
+    setCodexQuota(null);
+    fetchSessionUsage(sessionId)
+      .then((usage) => {
+        if (active) setCodexQuota(usage.codexQuota ?? null);
+      })
+      .catch(() => {
+        if (active) setCodexQuota(null);
+      });
+    return () => { active = false; };
+  }, [currentSession?.id, currentSession?.adapter]);
 
   if (!currentSession) {
     return (
@@ -80,9 +120,7 @@ export function TopBar() {
   const nativeUsageLabel = currentWorker?.sessionId === currentSession.id
     ? liveUsageLabel(currentWorker.nativeUsage)
     : undefined;
-  const nativeRateLimitLabel = currentWorker?.sessionId === currentSession.id
-    ? liveRateLimitLabel(currentWorker.nativeRateLimits)
-    : undefined;
+  const cachedQuotaText = currentSession.adapter === 'codex' ? cachedQuotaLabel(codexQuota) : undefined;
 
   // Effective worker for the CURRENT session. Prefer the server-reported
   // session.workerId (authoritative after page load); fall back to the live
@@ -153,12 +191,12 @@ export function TopBar() {
             {nativeUsageLabel}
           </span>
         )}
-        {nativeRateLimitLabel && (
+        {cachedQuotaText && (
           <span
             className="hidden md:inline text-xs text-text-tertiary mr-1"
-            title="Codex account rate-limit usage (primary / secondary windows)"
+            title="Codex account rate-limit usage (persisted profile cache)"
           >
-            {nativeRateLimitLabel}
+            {cachedQuotaText}
           </span>
         )}
         {hasWorker && effectiveWorkerId && (

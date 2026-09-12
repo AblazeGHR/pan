@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { TopBar } from './TopBar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
+import * as api from '@/services/api';
 
 function mockMatchMedia() {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
@@ -44,6 +45,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('TopBar compact worker presentation', () => {
@@ -59,5 +61,61 @@ describe('TopBar compact worker presentation', () => {
     expect(screen.getByTitle('Kill worker')).toBeTruthy();
     expect(screen.getByTitle('Copy session ID')).toBeTruthy();
     expect(screen.getByTitle('Copy CLI session ID')).toBeTruthy();
+  });
+
+  it('shows persisted five-hour and weekly quota when the worker is offline', async () => {
+    useSessionStore.setState({
+      currentSessionId: 'session-codex',
+      sessions: [{
+        id: 'session-codex', name: 'Codex', adapter: 'codex', cliSessionId: 'cli-codex',
+        workerStatus: 'offline', workerId: null, alwaysThinkingEnabled: false, effort: '', history: [],
+      }],
+    });
+    useWorkerStore.setState({ currentWorker: null, currentWorkerId: null, workers: {} });
+    vi.spyOn(api, 'fetchSessionUsage').mockResolvedValue({
+      sessionId: 'session-codex', adapter: 'codex', input: null, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
+      codexQuota: {
+        ok: true, cacheMode: 'persisted', profileKey: 'profile-a',
+        windows: {
+          first: { kind: 'five_hour', usage: { usedPercent: 20 } },
+          secondary: { kind: 'weekly', usage: { usedPercent: 45 } },
+        },
+      },
+    });
+
+    render(<TopBar />);
+
+    expect(await screen.findByText('quota 5h 20% / 周 45%')).toBeTruthy();
+    expect(screen.getByTitle('Codex account rate-limit usage (persisted profile cache)')).toBeTruthy();
+    expect(api.fetchSessionUsage).toHaveBeenCalledWith('session-codex');
+  });
+
+  it('does not display a quota label for missing or unknown windows', async () => {
+    useSessionStore.setState({
+      currentSessionId: 'session-codex',
+      sessions: [{
+        id: 'session-codex', name: 'Codex', adapter: 'codex', cliSessionId: 'cli-codex',
+        workerStatus: 'offline', workerId: null, alwaysThinkingEnabled: false, effort: '', history: [],
+      }],
+    });
+    useWorkerStore.setState({ currentWorker: null, currentWorkerId: null, workers: {} });
+    vi.spyOn(api, 'fetchSessionUsage').mockResolvedValue({
+      sessionId: 'session-codex', adapter: 'codex', input: null, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
+      codexQuota: {
+        ok: true,
+        windows: {
+          first: { kind: 'unknown', usage: { usedPercent: 20 } },
+          secondary: { kind: 'weekly', usage: {} },
+        },
+      },
+    });
+
+    render(<TopBar />);
+
+    await waitFor(() => expect(api.fetchSessionUsage).toHaveBeenCalledWith('session-codex'));
+    expect(screen.queryByTitle('Codex account rate-limit usage (persisted profile cache)')).toBeNull();
+    expect(screen.queryByText(/quota/)).toBeNull();
   });
 });

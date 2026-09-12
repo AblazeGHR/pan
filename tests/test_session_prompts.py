@@ -194,6 +194,22 @@ def test_api_settings_and_export_preserve_prompt_components(monkeypatch):
     assert s.system_prompt == ""
 
 
+def test_summary_omits_prompt_but_full_detail_exposes_persisted_prompt():
+    from packages.web import server
+
+    s = sess.create(
+        "summary-detail",
+        original_prompt="Persisted original rules",
+        handoff_prompt="Latest handoff brief",
+    )
+
+    summary = server._session_summary(s)
+    full = server._session_to_api(s)
+
+    assert "systemPrompt" not in summary
+    assert full["systemPrompt"] == s.system_prompt
+
+
 def test_http_branch_preserves_components(monkeypatch):
     from packages.web import server
     from unittest.mock import Mock
