@@ -878,7 +878,8 @@ function mergeServerMessages(
     k < local.length &&
     k < server.length &&
     local[k]!.role === server[k]!.role &&
-    local[k]!.content === server[k]!.content
+    local[k]!.content === server[k]!.content &&
+    JSON.stringify(local[k]!.parts ?? null) === JSON.stringify(server[k]!.parts ?? null)
   ) {
     k++;
   }
@@ -894,7 +895,8 @@ function mergeServerMessages(
     for (let i = 0; i < n; i++) {
       const a = localTail[i]!;
       const b = serverTail[serverTail.length - n + i]!;
-      if (a.role !== b.role || a.content !== b.content) {
+      if (a.role !== b.role || a.content !== b.content
+          || JSON.stringify(a.parts ?? null) !== JSON.stringify(b.parts ?? null)) {
         match = false;
         break;
       }

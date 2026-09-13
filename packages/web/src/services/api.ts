@@ -50,6 +50,8 @@ import type {
   ApiMainExitStatusResponse,
   ApiMainExitResponse,
   ApiHealthResponse,
+  AttachmentRef,
+  MessagePart,
 } from '@/types';
 
 const BASE = '/api';
@@ -81,6 +83,12 @@ export interface SessionAttachmentUploadResponse {
   storageFilename?: string;
   href?: string;
   /** Legacy absolute storage path, never used as the Markdown label. */
+  path: string;
+  size: number;
+}
+
+export interface ServerFileAttachmentResponse extends AttachmentRef {
+  ok: boolean;
   path: string;
   size: number;
 }
@@ -167,6 +175,20 @@ export async function uploadSessionAttachment(
       finish(() => reject(error instanceof Error ? error : new Error(String(error))));
     }
   });
+}
+
+/** Register an existing server-side file without sending a client path back in
+ * the message protocol. Directories are rejected by the server in phase 1. */
+export async function registerServerFileAttachment(
+  sessionId: string,
+  path: string,
+): Promise<ServerFileAttachmentResponse> {
+  const data = await request<ServerFileAttachmentResponse | { ok?: false; detail?: string }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/attachments/from-server-file`,
+    { method: 'POST', body: JSON.stringify({ path }) },
+  );
+  if (!data.ok) throw new Error('detail' in data ? data.detail || '服务端附件注册失败' : '服务端附件注册失败');
+  return data as ServerFileAttachmentResponse;
 }
 
 // ── Sessions ──
@@ -317,6 +339,7 @@ export async function enqueueSessionMessage(
   sessionId: string,
   text: string,
   clientMessageId: string,
+  parts?: MessagePart[],
 ): Promise<{ item: AgentQueueItem; queueRevision?: number; duplicate?: boolean }> {
   const data = await request<{
     ok?: boolean;
@@ -326,7 +349,7 @@ export async function enqueueSessionMessage(
     error?: { message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue`, {
     method: 'POST',
-    body: JSON.stringify({ text, clientMessageId }),
+    body: JSON.stringify({ text, clientMessageId, ...(parts ? { parts } : {}) }),
   });
   if (!data.ok || !data.item) {
     const error = typeof data.error === 'string' ? data.error : data.error?.message;

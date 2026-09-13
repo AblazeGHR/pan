@@ -3,10 +3,35 @@
 export interface Message {
   role: string;
   content: string;
+  /** Server-canonical parts; content remains the adapter/legacy fallback. */
+  parts?: MessagePart[];
   /** Transient native Codex identity used to merge live Codex messages. */
   nativeItemId?: string;
   /** Queue item(s) whose local CLI hand-off produced this user message. */
   queueItemIds?: string[];
+}
+
+export type MessagePart =
+  | { type: 'text'; text: string }
+  | {
+      type: 'attachment';
+      attachmentId: string;
+      displayName: string;
+      mimeType?: string;
+      size?: number;
+      source?: 'upload' | 'server_file';
+    };
+
+/** Session-scoped opaque attachment metadata. href/path are server output only. */
+export interface AttachmentRef {
+  attachmentId: string;
+  displayName: string;
+  mimeType?: string;
+  size?: number;
+  source?: 'upload' | 'server_file';
+  href?: string;
+  /** Compatibility-only server path; never sent back as authority. */
+  path?: string;
 }
 
 /** MCP-only capability flags (backend `pan_access`, camelCase over HTTP). */
@@ -744,6 +769,7 @@ export interface AgentQueueItem {
   status?: string;
   kind: AgentQueueKind;
   text: string;
+  parts?: MessagePart[];
   createdAt: number | string;
   source?: string;
   meta?: {

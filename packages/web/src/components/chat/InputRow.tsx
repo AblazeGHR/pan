@@ -12,13 +12,13 @@ import { ModelSelect } from '@/components/ui/ModelSelect';
 import { DirectoryInput } from '@/components/session/DirectoryInput';
 import { Modal } from '@/components/ui/Modal';
 import { RichTextComposer, type ComposerValue, type RichTextComposerHandle } from '@/components/chat/RichTextComposer';
-import { fetchDirectories, uploadSessionAttachment } from '@/services/api';
+import { fetchDirectories, registerServerFileAttachment, uploadSessionAttachment } from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
 import { writeAttachmentDragPayload, type AttachmentDragPayload } from '@/utils/attachmentDrag';
-import { isMockMode, mockUploadSessionAttachment } from '@/demo/mockBackend';
+import { isMockMode, mockRegisterServerFileAttachment, mockUploadSessionAttachment } from '@/demo/mockBackend';
 import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
 import { ChevronDown, ChevronUp, CornerUpRight, Expand, File as FileIcon, Minimize2, Paperclip, Settings, X } from 'lucide-react';
-import type { AdapterConfig, PermissionMode } from '@/types';
+import type { AdapterConfig, MessagePart, PermissionMode } from '@/types';
 
 const PILL_CLASS =
   'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border-default bg-bg-tertiary hover:bg-bg-hover cursor-pointer transition-colors';
@@ -42,7 +42,7 @@ function permBorderClass(value: string): string {
   return 'border-border-default';
 }
 
-type AttachmentStatus = 'uploading' | 'ready' | 'error';
+type AttachmentStatus = 'uploading' | 'registering' | 'ready' | 'error';
 
 interface PendingAttachment {
   id: string;
@@ -58,6 +58,10 @@ interface PendingAttachment {
   totalBytes?: number;
   fileKey?: string;
   error?: string;
+  /** Server-owned opaque id used in structured message parts. */
+  attachmentId?: string;
+  mimeType?: string;
+  source?: 'upload' | 'server_file';
 }
 
 function attachmentId(): string {
@@ -69,6 +73,11 @@ function attachmentId(): string {
 
 function clientFileKey(file: File): string {
   return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
+}
+
+function uploadAttachmentIdFromHref(href: string | undefined): string | undefined {
+  const match = href?.match(/\/api\/attachments\/(upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?)/);
+  return match?.[1];
 }
 
 // ── pill sub-components ──
@@ -326,22 +335,29 @@ export function InputRow() {
       .filter((request) => request.sessionId === currentSessionId)
       .map((request) => request.path);
     if (requested.length === 0) return;
-
-    setAttachments((current) => {
-      const existing = new Set(current.map((attachment) => attachment.path));
-      const additions = requested
-        .filter((path) => !existing.has(path))
-        .map((path) => ({
-          id: attachmentId(),
-          displayName: path.split(/[\\/]/).pop() || path,
-          path,
-          href: serverFileDownloadHref(currentSessionId, path),
-          status: 'ready' as const,
-        }));
-      return additions.length > 0 ? [...current, ...additions] : current;
-    });
+    const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
+    void Promise.all(requested.map((path) => register(currentSessionId, path)))
+      .then((registered) => {
+        setAttachments((current) => {
+          const existing = new Set(current.map((attachment) => attachment.attachmentId));
+          const additions = registered
+            .filter((item) => !existing.has(item.attachmentId))
+            .map((item) => ({
+              id: attachmentId(),
+              attachmentId: item.attachmentId,
+              displayName: item.displayName,
+              path: item.path,
+              href: item.href,
+              mimeType: item.mimeType,
+              source: 'server_file' as const,
+              status: 'ready' as const,
+            }));
+          return additions.length > 0 ? [...current, ...additions] : current;
+        });
+      })
+      .catch((error) => showToast(error instanceof Error ? error.message : '服务端附件注册失败', 'error'));
     consumeChatAttachmentRequests(currentSessionId, requested);
-  }, [chatAttachmentRequests, consumeChatAttachmentRequests, currentSessionId]);
+  }, [chatAttachmentRequests, consumeChatAttachmentRequests, currentSessionId, showToast]);
 
   useEffect(() => {
     if (!isMobile) {
@@ -416,9 +432,12 @@ export function InputRow() {
             ...item,
             displayName: uploaded.displayName || uploaded.filename || item.displayName,
             path: uploaded.path,
-            href: uploaded.href || serverFileDownloadHref(sessionId, uploaded.path),
-            status: 'ready',
-            loadedBytes: uploaded.size,
+             href: uploaded.href || serverFileDownloadHref(sessionId, uploaded.path),
+             status: 'ready',
+             attachmentId: uploaded.attachmentId || uploaded.storageFilename,
+             mimeType: attachment.file?.type || undefined,
+             source: 'upload',
+             loadedBytes: uploaded.size,
             totalBytes: uploaded.size,
             error: undefined,
           }
@@ -434,10 +453,8 @@ export function InputRow() {
     }
   }, [currentSessionId]);
 
-  const handleClientFiles = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
-    if (!currentSessionId || files.length === 0) return;
+  const queueClientFiles = useCallback((files: File[]): string[] => {
+    if (!currentSessionId || files.length === 0) return [];
     const uploadingOrReady = new Set(
       attachments
         .filter((attachment) => attachment.status !== 'error' && attachment.fileKey)
@@ -458,10 +475,27 @@ export function InputRow() {
       totalBytes: file.size,
       status: 'uploading' as const,
     }));
-    if (added.length === 0) return;
+    if (added.length === 0) return [];
     setAttachments((current) => [...current, ...added]);
     void Promise.all(added.map((attachment) => uploadClientAttachment(attachment)));
+    return added.map((attachment) => attachment.id);
   }, [attachments, currentSessionId, uploadClientAttachment]);
+
+  const handleClientFiles = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    void queueClientFiles(files);
+  }, [queueClientFiles]);
+
+  const handleNativeFiles = useCallback((files: File[], _offset: number, _source: 'paste' | 'drop') => (
+    queueClientFiles(files)
+  ), [queueClientFiles]);
+
+  const handleNativeInputIssue = useCallback((kind: 'directory' | 'uri' | 'invalid-pan-attachment') => {
+    if (kind === 'directory') showToast('暂不支持拖入目录；请先选择普通文件', 'error');
+    else if (kind === 'uri') showToast('不接受文件 URI/路径，请拖入普通文件内容', 'error');
+    else showToast('Pan 附件引用无效，请重新拖入附件', 'error');
+  }, [showToast]);
 
   const handleComposerChange = useCallback((value: ComposerValue) => {
     composerValueRef.current = value;
@@ -472,22 +506,48 @@ export function InputRow() {
   const handleAttachmentDrop = useCallback((payload: AttachmentDragPayload): string | null => {
     if (!currentSessionId) return null;
     if (payload.attachmentId) {
-      return attachments.some((attachment) => attachment.id === payload.attachmentId)
-        ? payload.attachmentId
-        : null;
+      const existing = attachments.find((attachment) => attachment.id === payload.attachmentId);
+      if (existing) return existing.id;
     }
     const id = attachmentId();
+    const remoteId = payload.serverAttachmentId || uploadAttachmentIdFromHref(payload.href);
+    const known = attachments.find((attachment) => attachment.attachmentId === remoteId);
+    if (known) return known.id;
+    const needsRegistration = !remoteId && !!payload.path;
     setAttachments((current) => [...current, {
       id,
+      attachmentId: remoteId,
       displayName: payload.displayName,
       path: payload.path,
       href: payload.href,
-      status: 'ready',
+      status: needsRegistration ? 'registering' : 'ready',
+      source: remoteId?.startsWith('upload_') ? 'upload' : 'server_file',
     }]);
+    if (needsRegistration) {
+      const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
+      void register(currentSessionId, payload.path!)
+        .then((registered) => setAttachments((current) => current.map((item) => item.id === id
+          ? {
+              ...item,
+              attachmentId: registered.attachmentId,
+              displayName: registered.displayName,
+              href: registered.href,
+              path: registered.path,
+              mimeType: registered.mimeType,
+              source: 'server_file',
+              status: 'ready',
+            }
+          : item)))
+        .catch((error) => setAttachments((current) => current.map((item) => item.id === id
+          ? { ...item, status: 'error', error: error instanceof Error ? error.message : '附件注册失败' }
+          : item)));
+    }
     return id;
   }, [attachments, currentSessionId]);
 
   const handleRemoveComposerAttachment = useCallback((attachmentIdToRemove: string) => {
+    uploadControllersRef.current.get(attachmentIdToRemove)?.abort();
+    uploadControllersRef.current.delete(attachmentIdToRemove);
     setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentIdToRemove));
   }, []);
 
@@ -499,6 +559,10 @@ export function InputRow() {
       }
       if (attachments.some((attachment) => attachment.status === 'uploading')) {
         showToast('附件仍在上传，请稍候', 'error');
+        return;
+      }
+      if (attachments.some((attachment) => attachment.status === 'registering')) {
+        showToast('附件仍在注册，请稍候', 'error');
         return;
       }
       if (attachments.some((attachment) => attachment.status === 'error')) {
@@ -538,6 +602,10 @@ export function InputRow() {
         showToast('附件链接无效，请重新选择附件', 'error');
         return;
       }
+      if (readyAttachments.some((attachment) => !attachment.attachmentId)) {
+        showToast('附件身份尚未完成，请重新选择或等待附件注册', 'error');
+        return;
+      }
       const linksById = new Map(
         readyAttachments.map((attachment, index) => [attachment.id, attachmentLinks[index]]),
       );
@@ -553,10 +621,41 @@ export function InputRow() {
       const message = [composedText.trim() || text.trim(), remainingLinks.join(' ')].filter(Boolean).join(' ');
       if (!message) return;
 
+      const structuredParts: MessagePart[] = [];
+      for (const part of composerValueRef.current.parts) {
+        if (part.type === 'text') {
+          structuredParts.push({ type: 'text', text: part.value });
+          continue;
+        }
+        const attachment = attachments.find((candidate) => candidate.id === part.attachmentId);
+        if (attachment?.attachmentId) {
+          structuredParts.push({
+            type: 'attachment',
+            attachmentId: attachment.attachmentId,
+            displayName: attachment.displayName,
+            mimeType: attachment.mimeType,
+            size: attachment.file?.size,
+            source: attachment.source,
+          });
+        }
+      }
+      for (const attachment of readyAttachments) {
+        if (embeddedIds.has(attachment.id)) continue;
+        if (structuredParts.length > 0) structuredParts.push({ type: 'text', text: ' ' });
+        structuredParts.push({
+          type: 'attachment',
+          attachmentId: attachment.attachmentId!,
+          displayName: attachment.displayName,
+          mimeType: attachment.mimeType,
+          size: attachment.file?.size,
+          source: attachment.source,
+        });
+      }
+
       // Every user message goes to the server queue.  Clear the input only
       // after the server returns a durable queueItemId; a network failure is
       // not an offline accepted queue state.
-      const ok = await enqueue(message);
+      const ok = await enqueue(message, structuredParts.length > 0 ? structuredParts : undefined);
       if (ok) {
         composerRef.current?.replaceText('');
         setInputDraft(currentSessionId, '');
@@ -799,6 +898,7 @@ export function InputRow() {
                       href: attachment.href,
                       path: attachment.path,
                       attachmentId: attachment.id,
+                      serverAttachmentId: attachment.attachmentId,
                       source: 'attachment-chip',
                     });
                   }}
@@ -810,6 +910,7 @@ export function InputRow() {
                   <FileIcon size={13} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{attachment.displayName}</span>
                   {attachment.file && attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
+                  {!attachment.file && attachment.status === 'registering' && <span className="text-text-tertiary">注册中…</span>}
                   {attachment.file && attachment.status === 'ready' && <span className="text-accent">已完成</span>}
                   {attachment.status === 'error' && (
                     <button
@@ -817,10 +918,28 @@ export function InputRow() {
                       className="text-danger hover:underline"
                       aria-label={`重试上传 ${attachment.displayName}`}
                       onClick={() => {
-                        setAttachments((current) => current.map((item) => item.id === attachment.id
-                          ? { ...item, status: 'uploading', error: undefined }
-                          : item));
-                        void uploadClientAttachment({ ...attachment, status: 'uploading' });
+                        if (attachment.file) {
+                          setAttachments((current) => current.map((item) => item.id === attachment.id
+                            ? { ...item, status: 'uploading', error: undefined }
+                            : item));
+                          void uploadClientAttachment({ ...attachment, status: 'uploading' });
+                          return;
+                        }
+                        if (attachment.path) {
+                          setAttachments((current) => current.map((item) => item.id === attachment.id
+                            ? { ...item, status: 'registering', error: undefined }
+                            : item));
+                          const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
+                          void register(currentSessionId!, attachment.path)
+                            .then((registered) => setAttachments((current) => current.map((item) => item.id === attachment.id
+                              ? { ...item, attachmentId: registered.attachmentId, href: registered.href,
+                                  displayName: registered.displayName, mimeType: registered.mimeType,
+                                  status: 'ready' }
+                              : item)))
+                            .catch((error) => setAttachments((current) => current.map((item) => item.id === attachment.id
+                              ? { ...item, status: 'error', error: error instanceof Error ? error.message : '附件注册失败' }
+                              : item)));
+                        }
                       }}
                     >
                       重试
@@ -861,19 +980,31 @@ export function InputRow() {
                 fileMode
                 showRootsWhenEmpty
                 onSelect={(selectedPath) => {
-                  const name = selectedPath.split(/[\\/]/).pop() || selectedPath;
-                  setAttachments((current) => current.some((item) => item.path === selectedPath)
-                    ? current
-                    : [...current, {
-                        id: attachmentId(),
-                        displayName: name,
-                        path: selectedPath,
-                        href: serverFileDownloadHref(currentSessionId!, selectedPath),
-                        status: 'ready',
-                      }]);
-                  setAttachmentBrowserOpen(false);
-                  setAttachmentMenuOpen(false);
-                  setAttachmentDirectoryError(null);
+                  void (async () => {
+                    try {
+                      const register = isMockMode()
+                        ? mockRegisterServerFileAttachment
+                        : registerServerFileAttachment;
+                      const registered = await register(currentSessionId!, selectedPath);
+                      setAttachments((current) => current.some((item) => item.attachmentId === registered.attachmentId)
+                        ? current
+                        : [...current, {
+                            id: attachmentId(),
+                            attachmentId: registered.attachmentId,
+                            displayName: registered.displayName,
+                            path: registered.path,
+                            href: registered.href,
+                            mimeType: registered.mimeType,
+                            source: 'server_file' as const,
+                            status: 'ready' as const,
+                          }]);
+                      setAttachmentBrowserOpen(false);
+                      setAttachmentMenuOpen(false);
+                      setAttachmentDirectoryError(null);
+                    } catch (error) {
+                      setAttachmentDirectoryError(error instanceof Error ? error.message : '服务端附件注册失败');
+                    }
+                  })();
                 }}
               />
               {attachmentDirectoryError && <p className="mt-2 text-sm text-danger" data-testid="attachment-directory-error">{attachmentDirectoryError}</p>}
@@ -913,6 +1044,8 @@ export function InputRow() {
               attachments={attachments.map(({ id, displayName, href, path }) => ({ id, displayName, href, path }))}
               onChange={handleComposerChange}
               onAttachmentDrop={handleAttachmentDrop}
+              onNativeFiles={handleNativeFiles}
+              onNativeInputIssue={handleNativeInputIssue}
               onRemoveAttachment={handleRemoveComposerAttachment}
               onKeyDown={handleKeyDown}
             />
