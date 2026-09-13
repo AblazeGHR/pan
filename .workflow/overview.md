@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-021 UI demo 正在进行最终发布前自检与必要修复，等待 TA 报告
-- 当前焦点：T-021；先完成完整测试和边界审计，后端仍等待开发者确认
-- 可执行：等待 TA 完成最终自检、修复和全量验证
-- TA 执行中：`ses_f1bebe98cb738ec3`（`worker-2`，Codex `gpt-5.6-luna`，high）
+- 整体状态：T-021 UI demo 最终自检和修复已完成，等待开发者确认
+- 当前焦点：T-021；前端 demo 已完成，后端仍等待开发者确认
+- 可执行：开发者重新启动并验证 demo；确认后建立新的后端任务
+- TA 执行中：无；`ses_f1bebe98cb738ec3` 已 done，Worker idle
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -274,21 +274,21 @@
 
 - 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：先做 UI demo；开发者确认后再拆分/启动后端实现
-- 当前阶段：TA 进行最终发布前自检与必要修复，未合入 main
+- 当前阶段：TA 已完成最终发布前自检与必要修复，等待开发者确认，未合入 main
 - 目标：附件从消息栏拖入发送输入框时显示文字中的插入光标；释放后在光标位置插入保留附件图标和文件名的可视化附件节点，而不是普通链接文字。节点作为整体可删除，前后可继续输入。
 - TA/任务：`ses_f1bebe98cb738ec3`；`attachment-dnd-ui-demo-20260913`；Worker `worker-2`
 - 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于 `main@f76bcd1`
-- 提交：初始 demo `29a3e786b52e7b0742e2c23d6d084ed422ef4988`；第二轮修复 `978a4d7f4d975f7d6d73295611be229c525be6bf`；未合入、未 push；TA worktree clean
-- 测试/未验证：第二轮定向 Vitest 3 files / 48 passed、全量 Vitest 433 passed/10 个既有基线失败、`tsc -b`、ESLint、build、diff check 通过；真实 browser/mobile E2E 和真实服务/API 发送链路未验证
+- 提交：初始 demo `29a3e786b52e7b0742e2c23d6d084ed422ef4988`；第二轮修复 `978a4d7f4d975f7d6d73295611be229c525be6bf`；最终自检修复 `a88a3cce083bf388fa27f601b29eb3fcd93725d5`；未合入、未 push；TA worktree clean
+- 测试/未验证：最终定向 7 files / 105 passed；全量 Vitest 447 passed、10 个既有基线失败；`tsc -b`、ESLint、build、diff check 通过；Vite mock 已实际验证拖入、上传、Send、Queue；完整跨浏览器/移动端 E2E、真实服务/API 发送链路未验证
 - 开发者反馈（2026-09-13）：附件旁输入文字会重复；已插入附件不能继续拖动调整位置；需要补齐一次性直接上传附件的 mock 流程。
 - 跟进任务：`attachment-dnd-ui-demo-followup-20260913`，复用上述 TA/Worker 和分支；已完成。
-- 最终自检任务：`attachment-dnd-ui-demo-final-audit-20260913`；要求覆盖输入/光标、外部拖入、内部重排、删除/焦点、mock 上传、真实模式兼容、会话/草稿/队列和边界场景，并先修复本次引入问题再报告。
+- 最终自检任务：`attachment-dnd-ui-demo-final-audit-20260913`；已覆盖输入/光标、外部拖入、内部重排、删除/焦点、mock 上传、真实模式兼容、会话/草稿/队列和边界场景，并修复本次发现的问题。
 - 有序待办：
   - [x] 实现拖动、插入光标和附件节点 UI
   - [x] 添加回归测试并完成定向验证
   - [x] 提供 demo 启动方法和已知限制
   - [x] 修复开发者反馈并补充回归测试
-  - [ ] 完成最终发布前自检、必要修复和全量验证
+  - [x] 完成最终发布前自检、必要修复和全量验证
   - [ ] 开发者确认 UI demo
   - [ ] 进入后端实现（需开发者确认后）
   - [ ] 合入 main（仅后端完成并测试通过后按 `AUTH-001` 执行）
