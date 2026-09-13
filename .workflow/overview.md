@@ -36,15 +36,17 @@
 
 ### DEC-001：文件复制/拖入输入框的正式实现方案
 
-- 状态：待决定
+- 状态：已决定
 - 影响功能和阶段：T-023 方案调查及其后续文件输入、附件引用、发送和持久化实现；T-023 当前被本决策直接阻塞
 - 已核实事实：系统文件复制/拖入在浏览器中通常提供 `File`/`FileList`，应上传文件内容而不是客户端绝对路径；目录依赖额外且兼容性不一的 handle/entry API；当前 Pan 已有服务端文件和客户端上传两条链路，但发送协议仍以 Markdown 文本为主
 - 选项 A：只支持普通文件的复制/粘贴和拖入，目录明确拒绝；先复用现有上传接口和 Markdown 校验，复杂度最低、兼容性最好
 - 选项 B：支持普通文件和目录递归上传；需要目录枚举、相对路径、批量进度、取消、部分失败和跨浏览器 fallback，复杂度较高
 - 选项 C：直接采用结构化 `AttachmentRef`/`parts` 发送协议；客户端文件、服务端文件和消息附件统一使用 session-scoped opaque `attachmentId`，长期最稳健但需要改 queue/history/WebSocket 和旧协议兼容
 - 推荐：A + C；第一阶段先实现普通文件输入并拒绝目录，同时采用结构化附件引用；目录能力以后单独建立任务
+- 最终决定：A + C。第一阶段支持普通文件复制/粘贴和拖入，目录明确拒绝；同时采用结构化 AttachmentRef/parts 协议，兼容旧 text/Markdown 协议。
+- 决定来源：开发者会话，2026-09-13；用户明确回复“使用A+C”。
 - 决策要求：请明确选择 A、B、C 或 A + C；可同时补充目录、重复文件、上传时机和未发送附件生命周期规则
-- 决定后动作：MA 将记录“状态：已决定”和“最终决定”，解除 T-023 的决策阻塞并建立正式实现任务；在此之前不得实现第二功能
+- 决定后动作：已解除 T-023 决策阻塞并建立 T-025 正式实现任务。
 
 ## 一、已合入 main 的改动
 
@@ -317,7 +319,7 @@
 ### T-023：文件复制/拖入输入框的客户端与服务端方案调查
 
 - 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：TA 已完成调查，等待开发者决策；未修改正式功能代码、不提交、不合入 main
+- 当前阶段：TA 已完成调查，方案已决定；T-025 正式实现中
 - 目标：明确系统文件复制粘贴、文件拖入、目录拖入、网页附件拖动的真实浏览器数据形态，并提出能同时支持客户端文件与服务端文件的实现方案。
 - 范围：浏览器 paste/drop DataTransfer、File/FileList、目录 handle/entry、绝对路径安全边界、当前 Pan 附件链路、AttachmentRef/parts 协议、上传/取消/进度/持久化和兼容性。
 - TA/任务：`ses_f1bebe98cb738ec3`；`attachment-file-paste-drop-design-investigation-20260913`；Worker `worker-3`
@@ -325,9 +327,26 @@
   - [x] 核对浏览器复制文件、拖入文件和目录的事实行为
   - [x] 审计当前客户端/服务端附件链路与缺口
   - [x] 给出至少三套可选方案、推荐分阶段方案和产品决策项
-  - [ ] 开发者决策方案
-  - [ ] 决策后建立实现任务，不在本调查任务中实现
+  - [x] 开发者决策方案
+  - [x] 决策后建立实现任务，不在本调查任务中实现
+
+### T-025：普通文件复制/拖入与结构化附件 parts 实现
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：TA 实现中，未合入 main
+- 目标：按 DEC-001 的 A + C 实现普通文件 paste/drop、目录拒绝和结构化 AttachmentRef/parts；统一客户端文件、服务端文件和消息附件，兼容旧 text/Markdown 协议。
+- 产品语义：未嵌入的上方 chip 正常发送并追加到消息尾部；嵌入附件按 parts 首/中/尾位置发送；删除嵌入附件后不发送、不恢复 chip；客户端只上传 File 内容，不使用绝对路径。
+- TA/任务：`ses_05f04412bbac11b8`；`attachment-file-paste-structured-parts-implementation-20260913`；Worker `worker-2`
+- 工作树/分支：`D:\project\pan-worktrees\attachment-file-paste-structured-parts-20260913`；`feature/attachment-file-paste-structured-parts-20260913`；基于 `main@c0bf345`
+- 有序待办：
+  - [ ] 实现普通文件 paste/drop 与目录拒绝
+  - [ ] 实现结构化 AttachmentRef/parts 及旧协议兼容
+  - [ ] 添加客户端、API、queue、WebSocket、history 和安全回归
+  - [ ] 完成真实浏览器/API 与完整门禁验证
+  - [ ] 提交并检查 worktree clean
+  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
+  - [ ] 开发者验收
 
 ## 四、计划要做的任务
 
-文件复制/拖入输入框的正式实现：等待 T-023 方案调查和开发者决策后建立新的实现任务。
+当前暂无。新需求必须分配新的 `T-nnn`，不得复用已完成任务 ID。

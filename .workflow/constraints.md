@@ -81,3 +81,4 @@
 | `T-022` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；后端测试通过后直接合入本地 `main`，不 push |
 | `T-023` | `GIT-2`；调查阶段不改正式代码 | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；先报告方案，开发者决策后再执行 |
 | `T-024` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；测试通过后直接合入本地 `main`，不 push |
+| `T-025` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按 `DEC-001=A+C` 实现，测试通过后直接合入本地 `main` |
