@@ -1,6 +1,6 @@
 # Pan 工作流总览
 
-> 当前工作流真源。约束策略见 [constraints.md](constraints.md)。旧总览 [overview.md](../docs/plans&overviews/overview.md) 与旧约束 [constraints-and-acceptance.md](../docs/plans&overviews/constraints-and-acceptance.md) 作为迁移输入和历史附件保留，不再维护为活动状态文档。
+> 当前工作流真源。约束策略见 [constraints.md](constraints.md)。
 >
 > 维护者：Pan SMA；迁移日期：2026-09-12
 
@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-021 UI demo 第二轮修复已完成，等待开发者复验
-- 当前焦点：T-021；继续只做前端 demo，后端仍等待开发者确认
-- 可执行：开发者重新启动并验证 demo；确认后建立新的后端任务
-- TA 执行中：无；`ses_f1bebe98cb738ec3` 已 done，Worker idle
+- 整体状态：T-021 UI demo 正在进行最终发布前自检与必要修复，等待 TA 报告
+- 当前焦点：T-021；先完成完整测试和边界审计，后端仍等待开发者确认
+- 可执行：等待 TA 完成最终自检、修复和全量验证
+- TA 执行中：`ses_f1bebe98cb738ec3`（`worker-2`，Codex `gpt-5.6-luna`，high）
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -45,7 +45,7 @@
 - 测试/未验证：真实 handoff 按安全边界未执行。
 - 有序待办：
   - [x] 合入 main
-  - [ ] 开发者验收
+  - [x] 开发者验收
 
 ### T-002：Session Details / Rename / Usage / System prompt UI（旧编号 2）
 
@@ -56,7 +56,7 @@
 - 测试/未验证：46 files / 407 tests、lint、build 通过；未做真实 browser/mobile E2E。
 - 有序待办：
   - [x] 合入 main
-  - [ ] 开发者验收
+  - [x] 开发者验收
 
 ### T-003：ChatMessages 底部跟随与 Scroll to bottom（旧编号 3）
 
@@ -274,7 +274,7 @@
 
 - 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：先做 UI demo；开发者确认后再拆分/启动后端实现
-- 当前阶段：TA 已完成第二轮修复，等待开发者复验，未合入 main
+- 当前阶段：TA 进行最终发布前自检与必要修复，未合入 main
 - 目标：附件从消息栏拖入发送输入框时显示文字中的插入光标；释放后在光标位置插入保留附件图标和文件名的可视化附件节点，而不是普通链接文字。节点作为整体可删除，前后可继续输入。
 - TA/任务：`ses_f1bebe98cb738ec3`；`attachment-dnd-ui-demo-20260913`；Worker `worker-2`
 - 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于 `main@f76bcd1`
@@ -282,11 +282,13 @@
 - 测试/未验证：第二轮定向 Vitest 3 files / 48 passed、全量 Vitest 433 passed/10 个既有基线失败、`tsc -b`、ESLint、build、diff check 通过；真实 browser/mobile E2E 和真实服务/API 发送链路未验证
 - 开发者反馈（2026-09-13）：附件旁输入文字会重复；已插入附件不能继续拖动调整位置；需要补齐一次性直接上传附件的 mock 流程。
 - 跟进任务：`attachment-dnd-ui-demo-followup-20260913`，复用上述 TA/Worker 和分支；已完成。
+- 最终自检任务：`attachment-dnd-ui-demo-final-audit-20260913`；要求覆盖输入/光标、外部拖入、内部重排、删除/焦点、mock 上传、真实模式兼容、会话/草稿/队列和边界场景，并先修复本次引入问题再报告。
 - 有序待办：
   - [x] 实现拖动、插入光标和附件节点 UI
   - [x] 添加回归测试并完成定向验证
   - [x] 提供 demo 启动方法和已知限制
   - [x] 修复开发者反馈并补充回归测试
+  - [ ] 完成最终发布前自检、必要修复和全量验证
   - [ ] 开发者确认 UI demo
   - [ ] 进入后端实现（需开发者确认后）
   - [ ] 合入 main（仅后端完成并测试通过后按 `AUTH-001` 执行）
