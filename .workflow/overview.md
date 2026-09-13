@@ -7,17 +7,17 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`784866b`；T-022 附件后端实现已合入本地 main；未 push。
+- `main`：`17632cc`；T-024 解释器配置实现已合入本地 main；未 push。
 - `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
 - `main` 既有 dirty/untracked：`docs/references/cli-adapter-special-behaviors.md`；本次将按用户要求提交。`.vite/` 与 `docs/developLog.md` 已加入 ignore。
 - 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧 overview 已删除。
 
 ## 工作流控制
 
-- 整体状态：T-023 文件复制/拖入输入框方案调查已完成，等待开发者决策；T-024 解释器配置实现中
-- 当前焦点：等待第二功能方案选择，同时实现 config.json 优先于环境变量的解释器配置
-- 可执行：开发者从 T-023 方案中决策后建立实现任务；等待 T-024 实现/验证结果
-- TA 执行中：`ses_43962b89b225afde`（`worker-4`，Codex `gpt-5.6-luna`，high）；T-023 TA 已 done
+- 整体状态：T-024 解释器配置已合入本地 main；T-023 文件复制/拖入输入框方案调查等待开发者决策
+- 当前焦点：等待第二功能方案选择；解释器配置功能等待开发者验收
+- 可执行：开发者从 T-023 方案中决策后建立附件实现任务
+- TA 执行中：无；T-023 与 T-024 TA 均已 done
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -279,6 +279,23 @@
   - [x] 合入 main
   - [ ] 开发者验收
 
+### T-024：Pan 解释器的 config.json 配置与环境变量优先级
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：已合入本地 main，等待开发者验收
+- 目标/结论：支持顶层 `config.json.python` 配置；优先级为 `config.json.python` > `PAN_PYTHON` > 当前 Pan 进程的 `sys.executable`。支持字符串、argv 数组和 `{command,args}` 结构，非法候选明确回退，不把坏值写入 MCP descriptor 或 worker argv。
+- 范围：统一接入 manifest 展开、MCP descriptor、cbc/claude/kimi/opencode/codex wrapper、durable background runner、Windows start/restart/exit 脚本和 config reload 生效边界。
+- TA/工作树：`ses_43962b89b225afde`；`D:\project\pan-worktrees\pan-interpreter-config-priority-20260913`；`feature/pan-interpreter-config-json-priority-20260913`；worktree clean
+- 提交/合并：功能提交 `8b61ddba3ea880a3795e4ede1b68df5ef2838f51`；合并提交 `17632cc`；未 push
+- 测试/未验证：相关 resolver/manifest/MCP/adapter/background/lifecycle/reload 测试、`tests/` 排除既有 quota docstring 失败的完整 runnable 集合、compileall、JSON/PowerShell 检查通过；完整 pytest 仍有 1 个既有失败，QQ 测试缺少可选 nonebot 依赖；前端未执行（本次无前端源码变更）。
+- 有序待办：
+  - [x] 审计解释器解析与所有消费路径
+  - [x] 实现 config.json > PAN_PYTHON > 默认优先级
+  - [x] 添加非法配置、Windows 路径、MCP command 和热加载边界回归
+  - [x] 完成测试并检查 worktree clean
+  - [x] 合入 main
+  - [ ] 开发者验收
+
 ## 二、已完成但尚未合入 main 的改动
 
 当前暂无。
@@ -298,22 +315,6 @@
   - [x] 给出至少三套可选方案、推荐分阶段方案和产品决策项
   - [ ] 开发者决策方案
   - [ ] 决策后建立实现任务，不在本调查任务中实现
-
-### T-024：Pan 解释器的 config.json 配置与环境变量优先级
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：TA 实现中，未合入 main
-- 目标：支持在 config.json 中配置 Pan 使用的解释器，并使有效 config.json 配置优先于 PAN_PYTHON 环境变量；没有配置时保留环境变量和现有默认回退。
-- 范围：统一追踪 MCP stdio、manifest 展开、Pan 启动脚本、worker/adapter 子进程和热加载边界；覆盖 Windows 路径、空格路径、无效配置和生成命令。
-- TA/任务：`ses_43962b89b225afde`；`pan-interpreter-config-json-priority-20260913`；Worker `worker-4`
-- 工作树/分支：`D:\project\pan-worktrees\pan-interpreter-config-priority-20260913`；`feature/pan-interpreter-config-json-priority-20260913`；基于 `main@c3e47ce`
-- 有序待办：
-  - [ ] 审计现有解释器解析与所有消费路径
-  - [ ] 实现 config.json > PAN_PYTHON > 现有默认的优先级
-  - [ ] 添加非法配置、Windows 路径、MCP command 和热加载回归
-  - [ ] 完成测试、提交并检查 worktree clean
-  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
-  - [ ] 开发者验收
 
 ## 四、计划要做的任务
 
