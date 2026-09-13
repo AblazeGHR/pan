@@ -217,7 +217,9 @@ class CodexAdapter:
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
-        return [sys.executable, "-u", self._wrapper_path,
+        from ...config import resolve_pan_python_argv
+
+        return [*resolve_pan_python_argv(), "-u", self._wrapper_path,
                 "--app-server",
                 "--codex-path", self._codex_js,
                 "--node-path", self._codex_node]

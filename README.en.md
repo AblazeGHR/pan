@@ -540,6 +540,7 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 | `worker.timeout_sec` | 300 | Quiet-timeout kill for queued tasks / no-output read timeout (seconds) |
 | `worker.task_timeout_sec` | 1800 | Max runtime for a stream-running task (long thinking / large file reads are not killed) |
 | `worker.idle_sec` | 300 | Idle reclamation (seconds; held / zombie skipped) |
+| `python` | `""` | Interpreter for Pan Core, Pan worker wrappers, and `pan` / `pan-qq` stdio MCP servers; takes priority over `PAN_PYTHON` |
 | `qq.enabled` | true | Whether to start the QQ bot (main.py spawns / terminates it based on this) |
 | `qq.mode` | `mirror` | `mirror` full mirror auto-reply / `selective` selective sending (messages only enter the inbox, decided by the MA via pan-qq MCP) |
 | `qq.channel` | `napcat` | QQ channel: `napcat` / `llonebot` (pluggable OneBot 11 gateways) |
@@ -549,6 +550,18 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 | `logging` | INFO / `data/logs/pan.log` | Log level, rotation, console output |
 | `plugin_manifests` | `["manifest.json", "packages/mcp/manifest.json"]` | Project + first-party Pan MCP manifests; append external/private manifests locally |
 
+`python` is the canonical config field for Pan-owned Python processes. Use a
+string for a direct interpreter path, such as
+`"D:\\Tools\\Python 3.14\\python.exe"`; use
+`{"command":"py","args":["-3"]}` when launcher arguments must remain separate
+argv entries. Resolution is `config.json python` > `PAN_PYTHON` > the current
+Pan process's `sys.executable`. Empty, invalid, missing, or non-executable
+candidates are warned about without logging their raw values and the next
+source is tried, so malformed MCP/worker commands are not generated.
+`POST /api/config/reload` with `{"scope":"python"}` rereads the setting and
+returns non-sensitive source metadata. Running CLI processes do not hot-switch;
+the next worker spawn/respawn and new MCP descriptor use the new value.
+
 **Environment variables**:
 
 | Variable | Default | Description |
@@ -557,7 +570,7 @@ The config file is `config.json` at the repo root (gitignored); the template is 
 | `PAN_HOST` | `127.0.0.1` | Listen address |
 | `PAN_URL` | `http://127.0.0.1:{port}` | Base URL used by the QQ Bridge to reach Pan Core |
 | `PAN_API_URL` | `http://127.0.0.1:8768` | URL used by the MCP server to reach Pan Core |
-| `PAN_PYTHON` | Current Pan interpreter | Python interpreter used by the manifest `pan` / `pan-qq` stdio MCP servers; useful when git worktrees share the main repository `.venv` |
+| `PAN_PYTHON` | — | Second-priority interpreter when top-level `python` in `config.json` is empty or invalid; it does not override `python` |
 | `PAN_QQ_API_URL` | `http://127.0.0.1:8080` | URL used by pan-qq MCP to reach the QQ bot |
 | `PAN_QQ_PYTHON` | miniforge | Interpreter used for the QQ bot |
 | `PAN_QQ_MODE` | — | Overrides `qq.mode` |

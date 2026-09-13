@@ -17,8 +17,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -338,16 +336,16 @@ def _resolve_plugin_dir(value, plugin_dir: str) -> str | None:
 def _resolve_plugin_var(value: str, plugin_dir: str) -> str:
     """Resolve portable manifest variables.
 
-    ``${PLUGIN_DIR}`` is the manifest directory.  ``${PAN_PYTHON}`` points at
-    the interpreter running Pan, unless ``PAN_PYTHON`` explicitly overrides
-    it.  The latter is important for git worktrees: dependencies may live in
-    a shared environment while the MCP module must still be imported from the
-    current worktree via its cwd.
+    ``${PLUGIN_DIR}`` is the manifest directory.  ``${PAN_PYTHON}`` resolves
+    to the command component of the Pan Python resolver.  MCP declarations
+    use the command/args split; exact ``${PAN_PYTHON}`` commands are expanded
+    by ``_parse_mcp_server`` so launcher arguments are not flattened into a
+    shell string.
     """
     used_plugin_dir = "${PLUGIN_DIR}" in value
     replacements = {
         "${PLUGIN_DIR}": plugin_dir,
-        "${PAN_PYTHON}": os.environ.get("PAN_PYTHON") or sys.executable,
+        "${PAN_PYTHON}": _resolve_pan_python_argv()[0],
     }
     for marker, replacement in replacements.items():
         if marker in value:
@@ -357,16 +355,31 @@ def _resolve_plugin_var(value: str, plugin_dir: str) -> str:
     return str(Path(value).resolve()) if used_plugin_dir else value
 
 
+def _resolve_pan_python_argv() -> list[str]:
+    """Import the shared resolver lazily to keep config/manifest modules acyclic."""
+    from .config import resolve_pan_python_argv
+
+    return resolve_pan_python_argv()
+
+
 def _parse_mcp_server(raw: dict, plugin_dir: str) -> McpServer:
     """Parse an MCP server entry, resolving ${PLUGIN_DIR}."""
     srv = McpServer(name=raw.get("name", ""))
+    raw_args = raw.get("args", [])
+    args = [
+        _resolve_plugin_var(arg, plugin_dir) if isinstance(arg, str) else str(arg)
+        for arg in raw_args
+    ] if isinstance(raw_args, list) else []
     if "command" in raw:
-        srv.command = _resolve_plugin_var(raw["command"], plugin_dir) if isinstance(raw["command"], str) else raw["command"]
-    if "args" in raw:
-        srv.args = [
-            _resolve_plugin_var(arg, plugin_dir) if isinstance(arg, str) else str(arg)
-            for arg in raw["args"]
-        ]
+        if raw["command"] == "${PAN_PYTHON}":
+            pan_python = _resolve_pan_python_argv()
+            srv.command = pan_python[0]
+            srv.args = [*pan_python[1:], *args]
+        else:
+            srv.command = _resolve_plugin_var(raw["command"], plugin_dir) if isinstance(raw["command"], str) else raw["command"]
+            srv.args = args
+    else:
+        srv.args = args
     if "env" in raw:
         srv.env = {
             k: _resolve_plugin_var(v, plugin_dir) if isinstance(v, str) else str(v)

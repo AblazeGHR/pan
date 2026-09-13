@@ -2,7 +2,10 @@
 
 import copy
 import json
+import logging
 import os
+import shutil
+import sys
 from pathlib import Path
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config.json"
@@ -19,6 +22,10 @@ CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config.json"
 DEFAULT_PLUGIN_MANIFESTS = ["manifest.json", "packages/mcp/manifest.json"]
 
 DEFAULT_CONFIG: dict = {
+    # Pan itself and first-party MCP servers use this interpreter.  Keep the
+    # value empty by default so the resolver can fall back to PAN_PYTHON and
+    # then the interpreter running the current Pan process.
+    "python": "",
     "cbc_import": {
         "min_message_count": 5,
         "max_sessions_shown": 30,
@@ -152,6 +159,93 @@ DEFAULT_CONFIG: dict = {
         },
     },
 }
+
+
+def _python_argv_from_value(value, source: str) -> tuple[list[str] | None, str | None]:
+    """Normalize one configured Pan Python candidate without shell parsing."""
+    if isinstance(value, str):
+        command = value.strip()
+        args: list[str] = []
+    elif isinstance(value, dict):
+        command = value.get("command")
+        args = value.get("args", [])
+        if not isinstance(command, str):
+            return None, f"{source} command must be a non-empty string"
+        if not isinstance(args, list) or not all(isinstance(arg, str) and arg for arg in args):
+            return None, f"{source} args must be a string array"
+        command = command.strip()
+    elif isinstance(value, list):
+        if not value or not all(isinstance(item, str) and item for item in value):
+            return None, f"{source} must be a non-empty string or argv array"
+        command, args = value[0].strip(), list(value[1:])
+    else:
+        return None, f"{source} must be a string or an argv array"
+
+    if not command:
+        return None, f"{source} command is empty"
+    argv = [command, *args]
+    # A path-looking value must point at a real executable entry.  Bare names
+    # are resolved through PATH so `py`/`python` retain their launcher meaning.
+    path_like = (
+        Path(command).is_absolute()
+        or "/" in command
+        or "\\" in command
+        or (len(command) > 1 and command[1] == ":")
+        or command.lower().endswith((".exe", ".cmd", ".bat", ".com"))
+    )
+    if path_like:
+        candidate = Path(command).expanduser()
+        if not candidate.is_file():
+            return None, f"{source} executable path is missing"
+        if os.name == "nt" and candidate.suffix.lower() not in (".exe", ".com", ".cmd", ".bat"):
+            return None, f"{source} path is not a Windows executable entry"
+        if os.name != "nt" and not os.access(candidate, os.X_OK):
+            return None, f"{source} executable path is not executable"
+    elif shutil.which(command) is None:
+        return None, f"{source} command is not available on PATH"
+    return argv, None
+
+
+def resolve_pan_python_argv() -> list[str]:
+    """Resolve the argv prefix used to launch Pan-owned Python processes.
+
+    Priority is config.json top-level ``python``, then ``PAN_PYTHON``, then
+    ``sys.executable``.  Invalid configured candidates are never returned;
+    they produce a source-only warning and the next candidate is tried.
+    """
+    configured = load_config().get("python")
+    candidates = ((configured, "config.json python"),
+                  (os.environ.get("PAN_PYTHON"), "PAN_PYTHON"))
+    argv, _source = _resolve_pan_python_candidate(candidates)
+    return argv or [sys.executable]
+
+
+def _resolve_pan_python_candidate(candidates) -> tuple[list[str] | None, str | None]:
+    for value, source in candidates:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            continue
+        argv, error = _python_argv_from_value(value, source)
+        if argv is not None:
+            return argv, source
+        # Do not include the configured value: PAN_PYTHON/config may contain
+        # paths or tokens that should not appear in logs or API responses.
+        logging.getLogger(__name__).warning("Ignoring invalid %s (%s); trying next Pan Python", source, error)
+    return None, None
+
+
+def resolve_pan_python() -> str:
+    """Return the command component of :func:`resolve_pan_python_argv`."""
+    return resolve_pan_python_argv()[0]
+
+
+def resolve_pan_python_info() -> dict[str, str | int]:
+    """Return non-sensitive resolver metadata for diagnostics/reload APIs."""
+    candidates = ((load_config().get("python"), "config.json"),
+                  (os.environ.get("PAN_PYTHON"), "PAN_PYTHON"))
+    argv, source = _resolve_pan_python_candidate(candidates)
+    if argv is None:
+        argv, source = [sys.executable], "sys.executable"
+    return {"source": source, "argvLength": len(argv)}
 
 
 def load_config() -> dict:

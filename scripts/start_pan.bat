@@ -34,44 +34,11 @@ REM     also walks data\workdirs, frontend dependencies, and other user data;
 REM     on a busy checkout it can block long enough to make lifecycle restart
 REM     time out before main.py is even launched.
 
-set "PYTHON=%BASE_DIR%\.venv\Scripts\python.exe"
-set "LOCAL_PYTHON=%PYTHON%"
-
-REM A copied/incomplete .venv can leave python.exe behind without
-REM pyvenv.cfg.  Checking only the file makes Start-Process report success
-REM and then the child exits immediately (usually with exit code 106).  Probe
-REM the interpreter and every dependency needed by both Pan Core and its
-REM stdio MCP server before using it.  Core-only Python is not a valid Pan
-REM runtime because manifests resolve ${PAN_PYTHON} to this interpreter.
-if exist "%PYTHON%" (
-    "%PYTHON%" -c "import fastapi, uvicorn, websockets, psutil, httpx; from mcp.server.fastmcp import FastMCP" >nul 2>&1
-    if errorlevel 1 set "PYTHON="
-) else (
-    set "PYTHON="
-)
-
-REM If the checkout-local environment is unavailable, accept the first valid
-REM Python on PATH.  Validate every candidate because WindowsApps\python.exe
-REM can be an app-execution alias rather than a usable interpreter.
-if not defined PYTHON (
-    for /f "delims=" %%p in ('where.exe python.exe 2^>nul') do (
-        if not defined PYTHON (
-            "%%p" -c "import fastapi, uvicorn, websockets, psutil, httpx; from mcp.server.fastmcp import FastMCP" >nul 2>&1
-            if not errorlevel 1 set "PYTHON=%%p"
-        )
-    )
-)
-if not defined PYTHON (
-    echo [ERROR] No usable Python interpreter with Pan Core and MCP dependencies was found.
-    echo         Checked: %LOCAL_PYTHON% and python.exe on PATH.
-    echo         The probe requires fastapi, uvicorn, websockets, psutil, httpx,
-    echo         and mcp.server.fastmcp. Repair with scripts\setup.bat, or run:
-    echo         python -m pip install -r minimal-requirements.txt
-    exit /b 1
-)
-if /i not "%PYTHON%"=="%LOCAL_PYTHON%" (
-    echo [WARN] Checkout .venv is unavailable; using fallback Python: %PYTHON%
-)
+REM start_main.ps1 reads config.json python > PAN_PYTHON > .venv > PATH,
+REM probes Core/MCP dependencies, and launches with an argv array so a
+REM configured `py` launcher and paths containing spaces remain intact.
+REM The delegated dependency probe is:
+REM import fastapi, uvicorn, websockets, psutil, httpx; from mcp.server.fastmcp import FastMCP
 
 set "MAIN_PY=%BASE_DIR%\main.py"
 set "PID_MAIN=%BASE_DIR%\data\main_pid.txt"
@@ -89,7 +56,7 @@ if not defined PAN_PORT (
 if not defined PAN_PORT set "PAN_PORT=8768"
 
 REM ---- 2. Start main.py ----
-powershell -NoProfile -File "%SCRIPT_DIR%start_main.ps1" -Python "%PYTHON%" -MainPy "%MAIN_PY%" -WorkDir "%BASE_DIR%" -PidFile "%PID_MAIN%" -StdoutFile "%PAN_STDOUT%" -StderrFile "%PAN_STDERR%"
+powershell -NoProfile -File "%SCRIPT_DIR%start_main.ps1" -MainPy "%MAIN_PY%" -WorkDir "%BASE_DIR%" -PidFile "%PID_MAIN%" -StdoutFile "%PAN_STDOUT%" -StderrFile "%PAN_STDERR%"
 if errorlevel 1 (
     echo [ERROR] Failed to launch Pan Core.
     goto :start_failed

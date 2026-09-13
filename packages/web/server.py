@@ -53,6 +53,7 @@ from packages.core.config import (
     DEFAULT_PLUGIN_MANIFESTS,
     load_config,
     read_config_file,
+    resolve_pan_python_info,
     save_config,
 )
 from packages.core.cli_diagnostics import get_cli_diagnostics
@@ -3852,7 +3853,7 @@ async def api_codex_refresh_official_models():
 
 @app.post("/api/config/reload")
 async def api_config_reload(data: dict | None = None):
-    """Force a config.json hot-reload (adapters / worker / plugin / memory).
+    """Force a config.json hot-reload (adapters / worker / plugin / memory / python).
 
     config.json is re-read from disk on every load_config() call, but a few
     things are read once and then cached: the adapters' class-level model-list
@@ -3864,7 +3865,7 @@ async def api_config_reload(data: dict | None = None):
     same style as POST /api/manifest/reload.
 
     Body (optional): ``{"scope": "adapters" | "worker" | "plugin" | "memory"
-    | "all"}`` — default "all". Idempotent: repeated calls just re-read the
+    | "python" | "all"}`` — default "all". Idempotent: repeated calls just re-read the
     same config. Per-item failures are collected into ``errors`` and reported
     with ``reloaded: false`` instead of a 500. The response always carries
     ``requiresRestart`` — fields that are startup-frozen by nature and can
@@ -3872,11 +3873,20 @@ async def api_config_reload(data: dict | None = None):
     console window, and the external remote tunnel process).
     """
     scope = (data or {}).get("scope") or "all"
-    if scope not in ("adapters", "worker", "plugin", "memory", "all"):
+    if scope not in ("adapters", "worker", "plugin", "memory", "python", "all"):
         return {"reloaded": False, "error": f"Unknown scope: {scope}"}
 
     result: dict = {"reloaded": True}
     errors: list[str] = []
+
+    if scope in ("python", "all"):
+        # The resolver is intentionally uncached.  This metadata proves the
+        # fresh choice without returning a configured path or environment
+        # value, either of which could contain sensitive information.
+        try:
+            result["python"] = resolve_pan_python_info()
+        except Exception as e:
+            errors.append(f"python: {e}")
 
     if scope in ("adapters", "all"):
         adapters_out, adapter_errors = _reload_adapter_models()

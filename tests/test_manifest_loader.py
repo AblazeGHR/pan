@@ -31,10 +31,10 @@ def test_default_root_manifest_loads_pan_and_pan_qq_without_config_file(monkeypa
 
 def test_root_manifest_pan_respects_pan_python_override(monkeypatch):
     """${PAN_PYTHON} on the root declaration honors an explicit interpreter."""
-    monkeypatch.setenv("PAN_PYTHON", "portable-python")
+    monkeypatch.setenv("PAN_PYTHON", sys.executable)
     config = load_manifests(["manifest.json"])
     pan = next(server for server in config.mcp_servers if server.name == "pan")
-    assert pan.command == "portable-python"
+    assert pan.command == sys.executable
 
 
 def test_root_and_package_manifests_deduplicate_builtin_mcp_servers(monkeypatch):

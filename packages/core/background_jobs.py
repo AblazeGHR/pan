@@ -13,7 +13,6 @@ import json
 import os
 import secrets
 import subprocess
-import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -238,7 +237,9 @@ def _validate_command(argv: Any, cwd: Any) -> tuple[list[str], Path]:
 
 
 def _runner_command(job_id: str) -> list[str]:
-    return [sys.executable, "-m", "packages.core.background_runner", "--job-id", job_id]
+    from packages.core.config import resolve_pan_python_argv
+
+    return [*resolve_pan_python_argv(), "-m", "packages.core.background_runner", "--job-id", job_id]
 
 
 def start(target_session_id: str, argv: list[str], cwd: str, *, label: str | None = None) -> dict:
