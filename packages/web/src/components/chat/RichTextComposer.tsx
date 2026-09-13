@@ -8,12 +8,12 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { File as FileIcon, X } from 'lucide-react';
 import {
   readAttachmentDragPayload,
   writeAttachmentDragPayload,
   type AttachmentDragPayload,
 } from '@/utils/attachmentDrag';
+import { isSafeAttachmentHref } from '@/utils/attachmentMarkdown';
 
 export type ComposerPart =
   | { type: 'text'; value: string }
@@ -32,11 +32,18 @@ export interface RichTextComposerHandle {
 
 interface RichTextComposerProps {
   initialText?: string;
-  attachments: Array<{ id: string; displayName: string; href?: string; path?: string }>;
+  attachments: ComposerAttachment[];
   onChange: (value: ComposerValue) => void;
   onAttachmentDrop: (payload: AttachmentDragPayload) => string | null;
   onRemoveAttachment: (attachmentId: string) => void;
   onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+}
+
+interface ComposerAttachment {
+  id: string;
+  displayName: string;
+  href?: string;
+  path?: string;
 }
 
 interface DropIndicator {
@@ -60,6 +67,104 @@ function mergeTextParts(parts: ComposerPart[]): ComposerPart[] {
     }
   }
   return merged.length > 0 ? merged : EMPTY_PARTS;
+}
+
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+
+function createIcon(size: number, className: string, paths: string[]): SVGSVGElement {
+  const icon = document.createElementNS(SVG_NAMESPACE, 'svg');
+  icon.setAttribute('xmlns', SVG_NAMESPACE);
+  icon.setAttribute('width', String(size));
+  icon.setAttribute('height', String(size));
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('fill', 'none');
+  icon.setAttribute('stroke', 'currentColor');
+  icon.setAttribute('stroke-width', '2');
+  icon.setAttribute('stroke-linecap', 'round');
+  icon.setAttribute('stroke-linejoin', 'round');
+  icon.setAttribute('class', className);
+  icon.setAttribute('aria-hidden', 'true');
+  for (const d of paths) {
+    const path = document.createElementNS(SVG_NAMESPACE, 'path');
+    path.setAttribute('d', d);
+    icon.append(path);
+  }
+  return icon;
+}
+
+function createAttachmentNode(attachment: ComposerAttachment): HTMLSpanElement {
+  const node = document.createElement('span');
+  node.dataset.composerAttachment = attachment.id;
+  node.contentEditable = 'false';
+  node.draggable = !!attachment.href && isSafeAttachmentHref(attachment.href);
+  node.setAttribute('role', 'group');
+  node.setAttribute('aria-label', `附件 ${attachment.displayName}`);
+  node.className = 'composer-attachment-node mx-0.5 inline-flex max-w-full select-none items-center gap-1 rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 align-baseline text-xs text-accent';
+
+  const label = document.createElement('span');
+  label.dataset.composerAttachmentName = '';
+  label.className = 'max-w-[14rem] truncate';
+  label.textContent = attachment.displayName;
+
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.dataset.composerAttachmentDelete = attachment.id;
+  removeButton.setAttribute('aria-label', `删除附件 ${attachment.displayName}`);
+  removeButton.className = 'ml-0.5 shrink-0 rounded p-0.5 text-accent/80 hover:bg-accent/20 hover:text-accent';
+
+  node.append(
+    createIcon(13, 'shrink-0', ['M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z', 'M14 2v5a1 1 0 0 0 1 1h5']),
+    label,
+    removeButton,
+  );
+  removeButton.append(createIcon(12, '', ['M18 6 6 18', 'm6 6 12 12']));
+  return node;
+}
+
+/**
+ * React must not reconcile children inside a live contentEditable. Chromium
+ * can move a typed text node outside the JSX wrapper that was rendered for
+ * it; reconciling that stale tree later would append the same text a second
+ * time. Keep the editor host uncontrolled and render only structural updates
+ * through this DOM-owned boundary.
+ */
+function renderParts(root: HTMLElement, parts: ComposerPart[], attachments: ComposerAttachment[]): void {
+  const attachmentById = new Map(attachments.map((attachment) => [attachment.id, attachment]));
+  const fragment = document.createDocumentFragment();
+  const normalized = mergeTextParts(parts);
+  for (const part of normalized) {
+    if (part.type === 'text') {
+      const text = document.createElement('span');
+      text.textContent = part.value;
+      fragment.append(text);
+      continue;
+    }
+    const attachment = attachmentById.get(part.attachmentId);
+    if (attachment) fragment.append(createAttachmentNode(attachment));
+  }
+  if (!fragment.childNodes.length) {
+    const emptyText = document.createElement('span');
+    fragment.append(emptyText);
+  }
+  root.replaceChildren(fragment);
+}
+
+function syncAttachmentNodes(root: HTMLElement, attachments: ComposerAttachment[]): void {
+  const attachmentById = new Map(attachments.map((attachment) => [attachment.id, attachment]));
+  root.querySelectorAll<HTMLElement>('[data-composer-attachment]').forEach((node) => {
+    const id = node.dataset.composerAttachment;
+    const attachment = id ? attachmentById.get(id) : undefined;
+    if (!attachment) return;
+    node.draggable = !!attachment.href && isSafeAttachmentHref(attachment.href);
+    node.setAttribute('aria-label', `附件 ${attachment.displayName}`);
+    const label = node.querySelector<HTMLElement>('[data-composer-attachment-name]');
+    if (label) label.textContent = attachment.displayName;
+    const removeButton = node.querySelector<HTMLButtonElement>('[data-composer-attachment-delete]');
+    if (removeButton) {
+      removeButton.dataset.composerAttachmentDelete = attachment.id;
+      removeButton.setAttribute('aria-label', `删除附件 ${attachment.displayName}`);
+    }
+  });
 }
 
 function partLength(part: ComposerPart): number {
@@ -390,9 +495,18 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   const editorRef = useRef<HTMLDivElement>(null);
   const [parts, setParts] = useState<ComposerPart[]>(() => initialText ? [{ type: 'text', value: initialText }] : EMPTY_PARTS);
   const partsRef = useRef(parts);
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  const attachmentSignature = JSON.stringify(attachments.map((attachment) => [
+    attachment.id,
+    attachment.displayName,
+    attachment.href || '',
+    attachment.path || '',
+  ]));
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
   const dropOffsetRef = useRef<number | null>(null);
   const pendingCaretOffsetRef = useRef<number | null>(null);
+  const activeDragPayloadRef = useRef<AttachmentDragPayload | null>(null);
 
   const publish = useCallback((nextParts: ComposerPart[]) => {
     onChange(valueFromParts(nextParts));
@@ -409,12 +523,18 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   }), [publish]);
 
   useLayoutEffect(() => {
+    if (!editorRef.current) return;
+    renderParts(editorRef.current, parts, attachmentsRef.current);
     const offset = pendingCaretOffsetRef.current;
-    if (offset === null || !editorRef.current) return;
+    if (offset === null) return;
     pendingCaretOffsetRef.current = null;
     setCaretAtOffset(editorRef.current, offset);
     editorRef.current.focus();
   }, [parts]);
+
+  useLayoutEffect(() => {
+    if (editorRef.current) syncAttachmentNodes(editorRef.current, attachmentsRef.current);
+  }, [attachmentSignature]);
 
   const handleInput = () => {
     if (!editorRef.current) return;
@@ -471,6 +591,49 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     onKeyDown?.(event);
   };
 
+  const resolveDragPayload = (dataTransfer: DataTransfer | null): AttachmentDragPayload | null => (
+    readAttachmentDragPayload(dataTransfer) || activeDragPayloadRef.current
+  );
+
+  const handleAttachmentDragStart = (event: React.DragEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const node = target?.closest<HTMLElement>('[data-composer-attachment]');
+    if (!node || !editorRef.current?.contains(node)) return;
+    const attachmentId = node.dataset.composerAttachment;
+    const attachment = attachmentId
+      ? attachmentsRef.current.find((item) => item.id === attachmentId)
+      : undefined;
+    if (!attachment?.href || !isSafeAttachmentHref(attachment.href) || !attachmentId) {
+      event.preventDefault();
+      activeDragPayloadRef.current = null;
+      return;
+    }
+    const payload: AttachmentDragPayload = {
+      displayName: attachment.displayName,
+      href: attachment.href,
+      path: attachment.path,
+      attachmentId,
+      source: 'composer',
+    };
+    writeAttachmentDragPayload(event.dataTransfer, payload);
+    // Chromium exposes the custom MIME type through `types` during dragover
+    // but intentionally returns an empty string from getData(). Keep the
+    // source payload here so a node can still be dropped into the editor.
+    activeDragPayloadRef.current = payload;
+  };
+
+  const handleAttachmentMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('[data-composer-attachment-delete]')) event.preventDefault();
+  };
+
+  const handleAttachmentClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const button = target?.closest<HTMLButtonElement>('[data-composer-attachment-delete]');
+    const attachmentId = button?.dataset.composerAttachmentDelete;
+    if (attachmentId) removeAt(attachmentId);
+  };
+
   const clearDropIndicator = () => {
     dropOffsetRef.current = null;
     setDropIndicator(null);
@@ -503,7 +666,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    const payload = readAttachmentDragPayload(event.dataTransfer);
+    const payload = resolveDragPayload(event.dataTransfer);
     if (!payload) {
       clearDropIndicator();
       return;
@@ -516,7 +679,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    const payload = readAttachmentDragPayload(event.dataTransfer);
+    const payload = resolveDragPayload(event.dataTransfer);
     if (!payload) {
       clearDropIndicator();
       return;
@@ -531,12 +694,17 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     }
     dropOffsetRef.current = null;
     setDropIndicator(null);
+    activeDragPayloadRef.current = null;
     if (offset === null) return;
-    const attachmentId = onAttachmentDrop(payload);
-    if (!attachmentId) return;
     const sourceOffset = payload.attachmentId
       ? attachmentOffset(currentParts, payload.attachmentId)
       : null;
+    // A stale composer payload must never turn into a second copy of the
+    // same node. Chip/message payloads are allowed to create a new inline
+    // occurrence; only a missing node from the composer is invalid.
+    if (payload.source === 'composer' && payload.attachmentId && sourceOffset === null) return;
+    const attachmentId = onAttachmentDrop(payload);
+    if (!attachmentId) return;
     const withoutSource = payload.attachmentId
       ? removeAttachment(currentParts, payload.attachmentId)
       : currentParts;
@@ -555,6 +723,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   };
 
   const handleDragEnd = () => {
+    activeDragPayloadRef.current = null;
     clearDropIndicator();
   };
 
@@ -562,13 +731,23 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     // A drag started in the message list does not bubble its dragend event
     // through this editor. Listen at window level as well so Escape/cancel or
     // a drop outside the editor cannot leave a stale insertion caret behind.
+    const rememberGlobalDragPayload = (event: DragEvent) => {
+      activeDragPayloadRef.current = readAttachmentDragPayload(event.dataTransfer);
+    };
     const clearGlobalDropState = () => {
+      activeDragPayloadRef.current = null;
       dropOffsetRef.current = null;
       setDropIndicator(null);
     };
+    // This listener runs after the source React handler in the bubble phase,
+    // so message links/chips have already populated DataTransfer. Their
+    // payload remains available when Chromium protects getData during the
+    // subsequent dragover events.
+    window.addEventListener('dragstart', rememberGlobalDragPayload);
     window.addEventListener('dragend', clearGlobalDropState);
     window.addEventListener('drop', clearGlobalDropState);
     return () => {
+      window.removeEventListener('dragstart', rememberGlobalDragPayload);
       window.removeEventListener('dragend', clearGlobalDropState);
       window.removeEventListener('drop', clearGlobalDropState);
     };
@@ -592,48 +771,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         onDrop={handleDrop}
         onDragLeave={handleDragLeave}
         onDragEnd={handleDragEnd}
-      >
-        {parts.map((part, index) => part.type === 'text' ? (
-          <span key={`text-${index}`}>{part.value}</span>
-        ) : (() => {
-          const attachment = attachments.find((item) => item.id === part.attachmentId);
-          if (!attachment) return null;
-          return (
-            <span
-              key={part.attachmentId}
-              data-composer-attachment={part.attachmentId}
-              contentEditable={false}
-              draggable={!!attachment.href}
-              role="group"
-              aria-label={`附件 ${attachment.displayName}`}
-              className="composer-attachment-node mx-0.5 inline-flex max-w-full select-none items-center gap-1 rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 align-baseline text-xs text-accent"
-              onDragStart={(event) => {
-                if (!attachment.href) return;
-                event.stopPropagation();
-                writeAttachmentDragPayload(event.dataTransfer, {
-                  displayName: attachment.displayName,
-                  href: attachment.href,
-                  path: attachment.path,
-                  attachmentId: attachment.id,
-                  source: 'composer',
-                });
-              }}
-            >
-              <FileIcon size={13} className="shrink-0" aria-hidden="true" />
-              <span className="max-w-[14rem] truncate">{attachment.displayName}</span>
-              <button
-                type="button"
-                aria-label={`删除附件 ${attachment.displayName}`}
-                className="ml-0.5 shrink-0 rounded p-0.5 text-accent/80 hover:bg-accent/20 hover:text-accent"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => removeAt(attachment.id)}
-              >
-                <X size={12} aria-hidden="true" />
-              </button>
-            </span>
-          );
-        })())}
-      </div>
+        onDragStart={handleAttachmentDragStart}
+        onMouseDown={handleAttachmentMouseDown}
+        onClick={handleAttachmentClick}
+      />
       {dropIndicator && (
         <span
           data-testid="attachment-drop-caret"

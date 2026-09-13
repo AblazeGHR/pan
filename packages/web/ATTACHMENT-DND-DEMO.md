@@ -14,6 +14,15 @@ pnpm dev -- --host 127.0.0.1 --port 5173
 
 打开 <http://127.0.0.1:5173/?mock=1>。只有 URL 的 `mock=1` 会启用这套无后端演示；不带该参数时仍使用原有 API/上传实现。如果浏览器保留了旧的 mock 数据，点击左下角 `MOCK DEMO · 无后端`，再点击“重置 Demo 数据”。
 
+Vite 启动后，可在另一个终端执行两条真实 Chromium 回归路径（脚本不会启动后端或 Vite）：
+
+```powershell
+cd D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913\packages\web
+pnpm e2e:attachment-dnd
+```
+
+脚本会实际输入文字、拖动消息附件到中间、再用鼠标把已插入节点拖到另一段文字中间；会检查 DOM 文本/节点数量、selection、dragover/drop 是否被接受和插入指示线，并将截图与事件日志写入 `test-results\attachment-dnd-browser`。
+
 ## 操作
 
 1. 在左侧选中 `Alpha 主控` 会话。
@@ -31,4 +40,4 @@ pnpm dev -- --host 127.0.0.1 --port 5173
 
 - 当前只演示浏览器拖拽、插入、编辑、删除，以及一次性的 mock 客户端上传；附件节点不会持久化，没有真实上传、后端协议或真实发送链路。
 - mock 会话排序会因浏览器 localStorage 保留；队列和输入附件仅存在于当前页面。用左下角重置按钮可恢复演示数据。
-- `pnpm dev` 只启动 Vite 前端；真实 browser/mobile E2E 不属于本 demo 的自动化验证范围。
+- `pnpm dev` 只启动 Vite 前端；当前只提供上述两个 mock UI 的真实 Chromium 回归路径，完整 browser 矩阵和 mobile E2E 仍不在范围内。
