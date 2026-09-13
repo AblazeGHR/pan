@@ -64,6 +64,7 @@
 | §6.9 | codex | resume 只透传 `-c` 类覆盖（丢弃一次性 flag 与 `-C`） |
 | §6.10 | codex | `--skip-git-repo-check` |
 | §6.11 | codex | enrich：rollout JSONL `token_count` 聚合增量 |
+| §6.14 | codex | 原生 JSONL 可能不完整：运行时仍能 resume，但用户侧历史不可见 |
 | §7 | cbc/claude | 通用 oneshot 路径调用 adapter `enrich_after_result`，与 stream 保持用量落账一致 |
 
 ---
@@ -667,6 +668,30 @@ MCP 是否开启都适用，已有 thread resume 时不重复注入。wrapper �
   `thread_turns`）；`sessions/<y>/<m>/<d>/rollout-*.jsonl` 完整事件日志。不用
   `codex session list` / `codex exec resume --last`（CLI 视角且受 cwd 过滤），直接读 DB 权威。
 - **wrapper 子进程 stdin**：`stdin=DEVNULL`（见 §1.2）。
+
+### 6.14 原生 JSONL 可能不完整：运行时上下文与用户可见历史分离
+
+- **现象**：Codex 的 `codex resume <thread_id>` 仍然可以正常继续对话，模型也可能知道此前的
+  上下文；但 `~/.codex/sessions/<year>/<month>/<day>/rollout-*.jsonl` 中找不到部分或全部旧回合。
+  Pan 的 Session ID、`cli_session_id` 和 adapter 关联可以完全正确，问题不一定是导入了错误的
+  session，也不一定是 CLI ID 发生变化。
+- **影响**：Pan 只能把原生 rollout JSONL 中实际存在、且能被解析的记录展示到 `Session.history`。
+  缺失的 JSONL 记录不会因为 Reimport 自动出现，因此用户侧聊天历史可能看起来被截断、为空或与
+  Codex 通过 resume 能使用的上下文不一致。此时「Codex 能继续对话」与「用户看不到旧历史」可以
+  同时成立。
+- **处理/排障**：
+  1. 先核对 Pan 的 `adapter`、`cli_session_id`、workdir 与原生 transcript 的
+     `session_meta.session_id`，确认身份关联；
+  2. 再直接用同一个 `thread_id` 做一次只读的 Codex resume 验证上下文是否仍可用；
+  3. 不要仅凭 JSONL 缺行就创建新 Session、修改 CLI ID 或反复 Reimport；Reimport 只能重新
+     解析现有 JSONL，不能恢复 Codex 没有写入该文件的历史；
+  4. 对用户明确说明：这是 Codex 本地历史落盘/可见性问题，不代表 Pan Session 身份错误。
+- **存储边界**：Codex 的运行时/内部历史可以与 rollout JSONL 的可见事件日志出现不一致；现有
+  adapter 的历史回放和 Reimport 路径以 rollout JSONL 为输入。`state_5.sqlite` 与
+  `thread_history_1.sqlite` 仍是 Codex 原生 thread 元数据/历史存储的重要排查对象，但不能把
+  任一单独文件的完整性假设为用户可见 transcript 的保证。
+- **代码位置**：`packages/core/adapters/codex/sessions.py` 的 `parse_codex_history`、
+  `_iter_jsonl`、`get_codex_raw_usage`；Codex 原生文件布局与 DB 说明见本节 §6.13。
 
 ---
 

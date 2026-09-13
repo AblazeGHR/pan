@@ -13,6 +13,8 @@ node_modules/
 # React 前端构建产物
 packages/web/dist/
 *.tsbuildinfo
+.vite/
+docs/developLog.md
 
 # IDE
 .vscode/

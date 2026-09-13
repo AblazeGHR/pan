@@ -1,6 +1,6 @@
 # Pan 工作流总览
 
-> 当前工作流真源。约束策略见 [constraints.md](constraints.md)。旧总览与旧约束仅作为历史迁移输入保留，不再并行维护。
+> 当前工作流真源。约束策略见 [constraints.md](constraints.md)。旧 overview 已删除，历史内容已迁移到本文件，不再并行维护。
 >
 > 维护者：Pan SMA；迁移日期：2026-09-12
 
@@ -9,8 +9,8 @@
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
 - `main`：`784866b`；T-022 附件后端实现已合入本地 main；未 push。
 - `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
-- `main` 既有 dirty/untracked：`docs/plans&overviews/overview.md`、`docs/references/cli-adapter-special-behaviors.md`、`.vite/`、`docs/developLog.md`；均属既有用户内容或本地文件，未纳入本次提交。
-- 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧文档仍保留在原位置。
+- `main` 既有 dirty/untracked：`docs/references/cli-adapter-special-behaviors.md`；本次将按用户要求提交。`.vite/` 与 `docs/developLog.md` 已加入 ignore。
+- 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧 overview 已删除。
 
 ## 工作流控制
 
