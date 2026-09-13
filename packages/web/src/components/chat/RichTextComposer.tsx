@@ -546,9 +546,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         .map((part) => part.attachmentId),
     );
     // Native editing commands such as Ctrl+A + Backspace bypass our atomic
-    // key handler and remove content directly from the DOM. Reconcile only
-    // the embedded attachment IDs that disappeared; standalone chips are not
-    // part of the editor model and must remain available above the editor.
+    // key handler and remove content directly from the DOM. An embedded
+    // attachment removed by that command is deleted from the pending list as
+    // well; only attachments that were never embedded remain standalone
+    // chips for Send.
     const removedAttachmentIds = new Set(
       previousParts
         .filter((part): part is Extract<ComposerPart, { type: 'attachment' }> => part.type === 'attachment')

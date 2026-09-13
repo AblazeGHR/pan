@@ -227,7 +227,7 @@ describe('InputRow send queue wiring', () => {
     ));
   });
 
-  it('removes an embedded attachment when native select-all Backspace mutates the editor DOM', async () => {
+  it('removes an embedded attachment when native select-all Backspace removes its node', async () => {
     setBusySession();
     render(<InputRow />);
     const editor = screen.getByTestId('rich-text-composer');
@@ -246,7 +246,7 @@ describe('InputRow send queue wiring', () => {
     editor.replaceChildren(document.createElement('br'));
     fireEvent.input(editor);
 
-    await waitFor(() => expect(screen.queryByRole('group', { name: '附件 接口说明.md' })).toBeNull());
+    await waitFor(() => expect(editor.querySelector('[data-composer-attachment]')).toBeNull());
     expect(screen.queryByTestId('server-attachments')).toBeNull();
   });
 

@@ -265,8 +265,8 @@ async function runCtrlADeleteAttachment() {
     assert.deepEqual(afterMessageReinsert.attachmentIds.length, 1);
     assert.equal(await page.locator('[data-testid="server-attachments"]').count(), 0);
 
-    // Ordinary Backspace remains the atomic-node path and must not turn the
-    // removed node into a chip either.
+    // Ordinary Backspace remains the atomic-node path. The reinserted node is
+    // removed without changing the surrounding text or creating a chip.
     await editor.focus();
     await page.keyboard.press('Backspace');
     await page.waitForTimeout(180);
@@ -277,7 +277,7 @@ async function runCtrlADeleteAttachment() {
     assert.deepEqual(pageErrors, []);
     assert.deepEqual(protectedRequests, []);
     return {
-      name: 'Ctrl+A Backspace removes embedded message attachment without restoring a chip',
+      name: 'Ctrl+A Backspace deletes embedded message attachment',
       beforeMessageClear,
       selectedMessage,
       afterMessageClear,
@@ -298,13 +298,13 @@ async function runCtrlADeleteUploadedAttachment() {
     await page.getByRole('button', { name: '添加附件' }).click();
     await page.getByRole('button', { name: '客户端附件' }).click();
     await page.getByTestId('client-attachment-input').setInputFiles({
-      name: 'uploaded.txt',
+      name: 'standalone.txt',
       mimeType: 'text/plain',
       buffer: Buffer.from('mock upload'),
     });
     await page.getByTestId('attachment-upload-progress').waitFor({ state: 'visible' });
     await page.waitForFunction(() => document.querySelector('[data-testid="attachment-upload-progress"]')?.textContent?.includes('已完成'));
-    const chip = page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).first();
+    const chip = page.getByTestId('draggable-attachment-chip').filter({ hasText: 'standalone.txt' }).first();
     await chip.waitFor({ state: 'visible' });
 
     // Ctrl+A while only ordinary text is embedded must preserve an unrelated
@@ -319,11 +319,32 @@ async function runCtrlADeleteUploadedAttachment() {
     const afterTextOnlyClear = await editorSnapshot(editor);
     assert.equal(afterTextOnlyClear.textContent, '');
     assert.deepEqual(afterTextOnlyClear.attachmentIds, []);
-    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).count(), 1);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'standalone.txt' }).count(), 1);
 
-    // Drag the completed upload into the editor, then clear the whole editor.
-    // The embedded file is removed from the pending list rather than being
-    // resurrected as a standalone chip.
+    await page.getByRole('button', { name: 'Send' }).click();
+    // ?mock=1 intercepts fetch in the page, so Playwright's network request
+    // events cannot observe this request. Assert the user-visible queue item
+    // instead, which proves the standalone chip remained sendable and was
+    // serialized as a Markdown attachment link.
+    await page.getByRole('button', { name: '发送队列' }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('[standalone.txt]('));
+    const queueText = await page.locator('[data-testid="send-queue-anchor"]').innerText();
+    const standaloneSendText = queueText.match(/\[standalone\.txt\]\([^\n]+\)/)?.[0];
+    assert.ok(standaloneSendText);
+    assert.match(standaloneSendText, /^\[standalone\.txt\]\(\/api\/attachments\/upload_[a-z0-9]{32}\.txt\?session_id=mock-alpha\)$/);
+    await page.waitForTimeout(180);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'standalone.txt' }).count(), 0);
+
+    // A fresh completed upload can still be embedded. Ctrl+A + Backspace is
+    // deletion of that embedded attachment, so it must not return as a chip.
+    await page.getByTestId('client-attachment-input').setInputFiles({
+      name: 'embedded.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('embedded mock upload'),
+    });
+    await page.waitForFunction(() => document.querySelector('[data-testid="attachment-upload-progress"]')?.textContent?.includes('已完成'));
+    const embeddedChip = page.getByTestId('draggable-attachment-chip').filter({ hasText: 'embedded.txt' }).first();
+    await embeddedChip.waitFor({ state: 'visible' });
     const uploadText = '上传前后';
     await editor.click();
     await page.keyboard.type(uploadText, { delay: 8 });
@@ -331,14 +352,14 @@ async function runCtrlADeleteUploadedAttachment() {
     const editorBox = await editor.boundingBox();
     const insertPoint = await editorPoint(editor, uploadText, 2);
     assert.ok(editorBox && insertPoint);
-    await chip.dragTo(editor, {
+    await embeddedChip.dragTo(editor, {
       targetPosition: { x: insertPoint.x - editorBox.x, y: insertPoint.y - editorBox.y },
     });
     await page.waitForTimeout(180);
     const beforeUploadClear = await editorSnapshot(editor);
-    assert.equal(beforeUploadClear.textContent, '上传uploaded.txt前后');
+    assert.equal(beforeUploadClear.textContent, '上传embedded.txt前后');
     assert.deepEqual(beforeUploadClear.attachmentIds.length, 1);
-    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).count(), 0);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'embedded.txt' }).count(), 0);
     await page.screenshot({ path: path.join(runtime, 'ctrl-a-upload-before.png'), fullPage: true });
 
     await editor.focus();
@@ -348,13 +369,14 @@ async function runCtrlADeleteUploadedAttachment() {
     const afterUploadClear = await editorSnapshot(editor);
     assert.equal(afterUploadClear.textContent, '');
     assert.deepEqual(afterUploadClear.attachmentIds, []);
-    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).count(), 0);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'embedded.txt' }).count(), 0);
     await page.screenshot({ path: path.join(runtime, 'ctrl-a-upload-after.png'), fullPage: true });
     assert.deepEqual(pageErrors, []);
     assert.deepEqual(protectedRequests, []);
     return {
-      name: 'Ctrl+A Backspace removes an embedded completed upload without restoring its chip',
+      name: 'standalone upload sends, embedded upload is deleted by Ctrl+A Backspace',
       afterTextOnlyClear,
+      standaloneSendText,
       beforeUploadClear,
       afterUploadClear,
       pageErrors,
