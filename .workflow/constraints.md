@@ -79,3 +79,4 @@
 | `T-001`–`T-020` | `GIT-1`、`GIT-2` | `MODEL-1`；轻量核对可用 `MODEL-2` | `AUTONOMY-1` | 按功能追加 `TEST-1`/`TEST-2` |
 | `T-021` | `GIT-2`；UI demo 暂不合入 | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；开发者确认后再进入后端与 `GIT-1` |
 | `T-022` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；后端测试通过后直接合入本地 `main`，不 push |
+| `T-023` | `GIT-2`；调查阶段不改正式代码 | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；先报告方案，开发者决策后再执行 |
