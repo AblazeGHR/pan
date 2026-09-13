@@ -7,7 +7,7 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`17632cc`；T-024 解释器配置实现已合入本地 main；未 push。
+- `main`：`c48c3a9`；T-024 解释器配置实现及工作流记录已合入本地 main；未 push。
 - `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
 - `main` 既有 dirty/untracked：`docs/references/cli-adapter-special-behaviors.md`；本次将按用户要求提交。`.vite/` 与 `docs/developLog.md` 已加入 ignore。
 - 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧 overview 已删除。
@@ -305,7 +305,7 @@
 ### T-023：文件复制/拖入输入框的客户端与服务端方案调查
 
 - 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：TA 调查中；不修改正式功能代码、不提交、不合入 main
+- 当前阶段：TA 已完成调查，等待开发者决策；未修改正式功能代码、不提交、不合入 main
 - 目标：明确系统文件复制粘贴、文件拖入、目录拖入、网页附件拖动的真实浏览器数据形态，并提出能同时支持客户端文件与服务端文件的实现方案。
 - 范围：浏览器 paste/drop DataTransfer、File/FileList、目录 handle/entry、绝对路径安全边界、当前 Pan 附件链路、AttachmentRef/parts 协议、上传/取消/进度/持久化和兼容性。
 - TA/任务：`ses_f1bebe98cb738ec3`；`attachment-file-paste-drop-design-investigation-20260913`；Worker `worker-3`
