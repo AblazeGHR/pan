@@ -1,22 +1,22 @@
 # Pan 工作流总览
 
-> 当前工作流真源。约束策略见 [constraints.md](constraints.md)。
+> 当前工作流真源。约束策略见 [constraints.md](constraints.md)。旧总览与旧约束仅作为历史迁移输入保留，不再并行维护。
 >
 > 维护者：Pan SMA；迁移日期：2026-09-12
 
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`f76bcd1`；最近业务整合为 `c1a5ace`，随后提交工作流状态记录；未 push。
+- `main`：`784866b`；T-022 附件后端实现已合入本地 main；未 push。
 - `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
 - `main` 既有 dirty/untracked：`docs/plans&overviews/overview.md`、`docs/references/cli-adapter-special-behaviors.md`、`.vite/`、`docs/developLog.md`；均属既有用户内容或本地文件，未纳入本次提交。
 - 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧文档仍保留在原位置。
 
 ## 工作流控制
 
-- 整体状态：T-021 UI demo 已验收，T-022 后端实现进行中
-- 当前焦点：T-022；将已验收的附件拖放 UI 接入真实上传、引用、发送和持久化链路
-- 可执行：等待 TA 完成后端实现、分层测试和合入前验证
+- 整体状态：T-021 UI demo 已验收，T-022 后端实现已合入本地 main，等待开发者验收
+- 当前焦点：附件拖放真实上传、引用校验、发送和持久化已完成
+- 可执行：开发者验收合入 main 的附件功能；无新的 TA 任务
 - TA 执行中：无；`ses_f1bebe98cb738ec3` 已 done，Worker idle
 - 决策阻塞：无
 - 授权阻塞：无
@@ -264,61 +264,28 @@
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：是（`main@c1a5ace`，祖先关系核对成功）；push：否。
 
+### T-021/T-022：附件拖放 UI 与真实后端链路
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：已合入本地 main，等待开发者验收
+- 目标/结论：完成消息附件拖入、输入框内附件重排、附件节点保留图标、Ctrl+A/Delete 删除语义、客户端上传、附件引用安全校验、队列发送和 Session history 持久化；未嵌入的上方附件 chip 仍会正常发送并追加到消息尾部，嵌入附件按编辑器位置发送。
+- TA/工作树：`ses_f1bebe98cb738ec3`；`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；worktree clean
+- 提交/合并：后端提交 `480e63e064a5bdc0be5662b9e6f28577484826bd`；合并提交 `784866b`；未 push
+- 测试/未验证：真实 Chromium 4/4、真实 API 8767 回归、定向前端 73/73、相关后端队列/API 测试、TypeScript、ESLint、build、diff check 通过；全量 Vitest 有 10 个既有基线失败；完整 Python pytest 受 QQ 可选依赖缺失和 2 个既有失败影响；Firefox/Safari/移动端与真实生产服务链路未验证。
+- 有序待办：
+  - [x] UI demo 实现与开发者验收
+  - [x] 真实后端上传、引用校验、发送和持久化接入
+  - [x] 分层测试与真实隔离 API/浏览器验证
+  - [x] 合入 main
+  - [ ] 开发者验收
+
 ## 二、已完成但尚未合入 main 的改动
 
 当前暂无。
 
 ## 三、正在进行的任务/改动
 
-### T-021：消息附件拖动到发送输入框的 UI demo
-
-- 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：先做 UI demo；开发者确认后再拆分/启动后端实现
-- 当前阶段：Ctrl+A + Backspace 真实复现、修复和回归已完成，等待开发者最终确认，未合入 main
-- 目标：附件从消息栏拖入发送输入框时显示文字中的插入光标；释放后在光标位置插入保留附件图标和文件名的可视化附件节点，而不是普通链接文字。节点作为整体可删除，前后可继续输入。
-- TA/任务：`ses_f1bebe98cb738ec3`；`attachment-dnd-ui-demo-20260913`；Worker `worker-2`
-- 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于 `main@f76bcd1`
-- 提交：初始 demo `29a3e786b52e7b0742e2c23d6d084ed422ef4988`；第二轮修复 `978a4d7f4d975f7d6d73295611be229c525be6bf`；最终自检修复 `a88a3cce083bf388fa27f601b29eb3fcd93725d5`；真实浏览器修复 `d2ba6a31918162b185ad436cffbac041792ab75b`；Ctrl+A 删除修复 `b447640cafcb30d26d1399638673798344ec7fad`；产品语义收敛 `56ac7e8a47f5de82502a1d4515c7f26f05b93ebd`；未合入、未 push；TA worktree clean
-- 测试/未验证：真实 Chromium 4/4 通过；定向 Vitest 70/70、全量 449 passed/10 个既有基线失败、`tsc -b`、ESLint、build、diff check 通过；验证了独立未嵌入 chip 正常发送和嵌入附件删除不恢复 chip；Firefox/Safari/移动端 E2E、真实服务/API 发送链路未验证
-- 开发者反馈（2026-09-13）：附件旁输入文字会重复；已插入附件不能继续拖动调整位置；需要补齐一次性直接上传附件的 mock 流程。
-- 跟进任务：`attachment-dnd-ui-demo-followup-20260913`，复用上述 TA/Worker 和分支；已完成。
-- 最终自检任务：`attachment-dnd-ui-demo-final-audit-20260913`；已覆盖输入/光标、外部拖入、内部重排、删除/焦点、mock 上传、真实模式兼容、会话/草稿/队列和边界场景，并修复本次发现的问题。
-- 开发者复验反馈（2026-09-13）：真实操作复现“拖入文字中间后左右文字重复”和“已拖入附件无法在文字中拖动重排”。此前 jsdom/合成事件测试未覆盖真实浏览器 selection 与 contentEditable 原生拖放事件序列。
-- 当前浏览器复现任务：`attachment-dnd-ui-demo-browser-repro-20260913`；已在 5173 隔离 Vite + Chromium 153 复现并修复，新增 `pnpm e2e:attachment-dnd`，浏览器结果 2/2 PASS。
-- 开发者最新反馈（2026-09-13）：普通退格删除附件正常，但 Ctrl+A 全选后退格会让已嵌入附件错误回到聊天框上方的待插入 chip 区域。
-- 当前删除边界任务：`attachment-dnd-ui-demo-ctrl-a-delete-20260913`；已用真实 Chromium 修复并验证，确保嵌入状态与待插入附件列表不会错误恢复。
-- 产品语义补充（2026-09-13）：聊天框上方的未嵌入附件 chip 仍是待发送附件，点击 Send 必须正常发送；嵌入附件按编辑器首/中/尾位置序列化，未嵌入附件当前追加在消息文本末尾（无文本时直接发送附件链接）。Ctrl+A 删除嵌入节点不得导致附件发送状态丢失或重复。
-- Ctrl+A 修复结果（2026-09-13）：嵌入附件被全选删除后不再恢复为上方 chip；独立未嵌入附件 chip 仍保留并可正常发送；删除后可再次从消息区拖入。
-- 上述产品语义已由 TA 最终提交 `56ac7e8a47f5de82502a1d4515c7f26f05b93ebd` 落地。
-- 有序待办：
-  - [x] 实现拖动、插入光标和附件节点 UI
-  - [x] 添加回归测试并完成定向验证
-  - [x] 提供 demo 启动方法和已知限制
-  - [x] 修复开发者反馈并补充回归测试
-  - [x] 完成真实浏览器复现、修复和全量验证
-  - [x] 修复 Ctrl+A + Backspace 附件状态恢复问题并补充真实回归
-  - [x] 开发者确认 UI demo
-  - [x] 进入后端实现（需开发者确认后）
-  - [ ] 合入 main（仅后端完成并测试通过后按 `AUTH-001` 执行）
-  - [ ] 开发者验收
-
-### T-022：附件拖放 UI 的真实后端上传、发送与持久化接入
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：基于已验收的 T-021 UI，完成真实后端链路；测试通过后按 `AUTH-001` 直接合入本地 `main`
-- 当前阶段：TA 实现中，未合入 main
-- 目标：让消息附件拖入编辑器、输入框内附件重排、客户端上传附件和上方待发送 chip 在真实模式下正常工作；保持附件图标节点 UI 与安全 Markdown 兼容，不破坏现有附件 API、队列和草稿。
-- 产品语义：未嵌入的上方附件 chip 仍随 Send 正常发送并追加到消息尾部；嵌入编辑器的附件按首/中/尾位置发送；嵌入附件被删除后不再发送，且可重新拖入。
-- TA/任务：待派发；复用 `ses_f1bebe98cb738ec3` 的上下文和已验收分支
-- 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于已验收 UI 提交 `56ac7e8`
-- 有序待办：
-  - [ ] 审计现有真实上传、附件 API、消息队列、持久化和安全校验链路，明确 UI demo 与真实模式缺口
-  - [ ] 实现必要的后端/前端真实链路接入，不引入无必要的新协议
-  - [ ] 添加后端/API/前端回归测试，覆盖上传、引用、发送、失败重试、取消、嵌入/未嵌入和持久化
-  - [ ] 完成真实 API/浏览器验证及完整门禁
-  - [ ] 提交并检查 worktree clean
-  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
-  - [ ] 开发者验收
+当前暂无。
 
 ## 四、计划要做的任务
 
