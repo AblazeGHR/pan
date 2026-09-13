@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-021 UI demo 已通过真实 Chromium 回归，等待开发者确认
-- 当前焦点：T-021；此前两个真实浏览器阻塞 bug 已修复，后端仍等待开发者确认
-- 可执行：开发者启动 demo 复验；确认后建立新的后端任务
-- TA 执行中：无；`ses_f1bebe98cb738ec3` 已 done，Worker idle
+- 整体状态：T-021 UI demo 根据开发者复验发现的最后一个删除边界 bug修复中，等待 TA 报告
+- 当前焦点：T-021；Ctrl+A 全选后退格会让已嵌入附件错误回到输入框上方
+- 可执行：等待 TA 用真实浏览器复现、修复并验证，后端仍等待开发者确认
+- TA 执行中：`ses_f1bebe98cb738ec3`（`worker-2`，Codex `gpt-5.6-luna`，high）
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -274,7 +274,7 @@
 
 - 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：先做 UI demo；开发者确认后再拆分/启动后端实现
-- 当前阶段：真实浏览器复现、修复和回归已完成，等待开发者确认，未合入 main
+- 当前阶段：开发者发现 Ctrl+A + Backspace 删除边界仍失败，TA 重新复现和修复中，未合入 main
 - 目标：附件从消息栏拖入发送输入框时显示文字中的插入光标；释放后在光标位置插入保留附件图标和文件名的可视化附件节点，而不是普通链接文字。节点作为整体可删除，前后可继续输入。
 - TA/任务：`ses_f1bebe98cb738ec3`；`attachment-dnd-ui-demo-20260913`；Worker `worker-2`
 - 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于 `main@f76bcd1`
@@ -285,12 +285,15 @@
 - 最终自检任务：`attachment-dnd-ui-demo-final-audit-20260913`；已覆盖输入/光标、外部拖入、内部重排、删除/焦点、mock 上传、真实模式兼容、会话/草稿/队列和边界场景，并修复本次发现的问题。
 - 开发者复验反馈（2026-09-13）：真实操作复现“拖入文字中间后左右文字重复”和“已拖入附件无法在文字中拖动重排”。此前 jsdom/合成事件测试未覆盖真实浏览器 selection 与 contentEditable 原生拖放事件序列。
 - 当前浏览器复现任务：`attachment-dnd-ui-demo-browser-repro-20260913`；已在 5173 隔离 Vite + Chromium 153 复现并修复，新增 `pnpm e2e:attachment-dnd`，浏览器结果 2/2 PASS。
+- 开发者最新反馈（2026-09-13）：普通退格删除附件正常，但 Ctrl+A 全选后退格会让已嵌入附件错误回到聊天框上方的待插入 chip 区域。
+- 当前删除边界任务：`attachment-dnd-ui-demo-ctrl-a-delete-20260913`；要求用真实 Chromium 复现并验证，确保嵌入状态与待插入附件列表不会错误恢复。
 - 有序待办：
   - [x] 实现拖动、插入光标和附件节点 UI
   - [x] 添加回归测试并完成定向验证
   - [x] 提供 demo 启动方法和已知限制
   - [x] 修复开发者反馈并补充回归测试
   - [x] 完成真实浏览器复现、修复和全量验证
+  - [ ] 修复 Ctrl+A + Backspace 附件状态恢复问题并补充真实回归
   - [ ] 开发者确认 UI demo
   - [ ] 进入后端实现（需开发者确认后）
   - [ ] 合入 main（仅后端完成并测试通过后按 `AUTH-001` 执行）
