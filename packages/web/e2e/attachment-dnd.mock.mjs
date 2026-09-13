@@ -1,6 +1,7 @@
 /* global Element, NodeFilter, URL, console, document, process, window */
 
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -210,9 +211,165 @@ async function runInternalMiddleMove() {
   }
 }
 
+async function runCtrlADeleteAttachment() {
+  const { context, page, pageErrors, protectedRequests } = await openPage();
+  try {
+    const editor = page.getByTestId('rich-text-composer');
+    const messageSource = page.getByTestId('draggable-attachment');
+    const sourceText = '前面文字 后面文字';
+    await editor.click();
+    await page.keyboard.type(sourceText, { delay: 8 });
+    await page.waitForTimeout(100);
+    const editorBox = await editor.boundingBox();
+    const insertPoint = await editorPoint(editor, sourceText, 5);
+    assert.ok(editorBox && insertPoint);
+    await messageSource.dragTo(editor, {
+      targetPosition: { x: insertPoint.x - editorBox.x, y: insertPoint.y - editorBox.y },
+    });
+    await page.waitForTimeout(180);
+
+    const beforeMessageClear = await editorSnapshot(editor);
+    assert.equal(beforeMessageClear.textContent, '前面文字 接口说明.md后面文字');
+    assert.deepEqual(beforeMessageClear.attachmentIds.length, 1);
+    assert.equal(await page.locator('[data-testid="server-attachments"]').count(), 0);
+    await page.screenshot({ path: path.join(runtime, 'ctrl-a-message-before.png'), fullPage: true });
+
+    await editor.focus();
+    await page.keyboard.press('Control+A');
+    const selectedMessage = await page.evaluate(() => document.getSelection()?.toString() || '');
+    assert.equal(selectedMessage, '前面文字 \n后面文字');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(180);
+    const afterMessageClear = await editorSnapshot(editor);
+    assert.equal(afterMessageClear.textContent, '');
+    assert.deepEqual(afterMessageClear.attachmentIds, []);
+    assert.equal(await page.locator('[data-testid="server-attachments"]').count(), 0);
+    await page.screenshot({ path: path.join(runtime, 'ctrl-a-message-after.png'), fullPage: true });
+
+    // Deleting an embedded occurrence does not disable the original message
+    // source. A later drag creates a new occurrence with the existing product
+    // semantics for message attachments.
+    const reinsertText = '重新插入';
+    await editor.click();
+    await page.keyboard.type(reinsertText, { delay: 8 });
+    await page.waitForTimeout(80);
+    const reinsertBox = await editor.boundingBox();
+    const reinsertPoint = await editorPoint(editor, reinsertText, 2);
+    assert.ok(reinsertBox && reinsertPoint);
+    await messageSource.dragTo(editor, {
+      targetPosition: { x: reinsertPoint.x - reinsertBox.x, y: reinsertPoint.y - reinsertBox.y },
+    });
+    await page.waitForTimeout(160);
+    const afterMessageReinsert = await editorSnapshot(editor);
+    assert.equal(afterMessageReinsert.textContent, '重新接口说明.md插入');
+    assert.deepEqual(afterMessageReinsert.attachmentIds.length, 1);
+    assert.equal(await page.locator('[data-testid="server-attachments"]').count(), 0);
+
+    // Ordinary Backspace remains the atomic-node path and must not turn the
+    // removed node into a chip either.
+    await editor.focus();
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(180);
+    const afterOrdinaryBackspace = await editorSnapshot(editor);
+    assert.equal(afterOrdinaryBackspace.textContent, '重新插入');
+    assert.deepEqual(afterOrdinaryBackspace.attachmentIds, []);
+    assert.equal(await page.locator('[data-testid="server-attachments"]').count(), 0);
+    assert.deepEqual(pageErrors, []);
+    assert.deepEqual(protectedRequests, []);
+    return {
+      name: 'Ctrl+A Backspace removes embedded message attachment without restoring a chip',
+      beforeMessageClear,
+      selectedMessage,
+      afterMessageClear,
+      afterMessageReinsert,
+      afterOrdinaryBackspace,
+      pageErrors,
+      protectedRequests,
+    };
+  } finally {
+    await context.close();
+  }
+}
+
+async function runCtrlADeleteUploadedAttachment() {
+  const { context, page, pageErrors, protectedRequests } = await openPage();
+  try {
+    const editor = page.getByTestId('rich-text-composer');
+    await page.getByRole('button', { name: '添加附件' }).click();
+    await page.getByRole('button', { name: '客户端附件' }).click();
+    await page.getByTestId('client-attachment-input').setInputFiles({
+      name: 'uploaded.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('mock upload'),
+    });
+    await page.getByTestId('attachment-upload-progress').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.querySelector('[data-testid="attachment-upload-progress"]')?.textContent?.includes('已完成'));
+    const chip = page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).first();
+    await chip.waitFor({ state: 'visible' });
+
+    // Ctrl+A while only ordinary text is embedded must preserve an unrelated
+    // ready chip above the editor.
+    const pendingText = '仅有文字';
+    await editor.click();
+    await page.keyboard.type(pendingText, { delay: 8 });
+    await editor.focus();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(160);
+    const afterTextOnlyClear = await editorSnapshot(editor);
+    assert.equal(afterTextOnlyClear.textContent, '');
+    assert.deepEqual(afterTextOnlyClear.attachmentIds, []);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).count(), 1);
+
+    // Drag the completed upload into the editor, then clear the whole editor.
+    // The embedded file is removed from the pending list rather than being
+    // resurrected as a standalone chip.
+    const uploadText = '上传前后';
+    await editor.click();
+    await page.keyboard.type(uploadText, { delay: 8 });
+    await page.waitForTimeout(80);
+    const editorBox = await editor.boundingBox();
+    const insertPoint = await editorPoint(editor, uploadText, 2);
+    assert.ok(editorBox && insertPoint);
+    await chip.dragTo(editor, {
+      targetPosition: { x: insertPoint.x - editorBox.x, y: insertPoint.y - editorBox.y },
+    });
+    await page.waitForTimeout(180);
+    const beforeUploadClear = await editorSnapshot(editor);
+    assert.equal(beforeUploadClear.textContent, '上传uploaded.txt前后');
+    assert.deepEqual(beforeUploadClear.attachmentIds.length, 1);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).count(), 0);
+    await page.screenshot({ path: path.join(runtime, 'ctrl-a-upload-before.png'), fullPage: true });
+
+    await editor.focus();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(180);
+    const afterUploadClear = await editorSnapshot(editor);
+    assert.equal(afterUploadClear.textContent, '');
+    assert.deepEqual(afterUploadClear.attachmentIds, []);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: 'uploaded.txt' }).count(), 0);
+    await page.screenshot({ path: path.join(runtime, 'ctrl-a-upload-after.png'), fullPage: true });
+    assert.deepEqual(pageErrors, []);
+    assert.deepEqual(protectedRequests, []);
+    return {
+      name: 'Ctrl+A Backspace removes an embedded completed upload without restoring its chip',
+      afterTextOnlyClear,
+      beforeUploadClear,
+      afterUploadClear,
+      pageErrors,
+      protectedRequests,
+    };
+  } finally {
+    await context.close();
+  }
+}
+
 try {
   results.push(await runExternalMiddleDrop());
   results.push(await runInternalMiddleMove());
+  results.push(await runCtrlADeleteAttachment());
+  results.push(await runCtrlADeleteUploadedAttachment());
 } finally {
   await browser.close();
 }

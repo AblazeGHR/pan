@@ -538,7 +538,24 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
 
   const handleInput = () => {
     if (!editorRef.current) return;
+    const previousParts = partsRef.current;
     const nextParts = readParts(editorRef.current);
+    const nextAttachmentIds = new Set(
+      nextParts
+        .filter((part): part is Extract<ComposerPart, { type: 'attachment' }> => part.type === 'attachment')
+        .map((part) => part.attachmentId),
+    );
+    // Native editing commands such as Ctrl+A + Backspace bypass our atomic
+    // key handler and remove content directly from the DOM. Reconcile only
+    // the embedded attachment IDs that disappeared; standalone chips are not
+    // part of the editor model and must remain available above the editor.
+    const removedAttachmentIds = new Set(
+      previousParts
+        .filter((part): part is Extract<ComposerPart, { type: 'attachment' }> => part.type === 'attachment')
+        .map((part) => part.attachmentId)
+        .filter((attachmentId) => !nextAttachmentIds.has(attachmentId)),
+    );
+    for (const attachmentId of removedAttachmentIds) onRemoveAttachment(attachmentId);
     // The browser-mutated DOM is the source of truth during ordinary typing.
     // Re-rendering it on every input lets React reconcile against a stale
     // contenteditable tree and can duplicate text next to an inline node.

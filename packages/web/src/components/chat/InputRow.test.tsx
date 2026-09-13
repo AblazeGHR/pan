@@ -227,6 +227,45 @@ describe('InputRow send queue wiring', () => {
     ));
   });
 
+  it('removes an embedded attachment when native select-all Backspace mutates the editor DOM', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const payload = {
+      displayName: '接口说明.md',
+      href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
+    };
+    fireEvent.drop(editor, { dataTransfer: {
+      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
+    } });
+    expect(screen.getByRole('group', { name: '附件 接口说明.md' })).toBeTruthy();
+
+    // jsdom does not implement native Ctrl+A editing. This is the DOM shape
+    // Chromium leaves after that command; the real mouse/keyboard path is
+    // covered by e2e/attachment-dnd.mock.mjs.
+    editor.replaceChildren(document.createElement('br'));
+    fireEvent.input(editor);
+
+    await waitFor(() => expect(screen.queryByRole('group', { name: '附件 接口说明.md' })).toBeNull());
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+  });
+
+  it('keeps an unembedded attachment chip when native select-all clears only editor text', async () => {
+    setBusySession();
+    useUIStore.getState().requestChatAttachment('s1', 'D:\\attachments\\report.txt');
+    render(<InputRow />);
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: 'only editor text' } });
+    const editor = screen.getByTestId('rich-text-composer');
+    editor.replaceChildren(document.createElement('br'));
+    fireEvent.input(editor);
+
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+    expect(screen.queryByRole('group', { name: '附件 report.txt' })).toBeTruthy();
+  });
+
   it('simulates direct client upload in mock mode, then reuses its chip as an inline node', async () => {
     window.history.pushState({}, '', '/?mock=1');
     setBusySession();
