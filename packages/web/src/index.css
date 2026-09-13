@@ -92,6 +92,19 @@ pre, code, textarea, input[type="text"] {
   font-family: var(--font-mono);
 }
 
+/* The attachment demo uses a contenteditable composer so file nodes can sit
+   between ordinary text. Keep its empty-state affordance visually identical
+   to the former textarea placeholder. */
+.composer-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+.composer-attachment-node {
+  vertical-align: baseline;
+}
+
 /* ── Drag-gutter dot-matrix texture ── */
 
 /* Shared drag column behind the session status dot: a subtle dot-matrix /

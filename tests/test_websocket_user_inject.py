@@ -57,6 +57,38 @@ def test_user_inject_without_worker_persists_and_acknowledges(monkeypatch):
     assert ws not in srv.ws_clients
 
 
+def test_user_inject_rejects_attachment_for_another_session(monkeypatch):
+    srv.ws_clients.clear()
+    ws = _FakeWS({
+        "type": "user_inject",
+        "sessionId": "session-1",
+        "text": "[foreign](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=session-2)",
+    })
+    enqueue_calls = []
+
+    monkeypatch.setattr(srv.sess, "get", lambda session_id: object() if session_id in {"session-1", "session-2"} else None)
+
+    async def fake_enqueue_user_message(*args, **kwargs):
+        enqueue_calls.append((args, kwargs))
+        return {"status": "queued"}
+
+    monkeypatch.setattr(srv.worker, "enqueue_user_message", fake_enqueue_user_message)
+
+    asyncio.run(srv.ws_endpoint(ws))
+
+    assert enqueue_calls == []
+    assert ws.sent == [{
+        "type": "user_inject.rejected",
+        "sessionId": "session-1",
+        "message": "Attachment belongs to another session",
+        "error": {
+            "code": "attachment_session_mismatch",
+            "message": "Attachment belongs to another session",
+        },
+    }]
+    assert ws not in srv.ws_clients
+
+
 def test_agent_task_does_not_send_after_spawn_failure(monkeypatch):
     """A failed agent spawn must return an error without dereferencing None."""
     srv.agent_clients.clear()

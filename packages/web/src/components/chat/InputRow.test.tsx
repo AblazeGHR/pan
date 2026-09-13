@@ -10,6 +10,7 @@ import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patc
 import { wsClient } from '@/services/ws';
 import { useWorkerStore } from '@/stores/workerStore';
 import type { AdapterConfig } from '@/types';
+import { ATTACHMENT_DRAG_MIME } from '@/utils/attachmentDrag';
 
 vi.mock('@/services/ws', () => ({
   wsClient: {
@@ -101,6 +102,7 @@ beforeEach(() => {
     currentSessionId: null,
     currentMessages: [],
     sessions: [],
+    inputDrafts: {},
   });
   useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
   useQueueStore.setState({ queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false });
@@ -124,6 +126,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(document, 'caretRangeFromPoint');
+  Reflect.deleteProperty(document, 'caretPositionFromPoint');
+  window.history.replaceState({}, '', '/');
 });
 
 describe('InputRow send queue wiring', () => {
@@ -184,6 +189,214 @@ describe('InputRow send queue wiring', () => {
       's1', '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)', expect.any(String),
     ));
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+  });
+
+  it('drops a message attachment into the editor and queues it at the text caret', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: '请先 后续' } });
+    const editor = screen.getByTestId('rich-text-composer');
+    const text = editor.querySelector('span')?.firstChild;
+    const range = document.createRange();
+    range.setStart(text!, 3);
+    range.collapse(true);
+    vi.stubGlobal('document', Object.assign(document, {
+      caretRangeFromPoint: vi.fn(() => range),
+    }));
+    const payload = {
+      displayName: '接口说明.md',
+      href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
+    };
+    const dataTransfer = {
+      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
+      dropEffect: 'copy',
+    } as unknown as DataTransfer;
+
+    fireEvent.dragOver(editor, { dataTransfer, clientX: 40, clientY: 12 });
+    expect(screen.getByTestId('attachment-drop-caret')).toBeTruthy();
+    fireEvent.drop(editor, { dataTransfer, clientX: 40, clientY: 12 });
+
+    expect(screen.getByRole('group', { name: '附件 接口说明.md' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1',
+      '请先 [接口说明.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1)后续',
+      expect.any(String),
+    ));
+  });
+
+  it('removes an embedded attachment when native select-all Backspace removes its node', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const payload = {
+      displayName: '接口说明.md',
+      href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
+    };
+    fireEvent.drop(editor, { dataTransfer: {
+      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
+    } });
+    expect(screen.getByRole('group', { name: '附件 接口说明.md' })).toBeTruthy();
+
+    // jsdom does not implement native Ctrl+A editing. This is the DOM shape
+    // Chromium leaves after that command; the real mouse/keyboard path is
+    // covered by e2e/attachment-dnd.mock.mjs.
+    editor.replaceChildren(document.createElement('br'));
+    fireEvent.input(editor);
+
+    await waitFor(() => expect(editor.querySelector('[data-composer-attachment]')).toBeNull());
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+  });
+
+  it('keeps an unembedded attachment chip when native select-all clears only editor text', async () => {
+    setBusySession();
+    useUIStore.getState().requestChatAttachment('s1', 'D:\\attachments\\report.txt');
+    render(<InputRow />);
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: 'only editor text' } });
+    const editor = screen.getByTestId('rich-text-composer');
+    editor.replaceChildren(document.createElement('br'));
+    fireEvent.input(editor);
+
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+    expect(screen.queryByRole('group', { name: '附件 report.txt' })).toBeTruthy();
+  });
+
+  it('simulates direct client upload in mock mode, then reuses its chip as an inline node', async () => {
+    window.history.pushState({}, '', '/?mock=1');
+    setBusySession();
+    render(<InputRow />);
+    const file = new File(['demo upload'], 'direct.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'));
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+    const chip = screen.getByTestId('draggable-attachment-chip');
+    expect(chip.textContent).toContain('direct.txt');
+
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      getData: (type: string) => data.get(type) || '',
+      setData: (type: string, value: string) => data.set(type, value),
+      effectAllowed: 'copy',
+      dropEffect: 'copy',
+    } as unknown as DataTransfer;
+    fireEvent.dragStart(chip, { dataTransfer });
+    expect(dataTransfer.effectAllowed).toBe('move');
+    expect(JSON.parse(data.get(ATTACHMENT_DRAG_MIME) || '{}')).toMatchObject({
+      displayName: 'direct.txt',
+      attachmentId: expect.any(String),
+      source: 'attachment-chip',
+    });
+    fireEvent.drop(screen.getByTestId('rich-text-composer'), { dataTransfer });
+
+    expect(screen.getByRole('group', { name: '附件 direct.txt' })).toBeTruthy();
+    expect(screen.queryByTestId('draggable-attachment-chip')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1',
+      expect.stringMatching(/^\[direct\.txt\]\(\/api\/attachments\/upload_[a-z0-9]{32}\.txt\?session_id=s1\)$/),
+      expect.any(String),
+    ));
+    expect(uploadSessionAttachment).not.toHaveBeenCalled();
+    window.history.pushState({}, '', '/');
+  });
+
+  it('deduplicates repeated files within one mock selection and keeps distinct files', async () => {
+    window.history.pushState({}, '', '/?mock=1');
+    setBusySession();
+    render(<InputRow />);
+    const first = new File(['first'], 'first.txt', { type: 'text/plain' });
+    const second = new File(['second'], 'second.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), {
+      target: { files: [first, first, second] },
+    });
+
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+    expect(screen.getAllByTestId('draggable-attachment-chip')).toHaveLength(2);
+    expect(screen.getByTestId('server-attachments').textContent).toContain('first.txt');
+    expect(screen.getByTestId('server-attachments').textContent).toContain('second.txt');
+    expect(uploadSessionAttachment).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [first] } });
+    await waitFor(() => expect(screen.getAllByTestId('draggable-attachment-chip')).toHaveLength(2));
+    expect(uploadSessionAttachment).not.toHaveBeenCalled();
+  });
+
+  it('allows cancelling an in-flight mock file without restoring its chip after completion', async () => {
+    window.history.pushState({}, '', '/?mock=1');
+    setBusySession();
+    render(<InputRow />);
+    const file = new File(['cancel me'], 'cancel.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'));
+    fireEvent.click(screen.getByRole('button', { name: '取消附件 cancel.txt' }));
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+    expect(uploadSessionAttachment).not.toHaveBeenCalled();
+  });
+
+  it('aborts an in-flight real upload when its pending chip is cancelled', async () => {
+    setBusySession();
+    let uploadSignal!: AbortSignal;
+    vi.mocked(uploadSessionAttachment).mockImplementationOnce(async (
+      _sessionId,
+      _file,
+      _onProgress,
+      signal,
+    ) => {
+      uploadSignal = signal!;
+      return new Promise(() => {});
+    });
+    render(<InputRow />);
+    const file = new File(['cancel real'], 'cancel-real.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: '取消附件 cancel-real.txt' }));
+    expect(uploadSignal.aborted).toBe(true);
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+  });
+
+  it('clears inline attachments and restores the draft belonging to the selected session', async () => {
+    setBusySession();
+    useSessionStore.setState((state) => ({
+      inputDrafts: { s1: 'first draft', s2: 'second draft' },
+      sessions: [...state.sessions, {
+        id: 's2',
+        name: 'Second',
+        adapter: 'cbc',
+        model: null,
+        permissionMode: null,
+        alwaysThinkingEnabled: false,
+        effort: '',
+        workerStatus: 'idle',
+        workerId: null,
+        history: [],
+      }],
+    }));
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const payload = {
+      displayName: 'session.txt',
+      href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1',
+    };
+    fireEvent.drop(editor, { dataTransfer: {
+      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
+    } });
+    expect(screen.getByRole('group', { name: '附件 session.txt' })).toBeTruthy();
+
+    useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
+    await waitFor(() => expect((screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement).value).toBe('second draft'));
+    expect(screen.queryByRole('group', { name: '附件 session.txt' })).toBeNull();
+    expect(screen.getByTestId('rich-text-composer').textContent).toBe('second draft');
   });
 
   it('consumes an editor request through the existing server attachment and queue path', async () => {
@@ -271,7 +484,9 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
     const file = new File(['client'], 'client.txt', { type: 'text/plain' });
     fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
-    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith('s1', file, expect.any(Function)));
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith(
+      's1', file, expect.any(Function), expect.any(AbortSignal),
+    ));
     await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('client.txt'));
 
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });

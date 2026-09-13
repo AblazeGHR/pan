@@ -75,6 +75,8 @@ export interface SessionAttachmentUploadResponse {
   ok: boolean;
   /** Compatibility alias; new UI labels use displayName. */
   filename: string;
+  /** Stable opaque server reference; currently the storage filename. */
+  attachmentId?: string;
   displayName?: string;
   storageFilename?: string;
   href?: string;
@@ -115,9 +117,21 @@ export async function uploadSessionAttachment(
   sessionId: string,
   file: File,
   onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<SessionAttachmentUploadResponse> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener('abort', abort);
+      callback();
+    };
+    const abort = () => {
+      xhr.abort();
+      finish(() => reject(new Error('附件上传已取消')));
+    };
     xhr.open('POST', `${BASE}/sessions/${encodeURIComponent(sessionId)}/attachments`);
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name));
@@ -132,18 +146,25 @@ export async function uploadSessionAttachment(
         // The status text below is more useful than exposing a JSON parse error.
       }
       if (xhr.status < 200 || xhr.status >= 300 || !data.ok || !data.path) {
-        reject(new Error(data.detail || `HTTP ${xhr.status}: ${xhr.statusText}`));
+        finish(() => reject(new Error(data.detail || `HTTP ${xhr.status}: ${xhr.statusText}`)));
         return;
       }
-      onProgress?.(data.size ?? file.size, data.size ?? file.size);
-      resolve(data as SessionAttachmentUploadResponse);
+      finish(() => {
+        onProgress?.(data.size ?? file.size, data.size ?? file.size);
+        resolve(data as SessionAttachmentUploadResponse);
+      });
     };
-    xhr.onerror = () => reject(new Error('附件上传失败，请检查网络连接'));
-    xhr.onabort = () => reject(new Error('附件上传已取消'));
+    xhr.onerror = () => finish(() => reject(new Error('附件上传失败，请检查网络连接')));
+    xhr.onabort = () => finish(() => reject(new Error('附件上传已取消')));
+    if (signal?.aborted) {
+      finish(() => reject(new Error('附件上传已取消')));
+      return;
+    }
+    signal?.addEventListener('abort', abort, { once: true });
     try {
       xhr.send(file);
     } catch (error) {
-      reject(error instanceof Error ? error : new Error(String(error)));
+      finish(() => reject(error instanceof Error ? error : new Error(String(error))));
     }
   });
 }

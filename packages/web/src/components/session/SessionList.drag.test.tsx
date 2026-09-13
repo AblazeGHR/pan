@@ -108,7 +108,7 @@ describe('SessionList drag interactions (mock demo)', () => {
     localStorage.clear();
     // These interactions exercise the ?mock=1/no-backend demo branch. The real
     // backend branch (no mock flag) is covered by SessionList.drag.realBackend.test.tsx.
-    localStorage.setItem('pan:mockDemo', '1');
+    window.history.pushState({}, '', '/?mock=1');
     useSessionStore.setState({
       sessions: [
         mk('A', 'Alpha', { updatedAt: new Date(Date.now() - 60_000).toISOString() }),
@@ -136,6 +136,7 @@ describe('SessionList drag interactions (mock demo)', () => {
   afterEach(() => {
     rectSpy?.mockRestore();
     rectSpy = null;
+    window.history.replaceState({}, '', '/');
   });
 
   it('shows a ghost near the cursor once the drag threshold is crossed; original cards stay in place', () => {
@@ -395,7 +396,7 @@ describe('manager-tree drag interactions (mock demo)', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem('pan:mockDemo', '1'); // mock/no-backend branch
+    window.history.pushState({}, '', '/?mock=1'); // mock/no-backend branch
     useUIStore.setState({ groupBy: 'manager', sortBy: 'recent', customOrder: [], toastQueue: [] });
     useSessionStore.setState({
       sessions: [
@@ -411,6 +412,10 @@ describe('manager-tree drag interactions (mock demo)', () => {
       sessionsLoading: false,
     });
     stubCardRects(managerLayout);
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
   });
 
   function handleOf(container: HTMLElement, id: string): Element {

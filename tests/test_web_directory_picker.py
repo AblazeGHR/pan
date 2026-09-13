@@ -171,6 +171,7 @@ def test_attachment_upload_is_session_isolated_and_avoids_name_collisions(monkey
     assert first["filename"] == first["displayName"]
     assert first["storageFilename"].startswith("upload_")
     assert first["storageFilename"] != first["displayName"]
+    assert first["attachmentId"] == first["storageFilename"]
     assert first["href"] == (
         f"/api/attachments/{first['storageFilename']}?session_id=ses_a"
     )
@@ -245,6 +246,89 @@ def test_attachment_upload_rejects_unknown_session(monkeypatch, tmp_path):
     with pytest.raises(HTTPException) as error:
         asyncio.run(run())
     assert error.value.status_code == 404
+
+
+def test_queue_rejects_cross_session_and_stale_attachment_links(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    monkeypatch.setattr(server, "ATTACHMENTS_DIR", tmp_path / "attachments")
+    workdir_a = tmp_path / "workdir-a"
+    workdir_b = tmp_path / "workdir-b"
+    workdir_a.mkdir()
+    workdir_b.mkdir()
+    fs_file = workdir_a / "existing [file].txt"
+    fs_file.write_text("body", encoding="utf-8")
+    sessions = {
+        "ses_a": SimpleNamespace(workdir=str(workdir_a)),
+        "ses_b": SimpleNamespace(workdir=str(workdir_b)),
+    }
+    monkeypatch.setattr(server.sess, "get", lambda session_id: sessions.get(session_id))
+
+    storage = "upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt"
+    target_dir = server._attachment_session_dir("ses_a")
+    target_dir.mkdir(parents=True)
+    (target_dir / storage).write_bytes(b"uploaded")
+    valid_upload = f"/api/attachments/{storage}?session_id=ses_a"
+    valid_fs = server._fs_download_href("ses_a", str(fs_file))
+
+    assert server._validate_message_attachment_references("ses_a", f"before [upload]({valid_upload})") is None
+    assert server._validate_message_attachment_references("ses_a", f"before [file]({valid_fs})") is None
+    assert server._validate_message_attachment_references("ses_a", 'legacy @"D:\\old\\file.txt"') is None
+
+    mismatch = server._validate_message_attachment_references(
+        "ses_a", f"[upload](/api/attachments/{storage}?session_id=ses_b)",
+    )
+    assert mismatch == {
+        "code": "attachment_session_mismatch",
+        "message": "Attachment belongs to another session",
+    }
+    stale = server._validate_message_attachment_references(
+        "ses_a", "[stale](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.txt?session_id=ses_a)",
+    )
+    assert stale == {
+        "code": "attachment_not_found",
+        "message": "Attachment is no longer available",
+    }
+    missing_fs = server._validate_message_attachment_references(
+        "ses_a", "[missing](/api/fs/read?session_id=ses_a&path=missing.txt&download=1)",
+    )
+    assert missing_fs == {
+        "code": "attachment_not_found",
+        "message": "Attachment is no longer available",
+    }
+
+
+def test_queue_route_validates_attachment_links_before_enqueue(monkeypatch, tmp_path):
+    import packages.web.server as server
+
+    monkeypatch.setattr(server, "ATTACHMENTS_DIR", tmp_path / "attachments")
+    target_dir = server._attachment_session_dir("ses_a")
+    target_dir.mkdir(parents=True)
+    storage = "upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt"
+    (target_dir / storage).write_bytes(b"uploaded")
+    monkeypatch.setattr(server.sess, "get", lambda session_id: object() if session_id == "ses_a" else None)
+    calls = []
+
+    async def fake_enqueue(session_id, text, client_message_id=None):
+        calls.append((session_id, text, client_message_id))
+        return {"status": "queued", "item": {"type": "task", "kind": "task", "id": "q_1", "queueItemId": "q_1", "text": text, "source": "user"}}
+
+    monkeypatch.setattr(server.worker, "enqueue_user_message", fake_enqueue)
+    valid = f"[uploaded.txt](/api/attachments/{storage}?session_id=ses_a)"
+    accepted = asyncio.run(server.api_session_queue_enqueue(
+        "ses_a", {"text": valid, "clientMessageId": "cm-1"},
+    ))
+    assert accepted["ok"] is True
+    assert calls == [("ses_a", valid, "cm-1")]
+
+    invalid = asyncio.run(server.api_session_queue_enqueue(
+        "ses_a", {"text": "[stale](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.txt?session_id=ses_a)"},
+    ))
+    assert invalid == {"ok": False, "error": {
+        "code": "attachment_not_found",
+        "message": "Attachment is no longer available",
+    }}
+    assert len(calls) == 1
 
 
 def test_fs_rename_does_not_overwrite_target_that_appears_during_operation(monkeypatch, tmp_path):

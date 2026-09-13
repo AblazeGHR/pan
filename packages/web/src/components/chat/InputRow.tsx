@@ -11,8 +11,11 @@ import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { DirectoryInput } from '@/components/session/DirectoryInput';
 import { Modal } from '@/components/ui/Modal';
+import { RichTextComposer, type ComposerValue, type RichTextComposerHandle } from '@/components/chat/RichTextComposer';
 import { fetchDirectories, uploadSessionAttachment } from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
+import { writeAttachmentDragPayload, type AttachmentDragPayload } from '@/utils/attachmentDrag';
+import { isMockMode, mockUploadSessionAttachment } from '@/demo/mockBackend';
 import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
 import { ChevronDown, ChevronUp, CornerUpRight, Expand, File as FileIcon, Minimize2, Paperclip, Settings, X } from 'lucide-react';
 import type { AdapterConfig, PermissionMode } from '@/types';
@@ -215,6 +218,12 @@ function ThinkingToggle({
 
 export function InputRow() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<RichTextComposerHandle>(null);
+  const composerValueRef = useRef<ComposerValue>({
+    parts: [{ type: 'text', value: '' }],
+    text: '',
+    attachmentIds: [],
+  });
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
@@ -242,7 +251,11 @@ export function InputRow() {
   const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
   const [attachmentDirectoryError, setAttachmentDirectoryError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [composerText, setComposerText] = useState(() => currentSessionId
+    ? useSessionStore.getState().inputDrafts[currentSessionId] || ''
+    : '');
   const clientAttachmentInputRef = useRef<HTMLInputElement>(null);
+  const uploadControllersRef = useRef(new Map<string, AbortController>());
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
@@ -290,13 +303,18 @@ export function InputRow() {
     const draft = currentSessionId
       ? useSessionStore.getState().inputDrafts[currentSessionId]
       : '';
-    inputRef.current.value = draft || '';
+    composerRef.current?.replaceText(draft || '');
   }, [currentSessionId]);
 
   useEffect(() => {
+    const uploadControllers = uploadControllersRef.current;
     setAttachments([]);
     setAttachmentBrowserOpen(false);
     setAttachmentMenuOpen(false);
+    return () => {
+      for (const controller of uploadControllers.values()) controller.abort();
+      uploadControllers.clear();
+    };
   }, [currentSessionId]);
 
   // The editor can be a separate route, so it hands a server path to the
@@ -381,13 +399,17 @@ export function InputRow() {
   const uploadClientAttachment = useCallback(async (attachment: PendingAttachment) => {
     const sessionId = currentSessionId;
     if (!sessionId || !attachment.file) return;
+    const controller = new AbortController();
+    uploadControllersRef.current.set(attachment.id, controller);
     try {
-      const uploaded = await uploadSessionAttachment(
+      const upload = isMockMode() ? mockUploadSessionAttachment : uploadSessionAttachment;
+      const uploaded = await upload(
         sessionId,
         attachment.file,
         (loaded, total) => setAttachments((current) => current.map((item) => item.id === attachment.id
           ? { ...item, loadedBytes: loaded, totalBytes: total }
           : item)),
+        controller.signal,
       );
       setAttachments((current) => current.map((item) => item.id === attachment.id
         ? {
@@ -405,6 +427,10 @@ export function InputRow() {
       setAttachments((current) => current.map((item) => item.id === attachment.id
         ? { ...item, status: 'error', error: error instanceof Error ? error.message : String(error) }
         : item));
+    } finally {
+      if (uploadControllersRef.current.get(attachment.id) === controller) {
+        uploadControllersRef.current.delete(attachment.id);
+      }
     }
   }, [currentSessionId]);
 
@@ -417,7 +443,13 @@ export function InputRow() {
         .filter((attachment) => attachment.status !== 'error' && attachment.fileKey)
         .map((attachment) => attachment.fileKey),
     );
-    const added = files.filter((file) => !uploadingOrReady.has(clientFileKey(file))).map((file) => ({
+    const selectedKeys = new Set(uploadingOrReady);
+    const added = files.filter((file) => {
+      const key = clientFileKey(file);
+      if (selectedKeys.has(key)) return false;
+      selectedKeys.add(key);
+      return true;
+    }).map((file) => ({
       id: attachmentId(),
       displayName: file.name,
       file,
@@ -430,6 +462,34 @@ export function InputRow() {
     setAttachments((current) => [...current, ...added]);
     void Promise.all(added.map((attachment) => uploadClientAttachment(attachment)));
   }, [attachments, currentSessionId, uploadClientAttachment]);
+
+  const handleComposerChange = useCallback((value: ComposerValue) => {
+    composerValueRef.current = value;
+    setComposerText(value.text);
+    if (currentSessionId) setInputDraft(currentSessionId, value.text);
+  }, [currentSessionId, setInputDraft]);
+
+  const handleAttachmentDrop = useCallback((payload: AttachmentDragPayload): string | null => {
+    if (!currentSessionId) return null;
+    if (payload.attachmentId) {
+      return attachments.some((attachment) => attachment.id === payload.attachmentId)
+        ? payload.attachmentId
+        : null;
+    }
+    const id = attachmentId();
+    setAttachments((current) => [...current, {
+      id,
+      displayName: payload.displayName,
+      path: payload.path,
+      href: payload.href,
+      status: 'ready',
+    }]);
+    return id;
+  }, [attachments, currentSessionId]);
+
+  const handleRemoveComposerAttachment = useCallback((attachmentIdToRemove: string) => {
+    setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentIdToRemove));
+  }, []);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -478,9 +538,19 @@ export function InputRow() {
         showToast('附件链接无效，请重新选择附件', 'error');
         return;
       }
-      const attachmentText = attachmentLinks.filter((link): link is string => link !== null)
-        .join(' ');
-      const message = [text.trim(), attachmentText].filter(Boolean).join(' ');
+      const linksById = new Map(
+        readyAttachments.map((attachment, index) => [attachment.id, attachmentLinks[index]]),
+      );
+      const embeddedIds = new Set(composerValueRef.current.attachmentIds);
+      const composedText = composerValueRef.current.parts.map((part) => {
+        if (part.type === 'text') return part.value;
+        return linksById.get(part.attachmentId) || '';
+      }).join('');
+      const remainingLinks = readyAttachments
+        .filter((attachment) => !embeddedIds.has(attachment.id))
+        .map((attachment) => linksById.get(attachment.id))
+        .filter((link): link is string => !!link);
+      const message = [composedText.trim() || text.trim(), remainingLinks.join(' ')].filter(Boolean).join(' ');
       if (!message) return;
 
       // Every user message goes to the server queue.  Clear the input only
@@ -488,7 +558,7 @@ export function InputRow() {
       // not an offline accepted queue state.
       const ok = await enqueue(message);
       if (ok) {
-        if (inputRef.current) inputRef.current.value = '';
+        composerRef.current?.replaceText('');
         setInputDraft(currentSessionId, '');
         setAttachments([]);
       }
@@ -511,7 +581,7 @@ export function InputRow() {
       if (!currentSessionId || !text.trim()) return;
       try {
         await steer(currentSessionId, text);
-        if (inputRef.current) inputRef.current.value = '';
+        composerRef.current?.replaceText('');
         setInputDraft(currentSessionId, '');
         addMessage({ role: 'user', content: text });
       } catch (e) {
@@ -521,11 +591,10 @@ export function InputRow() {
     [currentSessionId, steer, setInputDraft, addMessage, showToast],
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      const text = inputRef.current?.value || '';
-      handleSend(text);
+      handleSend(composerValueRef.current.text);
     }
   };
 
@@ -574,6 +643,8 @@ export function InputRow() {
       ? '失败'
       : '已完成';
   const attachmentsBlocked = attachments.some((attachment) => attachment.status !== 'ready');
+  const embeddedAttachmentIds = new Set(composerValueRef.current.attachmentIds);
+  const visibleAttachmentChips = attachments.filter((attachment) => !embeddedAttachmentIds.has(attachment.id));
 
   return (
     <div
@@ -714,11 +785,29 @@ export function InputRow() {
               </div>
             </div>
           )}
-          {attachments.length > 0 && (
+          {visibleAttachmentChips.length > 0 && (
             <div className="flex flex-wrap gap-1.5" data-testid="server-attachments">
-              {attachments.map((attachment) => (
-                <span key={attachment.id} className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary" title={attachment.path || attachment.displayName}>
-                  <FileIcon size={13} className="shrink-0" />
+              {visibleAttachmentChips.map((attachment) => (
+                <span
+                  key={attachment.id}
+                  draggable={attachment.status === 'ready' && !!attachment.href}
+                  data-testid={attachment.status === 'ready' && attachment.href ? 'draggable-attachment-chip' : undefined}
+                  onDragStart={(event) => {
+                    if (attachment.status !== 'ready' || !attachment.href) return;
+                    writeAttachmentDragPayload(event.dataTransfer, {
+                      displayName: attachment.displayName,
+                      href: attachment.href,
+                      path: attachment.path,
+                      attachmentId: attachment.id,
+                      source: 'attachment-chip',
+                    });
+                  }}
+                  role="group"
+                  aria-label={`附件 ${attachment.displayName}`}
+                  className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary"
+                  title={attachment.path || attachment.displayName}
+                >
+                  <FileIcon size={13} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{attachment.displayName}</span>
                   {attachment.file && attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
                   {attachment.file && attachment.status === 'ready' && <span className="text-accent">已完成</span>}
@@ -742,7 +831,11 @@ export function InputRow() {
                     type="button"
                     aria-label={`取消附件 ${attachment.displayName}`}
                     className="ml-1 text-danger hover:text-danger/80"
-                    onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+                    onClick={() => {
+                      uploadControllersRef.current.get(attachment.id)?.abort();
+                      uploadControllersRef.current.delete(attachment.id);
+                      setAttachments((current) => current.filter((item) => item.id !== attachment.id));
+                    }}
                   >
                     <X size={13} />
                   </button>
@@ -800,20 +893,33 @@ export function InputRow() {
               ref={inputRef}
               id="chatInput"
               placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-              rows={2}
-              enterKeyHint="send"
-              inputMode="text"
-              autoCapitalize="sentences"
-              className="min-h-0 flex-1 resize-none rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+              value={composerText}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="pointer-events-none absolute h-px w-px opacity-0"
               onChange={(e) => {
-                if (currentSessionId) setInputDraft(currentSessionId, e.target.value);
+                const text = e.target.value;
+                composerValueRef.current = { parts: text ? [{ type: 'text', value: text }] : [{ type: 'text', value: '' }], text, attachmentIds: [] };
+                setComposerText(text);
+                composerRef.current?.replaceText(text);
+                if (currentSessionId) setInputDraft(currentSessionId, text);
               }}
+              onKeyDown={handleKeyDown}
+            />
+            <RichTextComposer
+              key={currentSessionId || 'no-session'}
+              ref={composerRef}
+              initialText={composerText}
+              attachments={attachments.map(({ id, displayName, href, path }) => ({ id, displayName, href, path }))}
+              onChange={handleComposerChange}
+              onAttachmentDrop={handleAttachmentDrop}
+              onRemoveAttachment={handleRemoveComposerAttachment}
               onKeyDown={handleKeyDown}
             />
             <div className="flex flex-col gap-1 items-end">
               {canSteer && (
                 <button
-                  onClick={() => handleSteer(inputRef.current?.value || '')}
+                  onClick={() => handleSteer(composerValueRef.current.text)}
                   className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
                   title="Send an instruction to the running Codex turn"
                 >
@@ -824,7 +930,7 @@ export function InputRow() {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => handleSend(inputRef.current?.value || '')}
+                  onClick={() => handleSend(composerValueRef.current.text)}
                   disabled={attachmentsBlocked}
                   title={attachmentsBlocked ? '请等待附件上传完成，或重试/取消失败附件' : 'Send'}
                   className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50"
