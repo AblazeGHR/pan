@@ -9,14 +9,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$pythonResolver = Join-Path $PSScriptRoot "resolve_pan_python.ps1"
+if (Test-Path -LiteralPath $pythonResolver -PathType Leaf) {
+    . $pythonResolver
+}
 
-foreach ($path in @($Python, $MainPy, $WorkDir)) {
+foreach ($path in @($MainPy, $WorkDir)) {
     if (-not $path) {
         throw "start_main.ps1 received an empty path argument"
     }
-}
-if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
-    throw "Python executable not found: $Python"
 }
 if (-not (Test-Path -LiteralPath $MainPy -PathType Leaf)) {
     throw "Pan entry point not found: $MainPy"
@@ -27,6 +28,11 @@ if (-not (Test-Path -LiteralPath $WorkDir -PathType Container)) {
 if (-not $PidFile) {
     throw "PID file path is required"
 }
+
+$selected = Resolve-PanPython -Root $WorkDir -Explicit $Python
+$PythonArgv = @($selected.Argv)
+$Python = $PythonArgv[0]
+Write-Host "[INFO] Pan Python source: $($selected.Source)"
 
 # The launcher owns the console window, so read this launch-time option here
 # instead of making the Python service responsible for Windows UI state. Old
@@ -79,11 +85,11 @@ if ($pidDirectory) {
 # Both modes use an independent process; stop_pan.bat still owns the recorded
 # process tree and can terminate it.
 if ($ConsoleHidden) {
-    $p = Start-Process -FilePath $Python -ArgumentList @("`"$MainPy`"") `
+    $p = Start-Process -FilePath $Python -ArgumentList (@($PythonArgv | Select-Object -Skip 1) + @("`"$MainPy`"")) `
         -WorkingDirectory $WorkDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $StdoutFile -RedirectStandardError $StderrFile
 } else {
-    $p = Start-Process -FilePath $Python -ArgumentList @("`"$MainPy`"") `
+    $p = Start-Process -FilePath $Python -ArgumentList (@($PythonArgv | Select-Object -Skip 1) + @("`"$MainPy`"")) `
         -WorkingDirectory $WorkDir -WindowStyle Normal -PassThru
 }
 if (-not $p -or -not $p.Id) {

@@ -574,6 +574,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | `worker.timeout_sec` | 300 | queued 静默超时 / 运行中无输出读取超时 kill 秒数 |
 | `worker.task_timeout_sec` | 1800 | stream running 任务运行时长上限（长思考 / 大文件读取不误杀） |
 | `worker.idle_sec` | 300 | 空闲回收秒数（held / zombie 跳过） |
+| `python` | `""` | Pan Core、Pan 内部 worker wrapper 和 `pan` / `pan-qq` stdio MCP server 使用的解释器；优先于 `PAN_PYTHON`，空值回退到环境变量和当前解释器 |
 | `qq.enabled` | true | 是否启动 QQ bot（main.py 按此统一 spawn / 终止） |
 | `qq.mode` | `mirror` | `mirror` 全量镜像自动回复 / `selective` 选择性发送（消息只进 inbox，由 MA 经 pan-qq MCP 决策） |
 | `qq.channel` | `napcat` | QQ 通道：`napcat` / `llonebot`（OneBot 11 网关插件化切换） |
@@ -584,6 +585,12 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | `startup.console_hidden` | false | `scripts\start_pan.bat` 是否隐藏独立 Pan 控制台；默认显示启动和运行日志窗口，设为 `true` 可隐藏 |
 | `plugin_manifests` | `["manifest.json", "packages/mcp/manifest.json"]` | 根项目模板 + Pan MCP 清单；外部/private manifest 可在本地 config.json 追加 |
 
+`python` 是 Pan 自身解释器的规范配置字段。字符串适合直接填写
+`"D:\\Tools\\Python 3.14\\python.exe"`；需要保留 launcher 参数时使用
+`{"command":"py","args":["-3"]}`。解析优先级为
+`config.json python` > `PAN_PYTHON` > 当前运行 Pan 的 `sys.executable`。空值、无效路径或不可执行候选会记录不含原始值的警告并尝试下一层，不能生成坏的 MCP/worker 命令。
+`POST /api/config/reload` 的 `{"scope":"python"}` 可重新读取并返回非敏感来源元数据；正在运行的 CLI 不热切换，新 worker/respawn 和新 MCP descriptor 使用新值。
+
 **环境变量**：
 
 | 变量 | 默认值 | 说明 |
@@ -592,7 +599,7 @@ SMA 只通过 MCP 工具 / WS 事件流与 Worker 通信，不知道也不关心
 | `PAN_HOST` | `127.0.0.1` | 监听地址 |
 | `PAN_URL` | `http://127.0.0.1:{port}` | QQ Bridge 访问 Pan Core 的地址 |
 | `PAN_API_URL` | `http://127.0.0.1:8768` | MCP server 连接 Pan Core 的地址 |
-| `PAN_PYTHON` | 当前 Pan 解释器 | manifest 中 `pan` / `pan-qq` stdio MCP server 使用的 Python 解释器；用于 git worktree 共享主仓库 `.venv` |
+| `PAN_PYTHON` | — | `config.json` 顶层 `python` 未配置或无效时的次优先级解释器；仅影响 Pan-owned Python 启动，不覆盖 `python` |
 | `PAN_QQ_API_URL` | `http://127.0.0.1:8080` | pan-qq MCP 连接 QQ bot 的地址 |
 | `PAN_QQ_PYTHON` | miniforge | QQ bot 解释器路径 |
 | `PAN_QQ_MODE` | — | 覆盖 `qq.mode` |

@@ -36,6 +36,30 @@ _PAN_PYTHON_ENV = "PAN_PYTHON"
 _PYTHONPATH_ENV = "PYTHONPATH"
 
 
+def _refresh_pan_python_entry(name: str, entry: dict) -> None:
+    """Refresh first-party Pan MCP command/args from the shared resolver.
+
+    Session settings persist resolved MCP descriptors.  Re-resolving the
+    first-party module entries at generation time makes a config reload apply
+    to a later worker respawn too, without changing unrelated user MCPs.
+    """
+    if name not in _PAN_IDENTITY_SERVERS or not entry.get("command"):
+        return
+    module = "packages.mcp.server" if name == "pan" else "packages.qq.mcp"
+    args = list(entry.get("args") or [])
+    try:
+        module_index = args.index(module)
+    except ValueError:
+        return
+    if module_index == 0 or args[module_index - 1] != "-m":
+        return
+    from ..config import resolve_pan_python_argv
+
+    pan_python = resolve_pan_python_argv()
+    entry["command"] = pan_python[0]
+    entry["args"] = [*pan_python[1:], *args[module_index - 1:]]
+
+
 def _pan_runtime_env(entry: dict) -> dict:
     """Add portable runtime hints required by Claude's Windows launcher.
 
@@ -90,6 +114,7 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("MCP server descriptor requires a non-empty name")
         entry: dict = {k: srv[k] for k in _TRANSPORT_KEYS if k in srv}
+        _refresh_pan_python_entry(name, entry)
         if not entry.get("command") and not entry.get("url"):
             raise ValueError(
                 f"MCP server {name!r} has no command or URL configured"

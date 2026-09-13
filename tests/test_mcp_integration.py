@@ -409,10 +409,10 @@ def test_missing_config_uses_project_and_first_party_manifests(tmp_path, monkeyp
 def test_manifest_runtime_interpreter_can_be_overridden(monkeypatch):
     from packages.core.manifest_loader import load_manifests
 
-    monkeypatch.setenv("PAN_PYTHON", "portable-python")
+    monkeypatch.setenv("PAN_PYTHON", sys.executable)
     cfg = load_manifests(["packages/mcp/manifest.json"])
     servers = {server.name: server for server in cfg.mcp_servers}
-    assert servers["pan"].command == "portable-python"
+    assert servers["pan"].command == sys.executable
 
 
 def test_manifest_http_mcp_fields_survive_catalog_resolution(tmp_path):

@@ -151,7 +151,9 @@ class OpencodeAdapter:
     # ── 进程启动 ──
 
     def base_args(self) -> list[str]:
-        return [sys.executable, "-u", self._wrapper_path,
+        from ...config import resolve_pan_python_argv
+
+        return [*resolve_pan_python_argv(), "-u", self._wrapper_path,
                 "--opencode-path", self._OPENCODE_PATH]
 
     def model_args(self, s: Session) -> list[str]:

@@ -11,6 +11,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$pythonResolver = Join-Path $PSScriptRoot "resolve_pan_python.ps1"
+if (Test-Path -LiteralPath $pythonResolver -PathType Leaf) {
+    . $pythonResolver
+}
 $LogFile = $null
 $FailureScript = Join-Path $PSScriptRoot "mark_lifecycle_job_failed.ps1"
 
@@ -82,15 +86,12 @@ try {
     }
     if (-not $JobId) { throw "durable lifecycle Job id is required" }
     Write-RestartLog "supervisor started request=$RequestId job=$JobId root=$Root port=$Port"
-    $Python = if ($RunnerPython) { $RunnerPython } else { Join-Path $Root ".venv\Scripts\python.exe" }
-    if (-not $RunnerPython -and -not (Test-Path -LiteralPath $Python -PathType Leaf)) {
-        $PythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
-        if (-not $PythonCommand) { throw "Pan Python interpreter not found" }
-        $Python = $PythonCommand.Source
+    if (-not (Get-Command Resolve-PanPython -ErrorAction SilentlyContinue)) {
+        throw "Pan Python interpreter not found: resolver script missing"
     }
-    if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
-        throw "Pan Python interpreter not found: $Python"
-    }
+    $pythonCandidate = Resolve-PanPython -Root $Root -Explicit $RunnerPython
+    $PythonArgv = @($pythonCandidate.Argv)
+    $Python = $PythonArgv[0]
     Start-Sleep -Seconds 1
     $runnerArgs = @(
         "-m", "packages.core.main_lifecycle", "--supervise",
@@ -99,7 +100,7 @@ try {
     )
     if ($OldPid) { $runnerArgs += @("--old-pid", $OldPid) }
     if ($OldPidCreatedAt) { $runnerArgs += @("--old-pid-created-at", $OldPidCreatedAt) }
-    & $Python @runnerArgs *>> $LogFile
+    & $Python @($PythonArgv | Select-Object -Skip 1) @runnerArgs *>> $LogFile
     if ($LASTEXITCODE -ne 0) {
         throw "durable Pan lifecycle supervisor failed with exit code $LASTEXITCODE"
     }

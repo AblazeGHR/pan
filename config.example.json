@@ -1,7 +1,9 @@
 {
-  "_如何使用": "复制本文件为 config.json，删除 _如何使用 这个键，修改剩余字段后重启服务。所有字段可选，省略时使用下方默认值。",
+  "_如何使用": "复制本文件为 config.json，删除 _如何使用 这个键，修改剩余字段后重启服务。所有字段可选，省略时使用下方默认值。Pan 解释器使用顶层 python：config.json python > PAN_PYTHON > 当前解释器；普通路径写字符串，需要 py -3 等 launcher 参数时写 {command, args} 对象。",
 
   "port": 8768,
+
+  "python": "",
 
   "startup": {
     "_字段说明": {
