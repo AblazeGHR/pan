@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -45,6 +46,7 @@ interface DropIndicator {
 }
 
 const EMPTY_PARTS: ComposerPart[] = [{ type: 'text', value: '' }];
+const BLOCK_TAGS = new Set(['DIV', 'LI', 'P']);
 
 function mergeTextParts(parts: ComposerPart[]): ComposerPart[] {
   const merged: ComposerPart[] = [];
@@ -89,25 +91,78 @@ function valueFromParts(parts: ComposerPart[]): ComposerValue {
 
 function readParts(root: HTMLElement): ComposerPart[] {
   const parts: ComposerPart[] = [];
-  const visit = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      parts.push({ type: 'text', value: node.textContent || '' });
-      return;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-    const element = node as HTMLElement;
-    const attachmentId = element.dataset.composerAttachment;
-    if (attachmentId) {
-      parts.push({ type: 'attachment', attachmentId });
-      return;
-    }
-    if (element.tagName === 'BR') {
-      parts.push({ type: 'text', value: '\n' });
-      return;
-    }
-    node.childNodes.forEach(visit);
+  const appendLineBreak = (force = false) => {
+    const last = parts.at(-1);
+    if (!force && last?.type === 'text' && last.value.endsWith('\n')) return;
+    parts.push({ type: 'text', value: '\n' });
   };
-  root.childNodes.forEach(visit);
+
+  interface SequenceResult {
+    hasContent: boolean;
+    endsWithNewline: boolean;
+  }
+
+  const processSequence = (nodes: Node[], container: HTMLElement | null): SequenceResult => {
+    let hasNode = false;
+    let hasContent = false;
+    let endsWithNewline = false;
+    let previousWasBlock = false;
+    let previousBlockEmpty = false;
+    let previousBlockEndedWithNewline = false;
+
+    for (const node of nodes) {
+      const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : null;
+      const isBlock = !!element && BLOCK_TAGS.has(element.tagName);
+      if (hasNode) {
+        if (previousWasBlock) {
+          // An empty block is a real blank line. Preserve the second
+          // separator in <div>one</div><div><br></div><div>three</div>,
+          // while avoiding an extra separator after an explicit trailing BR.
+          appendLineBreak(previousBlockEmpty || !previousBlockEndedWithNewline);
+        } else if (isBlock && hasContent && !endsWithNewline) {
+          appendLineBreak();
+        }
+      }
+
+      let result: SequenceResult;
+      if (isBlock) {
+        result = processSequence(Array.from(element.childNodes), element);
+      } else if (node.nodeType === Node.TEXT_NODE) {
+        const value = node.textContent || '';
+        parts.push({ type: 'text', value });
+        result = { hasContent: value.length > 0, endsWithNewline: value.endsWith('\n') };
+      } else if (element?.dataset.composerAttachment) {
+        parts.push({ type: 'attachment', attachmentId: element.dataset.composerAttachment });
+        result = { hasContent: true, endsWithNewline: false };
+      } else if (element?.tagName === 'BR') {
+        const isPlaceholder = !!container
+          && BLOCK_TAGS.has(container.tagName)
+          && container.childNodes.length === 1
+          && container.firstChild === element;
+        if (!isPlaceholder) {
+          parts.push({ type: 'text', value: '\n' });
+          result = { hasContent: true, endsWithNewline: true };
+        } else {
+          result = { hasContent: false, endsWithNewline: false };
+        }
+      } else if (element) {
+        result = processSequence(Array.from(element.childNodes), element);
+      } else {
+        result = { hasContent: false, endsWithNewline: false };
+      }
+
+      hasNode = true;
+      hasContent = hasContent || result.hasContent;
+      endsWithNewline = result.endsWithNewline;
+      previousWasBlock = isBlock;
+      previousBlockEmpty = isBlock && !result.hasContent;
+      previousBlockEndedWithNewline = isBlock && result.endsWithNewline;
+    }
+
+    return { hasContent, endsWithNewline };
+  };
+
+  processSequence(Array.from(root.childNodes), root);
   return mergeTextParts(parts);
 }
 
@@ -149,56 +204,110 @@ function insertAttachment(
   return mergeTextParts(result);
 }
 
-function treeLength(node: Node): number {
-  const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : null;
-  if (element?.dataset.composerAttachment) return 1;
-  if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length || 0;
-  if (element?.tagName === 'BR') return 1;
-  let length = 0;
-  node.childNodes.forEach((child) => { length += treeLength(child); });
-  return length;
-}
-
 /** Translate a DOM Range boundary into the flat text/attachment coordinate space. */
 function selectionOffset(root: HTMLElement, target: Node, offset: number): number | null {
-  let total = 0;
+  const cursor = { total: 0, hasContent: false, endsWithNewline: false, lastBlockEmpty: false };
   let found: number | null = null;
 
-  const visit = (node: Node) => {
-    if (found !== null) return;
-    if (node === target) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        found = total + Math.min(offset, node.textContent?.length || 0);
-      } else {
-        const children = Array.from(node.childNodes);
-        for (let index = 0; index < Math.min(offset, children.length); index += 1) {
-          total += treeLength(children[index]!);
-        }
-        found = total;
-      }
-      return;
+  const hasLogicalContent = (node: Node, container: HTMLElement | null): boolean => {
+    if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').length > 0;
+    if (node.nodeType !== Node.ELEMENT_NODE) return false;
+    const element = node as HTMLElement;
+    if (element.dataset.composerAttachment) return true;
+    if (element.tagName === 'BR') {
+      return !(container && BLOCK_TAGS.has(container.tagName)
+        && container.childNodes.length === 1 && container.firstChild === element);
     }
+    return Array.from(element.childNodes).some((child) => hasLogicalContent(child, element));
+  };
+
+  const addBlockSeparator = (element: HTMLElement) => {
+    if (BLOCK_TAGS.has(element.tagName)
+        && (cursor.lastBlockEmpty || cursor.hasContent && !cursor.endsWithNewline)) {
+      cursor.total += 1;
+      cursor.endsWithNewline = true;
+    }
+  };
+
+  const consume = (node: Node, container: HTMLElement | null): boolean => {
     const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : null;
     if (element?.dataset.composerAttachment) {
-      total += 1;
-      return;
+      cursor.total += 1;
+      cursor.hasContent = true;
+      cursor.endsWithNewline = false;
+      return false;
     }
     if (node.nodeType === Node.TEXT_NODE) {
-      total += node.textContent?.length || 0;
-      return;
+      const value = node.textContent || '';
+      if (value) {
+        cursor.total += value.length;
+        cursor.hasContent = true;
+        cursor.endsWithNewline = value.endsWith('\n');
+      }
+      return false;
     }
-    node.childNodes.forEach(visit);
+    if (element?.tagName === 'BR') {
+      if (container && BLOCK_TAGS.has(container.tagName)
+          && container.childNodes.length === 1 && container.firstChild === element) {
+        return false;
+      }
+      cursor.total += 1;
+      cursor.hasContent = true;
+      cursor.endsWithNewline = true;
+      return false;
+    }
+    if (element) addBlockSeparator(element);
+    for (const child of Array.from(node.childNodes)) {
+      if (visit(child, element)) return true;
+    }
+    cursor.lastBlockEmpty = !!element && BLOCK_TAGS.has(element.tagName)
+      ? !hasLogicalContent(element, element.parentElement)
+      : false;
+    return false;
   };
+
+  function visit(node: Node, container: HTMLElement | null): boolean {
+    if (found !== null) return true;
+    if (node === target) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        found = cursor.total + Math.min(offset, node.textContent?.length || 0);
+      } else {
+        const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : null;
+        if (element?.dataset.composerAttachment) {
+          found = cursor.total + Math.min(offset, 1);
+        } else if (element?.tagName === 'BR' && container && BLOCK_TAGS.has(container.tagName)
+                   && container.childNodes.length === 1 && container.firstChild === element) {
+          found = cursor.total;
+        } else {
+          if (element) addBlockSeparator(element);
+          const children = Array.from(node.childNodes);
+          for (let index = 0; index < Math.min(offset, children.length); index += 1) {
+            consume(children[index]!, element);
+          }
+          found = cursor.total;
+        }
+      }
+      return true;
+    }
+    return consume(node, container);
+  }
 
   // The root itself is a valid selection container, so start at its children.
   if (target === root) {
     const children = Array.from(root.childNodes);
     for (let index = 0; index < Math.min(offset, children.length); index += 1) {
-      total += treeLength(children[index]!);
+      consume(children[index]!, root);
     }
-    return total;
+    // A block wrapper contributes its line separator immediately before the
+    // wrapper in readParts().  A root-level selection boundary before that
+    // wrapper has not consumed the wrapper yet, so account for the same
+    // separator here; otherwise dropping at the start of a later line lands
+    // one character too early.
+    const next = children[offset];
+    if (next?.nodeType === Node.ELEMENT_NODE) addBlockSeparator(next as HTMLElement);
+    return cursor.total;
   }
-  root.childNodes.forEach(visit);
+  root.childNodes.forEach((node) => visit(node, root));
   return found;
 }
 
@@ -252,15 +361,18 @@ function pointToCaretRange(root: HTMLElement, x: number, y: number): Range | nul
     caretRangeFromPoint?: (clientX: number, clientY: number) => Range | null;
     caretPositionFromPoint?: (clientX: number, clientY: number) => { offsetNode: Node; offset: number } | null;
   };
-  const fromRange = documentWithCaret.caretRangeFromPoint?.(x, y);
+  const hasCaretRange = typeof documentWithCaret.caretRangeFromPoint === 'function';
+  const hasCaretPosition = typeof documentWithCaret.caretPositionFromPoint === 'function';
+  const fromRange = hasCaretRange ? documentWithCaret.caretRangeFromPoint(x, y) : null;
   if (fromRange) return fromRange;
-  const position = documentWithCaret.caretPositionFromPoint?.(x, y);
+  const position = hasCaretPosition ? documentWithCaret.caretPositionFromPoint(x, y) : null;
   if (position) {
     const range = document.createRange();
     range.setStart(position.offsetNode, position.offset);
     range.collapse(true);
     return range;
   }
+  if (hasCaretRange || hasCaretPosition) return null;
   const fallback = document.createRange();
   fallback.selectNodeContents(root);
   fallback.collapse(false);
@@ -314,8 +426,21 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     publish(nextParts);
   };
 
-  const removeAt = (attachmentId: string) => {
-    const nextParts = removeAttachment(partsRef.current, attachmentId);
+  const removeAt = (attachmentId: string, requestedCaretOffset?: number) => {
+    const currentParts = partsRef.current;
+    const sourceOffset = attachmentOffset(currentParts, attachmentId);
+    const selection = window.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const currentOffset = editorRef.current && range?.collapsed
+      ? selectionOffset(editorRef.current, range.startContainer, range.startOffset)
+      : null;
+    const nextParts = removeAttachment(currentParts, attachmentId);
+    if (sourceOffset !== null) {
+      const caretOffset = requestedCaretOffset ?? (currentOffset === null
+        ? sourceOffset
+        : currentOffset > sourceOffset ? currentOffset - 1 : currentOffset);
+      pendingCaretOffsetRef.current = Math.max(0, caretOffset);
+    }
     partsRef.current = nextParts;
     setParts(nextParts);
     publish(nextParts);
@@ -336,21 +461,34 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       }, { id: null, cursor: 0 });
       if (target.id) {
         event.preventDefault();
-        removeAt(target.id);
-        pendingCaretOffsetRef.current = event.key === 'Backspace' ? offset ?? 0 : offset ?? 0;
+        const caretOffset = event.key === 'Backspace'
+          ? Math.max(0, (offset ?? 0) - 1)
+          : offset ?? 0;
+        removeAt(target.id, caretOffset);
         return;
       }
     }
     onKeyDown?.(event);
   };
 
+  const clearDropIndicator = () => {
+    dropOffsetRef.current = null;
+    setDropIndicator(null);
+  };
+
   const updateDropIndicator = (event: React.DragEvent<HTMLDivElement>) => {
     const root = editorRef.current;
     if (!root) return;
     const range = pointToCaretRange(root, event.clientX, event.clientY);
-    if (!range) return;
+    if (!range) {
+      clearDropIndicator();
+      return;
+    }
     const offset = selectionOffset(root, range.startContainer, range.startOffset);
-    if (offset === null) return;
+    if (offset === null) {
+      clearDropIndicator();
+      return;
+    }
     dropOffsetRef.current = offset;
     const rootRect = root.getBoundingClientRect();
     // jsdom and a few embedded WebViews do not implement Range geometry. The
@@ -365,21 +503,36 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!readAttachmentDragPayload(event.dataTransfer)) return;
+    const payload = readAttachmentDragPayload(event.dataTransfer);
+    if (!payload) {
+      clearDropIndicator();
+      return;
+    }
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
+    event.dataTransfer.dropEffect = payload.source === 'composer' || payload.source === 'attachment-chip'
+      ? 'move'
+      : 'copy';
     updateDropIndicator(event);
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     const payload = readAttachmentDragPayload(event.dataTransfer);
-    if (!payload) return;
+    if (!payload) {
+      clearDropIndicator();
+      return;
+    }
     event.preventDefault();
-    const attachmentId = onAttachmentDrop(payload);
+    const root = editorRef.current;
     const currentParts = partsRef.current;
-    const offset = dropOffsetRef.current ?? currentParts.reduce((total, part) => total + partLength(part), 0);
+    let offset = dropOffsetRef.current;
+    if (offset === null && root) {
+      const range = pointToCaretRange(root, event.clientX, event.clientY);
+      offset = range ? selectionOffset(root, range.startContainer, range.startOffset) : null;
+    }
     dropOffsetRef.current = null;
     setDropIndicator(null);
+    if (offset === null) return;
+    const attachmentId = onAttachmentDrop(payload);
     if (!attachmentId) return;
     const sourceOffset = payload.attachmentId
       ? attachmentOffset(currentParts, payload.attachmentId)
@@ -397,10 +550,29 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
 
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-      dropOffsetRef.current = null;
-      setDropIndicator(null);
+      clearDropIndicator();
     }
   };
+
+  const handleDragEnd = () => {
+    clearDropIndicator();
+  };
+
+  useEffect(() => {
+    // A drag started in the message list does not bubble its dragend event
+    // through this editor. Listen at window level as well so Escape/cancel or
+    // a drop outside the editor cannot leave a stale insertion caret behind.
+    const clearGlobalDropState = () => {
+      dropOffsetRef.current = null;
+      setDropIndicator(null);
+    };
+    window.addEventListener('dragend', clearGlobalDropState);
+    window.addEventListener('drop', clearGlobalDropState);
+    return () => {
+      window.removeEventListener('dragend', clearGlobalDropState);
+      window.removeEventListener('drop', clearGlobalDropState);
+    };
+  }, []);
 
   return (
     <div className="relative min-h-0 flex-1">
@@ -419,6 +591,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onDragLeave={handleDragLeave}
+        onDragEnd={handleDragEnd}
       >
         {parts.map((part, index) => part.type === 'text' ? (
           <span key={`text-${index}`}>{part.value}</span>
@@ -450,7 +623,6 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
               <span className="max-w-[14rem] truncate">{attachment.displayName}</span>
               <button
                 type="button"
-                tabIndex={-1}
                 aria-label={`删除附件 ${attachment.displayName}`}
                 className="ml-0.5 shrink-0 rounded p-0.5 text-accent/80 hover:bg-accent/20 hover:text-accent"
                 onMouseDown={(event) => event.preventDefault()}

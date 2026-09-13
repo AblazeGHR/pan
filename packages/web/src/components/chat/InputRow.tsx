@@ -430,7 +430,13 @@ export function InputRow() {
         .filter((attachment) => attachment.status !== 'error' && attachment.fileKey)
         .map((attachment) => attachment.fileKey),
     );
-    const added = files.filter((file) => !uploadingOrReady.has(clientFileKey(file))).map((file) => ({
+    const selectedKeys = new Set(uploadingOrReady);
+    const added = files.filter((file) => {
+      const key = clientFileKey(file);
+      if (selectedKeys.has(key)) return false;
+      selectedKeys.add(key);
+      return true;
+    }).map((file) => ({
       id: attachmentId(),
       displayName: file.name,
       file,
@@ -783,10 +789,12 @@ export function InputRow() {
                       source: 'attachment-chip',
                     });
                   }}
+                  role="group"
+                  aria-label={`附件 ${attachment.displayName}`}
                   className="inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary"
                   title={attachment.path || attachment.displayName}
                 >
-                  <FileIcon size={13} className="shrink-0" />
+                  <FileIcon size={13} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{attachment.displayName}</span>
                   {attachment.file && attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
                   {attachment.file && attachment.status === 'ready' && <span className="text-accent">已完成</span>}

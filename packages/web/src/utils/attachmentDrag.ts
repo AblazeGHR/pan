@@ -18,7 +18,9 @@ export function writeAttachmentDragPayload(
   const value = JSON.stringify(payload);
   dataTransfer.setData(ATTACHMENT_DRAG_MIME, value);
   dataTransfer.setData('text/plain', payload.displayName);
-  dataTransfer.effectAllowed = 'copy';
+  dataTransfer.effectAllowed = payload.source === 'composer' || payload.source === 'attachment-chip'
+    ? 'move'
+    : 'copy';
 }
 
 /** Read only attachment routes produced by Pan. Arbitrary dropped URLs are ignored. */
