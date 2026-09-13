@@ -14,8 +14,8 @@
 
 ## 工作流控制
 
-- 整体状态：T-021 UI demo 已通过真实 Chromium 回归，等待开发者最终确认
-- 当前焦点：T-021；Ctrl+A + Backspace 边界已修复，并保留上方独立附件 chip 的正常发送语义
+- 整体状态：T-021 UI demo 已按最终产品语义完成真实浏览器回归，等待开发者最终确认
+- 当前焦点：T-021；未嵌入上方 chip 正常发送，嵌入附件删除后不恢复 chip
 - 可执行：开发者启动 demo 做最终复验；确认后建立新的后端任务
 - TA 执行中：无；`ses_f1bebe98cb738ec3` 已 done，Worker idle
 - 决策阻塞：无
@@ -278,17 +278,18 @@
 - 目标：附件从消息栏拖入发送输入框时显示文字中的插入光标；释放后在光标位置插入保留附件图标和文件名的可视化附件节点，而不是普通链接文字。节点作为整体可删除，前后可继续输入。
 - TA/任务：`ses_f1bebe98cb738ec3`；`attachment-dnd-ui-demo-20260913`；Worker `worker-2`
 - 工作树/分支：`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；基于 `main@f76bcd1`
-- 提交：初始 demo `29a3e786b52e7b0742e2c23d6d084ed422ef4988`；第二轮修复 `978a4d7f4d975f7d6d73295611be229c525be6bf`；最终自检修复 `a88a3cce083bf388fa27f601b29eb3fcd93725d5`；真实浏览器修复 `d2ba6a31918162b185ad436cffbac041792ab75b`；Ctrl+A 删除修复 `b447640cafcb30d26d1399638673798344ec7fad`；未合入、未 push；TA worktree clean
-- 测试/未验证：真实 Chromium 4/4 通过（外部拖入、内部重排、消息附件 Ctrl+A 删除、上传附件 Ctrl+A 删除）；定向 107/107、全量 449 passed/10 个既有基线失败、`tsc -b`、ESLint、build、diff check 通过；Vite mock 已实际验证拖入、上传、Send、Queue；Firefox/Safari/移动端 E2E、真实服务/API 发送链路未验证
+- 提交：初始 demo `29a3e786b52e7b0742e2c23d6d084ed422ef4988`；第二轮修复 `978a4d7f4d975f7d6d73295611be229c525be6bf`；最终自检修复 `a88a3cce083bf388fa27f601b29eb3fcd93725d5`；真实浏览器修复 `d2ba6a31918162b185ad436cffbac041792ab75b`；Ctrl+A 删除修复 `b447640cafcb30d26d1399638673798344ec7fad`；产品语义收敛 `56ac7e8a47f5de82502a1d4515c7f26f05b93ebd`；未合入、未 push；TA worktree clean
+- 测试/未验证：真实 Chromium 4/4 通过；定向 Vitest 70/70、全量 449 passed/10 个既有基线失败、`tsc -b`、ESLint、build、diff check 通过；验证了独立未嵌入 chip 正常发送和嵌入附件删除不恢复 chip；Firefox/Safari/移动端 E2E、真实服务/API 发送链路未验证
 - 开发者反馈（2026-09-13）：附件旁输入文字会重复；已插入附件不能继续拖动调整位置；需要补齐一次性直接上传附件的 mock 流程。
 - 跟进任务：`attachment-dnd-ui-demo-followup-20260913`，复用上述 TA/Worker 和分支；已完成。
 - 最终自检任务：`attachment-dnd-ui-demo-final-audit-20260913`；已覆盖输入/光标、外部拖入、内部重排、删除/焦点、mock 上传、真实模式兼容、会话/草稿/队列和边界场景，并修复本次发现的问题。
 - 开发者复验反馈（2026-09-13）：真实操作复现“拖入文字中间后左右文字重复”和“已拖入附件无法在文字中拖动重排”。此前 jsdom/合成事件测试未覆盖真实浏览器 selection 与 contentEditable 原生拖放事件序列。
 - 当前浏览器复现任务：`attachment-dnd-ui-demo-browser-repro-20260913`；已在 5173 隔离 Vite + Chromium 153 复现并修复，新增 `pnpm e2e:attachment-dnd`，浏览器结果 2/2 PASS。
 - 开发者最新反馈（2026-09-13）：普通退格删除附件正常，但 Ctrl+A 全选后退格会让已嵌入附件错误回到聊天框上方的待插入 chip 区域。
-- 当前删除边界任务：`attachment-dnd-ui-demo-ctrl-a-delete-20260913`；要求用真实 Chromium 复现并验证，确保嵌入状态与待插入附件列表不会错误恢复。
+- 当前删除边界任务：`attachment-dnd-ui-demo-ctrl-a-delete-20260913`；已用真实 Chromium 修复并验证，确保嵌入状态与待插入附件列表不会错误恢复。
 - 产品语义补充（2026-09-13）：聊天框上方的未嵌入附件 chip 仍是待发送附件，点击 Send 必须正常发送；嵌入附件按编辑器首/中/尾位置序列化，未嵌入附件当前追加在消息文本末尾（无文本时直接发送附件链接）。Ctrl+A 删除嵌入节点不得导致附件发送状态丢失或重复。
 - Ctrl+A 修复结果（2026-09-13）：嵌入附件被全选删除后不再恢复为上方 chip；独立未嵌入附件 chip 仍保留并可正常发送；删除后可再次从消息区拖入。
+- 上述产品语义已由 TA 最终提交 `56ac7e8a47f5de82502a1d4515c7f26f05b93ebd` 落地。
 - 有序待办：
   - [x] 实现拖动、插入光标和附件节点 UI
   - [x] 添加回归测试并完成定向验证
