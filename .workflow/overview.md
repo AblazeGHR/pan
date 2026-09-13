@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-021/T-022 已完成，T-023 文件复制/拖入输入框方案调查进行中
-- 当前焦点：调查浏览器 File/Directory 行为以及客户端/服务端统一附件引用方案
-- 可执行：等待 TA 调查报告和产品方案决策；暂不实现第二功能
-- TA 执行中：`ses_f1bebe98cb738ec3`（`worker-3`，Codex `gpt-5.6-luna`，high）
+- 整体状态：T-023 文件复制/拖入输入框方案调查与 T-024 解释器配置实现并行进行
+- 当前焦点：明确附件输入方案，同时实现 config.json 优先于环境变量的解释器配置
+- 可执行：等待 T-023 调查报告和 T-024 实现/验证结果
+- TA 执行中：`ses_f1bebe98cb738ec3`（`worker-3`）与 `ses_43962b89b225afde`（`worker-4`）；均为 Codex `gpt-5.6-luna`，high
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -299,6 +299,22 @@
   - [ ] 开发者决策方案
   - [ ] 决策后建立实现任务，不在本调查任务中实现
 
+### T-024：Pan 解释器的 config.json 配置与环境变量优先级
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：TA 实现中，未合入 main
+- 目标：支持在 config.json 中配置 Pan 使用的解释器，并使有效 config.json 配置优先于 PAN_PYTHON 环境变量；没有配置时保留环境变量和现有默认回退。
+- 范围：统一追踪 MCP stdio、manifest 展开、Pan 启动脚本、worker/adapter 子进程和热加载边界；覆盖 Windows 路径、空格路径、无效配置和生成命令。
+- TA/任务：`ses_43962b89b225afde`；`pan-interpreter-config-json-priority-20260913`；Worker `worker-4`
+- 工作树/分支：`D:\project\pan-worktrees\pan-interpreter-config-priority-20260913`；`feature/pan-interpreter-config-json-priority-20260913`；基于 `main@c3e47ce`
+- 有序待办：
+  - [ ] 审计现有解释器解析与所有消费路径
+  - [ ] 实现 config.json > PAN_PYTHON > 现有默认的优先级
+  - [ ] 添加非法配置、Windows 路径、MCP command 和热加载回归
+  - [ ] 完成测试、提交并检查 worktree clean
+  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
+  - [ ] 开发者验收
+
 ## 四、计划要做的任务
 
-Pan 解释器配置优先级改造：支持 `config.json` 配置，且优先级高于环境变量；待当前附件方案调查完成后建立实现任务。
+文件复制/拖入输入框的正式实现：等待 T-023 方案调查和开发者决策后建立新的实现任务。
