@@ -1,4 +1,4 @@
-/* global Element, NodeFilter, URL, console, document, process, window */
+/* global ClipboardEvent, DataTransfer, DragEvent, Element, File, NodeFilter, URL, console, document, process, window */
 
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 
-const baseURL = process.env.PAN_ATTACHMENT_DND_BASE_URL || 'http://127.0.0.1:5173';
+const baseURL = process.env.PAN_ATTACHMENT_DND_BASE_URL || 'http://127.0.0.1:8765';
 const runtime = process.env.PAN_ATTACHMENT_DND_RUNTIME
   || path.resolve('test-results/attachment-dnd-browser');
 await fs.mkdir(runtime, { recursive: true });
@@ -112,6 +112,182 @@ async function editorSnapshot(editor) {
       } : null;
     })(),
   }));
+}
+
+async function dispatchNativeFiles(page, type, files, point = null) {
+  return page.evaluate(({ eventType, fileSpecs, clientPoint }) => {
+    const editor = document.querySelector('[data-testid="rich-text-composer"]');
+    if (!editor) throw new Error('composer not found');
+    const dataTransfer = new DataTransfer();
+    for (const spec of fileSpecs) {
+      dataTransfer.items.add(new File([spec.contents], spec.name, { type: spec.mimeType }));
+    }
+    const init = {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer,
+      clientX: clientPoint?.x || 0,
+      clientY: clientPoint?.y || 0,
+    };
+    const event = eventType === 'paste'
+      ? new ClipboardEvent('paste', { ...init, clipboardData: dataTransfer })
+      : new DragEvent(eventType, init);
+    editor.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, {
+    eventType: type,
+    fileSpecs: files,
+    clientPoint: point,
+  });
+}
+
+async function setEditorCaret(page, text, offset) {
+  await page.getByTestId('rich-text-composer').evaluate((root, target) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node = null;
+    while (walker.nextNode()) {
+      if (walker.currentNode.textContent === target.text) {
+        node = walker.currentNode;
+        break;
+      }
+    }
+    if (!node) throw new Error(`caret text node not found: ${target.text}`);
+    const range = document.createRange();
+    range.setStart(node, target.offset);
+    range.collapse(true);
+    const selection = document.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, { text, offset });
+}
+
+async function runNativeFileInput() {
+  const { context, page, pageErrors, protectedRequests } = await openPage();
+  try {
+    const editor = page.getByTestId('rich-text-composer');
+    await editor.click();
+    await page.keyboard.type('左侧文字 右侧文字', { delay: 8 });
+    await setEditorCaret(page, '左侧文字 右侧文字', 5);
+    const pastePrevented = await dispatchNativeFiles(page, 'paste', [
+      { name: '粘贴一.txt', mimeType: 'text/plain', contents: 'paste one' },
+      { name: '粘贴二.md', mimeType: 'text/markdown', contents: 'paste two' },
+    ]);
+    assert.equal(pastePrevented, true);
+    await page.waitForFunction(() => document.querySelector('[data-testid="attachment-upload-progress"]')?.textContent?.includes('已完成'));
+    await page.waitForTimeout(80);
+    const pasted = await editorSnapshot(editor);
+    assert.equal(pasted.textContent, '左侧文字 粘贴一.txt粘贴二.md右侧文字');
+    assert.deepEqual(pasted.directChildren.map((child) => child.attachmentId), [null, pasted.attachmentIds[0], pasted.attachmentIds[1], null]);
+    assert.deepEqual(pasted.directChildren.map((child) => child.text), ['左侧文字 ', '粘贴一.txt', '粘贴二.md', '右侧文字']);
+
+    await editor.focus();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(100);
+    await editor.click();
+    await page.keyboard.type('拖入前后', { delay: 8 });
+    const dropBox = await editor.boundingBox();
+    const dropPoint = await editorPoint(editor, '拖入前后', 2);
+    assert.ok(dropBox && dropPoint);
+    const dragData = [
+      { name: '拖入一.txt', mimeType: 'text/plain', contents: 'drop one' },
+      { name: '拖入二.txt', mimeType: 'text/plain', contents: 'drop two' },
+    ];
+    const dragOverPrevented = await dispatchNativeFiles(page, 'dragover', dragData, dropPoint);
+    assert.equal(dragOverPrevented, true);
+    const dropPrevented = await dispatchNativeFiles(page, 'drop', dragData, dropPoint);
+    assert.equal(dropPrevented, true);
+    await page.waitForFunction(() => document.querySelector('[data-testid="attachment-upload-progress"]')?.textContent?.includes('已完成'));
+    await page.waitForTimeout(80);
+    const dropped = await editorSnapshot(editor);
+    assert.equal(dropped.textContent, '拖入拖入一.txt拖入二.txt前后');
+    assert.equal(dropped.attachmentIds.length, 2);
+
+    // A Pan attachment payload wins over a simultaneous OS File item. The OS
+    // file must not become a second attachment or plain text.
+    const customPoint = await editorPoint(editor, '拖入', 2);
+    const customDrop = await page.evaluate(({ point }) => {
+      const editorNode = document.querySelector('[data-testid="rich-text-composer"]');
+      if (!editorNode) throw new Error('composer not found');
+      const dataTransfer = new DataTransfer();
+      dataTransfer.setData('application/x-pan-attachment', JSON.stringify({
+        serverAttachmentId: `att_${'d'.repeat(32)}`,
+        displayName: '已有附件.md',
+        href: `/api/attachments/upload_${'c'.repeat(32)}.md?session_id=mock-alpha`,
+        source: 'message',
+      }));
+      dataTransfer.items.add(new File(['must not upload'], '混淆文件.txt', { type: 'text/plain' }));
+      editorNode.dispatchEvent(new DragEvent('dragover', {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer,
+        clientX: point.x,
+        clientY: point.y,
+      }));
+      const event = new DragEvent('drop', {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer,
+        clientX: point.x,
+        clientY: point.y,
+      });
+      editorNode.dispatchEvent(event);
+      return {
+        prevented: event.defaultPrevented,
+        types: [...dataTransfer.types],
+        customData: dataTransfer.getData('application/x-pan-attachment'),
+      };
+    }, { point: customPoint });
+    assert.equal(customDrop.prevented, true);
+    await page.waitForTimeout(180);
+    const customSnapshot = await editorSnapshot(editor);
+    assert.ok(customSnapshot.textContent.includes('已有附件.md'));
+    assert.equal(customSnapshot.textContent.includes('混淆文件.txt'), false);
+    assert.equal(await page.getByTestId('draggable-attachment-chip').filter({ hasText: '混淆文件.txt' }).count(), 0);
+
+    // file:// URI payloads are rejected and cannot fall through to editor text.
+    const uriPrevented = await page.evaluate(() => {
+      const editorNode = document.querySelector('[data-testid="rich-text-composer"]');
+      if (!editorNode) throw new Error('composer not found');
+      const dataTransfer = new DataTransfer();
+      dataTransfer.setData('text/uri-list', 'file:///C:/Users/test/private.txt');
+      const event = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer });
+      editorNode.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    assert.equal(uriPrevented, true);
+    await page.waitForFunction(() => document.body.innerText.includes('文件 URI'));
+
+    assert.deepEqual(pageErrors, []);
+    assert.deepEqual(protectedRequests, []);
+    await page.screenshot({ path: path.join(runtime, 'native-file-paste-drop-fixed.png'), fullPage: true });
+    return { name: 'native paste/drop files, MIME precedence, URI rejection and cancellation', pasted, dropped, customSnapshot, pageErrors, protectedRequests };
+  } finally {
+    await context.close();
+  }
+}
+
+async function runNativeDropCancellation() {
+  const { context, page, pageErrors, protectedRequests } = await openPage();
+  try {
+    const editor = page.getByTestId('rich-text-composer');
+    await editor.click();
+    await page.keyboard.type('取消前后', { delay: 8 });
+    const point = await editorPoint(editor, '取消前后', 2);
+    const file = [{ name: '取消.txt', mimeType: 'text/plain', contents: 'cancel me' }];
+    assert.equal(await dispatchNativeFiles(page, 'dragover', file, point), true);
+    assert.equal(await dispatchNativeFiles(page, 'drop', file, point), true);
+    await page.getByRole('button', { name: '删除附件 取消.txt' }).waitFor({ state: 'visible' });
+    await page.getByRole('button', { name: '删除附件 取消.txt' }).click();
+    await page.waitForTimeout(260);
+    assert.equal(await page.getByRole('button', { name: '删除附件 取消.txt' }).count(), 0);
+    assert.equal((await editorSnapshot(editor)).textContent, '取消前后');
+    assert.deepEqual(pageErrors, []);
+    assert.deepEqual(protectedRequests, []);
+    return { name: 'native drop cancellation removes unfinished upload', pageErrors, protectedRequests };
+  } finally {
+    await context.close();
+  }
 }
 
 async function runExternalMiddleDrop() {
@@ -392,6 +568,8 @@ try {
   results.push(await runInternalMiddleMove());
   results.push(await runCtrlADeleteAttachment());
   results.push(await runCtrlADeleteUploadedAttachment());
+  results.push(await runNativeFileInput());
+  results.push(await runNativeDropCancellation());
 } finally {
   await browser.close();
 }

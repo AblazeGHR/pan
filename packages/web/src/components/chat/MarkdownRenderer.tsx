@@ -25,7 +25,7 @@ function transformMarkdownUrl(value: string): string {
   return parseMarkdownFileLink(value) ? value : defaultUrlTransform(value);
 }
 
-function MarkdownLink({ href, children, node: _node, ...props }: LinkProps) {
+function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: LinkProps & { attachmentId?: string }) {
   const navigate = useNavigate();
   const currentSession = useCurrentSession();
   const showToast = useUIStore((s) => s.showToast);
@@ -58,6 +58,8 @@ function MarkdownLink({ href, children, node: _node, ...props }: LinkProps) {
     writeAttachmentDragPayload(event.dataTransfer, {
       displayName: extractLinkText(children),
       href,
+      path: extractServerFilePath(href),
+      serverAttachmentId: attachmentId,
       source: 'message',
     });
   };
@@ -87,6 +89,15 @@ function extractLinkText(node: React.ReactNode): string {
   return 'attachment';
 }
 
+function extractServerFilePath(href: string): string | undefined {
+  if (!href.startsWith('/api/fs/read?')) return undefined;
+  try {
+    return new URL(href, window.location.origin).searchParams.get('path') || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** True while rendering a <pre> subtree, i.e. a block-level code block.
  *  Inline code (backticks) is never wrapped in a <pre>. */
 const PreContext = createContext(false);
@@ -94,6 +105,7 @@ const PreContext = createContext(false);
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  attachmentIds?: string[];
 }
 
 /** Recursively extract plain text from React nodes (handles hljs spans). */
@@ -197,10 +209,11 @@ function PreBlock({ children }: PreProps) {
   return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
-export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className = '', attachmentIds = [] }: MarkdownRendererProps) {
   const currentSession = useCurrentSession();
   if (!content) return null;
   const renderedContent = normalizeLegacyAttachmentLinks(content, currentSession?.id);
+  let attachmentIndex = 0;
 
   return (
     <div className={`prose-kimi max-w-none break-words ${className}`}>
@@ -210,7 +223,12 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         components={{
           code: CodeBlock,
           pre: PreBlock,
-          a: MarkdownLink,
+          a: (props) => {
+            const attachmentId = props.href && isSafeAttachmentHref(props.href)
+              ? attachmentIds[attachmentIndex++]
+              : undefined;
+            return <MarkdownLink {...props} attachmentId={attachmentId} />;
+          },
         }}
         urlTransform={transformMarkdownUrl}
       >

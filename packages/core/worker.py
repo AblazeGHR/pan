@@ -1391,6 +1391,8 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
                 entry["taskId"] = item.get("taskId")
             if item.get("clientMessageId"):
                 entry["clientMessageId"] = item["clientMessageId"]
+            if isinstance(item.get("parts"), list):
+                entry["parts"] = [dict(part) for part in item["parts"] if isinstance(part, dict)]
         else:
             entry = {
                 "role": "user",
@@ -1523,6 +1525,10 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
             "role": "user",
             "content": delivered_text,
             "queueItemIds": delivered_ids,
+            **({"parts": [dict(part) for part in items[0].get("parts", [])
+                           if isinstance(part, dict)]}
+               if _queue_item_kind(items[0]) == "task" and isinstance(items[0].get("parts"), list)
+               else {}),
         }],
     })
     await _bcast({
@@ -4920,7 +4926,8 @@ def _durable_task_id_seen(s, task_id: str | None) -> bool:
 async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              task_id: str | None,
                              client_message_id: str | None,
-                             source_session_id: str | None = None) -> tuple[dict | None, str | None]:
+                             source_session_id: str | None = None,
+                             parts: list[dict] | None = None) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
     if _shutdown_started:
         return None, "Pan main service is shutting down"
@@ -4970,6 +4977,11 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     item["queueItemId"] = item["id"]
     if source_sid is not None:
         item["sourceSessionId"] = source_sid
+    if parts is not None:
+        # The web boundary has already validated and canonicalized these parts.
+        # Keep them beside the text fallback so history/retry/restart can restore
+        # attachment identity and editor position even for text-only adapters.
+        item["parts"] = [dict(part) for part in parts]
     if client_message_id:
         item["clientMessageId"] = client_message_id
         s.accepted_input_ids.append(client_message_id)
@@ -4999,7 +5011,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
 
 
 async def enqueue_user_message(session_id: str, text: str,
-                               client_message_id: str | None = None) -> dict:
+                               client_message_id: str | None = None,
+                               parts: list[dict] | None = None) -> dict:
     """Canonical durable entry point for browser/user queue messages.
 
     The queue item and receipt are written before acknowledging the request.
@@ -5026,8 +5039,12 @@ async def enqueue_user_message(session_id: str, text: str,
                 "item": dict(existing),
                 "duplicate": True,
             }
-        item, error = await _persist_task_item(
-            s, text, "user", None, None, client_message_id, None)
+        if parts is None:
+            item, error = await _persist_task_item(
+                s, text, "user", None, None, client_message_id, None)
+        else:
+            item, error = await _persist_task_item(
+                s, text, "user", None, None, client_message_id, None, parts)
         if error:
             return {"status": "error", "result": error}
         if item is None:

@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import {
@@ -14,6 +15,7 @@ import {
   type AttachmentDragPayload,
 } from '@/utils/attachmentDrag';
 import { isSafeAttachmentHref } from '@/utils/attachmentMarkdown';
+import { hasPanAttachmentMime, inspectNativeAttachmentInput } from '@/utils/nativeAttachmentInput';
 
 export type ComposerPart =
   | { type: 'text'; value: string }
@@ -35,6 +37,9 @@ interface RichTextComposerProps {
   attachments: ComposerAttachment[];
   onChange: (value: ComposerValue) => void;
   onAttachmentDrop: (payload: AttachmentDragPayload) => string | null;
+  /** Add browser File objects and return local composer ids synchronously. */
+  onNativeFiles?: (files: File[], offset: number, source: 'paste' | 'drop') => string[];
+  onNativeInputIssue?: (kind: 'directory' | 'uri' | 'invalid-pan-attachment') => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
@@ -489,6 +494,8 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   attachments,
   onChange,
   onAttachmentDrop,
+  onNativeFiles,
+  onNativeInputIssue,
   onRemoveAttachment,
   onKeyDown,
 }, ref) {
@@ -686,6 +693,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     const payload = resolveDragPayload(event.dataTransfer);
     if (!payload) {
+      if (hasPanAttachmentMime(event.dataTransfer) || inspectNativeAttachmentInput(event.dataTransfer).kind !== 'none') {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }
       clearDropIndicator();
       return;
     }
@@ -699,6 +710,42 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     const payload = resolveDragPayload(event.dataTransfer);
     if (!payload) {
+      if (hasPanAttachmentMime(event.dataTransfer)) {
+        event.preventDefault();
+        onNativeInputIssue?.('invalid-pan-attachment');
+        clearDropIndicator();
+        return;
+      }
+      const native = inspectNativeAttachmentInput(event.dataTransfer);
+      if (native.kind !== 'none') {
+        event.preventDefault();
+        const root = editorRef.current;
+        const range = root ? pointToCaretRange(root, event.clientX, event.clientY) : null;
+        const selection = root ? window.getSelection() : null;
+        const selectionRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        const offset = dropOffsetRef.current
+          ?? (root && range ? selectionOffset(root, range.startContainer, range.startOffset) : null)
+          ?? (root && selectionRange ? selectionOffset(root, selectionRange.startContainer, selectionRange.startOffset) : null);
+        clearDropIndicator();
+        if (native.kind === 'files' && offset !== null) {
+          const ids = onNativeFiles?.(native.files, offset, 'drop') || [];
+          if (ids.length) {
+            let nextParts = partsRef.current;
+            let insertionOffset = offset;
+            for (const id of ids) {
+              nextParts = insertAttachment(nextParts, insertionOffset, id);
+              insertionOffset += 1;
+            }
+            partsRef.current = nextParts;
+            setParts(nextParts);
+            publish(nextParts);
+            pendingCaretOffsetRef.current = insertionOffset;
+          }
+        } else if (native.kind === 'directory' || native.kind === 'uri') {
+          onNativeInputIssue?.(native.kind);
+        }
+        return;
+      }
       clearDropIndicator();
       return;
     }
@@ -732,6 +779,61 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     setParts(nextParts);
     publish(nextParts);
     pendingCaretOffsetRef.current = adjustedOffset + 1;
+  };
+
+  const handlePaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const dataTransfer = event.clipboardData;
+    const customMime = hasPanAttachmentMime(dataTransfer);
+    const payload = customMime ? readAttachmentDragPayload(dataTransfer) : null;
+    if (customMime) {
+      event.preventDefault();
+      if (!payload) {
+        onNativeInputIssue?.('invalid-pan-attachment');
+        return;
+      }
+      const root = editorRef.current;
+      const selection = window.getSelection();
+      const range = root && selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const offset = root && range
+        ? selectionOffset(root, range.startContainer, range.startOffset)
+        : null;
+      if (offset === null) return;
+      const attachmentId = onAttachmentDrop(payload);
+      if (!attachmentId) return;
+      const nextParts = insertAttachment(partsRef.current, offset, attachmentId);
+      partsRef.current = nextParts;
+      setParts(nextParts);
+      publish(nextParts);
+      pendingCaretOffsetRef.current = offset + 1;
+      return;
+    }
+    const native = inspectNativeAttachmentInput(dataTransfer);
+    if (native.kind === 'none') return;
+    event.preventDefault();
+    if (native.kind === 'files') {
+      const root = editorRef.current;
+      const selection = window.getSelection();
+      const range = root && selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const offset = (root && range
+        ? selectionOffset(root, range.startContainer, range.startOffset)
+        : null)
+        ?? (root ? readParts(root).reduce((total, part) => total + partLength(part), 0) : 0);
+      const ids = onNativeFiles?.(native.files, offset, 'paste') || [];
+      if (ids.length) {
+        let nextParts = partsRef.current;
+        let insertionOffset = offset;
+        for (const id of ids) {
+          nextParts = insertAttachment(nextParts, insertionOffset, id);
+          insertionOffset += 1;
+        }
+        partsRef.current = nextParts;
+        setParts(nextParts);
+        publish(nextParts);
+        pendingCaretOffsetRef.current = insertionOffset;
+      }
+    } else {
+      onNativeInputIssue?.(native.kind);
+    }
   };
 
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
@@ -783,7 +885,8 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         data-testid="rich-text-composer"
         data-placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
         className="composer-editor h-full min-h-0 w-full overflow-y-auto whitespace-pre-wrap break-words rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"
-        onInput={handleInput}
+         onInput={handleInput}
+         onPaste={handlePaste}
         onKeyDown={handleKeyDown}
         onDragOver={handleDragOver}
         onDrop={handleDrop}

@@ -8,7 +8,7 @@
  */
 
 import type { AgentQueueItem, Session } from '@/types';
-import type { SessionAttachmentUploadResponse } from '@/services/api';
+import type { ServerFileAttachmentResponse, SessionAttachmentUploadResponse } from '@/services/api';
 
 export function isMockMode(): boolean {
   try {
@@ -245,6 +245,27 @@ export async function mockUploadSessionAttachment(
   };
 }
 
+/** Mock-only server-file registration; it never writes a real file or path. */
+export async function mockRegisterServerFileAttachment(
+  sessionId: string,
+  path: string,
+): Promise<ServerFileAttachmentResponse> {
+  const displayName = path.split(/[\\/]/).pop() || path;
+  const token = Array.from(`${sessionId}:${path}`).reduce(
+    (value, char) => `${value}${char.charCodeAt(0).toString(36)}`, '',
+  ).padEnd(32, '0').slice(0, 32);
+  const attachmentId = `att_${token}`;
+  return {
+    ok: true,
+    attachmentId,
+    displayName,
+    source: 'server_file',
+    href: `/api/fs/read?session_id=${encodeURIComponent(sessionId)}&path=${encodeURIComponent(path)}&download=1`,
+    path,
+    size: 0,
+  };
+}
+
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -295,6 +316,7 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
     if (method === 'POST') {
       const values = body && typeof body === 'object' ? body as Record<string, unknown> : {};
       const text = typeof values.text === 'string' ? values.text : '';
+      const parts = Array.isArray(values.parts) ? values.parts : undefined;
       if (!text.trim()) return { ok: false, error: '消息不能为空' };
       const clientMessageId = typeof values.clientMessageId === 'string'
         ? values.clientMessageId
@@ -318,6 +340,7 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
         queueItemId: id,
         kind: 'task',
         text,
+        ...(parts ? { parts: parts as AgentQueueItem['parts'] } : {}),
         createdAt: Date.now(),
         source: 'user',
         meta: { dispatchState: 'queued', revision },

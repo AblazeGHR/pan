@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentQueueItem, QueueDispatchState, QueuedEdit } from '@/types';
+import type { AgentQueueItem, MessagePart, QueueDispatchState, QueuedEdit } from '@/types';
 import {
   deleteSessionQueueItem,
   enqueueSessionMessage,
@@ -30,7 +30,7 @@ interface QueueStore {
     queueRevision?: number;
     item?: Record<string, unknown>;
   }) => void;
-  enqueue: (text: string) => Promise<boolean>;
+  enqueue: (text: string, parts?: MessagePart[]) => Promise<boolean>;
   remove: (id: string) => void;
   startEdit: (id: string) => void;
   updateEditDraft: (text: string) => void;
@@ -94,11 +94,13 @@ function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem |
         : 'report';
   const state = raw.dispatchState ?? raw.deliveryState ?? meta.dispatchState ?? 'queued';
   const revision = raw.revision ?? meta.revision ?? 1;
+  const parts = Array.isArray(raw.parts) ? raw.parts as AgentQueueItem['parts'] : undefined;
   return {
     id,
     queueItemId: id,
     kind,
     text,
+    ...(parts ? { parts } : {}),
     createdAt: typeof raw.createdAt === 'string' || typeof raw.createdAt === 'number'
       ? raw.createdAt
       : 0,
@@ -181,11 +183,14 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     }
   },
 
-  enqueue: async (text) => {
+  enqueue: async (text, parts) => {
     const sid = useSessionStore.getState().currentSessionId;
     if (!sid || !text.trim()) return false;
     try {
-      const result = await enqueueSessionMessage(sid, text, clientMessageId());
+      const clientId = clientMessageId();
+      const result = parts
+        ? await enqueueSessionMessage(sid, text, clientId, parts)
+        : await enqueueSessionMessage(sid, text, clientId);
       const current = get().queues[sid] ?? [];
       const next = current.some((item) => item.id === result.item.id) ? current : [...current, result.item];
       setSnapshot(set, sid, next, result.queueRevision);

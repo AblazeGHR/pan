@@ -1917,6 +1917,102 @@ def _attachment_storage_filename(display_name: str) -> str:
     return f"upload_{uuid.uuid4().hex}{suffix}"
 
 
+_ATTACHMENT_ID_RE = re.compile(
+    r"(?:upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?|att_[A-Za-z0-9]{32})"
+)
+
+
+def _attachment_registry_path(session_id: str) -> Path:
+    """Return the durable, session-scoped attachment metadata sidecar."""
+    return _attachment_session_dir(session_id) / ".attachments.json"
+
+
+def _read_attachment_registry(session_id: str) -> dict[str, dict]:
+    try:
+        raw = json.loads(_attachment_registry_path(session_id).read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError, TypeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(key): value for key, value in raw.items()
+        if isinstance(key, str) and isinstance(value, dict)
+    }
+
+
+def _write_attachment_registry(session_id: str, registry: dict[str, dict]) -> None:
+    target = _attachment_registry_path(session_id)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    temporary.write_text(json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(temporary, target)
+
+
+def _attachment_record(session_id: str, attachment_id: str) -> dict | None:
+    """Resolve an id without accepting client supplied href/path metadata.
+
+    Old uploads used their opaque storage filename as ``attachmentId`` and did
+    not have a sidecar.  They remain readable through the conservative
+    filename/path fallback; all new server-file references are sidecar-backed.
+    """
+    if not isinstance(attachment_id, str) or not _ATTACHMENT_ID_RE.fullmatch(attachment_id):
+        return None
+    record = _read_attachment_registry(session_id).get(attachment_id)
+    if record is not None:
+        return dict(record)
+    if attachment_id.startswith("upload_"):
+        root = _attachment_session_dir(session_id).resolve()
+        target = (root / attachment_id).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            return None
+        if target.is_file():
+            return {
+                "source": "upload",
+                "displayName": attachment_id,
+                "storageFilename": attachment_id,
+                "path": str(target),
+                "size": target.stat().st_size,
+                "mimeType": mimetypes.guess_type(attachment_id)[0] or "application/octet-stream",
+                "completed": True,
+            }
+    return None
+
+
+def _attachment_owner_dir(attachment_id: str) -> Path | None:
+    """Find an id in another session directory for a useful mismatch error."""
+    if not _ATTACHMENT_ID_RE.fullmatch(attachment_id or ""):
+        return None
+    try:
+        candidates = list(ATTACHMENTS_DIR.iterdir())
+    except OSError:
+        return None
+    for directory in candidates:
+        if not directory.is_dir():
+            continue
+        registry_path = directory / ".attachments.json"
+        try:
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, ValueError, TypeError):
+            registry = {}
+        if isinstance(registry, dict) and attachment_id in registry:
+            return directory
+        if attachment_id.startswith("upload_") and (directory / attachment_id).is_file():
+            return directory
+    return None
+
+
+def _register_attachment(session_id: str, attachment_id: str, record: dict) -> None:
+    registry = _read_attachment_registry(session_id)
+    registry[attachment_id] = {
+        **record,
+        "completed": record.get("completed", True),
+        "sessionId": session_id,
+    }
+    _write_attachment_registry(session_id, registry)
+
+
 def _attachment_href(session_id: str, storage_filename: str) -> str:
     """Build the only public href accepted for an uploaded attachment."""
     return (
@@ -2047,6 +2143,96 @@ def _validate_message_attachment_references(session_id: str, text: str) -> dict 
     return None
 
 
+def _attachment_id_error(session_id: str, attachment_id: str) -> dict | None:
+    """Validate one opaque AttachmentRef at the session boundary."""
+    if not isinstance(attachment_id, str) or not _ATTACHMENT_ID_RE.fullmatch(attachment_id):
+        return {"code": "invalid_attachment_id", "message": "Attachment id is invalid"}
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        owner = _attachment_owner_dir(attachment_id)
+        if owner is not None and owner != _attachment_session_dir(session_id).resolve():
+            return {
+                "code": "attachment_session_mismatch",
+                "message": "Attachment belongs to another session",
+            }
+        return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+    if record.get("sessionId") not in (None, session_id):
+        return {
+            "code": "attachment_session_mismatch",
+            "message": "Attachment belongs to another session",
+        }
+    if record.get("completed") is not True:
+        return {"code": "attachment_incomplete", "message": "Attachment upload is not complete"}
+    try:
+        target = Path(str(record.get("path", ""))).resolve()
+        if not target.is_file():
+            return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+    except (OSError, RuntimeError, ValueError):
+        return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+    return None
+
+
+def _canonical_attachment_ref(session_id: str, attachment_id: str) -> dict | None:
+    """Return server-owned metadata used by structured parts and Markdown fallback."""
+    if _attachment_id_error(session_id, attachment_id) is not None:
+        return None
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        return None
+    source = record.get("source") if record.get("source") in {"upload", "server_file"} else "upload"
+    path = str(record.get("path", ""))
+    href = (
+        _attachment_href(session_id, str(record.get("storageFilename")))
+        if source == "upload" and record.get("storageFilename")
+        else _fs_download_href(session_id, path)
+    )
+    display_name = _attachment_filename(record.get("displayName"))
+    return {
+        "type": "attachment",
+        "attachmentId": attachment_id,
+        "displayName": display_name,
+        "mimeType": record.get("mimeType") or mimetypes.guess_type(display_name)[0] or "application/octet-stream",
+        "size": int(record.get("size", 0) or 0),
+        "source": source,
+        "href": href,
+    }
+
+
+def _normalize_message_parts(session_id: str, raw_parts) -> tuple[list[dict] | None, str | None, dict | None]:
+    """Validate parts and generate the adapter-compatible Markdown fallback.
+
+    Client supplied labels, hrefs and paths are deliberately ignored.  Only the
+    opaque id is authoritative; the registry supplies all attachment metadata.
+    """
+    if not isinstance(raw_parts, list) or not raw_parts or len(raw_parts) > 512:
+        return None, None, {"code": "invalid_parts", "message": "parts must be a non-empty array"}
+    normalized: list[dict] = []
+    fallback: list[str] = []
+    for part in raw_parts:
+        if not isinstance(part, dict) or not isinstance(part.get("type"), str):
+            return None, None, {"code": "invalid_parts", "message": "message part is invalid"}
+        kind = part["type"]
+        if kind == "text":
+            value = part.get("text", part.get("value"))
+            if not isinstance(value, str):
+                return None, None, {"code": "invalid_parts", "message": "text part must contain text"}
+            normalized.append({"type": "text", "text": value})
+            fallback.append(value)
+            continue
+        if kind != "attachment":
+            return None, None, {"code": "invalid_parts", "message": "unknown message part type"}
+        attachment_id = part.get("attachmentId")
+        error = _attachment_id_error(session_id, attachment_id)
+        if error is not None:
+            return None, None, error
+        canonical = _canonical_attachment_ref(session_id, attachment_id)
+        if canonical is None:
+            return None, None, {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+        normalized.append({key: value for key, value in canonical.items() if key != "href"})
+        fallback.append(_attachment_markdown(canonical["displayName"], canonical["href"]))
+    return normalized, "".join(fallback), None
+
+
 def _api_history(session_id: str, history: list[dict]) -> list[dict]:
     """Serialize history with a compatibility view for old attachment text."""
     normalized: list[dict] = []
@@ -2085,6 +2271,14 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
                 output.write(chunk)
                 total += len(chunk)
         os.replace(temp_path, target_path)
+        _register_attachment(session_id, storage_filename, {
+            "source": "upload",
+            "displayName": display_name,
+            "storageFilename": storage_filename,
+            "path": str(target_path.resolve()),
+            "size": total,
+            "mimeType": request.headers.get("content-type") or mimetypes.guess_type(display_name)[0],
+        })
         return {
             "ok": True,
             # filename is retained as a compatibility alias for old clients;
@@ -2109,6 +2303,46 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
             temp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@app.post("/api/sessions/{session_id}/attachments/from-server-file")
+async def register_server_file_attachment(session_id: str, data: dict):
+    """Register one existing server file as an opaque AttachmentRef.
+
+    The path is used only for this server-side lookup and is never accepted as
+    the message reference.  Directories are intentionally rejected in phase 1.
+    """
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    raw_path = data.get("path") if isinstance(data, dict) else None
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        target = _resolve_fs_path(session_id, raw_path)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid server file path") from exc
+    if target.is_dir():
+        raise HTTPException(status_code=400, detail="Directories cannot be attached yet")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Server file not found")
+    attachment_id = "att_" + uuid.uuid4().hex
+    display_name = _attachment_filename(target.name)
+    _register_attachment(session_id, attachment_id, {
+        "source": "server_file",
+        "displayName": display_name,
+        "path": str(target.resolve()),
+        "size": target.stat().st_size,
+        "mimeType": mimetypes.guess_type(target.name)[0],
+    })
+    canonical = _canonical_attachment_ref(session_id, attachment_id)
+    return {
+        "ok": True,
+        "attachmentId": attachment_id,
+        "displayName": display_name,
+        "href": canonical["href"] if canonical else _fs_download_href(session_id, str(target)),
+        "path": str(target),
+        "size": target.stat().st_size,
+    }
 
 
 @app.get("/api/attachments/{storage_filename}")
@@ -2317,8 +2551,22 @@ async def ws_endpoint(ws: WebSocket):
             if msg_type == "user_inject":
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
-                if session_id and text:
-                    if isinstance(text, str):
+                parts = msg.get("parts")
+                normalized_parts = None
+                if session_id and (text or parts is not None):
+                    if parts is not None:
+                        normalized_parts, generated_text, parts_error = _normalize_message_parts(
+                            session_id, parts)
+                        if parts_error is not None:
+                            await ws.send_json({
+                                "type": "user_inject.rejected",
+                                "sessionId": session_id,
+                                "message": parts_error["message"],
+                                "error": parts_error,
+                            })
+                            continue
+                        text = generated_text
+                    elif isinstance(text, str):
                         attachment_error = _validate_message_attachment_references(session_id, text)
                         if attachment_error is not None:
                             await ws.send_json({
@@ -2328,6 +2576,14 @@ async def ws_endpoint(ws: WebSocket):
                                 "error": attachment_error,
                             })
                             continue
+                    if not isinstance(text, str) or not text.strip():
+                        await ws.send_json({
+                            "type": "user_inject.rejected",
+                            "sessionId": session_id,
+                            "message": "text is required",
+                            "error": {"code": "text_required", "message": "text is required"},
+                        })
+                        continue
                     client_message_id = msg.get("clientMessageId")
                     if client_message_id is not None and not isinstance(client_message_id, str):
                         await ws.send_json({"type": "user_inject.rejected",
@@ -2344,8 +2600,12 @@ async def ws_endpoint(ws: WebSocket):
                     # enter the canonical server queue, independent of worker
                     # liveness; the ack means durable enqueue, not Provider
                     # completion.
-                    result = await worker.enqueue_user_message(
-                        session_id, text, client_message_id)
+                    if normalized_parts is None:
+                        result = await worker.enqueue_user_message(
+                            session_id, text, client_message_id)
+                    else:
+                        result = await worker.enqueue_user_message(
+                            session_id, text, client_message_id, parts=normalized_parts)
                     if result.get("status") == "error":
                         await ws.send_json({"type": "user_inject.rejected",
                                             "sessionId": session_id,
@@ -2801,6 +3061,8 @@ def _serialize_queue_item(item, session=None) -> dict | None:
             "queueItemId": _queue_item_id(item),
             "kind": "task",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
+            **({"parts": [dict(part) for part in item["parts"] if isinstance(part, dict)]}
+               if isinstance(item.get("parts"), list) else {}),
             "createdAt": item.get("createdAt", 0),
             "source": source,
             "meta": meta,
@@ -2899,17 +3161,31 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
     source=user/kind=task are fixed by the server-side entry point.
     """
     text = data.get("text")
+    parts = data.get("parts")
+    normalized_parts = None
+    if parts is not None:
+        normalized_parts, generated_text, parts_error = _normalize_message_parts(session_id, parts)
+        if parts_error is not None:
+            return {"ok": False, "error": parts_error}
+        text = generated_text
     if not isinstance(text, str) or not text.strip():
         return {"ok": False, "error": {"code": "text_required",
                                          "message": "text is required"}}
-    attachment_error = _validate_message_attachment_references(session_id, text)
-    if attachment_error is not None:
-        return {"ok": False, "error": attachment_error}
+    if normalized_parts is None:
+        attachment_error = _validate_message_attachment_references(session_id, text)
+        if attachment_error is not None:
+            return {"ok": False, "error": attachment_error}
     client_id = data.get("clientMessageId")
     if client_id is not None and (not isinstance(client_id, str) or len(client_id) > 512):
         return {"ok": False, "error": {"code": "invalid_client_message_id",
                                          "message": "clientMessageId must be a string of at most 512 characters"}}
-    result = await worker.enqueue_user_message(session_id, text, client_id)
+    if normalized_parts is None:
+        # Keep the exact legacy call shape for embedders and test doubles that
+        # still implement the text-only queue contract.
+        result = await worker.enqueue_user_message(session_id, text, client_id)
+    else:
+        result = await worker.enqueue_user_message(
+            session_id, text, client_id, parts=normalized_parts)
     if result.get("status") == "error":
         return {"ok": False, "error": {"code": "enqueue_failed",
                                          "message": result.get("result", "enqueue failed")}}

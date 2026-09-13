@@ -115,7 +115,8 @@ function isServerHistoryPrefix(
   for (let i = 0; i < serverHistory.length; i++) {
     const s = serverHistory[i];
     const c = localHistory[i];
-    if (!s || !c || s.role !== c.role || s.content !== c.content) return false;
+    if (!s || !c || s.role !== c.role || s.content !== c.content
+        || JSON.stringify(s.parts ?? null) !== JSON.stringify(c.parts ?? null)) return false;
   }
   return true;
 }

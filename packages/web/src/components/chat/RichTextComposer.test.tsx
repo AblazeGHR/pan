@@ -588,4 +588,59 @@ describe('RichTextComposer attachment demo', () => {
     expect(changes.at(-1)).toMatchObject({ text: 'A B', attachmentIds: ['a', 'b'] });
     expect(onAttachmentDrop).toHaveBeenCalledTimes(5);
   });
+
+  it('pastes multiple OS files as inline nodes and does not fall through to text', () => {
+    const changes: ComposerValue[] = [];
+    const files = [
+      new File(['a'], 'a.txt', { type: 'text/plain' }),
+      new File(['b'], 'b.txt', { type: 'text/plain' }),
+    ];
+    const editor = render(
+      <RichTextComposer
+        initialText="left right"
+        attachments={files.map((file, index) => ({ id: `file-${index}`, displayName: file.name }))}
+        onChange={(value) => changes.push(value)}
+        onAttachmentDrop={vi.fn(() => null)}
+        onNativeFiles={vi.fn(() => ['file-0', 'file-1'])}
+        onRemoveAttachment={vi.fn()}
+      />,
+    ).getByTestId('rich-text-composer');
+    const text = editor.firstElementChild?.firstChild;
+    const range = document.createRange();
+    range.setStart(text!, 5);
+    range.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    const clipboardData = { files, items: [], types: ['Files'], getData: vi.fn(() => '') } as unknown as DataTransfer;
+    fireEvent.paste(editor, { clipboardData });
+    expect(editor.textContent).toContain('left a.txtb.txt');
+    expect(editor.querySelectorAll('[data-composer-attachment]')).toHaveLength(2);
+    expect(changes.at(-1)?.attachmentIds).toEqual(['file-0', 'file-1']);
+  });
+
+  it('gives Pan custom MIME precedence over a simultaneous OS file', () => {
+    const onAttachmentDrop = vi.fn(() => 'pan-attachment');
+    const onNativeFiles = vi.fn(() => ['os-file']);
+    const editor = render(
+      <RichTextComposer
+        initialText="text"
+        attachments={[{ id: 'pan-attachment', displayName: 'Pan.md' }, { id: 'os-file', displayName: 'OS.txt' }]}
+        onChange={vi.fn()}
+        onAttachmentDrop={onAttachmentDrop}
+        onNativeFiles={onNativeFiles}
+        onRemoveAttachment={vi.fn()}
+      />,
+    ).getByTestId('rich-text-composer');
+    const dataTransfer = {
+      types: [ATTACHMENT_DRAG_MIME, 'Files'],
+      files: [new File(['os'], 'OS.txt')],
+      items: [],
+      getData: (type: string) => type === ATTACHMENT_DRAG_MIME
+        ? JSON.stringify({ displayName: 'Pan.md', href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1' })
+        : '',
+    } as unknown as DataTransfer;
+    fireEvent.drop(editor, { dataTransfer });
+    expect(onAttachmentDrop).toHaveBeenCalledTimes(1);
+    expect(onNativeFiles).not.toHaveBeenCalled();
+  });
 });

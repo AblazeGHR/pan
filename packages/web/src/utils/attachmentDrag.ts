@@ -7,6 +7,8 @@ export interface AttachmentDragPayload {
   href: string;
   path?: string;
   attachmentId?: string;
+  /** Server-owned id when the source is a chip/message; UI id stays local. */
+  serverAttachmentId?: string;
   source?: 'message' | 'attachment-chip' | 'composer';
 }
 
@@ -45,6 +47,7 @@ export function readAttachmentDragPayload(
       href: value.href,
       ...(typeof value.path === 'string' ? { path: value.path } : {}),
       ...(typeof value.attachmentId === 'string' ? { attachmentId: value.attachmentId } : {}),
+      ...(typeof value.serverAttachmentId === 'string' ? { serverAttachmentId: value.serverAttachmentId } : {}),
       ...(value.source === 'message' || value.source === 'attachment-chip' || value.source === 'composer'
         ? { source: value.source }
         : {}),

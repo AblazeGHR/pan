@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-024 解释器配置已合入本地 main；T-023 文件复制/拖入输入框方案调查等待开发者决策
-- 当前焦点：等待第二功能方案选择；解释器配置功能等待开发者验收
-- 可执行：开发者从 T-023 方案中决策后建立附件实现任务
-- TA 执行中：无；T-023 与 T-024 TA 均已 done
+- 整体状态：T-024 解释器配置已合入本地 main；T-025 已在独立 worktree 完成实现、分层回归并提交，等待 MA 按 AUTH-001 合入本地 main
+- 当前焦点：T-025 交付 MA；解释器配置和本功能均等待开发者验收
+- 可执行：仅允许 MA 在测试证据核对后合入本地 main；本 TA 不 merge、不 push
+- TA 执行中：本 worktree 已完成；T-023 与 T-024 TA 均已 done
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -36,15 +36,15 @@
 
 ### DEC-001：文件复制/拖入输入框的正式实现方案
 
-- 状态：待决定
+- 状态：已决定（A + C，2026-09-13）
 - 影响功能和阶段：T-023 方案调查及其后续文件输入、附件引用、发送和持久化实现；T-023 当前被本决策直接阻塞
 - 已核实事实：系统文件复制/拖入在浏览器中通常提供 `File`/`FileList`，应上传文件内容而不是客户端绝对路径；目录依赖额外且兼容性不一的 handle/entry API；当前 Pan 已有服务端文件和客户端上传两条链路，但发送协议仍以 Markdown 文本为主
 - 选项 A：只支持普通文件的复制/粘贴和拖入，目录明确拒绝；先复用现有上传接口和 Markdown 校验，复杂度最低、兼容性最好
 - 选项 B：支持普通文件和目录递归上传；需要目录枚举、相对路径、批量进度、取消、部分失败和跨浏览器 fallback，复杂度较高
 - 选项 C：直接采用结构化 `AttachmentRef`/`parts` 发送协议；客户端文件、服务端文件和消息附件统一使用 session-scoped opaque `attachmentId`，长期最稳健但需要改 queue/history/WebSocket 和旧协议兼容
-- 推荐：A + C；第一阶段先实现普通文件输入并拒绝目录，同时采用结构化附件引用；目录能力以后单独建立任务
+- 最终决定：A + C；第一阶段实现普通文件输入并拒绝目录，同时采用结构化附件引用；目录能力以后单独建立任务
 - 决策要求：请明确选择 A、B、C 或 A + C；可同时补充目录、重复文件、上传时机和未发送附件生命周期规则
-- 决定后动作：MA 将记录“状态：已决定”和“最终决定”，解除 T-023 的决策阻塞并建立正式实现任务；在此之前不得实现第二功能
+- 决定后动作：已解除 T-023 的决策阻塞并建立 T-025；本阶段不实现目录递归上传
 
 ## 一、已合入 main 的改动
 
@@ -289,6 +289,24 @@
   - [x] 真实后端上传、引用校验、发送和持久化接入
   - [x] 分层测试与真实隔离 API/浏览器验证
   - [x] 合入 main
+  - [ ] 开发者验收
+
+### T-025：普通文件 paste/drop 与结构化 AttachmentRef/parts
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：TA 已完成并提交独立 worktree；不 merge、不 push；由 MA 按 AUTH-001 合入本地 main
+- 决策：采用 A + C。浏览器只上传 File/FileList 内容；Pan 自定义附件 MIME 优先；目录、directory entry/handle 与文件 URI 第一阶段拒绝；queue/WS/history 保留结构化 parts 与 text fallback。
+- 工作树/分支：`D:\project\pan-worktrees\attachment-file-paste-structured-parts-20260913`；`feature/attachment-file-paste-structured-parts-20260913`；基于 `main@c0bf345`
+- 协议文档：[attachment-parts-protocol.md](../docs/design/attachment-parts-protocol.md)
+- 已实现：`AttachmentRef`/`MessagePart` 类型、session sidecar registry、客户端上传与服务端文件注册统一 opaque id、queue/WS/history/retry/restart parts 保留、text/Markdown/`@"path"` 兼容、adapter 边界 Markdown fallback、mock=1 内存语义、目录/entry/handle/URI 拒绝、native MIME 优先和取消上传。
+- 已验证：相关前端 Vitest 59/59；相关后端/API/WS/queue/history 63/63；8765 mock Chromium 6/6；tsc、build、eslint（0 error）、diff check 通过。全量 Vitest 456/466，10 项为既有 Toast jsdom/NewSessionModal 基线；全量 pytest 因 QQ 可选依赖 `nonebot` 缺失在 collection 阶段阻塞。真实后端 Chromium 8765 套件另有既有 streaming scroll 基线失败，其余用例通过。
+- 未验证/边界：Firefox/Safari/移动端、生产链路、目录递归上传；目录能力以后单独建立任务。8768 未启动、未请求、未操作。
+- 有序待办：
+  - [x] 普通文件 paste/drop、上传进度/取消/重试/去重/会话切换
+  - [x] 结构化 parts 贯通 queue、WebSocket、history、重试与恢复
+  - [x] 真实 Chromium/Vite 与隔离 API 回归
+  - [x] 提交当前分支并保持 worktree clean
+  - [ ] MA 按 AUTH-001 合入本地 main
   - [ ] 开发者验收
 
 ### T-024：Pan 解释器的 config.json 配置与环境变量优先级

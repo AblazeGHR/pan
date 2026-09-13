@@ -6,7 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patchSession, steerSessionWorker, uploadSessionAttachment } from '@/services/api';
+import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patchSession, steerSessionWorker, uploadSessionAttachment, registerServerFileAttachment } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import { useWorkerStore } from '@/stores/workerStore';
 import type { AdapterConfig } from '@/types';
@@ -43,6 +43,15 @@ vi.mock('@/services/api', async (importOriginal) => {
       href: `/api/attachments/upload_${'a'.repeat(32)}${file.name.includes('.') ? `.${file.name.split('.').pop()}` : ''}?session_id=s1`,
       path: `D:\\attachments\\uploaded\\${file.name}`,
       size: file.size,
+    })),
+    registerServerFileAttachment: vi.fn(async (_sessionId: string, path: string) => ({
+      ok: true,
+      attachmentId: `att_${'b'.repeat(32)}`,
+      displayName: path.split('\\').at(-1) || 'attachment.txt',
+      mimeType: 'text/plain',
+      size: 12,
+      path,
+      href: `/api/fs/read?session_id=s1&path=${encodeURIComponent(path)}&download=1`,
     })),
     enqueueSessionMessage: vi.fn(async (_sessionId: string, text: string) => ({
       item: {
@@ -117,6 +126,7 @@ beforeEach(() => {
   vi.mocked(sendSession).mockClear();
   vi.mocked(enqueueSessionMessage).mockClear();
   vi.mocked(uploadSessionAttachment).mockClear();
+  vi.mocked(registerServerFileAttachment).mockClear();
   vi.mocked(spawnWorker).mockClear();
   vi.mocked(steerSessionWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
@@ -179,6 +189,7 @@ describe('InputRow send queue wiring', () => {
     expect(screen.queryByLabelText('Server attachment browser')?.closest('[data-testid="input-row"]')).toBeNull();
     await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+    await waitFor(() => expect(registerServerFileAttachment).toHaveBeenCalledWith('s1', 'D:\\attachments\\report.txt'));
 
     expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt');
     const textarea = screen.getByPlaceholderText(/Type a message/);
@@ -186,7 +197,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)', expect.any(String),
+      's1', '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)', expect.any(String), expect.any(Array),
     ));
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
   });
@@ -223,7 +234,7 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
       's1',
       '请先 [接口说明.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1)后续',
-      expect.any(String),
+      expect.any(String), expect.any(Array),
     ));
   });
 
@@ -301,7 +312,7 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
       's1',
       expect.stringMatching(/^\[direct\.txt\]\(\/api\/attachments\/upload_[a-z0-9]{32}\.txt\?session_id=s1\)$/),
-      expect.any(String),
+      expect.any(String), expect.any(Array),
     ));
     expect(uploadSessionAttachment).not.toHaveBeenCalled();
     window.history.pushState({}, '', '/');
@@ -415,7 +426,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '审阅 [main.ts](/api/fs/read?session_id=s1&path=D%3A%5Cproject%5Csrc%5Cmain.ts&download=1)', expect.any(String),
+      's1', '审阅 [main.ts](/api/fs/read?session_id=s1&path=D%3A%5Cproject%5Csrc%5Cmain.ts&download=1)', expect.any(String), expect.any(Array),
     ));
     expect(fetchDirectories).toHaveBeenCalledWith('D:\\project\\src', true);
   });
@@ -433,6 +444,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
     await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('当前目录非法'));
     expect(enqueueSessionMessage).not.toHaveBeenCalled();
@@ -479,6 +491,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
     await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
+    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
@@ -492,7 +505,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '合并发送 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1) [client.txt](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1)', expect.any(String),
+      's1', '合并发送 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1) [client.txt](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1)', expect.any(String), expect.any(Array),
     ));
   });
 
@@ -638,7 +651,7 @@ describe('InputRow send queue wiring', () => {
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', 'survive reconnect', expect.any(String),
+      's1', 'survive reconnect', expect.any(String), expect.any(Array),
     ));
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
