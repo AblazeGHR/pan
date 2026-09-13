@@ -52,6 +52,7 @@ describe('frontend mock backend', () => {
     expect(result).toMatchObject({
       ok: true,
       filename: '说明.md',
+      attachmentId: expect.stringMatching(/^upload_[a-z0-9]{32}\.md$/),
       displayName: '说明.md',
       path: 'D:\\mock-uploads\\mock-alpha\\说明.md',
       size: file.size,

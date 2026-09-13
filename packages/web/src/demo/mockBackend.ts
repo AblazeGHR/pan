@@ -202,12 +202,29 @@ export async function mockUploadSessionAttachment(
   sessionId: string,
   file: File,
   onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<SessionAttachmentUploadResponse> {
+  const wait = (delay: number) => new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('附件上传已取消'));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', cancel);
+      resolve();
+    }, delay);
+    const cancel = () => {
+      window.clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
+      reject(new Error('附件上传已取消'));
+    };
+    signal?.addEventListener('abort', cancel, { once: true });
+  });
   const total = file.size;
   onProgress?.(0, total);
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  await wait(80);
   onProgress?.(Math.floor(total * 0.55), total);
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await wait(100);
   onProgress?.(total, total);
   const tokenSource = `${sessionId}:${file.name}:${file.size}`;
   let token = '';
@@ -219,6 +236,7 @@ export async function mockUploadSessionAttachment(
   return {
     ok: true,
     filename: file.name,
+    attachmentId: `upload_${token32}${extension}`,
     displayName: file.name,
     storageFilename: `upload_${token32}${extension}`,
     href: `/api/attachments/upload_${token32}${extension}?session_id=${encodeURIComponent(sessionId)}`,

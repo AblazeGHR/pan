@@ -343,6 +343,28 @@ describe('InputRow send queue wiring', () => {
     expect(uploadSessionAttachment).not.toHaveBeenCalled();
   });
 
+  it('aborts an in-flight real upload when its pending chip is cancelled', async () => {
+    setBusySession();
+    let uploadSignal!: AbortSignal;
+    vi.mocked(uploadSessionAttachment).mockImplementationOnce(async (
+      _sessionId,
+      _file,
+      _onProgress,
+      signal,
+    ) => {
+      uploadSignal = signal!;
+      return new Promise(() => {});
+    });
+    render(<InputRow />);
+    const file = new File(['cancel real'], 'cancel-real.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
+
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: '取消附件 cancel-real.txt' }));
+    expect(uploadSignal.aborted).toBe(true);
+    expect(screen.queryByTestId('server-attachments')).toBeNull();
+  });
+
   it('clears inline attachments and restores the draft belonging to the selected session', async () => {
     setBusySession();
     useSessionStore.setState((state) => ({
@@ -462,7 +484,9 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
     const file = new File(['client'], 'client.txt', { type: 'text/plain' });
     fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
-    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith('s1', file, expect.any(Function)));
+    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith(
+      's1', file, expect.any(Function), expect.any(AbortSignal),
+    ));
     await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('client.txt'));
 
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });

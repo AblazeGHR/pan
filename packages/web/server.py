@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse
@@ -1944,6 +1944,9 @@ def _attachment_markdown(display_name: str, href: str) -> str:
 
 
 _LEGACY_ATTACHMENT_RE = re.compile(r'@"([^"\r\n]+)"')
+_MESSAGE_ATTACHMENT_HREF_RE = re.compile(
+    r"\]\((?P<href>/api/(?:attachments/[^)\s]+|fs/read\?[^)\s]+))\)"
+)
 
 
 def _legacy_attachment_href(session_id: str, raw_path: str) -> str:
@@ -1972,6 +1975,75 @@ def _normalize_legacy_attachment_links(session_id: str, content: str) -> str:
         )
 
     return _LEGACY_ATTACHMENT_RE.sub(replace, content)
+
+
+def _attachment_reference_error(session_id: str, href: str) -> dict | None:
+    """Validate one server-generated attachment href for a target session.
+
+    The browser still submits the established Markdown text protocol.  This
+    check makes that protocol authoritative at the queue boundary: a client
+    cannot submit another session's upload or a file that disappeared after
+    the UI's pre-send check.  Ordinary external Markdown links and legacy
+    ``@"path"`` markers are intentionally outside this validator.
+    """
+    parsed = urlsplit(href)
+    if parsed.scheme or parsed.netloc or parsed.fragment:
+        return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    if query.get("session_id", [None]) != [session_id]:
+        return {
+            "code": "attachment_session_mismatch",
+            "message": "Attachment belongs to another session",
+        }
+
+    if parsed.path.startswith("/api/attachments/"):
+        storage_filename = unquote(parsed.path.rsplit("/", 1)[-1])
+        if not re.fullmatch(
+            r"upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?",
+            storage_filename,
+        ):
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        root = _attachment_session_dir(session_id).resolve()
+        target = (root / storage_filename).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        if not target.is_file():
+            return {
+                "code": "attachment_not_found",
+                "message": "Attachment is no longer available",
+            }
+        return None
+
+    if parsed.path == "/api/fs/read":
+        if query.get("download", [None]) != ["1"] or query.get("path", [None])[0] is None:
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        try:
+            target = _resolve_fs_path(session_id, query["path"][0])
+        except (ValueError, OSError):
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        if not target.is_file():
+            return {
+                "code": "attachment_not_found",
+                "message": "Attachment is no longer available",
+            }
+        return None
+
+    return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+
+
+def _validate_message_attachment_references(session_id: str, text: str) -> dict | None:
+    """Return the first invalid internal attachment reference in message text."""
+    # Preserve the queue endpoint's established session-not-found response;
+    # worker.enqueue_user_message remains authoritative for that case.
+    if sess.get(session_id) is None:
+        return None
+    for match in _MESSAGE_ATTACHMENT_HREF_RE.finditer(text):
+        error = _attachment_reference_error(session_id, match.group("href"))
+        if error is not None:
+            return error
+    return None
 
 
 def _api_history(session_id: str, history: list[dict]) -> list[dict]:
@@ -2018,6 +2090,9 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
             # new clients must use displayName for the label and href for the
             # download target.
             "filename": display_name,
+            # The opaque storage filename is the stable server-side identity;
+            # keep it separate from the client-local composer node id.
+            "attachmentId": storage_filename,
             "displayName": display_name,
             "storageFilename": storage_filename,
             "href": _attachment_href(session_id, storage_filename),
@@ -2242,6 +2317,16 @@ async def ws_endpoint(ws: WebSocket):
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
                 if session_id and text:
+                    if isinstance(text, str):
+                        attachment_error = _validate_message_attachment_references(session_id, text)
+                        if attachment_error is not None:
+                            await ws.send_json({
+                                "type": "user_inject.rejected",
+                                "sessionId": session_id,
+                                "message": attachment_error["message"],
+                                "error": attachment_error,
+                            })
+                            continue
                     client_message_id = msg.get("clientMessageId")
                     if client_message_id is not None and not isinstance(client_message_id, str):
                         await ws.send_json({"type": "user_inject.rejected",
@@ -2816,6 +2901,9 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
     if not isinstance(text, str) or not text.strip():
         return {"ok": False, "error": {"code": "text_required",
                                          "message": "text is required"}}
+    attachment_error = _validate_message_attachment_references(session_id, text)
+    if attachment_error is not None:
+        return {"ok": False, "error": attachment_error}
     client_id = data.get("clientMessageId")
     if client_id is not None and (not isinstance(client_id, str) or len(client_id) > 512):
         return {"ok": False, "error": {"code": "invalid_client_message_id",

@@ -255,6 +255,7 @@ export function InputRow() {
     ? useSessionStore.getState().inputDrafts[currentSessionId] || ''
     : '');
   const clientAttachmentInputRef = useRef<HTMLInputElement>(null);
+  const uploadControllersRef = useRef(new Map<string, AbortController>());
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
@@ -306,9 +307,14 @@ export function InputRow() {
   }, [currentSessionId]);
 
   useEffect(() => {
+    const uploadControllers = uploadControllersRef.current;
     setAttachments([]);
     setAttachmentBrowserOpen(false);
     setAttachmentMenuOpen(false);
+    return () => {
+      for (const controller of uploadControllers.values()) controller.abort();
+      uploadControllers.clear();
+    };
   }, [currentSessionId]);
 
   // The editor can be a separate route, so it hands a server path to the
@@ -393,6 +399,8 @@ export function InputRow() {
   const uploadClientAttachment = useCallback(async (attachment: PendingAttachment) => {
     const sessionId = currentSessionId;
     if (!sessionId || !attachment.file) return;
+    const controller = new AbortController();
+    uploadControllersRef.current.set(attachment.id, controller);
     try {
       const upload = isMockMode() ? mockUploadSessionAttachment : uploadSessionAttachment;
       const uploaded = await upload(
@@ -401,6 +409,7 @@ export function InputRow() {
         (loaded, total) => setAttachments((current) => current.map((item) => item.id === attachment.id
           ? { ...item, loadedBytes: loaded, totalBytes: total }
           : item)),
+        controller.signal,
       );
       setAttachments((current) => current.map((item) => item.id === attachment.id
         ? {
@@ -418,6 +427,10 @@ export function InputRow() {
       setAttachments((current) => current.map((item) => item.id === attachment.id
         ? { ...item, status: 'error', error: error instanceof Error ? error.message : String(error) }
         : item));
+    } finally {
+      if (uploadControllersRef.current.get(attachment.id) === controller) {
+        uploadControllersRef.current.delete(attachment.id);
+      }
     }
   }, [currentSessionId]);
 
@@ -818,7 +831,11 @@ export function InputRow() {
                     type="button"
                     aria-label={`取消附件 ${attachment.displayName}`}
                     className="ml-1 text-danger hover:text-danger/80"
-                    onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+                    onClick={() => {
+                      uploadControllersRef.current.get(attachment.id)?.abort();
+                      uploadControllersRef.current.delete(attachment.id);
+                      setAttachments((current) => current.filter((item) => item.id !== attachment.id));
+                    }}
                   >
                     <X size={13} />
                   </button>
