@@ -7,7 +7,7 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`c48c3a9`；T-024 解释器配置实现及工作流记录已合入本地 main；未 push。
+- `main`：`2073aa2`；T-025 文件输入与结构化附件协议已合入本地 main；未 push。
 - `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
 - `main` 既有 dirty/untracked：`docs/references/cli-adapter-special-behaviors.md`；本次将按用户要求提交。`.vite/` 与 `docs/developLog.md` 已加入 ignore。
 - 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧 overview 已删除。
@@ -303,7 +303,7 @@
 - 已实现：`AttachmentRef`/`MessagePart` 类型、session sidecar registry、客户端上传与服务端文件注册统一 opaque id、queue/WS/history/retry/restart parts 保留、text/Markdown/`@"path"` 兼容、adapter 边界 Markdown fallback、mock=1 内存语义、目录/entry/handle/URI 拒绝、native MIME 优先和取消上传。
 - 已验证：相关前端 Vitest 59/59；相关后端/API/WS/queue/history 63/63；8765 mock Chromium 6/6；tsc、build、eslint（0 error）、diff check 通过。全量 Vitest 456/466，10 项为既有 Toast jsdom/NewSessionModal 基线；全量 pytest 因 QQ 可选依赖 `nonebot` 缺失在 collection 阶段阻塞。真实后端 Chromium 8765 套件另有既有 streaming scroll 基线失败，其余用例通过。
 - 未验证/边界：Firefox/Safari/移动端、生产链路、目录递归上传；目录能力以后单独建立任务。8768 未启动、未请求、未操作。
-- 提交/合并：功能提交 `6919376`；合并提交 `待本次合并提交完成后写入`
+- 提交/合并：功能提交 `6919376`；合并提交 `2073aa2`；未 push
 - 有序待办：
   - [x] 普通文件 paste/drop、上传进度/取消/重试/去重/会话切换
   - [x] 结构化 parts 贯通 queue、WebSocket、history、重试与恢复
