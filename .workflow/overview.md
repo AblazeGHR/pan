@@ -16,8 +16,8 @@
 
 - 整体状态：T-027 并行实施中；紧急批次合入并通知后，继续推进所有设计与任务直到彻底阻塞
 - 当前焦点：输入框/发送事务与路径投影/editor 拖动；QQ 通道调查已取消
-- 可执行：T-027.2；T-027.1 待开发者验收
-- TA 执行中：T-027.2 `ses_a59709c910ad4859`（Luna high，worker-3）；T-027.1 `ses_7079ef10a62ddf5b` 已完成并合入 main
+- 可执行：无；T-027.1/T-027.2 正在补齐契约与真实 E2E
+- TA 执行中：T-027.1 `ses_7079ef10a62ddf5b`（Luna xhigh，worker-2）；T-027.2 `ses_a59709c910ad4859`（Luna high，worker-3）
 - 后置动作：T-027.1/T-027.2 完成、发送体验 E2E 通过并合入 main 后，通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围
@@ -346,11 +346,11 @@
 ### T-027.1：输入框、发送事务与粘贴/拖入状态修复
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入 main，待开发者验收；不得修改 T-027.2 的服务端/renderer 文件
+- 当前阶段：已合入 main；正在补齐 T-027.2 契约并复验，之后待开发者验收；不得修改 T-027.2 的服务端/renderer 文件
 - 历史阻塞：共享 worktree 元数据、依赖和测试环境曾阻塞验证，已通过正常重试解决；未删除锁、未修改 ACL、未使用替代 index。
 - 目标：修复 Send 乐观清空与失败恢复、Session/revision 竞态、DOM/parts/draft 清理；统一附件 occurrence/resource 状态；修复普通输入、附件拖动重排、Ctrl+A/Backspace/Delete；处理文件 paste/drop、网页 HTML 转纯文本、图片/HTML 文件保持原文件上传、目录整批拒绝和客户端路径不可信。
 - 工作树/分支：`D:\project\pan-worktrees\input-attachment-composer-send-20260915`；`feature/input-attachment-composer-send-20260915`
-- TA/任务：`ses_7079ef10a62ddf5b`；`input-attachment-composer-send-20260915`；Luna xhigh；Worker `worker-2`；已完成
+- TA/任务：`ses_7079ef10a62ddf5b`；`input-attachment-composer-send-20260915`；Luna xhigh；Worker `worker-2`；补齐跨 Session/line range 契约中
 - 提交/整合：功能提交 `33aa52ada9cbe92037b5e44b1a90c3820776299d`；已合入 main，合并提交 `7a9c7e89cd8e313d6e506b39ba99842465603a8a`；未 push
 - 测试：定向 Vitest 4 files / 73 tests、TypeScript、ESLint、Prettier 通过；隔离 Chromium E2E 6/6 通过；未做真实 8768 API/服务端集成
 - 有序待办：
@@ -363,10 +363,10 @@
 ### T-027.2：服务端路径投影与 editor 文件链接跨 Session 拖动
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：实现与验证中；不得修改 T-027.1 的 composer/send 文件
+- 当前阶段：实现完成，正在修复真实 editor E2E fixture 并做组合验证；不得修改 T-027.1 的 composer/send 文件
 - 目标：将服务端文件/附件在 Worker 文本中投影为实时绝对路径，在 UI 中继续使用安全 editor/download href；让对话正文中渲染出的文件路径/editor 链接可跨 Session 拖入并复用服务端文件，不重复上传；保留打开、下载、行号定位、Windows/UNC/file URI 和旧 Markdown 兼容及权限校验。
 - 工作树/分支：`D:\project\pan-worktrees\attachment-path-editor-drag-20260915`；`feature/attachment-path-editor-drag-20260915`
-- TA/任务：`ses_a59709c910ad4859`；`attachment-path-editor-drag-20260915`；Luna high；Worker `worker-3`
+- TA/任务：`ses_a59709c910ad4859`；`attachment-path-editor-drag-20260915`；Luna high；Worker `worker-3`；复验真实 editor 文件链接场景中
 - 有序待办：
   - [ ] 完成服务端/renderer/drag payload 实现并添加回归测试
   - [ ] 完成后端/API/结构化协议、前端定向和浏览器验证
