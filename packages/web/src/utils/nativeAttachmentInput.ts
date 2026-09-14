@@ -2,10 +2,7 @@
  * only; client paths, fakepath values and file URI strings are never used. */
 
 export type NativeAttachmentInput =
-  | { kind: 'files'; files: File[] }
-  | { kind: 'directory' }
-  | { kind: 'uri' }
-  | { kind: 'none' };
+  { kind: 'files'; files: File[] } | { kind: 'directory' } | { kind: 'uri' } | { kind: 'none' };
 
 export const PAN_ATTACHMENT_MIME = 'application/x-pan-attachment';
 
@@ -17,7 +14,15 @@ function looksLikeFileUri(value: string): boolean {
   return /(?:^|\r?\n)\s*file:\/\//i.test(value);
 }
 
-export function inspectNativeAttachmentInput(dataTransfer: DataTransfer | null): NativeAttachmentInput {
+function looksLikePathOrWebUri(value: string): boolean {
+  return /(?:^|\r?\n)\s*(?:https?:\/\/|file:\/\/|[a-z]:[\\/]|[\\/]?[a-z]:[\\/]|\\\\|\/\/)/i.test(
+    value,
+  );
+}
+
+export function inspectNativeAttachmentInput(
+  dataTransfer: DataTransfer | null,
+): NativeAttachmentInput {
   if (!dataTransfer) return { kind: 'none' };
   let directory = false;
   for (const item of Array.from(dataTransfer.items || [])) {
@@ -33,9 +38,19 @@ export function inspectNativeAttachmentInput(dataTransfer: DataTransfer | null):
     if (!item.getAsFile?.() && !entry) directory = true;
   }
   const files = Array.from(dataTransfer.files || []) as File[];
-  if (files.length > 0) return { kind: 'files', files };
+  // A directory mixed with files is still one invalid batch.  Returning the
+  // files first would silently upload the valid-looking subset and violate
+  // the all-or-nothing directory rule.
   if (directory) return { kind: 'directory' };
+  if (files.length > 0) return { kind: 'files', files };
   const uriList = dataTransfer.getData?.('text/uri-list') || '';
-  if (looksLikeFileUri(uriList)) return { kind: 'uri' };
+  const plainText = dataTransfer.getData?.('text/plain') || '';
+  if (
+    looksLikeFileUri(uriList) ||
+    looksLikePathOrWebUri(uriList) ||
+    looksLikePathOrWebUri(plainText)
+  ) {
+    return { kind: 'uri' };
+  }
   return { kind: 'none' };
 }

@@ -38,8 +38,14 @@ beforeEach(() => {
   localStorage.clear();
   useSessionStore.setState({ currentSessionId: 's1', sessions: [], currentMessages: [] });
   useQueueStore.setState({
-    queues: {}, agentQueues: {}, edits: {}, batchSend: {}, sendingId: null,
-    panelOpen: false, agentQueueLoadSeq: {}, queueRevisions: {},
+    queues: {},
+    agentQueues: {},
+    edits: {},
+    batchSend: {},
+    sendingId: null,
+    panelOpen: false,
+    agentQueueLoadSeq: {},
+    queueRevisions: {},
   });
   vi.clearAllMocks();
 });
@@ -78,6 +84,20 @@ describe('server-backed queue store', () => {
     expect(localStorage.getItem('pan.sendQueue.s1')).toBeNull();
   });
 
+  it('uses the captured Session and client id when the UI transaction outlives a switch', async () => {
+    const queued = item('q-captured', 'captured');
+    api.enqueueSessionMessage.mockResolvedValue({ item: queued, queueRevision: 6 });
+    useSessionStore.setState({ currentSessionId: 's2' });
+
+    await expect(
+      useQueueStore.getState().enqueue('captured', undefined, 's1', 'client-stable'),
+    ).resolves.toBe(true);
+
+    expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'captured', 'client-stable');
+    expect(useQueueStore.getState().queues.s1).toEqual([queued]);
+    expect(useQueueStore.getState().queues.s2).toBeUndefined();
+  });
+
   it('edits a queued user item through the server while retaining its identity', async () => {
     const first = item('q-first', 'first');
     const edited = { ...first, text: 'first edited', meta: { ...first.meta, revision: 2 } };
@@ -89,7 +109,9 @@ describe('server-backed queue store', () => {
     useQueueStore.getState().updateEditDraft('first edited');
     useQueueStore.getState().saveEdit();
     await vi.waitFor(() => expect(api.updateSessionQueueItem).toHaveBeenCalled());
-    await vi.waitFor(() => expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('first edited'));
+    await vi.waitFor(() =>
+      expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('first edited'),
+    );
 
     expect(api.updateSessionQueueItem).toHaveBeenCalledWith('s1', 'q-first', 'first edited', 1);
     expect(useQueueStore.getState().queues.s1?.[0]?.id).toBe('q-first');
@@ -108,10 +130,16 @@ describe('server-backed queue store', () => {
     await useQueueStore.getState().moveQueueItem('q-agent', 1);
 
     expect(api.reorderSessionQueue).toHaveBeenCalledWith(
-      's1', ['q-user', 'q-report', 'q-agent', 'q-qq'], 8,
+      's1',
+      ['q-user', 'q-report', 'q-agent', 'q-qq'],
+      8,
     );
-    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id))
-      .toEqual(['q-user', 'q-report', 'q-agent', 'q-qq']);
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual([
+      'q-user',
+      'q-report',
+      'q-agent',
+      'q-qq',
+    ]);
   });
 
   it('removes only the requested queued item through the server', async () => {
@@ -143,8 +171,9 @@ describe('server-backed queue store', () => {
       queueRevision: 5,
     });
 
-    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id))
-      .toEqual(['q-still-queued']);
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual([
+      'q-still-queued',
+    ]);
     expect(useQueueStore.getState().queueRevisions.s1).toBe(5);
   });
 });
