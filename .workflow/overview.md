@@ -17,7 +17,7 @@
 - 整体状态：T-027 已合入并完成 QQ 通知；T-030、T-031、T-032、T-033、T-035 五路并行执行中；继续推进所有设计与任务直到彻底阻塞
 - 当前焦点：T-030 done 指示灯延迟修复；T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；T-032 MA→TA 排队报告粒度调查
 - 可执行：无（T-030、T-031、T-032、T-033、T-035 已派发；其余任务均待开发者验收或被用户暂停/取消）
-- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4，隔离端口 8767）；T-032 `ses_704ba1fd334045b6`（codex `gpt-5.6-luna`，high，bypass，worker-1，仅调查）；T-033 `ses_1385abb15d4b3b3e`（codex `gpt-5.6-luna`，high，bypass，worker-5，隔离端口 8765）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-6）
+- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4，隔离端口 8767）；T-032 `ses_704ba1fd334045b6`（codex `gpt-5.6-luna`，high，bypass，worker-1，仅调查）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-7，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-6）
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - TA 模型规则（2026-09-15 用户会话）：新 TA 优先 `MODEL-1`（codex `gpt-5.6-luna` high）；Codex 五小时额度触发限额后按 `MODEL-3` 级联（`cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 DeepSeek）。已派发中的 TA 不回溯切换模型。
 - 用户追加口径（2026-09-15，Codex 五小时额度实测 96%）：**新任务直接派 `cbc deepseek-v4.1-flash`**（T-035 即按此派发）；**已在跑的 codex luna 任务（T-031 / T-032 / T-033）不重做、不再消耗 Codex 额度，待其停下后用 `session_handoff` 接续到 `cbc deepseek-v4.1-flash`**，接续时以原任务 brief + worktree 现场 + 源 session 历史为交接材料。
@@ -489,16 +489,17 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
 - 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告
-- 当前阶段：验证执行中（TA running）
-- 下一动作：等待 T-033 报告；其 A/B 排队行为证据回填 T-032
-- 阻塞：无
+- 当前阶段：验证执行中（首轮因端口阻塞无真实证据，已交接到 cbc/deepseek 后继续）
+- 下一动作：等待接续后的 T-033（`ses_c8671119a2dd9bb4`）报告；其 A/B 排队行为证据回填 T-032
+- 阻塞：无（环境阻塞 E2E-ENV-001 已绕开）
 - 目标：在 8765 隔离实例上验证 Worker 生命周期、持久队列投递、完成报告链路与 zombie/watchdog 行为，补齐多个已合入批次共同记录的“未做真实服务/运行时 E2E”缺口。
 - 验证范围：spawn → 执行 → done → idle 回收 → 自动重建与 `cliSessionId` resume；assign 幂等与 send 排队 / 无 worker 入队 / watchdog 拉起；`queue_pending` 跨重启恢复；`report_subscribe` 收到 done/error 报告字段；zombie 报告；A/B 排队可观察性行为取证；`send_force` restart、不存在/已删 session、服务重启恢复等边界。
 - 边界：只读验证，不得修改产品代码；不 commit/合入/push；不碰 8768/8767、QQ 服务、用户 dirty 文件；结束必须停止实例并释放端口。
 - 工作树/分支：`D:\project\pan-worktrees\runtime-queue-report-e2e-20260915`；`audit/runtime-queue-report-e2e-20260915`；基线 `main@52a434b`
-- TA/任务：`ses_1385abb15d4b3b3e`；`runtime-queue-report-e2e-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-5`；已 `report_subscribe`
+- TA/任务：原 TA `ses_1385abb15d4b3b3e`（codex `gpt-5.6-luna`，worker-5，已归档为 `(archive) runtime-queue-report-e2e-20260915`）→ 接续 TA `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，effort `high`，`bypassPermissions`，Worker `worker-7`，隔离端口 8766）；已 `report_subscribe`；按用户 2026-09-15 口径不重做、用 `session_handoff` 接续
+- 环境阻塞记录（E2E-ENV-001，已绕开）：原定端口 `8765` 被 PID 7612 占用——另一 worktree `input-attachment-composer-send-20260915` 的 `vite preview`（01:26 启动的残留进程）。MA 核验 `netstat`/`Win32_Process` 后裁定：**不停止他人进程**，改分配 `8766`（`8767` 归 T-031）。该残留进程仍占用 8765，如需回收须用户确认。
 - 提交：无（验证任务，不产生产品代码改动）
-- 测试/未验证项：本任务自身即运行时验证；真人开发者验收仍待用户
+- 测试/未验证项：**已取得**——源码审查（入口行号见原报告）、`compileall` + `git diff --check` 通过、进程内 Python 回归 77 passed（`test_worker_watchdog` / `test_worker_global_watchdog` / `test_report_subscription` / `test_queue_restart_hardening`）；**未取得**——真实服务/API/WS、真实 CLI Worker 子进程、`queue_pending` 跨重启恢复、zombie 报告、A/B 排队观察（首轮未启动实例）。真人开发者验收仍待用户
 - 有序待办：
   - [ ] 8765 隔离实例启动与端口/数据根核对
   - [ ] Worker 生命周期用例
