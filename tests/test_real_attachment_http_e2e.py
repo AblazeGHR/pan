@@ -63,7 +63,9 @@ def test_real_http_upload_reference_send_and_restart(attachment_runtime):
     assert download.status_code == 200
     assert download.content == "附件 body".encode("utf-8")
 
-    message = f"前置 [{uploaded['displayName']}]({uploaded['href']}) 后置"
+    # Legacy text callers are upgraded to canonical parts; the server-owned
+    # display name is Markdown-escaped before the safe href is persisted.
+    message = f"前置 [需求说明 \\[v1\\]\\(最终\\).txt]({uploaded['href']}) 后置"
     queued = runtime.request(
         "POST", f"/api/sessions/{first_id}/queue",
         json={"text": message, "clientMessageId": "attachment-http-1"},

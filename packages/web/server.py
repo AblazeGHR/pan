@@ -2098,7 +2098,7 @@ def _attachment_markdown(display_name: str, href: str) -> str:
 
 _LEGACY_ATTACHMENT_RE = re.compile(r'@"([^"\r\n]+)"')
 _MESSAGE_ATTACHMENT_HREF_RE = re.compile(
-    r"\]\((?P<href>/api/(?:attachments/(?:ref/|editor/|[^)\s]+)|fs/read\?[^)\s]+))\)"
+    r"\[(?:\\.|[^\]\\\r\n])*\]\((?P<href>/api/(?:attachments/(?:ref/|editor/|[^)\s]+)|fs/read\?[^)\s]+))\)"
 )
 
 

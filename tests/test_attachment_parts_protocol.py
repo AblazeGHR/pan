@@ -180,7 +180,7 @@ def test_legacy_markdown_attachment_is_upgraded_for_worker_projection(monkeypatc
 
     assert result["ok"] is True
     item = first.queue_pending[0]
-    assert item["parts"][0] == {"type": "text", "text": "请读取 [旧链接"}
+    assert item["parts"][0] == {"type": "text", "text": "请读取 "}
     assert item["parts"][1]["type"] == "attachment"
     assert item["parts"][1]["__serverPath"] == str(source.resolve())
     assert "/api/fs/read" not in item["text"]
