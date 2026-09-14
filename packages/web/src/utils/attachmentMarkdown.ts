@@ -6,7 +6,8 @@ export interface AttachmentMarkdownRef {
   location?: AttachmentLocation;
 }
 
-const INTERNAL_ATTACHMENT_PATH = /^\/api\/(?:attachments\/[^/?#]+|fs\/read(?:\?|$))/;
+const INTERNAL_ATTACHMENT_PATH = /^\/api\/(?:attachments\/(?:ref\/|editor\/|upload_)[^/?#]+|fs\/read(?:\?|$))/;
+const OPAQUE_ATTACHMENT_PATH = /^\/api\/attachments\/(?:ref|editor)\/(?:att_[A-Za-z0-9]{32}|upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?)$/;
 
 /** Escape label syntax while preserving the displayed filename. */
 export function escapeMarkdownLabel(displayName: string): string {
@@ -34,10 +35,9 @@ export function isSafeAttachmentHref(href: string): boolean {
     }
     if (url.pathname.startsWith('/api/attachments/')) {
       return (
-        /^\/api\/attachments\/upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?$/.test(
-          url.pathname,
-        ) && !!url.searchParams.get('session_id')
-      );
+        /^\/api\/attachments\/upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?$/.test(url.pathname)
+        || OPAQUE_ATTACHMENT_PATH.test(url.pathname)
+      ) && !!url.searchParams.get('session_id');
     }
     return (
       !!url.searchParams.get('session_id') &&
@@ -47,6 +47,11 @@ export function isSafeAttachmentHref(href: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Download href for a server-owned opaque reference; contains no file path. */
+export function serverAttachmentDownloadHref(sessionId: string, attachmentId: string): string {
+  return `/api/attachments/ref/${encodeURIComponent(attachmentId)}?session_id=${encodeURIComponent(sessionId)}`;
 }
 
 function locationFragment(location: AttachmentLocation | undefined): string {

@@ -24,6 +24,9 @@ export type MessagePart =
       mimeType?: string;
       size?: number;
       source?: 'upload' | 'server_file';
+      /** Legacy line fields accepted while older parts are reconstructed. */
+      line?: number;
+      endLine?: number;
       location?: AttachmentLocation;
     };
 

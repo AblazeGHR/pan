@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,7 +10,7 @@ import { useEditorStore } from '@/stores/editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
 import { normalizeLegacyAttachmentLinks } from '@/utils/attachmentMarkdown';
-import { isSafeAttachmentHref } from '@/utils/attachmentMarkdown';
+import { isSafeAttachmentHref, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { writeAttachmentDragPayload } from '@/utils/attachmentDrag';
 import 'highlight.js/styles/github-dark.css';
 
@@ -29,9 +29,22 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
   const navigate = useNavigate();
   const currentSession = useCurrentSession();
   const showToast = useUIStore((s) => s.showToast);
-  const draggableAttachment = !!href && isSafeAttachmentHref(href);
+  const draggedRef = useRef(false);
+  const dragResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileLink = href ? parseMarkdownFileLink(href) : null;
+  const draggableAttachment = !!href && (
+    isSafeAttachmentHref(href)
+    || !!fileLink?.serverAttachmentId
+  );
 
   const handleClick = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      if (dragResetTimerRef.current !== null) clearTimeout(dragResetTimerRef.current);
+      dragResetTimerRef.current = null;
+      event.preventDefault();
+      return;
+    }
     if (!href) return;
     const fileLink = parseMarkdownFileLink(href);
     if (!fileLink) return;
@@ -46,22 +59,65 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
       return;
     }
 
+    let editorPath = fileLink.path;
+    if (fileLink.serverAttachmentId) {
+      try {
+        const response = await fetch(
+          `/api/attachments/editor/${encodeURIComponent(fileLink.serverAttachmentId)}`
+          + `?session_id=${encodeURIComponent(fileLink.serverSessionId || currentSession.id)}`,
+        );
+        const metadata = await response.json() as { ok?: boolean; path?: unknown };
+        if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
+          throw new Error('文件引用已失效');
+        }
+        editorPath = metadata.path;
+      } catch (error) {
+        showToast(`打开文件失败：${error instanceof Error ? error.message : '文件引用已失效'}`, 'error');
+        return;
+      }
+    }
+
     // Keep the existing editor root in sync before opening. This also covers
     // links clicked in Chat/DetailPanel before EditorView has mounted.
     await useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
-    const opened = await useEditorStore.getState().openFile(fileLink.path, fileLink.location);
+    const location = fileLink.location && editorPath
+      ? { ...fileLink.location, path: editorPath }
+      : fileLink.location;
+    const opened = await useEditorStore.getState().openFile(editorPath, location);
     if (opened) navigate('/editor');
   };
 
   const handleDragStart = (event: React.DragEvent<HTMLAnchorElement>) => {
     if (!draggableAttachment || !href) return;
+    draggedRef.current = true;
+    const dragId = fileLink?.serverAttachmentId
+      || attachmentId
+      || extractOpaqueAttachmentId(href)
+      || extractUploadAttachmentId(href);
+    const sourceSessionId = fileLink?.serverSessionId || extractAttachmentSessionId(href) || currentSession?.id;
+    const dragHref = dragId && sourceSessionId
+      ? serverAttachmentDownloadHref(sourceSessionId, dragId)
+      : href;
     writeAttachmentDragPayload(event.dataTransfer, {
       displayName: extractLinkText(children),
-      href,
-      path: extractServerFilePath(href),
-      serverAttachmentId: attachmentId,
+      href: dragHref,
+      serverAttachmentId: dragId,
+      sourceSessionId,
+      ...(fileLink?.location?.line ? {
+        location: { line: fileLink.location.line, endLine: fileLink.location.endLine },
+      } : {}),
       source: 'message',
     });
+  };
+
+  const handleDragEnd = () => {
+    // A normal click never reaches dragstart; clearing here also prevents a
+    // later unrelated click from being swallowed after a cancelled drag.
+    if (dragResetTimerRef.current !== null) clearTimeout(dragResetTimerRef.current);
+    dragResetTimerRef.current = setTimeout(() => {
+      draggedRef.current = false;
+      dragResetTimerRef.current = null;
+    }, 0);
   };
 
   return (
@@ -70,6 +126,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
       draggable={draggableAttachment}
       data-testid={draggableAttachment ? 'draggable-attachment' : undefined}
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={(event) => void handleClick(event)}
       {...props}
     >
@@ -89,10 +146,19 @@ function extractLinkText(node: React.ReactNode): string {
   return 'attachment';
 }
 
-function extractServerFilePath(href: string): string | undefined {
-  if (!href.startsWith('/api/fs/read?')) return undefined;
+function extractUploadAttachmentId(href: string): string | undefined {
+  const match = href.match(/\/api\/attachments\/(upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?)/);
+  return match?.[1];
+}
+
+function extractOpaqueAttachmentId(href: string): string | undefined {
+  const match = href.match(/\/api\/attachments\/(?:ref|editor)\/(att_[A-Za-z0-9]{32}|upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?)/);
+  return match?.[1];
+}
+
+function extractAttachmentSessionId(href: string): string | undefined {
   try {
-    return new URL(href, window.location.origin).searchParams.get('path') || undefined;
+    return new URL(href, window.location.origin).searchParams.get('session_id') || undefined;
   } catch {
     return undefined;
   }

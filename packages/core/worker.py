@@ -45,6 +45,7 @@ from .adapters import (
 from .adapters.base import SYSTEM_PROMPT_ARG_MAX_CHARS
 from .config import load_config
 from .cli_diagnostics import format_cli_spawn_error
+from .attachment_projection import project_message_parts, public_message_parts
 
 _log = logging.getLogger(__name__)
 
@@ -1525,8 +1526,7 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
             "role": "user",
             "content": delivered_text,
             "queueItemIds": delivered_ids,
-            **({"parts": [dict(part) for part in items[0].get("parts", [])
-                           if isinstance(part, dict)]}
+            **({"parts": public_message_parts(items[0].get("parts"))}
                if _queue_item_kind(items[0]) == "task" and isinstance(items[0].get("parts"), list)
                else {}),
         }],
@@ -1553,19 +1553,26 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         w._current_seq = items[0].get("seq")
         w._current_task_id = items[0].get("taskId")
         w._current_source_session_id = items[0].get("sourceSessionId")
-        text = await _maybe_inject_memory(s, items[0]["text"])
+        history_text = items[0]["text"]
     else:
         source = "report"
         w._current_seq = None
         w._current_task_id = None
         w._current_source_session_id = None
-        text = await _maybe_inject_memory(s, _format_report_batch(items))
+        history_text = _format_report_batch(items)
     w._current_queue_item = items[0] if kind == "task" else None
     w._current_report_items = list(items) if kind == "report" else []
     w._current_handoff_acked = False
     history_added = False
     try:
-        history_added = await _reserve_queue_unit(w, s, items, text)
+        projected_text = (
+            project_message_parts(items[0].get("parts"), history_text)
+            if kind == "task" else history_text
+        )
+        text = await _maybe_inject_memory(s, projected_text)
+        # History/UI keeps the safe Markdown fallback, while only the adapter
+        # receives the server-path projection in ``text``.
+        history_added = await _reserve_queue_unit(w, s, items, history_text)
         if not history_added and any(_delivery_state(item) == _DELIVERY_QUEUED
                                      for item in items):
             # A failed reservation has already placed the item back in queue.
@@ -5006,7 +5013,11 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     await _bcast({"type": "queue.item_added", "sessionId": s.id,
                   "queueItemId": item["id"],
                   "queueRevision": s.queue_revision,
-                  "item": dict(item)})
+                  "item": {
+                      **item,
+                      **({"parts": public_message_parts(item.get("parts"))}
+                         if isinstance(item.get("parts"), list) else {}),
+                  }})
     return item, None
 
 
