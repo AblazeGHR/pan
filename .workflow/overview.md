@@ -321,6 +321,7 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 当前阶段：TA 修复中，未合入 main
 - 目标：给 AI/Worker/adapter 的文本使用服务端真实绝对路径；UI 消息渲染时再将已验证的路径或 attachmentId 转换为 editor/下载 API 链接。
+- 新增需求（2026-09-14）：对话中出现的、非附件 chip 的本地文件 Markdown 链接也可直接拖入输入框；支持 Windows/UNC/file URI 及带行号目标，行号只用于定位，不进入附件实际路径；普通 HTTP 网页链接不误判为附件。
 - 产品语义：客户端文件上传后使用服务端实际存储路径；服务端文件使用已验证实际路径；浏览器不提交或信任客户端绝对路径；上方 chip 和编辑器内嵌附件的发送语义保持不变。
 - 开发者反馈（2026-09-14）：点击 Send 后输入框内文本没有清空；需要检查结构化 parts 入队成功后的 composer、draft 和附件状态清理时序。
 - 兼容范围：结构化 AttachmentRef/parts、旧 text/Markdown、旧 `@"path"`、旧 `/api` history、queue、WebSocket、history、重试和重启恢复。
@@ -330,6 +331,7 @@
   - [ ] 审计当前 AI 文本、结构化 parts 和 UI renderer 的所有表示边界
   - [ ] 实现服务端绝对路径到 AI 文本、UI 安全 API href 的分层转换
   - [ ] 修复 Send 成功后输入框文本、draft 和已发送附件未清空的回归
+  - [ ] 支持对话中的本地文件 Markdown 链接拖入并转为服务端附件引用
   - [ ] 添加 client upload/server file、旧历史、跨 session/stale/path traversal 回归
   - [ ] 完成真实 API/浏览器和全量门禁验证
   - [ ] 提交并检查 worktree clean
