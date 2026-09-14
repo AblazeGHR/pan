@@ -7,7 +7,7 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`41aec65`；T-025 文件输入与结构化附件协议已合入并完成归档；未 push。
+- `main`：`3b6b2d7`；T-025 文件输入与结构化附件协议已合入并完成归档；未 push。
 - `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
 - `main` 既有 dirty/untracked：`docs/references/cli-adapter-special-behaviors.md`；本次将按用户要求提交。`.vite/` 与 `docs/developLog.md` 已加入 ignore。
 - 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧 overview 已删除。
@@ -312,18 +312,7 @@
 
 ## 二、已完成但尚未合入 main 的改动
 
-### T-023：文件复制/拖入输入框的客户端与服务端方案调查
-
-- 约束策略：`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：调查完成，方案已决定，未产生业务代码提交
-- 结论：普通文件 paste/drop 使用浏览器 File/FileList 内容；目录第一阶段拒绝；客户端文件、服务端文件和消息附件长期统一为 session-scoped AttachmentRef/parts。
-- TA/证据：`ses_f1bebe98cb738ec3`；调查任务 `attachment-file-paste-drop-design-investigation-20260913`；浏览器 API 探针和方案报告已完成。
-- 有序待办：
-  - [x] 核对浏览器复制文件、拖入文件和目录的事实行为
-  - [x] 审计当前客户端/服务端附件链路与缺口
-  - [x] 给出至少三套可选方案、推荐分阶段方案和产品决策项
-  - [x] 开发者决策方案：A + C
-  - [x] 决策后建立实现任务
+当前暂无。T-023 为纯调查任务，没有待合入的代码或文档改动；其结论和 A + C 决策保留在 DEC-001，并已用于已合入的 T-025。
 
 ## 三、正在进行的任务/改动
 
