@@ -7,21 +7,21 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`3b6b2d7`；T-025 文件输入与结构化附件协议已合入并完成归档；未 push。
-- `practical`：`D:\project\Pan`，`1be6a5c`；本次工作流文档迁移未改动。
-- `main` 既有 dirty/untracked：`docs/references/cli-adapter-special-behaviors.md`；本次将按用户要求提交。`.vite/` 与 `docs/developLog.md` 已加入 ignore。
-- 工作流迁移提交：`3311ee5`；规范文件已进入当前 `main`，旧 overview 已删除。
+- `main`：`52a434b`（2026-09-15 核对，`git status` clean）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；**未 push**。
+- `practical`：`D:\project\Pan`（practical 工作树）；本次工作流文档维护未改动它。
+- TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
+- 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8765`）。
 
 ## 工作流控制
 
-- 整体状态：T-027 已合入并完成 QQ 通知；T-030 执行中、T-031 独立验证并行执行；继续推进所有设计与任务直到彻底阻塞
-- 当前焦点：T-030 done 指示灯延迟调查与修复（前端）；T-031 附件/发送链路真实隔离实例 E2E 验证（验证）
-- 可执行：无（T-030、T-031 已派发；其余任务均待开发者验收）
-- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4）
+- 整体状态：T-027 已合入并完成 QQ 通知；T-030 修复、T-031 附件链路验证、T-032 排队语义调查、T-033 运行时链路验证四路并行执行中；继续推进所有设计与任务直到彻底阻塞
+- 当前焦点：T-030 done 指示灯延迟修复；T-031 / T-033 两项独立真实实例验证；T-032 MA→TA 排队报告粒度调查
+- 可执行：无（T-030、T-031、T-032、T-033 已派发；其余任务均待开发者验收或被用户暂停/取消）
+- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4，隔离端口 8767）；T-032 `ses_704ba1fd334045b6`（codex `gpt-5.6-luna`，high，bypass，worker-1，仅调查）；T-033 `ses_1385abb15d4b3b3e`（codex `gpt-5.6-luna`，high，bypass，worker-5，隔离端口 8765）
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - TA 模型规则（2026-09-15 用户会话）：新 TA 优先 `MODEL-1`（codex `gpt-5.6-luna` high）；Codex 五小时额度触发限额后按 `MODEL-3` 级联（`cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 DeepSeek）。已派发中的 TA 不回溯切换模型。
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
-- 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未v开始推进
+- 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未开始推进
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -458,6 +458,56 @@
   - [ ] 合入 main（本任务无产品代码改动，如发现缺陷则另立返工项）
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：不适用（无产品代码改动）；push：否
+
+### T-032：MA→TA 多任务排队时的报告粒度缺陷（仅调查）
+
+- 优先级/依赖：独立调查；与 T-031、T-033 无文件冲突（纯只读）
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
+- 执行模式：仅调查（只交付解决方案，不实现）
+- 决策门：无；若方案涉及改变队列/报告模型或兼容性，只报告并列出需用户决策点，不自行实施
+- 当前阶段：调查执行中（TA running）
+- 下一动作：等待 T-032 报告，再决定是否把采纳的方案立为独立实现任务（需分配新 T-nnn 并在实现前确认范围）
+- 阻塞：无
+- 目标：解释并解决「MA 派任务 A → A 执行中追发任务 B → TA 完成 A 后继续执行 B → MA 只收到 A 的报告，误判 B 未执行并重发 B」的报告粒度缺陷，给出分档解决方案与推荐。
+- 关联：与挂起的 T-029（Session queue 查询与修改 MCP）能力缺口相关，但方案不得假定 T-029 已实现；同场景运行时行为证据由 T-033 提供。
+- TA/任务：`ses_704ba1fd334045b6`；`ma-ta-task-ordering-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-1`；已 `report_subscribe`
+- 工作树/分支：`D:\project\pan-worktrees\ma-ta-task-ordering-20260915`；`audit/ma-ta-task-ordering-20260915`；基线 `main@52a434b`
+- 提交：无（仅调查，不产生产品代码改动）
+- 测试/未验证项：无自动化验证；结论为机制分析与设计方案，需 MA 核验证据，并由 T-033 的行为证据交叉印证
+- 有序待办：
+  - [ ] 完成机制事实核对（报告粒度 / 队列项生命周期 / 幂等边界，含 `文件:行号`）
+  - [ ] 交付分档解决方案与推荐
+  - [ ] MA 核验报告证据
+  - [ ] 合入 main（仅调查，无代码改动；方案若采纳则另立实现任务）
+  - [ ] 开发者验收
+- 合入/push 状态：合入 main：不适用；push：否
+
+### T-033：Pan 核心运行时链路（Worker 生命周期 + 队列/报告投递）真实隔离实例 E2E 验证
+
+- 优先级/依赖：独立验证；端口与 T-031 分工（T-033 = 8765，T-031 = 8767）
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
+- 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告
+- 当前阶段：验证执行中（TA running）
+- 下一动作：等待 T-033 报告；其 A/B 排队行为证据回填 T-032
+- 阻塞：无
+- 目标：在 8765 隔离实例上验证 Worker 生命周期、持久队列投递、完成报告链路与 zombie/watchdog 行为，补齐多个已合入批次共同记录的“未做真实服务/运行时 E2E”缺口。
+- 验证范围：spawn → 执行 → done → idle 回收 → 自动重建与 `cliSessionId` resume；assign 幂等与 send 排队 / 无 worker 入队 / watchdog 拉起；`queue_pending` 跨重启恢复；`report_subscribe` 收到 done/error 报告字段；zombie 报告；A/B 排队可观察性行为取证；`send_force` restart、不存在/已删 session、服务重启恢复等边界。
+- 边界：只读验证，不得修改产品代码；不 commit/合入/push；不碰 8768/8767、QQ 服务、用户 dirty 文件；结束必须停止实例并释放端口。
+- 工作树/分支：`D:\project\pan-worktrees\runtime-queue-report-e2e-20260915`；`audit/runtime-queue-report-e2e-20260915`；基线 `main@52a434b`
+- TA/任务：`ses_1385abb15d4b3b3e`；`runtime-queue-report-e2e-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-5`；已 `report_subscribe`
+- 提交：无（验证任务，不产生产品代码改动）
+- 测试/未验证项：本任务自身即运行时验证；真人开发者验收仍待用户
+- 有序待办：
+  - [ ] 8765 隔离实例启动与端口/数据根核对
+  - [ ] Worker 生命周期用例
+  - [ ] 队列投递与幂等用例
+  - [ ] 报告链路与 zombie 用例
+  - [ ] A/B 排队行为取证（供 T-032）
+  - [ ] 交付报告并由 MA 核验证据
+  - [ ] 合入 main（无产品代码改动；如发现缺陷则另立返工项）
+  - [ ] 开发者验收
+- 合入/push 状态：合入 main：不适用；push：否
 
 ## 四、计划要做的任务
 
