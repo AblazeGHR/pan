@@ -101,7 +101,6 @@ describe('useWebSocket worker.result wiring', () => {
       sessionsLoading: false,
       historyLoadEnd: 0,
       _loadSeq: 0,
-      _touchSeq: 0,
       _sessionWsTouchedSeq: {},
       _historyRefreshSeq: {},
     });
@@ -112,6 +111,11 @@ describe('useWebSocket worker.result wiring', () => {
     apiMock.fetchSessionQueue.mockResolvedValue([]);
     apiMock.updateUiSettings.mockReset();
     apiMock.updateUiSettings.mockResolvedValue({});
+  });
+
+  // Never let a failing test leak fake timers into the rest of the file.
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('coalesces visible, focus, and pageshow into one authoritative recovery', async () => {
@@ -508,6 +512,119 @@ describe('useWebSocket worker.result wiring', () => {
       .toBe('cancelled');
   });
 
+  it('keeps the dot settled when the idle worker.status follows worker.result', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result',
+        sessionId: 'B',
+        workerId: 'w1',
+        status: 'done',
+        result: 'reply',
+      });
+    });
+    expect(
+      useSessionStore.getState().sessions.find((x) => x.id === 'B')?.workerStatus,
+    ).toBe('idle');
+
+    act(() => {
+      wsMock.trigger('worker.status', {
+        type: 'worker.status',
+        sessionId: 'B',
+        workerId: 'w1',
+        status: 'idle',
+      });
+    });
+    expect(
+      useSessionStore.getState().sessions.find((x) => x.id === 'B')?.workerStatus,
+    ).toBe('idle');
+  });
+
+  it('ignores an out-of-order running status from an older worker generation', () => {
+    useWorkerStore.setState({
+      workers: { A: { id: 'w2', sessionId: 'A', status: 'idle', generation: 5 } },
+      currentWorkerId: 'w2',
+      currentWorker: { id: 'w2', sessionId: 'A', status: 'idle', generation: 5 },
+    });
+    act(() => {
+      useSessionStore.getState().updateSession('A', { workerStatus: 'idle', workerId: 'w2' });
+    });
+    renderHook(() => useWebSocket());
+
+    // A late "running" from the previous worker generation must not flip the
+    // settled dot back to running.
+    act(() => {
+      wsMock.trigger('worker.status', {
+        type: 'worker.status',
+        sessionId: 'A',
+        workerId: 'w1',
+        generation: 4,
+        status: 'running',
+      });
+    });
+    expect(
+      useSessionStore.getState().sessions.find((x) => x.id === 'A')?.workerStatus,
+    ).toBe('idle');
+
+    // ...while a current-generation "running" (a genuinely new turn) does apply.
+    act(() => {
+      wsMock.trigger('worker.status', {
+        type: 'worker.status',
+        sessionId: 'A',
+        workerId: 'w2',
+        generation: 5,
+        status: 'running',
+      });
+    });
+    expect(
+      useSessionStore.getState().sessions.find((x) => x.id === 'A')?.workerStatus,
+    ).toBe('running');
+  });
+
+  it('falls back to the authoritative list when a worker.result is dropped by the generation guard', async () => {
+    useWorkerStore.setState({
+      workers: { A: { id: 'w2', sessionId: 'A', status: 'idle', generation: 5 } },
+      currentWorkerId: 'w2',
+      currentWorker: { id: 'w2', sessionId: 'A', status: 'idle', generation: 5 },
+    });
+    apiMock.fetchSessions.mockResolvedValue([
+      mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
+      mk('A', 'A', { history: [msg('user', 'u0')] }),
+    ]);
+    vi.useFakeTimers();
+    renderHook(() => useWebSocket());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    apiMock.fetchSessions.mockClear();
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result',
+        sessionId: 'A',
+        workerId: 'w1',
+        generation: 4,
+        status: 'done',
+        result: 'stale',
+      });
+    });
+    // Dropped: the stale terminal event writes nothing, so the dot would stay on
+    // its old value forever if this were the only signal.
+    expect(
+      useSessionStore.getState().sessions.find((x) => x.id === 'A')?.workerStatus,
+    ).toBe('running');
+    expect(apiMock.fetchSessions).not.toHaveBeenCalled();
+
+    // The debounced authoritative refresh still converges the card.
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+    expect(apiMock.fetchSessions).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it('clears the card status on worker crash and keeps history intact', () => {
     renderHook(() => useWebSocket());
 
@@ -748,7 +865,6 @@ describe('useWebSocket agent-injected message sync', () => {
       sessionsLoading: false,
       historyLoadEnd: 0,
       _loadSeq: 0,
-      _touchSeq: 0,
       _sessionWsTouchedSeq: {},
     });
   });
@@ -1084,7 +1200,6 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       sessionsLoading: false,
       historyLoadEnd: 0,
       _loadSeq: 0,
-      _touchSeq: 0,
       _sessionWsTouchedSeq: {},
     });
     vi.useFakeTimers();

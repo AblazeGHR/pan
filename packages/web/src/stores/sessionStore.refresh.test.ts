@@ -64,7 +64,6 @@ describe('sessionStore refresh staleness guards', () => {
       initialLoading: false,
       historyLoadEnd: 0,
       _loadSeq: 0,
-      _touchSeq: 0,
       _sessionWsTouchedSeq: {},
     });
   });
@@ -233,8 +232,9 @@ describe('sessionStore refresh staleness guards', () => {
       sessions: [mk('A', 'A', { workerStatus: 'idle', workerId: 'w1' })],
       currentSessionId: null,
     });
-    // Bump _touchSeq with an unrelated session update so this fetch does NOT
-    // take the WS-touch fast path (wsTouchedSeq['A'] < touchSeqAtStart).
+    // Touch an unrelated session so the assertion cannot pass merely because
+    // nothing was ever updated. 'A' itself is untouched, so the snapshot is
+    // authoritative for it.
     act(() => {
       useSessionStore.getState().updateSession('B', { workerStatus: 'idle' });
     });

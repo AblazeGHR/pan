@@ -420,7 +420,14 @@ export function useWebSocket() {
 
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
-      if (!isCurrentWorkerEvent(e)) return;
+      if (!isCurrentWorkerEvent(e)) {
+        // A terminal event attributed to an older worker generation is dropped
+        // (a late result must not clear its replacement), but the drop must not
+        // silently strand the card's status dot either: fall back to the
+        // authoritative list snapshot so the indicator converges.
+        scheduleRefreshSessions();
+        return;
+      }
       const notification = e.notification as { title?: string; body?: string; browser?: boolean } | undefined;
       // Permission is explicitly requested from msgBridge; completion events
       // never prompt in the background.

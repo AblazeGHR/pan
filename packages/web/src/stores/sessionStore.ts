@@ -41,11 +41,10 @@ interface SessionStore {
   // Incremented on every loadSessions() start so an older in-flight response
   // can never overwrite a newer refresh.
   _loadSeq: number;
-  // Global monotonic touch counter; per-session snapshots of it let
-  // loadSessions() skip reverting workerStatus/workerId that WS events
-  // freshened while its own HTTP request was in flight.
-  _touchSeq: number;
-  // sessionId → touchSeq of the last workerStatus/workerId update (WS events).
+  // sessionId → monotonic sequence of that session's last WS-driven update.
+  // loadSessions() snapshots this map at request time and compares per session,
+  // so it only skips reverting workerStatus/workerId for sessions that WS
+  // events actually freshened *while its own HTTP request was in flight*.
   _sessionWsTouchedSeq: Record<string, number>;
   _historyRefreshSeq: Record<string, number>;
 
@@ -101,6 +100,12 @@ interface SessionStore {
 // (via useSyncExternalStore) triggers infinite re-renders → React #185.
 const EMPTY_UNREAD_SET: Set<string> = new Set();
 
+/** Monotonic sequence stamped onto `_sessionWsTouchedSeq` by updateSession().
+ *  Kept outside the store because only the relative order *per session* matters
+ *  (see loadSessions): a value recorded during a fetch is strictly greater than
+ *  the one captured when that fetch was issued. */
+let wsTouchSeq = 0;
+
 /** True when the server-reported history is a prefix of the locally-rendered
  *  history (element-wise by role+content). A stale snapshot during streaming
  *  is exactly this — the backend persists each streamed block slightly after
@@ -136,16 +141,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionUnread: {},
   rendering: false,
   _loadSeq: 0,
-  _touchSeq: 0,
   _sessionWsTouchedSeq: {},
   _historyRefreshSeq: {},
 
   loadSessions: async () => {
-    // Reserve this refresh's sequence + snapshot the touch counter so a stale
-    // in-flight response can neither overwrite a newer refresh nor revert
-    // sessions that were locally freshened while the request was in flight.
+    // Reserve this refresh's sequence + snapshot the per-session WS touch
+    // counters so a stale in-flight response can neither overwrite a newer
+    // refresh nor revert sessions that were locally freshened while THIS
+    // request was in flight.
     const loadSeq = get()._loadSeq + 1;
-    const touchSeqAtStart = get()._touchSeq;
+    const touchedAtStart = get()._sessionWsTouchedSeq;
     set({ _loadSeq: loadSeq, sessionsLoading: true });
     try {
       // summary=1: lean list (no per-session history download). Card preview
@@ -154,21 +159,44 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const sessions = await fetchSessions(true);
       if (get()._loadSeq !== loadSeq) return; // superseded by a newer refresh
       const { currentSessionId, currentMessages } = get();
-      const wsTouchedSeq = get()._sessionWsTouchedSeq;
 
       set((s) => {
-        // Merge the snapshot with locally-fresher workerStatus/workerId: WS
-        // worker events that landed at/after this fetch began are newer than
-        // the snapshot — don't let a stale snapshot revert the card's status
-        // dot (mirrors legacy `_wsWorkerTs` re-apply). `>=` also protects the
-        // result path, where handleWorkerUpdate sets idle immediately before a
-        // refresh starts, so the backend's transient "done"/"error" status
-        // can't override the local idle WorkerDot.
+        // Merge the snapshot with locally-fresher workerStatus/workerId.
+        //
+        // The comparison is strictly per session: the local value wins only
+        // when this session's own touch counter advanced *while this fetch was
+        // in flight* (that WS write is older than nothing — the response cannot
+        // contain it). Comparing against a global "last touch anywhere" counter
+        // was wrong: it both shielded the most recently touched session from
+        // the authoritative snapshot indefinitely (so a terminal event that was
+        // never delivered could not be corrected by any refresh, including the
+        // reconnect/focus recovery), and made one session's fate depend on an
+        // unrelated session's traffic.
+        //
+        // Two narrow cases keep local state even without an in-flight touch:
+        //  - an explicit local null is the destroy/crash transition the summary
+        //    must not resurrect while it lags behind the event;
+        //  - the backend holds `w.status = "done"` only transiently between the
+        //    worker.result broadcast and its reset to "idle", so a snapshot
+        //    carrying it must not regress a status WS events already settled.
+        // Anything else means the snapshot is authoritative for this session —
+        // including the settled status of a completion event we never received.
         const merged = sessions.map((sess) => {
           const sid = sess.id;
           const cur = s.sessions.find((x) => x.id === sid);
           if (!cur) return sess;
-          if ((wsTouchedSeq[sid] ?? 0) >= touchSeqAtStart) {
+          const touchedBefore = Object.prototype.hasOwnProperty.call(
+            touchedAtStart,
+            sid,
+          );
+          const touchedDuringFetch =
+            (s._sessionWsTouchedSeq[sid] ?? 0) > (touchedAtStart[sid] ?? 0);
+          const snapshotIsTransientDone = sess.workerStatus === 'done';
+          if (
+            touchedDuringFetch ||
+            (touchedBefore &&
+              (cur.workerStatus === null || snapshotIsTransientDone))
+          ) {
             return {
               ...sess,
               // WS state is newer than this snapshot.  Preserve explicit null:
@@ -689,12 +717,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   updateSession: (id: string, data: Partial<Session>) => {
-    const touchSeq = get()._touchSeq + 1;
+    const touchSeq = (wsTouchSeq += 1);
     set((s) => ({
       sessions: s.sessions.map((session) =>
         session.id === id ? { ...session, ...data } : session,
       ),
-      _touchSeq: touchSeq,
       _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [id]: touchSeq },
     }));
   },
