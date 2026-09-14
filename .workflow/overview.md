@@ -14,12 +14,13 @@
 
 ## 工作流控制
 
-- 整体状态：T-027 已合入并完成 QQ 通知；T-030 修复、T-031 附件链路验证、T-032 排队语义调查、T-033 运行时链路验证四路并行执行中；继续推进所有设计与任务直到彻底阻塞
-- 当前焦点：T-030 done 指示灯延迟修复；T-031 / T-033 两项独立真实实例验证；T-032 MA→TA 排队报告粒度调查
-- 可执行：无（T-030、T-031、T-032、T-033 已派发；其余任务均待开发者验收或被用户暂停/取消）
-- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4，隔离端口 8767）；T-032 `ses_704ba1fd334045b6`（codex `gpt-5.6-luna`，high，bypass，worker-1，仅调查）；T-033 `ses_1385abb15d4b3b3e`（codex `gpt-5.6-luna`，high，bypass，worker-5，隔离端口 8765）
+- 整体状态：T-027 已合入并完成 QQ 通知；T-030、T-031、T-032、T-033、T-035 五路并行执行中；继续推进所有设计与任务直到彻底阻塞
+- 当前焦点：T-030 done 指示灯延迟修复；T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；T-032 MA→TA 排队报告粒度调查
+- 可执行：无（T-030、T-031、T-032、T-033、T-035 已派发；其余任务均待开发者验收或被用户暂停/取消）
+- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4，隔离端口 8767）；T-032 `ses_704ba1fd334045b6`（codex `gpt-5.6-luna`，high，bypass，worker-1，仅调查）；T-033 `ses_1385abb15d4b3b3e`（codex `gpt-5.6-luna`，high，bypass，worker-5，隔离端口 8765）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-6）
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - TA 模型规则（2026-09-15 用户会话）：新 TA 优先 `MODEL-1`（codex `gpt-5.6-luna` high）；Codex 五小时额度触发限额后按 `MODEL-3` 级联（`cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 DeepSeek）。已派发中的 TA 不回溯切换模型。
+- 用户追加口径（2026-09-15，Codex 五小时额度实测 96%）：**新任务直接派 `cbc deepseek-v4.1-flash`**（T-035 即按此派发）；**已在跑的 codex luna 任务（T-031 / T-032 / T-033）不重做、不再消耗 Codex 额度，待其停下后用 `session_handoff` 接续到 `cbc deepseek-v4.1-flash`**，接续时以原任务 brief + worktree 现场 + 源 session 历史为交接材料。
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未开始推进
 - 决策阻塞：无
@@ -508,6 +509,31 @@
   - [ ] 合入 main（无产品代码改动；如发现缺陷则另立返工项）
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：不适用；push：否
+
+### T-035：移动端 Session Details 改为全屏
+
+- 优先级/依赖：用户 2026-09-15 直接需求；与 T-030 同改 `packages/web/src` 但文件不重叠（T-030 在 stores/hooks/WorkerDot，本任务在 `SessionDetailsModal.tsx` 与 `ui/Modal.tsx`）
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 执行模式：端到端（需求明确，实现路线由 TA 在既有 `Modal` / `useMediaQuery` 约定内自主选择）
+- 决策门：无；若必须改变其他弹窗的既有行为才能实现，在报告中说明并暂停该部分
+- 当前阶段：实现/验证执行中（TA running）
+- 下一动作：等待 T-035 报告 → MA 核验（diff + 定向测试 + 移动/桌面真实浏览器证据）→ 按 `AUTH-001` 合入本地 main
+- 阻塞：无
+- 目标：移动端打开 Session Details 时占满视口全屏（`100dvh`、无圆角/外边距、内容可滚动、标题与关闭按钮不被安全区遮挡）；桌面端保持居中窗口与 `size="lg"` 不变。
+- 起点（MA 侦察）：`packages/web/src/components/session/SessionDetailsModal.tsx:171` 使用共享 `<Modal size="lg">`；移动全屏先例见 `InputRow.tsx` 的 `isMobile` + `max-md:h-[100dvh]` / `max-md:rounded-none`，断言写法见 `InputRow.test.tsx:1081-1083`。
+- 边界：只改 `packages/web/src/**`；不改 dist；不碰 8768；8767 / 8765 已分别归 T-031 / T-033；只提交本分支，不合入 main、不 push。
+- 工作树/分支：`D:\project\pan-worktrees\mobile-detail-fullscreen-20260915`；`feature/mobile-detail-fullscreen-20260915`；基线 `main@e98b871`
+- TA/任务：`ses_34efb6996f826a27`；`mobile-detail-fullscreen-20260915`；cbc `deepseek-v4.1-flash`；effort `high`；权限 `bypassPermissions`；Worker `worker-6`；已 `report_subscribe`
+- 提交：未提交（TA 完成后核对）
+- 测试/未验证项：待 TA 报告（定向 Vitest / `tsc -b` / ESLint / `pnpm build` / 移动与桌面视口真实 Chromium）；真人开发者验收仍待用户
+- 有序待办：
+  - [ ] 实现移动端全屏并保持桌面端不变
+  - [ ] 定向 Vitest 与类型 / lint / build 通过
+  - [ ] 移动与桌面视口真实浏览器证据
+  - [ ] 提交并检查 worktree clean
+  - [ ] 合入 main（MA 核验后按 `AUTH-001`）
+  - [ ] 开发者验收
+- 合入/push 状态：合入 main：未开始；push：否
 
 ## 四、计划要做的任务
 

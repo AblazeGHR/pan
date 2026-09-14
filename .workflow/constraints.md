@@ -48,6 +48,7 @@
 - 限速回退：DeepSeek 被限速时切换到 `cbc` 的 `glm-5.3-flash`；两者均限速时切回 `deepseek-v4.1-flash`，并在任务报告中记录实际模型和限速证据。不得静默切换到其他 adapter/model。
 - 额度规则：每轮工作流对话开始检查 Codex 五小时额度；达到 98% 时进行 SMA 替身交接，目标配置为 `cbc + deepseek-v4.1-flash + high + bypassPermissions`。
 - 级联顺序（2026-09-15）：`MODEL-1`（codex `gpt-5.6-luna` high）→ 五小时限额触发 → `cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 `deepseek-v4.1-flash`。已完成任务不回溯切换模型，只作用于新派发与返工。
+- 用户追加口径（2026-09-15，Codex 五小时额度实测 96% 时明确）：**新任务直接使用 `cbc deepseek-v4.1-flash`**，不必先把残余 Codex 额度耗尽；**已在跑的 codex 任务不重做**，等其停下后用 `session_handoff` 接续到 `cbc deepseek-v4.1-flash`，交接材料为原任务 brief + worktree 现场 + 源 session 历史，不得要求从零重来。
 
 ## MA 自主权策略
 
