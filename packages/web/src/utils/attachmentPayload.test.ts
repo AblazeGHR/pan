@@ -17,7 +17,7 @@ describe('extended attachment transfer contract', () => {
   it('retains source session and line range while reading custom MIME', () => {
     const payload: PanAttachmentPayload = {
       displayName: 'guide.md',
-      href: '/api/fs/read?session_id=s1&path=docs%2Fguide.md&download=1',
+      href: `/api/attachments/editor/att_${'a'.repeat(32)}?session_id=s1#L42-L48`,
       source: 'editor',
       sourceSessionId: 's1',
       location: { line: 42, endLine: 48 },
