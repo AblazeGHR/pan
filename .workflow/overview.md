@@ -514,23 +514,25 @@
 
 ### T-033：Pan 核心运行时链路（Worker 生命周期 + 队列/报告投递）真实隔离实例 E2E 验证
 
-- 优先级/依赖：独立验证；端口与 T-031 分工（T-033 = 8765，T-031 = 8767）
+- 优先级/依赖：独立验证；端口与 T-031 分工（T-033 = 8766；**8765 不可用**，见 E2E-ENV-001）
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
 - 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告
-- 当前阶段：验证执行中（首轮因端口阻塞无真实证据，已交接到 cbc/deepseek 后继续）
-- 下一动作：等待接续后的 T-033（`ses_c8671119a2dd9bb4`）报告；其 A/B 排队行为证据回填 T-032
-- 阻塞：无（环境阻塞 E2E-ENV-001 已绕开）
-- 目标：在 8765 隔离实例上验证 Worker 生命周期、持久队列投递、完成报告链路与 zombie/watchdog 行为，补齐多个已合入批次共同记录的“未做真实服务/运行时 E2E”缺口。
+- 当前阶段：验证执行中（第 1 次接续**未交付报告**，见下；第 2 次接续已派发）
+- 下一动作：等待 T-033 第 2 次接续（`ses_c8671119a2dd9bb4`，task `T-033-cont2-20260915`）报告；其 A/B 排队行为证据回填 T-032
+- 阻塞：无（E2E-ENV-002 已给出绕行方案并写入简报）
+- 目标：在 8766 隔离实例上验证 Worker 生命周期、持久队列投递、完成报告链路与 zombie/watchdog 行为，补齐多个已合入批次共同记录的“未做真实服务/运行时 E2E”缺口。
 - 验证范围：spawn → 执行 → done → idle 回收 → 自动重建与 `cliSessionId` resume；assign 幂等与 send 排队 / 无 worker 入队 / watchdog 拉起；`queue_pending` 跨重启恢复；`report_subscribe` 收到 done/error 报告字段；zombie 报告；A/B 排队可观察性行为取证；`send_force` restart、不存在/已删 session、服务重启恢复等边界。
-- 边界：只读验证，不得修改产品代码；不 commit/合入/push；不碰 8768/8767、QQ 服务、用户 dirty 文件；结束必须停止实例并释放端口。
-- 工作树/分支：`D:\project\pan-worktrees\runtime-queue-report-e2e-20260915`；`audit/runtime-queue-report-e2e-20260915`；基线 `main@52a434b`
+- 边界：只读验证，不得修改产品代码（允许 worktree 内临时脚本/驱动与 launcher 副本，须在报告列出）；不 commit/合入/push；不碰 8768/8767/8765、QQ 服务、用户 dirty 文件；结束必须停止实例、删除临时 `config.json` 并释放 8766。
+- 工作树/分支：`D:\project\pan-worktrees\runtime-queue-report-e2e-20260915`；`audit/runtime-queue-report-e2e-20260915`；基线 `main@52a434b`；MA 核验 clean
 - TA/任务：原 TA `ses_1385abb15d4b3b3e`（codex `gpt-5.6-luna`，worker-5，已归档为 `(archive) runtime-queue-report-e2e-20260915`）→ 接续 TA `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，effort `high`，`bypassPermissions`，Worker `worker-7`，隔离端口 8766）；已 `report_subscribe`；按用户 2026-09-15 口径不重做、用 `session_handoff` 接续
-- 环境阻塞记录（E2E-ENV-001，已绕开）：原定端口 `8765` 被 PID 7612 占用——另一 worktree `input-attachment-composer-send-20260915` 的 `vite preview`（01:26 启动的残留进程）。MA 核验 `netstat`/`Win32_Process` 后裁定：**不停止他人进程**，改分配 `8766`（`8767` 归 T-031）。该残留进程仍占用 8765，如需回收须用户确认。
+- 交付异常记录（E2E-DELIVERY-001）：第 1 次接续（task `T-033-cont-handoff-20260915`）返回 `done`，但 result 内容是**对话/上下文压缩摘要**（分析 + summary），六项验证一项未执行、无任何证据。MA 判定为交付失败（非产品缺陷），处置：**在同一 session 上原样重派**（不重做任务范围、不换 session），并在简报中明确要求“最后一条消息必须是报告本体”。
+- 环境阻塞记录（E2E-ENV-001，已绕开）：原定端口 `8765` 被 PID 7612 占用——另一 worktree `input-attachment-composer-send-20260915` 的 `vite preview`（01:26 启动的残留进程）。MA 核验 `netstat`/`Win32_Process` 后裁定：**不停止他人进程**，改分配端口；该残留进程仍占用 8765，如需回收须用户确认。
+- 环境约束记录（E2E-ENV-002，MA 已核验并写入简报）：① `tests/support/isolated_http_server.py:66-67` 的端口白名单只有 `{8767, 8765}`，**8766 会被 `SystemExit` 拒绝** → 绕行方案：复制 launcher 到 worktree 内的临时文件并扩展白名单，**不改动已提交文件**；② worktree 内无 `config.json` → worker 默认 `idle_sec=300`/`timeout_sec=300`，idle 回收用例须通过 `PUT /api/settings/worker` 调小阈值（会写 `<worktree>/config.json`，结束须删除）；③ `tests/support/fake_stream_cli.py:27-32` 的 gate scope 硬绑 workdir basename（`real-fifo`/`real-recovery`/`real-manager`）；④ 只有 `running`/`queued` 状态的 worker 被杀才可能产生 zombie 报告（idle 被 kill 不报）。
 - 提交：无（验证任务，不产生产品代码改动）
-- 测试/未验证项：**已取得**——源码审查（入口行号见原报告）、`compileall` + `git diff --check` 通过、进程内 Python 回归 77 passed（`test_worker_watchdog` / `test_worker_global_watchdog` / `test_report_subscription` / `test_queue_restart_hardening`）；**未取得**——真实服务/API/WS、真实 CLI Worker 子进程、`queue_pending` 跨重启恢复、zombie 报告、A/B 排队观察（首轮未启动实例）。真人开发者验收仍待用户
+- 测试/未验证项：**已取得**——源码审查（入口行号见原报告）、`compileall` + `git diff --check` 通过、进程内 Python 回归 77 passed（`test_worker_watchdog` / `test_worker_global_watchdog` / `test_report_subscription` / `test_queue_restart_hardening`）；**未取得**——真实服务/API/WS、真实 CLI Worker 子进程、`queue_pending` 跨重启恢复、zombie 报告、A/B 排队观察（两轮均未启动实例）。真人开发者验收仍待用户
 - 有序待办：
-  - [ ] 8765 隔离实例启动与端口/数据根核对
+  - [ ] 8766 隔离实例启动与端口/数据根核对（用 launcher 副本）
   - [ ] Worker 生命周期用例
   - [ ] 队列投递与幂等用例
   - [ ] 报告链路与 zombie 用例
