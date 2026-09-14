@@ -15,9 +15,10 @@
 ## 工作流控制
 
 - 整体状态：T-027 并行实施中，T-028 QQ 通道归因调查执行中
-- 当前焦点：输入框/发送事务、路径投影/editor 拖动与 QQ 通道连接归因
+- 当前焦点：输入框/发送事务与路径投影/editor 拖动；QQ 通道调查已取消
 - 可执行：T-027.1、T-027.2
-- TA 执行中：T-027.1 `ses_7079ef10a62ddf5b`（Luna xhigh，worker-2）；T-027.2 `ses_a59709c910ad4859`（Luna high，worker-3）；T-028 `ses_883290f5f803a034`（Luna high，bypass，worker-4）
+- TA 执行中：T-027.1 `ses_7079ef10a62ddf5b`（Luna xhigh，worker-2）；T-027.2 `ses_a59709c910ad4859`（Luna high，worker-3）
+- 后置动作：T-027.1/T-027.2 完成并按发送体验验收、合入 main 后，向 QQ 联系人“焕之”发送消息；发送正文待用户提供
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围
 - 决策阻塞：无
 - 授权阻塞：无
@@ -372,12 +373,13 @@
 ### T-028：QQ 通道未连接归因调查（Pan vs llbot）
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：只读调查执行中；不修改业务代码、不提交、不合入
+- 当前阶段：已取消；用户已确认根因为端口占用，不再继续调查或实现
+- 取消原因（2026-09-15）：用户明确取消 QQ 调查任务，并确认问题属于端口占用。
 - 目标：调查 QQ 通道显示未连接的根因属于 Pan、llbot，还是两侧之间的配置/网络/协议连接边界；给出可复现证据、责任边界和下一步修复方案。
 - 调查范围：Pan QQ adapter、bot/channel 生命周期、llbot WebSocket/HTTP 连接、鉴权与配置、端口/URL、心跳/重连、消息收发和状态映射、日志与错误吞噬；明确“Pan 未连接”“llbot 未连接”“连接存在但状态未同步”的区分。
 - 约束：不得操作受保护的 8768；不得停止或修改现有 QQ 服务；优先静态审查、配置核对和隔离环境证据，真实外部连接未验证必须明确记录。
 - 工作树/分支：`D:\project\pan-worktrees\qq-channel-connection-audit-20260915`；`audit/qq-channel-connection-20260915`
-- TA/任务：`ses_883290f5f803a034`；`qq-channel-connection-audit-20260915`；Luna high；权限 `bypass`；Worker `worker-4`
+- TA/任务：`ses_883290f5f803a034`；`qq-channel-connection-audit-20260915`；已取消；Session 已不存在，专用 clean worktree 已移除
 - 有序待办：
   - [ ] 核对 Pan 与 llbot 的实际连接链路和状态来源
   - [ ] 收集最小复现和日志/错误证据，区分事实、推断、未知
