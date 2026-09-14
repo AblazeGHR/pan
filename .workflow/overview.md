@@ -363,10 +363,10 @@
 ### T-027.2：服务端路径投影与 editor 文件链接跨 Session 拖动
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：功能实现和专项验证完成；正在同步当前 main 并做最终组合验证；不得修改 T-027.1 的 composer/send 文件
+- 当前阶段：功能实现和专项验证完成；最终提交 a25091c 已生成，正在同步当前 main@08d88f1 并做最终组合验证；不得修改 T-027.1 的 composer/send 文件
 - 目标：将服务端文件/附件在 Worker 文本中投影为实时绝对路径，在 UI 中继续使用安全 editor/download href；让对话正文中渲染出的文件路径/editor 链接可跨 Session 拖入并复用服务端文件，不重复上传；保留打开、下载、行号定位、Windows/UNC/file URI 和旧 Markdown 兼容及权限校验。
 - 工作树/分支：`D:\project\pan-worktrees\attachment-path-editor-drag-20260915`；`feature/attachment-path-editor-drag-20260915`
-- TA/任务：`ses_a59709c910ad4859`；`attachment-path-editor-drag-20260915`；Luna high；Worker `worker-3`；正在同步 main@61f1174 并最终复验
+- TA/任务：`ses_a59709c910ad4859`；`attachment-path-editor-drag-20260915`；Luna high；Worker `worker-3`；正在同步 main@08d88f1 并最终复验
 - 有序待办：
   - [ ] 完成服务端/renderer/drag payload 实现并添加回归测试
   - [ ] 完成后端/API/结构化协议、前端定向和浏览器验证
