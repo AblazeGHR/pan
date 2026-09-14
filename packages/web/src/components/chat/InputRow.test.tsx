@@ -283,6 +283,41 @@ describe('InputRow send queue wiring', () => {
     );
   });
 
+  it('accepts a cross-Session editor payload and keeps its line range in text and parts', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const payload = {
+      displayName: 'guide.md',
+      href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
+      serverAttachmentId: 'resource-guide',
+      source: 'editor',
+      sourceSessionId: 'other-session',
+      location: { line: 42, endLine: 48 },
+    };
+    fireEvent.drop(editor, {
+      dataTransfer: {
+        getData: (type: string) => (type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : ''),
+      },
+    });
+
+    expect(screen.getByRole('group', { name: '附件 guide.md' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalled());
+    const call = vi.mocked(enqueueSessionMessage).mock.calls.at(-1);
+    expect(call?.[1]).toBe(
+      '[guide.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1#L42-L48)',
+    );
+    expect(call?.[3]).toEqual([
+      expect.objectContaining({
+        type: 'attachment',
+        attachmentId: 'resource-guide',
+        location: { line: 42, endLine: 48 },
+      }),
+    ]);
+  });
+
   it('keeps separate occurrences when the same resource is inserted twice', async () => {
     setBusySession();
     render(<InputRow />);
@@ -384,6 +419,7 @@ describe('InputRow send queue wiring', () => {
       displayName: 'direct.txt',
       attachmentId: expect.any(String),
       source: 'attachment-chip',
+      sourceSessionId: 's1',
     });
     fireEvent.drop(screen.getByTestId('rich-text-composer'), { dataTransfer });
 

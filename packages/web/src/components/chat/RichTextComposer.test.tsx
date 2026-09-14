@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { RichTextComposer, type ComposerValue } from './RichTextComposer';
 import { ATTACHMENT_DRAG_MIME, type AttachmentDragPayload } from '@/utils/attachmentDrag';
+import type { PanAttachmentPayload } from '@/utils/attachmentPayload';
 
 afterEach(() => {
   cleanup();
@@ -12,7 +13,7 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'caretPositionFromPoint');
 });
 
-function dragData(payload: AttachmentDragPayload): DataTransfer {
+function dragData(payload: AttachmentDragPayload | PanAttachmentPayload): DataTransfer {
   const data = new Map<string, string>([[ATTACHMENT_DRAG_MIME, JSON.stringify(payload)]]);
   return {
     getData: (type: string) => data.get(type) || '',
@@ -22,12 +23,13 @@ function dragData(payload: AttachmentDragPayload): DataTransfer {
   } as unknown as DataTransfer;
 }
 
-function renderComposer(onChange: (value: ComposerValue) => void = vi.fn()) {
+function renderComposer(onChange: (value: ComposerValue) => void = vi.fn(), sessionId?: string) {
   const onAttachmentDrop = vi.fn(() => 'attachment-1');
   const onRemoveAttachment = vi.fn();
   render(
     <RichTextComposer
       initialText="before after"
+      sessionId={sessionId}
       attachments={[
         {
           id: 'attachment-1',
@@ -106,6 +108,56 @@ describe('RichTextComposer attachment demo', () => {
         { type: 'text', value: 'after' },
       ],
     });
+  });
+
+  it('accepts a same-Session chip transfer and preserves its line range', () => {
+    const { editor, onAttachmentDrop } = renderComposer(vi.fn(), 's1');
+    const payload: PanAttachmentPayload = {
+      displayName: '接口说明.md',
+      href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+      source: 'attachment-chip',
+      sourceSessionId: 's1',
+      location: { line: 42, endLine: 48 },
+    };
+
+    fireEvent.drop(editor, { dataTransfer: dragData(payload) });
+
+    expect(onAttachmentDrop).toHaveBeenCalledWith(payload);
+    expect(screen.getByRole('group', { name: '附件 接口说明.md' })).toBeTruthy();
+  });
+
+  it.each(['attachment-chip', 'composer'] as const)(
+    'rejects a %s transfer from another Session without invoking attachment insertion',
+    (source) => {
+      const { editor, onAttachmentDrop } = renderComposer(vi.fn(), 's2');
+      const payload: PanAttachmentPayload = {
+        displayName: '接口说明.md',
+        href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+        attachmentId: source === 'composer' ? 'attachment-1' : undefined,
+        source,
+        sourceSessionId: 's1',
+      };
+
+      fireEvent.drop(editor, { dataTransfer: dragData(payload) });
+
+      expect(onAttachmentDrop).not.toHaveBeenCalled();
+      expect(editor.querySelector('[data-composer-attachment]')).toBeNull();
+    },
+  );
+
+  it.each(['message', 'editor'] as const)('allows a %s transfer across Sessions', (source) => {
+    const { editor, onAttachmentDrop } = renderComposer(vi.fn(), 's2');
+    const payload: PanAttachmentPayload = {
+      displayName: '正文文件.md',
+      href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
+      source,
+      sourceSessionId: 's1',
+      location: { line: 7, endLine: 9 },
+    };
+
+    fireEvent.drop(editor, { dataTransfer: dragData(payload) });
+
+    expect(onAttachmentDrop).toHaveBeenCalledWith(payload);
   });
 
   it('keeps ordinary text next to an inserted node exactly once while typing', () => {

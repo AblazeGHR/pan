@@ -22,7 +22,11 @@ import {
   uploadSessionAttachment,
 } from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
-import { writeAttachmentDragPayload, type AttachmentDragPayload } from '@/utils/attachmentDrag';
+import {
+  isAttachmentPayloadForSession,
+  type PanAttachmentPayload,
+  writePanAttachmentPayload,
+} from '@/utils/attachmentPayload';
 import {
   isMockMode,
   mockRegisterServerFileAttachment,
@@ -41,6 +45,7 @@ import {
   X,
 } from 'lucide-react';
 import type { AdapterConfig, MessagePart, PermissionMode } from '@/types';
+import type { AttachmentLocation } from '@/types/attachment';
 
 const PILL_CLASS =
   'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border-default bg-bg-tertiary hover:bg-bg-hover cursor-pointer transition-colors';
@@ -83,6 +88,7 @@ interface PendingAttachment {
   attachmentId?: string;
   mimeType?: string;
   source?: 'upload' | 'server_file';
+  location?: AttachmentLocation;
 }
 
 function attachmentId(): string {
@@ -690,8 +696,12 @@ export function InputRow() {
   );
 
   const handleAttachmentDrop = useCallback(
-    (payload: AttachmentDragPayload): string | null => {
+    (payload: PanAttachmentPayload): string | null => {
       if (!currentSessionId) return null;
+      if (!isAttachmentPayloadForSession(payload, currentSessionId)) {
+        showToast('附件属于其他 Session，不能拖入当前输入框', 'error');
+        return null;
+      }
       if (
         payload.attachmentId &&
         (payload.source === 'composer' || payload.source === 'attachment-chip')
@@ -713,6 +723,7 @@ export function InputRow() {
           displayName: payload.displayName,
           path: payload.path,
           href: payload.href,
+          location: payload.location,
           status: needsRegistration ? 'registering' : 'ready',
           source: remoteId?.startsWith('upload_') ? 'upload' : 'server_file',
         },
@@ -767,7 +778,7 @@ export function InputRow() {
       }
       return occurrenceId;
     },
-    [attachments, currentSessionId],
+    [attachments, currentSessionId, showToast],
   );
 
   const handleRemoveComposerAttachment = useCallback((attachmentIdToRemove: string) => {
@@ -857,7 +868,11 @@ export function InputRow() {
           attachment.status === 'ready' && !!attachment.href,
       );
       const attachmentLinks = readyAttachments.map((attachment) =>
-        attachmentMarkdown({ displayName: attachment.displayName, href: attachment.href }),
+        attachmentMarkdown({
+          displayName: attachment.displayName,
+          href: attachment.href,
+          location: attachment.location,
+        }),
       );
       if (
         attachmentLinks.some((link) => link === null) ||
@@ -919,6 +934,7 @@ export function InputRow() {
             mimeType: attachment.mimeType,
             size: attachment.file?.size,
             source: attachment.source,
+            ...(attachment.location ? { location: attachment.location } : {}),
           });
         }
       }
@@ -932,6 +948,7 @@ export function InputRow() {
           mimeType: attachment.mimeType,
           size: attachment.file?.size,
           source: attachment.source,
+          ...(attachment.location ? { location: attachment.location } : {}),
         });
       }
 
@@ -1299,13 +1316,15 @@ export function InputRow() {
                   }
                   onDragStart={(event) => {
                     if (attachment.status !== 'ready' || !attachment.href) return;
-                    writeAttachmentDragPayload(event.dataTransfer, {
+                    writePanAttachmentPayload(event.dataTransfer, {
                       displayName: attachment.displayName,
                       href: attachment.href,
                       path: attachment.path,
                       attachmentId: attachmentOccurrenceId(attachment),
                       serverAttachmentId: attachment.attachmentId,
                       source: 'attachment-chip',
+                      sourceSessionId: currentSessionId || undefined,
+                      location: attachment.location,
                     });
                   }}
                   role="group"
@@ -1544,6 +1563,7 @@ export function InputRow() {
                   displayName,
                   href,
                   path,
+                  location,
                 }) => ({
                   id,
                   occurrenceId,
@@ -1551,8 +1571,10 @@ export function InputRow() {
                   displayName,
                   href,
                   path,
+                  location,
                 }),
               )}
+              sessionId={currentSessionId || undefined}
               onChange={handleComposerChange}
               onAttachmentDrop={handleAttachmentDrop}
               onNativeFiles={handleNativeFiles}
