@@ -30,7 +30,12 @@ interface QueueStore {
     queueRevision?: number;
     item?: Record<string, unknown>;
   }) => void;
-  enqueue: (text: string, parts?: MessagePart[]) => Promise<boolean>;
+  enqueue: (
+    text: string,
+    parts?: MessagePart[],
+    sessionId?: string,
+    clientId?: string,
+  ) => Promise<boolean>;
   remove: (id: string) => void;
   startEdit: (id: string) => void;
   updateEditDraft: (text: string) => void;
@@ -50,7 +55,8 @@ interface QueueStore {
 }
 
 function clientMessageId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    return crypto.randomUUID();
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
@@ -63,7 +69,9 @@ function setSnapshot(
   set((state) => ({
     queues: { ...state.queues, [sessionId]: items },
     agentQueues: { ...state.agentQueues, [sessionId]: items },
-    ...(revision === undefined ? {} : { queueRevisions: { ...state.queueRevisions, [sessionId]: revision } }),
+    ...(revision === undefined
+      ? {}
+      : { queueRevisions: { ...state.queueRevisions, [sessionId]: revision } }),
   }));
 }
 
@@ -71,39 +79,36 @@ function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem |
   const id = raw.queueItemId ?? raw.id;
   if (typeof id !== 'string' || !id) return null;
   const rawMeta = raw.meta;
-  const meta = rawMeta && typeof rawMeta === 'object'
-    ? { ...(rawMeta as Record<string, unknown>) }
-    : {};
+  const meta =
+    rawMeta && typeof rawMeta === 'object' ? { ...(rawMeta as Record<string, unknown>) } : {};
   const rawKind = raw.kind ?? raw.type;
-  const kind = rawKind === 'qq'
-    ? 'qq'
-    : rawKind === 'report' || rawKind === 'notice' || rawKind === 'zombie'
-      ? 'report'
-      : 'task';
-  const text = typeof raw.text === 'string'
-    ? raw.text
-    : typeof raw.result === 'string'
-      ? raw.result
-      : '';
-  const source = typeof raw.source === 'string'
-    ? raw.source
-    : kind === 'qq'
+  const kind =
+    rawKind === 'qq'
       ? 'qq'
-      : kind === 'task'
-        ? 'user'
-        : 'report';
+      : rawKind === 'report' || rawKind === 'notice' || rawKind === 'zombie'
+        ? 'report'
+        : 'task';
+  const text =
+    typeof raw.text === 'string' ? raw.text : typeof raw.result === 'string' ? raw.result : '';
+  const source =
+    typeof raw.source === 'string'
+      ? raw.source
+      : kind === 'qq'
+        ? 'qq'
+        : kind === 'task'
+          ? 'user'
+          : 'report';
   const state = raw.dispatchState ?? raw.deliveryState ?? meta.dispatchState ?? 'queued';
   const revision = raw.revision ?? meta.revision ?? 1;
-  const parts = Array.isArray(raw.parts) ? raw.parts as AgentQueueItem['parts'] : undefined;
+  const parts = Array.isArray(raw.parts) ? (raw.parts as AgentQueueItem['parts']) : undefined;
   return {
     id,
     queueItemId: id,
     kind,
     text,
     ...(parts ? { parts } : {}),
-    createdAt: typeof raw.createdAt === 'string' || typeof raw.createdAt === 'number'
-      ? raw.createdAt
-      : 0,
+    createdAt:
+      typeof raw.createdAt === 'string' || typeof raw.createdAt === 'number' ? raw.createdAt : 0,
     source,
     meta: {
       ...meta,
@@ -114,20 +119,34 @@ function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem |
 }
 
 export const useQueueStore = create<QueueStore>((set, get) => ({
-  queues: {}, edits: {}, batchSend: {}, panelOpen: false, sendingId: null,
-  agentQueues: {}, agentQueueLoadSeq: {}, queueRevisions: {},
+  queues: {},
+  edits: {},
+  batchSend: {},
+  panelOpen: false,
+  sendingId: null,
+  agentQueues: {},
+  agentQueueLoadSeq: {},
+  queueRevisions: {},
 
-  loadForSession: (sessionId) => { if (sessionId) void get().loadAgentQueue(sessionId); },
+  loadForSession: (sessionId) => {
+    if (sessionId) void get().loadAgentQueue(sessionId);
+  },
 
   loadAgentQueue: async (sessionId) => {
     const requestSeq = (get().agentQueueLoadSeq[sessionId] ?? 0) + 1;
-    set((state) => ({ agentQueueLoadSeq: { ...state.agentQueueLoadSeq, [sessionId]: requestSeq } }));
+    set((state) => ({
+      agentQueueLoadSeq: { ...state.agentQueueLoadSeq, [sessionId]: requestSeq },
+    }));
     try {
       const items = await fetchSessionQueue(sessionId);
       if (get().agentQueueLoadSeq[sessionId] !== requestSeq) return;
       const currentRevision = get().queueRevisions[sessionId];
-      if (items.queueRevision !== undefined && currentRevision !== undefined
-          && items.queueRevision < currentRevision) return;
+      if (
+        items.queueRevision !== undefined &&
+        currentRevision !== undefined &&
+        items.queueRevision < currentRevision
+      )
+        return;
       setSnapshot(set, sessionId, items, items.queueRevision);
     } catch {
       // Preserve the last authoritative snapshot; reconnect/session switch retries.
@@ -138,8 +157,12 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     const sid = event.sessionId;
     if (!sid) return;
     const currentRevision = get().queueRevisions[sid];
-    if (event.queueRevision !== undefined && currentRevision !== undefined
-        && event.queueRevision < currentRevision) return;
+    if (
+      event.queueRevision !== undefined &&
+      currentRevision !== undefined &&
+      event.queueRevision < currentRevision
+    )
+      return;
     const current = get().queues[sid] ?? [];
     const id = event.queueItemId ?? event.item?.queueItemId ?? event.item?.id;
     let next = current;
@@ -147,22 +170,23 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       const item = normalizeQueueEventItem(event.item);
       if (item && item.meta?.dispatchState === 'queued') {
         const index = current.findIndex((candidate) => candidate.id === item.id);
-        next = index < 0
-          ? [...current, item]
-          : current.map((candidate, candidateIndex) =>
-              candidateIndex === index ? item : candidate,
-            );
+        next =
+          index < 0
+            ? [...current, item]
+            : current.map((candidate, candidateIndex) =>
+                candidateIndex === index ? item : candidate,
+              );
       }
-    } else if (event.type === 'queue.item_updated' && event.item
-               && typeof id === 'string') {
+    } else if (event.type === 'queue.item_updated' && event.item && typeof id === 'string') {
       const item = normalizeQueueEventItem(event.item);
       const index = current.findIndex((candidate) => candidate.id === id);
       if (item?.meta?.dispatchState === 'queued') {
-        next = index < 0
-          ? [...current, item]
-          : current.map((candidate, candidateIndex) =>
-              candidateIndex === index ? item : candidate,
-            );
+        next =
+          index < 0
+            ? [...current, item]
+            : current.map((candidate, candidateIndex) =>
+                candidateIndex === index ? item : candidate,
+              );
       } else if (index >= 0) {
         next = current.filter((_, candidateIndex) => candidateIndex !== index);
       }
@@ -170,9 +194,10 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       next = current.filter((candidate) => candidate.id !== id);
     } else if (event.type === 'queue.item_delivered' && Array.isArray(event.queueItemIds)) {
       const delivered = new Set(
-        event.queueItemIds.filter((queueItemId): queueItemId is string => (
-          typeof queueItemId === 'string' && queueItemId.length > 0
-        )),
+        event.queueItemIds.filter(
+          (queueItemId): queueItemId is string =>
+            typeof queueItemId === 'string' && queueItemId.length > 0,
+        ),
       );
       if (delivered.size) {
         next = current.filter((candidate) => !delivered.has(candidate.id));
@@ -183,39 +208,64 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     }
   },
 
-  enqueue: async (text, parts) => {
-    const sid = useSessionStore.getState().currentSessionId;
+  enqueue: async (text, parts, sessionId, clientId) => {
+    // A send transaction captures its Session before any await.  Falling back
+    // to the current Session is retained for queue-panel/legacy callers, but
+    // InputRow passes the explicit id so a Session switch cannot reroute or
+    // clear a later request.
+    const sid = sessionId || useSessionStore.getState().currentSessionId;
     if (!sid || !text.trim()) return false;
     try {
-      const clientId = clientMessageId();
+      const messageId = clientId || clientMessageId();
       const result = parts
-        ? await enqueueSessionMessage(sid, text, clientId, parts)
-        : await enqueueSessionMessage(sid, text, clientId);
+        ? await enqueueSessionMessage(sid, text, messageId, parts)
+        : await enqueueSessionMessage(sid, text, messageId);
       const current = get().queues[sid] ?? [];
-      const next = current.some((item) => item.id === result.item.id) ? current : [...current, result.item];
+      const next = current.some((item) => item.id === result.item.id)
+        ? current
+        : [...current, result.item];
       setSnapshot(set, sid, next, result.queueRevision);
       useUIStore.getState().showToast('消息已进入服务端队列');
       return true;
     } catch (error) {
-      useUIStore.getState().showToast(`消息尚未入队：${error instanceof Error ? error.message : String(error)}`, 'error');
+      useUIStore
+        .getState()
+        .showToast(
+          `消息尚未入队：${error instanceof Error ? error.message : String(error)}`,
+          'error',
+        );
       return false;
     }
   },
 
-  remove: (id) => { void get().removeAgentItem(id); },
+  remove: (id) => {
+    void get().removeAgentItem(id);
+  },
 
   startEdit: (id) => {
     const sid = useSessionStore.getState().currentSessionId;
     if (!sid) return;
     const items = get().queues[sid] ?? [];
     const item = items.find((candidate) => candidate.id === id);
-    if (!item || item.kind !== 'task' || item.source !== 'user'
-        || item.meta?.dispatchState !== 'queued') return;
-    set((state) => ({ edits: { ...state.edits, [sid]: {
-      id: item.id, text: item.text, originalText: item.text,
-      index: items.findIndex((candidate) => candidate.id === id),
-      createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
-    } } }));
+    if (
+      !item ||
+      item.kind !== 'task' ||
+      item.source !== 'user' ||
+      item.meta?.dispatchState !== 'queued'
+    )
+      return;
+    set((state) => ({
+      edits: {
+        ...state.edits,
+        [sid]: {
+          id: item.id,
+          text: item.text,
+          originalText: item.text,
+          index: items.findIndex((candidate) => candidate.id === id),
+          createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+        },
+      },
+    }));
   },
 
   updateEditDraft: (text) => {
@@ -227,7 +277,9 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   saveEdit: () => {
     const sid = useSessionStore.getState().currentSessionId;
     const edit = sid ? get().edits[sid] : null;
-    const item = sid ? (get().queues[sid] ?? []).find((candidate) => candidate.id === edit?.id) : null;
+    const item = sid
+      ? (get().queues[sid] ?? []).find((candidate) => candidate.id === edit?.id)
+      : null;
     if (!sid || !edit || !item) return;
     void (async () => {
       try {
@@ -249,7 +301,12 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
         await get().loadAgentQueue(sid);
         set((state) => ({ edits: { ...state.edits, [sid]: null } }));
       } catch (error) {
-        useUIStore.getState().showToast(`编辑失败：${error instanceof Error ? error.message : String(error)}`, 'error');
+        useUIStore
+          .getState()
+          .showToast(
+            `编辑失败：${error instanceof Error ? error.message : String(error)}`,
+            'error',
+          );
       }
     })();
   },
@@ -258,7 +315,9 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     const sid = useSessionStore.getState().currentSessionId;
     if (sid) set((state) => ({ edits: { ...state.edits, [sid]: null } }));
   },
-  move: (id, delta) => { void get().moveQueueItem(id, delta); },
+  move: (id, delta) => {
+    void get().moveQueueItem(id, delta);
+  },
 
   clear: () => {
     const sid = useSessionStore.getState().currentSessionId;
@@ -284,11 +343,16 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       localStorage.removeItem(`pan.sendQueue.${sessionId}`);
       localStorage.removeItem(`pan.sendQueue.editing.${sessionId}`);
       localStorage.removeItem(`pan.sendQueue.batch.${sessionId}`);
-    } catch { /* storage may be unavailable */ }
+    } catch {
+      /* storage may be unavailable */
+    }
     set((state) => {
-      const queues = { ...state.queues }; delete queues[sessionId];
-      const edits = { ...state.edits }; delete edits[sessionId];
-      const agentQueues = { ...state.agentQueues }; delete agentQueues[sessionId];
+      const queues = { ...state.queues };
+      delete queues[sessionId];
+      const edits = { ...state.edits };
+      delete edits[sessionId];
+      const agentQueues = { ...state.agentQueues };
+      delete agentQueues[sessionId];
       return { queues, edits, agentQueues };
     });
   },
@@ -300,7 +364,9 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       await deleteSessionQueueItem(sid, id);
       await get().loadAgentQueue(sid);
     } catch (error) {
-      useUIStore.getState().showToast(`删除失败：${error instanceof Error ? error.message : String(error)}`, 'error');
+      useUIStore
+        .getState()
+        .showToast(`删除失败：${error instanceof Error ? error.message : String(error)}`, 'error');
       await get().loadAgentQueue(sid);
     }
   },
@@ -311,17 +377,25 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     // The panel and the order API both operate on the real pending view.
     // Ignore stale delivery-ledger rows that may still be present in an old
     // in-memory snapshot; they are not movable queue entries.
-    const current = (get().queues[sid] ?? [])
-      .filter((item) => item.meta?.dispatchState === 'queued');
+    const current = (get().queues[sid] ?? []).filter(
+      (item) => item.meta?.dispatchState === 'queued',
+    );
     const index = current.findIndex((item) => item.id === id);
     const target = index + delta;
     if (index < 0 || target < 0 || target >= current.length) return;
-    const next = current.slice(); [next[index], next[target]] = [next[target]!, next[index]!];
+    const next = current.slice();
+    [next[index], next[target]] = [next[target]!, next[index]!];
     setSnapshot(set, sid, next);
     try {
-      const items = await reorderSessionQueue(sid, next.map((item) => item.id), get().queueRevisions[sid]);
+      const items = await reorderSessionQueue(
+        sid,
+        next.map((item) => item.id),
+        get().queueRevisions[sid],
+      );
       setSnapshot(set, sid, items, items.queueRevision);
-    } catch { await get().loadAgentQueue(sid); }
+    } catch {
+      await get().loadAgentQueue(sid);
+    }
   },
 
   // Compatibility for callers that still use the old agent-specific name.
@@ -331,6 +405,6 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
 useSessionStore.subscribe((state, previous) => {
   if (state.sessions === previous.sessions) return;
   const live = new Set(state.sessions.map((session) => session.id));
-  for (const session of previous.sessions) if (!live.has(session.id)) useQueueStore.getState().removeSession(session.id);
+  for (const session of previous.sessions)
+    if (!live.has(session.id)) useQueueStore.getState().removeSession(session.id);
 });
-

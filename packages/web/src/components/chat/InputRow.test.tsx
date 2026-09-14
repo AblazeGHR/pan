@@ -6,7 +6,16 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
-import { enqueueSessionMessage, fetchDirectories, sendSession, spawnWorker, patchSession, steerSessionWorker, uploadSessionAttachment, registerServerFileAttachment } from '@/services/api';
+import {
+  enqueueSessionMessage,
+  fetchDirectories,
+  sendSession,
+  spawnWorker,
+  patchSession,
+  steerSessionWorker,
+  uploadSessionAttachment,
+  registerServerFileAttachment,
+} from '@/services/api';
 import { wsClient } from '@/services/ws';
 import { useWorkerStore } from '@/stores/workerStore';
 import type { AdapterConfig } from '@/types';
@@ -22,8 +31,7 @@ vi.mock('@/services/ws', () => ({
 }));
 
 vi.mock('@/services/api', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/services/api')>();
+  const actual = await importOriginal<typeof import('@/services/api')>();
   return {
     ...actual,
     patchSession: vi.fn(async () => ({})),
@@ -31,9 +39,7 @@ vi.mock('@/services/api', async (importOriginal) => {
     fetchDirectories: vi.fn(async () => ({
       current: 'D:\\attachments',
       parent: 'D:\\',
-      entries: [
-        { name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false },
-      ],
+      entries: [{ name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false }],
     })),
     uploadSessionAttachment: vi.fn(async (_sessionId: string, file: File) => ({
       ok: true,
@@ -93,16 +99,29 @@ function setBusySession() {
 }
 
 function mockMatchMedia(matches: boolean) {
-  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
-    matches,
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })));
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -114,7 +133,13 @@ beforeEach(() => {
     inputDrafts: {},
   });
   useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
-  useQueueStore.setState({ queues: {}, edits: {}, batchSend: {}, sendingId: null, panelOpen: false });
+  useQueueStore.setState({
+    queues: {},
+    edits: {},
+    batchSend: {},
+    sendingId: null,
+    panelOpen: false,
+  });
   useUIStore.setState({ toastQueue: [], chatAttachmentRequests: [] });
   useAdapterStore.setState({
     adapters: [],
@@ -146,19 +171,21 @@ describe('InputRow send queue wiring', () => {
     useSessionStore.setState({
       currentSessionId: 's1',
       currentMessages: [],
-      sessions: [{
-        id: 's1',
-        name: 'Test',
-        adapter: 'codex',
-        model: null,
-        permissionMode: null,
-        alwaysThinkingEnabled: false,
-        effort: '',
-        // Simulate a stale /api/sessions summary racing with worker refresh.
-        workerStatus: 'offline',
-        workerId: null,
-        history: [],
-      }],
+      sessions: [
+        {
+          id: 's1',
+          name: 'Test',
+          adapter: 'codex',
+          model: null,
+          permissionMode: null,
+          alwaysThinkingEnabled: false,
+          effort: '',
+          // Simulate a stale /api/sessions summary racing with worker refresh.
+          workerStatus: 'offline',
+          workerId: null,
+          history: [],
+        },
+      ],
     });
     useWorkerStore.setState({
       workers: { s1: { id: 'w-live', sessionId: 's1', status: 'running' } },
@@ -174,9 +201,9 @@ describe('InputRow send queue wiring', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Steer' }));
 
-    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith(
-      's1', 'continue with the latest result',
-    ));
+    await waitFor(() =>
+      expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'continue with the latest result'),
+    );
   });
 
   it('selects server files, renders attachment chips, and enqueues standard Markdown links', async () => {
@@ -186,19 +213,31 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
     expect(screen.queryByTestId('directory-input-panel')?.closest('.modal-card')).toBeTruthy();
-    expect(screen.queryByLabelText('Server attachment browser')?.closest('[data-testid="input-row"]')).toBeNull();
+    expect(
+      screen.queryByLabelText('Server attachment browser')?.closest('[data-testid="input-row"]'),
+    ).toBeNull();
     await waitFor(() => expect(screen.getByRole('button', { name: 'report.txt' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
-    await waitFor(() => expect(registerServerFileAttachment).toHaveBeenCalledWith('s1', 'D:\\attachments\\report.txt'));
+    await waitFor(() =>
+      expect(registerServerFileAttachment).toHaveBeenCalledWith(
+        's1',
+        'D:\\attachments\\report.txt',
+      ),
+    );
 
     expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt');
     const textarea = screen.getByPlaceholderText(/Type a message/);
     fireEvent.change(textarea, { target: { value: '请阅读' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)', expect.any(String), expect.any(Array),
-    ));
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '请阅读 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1)',
+        expect.any(String),
+        expect.any(Array),
+      ),
+    );
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
   });
 
@@ -212,15 +251,18 @@ describe('InputRow send queue wiring', () => {
     const range = document.createRange();
     range.setStart(text!, 3);
     range.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => range),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => range),
+      }),
+    );
     const payload = {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
     };
     const dataTransfer = {
-      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
+      getData: (type: string) => (type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : ''),
       dropEffect: 'copy',
     } as unknown as DataTransfer;
 
@@ -231,11 +273,41 @@ describe('InputRow send queue wiring', () => {
     expect(screen.getByRole('group', { name: '附件 接口说明.md' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1',
-      '请先 [接口说明.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1)后续',
-      expect.any(String), expect.any(Array),
-    ));
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '请先 [接口说明.md](/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1)后续',
+        expect.any(String),
+        expect.any(Array),
+      ),
+    );
+  });
+
+  it('keeps separate occurrences when the same resource is inserted twice', async () => {
+    setBusySession();
+    render(<InputRow />);
+    const editor = screen.getByTestId('rich-text-composer');
+    const payload = {
+      displayName: 'same.md',
+      href: '/api/attachments/upload_cccccccccccccccccccccccccccccccc.md?session_id=s1',
+      serverAttachmentId: 'resource-same',
+      source: 'message' as const,
+    };
+    const dataTransfer = {
+      getData: (type: string) => (type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : ''),
+      dropEffect: 'copy',
+    } as unknown as DataTransfer;
+    fireEvent.drop(editor, { dataTransfer });
+    fireEvent.drop(editor, { dataTransfer });
+
+    expect(screen.getAllByRole('group', { name: '附件 same.md' })).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalled());
+    const parts = vi.mocked(enqueueSessionMessage).mock.calls.at(-1)?.[3] || [];
+    expect(parts.filter((part) => part.type === 'attachment')).toHaveLength(2);
+    expect(
+      parts.filter((part) => part.type === 'attachment').map((part) => part.attachmentId),
+    ).toEqual(['resource-same', 'resource-same']);
   });
 
   it('removes an embedded attachment when native select-all Backspace removes its node', async () => {
@@ -246,9 +318,11 @@ describe('InputRow send queue wiring', () => {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
     };
-    fireEvent.drop(editor, { dataTransfer: {
-      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
-    } });
+    fireEvent.drop(editor, {
+      dataTransfer: {
+        getData: (type: string) => (type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : ''),
+      },
+    });
     expect(screen.getByRole('group', { name: '附件 接口说明.md' })).toBeTruthy();
 
     // jsdom does not implement native Ctrl+A editing. This is the DOM shape
@@ -265,7 +339,9 @@ describe('InputRow send queue wiring', () => {
     setBusySession();
     useUIStore.getState().requestChatAttachment('s1', 'D:\\attachments\\report.txt');
     render(<InputRow />);
-    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+    await waitFor(() =>
+      expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'),
+    );
 
     const textarea = screen.getByPlaceholderText(/Type a message/);
     fireEvent.change(textarea, { target: { value: 'only editor text' } });
@@ -273,7 +349,9 @@ describe('InputRow send queue wiring', () => {
     editor.replaceChildren(document.createElement('br'));
     fireEvent.input(editor);
 
-    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+    await waitFor(() =>
+      expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'),
+    );
     expect(screen.queryByRole('group', { name: '附件 report.txt' })).toBeTruthy();
   });
 
@@ -284,8 +362,12 @@ describe('InputRow send queue wiring', () => {
     const file = new File(['demo upload'], 'direct.txt', { type: 'text/plain' });
     fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
 
-    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'));
-    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+    await waitFor(() =>
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'),
+    );
     const chip = screen.getByTestId('draggable-attachment-chip');
     expect(chip.textContent).toContain('direct.txt');
 
@@ -309,11 +391,16 @@ describe('InputRow send queue wiring', () => {
     expect(screen.queryByTestId('draggable-attachment-chip')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1',
-      expect.stringMatching(/^\[direct\.txt\]\(\/api\/attachments\/upload_[a-z0-9]{32}\.txt\?session_id=s1\)$/),
-      expect.any(String), expect.any(Array),
-    ));
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        expect.stringMatching(
+          /^\[direct\.txt\]\(\/api\/attachments\/upload_[a-z0-9]{32}\.txt\?session_id=s1\)$/,
+        ),
+        expect.any(String),
+        expect.any(Array),
+      ),
+    );
     expect(uploadSessionAttachment).not.toHaveBeenCalled();
     window.history.pushState({}, '', '/');
   });
@@ -328,7 +415,9 @@ describe('InputRow send queue wiring', () => {
       target: { files: [first, first, second] },
     });
 
-    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+    await waitFor(() =>
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'),
+    );
     expect(screen.getAllByTestId('draggable-attachment-chip')).toHaveLength(2);
     expect(screen.getByTestId('server-attachments').textContent).toContain('first.txt');
     expect(screen.getByTestId('server-attachments').textContent).toContain('second.txt');
@@ -346,7 +435,9 @@ describe('InputRow send queue wiring', () => {
     const file = new File(['cancel me'], 'cancel.txt', { type: 'text/plain' });
     fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
 
-    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'));
+    await waitFor(() =>
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('上传中'),
+    );
     fireEvent.click(screen.getByRole('button', { name: '取消附件 cancel.txt' }));
     expect(screen.queryByTestId('server-attachments')).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 220));
@@ -357,15 +448,12 @@ describe('InputRow send queue wiring', () => {
   it('aborts an in-flight real upload when its pending chip is cancelled', async () => {
     setBusySession();
     let uploadSignal!: AbortSignal;
-    vi.mocked(uploadSessionAttachment).mockImplementationOnce(async (
-      _sessionId,
-      _file,
-      _onProgress,
-      signal,
-    ) => {
-      uploadSignal = signal!;
-      return new Promise(() => {});
-    });
+    vi.mocked(uploadSessionAttachment).mockImplementationOnce(
+      async (_sessionId, _file, _onProgress, signal) => {
+        uploadSignal = signal!;
+        return new Promise(() => {});
+      },
+    );
     render(<InputRow />);
     const file = new File(['cancel real'], 'cancel-real.txt', { type: 'text/plain' });
     fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
@@ -380,18 +468,21 @@ describe('InputRow send queue wiring', () => {
     setBusySession();
     useSessionStore.setState((state) => ({
       inputDrafts: { s1: 'first draft', s2: 'second draft' },
-      sessions: [...state.sessions, {
-        id: 's2',
-        name: 'Second',
-        adapter: 'cbc',
-        model: null,
-        permissionMode: null,
-        alwaysThinkingEnabled: false,
-        effort: '',
-        workerStatus: 'idle',
-        workerId: null,
-        history: [],
-      }],
+      sessions: [
+        ...state.sessions,
+        {
+          id: 's2',
+          name: 'Second',
+          adapter: 'cbc',
+          model: null,
+          permissionMode: null,
+          alwaysThinkingEnabled: false,
+          effort: '',
+          workerStatus: 'idle',
+          workerId: null,
+          history: [],
+        },
+      ],
     }));
     render(<InputRow />);
     const editor = screen.getByTestId('rich-text-composer');
@@ -399,13 +490,19 @@ describe('InputRow send queue wiring', () => {
       displayName: 'session.txt',
       href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1',
     };
-    fireEvent.drop(editor, { dataTransfer: {
-      getData: (type: string) => type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : '',
-    } });
+    fireEvent.drop(editor, {
+      dataTransfer: {
+        getData: (type: string) => (type === ATTACHMENT_DRAG_MIME ? JSON.stringify(payload) : ''),
+      },
+    });
     expect(screen.getByRole('group', { name: '附件 session.txt' })).toBeTruthy();
 
     useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
-    await waitFor(() => expect((screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement).value).toBe('second draft'));
+    await waitFor(() =>
+      expect((screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement).value).toBe(
+        'second draft',
+      ),
+    );
     expect(screen.queryByRole('group', { name: '附件 session.txt' })).toBeNull();
     expect(screen.getByTestId('rich-text-composer').textContent).toBe('second draft');
   });
@@ -420,14 +517,21 @@ describe('InputRow send queue wiring', () => {
     useUIStore.getState().requestChatAttachment('s1', 'D:\\project\\src\\main.ts');
     render(<InputRow />);
 
-    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('main.ts'));
+    await waitFor(() =>
+      expect(screen.getByTestId('server-attachments').textContent).toContain('main.ts'),
+    );
     expect(useUIStore.getState().chatAttachmentRequests).toEqual([]);
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '审阅' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '审阅 [main.ts](/api/fs/read?session_id=s1&path=D%3A%5Cproject%5Csrc%5Cmain.ts&download=1)', expect.any(String), expect.any(Array),
-    ));
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '审阅 [main.ts](/api/fs/read?session_id=s1&path=D%3A%5Cproject%5Csrc%5Cmain.ts&download=1)',
+        expect.any(String),
+        expect.any(Array),
+      ),
+    );
     expect(fetchDirectories).toHaveBeenCalledWith('D:\\project\\src', true);
   });
 
@@ -435,7 +539,8 @@ describe('InputRow send queue wiring', () => {
     setBusySession();
     vi.mocked(fetchDirectories)
       .mockResolvedValueOnce({
-        current: 'D:\\attachments', parent: 'D:\\',
+        current: 'D:\\attachments',
+        parent: 'D:\\',
         entries: [{ name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false }],
       })
       .mockResolvedValueOnce({ current: 'D:\\attachments', parent: 'D:\\', entries: [] });
@@ -444,9 +549,13 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
     await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
-    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+    await waitFor(() =>
+      expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
-    await waitFor(() => expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('当前目录非法'));
+    await waitFor(() =>
+      expect(useUIStore.getState().toastQueue.at(-1)?.message).toBe('当前目录非法'),
+    );
     expect(enqueueSessionMessage).not.toHaveBeenCalled();
     expect(screen.getByTestId('server-attachments')).toBeTruthy();
   });
@@ -491,31 +600,51 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
     await waitFor(() => screen.getByRole('button', { name: 'report.txt' }));
     fireEvent.click(screen.getByRole('button', { name: 'report.txt' }));
-    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'));
+    await waitFor(() =>
+      expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'),
+    );
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: '客户端附件' }));
     const file = new File(['client'], 'client.txt', { type: 'text/plain' });
     fireEvent.change(screen.getByTestId('client-attachment-input'), { target: { files: [file] } });
-    await waitFor(() => expect(uploadSessionAttachment).toHaveBeenCalledWith(
-      's1', file, expect.any(Function), expect.any(AbortSignal),
-    ));
-    await waitFor(() => expect(screen.getByTestId('server-attachments').textContent).toContain('client.txt'));
+    await waitFor(() =>
+      expect(uploadSessionAttachment).toHaveBeenCalledWith(
+        's1',
+        file,
+        expect.any(Function),
+        expect.any(AbortSignal),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('server-attachments').textContent).toContain('client.txt'),
+    );
 
-    fireEvent.change(screen.getByPlaceholderText(/Type a message/), { target: { value: '合并发送' } });
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: '合并发送' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
-    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', '合并发送 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1) [client.txt](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1)', expect.any(String), expect.any(Array),
-    ));
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        '合并发送 [report.txt](/api/fs/read?session_id=s1&path=D%3A%5Cattachments%5Creport.txt&download=1) [client.txt](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt?session_id=s1)',
+        expect.any(String),
+        expect.any(Array),
+      ),
+    );
   });
 
   it('shows deterministic aggregate progress and blocks send until upload completes', async () => {
     setBusySession();
     let finishUpload!: (value: Awaited<ReturnType<typeof uploadSessionAttachment>>) => void;
-    vi.mocked(uploadSessionAttachment).mockImplementationOnce(async (_sessionId, file, onProgress) => {
-      onProgress?.(4, file.size);
-      return new Promise((resolve) => { finishUpload = resolve; });
-    });
+    vi.mocked(uploadSessionAttachment).mockImplementationOnce(
+      async (_sessionId, file, onProgress) => {
+        onProgress?.(4, file.size);
+        return new Promise((resolve) => {
+          finishUpload = resolve;
+        });
+      },
+    );
     render(<InputRow />);
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
@@ -530,19 +659,31 @@ describe('InputRow send queue wiring', () => {
     expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
     expect(enqueueSessionMessage).not.toHaveBeenCalled();
 
-    finishUpload({ ok: true, filename: file.name, path: 'D:\\attachments\\progress.txt', size: file.size });
+    finishUpload({
+      ok: true,
+      filename: file.name,
+      path: 'D:\\attachments\\progress.txt',
+      size: file.size,
+    });
     await waitFor(() => {
       expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('100%');
       expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成');
     });
-    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
   });
 
   it('keeps failed uploads visible with a retry action', async () => {
     setBusySession();
     vi.mocked(uploadSessionAttachment)
       .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValueOnce({ ok: true, filename: 'retry.txt', path: 'D:\\attachments\\retry.txt', size: 5 });
+      .mockResolvedValueOnce({
+        ok: true,
+        filename: 'retry.txt',
+        path: 'D:\\attachments\\retry.txt',
+        size: 5,
+      });
     render(<InputRow />);
 
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
@@ -554,7 +695,9 @@ describe('InputRow send queue wiring', () => {
       expect(screen.getByRole('button', { name: '重试上传 retry.txt' })).toBeTruthy();
     });
     fireEvent.click(screen.getByRole('button', { name: '重试上传 retry.txt' }));
-    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+    await waitFor(() =>
+      expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'),
+    );
   });
 
   it('enqueues through the server when worker busy, then shows the pending row', async () => {
@@ -565,7 +708,9 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'queued msg' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
-    await waitFor(() => expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('queued msg'));
+    await waitFor(() =>
+      expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('queued msg'),
+    );
     expect((textarea as HTMLTextAreaElement).value).toBe('');
     // 排队消息不上屏：它不在服务端 history 中，伪装进聊天会在刷新后凭空消失
     expect(useSessionStore.getState().currentMessages).toEqual([]);
@@ -619,7 +764,9 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'direct msg' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
-    await waitFor(() => expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('direct msg'));
+    await waitFor(() =>
+      expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('direct msg'),
+    );
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
@@ -650,10 +797,177 @@ describe('InputRow send queue wiring', () => {
     fireEvent.change(textarea, { target: { value: 'survive reconnect' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
 
-    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith(
-      's1', 'survive reconnect', expect.any(String), expect.any(Array),
-    ));
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        'survive reconnect',
+        expect.any(String),
+        expect.any(Array),
+      ),
+    );
     expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('clears optimistically and restores the complete draft when enqueue fails', async () => {
+    setBusySession();
+    const request = deferred<Awaited<ReturnType<typeof enqueueSessionMessage>>>();
+    vi.mocked(enqueueSessionMessage).mockReturnValueOnce(request.promise);
+    render(<InputRow />);
+
+    const textarea = screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'retry this message' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(textarea.value).toBe('');
+
+    request.reject(new Error('network result unknown'));
+    await waitFor(() => expect(textarea.value).toBe('retry this message'));
+    expect(enqueueSessionMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let a pending send overwrite input typed after the optimistic clear', async () => {
+    setBusySession();
+    const request = deferred<Awaited<ReturnType<typeof enqueueSessionMessage>>>();
+    vi.mocked(enqueueSessionMessage).mockReturnValueOnce(request.promise);
+    render(<InputRow />);
+
+    const textarea = screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'first' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.change(textarea, { target: { value: 'new input while waiting' } });
+    request.resolve({
+      item: {
+        id: 'q-first',
+        queueItemId: 'q-first',
+        text: 'first',
+        source: 'user',
+        kind: 'task',
+        createdAt: 1,
+        meta: { dispatchState: 'queued', revision: 1 },
+      },
+      queueRevision: 1,
+    });
+
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledTimes(1));
+    expect(textarea.value).toBe('new input while waiting');
+  });
+
+  it('keeps a new Session draft isolated while the old Session send completes', async () => {
+    setBusySession();
+    useSessionStore.setState((state) => ({
+      sessions: [
+        ...state.sessions,
+        {
+          id: 's2',
+          name: 'Second',
+          adapter: 'cbc',
+          model: null,
+          permissionMode: null,
+          alwaysThinkingEnabled: false,
+          effort: '',
+          workerStatus: 'idle',
+          workerId: null,
+          history: [],
+        },
+      ],
+    }));
+    const request = deferred<Awaited<ReturnType<typeof enqueueSessionMessage>>>();
+    vi.mocked(enqueueSessionMessage).mockReturnValueOnce(request.promise);
+    render(<InputRow />);
+
+    const textarea = screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'belongs to s1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
+    await waitFor(() => expect(textarea.value).toBe(''));
+    fireEvent.change(textarea, { target: { value: 'belongs to s2' } });
+    request.resolve({
+      item: {
+        id: 'q-s1',
+        queueItemId: 'q-s1',
+        text: 'belongs to s1',
+        source: 'user',
+        kind: 'task',
+        createdAt: 1,
+        meta: { dispatchState: 'queued', revision: 1 },
+      },
+      queueRevision: 1,
+    });
+
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        'belongs to s1',
+        expect.any(String),
+        expect.any(Array),
+      ),
+    );
+    expect(textarea.value).toBe('belongs to s2');
+    expect(useQueueStore.getState().queues.s2).toBeUndefined();
+    expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('belongs to s1');
+  });
+
+  it('does not duplicate a submission on repeated clicks while its request is pending', async () => {
+    setBusySession();
+    const request = deferred<Awaited<ReturnType<typeof enqueueSessionMessage>>>();
+    vi.mocked(enqueueSessionMessage).mockReturnValueOnce(request.promise);
+    render(<InputRow />);
+    const textarea = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(textarea, { target: { value: 'once' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledTimes(1));
+    request.resolve({
+      item: {
+        id: 'q-once',
+        queueItemId: 'q-once',
+        text: 'once',
+        source: 'user',
+        kind: 'task',
+        createdAt: 1,
+        meta: { dispatchState: 'queued', revision: 1 },
+      },
+      queueRevision: 1,
+    });
+    await waitFor(() => expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('once'));
+  });
+
+  it('supports consecutive reset/send transactions without retaining stale text', async () => {
+    setBusySession();
+    vi.mocked(enqueueSessionMessage)
+      .mockResolvedValueOnce({
+        item: {
+          id: 'q-one',
+          queueItemId: 'q-one',
+          text: 'one',
+          source: 'user',
+          kind: 'task',
+          createdAt: 1,
+          meta: { dispatchState: 'queued', revision: 1 },
+        },
+        queueRevision: 1,
+      })
+      .mockResolvedValueOnce({
+        item: {
+          id: 'q-two',
+          queueItemId: 'q-two',
+          text: 'two',
+          source: 'user',
+          kind: 'task',
+          createdAt: 2,
+          meta: { dispatchState: 'queued', revision: 2 },
+        },
+        queueRevision: 2,
+      });
+    render(<InputRow />);
+    const textarea = screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'one' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(textarea.value).toBe(''));
+    fireEvent.change(textarea, { target: { value: 'two' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledTimes(2));
+    expect(textarea.value).toBe('');
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.text)).toEqual(['one', 'two']);
   });
 });
 
@@ -869,7 +1183,9 @@ describe('InputRow control row layout contract', () => {
     render(<InputRow />);
     expect(screen.getByText('Queue')).toBeTruthy();
     expect(screen.getByText('Queue').closest('button')?.className).toContain('md:w-auto');
-    expect(screen.getByRole('button', { name: '添加附件' }).parentElement?.className).toContain('md:ml-auto');
+    expect(screen.getByRole('button', { name: '添加附件' }).parentElement?.className).toContain(
+      'md:ml-auto',
+    );
   });
 
   it('shows both attachment choices outside the clipped control row', () => {
@@ -889,10 +1205,19 @@ describe('InputRow control row layout contract', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Session settings' }));
     expect(screen.getByText('Permission Mode', { selector: 'label' })).toBeTruthy();
-    expect(screen.getByText('Permission Mode', { selector: 'label' }).closest('[data-settings-popover]')?.parentElement).toBe(document.body);
+    expect(
+      screen.getByText('Permission Mode', { selector: 'label' }).closest('[data-settings-popover]')
+        ?.parentElement,
+    ).toBe(document.body);
 
-    fireEvent.click(screen.getByTestId('input-control-row').querySelector('button[title="opencode/big-pickle"]')!);
-    await waitFor(() => expect(screen.getByPlaceholderText('筛选模型…').closest('[data-model-select-menu]')?.parentElement).toBe(document.body));
+    fireEvent.click(
+      screen.getByTestId('input-control-row').querySelector('button[title="opencode/big-pickle"]')!,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByPlaceholderText('筛选模型…').closest('[data-model-select-menu]')?.parentElement,
+      ).toBe(document.body),
+    );
     fireEvent.click(document.body.querySelector('[data-perm-pill] button')!);
     await waitFor(() => expect(document.querySelector('[data-permission-menu]')).toBeTruthy());
     expect(document.querySelector('[data-permission-menu]')?.parentElement).toBe(document.body);
@@ -906,8 +1231,13 @@ describe('InputRow control row layout contract', () => {
     expect(controls.className).toContain('flex-nowrap');
     expect(controls.querySelector('[data-perm-pill]')).toBeTruthy();
     expect(controls.querySelector('button[aria-label="添加附件"]')).toBeTruthy();
-    expect(controls.compareDocumentPosition(screen.getByRole('button', { name: 'Send' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('button', { name: '添加附件' }).closest('[data-testid="input-control-row"]')).toBe(controls);
+    expect(
+      controls.compareDocumentPosition(screen.getByRole('button', { name: 'Send' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: '添加附件' }).closest('[data-testid="input-control-row"]'),
+    ).toBe(controls);
   });
 
   it('orders mobile settings, queue, model, effort, attachment and fullscreen, hiding Thinking first', () => {
@@ -915,18 +1245,29 @@ describe('InputRow control row layout contract', () => {
     setModelAndPermissionSession();
     render(<InputRow />);
     const controls = screen.getByTestId('input-control-row');
-    const labels = Array.from(controls.querySelectorAll('button, select')).map((node) => node.getAttribute('aria-label') || node.getAttribute('title') || node.textContent?.trim());
-    expect(labels.findIndex((label) => label === 'Session settings')).toBeLessThan(labels.findIndex((label) => label === '发送队列'));
-    const modelIndex = labels.findIndex((label) => label?.includes('模型') || label?.includes('opencode'));
+    const labels = Array.from(controls.querySelectorAll('button, select')).map(
+      (node) =>
+        node.getAttribute('aria-label') || node.getAttribute('title') || node.textContent?.trim(),
+    );
+    expect(labels.findIndex((label) => label === 'Session settings')).toBeLessThan(
+      labels.findIndex((label) => label === '发送队列'),
+    );
+    const modelIndex = labels.findIndex(
+      (label) => label?.includes('模型') || label?.includes('opencode'),
+    );
     expect(labels.findIndex((label) => label === '发送队列')).toBeLessThan(modelIndex);
     const effortIndex = labels.findIndex((label) => label === 'Effort');
     if (effortIndex >= 0) {
       expect(modelIndex).toBeLessThan(effortIndex);
       expect(effortIndex).toBeLessThan(labels.findIndex((label) => label === '添加附件'));
     }
-    expect(labels.findIndex((label) => label === '添加附件')).toBeLessThan(labels.findIndex((label) => label === '全屏输入'));
+    expect(labels.findIndex((label) => label === '添加附件')).toBeLessThan(
+      labels.findIndex((label) => label === '全屏输入'),
+    );
     expect(controls.className).toContain('flex-nowrap');
-    expect(screen.getByRole('button', { name: 'Send' }).closest('[data-testid="input-control-row"]')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Send' }).closest('[data-testid="input-control-row"]'),
+    ).toBeNull();
     expect(controls.querySelector('[data-testid="thinking-toggle"]')).toBeNull();
   });
 });
@@ -949,12 +1290,8 @@ describe('InputRow ModelPill search', () => {
 
     // 输入关键字后只剩匹配项
     fireEvent.change(search, { target: { value: 'qwen' } });
-    expect(
-      screen.getByRole('option', { name: 'siliconflow-cn/Qwen/Qwen3-14B' }),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole('option', { name: 'opencode/big-pickle' }),
-    ).toBeNull();
+    expect(screen.getByRole('option', { name: 'siliconflow-cn/Qwen/Qwen3-14B' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'opencode/big-pickle' })).toBeNull();
     expect(
       screen.queryByRole('option', {
         name: 'siliconflow-cn/deepseek-ai/DeepSeek-R1',
@@ -1025,6 +1362,3 @@ describe('InputRow PermissionPill', () => {
     expect(screen.getByText('read-only (auto)')).toBeTruthy();
   });
 });
-
-
-

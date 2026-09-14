@@ -26,13 +26,15 @@ function renderComposer(onChange: (value: ComposerValue) => void = vi.fn()) {
   const onAttachmentDrop = vi.fn(() => 'attachment-1');
   const onRemoveAttachment = vi.fn();
   render(
-      <RichTextComposer
-        initialText="before after"
-        attachments={[{
+    <RichTextComposer
+      initialText="before after"
+      attachments={[
+        {
           id: 'attachment-1',
           displayName: '接口说明.md',
           href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
-        }]}
+        },
+      ]}
       onChange={onChange}
       onAttachmentDrop={onAttachmentDrop}
       onRemoveAttachment={onRemoveAttachment}
@@ -49,28 +51,40 @@ describe('RichTextComposer attachment demo', () => {
     const range = document.createRange();
     range.setStart(text!, 7);
     range.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => range),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => range),
+      }),
+    );
 
-    fireEvent.dragOver(editor, { dataTransfer: dragData({
-      displayName: '接口说明.md',
-      href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
-    }), clientX: 40, clientY: 12 });
+    fireEvent.dragOver(editor, {
+      dataTransfer: dragData({
+        displayName: '接口说明.md',
+        href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+      }),
+      clientX: 40,
+      clientY: 12,
+    });
 
     expect(screen.getByTestId('attachment-drop-caret')).toBeTruthy();
   });
 
   it('inserts an icon-bearing attachment node at the caret and preserves text on both sides', () => {
     const changes: ComposerValue[] = [];
-    const { editor, onAttachmentDrop } = renderComposer((value) => { changes.push(value); });
+    const { editor, onAttachmentDrop } = renderComposer((value) => {
+      changes.push(value);
+    });
     const text = editor.querySelector('span')?.firstChild;
     const range = document.createRange();
     range.setStart(text!, 7);
     range.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => range),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => range),
+      }),
+    );
     const payload = {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
@@ -119,9 +133,12 @@ describe('RichTextComposer attachment demo', () => {
     const range = document.createRange();
     range.setStart(text!, 7);
     range.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => range),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => range),
+      }),
+    );
     const payload = {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
@@ -154,7 +171,11 @@ describe('RichTextComposer attachment demo', () => {
     imeCaret.collapse(true);
     window.getSelection()?.removeAllRanges();
     window.getSelection()?.addRange(imeCaret);
-    fireEvent.input(editor, { data: '中文', inputType: 'insertCompositionText', isComposing: true });
+    fireEvent.input(editor, {
+      data: '中文',
+      inputType: 'insertCompositionText',
+      isComposing: true,
+    });
     fireEvent.compositionEnd(editor, { data: '中文' });
 
     expect(editor.textContent).toBe('before 接口说明.mdafterabc中文');
@@ -162,12 +183,17 @@ describe('RichTextComposer attachment demo', () => {
     expect(window.getSelection()?.anchorOffset).toBe('afterabc中文'.length);
     expect(changes.some((value) => value.text === 'before aftera')).toBe(true);
     expect(changes.some((value) => value.text === 'before afterabc')).toBe(true);
-    expect(changes.at(-1)).toMatchObject({ text: 'before afterabc中文', attachmentIds: ['attachment-1'] });
+    expect(changes.at(-1)).toMatchObject({
+      text: 'before afterabc中文',
+      attachmentIds: ['attachment-1'],
+    });
   });
 
   it('serializes browser line breaks from BR and block wrappers without dropping newlines', () => {
     const changes: ComposerValue[] = [];
-    const { editor } = renderComposer((value) => { changes.push(value); });
+    const { editor } = renderComposer((value) => {
+      changes.push(value);
+    });
 
     editor.innerHTML = '<span>第一行</span><br><span>第二行</span>';
     fireEvent.input(editor);
@@ -180,9 +206,12 @@ describe('RichTextComposer attachment demo', () => {
     const secondLineRange = document.createRange();
     secondLineRange.setStart(editor, 1);
     secondLineRange.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => secondLineRange),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => secondLineRange),
+      }),
+    );
     const payload = {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
@@ -202,7 +231,9 @@ describe('RichTextComposer attachment demo', () => {
 
   it('treats browser placeholder breaks as empty lines instead of extra newlines', () => {
     const changes: ComposerValue[] = [];
-    const { editor } = renderComposer((value) => { changes.push(value); });
+    const { editor } = renderComposer((value) => {
+      changes.push(value);
+    });
 
     editor.innerHTML = '<div>第一行</div><div><br></div>';
     fireEvent.input(editor);
@@ -217,9 +248,12 @@ describe('RichTextComposer attachment demo', () => {
     const emptyLineCaret = document.createRange();
     emptyLineCaret.setStart(editor.children[1]!.firstChild!, 0);
     emptyLineCaret.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => emptyLineCaret),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => emptyLineCaret),
+      }),
+    );
     const payload = {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
@@ -247,7 +281,9 @@ describe('RichTextComposer attachment demo', () => {
       <RichTextComposer
         initialText=""
         attachments={[attachment]}
-        onChange={(value) => { changes.push(value); }}
+        onChange={(value) => {
+          changes.push(value);
+        }}
         onAttachmentDrop={vi.fn(() => attachment.id)}
         onRemoveAttachment={vi.fn()}
       />,
@@ -259,9 +295,12 @@ describe('RichTextComposer attachment demo', () => {
     const thirdLineCaret = document.createRange();
     thirdLineCaret.setStart(editor.children[2]!.firstChild!, 0);
     thirdLineCaret.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => thirdLineCaret),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => thirdLineCaret),
+      }),
+    );
     const payload = { displayName: attachment.displayName, href: attachment.href };
     fireEvent.dragOver(editor, { dataTransfer: dragData(payload), clientX: 40, clientY: 12 });
     fireEvent.drop(editor, { dataTransfer: dragData(payload), clientX: 40, clientY: 12 });
@@ -321,14 +360,19 @@ describe('RichTextComposer attachment demo', () => {
 
   it('deletes the whole node and keeps the composer available for continued typing', () => {
     const changes: ComposerValue[] = [];
-    const { editor, onRemoveAttachment } = renderComposer((value) => { changes.push(value); });
+    const { editor, onRemoveAttachment } = renderComposer((value) => {
+      changes.push(value);
+    });
     const text = editor.querySelector('span')?.firstChild;
     const range = document.createRange();
     range.setStart(text!, 7);
     range.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => range),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => range),
+      }),
+    );
     const payload = {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
@@ -347,38 +391,44 @@ describe('RichTextComposer attachment demo', () => {
     expect(changes.at(-1)).toMatchObject({ text: 'before after继续输入', attachmentIds: [] });
   });
 
-  it.each(['Backspace', 'Delete'] as const)('restores focus and the attachment boundary after %s', (key) => {
-    const { editor, onRemoveAttachment } = renderComposer();
-    const text = editor.querySelector('span')?.firstChild;
-    const insertionRange = document.createRange();
-    insertionRange.setStart(text!, 7);
-    insertionRange.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => insertionRange),
-    }));
-    const payload = {
-      displayName: '接口说明.md',
-      href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
-    };
-    fireEvent.dragOver(editor, { dataTransfer: dragData(payload), clientX: 40, clientY: 12 });
-    fireEvent.drop(editor, { dataTransfer: dragData(payload), clientX: 40, clientY: 12 });
+  it.each(['Backspace', 'Delete'] as const)(
+    'restores focus and the attachment boundary after %s',
+    (key) => {
+      const { editor, onRemoveAttachment } = renderComposer();
+      const text = editor.querySelector('span')?.firstChild;
+      const insertionRange = document.createRange();
+      insertionRange.setStart(text!, 7);
+      insertionRange.collapse(true);
+      vi.stubGlobal(
+        'document',
+        Object.assign(document, {
+          caretRangeFromPoint: vi.fn(() => insertionRange),
+        }),
+      );
+      const payload = {
+        displayName: '接口说明.md',
+        href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+      };
+      fireEvent.dragOver(editor, { dataTransfer: dragData(payload), clientX: 40, clientY: 12 });
+      fireEvent.drop(editor, { dataTransfer: dragData(payload), clientX: 40, clientY: 12 });
 
-    const caret = document.createRange();
-    caret.setStart(editor, key === 'Backspace' ? 2 : 1);
-    caret.collapse(true);
-    editor.focus();
-    window.getSelection()?.removeAllRanges();
-    window.getSelection()?.addRange(caret);
-    fireEvent.keyDown(editor, { key });
+      const caret = document.createRange();
+      caret.setStart(editor, key === 'Backspace' ? 2 : 1);
+      caret.collapse(true);
+      editor.focus();
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(caret);
+      fireEvent.keyDown(editor, { key });
 
-    const remainingText = editor.firstElementChild?.firstChild;
-    expect(remainingText).toBeTruthy();
-    expect(screen.queryByRole('group', { name: '附件 接口说明.md' })).toBeNull();
-    expect(onRemoveAttachment).toHaveBeenCalledWith('attachment-1');
-    expect(document.activeElement).toBe(editor);
-    expect(window.getSelection()?.anchorNode).toBe(remainingText);
-    expect(window.getSelection()?.anchorOffset).toBe(7);
-  });
+      const remainingText = editor.firstElementChild?.firstChild;
+      expect(remainingText).toBeTruthy();
+      expect(screen.queryByRole('group', { name: '附件 接口说明.md' })).toBeNull();
+      expect(onRemoveAttachment).toHaveBeenCalledWith('attachment-1');
+      expect(document.activeElement).toBe(editor);
+      expect(window.getSelection()?.anchorNode).toBe(remainingText);
+      expect(window.getSelection()?.anchorOffset).toBe(7);
+    },
+  );
 
   it('restores the editor focus and caret when deleting through the node button', () => {
     const { editor } = renderComposer();
@@ -386,9 +436,12 @@ describe('RichTextComposer attachment demo', () => {
     const insertionRange = document.createRange();
     insertionRange.setStart(text!, 7);
     insertionRange.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => insertionRange),
-    }));
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => insertionRange),
+      }),
+    );
     const payload = {
       displayName: '接口说明.md',
       href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
@@ -426,7 +479,9 @@ describe('RichTextComposer attachment demo', () => {
       <RichTextComposer
         initialText="中"
         attachments={attachments}
-        onChange={(value) => { changes.push(value); }}
+        onChange={(value) => {
+          changes.push(value);
+        }}
         onAttachmentDrop={onAttachmentDrop}
         onRemoveAttachment={vi.fn()}
       />,
@@ -460,8 +515,11 @@ describe('RichTextComposer attachment demo', () => {
     repeated.collapse(true);
     dropAt(repeated);
 
-    expect([...editor.querySelectorAll('[data-composer-attachment]')].map((node) => node.getAttribute('data-composer-attachment')))
-      .toEqual(['d', 'a', 'b', 'c']);
+    expect(
+      [...editor.querySelectorAll('[data-composer-attachment]')].map((node) =>
+        node.getAttribute('data-composer-attachment'),
+      ),
+    ).toEqual(['d', 'a', 'b', 'c']);
     expect(editor.textContent).toBe('same.mdsame.md中same.mdsame.md');
     expect(changes.at(-1)).toMatchObject({ text: '中', attachmentIds: ['d', 'a', 'b', 'c'] });
 
@@ -473,7 +531,9 @@ describe('RichTextComposer attachment demo', () => {
       <RichTextComposer
         initialText=""
         attachments={[attachments[0]!]}
-        onChange={(value) => { emptyChanges.push(value); }}
+        onChange={(value) => {
+          emptyChanges.push(value);
+        }}
         onAttachmentDrop={vi.fn(() => 'a')}
         onRemoveAttachment={vi.fn()}
       />,
@@ -487,18 +547,29 @@ describe('RichTextComposer attachment demo', () => {
 
   it('moves existing nodes without duplicating either node or surrounding text', () => {
     const changes: ComposerValue[] = [];
-    const onAttachmentDrop = vi.fn((payload: AttachmentDragPayload) => (
-      payload.attachmentId || (payload.displayName === 'b.md' ? 'b' : 'a')
-    ));
+    const onAttachmentDrop = vi.fn(
+      (payload: AttachmentDragPayload) =>
+        payload.attachmentId || (payload.displayName === 'b.md' ? 'b' : 'a'),
+    );
     const attachments = [
-      { id: 'a', displayName: 'a.md', href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1' },
-      { id: 'b', displayName: 'b.md', href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1' },
+      {
+        id: 'a',
+        displayName: 'a.md',
+        href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+      },
+      {
+        id: 'b',
+        displayName: 'b.md',
+        href: '/api/attachments/upload_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md?session_id=s1',
+      },
     ];
     render(
       <RichTextComposer
         initialText="A B"
         attachments={attachments}
-        onChange={(value) => { changes.push(value); }}
+        onChange={(value) => {
+          changes.push(value);
+        }}
         onAttachmentDrop={onAttachmentDrop}
         onRemoveAttachment={vi.fn()}
       />,
@@ -509,24 +580,42 @@ describe('RichTextComposer attachment demo', () => {
     const firstPosition = document.createRange();
     firstPosition.setStart(editor, 0);
     firstPosition.collapse(true);
-    vi.stubGlobal('document', Object.assign(document, {
-      caretRangeFromPoint: vi.fn(() => firstPosition),
-    }));
-    fireEvent.dragOver(editor, { dataTransfer: dataFor({ displayName: 'a.md', href: attachments[0]!.href }), clientX: 8, clientY: 8 });
-    fireEvent.drop(editor, { dataTransfer: dataFor({ displayName: 'a.md', href: attachments[0]!.href }) });
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        caretRangeFromPoint: vi.fn(() => firstPosition),
+      }),
+    );
+    fireEvent.dragOver(editor, {
+      dataTransfer: dataFor({ displayName: 'a.md', href: attachments[0]!.href }),
+      clientX: 8,
+      clientY: 8,
+    });
+    fireEvent.drop(editor, {
+      dataTransfer: dataFor({ displayName: 'a.md', href: attachments[0]!.href }),
+    });
 
     const textAfterA = editor.children[1]?.firstChild;
     const secondPosition = document.createRange();
     secondPosition.setStart(textAfterA!, 3);
     secondPosition.collapse(true);
     (document.caretRangeFromPoint as ReturnType<typeof vi.fn>).mockReturnValue(secondPosition);
-    fireEvent.dragOver(editor, { dataTransfer: dataFor({ displayName: 'b.md', href: attachments[1]!.href }), clientX: 8, clientY: 8 });
-    fireEvent.drop(editor, { dataTransfer: dataFor({ displayName: 'b.md', href: attachments[1]!.href }) });
+    fireEvent.dragOver(editor, {
+      dataTransfer: dataFor({ displayName: 'b.md', href: attachments[1]!.href }),
+      clientX: 8,
+      clientY: 8,
+    });
+    fireEvent.drop(editor, {
+      dataTransfer: dataFor({ displayName: 'b.md', href: attachments[1]!.href }),
+    });
 
     const nodeA = editor.querySelector('[data-composer-attachment="a"]');
     expect(nodeA).toBeTruthy();
     const moveData = dataFor({
-      displayName: 'a.md', href: attachments[0]!.href, attachmentId: 'a', source: 'composer',
+      displayName: 'a.md',
+      href: attachments[0]!.href,
+      attachmentId: 'a',
+      source: 'composer',
     });
     fireEvent.dragStart(nodeA!, { dataTransfer: moveData });
     expect(moveData.effectAllowed).toBe('move');
@@ -542,15 +631,21 @@ describe('RichTextComposer attachment demo', () => {
     expect(screen.getByTestId('attachment-drop-caret')).toBeTruthy();
     fireEvent.drop(editor, { dataTransfer: moveData, clientX: 8, clientY: 8 });
 
-    expect([...editor.querySelectorAll('[data-composer-attachment]')].map((node) => node.getAttribute('data-composer-attachment')))
-      .toEqual(['b', 'a']);
+    expect(
+      [...editor.querySelectorAll('[data-composer-attachment]')].map((node) =>
+        node.getAttribute('data-composer-attachment'),
+      ),
+    ).toEqual(['b', 'a']);
     expect(editor.textContent).toBe('A Bb.mda.md');
     expect(changes.at(-1)).toMatchObject({ text: 'A B', attachmentIds: ['b', 'a'] });
 
     const nodeB = editor.querySelector('[data-composer-attachment="b"]');
     expect(nodeB).toBeTruthy();
     const selfDropData = dataFor({
-      displayName: 'b.md', href: attachments[1]!.href, attachmentId: 'b', source: 'composer',
+      displayName: 'b.md',
+      href: attachments[1]!.href,
+      attachmentId: 'b',
+      source: 'composer',
     });
     fireEvent.dragStart(nodeB!, { dataTransfer: selfDropData });
     const samePosition = document.createRange();
@@ -560,8 +655,11 @@ describe('RichTextComposer attachment demo', () => {
     fireEvent.dragOver(editor, { dataTransfer: selfDropData, clientX: 8, clientY: 8 });
     fireEvent.drop(editor, { dataTransfer: selfDropData, clientX: 8, clientY: 8 });
 
-    expect([...editor.querySelectorAll('[data-composer-attachment]')].map((node) => node.getAttribute('data-composer-attachment')))
-      .toEqual(['b', 'a']);
+    expect(
+      [...editor.querySelectorAll('[data-composer-attachment]')].map((node) =>
+        node.getAttribute('data-composer-attachment'),
+      ),
+    ).toEqual(['b', 'a']);
     expect(editor.textContent).toBe('A Bb.mda.md');
     expect(changes.at(-1)).toMatchObject({ text: 'A B', attachmentIds: ['b', 'a'] });
     expect(onAttachmentDrop).toHaveBeenCalledTimes(4);
@@ -569,7 +667,10 @@ describe('RichTextComposer attachment demo', () => {
     // A second move after a no-op self-drop must use the current flat model,
     // not a stale DOM/React snapshot, and must not duplicate either node.
     const moveBackData = dataFor({
-      displayName: 'a.md', href: attachments[0]!.href, attachmentId: 'a', source: 'composer',
+      displayName: 'a.md',
+      href: attachments[0]!.href,
+      attachmentId: 'a',
+      source: 'composer',
     });
     const nodeAAtEnd = editor.querySelector('[data-composer-attachment="a"]');
     expect(nodeAAtEnd).toBeTruthy();
@@ -582,8 +683,11 @@ describe('RichTextComposer attachment demo', () => {
     expect(screen.getByTestId('attachment-drop-caret')).toBeTruthy();
     fireEvent.drop(editor, { dataTransfer: moveBackData, clientX: 8, clientY: 8 });
 
-    expect([...editor.querySelectorAll('[data-composer-attachment]')].map((node) => node.getAttribute('data-composer-attachment')))
-      .toEqual(['a', 'b']);
+    expect(
+      [...editor.querySelectorAll('[data-composer-attachment]')].map((node) =>
+        node.getAttribute('data-composer-attachment'),
+      ),
+    ).toEqual(['a', 'b']);
     expect(editor.textContent).toBe('a.mdA Bb.md');
     expect(changes.at(-1)).toMatchObject({ text: 'A B', attachmentIds: ['a', 'b'] });
     expect(onAttachmentDrop).toHaveBeenCalledTimes(5);
@@ -611,7 +715,12 @@ describe('RichTextComposer attachment demo', () => {
     range.collapse(true);
     window.getSelection()?.removeAllRanges();
     window.getSelection()?.addRange(range);
-    const clipboardData = { files, items: [], types: ['Files'], getData: vi.fn(() => '') } as unknown as DataTransfer;
+    const clipboardData = {
+      files,
+      items: [],
+      types: ['Files'],
+      getData: vi.fn(() => ''),
+    } as unknown as DataTransfer;
     fireEvent.paste(editor, { clipboardData });
     expect(editor.textContent).toContain('left a.txtb.txt');
     expect(editor.querySelectorAll('[data-composer-attachment]')).toHaveLength(2);
@@ -624,7 +733,10 @@ describe('RichTextComposer attachment demo', () => {
     const editor = render(
       <RichTextComposer
         initialText="text"
-        attachments={[{ id: 'pan-attachment', displayName: 'Pan.md' }, { id: 'os-file', displayName: 'OS.txt' }]}
+        attachments={[
+          { id: 'pan-attachment', displayName: 'Pan.md' },
+          { id: 'os-file', displayName: 'OS.txt' },
+        ]}
         onChange={vi.fn()}
         onAttachmentDrop={onAttachmentDrop}
         onNativeFiles={onNativeFiles}
@@ -635,12 +747,118 @@ describe('RichTextComposer attachment demo', () => {
       types: [ATTACHMENT_DRAG_MIME, 'Files'],
       files: [new File(['os'], 'OS.txt')],
       items: [],
-      getData: (type: string) => type === ATTACHMENT_DRAG_MIME
-        ? JSON.stringify({ displayName: 'Pan.md', href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1' })
-        : '',
+      getData: (type: string) =>
+        type === ATTACHMENT_DRAG_MIME
+          ? JSON.stringify({
+              displayName: 'Pan.md',
+              href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+            })
+          : '',
     } as unknown as DataTransfer;
     fireEvent.drop(editor, { dataTransfer });
     expect(onAttachmentDrop).toHaveBeenCalledTimes(1);
     expect(onNativeFiles).not.toHaveBeenCalled();
+  });
+
+  it('replaces the selected range with native files and keeps File objects untouched', () => {
+    const file = new File(['original bytes'], 'bytes.html', { type: 'text/html' });
+    const onNativeFiles = vi.fn(() => ['file-occurrence']);
+    const onRemoveAttachment = vi.fn();
+    render(
+      <RichTextComposer
+        initialText="abcdef"
+        attachments={[{ id: 'file-occurrence', displayName: file.name }]}
+        onChange={vi.fn()}
+        onAttachmentDrop={vi.fn(() => null)}
+        onNativeFiles={onNativeFiles}
+        onRemoveAttachment={onRemoveAttachment}
+      />,
+    );
+    const editor = screen.getByTestId('rich-text-composer');
+    const text = editor.firstElementChild?.firstChild;
+    const selection = document.createRange();
+    selection.setStart(text!, 1);
+    selection.setEnd(text!, 4);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(selection);
+    const clipboardData = {
+      files: [file],
+      items: [],
+      types: ['Files', 'text/html'],
+      getData: vi.fn(() => '<b>must not be inserted as html</b>'),
+    } as unknown as DataTransfer;
+
+    fireEvent.paste(editor, { clipboardData });
+    expect(onNativeFiles).toHaveBeenCalledWith([file], 1, 'paste');
+    expect(editor.textContent).toBe('abytes.htmlef');
+    expect(editor.querySelector('[data-composer-attachment="file-occurrence"]')).toBeTruthy();
+    expect(onRemoveAttachment).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes rich HTML to text, preserves line breaks, and replaces the selection', () => {
+    const changes: ComposerValue[] = [];
+    render(
+      <RichTextComposer
+        initialText="abcdef"
+        attachments={[]}
+        onChange={(value) => changes.push(value)}
+        onAttachmentDrop={vi.fn(() => null)}
+        onRemoveAttachment={vi.fn()}
+      />,
+    );
+    const editor = screen.getByTestId('rich-text-composer');
+    const text = editor.firstElementChild?.firstChild;
+    const selection = document.createRange();
+    selection.setStart(text!, 2);
+    selection.setEnd(text!, 4);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(selection);
+    const clipboardData = {
+      files: [],
+      items: [],
+      types: ['text/html', 'text/plain'],
+      getData: (type: string) =>
+        type === 'text/html'
+          ? '<div>安全一<br>安全二</div><script>恶意()</script><style>.x{}</style><span hidden>隐藏</span>'
+          : 'fallback',
+    } as unknown as DataTransfer;
+
+    fireEvent.paste(editor, { clipboardData });
+    expect(editor.textContent).toBe('ab安全一\n安全二ef');
+    expect(editor.innerHTML).not.toContain('script');
+    expect(editor.innerHTML).not.toContain('恶意');
+    expect(editor.innerHTML).not.toContain('隐藏');
+    expect(changes.at(-1)?.text).toBe('ab安全一\n安全二ef');
+  });
+
+  it('deletes a selected attachment atomically on Ctrl+A/Delete', () => {
+    const changes: ComposerValue[] = [];
+    const { editor } = renderComposer((value) => changes.push(value));
+    const text = editor.querySelector('span')?.firstChild;
+    const insert = document.createRange();
+    insert.setStart(text!, 7);
+    insert.collapse(true);
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, { caretRangeFromPoint: vi.fn(() => insert) }),
+    );
+    const payload = {
+      displayName: '接口说明.md',
+      href: '/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md?session_id=s1',
+    };
+    fireEvent.drop(editor, { dataTransfer: dragData(payload) });
+
+    const all = document.createRange();
+    all.selectNodeContents(editor);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(all);
+    fireEvent.keyDown(editor, { key: 'Delete', ctrlKey: true });
+    fireEvent.input(editor);
+
+    expect(editor.querySelector('[data-composer-attachment]')).toBeNull();
+    expect(changes.at(-1)?.attachmentIds).toEqual([]);
+    // The InputRow callback is responsible for removing the pending chip;
+    // the standalone composer still exposes the atomic node id.
+    expect(editor.textContent).toBe('');
   });
 });
