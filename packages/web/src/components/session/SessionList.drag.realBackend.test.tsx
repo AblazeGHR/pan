@@ -130,7 +130,6 @@ describe('SessionList drag → real backend APIs (no ?mock=1)', () => {
       initialLoading: false,
       historyLoadEnd: 0,
       _loadSeq: 0,
-      _touchSeq: 0,
       _sessionWsTouchedSeq: {},
     });
 

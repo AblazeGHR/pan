@@ -67,7 +67,6 @@ function resetStore(): void {
     initialLoading: false,
     historyLoadEnd: 0,
     _loadSeq: 0,
-    _touchSeq: 0,
     _sessionWsTouchedSeq: {},
   });
 }
