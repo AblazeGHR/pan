@@ -168,7 +168,9 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   );
 
   return (
-    <Modal open title="Session Details" onClose={onClose} size="lg">
+    // Mobile: the shared Modal renders this as a viewport-filling page instead
+    // of a centered window (< md breakpoint only). Desktop keeps size="lg".
+    <Modal open title="Session Details" onClose={onClose} size="lg" mobileFullscreen>
       <div className="space-y-3">
         {rows.map((row) => {
           const copyable = true;
