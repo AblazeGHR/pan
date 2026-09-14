@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-027 已合入并完成 QQ 通知；T-030、T-031、T-032、T-033、T-035 五路并行执行中；继续推进所有设计与任务直到彻底阻塞
-- 当前焦点：T-030 done 指示灯延迟修复；T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；T-032 MA→TA 排队报告粒度调查
-- 可执行：无（T-030、T-031、T-032、T-033、T-035 已派发；其余任务均待开发者验收或被用户暂停/取消）
-- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4，隔离端口 8767）；T-032 `ses_704ba1fd334045b6`（codex `gpt-5.6-luna`，high，bypass，worker-1，仅调查）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-7，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-6）
+- 整体状态：T-027 批次与 T-030 均已合入 main（T-030 合并提交 `7f2667b`）；T-031、T-033 接续、T-035 三路执行中，T-032 调查已闭环待 `DEC-003`；继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
+- 当前焦点：T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；`DEC-003` 决策（T-032 第 2 档）
+- 可执行：无（T-031、T-033、T-035 已派发在跑；T-034、T-036 待并发/额度窗口；其余任务待开发者验收或被用户暂停/取消）
+- TA 执行中：T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4，隔离端口 8767）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-7，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，worker-6）
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - TA 模型规则（2026-09-15 用户会话）：新 TA 优先 `MODEL-1`（codex `gpt-5.6-luna` high）；Codex 五小时额度触发限额后按 `MODEL-3` 级联（`cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 DeepSeek）。已派发中的 TA 不回溯切换模型。
 - 用户追加口径（2026-09-15，Codex 五小时额度实测 96%）：**新任务直接派 `cbc deepseek-v4.1-flash`**（T-035 即按此派发）；**已在跑的 codex luna 任务（T-031 / T-032 / T-033）不重做、不再消耗 Codex 额度，待其停下后用 `session_handoff` 接续到 `cbc deepseek-v4.1-flash`**，接续时以原任务 brief + worktree 现场 + 源 session 历史为交接材料。
@@ -343,17 +343,11 @@
   - [x] 合入 main
   - [ ] 开发者验收
 
-## 二、已完成但尚未合入 main 的改动
-
-当前暂无。T-023 为纯调查任务，没有待合入的代码或文档改动；其结论和 A + C 决策保留在 DEC-001，并已用于已合入的 T-025。
-
-## 三、正在进行的任务/改动
-
 ### T-027：输入框、附件与发送链路完整审查及方案设计
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：子任务已实现、验证并合入 main，待开发者验收；T-030 并行处理后续状态问题
-- 下一动作：等待 T-030 完成调查/修复/验证并报告
+- 当前阶段：审查与子任务已实现、验证并合入 main，待开发者验收（T-030 的后续状态问题已合入；服务端广播次序后续项见 T-036）
+- 下一动作：等待开发者验收
 - 决策门：已解除；产品语义记录于 DEC-002
 - 调查结论：TA 已完成全链路审查。高优先级问题包括 Send 成功后 DOM 未清空、发送/会话切换竞态、HTML paste 未强制纯文本、Worker 当前仍可能收到 API href、queue 编辑 text/parts 不一致，以及已渲染 editor 普通本地文件链接缺少统一附件拖动 payload。报告还指出当前审查 Session workdir 不是独立 Git worktree，未进行真实 Windows Explorer/桌面剪贴板验收。
 - TA Session：`ses_cf22dbcbd289c6e9`；模型 `gpt-6-astra`；effort `low`；权限 `read-only`
@@ -397,7 +391,34 @@
   - [x] 提交并检查 worktree clean
   - [x] 合入 main（测试通过后按 `AUTH-001` 执行）
   - [ ] 开发者验收
+
+### T-030：done 事件已传出但状态指示灯延迟更新
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 执行模式：端到端（调查 → 修复 → 验证 → 报告）
+- 当前阶段：已合入 main，待开发者验收
+- 下一动作：等待开发者验收；服务端广播次序的后续项见 T-036
+- 阻塞：无
+- 目标：调查并修复系统已发送或收到 done 状态后，前端状态指示灯仍长时间保持旧状态的延迟问题。
+- 调查结论（已核实，根因）：指示灯只读 `Session.workerStatus`；`worker.result` 到达时同步写 store，正常路径本就不延迟——缺陷是**事件一旦丢失就再也无法纠正**：`loadSessions()` 用**全局** touch 计数器与**单 session** 值做 `>=` 比较（修复前 `packages/web/src/stores/sessionStore.ts:171`），导致（1）“最后被触碰的那个 session”被永久豁免于权威快照，任何刷新（含 T-013 的重连/焦点恢复）都无法修正，指示灯卡在 `running`；（2）一个 session 的状态判定取决于无关 session 的流量。次要缺陷：`WorkerDot.tsx:6` 缺 `done`/`queued`/`restarting` 配色（渲染成 offline 灰）；`useWebSocket.ts` 的 generation 守卫丢弃终态事件后**无兜底**。
+- 修复实现（commit `fb42e76`，11 files，+682/−30）：`sessionStore.ts` 守卫改为**严格按 session** 判定（仅当该 session 自身计数在本次请求进行中前进才保留本地值），并保留两个必要例外（本地显式 `null` 的销毁/崩溃；后端瞬态终态 `done`）；`useWebSocket.ts` 在 generation 守卫丢弃 `worker.result` 时退回防抖权威刷新；`WorkerDot.tsx` 补齐 `done`(success)/`queued`(accent)/`restarting`(warning) 配色；新增 `sessionStore.doneIndicator.test.ts`(7)、`WorkerDot.test.tsx`(10)、`e2e/done-indicator.e2e.mjs`，扩展 `useWebSocket.test.tsx`。
+- TA/任务：`ses_2834ad61bb0d5b74`；`done-indicator-latency-20260915`；CBC `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；Worker `worker-2`；TA 报告 done（在新模型规则前派发，按规则未回溯切换模型）
+- 工作树/分支：`D:\project\pan-worktrees\done-indicator-latency-20260915`；`audit/done-indicator-latency-20260915`；基于 `main@99f1774`；worktree clean
+- 提交：`fb42e76`（功能提交）；合并提交 `7f2667b` 已合入 main；未 push
+- 测试/未验证项：**MA 独立复跑**——定向 7 files / 102 passed；**MA 独立复跑全量**——501 passed / 10 failed (511)，且已在**修复前**的 commit 上单跑 `Toast.test.tsx` + `NewSessionModal.test.tsx` 复现同样 10 failed，确认既有基线、非本次引入；`tsc -b` 0 错；Chromium E2E `e2e/done-indicator.e2e.mjs` 4/4（隔离端口 8766；修复前焦点恢复后 5s 仍卡 running，修复后 121ms 收敛）；**未验证**——真实 Pan 服务/真实 provider 的耗时实测、真实半开连接/重连（`ws.ts` 无测试）、多 session 并发与 visibility/bfcache、Firefox/Safari/移动端；仓库自带真实服务 E2E（`e2e/run.ps1`）因需 8765 空闲而无法运行（8765 被 PID 7612 占用，未触碰）
+- 有序待办：
+  - [x] 调查并确认根因
+  - [x] 实现与回归测试
+  - [x] 定向验证（MA 复跑）
+  - [x] 合入 main（`7f2667b`，按 `AUTH-001`）
   - [ ] 开发者验收
+- 合入/push 状态：合入 main：是（`main@7f2667b`）；push：否
+
+## 二、已完成但尚未合入 main 的改动
+
+当前暂无。T-023 为纯调查任务，没有待合入的代码或文档改动；其结论和 A + C 决策保留在 DEC-001，并已用于已合入的 T-025。
+
+## 三、正在进行的任务/改动
 
 ### T-028：QQ 通道未连接归因调查（Pan vs llbot）
 
@@ -438,22 +459,6 @@
   - [ ] 提交并检查 worktree clean
   - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
   - [ ] 开发者验收
-
-### T-030：done 事件已传出但状态指示灯延迟更新
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端（调查 → 修复 → 验证 → 报告）
-- 决策门：无；若调查证明需要改变产品行为、兼容性或数据语义，停止受影响实现并立即报告
-- 当前阶段：实现/验证执行中（TA running）
-- 下一动作：等待 T-030 TA 报告，再按证据决定返工或合入
-- 阻塞：无
-- 目标：调查并修复系统已发送或收到 done 状态后，前端状态指示灯仍长时间保持旧状态的延迟问题。
-- 调查结论（TA 首轮报告，事实）：指示灯只读 `Session.workerStatus`（`WorkerDot.tsx:6` 颜色表无 `done` 键，未知 status 渲染为 offline 灰）；最可疑根因是 `sessionStore.ts` 的 `loadSessions` “WS-touched” 守卫用**全局** `_touchSeq` 与**每 session** 的 touch 值做 `>=` 比较，可能长期丢弃权威 `idle` 快照（H1），叠加 `useWebSocket.ts` 300ms debounce（H2）与 generation 守卫丢事件（H3）；后端 `_send_ws` 2s 超时丢弃慢客户端为次要因素。TA 正在代码中自证后再修复。
-- 初始范围：done 事件来源、服务端落库/广播、WebSocket/队列/轮询、session/worker store、指示灯 selector/UI 重绘、重连/乱序/Session 切换竞态；不得用 sleep 掩盖问题。
-- TA/任务：`ses_2834ad61bb0d5b74`；`done-indicator-latency-20260915`；CBC `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；Worker `worker-2`（在新模型规则前派发，按规则不回溯切换模型）
-- 工作树/分支：`D:\project\pan-worktrees\done-indicator-latency-20260915`；`audit/done-indicator-latency-20260915`；基于 `main@99f1774`
-- 合入 main：未开始
-- 开发者验收：未开始
 
 ### T-031：已合入 main 的附件与发送链路真实隔离实例端到端验证
 
@@ -589,6 +594,24 @@
   - [ ] 完成浏览器侧用例与证据采集
   - [ ] 交付报告并由 MA 核验，结论回填对应已合入批次
   - [ ] 合入 main（无产品代码改动；如发现缺陷另立返工项）
+  - [ ] 开发者验收
+
+### T-036：终态广播被阻塞的 enrich/落盘推迟（服务端次序，先调查再决定）
+
+- 优先级/依赖：T-030 的 TA 明确上报的后续项（本次刻意未实现）；排在 T-031 / T-033 / T-035 之后
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-2`、`TEST-1`、`TEST-2`
+- 执行模式：分阶段决策门（先调查事件/账本持久化次序与 `enrich_after_result` 的写入面，再决定是否实现）
+- 决策门：若调查证明需要改变事件/账本持久化次序或 Session 状态写入时机，先给方案、影响与风险，不直接实现
+- 当前阶段：计划（**未派发**）
+- 下一动作：待 T-031 / T-033 / T-035 任一收束后派调查 TA（`MODEL-3`）
+- 阻塞：并行度上限（当前 4 个 TA 在跑）；**非用户决策阻塞**
+- 目标：`packages/core/worker.py` 终态路径当前次序为 `w.status="done"`(≈963) → `adapter.enrich_after_result(s)`（cbc `adapter.py:475` 含 `time.sleep(0.2)`、kimi `adapter.py:455` 为 `0.3`，均在 asyncio 循环上）→ `_flush_history_now`（`session.py:43` 进程级 `_SAVE_LOCK` 落盘）→ **才** `_bcast worker.result`(≈1027) → `w.status="idle"` + 广播(≈1052)。即"清除指示灯的那个事件"被阻塞工作推迟。需评估：能否在不破坏事件/账本持久化次序语义的前提下降低该延迟（先广播后落盘？把 enrich 移出事件循环？分帧？），给出最小改动、风险与验收方式。
+- 已知约束：`enrich_after_result` 会写 `Session` 状态，不能简单挪到线程；改次序属语义变更，须先报告。
+- 有序待办：
+  - [ ] 派调查 TA：事件/账本持久化次序 + `enrich_after_result` 写入面 + 可行的最小改动与风险
+  - [ ] MA 核验方案后决定是否实现（必要时建 `DEC-nnn`）
+  - [ ] 若实现：定向测试 + 真实隔离实例验证
+  - [ ] 合入 main
   - [ ] 开发者验收
 
 新需求必须分配新的 `T-nnn`，不得复用已完成任务 ID。
