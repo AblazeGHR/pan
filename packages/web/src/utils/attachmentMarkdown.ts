@@ -1,6 +1,9 @@
+import type { AttachmentLocation } from '@/types/attachment';
+
 export interface AttachmentMarkdownRef {
   displayName: string;
   href: string;
+  location?: AttachmentLocation;
 }
 
 const INTERNAL_ATTACHMENT_PATH = /^\/api\/(?:attachments\/[^/?#]+|fs\/read(?:\?|$))/;
@@ -23,24 +26,47 @@ export function isSafeAttachmentHref(href: string): boolean {
   }
   try {
     const url = new URL(href, window.location.origin);
-    if (url.origin !== window.location.origin || !INTERNAL_ATTACHMENT_PATH.test(url.pathname + url.search)) {
+    if (
+      url.origin !== window.location.origin ||
+      !INTERNAL_ATTACHMENT_PATH.test(url.pathname + url.search)
+    ) {
       return false;
     }
     if (url.pathname.startsWith('/api/attachments/')) {
-      return /^\/api\/attachments\/upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?$/.test(url.pathname)
-        && !!url.searchParams.get('session_id');
+      return (
+        /^\/api\/attachments\/upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?$/.test(
+          url.pathname,
+        ) && !!url.searchParams.get('session_id')
+      );
     }
-    return !!url.searchParams.get('session_id')
-      && url.searchParams.get('path') !== null
-      && url.searchParams.get('download') === '1';
+    return (
+      !!url.searchParams.get('session_id') &&
+      url.searchParams.get('path') !== null &&
+      url.searchParams.get('download') === '1'
+    );
   } catch {
     return false;
   }
 }
 
+function locationFragment(location: AttachmentLocation | undefined): string {
+  if (
+    !location ||
+    !Number.isSafeInteger(location.line) ||
+    location.line < 1 ||
+    (location.endLine !== undefined &&
+      (!Number.isSafeInteger(location.endLine) || location.endLine < location.line))
+  ) {
+    return '';
+  }
+  return `#L${location.line}${location.endLine === undefined ? '' : `-L${location.endLine}`}`;
+}
+
 export function attachmentMarkdown(ref: AttachmentMarkdownRef): string | null {
   if (!ref.displayName || !isSafeAttachmentHref(ref.href)) return null;
-  return `[${escapeMarkdownLabel(ref.displayName)}](${ref.href})`;
+  const fragment = locationFragment(ref.location);
+  const href = fragment ? `${ref.href.split('#', 1)[0]}${fragment}` : ref.href;
+  return `[${escapeMarkdownLabel(ref.displayName)}](${href})`;
 }
 
 export function serverFileDownloadHref(sessionId: string, path: string): string {
@@ -49,7 +75,12 @@ export function serverFileDownloadHref(sessionId: string, path: string): string 
 }
 
 function basename(path: string): string {
-  return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'attachment';
+  return (
+    path
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .pop() || 'attachment'
+  );
 }
 
 const LEGACY_ATTACHMENT_RE = /@"([^"\r\n]+)"/g;
@@ -61,8 +92,12 @@ const LEGACY_ATTACHMENT_RE = /@"([^"\r\n]+)"/g;
  */
 export function normalizeLegacyAttachmentLinks(content: string, sessionId?: string): string {
   if (!sessionId) return content;
-  return content.replace(LEGACY_ATTACHMENT_RE, (_match, path: string) => (
-    attachmentMarkdown({ displayName: basename(path), href: serverFileDownloadHref(sessionId, path) })
-    || _match
-  ));
+  return content.replace(
+    LEGACY_ATTACHMENT_RE,
+    (_match, path: string) =>
+      attachmentMarkdown({
+        displayName: basename(path),
+        href: serverFileDownloadHref(sessionId, path),
+      }) || _match,
+  );
 }

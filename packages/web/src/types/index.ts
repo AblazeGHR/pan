@@ -1,5 +1,9 @@
 // ── Data types (matching backend API responses) ──
 
+import type { AttachmentLocation } from './attachment';
+
+export type { AttachmentLocation } from './attachment';
+
 export interface Message {
   role: string;
   content: string;
@@ -20,6 +24,7 @@ export type MessagePart =
       mimeType?: string;
       size?: number;
       source?: 'upload' | 'server_file';
+      location?: AttachmentLocation;
     };
 
 /** Session-scoped opaque attachment metadata. href/path are server output only. */
@@ -264,7 +269,12 @@ export interface StreamEvent {
   event?: WorkerEvent;
   message?: string;
   status?: string;
-  notification?: { title?: string; body?: string; browser?: boolean; system?: Record<string, unknown> | null };
+  notification?: {
+    title?: string;
+    body?: string;
+    browser?: boolean;
+    system?: Record<string, unknown> | null;
+  };
   cancelled?: boolean;
   name?: string;
   cliSessionId?: string;
@@ -592,14 +602,16 @@ export interface ApiMainRestartResponse {
 export interface ApiMainExitStatusResponse {
   available: boolean;
   pending: boolean;
-  stage?: 'idle' | 'scheduled' | 'stopping_workers' | 'stopping_service' | 'offline' | 'error' | string;
+  stage?:
+    'idle' | 'scheduled' | 'stopping_workers' | 'stopping_service' | 'offline' | 'error' | string;
   platform: string;
   port?: number;
   reason?: string;
   error?: string | null;
   requestId?: string;
   jobId?: string;
-  phase?: 'requested' | 'stopping_workers' | 'stopping_service' | 'offline' | 'failed' | 'timed_out';
+  phase?:
+    'requested' | 'stopping_workers' | 'stopping_service' | 'offline' | 'failed' | 'timed_out';
   jobStatus?: string;
   root?: string;
   oldPid?: number | null;

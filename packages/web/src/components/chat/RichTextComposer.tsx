@@ -10,12 +10,15 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import {
-  readAttachmentDragPayload,
-  writeAttachmentDragPayload,
-  type AttachmentDragPayload,
-} from '@/utils/attachmentDrag';
+  isAttachmentPayloadForSession,
+  readPanAttachmentPayload,
+  type PanAttachmentPayload,
+  writePanAttachmentPayload,
+} from '@/utils/attachmentPayload';
+import { type AttachmentDragPayload } from '@/utils/attachmentDrag';
 import { isSafeAttachmentHref } from '@/utils/attachmentMarkdown';
 import { hasPanAttachmentMime, inspectNativeAttachmentInput } from '@/utils/nativeAttachmentInput';
+import type { AttachmentLocation } from '@/types/attachment';
 
 export type ComposerPart =
   | { type: 'text'; value: string }
@@ -38,6 +41,7 @@ export interface RichTextComposerHandle {
 
 interface RichTextComposerProps {
   initialText?: string;
+  sessionId?: string;
   attachments: ComposerAttachment[];
   onChange: (value: ComposerValue) => void;
   onAttachmentDrop: (payload: AttachmentDragPayload) => string | null;
@@ -58,6 +62,7 @@ interface ComposerAttachment {
   displayName: string;
   href?: string;
   path?: string;
+  location?: AttachmentLocation;
 }
 
 interface DropIndicator {
@@ -703,6 +708,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
   function RichTextComposer(
     {
       initialText = '',
+      sessionId,
       attachments,
       onChange,
       onAttachmentDrop,
@@ -727,12 +733,14 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         attachment.displayName,
         attachment.href || '',
         attachment.path || '',
+        attachment.location?.line || '',
+        attachment.location?.endLine || '',
       ]),
     );
     const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
     const dropOffsetRef = useRef<number | null>(null);
     const pendingCaretOffsetRef = useRef<number | null>(null);
-    const activeDragPayloadRef = useRef<AttachmentDragPayload | null>(null);
+    const activeDragPayloadRef = useRef<PanAttachmentPayload | null>(null);
 
     const publish = useCallback(
       (nextParts: ComposerPart[]) => {
@@ -898,8 +906,8 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       onKeyDown?.(event);
     };
 
-    const resolveDragPayload = (dataTransfer: DataTransfer | null): AttachmentDragPayload | null =>
-      readAttachmentDragPayload(dataTransfer) || activeDragPayloadRef.current;
+    const resolveDragPayload = (dataTransfer: DataTransfer | null): PanAttachmentPayload | null =>
+      readPanAttachmentPayload(dataTransfer) || activeDragPayloadRef.current;
 
     const handleAttachmentDragStart = (event: React.DragEvent<HTMLDivElement>) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -914,14 +922,16 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         activeDragPayloadRef.current = null;
         return;
       }
-      const payload: AttachmentDragPayload = {
+      const payload: PanAttachmentPayload = {
         displayName: attachment.displayName,
         href: attachment.href,
         path: attachment.path,
         attachmentId: occurrenceId,
         source: 'composer',
+        sourceSessionId: sessionId,
+        location: attachment.location,
       };
-      writeAttachmentDragPayload(event.dataTransfer, payload);
+      writePanAttachmentPayload(event.dataTransfer, payload);
       // Chromium exposes the custom MIME type through `types` during dragover
       // but intentionally returns an empty string from getData(). Keep the
       // source payload here so a node can still be dropped into the editor.
@@ -989,6 +999,12 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         clearDropIndicator();
         return;
       }
+      if (!isAttachmentPayloadForSession(payload, sessionId)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'none';
+        clearDropIndicator();
+        return;
+      }
       event.preventDefault();
       event.dataTransfer.dropEffect =
         payload.source === 'composer' || payload.source === 'attachment-chip' ? 'move' : 'copy';
@@ -1034,6 +1050,10 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         return;
       }
       event.preventDefault();
+      if (!isAttachmentPayloadForSession(payload, sessionId)) {
+        clearDropIndicator();
+        return;
+      }
       const root = editorRef.current;
       const currentParts = partsRef.current;
       let offset = dropOffsetRef.current;
@@ -1052,7 +1072,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       // same node. Chip/message payloads are allowed to create a new inline
       // occurrence; only a missing node from the composer is invalid.
       if (payload.source === 'composer' && payload.attachmentId && sourceOffset === null) return;
-      const occurrenceId = onAttachmentDrop(payload);
+      const occurrenceId = onAttachmentDrop(payload as AttachmentDragPayload);
       if (!occurrenceId) return;
       const withoutSource = payload.attachmentId
         ? removeAttachment(currentParts, payload.attachmentId)
@@ -1068,13 +1088,14 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     const handlePaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
       const dataTransfer = event.clipboardData;
       const customMime = hasPanAttachmentMime(dataTransfer);
-      const payload = customMime ? readAttachmentDragPayload(dataTransfer) : null;
+      const payload = customMime ? readPanAttachmentPayload(dataTransfer) : null;
       if (customMime) {
         event.preventDefault();
         if (!payload) {
           onNativeInputIssue?.('invalid-pan-attachment');
           return;
         }
+        if (!isAttachmentPayloadForSession(payload, sessionId)) return;
         const root = editorRef.current;
         const offsets = root ? selectedOffsets(root) : null;
         if (!root || !offsets) return;
@@ -1084,7 +1105,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         const copyPayload = payload.attachmentId
           ? { ...payload, attachmentId: undefined, source: 'message' as const }
           : payload;
-        const occurrenceId = onAttachmentDrop(copyPayload);
+        const occurrenceId = onAttachmentDrop(copyPayload as AttachmentDragPayload);
         if (!occurrenceId) return;
         commitReplacement(offsets.start, offsets.end, [attachmentPart(occurrenceId)]);
         return;
@@ -1136,7 +1157,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       // through this editor. Listen at window level as well so Escape/cancel or
       // a drop outside the editor cannot leave a stale insertion caret behind.
       const rememberGlobalDragPayload = (event: DragEvent) => {
-        activeDragPayloadRef.current = readAttachmentDragPayload(event.dataTransfer);
+        activeDragPayloadRef.current = readPanAttachmentPayload(event.dataTransfer);
       };
       const clearGlobalDropState = () => {
         activeDragPayloadRef.current = null;
