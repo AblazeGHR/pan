@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-027 输入框、附件与发送链路完整审查中
-- 当前焦点：审查全部输入框/附件/发送行为，并设计 editor 链接打开与再次拖动为附件的统一方案
-- 可执行：等待 TA 完成只读审查、复现分析和完整方案
-- TA 执行中：新 Session `ses_cf22dbcbd289c6e9`（Codex `gpt-6-astra`，low，只读）
+- 整体状态：T-027 TA 审查完成，等待 SMA 复核和用户授权实施
+- 当前焦点：复核输入框/附件/发送全链路方案，确认 editor 链接打开与再次拖动为附件的实施边界
+- 可执行：SMA 复核 TA 报告；未获用户确认前不派 Luna 实施
+- TA 执行中：无；`ses_cf22dbcbd289c6e9` 已完成只读审查
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围
 - 决策阻塞：无
 - 授权阻塞：无
@@ -321,6 +321,9 @@
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 当前阶段：只读审查与方案调研，未写代码、未提交、未合入 main
+- 下一动作：SMA 审查 TA 报告；用户确认方案后再新建实施任务并派 Luna high/xhigh
+- 决策门：审查报告可能改变 editor 链接的打开/拖动交互、附件资源身份和 Send 清理语义；实施必须停在本决策门之后
+- 调查结论：TA 已完成全链路审查。高优先级问题包括 Send 成功后 DOM 未清空、发送/会话切换竞态、HTML paste 未强制纯文本、Worker 当前仍可能收到 API href、queue 编辑 text/parts 不一致，以及已渲染 editor 普通本地文件链接缺少统一附件拖动 payload。报告还指出当前审查 Session workdir 不是独立 Git worktree，未进行真实 Windows Explorer/桌面剪贴板验收。
 - TA Session：`ses_cf22dbcbd289c6e9`；模型 `gpt-6-astra`；effort `low`；权限 `read-only`
 - 目标：一次性检查 Pan 当前所有输入框、附件、粘贴/拖入、编辑器渲染、发送和状态清理代码链，给出完整修复方案；实际修复待本次审查完成并经 SMA 审查后，另派 Luna high/xhigh 执行
 - 必查问题：附件插入后文字重复；输入框内附件继续拖动和重排；Ctrl+A/Backspace/Delete/删除按钮语义；未嵌入附件 chip 与嵌入节点发送语义；点击 Send 后输入框文本、draft、parts 和附件状态未清空；上传、取消、失败、重试和会话切换时序；复制/粘贴/拖入文件及目录拒绝策略；网页 HTML 粘贴导致整页进入输入框
