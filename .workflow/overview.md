@@ -16,8 +16,8 @@
 
 - 整体状态：T-027 并行实施中；紧急批次合入并通知后，继续推进所有设计与任务直到彻底阻塞
 - 当前焦点：输入框/发送事务与路径投影/editor 拖动；QQ 通道调查已取消
-- 可执行：无；T-027.1/T-027.2 正在验证与提交收尾
-- TA 执行中：T-027.1 `ses_7079ef10a62ddf5b`（Luna xhigh，worker-2）；T-027.2 `ses_a59709c910ad4859`（Luna high，worker-3）
+- 可执行：T-027.2；T-027.1 待开发者验收
+- TA 执行中：T-027.2 `ses_a59709c910ad4859`（Luna high，worker-3）；T-027.1 `ses_7079ef10a62ddf5b` 已完成并合入 main
 - 后置动作：T-027.1/T-027.2 完成、发送体验 E2E 通过并合入 main 后，通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围
@@ -346,16 +346,18 @@
 ### T-027.1：输入框、发送事务与粘贴/拖入状态修复
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：实现完成，验证与提交收尾中；不得修改 T-027.2 的服务端/renderer 文件
-- 历史阻塞：共享 worktree 元数据曾拒绝创建 index.lock，且前端依赖/测试环境曾阻塞验证；本轮正在不绕过保护的前提下重试。不得删除锁、修改 ACL 或使用替代 index。
+- 当前阶段：已合入 main，待开发者验收；不得修改 T-027.2 的服务端/renderer 文件
+- 历史阻塞：共享 worktree 元数据、依赖和测试环境曾阻塞验证，已通过正常重试解决；未删除锁、未修改 ACL、未使用替代 index。
 - 目标：修复 Send 乐观清空与失败恢复、Session/revision 竞态、DOM/parts/draft 清理；统一附件 occurrence/resource 状态；修复普通输入、附件拖动重排、Ctrl+A/Backspace/Delete；处理文件 paste/drop、网页 HTML 转纯文本、图片/HTML 文件保持原文件上传、目录整批拒绝和客户端路径不可信。
 - 工作树/分支：`D:\project\pan-worktrees\input-attachment-composer-send-20260915`；`feature/input-attachment-composer-send-20260915`
-- TA/任务：`ses_7079ef10a62ddf5b`；`input-attachment-composer-send-20260915`；Luna xhigh；Worker `worker-2`；验证/提交收尾中
+- TA/任务：`ses_7079ef10a62ddf5b`；`input-attachment-composer-send-20260915`；Luna xhigh；Worker `worker-2`；已完成
+- 提交/整合：功能提交 `33aa52ada9cbe92037b5e44b1a90c3820776299d`；已合入 main，合并提交 `7a9c7e89cd8e313d6e506b39ba99842465603a8a`；未 push
+- 测试：定向 Vitest 4 files / 73 tests、TypeScript、ESLint、Prettier 通过；隔离 Chromium E2E 6/6 通过；未做真实 8768 API/服务端集成
 - 有序待办：
-  - [ ] 完成实现并添加回归测试
-  - [ ] 完成前端定向、类型、lint、浏览器验证
-  - [ ] 提交并检查 worktree clean
-  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
+  - [x] 完成实现并添加回归测试
+  - [x] 完成前端定向、类型、lint、浏览器验证
+  - [x] 提交并检查 worktree clean
+  - [x] 合入 main（测试通过后按 `AUTH-001` 执行）
   - [ ] 开发者验收
 
 ### T-027.2：服务端路径投影与 editor 文件链接跨 Session 拖动
