@@ -7,7 +7,8 @@
 ## 基础边界
 
 - `D:\project\Pan-main` 是当前开发项目根；`D:\project\Pan` 是 practical 工作树。
-- `8768` 是受保护的 Pan 服务，未经用户明确授权不得重启、停止、修改或用于实验；真实服务验证使用自有隔离实例，通常为 `8765` 或 `8767`。
+- **绝对红线：`8768` 及其相关进程无论如何都不得触碰。** 它是用户正在实际使用的实用服务；禁止重启、停止、kill、修改、复用、实验、在其上创建测试会话/worker 或写入式探测（只读观察如 `netstat` 允许）。需要重启等操作时由用户自己执行，MA/TA 不得代劳；本规则无例外，也不需要通过询问确认。
+- 真实服务/运行时验证一律使用自有隔离实例与独立 worktree：先探测端口占用，再按任务分配（当前 `8767` 归 T-031、`8766` 归 T-033 接续、`8765` 被他人残留 `vite preview` 占用）。**他人的进程不得代为停止**，遇占用改端口并在报告中记录。
 - 新 TA worktree 统一放在 `D:\project\pan-worktrees`，必须先用 `git worktree add` 注册，再交给 TA。
 - 不覆盖用户已有 dirty/untracked 文件；特别保护 `D:\project\Pan\scripts\setup.bat`、`scripts\start_pan.bat` 及当前 `main` 上的用户文档和本地缓存。
 - 不自动应用 stash，不进行未授权的 reset、破坏性清理、关系迁移或 Session handoff；删除 worktree 前须先核对没有用户未提交文件。
