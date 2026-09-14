@@ -14,10 +14,12 @@
 
 ## 工作流控制
 
-- 整体状态：T-027 TA 审查完成，等待 SMA 复核和用户授权实施
-- 当前焦点：复核输入框/附件/发送全链路方案，确认 editor 链接打开与再次拖动为附件的实施边界
-- 可执行：SMA 复核 TA 报告；未获用户确认前不派 Luna 实施
-- TA 执行中：无；`ses_cf22dbcbd289c6e9` 已完成只读审查
+- 整体状态：T-027 并行实施中；紧急批次合入并通知后，继续推进所有设计与任务直到彻底阻塞
+- 当前焦点：输入框/发送事务与路径投影/editor 拖动；QQ 通道调查已取消
+- 可执行：无；T-027.1/T-027.2 正在补齐契约与真实 E2E
+- TA 执行中：T-027.1 `ses_7079ef10a62ddf5b`（Luna xhigh，worker-2）；T-027.2 `ses_a59709c910ad4859`（Luna high，worker-3）
+- 后置动作：T-027.1/T-027.2 完成、发送体验 E2E 通过并合入 main 后，通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`
+- 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围
 - 决策阻塞：无
 - 授权阻塞：无
@@ -48,6 +50,14 @@
 - 决定来源：开发者会话，2026-09-13；用户明确回复“使用A+C”。
 - 决策要求：请明确选择 A、B、C 或 A + C；可同时补充目录、重复文件、上传时机和未发送附件生命周期规则
 - 决定后动作：已解除 T-023 决策阻塞并建立 T-025 正式实现任务；本阶段不实现目录递归上传。T-026 为已合入实现的路径表示修复，不改变 A+C 决策。
+
+### DEC-002：输入框、跨 Session 附件与发送事务语义
+
+- 状态：已决定（2026-09-15）
+- 影响：T-027 及其输入框、附件、editor 文件链接和发送实现
+- 最终决定：输入框上下的待发送 chip、输入框内附件节点不能跨 Session；对话正文中渲染出的文件路径/editor 链接可以跨 Session 拖入，并直接复用服务端文件引用，不重复上传；点击 Send 立即清空并乐观显示已发送，失败时恢复一份可编辑副本；服务端文件使用实时路径；客户端文件只在上传阶段作为浏览器 File，上传完成后统一按服务端本地文件处理；复制的图片文件和 HTML 文件保持原文件上传，只有网页富文本粘贴转换为安全纯文本；目录或目录混合拖入整批拒绝；同一资源允许在一条消息中出现多个 occurrence。
+- 约束：浏览器不暴露或信任客户端绝对路径；editor/download href 只是 UI 投影；Worker 文本由服务端解析为实际路径；跨 Session 的正文文件链接必须通过服务端权限和引用校验。
+- 决策来源：用户会话，2026-09-15。
 
 ## 一、已合入 main 的改动
 
@@ -320,9 +330,9 @@
 ### T-027：输入框、附件与发送链路完整审查及方案设计
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：只读审查与方案调研，未写代码、未提交、未合入 main
-- 下一动作：SMA 审查 TA 报告；用户确认方案后再新建实施任务并派 Luna high/xhigh
-- 决策门：审查报告可能改变 editor 链接的打开/拖动交互、附件资源身份和 Send 清理语义；实施必须停在本决策门之后
+- 当前阶段：TA 审查完成；用户已确认决策，子任务并行实施中
+- 下一动作：等待 T-027.1/T-027.2 完成各自实现和验证，由 SMA 集成后再做最终验收
+- 决策门：已解除；产品语义记录于 DEC-002
 - 调查结论：TA 已完成全链路审查。高优先级问题包括 Send 成功后 DOM 未清空、发送/会话切换竞态、HTML paste 未强制纯文本、Worker 当前仍可能收到 API href、queue 编辑 text/parts 不一致，以及已渲染 editor 普通本地文件链接缺少统一附件拖动 payload。报告还指出当前审查 Session workdir 不是独立 Git worktree，未进行真实 Windows Explorer/桌面剪贴板验收。
 - TA Session：`ses_cf22dbcbd289c6e9`；模型 `gpt-6-astra`；effort `low`；权限 `read-only`
 - 目标：一次性检查 Pan 当前所有输入框、附件、粘贴/拖入、编辑器渲染、发送和状态清理代码链，给出完整修复方案；实际修复待本次审查完成并经 SMA 审查后，另派 Luna high/xhigh 执行
@@ -332,6 +342,54 @@
 - 审查边界：只读检查、源码数据流分析、必要的安全复现/测试观察；不得修改业务代码、不得提交或合并；不能把合成 DataTransfer 测试当作 Windows 文件管理器真实验收
 - 交付报告必须包含：完整代码链路图、每个用户问题的事实/推断/未知区分、可复现条件、根因排序、editor 打开与再次拖动的可行方案对比、推荐架构、API/数据模型/渲染边界、测试矩阵、分阶段实施计划、迁移兼容和安全风险、待产品决策点
 - 前置背景：T-026 `ses_2e3ce9ae8faa0645` 已暂停；其“绝对路径分层、对话本地文件链接拖入、Send 清空”要求全部并入本审查，不复用其 Session
+
+### T-027.1：输入框、发送事务与粘贴/拖入状态修复
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：已合入 main；正在补齐 T-027.2 契约并复验，之后待开发者验收；不得修改 T-027.2 的服务端/renderer 文件
+- 历史阻塞：共享 worktree 元数据、依赖和测试环境曾阻塞验证，已通过正常重试解决；未删除锁、未修改 ACL、未使用替代 index。
+- 目标：修复 Send 乐观清空与失败恢复、Session/revision 竞态、DOM/parts/draft 清理；统一附件 occurrence/resource 状态；修复普通输入、附件拖动重排、Ctrl+A/Backspace/Delete；处理文件 paste/drop、网页 HTML 转纯文本、图片/HTML 文件保持原文件上传、目录整批拒绝和客户端路径不可信。
+- 工作树/分支：`D:\project\pan-worktrees\input-attachment-composer-send-20260915`；`feature/input-attachment-composer-send-20260915`
+- TA/任务：`ses_7079ef10a62ddf5b`；`input-attachment-composer-send-20260915`；Luna xhigh；Worker `worker-2`；补齐跨 Session/line range 契约中
+- 提交/整合：功能提交 `33aa52ada9cbe92037b5e44b1a90c3820776299d`；已合入 main，合并提交 `7a9c7e89cd8e313d6e506b39ba99842465603a8a`；未 push
+- 测试：定向 Vitest 4 files / 73 tests、TypeScript、ESLint、Prettier 通过；隔离 Chromium E2E 6/6 通过；未做真实 8768 API/服务端集成
+- 有序待办：
+  - [x] 完成实现并添加回归测试
+  - [x] 完成前端定向、类型、lint、浏览器验证
+  - [x] 提交并检查 worktree clean
+  - [x] 合入 main（测试通过后按 `AUTH-001` 执行）
+  - [ ] 开发者验收
+
+### T-027.2：服务端路径投影与 editor 文件链接跨 Session 拖动
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：实现完成，正在修复真实 editor E2E fixture 并做组合验证；不得修改 T-027.1 的 composer/send 文件
+- 目标：将服务端文件/附件在 Worker 文本中投影为实时绝对路径，在 UI 中继续使用安全 editor/download href；让对话正文中渲染出的文件路径/editor 链接可跨 Session 拖入并复用服务端文件，不重复上传；保留打开、下载、行号定位、Windows/UNC/file URI 和旧 Markdown 兼容及权限校验。
+- 工作树/分支：`D:\project\pan-worktrees\attachment-path-editor-drag-20260915`；`feature/attachment-path-editor-drag-20260915`
+- TA/任务：`ses_a59709c910ad4859`；`attachment-path-editor-drag-20260915`；Luna high；Worker `worker-3`；复验真实 editor 文件链接场景中
+- 有序待办：
+  - [ ] 完成服务端/renderer/drag payload 实现并添加回归测试
+  - [ ] 完成后端/API/结构化协议、前端定向和浏览器验证
+  - [ ] 提交并检查 worktree clean
+  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
+  - [ ] 开发者验收
+
+### T-028：QQ 通道未连接归因调查（Pan vs llbot）
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：已取消；用户已确认根因为端口占用，不再继续调查或实现
+- 取消原因（2026-09-15）：用户明确取消 QQ 调查任务，并确认问题属于端口占用。
+- 目标：调查 QQ 通道显示未连接的根因属于 Pan、llbot，还是两侧之间的配置/网络/协议连接边界；给出可复现证据、责任边界和下一步修复方案。
+- 调查范围：Pan QQ adapter、bot/channel 生命周期、llbot WebSocket/HTTP 连接、鉴权与配置、端口/URL、心跳/重连、消息收发和状态映射、日志与错误吞噬；明确“Pan 未连接”“llbot 未连接”“连接存在但状态未同步”的区分。
+- 约束：不得操作受保护的 8768；不得停止或修改现有 QQ 服务；优先静态审查、配置核对和隔离环境证据，真实外部连接未验证必须明确记录。
+- 工作树/分支：`D:\project\pan-worktrees\qq-channel-connection-audit-20260915`；`audit/qq-channel-connection-20260915`
+- TA/任务：`ses_883290f5f803a034`；`qq-channel-connection-audit-20260915`；已取消；Session 已不存在，专用 clean worktree 已移除
+- 有序待办：
+  - [ ] 核对 Pan 与 llbot 的实际连接链路和状态来源
+  - [ ] 收集最小复现和日志/错误证据，区分事实、推断、未知
+  - [ ] 给出责任归因、修复方案、测试矩阵和需要用户提供的外部信息
+  - [ ] 调查报告交付并由 SMA 审查
+  - [ ] 开发者验收（若后续进入实现，另建实现阶段）
 
 ### T-026：附件 AI 绝对路径与 UI 下载 API 渲染分层
 

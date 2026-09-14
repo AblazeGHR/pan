@@ -2,7 +2,7 @@
 
 > 本文件是当前项目工作流的约束真源；任务状态与证据见 [overview.md](overview.md)。本文件由旧的 [constraints-and-acceptance.md](../docs/plans&overviews/constraints-and-acceptance.md) 迁移而来，旧文件保留为历史来源，不再作为当前控制面。
 >
-> 更新日期：2026-09-12
+> 更新日期：2026-09-15
 
 ## 基础边界
 
@@ -33,7 +33,7 @@
 ### MODEL-1：Luna 高推理端到端 TA
 
 - 状态：默认可用。
-- 规则：实现、测试、局部返工优先派给 `codex` adapter 的 `gpt-5.6-luna`，`effort=high`；需求明确且调查不会改变产品行为时，一次端到端完成调查、实现、验证和报告。
+- 规则：实现、测试、局部返工优先派给 `codex` adapter 的 `gpt-5.6-luna`，`effort=high`，默认使用 `permission_mode=bypass`；需求明确且调查不会改变产品行为时，一次端到端完成调查、实现、验证和报告。用户明确要求更严格权限时，以任务级要求覆盖默认值。
 - 回退：模型或依赖不可用时记录外部阻塞，不静默换用未经授权的模型。
 
 ### MODEL-2：低成本验证 TA
@@ -72,7 +72,7 @@
 
 ## 默认策略与任务映射
 
-- 默认 Git：`GIT-1`；默认 TA：`MODEL-1`；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
+- 默认 Git：`GIT-1`；默认 TA：`MODEL-1`（含 `permission_mode=bypass`）；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
 
 | 任务 | Git | TA 模型 | MA 自主权 | 其他 |
 |---|---|---|---|---|
@@ -82,3 +82,4 @@
 | `T-023` | `GIT-2`；调查阶段不改正式代码 | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；先报告方案，开发者决策后再执行 |
 | `T-024` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；测试通过后直接合入本地 `main`，不 push |
 | `T-025` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按 `DEC-001=A+C` 实现，测试通过后直接合入本地 `main` |
+| `T-027`、`T-028` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按用户最新语义执行，默认 bypass |

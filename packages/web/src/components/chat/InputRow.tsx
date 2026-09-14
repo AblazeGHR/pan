@@ -11,27 +11,45 @@ import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { DirectoryInput } from '@/components/session/DirectoryInput';
 import { Modal } from '@/components/ui/Modal';
-import { RichTextComposer, type ComposerValue, type RichTextComposerHandle } from '@/components/chat/RichTextComposer';
-import { fetchDirectories, registerServerFileAttachment, uploadSessionAttachment } from '@/services/api';
+import {
+  RichTextComposer,
+  type ComposerValue,
+  type RichTextComposerHandle,
+} from '@/components/chat/RichTextComposer';
+import {
+  fetchDirectories,
+  registerServerFileAttachment,
+  uploadSessionAttachment,
+} from '@/services/api';
 import { attachmentMarkdown, serverFileDownloadHref } from '@/utils/attachmentMarkdown';
 import { writeAttachmentDragPayload, type AttachmentDragPayload } from '@/utils/attachmentDrag';
-import { isMockMode, mockRegisterServerFileAttachment, mockUploadSessionAttachment } from '@/demo/mockBackend';
+import {
+  isMockMode,
+  mockRegisterServerFileAttachment,
+  mockUploadSessionAttachment,
+} from '@/demo/mockBackend';
 import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
-import { ChevronDown, ChevronUp, CornerUpRight, Expand, File as FileIcon, Minimize2, Paperclip, Settings, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  CornerUpRight,
+  Expand,
+  File as FileIcon,
+  Minimize2,
+  Paperclip,
+  Settings,
+  X,
+} from 'lucide-react';
 import type { AdapterConfig, MessagePart, PermissionMode } from '@/types';
 
 const PILL_CLASS =
   'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border-default bg-bg-tertiary hover:bg-bg-hover cursor-pointer transition-colors';
 
-const DROPDOWN_ITEM =
-  'px-2 py-1 text-xs hover:bg-bg-hover cursor-pointer whitespace-nowrap';
+const DROPDOWN_ITEM = 'px-2 py-1 text-xs hover:bg-bg-hover cursor-pointer whitespace-nowrap';
 
 // ── helpers ──
 
-function supportsSetting(
-  config: AdapterConfig | null,
-  name: string,
-): boolean {
+function supportsSetting(config: AdapterConfig | null, name: string): boolean {
   if (!config?.supportedSettings) return false;
   return config.supportedSettings.includes(name);
 }
@@ -45,6 +63,9 @@ function permBorderClass(value: string): string {
 type AttachmentStatus = 'uploading' | 'registering' | 'ready' | 'error';
 
 interface PendingAttachment {
+  /** UI occurrence identity. Multiple occurrences may share attachmentId. */
+  occurrenceId: string;
+  /** Compatibility alias used by the existing chip/test selectors. */
   id: string;
   /** Original/user-facing filename. Never derive the label from path. */
   displayName: string;
@@ -76,8 +97,64 @@ function clientFileKey(file: File): string {
 }
 
 function uploadAttachmentIdFromHref(href: string | undefined): string | undefined {
-  const match = href?.match(/\/api\/attachments\/(upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?)/);
+  const match = href?.match(
+    /\/api\/attachments\/(upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?)/,
+  );
   return match?.[1];
+}
+
+function attachmentOccurrenceId(attachment: PendingAttachment): string {
+  return attachment.occurrenceId || attachment.id;
+}
+
+interface SendSnapshot {
+  transactionId: string;
+  clientMessageId: string;
+  sessionId: string;
+  value: ComposerValue;
+  attachments: PendingAttachment[];
+  message: string;
+  parts?: MessagePart[];
+}
+
+function composerPartOccurrenceId(part: ComposerValue['parts'][number]): string | null {
+  return part.type === 'attachment' ? part.occurrenceId || part.attachmentId : null;
+}
+
+function emptyComposerValue(): ComposerValue {
+  return {
+    parts: [{ type: 'text', value: '' }],
+    text: '',
+    occurrenceIds: [],
+    attachmentIds: [],
+  };
+}
+
+function cloneComposerValue(value: ComposerValue): ComposerValue {
+  const occurrenceIds = [...(value.occurrenceIds || value.attachmentIds || [])];
+  return {
+    parts: value.parts.map((part) => ({ ...part })),
+    text: value.text,
+    occurrenceIds,
+    attachmentIds: [...occurrenceIds],
+  };
+}
+
+function appendComposerValues(current: ComposerValue, restored: ComposerValue): ComposerValue {
+  if (!current.text && current.occurrenceIds.length === 0) return cloneComposerValue(restored);
+  if (!restored.text && restored.occurrenceIds.length === 0) return cloneComposerValue(current);
+  const separator: ComposerValue['parts'] = [{ type: 'text', value: '\n' }];
+  const parts = [...current.parts, ...separator, ...restored.parts].map((part) => ({ ...part }));
+  const occurrenceIds = parts.map(composerPartOccurrenceId).filter((id): id is string => !!id);
+  return {
+    parts,
+    text: parts
+      .filter((part) => part.type === 'text')
+      .map((part) => part.value)
+      .join(''),
+    occurrenceIds,
+    attachmentIds: [...occurrenceIds],
+  };
 }
 
 // ── pill sub-components ──
@@ -140,7 +217,8 @@ function PermissionPill({
     if (!open) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('[data-perm-pill]') && !target.closest('[data-permission-menu]')) setOpen(false);
+      if (!target.closest('[data-perm-pill]') && !target.closest('[data-permission-menu]'))
+        setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -176,25 +254,29 @@ function PermissionPill({
         <span className="min-w-0 truncate">{label}</span>
         <ChevronDown size={12} />
       </button>
-      {open && menuPosition && createPortal(
-        <div data-permission-menu style={{ position: 'fixed', left: menuPosition.left, bottom: menuPosition.bottom }} className="z-[60] mb-1 min-w-[160px] rounded-md border border-border-default bg-bg-primary shadow-lg">
-          {modes.map((m) => (
-            <div
-              key={m.value}
-              className={
-                DROPDOWN_ITEM +
-                (m.value === current ? ' bg-accent/10 text-accent' : '')
-              }
-              onClick={() => {
-                onApply('permissionMode', m.value);
-                setOpen(false);
-              }}
-            >
-              {m.label}
-            </div>
-          ))}
-        </div>, document.body,
-      )}
+      {open &&
+        menuPosition &&
+        createPortal(
+          <div
+            data-permission-menu
+            style={{ position: 'fixed', left: menuPosition.left, bottom: menuPosition.bottom }}
+            className="z-[60] mb-1 min-w-[160px] rounded-md border border-border-default bg-bg-primary shadow-lg"
+          >
+            {modes.map((m) => (
+              <div
+                key={m.value}
+                className={DROPDOWN_ITEM + (m.value === current ? ' bg-accent/10 text-accent' : '')}
+                onClick={() => {
+                  onApply('permissionMode', m.value);
+                  setOpen(false);
+                }}
+              >
+                {m.label}
+              </div>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -212,10 +294,7 @@ function ThinkingToggle({
 
   return (
     <button
-        className={
-          PILL_CLASS +
-        (enabled ? ' bg-accent/10 border-accent/50 text-accent' : '')
-      }
+      className={PILL_CLASS + (enabled ? ' bg-accent/10 border-accent/50 text-accent' : '')}
       onClick={() => onApply('alwaysThinkingEnabled', !enabled)}
     >
       Thinking
@@ -231,6 +310,7 @@ export function InputRow() {
   const composerValueRef = useRef<ComposerValue>({
     parts: [{ type: 'text', value: '' }],
     text: '',
+    occurrenceIds: [],
     attachmentIds: [],
   });
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
@@ -244,9 +324,9 @@ export function InputRow() {
   // live worker registry independently of session summary refreshes.  Use that
   // runtime state for Steer visibility so a stale session snapshot cannot hide
   // a control that the session-level endpoint can still route successfully.
-  const currentWorker = useWorkerStore((s) => (
-    currentSessionId ? s.workers[currentSessionId] : null
-  ));
+  const currentWorker = useWorkerStore((s) =>
+    currentSessionId ? s.workers[currentSessionId] : null,
+  );
   const { showToast } = useUIStore();
   const chatAttachmentRequests = useUIStore((s) => s.chatAttachmentRequests);
   const consumeChatAttachmentRequests = useUIStore((s) => s.consumeChatAttachmentRequests);
@@ -260,11 +340,16 @@ export function InputRow() {
   const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
   const [attachmentDirectoryError, setAttachmentDirectoryError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
-  const [composerText, setComposerText] = useState(() => currentSessionId
-    ? useSessionStore.getState().inputDrafts[currentSessionId] || ''
-    : '');
+  const [composerText, setComposerText] = useState(() =>
+    currentSessionId ? useSessionStore.getState().inputDrafts[currentSessionId] || '' : '',
+  );
   const clientAttachmentInputRef = useRef<HTMLInputElement>(null);
   const uploadControllersRef = useRef(new Map<string, AbortController>());
+  const attachmentEpochRef = useRef(0);
+  const activeAttachmentSessionRef = useRef<string | null>(currentSessionId);
+  const sendSnapshotsRef = useRef(new Map<string, SendSnapshot>());
+  const recoveryBySessionRef = useRef(new Map<string, SendSnapshot>());
+  const pendingRecoveryValueRef = useRef<ComposerValue | null>(null);
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
@@ -308,21 +393,52 @@ export function InputRow() {
   // depend on `inputDrafts` (which would re-run — and reset the caret — on
   // every keystroke now that onChange persists drafts).
   useEffect(() => {
-    if (!inputRef.current) return;
-    const draft = currentSessionId
-      ? useSessionStore.getState().inputDrafts[currentSessionId]
-      : '';
-    composerRef.current?.replaceText(draft || '');
+    const draft = currentSessionId ? useSessionStore.getState().inputDrafts[currentSessionId] : '';
+    const recovery = currentSessionId
+      ? recoveryBySessionRef.current.get(currentSessionId)
+      : undefined;
+    const value = recovery?.value || {
+      parts: draft
+        ? [{ type: 'text' as const, value: draft }]
+        : [{ type: 'text' as const, value: '' }],
+      text: draft || '',
+      occurrenceIds: [],
+      attachmentIds: [],
+    };
+    if (recovery) {
+      pendingRecoveryValueRef.current = value;
+      setAttachments(recovery.attachments.map((attachment) => ({ ...attachment })));
+    } else {
+      pendingRecoveryValueRef.current = null;
+      setAttachments([]);
+      composerRef.current?.replaceValue(value);
+    }
+    setComposerText(value.text);
   }, [currentSessionId]);
 
   useEffect(() => {
+    const pending = pendingRecoveryValueRef.current;
+    if (!pending) return;
+    const occurrenceIds = new Set(attachments.map(attachmentOccurrenceId));
+    const allAvailable = pending.occurrenceIds.every((occurrenceId) =>
+      occurrenceIds.has(occurrenceId),
+    );
+    if (!allAvailable) return;
+    pendingRecoveryValueRef.current = null;
+    composerRef.current?.replaceValue(pending);
+  }, [attachments, currentSessionId]);
+
+  useEffect(() => {
     const uploadControllers = uploadControllersRef.current;
-    setAttachments([]);
+    attachmentEpochRef.current += 1;
+    activeAttachmentSessionRef.current = currentSessionId;
+    if (!currentSessionId) setAttachments([]);
     setAttachmentBrowserOpen(false);
     setAttachmentMenuOpen(false);
     return () => {
       for (const controller of uploadControllers.values()) controller.abort();
       uploadControllers.clear();
+      attachmentEpochRef.current += 1;
     };
   }, [currentSessionId]);
 
@@ -336,14 +452,20 @@ export function InputRow() {
       .map((request) => request.path);
     if (requested.length === 0) return;
     const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
+    const sessionEpoch = attachmentEpochRef.current;
     void Promise.all(requested.map((path) => register(currentSessionId, path)))
       .then((registered) => {
+        if (
+          activeAttachmentSessionRef.current !== currentSessionId ||
+          attachmentEpochRef.current !== sessionEpoch
+        )
+          return;
         setAttachments((current) => {
-          const existing = new Set(current.map((attachment) => attachment.attachmentId));
-          const additions = registered
-            .filter((item) => !existing.has(item.attachmentId))
-            .map((item) => ({
-              id: attachmentId(),
+          const additions = registered.map((item) => {
+            const occurrenceId = attachmentId();
+            return {
+              occurrenceId,
+              id: occurrenceId,
               attachmentId: item.attachmentId,
               displayName: item.displayName,
               path: item.path,
@@ -351,11 +473,19 @@ export function InputRow() {
               mimeType: item.mimeType,
               source: 'server_file' as const,
               status: 'ready' as const,
-            }));
+            };
+          });
           return additions.length > 0 ? [...current, ...additions] : current;
         });
       })
-      .catch((error) => showToast(error instanceof Error ? error.message : '服务端附件注册失败', 'error'));
+      .catch((error) => {
+        if (
+          activeAttachmentSessionRef.current !== currentSessionId ||
+          attachmentEpochRef.current !== sessionEpoch
+        )
+          return;
+        showToast(error instanceof Error ? error.message : '服务端附件注册失败', 'error');
+      });
     consumeChatAttachmentRequests(currentSessionId, requested);
   }, [chatAttachmentRequests, consumeChatAttachmentRequests, currentSessionId, showToast]);
 
@@ -412,147 +542,298 @@ export function InputRow() {
     setComposerHeight(Math.min(520, Math.max(120, start.height + start.y - event.clientY)));
   };
 
-  const uploadClientAttachment = useCallback(async (attachment: PendingAttachment) => {
-    const sessionId = currentSessionId;
-    if (!sessionId || !attachment.file) return;
-    const controller = new AbortController();
-    uploadControllersRef.current.set(attachment.id, controller);
-    try {
-      const upload = isMockMode() ? mockUploadSessionAttachment : uploadSessionAttachment;
-      const uploaded = await upload(
-        sessionId,
-        attachment.file,
-        (loaded, total) => setAttachments((current) => current.map((item) => item.id === attachment.id
-          ? { ...item, loadedBytes: loaded, totalBytes: total }
-          : item)),
-        controller.signal,
-      );
-      setAttachments((current) => current.map((item) => item.id === attachment.id
-        ? {
-            ...item,
-            displayName: uploaded.displayName || uploaded.filename || item.displayName,
-            path: uploaded.path,
-             href: uploaded.href || serverFileDownloadHref(sessionId, uploaded.path),
-             status: 'ready',
-             attachmentId: uploaded.attachmentId || uploaded.storageFilename,
-             mimeType: attachment.file?.type || undefined,
-             source: 'upload',
-             loadedBytes: uploaded.size,
-            totalBytes: uploaded.size,
-            error: undefined,
-          }
-        : item));
-    } catch (error) {
-      setAttachments((current) => current.map((item) => item.id === attachment.id
-        ? { ...item, status: 'error', error: error instanceof Error ? error.message : String(error) }
-        : item));
-    } finally {
-      if (uploadControllersRef.current.get(attachment.id) === controller) {
-        uploadControllersRef.current.delete(attachment.id);
+  const uploadClientAttachment = useCallback(
+    async (attachment: PendingAttachment) => {
+      const sessionId = currentSessionId;
+      if (!sessionId || !attachment.file) return;
+      const sessionEpoch = attachmentEpochRef.current;
+      const controller = new AbortController();
+      uploadControllersRef.current.set(attachmentOccurrenceId(attachment), controller);
+      const isLive = () =>
+        activeAttachmentSessionRef.current === sessionId &&
+        attachmentEpochRef.current === sessionEpoch &&
+        uploadControllersRef.current.get(attachmentOccurrenceId(attachment)) === controller;
+      try {
+        const upload = isMockMode() ? mockUploadSessionAttachment : uploadSessionAttachment;
+        const uploaded = await upload(
+          sessionId,
+          attachment.file,
+          (loaded, total) => {
+            if (!isLive()) return;
+            setAttachments((current) =>
+              current.map((item) =>
+                attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
+                  ? { ...item, loadedBytes: loaded, totalBytes: total }
+                  : item,
+              ),
+            );
+          },
+          controller.signal,
+        );
+        if (!isLive()) return;
+        setAttachments((current) =>
+          current.map((item) =>
+            attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
+              ? {
+                  ...item,
+                  displayName: uploaded.displayName || uploaded.filename || item.displayName,
+                  path: uploaded.path,
+                  href: uploaded.href || serverFileDownloadHref(sessionId, uploaded.path),
+                  status: 'ready',
+                  attachmentId: uploaded.attachmentId || uploaded.storageFilename,
+                  mimeType: attachment.file?.type || undefined,
+                  source: 'upload',
+                  loadedBytes: uploaded.size,
+                  totalBytes: uploaded.size,
+                  error: undefined,
+                }
+              : item,
+          ),
+        );
+      } catch (error) {
+        if (!isLive()) return;
+        setAttachments((current) =>
+          current.map((item) =>
+            attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
+              ? {
+                  ...item,
+                  status: 'error',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              : item,
+          ),
+        );
+      } finally {
+        if (uploadControllersRef.current.get(attachmentOccurrenceId(attachment)) === controller) {
+          uploadControllersRef.current.delete(attachmentOccurrenceId(attachment));
+        }
       }
-    }
-  }, [currentSessionId]);
+    },
+    [currentSessionId],
+  );
 
-  const queueClientFiles = useCallback((files: File[]): string[] => {
-    if (!currentSessionId || files.length === 0) return [];
-    const uploadingOrReady = new Set(
-      attachments
-        .filter((attachment) => attachment.status !== 'error' && attachment.fileKey)
-        .map((attachment) => attachment.fileKey),
-    );
-    const selectedKeys = new Set(uploadingOrReady);
-    const added = files.filter((file) => {
-      const key = clientFileKey(file);
-      if (selectedKeys.has(key)) return false;
-      selectedKeys.add(key);
-      return true;
-    }).map((file) => ({
-      id: attachmentId(),
-      displayName: file.name,
-      file,
-      fileKey: clientFileKey(file),
-      loadedBytes: 0,
-      totalBytes: file.size,
-      status: 'uploading' as const,
-    }));
-    if (added.length === 0) return [];
-    setAttachments((current) => [...current, ...added]);
-    void Promise.all(added.map((attachment) => uploadClientAttachment(attachment)));
-    return added.map((attachment) => attachment.id);
-  }, [attachments, currentSessionId, uploadClientAttachment]);
+  const queueClientFiles = useCallback(
+    (files: File[]): string[] => {
+      if (!currentSessionId || files.length === 0) return [];
+      const uploadingOrReady = new Set(
+        attachments
+          .filter((attachment) => attachment.status !== 'error' && attachment.fileKey)
+          .map((attachment) => attachment.fileKey),
+      );
+      const selectedKeys = new Set(uploadingOrReady);
+      const added = files
+        .filter((file) => {
+          const key = clientFileKey(file);
+          if (selectedKeys.has(key)) return false;
+          selectedKeys.add(key);
+          return true;
+        })
+        .map((file) => ({
+          occurrenceId: attachmentId(),
+          id: '',
+          displayName: file.name,
+          file,
+          fileKey: clientFileKey(file),
+          loadedBytes: 0,
+          totalBytes: file.size,
+          status: 'uploading' as const,
+        }))
+        .map((attachment) => ({ ...attachment, id: attachment.occurrenceId }));
+      if (added.length === 0) return [];
+      setAttachments((current) => [...current, ...added]);
+      void Promise.all(added.map((attachment) => uploadClientAttachment(attachment)));
+      return added.map((attachment) => attachment.id);
+    },
+    [attachments, currentSessionId, uploadClientAttachment],
+  );
 
-  const handleClientFiles = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
-    void queueClientFiles(files);
-  }, [queueClientFiles]);
+  const handleClientFiles = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+      event.target.value = '';
+      void queueClientFiles(files);
+    },
+    [queueClientFiles],
+  );
 
-  const handleNativeFiles = useCallback((files: File[], _offset: number, _source: 'paste' | 'drop') => (
-    queueClientFiles(files)
-  ), [queueClientFiles]);
+  const handleNativeFiles = useCallback(
+    (files: File[], _offset: number, _source: 'paste' | 'drop') => queueClientFiles(files),
+    [queueClientFiles],
+  );
 
-  const handleNativeInputIssue = useCallback((kind: 'directory' | 'uri' | 'invalid-pan-attachment') => {
-    if (kind === 'directory') showToast('暂不支持拖入目录；请先选择普通文件', 'error');
-    else if (kind === 'uri') showToast('不接受文件 URI/路径，请拖入普通文件内容', 'error');
-    else showToast('Pan 附件引用无效，请重新拖入附件', 'error');
-  }, [showToast]);
+  const handleNativeInputIssue = useCallback(
+    (kind: 'directory' | 'uri' | 'invalid-pan-attachment') => {
+      if (kind === 'directory') showToast('暂不支持拖入目录；请先选择普通文件', 'error');
+      else if (kind === 'uri') showToast('不接受文件 URI/路径，请拖入普通文件内容', 'error');
+      else showToast('Pan 附件引用无效，请重新拖入附件', 'error');
+    },
+    [showToast],
+  );
 
-  const handleComposerChange = useCallback((value: ComposerValue) => {
-    composerValueRef.current = value;
-    setComposerText(value.text);
-    if (currentSessionId) setInputDraft(currentSessionId, value.text);
-  }, [currentSessionId, setInputDraft]);
+  const handleComposerChange = useCallback(
+    (value: ComposerValue) => {
+      composerValueRef.current = value;
+      setComposerText(value.text);
+      if (currentSessionId) {
+        const recovery = recoveryBySessionRef.current.get(currentSessionId);
+        if (
+          recovery &&
+          (recovery.value.text !== value.text ||
+            recovery.value.occurrenceIds.join('\u0000') !== value.occurrenceIds.join('\u0000'))
+        ) {
+          recoveryBySessionRef.current.delete(currentSessionId);
+        }
+        setInputDraft(currentSessionId, value.text);
+      }
+    },
+    [currentSessionId, setInputDraft],
+  );
 
-  const handleAttachmentDrop = useCallback((payload: AttachmentDragPayload): string | null => {
-    if (!currentSessionId) return null;
-    if (payload.attachmentId) {
-      const existing = attachments.find((attachment) => attachment.id === payload.attachmentId);
-      if (existing) return existing.id;
-    }
-    const id = attachmentId();
-    const remoteId = payload.serverAttachmentId || uploadAttachmentIdFromHref(payload.href);
-    const known = attachments.find((attachment) => attachment.attachmentId === remoteId);
-    if (known) return known.id;
-    const needsRegistration = !remoteId && !!payload.path;
-    setAttachments((current) => [...current, {
-      id,
-      attachmentId: remoteId,
-      displayName: payload.displayName,
-      path: payload.path,
-      href: payload.href,
-      status: needsRegistration ? 'registering' : 'ready',
-      source: remoteId?.startsWith('upload_') ? 'upload' : 'server_file',
-    }]);
-    if (needsRegistration) {
-      const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
-      void register(currentSessionId, payload.path!)
-        .then((registered) => setAttachments((current) => current.map((item) => item.id === id
-          ? {
-              ...item,
-              attachmentId: registered.attachmentId,
-              displayName: registered.displayName,
-              href: registered.href,
-              path: registered.path,
-              mimeType: registered.mimeType,
-              source: 'server_file',
-              status: 'ready',
-            }
-          : item)))
-        .catch((error) => setAttachments((current) => current.map((item) => item.id === id
-          ? { ...item, status: 'error', error: error instanceof Error ? error.message : '附件注册失败' }
-          : item)));
-    }
-    return id;
-  }, [attachments, currentSessionId]);
+  const handleAttachmentDrop = useCallback(
+    (payload: AttachmentDragPayload): string | null => {
+      if (!currentSessionId) return null;
+      if (
+        payload.attachmentId &&
+        (payload.source === 'composer' || payload.source === 'attachment-chip')
+      ) {
+        const existing = attachments.find(
+          (attachment) => attachmentOccurrenceId(attachment) === payload.attachmentId,
+        );
+        if (existing) return attachmentOccurrenceId(existing);
+      }
+      const occurrenceId = attachmentId();
+      const remoteId = payload.serverAttachmentId || uploadAttachmentIdFromHref(payload.href);
+      const needsRegistration = !remoteId && !!payload.path;
+      setAttachments((current) => [
+        ...current,
+        {
+          occurrenceId,
+          id: occurrenceId,
+          attachmentId: remoteId,
+          displayName: payload.displayName,
+          path: payload.path,
+          href: payload.href,
+          status: needsRegistration ? 'registering' : 'ready',
+          source: remoteId?.startsWith('upload_') ? 'upload' : 'server_file',
+        },
+      ]);
+      if (needsRegistration) {
+        const register = isMockMode()
+          ? mockRegisterServerFileAttachment
+          : registerServerFileAttachment;
+        const sessionEpoch = attachmentEpochRef.current;
+        void register(currentSessionId, payload.path!)
+          .then((registered) => {
+            if (
+              activeAttachmentSessionRef.current !== currentSessionId ||
+              attachmentEpochRef.current !== sessionEpoch
+            )
+              return;
+            setAttachments((current) =>
+              current.map((item) =>
+                attachmentOccurrenceId(item) === occurrenceId
+                  ? {
+                      ...item,
+                      attachmentId: registered.attachmentId,
+                      displayName: registered.displayName,
+                      href: registered.href,
+                      path: registered.path,
+                      mimeType: registered.mimeType,
+                      source: 'server_file',
+                      status: 'ready',
+                    }
+                  : item,
+              ),
+            );
+          })
+          .catch((error) => {
+            if (
+              activeAttachmentSessionRef.current !== currentSessionId ||
+              attachmentEpochRef.current !== sessionEpoch
+            )
+              return;
+            setAttachments((current) =>
+              current.map((item) =>
+                attachmentOccurrenceId(item) === occurrenceId
+                  ? {
+                      ...item,
+                      status: 'error',
+                      error: error instanceof Error ? error.message : '附件注册失败',
+                    }
+                  : item,
+              ),
+            );
+          });
+      }
+      return occurrenceId;
+    },
+    [attachments, currentSessionId],
+  );
 
   const handleRemoveComposerAttachment = useCallback((attachmentIdToRemove: string) => {
     uploadControllersRef.current.get(attachmentIdToRemove)?.abort();
     uploadControllersRef.current.delete(attachmentIdToRemove);
-    setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentIdToRemove));
+    setAttachments((current) =>
+      current.filter((attachment) => attachmentOccurrenceId(attachment) !== attachmentIdToRemove),
+    );
   }, []);
 
+  const restoreSubmission = useCallback(
+    (snapshot: SendSnapshot) => {
+      const activeSessionId = useSessionStore.getState().currentSessionId;
+      const oldDraft = useSessionStore.getState().inputDrafts[snapshot.sessionId] || '';
+      if (activeSessionId !== snapshot.sessionId) {
+        const existing = oldDraft
+          ? {
+              parts: [{ type: 'text' as const, value: oldDraft }],
+              text: oldDraft,
+              occurrenceIds: [],
+              attachmentIds: [],
+            }
+          : emptyComposerValue();
+        const value = appendComposerValues(existing, snapshot.value);
+        useSessionStore.getState().setInputDraft(snapshot.sessionId, value.text);
+        // Keep the attachment-bearing recovery alongside the Session draft.
+        // The old Session may already have a newer text draft when this
+        // request settles, so restoring only the plain draft would lose
+        // attachment occurrences.
+        recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+        return;
+      }
+
+      const current = composerValueRef.current;
+      const hasCurrentInput = !!current.text || current.occurrenceIds.length > 0;
+      const value = hasCurrentInput
+        ? appendComposerValues(current, snapshot.value)
+        : cloneComposerValue(snapshot.value);
+      setAttachments((currentAttachments) => {
+        const existingIds = new Set(currentAttachments.map(attachmentOccurrenceId));
+        const additions = snapshot.attachments
+          .filter((attachment) => !existingIds.has(attachmentOccurrenceId(attachment)))
+          .map((attachment) => ({ ...attachment }));
+        return additions.length ? [...currentAttachments, ...additions] : currentAttachments;
+      });
+      pendingRecoveryValueRef.current = value;
+      if (
+        !value.occurrenceIds.length ||
+        value.occurrenceIds.every((occurrenceId) =>
+          attachments.some((attachment) => attachmentOccurrenceId(attachment) === occurrenceId),
+        )
+      ) {
+        pendingRecoveryValueRef.current = null;
+        composerRef.current?.replaceValue(value);
+      }
+      setInputDraft(snapshot.sessionId, value.text);
+      // Keep a retryable snapshot even when new input was merged into the
+      // failed submission.  A later Session switch or remount must restore
+      // both the merged text and every attachment occurrence.
+      recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
+    },
+    [attachments, setInputDraft],
+  );
+
   const handleSend = useCallback(
-    async (text: string) => {
+    (_text: string) => {
       if (!currentSessionId) {
         showToast('Select a session first');
         return;
@@ -569,36 +850,19 @@ export function InputRow() {
         showToast('有附件上传失败，请重试或取消', 'error');
         return;
       }
-      const serverAttachments = attachments.filter(
-        (attachment) => !attachment.file && attachment.status === 'ready' && !!attachment.path,
+      const value = cloneComposerValue(composerValueRef.current);
+      const snapshotAttachments = attachments.map((attachment) => ({ ...attachment }));
+      const readyAttachments = snapshotAttachments.filter(
+        (attachment): attachment is PendingAttachment & { href: string } =>
+          attachment.status === 'ready' && !!attachment.href,
       );
-      try {
-        const valid = await Promise.all(
-          serverAttachments.map((attachment) => directoryEntryExists(attachment.path!, fetchDirectories)),
-        );
-        if (valid.some((exists) => !exists)) {
-          setAttachmentDirectoryError('当前目录非法');
-          const stalePath = serverAttachments[0]?.path;
-          if (stalePath) setAttachmentBrowserPath(parentDirectory(stalePath));
-          setAttachmentBrowserOpen(true);
-          setAttachmentMenuOpen(false);
-          showToast('当前目录非法', 'error');
-          return;
-        }
-      } catch {
-        setAttachmentDirectoryError('当前目录非法');
-        const stalePath = serverAttachments[0]?.path;
-        if (stalePath) setAttachmentBrowserPath(parentDirectory(stalePath));
-        setAttachmentBrowserOpen(true);
-        setAttachmentMenuOpen(false);
-        showToast('当前目录非法', 'error');
-        return;
-      }
-      const readyAttachments = attachments
-        .filter((attachment): attachment is PendingAttachment & { href: string } => attachment.status === 'ready' && !!attachment.href);
-      const attachmentLinks = readyAttachments
-        .map((attachment) => attachmentMarkdown({ displayName: attachment.displayName, href: attachment.href }));
-      if (attachmentLinks.some((link) => link === null) || attachmentLinks.length !== attachments.length) {
+      const attachmentLinks = readyAttachments.map((attachment) =>
+        attachmentMarkdown({ displayName: attachment.displayName, href: attachment.href }),
+      );
+      if (
+        attachmentLinks.some((link) => link === null) ||
+        attachmentLinks.length !== snapshotAttachments.length
+      ) {
         showToast('附件链接无效，请重新选择附件', 'error');
         return;
       }
@@ -607,27 +871,46 @@ export function InputRow() {
         return;
       }
       const linksById = new Map(
-        readyAttachments.map((attachment, index) => [attachment.id, attachmentLinks[index]]),
+        readyAttachments.map((attachment, index) => [
+          attachmentOccurrenceId(attachment),
+          attachmentLinks[index],
+        ]),
       );
-      const embeddedIds = new Set(composerValueRef.current.attachmentIds);
-      const composedText = composerValueRef.current.parts.map((part) => {
-        if (part.type === 'text') return part.value;
-        return linksById.get(part.attachmentId) || '';
-      }).join('');
+      const embeddedIds = new Set(value.occurrenceIds);
+      const composedText = value.parts
+        .map((part) => {
+          if (part.type === 'text') return part.value;
+          return linksById.get(composerPartOccurrenceId(part) || '') || '';
+        })
+        .join('');
       const remainingLinks = readyAttachments
-        .filter((attachment) => !embeddedIds.has(attachment.id))
-        .map((attachment) => linksById.get(attachment.id))
+        .filter((attachment) => !embeddedIds.has(attachmentOccurrenceId(attachment)))
+        .map((attachment) => linksById.get(attachmentOccurrenceId(attachment)))
         .filter((link): link is string => !!link);
-      const message = [composedText.trim() || text.trim(), remainingLinks.join(' ')].filter(Boolean).join(' ');
+      const message = [composedText, remainingLinks.join(' ')]
+        .filter((part) => part.trim())
+        .join(' ');
       if (!message) return;
+      if (
+        [...sendSnapshotsRef.current.values()].some(
+          (pending) =>
+            pending.sessionId === currentSessionId &&
+            pending.message === message &&
+            pending.value.text === value.text &&
+            pending.value.occurrenceIds.join('\u0000') === value.occurrenceIds.join('\u0000'),
+        )
+      )
+        return;
 
       const structuredParts: MessagePart[] = [];
-      for (const part of composerValueRef.current.parts) {
+      for (const part of value.parts) {
         if (part.type === 'text') {
           structuredParts.push({ type: 'text', text: part.value });
           continue;
         }
-        const attachment = attachments.find((candidate) => candidate.id === part.attachmentId);
+        const attachment = snapshotAttachments.find(
+          (candidate) => attachmentOccurrenceId(candidate) === composerPartOccurrenceId(part),
+        );
         if (attachment?.attachmentId) {
           structuredParts.push({
             type: 'attachment',
@@ -640,7 +923,7 @@ export function InputRow() {
         }
       }
       for (const attachment of readyAttachments) {
-        if (embeddedIds.has(attachment.id)) continue;
+        if (embeddedIds.has(attachmentOccurrenceId(attachment))) continue;
         if (structuredParts.length > 0) structuredParts.push({ type: 'text', text: ' ' });
         structuredParts.push({
           type: 'attachment',
@@ -652,15 +935,74 @@ export function InputRow() {
         });
       }
 
-      // Every user message goes to the server queue.  Clear the input only
-      // after the server returns a durable queueItemId; a network failure is
-      // not an offline accepted queue state.
-      const ok = await enqueue(message, structuredParts.length > 0 ? structuredParts : undefined);
-      if (ok) {
-        composerRef.current?.replaceText('');
-        setInputDraft(currentSessionId, '');
-        setAttachments([]);
-      }
+      const recovery = recoveryBySessionRef.current.get(currentSessionId);
+      const canReuseClientMessageId =
+        !!recovery &&
+        recovery.value.text === value.text &&
+        recovery.value.occurrenceIds.join('\u0000') === value.occurrenceIds.join('\u0000') &&
+        recovery.attachments.map(attachmentOccurrenceId).join('\u0000') ===
+          snapshotAttachments.map(attachmentOccurrenceId).join('\u0000');
+      const snapshot: SendSnapshot = {
+        transactionId: attachmentId(),
+        clientMessageId: canReuseClientMessageId ? recovery!.clientMessageId : attachmentId(),
+        sessionId: currentSessionId,
+        value,
+        attachments: snapshotAttachments,
+        message,
+        parts: structuredParts.length > 0 ? structuredParts : undefined,
+      };
+      sendSnapshotsRef.current.set(snapshot.transactionId, snapshot);
+
+      // The user transaction is cleared synchronously.  All later async
+      // work is tied to this snapshot and session, so new typing can never be
+      // cleared or restored by the old request.
+      composerRef.current?.replaceValue(emptyComposerValue());
+      setInputDraft(currentSessionId, '');
+      setAttachments((current) =>
+        current.filter(
+          (attachment) =>
+            !snapshotAttachments.some(
+              (sent) => attachmentOccurrenceId(sent) === attachmentOccurrenceId(attachment),
+            ),
+        ),
+      );
+
+      void (async () => {
+        try {
+          const serverAttachments = snapshot.attachments.filter(
+            (attachment) => !attachment.file && attachment.status === 'ready' && !!attachment.path,
+          );
+          const valid = await Promise.all(
+            serverAttachments.map((attachment) =>
+              directoryEntryExists(attachment.path!, fetchDirectories),
+            ),
+          );
+          if (valid.some((exists) => !exists)) {
+            if (useSessionStore.getState().currentSessionId === snapshot.sessionId) {
+              setAttachmentDirectoryError('当前目录非法');
+              const stalePath = serverAttachments[0]?.path;
+              if (stalePath) setAttachmentBrowserPath(parentDirectory(stalePath));
+              setAttachmentBrowserOpen(true);
+              setAttachmentMenuOpen(false);
+              showToast('当前目录非法', 'error');
+            }
+            throw new Error('当前目录非法');
+          }
+          const ok = await enqueue(
+            snapshot.message,
+            snapshot.parts,
+            snapshot.sessionId,
+            snapshot.clientMessageId,
+          );
+          if (!ok) throw new Error('消息尚未入队');
+          sendSnapshotsRef.current.delete(snapshot.transactionId);
+          recoveryBySessionRef.current.delete(snapshot.sessionId);
+        } catch {
+          if (sendSnapshotsRef.current.get(snapshot.transactionId) !== snapshot) return;
+          sendSnapshotsRef.current.delete(snapshot.transactionId);
+          restoreSubmission(snapshot);
+        }
+      })();
     },
     [
       currentSessionId,
@@ -668,6 +1010,7 @@ export function InputRow() {
       setInputDraft,
       enqueue,
       attachments,
+      restoreSubmission,
       setAttachmentDirectoryError,
       setAttachmentBrowserPath,
       setAttachmentBrowserOpen,
@@ -702,23 +1045,20 @@ export function InputRow() {
   const showThinking = supportsSetting(config, 'thinking');
   // Effort only makes sense with thinking enabled (mirrors SettingsPopover).
   const showEffort =
-    supportsSetting(config, 'effort') &&
-    (!showThinking || !!currentSession?.alwaysThinkingEnabled);
+    supportsSetting(config, 'effort') && (!showThinking || !!currentSession?.alwaysThinkingEnabled);
   const modelEfforts = config?.modelEfforts?.[currentSession?.model || config?.defaultModel || ''];
   const effortValues = modelEfforts ? ['', ...modelEfforts] : config?.effortValues || [];
   // opencode's effort list starts with "" (unset sentinel); filter it out so
   // the dropdown never renders a blank <option>, and surface it as a clear
   // "默认" placeholder instead.
-  const validEffortValues = effortValues.filter(
-    (v) => v && String(v).trim() !== '',
-  );
+  const validEffortValues = effortValues.filter((v) => v && String(v).trim() !== '');
   const hadEmptyEffort = effortValues.length !== validEffortValues.length;
   const currentEffort =
     currentSession?.effort && validEffortValues.includes(currentSession.effort.trim())
       ? currentSession.effort
       : hadEmptyEffort
         ? ''
-        : validEffortValues[0] ?? '';
+        : (validEffortValues[0] ?? '');
   const canSteer =
     currentSession?.adapter === 'codex' &&
     currentWorker?.status === 'running' &&
@@ -728,28 +1068,38 @@ export function InputRow() {
     (total, attachment) => total + (attachment.totalBytes ?? attachment.file?.size ?? 0),
     0,
   );
-  const uploadLoadedBytes = clientAttachments.reduce((loaded, attachment) => loaded + (
-    attachment.status === 'ready'
-      ? (attachment.totalBytes ?? attachment.file?.size ?? 0)
-      : (attachment.loadedBytes ?? 0)
-  ), 0);
-  const uploadPercent = uploadTotalBytes > 0
-    ? Math.min(100, Math.floor((uploadLoadedBytes / uploadTotalBytes) * 100))
-    : clientAttachments.every((attachment) => attachment.status === 'ready') ? 100 : 0;
+  const uploadLoadedBytes = clientAttachments.reduce(
+    (loaded, attachment) =>
+      loaded +
+      (attachment.status === 'ready'
+        ? (attachment.totalBytes ?? attachment.file?.size ?? 0)
+        : (attachment.loadedBytes ?? 0)),
+    0,
+  );
+  const uploadPercent =
+    uploadTotalBytes > 0
+      ? Math.min(100, Math.floor((uploadLoadedBytes / uploadTotalBytes) * 100))
+      : clientAttachments.every((attachment) => attachment.status === 'ready')
+        ? 100
+        : 0;
   const uploadStatus = clientAttachments.some((attachment) => attachment.status === 'uploading')
     ? '上传中'
     : clientAttachments.some((attachment) => attachment.status === 'error')
       ? '失败'
       : '已完成';
   const attachmentsBlocked = attachments.some((attachment) => attachment.status !== 'ready');
-  const embeddedAttachmentIds = new Set(composerValueRef.current.attachmentIds);
-  const visibleAttachmentChips = attachments.filter((attachment) => !embeddedAttachmentIds.has(attachment.id));
+  const embeddedAttachmentIds = new Set(composerValueRef.current.occurrenceIds);
+  const visibleAttachmentChips = attachments.filter(
+    (attachment) => !embeddedAttachmentIds.has(attachmentOccurrenceId(attachment)),
+  );
 
   return (
     <div
       data-testid="input-row"
       className={`relative flex shrink-0 w-full flex-col border-t border-border-default bg-bg-primary ${
-        isMobile && mobileFullscreen ? 'fixed inset-0 z-50 h-[100dvh] overflow-hidden pt-[var(--safe-top)]' : ''
+        isMobile && mobileFullscreen
+          ? 'fixed inset-0 z-50 h-[100dvh] overflow-hidden pt-[var(--safe-top)]'
+          : ''
       }`}
       style={!isMobile ? { height: `${composerHeight}px` } : undefined}
     >
@@ -767,7 +1117,9 @@ export function InputRow() {
       {/* 待发送队列面板（默认折叠，^ 按钮展开） */}
       <div
         data-testid="send-queue-anchor"
-        className={isMobile && mobileFullscreen ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'}
+        className={
+          isMobile && mobileFullscreen ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'
+        }
       >
         <SendQueuePanel />
       </div>
@@ -778,7 +1130,10 @@ export function InputRow() {
         {/* 右侧内容列 */}
         <div className={`flex-1 min-w-0 flex flex-col gap-2 ${mobileFullscreen ? 'min-h-0' : ''}`}>
           {currentSession && (
-            <div data-testid="input-control-row" className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-visible">
+            <div
+              data-testid="input-control-row"
+              className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-visible"
+            >
               <div className="flex shrink-0 items-center gap-1">
                 <div data-settings-popover className="relative">
                   <button
@@ -790,14 +1145,30 @@ export function InputRow() {
                   >
                     <Settings size={14} />
                   </button>
-                  <SettingsPopover anchorRef={settingsButtonRef} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+                  <SettingsPopover
+                    anchorRef={settingsButtonRef}
+                    open={settingsOpen}
+                    onClose={() => setSettingsOpen(false)}
+                  />
                 </div>
                 <div className="relative">
-                  <button onClick={togglePanel} title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'} aria-label="发送队列" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
-                    <ChevronUp size={14} className={`transition-transform duration-200 ${panelOpen ? 'rotate-180' : ''}`} />
+                  <button
+                    onClick={togglePanel}
+                    title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
+                    aria-label="发送队列"
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
+                  >
+                    <ChevronUp
+                      size={14}
+                      className={`transition-transform duration-200 ${panelOpen ? 'rotate-180' : ''}`}
+                    />
                     <span className="ml-1 hidden text-xs md:inline">Queue</span>
                   </button>
-                  {queueCount > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">{queueCount > 99 ? '99+' : queueCount}</span>}
+                  {queueCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">
+                      {queueCount > 99 ? '99+' : queueCount}
+                    </span>
+                  )}
                 </div>
               </div>
               <ModelPill
@@ -818,9 +1189,9 @@ export function InputRow() {
               </div>
               <div className="hidden md:flex shrink-0">
                 <ThinkingToggle
-                enabled={currentSession.alwaysThinkingEnabled}
-                show={showThinking}
-                onApply={applySetting}
+                  enabled={currentSession.alwaysThinkingEnabled}
+                  show={showThinking}
+                  onApply={applySetting}
                 />
               </div>
               {showEffort && validEffortValues.length > 0 && (
@@ -839,13 +1210,44 @@ export function InputRow() {
                 </select>
               )}
               <div className="relative order-last shrink-0 md:ml-auto">
-                <button type="button" aria-label="添加附件" title="添加附件" onClick={() => setAttachmentMenuOpen((open) => !open)} className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                <button
+                  type="button"
+                  aria-label="添加附件"
+                  title="添加附件"
+                  onClick={() => setAttachmentMenuOpen((open) => !open)}
+                  className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${attachmentMenuOpen ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
+                >
                   <Paperclip size={14} />
                 </button>
-                {attachmentMenuOpen && createPortal(<div data-testid="attachment-menu" className="fixed bottom-20 right-3 z-[60] min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg">
-                  <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { setAttachmentBrowserPath(''); setAttachmentBrowserOpen(true); }}><FileIcon size={14} /> 服务端附件</button>
-                  <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover" onClick={() => { clientAttachmentInputRef.current?.click(); setAttachmentMenuOpen(false); }}><Paperclip size={14} /> 客户端附件</button>
-                </div>, document.body)}
+                {attachmentMenuOpen &&
+                  createPortal(
+                    <div
+                      data-testid="attachment-menu"
+                      className="fixed bottom-20 right-3 z-[60] min-w-[150px] rounded-md border border-border-default bg-bg-primary py-1 shadow-lg"
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover"
+                        onClick={() => {
+                          setAttachmentBrowserPath('');
+                          setAttachmentBrowserOpen(true);
+                        }}
+                      >
+                        <FileIcon size={14} /> 服务端附件
+                      </button>
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-hover"
+                        onClick={() => {
+                          clientAttachmentInputRef.current?.click();
+                          setAttachmentMenuOpen(false);
+                        }}
+                      >
+                        <Paperclip size={14} /> 客户端附件
+                      </button>
+                    </div>,
+                    document.body,
+                  )}
               </div>
               {isMobile && (
                 <button
@@ -888,16 +1290,20 @@ export function InputRow() {
             <div className="flex flex-wrap gap-1.5" data-testid="server-attachments">
               {visibleAttachmentChips.map((attachment) => (
                 <span
-                  key={attachment.id}
+                  key={attachmentOccurrenceId(attachment)}
                   draggable={attachment.status === 'ready' && !!attachment.href}
-                  data-testid={attachment.status === 'ready' && attachment.href ? 'draggable-attachment-chip' : undefined}
+                  data-testid={
+                    attachment.status === 'ready' && attachment.href
+                      ? 'draggable-attachment-chip'
+                      : undefined
+                  }
                   onDragStart={(event) => {
                     if (attachment.status !== 'ready' || !attachment.href) return;
                     writeAttachmentDragPayload(event.dataTransfer, {
                       displayName: attachment.displayName,
                       href: attachment.href,
                       path: attachment.path,
-                      attachmentId: attachment.id,
+                      attachmentId: attachmentOccurrenceId(attachment),
                       serverAttachmentId: attachment.attachmentId,
                       source: 'attachment-chip',
                     });
@@ -909,9 +1315,15 @@ export function InputRow() {
                 >
                   <FileIcon size={13} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{attachment.displayName}</span>
-                  {attachment.file && attachment.status === 'uploading' && <span className="text-text-tertiary">上传中…</span>}
-                  {!attachment.file && attachment.status === 'registering' && <span className="text-text-tertiary">注册中…</span>}
-                  {attachment.file && attachment.status === 'ready' && <span className="text-accent">已完成</span>}
+                  {attachment.file && attachment.status === 'uploading' && (
+                    <span className="text-text-tertiary">上传中…</span>
+                  )}
+                  {!attachment.file && attachment.status === 'registering' && (
+                    <span className="text-text-tertiary">注册中…</span>
+                  )}
+                  {attachment.file && attachment.status === 'ready' && (
+                    <span className="text-accent">已完成</span>
+                  )}
                   {attachment.status === 'error' && (
                     <button
                       type="button"
@@ -919,41 +1331,97 @@ export function InputRow() {
                       aria-label={`重试上传 ${attachment.displayName}`}
                       onClick={() => {
                         if (attachment.file) {
-                          setAttachments((current) => current.map((item) => item.id === attachment.id
-                            ? { ...item, status: 'uploading', error: undefined }
-                            : item));
+                          setAttachments((current) =>
+                            current.map((item) =>
+                              attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
+                                ? { ...item, status: 'uploading', error: undefined }
+                                : item,
+                            ),
+                          );
                           void uploadClientAttachment({ ...attachment, status: 'uploading' });
                           return;
                         }
                         if (attachment.path) {
-                          setAttachments((current) => current.map((item) => item.id === attachment.id
-                            ? { ...item, status: 'registering', error: undefined }
-                            : item));
-                          const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
-                          void register(currentSessionId!, attachment.path)
-                            .then((registered) => setAttachments((current) => current.map((item) => item.id === attachment.id
-                              ? { ...item, attachmentId: registered.attachmentId, href: registered.href,
-                                  displayName: registered.displayName, mimeType: registered.mimeType,
-                                  status: 'ready' }
-                              : item)))
-                            .catch((error) => setAttachments((current) => current.map((item) => item.id === attachment.id
-                              ? { ...item, status: 'error', error: error instanceof Error ? error.message : '附件注册失败' }
-                              : item)));
+                          const retrySessionId = currentSessionId;
+                          const retryEpoch = attachmentEpochRef.current;
+                          if (!retrySessionId) return;
+                          setAttachments((current) =>
+                            current.map((item) =>
+                              attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
+                                ? { ...item, status: 'registering', error: undefined }
+                                : item,
+                            ),
+                          );
+                          const register = isMockMode()
+                            ? mockRegisterServerFileAttachment
+                            : registerServerFileAttachment;
+                          void register(retrySessionId, attachment.path)
+                            .then((registered) => {
+                              if (
+                                activeAttachmentSessionRef.current !== retrySessionId ||
+                                attachmentEpochRef.current !== retryEpoch
+                              )
+                                return;
+                              setAttachments((current) =>
+                                current.map((item) =>
+                                  attachmentOccurrenceId(item) ===
+                                  attachmentOccurrenceId(attachment)
+                                    ? {
+                                        ...item,
+                                        attachmentId: registered.attachmentId,
+                                        href: registered.href,
+                                        displayName: registered.displayName,
+                                        mimeType: registered.mimeType,
+                                        status: 'ready',
+                                      }
+                                    : item,
+                                ),
+                              );
+                            })
+                            .catch((error) => {
+                              if (
+                                activeAttachmentSessionRef.current !== retrySessionId ||
+                                attachmentEpochRef.current !== retryEpoch
+                              )
+                                return;
+                              setAttachments((current) =>
+                                current.map((item) =>
+                                  attachmentOccurrenceId(item) ===
+                                  attachmentOccurrenceId(attachment)
+                                    ? {
+                                        ...item,
+                                        status: 'error',
+                                        error:
+                                          error instanceof Error ? error.message : '附件注册失败',
+                                      }
+                                    : item,
+                                ),
+                              );
+                            });
                         }
                       }}
                     >
                       重试
                     </button>
                   )}
-                  {attachment.error && <span className="max-w-[180px] truncate text-danger" title={attachment.error}>({attachment.error})</span>}
+                  {attachment.error && (
+                    <span className="max-w-[180px] truncate text-danger" title={attachment.error}>
+                      ({attachment.error})
+                    </span>
+                  )}
                   <button
                     type="button"
                     aria-label={`取消附件 ${attachment.displayName}`}
                     className="ml-1 text-danger hover:text-danger/80"
                     onClick={() => {
-                      uploadControllersRef.current.get(attachment.id)?.abort();
-                      uploadControllersRef.current.delete(attachment.id);
-                      setAttachments((current) => current.filter((item) => item.id !== attachment.id));
+                      uploadControllersRef.current.get(attachmentOccurrenceId(attachment))?.abort();
+                      uploadControllersRef.current.delete(attachmentOccurrenceId(attachment));
+                      setAttachments((current) =>
+                        current.filter(
+                          (item) =>
+                            attachmentOccurrenceId(item) !== attachmentOccurrenceId(attachment),
+                        ),
+                      );
                     }}
                   >
                     <X size={13} />
@@ -980,34 +1448,56 @@ export function InputRow() {
                 fileMode
                 showRootsWhenEmpty
                 onSelect={(selectedPath) => {
+                  const selectedSessionId = currentSessionId;
+                  const selectedEpoch = attachmentEpochRef.current;
                   void (async () => {
                     try {
                       const register = isMockMode()
                         ? mockRegisterServerFileAttachment
                         : registerServerFileAttachment;
-                      const registered = await register(currentSessionId!, selectedPath);
-                      setAttachments((current) => current.some((item) => item.attachmentId === registered.attachmentId)
-                        ? current
-                        : [...current, {
-                            id: attachmentId(),
-                            attachmentId: registered.attachmentId,
-                            displayName: registered.displayName,
-                            path: registered.path,
-                            href: registered.href,
-                            mimeType: registered.mimeType,
-                            source: 'server_file' as const,
-                            status: 'ready' as const,
-                          }]);
+                      if (!selectedSessionId) return;
+                      const registered = await register(selectedSessionId, selectedPath);
+                      if (
+                        activeAttachmentSessionRef.current !== selectedSessionId ||
+                        attachmentEpochRef.current !== selectedEpoch
+                      )
+                        return;
+                      const occurrenceId = attachmentId();
+                      setAttachments((current) => [
+                        ...current,
+                        {
+                          occurrenceId,
+                          id: occurrenceId,
+                          attachmentId: registered.attachmentId,
+                          displayName: registered.displayName,
+                          path: registered.path,
+                          href: registered.href,
+                          mimeType: registered.mimeType,
+                          source: 'server_file' as const,
+                          status: 'ready' as const,
+                        },
+                      ]);
                       setAttachmentBrowserOpen(false);
                       setAttachmentMenuOpen(false);
                       setAttachmentDirectoryError(null);
                     } catch (error) {
-                      setAttachmentDirectoryError(error instanceof Error ? error.message : '服务端附件注册失败');
+                      if (
+                        activeAttachmentSessionRef.current !== selectedSessionId ||
+                        attachmentEpochRef.current !== selectedEpoch
+                      )
+                        return;
+                      setAttachmentDirectoryError(
+                        error instanceof Error ? error.message : '服务端附件注册失败',
+                      );
                     }
                   })();
                 }}
               />
-              {attachmentDirectoryError && <p className="mt-2 text-sm text-danger" data-testid="attachment-directory-error">{attachmentDirectoryError}</p>}
+              {attachmentDirectoryError && (
+                <p className="mt-2 text-sm text-danger" data-testid="attachment-directory-error">
+                  {attachmentDirectoryError}
+                </p>
+              )}
             </div>
           </Modal>
           <div className="flex min-h-0 flex-1 gap-2">
@@ -1030,7 +1520,12 @@ export function InputRow() {
               className="pointer-events-none absolute h-px w-px opacity-0"
               onChange={(e) => {
                 const text = e.target.value;
-                composerValueRef.current = { parts: text ? [{ type: 'text', value: text }] : [{ type: 'text', value: '' }], text, attachmentIds: [] };
+                composerValueRef.current = {
+                  parts: text ? [{ type: 'text', value: text }] : [{ type: 'text', value: '' }],
+                  text,
+                  occurrenceIds: [],
+                  attachmentIds: [],
+                };
                 setComposerText(text);
                 composerRef.current?.replaceText(text);
                 if (currentSessionId) setInputDraft(currentSessionId, text);
@@ -1041,7 +1536,23 @@ export function InputRow() {
               key={currentSessionId || 'no-session'}
               ref={composerRef}
               initialText={composerText}
-              attachments={attachments.map(({ id, displayName, href, path }) => ({ id, displayName, href, path }))}
+              attachments={attachments.map(
+                ({
+                  id,
+                  occurrenceId,
+                  attachmentId: resourceAttachmentId,
+                  displayName,
+                  href,
+                  path,
+                }) => ({
+                  id,
+                  occurrenceId,
+                  attachmentId: resourceAttachmentId,
+                  displayName,
+                  href,
+                  path,
+                }),
+              )}
               onChange={handleComposerChange}
               onAttachmentDrop={handleAttachmentDrop}
               onNativeFiles={handleNativeFiles}
