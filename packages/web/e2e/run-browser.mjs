@@ -1,4 +1,4 @@
-/* global Event, URL, console, document, localStorage, process, setTimeout, window */
+/* global DataTransfer, DragEvent, Event, URL, console, document, localStorage, process, setTimeout, window */
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -33,6 +33,13 @@ async function openPage() {
   await page.reload();
   await page.locator('[data-session-card-id]').first().waitFor({ state: 'visible' });
   return { context, page };
+}
+
+async function openPageInContext(context) {
+  const page = await context.newPage();
+  await page.goto(`${baseURL}/react/`);
+  await page.locator('[data-session-card-id]').first().waitFor({ state: 'visible' });
+  return page;
 }
 
 async function selectSession(page, name) {
@@ -182,7 +189,7 @@ await runCase('markdown files through real editor and external link preservation
   await page.getByRole('link', { name: 'relative file' }).click();
   await page.waitForURL(/\/react\/editor$/);
   assert.equal(new URL(page.url()).pathname, '/react/editor');
-  await page.getByTitle('Edit').click();
+  await page.getByRole('button', { name: 'Edit' }).click();
   await page.locator('.monaco-editor').waitFor({ state: 'visible' });
   await poll(() => page.evaluate(() => {
     const editor = window.monaco?.editor?.getEditors?.()[0];
@@ -193,7 +200,8 @@ await runCase('markdown files through real editor and external link preservation
   const windowsLink = page.getByRole('link', { name: 'windows server path' });
   const windowsHref = await windowsLink.getAttribute('href');
   console.log(`windows server href=${windowsHref}`);
-  assert.ok(windowsHref?.toLowerCase().startsWith('d:/'));
+  assert.match(windowsHref || '', /^\/api\/attachments\/editor\/att_[A-Za-z0-9]{32}\?session_id=[^#]+#L42-L48$/);
+  assert.ok(!windowsHref?.includes('pan-e2e-runtime'));
   await windowsLink.click();
   await page.waitForURL(/\/react\/editor$/);
   assert.equal(new URL(page.url()).pathname, '/react/editor');
@@ -221,6 +229,154 @@ await runCase('markdown files through real editor and external link preservation
   assert.ok(readPaths.some((url) => url.includes('notes.md')));
   assert.ok(readPaths.some((url) => url.includes('linked.ts')));
 });
+
+async function runCrossSessionServerFileDrop() {
+  const name = 'cross-session server-file drag and optimistic send';
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  let sourcePage;
+  let targetPage;
+  let releaseQueue = () => {};
+  const started = new Date().toISOString();
+  await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+  try {
+    sourcePage = await openPageInContext(context);
+    targetPage = await openPageInContext(context);
+    await selectChat(sourcePage);
+    const sourceCard = sourcePage.locator('[data-session-card-id]').filter({ hasText: 'Chat Stream' }).first();
+    const sourceSessionId = await sourceCard.getAttribute('data-session-card-id');
+    assert.ok(sourceSessionId);
+    const sourceHistoryResponse = await sourcePage.request.get(
+      `${baseURL}/api/sessions/${encodeURIComponent(sourceSessionId)}/history?before=0&limit=50`,
+    );
+    assert.equal(sourceHistoryResponse.status(), 200);
+    const sourceHistoryBefore = (await sourceHistoryResponse.json()).history;
+
+    const sourceLink = sourcePage.getByRole('link', { name: 'relative file' });
+    const sourceHref = await sourceLink.getAttribute('href');
+    assert.match(sourceHref || '', /^\/api\/attachments\/editor\//);
+    assert.equal(await sourceLink.getAttribute('draggable'), 'true');
+    const drag = await sourceLink.evaluate((node) => {
+      const dataTransfer = new DataTransfer();
+      node.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+      return {
+        custom: dataTransfer.getData('application/x-pan-attachment'),
+        plain: dataTransfer.getData('text/plain'),
+      };
+    });
+    const payload = JSON.parse(drag.custom);
+    assert.equal(payload.sourceSessionId, sourceSessionId);
+    assert.equal(payload.source, 'message');
+    assert.equal(payload.location.line, 42);
+    assert.ok(payload.serverAttachmentId);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, 'path'), false);
+    assert.ok(!/[A-Za-z]:[\\/]/.test(drag.custom));
+    assert.ok(payload.href.startsWith('/api/attachments/'));
+    assert.equal(drag.plain, 'relative file');
+
+    const targetCard = await selectSession(targetPage, 'Alpha Session');
+    const targetSessionId = await targetCard.getAttribute('data-session-card-id');
+    assert.ok(targetSessionId);
+    const editor = targetPage.getByTestId('rich-text-composer');
+    await editor.click();
+    await targetPage.keyboard.type('请处理 ');
+    const editorBox = await editor.boundingBox();
+    assert.ok(editorBox);
+    const dropResult = await targetPage.evaluate(({ custom, displayName, x, y }) => {
+      const root = document.querySelector('[data-testid="rich-text-composer"]');
+      if (!root) throw new Error('composer not found');
+      const dataTransfer = new DataTransfer();
+      dataTransfer.setData('application/x-pan-attachment', custom);
+      dataTransfer.setData('text/plain', displayName);
+      const init = { bubbles: true, cancelable: true, dataTransfer, clientX: x, clientY: y };
+      const dragover = new DragEvent('dragover', init);
+      root.dispatchEvent(dragover);
+      const drop = new DragEvent('drop', init);
+      root.dispatchEvent(drop);
+      return { dragoverPrevented: dragover.defaultPrevented, dropPrevented: drop.defaultPrevented };
+    }, { custom: drag.custom, displayName: drag.plain, x: editorBox.x + 40, y: editorBox.y + editorBox.height / 2 });
+    assert.equal(dropResult.dragoverPrevented, true);
+    assert.equal(dropResult.dropPrevented, true);
+    await editor.locator('[data-composer-attachment]').waitFor({ state: 'visible' });
+
+    let queueRequestPayload;
+    let openQueue;
+    const queueGate = new Promise((resolve) => { openQueue = resolve; });
+    let uploadRequests = 0;
+    targetPage.on('request', (request) => {
+      if (request.url().includes('/api/attachments/upload')) uploadRequests += 1;
+    });
+    await targetPage.route(
+      `${baseURL}/api/sessions/${encodeURIComponent(targetSessionId)}/queue`,
+      async (route) => {
+        if (route.request().method() !== 'POST') {
+          await route.continue();
+          return;
+        }
+        queueRequestPayload = route.request().postDataJSON();
+        await queueGate;
+        await route.continue();
+      },
+    );
+    const queueResponsePromise = targetPage.waitForResponse((response) =>
+      response.url().includes(`/api/sessions/${encodeURIComponent(targetSessionId)}/queue`)
+      && response.request().method() === 'POST',
+    );
+    await targetPage.getByRole('button', { name: 'Send' }).click();
+    await poll(() => queueRequestPayload, (value) => !!value);
+    assert.equal(await editor.textContent(), '');
+    assert.equal(await editor.locator('[data-composer-attachment]').count(), 0);
+    assert.equal(uploadRequests, 0);
+    assert.ok(queueRequestPayload.parts?.some((part) =>
+      part.type === 'attachment' && part.attachmentId === payload.serverAttachmentId));
+    assert.ok(queueRequestPayload.text.includes(payload.displayName));
+    const serializedQueuePayload = JSON.stringify(queueRequestPayload);
+    assert.equal(Object.prototype.hasOwnProperty.call(queueRequestPayload, 'path'), false);
+    assert.ok(!serializedQueuePayload.includes('D:\\'));
+    assert.ok(!serializedQueuePayload.includes('\\\\'));
+    assert.equal(await sourcePage.url(), `${baseURL}/react/`);
+
+    releaseQueue = openQueue;
+    releaseQueue();
+    const queueResponse = await queueResponsePromise;
+    assert.equal(queueResponse.status(), 200);
+    const queueResult = await queueResponse.json();
+    assert.equal(queueResult.ok, true);
+    assert.ok(queueResult.item.parts?.some((part) =>
+      part.type === 'attachment' && part.attachmentId === payload.serverAttachmentId),
+    `server enqueue response lost attachment parts: ${JSON.stringify(queueResult)}`);
+    const targetQueueResponse = await targetPage.request.get(
+      `${baseURL}/api/sessions/${encodeURIComponent(targetSessionId)}/queue`,
+    );
+    assert.equal(targetQueueResponse.status(), 200);
+    const targetQueue = await targetQueueResponse.json();
+    // A live isolated Worker may consume the queue immediately; either the
+    // authoritative enqueue response or the still-pending queue snapshot is
+    // sufficient proof that the target accepted the reference.
+    assert.ok(
+      targetQueue.items.some((item) => item.parts?.some((part) =>
+        part.type === 'attachment' && part.attachmentId === payload.serverAttachmentId))
+      || queueResult.item.parts?.some((part) =>
+        part.type === 'attachment' && part.attachmentId === payload.serverAttachmentId),
+    );
+
+    const sourceHistoryAfterResponse = await sourcePage.request.get(
+      `${baseURL}/api/sessions/${encodeURIComponent(sourceSessionId)}/history?before=0&limit=50`,
+    );
+    assert.deepEqual((await sourceHistoryAfterResponse.json()).history, sourceHistoryBefore);
+    await context.tracing.stop({ path: path.join(artifacts, `${slug}.zip`) });
+    return { name, status: 'passed', started, trace: `${slug}.zip`, uploadRequests, queueRequestPayload };
+  } catch (error) {
+    const message = error instanceof Error ? error.stack || error.message : String(error);
+    await context.tracing.stop({ path: path.join(artifacts, `${slug}-failure.zip`) }).catch(() => {});
+    return { name, status: 'failed', started, error: message, trace: `${slug}-failure.zip` };
+  } finally {
+    releaseQueue();
+    await context.close();
+  }
+}
+
+results.push(await runCrossSessionServerFileDrop());
 
 await browser.close();
 await fs.writeFile(path.join(runtime, 'browser-results.json'), JSON.stringify({ browser: browser.version(), baseURL, results }, null, 2));
