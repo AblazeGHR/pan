@@ -41,6 +41,13 @@
 - 状态：可用。
 - 规则：极短、低风险、仅信息核对的任务可使用 Luna `low`；不得用于替代高风险实现或真实 E2E。
 
+### MODEL-3：CBC DeepSeek 优先及限速回退
+
+- 状态：用户于 2026-09-15 明确指定，后续 TA 默认采用。
+- 规则：新 TA 默认使用 `cbc` adapter 的 `deepseek-v4.1-flash`，权限默认 `bypassPermissions`，effort 默认 `auto`；根据任务风险和 TA 表现可调整为 `high` 或 `xhigh`。
+- 限速回退：DeepSeek 被限速时切换到 `cbc` 的 `glm-5.3-flash`；两者均限速时切回 `deepseek-v4.1-flash`，并在任务报告中记录实际模型和限速证据。不得静默切换到其他 adapter/model。
+- 额度规则：每轮工作流对话开始检查 Codex 五小时额度；达到 98% 时进行 SMA 替身交接，目标配置为 `cbc + deepseek-v4.1-flash + high + bypassPermissions`。
+
 ## MA 自主权策略
 
 ### AUTONOMY-1：目标内端到端自主推进
@@ -72,7 +79,7 @@
 
 ## 默认策略与任务映射
 
-- 默认 Git：`GIT-1`；默认 TA：`MODEL-1`（含 `permission_mode=bypass`）；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
+- 默认 Git：`GIT-1`；默认 TA：`MODEL-3`；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
 
 | 任务 | Git | TA 模型 | MA 自主权 | 其他 |
 |---|---|---|---|---|
@@ -83,3 +90,4 @@
 | `T-024` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；测试通过后直接合入本地 `main`，不 push |
 | `T-025` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按 `DEC-001=A+C` 实现，测试通过后直接合入本地 `main` |
 | `T-027`、`T-028` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按用户最新语义执行，默认 bypass |
+| `T-030` 及后续新 TA | `GIT-1`、`GIT-2` | `MODEL-3` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按用户模型级联和额度交接规则执行 |
