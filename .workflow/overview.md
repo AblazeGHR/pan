@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-025 已验收并归档；T-024 等历史任务仍按各自状态等待开发者验收
-- 当前焦点：无；等待新的用户任务或剩余任务验收
-- 可执行：无新的实现任务
-- TA 执行中：无
+- 整体状态：T-026 附件 AI 路径与 UI 下载链接分层修复中
+- 当前焦点：AI/Worker 文本使用服务端真实绝对路径，UI 渲染转换为安全下载 API
+- 可执行：等待 TA 完成分层实现、兼容性回归和验证
+- TA 执行中：`ses_2e3ce9ae8faa0645`（`worker-3`，Codex `gpt-5.6-luna`，high）
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -46,7 +46,7 @@
 - 最终决定：A + C。第一阶段支持普通文件复制/粘贴和拖入，目录明确拒绝；同时采用结构化 AttachmentRef/parts 协议，兼容旧 text/Markdown 协议。
 - 决定来源：开发者会话，2026-09-13；用户明确回复“使用A+C”。
 - 决策要求：请明确选择 A、B、C 或 A + C；可同时补充目录、重复文件、上传时机和未发送附件生命周期规则
-- 决定后动作：已解除 T-023 决策阻塞并建立 T-025 正式实现任务；本阶段不实现目录递归上传。
+- 决定后动作：已解除 T-023 决策阻塞并建立 T-025 正式实现任务；本阶段不实现目录递归上传。T-026 为已合入实现的路径表示修复，不改变 A+C 决策。
 
 ## 一、已合入 main 的改动
 
@@ -316,7 +316,23 @@
 
 ## 三、正在进行的任务/改动
 
-当前暂无。
+### T-026：附件 AI 绝对路径与 UI 下载 API 渲染分层
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 当前阶段：TA 修复中，未合入 main
+- 目标：给 AI/Worker/adapter 的文本使用服务端真实绝对路径；UI 消息渲染时再将已验证的路径或 attachmentId 转换为 editor/下载 API 链接。
+- 产品语义：客户端文件上传后使用服务端实际存储路径；服务端文件使用已验证实际路径；浏览器不提交或信任客户端绝对路径；上方 chip 和编辑器内嵌附件的发送语义保持不变。
+- 兼容范围：结构化 AttachmentRef/parts、旧 text/Markdown、旧 `@"path"`、旧 `/api` history、queue、WebSocket、history、重试和重启恢复。
+- TA/任务：`ses_2e3ce9ae8faa0645`；`attachment-path-rendering-separation-20260914`；Worker `worker-3`
+- 工作树/分支：`D:\project\pan-worktrees\attachment-path-rendering-separation-20260914`；`feature/attachment-path-rendering-separation-20260914`；基于 `main@e1d11a9`
+- 有序待办：
+  - [ ] 审计当前 AI 文本、结构化 parts 和 UI renderer 的所有表示边界
+  - [ ] 实现服务端绝对路径到 AI 文本、UI 安全 API href 的分层转换
+  - [ ] 添加 client upload/server file、旧历史、跨 session/stale/path traversal 回归
+  - [ ] 完成真实 API/浏览器和全量门禁验证
+  - [ ] 提交并检查 worktree clean
+  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
+  - [ ] 开发者验收
 
 ## 四、计划要做的任务
 
