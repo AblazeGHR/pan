@@ -260,7 +260,7 @@ export async function mockRegisterServerFileAttachment(
     attachmentId,
     displayName,
     source: 'server_file',
-    href: `/api/fs/read?session_id=${encodeURIComponent(sessionId)}&path=${encodeURIComponent(path)}&download=1`,
+    href: `/api/attachments/ref/${encodeURIComponent(attachmentId)}?session_id=${encodeURIComponent(sessionId)}`,
     path,
     size: 0,
   };

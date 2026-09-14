@@ -19,6 +19,7 @@ vi.mock('@/services/api', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 beforeEach(() => {
@@ -125,6 +126,18 @@ describe('MarkdownRenderer', () => {
     expect(parseMarkdownFileLink('/api/fs/read?session_id=s1&path=x&download=1')).toBeNull();
   });
 
+  it('parses opaque editor links as server references while retaining the line range', () => {
+    const attachmentId = `att_${'d'.repeat(32)}`;
+    expect(parseMarkdownFileLink(
+      `/api/attachments/editor/${attachmentId}?session_id=s1#L12-L15`,
+    )).toEqual({
+      path: '',
+      location: { path: '', line: 12, endLine: 15 },
+      serverAttachmentId: attachmentId,
+      serverSessionId: 's1',
+    });
+  });
+
   it('renders attachment hrefs as clickable standard Markdown and preserves ordinary links', () => {
     const { container } = render(
       <MemoryRouter>
@@ -158,6 +171,41 @@ describe('MarkdownRenderer', () => {
       'application/x-pan-attachment',
       expect.stringContaining('接口说明.md'),
     );
+  });
+
+  it('renders an opaque editor link that supports click-to-open and dragstart without a path payload', async () => {
+    const attachmentId = `att_${'c'.repeat(32)}`;
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ok: true, path: 'D:\\project\\Pan\\docs\\readme.md',
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <MarkdownRenderer content={`[readme.md](/api/attachments/editor/${attachmentId}?session_id=s1#L4-L8)`} />
+      </MemoryRouter>,
+    );
+    const link = container.querySelector('a') as HTMLAnchorElement;
+    expect(link.draggable).toBe(true);
+    const setData = vi.fn();
+    fireEvent.dragStart(link, { dataTransfer: { setData, effectAllowed: 'none' } });
+    const dragValue = setData.mock.calls.find(([type]) => type === 'application/x-pan-attachment')?.[1] as string;
+    expect(dragValue).toContain(`/api/attachments/ref/${attachmentId}`);
+    expect(dragValue).toContain('"line":4');
+    expect(dragValue).not.toContain('D:');
+    fireEvent.dragEnd(link);
+    fireEvent.click(link);
+    expect(fetch).not.toHaveBeenCalled();
+
+    cleanup();
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <MarkdownRenderer content={`[readme.md](/api/attachments/editor/${attachmentId}?session_id=s1#L4-L8)`} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('link', { name: 'readme.md' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'D:\\project\\Pan\\docs\\readme.md'));
+    expect(useEditorStore.getState().pendingLocation).toEqual({
+      path: 'D:\\project\\Pan\\docs\\readme.md', line: 4, endLine: 8,
+    });
   });
 
   it('recovers a legacy attachment without display metadata using a safe download href', () => {

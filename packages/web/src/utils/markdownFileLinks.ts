@@ -3,7 +3,11 @@ import type { EditorLocation } from '@/stores/editorStore';
 export interface MarkdownFileLink {
   path: string;
   location?: EditorLocation;
+  serverAttachmentId?: string;
+  serverSessionId?: string;
 }
+
+const EDITOR_ATTACHMENT_RE = /^\/api\/attachments\/editor\/(att_[A-Za-z0-9]{32}|upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?)$/;
 
 function decodeUrlPart(value: string): string | null {
   try {
@@ -100,6 +104,28 @@ function pathFromFileUri(decoded: string): string | null {
  * URLs, mailto links, and document-only anchors.
  */
 export function parseMarkdownFileLink(href: string): MarkdownFileLink | null {
+  const editorUrl = (() => {
+    try {
+      return new URL(href, window.location.origin);
+    } catch {
+      return null;
+    }
+  })();
+  const editorMatch = editorUrl && EDITOR_ATTACHMENT_RE.exec(editorUrl.pathname);
+  if (editorMatch && editorUrl.origin === window.location.origin) {
+    const sessionId = editorUrl.searchParams.get('session_id');
+    if (!sessionId) return null;
+    const rawFragment = editorUrl.hash.slice(1);
+    const location = rawFragment
+      ? parseLineLocation(rawFragment, '')
+      : undefined;
+    return {
+      path: '',
+      ...(location ? { location } : {}),
+      serverAttachmentId: editorMatch[1],
+      serverSessionId: sessionId,
+    };
+  }
   // Pan attachment/download hrefs are ordinary browser links. Keep them out
   // of the editor-file classifier so clicking an attachment downloads the
   // server-validated target instead of trying to open `/api/...` in Editor.

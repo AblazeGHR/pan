@@ -20,6 +20,8 @@ export type MessagePart =
       mimeType?: string;
       size?: number;
       source?: 'upload' | 'server_file';
+      line?: number;
+      endLine?: number;
     };
 
 /** Session-scoped opaque attachment metadata. href/path are server output only. */

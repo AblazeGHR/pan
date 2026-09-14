@@ -6,6 +6,7 @@ import asyncio
 import ctypes
 import errno
 import hashlib
+import inspect
 import json
 import math
 import mimetypes
@@ -985,6 +986,20 @@ def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
     if not target.is_absolute():
         target = Path(s.workdir) / target
     return target.resolve()
+
+
+def _resolve_attachment_source_path(session_id: str, raw_path: str) -> Path:
+    """Resolve an attachment source and reject relative workdir escape."""
+    target = _resolve_fs_path(session_id, raw_path)
+    if not Path(raw_path).is_absolute():
+        session = sess.get(session_id)
+        if not session or not session.workdir:
+            raise ValueError("session has no workdir")
+        try:
+            target.relative_to(Path(session.workdir).resolve())
+        except ValueError as exc:
+            raise ValueError("Attachment path escapes the Session workdir") from exc
+    return target
 
 
 def _rename_no_overwrite(src: Path, dst: Path) -> None:
@@ -1977,6 +1992,27 @@ def _attachment_record(session_id: str, attachment_id: str) -> dict | None:
                 "mimeType": mimetypes.guess_type(attachment_id)[0] or "application/octet-stream",
                 "completed": True,
             }
+    # A message may be dragged from another Session.  The opaque id is the
+    # bearer reference; the registry owner, never a browser-supplied path, is
+    # the authority for the source file.  The queue boundary imports this
+    # record into the target Session before persisting the message reference.
+    try:
+        candidates = list(ATTACHMENTS_DIR.iterdir())
+    except OSError:
+        candidates = []
+    for directory in candidates:
+        if not directory.is_dir():
+            continue
+        try:
+            registry = json.loads(
+                (directory / ".attachments.json").read_text(encoding="utf-8")
+            )
+        except (FileNotFoundError, OSError, ValueError, TypeError):
+            registry = {}
+        if isinstance(registry, dict):
+            record = registry.get(attachment_id)
+            if isinstance(record, dict):
+                return dict(record)
     return None
 
 
@@ -2021,6 +2057,26 @@ def _attachment_href(session_id: str, storage_filename: str) -> str:
     )
 
 
+def _attachment_ref_href(session_id: str, attachment_id: str) -> str:
+    """Build an opaque download href that never embeds a filesystem path."""
+    return (
+        f"/api/attachments/ref/{quote(attachment_id, safe='')}"
+        f"?session_id={quote(session_id, safe='')}"
+    )
+
+
+def _editor_attachment_href(
+    session_id: str, attachment_id: str, line: int | None = None,
+    end_line: int | None = None,
+) -> str:
+    href = _attachment_ref_href(session_id, attachment_id).replace(
+        "/api/attachments/ref/", "/api/attachments/editor/", 1)
+    if line is not None:
+        suffix = f"#L{line}" if end_line is None else f"#L{line}-L{end_line}"
+        href += suffix
+    return href
+
+
 def _fs_download_href(session_id: str, path: str) -> str:
     """Build a safe download href for an existing server-side file."""
     return (
@@ -2042,7 +2098,7 @@ def _attachment_markdown(display_name: str, href: str) -> str:
 
 _LEGACY_ATTACHMENT_RE = re.compile(r'@"([^"\r\n]+)"')
 _MESSAGE_ATTACHMENT_HREF_RE = re.compile(
-    r"\]\((?P<href>/api/(?:attachments/[^)\s]+|fs/read\?[^)\s]+))\)"
+    r"\]\((?P<href>/api/(?:attachments/(?:ref/|editor/|[^)\s]+)|fs/read\?[^)\s]+))\)"
 )
 
 
@@ -2074,6 +2130,107 @@ def _normalize_legacy_attachment_links(session_id: str, content: str) -> str:
     return _LEGACY_ATTACHMENT_RE.sub(replace, content)
 
 
+_MARKDOWN_LINK_RE = re.compile(
+    r"(?P<label>\[[^\r\n]*\])\((?P<href>[^)\s]+)\)"
+)
+
+
+def _parse_editor_destination(raw_href: str) -> tuple[str, int | None, int | None] | None:
+    """Parse a local Markdown destination without accepting web URLs."""
+    hash_index = raw_href.find("#")
+    raw_path = unquote(raw_href if hash_index < 0 else raw_href[:hash_index])
+    fragment = "" if hash_index < 0 else unquote(raw_href[hash_index + 1:])
+    if not raw_path or raw_href.startswith("#"):
+        return None
+    lower = raw_path.lower()
+    if lower.startswith("file://"):
+        uri = urlsplit(raw_path)
+        if uri.netloc and uri.netloc.lower() != "localhost":
+            path = f"//{uri.netloc}{uri.path}"
+        else:
+            path = uri.path[1:] if re.match(r"^/[A-Za-z]:[\\/]", uri.path) else uri.path
+    else:
+        if re.match(r"^[A-Za-z][A-Za-z\d+.-]*:", raw_path) and not re.match(
+            r"^[A-Za-z]:[\\/]", raw_path
+        ):
+            return None
+        path = raw_path
+    path = path.replace("\\", "/")
+    if re.match(r"^/[A-Za-z]:/", path):
+        path = path[1:]
+
+    line = end_line = None
+    colon_match = re.match(r"^(.*):(\d+)(?:-(\d+))?$", path)
+    if colon_match and not re.match(r"^[A-Za-z]$", colon_match.group(1)):
+        line = int(colon_match.group(2))
+        end_line = int(colon_match.group(3)) if colon_match.group(3) else None
+        if end_line is not None and end_line < line:
+            line = end_line = None
+        else:
+            path = colon_match.group(1)
+    fragment_match = re.fullmatch(r"L(\d+)(?:-L(\d+))?", fragment, re.IGNORECASE)
+    if fragment_match:
+        fragment_line = int(fragment_match.group(1))
+        fragment_end = int(fragment_match.group(2)) if fragment_match.group(2) else None
+        if fragment_line > 0 and (fragment_end is None or fragment_end >= fragment_line):
+            line, end_line = fragment_line, fragment_end
+    if line is not None and line < 1:
+        line = end_line = None
+    return path, line, end_line
+
+
+def _editor_reference_id(session_id: str, path: str, line: int | None, end_line: int | None) -> str:
+    canonical_path = str(Path(path).resolve())
+    registry = _read_attachment_registry(session_id)
+    for attachment_id, record in registry.items():
+        if (
+            isinstance(record, dict)
+            and record.get("source") == "server_file"
+            and str(Path(str(record.get("path", ""))).resolve()) == canonical_path
+            and record.get("line") == line
+            and record.get("endLine") == end_line
+            and record.get("completed", True) is True
+        ):
+            return attachment_id
+    attachment_id = "att_" + uuid.uuid4().hex
+    _register_attachment(session_id, attachment_id, {
+        "source": "server_file",
+        "displayName": _attachment_filename(Path(canonical_path).name),
+        "path": canonical_path,
+        "size": Path(canonical_path).stat().st_size,
+        "mimeType": mimetypes.guess_type(canonical_path)[0],
+        "line": line,
+        "endLine": end_line,
+    })
+    return attachment_id
+
+
+def _project_editor_links(session_id: str, content: str) -> str:
+    """Give existing local Markdown links opaque editor/download identities.
+
+    This is intentionally best-effort for old history: an existing file can
+    be upgraded to a draggable opaque reference; missing or ambiguous legacy
+    links remain ordinary editor links and retain click-only compatibility.
+    """
+    def replace(match: re.Match[str]) -> str:
+        parsed = _parse_editor_destination(match.group("href"))
+        if parsed is None:
+            return match.group(0)
+        raw_path, line, end_line = parsed
+        if raw_path.startswith("/api/"):
+            return match.group(0)
+        try:
+            target = _resolve_attachment_source_path(session_id, raw_path)
+            if not target.is_file():
+                return match.group(0)
+            attachment_id = _editor_reference_id(session_id, str(target), line, end_line)
+            return f"{match.group('label')}({_editor_attachment_href(session_id, attachment_id, line, end_line)})"
+        except (OSError, RuntimeError, ValueError):
+            return match.group(0)
+
+    return _MARKDOWN_LINK_RE.sub(replace, content)
+
+
 def _attachment_reference_error(session_id: str, href: str) -> dict | None:
     """Validate one server-generated attachment href for a target session.
 
@@ -2084,7 +2241,9 @@ def _attachment_reference_error(session_id: str, href: str) -> dict | None:
     ``@"path"`` markers are intentionally outside this validator.
     """
     parsed = urlsplit(href)
-    if parsed.scheme or parsed.netloc or parsed.fragment:
+    if parsed.scheme or parsed.netloc:
+        return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+    if parsed.fragment and not parsed.path.startswith("/api/attachments/editor/"):
         return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
     query = parse_qs(parsed.query, keep_blank_values=True)
     if query.get("session_id", [None]) != [session_id]:
@@ -2094,6 +2253,16 @@ def _attachment_reference_error(session_id: str, href: str) -> dict | None:
         }
 
     if parsed.path.startswith("/api/attachments/"):
+        if parsed.path.startswith("/api/attachments/ref/"):
+            attachment_id = unquote(parsed.path.rsplit("/", 1)[-1])
+            return _attachment_id_error(
+                session_id, attachment_id, allow_cross_session=True,
+            )
+        if parsed.path.startswith("/api/attachments/editor/"):
+            attachment_id = unquote(parsed.path.rsplit("/", 1)[-1])
+            return _attachment_id_error(
+                session_id, attachment_id, allow_cross_session=True,
+            )
         storage_filename = unquote(parsed.path.rsplit("/", 1)[-1])
         if not re.fullmatch(
             r"upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?",
@@ -2117,7 +2286,7 @@ def _attachment_reference_error(session_id: str, href: str) -> dict | None:
         if query.get("download", [None]) != ["1"] or query.get("path", [None])[0] is None:
             return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
         try:
-            target = _resolve_fs_path(session_id, query["path"][0])
+            target = _resolve_attachment_source_path(session_id, query["path"][0])
         except (ValueError, OSError):
             return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
         if not target.is_file():
@@ -2143,7 +2312,12 @@ def _validate_message_attachment_references(session_id: str, text: str) -> dict 
     return None
 
 
-def _attachment_id_error(session_id: str, attachment_id: str) -> dict | None:
+def _attachment_id_error(
+    session_id: str,
+    attachment_id: str,
+    *,
+    allow_cross_session: bool = False,
+) -> dict | None:
     """Validate one opaque AttachmentRef at the session boundary."""
     if not isinstance(attachment_id, str) or not _ATTACHMENT_ID_RE.fullmatch(attachment_id):
         return {"code": "invalid_attachment_id", "message": "Attachment id is invalid"}
@@ -2156,7 +2330,8 @@ def _attachment_id_error(session_id: str, attachment_id: str) -> dict | None:
                 "message": "Attachment belongs to another session",
             }
         return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
-    if record.get("sessionId") not in (None, session_id):
+    owner_session_id = record.get("sessionId")
+    if owner_session_id not in (None, session_id) and not allow_cross_session:
         return {
             "code": "attachment_session_mismatch",
             "message": "Attachment belongs to another session",
@@ -2172,6 +2347,28 @@ def _attachment_id_error(session_id: str, attachment_id: str) -> dict | None:
     return None
 
 
+def _import_attachment_reference(session_id: str, attachment_id: str, record: dict) -> None:
+    """Persist a source-owned opaque reference in the target registry.
+
+    No bytes are copied.  Keeping a target-side receipt makes the target
+    message independently recoverable while retaining the source owner for
+    href generation and permission/stale checks.
+    """
+    owner = record.get("sessionId")
+    if owner in (None, session_id):
+        return
+    registry = _read_attachment_registry(session_id)
+    if attachment_id in registry:
+        return
+    registry[attachment_id] = {
+        **record,
+        "sessionId": session_id,
+        "sourceSessionId": owner,
+        "sourceAttachmentId": attachment_id,
+    }
+    _write_attachment_registry(session_id, registry)
+
+
 def _canonical_attachment_ref(session_id: str, attachment_id: str) -> dict | None:
     """Return server-owned metadata used by structured parts and Markdown fallback."""
     if _attachment_id_error(session_id, attachment_id) is not None:
@@ -2181,10 +2378,11 @@ def _canonical_attachment_ref(session_id: str, attachment_id: str) -> dict | Non
         return None
     source = record.get("source") if record.get("source") in {"upload", "server_file"} else "upload"
     path = str(record.get("path", ""))
+    owner_session_id = str(record.get("sourceSessionId") or record.get("sessionId") or session_id)
     href = (
-        _attachment_href(session_id, str(record.get("storageFilename")))
+        _attachment_href(owner_session_id, str(record.get("storageFilename")))
         if source == "upload" and record.get("storageFilename")
-        else _fs_download_href(session_id, path)
+        else _attachment_ref_href(owner_session_id, attachment_id)
     )
     display_name = _attachment_filename(record.get("displayName"))
     return {
@@ -2195,6 +2393,11 @@ def _canonical_attachment_ref(session_id: str, attachment_id: str) -> dict | Non
         "size": int(record.get("size", 0) or 0),
         "source": source,
         "href": href,
+        **({"line": record["line"]} if isinstance(record.get("line"), int) else {}),
+        **({"endLine": record["endLine"]} if isinstance(record.get("endLine"), int) else {}),
+        # Internal-only field consumed by packages.core.worker.  API/history
+        # serializers remove it before returning data to the browser.
+        "__serverPath": str(Path(path).resolve()),
     }
 
 
@@ -2222,9 +2425,13 @@ def _normalize_message_parts(session_id: str, raw_parts) -> tuple[list[dict] | N
         if kind != "attachment":
             return None, None, {"code": "invalid_parts", "message": "unknown message part type"}
         attachment_id = part.get("attachmentId")
-        error = _attachment_id_error(session_id, attachment_id)
+        error = _attachment_id_error(session_id, attachment_id, allow_cross_session=True)
         if error is not None:
             return None, None, error
+        record = _attachment_record(session_id, attachment_id)
+        if record is None:
+            return None, None, {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+        _import_attachment_reference(session_id, attachment_id, record)
         canonical = _canonical_attachment_ref(session_id, attachment_id)
         if canonical is None:
             return None, None, {"code": "attachment_not_found", "message": "Attachment is no longer available"}
@@ -2233,15 +2440,87 @@ def _normalize_message_parts(session_id: str, raw_parts) -> tuple[list[dict] | N
     return normalized, "".join(fallback), None
 
 
+def _normalize_text_attachment_parts(
+    session_id: str, content: str,
+) -> tuple[list[dict] | None, str | None, dict | None]:
+    """Upgrade legacy internal Markdown links to durable parts.
+
+    This keeps old text/Markdown callers compatible while ensuring a Worker
+    never receives an API href as the file target.  External links and all
+    ordinary prose remain text parts; each validated Pan attachment becomes a
+    registry-backed part with the same internal path projection as a new
+    structured request.
+    """
+    content = _normalize_legacy_attachment_links(session_id, content)
+    matches = list(_MESSAGE_ATTACHMENT_HREF_RE.finditer(content))
+    if not matches:
+        return None, content, None
+    normalized: list[dict] = []
+    fallback: list[str] = []
+    cursor = 0
+    for match in matches:
+        prefix = content[cursor:match.start()]
+        if prefix:
+            normalized.append({"type": "text", "text": prefix})
+            fallback.append(prefix)
+        href = match.group("href")
+        error = _attachment_reference_error(session_id, href)
+        if error is not None:
+            return None, None, error
+        parsed = urlsplit(href)
+        if parsed.path == "/api/fs/read":
+            raw_path = parse_qs(parsed.query, keep_blank_values=True).get("path", [""])[0]
+            try:
+                target = _resolve_attachment_source_path(session_id, raw_path)
+            except (OSError, RuntimeError, ValueError):
+                return None, None, {
+                    "code": "attachment_not_found",
+                    "message": "Attachment is no longer available",
+                }
+            attachment_id = _editor_reference_id(session_id, str(target), None, None)
+        else:
+            attachment_id = unquote(parsed.path.rsplit("/", 1)[-1])
+        canonical = _canonical_attachment_ref(session_id, attachment_id)
+        if canonical is None:
+            return None, None, {
+                "code": "attachment_not_found",
+                "message": "Attachment is no longer available",
+            }
+        normalized.append({key: value for key, value in canonical.items() if key != "href"})
+        fallback.append(_attachment_markdown(canonical["displayName"], canonical["href"]))
+        cursor = match.end()
+    suffix = content[cursor:]
+    if suffix:
+        normalized.append({"type": "text", "text": suffix})
+        fallback.append(suffix)
+    return normalized, "".join(fallback), None
+
+
 def _api_history(session_id: str, history: list[dict]) -> list[dict]:
     """Serialize history with a compatibility view for old attachment text."""
     normalized: list[dict] = []
     for message in history:
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-            normalized.append(message)
+            if isinstance(message, dict) and isinstance(message.get("parts"), list):
+                normalized.append({
+                    **message,
+                    "parts": [
+                        {key: value for key, value in part.items() if key != "__serverPath"}
+                        for part in message["parts"] if isinstance(part, dict)
+                    ],
+                })
+            else:
+                normalized.append(message)
             continue
         content = _normalize_legacy_attachment_links(session_id, message["content"])
-        normalized.append({**message, "content": content})
+        content = _project_editor_links(session_id, content)
+        safe_message = {**message, "content": content}
+        if isinstance(message.get("parts"), list):
+            safe_message["parts"] = [
+                {key: value for key, value in part.items() if key != "__serverPath"}
+                for part in message["parts"] if isinstance(part, dict)
+            ]
+        normalized.append(safe_message)
     return normalized
 
 
@@ -2318,7 +2597,7 @@ async def register_server_file_attachment(session_id: str, data: dict):
     if not isinstance(raw_path, str) or not raw_path.strip():
         raise HTTPException(status_code=400, detail="path is required")
     try:
-        target = _resolve_fs_path(session_id, raw_path)
+        target = _resolve_attachment_source_path(session_id, raw_path)
     except (ValueError, OSError) as exc:
         raise HTTPException(status_code=400, detail="Invalid server file path") from exc
     if target.is_dir():
@@ -2342,6 +2621,49 @@ async def register_server_file_attachment(session_id: str, data: dict):
         "href": canonical["href"] if canonical else _fs_download_href(session_id, str(target)),
         "path": str(target),
         "size": target.stat().st_size,
+    }
+
+
+@app.get("/api/attachments/ref/{attachment_id}")
+async def download_attachment_reference(attachment_id: str, session_id: str):
+    """Download a server file through an opaque, session-checked reference."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    error = _attachment_id_error(session_id, attachment_id, allow_cross_session=True)
+    if error is not None:
+        status = 404 if error["code"] in {"attachment_not_found", "attachment_incomplete"} else 400
+        raise HTTPException(status_code=status, detail=error["message"])
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Attachment is no longer available")
+    target = Path(str(record.get("path", ""))).resolve()
+    safe_name = "".join(c for c in target.name if ord(c) >= 32 and c not in '"\\').strip() or "download"
+    return FileResponse(
+        target,
+        filename=safe_name,
+        media_type=record.get("mimeType") or mimetypes.guess_type(target.name)[0] or "application/octet-stream",
+    )
+
+
+@app.get("/api/attachments/editor/{attachment_id}")
+async def resolve_editor_attachment(attachment_id: str, session_id: str):
+    """Resolve an opaque editor reference for a click, never for drag data."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    error = _attachment_id_error(session_id, attachment_id, allow_cross_session=True)
+    if error is not None:
+        status = 404 if error["code"] in {"attachment_not_found", "attachment_incomplete"} else 400
+        raise HTTPException(status_code=status, detail=error["message"])
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Attachment is no longer available")
+    return {
+        "ok": True,
+        "attachmentId": attachment_id,
+        "displayName": _attachment_filename(record.get("displayName") or Path(str(record.get("path", ""))).name),
+        "path": str(Path(str(record.get("path", ""))).resolve()),
+        "line": record.get("line"),
+        "endLine": record.get("endLine"),
     }
 
 
@@ -3061,7 +3383,10 @@ def _serialize_queue_item(item, session=None) -> dict | None:
             "queueItemId": _queue_item_id(item),
             "kind": "task",
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
-            **({"parts": [dict(part) for part in item["parts"] if isinstance(part, dict)]}
+            **({"parts": [
+                    {key: value for key, value in part.items() if key != "__serverPath"}
+                    for part in item["parts"] if isinstance(part, dict)
+                ]}
                if isinstance(item.get("parts"), list) else {}),
             "createdAt": item.get("createdAt", 0),
             "source": source,
@@ -3161,6 +3486,7 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
     source=user/kind=task are fixed by the server-side entry point.
     """
     text = data.get("text")
+    original_text = text
     parts = data.get("parts")
     normalized_parts = None
     if parts is not None:
@@ -3168,6 +3494,16 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
         if parts_error is not None:
             return {"ok": False, "error": parts_error}
         text = generated_text
+    elif isinstance(text, str):
+        # Upgrade old text/Markdown attachment links before the queue item is
+        # persisted, so retry/restart delivery has the same canonical path
+        # projection as a new structured request.
+        normalized_parts, generated_text, parts_error = _normalize_text_attachment_parts(
+            session_id, text)
+        if parts_error is not None:
+            return {"ok": False, "error": parts_error}
+        if normalized_parts is not None:
+            text = generated_text
     if not isinstance(text, str) or not text.strip():
         return {"ok": False, "error": {"code": "text_required",
                                          "message": "text is required"}}
@@ -3184,8 +3520,24 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
         # still implement the text-only queue contract.
         result = await worker.enqueue_user_message(session_id, text, client_id)
     else:
-        result = await worker.enqueue_user_message(
-            session_id, text, client_id, parts=normalized_parts)
+        # Older embedders may still expose the three-argument queue function.
+        # Production Worker accepts parts; a legacy replacement gets the
+        # canonical fallback text and keeps its established call shape.
+        parameters = inspect.signature(worker.enqueue_user_message).parameters
+        supports_parts = (
+            "parts" in parameters
+            or any(parameter.kind == inspect.Parameter.VAR_KEYWORD
+                   for parameter in parameters.values())
+        )
+        if supports_parts:
+            result = await worker.enqueue_user_message(
+                session_id, text, client_id, parts=normalized_parts)
+        else:
+            # A legacy replacement cannot consume the private path projection;
+            # preserve its established text-only input after server-side
+            # validation rather than changing its call semantics.
+            legacy_text = original_text if parts is None else text
+            result = await worker.enqueue_user_message(session_id, legacy_text, client_id)
     if result.get("status") == "error":
         return {"ok": False, "error": {"code": "enqueue_failed",
                                          "message": result.get("result", "enqueue failed")}}
@@ -3232,6 +3584,18 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
         if not isinstance(text, str) or not text.strip():
             return _queue_error("text_required", "text is required", s)
+        if isinstance(target.get("parts"), list):
+            normalized_parts, canonical_text, parts_error = _normalize_message_parts(
+                session_id, target["parts"])
+            if parts_error is not None:
+                return _queue_error(parts_error["code"], parts_error["message"], s)
+            if text != canonical_text:
+                return _queue_error(
+                    "parts_text_conflict",
+                    "Queued message text must match its structured attachment parts",
+                    s,
+                )
+            target["parts"] = normalized_parts
         current_revision = int(target.get("revision", 1))
         if expected is not None and expected != current_revision:
             return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
