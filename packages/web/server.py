@@ -2131,7 +2131,7 @@ def _normalize_legacy_attachment_links(session_id: str, content: str) -> str:
 
 
 _MARKDOWN_LINK_RE = re.compile(
-    r"(?P<label>\[[^\r\n]*\])\((?P<href>[^)\s]+)\)"
+    r"(?P<label>\[(?:\\.|[^\]\\\r\n])*\])\((?P<href>[^)\s]+)\)"
 )
 
 
