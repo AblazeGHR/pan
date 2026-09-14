@@ -189,7 +189,9 @@ await runCase('markdown files through real editor and external link preservation
   await page.getByRole('link', { name: 'relative file' }).click();
   await page.waitForURL(/\/react\/editor$/);
   assert.equal(new URL(page.url()).pathname, '/react/editor');
-  await page.getByRole('button', { name: 'Edit' }).click();
+  const fileLinkEditButton = page.locator('button[title="Edit"]:visible');
+  assert.equal(await fileLinkEditButton.count(), 1, 'expected exactly one visible file-editor Edit control');
+  await fileLinkEditButton.click();
   await page.locator('.monaco-editor').waitFor({ state: 'visible' });
   await poll(() => page.evaluate(() => {
     const editor = window.monaco?.editor?.getEditors?.()[0];
