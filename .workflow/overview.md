@@ -14,13 +14,14 @@
 
 ## 工作流控制
 
-- 整体状态：T-027 已合入并完成 QQ 通知；T-030 执行中；继续推进所有设计与任务直到彻底阻塞
-- 当前焦点：T-030 done 指示灯延迟调查与修复；QQ 通道调查已取消
-- 可执行：等待 T-030 TA 报告
-- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）
-- 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`
+- 整体状态：T-027 已合入并完成 QQ 通知；T-030 执行中、T-031 独立验证并行执行；继续推进所有设计与任务直到彻底阻塞
+- 当前焦点：T-030 done 指示灯延迟调查与修复（前端）；T-031 附件/发送链路真实隔离实例 E2E 验证（验证）
+- 可执行：无（T-030、T-031 已派发；其余任务均待开发者验收）
+- TA 执行中：T-030 `ses_2834ad61bb0d5b74`（CBC `deepseek-v4.1-flash`，auto，bypassPermissions，worker-2）；T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，worker-4）
+- 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
+- TA 模型规则（2026-09-15 用户会话）：新 TA 优先 `MODEL-1`（codex `gpt-5.6-luna` high）；Codex 五小时额度触发限额后按 `MODEL-3` 级联（`cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 DeepSeek）。已派发中的 TA 不回溯切换模型。
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
-- 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未开始推进
+- 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未v开始推进
 - 决策阻塞：无
 - 授权阻塞：无
 - 外部阻塞：无
@@ -417,6 +418,47 @@
   - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
   - [ ] 开发者验收
 
+### T-030：done 事件已传出但状态指示灯延迟更新
+
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 执行模式：端到端（调查 → 修复 → 验证 → 报告）
+- 决策门：无；若调查证明需要改变产品行为、兼容性或数据语义，停止受影响实现并立即报告
+- 当前阶段：实现/验证执行中（TA running）
+- 下一动作：等待 T-030 TA 报告，再按证据决定返工或合入
+- 阻塞：无
+- 目标：调查并修复系统已发送或收到 done 状态后，前端状态指示灯仍长时间保持旧状态的延迟问题。
+- 调查结论（TA 首轮报告，事实）：指示灯只读 `Session.workerStatus`（`WorkerDot.tsx:6` 颜色表无 `done` 键，未知 status 渲染为 offline 灰）；最可疑根因是 `sessionStore.ts` 的 `loadSessions` “WS-touched” 守卫用**全局** `_touchSeq` 与**每 session** 的 touch 值做 `>=` 比较，可能长期丢弃权威 `idle` 快照（H1），叠加 `useWebSocket.ts` 300ms debounce（H2）与 generation 守卫丢事件（H3）；后端 `_send_ws` 2s 超时丢弃慢客户端为次要因素。TA 正在代码中自证后再修复。
+- 初始范围：done 事件来源、服务端落库/广播、WebSocket/队列/轮询、session/worker store、指示灯 selector/UI 重绘、重连/乱序/Session 切换竞态；不得用 sleep 掩盖问题。
+- TA/任务：`ses_2834ad61bb0d5b74`；`done-indicator-latency-20260915`；CBC `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；Worker `worker-2`（在新模型规则前派发，按规则不回溯切换模型）
+- 工作树/分支：`D:\project\pan-worktrees\done-indicator-latency-20260915`；`audit/done-indicator-latency-20260915`；基于 `main@99f1774`
+- 合入 main：未开始
+- 开发者验收：未开始
+
+### T-031：已合入 main 的附件与发送链路真实隔离实例端到端验证
+
+- 优先级/依赖：T-027.1、T-027.2 合入后的独立验证；与 T-030 改动文件不重叠，可并行
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
+- 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告，由 MA 建立决策点
+- 当前阶段：验证执行中（TA running）
+- 下一动作：等待 T-031 TA 报告，把结论回填 T-027.1 / T-027.2 的测试证据
+- 阻塞：无
+- 目标：在隔离服务实例（8767 或 8765，**禁止 8768**）上用真实 HTTP/WS + 真实 Chromium 验证 `main@429cafd` 已合入的附件输入、发送事务与路径投影链路，补齐此前记录的“未做真实服务/API 集成”缺口，为 T-027.1、T-027.2 的开发者验收提供分层证据。
+- 验证范围：客户端上传→发送→队列/history→Worker 收到 canonical 绝对路径；UI opaque editor/download href 与跨 Session 拖入复用服务端引用；chip/inline 禁止跨 Session 的负路径；Send 后清空与失败恢复；目录整批拒绝、HTML 富文本转纯文本、图片/HTML 文件保持原文件；旧 Markdown/`@"path"`/带行号/Windows/UNC 回归；`../` 路径穿越、越权引用、stale 路径的安全负用例。
+- 边界：只读验证，不得修改产品代码；不 commit/不合入/不 push；不操作 8768、QQ 服务、用户 dirty 文件；真实浏览器行为必须用真实 Chromium，不得只用合成 DataTransfer。
+- 工作树/分支：`D:\project\pan-worktrees\verify-attachment-chain-e2e-20260915`；`audit/verify-attachment-chain-e2e-20260915`；基线 `main@429cafd`（MA 已用 `git worktree add` 注册）
+- TA/任务：`ses_826c588ce84122b5`；`verify-attachment-chain-e2e-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-4`；已 `report_subscribe`
+- 提交：无（验证任务，不产生产品代码改动）
+- 测试/未验证项：本任务自身即验证；未做项 = 真人开发者验收、真实第三方 provider/CLI 发送链路
+- 有序待办：
+  - [ ] 建立隔离服务实例并确认端口/身份对齐（非 8768）
+  - [ ] 完成真实 HTTP/WS + Chromium 端到端用例并记录原始证据
+  - [ ] 完成负路径与安全边界验证
+  - [ ] 交付报告并由 MA 核验证据
+  - [ ] 合入 main（本任务无产品代码改动，如发现缺陷则另立返工项）
+  - [ ] 开发者验收
+- 合入/push 状态：合入 main：不适用（无产品代码改动）；push：否
+
 ## 四、计划要做的任务
 
 ### T-029：Session queue 查询与修改 MCP
@@ -427,18 +469,6 @@
 - 初始范围：查询队列内容、状态和来源；提供受权限隔离、幂等和审计约束的修改操作；明确可修改字段、取消/编辑/重排/删除语义，以及与报告队列、任务队列、消息队列的边界。
 - 挂起原因（2026-09-15）：用户要求先加入待办，挂起立项，不推进。
 - 下一动作：等待用户明确恢复后，再进行方案调查和接口设计；在此之前不派 TA、不创建 worktree、不修改 MCP 或服务端代码。
-- 合入 main：未开始
-- 开发者验收：未开始
-
-### T-030：done 事件已传出但状态指示灯延迟更新
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-2`、`TEST-1`、`TEST-2`
-- 当前阶段：实现/验证执行中
-- 目标：调查并修复系统已发送或收到 done 状态后，前端状态指示灯仍长时间保持旧状态的延迟问题。
-- 初始范围：核对 done 事件来源、WebSocket/队列/轮询传输、session/worker 状态存储、前端订阅与渲染、去抖/批处理/重连/缓存/竞态；区分事件未到达、到达未落库、落库未广播、广播未消费和 UI 未重绘。
-- 下一动作：等待 TA 完成调查/修复/验证并报告。
-- TA/任务：`ses_2834ad61bb0d5b74`；`done-indicator-latency-20260915`；CBC `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；Worker `worker-2`
-- 工作树/分支：`D:\project\pan-worktrees\done-indicator-latency-20260915`；`audit/done-indicator-latency-20260915`；基于 `main@99f1774`
 - 合入 main：未开始
 - 开发者验收：未开始
 

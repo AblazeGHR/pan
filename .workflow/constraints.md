@@ -30,23 +30,24 @@
 
 ## TA 模型策略
 
-### MODEL-1：Luna 高推理端到端 TA
+### MODEL-1：Luna 高推理端到端 TA（当前首选）
 
-- 状态：默认可用。
+- 状态：用户于 2026-09-15 明确指定为**当前首选 TA 策略**（Codex 五小时额度未耗尽前优先使用）。
 - 规则：实现、测试、局部返工优先派给 `codex` adapter 的 `gpt-5.6-luna`，`effort=high`，默认使用 `permission_mode=bypass`；需求明确且调查不会改变产品行为时，一次端到端完成调查、实现、验证和报告。用户明确要求更严格权限时，以任务级要求覆盖默认值。
-- 回退：模型或依赖不可用时记录外部阻塞，不静默换用未经授权的模型。
+- 回退：Codex 五小时额度触发限额后按 `MODEL-3` 级联切换到 `cbc` 的 `deepseek-v4.1-flash`；模型或依赖不可用时记录外部阻塞，不静默换用未经授权的模型。
 
 ### MODEL-2：低成本验证 TA
 
 - 状态：可用。
 - 规则：极短、低风险、仅信息核对的任务可使用 Luna `low`；不得用于替代高风险实现或真实 E2E。
 
-### MODEL-3：CBC DeepSeek 优先及限速回退
+### MODEL-3：CBC DeepSeek / GLM 级联（Codex 额度用尽后）
 
-- 状态：用户于 2026-09-15 明确指定，后续 TA 默认采用。
-- 规则：新 TA 默认使用 `cbc` adapter 的 `deepseek-v4.1-flash`，权限默认 `bypassPermissions`，effort 默认 `auto`；根据任务风险和 TA 表现可调整为 `high` 或 `xhigh`。
+- 状态：用户于 2026-09-15 明确指定；同日由“默认 TA 模型”调整为“Codex 额度触发限额后的级联档位”。
+- 规则：Codex 五小时额度触发限额后，新 TA 与返工任务改用 `cbc` adapter 的 `deepseek-v4.1-flash`，权限默认 `bypassPermissions`，effort 默认 `auto`（按任务风险和 TA 表现可上调为 `high` 或 `xhigh`）；任务若显式指定 `cbc`，直接采用本条。
 - 限速回退：DeepSeek 被限速时切换到 `cbc` 的 `glm-5.3-flash`；两者均限速时切回 `deepseek-v4.1-flash`，并在任务报告中记录实际模型和限速证据。不得静默切换到其他 adapter/model。
 - 额度规则：每轮工作流对话开始检查 Codex 五小时额度；达到 98% 时进行 SMA 替身交接，目标配置为 `cbc + deepseek-v4.1-flash + high + bypassPermissions`。
+- 级联顺序（2026-09-15）：`MODEL-1`（codex `gpt-5.6-luna` high）→ 五小时限额触发 → `cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 `deepseek-v4.1-flash`。已完成任务不回溯切换模型，只作用于新派发与返工。
 
 ## MA 自主权策略
 
@@ -79,7 +80,7 @@
 
 ## 默认策略与任务映射
 
-- 默认 Git：`GIT-1`；默认 TA：`MODEL-3`；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
+- 默认 Git：`GIT-1`；默认 TA：`MODEL-1`（首选），Codex 五小时额度触发限额后按 `MODEL-3` 级联；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
 
 | 任务 | Git | TA 模型 | MA 自主权 | 其他 |
 |---|---|---|---|---|
@@ -90,4 +91,4 @@
 | `T-024` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；测试通过后直接合入本地 `main`，不 push |
 | `T-025` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按 `DEC-001=A+C` 实现，测试通过后直接合入本地 `main` |
 | `T-027`、`T-028` | `GIT-1`、`GIT-2` | `MODEL-1` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按用户最新语义执行，默认 bypass |
-| `T-030` 及后续新 TA | `GIT-1`、`GIT-2` | `MODEL-3` | `AUTONOMY-1` | `TEST-1`、`TEST-2`；按用户模型级联和额度交接规则执行 |
+| `T-030` 及后续新 TA | `GIT-1`、`GIT-2` | `MODEL-1` 优先；Codex 额度触发限额后用 `MODEL-3` 级联 | `AUTONOMY-1` | `TEST-1`、`TEST-2`；用户 2026-09-15 指定 luna high 优先，再 DeepSeek，再 GLM |
