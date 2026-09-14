@@ -77,6 +77,7 @@
 
 - Session 是持久身份和上下文，Worker 是可重建的临时进程；报告优先走 `report_subscribe → queue_pending`，服务或端口不匹配时使用定向 `session_get` 兜底。
 - 新任务用 `agent_assign`，普通补充用 `agent_send`，需求方向失效或必须立即停止时才用 `agent_send_force`。
+- **报告计数纪律（2026-09-15 采纳自 T-032 第 1 档，零代码）**：① 需要独立验收的任务（含执行中追加的任务）一律用 `agent_assign(task_id=稳定唯一值)`，`agent_send` 只作不要求独立完成证明的补充信息；② 收到某任务的报告后**不得**据此判断"后续队列任务未执行"——一条注入消息可能包含多个 report 段（连续 report/QQ 项会被合并成一个 delivery unit），必须按 report 段 / `taskId` 计数，而不是按消息条数；③ 重试前用**同一个** `task_id` 重发，依据返回的 `pending` / `sent_to_cli` / 缓存终态决定动作，不换新 id 重派；④ `queueItemId` 只在接口实际返回时记录（当前 `agent_send` MCP 既不接受 `task_id` 也不返回 `queueItemId`，不得假装具备）；⑤ 需要判断中间态时用 HTTP `GET /api/sessions/{id}/queue`（仅 `queued` 子集）或 `queue.item_delivered` 事件，并明确"`sent_to_cli` ≠ 业务完成"。
 - TA、Session、Worker、worktree 和服务实例分别记录；不把 TA `done` 当作验收或合并。
 - 无更多编排动作时回到 idle；收到 TA 报告、用户消息或外部状态变化后重新读取 overview 并重算可执行集合。
 

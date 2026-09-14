@@ -23,7 +23,7 @@
 - 用户追加口径（2026-09-15，Codex 五小时额度实测 96%）：**新任务直接派 `cbc deepseek-v4.1-flash`**（T-035 即按此派发）；**已在跑的 codex luna 任务（T-031 / T-032 / T-033）不重做、不再消耗 Codex 额度，待其停下后用 `session_handoff` 接续到 `cbc deepseek-v4.1-flash`**，接续时以原任务 brief + worktree 现场 + 源 session 历史为交接材料。
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未开始推进
-- 决策阻塞：无
+- 决策阻塞：`DEC-003`（T-032 第 2/3 档实现范围；不阻塞其他任务）
 - 授权阻塞：无
 - 外部阻塞：无
 - 唤醒条件：TA 报告、用户消息、overview/约束变更或再次启动工作流
@@ -60,6 +60,26 @@
 - 最终决定：输入框上下的待发送 chip、输入框内附件节点不能跨 Session；对话正文中渲染出的文件路径/editor 链接可以跨 Session 拖入，并直接复用服务端文件引用，不重复上传；点击 Send 立即清空并乐观显示已发送，失败时恢复一份可编辑副本；服务端文件使用实时路径；客户端文件只在上传阶段作为浏览器 File，上传完成后统一按服务端本地文件处理；复制的图片文件和 HTML 文件保持原文件上传，只有网页富文本粘贴转换为安全纯文本；目录或目录混合拖入整批拒绝；同一资源允许在一条消息中出现多个 occurrence。
 - 约束：浏览器不暴露或信任客户端绝对路径；editor/download href 只是 UI 投影；Worker 文本由服务端解析为实际路径；跨 Session 的正文文件链接必须通过服务端权限和引用校验。
 - 决策来源：用户会话，2026-09-15。
+
+### DEC-003：报告/队列身份贯通（T-032 第 2 档实现范围）
+
+- 状态：待决策
+- 影响功能和阶段：T-032 调查结论落地（报告粒度与任务身份贯通）；`agent_send` 的 MCP 参数面；T-029（挂起）将来恢复时的模型统一
+- 已核实事实（MA 抽查行号属实）：报告 item **无** `sourceQueueItemId`/`clientMessageId`（`packages/core/worker.py:2668-2717`）；`agent_send` MCP 只有 `(session_id, text)`，无 `task_id`/`client_message_id`，也不返回 `queueItemId`（`packages/mcp/server.py:1364-1394`）；连续 report/QQ 项会**合并**成一条 delivery unit（`packages/core/worker.py:1324-1345`）；`GET /api/sessions/{id}/queue` 只显示 `queued` 子集（`packages/web/server.py:3447-3478`）；`sent_to_cli` ≠ provider 业务完成。
+- MA 建议：采纳**第 2 档**——报告携带 `sourceQueueItemId`/`taskId`/`clientMessageId`/`deliveryUnitId`，完成/idle 时给结构化队列摘要，`agent_send` 增加可选 `client_message_id` 并返回 `queueItemId`；**不改变**现有 FIFO 与 at-most-once 交接语义。**第 3 档**（QueueItem → DeliveryAttempt → Receipt → CompletionEvent → ReportDeliveryUnit → MA ack 的完整事件模型）与挂起的 T-029 一并延后。
+- 选项（逐条勾选或直接写结论）：
+  - [ ] A1：是否规定"需要独立验收的追加任务必须用 `agent_assign(task_id=...)`，`agent_send` 只作补充信息"？（MA 建议：是）
+  - [ ] A2：是否为 `agent_send` 增加可选 `client_message_id` 并返回 `queueItemId`？（MA 建议：是）
+  - [ ] A3：报告模型——每个源队列项一条 report／允许批量但必须带结构化 `reports[]`／两者都支持？（MA 建议：两者都支持，批量必须带 `reports[]`）
+  - [ ] A4：`queueItemId`/`taskId`/`clientMessageId` 是否出现在文本报告里，还是只放结构化字段？（MA 建议：结构化字段 + 文本显示 `queueItemId`/`sourceQueueItemId`）
+  - [ ] A5：MA 需要观察到哪一级队列状态——仅 `queued`／`queued`+active／完整 ledger hand-off／provider 终态？（MA 建议：`queued`+active+最近终态，带 `queueRevision`）
+  - [ ] A6：T-029 恢复时 queue 查询是否只读、是否允许查询 `reserved`/`writing`/`sent_to_cli` ledger？（MA 建议：只读，允许 ledger）
+  - [ ] A7：是否接受当前 at-most-once 的窄重复窗口语义，还是要引入 provider acknowledgement 模型？（MA 建议：保留现状，文档写明边界）
+- 未决定时：只执行第 1 档 MA 纪律（已立即采用），不启动第 2/3 档实现；T-032 调查结论保留在 overview。
+- 阻塞：T-032 第 2 档实现任务（实现时需新分配 `T-nnn` 与独立 worktree）
+- 最终决定：
+- 决策来源：T-032 调查结论（用户 2026-09-15 会话委托的调查任务）
+- 用户附件/备注：
 
 ## 一、已合入 main 的改动
 
@@ -466,22 +486,26 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
 - 执行模式：仅调查（只交付解决方案，不实现）
 - 决策门：无；若方案涉及改变队列/报告模型或兼容性，只报告并列出需用户决策点，不自行实施
-- 当前阶段：调查执行中（TA running）
-- 下一动作：等待 T-032 报告，再决定是否把采纳的方案立为独立实现任务（需分配新 T-nnn 并在实现前确认范围）
-- 阻塞：无
+- 当前阶段：调查完成，MA 已核验；解决方案待 `DEC-003` 决策后转入实现
+- 下一动作：等待 `DEC-003` 决策；决策生效后派第 2 档实现任务（新分配 `T-nnn`，独立 worktree）
+- 阻塞：决策阻塞 `DEC-003`（仅阻塞第 2/3 档实现，不阻塞其他任务）
 - 目标：解释并解决「MA 派任务 A → A 执行中追发任务 B → TA 完成 A 后继续执行 B → MA 只收到 A 的报告，误判 B 未执行并重发 B」的报告粒度缺陷，给出分档解决方案与推荐。
+- 调查结论（已核实）：存在**三层粒度**——`worker.result`（按 Worker 一次终态结果）、`queue_pending` report item（每个结果一项，自带 `queueItemId`）、MA 消费时的 delivery unit（**连续 report/QQ 项合并成一条消息**）。根因是**任务身份与报告身份没有贯通** + MA 按"消息条数"而非"报告段/任务 ID"计数，而不是 FIFO 必然丢 B。已核验的关键事实（行号均经 MA 抽查属实）：`_enqueue_report`（`packages/core/worker.py:2668-2717`）报告里**没有** `sourceQueueItemId` / `clientMessageId`；`agent_send` MCP 只有 `(session_id, text)`，无 `task_id` / `client_message_id`，也不返回 `queueItemId`（`packages/mcp/server.py:1364-1394`）；`_select_queue_unit` 只批处理**连续** report/QQ 项（`packages/core/worker.py:1324-1345`）；`GET /api/sessions/{id}/queue` 只返回 `queued` 项，隐藏 reserved/sent（`packages/web/server.py:3447-3478`）；`sent_to_cli` ≠ provider 业务完成。
+- 推荐方案：第 1 档（MA 纪律，零代码，**已立即采用**）→ 第 2 档（报告与源队列项身份贯通 + 队列摘要，建议作为近期实现）→ 第 3 档（完整队列/报告事件模型，与 T-029 统一，成本与迁移风险高）。
+- 文档落点建议：新建 `docs/design/ma-ta-report-granularity.md`（完整模型）；`docs/design/queue-at-most-once.md` 补 report↔source item 关系与"sent_to_cli ≠ 业务完成"；`docs/skills/pan/SKILL.md` 只放 MA 操作纪律与已知限制。
 - 关联：与挂起的 T-029（Session queue 查询与修改 MCP）能力缺口相关，但方案不得假定 T-029 已实现；同场景运行时行为证据由 T-033 提供。
-- TA/任务：`ses_704ba1fd334045b6`；`ma-ta-task-ordering-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-1`；已 `report_subscribe`
-- 工作树/分支：`D:\project\pan-worktrees\ma-ta-task-ordering-20260915`；`audit/ma-ta-task-ordering-20260915`；基线 `main@52a434b`
+- TA/任务：`ses_704ba1fd334045b6`；`ma-ta-task-ordering-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-1`；已完成报告，MA 抽查核验通过
+- 工作树/分支：`D:\project\pan-worktrees\ma-ta-task-ordering-20260915`；`audit/ma-ta-task-ordering-20260915`；基线 `main@52a434b`；worktree clean（无提交）
 - 提交：无（仅调查，不产生产品代码改动）
-- 测试/未验证项：无自动化验证；结论为机制分析与设计方案，需 MA 核验证据，并由 T-033 的行为证据交叉印证
+- 测试/未验证项：无自动化验证；结论为机制分析与设计方案（MA 已抽查 4 条关键论断）；未复现历史事故（当时 B 未完成/报告晚到/被合并/只读第一段，四者未区分）；未启动服务、未访问 8768；未做真实 provider E2E；未验证不同 adapter 的报告时序差异
 - 有序待办：
-  - [ ] 完成机制事实核对（报告粒度 / 队列项生命周期 / 幂等边界，含 `文件:行号`）
-  - [ ] 交付分档解决方案与推荐
-  - [ ] MA 核验报告证据
+  - [x] 完成机制事实核对（报告粒度 / 队列项生命周期 / 幂等边界，含 `文件:行号`）
+  - [x] 交付分档解决方案与推荐
+  - [x] MA 核验报告证据（抽查行号与语义）
+  - [ ] `DEC-003` 决策后派第 2 档实现任务
   - [ ] 合入 main（仅调查，无代码改动；方案若采纳则另立实现任务）
   - [ ] 开发者验收
-- 合入/push 状态：合入 main：不适用；push：否
+- 合入/push 状态：合入 main：不适用（本调查无代码改动）；push：否
 
 ### T-033：Pan 核心运行时链路（Worker 生命周期 + 队列/报告投递）真实隔离实例 E2E 验证
 
