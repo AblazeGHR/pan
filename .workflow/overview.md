@@ -7,17 +7,17 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`1173520`（2026-09-15 核对，附件隔离复验收束文档已提交）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037 真实复验已通过；**未 push**。
+- `main`：`317e46e`（2026-09-15 核对，T-038 本地合入后）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037/T-038 已合入、仍待开发者验收；**未 push**。
 - `practical`：`D:\project\Pan`（practical 工作树）；本次工作流文档维护未改动它。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
 ## 工作流控制
 
-- 整体状态：T-027 批次与 T-030、T-035、T-037 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`）；T-031 已完成 T-037 修复后的真实复验，T-033 真实运行时验证已完成并发现 D-1/D-2，T-032 调查已闭环待 `DEC-003`；当前批次已收束，继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
+- 整体状态：T-027 批次与 T-030、T-035、T-037、T-038 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`；T-038 合并提交 `317e46e`）；T-031 已完成 T-037 修复后的真实复验，T-033 真实运行时验证已完成并发现 D-1/D-2，T-032 调查已闭环待 `DEC-003`；当前批次已收束，继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
 - 当前焦点：T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；`DEC-003` 决策（T-032 第 2 档）
-- 可执行：T-032 的 `DEC-003` 决策后续；T-033 D-1/D-2 是否立项修复；其余任务待开发者验收或被用户暂停/取消
-- TA 执行中/待验收：T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，8766，已完成）；T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，8767，已完成）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已完成并合入）。
+- 可执行：T-032 的 `DEC-003` 决策后续；其余任务待开发者验收或被用户暂停/取消
+- TA 执行中/待验收：T-038 `ses_0ca1e712f13feee7`（Codex `gpt-5.6-luna`，high，bypass，thinking 关闭，已完成）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，8766，已完成）；T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，8767，已完成）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已完成并合入）。
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - 待执行后置动作：T-033、T-037 及其直接复验/整合全部收束后，向 QQ 联系人“焕之”发送一条一行简报；内容按最终事实概括本批次完成项、未通过项和仍待开发者验收项；不得提前发送，也不得重复 message_id `504271875`。
 - TA 模型规则（2026-09-15 用户最新口径）：当前批次已完成，后续所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`；Codex 不需要开启 thinking，保持 `always_thinking_enabled=false`。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
@@ -602,20 +602,22 @@
 - 优先级/依赖：T-033 真实 8766 E2E 缺陷 D-1；不处理同报告中的 D-2（受 `DEC-003` 决策门约束）
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`TEST-1`、`TEST-2`
 - 执行模式：实现与定向验证；需保持 idle kill、watchdog、正常 provider error 路径不重复投递
-- 当前阶段：已派发，TA 执行中
-- 下一动作：等待 `ses_0ca1e712f13feee7` 报告 → MA 核验 diff/测试 → 按 `AUTH-001` 合入本地 main
+- 当前阶段：实现、定向验证与 MA 核验完成，已合入本地 main；等待开发者验收
+- 下一动作：开发者验收 running/queued kill 的 completion report 语义；D-2 继续等待 `DEC-003`
 - 决策门：无；D-2 另受 `DEC-003` 约束，不在本任务扩展
-- 工作树/分支：`D:\project\pan-worktrees\worker-kill-report-20260915`；`fix/worker-kill-report-20260915`；基线 `main@d61638d`
+- 工作树/分支：`D:\project\pan-worktrees\worker-kill-report-20260915`；`fix/worker-kill-report-20260915`；基线 `main@d61638d`；worktree clean
 - TA/任务：`ses_0ca1e712f13feee7`；Codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；thinking 关闭；task `T-038-fix-running-worker-kill-report-20260915`
 - 边界：不需要启动服务或访问任何 876x 端口；不 push；只改产品代码、直接相关测试和必要文档；worktree clean 后提交
+- 提交：实现提交 `2c0b674152d509f6b0cf04945fc05cd9d05aa5ce`；本地合并提交 `317e46e`；未 push
+- 测试/未验证项：MA 独立复跑两组相关回归共 `214 passed`，`compileall`、`git diff --check` 通过；覆盖显式 kill running/queued 产生单次 zombie/error report、idle kill 不报告、已有 watchdog report 不重复、两个 kill endpoint 传参回归。未运行真实服务/876x、全量 Python、前端/browser E2E；真人开发者验收仍待用户。
 - 有序待办：
-  - [ ] 核对 D-1 根因与现有 zombie/error 投递语义
-  - [ ] 实现最小修复并补 running-kill/no-duplicate 回归
-  - [ ] 定向测试与 diff check
-  - [ ] 交付报告并由 MA 核验
-  - [ ] 合入 main（测试通过后按 `AUTH-001`）
+  - [x] 核对 D-1 根因与现有 zombie/error 投递语义
+  - [x] 实现最小修复并补 running-kill/no-duplicate 回归
+  - [x] 定向测试与 diff check
+  - [x] 交付报告并由 MA 核验
+  - [x] 合入 main（`317e46e`，按 `AUTH-001`）
   - [ ] 开发者验收
-- 合入/push 状态：未合入；push：否
+- 合入/push 状态：合入 main：`317e46e`；push：否
 
 ## 四、计划要做的任务
 
