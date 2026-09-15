@@ -89,6 +89,53 @@ def test_user_inject_rejects_attachment_for_another_session(monkeypatch):
     assert ws not in srv.ws_clients
 
 
+def test_user_inject_rejects_cross_session_structured_parts(monkeypatch, tmp_path):
+    """DEC-002: a queued chip/inline part never adopts another Session's upload."""
+    from packages.core import session as _sess
+
+    monkeypatch.setattr(srv, "ATTACHMENTS_DIR", tmp_path / "attachments")
+    _sess._cache.clear()
+    owner = _sess.Session(id="ses_ws_owner", name="owner", workdir=str(tmp_path))
+    target = _sess.Session(id="ses_ws_target", name="target", workdir=str(tmp_path))
+    _sess._cache[owner.id] = owner
+    _sess._cache[target.id] = target
+    srv.ws_clients.clear()
+    stored = srv._attachment_session_dir(owner.id) / ("upload_" + "a" * 32 + ".txt")
+    stored.parent.mkdir(parents=True)
+    stored.write_bytes(b"owner bytes")
+    srv._register_attachment(owner.id, stored.name, {
+        "source": "upload", "displayName": "owner.txt", "storageFilename": stored.name,
+        "path": str(stored), "size": 11, "mimeType": "text/plain",
+    })
+    ws = _FakeWS({
+        "type": "user_inject",
+        "sessionId": target.id,
+        "parts": [{"type": "attachment", "attachmentId": stored.name}],
+    })
+    enqueue_calls = []
+
+    async def fake_enqueue_user_message(*args, **kwargs):
+        enqueue_calls.append((args, kwargs))
+        return {"status": "queued"}
+
+    monkeypatch.setattr(srv.worker, "enqueue_user_message", fake_enqueue_user_message)
+
+    asyncio.run(srv.ws_endpoint(ws))
+
+    assert enqueue_calls == []
+    assert target.queue_pending == []
+    assert ws.sent == [{
+        "type": "user_inject.rejected",
+        "sessionId": target.id,
+        "message": "Attachment belongs to another session",
+        "error": {
+            "code": "attachment_session_mismatch",
+            "message": "Attachment belongs to another session",
+        },
+    }]
+    assert ws not in srv.ws_clients
+
+
 def test_agent_task_does_not_send_after_spawn_failure(monkeypatch):
     """A failed agent spawn must return an error without dereferencing None."""
     srv.agent_clients.clear()

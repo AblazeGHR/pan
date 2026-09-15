@@ -2312,13 +2312,29 @@ def _validate_message_attachment_references(session_id: str, text: str) -> dict 
     return None
 
 
+# DEC-002 separates two cross-Session rules.  A pending chip or inline
+# composer node is Session-owned, so a queued structured part must not adopt an
+# opaque id that another Session registered.  A server-file reference (the
+# editor/正文 link projection of a real server file) may still be dragged into
+# another Session: the target imports a registry receipt and no bytes are
+# copied.  Client uploads own their bytes inside the registering Session, so
+# only ``server_file`` keeps the reuse path.
+_CROSS_SESSION_STRUCTURED_SOURCES = frozenset({"server_file"})
+
+
 def _attachment_id_error(
     session_id: str,
     attachment_id: str,
     *,
     allow_cross_session: bool = False,
+    cross_session_sources: frozenset[str] | None = None,
 ) -> dict | None:
-    """Validate one opaque AttachmentRef at the session boundary."""
+    """Validate one opaque AttachmentRef at the session boundary.
+
+    ``cross_session_sources`` narrows a cross-Session allowance to the registry
+    ``source`` values that may be reused.  ``None`` keeps the historical
+    "any source" allowance used by the read-only download/editor endpoints.
+    """
     if not isinstance(attachment_id, str) or not _ATTACHMENT_ID_RE.fullmatch(attachment_id):
         return {"code": "invalid_attachment_id", "message": "Attachment id is invalid"}
     record = _attachment_record(session_id, attachment_id)
@@ -2331,11 +2347,16 @@ def _attachment_id_error(
             }
         return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
     owner_session_id = record.get("sessionId")
-    if owner_session_id not in (None, session_id) and not allow_cross_session:
-        return {
-            "code": "attachment_session_mismatch",
-            "message": "Attachment belongs to another session",
-        }
+    if owner_session_id not in (None, session_id):
+        reusable_source = (
+            cross_session_sources is None
+            or record.get("source") in cross_session_sources
+        )
+        if not allow_cross_session or not reusable_source:
+            return {
+                "code": "attachment_session_mismatch",
+                "message": "Attachment belongs to another session",
+            }
     if record.get("completed") is not True:
         return {"code": "attachment_incomplete", "message": "Attachment upload is not complete"}
     try:
@@ -2406,6 +2427,8 @@ def _normalize_message_parts(session_id: str, raw_parts) -> tuple[list[dict] | N
 
     Client supplied labels, hrefs and paths are deliberately ignored.  Only the
     opaque id is authoritative; the registry supplies all attachment metadata.
+    A structured part never adopts another Session's upload: only a
+    server-file reference keeps the cross-Session reuse path.
     """
     if not isinstance(raw_parts, list) or not raw_parts or len(raw_parts) > 512:
         return None, None, {"code": "invalid_parts", "message": "parts must be a non-empty array"}
@@ -2425,7 +2448,11 @@ def _normalize_message_parts(session_id: str, raw_parts) -> tuple[list[dict] | N
         if kind != "attachment":
             return None, None, {"code": "invalid_parts", "message": "unknown message part type"}
         attachment_id = part.get("attachmentId")
-        error = _attachment_id_error(session_id, attachment_id, allow_cross_session=True)
+        error = _attachment_id_error(
+            session_id, attachment_id,
+            allow_cross_session=True,
+            cross_session_sources=_CROSS_SESSION_STRUCTURED_SOURCES,
+        )
         if error is not None:
             return None, None, error
         record = _attachment_record(session_id, attachment_id)

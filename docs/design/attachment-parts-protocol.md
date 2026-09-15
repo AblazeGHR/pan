@@ -63,8 +63,11 @@ server validates the file against the Session workdir and stores the mapping in
 the session attachment registry. Both sources return an opaque id. The server
 accepts an id only when the registry owner/capability is authorized for the
 target Session, the operation is complete, and the authoritative file still
-exists. A cross-Session drop imports a registry receipt into the target without
-copying bytes; the source Session is not changed. Missing files are stale;
+exists. A cross-Session drop of a **server-file** reference imports a registry
+receipt into the target without copying bytes; the source Session is not
+changed. A client upload stays owned by the Session that received its bytes:
+a queued structured part never adopts another Session's `upload_` id and is
+rejected with `attachment_session_mismatch`. Missing files are stale;
 incomplete entries are rejected. A client cannot make an arbitrary `href`,
 absolute path, display name or query string authoritative.
 
@@ -112,6 +115,13 @@ source send the opaque `serverAttachmentId` as a structured attachment part.
 The queue request remains `{ text, parts }`; `parts[].attachmentId` is the only
 authoritative attachment field, while labels, hrefs, and paths are hints or
 ignored. A cross-Session message drop must not upload bytes.
+
+The server re-applies that rule at the queue boundary with the registry
+`source` as the discriminator, because the wire shape cannot carry the drag
+origin: a structured part may only reference a foreign id whose registry
+`source` is `server_file` (the editor/正文 projection of a real server file).
+A foreign `upload_` id is rejected with `attachment_session_mismatch` before
+any queue item, registry receipt or worker projection is created.
 
 The existing upload state machine remains the single implementation for picker,
 paste and drop: byte progress, cancel, retry, deduplication, failed-send

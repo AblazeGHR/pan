@@ -82,11 +82,18 @@ def test_structured_parts_reject_cross_session_stale_and_incomplete(monkeypatch,
         "path": str(foreign), "size": 7,
     })
 
+    # A structured part is a pending chip/inline node: it never adopts another
+    # Session's upload (DEC-002).  The rejected request must not enqueue, must
+    # not write a target-side registry receipt and must not copy the bytes.
     cross = asyncio.run(srv.api_session_queue_enqueue(first.id, {
         "parts": [{"type": "attachment", "attachmentId": foreign.name}],
     }))
-    assert cross["ok"] is True
-    assert cross["item"]["parts"][0]["attachmentId"] == foreign.name
+    assert cross == {"ok": False, "error": {
+        "code": "attachment_session_mismatch",
+        "message": "Attachment belongs to another session",
+    }}
+    assert first.queue_pending == []
+    assert foreign.name not in srv._read_attachment_registry(first.id)
     assert not (srv._attachment_session_dir(first.id) / foreign.name).exists()
 
     incomplete = "att_" + "c" * 32
@@ -142,6 +149,7 @@ def test_worker_projection_uses_canonical_path_and_never_api_href(tmp_path):
 
 
 def test_cross_session_server_reference_is_imported_without_copying_bytes(monkeypatch, tmp_path):
+    """DEC-002: an editor/正文 server-file reference stays reusable across Sessions."""
     first, second = _setup(tmp_path, monkeypatch)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
     monkeypatch.setattr(srv.worker, "_schedule_session_recovery", lambda _sid: None)
@@ -160,6 +168,8 @@ def test_cross_session_server_reference_is_imported_without_copying_bytes(monkey
 
     assert result["ok"] is True
     part = second.queue_pending[0]["parts"][0]
+    # Only a server-file reference keeps the cross-Session reuse path.
+    assert part["source"] == "server_file"
     assert part["__serverPath"] == str(source.resolve())
     assert not (srv._attachment_session_dir(second.id) / source.name).exists()
     assert second.queue_pending[0]["text"] == (
@@ -170,6 +180,10 @@ def test_cross_session_server_reference_is_imported_without_copying_bytes(monkey
 def test_legacy_markdown_attachment_is_upgraded_for_worker_projection(monkeypatch, tmp_path):
     first, _second = _setup(tmp_path, monkeypatch)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    # A real recovery spawn would launch a subprocess whose Windows Proactor
+    # waiter cannot observe cancellation, so the test loop would never close.
+    # Sibling tests in this file stub the same hook for that reason.
+    monkeypatch.setattr(srv.worker, "_schedule_session_recovery", lambda _sid: None)
     source = tmp_path / "legacy file.md"
     source.write_text("legacy", encoding="utf-8")
     href = srv._fs_download_href(first.id, str(source))
