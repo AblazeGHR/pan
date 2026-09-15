@@ -549,24 +549,24 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端（需求明确，实现路线由 TA 在既有 `Modal` / `useMediaQuery` 约定内自主选择）
 - 决策门：无；若必须改变其他弹窗的既有行为才能实现，在报告中说明并暂停该部分
-- 当前阶段：实现已提交，等待 TA 最终报告与 MA 验收
-- 下一动作：读取 T-035 最终报告 → MA 核验（diff + 定向测试 + 移动/桌面真实浏览器证据）→ 按 `AUTH-001` 合入本地 main
+- 当前阶段：MA 核验通过，已合入本地 `main`；等待开发者验收
+- 下一动作：开发者在真机/设计环境验收安全区、触摸滚动和全屏交互；若发现问题再立返工项
 - 阻塞：无
 - 目标：移动端打开 Session Details 时占满视口全屏（`100dvh`、无圆角/外边距、内容可滚动、标题与关闭按钮不被安全区遮挡）；桌面端保持居中窗口与 `size="lg"` 不变。
 - 起点（MA 侦察）：`packages/web/src/components/session/SessionDetailsModal.tsx:171` 使用共享 `<Modal size="lg">`；移动全屏先例见 `InputRow.tsx` 的 `isMobile` + `max-md:h-[100dvh]` / `max-md:rounded-none`，断言写法见 `InputRow.test.tsx:1081-1083`。
-- 边界：只改 `packages/web/src/**`；不改 dist；不碰 8768；8767 / 8765 已分别归 T-031 / T-033；只提交本分支，不合入 main、不 push。
+- 边界：只改 `packages/web/src/**` 及本任务验证脚本；不改 dist；不碰 8768；8767 / 8765 已分别归 T-031 / T-033；提交本分支后按 `AUTH-001` 合入本地 `main`，不 push。
 - 工作树/分支：`D:\project\pan-worktrees\mobile-detail-fullscreen-20260915`；`feature/mobile-detail-fullscreen-20260915`；基线 `main@e98b871`
 - TA/任务：`ses_34efb6996f826a27`；`mobile-detail-fullscreen-20260915`；cbc `deepseek-v4.1-flash`；effort `high`；权限 `bypassPermissions`；Worker `worker-6`；已 `report_subscribe`
-- 提交：未提交（TA 完成后核对）
-- 测试/未验证项：待 TA 报告（定向 Vitest / `tsc -b` / ESLint / `pnpm build` / 移动与桌面视口真实 Chromium）；真人开发者验收仍待用户
+- 提交：功能提交 `356961fc7ffe84c46322c43bb2706fcf012192bd`；本地合并提交 `82823ad`；worktree clean；未 push
+- 测试/未验证项：MA 独立重跑定向 Vitest 2 files / 24 passed；TA 报告 `tsc -b`、ESLint（0 errors / 11 既有 warnings）、`pnpm build` 通过；全量 Vitest 486 passed / 10 baseline failures（已用 stash A/B 核对）；真实 Chromium 390×844、390×480、700×800、1440×900 三用例通过，产物位于 `%TEMP%\pan-e2e-session-details\artifacts\`；未验证真机 safe-area 实际遮挡、触摸惯性与软键盘/地址栏收缩；真人开发者验收仍待用户
 - 有序待办：
-  - [ ] 实现移动端全屏并保持桌面端不变
-  - [ ] 定向 Vitest 与类型 / lint / build 通过
-  - [ ] 移动与桌面视口真实浏览器证据
-  - [ ] 提交并检查 worktree clean
-  - [ ] 合入 main（MA 核验后按 `AUTH-001`）
+  - [x] 实现移动端全屏并保持桌面端不变
+  - [x] 定向 Vitest 与类型 / lint / build 通过
+  - [x] 移动与桌面视口真实浏览器证据
+  - [x] 提交并检查 worktree clean
+  - [x] 合入 main（MA 核验后按 `AUTH-001`）
   - [ ] 开发者验收
-- 合入/push 状态：合入 main：未开始；push：否
+- 合入/push 状态：合入 main：`82823ad`；push：否
 
 ## 四、计划要做的任务
 
