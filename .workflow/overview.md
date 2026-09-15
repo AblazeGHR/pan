@@ -7,17 +7,17 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`4e04d04`（2026-09-15 核对，`git status` clean）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；**未 push**。
+- `main`：`083a09d`（2026-09-15 核对，T-037 本地合并后；文档待本轮收束提交）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037 已合入、等待真实复验；**未 push**。
 - `practical`：`D:\project\Pan`（practical 工作树）；本次工作流文档维护未改动它。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
 ## 工作流控制
 
-- 整体状态：T-027 批次与 T-030、T-035 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`）；T-031 已完成真实验证但发现服务端隔离缺陷，T-033 接续仍在执行，T-037 已派发修复，T-032 调查已闭环待 `DEC-003`；继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
+- 整体状态：T-027 批次与 T-030、T-035、T-037 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`）；T-031 正在做 T-037 修复后的真实复验，T-033 接续仍在执行，T-032 调查已闭环待 `DEC-003`；继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
 - 当前焦点：T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；`DEC-003` 决策（T-032 第 2 档）
-- 可执行：无（T-031、T-033、T-035 已派发在跑；T-034、T-036 待并发/额度窗口；其余任务待开发者验收或被用户暂停/取消）
-- TA 执行中/待验收：T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，隔离端口 8767，报告已到达）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，附件 Session 隔离修复）。
+- 可执行：T-031 的 T-037 修复后真实复验；T-033 的 watchdog/运行时真实验证；其余任务待开发者验收或被用户暂停/取消
+- TA 执行中/待验收：T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，隔离端口 8767，task `T-037-direct-real-revalidation-20260915`）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已完成并合入）。
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - 待执行后置动作：T-033、T-037 及其直接复验/整合全部收束后，向 QQ 联系人“焕之”发送一条一行简报；内容按最终事实概括本批次完成项、未通过项和仍待开发者验收项；不得提前发送，也不得重复 message_id `504271875`。
 - TA 模型规则（2026-09-15 用户最新口径）：当前批次（T-033、T-037 及其直接收束/复验）保持现有模型，不回溯切换；该批次全部完成后，所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
@@ -466,8 +466,8 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
 - 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告，由 MA 建立决策点
-- 当前阶段：真实隔离验证已完成；报告发现服务端缺陷 T031-001，暂不能作为全部通过交付
-- 下一动作：由 T-037 修复 structured attachment 跨 Session owner 绕过；修复后重跑负路径与相关回归，再回填 T-027.1 / T-027.2 测试证据
+- 当前阶段：初轮真实隔离验证完成；T031-001 已由 T-037 修复并合入，等待修复后的独立真实复验
+- 下一动作：完成 8767 修复后负路径与合法 server-file 复验，再回填 T-027.1 / T-027.2 测试证据
 - 阻塞：无
 - 目标：在隔离服务实例 `8767`（**禁止 8768**；`8765` 未使用）上用真实 HTTP/WS + 真实 Chromium 验证 `main@429cafd` 已合入的附件输入、发送事务与路径投影链路，补齐此前记录的“未做真实服务/API 集成”缺口，为 T-027.1、T-027.2 的开发者验收提供分层证据。
 - 验证范围：客户端上传→发送→队列/history→Worker 收到 canonical 绝对路径；UI opaque editor/download href 与跨 Session 拖入复用服务端引用；chip/inline 禁止跨 Session 的负路径；Send 后清空与失败恢复；目录整批拒绝、HTML 富文本转纯文本、图片/HTML 文件保持原文件；旧 Markdown/`@"path"`/带行号/Windows/UNC 回归；`../` 路径穿越、越权引用、stale 路径的安全负用例。
@@ -481,7 +481,7 @@
   - [x] 完成真实 HTTP/WS + Chromium 端到端用例并记录原始证据
   - [x] 完成负路径与安全边界验证（发现 T031-001）
   - [x] 交付报告；MA 已核对源码根因，修复后再做完整证据复验
-  - [ ] T031-001 修复后的独立回归与重新验收
+  - [ ] T031-001 修复后的独立回归与重新验收（续验 `T-037-direct-real-revalidation-20260915`）
   - [ ] 合入 main（本任务无产品代码改动，如发现缺陷则另立返工项）
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：不适用（无产品代码改动）；push：否
@@ -575,25 +575,26 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端实现与验证；不改变 DEC-002 语义，保留正文 editor/server-file 链接经过服务端校验后的跨 Session 复用
 - 决策门：无；若无法安全区分 structured parts 与正文引用，或必须扩大权限/数据语义，停止并报告
-- 当前阶段：实现/验证执行中（TA running）
-- 下一动作：等待 `ses_022781914942f1b2` 报告 → MA 核验 diff 与定向回归 → 按 `AUTH-001` 合入本地 main
+- 当前阶段：实现已完成并经 MA 核验，已合入本地 `main`；等待 8767 真实复验
+- 下一动作：等待 `ses_826c588ce84122b5` 直接复验报告；根据真实证据回填 T-031/T-027；仍待开发者验收
 - 阻塞：无
 - 目标：跨 Session 直接提交其他 Session 的 structured `attachmentId` 返回 `attachment_session_mismatch`，不得入队；同 Session structured attachment 继续通过；合法正文 editor/server-file 跨 Session 复用继续通过
 - 起点：`packages/web/server.py` 的 `_attachment_id_error()` 已有 owner 校验，但 `_normalize_message_parts()` 传入 `allow_cross_session=True` 并调用 `_import_attachment_reference()`，由 T-031 真实 8767 E2E 复现
 - 边界：只改服务端实现、直接相关回归测试和必要文档；不改 dist、不碰 8768、不改 T-033/T-035 worktree；不 push；只提交本分支，MA 验收后按 `AUTH-001` 合入本地 main
-- 工作树/分支：`D:\project\pan-worktrees\attachment-session-isolation-20260915`；`fix/attachment-session-isolation-20260915`；基线 `main@e50fd32`
+- 工作树/分支：`D:\project\pan-worktrees\attachment-session-isolation-20260915`；`fix/attachment-session-isolation-20260915`；基线 `main@e50fd32`；worktree clean
 - TA/任务：`ses_022781914942f1b2`；`attachment-session-isolation-20260915`；cbc `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；已 `report_subscribe`；task `T-037-implement-attachment-session-isolation-20260915`
-- 提交：待 TA 完成
-- 测试/未验证项：待 TA 报告；必须分别记录同 Session structured、跨 Session mismatch/no queue、合法正文 editor/server-file 跨 Session 复用，以及相关附件回归；真人开发者验收仍待用户
+- 提交：功能提交 `4ebe0dfca7ecb0f4857a079fbba0805529a0cc3d`；本地合并提交 `083a09d`；未 push
+- 测试/未验证项：MA 独立复跑相关 10 个 Python 测试文件 `104 passed, 1 skipped`，`git diff --check` 通过；实现层覆盖同 Session structured、foreign upload mismatch/no queue、合法 `server_file` 跨 Session 导入与 WS rejection。真实 HTTP/WS/Chromium 修复后复验正在 T-031 续验中；全量 Python、真实 WS 会话与真人开发者验收仍待完成。协议边界已核对：DEC-002 允许的正文 editor/server-file 引用保留，T-031 复现的客户端 upload id 跨 Session 被拒绝。
 - 有序待办：
-  - [ ] 调查并实现最小服务端修复
-  - [ ] 新增/调整跨 Session structured parts 回归
-  - [ ] 验证合法正文 editor/server-file 跨 Session 复用不回归
-  - [ ] 定向测试、diff check、worktree clean
-  - [ ] 交付报告并由 MA 核验
-  - [ ] 合入 main（测试通过后按 `AUTH-001`）
+  - [x] 调查并实现最小服务端修复
+  - [x] 新增/调整跨 Session structured parts 回归
+  - [x] 验证合法正文 editor/server-file 跨 Session 复用不回归（定向 Python/API 级）
+  - [x] 定向测试、diff check、worktree clean
+  - [x] 交付报告并由 MA 核验
+  - [x] 合入 main（`083a09d`，按 `AUTH-001`）
+  - [ ] 修复后真实 8767 复验
   - [ ] 开发者验收
-- 合入/push 状态：合入 main：未开始；push：否
+- 合入/push 状态：合入 main：`083a09d`；push：否
 
 ## 四、计划要做的任务
 
