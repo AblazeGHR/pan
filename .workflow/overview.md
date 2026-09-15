@@ -15,9 +15,9 @@
 ## 工作流控制
 
 - 整体状态：T-027 批次与 T-030、T-035、T-037、T-038 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`；T-038 合并提交 `317e46e`）；T-031 已完成 T-037 修复后的真实复验，T-033 真实运行时验证已完成并发现 D-1/D-2，T-032 调查已闭环待 `DEC-003`；当前批次已收束，继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
-- 当前焦点：T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；`DEC-003` 决策（T-032 第 2 档）
-- 可执行：T-032 的 `DEC-003` 决策后续；其余任务待开发者验收或被用户暂停/取消
-- TA 执行中/待验收：T-038 `ses_0ca1e712f13feee7`（Codex `gpt-5.6-luna`，high，bypass，thinking 关闭，已完成）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，8766，已完成）；T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，8767，已完成）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已完成并合入）。
+- 当前焦点：T-034 浏览器/UI 真实证据补全；T-036 终态广播次序调查；`DEC-003` 决策（T-032 第 2 档）
+- 可执行：T-034、T-036 已派发；其余任务待开发者验收或被用户暂停/取消
+- TA 执行中/待验收：T-034 `ses_d18dcb29623282e7`（Codex `gpt-5.6-luna`，high，bypass，thinking 关闭，验证 worktree，无 876x）；T-036 `ses_64167d0e212ce98b`（Codex `gpt-5.6-luna`，high，bypass，thinking 关闭，调查 worktree，无 876x）；T-038 `ses_0ca1e712f13feee7`（Codex `gpt-5.6-luna`，high，bypass，已完成）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，已完成）；T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，8767，已完成）；T-035 `ses_34efb6996f826a27`（cbc，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc，已完成并合入）。
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - 待执行后置动作：T-033、T-037 及其直接复验/整合全部收束后，向 QQ 联系人“焕之”发送一条一行简报；内容按最终事实概括本批次完成项、未通过项和仍待开发者验收项；不得提前发送，也不得重复 message_id `504271875`。
 - TA 模型规则（2026-09-15 用户最新口径）：当前批次已完成，后续所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`；Codex 不需要开启 thinking，保持 `always_thinking_enabled=false`。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
@@ -632,15 +632,17 @@
 - 合入 main：未开始
 - 开发者验收：未开始
 
-### T-034：已合入批次的浏览器/UI 侧真实运行证据补全（计划，未派发）
+### T-034：已合入批次的浏览器/UI 侧真实运行证据补全
 
 - 优先级/依赖：排在 T-031 / T-033 之后；与二者均为验证类任务，需错开隔离端口
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端（纯验证；发现缺陷只报告）
 - 决策门：无；发现需要改变产品行为/兼容性的缺陷即停止并报告
-- 当前阶段：计划（**未派发**）
-- 下一动作：待 T-031 或 T-033 报告到达、或 Codex 五小时额度窗口重置后，派独立验证 TA（`MODEL-1`，独立 worktree，使用空闲的隔离端口）
-- 阻塞：并行度与 Codex 五小时额度（当前已有 4 个 TA 在跑、其中 3 个 codex）；**非用户决策或授权阻塞**
+- 当前阶段：已派发，验证执行中
+- 下一动作：等待 `ses_d18dcb29623282e7` 报告后由 MA 核验；使用专用非 876x 端口，结束必须清理
+- 阻塞：无；本任务使用 Codex Luna high，thinking 关闭
+- 工作树/分支：`D:\project\pan-worktrees\browser-evidence-followup-20260915`；`audit/browser-evidence-followup-20260915`；基线 `main@7f7bf74`
+- TA/任务：`ses_d18dcb29623282e7`；`T-034-browser-evidence-followup-20260915`
 - 目标：为已合入但仍记录“未做真实浏览器/移动端 E2E”的批次补运行证据——T-013 浏览器后台恢复（visibility/pageshow/focus + 共享 WS 重连与权威状态刷新）、T-019 Codex Steer 在 worker running 时的可见性与 session-level endpoint、T-015 通知/系统提醒/msgBridge、T-008 / T-018 带行号 Markdown 链接（Windows 盘符 / UNC / `file://`）在 Editor 中打开。
 - 验证方式：真实 Chromium（仓库已有 Playwright 基础设施）+ 隔离服务实例；逐用例 通过/失败/未验证，证据含端口、命令、时间与截图/日志路径。
 - 有序待办：
@@ -656,9 +658,11 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-2`、`TEST-1`、`TEST-2`
 - 执行模式：分阶段决策门（先调查事件/账本持久化次序与 `enrich_after_result` 的写入面，再决定是否实现）
 - 决策门：若调查证明需要改变事件/账本持久化次序或 Session 状态写入时机，先给方案、影响与风险，不直接实现
-- 当前阶段：计划（**未派发**）
-- 下一动作：待 T-031 / T-033 / T-035 任一收束后派调查 TA（`MODEL-3`）
-- 阻塞：并行度上限（当前 4 个 TA 在跑）；**非用户决策阻塞**
+- 当前阶段：调查执行中（仅只读）
+- 下一动作：等待 `ses_64167d0e212ce98b` 报告；MA 核验事实后决定是否建立实现任务
+- 阻塞：无；本任务使用 Codex Luna high，thinking 关闭
+- 工作树/分支：`D:\project\pan-worktrees\terminal-broadcast-investigation-20260915`；`audit/terminal-broadcast-investigation-20260915`；基线 `main@7f7bf74`
+- TA/任务：`ses_64167d0e212ce98b`；`T-036-investigate-terminal-broadcast-order-20260915`
 - 目标：`packages/core/worker.py` 终态路径当前次序为 `w.status="done"`(≈963) → `adapter.enrich_after_result(s)`（cbc `adapter.py:475` 含 `time.sleep(0.2)`、kimi `adapter.py:455` 为 `0.3`，均在 asyncio 循环上）→ `_flush_history_now`（`session.py:43` 进程级 `_SAVE_LOCK` 落盘）→ **才** `_bcast worker.result`(≈1027) → `w.status="idle"` + 广播(≈1052)。即"清除指示灯的那个事件"被阻塞工作推迟。需评估：能否在不破坏事件/账本持久化次序语义的前提下降低该延迟（先广播后落盘？把 enrich 移出事件循环？分帧？），给出最小改动、风险与验收方式。
 - 已知约束：`enrich_after_result` 会写 `Session` 状态，不能简单挪到线程；改次序属语义变更，须先报告。
 - 有序待办：
