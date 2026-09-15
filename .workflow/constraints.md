@@ -50,6 +50,7 @@
 - 额度规则：每轮工作流对话开始检查 Codex 五小时额度；达到 98% 时进行 SMA 替身交接，目标配置为 `cbc + deepseek-v4.1-flash + high + bypassPermissions`。
 - 级联顺序（2026-09-15）：`MODEL-1`（codex `gpt-5.6-luna` high）→ 五小时限额触发 → `cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 `deepseek-v4.1-flash`。已完成任务不回溯切换模型，只作用于新派发与返工。
 - 用户追加口径（2026-09-15，Codex 五小时额度实测 96% 时明确）：**新任务直接使用 `cbc deepseek-v4.1-flash`**，不必先把残余 Codex 额度耗尽；**已在跑的 codex 任务不重做**，等其停下后用 `session_handoff` 接续到 `cbc deepseek-v4.1-flash`，交接材料为原任务 brief + worktree 现场 + 源 session 历史，不得要求从零重来。
+- **最新覆盖口径（用户 2026-09-15）**：当前批次（至少包括 T-033、T-037 及其直接收束/复验）不切换已有 TA；该批次全部完成后，所有新 TA 与返工任务统一使用 Codex `gpt-5.6-luna`，`effort=high`，按任务风险可升为 `xhigh`，权限默认 `bypass`。该条覆盖上一条“新任务直接使用 CBC”的安排，仅对后续批次生效；已在运行任务不回溯切换。若 Codex 达到硬性额度/服务不可用，按本文件额度规则停在外部阻塞或执行 SMA 替身交接，不静默改用其他 adapter。
 
 ## MA 自主权策略
 
@@ -83,7 +84,7 @@
 
 ## 默认策略与任务映射
 
-- 默认 Git：`GIT-1`；默认 TA：`MODEL-1`（首选），Codex 五小时额度触发限额后按 `MODEL-3` 级联；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
+- 默认 Git：`GIT-1`；当前批次沿用已派发模型，批次完成后的默认 TA 为 Codex `gpt-5.6-luna` high，按风险升 xhigh（受 MODEL-1 与最新覆盖口径约束）；默认 MA 自主权：`AUTONOMY-1`；UI 默认追加 `TEST-1`、`TEST-2`。
 
 | 任务 | Git | TA 模型 | MA 自主权 | 其他 |
 |---|---|---|---|---|
