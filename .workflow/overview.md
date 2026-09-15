@@ -645,6 +645,7 @@
 - TA/任务：`ses_d18dcb29623282e7`（已清理）；`T-034-browser-evidence-followup-20260915`
 - 目标：为已合入但仍记录“未做真实浏览器/移动端 E2E”的批次补运行证据——T-013 浏览器后台恢复（visibility/pageshow/focus + 共享 WS 重连与权威状态刷新）、T-019 Codex Steer 在 worker running 时的可见性与 session-level endpoint、T-015 通知/系统提醒/msgBridge、T-008 / T-018 带行号 Markdown 链接（Windows 盘符 / UNC / `file://`）在 Editor 中打开。
 - 验证方式：真实 Chromium（仓库已有 Playwright 基础设施）+ 隔离服务实例；逐用例 通过/失败/未验证，证据含端口、命令、时间与截图/日志路径。
+- 测试/未验证项：真实 Chromium/8792 下 T-013 visibility/pageshow/focus 权威刷新与真实服务重启后的 WS 重连通过；T-008/T-018 盘符、相对路径、`file://` 与行号定位通过；构建、编译及 24 项 Python 定向测试通过。当前基线 exact-bottom stream 的 1px 场景仍失败，未修复且未判定为本批引入；T-015 Windows sender 返回 `windows_powershell_unavailable`，桌面 toast、Notification/msgBridge、reminder 到期未验证；T-019 Codex running Steer、UNC 路径、OS 文件拖放未验证。8792 已释放，8768 仅只读核对且 PID `28652` 未变，8765/8766/8767 未使用。
 - 有序待办：
   - [x] 派发独立验证 TA 并记录 worktree / 端口
   - [x] 完成浏览器侧用例与证据采集
@@ -661,15 +662,16 @@
 - 决策门：若调查证明需要改变事件/账本持久化次序或 Session 状态写入时机，先给方案、影响与风险，不直接实现
 - 当前阶段：调查完成，MA 已核验；是否实现等待方案/用户决策
 - 下一动作：保留调查结论，若采纳方案再另立实现任务；不在本调查中直接改次序
-- 阻塞：无；本任务使用 Codex Luna high，thinking 关闭
+- 阻塞：方案决策；本任务使用 Codex Luna high，thinking 关闭，一次性 TA session 已清理
 - 工作树/分支：`D:\project\pan-worktrees\terminal-broadcast-investigation-20260915`；`audit/terminal-broadcast-investigation-20260915`；基线 `main@7f7bf74`
-- TA/任务：`ses_64167d0e212ce98b`；`T-036-investigate-terminal-broadcast-order-20260915`；已完成，worktree clean
+- TA/任务：`ses_64167d0e212ce98b`（已清理）；`T-036-investigate-terminal-broadcast-order-20260915`；已完成，worktree clean
 - 测试/未验证项：MA 用 `E:/software/miniforge/python.exe` 独立复跑 `tests/test_backend_perf_opt.py tests/test_worker_oneshot_usage.py`，`11 passed`；独立 timing probe 观察 CBC `enrich_after_result` 约 200.5ms 且期间 asyncio ticker 为 0。未做真实服务/provider、多 Session 并发、慢 WS、崩溃/重启及默认配置延迟分布验证。
 - 目标：`packages/core/worker.py` 终态路径当前次序为 `w.status="done"`(≈963) → `adapter.enrich_after_result(s)`（cbc `adapter.py:475` 含 `time.sleep(0.2)`、kimi `adapter.py:455` 为 `0.3`，均在 asyncio 循环上）→ `_flush_history_now`（`session.py:43` 进程级 `_SAVE_LOCK` 落盘）→ **才** `_bcast worker.result`(≈1027) → `w.status="idle"` + 广播(≈1052)。即"清除指示灯的那个事件"被阻塞工作推迟。需评估：能否在不破坏事件/账本持久化次序语义的前提下降低该延迟（先广播后落盘？把 enrich 移出事件循环？分帧？），给出最小改动、风险与验收方式。
 - 已知约束：`enrich_after_result` 会写 `Session` 状态，不能简单挪到线程；改次序属语义变更，须先报告。
+- 调查结论/推荐：不采用“无保护地先广播再落盘/enrich”。推荐“方案 C + 方案 A 线程化原则”：先完成基础 `last_result`/history 持久化，再广播现有 `worker.result`，随后按 Session 串行执行可重试的异步 enrich/usage 后处理；需定义 usage/session 更新信号、幂等 cursor、崩溃恢复及 stream/oneshot 分别验收。该方案会把 usage 可见性明确为最终一致，必须先取得用户/开发者决策后另立实现任务。
 - 有序待办：
-  - [ ] 派调查 TA：事件/账本持久化次序 + `enrich_after_result` 写入面 + 可行的最小改动与风险
-  - [ ] MA 核验方案后决定是否实现（必要时建 `DEC-nnn`）
+  - [x] 派调查 TA：事件/账本持久化次序 + `enrich_after_result` 写入面 + 可行的最小改动与风险
+  - [x] MA 核验方案；是否实现等待用户/开发者决策（必要时建 `DEC-nnn`）
   - [ ] 若实现：定向测试 + 真实隔离实例验证
   - [ ] 合入 main
   - [ ] 开发者验收
