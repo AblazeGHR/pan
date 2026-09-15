@@ -7,7 +7,7 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`dbfff3e`（2026-09-15 核对，`git status` clean）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；**未 push**。
+- `main`：`4e04d04`（2026-09-15 核对，`git status` clean）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；**未 push**。
 - `practical`：`D:\project\Pan`（practical 工作树）；本次工作流文档维护未改动它。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
@@ -19,6 +19,7 @@
 - 可执行：无（T-031、T-033、T-035 已派发在跑；T-034、T-036 待并发/额度窗口；其余任务待开发者验收或被用户暂停/取消）
 - TA 执行中/待验收：T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，隔离端口 8767，报告已到达）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，附件 Session 隔离修复）。
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
+- 待执行后置动作：T-033、T-037 及其直接复验/整合全部收束后，向 QQ 联系人“焕之”发送一条一行简报；内容按最终事实概括本批次完成项、未通过项和仍待开发者验收项；不得提前发送，也不得重复 message_id `504271875`。
 - TA 模型规则（2026-09-15 用户最新口径）：当前批次（T-033、T-037 及其直接收束/复验）保持现有模型，不回溯切换；该批次全部完成后，所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未开始推进
