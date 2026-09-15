@@ -67,6 +67,23 @@ describe('Modal', () => {
     }
   });
 
+  it('leaves callers that do not opt in as centered dialogs', () => {
+    render(
+      <Modal open onClose={() => {}} title="Test" size="lg">
+        <div>content</div>
+      </Modal>,
+    );
+
+    const overlay = document.body.querySelector<HTMLElement>('.modal-overlay')!;
+    const card = cardEl();
+
+    expect(overlay.className).not.toContain('modal-overlay--mobile-fullscreen');
+    expect(overlay.className).not.toContain('p-0');
+    expect(card.className).not.toContain('modal-card--mobile-fullscreen');
+    expect(card.className).not.toContain('max-md:h-[100dvh]');
+    expect(card.className).not.toContain('max-md:rounded-none');
+  });
+
   it('supports caller-scoped mobile fullscreen presentation', () => {
     render(
       <Modal open onClose={() => {}} title="Test" size="xl" mobileFullscreen>
@@ -82,5 +99,33 @@ describe('Modal', () => {
     expect(card.className).toContain('max-md:h-[100dvh]');
     expect(card.className).toContain('modal-card--mobile-fullscreen');
     expect(card.className).toContain('max-md:rounded-none');
+    // Safe-area insets keep the title row clear of the notch and the last
+    // content line clear of the home indicator; both resolve to 0 outside a
+    // notched standalone viewport.
+    expect(card.className).toContain('max-md:pt-[var(--safe-top)]');
+    expect(card.className).toContain('max-md:pb-[var(--safe-bottom)]');
+  });
+
+  it('scopes every fullscreen override to the mobile breakpoint', () => {
+    render(
+      <Modal open onClose={() => {}} title="Test" size="lg" mobileFullscreen>
+        <div>content</div>
+      </Modal>,
+    );
+
+    const card = cardEl();
+    const cardClasses = card.className.split(/\s+/);
+
+    // Desktop geometry comes from the untouched base + size classes.
+    expect(cardClasses).toContain('rounded-lg');
+    expect(cardClasses).toContain('border');
+    expect(cardClasses).toContain('max-w-[42rem]');
+    expect(cardClasses).toContain('max-h-[85vh]');
+    // The fullscreen shell only adds max-md:-scoped overrides, so ≥ md is
+    // byte-for-byte the pre-existing centered window.
+    expect(cardClasses).not.toContain('rounded-none');
+    expect(cardClasses).not.toContain('max-w-none');
+    expect(cardClasses).not.toContain('h-[100dvh]');
+    expect(cardClasses.filter((name) => /(100dvh|rounded-none|max-w-none)/.test(name)).every((name) => name.startsWith('max-md:'))).toBe(true);
   });
 });

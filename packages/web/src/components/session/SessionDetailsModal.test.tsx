@@ -29,7 +29,74 @@ beforeEach(() => {
   vi.spyOn(api, 'fetchSessionUsage').mockRejectedValue(new Error('usage unavailable'));
 });
 
+function dialogCard(): HTMLElement {
+  const card = document.body.querySelector<HTMLElement>('.modal-card');
+  expect(card).toBeTruthy();
+  return card!;
+}
+
 describe('SessionDetailsModal', () => {
+  it('opts into the mobile fullscreen shell while keeping the desktop dialog unchanged', () => {
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+
+    const overlay = document.body.querySelector<HTMLElement>('.modal-overlay')!;
+    const card = dialogCard();
+
+    expect(overlay.className).toContain('modal-overlay--mobile-fullscreen');
+    expect(overlay.className).toContain('md:p-4');
+    expect(card.className).toContain('modal-card--mobile-fullscreen');
+    expect(card.className).toContain('max-md:h-[100dvh]');
+    expect(card.className).toContain('max-md:max-h-[100dvh]');
+    expect(card.className).toContain('max-md:max-w-none');
+    expect(card.className).toContain('max-md:rounded-none');
+    expect(card.className).toContain('max-md:border-0');
+    // Desktop (>= md) keeps the previous centered size="lg" window: every
+    // viewport-filling override is max-md:-scoped and nothing resets the
+    // desktop width/height/radius.
+    expect(card.className).toContain('max-w-[42rem]');
+    const viewportResets = card.className.split(/\s+/).filter((name) =>
+      name.includes('100dvh') || name.endsWith('rounded-none') || name.endsWith('max-w-none'));
+    expect(viewportResets.length).toBeGreaterThan(0);
+    expect(viewportResets.every((name) => name.startsWith('max-md:'))).toBe(true);
+  });
+
+  it('keeps the title row and close button outside the scrollable content', () => {
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+
+    const card = dialogCard();
+    const heading = screen.getByRole('heading', { name: 'Session Details' });
+    const close = screen.getByRole('button', { name: 'Close' });
+    const scroller = card.querySelector<HTMLElement>(':scope > div.overflow-y-auto');
+
+    expect(scroller).toBeTruthy();
+    expect(scroller!.contains(heading)).toBe(false);
+    expect(scroller!.contains(close)).toBe(false);
+  });
+
+  it('keeps the usage loading indicator and summary fallbacks inside the fullscreen shell', async () => {
+    let rejectUsage: (error: Error) => void = () => {};
+    vi.mocked(api.fetchSessionUsage).mockImplementation(
+      () => new Promise((_resolve, reject) => { rejectUsage = reject; }),
+    );
+
+    render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+    const usageButton = screen.getByRole('button', { name: /Usage/ });
+    fireEvent.click(usageButton);
+
+    expect(usageButton.textContent).toContain('加载中…');
+    expect(usageButton.getAttribute('aria-expanded')).toBe('true');
+    expect(dialogCard().className).toContain('max-md:h-[100dvh]');
+
+    rejectUsage(new Error('usage unavailable'));
+
+    expect(await screen.findByText('usage unavailable，当前显示已有数据')).toBeTruthy();
+    expect(screen.getByText('Credits（累计）')).toBeTruthy();
+    expect(screen.getByText('12.35')).toBeTruthy();
+    expect(screen.getByText('100')).toBeTruthy();
+    expect(screen.getAllByText('暂无数据')).toHaveLength(2);
+    expect(usageButton.textContent).not.toContain('加载中…');
+  });
+
   it('keeps hook order while opening and closing from a null session', () => {
     const onClose = vi.fn();
     const { rerender } = render(<SessionDetailsModal session={null} onClose={onClose} />);

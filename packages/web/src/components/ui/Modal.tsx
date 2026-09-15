@@ -9,7 +9,11 @@ interface ModalProps {
   children: ReactNode;
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
-  /** Enable viewport-filling presentation on small screens for this caller. */
+  /**
+   * Enable viewport-filling presentation below the `md` breakpoint (768px) for
+   * this caller only. The card drops the window chrome, fills 100dvh and keeps
+   * its title row clear of the notch; desktop presentation is untouched.
+   */
   mobileFullscreen?: boolean;
 }
 
@@ -60,7 +64,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
-        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-h-[85vh] flex flex-col overflow-hidden ${sizeClasses[size]} ${mobileFullscreen ? 'modal-card--mobile-fullscreen max-md:h-[100dvh] max-md:max-h-[100dvh] max-md:max-w-none max-md:rounded-none max-md:border-0' : ''} ${className}`}
+        className={`modal-card bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-h-[85vh] flex flex-col overflow-hidden ${sizeClasses[size]} ${mobileFullscreen ? 'modal-card--mobile-fullscreen max-md:h-[100dvh] max-md:max-h-[100dvh] max-md:max-w-none max-md:rounded-none max-md:border-0 max-md:pt-[var(--safe-top)] max-md:pb-[var(--safe-bottom)]' : ''} ${className}`}
       >
         {title && (
           <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
