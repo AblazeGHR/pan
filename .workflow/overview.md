@@ -20,7 +20,7 @@
 - TA 执行中/待验收：T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，8766，已完成）；T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，8767，已完成）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已完成并合入）。
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - 待执行后置动作：T-033、T-037 及其直接复验/整合全部收束后，向 QQ 联系人“焕之”发送一条一行简报；内容按最终事实概括本批次完成项、未通过项和仍待开发者验收项；不得提前发送，也不得重复 message_id `504271875`。
-- TA 模型规则（2026-09-15 用户最新口径）：当前批次已完成，后续所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`，并在 adapter 支持时显式开启 thinking（`always_thinking_enabled`）。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
+- TA 模型规则（2026-09-15 用户最新口径）：当前批次已完成，后续所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`；Codex 不需要开启 thinking，保持 `always_thinking_enabled=false`。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未开始推进
 - 决策阻塞：`DEC-003`（T-032 第 2/3 档实现范围；不阻塞其他任务）
