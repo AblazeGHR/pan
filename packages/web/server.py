@@ -5214,7 +5214,7 @@ async def api_readonly(data: dict):
 @app.post("/api/kill/{worker_id}")
 async def api_kill(worker_id: str):
     """Kill a Worker process. Does NOT delete the Session."""
-    err = await worker.kill_worker(worker_id)
+    err = await worker.kill_worker(worker_id, report_abnormal=True)
     if err:
         return {"error": err}
     return {"workerId": worker_id, "status": "killed"}
@@ -5770,7 +5770,7 @@ async def api_restart_or_start(session_id: str):
 @app.post("/api/sessions/{session_id}/worker/kill")
 async def api_session_kill(session_id: str):
     """Kill the session's live worker; workerId is response detail only."""
-    result = await worker.kill_session_worker(session_id)
+    result = await worker.kill_session_worker(session_id, report_abnormal=True)
     if isinstance(result, str):
         return {"error": result}
     if result is None:

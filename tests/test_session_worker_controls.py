@@ -37,6 +37,16 @@ def test_restart_or_start_route_returns_runtime_details(monkeypatch):
     _cleanup()
 
 
+def test_worker_kill_route_requests_abnormal_report(monkeypatch):
+    control = AsyncMock(return_value=None)
+    monkeypatch.setattr(srv.worker, "kill_worker", control)
+
+    result = asyncio.run(srv.api_kill("worker-runtime"))
+
+    assert result == {"workerId": "worker-runtime", "status": "killed"}
+    control.assert_awaited_once_with("worker-runtime", report_abnormal=True)
+
+
 def test_session_kill_route_does_not_resolve_worker_id_in_business_path(monkeypatch):
     _cleanup()
     _sess._cache["ses-control"] = _sess.Session(
@@ -53,5 +63,5 @@ def test_session_kill_route_does_not_resolve_worker_id_in_business_path(monkeypa
         "sessionId": "ses-control",
         "status": "offline",
     }
-    control.assert_awaited_once_with("ses-control")
+    control.assert_awaited_once_with("ses-control", report_abnormal=True)
     _cleanup()
