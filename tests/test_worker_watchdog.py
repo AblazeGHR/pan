@@ -396,6 +396,94 @@ def test_watchdog_task_timeout_reports_zombie(monkeypatch):
     _cleanup()
 
 
+def test_explicit_kill_running_worker_reports_inflight_task(monkeypatch):
+    """An explicit kill must leave one durable report for the active task."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="running")
+    w._current_task_id = "task-killed"
+    worker._task_status["task-killed"] = {
+        "status": "pending", "workerId": w.worker_id,
+    }
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
+
+    result = asyncio.run(worker.kill_worker(
+        w.worker_id, report_abnormal=True,
+    ))
+
+    assert result is None
+    assert len(mgr.queue_pending) == 1
+    report = mgr.queue_pending[0]
+    assert report["type"] == "zombie"
+    assert report["kind"] == "report"
+    assert report["status"] == "error"
+    assert report["result"] == "worker died: worker killed"
+    assert report["source"] == "report"
+    assert report["sourceSessionId"] == "ses_child"
+    assert report["sessionId"] == "ses_child"
+    assert report["taskId"] == "task-killed"
+    assert report["workerId"] == w.worker_id
+    assert report["deliveryState"] == "queued"
+    assert mgr.queue_delivery_ledger[report["queueItemId"]]["type"] == "zombie"
+    assert worker._task_status["task-killed"]["status"] == "error"
+    _cleanup()
+
+
+def test_explicit_kill_does_not_duplicate_existing_zombie_report(monkeypatch):
+    """A watchdog report followed by explicit cleanup remains single-shot."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="running")
+    w._current_task_id = "task-killed"
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
+
+    async def scenario():
+        await worker._enqueue_zombie_report(w, "task timeout")
+        await worker.kill_worker(w.worker_id, report_abnormal=True)
+        # Model the late EOF path after kill has started.
+        await worker._enqueue_zombie_report(w, "process exited (returncode=1)")
+
+    asyncio.run(scenario())
+
+    assert len(mgr.queue_pending) == 1
+    assert "task timeout" in mgr.queue_pending[0]["result"]
+    _cleanup()
+
+
+def test_explicit_kill_idle_worker_keeps_no_zombie_report(monkeypatch):
+    """Explicitly killing an idle worker retains normal reclaim semantics."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+
+    async def no_wake(_session_id):
+        return None
+
+    monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    _, mgr = _setup_managed_pair()
+    w = _setup_worker("ses_child", status="idle")
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
+
+    asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
+
+    assert mgr.queue_pending == []
+    _cleanup()
+
+
 def test_watchdog_queued_timeout_reports_zombie(monkeypatch):
     """watchdog queued 静默超时 kill → zombie 报告。"""
     _cleanup()
@@ -672,6 +760,9 @@ if __name__ == "__main__":
     test_mcp_idle_worker_reclaimed()
     test_mcp_running_worker_not_timeout_killed()
     test_watchdog_task_timeout_reports_zombie()
+    test_explicit_kill_running_worker_reports_inflight_task()
+    test_explicit_kill_does_not_duplicate_existing_zombie_report()
+    test_explicit_kill_idle_worker_keeps_no_zombie_report()
     test_watchdog_queued_timeout_reports_zombie()
     test_watchdog_idle_reclaim_no_zombie()
     test_watchdog_self_cancel_regression()

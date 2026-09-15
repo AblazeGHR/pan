@@ -4225,13 +4225,24 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
 
 async def _kill_worker_unlocked(
     worker_id: str, *, recover: bool = False,
+    report_abnormal: bool = False,
 ) -> str | None:
-    """Kill the Worker process. Does NOT touch the Session."""
+    """Kill the Worker process. Does NOT touch the Session.
+
+    ``report_abnormal`` is reserved for an explicit user kill request.  The
+    watchdog and internal restart paths already have their own lifecycle
+    semantics (including watchdog zombie reporting), so they leave it false.
+    The report must be queued before cancelling the consumer: cancellation
+    unwinds the in-flight queue unit and clears ``_current_task_id``.
+    """
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
 
     abnormal = w.status in {"running", "queued"}
+
+    if report_abnormal and abnormal:
+        await _enqueue_zombie_report(w, "worker killed")
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was stopped")
 
@@ -4283,7 +4294,8 @@ async def _kill_worker_unlocked(
     return None
 
 
-async def kill_worker(worker_id: str, *, recover: bool = False) -> str | None:
+async def kill_worker(worker_id: str, *, recover: bool = False,
+                      report_abnormal: bool = False) -> str | None:
     """Serialized compatibility wrapper for worker-id callers."""
     w = workers.get(worker_id)
     if not w:
@@ -4295,10 +4307,13 @@ async def kill_worker(worker_id: str, *, recover: bool = False) -> str | None:
         if current is not w or w.generation != generation:
             # A concurrent restart already owns this lifecycle transition.
             return None
-        return await _kill_worker_unlocked(worker_id, recover=recover)
+        return await _kill_worker_unlocked(
+            worker_id, recover=recover, report_abnormal=report_abnormal,
+        )
 
 
-async def kill_session_worker(session_id: str) -> Worker | str | None:
+async def kill_session_worker(session_id: str, *,
+                              report_abnormal: bool = False) -> Worker | str | None:
     """Kill the live worker for a session, if present."""
     if _sess.get(session_id) is None:
         return f"Session {session_id} not found"
@@ -4307,7 +4322,9 @@ async def kill_session_worker(session_id: str) -> Worker | str | None:
         w = find_alive_worker_by_session(session_id)
         if w is None:
             return None
-        error = await _kill_worker_unlocked(w.worker_id)
+        error = await _kill_worker_unlocked(
+            w.worker_id, report_abnormal=report_abnormal,
+        )
         return error or w
 
 
