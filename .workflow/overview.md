@@ -14,10 +14,10 @@
 
 ## 工作流控制
 
-- 整体状态：T-027 批次与 T-030 均已合入 main（T-030 合并提交 `7f2667b`）；T-031、T-033 接续、T-035 均在收束/报告交付阶段，T-032 调查已闭环待 `DEC-003`；继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
+- 整体状态：T-027 批次与 T-030、T-035 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`）；T-031 已完成真实验证但发现服务端隔离缺陷，T-033 接续仍在执行，T-037 已派发修复，T-032 调查已闭环待 `DEC-003`；继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
 - 当前焦点：T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；`DEC-003` 决策（T-032 第 2 档）
 - 可执行：无（T-031、T-033、T-035 已派发在跑；T-034、T-036 待并发/额度窗口；其余任务待开发者验收或被用户暂停/取消）
-- TA 执行中/待报告：T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，隔离端口 8767）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions）。
+- TA 执行中/待验收：T-031 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，隔离端口 8767，报告已到达）；T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，附件 Session 隔离修复）。
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - TA 模型规则（2026-09-15 用户会话）：新 TA 优先 `MODEL-1`（codex `gpt-5.6-luna` high）；Codex 五小时额度触发限额后按 `MODEL-3` 级联（`cbc deepseek-v4.1-flash` → 限速 → `cbc glm-5.3-flash` → 仍限速 → 回 DeepSeek）。已派发中的 TA 不回溯切换模型。
 - 用户追加口径（2026-09-15，Codex 五小时额度实测 96%）：**新任务直接派 `cbc deepseek-v4.1-flash`**（T-035 即按此派发）；**已在跑的 codex luna 任务（T-031 / T-032 / T-033）不重做、不再消耗 Codex 额度，待其停下后用 `session_handoff` 接续到 `cbc deepseek-v4.1-flash`**，接续时以原任务 brief + worktree 现场 + 源 session 历史为交接材料。
@@ -466,21 +466,22 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
 - 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告，由 MA 建立决策点
-- 当前阶段：验证执行中（TA running）
-- 下一动作：等待 T-031 TA 报告，把结论回填 T-027.1 / T-027.2 的测试证据
+- 当前阶段：真实隔离验证已完成；报告发现服务端缺陷 T031-001，暂不能作为全部通过交付
+- 下一动作：由 T-037 修复 structured attachment 跨 Session owner 绕过；修复后重跑负路径与相关回归，再回填 T-027.1 / T-027.2 测试证据
 - 阻塞：无
-- 目标：在隔离服务实例（8767 或 8765，**禁止 8768**）上用真实 HTTP/WS + 真实 Chromium 验证 `main@429cafd` 已合入的附件输入、发送事务与路径投影链路，补齐此前记录的“未做真实服务/API 集成”缺口，为 T-027.1、T-027.2 的开发者验收提供分层证据。
+- 目标：在隔离服务实例 `8767`（**禁止 8768**；`8765` 未使用）上用真实 HTTP/WS + 真实 Chromium 验证 `main@429cafd` 已合入的附件输入、发送事务与路径投影链路，补齐此前记录的“未做真实服务/API 集成”缺口，为 T-027.1、T-027.2 的开发者验收提供分层证据。
 - 验证范围：客户端上传→发送→队列/history→Worker 收到 canonical 绝对路径；UI opaque editor/download href 与跨 Session 拖入复用服务端引用；chip/inline 禁止跨 Session 的负路径；Send 后清空与失败恢复；目录整批拒绝、HTML 富文本转纯文本、图片/HTML 文件保持原文件；旧 Markdown/`@"path"`/带行号/Windows/UNC 回归；`../` 路径穿越、越权引用、stale 路径的安全负用例。
 - 边界：只读验证，不得修改产品代码；不 commit/不合入/不 push；不操作 8768、QQ 服务、用户 dirty 文件；真实浏览器行为必须用真实 Chromium，不得只用合成 DataTransfer。
 - 工作树/分支：`D:\project\pan-worktrees\verify-attachment-chain-e2e-20260915`；`audit/verify-attachment-chain-e2e-20260915`；基线 `main@429cafd`（MA 已用 `git worktree add` 注册）
 - TA/任务：`ses_826c588ce84122b5`；`verify-attachment-chain-e2e-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-4`；已 `report_subscribe`
 - 提交：无（验证任务，不产生产品代码改动）
-- 测试/未验证项：本任务自身即验证；未做项 = 真人开发者验收、真实第三方 provider/CLI 发送链路
+- 测试/未验证项：真实 HTTP/WS/Chromium（8767）、Python 14 passed、前端 6 files/79 tests、build 均有报告证据；正向链路与大多数负路径通过；structured parts 跨 Session 越权负路径失败（T031-001）；另有既有 browser one-pixel 失败、mobile、第三方 provider/QQ、真实 Finder/桌面剪贴板和真实 provider 崩溃恢复未验证；MA 已核对源码根因，修复后需独立复验；真人开发者验收阻塞
 - 有序待办：
-  - [ ] 建立隔离服务实例并确认端口/身份对齐（非 8768）
-  - [ ] 完成真实 HTTP/WS + Chromium 端到端用例并记录原始证据
-  - [ ] 完成负路径与安全边界验证
-  - [ ] 交付报告并由 MA 核验证据
+  - [x] 建立隔离服务实例并确认端口/身份对齐（非 8768）
+  - [x] 完成真实 HTTP/WS + Chromium 端到端用例并记录原始证据
+  - [x] 完成负路径与安全边界验证（发现 T031-001）
+  - [x] 交付报告；MA 已核对源码根因，修复后再做完整证据复验
+  - [ ] T031-001 修复后的独立回归与重新验收
   - [ ] 合入 main（本任务无产品代码改动，如发现缺陷则另立返工项）
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：不适用（无产品代码改动）；push：否
@@ -567,6 +568,32 @@
   - [x] 合入 main（MA 核验后按 `AUTH-001`）
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：`82823ad`；push：否
+
+### T-037：修复 structured attachment 的跨 Session 隔离绕过
+
+- 优先级/依赖：T-031 发现的 High 服务端边界缺陷；既定 DEC-002 已明确 chip/inline/待发送 structured attachment 不得跨 Session
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
+- 执行模式：端到端实现与验证；不改变 DEC-002 语义，保留正文 editor/server-file 链接经过服务端校验后的跨 Session 复用
+- 决策门：无；若无法安全区分 structured parts 与正文引用，或必须扩大权限/数据语义，停止并报告
+- 当前阶段：实现/验证执行中（TA running）
+- 下一动作：等待 `ses_022781914942f1b2` 报告 → MA 核验 diff 与定向回归 → 按 `AUTH-001` 合入本地 main
+- 阻塞：无
+- 目标：跨 Session 直接提交其他 Session 的 structured `attachmentId` 返回 `attachment_session_mismatch`，不得入队；同 Session structured attachment 继续通过；合法正文 editor/server-file 跨 Session 复用继续通过
+- 起点：`packages/web/server.py` 的 `_attachment_id_error()` 已有 owner 校验，但 `_normalize_message_parts()` 传入 `allow_cross_session=True` 并调用 `_import_attachment_reference()`，由 T-031 真实 8767 E2E 复现
+- 边界：只改服务端实现、直接相关回归测试和必要文档；不改 dist、不碰 8768、不改 T-033/T-035 worktree；不 push；只提交本分支，MA 验收后按 `AUTH-001` 合入本地 main
+- 工作树/分支：`D:\project\pan-worktrees\attachment-session-isolation-20260915`；`fix/attachment-session-isolation-20260915`；基线 `main@e50fd32`
+- TA/任务：`ses_022781914942f1b2`；`attachment-session-isolation-20260915`；cbc `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；已 `report_subscribe`；task `T-037-implement-attachment-session-isolation-20260915`
+- 提交：待 TA 完成
+- 测试/未验证项：待 TA 报告；必须分别记录同 Session structured、跨 Session mismatch/no queue、合法正文 editor/server-file 跨 Session 复用，以及相关附件回归；真人开发者验收仍待用户
+- 有序待办：
+  - [ ] 调查并实现最小服务端修复
+  - [ ] 新增/调整跨 Session structured parts 回归
+  - [ ] 验证合法正文 editor/server-file 跨 Session 复用不回归
+  - [ ] 定向测试、diff check、worktree clean
+  - [ ] 交付报告并由 MA 核验
+  - [ ] 合入 main（测试通过后按 `AUTH-001`）
+  - [ ] 开发者验收
+- 合入/push 状态：合入 main：未开始；push：否
 
 ## 四、计划要做的任务
 
