@@ -1,20 +1,21 @@
 # Pan 工作流总览
 
 > 当前工作流真源。约束策略见 [constraints.md](constraints.md)。旧 overview 已删除，历史内容已迁移到本文件，不再并行维护。
+> 归档记录见 [developLog.md](developLog.md)。
 >
 > 维护者：Pan SMA；迁移日期：2026-09-12
 
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`b424af6`（2026-09-15 核对，已登记 T-039 挂起方案任务）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037/T-038 已合入、仍待开发者验收；**未 push**。
-- `practical`：`D:\project\Pan`（practical 工作树）；本次工作流文档维护未改动它。
+- `main`：`1f55021`（2026-09-15 本轮复核）；T-004、T-007、T-009 本轮完成归档；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037/T-038 已合入、仍待开发者验收；**未 push**。
+- `practical`：分支 ref 已与 `main` 同为 `1f55021`；`D:\project\Pan` 工作树仍为 detached `f76bcd1`、clean，本次未改动它。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
 ## 工作流控制
 
-- 整体状态：T-027 批次与 T-030、T-035、T-037、T-038 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`；T-038 合并提交 `317e46e`）；T-031 已完成 T-037 修复后的真实复验，T-033 真实运行时验证已完成并发现 D-1/D-2，T-032 调查已闭环待 `DEC-003`；当前批次已收束，继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
+- 整体状态：T-004、T-007、T-009 已归档；T-027 批次与 T-030、T-035、T-037、T-038 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`；T-038 合并提交 `317e46e`）；T-031 已完成 T-037 修复后的真实复验，T-033 真实运行时验证已完成并发现 D-1/D-2，T-032 调查已闭环待 `DEC-003`；当前批次已收束，继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
 - 当前焦点：`DEC-003` 决策（T-032 第 2 档）；T-036 调查方案待决；T-039 挂起待商讨
 - 可执行：无；其余任务待开发者验收、用户决策或被用户暂停/取消
 - TA 执行中/待验收：无活跃 TA；T-034 浏览器/UI 真实证据已完成、待开发者验收；T-036 终态广播次序调查已完成、等待方案决策；T-038/T-035/T-037 及 T-027 批次仍待开发者验收。一次性已完成 TA session 已清理。
@@ -86,7 +87,7 @@
 ### T-001：Session prompt 拆分与非递归交接准备（旧编号 1）
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，待开发者验收
+- 当前阶段：开发者已验收；关联的 Session prompt UI 后续仍由 T-020 独立追踪
 - 目标/结论：将 `system_prompt` 拆为 `original_prompt` 与 `handoff_prompt`，计算兼容的 `systemPrompt`；持久化、旧 JSON、worker/HTTP/MCP/导入/分支路径均已接入，不猜测历史混合文本。
 - 工作树/提交：历史 feature 与 practical 承接提交 `77a2e66`；main `bf73b5b`。
 - 测试/未验证：真实 handoff 按安全边界未执行。
@@ -97,7 +98,7 @@
 ### T-002：Session Details / Rename / Usage / System prompt UI（旧编号 2）
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
+- 当前阶段：开发者已验收；关联的 Session Details 后续仍由 T-020 独立追踪
 - 目标/实现：Session name 复制、rename 预填全选、Usage 默认折叠、System prompt 折叠并保留换行、Codex quota 窗口过滤、ChatMessages 底部跟随行为。
 - 工作树/提交：`D:\project\pan-worktrees\session-detail-usage-rename-20260909`；最终 `e716f617`；main 整合 `f497d35196e7bbddde3aee564619871acc277edc`。
 - 测试/未验证：46 files / 407 tests、lint、build 通过；未做真实 browser/mobile E2E。
@@ -108,21 +109,10 @@
 ### T-003：ChatMessages 底部跟随与 Scroll to bottom（旧编号 3）
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，开发者已验收
+- 当前阶段：开发者已验收；exact-bottom 一像素基线问题由 T-034 证据单独追踪
 - 结论：距底部 `<=48px` 时跟随并隐藏按钮，超过时显示按钮且不吸附历史浏览；保留分页、会话切换和几何快照处理。
 - 工作树/提交：来源 practical `1f05127`；main `51a159c`。
 - 测试/未验证：前端相关及全量测试曾通过；真实 browser/mobile 滚动物理行为未做 E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [x] 开发者验收
-
-### T-004：Windows 窄编码日志兼容与 CI（旧编号 4）
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，开发者已验收
-- 结论：stdout 编码失败使用 `backslashreplace`；回归测试和 CI Python 版本/配置已同步。
-- 提交：`c734d6a`，后续 `31e1ee3`。
-- 测试/未验证：本地复现修复；Python workflow、前端 Vitest、lint、build 曾通过。
 - 有序待办：
   - [x] 合入 main
   - [x] 开发者验收
@@ -148,17 +138,6 @@
   - [x] 合入 main
   - [ ] 开发者验收
 
-### T-007：MCP `model_list` adapter 发现改进（旧编号 8）
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，开发者已验收
-- 结论：空 adapter 返回 `adapter_required` 与可用 adapter；指定 adapter 后查询其模型，不静默选择 CBC。
-- 工作树/提交：来源 `e66613e6`；main `0e431e5`。
-- 测试/未验证：`py_compile`、`git diff --check` 通过；历史环境曾阻塞定向 pytest，未做 live MCP E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [x] 开发者验收
-
 ### T-008：带行号 Markdown 文件链接在 Editor 中打开（旧编号 9）
 
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
@@ -169,17 +148,6 @@
 - 有序待办：
   - [x] 合入 main
   - [ ] 开发者验收
-
-### T-009：Vanilla 前端彻底移除与归档（旧编号 10）
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，开发者已验收
-- 结论：React 为唯一前端；旧 Vanilla 源码、入口和路由移除并归档；dist 缺失时返回可操作 503。
-- 提交：来源 `5ffd395c`，dist 修复 `2947d0c`，随本地整合进入 main。
-- 测试/未验证：`test_web_frontend.py` 4 passed、`test_config_reload.py` 19 passed；全量 pytest 曾有 quota docstring 基线失败；未做真实服务/browser E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [x] 开发者验收
 
 ### T-010：Codex Session 上下文窗口与压缩阈值设置（旧编号 11）
 
