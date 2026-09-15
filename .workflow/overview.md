@@ -7,20 +7,20 @@
 ## 当前项目事实
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`bd86416`（2026-09-15 核对，T-037 合并与收束文档已提交）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037 真实复验已通过；**未 push**。
+- `main`：`1173520`（2026-09-15 核对，附件隔离复验收束文档已提交）；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037 真实复验已通过；**未 push**。
 - `practical`：`D:\project\Pan`（practical 工作树）；本次工作流文档维护未改动它。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
 ## 工作流控制
 
-- 整体状态：T-027 批次与 T-030、T-035、T-037 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`）；T-031 已完成 T-037 修复后的真实复验，T-033 接续仍在执行，T-032 调查已闭环待 `DEC-003`；继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
+- 整体状态：T-027 批次与 T-030、T-035、T-037 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`）；T-031 已完成 T-037 修复后的真实复验，T-033 真实运行时验证已完成并发现 D-1/D-2，T-032 调查已闭环待 `DEC-003`；当前批次已收束，继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
 - 当前焦点：T-035 移动端 Detail 全屏；T-031 / T-033 两项独立真实实例验证；`DEC-003` 决策（T-032 第 2 档）
-- 可执行：T-033 的 watchdog/运行时真实验证；其余任务待开发者验收或被用户暂停/取消
-- TA 执行中/待验收：T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，隔离端口 8766；原 `ses_1385abb15d4b3b3e` 已归档）；T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，8767，已完成）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已完成并合入）。
+- 可执行：T-032 的 `DEC-003` 决策后续；T-033 D-1/D-2 是否立项修复；其余任务待开发者验收或被用户暂停/取消
+- TA 执行中/待验收：T-033 接续 `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，8766，已完成）；T-031 续验 `ses_826c588ce84122b5`（codex `gpt-5.6-luna`，high，bypass，8767，已完成）；T-035 `ses_34efb6996f826a27`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已合入）；T-037 实现 `ses_022781914942f1b2`（cbc `deepseek-v4.1-flash`，high，bypassPermissions，已完成并合入）。
 - 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
 - 待执行后置动作：T-033、T-037 及其直接复验/整合全部收束后，向 QQ 联系人“焕之”发送一条一行简报；内容按最终事实概括本批次完成项、未通过项和仍待开发者验收项；不得提前发送，也不得重复 message_id `504271875`。
-- TA 模型规则（2026-09-15 用户最新口径）：当前批次（T-033、T-037 及其直接收束/复验）保持现有模型，不回溯切换；该批次全部完成后，所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
+- TA 模型规则（2026-09-15 用户最新口径）：当前批次已完成，后续所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`，并在 adapter 支持时显式开启 thinking（`always_thinking_enabled`）。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
 - 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
 - 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029 仅完成挂起立项，未开始推进
 - 决策阻塞：`DEC-003`（T-032 第 2/3 档实现范围；不阻塞其他任务）
@@ -500,6 +500,7 @@
 - 推荐方案：第 1 档（MA 纪律，零代码，**已立即采用**）→ 第 2 档（报告与源队列项身份贯通 + 队列摘要，建议作为近期实现）→ 第 3 档（完整队列/报告事件模型，与 T-029 统一，成本与迁移风险高）。
 - 文档落点建议：新建 `docs/design/ma-ta-report-granularity.md`（完整模型）；`docs/design/queue-at-most-once.md` 补 report↔source item 关系与"sent_to_cli ≠ 业务完成"；`docs/skills/pan/SKILL.md` 只放 MA 操作纪律与已知限制。
 - 关联：与挂起的 T-029（Session queue 查询与修改 MCP）能力缺口相关，但方案不得假定 T-029 已实现；同场景运行时行为证据由 T-033 提供。
+- T-033 真实 8766 证据已回填：A 执行中追发 B 时，B 确实进入 provider、TA history 与 delivery ledger，说明 FIFO 排队本身未丢失；但 `send` 来源的 report `taskId` 恒为 `null`（D-2），且主动 kill running worker 不产生 completion report（D-1），均属于报告身份/完成信号可观测性缺口。
 - TA/任务：`ses_704ba1fd334045b6`；`ma-ta-task-ordering-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-1`；已完成报告，MA 抽查核验通过
 - 工作树/分支：`D:\project\pan-worktrees\ma-ta-task-ordering-20260915`；`audit/ma-ta-task-ordering-20260915`；基线 `main@52a434b`；worktree clean（无提交）
 - 提交：无（仅调查，不产生产品代码改动）
@@ -519,8 +520,8 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
 - 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
 - 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告
-- 当前阶段：验证执行中（第 1 次接续**未交付报告**，见下；用户已明确选择 A，已向第 2 次接续发送覆盖性执行口径）
-- 下一动作：等待 T-033（`ses_c8671119a2dd9bb4`）按方案 A 交付最终报告；其 A/B 排队行为证据回填 T-032
+- 当前阶段：真实隔离实例 E2E 已完成；报告发现 D-1/D-2，未修改产品代码
+- 下一动作：将运行时证据回填 T-032；D-1/D-2 是否另立修复任务由 MA/用户决定
 - 阻塞：无（E2E-ENV-002 已给出绕行方案并写入简报）
 - 目标：在 8766 隔离实例上验证 Worker 生命周期、持久队列投递、完成报告链路与 zombie/watchdog 行为，补齐多个已合入批次共同记录的“未做真实服务/运行时 E2E”缺口。
 - 验证范围：spawn → 执行 → done → idle 回收 → 自动重建与 `cliSessionId` resume；assign 幂等与 send 排队 / 无 worker 入队 / watchdog 拉起；`queue_pending` 跨重启恢复；`report_subscribe` 收到 done/error 报告字段；zombie 报告；A/B 排队可观察性行为取证；`send_force` restart、不存在/已删 session、服务重启恢复等边界。
@@ -532,14 +533,14 @@
 - 环境约束记录（E2E-ENV-002，MA 已核验并写入简报）：① `tests/support/isolated_http_server.py:66-67` 的端口白名单只有 `{8767, 8765}`，**8766 会被 `SystemExit` 拒绝** → 绕行方案：复制 launcher 到 worktree 内的临时文件并扩展白名单，**不改动已提交文件**；② worktree 内无 `config.json` 时 worker 默认 `idle_sec=300`/`timeout_sec=300`/`task_timeout_sec=1800`；用户已选择**方案 A**，因此本次 E2E 允许用临时 `config.json` 将 `idle_sec` 缩短到约 20s 以验证回收链路，但报告必须标明这是**非默认配置证据**，结束删除 `config.json` 并确认 worktree 干净，不得把它表述为默认 300s 的时序证据；③ `tests/support/fake_stream_cli.py:27-32` 的 gate scope 硬绑 workdir basename（`real-fifo`/`real-recovery`/`real-manager`）；④ 只有 `running`/`queued` 状态的 worker 被杀才可能产生 zombie 报告（idle 被 kill 不报）。
 - 测试口径决策（用户会话，2026-09-15）：选择 A——保留缩短 `idle_sec` 的 T-033 watchdog E2E 路径；进程内 watchdog 定时语义仍由既有回归覆盖，T-033 以非默认临时阈值加速验证真实服务中的回收后果，并单独标注证据边界。
 - 提交：无（验证任务，不产生产品代码改动）
-- 测试/未验证项：**已取得**——源码审查（入口行号见原报告）、`compileall` + `git diff --check` 通过、进程内 Python 回归 77 passed（`test_worker_watchdog` / `test_worker_global_watchdog` / `test_report_subscription` / `test_queue_restart_hardening`）；**未取得**——真实服务/API/WS、真实 CLI Worker 子进程、`queue_pending` 跨重启恢复、zombie 报告、A/B 排队观察（两轮均未启动实例）。真人开发者验收仍待用户
+- 测试/未验证项：真实 8766 服务/API/WebSocket/CLI worker E2E 已完成；C1/C2/C3/C5/C6 通过，done report 通过；C4 的 running-worker kill completion report 失败并确认 D-1；D-2 为 `send` 来源报告 `taskId=null` 的协议缺口；idle 回收为临时 `idle_sec=20` 非默认证据，默认 300s 时序未验证；进程内 77 passed、静态检查与清理均完成；真人开发者验收仍待用户
 - 有序待办：
-  - [ ] 8766 隔离实例启动与端口/数据根核对（用 launcher 副本）
-  - [ ] Worker 生命周期用例
-  - [ ] 队列投递与幂等用例
-  - [ ] 报告链路与 zombie 用例
-  - [ ] A/B 排队行为取证（供 T-032）
-  - [ ] 交付报告并由 MA 核验证据
+  - [x] 8766 隔离实例启动与端口/数据根核对（用 launcher 副本）
+  - [x] Worker 生命周期用例
+  - [x] 队列投递与幂等用例
+  - [x] 报告链路与 zombie 用例（发现 D-1）
+  - [x] A/B 排队行为取证（供 T-032）
+  - [x] 交付报告并由 MA 核验证据
   - [ ] 合入 main（无产品代码改动；如发现缺陷则另立返工项）
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：不适用；push：否
