@@ -658,11 +658,12 @@
 - 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-2`、`TEST-1`、`TEST-2`
 - 执行模式：分阶段决策门（先调查事件/账本持久化次序与 `enrich_after_result` 的写入面，再决定是否实现）
 - 决策门：若调查证明需要改变事件/账本持久化次序或 Session 状态写入时机，先给方案、影响与风险，不直接实现
-- 当前阶段：调查执行中（仅只读）
-- 下一动作：等待 `ses_64167d0e212ce98b` 报告；MA 核验事实后决定是否建立实现任务
+- 当前阶段：调查完成，MA 已核验；是否实现等待方案/用户决策
+- 下一动作：保留调查结论，若采纳方案再另立实现任务；不在本调查中直接改次序
 - 阻塞：无；本任务使用 Codex Luna high，thinking 关闭
 - 工作树/分支：`D:\project\pan-worktrees\terminal-broadcast-investigation-20260915`；`audit/terminal-broadcast-investigation-20260915`；基线 `main@7f7bf74`
-- TA/任务：`ses_64167d0e212ce98b`；`T-036-investigate-terminal-broadcast-order-20260915`
+- TA/任务：`ses_64167d0e212ce98b`；`T-036-investigate-terminal-broadcast-order-20260915`；已完成，worktree clean
+- 测试/未验证项：MA 用 `E:/software/miniforge/python.exe` 独立复跑 `tests/test_backend_perf_opt.py tests/test_worker_oneshot_usage.py`，`11 passed`；独立 timing probe 观察 CBC `enrich_after_result` 约 200.5ms 且期间 asyncio ticker 为 0。未做真实服务/provider、多 Session 并发、慢 WS、崩溃/重启及默认配置延迟分布验证。
 - 目标：`packages/core/worker.py` 终态路径当前次序为 `w.status="done"`(≈963) → `adapter.enrich_after_result(s)`（cbc `adapter.py:475` 含 `time.sleep(0.2)`、kimi `adapter.py:455` 为 `0.3`，均在 asyncio 循环上）→ `_flush_history_now`（`session.py:43` 进程级 `_SAVE_LOCK` 落盘）→ **才** `_bcast worker.result`(≈1027) → `w.status="idle"` + 广播(≈1052)。即"清除指示灯的那个事件"被阻塞工作推迟。需评估：能否在不破坏事件/账本持久化次序语义的前提下降低该延迟（先广播后落盘？把 enrich 移出事件循环？分帧？），给出最小改动、风险与验收方式。
 - 已知约束：`enrich_after_result` 会写 `Session` 状态，不能简单挪到线程；改次序属语义变更，须先报告。
 - 有序待办：
