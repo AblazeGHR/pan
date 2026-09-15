@@ -597,6 +597,26 @@
   - [ ] 开发者验收
 - 合入/push 状态：合入 main：`083a09d`；push：否
 
+### T-038：修复主动 kill running worker 的完成报告缺失
+
+- 优先级/依赖：T-033 真实 8766 E2E 缺陷 D-1；不处理同报告中的 D-2（受 `DEC-003` 决策门约束）
+- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`TEST-1`、`TEST-2`
+- 执行模式：实现与定向验证；需保持 idle kill、watchdog、正常 provider error 路径不重复投递
+- 当前阶段：已派发，TA 执行中
+- 下一动作：等待 `ses_0ca1e712f13feee7` 报告 → MA 核验 diff/测试 → 按 `AUTH-001` 合入本地 main
+- 决策门：无；D-2 另受 `DEC-003` 约束，不在本任务扩展
+- 工作树/分支：`D:\project\pan-worktrees\worker-kill-report-20260915`；`fix/worker-kill-report-20260915`；基线 `main@d61638d`
+- TA/任务：`ses_0ca1e712f13feee7`；Codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；thinking 关闭；task `T-038-fix-running-worker-kill-report-20260915`
+- 边界：不需要启动服务或访问任何 876x 端口；不 push；只改产品代码、直接相关测试和必要文档；worktree clean 后提交
+- 有序待办：
+  - [ ] 核对 D-1 根因与现有 zombie/error 投递语义
+  - [ ] 实现最小修复并补 running-kill/no-duplicate 回归
+  - [ ] 定向测试与 diff check
+  - [ ] 交付报告并由 MA 核验
+  - [ ] 合入 main（测试通过后按 `AUTH-001`）
+  - [ ] 开发者验收
+- 合入/push 状态：未合入；push：否
+
 ## 四、计划要做的任务
 
 ### T-029：Session queue 查询与修改 MCP
