@@ -79,6 +79,8 @@ from packages.core.codex_quota_store import (
 from packages.core import main_lifecycle
 from packages.core import launcher
 from packages.core import notifications, reminders
+from packages.scheduler import api as scheduler_api
+from packages.scheduler import engine as scheduler_engine
 
 # ── logging ──
 
@@ -186,6 +188,11 @@ async def lifespan(app: FastAPI):
     worker.start_global_watchdog()
     background_jobs.start_recovery_loop()
     reminder_task = asyncio.create_task(_reminder_loop())
+    # 定时任务调度循环（同 background_jobs：拿不到 leader 锁的实例只服务读请求）
+    try:
+        await scheduler_engine.start_loop(on_event=scheduler_api.on_event)
+    except Exception as e:
+        _log(f"[Pan] Scheduler loop not started: {e}")
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -212,6 +219,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     worker.stop_global_watchdog()
+    await scheduler_engine.stop_loop()
     await background_jobs.stop_recovery_loop()
     # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
     # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
@@ -5963,6 +5971,11 @@ async def api_background_job_retry(job_id: str):
     except ValueError as exc:
         code = "job_not_retryable" if "cannot be retried" in str(exc) else "invalid_job"
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
+
+
+# ── 定时任务（scheduler 插件） ──
+scheduler_api.bind(broadcast=broadcast)
+app.include_router(scheduler_api.router)
 
 
 @app.get("/api/adapter/config")

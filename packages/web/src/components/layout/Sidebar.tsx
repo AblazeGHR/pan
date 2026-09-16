@@ -42,6 +42,7 @@ import {
   ChevronDown,
   Sun,
   Moon,
+  CalendarClock,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -402,6 +403,20 @@ export function Sidebar() {
           <Code size={18} />
         </NavLink>
 
+        <NavLink
+          to="/schedules"
+          title="Scheduled tasks"
+          className={({ isActive }) =>
+            `p-1.5 rounded transition-colors ${
+              isActive
+                ? 'text-accent bg-accent/10'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
+            }`
+          }
+        >
+          <CalendarClock size={18} />
+        </NavLink>
+
         <div className="flex-1" />
 
         <button
@@ -494,6 +509,19 @@ export function Sidebar() {
               >
                 <Code size={12} />
                 Editor
+              </NavLink>
+              <NavLink
+                to="/schedules"
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <CalendarClock size={12} />
+                Tasks
               </NavLink>
             </div>
 
@@ -860,6 +888,19 @@ export function Sidebar() {
               >
                 <Code size={12} />
                 Editor
+              </NavLink>
+              <NavLink
+                to="/schedules"
+                className={({ isActive }) =>
+                  `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent font-medium'
+                      : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <CalendarClock size={12} />
+                Tasks
               </NavLink>
             </div>
           </div>

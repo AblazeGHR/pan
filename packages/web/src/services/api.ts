@@ -57,6 +57,19 @@ import type {
   ApiHealthResponse,
   AttachmentRef,
   MessagePart,
+  ScheduledTask,
+  ScheduledTaskInput,
+  ScheduledTaskPatch,
+  SchedulerStatus,
+  SchedulerApiError,
+  SchedulerNextFire,
+  TaskRun,
+  ApiScheduledTasksResponse,
+  ApiScheduledTaskResponse,
+  ApiTaskRunsResponse,
+  ApiSchedulerNextResponse,
+  ApiSchedulerStatusResponse,
+  ApiSchedulerActionResponse,
 } from '@/types';
 
 const BASE = '/api';
@@ -1223,4 +1236,110 @@ export async function updateWorkerSettings(
   });
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+// ── Scheduler (alarm-style scheduled tasks) ──
+
+/**
+ * Scheduler endpoints answer `{"ok":false,"error":{"code","message"}}`, i.e.
+ * `data.error?.message`; the string form covers older bare-`error` handlers.
+ */
+function schedulerErrorMessage(error: SchedulerApiError): string {
+  if (typeof error === 'string') return error;
+  return error.message || String(error.code);
+}
+
+function throwSchedulerError(error: SchedulerApiError): never {
+  throw new Error(schedulerErrorMessage(error));
+}
+
+export async function fetchScheduledTasks(): Promise<ScheduledTask[]> {
+  const data = await request<ApiScheduledTasksResponse>(`${BASE}/scheduler/tasks`);
+  if (data.error) throwSchedulerError(data.error);
+  return data.tasks || [];
+}
+
+export async function createScheduledTask(
+  input: ScheduledTaskInput,
+): Promise<ScheduledTask> {
+  const data = await request<ApiScheduledTaskResponse>(`${BASE}/scheduler/tasks`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (data.error) throwSchedulerError(data.error);
+  return data.task ?? ({ ...data } as unknown as ScheduledTask);
+}
+
+export async function updateScheduledTask(
+  taskId: string,
+  patch: ScheduledTaskPatch,
+): Promise<ScheduledTask> {
+  const data = await request<ApiScheduledTaskResponse>(
+    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}`,
+    { method: 'PATCH', body: JSON.stringify(patch) },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  return data.task ?? ({ ...data } as unknown as ScheduledTask);
+}
+
+export async function deleteScheduledTask(taskId: string): Promise<ApiSchedulerActionResponse> {
+  const data = await request<ApiSchedulerActionResponse>(
+    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}`,
+    { method: 'DELETE' },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  return data;
+}
+
+export async function pauseScheduledTask(taskId: string): Promise<ScheduledTask> {
+  const data = await request<ApiScheduledTaskResponse>(
+    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/pause`,
+    { method: 'POST' },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  return data.task ?? ({ ...data } as unknown as ScheduledTask);
+}
+
+export async function resumeScheduledTask(taskId: string): Promise<ScheduledTask> {
+  const data = await request<ApiScheduledTaskResponse>(
+    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/resume`,
+    { method: 'POST' },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  return data.task ?? ({ ...data } as unknown as ScheduledTask);
+}
+
+export async function runScheduledTaskNow(taskId: string): Promise<ApiSchedulerActionResponse> {
+  const data = await request<ApiSchedulerActionResponse>(
+    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/run-now`,
+    { method: 'POST' },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  return data;
+}
+
+export async function fetchTaskRuns(taskId: string, limit = 50): Promise<TaskRun[]> {
+  const data = await request<ApiTaskRunsResponse>(
+    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/runs?limit=${limit}`,
+  );
+  if (data.error) throwSchedulerError(data.error);
+  return data.runs || [];
+}
+
+/** GET /api/scheduler/next — upcoming fire times (taskId omitted = all tasks). */
+export async function fetchSchedulerNext(
+  taskId: string | null,
+  count = 5,
+): Promise<SchedulerNextFire[]> {
+  const params = new URLSearchParams({ count: String(count) });
+  if (taskId) params.set('task_id', taskId);
+  const data = await request<ApiSchedulerNextResponse>(`${BASE}/scheduler/next?${params.toString()}`);
+  if (data.error) throwSchedulerError(data.error);
+  return data.next || [];
+}
+
+export async function fetchSchedulerStatus(): Promise<SchedulerStatus> {
+  const data = await request<ApiSchedulerStatusResponse>(`${BASE}/scheduler/status`);
+  if (data.error) throwSchedulerError(data.error);
+  return { running: data.running === true, tickSec: data.tickSec, dueScanned: data.dueScanned, lastTickAt: data.lastTickAt };
 }
