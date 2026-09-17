@@ -249,6 +249,7 @@ class Worker:
     # 入队时从 session 读、自增后随 item.seq 一起落盘。
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
+    _current_task_idempotent: bool = False  # formal assign vs inherited send context
     _current_source_session_id: str | None = None  # 当前 item 的来源 Session（审计元数据）
     # 当前正在执行的持久 queue item。直到 provider hand-off 成功前，item
     # 仍保留在 Session.queue_pending；这里仅保留运行期引用用于结果配对。
@@ -387,7 +388,7 @@ def _mark_worker_tasks_error(worker_id: str, reason: str) -> int:
             pending_task_ids = {
                 item.get("taskId")
                 for item in session.queue_pending
-                if isinstance(item, dict) and item.get("type") == "task"
+                if _is_formal_task_item(item)
                 and item.get("taskId")
             }
     marked = 0
@@ -746,6 +747,31 @@ def _ack_current_task(w: Worker, s) -> None:
     w._current_queue_item = None
 
 
+def _clear_active_task_if_current(s, task_id: str | None) -> bool:
+    """Clear the persisted routing context only for the completed task.
+
+    A newer assign may already have replaced ``active_task_id`` while an older
+    FIFO item was still running.  Comparing the ids prevents that completion
+    from clearing the newer task's context.
+    """
+    if s is None or not task_id or getattr(s, "active_task_id", None) != task_id:
+        return False
+    s.active_task_id = None
+    return True
+
+
+def _clear_active_task_if_not_pending(s) -> bool:
+    """Drop a completed/aborted context, while retaining a queued retry."""
+    active = getattr(s, "active_task_id", None) if s is not None else None
+    if not active:
+        return False
+    if any(_is_formal_task_item(item) and item.get("taskId") == active
+           for item in (getattr(s, "queue_pending", None) or [])):
+        return False
+    s.active_task_id = None
+    return True
+
+
 def _ack_current_reports(w: Worker, s) -> None:
     """收到最终 result 后清理当前报告批次运行上下文。
 
@@ -770,6 +796,7 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
         }
         _ack_current_task(w, s)
         _ack_current_reports(w, s)
+        _clear_active_task_if_current(s, task_id)
         # The existing terminal-result save should also persist the final
         # legal state, avoiding extra full-session writes on this hot path.
         await _record_legal_worker_state(w, "error", "task/error", persist=False)
@@ -787,12 +814,13 @@ async def _finish_task_error(w: Worker, s, result: str) -> None:
         "sourceSessionId": w._current_source_session_id,
     })
     await _enqueue_report(w.session_id, "error", result, task_id, w.worker_id)
-    if task_id and task_id in _task_status:
+    if w._current_task_idempotent and task_id and task_id in _task_status:
         _task_status[task_id] = {
             "status": "error", "result": result,
             "workerId": w.worker_id, "taskId": task_id, "ts": time.monotonic(),
         }
     w._current_task_id = None
+    w._current_task_idempotent = False
     w._current_source_session_id = None
     w.status = "idle"
     if s is None:
@@ -975,6 +1003,8 @@ async def _read_stdout(w: Worker):
             # 由 send_task 分配并随 item 落盘）。序号计数器在 session.task_seq
             # 上，跨 worker respawn 保持单调递增。
             task_seq = w._current_seq
+            completed_task_id = w._current_task_id
+            completed_task_idempotent = w._current_task_idempotent
 
             if s:
                 result_text = adapter.extract_result_text(event)
@@ -995,6 +1025,7 @@ async def _read_stdout(w: Worker):
                 # 处理，这里不得再次按结果修改 queue_pending。
                 _ack_current_task(w, s)
                 _ack_current_reports(w, s)
+                _clear_active_task_if_current(s, completed_task_id)
                 # enrich: 从 CLI 原生存储获取消耗数据（如 raw_usage）
                 enrichment = None
                 try:
@@ -1035,18 +1066,23 @@ async def _read_stdout(w: Worker):
                 "sourceSessionId": task_source_session_id,
                 **({"notification": completion_notification} if completion_notification else {}),
             })
+            # Snapshot the input metadata before any cleanup.  Reports must be
+            # paired with this turn's queue item, never with a global/previous
+            # task id.
             # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
-            await _enqueue_report(w.session_id, w.status, result_text, w._current_task_id, w.worker_id)
+            await _enqueue_report(w.session_id, w.status, result_text,
+                                  completed_task_id, w.worker_id)
             # 幂等：完成对应 taskId（若有）
-            if w._current_task_id and w._current_task_id in _task_status:
-                _task_status[w._current_task_id] = {
+            if completed_task_idempotent and completed_task_id and completed_task_id in _task_status:
+                _task_status[completed_task_id] = {
                     "status": w.status,
                     "result": result_text,
                     "workerId": w.worker_id,
-                    "taskId": w._current_task_id,
+                    "taskId": completed_task_id,
                     "ts": time.monotonic(),
                 }
             w._current_task_id = None
+            w._current_task_idempotent = False
             w.status = "idle"
             # A3：idle 过渡即时广播（前端此前靠 result 推断，存在延迟）
             await _bcast({
@@ -1211,6 +1247,7 @@ async def _legacy_consumer_reference(w: Worker):
                 text = await _maybe_inject_memory(_session(w), claimed["text"])
             w._current_seq = claimed.get("seq")
             w._current_task_id = claimed.get("taskId")
+            w._current_task_idempotent = _is_formal_task_item(claimed)
             w._current_source_session_id = claimed.get("sourceSessionId")
             w._current_queue_item = claimed
         else:
@@ -1390,6 +1427,8 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
                 entry["sourceSessionId"] = item.get("sourceSessionId")
             if item.get("taskId") is not None:
                 entry["taskId"] = item.get("taskId")
+                if item.get("taskIdSource") is not None:
+                    entry["taskIdSource"] = item.get("taskIdSource")
             if item.get("clientMessageId"):
                 entry["clientMessageId"] = item["clientMessageId"]
             if isinstance(item.get("parts"), list):
@@ -1552,12 +1591,14 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
         source = _task_source(items[0])
         w._current_seq = items[0].get("seq")
         w._current_task_id = items[0].get("taskId")
+        w._current_task_idempotent = _is_formal_task_item(items[0])
         w._current_source_session_id = items[0].get("sourceSessionId")
         history_text = items[0]["text"]
     else:
         source = "report"
         w._current_seq = None
         w._current_task_id = None
+        w._current_task_idempotent = False
         w._current_source_session_id = None
         history_text = _format_report_batch(items)
     w._current_queue_item = items[0] if kind == "task" else None
@@ -1623,6 +1664,7 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
             w._current_report_items = []
         if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
             w._current_task_id = None
+            w._current_task_idempotent = False
         _wake_after_queue_unit(w, s)
 
 
@@ -1872,6 +1914,19 @@ def _is_task_item(item) -> bool:
     return isinstance(item, dict) and item.get("type") == "task"
 
 
+def _is_formal_task_item(item) -> bool:
+    """Return whether a task row owns the assign idempotency key.
+
+    An inherited ``taskId`` links an agent_send message to the active formal
+    task for reporting, but must not make repeated follow-up messages look like
+    duplicate assign calls.  Older task rows have no origin marker and are
+    therefore treated as formal for backward compatibility.
+    """
+    return (_is_task_item(item)
+            and bool(item.get("taskId"))
+            and item.get("taskIdSource", "assign") != "active")
+
+
 def _is_valid_task_item(item) -> bool:
     return _is_task_item(item) and isinstance(item.get("text"), str)
 
@@ -2026,14 +2081,14 @@ def _find_queue_item_by_idempotency(s, client_message_id=None, task_id=None):
             continue
         if client_message_id and item.get("clientMessageId") == client_message_id:
             return item
-        if task_id and item.get("type") == "task" and item.get("taskId") == task_id:
+        if task_id and _is_formal_task_item(item) and item.get("taskId") == task_id:
             return item
     for item in (getattr(s, "queue_delivery_ledger", {}) or {}).values():
         if not isinstance(item, dict):
             continue
         if client_message_id and item.get("clientMessageId") == client_message_id:
             return item
-        if task_id and item.get("type") == "task" and item.get("taskId") == task_id:
+        if task_id and _is_formal_task_item(item) and item.get("taskId") == task_id:
             return item
     return None
 
@@ -2437,6 +2492,7 @@ async def _legacy_consume_pending_reports(w: Worker, s):
     # 报告不是 assign 任务：无 seq 配对，清空当前配对上下文避免 last_result 错位
     w._current_seq = None
     w._current_task_id = None
+    w._current_task_idempotent = False
     w._replaying = False
 
     injected_text = await _maybe_inject_memory(s, text)
@@ -2933,8 +2989,19 @@ async def _enqueue_zombie_report(w: Worker, reason: str) -> None:
     if w._zombie_reported:
         return
     w._zombie_reported = True
+    task_id = w._current_task_id
     await _enqueue_report(w.session_id, "error", f"worker died: {reason}",
-                          w._current_task_id, w.worker_id, report_type="zombie")
+                          task_id, w.worker_id, report_type="zombie")
+    # A hand-off-complete task has no queue row to recover.  Clear its
+    # persisted context after emitting the exact zombie report; an unfinished
+    # queue row remains the active retry context for the replacement Worker.
+    s = _session(w)
+    if s and _clear_active_task_if_not_pending(s):
+        try:
+            await _sess.save_async(s)
+        except Exception as exc:
+            _log.warning("[Worker %s] failed to persist zombie task context clear: %s",
+                         w.worker_id, exc)
 
 
 # ── watchdog：超时 / 空闲回收 ──
@@ -3724,10 +3791,13 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         "timestamp": datetime.now().isoformat(),
         "taskSeq": w._current_seq,
     }
+    completed_task_id = w._current_task_id
+    completed_task_idempotent = w._current_task_idempotent
     # One-shot 没有独立的 stdout result reader；在解析完本轮输出后同样以
     # result/error 为完成确认点，从持久队列移除当前 task。
     _ack_current_task(w, s)
     _ack_current_reports(w, s)
+    _clear_active_task_if_current(s, completed_task_id)
     # 用量/credit 落账：与 stream 路径（_read_stdout）同构——调用
     # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
     # 这也让 cbc/Claude 的 one-shot fallback 不丢 usage/cost（Claude result 事件
@@ -3779,17 +3849,18 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         **({"notification": completion_notification} if completion_notification else {}),
     })
     # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
-    await _enqueue_report(w.session_id, status, result, w._current_task_id, w.worker_id)
+    await _enqueue_report(w.session_id, status, result, completed_task_id, w.worker_id)
     # 幂等：完成对应 taskId（若有）
-    if w._current_task_id and w._current_task_id in _task_status:
-        _task_status[w._current_task_id] = {
+    if completed_task_idempotent and completed_task_id and completed_task_id in _task_status:
+        _task_status[completed_task_id] = {
             "status": status,
             "result": result,
             "workerId": w.worker_id,
-            "taskId": w._current_task_id,
+            "taskId": completed_task_id,
             "ts": time.monotonic(),
         }
     w._current_task_id = None
+    w._current_task_idempotent = False
 
 
 # ── lifecycle ──
@@ -4274,6 +4345,13 @@ async def _kill_worker_unlocked(
 
     # H2: worker 被杀 → 名下 pending 的 taskId 标 error（防止幂等重试永久卡 pending）
     _mark_worker_tasks_error(worker_id, "worker killed")
+    s = _session(w)
+    if s and _clear_active_task_if_not_pending(s):
+        try:
+            await _sess.save_async(s)
+        except Exception as exc:
+            _log.warning("[Worker %s] failed to persist kill task context clear: %s",
+                         worker_id, exc)
     # A1 崩溃安全：kill 前 flush 防抖缓冲的流式块
     if w._hist_dirty:
         await _flush_history_now(w)
@@ -4389,6 +4467,13 @@ async def cleanup_worker_background(worker_id: str, session_id: str):
         _unregister_worker(w)
         # H2: worker 回收 → 名下 pending 的 taskId 标 error（与 kill_worker 一致）
         _mark_worker_tasks_error(worker_id, "worker cleanup")
+        s = _session(w)
+        if s and _clear_active_task_if_not_pending(s):
+            try:
+                await _sess.save_async(s)
+            except Exception as exc:
+                _log.warning("[Worker %s] failed to persist cleanup task context clear: %s",
+                             worker_id, exc)
         try:
             await _bcast({
                 "type": "worker.destroyed",
@@ -4465,6 +4550,7 @@ async def _restart_tasks(w: Worker):
     w._task_done = asyncio.Event()
     w._current_seq = None
     w._current_task_id = None
+    w._current_task_idempotent = False
     w._current_queue_item = None
     w._claimed_queue_index = None
     w._current_report_items = []
@@ -4935,14 +5021,15 @@ def _durable_task_id_seen(s, task_id: str | None) -> bool:
     if not task_id or s is None:
         return False
     if any(
-        isinstance(item, dict)
-        and item.get("type") == "task"
+        _is_formal_task_item(item)
         and item.get("taskId") == task_id
         for item in (s.queue_pending or [])
     ):
         return True
     return any(
-        isinstance(entry, dict) and entry.get("taskId") == task_id
+        isinstance(entry, dict)
+        and entry.get("taskId") == task_id
+        and entry.get("taskIdSource", "assign") != "active"
         for entry in (s.history or [])
     )
 
@@ -4951,7 +5038,9 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              task_id: str | None,
                              client_message_id: str | None,
                              source_session_id: str | None = None,
-                             parts: list[dict] | None = None) -> tuple[dict | None, str | None]:
+                             parts: list[dict] | None = None,
+                             *, idempotent_task_id: bool = True,
+                             activate_task: bool = False) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
     if _shutdown_started:
         return None, "Pan main service is shutting down"
@@ -4972,7 +5061,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     # in-memory registry is only an acceleration layer; queue/history checks
     # keep a retry after process restart or registry TTL expiry from running a
     # second provider turn.
-    if task_id:
+    if idempotent_task_id and task_id:
         existing = _find_queue_item_by_idempotency(s, task_id=task_id)
         if existing is not None:
             return existing, None
@@ -4981,6 +5070,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     old_seq = s.task_seq
     old_accepted_input_ids = list(s.accepted_input_ids)
     old_queue_revision = getattr(s, "queue_revision", 0)
+    old_active_task_id = getattr(s, "active_task_id", None)
     if seq is None:
         s.task_seq += 1
         seq = s.task_seq
@@ -4998,6 +5088,10 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         "revision": 1,
         "createdAt": time.time(),
     }
+    if task_id is not None:
+        # An inherited id is reporting context only; an assign id is also the
+        # durable idempotency key.
+        item["taskIdSource"] = "assign" if idempotent_task_id else "active"
     item["queueItemId"] = item["id"]
     if source_sid is not None:
         item["sourceSessionId"] = source_sid
@@ -5013,6 +5107,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
             del s.accepted_input_ids[:-_ACCEPTED_INPUT_ID_LIMIT]
     item["position"] = len(s.queue_pending)
     s.queue_pending.append(item)
+    if activate_task:
+        s.active_task_id = task_id
     _remember_queue_item(s, item, _DELIVERY_QUEUED)
     s.queue_revision = old_queue_revision + 1
     try:
@@ -5023,6 +5119,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         s.task_seq = old_seq
         s.accepted_input_ids = old_accepted_input_ids
         s.queue_revision = old_queue_revision
+        s.active_task_id = old_active_task_id
         s.queue_delivery_ledger.pop(item["id"], None)
         return None, f"Failed to persist queued task: {exc}"
     _log.info("[Session %s] queued task id=%s source=%s sourceSessionId=%s",
@@ -5178,7 +5275,8 @@ async def _restart_if_native_interrupt_stalls(w: Worker, generation: int) -> Non
 async def send_task(worker_id: str, text: str, source: str = "agent",
                     seq: int | None = None, task_id: str | None = None,
                     client_message_id: str | None = None,
-                    source_session_id: str | None = None) -> str | None:
+                    source_session_id: str | None = None,
+                    idempotent_task_id: bool = True) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -5205,7 +5303,9 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
     # 只放无正文 queue_signal，consumer 每次只看 FIFO 队首。worker 死亡/回收
     # 后由 create_worker / 全局 watchdog 自动恢复消费。
     item, persist_error = await _persist_task_item(
-        s, text, source, seq, task_id, client_message_id, source_sid)
+        s, text, source, seq, task_id, client_message_id, source_sid,
+        idempotent_task_id=idempotent_task_id,
+        activate_task=idempotent_task_id and task_id is not None)
     if persist_error:
         return persist_error
     if item is None:
@@ -5268,6 +5368,10 @@ async def assign(session_id: str, text: str, source: str = "agent",
         target, source, source_session_id)
     if source_error:
         return {"status": "error", "result": source_error}
+    if task_id is None:
+        # An assign without a business id starts an unlabelled task and must
+        # not accidentally inherit the previous completed assignment.
+        target.active_task_id = None
     # 惰性清理过期条目（TTL），防止注册表长期运行无界增长（H2 泄漏）
     _prune_task_status()
     # Durable queue/history wins over the process-local registry.  A stale
@@ -5355,8 +5459,14 @@ async def send(worker_id: str, text: str, source: str = "agent",
         return {"status": "error", "result": "Worker not found"}
     if not _process_alive(w):
         return {"status": "error", "result": "Worker process dead"}
-    send_err = await send_task(worker_id, text, source=source,
-                               source_session_id=source_session_id)
+    s = _session(w)
+    inherited_task_id = (
+        getattr(s, "active_task_id", None)
+        if source == "agent" and s is not None else None
+    )
+    send_err = await send_task(
+        worker_id, text, source=source, task_id=inherited_task_id,
+        source_session_id=source_session_id, idempotent_task_id=False)
     if send_err:
         return {"status": "error", "result": send_err}
     return {"status": "queued", "workerId": worker_id, "sessionId": w.session_id}
@@ -5376,6 +5486,10 @@ async def send_session(session_id: str, text: str, source: str = "agent",
       非空 && 无活 worker → create_worker）spawn 后经 _recover_pending_signals
       补发无正文 queue_signal 分发——「send = 写给 agent」。
     - held（takeover 模式）→ 透传错误，不吞错不入队。
+
+    Pan agent messages copy the Session's persisted active_task_id at enqueue
+    time.  The copied value is report context only; it is not an assign
+    idempotency key.  User-originated messages keep taskId=None.
     """
     if _shutdown_started:
         return {"status": "error", "result": "Pan main service is shutting down"}
@@ -5386,6 +5500,13 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         target, source, source_session_id)
     if source_error:
         return {"status": "error", "result": source_error}
+    # Capture the routing context before a possible force restart.  The value
+    # is copied onto this message's durable queue row and is never recomputed
+    # from a later/previous result.
+    inherited_task_id = (
+        getattr(target, "active_task_id", None)
+        if source_type == "agent" else None
+    )
     w = find_alive_worker_by_session(session_id)
     alive = w is not None
     if not alive:
@@ -5393,7 +5514,9 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         if not s:
             return {"status": "error", "result": f"Session {session_id} not found"}
         item, persist_error = await _persist_task_item(
-            s, text, source_type, None, None, client_message_id, source_sid)
+            s, text, source_type, None, inherited_task_id,
+            client_message_id, source_sid,
+            idempotent_task_id=False)
         if persist_error:
             return {"status": "error", "result": persist_error}
         # The queue write is the acknowledgement boundary.  Start recovery
@@ -5407,8 +5530,10 @@ async def send_session(session_id: str, text: str, source: str = "agent",
             return {"status": "error", "result": restarted}
         w = restarted
     send_err = await send_task(w.worker_id, text, source=source_type,
+                               task_id=inherited_task_id,
                                client_message_id=client_message_id,
-                               source_session_id=source_sid)
+                               source_session_id=source_sid,
+                               idempotent_task_id=False)
     if send_err:
         return {"status": "error", "result": send_err}
     return {"status": "queued", "workerId": w.worker_id, "sessionId": session_id}

@@ -103,6 +103,21 @@ session_create → report_subscribe → agent_assign → queue_pending 收报告
 | `agent_send(session_id, text)` | 向**已有 Session** 发消息（多轮协作） | 消息排队，目标空闲（当前任务完成后）才处理，**不打断**进行中任务；**无活 worker 不报错**——入持久队列，watchdog 自动 spawn 后分发 | 多轮追问 / 补充线索 / 不着急的后续指令（排队等待） |
 | `agent_send_force(session_id, text)` | 向**已有 Session** 强制送达 | **restart + send**：重启 worker 进程再发消息，立即生效，**打断**进行中任务；无活 worker 时直接入队不报错 | 操作约束 / 方向变更 / 紧急指令 / worker 卡死·忙·连接异常时兜底 |
 
+T-040 任务关联规则（单 Session、单 Worker、FIFO）：`agent_assign(...,
+task_id="T-001")` 入队时把 `T-001` 设为该 Session 的持久活动任务。随后
+`agent_send`/`agent_send_force` 在入队时复制这个 taskId 到自己的 queue item，
+所以连续普通消息可以共同回传 `T-001`，但每条消息仍是独立的 FIFO item，不会被
+assign 幂等去重。新的 assign（如 `T-002`）入队后立即切换活动上下文，后续 send
+继承 `T-002`。正式任务完成或终止后只清空仍等于该 taskId 的活动上下文；已入队的
+普通消息保留自己入队时的快照，之后的新 send 得到 `null`。这只清理路由关联，不
+清理 CLI/session history，因此不改变普通多轮会话的上下文行为。
+
+活动上下文和 queue item 一起持久化。Worker 重启/恢复只恢复未完成的正式 queue
+item；不会从 `lastResult`、history 或“最近任务”猜测已完成任务。单 Worker 的
+FIFO 保证切换顺序：旧任务的已入队普通消息仍先处理，新的 assign 及其后续消息按
+队列顺序处理。`queueItemId` 仍只是内部技术 ID，不是业务编号；本语义不引入
+`sourceQueueItemId`、`deliveryUnitId` 或事件模型。
+
 ```
 1. agent_list()（= session_list）→ 找到目标 session_id 与 workerStatus
 2. 按需选择：
@@ -389,6 +404,12 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 - `worker_handoff`（MCP）与 `POST /api/handoff` 已于 **2026-08-26 彻底移除**（原为立项 4.7 弃用后归档）。串行依赖与并行 fan-out 一律 `agent_assign`（别名 `worker_assign`）+ `report_subscribe`（§3）。
 - 理由（原立项 4.7）："等"应是 MA 的默认 idle 状态，而非阻塞调用；阻塞会占用协调者、易被中断。
 - **幂等**：`agent_assign` 的 `task_id` 是幂等键——重发同 task_id：已完成 → 返回缓存结果；进行中 → 返回 `{"status":"pending",...}` 不重复入队（防双跑）。taskId 注册表有 TTL 惰性清理。
+- 普通 `agent_send` 继承的 taskId 仅用于 report 配对，不是幂等键；连续 send
+  不会因为共享同一 taskId 而合并或去重。正式 assign 使用 `taskIdSource=assign`，
+  inherited send 使用 `taskIdSource=active`（这是 queue item 元数据，不是新的业务
+  ID）。
+- 现有进程内 `_task_status` 注册表仍是全局 taskId 作用域；本次只在 queue/history
+  的持久去重路径区分 formal assign 与 inherited send，未扩大或重定义该既有作用域。
 
 ### 7.5 `////by agent` 前缀
 

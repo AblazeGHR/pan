@@ -9,6 +9,25 @@ description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills
 
 Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`（代码默认 **8768**；main/test 测试或隔离运行使用 8767 或 8765；由 `config.json` 的 `port` 字段或 `PAN_PORT` 环境变量覆盖）。全部返回 JSON；错误通常返回 `{"error": "..."}`。**API 无鉴权、绑 loopback（127.0.0.1）**——不要在非本机环境暴露端口。
 
+## Agent taskId / send 继承（T-040）
+
+`POST /api/assign` 的 `taskId` 是正式任务幂等键。成功入队后，它成为目标
+Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原有幂等语义
+返回 pending/receipt，不重复执行。
+
+`POST /api/send`（以及 `agent_send_force` 重启后使用的兼容 task 路径）不生成新的
+业务编号。对来源为 Pan agent 的消息，入队时复制目标 Session 当时的
+`active_task_id`；没有活动任务就是 `taskId: null`。普通消息的 inherited taskId
+只用于完成 report 配对，不参加 assign 去重，所以连续 send 不会互相去重。正式
+任务完成/终止后，新的普通 send 不继承旧 taskId；已入队消息仍使用自己入队时的
+快照。Session 重启/恢复只从持久 queue 中的未完成正式 task 恢复活动上下文，绝不
+从 `lastResult` 或 history 猜测。
+
+单 Session/单 Worker/FIFO 下，新的 assign 入队即切换活动上下文；旧任务及其已经
+入队的普通消息仍按 FIFO 处理。`queueItemId` 只是内部技术 ID，不是业务 taskId；
+本规则不引入 `sourceQueueItemId`、`deliveryUnitId` 或事件模型。既有进程内
+`_task_status` 仍保持全局 taskId 注册作用域，本次未修改其作用域。
+
 ## 端点清单
 
 ### 批量 / 更新 / 特殊操作（MCP 覆盖不到或直调排查用）

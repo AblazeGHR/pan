@@ -203,6 +203,11 @@ class Session:
     queue_delivery_ledger: dict = field(default_factory=dict)
     queue_revision: int = 0
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
+    # The latest formal assign task selected for this Session.  This is a
+    # routing context for subsequent agent_send messages, not a second queue
+    # or an idempotency registry.  It is persisted so a Worker respawn cannot
+    # fall back to a process-local "last task" guess.
+    active_task_id: str | None = None
     # Browser-originated messages are acknowledged only after the queue item is
     # durable.  Keep a bounded receipt ledger so a WebSocket reconnect can
     # safely retransmit the same clientMessageId without starting the task twice.
@@ -252,6 +257,7 @@ class Session:
                  queue_delivery_ledger: dict | None = None,
                  queue_revision: int = 0,
                  task_seq: int = 0,
+                 active_task_id: str | None = None,
                  accepted_input_ids: list[str] | None = None,
                   report_subscriptions=None,
                  qq_subscriptions=None, notification_settings=None, *,
@@ -312,6 +318,7 @@ class Session:
         except (TypeError, ValueError):
             self.queue_revision = 0
         self.task_seq = task_seq
+        self.active_task_id = active_task_id
         self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
@@ -426,6 +433,8 @@ class Session:
         # the repository's existing snake_case field style.
         if "last_legal_worker_state" not in data and "lastLegalWorkerState" in data:
             data["last_legal_worker_state"] = data.pop("lastLegalWorkerState")
+        if "active_task_id" not in data and "activeTaskId" in data:
+            data["active_task_id"] = data.pop("activeTaskId")
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
             ("cbc_session_id", "cli_session_id"),
@@ -476,6 +485,7 @@ class Session:
             "queue_delivery_ledger": self.queue_delivery_ledger,
             "queue_revision": self.queue_revision,
             "task_seq": self.task_seq,
+            "active_task_id": self.active_task_id,
             "accepted_input_ids": self.accepted_input_ids,
             "report_subscriptions": sorted(self.report_subscriptions),
             "qq_subscriptions": sorted(self.qq_subscriptions),

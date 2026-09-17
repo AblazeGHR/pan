@@ -1374,7 +1374,9 @@ def agent_send(session_id: str, text: str = "") -> dict:
     pendingSpawn=true），由全局 watchdog 自动 spawn worker 后分发
     （「send = 写给 agent，进程是顺带的」）。
 
-    Pan 内 session 发送时自动加 ////by agent 身份前缀（立项 4.8）。
+    Pan 内 session 发送时自动加 ////by agent 身份前缀（立项 4.8）。若目标
+    Session 有持久活动 taskId，消息入队时继承它用于 report 配对；没有活动
+    任务时保持 taskId=null，连续 send 不会因共享 taskId 被幂等去重。
 
     Args:
         session_id: Agent（= session）ID
@@ -1407,7 +1409,9 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
     无活 worker 时**不报错**——restart 无从谈起，消息入该 agent 的持久队列，
     由全局 watchdog 自动 spawn 后分发。
 
-    Pan 内 session 发送时自动加 ////by agent 身份前缀（立项 4.8）。
+    Pan 内 session 发送时自动加 ////by agent 身份前缀（立项 4.8）。重启后的
+    入队同样继承目标 Session 的活动 taskId；该值只用于 report 配对，不新增
+    业务编号。
 
     Args:
         session_id: Agent（= session）ID
@@ -1428,7 +1432,8 @@ def agent_send_force(session_id: str, text: str = "") -> dict:
     if not isinstance(result, dict) or result.get("error"):
         return result
     caller = _caller_identity()
-    body = {"sessionId": session_id, "text": text, "source": "agent"}
+    body = {"sessionId": session_id, "text": text, "source": "agent",
+            "inheritTaskId": True}
     if caller and caller.get("id"):
         body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/task", body)

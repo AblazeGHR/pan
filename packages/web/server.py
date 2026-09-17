@@ -723,6 +723,7 @@ def _session_to_api(s: sess.Session):
         "workdir": s.workdir,
         "history": _api_history(s.id, s.history),
         "lastResult": s.last_result,
+        "activeTaskId": s.active_task_id,
         "lastLegalWorkerState": s.last_legal_worker_state,
         "rawUsage": s.raw_usage,
         "totalUsage": s.total_usage,
@@ -4755,6 +4756,12 @@ async def api_task(data: dict):
     send_kwargs = {"source": source_type}
     if data.get("taskId") is not None:
         send_kwargs["task_id"] = data.get("taskId")
+    elif data.get("inheritTaskId") and source_type == "agent" and session_id:
+        # agent_send_force uses this legacy task route after restarting.  Keep
+        # the same enqueue-time snapshot as /api/send without turning the
+        # inherited id into a second assign idempotency key.
+        send_kwargs["task_id"] = target.active_task_id if target else None
+        send_kwargs["idempotent_task_id"] = False
     if data.get("clientMessageId") is not None:
         send_kwargs["client_message_id"] = data.get("clientMessageId")
     if source_session_id is not None:
@@ -4793,6 +4800,8 @@ async def api_send(data: dict):
     sessionId 无活 worker 时**不报错**：消息入 Session.queue_pending
     （type=task），由全局 watchdog spawn 后经 _recover_pending_signals
     分发。force=true 时对活 worker 先 restart 再投递（worker_send_force 语义）。
+    source=agent 的消息在入队时继承目标 Session.active_task_id 作为 report
+    配对上下文；该值不参加 assign 幂等，source=user 不继承。
     隔离由 MCP 层实施（与 /api/claim 同约定），本端点不检查 pan_access。
     """
     worker_id = data.get("workerId")
@@ -4872,7 +4881,8 @@ async def api_notify(data: dict):
 async def api_assign(data: dict):
     """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。
 
-    taskId 可选：带 taskId 时走幂等语义（同 taskId 重发不双跑），见 worker.assign。
+    taskId 可选：带 taskId 时走幂等语义（同 taskId 重发不双跑），见 worker.assign；
+    成功入队后该值成为 Session 的持久 active_task_id。
     """
     session_id = data.get("sessionId")
     text = data.get("text")
