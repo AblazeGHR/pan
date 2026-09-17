@@ -250,6 +250,37 @@ def test_history_projects_existing_local_link_to_opaque_editor_reference(monkeyp
     assert "https://example.test" in content
 
 
+def test_live_result_and_stream_projection_match_history_projection(monkeypatch, tmp_path):
+    first, _second = _setup(tmp_path, monkeypatch)
+    source = tmp_path / "docs" / "live.md"
+    source.parent.mkdir()
+    source.write_text("one\ntwo\nthree", encoding="utf-8")
+    content = "See [live](docs/live.md#L2-L3) and [web](https://example.test)"
+
+    stream = srv._project_worker_event({
+        "type": "worker.stream",
+        "sessionId": first.id,
+        "event": {"type": "assistant", "message": {"content": content}},
+    })
+    stream_content = stream["event"]["message"]["content"]
+    result = srv._project_worker_event({
+        "type": "worker.result",
+        "sessionId": first.id,
+        "result": content,
+    })
+
+    for projected in (stream_content, result["result"]):
+        assert "/api/attachments/editor/att_" in projected
+        assert "docs/live.md" not in projected
+        assert "https://example.test" in projected
+
+    first.history.append({"role": "assistant", "content": content})
+    first.last_result = {"status": "done", "result": content}
+    api = srv._session_to_api(first)
+    assert "/api/attachments/editor/att_" in api["lastResult"]["result"]
+    assert "/api/attachments/editor/att_" in srv._session_summary(first)["lastMessage"]
+
+
 def test_attachment_source_rejects_relative_workdir_escape(tmp_path):
     session = _sess.Session(id="ses_escape", name="Escape", workdir=str(tmp_path / "work"))
     session.workdir and Path(session.workdir).mkdir()

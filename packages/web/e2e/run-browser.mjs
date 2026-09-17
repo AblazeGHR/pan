@@ -232,6 +232,76 @@ await runCase('markdown files through real editor and external link preservation
   assert.ok(readPaths.some((url) => url.includes('linked.ts')));
 });
 
+await runCase('live local link click and real mouse attachment drag', async (page) => {
+  await selectChat(page);
+  const card = page.locator('[data-session-card-id]').filter({ hasText: 'Chat Stream' }).first();
+  const sessionId = await card.getAttribute('data-session-card-id');
+  assert.ok(sessionId);
+  const liveContent = '[live file](notes.md#L42-L48)';
+  const injected = await page.request.post(`${baseURL}/__e2e/stream`, {
+    data: {
+      sessionId,
+      event: { type: 'assistant', role: 'assistant', content: liveContent, final: true },
+    },
+  });
+  assert.equal(injected.status(), 200);
+
+  const liveLink = page.getByRole('link', { name: 'live file' });
+  await liveLink.waitFor({ state: 'visible' });
+  const href = await liveLink.getAttribute('href');
+  assert.match(href || '', /^\/api\/attachments\/editor\/att_[A-Za-z0-9]{32}\?session_id=[^#]+#L42-L48$/);
+  assert.equal(await liveLink.getAttribute('draggable'), 'true');
+
+  // The same projected link must retain the existing click-to-editor path.
+  await liveLink.click();
+  await page.waitForURL(/\/react\/editor$/);
+  await page.locator('button[title="Edit"]:visible').click();
+  await page.locator('.monaco-editor').waitFor({ state: 'visible' });
+  await poll(
+    () => page.evaluate(() => window.monaco?.editor?.getEditors?.()[0]?.getSelection() ?? null),
+    (selection) => selection?.startLineNumber === 42 && selection?.endLineNumber === 48,
+  );
+
+  // Return without reloading history so the live message remains the drag
+  // source. locator.dragTo performs a real browser pointer drag, not a forged
+  // DataTransfer-only dispatch.
+  await page.goBack();
+  await page.waitForURL(/\/react\/?$/);
+  const liveLinkAfterEditor = page.getByRole('link', { name: 'live file' });
+  await liveLinkAfterEditor.waitFor({ state: 'visible' });
+  const editor = page.getByTestId('rich-text-composer');
+  await editor.click();
+  await page.keyboard.type('请处理 ');
+  const editorBox = await editor.boundingBox();
+  assert.ok(editorBox);
+  await liveLinkAfterEditor.dragTo(editor, {
+    targetPosition: { x: Math.min(80, editorBox.width / 2), y: editorBox.height / 2 },
+  });
+  await editor.locator('[data-composer-attachment]').waitFor({ state: 'visible' });
+
+  const queueResponse = page.waitForResponse((response) =>
+    response.url().includes(`/api/sessions/${encodeURIComponent(sessionId)}/queue`)
+    && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Send' }).click();
+  const response = await queueResponse;
+  assert.equal(response.status(), 200);
+  const queued = await response.json();
+  assert.equal(queued.ok, true);
+  assert.ok(queued.item.parts?.some((part) =>
+    part.type === 'attachment' && part.source === 'server_file'
+      && part.displayName === 'notes.md' && part.attachmentId,
+  ));
+  const serialized = JSON.stringify(queued.item);
+  assert.equal(Object.prototype.hasOwnProperty.call(queued.item, 'path'), false);
+  assert.ok(!serialized.includes('D:\\'));
+
+  // A drag must not poison the source link's normal click behavior.
+  await liveLinkAfterEditor.click();
+  await page.waitForURL(/\/react\/editor$/);
+  await page.locator('.monaco-editor').waitFor({ state: 'visible' });
+});
+
 async function runCrossSessionServerFileDrop() {
   const name = 'cross-session server-file drag and optimistic send';
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');

@@ -569,6 +569,65 @@ async def _send_ws(ws: WebSocket, data: dict):
     await asyncio.wait_for(ws.send_json(data), timeout=2)
 
 
+def _project_worker_event(data: dict) -> dict:
+    """Project local Markdown links before exposing a Worker event to UI.
+
+    Persisted Session history is projected by ``_api_history`` when it is
+    fetched.  Live stream/result events and result replay have a separate
+    outbound path, however, so leaving them raw makes a link clickable but not
+    draggable until the next history refresh.  Keep the stored provider text
+    unchanged and project only the copies sent to browser/agent clients.
+    """
+    if not isinstance(data, dict):
+        return data
+    session_id = data.get("sessionId")
+    if not isinstance(session_id, str) or not session_id:
+        return data
+
+    event_type = data.get("type")
+    if event_type == "worker.result" and isinstance(data.get("result"), str):
+        projected = _project_editor_links(session_id, data["result"])
+        return {**data, "result": projected} if projected != data["result"] else data
+
+    if event_type != "worker.stream" or not isinstance(data.get("event"), dict):
+        return data
+
+    event = dict(data["event"])
+    changed = False
+    for key in ("content", "stream_text"):
+        value = event.get(key)
+        if isinstance(value, str):
+            projected = _project_editor_links(session_id, value)
+            if projected != value:
+                event[key] = projected
+                changed = True
+    message = event.get("message")
+    if isinstance(message, dict):
+        projected_message = dict(message)
+        message_content = message.get("content")
+        if isinstance(message_content, str):
+            projected = _project_editor_links(session_id, message_content)
+            if projected != message_content:
+                projected_message["content"] = projected
+                changed = True
+        elif isinstance(message_content, list):
+            projected_blocks = list(message_content)
+            blocks_changed = False
+            for index, block in enumerate(projected_blocks):
+                if not isinstance(block, dict) or not isinstance(block.get("text"), str):
+                    continue
+                projected = _project_editor_links(session_id, block["text"])
+                if projected != block["text"]:
+                    projected_blocks[index] = {**block, "text": projected}
+                    blocks_changed = True
+            if blocks_changed:
+                projected_message["content"] = projected_blocks
+                changed = True
+        if changed:
+            event["message"] = projected_message
+    return {**data, "event": event} if changed else data
+
+
 async def broadcast(data: dict):
     """向 dashboard（ws_clients）+ agent（agent_clients）广播。
 
@@ -576,6 +635,10 @@ async def broadcast(data: dict):
     拖累全部客户端（此前一个 TCP 缓冲满的客户端让整个 broadcast 卡 2s×N）。
     死连接在 gather 后统一剔除。
     """
+    # Keep the persisted provider/history representation untouched.  This is
+    # the common outbound boundary for live browser events and is intentionally
+    # before both dashboard and agent-client fan-out.
+    data = _project_worker_event(data)
     dead = set()
     clients = list(ws_clients)
     if clients:
@@ -652,7 +715,8 @@ async def _replay_agent_results(ws: WebSocket, session_ids: list[str]) -> None:
             "workerId": "",
             "sessionId": sid,
             "status": status,
-            "result": s.last_result.get("result"),
+            "result": _project_editor_links(
+                sid, str(s.last_result.get("result") or "")),
             "taskSeq": latest_seq,
             "replayed": True,
         })
@@ -693,6 +757,12 @@ def _session_to_api(s: sess.Session):
     a = get_adapter(s.adapter)
     config = load_config().get(s.adapter, {})
     ac = s.adapter_config
+    last_result = s.last_result
+    if isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
+        last_result = {
+            **last_result,
+            "result": _project_editor_links(s.id, last_result["result"]),
+        }
     mcp_lock_reason = _get_mcp_locked_state(s)
     return {
         "id": s.id,
@@ -722,7 +792,7 @@ def _session_to_api(s: sess.Session):
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
         "history": _api_history(s.id, s.history),
-        "lastResult": s.last_result,
+        "lastResult": last_result,
         "activeTaskId": s.active_task_id,
         "lastLegalWorkerState": s.last_legal_worker_state,
         "rawUsage": s.raw_usage,
@@ -783,9 +853,12 @@ def _session_summary(s: sess.Session) -> dict:
     if s.history:
         last = s.history[-1]
         if isinstance(last, dict):
-            last_text = _normalize_legacy_attachment_links(
+            last_text = _project_editor_links(
                 s.id,
-                str(last.get("content") or ""),
+                _normalize_legacy_attachment_links(
+                    s.id,
+                    str(last.get("content") or ""),
+                ),
             )[:200]
     return {
         "id": s.id,
