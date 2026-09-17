@@ -196,6 +196,7 @@ class Session:
     created_at: str = ""
     updated_at: str = ""
     order: int | None = None  # 用户自定义展示顺序（None = 未排序，按 created_at 排在末尾）
+    workspace_ids: list[str] = field(default_factory=list)  # zero or more durable workspace memberships
     managed: list[str] = field(default_factory=list)  # session ids this session manages
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
@@ -255,6 +256,7 @@ class Session:
                  created_at: str = "",
                  updated_at: str = "",
                  order: int | None = None,
+                 workspace_ids: list[str] | None = None,
                  managed: list[str] | None = None,
                  managed_by: str | None = None,
                  readonly_session: bool = False,
@@ -314,6 +316,9 @@ class Session:
             self.order = int(order) if order is not None else None
         except (TypeError, ValueError):
             self.order = None  # 落盘 JSON 中 order 损坏时降级为未排序
+        self.workspace_ids = list(dict.fromkeys(
+            item for item in (workspace_ids or []) if isinstance(item, str) and item
+        ))
         self.managed = managed if managed is not None else []
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
@@ -487,6 +492,7 @@ class Session:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "order": self.order,
+            "workspace_ids": list(self.workspace_ids),
             "managed": self.managed,
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
@@ -530,6 +536,7 @@ def create(name: str, model: str | None = None,
            always_thinking_enabled: bool = False,
            effort: str = "",
            max_thinking_tokens: int | None = None, *,
+           workspace_ids: list[str] | None = None,
            original_prompt: str | None | object = _PROMPT_UNSET,
            handoff_prompt: str | None = None) -> Session:
     # build adapter_config
@@ -568,6 +575,7 @@ def create(name: str, model: str | None = None,
         total_usage=total_usage,
         workdir=workdir,
         history=history or [],
+        workspace_ids=workspace_ids,
     )
     save(s)
     _cache[s.id] = s
@@ -988,6 +996,7 @@ def handoff_session(
             notification_settings=new_notification_settings,
             pan_access=new_pan_access,
             workdir=a.workdir,
+            workspace_ids=list(a.workspace_ids),
         )
 
     # ── 2. 关系网接替 ──
