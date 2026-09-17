@@ -572,7 +572,7 @@ class ClaudeAdapter:
             return _read_claude_jsonl_usage(s)
         except Exception:
             _log.debug("claude enrich_after_result failed", exc_info=True)
-            return None
+            raise
 
 
 # ── 入口解析 helper ──

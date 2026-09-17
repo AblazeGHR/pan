@@ -182,6 +182,10 @@ class Session:
     game_id: str | None = None        # RuleWhisper game identifier for MCP tool calls
     raw_usage: dict | None = None
     total_usage: dict | None = None
+    # Durable, retryable post-terminal usage work.  This is deliberately
+    # separate from queue_pending: it is not a user/provider message and must
+    # never affect FIFO delivery or report semantics.
+    usage_enrichment_pending: list[dict] = field(default_factory=list)
     workdir: str = ""
     history: list[dict] = field(default_factory=list)
     last_result: dict | None = None
@@ -243,6 +247,7 @@ class Session:
                  game_id: str | None = None,
                  raw_usage: dict | None = None,
                  total_usage: dict | None = None,
+                 usage_enrichment_pending: list[dict] | None = None,
                  workdir: str = "",
                  history: list[dict] | None = None,
                  last_result: dict | None = None,
@@ -293,6 +298,9 @@ class Session:
         self.game_id = game_id
         self.raw_usage = raw_usage
         self.total_usage = total_usage
+        self.usage_enrichment_pending = (
+            usage_enrichment_pending if usage_enrichment_pending is not None else []
+        )
         self.workdir = workdir
         self.history = history if history is not None else []
         self.last_result = last_result
@@ -471,6 +479,7 @@ class Session:
             "game_id": self.game_id,
             "raw_usage": self.raw_usage,
             "total_usage": self.total_usage,
+            "usage_enrichment_pending": self.usage_enrichment_pending,
             "workdir": self.workdir,
             "history": self.history,
             "last_result": self.last_result,

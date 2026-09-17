@@ -479,7 +479,7 @@ class OpencodeAdapter:
             }]
         except Exception:
             _log.debug("opencode enrich_after_result failed", exc_info=True)
-            return None
+            raise
 
 
 def _strip_jsonc(text: str) -> str:

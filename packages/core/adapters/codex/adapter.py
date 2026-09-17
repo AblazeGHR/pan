@@ -592,7 +592,7 @@ class CodexAdapter:
             }]
         except Exception:
             _log.debug("codex enrich_after_result failed", exc_info=True)
-            return None
+            raise
 
     # ── 内部：解析真实入口 ──
 

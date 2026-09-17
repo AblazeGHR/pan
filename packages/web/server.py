@@ -727,6 +727,7 @@ def _session_to_api(s: sess.Session):
         "lastLegalWorkerState": s.last_legal_worker_state,
         "rawUsage": s.raw_usage,
         "totalUsage": s.total_usage,
+        "usageEnrichmentPending": s.usage_enrichment_pending,
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,

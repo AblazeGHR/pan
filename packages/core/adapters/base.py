@@ -160,7 +160,8 @@ class CliAdapter(Protocol):
     def enrich_after_result(self, s: Session) -> list[dict] | None:
         """一轮对话结束后，从 CLI 原生存储获取消耗数据（token/credit 等）。
 
-        返回 None 表示该 adapter 不支持或本轮无数据。
+        返回 None 表示该 adapter 不支持或本轮无数据；provider 读取失败可
+        抛出异常，由 Worker 的 Session-scoped retry job 负责记录并重试。
         cbc: 读 JSONL 最新一条 assistant message 的 raw_usage。
         """
         ...

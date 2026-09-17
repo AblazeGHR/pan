@@ -437,7 +437,7 @@ class CbcAdapter:
             return _read_jsonl_new_entries(s)
         except Exception:
             _log.debug("enrich_after_result failed", exc_info=True)
-            return None
+            raise
 
     # ── enrich helpers ──
 

@@ -424,7 +424,7 @@ class KimiAdapter:
             return _read_kimi_new_entries(s)
         except Exception:
             _log.debug("kimi enrich_after_result failed", exc_info=True)
-            return None
+            raise
 
 
 # ── enrich helpers（G2，参照 cbc._read_jsonl_new_entries 结构）──

@@ -15,6 +15,7 @@ All persistent data lives in Session (session.py) — 即 Agent 的持久身份�
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import inspect
 import json
@@ -254,6 +255,10 @@ class Worker:
     # 当前正在执行的持久 queue item。直到 provider hand-off 成功前，item
     # 仍保留在 Session.queue_pending；这里仅保留运行期引用用于结果配对。
     _current_queue_item: dict | None = None
+    # A provider can repeat a terminal event during reconnect/replay.  This
+    # runtime guard prevents a second result/report for the same active turn;
+    # the durable usage job below provides the restart-side idempotency cursor.
+    _terminal_handled: bool = False
     # 已完成的协议序列化快照（仅兼容旧测试/嵌入方，队列真源仍在 Session）。
     _current_serialized: bytes | None = None
     # 兼容旧 consumer 的运行期位置字段；新 consumer 不依赖它决定持久语义。
@@ -329,11 +334,26 @@ _recovery_required: set[str] = set()
 # emits a generic wake-up and never stores queue payload.
 _queue_retry_tasks: dict[str, asyncio.Task] = {}
 _queue_locks: dict[str, asyncio.Lock] = {}
+_usage_enrichment_locks: dict[str, asyncio.Lock] = {}
+_usage_enrichment_tasks: dict[str, asyncio.Task] = {}
+_usage_enrichment_adapters: dict[str, CliAdapter] = {}
+
+# Usage lookup is provider-specific synchronous I/O (and cbc/kimi include a
+# deliberate post-result wait).  Keep it off the asyncio loop, retry forever
+# with bounded backoff, and persist the retry metadata so a service restart can
+# resume it without inventing another queue/event protocol.
+_ENRICH_RETRY_BASE_SEC = 1.0
+_ENRICH_RETRY_MAX_SEC = 30.0
 
 
 def queue_lock(session_id: str) -> asyncio.Lock:
     """Serialize queue API mutations and Worker reservation decisions per Session."""
     return _queue_locks.setdefault(session_id, asyncio.Lock())
+
+
+def _usage_enrichment_lock(session_id: str) -> asyncio.Lock:
+    """Serialize usage post-processing for one Session, across Workers."""
+    return _usage_enrichment_locks.setdefault(session_id, asyncio.Lock())
 
 _broadcast: callable = None
 
@@ -502,6 +522,395 @@ async def _record_legal_worker_state(
         w.worker_id, state, source, w.session_id,
     )
     return True
+
+
+def _terminal_enrichment_key(
+    task_id: str | None, task_seq: int | None, worker_id: str,
+    generation: int,
+) -> str:
+    """Build the durable idempotency key for one terminal turn."""
+    if task_id:
+        return f"task:{task_id}"
+    if task_seq is not None:
+        return f"seq:{task_seq}"
+    # Report batches and compatibility callers can lack both fields.  Their
+    # runtime _terminal_handled guard still suppresses duplicate events while
+    # this key makes a crash after the base save recoverable.
+    return f"worker:{worker_id}:generation:{generation}:{uuid.uuid4().hex}"
+
+
+def _queue_usage_enrichment(
+    s, adapter: CliAdapter, *, task_id: str | None, task_seq: int | None,
+    worker_id: str, generation: int,
+) -> str | None:
+    """Append one durable post-terminal usage job, without changing queues."""
+    if not callable(getattr(adapter, "enrich_after_result", None)):
+        return None
+    # Every built-in provider lookup is keyed by its native Session id.  A
+    # compatibility/direct stream caller without that id has no recoverable
+    # usage source, so do not create a no-op durable job (or an extra save).
+    if not s.cli_session_id:
+        return None
+    key = _terminal_enrichment_key(task_id, task_seq, worker_id, generation)
+    pending = getattr(s, "usage_enrichment_pending", None)
+    if not isinstance(pending, list):
+        pending = s.usage_enrichment_pending = []
+    if any(isinstance(job, dict) and job.get("key") == key for job in pending):
+        _usage_enrichment_adapters.setdefault(key, adapter)
+        return key
+    pending.append({
+        "key": key,
+        "adapter": getattr(adapter, "name", None) or s.adapter,
+        "taskId": task_id,
+        "taskSeq": task_seq,
+        "workerId": worker_id,
+        "generation": generation,
+        "state": "pending",
+        "attempts": 0,
+        "nextAttemptAt": 0.0,
+        "createdAt": time.time(),
+    })
+    # Keep the exact Worker adapter available for the current process (useful
+    # for registered extensions and tests); a restart falls back to the
+    # persisted adapter name below.
+    _usage_enrichment_adapters[key] = adapter
+    return key
+
+
+def _has_pending_usage_enrichment(s) -> bool:
+    return bool(
+        s is not None
+        and isinstance(getattr(s, "usage_enrichment_pending", None), list)
+        and s.usage_enrichment_pending
+    )
+
+
+def _enrichment_job(s, key: str) -> dict | None:
+    for job in getattr(s, "usage_enrichment_pending", []) or []:
+        if isinstance(job, dict) and job.get("key") == key:
+            return job
+    return None
+
+
+async def _run_usage_enrichment(session_id: str) -> None:
+    """Run durable usage jobs serially for one Session.
+
+    Adapter lookup and the whole synchronous enrich call run in a worker
+    thread.  The Session lock serializes post-processing jobs; the provider
+    receives a snapshot so a later terminal path can still persist/broadcast
+    without waiting for provider I/O or racing a provider cursor write.
+    """
+    lock = _usage_enrichment_lock(session_id)
+    async with lock:
+        while True:
+            s = _sess.get(session_id)
+            if s is None:
+                return
+            pending = getattr(s, "usage_enrichment_pending", None)
+            if not isinstance(pending, list) or not pending:
+                return
+            job = pending[0]
+            if not isinstance(job, dict) or not job.get("key"):
+                pending.pop(0)
+                try:
+                    await _sess.save_async(s)
+                except Exception:
+                    _log.exception(
+                        "[Session %s] failed to discard malformed usage enrichment job",
+                        session_id,
+                    )
+                    return
+                continue
+
+            next_attempt = job.get("nextAttemptAt", 0.0)
+            if isinstance(next_attempt, (int, float)) and next_attempt > time.time():
+                await asyncio.sleep(min(next_attempt - time.time(), _ENRICH_RETRY_MAX_SEC))
+                continue
+
+            # Every built-in enrich implementation mutates only usage-related
+            # Session fields (raw/total usage, model, and an adapter cursor).
+            # Run it against a detached snapshot: the live Session can receive
+            # the next terminal result while provider I/O is in progress.
+            before = {
+                "raw_usage": copy.deepcopy(s.raw_usage),
+                "total_usage": copy.deepcopy(s.total_usage),
+                "model": s.model,
+                "adapter_config": copy.deepcopy(s.adapter_config),
+                "pending": copy.deepcopy(s.usage_enrichment_pending),
+            }
+            try:
+                adapter = _usage_enrichment_adapters.get(job.get("key"))
+                if adapter is None:
+                    adapter = get_adapter(job.get("adapter") or s.adapter)
+                enrichment_session = copy.deepcopy(s)
+                enrichment = await asyncio.to_thread(
+                    adapter.enrich_after_result, enrichment_session,
+                )
+                if inspect.isawaitable(enrichment):
+                    enrichment = await enrichment
+                if enrichment:
+                    prev_total = s.total_usage
+                    s.raw_usage = _sess.accumulate_raw_usage(
+                        s.raw_usage, enrichment)
+                    s.total_usage = _sess.compute_total_usage(s.raw_usage)
+                    prev_credit = prev_total.get("credit", 0) if prev_total else 0
+                    new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
+                    _log.info(
+                        "[Session %s] usage enrichment credit: %.2f -> %.2f (+%.2f)",
+                        session_id, prev_credit, new_credit,
+                        new_credit - prev_credit,
+                    )
+                if not s.model and enrichment_session.model:
+                    s.model = enrichment_session.model
+                # Merge only provider cursor fields changed by the snapshot.
+                # This preserves unrelated live Session configuration updates.
+                before_config = before["adapter_config"] or {}
+                for key_name, value in enrichment_session.adapter_config.items():
+                    if before_config.get(key_name) != value:
+                        s.adapter_config[key_name] = value
+                # Remove by key rather than list position: another terminal
+                # may have appended a later job while this one was in a thread.
+                s.usage_enrichment_pending = [
+                    candidate for candidate in (s.usage_enrichment_pending or [])
+                    if candidate is not job and (
+                        not isinstance(candidate, dict)
+                        or candidate.get("key") != job.get("key")
+                    )
+                ]
+                await _sess.save_async(s)
+                _usage_enrichment_adapters.pop(job.get("key"), None)
+                _log.info(
+                    "[Session %s] usage enrichment complete key=%s attempts=%s",
+                    session_id, job.get("key"), job.get("attempts", 0),
+                )
+            except asyncio.CancelledError:
+                # Do not turn cancellation into a false success.  The durable
+                # pending job remains for the next Worker/service generation.
+                s.raw_usage = before["raw_usage"]
+                s.total_usage = before["total_usage"]
+                s.model = before["model"]
+                s.adapter_config = before["adapter_config"]
+                s.usage_enrichment_pending = before["pending"]
+                raise
+            except Exception as exc:
+                s.raw_usage = before["raw_usage"]
+                s.total_usage = before["total_usage"]
+                s.model = before["model"]
+                s.adapter_config = before["adapter_config"]
+                s.usage_enrichment_pending = before["pending"]
+                current = _enrichment_job(s, job.get("key"))
+                if current is None:
+                    # A concurrent cleanup already completed this exact job;
+                    # do not resurrect it as a retry.
+                    continue
+                try:
+                    attempts = max(0, int(current.get("attempts", 0))) + 1
+                except (TypeError, ValueError):
+                    attempts = 1
+                delay = min(
+                    _ENRICH_RETRY_MAX_SEC,
+                    _ENRICH_RETRY_BASE_SEC * (2 ** min(attempts - 1, 5)),
+                )
+                current.update({
+                    "state": "retrying",
+                    "attempts": attempts,
+                    "lastError": f"{type(exc).__name__}: {exc}",
+                    "nextAttemptAt": time.time() + delay,
+                })
+                try:
+                    await _sess.save_async(s)
+                except Exception:
+                    _log.exception(
+                        "[Session %s] failed to persist usage retry state key=%s",
+                        session_id, current.get("key"),
+                    )
+                _log.warning(
+                    "[Session %s] usage enrichment failed key=%s attempt=%d; "
+                    "retrying in %.1fs: %s",
+                    session_id, current.get("key"), attempts, delay, exc,
+                )
+                await asyncio.sleep(delay)
+
+
+def _schedule_usage_enrichment(session_id: str) -> asyncio.Task | None:
+    """Start at most one Session-scoped usage worker."""
+    if _shutdown_started:
+        return None
+    existing = _usage_enrichment_tasks.get(session_id)
+    if existing is not None and not existing.done():
+        return existing
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+    task = loop.create_task(
+        _run_usage_enrichment(session_id),
+        name=f"pan-usage-enrich-{session_id}",
+    )
+    _usage_enrichment_tasks[session_id] = task
+
+    def _finish(done: asyncio.Task) -> None:
+        if _usage_enrichment_tasks.get(session_id) is done:
+            _usage_enrichment_tasks.pop(session_id, None)
+        if done.cancelled():
+            return
+        try:
+            done.result()
+        except Exception:
+            _log.exception(
+                "[Pan] usage enrichment worker crashed for session=%s",
+                session_id,
+            )
+
+    task.add_done_callback(_finish)
+    return task
+
+
+def recover_pending_usage_enrichment() -> int:
+    """Schedule persisted usage jobs after startup/recovery scans."""
+    scheduled = 0
+    for s in _sess.list_all():
+        if _has_pending_usage_enrichment(s):
+            if _schedule_usage_enrichment(s.id) is not None:
+                scheduled += 1
+    return scheduled
+
+
+async def _persist_terminal_state(
+    w: Worker, s, status: str, result_text: str | None,
+) -> dict | None:
+    """Persist the minimum terminal fact set before any completion broadcast."""
+    if w._terminal_handled:
+        _log.warning(
+            "[Worker %s] duplicate terminal event ignored generation=%s",
+            w.worker_id, w.generation,
+        )
+        return None
+
+    task_seq = w._current_seq
+    task_id = w._current_task_id
+    task_idempotent = w._current_task_idempotent
+    source_session_id = w._current_source_session_id
+    terminal_key = _terminal_enrichment_key(
+        task_id, task_seq, w.worker_id, w.generation,
+    )
+    result_text = result_text if result_text is not None else ""
+    w.status = status
+    if s is None:
+        # There is no durable Session to protect.  Callers must not publish a
+        # terminal result that cannot be reconciled through session_get.
+        raise RuntimeError(
+            f"Session {w.session_id} disappeared before terminal persistence"
+        )
+    prior_result = s.last_result if isinstance(s.last_result, dict) else None
+    if (prior_result and prior_result.get("terminalKey") == terminal_key
+            and prior_result.get("status") == status):
+        # A replacement Worker can observe the provider's already-completed
+        # turn again.  The durable terminal key suppresses a second result
+        # broadcast when the in-memory guard was lost with the old Worker.
+        _log.warning(
+            "[Worker %s] durable duplicate terminal ignored key=%s",
+            w.worker_id, terminal_key,
+        )
+        w.status = "idle"
+        w._terminal_handled = True
+        return None
+
+    s.last_result = {
+        "status": status,
+        "result": result_text,
+        "cli_session_id": s.cli_session_id,
+        "timestamp": datetime.now().isoformat(),
+        "taskSeq": task_seq,
+        "sourceSessionId": source_session_id,
+        "terminalKey": terminal_key,
+    }
+    if isinstance(result_text, str) and result_text.strip():
+        last = s.history[-1] if s.history else None
+        if not (last and last.get("role") == "assistant"
+                and last.get("content") == result_text):
+            s.history.append({"role": "assistant", "content": result_text})
+
+    # Queue rows crossed the existing provider hand-off boundary earlier; this
+    # only clears runtime routing references and never changes FIFO state.
+    _ack_current_task(w, s)
+    _ack_current_reports(w, s)
+    _clear_active_task_if_current(s, task_id)
+    enrichment_key = _queue_usage_enrichment(
+        s, w.adapter, task_id=task_id, task_seq=task_seq,
+        worker_id=w.worker_id, generation=w.generation,
+    )
+    if enrichment_key:
+        s.last_result["usageEnrichmentKey"] = enrichment_key
+
+    # Keep the persisted legal state aligned with the existing lifecycle
+    # ledger, but save only after history/result/job preparation is complete.
+    await _record_legal_worker_state(w, status, "task/complete", persist=False)
+    w.status = "idle"
+    await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
+    # This is the base commit.  If it fails, the exception prevents both
+    # worker.result and idle broadcasts, as required by the terminal contract.
+    await _flush_history_now(w)
+    w.status = status
+    w._terminal_handled = True
+    return {
+        "taskSeq": task_seq,
+        "taskId": task_id,
+        "taskIdempotent": task_idempotent,
+        "sourceSessionId": source_session_id,
+        "result": result_text,
+        "status": status,
+        "enrichmentKey": enrichment_key,
+    }
+
+
+async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
+    """Publish result then idle, without waiting for usage enrichment."""
+    completion_notification = _notifications.dispatch_completion(
+        s, terminal["status"], terminal["result"],
+    )
+    await _bcast({
+        "type": "worker.result",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "generation": w.generation,
+        "status": terminal["status"],
+        "result": terminal["result"],
+        "taskSeq": terminal["taskSeq"],
+        "sourceSessionId": terminal["sourceSessionId"],
+        **({"notification": completion_notification}
+           if completion_notification else {}),
+    })
+    w.status = "idle"
+    await _bcast({
+        "type": "worker.status",
+        "workerId": w.worker_id,
+        "sessionId": w.session_id,
+        "generation": w.generation,
+        "status": "idle",
+        "sourceSessionId": terminal["sourceSessionId"],
+    })
+
+
+def _finish_terminal_bookkeeping(w: Worker, terminal: dict) -> None:
+    """Complete in-memory idempotency bookkeeping after terminal publication."""
+    task_id = terminal["taskId"]
+    if terminal["taskIdempotent"] and task_id and task_id in _task_status:
+        _task_status[task_id] = {
+            "status": terminal["status"],
+            "result": terminal["result"],
+            "workerId": w.worker_id,
+            "taskId": task_id,
+            "ts": time.monotonic(),
+        }
+    w._current_task_id = None
+    w._current_task_idempotent = False
+    w._current_source_session_id = None
+    w.last_activity = time.monotonic()
+    _signal_task_done(w)
+    _maybe_restart_pending(w)
+    if terminal.get("enrichmentKey"):
+        _schedule_usage_enrichment(w.session_id)
 
 
 def _runtime_stopped(w: Worker) -> bool:
@@ -985,6 +1394,13 @@ async def _read_stdout(w: Worker):
 
         # 任务完成 → 保存 Session + last_result
         if adapter.is_result_event(event):
+            if w._terminal_handled:
+                _log.warning(
+                    "[Worker %s] duplicate result event ignored generation=%s",
+                    w.worker_id, w.generation,
+                )
+                w.status = "idle"
+                continue
             s = _session(w)
             is_error = adapter.is_result_error(event)
             is_cancelled = bool(event.get("cancelled") or event.get("is_cancelled"))
@@ -1003,99 +1419,20 @@ async def _read_stdout(w: Worker):
             # 由 send_task 分配并随 item 落盘）。序号计数器在 session.task_seq
             # 上，跨 worker respawn 保持单调递增。
             task_seq = w._current_seq
-            completed_task_id = w._current_task_id
-            completed_task_idempotent = w._current_task_idempotent
-
-            if s:
-                result_text = adapter.extract_result_text(event)
-                s.last_result = {
-                    "status": w.status,
-                    "result": result_text,
-                    "cli_session_id": s.cli_session_id,
-                    "timestamp": datetime.now().isoformat(),
-                    "taskSeq": task_seq,
-                    "sourceSessionId": w._current_source_session_id,
-                }
-                if isinstance(result_text, str) and result_text.strip():
-                    last = s.history[-1] if s.history else None
-                    if not (last and last.get("role") == "assistant"
-                            and last.get("content") == result_text):
-                        s.history.append({"role": "assistant", "content": result_text})
-                # result 只记录终态；queue item 已在 provider hand-off 回调中
-                # 处理，这里不得再次按结果修改 queue_pending。
-                _ack_current_task(w, s)
-                _ack_current_reports(w, s)
-                _clear_active_task_if_current(s, completed_task_id)
-                # enrich: 从 CLI 原生存储获取消耗数据（如 raw_usage）
-                enrichment = None
-                try:
-                    enrichment = adapter.enrich_after_result(s)
-                except Exception:
-                    pass
-                if enrichment:
-                    prev_total = s.total_usage
-                    s.raw_usage = _sess.accumulate_raw_usage(s.raw_usage, enrichment)
-                    s.total_usage = _sess.compute_total_usage(s.raw_usage)
-                    prev_credit = prev_total.get("credit", 0) if prev_total else 0
-                    new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
-                    _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
-                # A1 result 立即落盘：同时 flush 防抖缓冲的流式块 + last_result，
-                # 由单写者防抖任务（若在跑）完成，避免双写竞态。
-                result_status = w.status
-                await _record_legal_worker_state(w, result_status, "task/complete", persist=False)
-                w.status = "idle"
-                await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
-                await _flush_history_now(w)
-                # Keep the live status semantics unchanged until the result
-                # event and task ledger have been published below.
-                w.status = result_status
-
-            # taskSeq 已在上方（last_result 补存处）统一用 _current_seq。
-            task_seq = w._current_seq
-            task_source_session_id = w._current_source_session_id
             result_text = adapter.extract_result_text(event)
-            completion_notification = _notifications.dispatch_completion(s, w.status, result_text) if s else None
-            await _bcast({
-                "type": "worker.result",
-                "workerId": w.worker_id,
-                "sessionId": w.session_id,
-                "generation": w.generation,
-                "status": w.status,
-                "result": result_text,
-                "taskSeq": task_seq,
-                "sourceSessionId": task_source_session_id,
-                **({"notification": completion_notification} if completion_notification else {}),
-            })
+            terminal = await _persist_terminal_state(w, s, w.status, result_text)
+            if terminal is None:
+                continue
+            # Base state is durable before this point.  Usage enrichment is only
+            # scheduled after the result/idle pair and never delays either.
+            await _publish_terminal_events(w, terminal, s)
             # Snapshot the input metadata before any cleanup.  Reports must be
             # paired with this turn's queue item, never with a global/previous
             # task id.
             # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
-            await _enqueue_report(w.session_id, w.status, result_text,
-                                  completed_task_id, w.worker_id)
-            # 幂等：完成对应 taskId（若有）
-            if completed_task_idempotent and completed_task_id and completed_task_id in _task_status:
-                _task_status[completed_task_id] = {
-                    "status": w.status,
-                    "result": result_text,
-                    "workerId": w.worker_id,
-                    "taskId": completed_task_id,
-                    "ts": time.monotonic(),
-                }
-            w._current_task_id = None
-            w._current_task_idempotent = False
-            w.status = "idle"
-            # A3：idle 过渡即时广播（前端此前靠 result 推断，存在延迟）
-            await _bcast({
-                "type": "worker.status",
-                "workerId": w.worker_id,
-                "sessionId": w.session_id,
-                "generation": w.generation,
-                "status": "idle",
-                "sourceSessionId": task_source_session_id,
-            })
-            w._current_source_session_id = None
-            _signal_task_done(w)
-            _maybe_restart_pending(w)
+            await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
+                                  terminal["taskId"], w.worker_id)
+            _finish_terminal_bookkeeping(w, terminal)
             continue
 
         # replay 期间不广播 stream 事件
@@ -3311,6 +3648,14 @@ def stop_global_watchdog():
 
 async def _global_watchdog():
     """服务级常驻循环：周期扫描并自动恢复（见模块注释）。"""
+    # Usage jobs do not require a provider Worker and are safe to resume at
+    # startup.  Keep durable queue recovery on its historical first-tick
+    # timing; an immediate queue scan can race callers that are still setting
+    # up a Session after service startup.
+    try:
+        recover_pending_usage_enrichment()
+    except Exception:
+        _log.exception("[Pan] startup usage enrichment recovery failed")
     while True:
         await asyncio.sleep(_GLOBAL_WATCHDOG_TICK_SEC)
         try:
@@ -3326,6 +3671,11 @@ async def _global_watchdog_tick():
     中断后续轮次。
     """
     for s in list(_sess.list_all()):
+        # Usage post-processing is independent from Worker liveness.  A
+        # crashed/restarted Worker must not strand a terminal's eventual usage
+        # job, and this scan must not spawn a provider merely for enrichment.
+        if _has_pending_usage_enrichment(s):
+            _schedule_usage_enrichment(s.id)
         if not _has_dispatchable_items(s) and s.id not in _recovery_required:
             continue
         current = find_worker_by_session(s.id)
@@ -3354,6 +3704,7 @@ async def _global_watchdog_tick():
 
 async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=None):
     """Stream mode: write to the adapter's long-running stdin."""
+    w._terminal_handled = False
     standalone_items = []
     if on_handoff is None:
         if w._current_queue_item is not None:
@@ -3534,6 +3885,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
 
     详见 docs/design/adapter-p1-oneshot.md §4。
     """
+    w._terminal_handled = False
     standalone_items = []
     if on_handoff is None:
         if w._current_queue_item is not None:
@@ -3784,40 +4136,11 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             result_text or "(no output)",
         )
 
-    s.last_result = {
-        "status": status,
-        "result": result,
-        "cli_session_id": s.cli_session_id,
-        "timestamp": datetime.now().isoformat(),
-        "taskSeq": w._current_seq,
-    }
-    completed_task_id = w._current_task_id
-    completed_task_idempotent = w._current_task_idempotent
-    # One-shot 没有独立的 stdout result reader；在解析完本轮输出后同样以
-    # result/error 为完成确认点，从持久队列移除当前 task。
-    _ack_current_task(w, s)
-    _ack_current_reports(w, s)
-    _clear_active_task_if_current(s, completed_task_id)
-    # 用量/credit 落账：与 stream 路径（_read_stdout）同构——调用
-    # adapter.enrich_after_result 读取 CLI 原生存储/缓存的本轮消耗并累加进 session。
-    # 这也让 cbc/Claude 的 one-shot fallback 不丢 usage/cost（Claude result 事件
-    # 的 usage 已在上方由 extract_result_text 暂存）。
-    enrichment = None
-    try:
-        enrichment = adapter.enrich_after_result(s)
-    except Exception:
-        pass
-    if enrichment:
-        prev_total = s.total_usage
-        s.raw_usage = _sess.accumulate_raw_usage(s.raw_usage, enrichment)
-        s.total_usage = _sess.compute_total_usage(s.raw_usage)
-        prev_credit = prev_total.get("credit", 0) if prev_total else 0
-        new_credit = s.total_usage.get("credit", 0) if s.total_usage else 0
-        _log.info("credit: %.2f -> %.2f (+%.2f)", prev_credit, new_credit, new_credit - prev_credit)
-    await _record_legal_worker_state(w, status, "task/complete", persist=False)
-    w.status = "idle"
-    await _record_legal_worker_state(w, "idle", "task/complete-idle", persist=False)
-    await _sess.save_async(s)
+    # Persist last_result/history/task association first.  In particular, do
+    # not let usage lookup (which may wait on provider files) sit on this path.
+    terminal = await _persist_terminal_state(w, s, status, result)
+    if terminal is None:
+        return
 
     # Broadcast assistant events as worker.stream so the frontend displays the
     # reply in real-time — MCP mode otherwise only emits worker.result, which
@@ -3831,36 +4154,13 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             "event": event,
         })
 
-    # M3: 置 idle 同步刷新活性时间——MCP 任务全程不刷新 last_activity，若不在此
-    # 重置，任务耗时会被算进 idle 时长，刚忙完就可能被 watchdog 立即回收。
-    w.last_activity = time.monotonic()
-    w.status = "idle"
-    _maybe_restart_pending(w)
-    task_seq = w._current_seq
-    completion_notification = _notifications.dispatch_completion(s, status, result)
-    await _bcast({
-        "type": "worker.result",
-        "workerId": w.worker_id,
-        "sessionId": w.session_id,
-        "generation": w.generation,
-        "status": status,
-        "result": result,
-        "taskSeq": task_seq,
-        **({"notification": completion_notification} if completion_notification else {}),
-    })
+    # Base persistence has succeeded.  Publish terminal state without waiting
+    # for usage enrichment, then preserve the existing report delivery path.
+    await _publish_terminal_events(w, terminal, s)
     # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
-    await _enqueue_report(w.session_id, status, result, completed_task_id, w.worker_id)
-    # 幂等：完成对应 taskId（若有）
-    if completed_task_idempotent and completed_task_id and completed_task_id in _task_status:
-        _task_status[completed_task_id] = {
-            "status": status,
-            "result": result,
-            "workerId": w.worker_id,
-            "taskId": completed_task_id,
-            "ts": time.monotonic(),
-        }
-    w._current_task_id = None
-    w._current_task_idempotent = False
+    await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
+                          terminal["taskId"], w.worker_id)
+    _finish_terminal_bookkeeping(w, terminal)
 
 
 # ── lifecycle ──
@@ -4565,6 +4865,8 @@ async def _restart_tasks(w: Worker):
     # L4 落盘恢复：新 consumer 的信号队列是新建的，旧信号已随旧队列丢弃——
     # 重新为尚未接管的 queue_pending 积压发信号；已消费 item 不会重现。
     s = _session(w)
+    if s and _has_pending_usage_enrichment(s):
+        _schedule_usage_enrichment(s.id)
     if s and _recover_pending_signals(w, s):
         await _sess.save_async(s)
     # Start only after recovery has migrated unfinished rows and queued the
