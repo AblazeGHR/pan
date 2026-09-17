@@ -4207,6 +4207,47 @@ async def api_models(adapter: str = "cbc"):
     return {"models": a.supported_models, "default": a.default_model}
 
 
+@app.post("/api/sessions/broadcast")
+async def api_sessions_broadcast(data: dict):
+    """Send one message to selected Sessions through the normal send path.
+
+    This is an immediate fan-out primitive only.  Each target is enqueued
+    independently, preserving its own active task context and FIFO queue;
+    scheduled fan-out remains deliberately out of the time-Job MVP.
+    """
+    session_ids = data.get("sessionIds")
+    text = data.get("text")
+    if not isinstance(session_ids, list) or not session_ids:
+        return {"ok": False, "error": {"code": "missing_session_ids",
+                                         "message": "sessionIds must be a non-empty array"}}
+    if not isinstance(text, str) or not text:
+        return {"ok": False, "error": {"code": "missing_text",
+                                         "message": "text is required"}}
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    unique_ids = list(dict.fromkeys(str(value) for value in session_ids))
+    results = []
+    for session_id in unique_ids:
+        target = sess.get(session_id)
+        if not target:
+            results.append({"sessionId": session_id, "status": "error",
+                            "result": f"Session {session_id} not found"})
+            continue
+        denied = _source_access_error(target, source_session_id)
+        if denied:
+            results.append({"sessionId": session_id, "status": "error",
+                            "error": denied["error"]})
+            continue
+        result = await worker.send_session(
+            session_id, text, source=source_type, force=bool(data.get("force")),
+            source_session_id=source_session_id)
+        results.append({"sessionId": session_id, **result})
+    failed = [item for item in results if item.get("status") == "error"]
+    return {"ok": not failed, "status": "partial" if failed and len(failed) < len(results)
+            else ("error" if failed else "queued"), "results": results}
+
+
 # ── Durable background jobs ──
 
 @app.post("/api/background-jobs")
@@ -4227,7 +4268,8 @@ async def api_background_job_list(targetSessionId: str | None = None):
     # Service lifecycle Jobs share the durable Registry but are not ordinary
     # Session-targeted background commands and must not leak into this API.
     jobs = [job for job in background_jobs.list_jobs()
-            if job.get("kind") == background_jobs.BACKGROUND_PROCESS_KIND]
+            if job.get("kind") in {background_jobs.BACKGROUND_PROCESS_KIND,
+                                    background_jobs.SESSION_MESSAGE_KIND}]
     if targetSessionId:
         jobs = [j for j in jobs if j.get("targetSessionId") == targetSessionId]
     return {"jobs": jobs}
@@ -4245,6 +4287,47 @@ async def api_background_job_cancel(job_id: str):
         return background_jobs.cancel(job_id)
     except ValueError as exc:
         code = "cancel_unsafe" if "safely cancel" in str(exc) else "job_not_found"
+        return {"ok": False, "error": {"code": code, "message": str(exc)}}
+
+
+@app.post("/api/session-message-jobs")
+async def api_session_message_job_start(data: dict):
+    """Create a durable one-target Session message schedule.
+
+    ``text`` is delivered as message text; it is never an OS command.
+    """
+    target = data.get("targetSessionId")
+    text = data.get("text")
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    target_session = sess.get(target) if isinstance(target, str) else None
+    if not target_session:
+        return {"ok": False, "error": {"code": "invalid_job",
+                                         "message": "target session does not exist"}}
+    denied = _source_access_error(target_session, source_session_id)
+    if denied:
+        return denied
+    try:
+        return background_jobs.start_message(
+            target, text, data.get("schedule"),
+            description=data.get("description", data.get("label")),
+            source=source_type, source_session_id=source_session_id)
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
+
+
+@app.patch("/api/background-jobs/{job_id}")
+async def api_background_job_update(job_id: str, data: dict):
+    try:
+        job = background_jobs.get(job_id)
+        if not job or job.get("kind") != background_jobs.SESSION_MESSAGE_KIND:
+            raise ValueError("message Job not found")
+        return background_jobs.update_message(
+            job_id, text=data.get("text"), schedule=data.get("schedule"),
+            description=data.get("description"))
+    except ValueError as exc:
+        code = "job_not_found" if "not found" in str(exc) else "invalid_job"
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 

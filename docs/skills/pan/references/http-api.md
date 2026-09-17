@@ -48,8 +48,11 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 | `POST` | `/api/background-jobs` | `{"targetSessionId":"...", "argv":[...], "cwd":"...", "label"?:"..."}` | 创建脱离 Worker 生命周期的持久后台 Job；argv 不经 shell，MVP 的 cwd 仅允许 Pan 项目目录内 |
 | `GET` | `/api/background-jobs[?targetSessionId=...]` | — | 列出 Job Registry 记录 |
 | `GET` | `/api/background-jobs/{jobId}` | — | 查询 Job 事实、PID、日志和通知状态 |
+| `POST` | `/api/session-message-jobs` | `{"targetSessionId":"...", "text":"...", "schedule":{...}, "description"?:"...", "sourceSessionId"?:"..."}` | 创建单目标 Session 时间消息 Job；`text` 只作为消息发送，不执行 shell |
+| `PATCH` | `/api/background-jobs/{jobId}` | `{"schedule"?:{...}, "text"?:"...", "description"?:"..."}` | 编辑未终态 Session 消息 Job；重排后回到 `pending` |
 | `POST` | `/api/background-jobs/{jobId}/cancel` | — | 取消并杀完整进程树（PID 创建时间必须匹配；无法安全确认时返回 `cancel_unsafe`） |
 | `POST` | `/api/background-jobs/{jobId}/retry` | — | 用新 jobId 重试原命令 |
+| `POST` | `/api/sessions/broadcast` | `{"sessionIds":["..."], "text":"...", "source"?:"agent", "sourceSessionId"?:"..."}` | 对选定 Session 逐个复用普通 send 入队；返回每个目标结果；不包含定时群发 |
 | `GET` | `/api/main/restart/status` | — | 读取当前 checkout/port 的持久化 main-lifecycle Job；`pending` 只表示 requested/stopping/stopped/starting，终态含 `ready`/`failed`/`timed_out` 与 PID/错误字段 |
 | `POST` | `/api/main/restart` | — | 原子登记 service lifecycle Job 后返回 `status:"scheduled"`, `accepted:true`, `phase:"requested"`；重复请求返回 `busy` 与已有 `requestId`/`jobId`，不会绑定 Session 或进入 `queue_pending` |
 | `POST` | `/api/report-subscribe` | `{"managerId": "<MA session id>", "sessionId": "<managed session id>"}` | `{"subscribed": true, "reportSubscriptions": [...]}`。**等价 MCP 工具：`report_subscribe`（编排首选）** |

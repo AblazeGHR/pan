@@ -83,3 +83,76 @@ def test_http_cancel_reports_unsafe_pid(monkeypatch):
     monkeypatch.setattr(web_server.background_jobs, "cancel", unsafe)
     result = asyncio.run(web_server.api_background_job_cancel("job_reused"))
     assert result["error"]["code"] == "cancel_unsafe"
+
+
+def test_http_message_job_creation_preserves_source_and_text(monkeypatch):
+    calls = []
+
+    class Target:
+        def __init__(self, sid):
+            self.id = sid
+            self.readonly_session = False
+            self.managed_by = None
+
+    monkeypatch.setattr(web_server.sess, "get", lambda sid: Target(sid) if sid in {
+        "ses_target", "ses_caller"} else None)
+
+    def create(target, text, schedule, **kwargs):
+        calls.append((target, text, schedule, kwargs))
+        return {"jobId": "job_message", "kind": "session-message"}
+
+    monkeypatch.setattr(web_server.background_jobs, "start_message", create)
+    result = asyncio.run(web_server.api_session_message_job_start({
+        "targetSessionId": "ses_target", "text": "message text",
+        "schedule": {"type": "once", "delaySeconds": 10},
+        "source": "agent", "sourceSessionId": "ses_caller",
+        "description": "a job"}))
+    assert result["kind"] == "session-message"
+    assert calls == [("ses_target", "message text",
+                      {"type": "once", "delaySeconds": 10},
+                      {"description": "a job", "source": "agent",
+                       "source_session_id": "ses_caller"})]
+
+
+def test_http_selected_session_broadcast_reuses_send_session(monkeypatch):
+    class Target:
+        id = "session"
+        readonly_session = False
+        managed_by = None
+
+    monkeypatch.setattr(web_server.sess, "get", lambda sid: Target())
+    calls = []
+
+    async def send(session_id, text, **kwargs):
+        calls.append((session_id, text, kwargs))
+        return {"status": "queued", "workerId": None, "sessionId": session_id}
+
+    monkeypatch.setattr(web_server.worker, "send_session", send)
+    result = asyncio.run(web_server.api_sessions_broadcast({
+        "sessionIds": ["ses_a", "ses_a", "ses_b"], "text": "hello",
+        "source": "agent", "sourceSessionId": "ses_caller"}))
+    assert result["ok"] is True
+    assert [item[0] for item in calls] == ["ses_a", "ses_b"]
+    assert all(item[2] == {"source": "agent", "force": False,
+                           "source_session_id": "ses_caller"} for item in calls)
+
+
+def test_mcp_message_job_shortcuts_preserve_caller_prefix(monkeypatch):
+    calls = []
+    monkeypatch.setattr(mcp_server, "_caller_identity",
+                        lambda: {"id": "ses_caller"})
+    monkeypatch.setattr(mcp_server, "_check_access", lambda target, claim=False: None)
+    monkeypatch.setattr(mcp_server, "_agent_message_prefix",
+                        lambda text: "PREFIX\n" + text)
+    monkeypatch.setattr(mcp_server, "_api", lambda method, path, body=None,
+                        timeout=30.0: calls.append((method, path, body)) or {
+                            "jobId": "job_message", "kind": "session-message"})
+    result = mcp_server.agent_message_job_create(
+        "do it", {"type": "once", "delaySeconds": 5},
+        target_session_id="ses_target", description="desc")
+    assert result["jobId"] == "job_message"
+    assert calls[0] == ("POST", "/api/session-message-jobs", {
+        "targetSessionId": "ses_target", "text": "PREFIX\ndo it",
+        "schedule": {"type": "once", "delaySeconds": 5},
+        "description": "desc", "source": "agent",
+        "sourceSessionId": "ses_caller"})

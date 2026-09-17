@@ -55,8 +55,8 @@ def main() -> int:
     print(f"skill tool rows: {len(listed)}")
     print(f"first-class tools: {len(first_class)}; worker aliases: {len(aliases)}")
     print(f"declared count: {declared_count}")
-    if len(actual) != 49 or len(actual_set) != len(actual):
-        print("FAIL: source tool set is not the expected 49 unique tools")
+    if len(actual) != 55 or len(actual_set) != len(actual):
+        print("FAIL: source tool set is not the expected 55 unique tools")
         return 1
     if declared_count != len(actual) or listed_set != actual_set or len(listed) != len(actual):
         print(f"FAIL: missing={missing}, extra={extra}")

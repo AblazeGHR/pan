@@ -1,9 +1,10 @@
 # Background Job Runner MVP
 
-Background Jobs are durable process records, not Workers. An Agent Worker may
-start and disappear while the Runner process continues. The Runner never uses
-Pan stdout, worker pipes, or a live WebSocket for job facts; command output is
-appended to `data/background_jobs/logs/<job_id>.log`.
+Background Jobs are durable records, not Workers. An Agent Worker may start and
+disappear while a process Runner or the Session-message scheduler continues.
+Process Jobs never use a shell. Session-message Jobs never interpret their
+`text` as a command: they call the same `worker.send_session` path as
+`agent_send`.
 
 ## Lifecycle
 
@@ -44,10 +45,31 @@ HTTP endpoints are:
 - `GET /api/background-jobs` (optional `targetSessionId`), and `GET /api/background-jobs/{jobId}`
 - `POST /api/background-jobs/{jobId}/cancel` and `/retry`
 
-MCP exposes `agent_background_start/get/list/cancel/retry`. `start` defaults
-to the current MCP Agent Session. Ordinary Agents do not need to construct
-callback payloads or retry notices; `agent_notify` remains available for
-low-level compatibility.
+MCP exposes `agent_background_start/get/list/cancel/retry` for OS-process Jobs
+and `agent_message_job_create/get/list/update/cancel` for time-based Session
+messages. A message Job has one target Session, a description, text, creator
+`sourceSessionId`, and a normalized schedule:
+
+- one-time: `{"type":"once","at":"<ISO-8601>"}` or
+  `{"type":"once","delaySeconds":N}`;
+- recurring interval: `{"type":"interval","intervalSeconds":N}`;
+- recurring weekly: `{"type":"weekly","weekday":0..6,"time":"HH:MM"}`
+  (Monday is 0; the server's local timezone is used unless `timezone` is
+  supplied as `UTC` or an IANA zone).
+
+`pending`/`scheduled`/`running`/`completed`/`failed`/`cancelled` are persisted
+states. The service recovery loop claims due records under the same per-Job
+cross-process lock as the process Registry, so a restart sends one missed
+occurrence and persists the next occurrence. Missed recurring occurrences are
+not replayed in a burst; the next interval/weekly occurrence is calculated
+from the recovery send time. A cancelled Job never schedules another send;
+an already in-flight send cannot be retracted.
+
+The immediate selected-Session fan-out API is `POST /api/sessions/broadcast`
+and MCP `agent_send_many`. It calls the ordinary send path once per unique
+Session and reports per-target results. Scheduled fan-out is intentionally not
+part of this stage and must be added only after the immediate fan-out contract
+is accepted.
 
 ## Security and product decisions
 
