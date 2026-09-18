@@ -15,10 +15,10 @@
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
-- 整体状态：批次 A、D 已由用户确认验收；`T-048` 已实现并合入本地 `main`，等待合入后的开发者验收；`T-049` 测试基线修复已完成，等待合入 main；`T-050` 修复 usage 缓存命中后的打开延迟；Job/Workspace UI 仍分别等待 `DEC-004`/`DEC-005`。
-- 当前焦点：推进 `T-050` 的 usage/quota 缓存快速展示与刷新解耦；`T-049` 等待合入 main 后复跑确认；保留 `T-048` 的真人验收入口。
-- 可执行：`T-050` 无决策阻塞；Job/Workspace UI 仍按各自决策局部阻塞。
-- TA 执行中：`T-050` / `ses_c28ff8194c88f3dc` / `worker-3`。
+- 整体状态：批次 A、D 已由用户确认验收；`T-048` 已实现并合入本地 `main`，等待合入后的开发者验收；`T-049` 测试基线修复已完成，等待合入 main；`T-050` usage 缓存快速路径已实现，等待合入 main；Job/Workspace UI 仍分别等待 `DEC-004`/`DEC-005`。
+- 当前焦点：收口 `T-049` 与 `T-050` 的本地 main 合入及合入后验证；保留 `T-048` 的真人验收入口。
+- 可执行：`T-049`、`T-050` 均无决策阻塞；Job/Workspace UI 仍按各自决策局部阻塞。
+- TA 执行中：无；最近完成 `T-050` / `ses_c28ff8194c88f3dc` / `worker-3`。
 - 最近收口：批次 A、批次 D 已由用户确认全部验收（2026-09-18）。
 
 ### 需要用户处理
@@ -29,7 +29,7 @@
 
 ### MA 正在推进
 
-- 已核对 T-048 交付；T-049 已完成完整 Vitest 基线检修，确认 3 类失败均为测试环境/过期断言或不可复现的测试问题，不将其混入 T-048；当前继续推进 T-050。
+- 已核对 T-048 交付；T-049 已完成完整 Vitest 基线检修，确认 3 类失败均为测试环境/过期断言或不可复现的测试问题，不将其混入 T-048；T-050 已完成 usage 缓存快速路径修复，当前收口两项合入前验证。
 
 ### 等待与暂停
 
@@ -320,23 +320,27 @@
 
 ## 当前执行与待验收的近期改动
 
-> `T-049` 是测试检修，`T-050` 是当前新增的 usage 缓存修复；`T-048` 已完成实现并合入本地 `main`，当前等待开发者验收；其余条目为已实现或已合入、等待开发者验收或收口的近期交付。
+> `T-049` 是测试检修，`T-050` 是 usage 缓存修复；两项均已完成 TA 实现，当前等待合入本地 `main`；`T-048` 已完成实现并合入本地 `main`，当前等待开发者验收；其余条目为已实现或已合入、等待开发者验收或收口的近期交付。
 
 ### T-050：Usage 缓存命中后仍长时间加载
 
-- 任务类型：代码改动｜阶段/状态：已派发 / 调查与修复｜合入 main：否｜开发者验收：待确认
+- 任务类型：代码改动｜阶段/状态：实现完成 / 待合入 main｜合入 main：否｜开发者验收：待确认
 - 来源：用户于 2026-09-18 报告“usage 明明缓存过，再次打开仍加载很久”。
 - 初步证据：SessionDetailsModal 在每次 sessionId 变化时清空本地 usage；后端 `/api/sessions/{id}/usage` 读取持久化 Session usage 后，对 Codex 仍同步进入 `api_codex_quota`，其中缓存过期时可能等待 WHAM 网络刷新；因此持久化 usage 可能被 quota 刷新延迟遮挡。
 - 目标：确认各 adapter 的 usage 持久化/读取、Codex quota 持久化缓存、前端重复打开生命周期和并发请求行为；缓存已有数据时先快速展示可用缓存，不因慢速刷新阻塞已有 usage；仍需保留合理的刷新/过期标记和错误可见性。
-- 验收：重复打开已有 usage 的 Session 时先显示缓存内容；慢速/失败 quota 刷新不阻塞已有 token/credit/缓存字段；刷新完成后可更新 quota；无缓存时仍正常 loading/error；关闭、切换 Session、快速重复打开不会发生旧请求覆盖新 Session。
+- 验收：重复打开已有 usage 的 Session 时先显示缓存内容；慢速/失败 quota 刷新不阻塞已有 token/credit/缓存字段；刷新完成后可更新 quota；无缓存时仍正常 loading/error；关闭、切换 Session、快速重复打开不会发生旧请求覆盖新 Session。TA 已覆盖并通过对应自动化用例。
 - 决策/授权：无新增决策门；用户已授权修复 usage 缓存加载问题。不得触碰 8768、不得改 `D:\project\Pan`、不得 push。
 - 阻塞：无。
-- TA/任务：`ses_c28ff8194c88f3dc` / `T-050-usage-cache-fast-path-20260918`；已派发，返回 `queued` / `worker-3`；已订阅完成报告。
-- 下一动作：等待 TA 报告缓存命中/过期/慢刷新/切换竞态证据、commit 与测试结果。
-- [ ] 调查并确认 usage 与 Codex quota 的实际等待链路
-- [ ] 实现缓存优先展示与非阻塞刷新/竞态保护
-- [ ] 补充前后端回归测试
-- [ ] 运行相关测试、前端 build 与 diff check
+- TA/任务：`ses_c28ff8194c88f3dc` / `T-050-usage-cache-fast-path-20260918`；已完成报告；提交 `3d0d9e0377a3c7a7f6bac3b1462214a1a3382b0b`；TA worktree `D:\project\pan-worktrees\session-usage-cache-20260918`，工作树 clean。
+- 根因：`SessionDetailsModal` 重开清空本地 usage；后端 Usage API 同步等待 Codex WHAM quota refresh，过期时最长约 15 秒，遮挡已有 token/credit/旧 quota。
+- 修复/测试：后端 Usage API 改为 quota cache-only，保留 `/api/codex/quota` 的主动刷新语义；前端增加按 Session 隔离的 Usage cache、后台 quota 刷新、stale/error 展示和请求竞态保护。Session Details/TopBar `27 passed`，后端 usage/quota `10 passed`，扩展 quota/cache/store 回归 `29 passed`，build、ESLint、pre-commit、compileall、diff check 均通过。
+- 已知基线：完整 `tests/test_codex_quota_api.py` 仍有历史 docstring 断言失败（缺少 `account/rateLimits/read`），不属于 T-050，未修改。
+- 未验证：真实 HTTP/WebSocket、真实 WHAM/provider 网络、真实 CLI/provider、Chromium E2E。
+- 下一动作：将 T-050 提交合入本地 `main`，在 main 上复跑关键前端/后端测试与 build；随后安排真实 Session Details 重开、慢/失败 quota 刷新验收。解除：合入并完成对应开发者验收。
+- [x] 调查并确认 usage 与 Codex quota 的实际等待链路
+- [x] 实现缓存优先展示与非阻塞刷新/竞态保护
+- [x] 补充前后端回归测试
+- [x] 运行相关测试、前端 build 与 diff check
 - [ ] 合入 main 后开发者验收
 
 ### T-049：完整前端 Vitest 失败检修与归因
