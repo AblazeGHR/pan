@@ -33,6 +33,7 @@ import httpx
 
 from packages.core import worker
 from packages.core import session as sess
+from packages.core import workspace as workspaces
 from packages.core.adapters import get_adapter, list_adapters, get_sessions_provider
 from packages.core.adapters.validation import (
     AdapterCapabilityError,
@@ -801,6 +802,7 @@ def _session_to_api(s: sess.Session):
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,
+        "workspaceIds": list(s.workspace_ids),
         "managed": s.managed,
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
@@ -869,6 +871,7 @@ def _session_summary(s: sess.Session) -> dict:
         "lastLegalWorkerState": s.last_legal_worker_state,
         "updatedAt": s.updated_at,
         "order": s.order,
+        "workspaceIds": list(s.workspace_ids),
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
         "agentLevel": sess.agent_level(s.id),
@@ -1365,6 +1368,15 @@ def _build_session_params(
         "handoff_prompt": data.get("handoffPrompt"),
         "game_id": data.get("gameId") or None,
     }
+    requested_workspace_ids = data.get("workspaceIds", data.get("workspace_ids"))
+    if requested_workspace_ids is not None:
+        if (not isinstance(requested_workspace_ids, list)
+                or not all(isinstance(wid, str) and wid for wid in requested_workspace_ids)
+                or len(set(requested_workspace_ids)) != len(requested_workspace_ids)
+                or not all(isinstance(wid, str) and workspaces.get(wid)
+                           for wid in requested_workspace_ids)):
+            raise ValueError("workspaceIds must contain existing unique workspace ids")
+        params["workspace_ids"] = list(requested_workspace_ids)
     # These are deliberately added only when explicitly supplied.  In
     # particular, do not synthesize a model/default value into Session JSON.
     for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
@@ -3244,7 +3256,7 @@ async def api_cancel_reminder(session_id: str, reminder_id: str):
     return {"ok": True, "reminder": item}
 
 @app.get("/api/sessions")
-async def api_list_sessions(summary: int = 0):
+async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     """List all sessions (includes worker status if active).
 
     summary=1 → lean payload [{id, name, adapter, workerStatus, updatedAt,
@@ -3253,6 +3265,15 @@ async def api_list_sessions(summary: int = 0):
     backward compatibility.
     """
     sessions = sess.list_all()
+    if workspaceId is not None:
+        # ``ungrouped`` is a stable query alias; an empty workspaceId is kept
+        # equivalent to the historical all-sessions response.
+        if workspaceId == "ungrouped":
+            sessions = [s for s in sessions if not s.workspace_ids]
+        elif workspaceId:
+            if workspaces.get(workspaceId) is None:
+                return {"sessions": [], "workspaceId": workspaceId}
+            sessions = [s for s in sessions if workspaceId in s.workspace_ids]
     if summary:
         return {"sessions": [_session_summary(s) for s in sessions]}
     result = []
@@ -3264,6 +3285,177 @@ async def api_list_sessions(summary: int = 0):
         api["historyTotal"] = len(full_history)
         result.append(api)
     return {"sessions": result}
+
+
+def _workspace_view(workspace: workspaces.Workspace) -> dict:
+    members = [s.id for s in sess.list_all() if workspace.id in s.workspace_ids]
+    return {
+        "id": workspace.id,
+        "name": workspace.name,
+        "order": workspace.order,
+        "createdAt": workspace.created_at,
+        "updatedAt": workspace.updated_at,
+        "sessionCount": len(members),
+        "sessionIds": members,
+    }
+
+
+def _workspace_name_error(name) -> str | None:
+    if not isinstance(name, str) or not name.strip():
+        return "Workspace name is required"
+    if len(name.strip()) > 128:
+        return "Workspace name too long (max 128)"
+    return None
+
+
+def _workspace_write_allowed(actor_id: str | None, session: sess.Session) -> bool:
+    """Apply Session's existing managed-scope permission when an actor is given.
+
+    Browser/legacy callers omit actorSessionId and retain the historical
+    trusted local-web behavior.  MCP/future callers can provide it to get an
+    explicit permission check without coupling workspaces to managedBy.
+    """
+    if not actor_id or not session.restrict_to_managed:
+        return True
+    actor = sess.get(actor_id)
+    return bool(actor and (session.managed_by == actor_id or session.id == actor_id
+                           or session.id in actor.managed))
+
+
+@app.get("/api/workspaces")
+async def api_list_workspaces():
+    """List durable workspaces in their independent display order."""
+    return {"workspaces": [_workspace_view(w) for w in workspaces.list_all()]}
+
+
+@app.post("/api/workspaces")
+async def api_create_workspace(data: dict):
+    error = _workspace_name_error(data.get("name"))
+    if error:
+        return {"ok": False, "error": {"code": "invalid_name", "message": error}}
+    name = data["name"].strip()
+    if any(w.name == name for w in workspaces.list_all()):
+        return {"ok": False, "error": {"code": "name_taken", "message": "Workspace name already exists"}}
+    workspace = workspaces.create(name)
+    await broadcast({"type": "workspace.created", "workspaceId": workspace.id})
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.get("/api/workspaces/{workspace_id}")
+async def api_get_workspace(workspace_id: str):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.patch("/api/workspaces/{workspace_id}")
+async def api_update_workspace(workspace_id: str, data: dict):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    if "name" in data:
+        error = _workspace_name_error(data["name"])
+        if error:
+            return {"ok": False, "error": {"code": "invalid_name", "message": error}}
+        name = data["name"].strip()
+        if any(w.id != workspace_id and w.name == name for w in workspaces.list_all()):
+            return {"ok": False, "error": {"code": "name_taken", "message": "Workspace name already exists"}}
+        workspaces.update(workspace, name=name)
+        await broadcast({"type": "workspace.updated", "workspaceId": workspace_id})
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.post("/api/workspaces/order")
+async def api_workspaces_order(data: dict):
+    ids = data.get("workspaceIds")
+    if not isinstance(ids, list) or not all(isinstance(i, str) and i.strip() for i in ids):
+        return {"ok": False, "error": {"code": "invalid_params", "message": "workspaceIds is required"}}
+    error = workspaces.apply_order([i.strip() for i in ids])
+    if error:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": error}}
+    order = [w.id for w in workspaces.list_all()]
+    await broadcast({"type": "workspace.orderUpdated", "order": order})
+    return {"ok": True, "order": order}
+
+
+@app.delete("/api/workspaces/{workspace_id}")
+async def api_delete_workspace(workspace_id: str):
+    if workspaces.get(workspace_id) is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    for session in sess.list_all():
+        if workspace_id in session.workspace_ids:
+            session.workspace_ids.remove(workspace_id)
+            sess.save(session)
+    workspaces.delete(workspace_id)
+    await broadcast({"type": "workspace.deleted", "workspaceId": workspace_id})
+    return {"ok": True, "workspaceId": workspace_id}
+
+
+async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=None):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    if (not isinstance(session_ids, list)
+            or not all(isinstance(sid, str) and sid for sid in session_ids)
+            or len(set(session_ids)) != len(session_ids)):
+        return {"ok": False, "error": {"code": "invalid_session_ids", "message": "sessionIds must be a unique array"}}
+    for session_id in session_ids:
+        session = sess.get(session_id) if isinstance(session_id, str) else None
+        if session is None:
+            return {"ok": False, "error": {"code": "session_not_found", "message": f"Session {session_id} not found"}}
+        if not _workspace_write_allowed(actor_id, session):
+            return {"ok": False, "error": {"code": "forbidden", "message": "Workspace membership is restricted"}}
+    wanted = set(session_ids)
+    for session in sess.list_all():
+        if not _workspace_write_allowed(actor_id, session):
+            continue
+        has = workspace_id in session.workspace_ids
+        should = session.id in wanted
+        if has != should:
+            if should:
+                session.workspace_ids.append(workspace_id)
+            else:
+                session.workspace_ids.remove(workspace_id)
+            sess.save(session)
+    await broadcast({"type": "workspace.membershipUpdated", "workspaceId": workspace_id,
+                     "sessionIds": [s.id for s in sess.list_all() if workspace_id in s.workspace_ids]})
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.put("/api/workspaces/{workspace_id}/sessions")
+async def api_set_workspace_sessions(workspace_id: str, data: dict):
+    return await _set_workspace_membership(workspace_id, data.get("sessionIds"), data.get("actorSessionId"))
+
+
+@app.get("/api/workspaces/{workspace_id}/sessions")
+async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
+    if workspaces.get(workspace_id) is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    sessions = [s for s in sess.list_all() if workspace_id in s.workspace_ids]
+    return {"ok": True, "workspaceId": workspace_id,
+            "sessions": [_session_summary(s) if summary else _session_to_api(s) for s in sessions]}
+
+
+@app.put("/api/sessions/{session_id}/workspaces")
+async def api_set_session_workspaces(session_id: str, data: dict):
+    session = sess.get(session_id)
+    if session is None:
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    workspace_ids = data.get("workspaceIds")
+    if (not isinstance(workspace_ids, list)
+            or not all(isinstance(wid, str) and wid for wid in workspace_ids)
+            or len(set(workspace_ids)) != len(workspace_ids)):
+        return {"ok": False, "error": {"code": "invalid_workspace_ids", "message": "workspaceIds must be a unique array"}}
+    if not all(isinstance(wid, str) and workspaces.get(wid) for wid in workspace_ids):
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    if not _workspace_write_allowed(data.get("actorSessionId"), session):
+        return {"ok": False, "error": {"code": "forbidden", "message": "Workspace membership is restricted"}}
+    session.workspace_ids = list(workspace_ids)
+    sess.save(session)
+    await broadcast({"type": "session.workspaceUpdated", "sessionId": session_id,
+                     "workspaceIds": list(session.workspace_ids)})
+    return {"ok": True, "session": _session_to_api(session)}
 
 
 @app.post("/api/sessions")
