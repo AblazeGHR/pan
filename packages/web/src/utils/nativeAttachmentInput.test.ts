@@ -83,4 +83,28 @@ describe('native attachment input inspection', () => {
       ),
     ).toEqual({ kind: 'uri' });
   });
+
+  it('lets paste callers treat text-only paths and URLs as ordinary text', () => {
+    expect(
+      inspectNativeAttachmentInput(
+        transfer({
+          items: [] as unknown as DataTransferItemList,
+          files: [] as unknown as FileList,
+          getData: (type: string) => (type === 'text/plain' ? 'D:\\project\\src\\folder' : ''),
+        }),
+        { treatTextOnlyAsPlainText: true },
+      ),
+    ).toEqual({ kind: 'none' });
+    expect(
+      inspectNativeAttachmentInput(
+        transfer({
+          items: [] as unknown as DataTransferItemList,
+          files: [] as unknown as FileList,
+          getData: (type: string) =>
+            type === 'text/uri-list' ? 'https://example.test/docs/report.txt' : '',
+        }),
+        { treatTextOnlyAsPlainText: true },
+      ),
+    ).toEqual({ kind: 'none' });
+  });
 });

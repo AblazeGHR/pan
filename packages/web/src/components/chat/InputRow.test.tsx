@@ -500,7 +500,7 @@ describe('InputRow send queue wiring', () => {
     expect(screen.queryByTestId('server-attachments')).toBeNull();
   });
 
-  it('clears inline attachments and restores the draft belonging to the selected session', async () => {
+  it('restores each session draft and its inline attachment structure independently', async () => {
     setBusySession();
     useSessionStore.setState((state) => ({
       inputDrafts: { s1: 'first draft', s2: 'second draft' },
@@ -541,6 +541,60 @@ describe('InputRow send queue wiring', () => {
     );
     expect(screen.queryByRole('group', { name: '附件 session.txt' })).toBeNull();
     expect(screen.getByTestId('rich-text-composer').textContent).toBe('second draft');
+
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [] });
+    await waitFor(() => {
+      expect(screen.getByTestId('rich-text-composer').textContent).toContain('session.txt');
+      expect(screen.getByRole('group', { name: '附件 session.txt' })).toBeTruthy();
+    });
+    expect(screen.getByTestId('rich-text-composer').textContent).toContain('first draft');
+  });
+
+  it('does not let an old Session attachment registration update the newly selected Session', async () => {
+    setBusySession();
+    useSessionStore.setState((state) => ({
+      sessions: [
+        ...state.sessions,
+        {
+          id: 's2',
+          name: 'Second',
+          adapter: 'cbc',
+          model: null,
+          permissionMode: null,
+          alwaysThinkingEnabled: false,
+          effort: '',
+          workerStatus: 'idle',
+          workerId: null,
+          history: [],
+        },
+      ],
+    }));
+    const registration = deferred<Awaited<ReturnType<typeof registerServerFileAttachment>>>();
+    vi.mocked(registerServerFileAttachment).mockReturnValueOnce(registration.promise);
+    useUIStore.getState().requestChatAttachment('s1', 'D:\\attachments\\old-session.txt');
+    render(<InputRow />);
+    await waitFor(() =>
+      expect(registerServerFileAttachment).toHaveBeenCalledWith(
+        's1',
+        'D:\\attachments\\old-session.txt',
+      ),
+    );
+
+    useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: '附件 old-session.txt' })).toBeNull(),
+    );
+    registration.resolve({
+      ok: true,
+      attachmentId: `att_${'b'.repeat(32)}`,
+      displayName: 'old-session.txt',
+      mimeType: 'text/plain',
+      size: 1,
+      path: 'D:\\attachments\\old-session.txt',
+      href: '/api/fs/read?session_id=s1&path=old-session.txt&download=1',
+    });
+    await Promise.resolve();
+    expect(screen.queryByRole('group', { name: '附件 old-session.txt' })).toBeNull();
   });
 
   it('consumes an editor request through the existing server attachment and queue path', async () => {
