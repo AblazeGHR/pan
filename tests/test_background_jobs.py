@@ -114,7 +114,9 @@ def test_automatic_job_notice_keeps_structured_envelope_and_automation_label(tmp
     item = target.queue_pending[0]
     assert item["envelope"]["jobId"] == "job_x"
     rendered = worker._format_report_batch([item])
-    assert "@@@@by agent : automation | automation" in rendered
+    assert rendered.startswith("////by pan system")
+    assert "jobId: job_x" in rendered
+    assert f"targetSessionId: {target.id}" in rendered
 
 
 def test_runner_registry_survives_reload(tmp_path):

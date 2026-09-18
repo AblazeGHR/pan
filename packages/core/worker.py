@@ -2120,6 +2120,37 @@ def _format_report_batch(reports: list[dict]) -> str:
             ]
             parts.append("\n".join(lines))
             continue
+        # Compatibility for terminal notices persisted by the pre-T-046
+        # scheduler: those rows have source=automation and an envelope, but
+        # do not yet have the explicit noticeKind/top-level projections.
+        # Keep them as Pan system messages instead of reviving the old
+        # `@@@@by agent : automation | automation` rendering.
+        if r.get("source") == "automation":
+            envelope = r.get("envelope") if isinstance(r.get("envelope"), dict) else {}
+            event_id = r.get("eventId")
+            job_id = r.get("jobId") or envelope.get("jobId")
+            if job_id is None and isinstance(event_id, str):
+                job_id = event_id.removesuffix(":terminal")
+            target_id = r.get("targetSessionId") or envelope.get("targetSessionId")
+            target_ids = r.get("targetSessionIds") or envelope.get("targetSessionIds")
+            if not isinstance(target_ids, list):
+                target_ids = [target_id] if target_id is not None else []
+            lines = [
+                "////by pan system",
+                f"status: {_field_value(envelope.get('status', r.get('status')))}",
+                f"jobId: {_field_value(job_id)}",
+                f"targetSessionId: {_field_value(target_id)}",
+                f"targetSessionIds: {_field_value(target_ids)}",
+            ]
+            creator_id = r.get("creatorSessionId") or envelope.get("creatorSessionId")
+            if creator_id is not None:
+                lines.append(f"creatorSessionId: {_field_value(creator_id)}")
+            lines += [
+                "result:",
+                _field_value(r.get("result")),
+            ]
+            parts.append("\n".join(lines))
+            continue
         # Reports identify the producing session in sourceSessionId. The
         # legacy sessionId field remains the report subject/fallback.
         if r.get("type") == "notice":
