@@ -18,7 +18,7 @@
 - 整体状态：批次 A、D 已由用户确认验收；当前新增的 UI 修复 `T-048` 正在执行，Job/Workspace UI 仍分别等待 `DEC-004`/`DEC-005`。
 - 当前焦点：完成 `T-048` 的移动端 Manage 关闭行为与 Session 设置点击外关闭；其余已合入改动继续等待开发者验收。
 - 可执行：`T-048` 无决策阻塞；Job/Workspace UI 仍按各自决策局部阻塞。
-- TA 执行中：`T-048`，等待派发结果。
+- TA 执行中：`T-048`，`ses_0010355a6b0bf824` / `worker-2`。
 - 最近收口：批次 A、批次 D 已由用户确认全部验收（2026-09-18）。
 
 ### 需要用户处理
@@ -324,14 +324,15 @@
 
 ### T-048：移动端 Manage 关闭行为与 Session 设置点击外关闭
 
-- 任务类型：代码改动｜阶段/状态：待派发 / 实现中｜合入 main：否｜开发者验收：待确认
+- 任务类型：代码改动｜阶段/状态：已派发 / 实现中｜合入 main：否｜开发者验收：待确认
 - 来源：用户于 2026-09-18 明确新增 UI 改动任务 1。
 - 目标：移动端 Manage 使用与 Session Details 一致的右上角 X 关闭；关闭后保持 Sidebar 弹出状态，不直接导航进入 Session。Session 设置弹层改为点击设置窗口外任意位置即关闭，窗口内控件交互不误关闭。
 - 验收：移动端从 Sidebar 打开 Manage、点击右上角 X 后仍停留在 Sidebar 弹出态；桌面端既有 Manage Modal 行为不回归；打开 Session Settings 后点击聊天区、Sidebar、其他页面空白和窗口外控件均关闭；点击设置窗口及其下拉/按钮不关闭；Escape/原有 gear toggle 保持有效。
 - 决策/授权：无新增决策门；用户已授权实现。UI 具体形态仅限本任务明确的两项交互，不扩展 Job/Workspace UI。
 - 边界：使用隔离 worktree；不改 `D:\project\Pan`、不 push、不操作 8768；补充相关 Vitest/组件测试，并在依赖可用时执行前端 build。
 - 阻塞：无。
-- 下一动作：派发 TA 实现并报告 worktree、commit、测试及未验证项。
+- TA/任务：`ses_0010355a6b0bf824` / `T-048-ui-manage-settings-20260918`；已派发，返回 `queued` / `worker-2`；已订阅完成报告。
+- 下一动作：等待 TA 报告 worktree、commit、测试及未验证项。
 - [ ] 实现移动端 Manage 右上角 X 与 Sidebar 保持逻辑
 - [ ] 实现 Session Settings 点击窗口外关闭
 - [ ] 补充/更新交互测试并通过前端 build（若依赖可用）
