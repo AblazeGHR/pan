@@ -15,10 +15,10 @@
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
-- 整体状态：批次 A、D 已由用户确认验收；`T-048` 已实现并合入本地 `main`，等待合入后的开发者验收；`T-049` 检修完整前端测试；新增 `T-050` 修复 usage 缓存命中后的打开延迟；Job/Workspace UI 仍分别等待 `DEC-004`/`DEC-005`。
-- 当前焦点：推进 `T-050` 的 usage/quota 缓存快速展示与刷新解耦，同时等待 `T-049` 报告；保留 `T-048` 的真人验收入口。
+- 整体状态：批次 A、D 已由用户确认验收；`T-048` 已实现并合入本地 `main`，等待合入后的开发者验收；`T-049` 测试基线修复已完成，等待合入 main；`T-050` 修复 usage 缓存命中后的打开延迟；Job/Workspace UI 仍分别等待 `DEC-004`/`DEC-005`。
+- 当前焦点：推进 `T-050` 的 usage/quota 缓存快速展示与刷新解耦；`T-049` 等待合入 main 后复跑确认；保留 `T-048` 的真人验收入口。
 - 可执行：`T-050` 无决策阻塞；Job/Workspace UI 仍按各自决策局部阻塞。
-- TA 执行中：`T-049` / `ses_0010355a6b0bf824` / `worker-1`，以及 `T-050` / `ses_c28ff8194c88f3dc` / `worker-3`。
+- TA 执行中：`T-050` / `ses_c28ff8194c88f3dc` / `worker-3`。
 - 最近收口：批次 A、批次 D 已由用户确认全部验收（2026-09-18）。
 
 ### 需要用户处理
@@ -29,7 +29,7 @@
 
 ### MA 正在推进
 
-- 已核对 T-048 交付；另立 T-049 检修完整 Vitest 的 3 类失败，不将无关测试问题混入 T-048。
+- 已核对 T-048 交付；T-049 已完成完整 Vitest 基线检修，确认 3 类失败均为测试环境/过期断言或不可复现的测试问题，不将其混入 T-048；当前继续推进 T-050。
 
 ### 等待与暂停
 
@@ -341,20 +341,21 @@
 
 ### T-049：完整前端 Vitest 失败检修与归因
 
-- 任务类型：代码改动（测试维护）｜阶段/状态：已派发 / 调查与修复｜合入 main：否｜开发者验收：待确认
+- 任务类型：代码改动（测试维护）｜阶段/状态：实现完成 / 待合入 main｜合入 main：否｜开发者验收：待确认
 - 来源：T-048 完整 `vitest run` 报告；用户要求对测试问题派发 TA 检修。
-- 已核实：`Toast.test.tsx` 缺少 jsdom 环境声明；`NewSessionModal.test.tsx` 仍断言旧默认名 `Session 1`，而当前 `nextSessionDefaultName` 明确返回 `session-1`；`SessionList.drag.realBackend.test.tsx` 的 C→B 管理迁移用例未触发预期 `unclaim`，原因尚待复现。
+- 已核实：`Toast.test.tsx` 缺少 jsdom 环境声明；`NewSessionModal.test.tsx` 仍断言旧默认名 `Session 1`，而当前 `nextSessionDefaultName` 明确返回 `session-1`；`SessionList.drag.realBackend.test.tsx` 的 C→B 管理迁移失败在独立运行和完整套件中均无法复现，未发现产品回归。
 - 目标：修复明确的测试环境/断言问题；复现并判定 SessionList 拖拽失败是测试事件/命中模拟问题还是产品交互回归。若确认是产品回归，必须在报告中单独标明并提供证据，不得将其归为测试修复。
-- 验收：相关单测通过；在依赖可用环境下完整 Vitest 不再包含这 3 类失败，或对仍真实存在的产品缺陷给出独立失败证据与后续任务建议。
+- 验收：相关单测通过；在依赖可用环境下完整 Vitest 不再包含这 3 类失败，或对仍真实存在的产品缺陷给出独立失败证据与后续任务建议。已满足：完整 Vitest `61 passed / 519 passed / 0 failed`，SessionList 独立用例 `7/7` 通过。
 - 决策/授权：无新增决策门；用户已授权测试检修。不得触碰 8768、不得改 `D:\project\Pan`、不得 push。
 - 阻塞：无。
-- TA/任务：`ses_0010355a6b0bf824` / `T-049-frontend-test-baseline-repair-20260918`；已派发，返回 `queued` / `worker-1`；已订阅完成报告。
-- 下一动作：等待 TA 报告分类、差异、commit 与完整测试结果。
-- [ ] 修复 Toast jsdom 测试环境
-- [ ] 更新 NewSessionModal 过期默认名称断言并补充必要覆盖
-- [ ] 调查并修复/定责 SessionList 拖拽迁移失败
-- [ ] 完整 Vitest 验证
-- [ ] 合入 main 后开发者验收（如涉及产品代码）
+- TA/任务：`ses_0010355a6b0bf824` / `T-049-frontend-test-baseline-repair-20260918`；已完成报告；提交 `374039bee54d986a2d117b12fe1824e6f6ebc598`；TA worktree `D:\project\pan-worktrees\t049-frontend-test-repair-20260918`，工作树 clean。
+- 提交/测试：Toast 增加文件级 jsdom 环境；NewSessionModal 更新当前 `session-1` 约定并修正异步/跨 `<br>` 断言；SessionList 未修改产品代码。完整 Vitest `61` 个文件、`519` 个测试全部通过；`pnpm --dir packages/web build`、pre-commit React frontend check、diff check 通过；未触碰 8768、`D:\project\Pan`、`D:\project\Pan-main` 代码或 push。
+- 下一动作：将 T-049 提交合入本地 `main`，然后在 main 上复跑前端 Vitest/build；解除：合入并确认基线全绿。该任务不包含产品代码变更，不新增产品行为验收项。
+- [x] 修复 Toast jsdom 测试环境
+- [x] 更新 NewSessionModal 过期默认名称断言并补充必要覆盖
+- [x] 调查并定责 SessionList 拖拽迁移失败（未复现，不修改产品代码）
+- [x] 完整 Vitest 验证
+- [ ] 合入 main 并复跑确认
 
 ### T-048：移动端 Manage 关闭行为与 Session 设置点击外关闭
 
