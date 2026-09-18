@@ -2095,7 +2095,9 @@ def _format_report_batch(reports: list[dict]) -> str:
             sess = _sess.get(sid)
             if sess and sess.name:
                 title = sess.name
-        src = sid or r.get("workerId") or "unknown"
+        elif r.get("source") == "automation":
+            title = "automation"
+        src = sid or r.get("workerId") or r.get("source") or "unknown"
         lines = [
             f"@@@@by agent : {src} | {title}",
             f"status: {_field_value(r.get('status'))}",
@@ -3218,7 +3220,8 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
 async def enqueue_notice(target_session_id: str, text: str,
                          source: str = "agent",
                          source_session_id: str | None = None,
-                         event_id: str | None = None) -> dict:
+                         event_id: str | None = None,
+                         envelope: dict | None = None) -> dict:
     """向显式指定的 session 投递一条提醒（MCP agent_notify 的后端实现）。
 
     复刻 _enqueue_report 的持久化投递三步（append 落盘队列 + save_async +
@@ -3235,7 +3238,7 @@ async def enqueue_notice(target_session_id: str, text: str,
     加 type="notice" 区分语义：消费端按
     ``type != "task"`` 取报告、前端 normalize 非 task/qq 按 report 分支
     渲染，均天然兼容。渲染时抬头取 sourceSessionId（``@@@@by agent``），
-    sourceSessionId 缺省（无调用方身份）记 unknown。
+    sourceSessionId 缺省（无调用方身份）由 source 标签标识；自动化为 automation。
 
     返回 {"ok": True, "sessionId": ..., "pending": <队列长度>}；session
     不存在返回 {"ok": False, "error": {...}}。
@@ -3289,6 +3292,11 @@ async def enqueue_notice(target_session_id: str, text: str,
     }
     if event_id:
         item["eventId"] = event_id
+    if envelope is not None:
+        item["envelope"] = dict(envelope)
+        item["envelope"].setdefault(
+            "jobId", event_id.removesuffix(":terminal")
+            if isinstance(event_id, str) else None)
     item["queueItemId"] = item["id"]
     if source_sid is not None:
         item["sourceSessionId"] = source_sid

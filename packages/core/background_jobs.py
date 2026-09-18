@@ -36,6 +36,7 @@ _stop_recovery = asyncio.Event()
 # they do not have a target Session and never participate in queue_pending.
 BACKGROUND_PROCESS_KIND = "background-process"
 SESSION_MESSAGE_KIND = "session-message"
+SESSION_BROADCAST_KIND = "session-broadcast"
 SERVICE_LIFECYCLE_KIND = "main-lifecycle"
 SERVICE_ACTIVE_PHASES = frozenset({
     "requested", "stopping", "stopping_workers", "stopping_service",
@@ -170,6 +171,7 @@ def _normalize_job(job: dict | None) -> dict | None:
     result = dict(job)
     result.setdefault("kind", BACKGROUND_PROCESS_KIND)
     result.setdefault("operation", "run")
+    result.setdefault("creatorSessionId", None)
     if result.get("kind") == SERVICE_LIFECYCLE_KIND:
         result.setdefault("options", {})
         # ``errors`` was added after the first lifecycle Job schema.  Keep
@@ -246,9 +248,13 @@ def _runner_command(job_id: str) -> list[str]:
     return [*resolve_pan_python_argv(), "-m", "packages.core.background_runner", "--job-id", job_id]
 
 
-def start(target_session_id: str, argv: list[str], cwd: str, *, label: str | None = None) -> dict:
+def start(target_session_id: str, argv: list[str], cwd: str, *, label: str | None = None,
+          creator_session_id: str | None = None) -> dict:
     if not _sessions.get(target_session_id):
         raise ValueError("target session does not exist")
+    creator_sid, creator_error = _worker._normalize_source_session_id(creator_session_id)
+    if creator_error:
+        raise ValueError(creator_error)
     argv, cwd_path = _validate_command(argv, cwd)
     job_id = "job_" + secrets.token_hex(12)
     now = time.time()
@@ -256,6 +262,7 @@ def start(target_session_id: str, argv: list[str], cwd: str, *, label: str | Non
     job = {
         "jobId": job_id, "targetSessionId": target_session_id, "argv": argv,
         "kind": BACKGROUND_PROCESS_KIND, "operation": "run",
+        "creatorSessionId": creator_sid,
         "commandSummary": " ".join(argv[:3]) + (" …" if len(argv) > 3 else ""),
         "cwd": str(cwd_path), "label": label, "status": "starting",
         "createdAt": now, "updatedAt": now, "pid": None, "processCreatedAt": None,
@@ -410,33 +417,90 @@ def _message_next_run(schedule: dict, after: float) -> float | None:
     return None
 
 
-def start_message(target_session_id: str, text: str, schedule: dict, *,
-                  description: str | None = None, source: str = "agent",
-                  source_session_id: str | None = None,
-                  registry_root: str | Path | None = None) -> dict:
-    """Create a durable one-target Session message schedule.
+def _normalize_target_session_ids(target_session_ids: Any) -> list[str]:
+    if not isinstance(target_session_ids, list) or not target_session_ids:
+        raise ValueError("targetSessionIds must be a non-empty array")
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in target_session_ids:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("targetSessionIds must contain non-empty strings")
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
 
-    ``text`` is always message text delivered through ``worker.send_session``;
-    it is never parsed as or executed through an operating-system shell.
-    """
+
+def _message_job_common(text: str, schedule: dict, *,
+                        source: str, source_session_id: str | None,
+                        creator_session_id: str | None) -> tuple[str, str | None, str | None, dict, float, float]:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("text is required")
-    if not _sessions.get(target_session_id):
-        raise ValueError("target session does not exist")
     source_type, source_error = _worker._normalize_source_type(source)
     if source_error:
         raise ValueError(source_error)
     source_sid, source_error = _worker._normalize_source_session_id(source_session_id)
     if source_error:
         raise ValueError(source_error)
+    creator_sid, creator_error = _worker._normalize_source_session_id(creator_session_id)
+    if creator_error:
+        raise ValueError(creator_error)
     now = time.time()
     normalized, next_run = _normalize_message_schedule(schedule, now)
+    return source_type, source_sid, creator_sid, normalized, next_run, now
+
+
+def start_message(target_session_id: str, text: str, schedule: dict, *,
+                  description: str | None = None, source: str = "agent",
+                  source_session_id: str | None = None,
+                  creator_session_id: str | None = None,
+                  registry_root: str | Path | None = None) -> dict:
+    """Create a durable one-target Session message schedule.
+
+    ``text`` is always message text delivered through ``worker.send_session``;
+    it is never parsed as or executed through an operating-system shell.
+    """
+    if not isinstance(target_session_id, str) or not target_session_id:
+        raise ValueError("target session does not exist")
+    if not _sessions.get(target_session_id):
+        raise ValueError("target session does not exist")
+    source_type, source_sid, creator_sid, normalized, next_run, now = _message_job_common(
+        text, schedule, source=source, source_session_id=source_session_id,
+        creator_session_id=creator_session_id)
     job_id = "job_" + secrets.token_hex(12)
     job = {
         "jobId": job_id, "kind": SESSION_MESSAGE_KIND, "operation": "send",
         "targetSessionId": target_session_id, "text": text,
         "description": description if description is not None else "",
         "source": source_type, "sourceSessionId": source_sid,
+        "creatorSessionId": creator_sid,
+        "schedule": normalized, "nextRunAt": _iso_utc(next_run),
+        "status": "pending", "runCount": 0, "lastRunAt": None,
+        "lastDelivery": None, "lastError": None,
+        "createdAt": now, "updatedAt": now,
+    }
+    return _create(job, registry_root)
+
+
+def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
+                    description: str | None = None, source: str = "agent",
+                    source_session_id: str | None = None,
+                    creator_session_id: str | None = None,
+                    registry_root: str | Path | None = None) -> dict:
+    """Create one durable scheduled fan-out Job for an ordered target list."""
+    target_ids = _normalize_target_session_ids(target_session_ids)
+    if any(not _sessions.get(session_id) for session_id in target_ids):
+        raise ValueError("target session does not exist")
+    source_type, source_sid, creator_sid, normalized, next_run, now = _message_job_common(
+        text, schedule, source=source, source_session_id=source_session_id,
+        creator_session_id=creator_session_id)
+    job_id = "job_" + secrets.token_hex(12)
+    job = {
+        "jobId": job_id, "kind": SESSION_BROADCAST_KIND, "operation": "broadcast",
+        "targetSessionIds": target_ids, "text": text,
+        "description": description if description is not None else "",
+        "source": source_type, "sourceSessionId": source_sid,
+        "creatorSessionId": creator_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
         "status": "pending", "runCount": 0, "lastRunAt": None,
         "lastDelivery": None, "lastError": None,
@@ -447,8 +511,9 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
 
 def update_message(job_id: str, *, text: str | None = None,
                    schedule: dict | None = None, description: str | None = None,
+                   target_session_ids: list[str] | None = None,
                    registry_root: str | Path | None = None) -> dict:
-    """Edit a non-terminal message Job's text, description, or schedule."""
+    """Edit a non-terminal message or broadcast Job."""
     changes: dict[str, Any] = {}
     if text is not None:
         if not isinstance(text, str) or not text.strip():
@@ -458,6 +523,12 @@ def update_message(job_id: str, *, text: str | None = None,
         if not isinstance(description, str):
             raise ValueError("description must be a string")
         changes["description"] = description
+    normalized_targets = None
+    if target_session_ids is not None:
+        normalized_targets = _normalize_target_session_ids(target_session_ids)
+        if any(not _sessions.get(session_id) for session_id in normalized_targets):
+            raise ValueError("target session does not exist")
+        changes["targetSessionIds"] = normalized_targets
     if schedule is not None:
         normalized, next_run = _normalize_message_schedule(schedule, time.time())
         changes.update(schedule=normalized, nextRunAt=_iso_utc(next_run),
@@ -468,8 +539,11 @@ def update_message(job_id: str, *, text: str | None = None,
     with _lock, _job_lock(job_id, registry_root):
         path = _job_path(job_id, registry_root)
         current = _load_path(path)
-        if not current or current.get("kind") != SESSION_MESSAGE_KIND:
+        if not current or current.get("kind") not in {
+            SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
             raise ValueError("message Job not found")
+        if normalized_targets is not None and current.get("kind") != SESSION_BROADCAST_KIND:
+            raise ValueError("targetSessionIds are only valid for broadcast Jobs")
         if current.get("status") in MESSAGE_JOB_TERMINAL:
             raise ValueError("terminal message Jobs cannot be edited")
         current.update(changes)
@@ -479,7 +553,8 @@ def update_message(job_id: str, *, text: str | None = None,
 
 def cancel_message(job_id: str, registry_root: str | Path | None = None) -> dict:
     current = get(job_id, registry_root)
-    if not current or current.get("kind") != SESSION_MESSAGE_KIND:
+    if not current or current.get("kind") not in {
+        SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
         raise ValueError("message Job not found")
     if current.get("status") in MESSAGE_JOB_TERMINAL:
         return current
@@ -495,7 +570,7 @@ async def run_due_message_jobs(now: float | None = None) -> int:
     # post-send update.  Requeue only stale claims, allowing a fresh service
     # to recover them without treating an active in-process send as orphaned.
     for candidate in list_jobs():
-        if (candidate.get("kind") == SESSION_MESSAGE_KIND
+        if (candidate.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}
                 and candidate.get("status") == "running"):
             started = candidate.get("runStartedAt")
             if isinstance(started, (int, float)) and current_time - started < MESSAGE_JOB_REQUEUE_AFTER_SEC:
@@ -505,14 +580,16 @@ async def run_due_message_jobs(now: float | None = None) -> int:
                 current = _load_path(path)
                 if current and current.get("status") == "running":
                     current.update(status=("scheduled" if current.get("schedule", {}).get("type")
-                                           in {"interval", "weekly"} else "pending"),
-                                   nextRunAt=_iso_utc(current_time),
+                                   in {"interval", "weekly"} else "pending"),
+                                   # Keep the recovered occurrence due even
+                                   # after ISO serialization rounds the float.
+                                   nextRunAt=_iso_utc(current_time - 0.001),
                                    lastError="recovered after scheduler restart",
                                    updatedAt=current_time)
                     _atomic_write(path, current)
     claimed: list[dict] = []
     for candidate in list_jobs():
-        if candidate.get("kind") != SESSION_MESSAGE_KIND:
+        if candidate.get("kind") not in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
             continue
         if candidate.get("status") not in {"pending", "scheduled"}:
             continue
@@ -525,7 +602,7 @@ async def run_due_message_jobs(now: float | None = None) -> int:
         with _lock, _job_lock(candidate["jobId"]):
             path = _job_path(candidate["jobId"])
             job = _load_path(path)
-            if (not job or job.get("kind") != SESSION_MESSAGE_KIND
+            if (not job or job.get("kind") not in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}
                     or job.get("status") not in {"pending", "scheduled"}):
                 continue
             try:
@@ -539,18 +616,43 @@ async def run_due_message_jobs(now: float | None = None) -> int:
             claimed.append(job)
     delivered = 0
     for job in claimed:
-        result: dict
-        try:
-            # A cancel racing the claim wins before the actual send whenever
-            # possible; an already in-flight send cannot be retracted.
-            latest = get(job["jobId"])
-            if not latest or latest.get("status") != "running":
-                continue
-            result = await _worker.send_session(
-                job["targetSessionId"], job["text"], source=job.get("source", "agent"),
-                source_session_id=job.get("sourceSessionId"))
-        except Exception as exc:  # keep the scheduler alive after one bad Job
-            result = {"status": "error", "result": str(exc)}
+        # A cancel racing the claim wins before the actual send whenever
+        # possible; an already in-flight send cannot be retracted.
+        latest = get(job["jobId"])
+        if not latest or latest.get("status") != "running":
+            continue
+        target_ids = ([job["targetSessionId"]]
+                      if job.get("kind") == SESSION_MESSAGE_KIND
+                      else list(job.get("targetSessionIds") or []))
+        target_results: list[dict] = []
+        for target_id in target_ids:
+            try:
+                result = await _worker.send_session(
+                    target_id, job["text"], source=job.get("source", "agent"),
+                    source_session_id=job.get("sourceSessionId"))
+                if not isinstance(result, dict):
+                    result = {"status": "error", "result": "send returned an invalid result"}
+            except Exception as exc:  # isolate one target and keep the fan-out alive
+                result = {"status": "error", "result": str(exc)}
+            item = dict(result)
+            item["sessionId"] = target_id
+            target_results.append(item)
+        if job.get("kind") == SESSION_MESSAGE_KIND:
+            result = target_results[0] if target_results else {
+                "status": "error", "result": "no target session"
+            }
+        else:
+            failures = [item for item in target_results if item.get("status") == "error"]
+            successes = len(target_results) - len(failures)
+            result = {
+                "status": ("error" if not successes else ("partial" if failures else "queued")),
+                "results": target_results,
+            }
+            if failures:
+                result["errors"] = [
+                    f"{item['sessionId']}: {item.get('result') or item.get('error') or 'send failed'}"
+                    for item in failures
+                ]
         finished = time.time()
         recurring = job.get("schedule", {}).get("type") in {"interval", "weekly"}
         ok = isinstance(result, dict) and result.get("status") != "error"
@@ -563,17 +665,25 @@ async def run_due_message_jobs(now: float | None = None) -> int:
             if recurring:
                 changes.update(status="scheduled",
                                nextRunAt=_iso_utc(_message_next_run(job["schedule"], finished)),
-                               lastError=None)
+                               lastError=("; ".join(result.get("errors", []))
+                                          if result.get("status") == "partial" else None))
             else:
-                changes.update(status="completed", nextRunAt=None, lastError=None)
+                changes.update(
+                    status="completed", nextRunAt=None,
+                    lastError=("; ".join(result.get("errors", []))
+                               if result.get("status") == "partial" else None))
             delivered += 1
         elif recurring:
             changes.update(status="scheduled",
                            nextRunAt=_iso_utc(_message_next_run(job["schedule"], finished)),
-                           lastError=(result.get("result") if isinstance(result, dict) else "send failed"))
+                           lastError=("; ".join(result.get("errors", []))
+                                      if isinstance(result, dict) and result.get("status") == "partial"
+                                      else (result.get("result") if isinstance(result, dict) else "send failed")))
         else:
             changes.update(status="failed", nextRunAt=None,
-                           lastError=(result.get("result") if isinstance(result, dict) else "send failed"))
+                           lastError=("; ".join(result.get("errors", []))
+                                      if isinstance(result, dict) and result.get("status") == "partial"
+                                      else (result.get("result") if isinstance(result, dict) else "send failed")))
         with _lock, _job_lock(job["jobId"]):
             path = _job_path(job["jobId"])
             latest = _load_path(path)
@@ -611,7 +721,7 @@ def cancel(job_id: str) -> dict:
     job = get(job_id)
     if not job:
         raise ValueError("job not found")
-    if job.get("kind") == SESSION_MESSAGE_KIND:
+    if job.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
         return cancel_message(job_id)
     if job.get("status") in {"completed", "failed", "cancelled"}:
         return job
@@ -653,13 +763,14 @@ def retry(job_id: str) -> dict:
     old = get(job_id)
     if not old:
         raise ValueError("job not found")
-    if old.get("kind") == SESSION_MESSAGE_KIND:
+    if old.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
         raise ValueError("message Jobs are edited or recreated, not retried")
     if old.get("status") in {"starting", "running"}:
         raise ValueError("running jobs cannot be retried; cancel them first")
     if old.get("status") not in {"completed", "failed", "cancelled"}:
         raise ValueError("job is not retryable")
-    new_job = start(old["targetSessionId"], old["argv"], old["cwd"], label=old.get("label"))
+    new_job = start(old["targetSessionId"], old["argv"], old["cwd"],
+                    label=old.get("label"), creator_session_id=old.get("creatorSessionId"))
     new_job["retryOf"] = job_id
     return _update(new_job["jobId"], {"retryOf": job_id})
 
@@ -825,7 +936,8 @@ def reconcile_running() -> int:
     """
     changed = 0
     for job in list_jobs():
-        if job.get("kind") in {SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND}:
+        if job.get("kind") in {
+            SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
             continue
         if job.get("status") not in {"starting", "running"}:
             continue
@@ -864,8 +976,18 @@ async def recover_notifications() -> int:
                 continue
             target = current.get("targetSessionId")
             event_id = current.get("terminalEventId") or f"{current['jobId']}:terminal"
-            text = json.dumps({"jobId": current["jobId"], "status": current["status"], "exitCode": current.get("exitCode"), "logPath": current.get("logPath")}, ensure_ascii=False)
-            result = await _worker.enqueue_notice(target, text, source="automation", event_id=event_id)
+            envelope = {
+                "jobId": current["jobId"], "kind": current.get("kind"),
+                "status": current["status"],
+                "targetSessionId": current.get("targetSessionId"),
+                "targetSessionIds": current.get("targetSessionIds"),
+                "creatorSessionId": current.get("creatorSessionId"),
+            }
+            text = json.dumps({**envelope, "exitCode": current.get("exitCode"),
+                               "logPath": current.get("logPath")}, ensure_ascii=False)
+            result = await _worker.enqueue_notice(
+                target, text, source="automation", event_id=event_id,
+                envelope=envelope)
             if result.get("ok"):
                 current["notificationState"] = "delivered"
                 current["terminalEventId"] = event_id

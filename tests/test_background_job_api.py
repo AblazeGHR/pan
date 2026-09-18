@@ -34,6 +34,7 @@ def test_mcp_start_defaults_to_current_session_and_checks_access(monkeypatch):
     result = mcp_server.agent_background_start(["python", "train.py"], "C:\\Pan")
     assert result["jobId"] == "job_1"
     assert calls[0][2]["targetSessionId"] == "ses_self"
+    assert calls[0][2]["creatorSessionId"] == "ses_self"
 
 
 def test_mcp_start_denies_unmanaged_target(monkeypatch):
@@ -111,7 +112,8 @@ def test_http_message_job_creation_preserves_source_and_text(monkeypatch):
     assert calls == [("ses_target", "message text",
                       {"type": "once", "delaySeconds": 10},
                       {"description": "a job", "source": "agent",
-                       "source_session_id": "ses_caller"})]
+                       "source_session_id": "ses_caller",
+                       "creator_session_id": "ses_caller"})]
 
 
 def test_http_selected_session_broadcast_reuses_send_session(monkeypatch):
@@ -155,4 +157,66 @@ def test_mcp_message_job_shortcuts_preserve_caller_prefix(monkeypatch):
         "targetSessionId": "ses_target", "text": "PREFIX\ndo it",
         "schedule": {"type": "once", "delaySeconds": 5},
         "description": "desc", "source": "agent",
-        "sourceSessionId": "ses_caller"})
+        "sourceSessionId": "ses_caller", "creatorSessionId": "ses_caller"})
+
+
+def test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model(monkeypatch):
+    calls = []
+
+    class Target:
+        def __init__(self, sid):
+            self.id = sid
+            self.readonly_session = False
+            self.managed_by = None
+
+    monkeypatch.setattr(web_server.sess, "get",
+                        lambda sid: Target(sid) if sid in {"ses_a", "ses_b", "ses_caller"} else None)
+    monkeypatch.setattr(web_server.background_jobs, "start_broadcast",
+                        lambda targets, text, schedule, **kwargs:
+                        calls.append((targets, text, schedule, kwargs)) or {
+                            "jobId": "job_broadcast", "kind": "session-broadcast"})
+    result = asyncio.run(web_server.api_session_message_job_start({
+        "targetSessionIds": ["ses_a", "ses_b", "ses_a"], "text": "hello",
+        "schedule": {"type": "once", "delaySeconds": 10},
+        "source": "agent", "sourceSessionId": "ses_caller"}))
+    assert result["kind"] == "session-broadcast"
+    assert calls == [([
+        "ses_a", "ses_b"], "hello",
+        {"type": "once", "delaySeconds": 10},
+        {"description": None, "source": "agent", "source_session_id": "ses_caller",
+         "creator_session_id": "ses_caller"})]
+
+
+def test_mcp_scheduled_broadcast_preserves_prefix_and_denies_any_target(monkeypatch):
+    calls = []
+    monkeypatch.setattr(mcp_server, "_caller_identity", lambda: {"id": "ses_caller"})
+    monkeypatch.setattr(mcp_server, "_agent_message_prefix",
+                        lambda text: "PREFIX\n" + text)
+
+    def check(target, claim=False):
+        if target == "ses_denied":
+            return {"ok": False, "error": {"code": "permission_denied"}}
+        return None
+
+    monkeypatch.setattr(mcp_server, "_check_access", check)
+    monkeypatch.setattr(mcp_server, "_api", lambda method, path, body=None,
+                        timeout=30.0: calls.append((method, path, body)) or {
+                            "jobId": "job_broadcast", "kind": "session-broadcast"})
+    result = mcp_server.agent_message_job_create(
+        "do it", {"type": "weekly", "weekday": 1, "time": "09:00",
+                  "timezone": "UTC"},
+        target_session_ids=["ses_a", "ses_b"], description="broadcast")
+    assert result["kind"] == "session-broadcast"
+    assert calls[0] == ("POST", "/api/session-message-jobs", {
+        "text": "PREFIX\ndo it",
+        "schedule": {"type": "weekly", "weekday": 1, "time": "09:00",
+                      "timezone": "UTC"},
+        "source": "agent", "targetSessionIds": ["ses_a", "ses_b"],
+        "description": "broadcast", "sourceSessionId": "ses_caller",
+        "creatorSessionId": "ses_caller"})
+    calls.clear()
+    denied = mcp_server.agent_message_job_create(
+        "do it", {"type": "once", "delaySeconds": 5},
+        target_session_ids=["ses_a", "ses_denied"])
+    assert denied["error"]["code"] == "permission_denied"
+    assert calls == []

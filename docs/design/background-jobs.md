@@ -47,8 +47,10 @@ HTTP endpoints are:
 
 MCP exposes `agent_background_start/get/list/cancel/retry` for OS-process Jobs
 and `agent_message_job_create/get/list/update/cancel` for time-based Session
-messages. A message Job has one target Session, a description, text, creator
-`sourceSessionId`, and a normalized schedule:
+messages and scheduled broadcasts. A message Job has one target Session; a
+broadcast Job has an ordered, deduplicated `targetSessionIds` list. Both have
+a description, text, creator `creatorSessionId` (with `sourceSessionId` retained
+as message provenance), and a normalized schedule:
 
 - one-time: `{"type":"once","at":"<ISO-8601>"}` or
   `{"type":"once","delaySeconds":N}`;
@@ -67,9 +69,21 @@ an already in-flight send cannot be retracted.
 
 The immediate selected-Session fan-out API is `POST /api/sessions/broadcast`
 and MCP `agent_send_many`. It calls the ordinary send path once per unique
-Session and reports per-target results. Scheduled fan-out is intentionally not
-part of this stage and must be added only after the immediate fan-out contract
-is accepted.
+Session and reports per-target results. A scheduled broadcast uses the same
+durable scheduler and calls the same send path once per target in persisted
+order. It records `lastDelivery.results` for every target; a mixed occurrence
+is a completed/scheduled Job with `lastDelivery.status="partial"` and a
+per-target error summary, while an all-failed one-shot is `failed`. Recurring
+Jobs remain `scheduled` after a partial or all-failed occurrence and calculate
+only the next occurrence from the completed/recovery time.
+
+The creator is audit/permission metadata, not a delivery target. A Job created
+by agent A for agent B stores `creatorSessionId=A` and
+`targetSessionId=B` (or the ordered `targetSessionIds` list); scheduled message
+Jobs do not create an automatic terminal notice back to A. The independent
+process-Job terminal notice remains routed to its persisted target and carries
+a structured `envelope` with `jobId`, status, target(s), and creator metadata.
+System Jobs have a null creator and render with source `automation`.
 
 ## Security and product decisions
 

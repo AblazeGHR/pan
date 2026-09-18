@@ -4403,9 +4403,8 @@ async def api_models(adapter: str = "cbc"):
 async def api_sessions_broadcast(data: dict):
     """Send one message to selected Sessions through the normal send path.
 
-    This is an immediate fan-out primitive only.  Each target is enqueued
-    independently, preserving its own active task context and FIFO queue;
-    scheduled fan-out remains deliberately out of the time-Job MVP.
+    This is an immediate fan-out primitive.  Scheduled fan-out uses the same
+    per-target send semantics through the durable time-Job endpoint below.
     """
     session_ids = data.get("sessionIds")
     text = data.get("text")
@@ -4448,7 +4447,9 @@ async def api_background_job_start(data: dict):
     argv = data.get("argv")
     cwd = data.get("cwd")
     try:
-        return background_jobs.start(target, argv, cwd, label=data.get("label"))
+        return background_jobs.start(
+            target, argv, cwd, label=data.get("label"),
+            creator_session_id=data.get("creatorSessionId"))
     except ValueError as exc:
         return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
     except OSError as exc:
@@ -4461,9 +4462,11 @@ async def api_background_job_list(targetSessionId: str | None = None):
     # Session-targeted background commands and must not leak into this API.
     jobs = [job for job in background_jobs.list_jobs()
             if job.get("kind") in {background_jobs.BACKGROUND_PROCESS_KIND,
-                                    background_jobs.SESSION_MESSAGE_KIND}]
+                                    background_jobs.SESSION_MESSAGE_KIND,
+                                    background_jobs.SESSION_BROADCAST_KIND}]
     if targetSessionId:
-        jobs = [j for j in jobs if j.get("targetSessionId") == targetSessionId]
+        jobs = [j for j in jobs if (j.get("targetSessionId") == targetSessionId
+                                   or targetSessionId in (j.get("targetSessionIds") or []))]
     return {"jobs": jobs}
 
 
@@ -4484,27 +4487,48 @@ async def api_background_job_cancel(job_id: str):
 
 @app.post("/api/session-message-jobs")
 async def api_session_message_job_start(data: dict):
-    """Create a durable one-target Session message schedule.
+    """Create a durable Session message or scheduled broadcast.
 
     ``text`` is delivered as message text; it is never an OS command.
     """
     target = data.get("targetSessionId")
+    target_ids = data.get("targetSessionIds")
     text = data.get("text")
     source_type, source_session_id, source_error = _request_source_metadata(data)
     if source_error:
         return source_error
-    target_session = sess.get(target) if isinstance(target, str) else None
-    if not target_session:
+    if target_ids is not None and target is not None:
         return {"ok": False, "error": {"code": "invalid_job",
-                                         "message": "target session does not exist"}}
-    denied = _source_access_error(target_session, source_session_id)
-    if denied:
-        return denied
+                                         "message": "provide targetSessionId or targetSessionIds, not both"}}
+    if target_ids is None:
+        target_ids = [target] if isinstance(target, str) else None
+    if not isinstance(target_ids, list) or not target_ids:
+        return {"ok": False, "error": {"code": "invalid_job",
+                                         "message": "targetSessionId or targetSessionIds is required"}}
+    if any(not isinstance(target_id, str) or not target_id.strip()
+           for target_id in target_ids):
+        return {"ok": False, "error": {"code": "invalid_job",
+                                         "message": "target session IDs must be non-empty strings"}}
+    target_ids = list(dict.fromkeys(target_ids))
+    for target_id in target_ids:
+        target_session = sess.get(target_id) if isinstance(target_id, str) else None
+        if not target_session:
+            return {"ok": False, "error": {"code": "invalid_job",
+                                             "message": "target session does not exist"}}
+        denied = _source_access_error(target_session, source_session_id)
+        if denied:
+            return denied
     try:
-        return background_jobs.start_message(
-            target, text, data.get("schedule"),
-            description=data.get("description", data.get("label")),
-            source=source_type, source_session_id=source_session_id)
+        common = {
+            "description": data.get("description", data.get("label")),
+            "source": source_type, "source_session_id": source_session_id,
+            "creator_session_id": data.get("creatorSessionId") or source_session_id,
+        }
+        if len(target_ids) == 1 and data.get("targetSessionIds") is None:
+            return background_jobs.start_message(
+                target_ids[0], text, data.get("schedule"), **common)
+        return background_jobs.start_broadcast(
+            target_ids, text, data.get("schedule"), **common)
     except ValueError as exc:
         return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
 
@@ -4513,11 +4537,15 @@ async def api_session_message_job_start(data: dict):
 async def api_background_job_update(job_id: str, data: dict):
     try:
         job = background_jobs.get(job_id)
-        if not job or job.get("kind") != background_jobs.SESSION_MESSAGE_KIND:
+        if not job or job.get("kind") not in {
+            background_jobs.SESSION_MESSAGE_KIND,
+            background_jobs.SESSION_BROADCAST_KIND,
+        }:
             raise ValueError("message Job not found")
         return background_jobs.update_message(
             job_id, text=data.get("text"), schedule=data.get("schedule"),
-            description=data.get("description"))
+            description=data.get("description"),
+            target_session_ids=data.get("targetSessionIds"))
     except ValueError as exc:
         code = "job_not_found" if "not found" in str(exc) else "invalid_job"
         return {"ok": False, "error": {"code": code, "message": str(exc)}}

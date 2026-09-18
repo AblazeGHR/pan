@@ -33,14 +33,17 @@ def _session(tmp_path, sid="ses_target"):
 
 def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
     _session(tmp_path)
+    _session(tmp_path, "ses_creator")
     proc = Mock(pid=4321)
     monkeypatch.setattr(jobs.subprocess, "Popen", Mock(return_value=proc))
     monkeypatch.setattr(jobs, "_process_create_time", lambda pid: 12.5)
-    result = jobs.start("ses_target", ["python", "train.py", "--epochs", "2"], str(tmp_path))
+    result = jobs.start("ses_target", ["python", "train.py", "--epochs", "2"],
+                        str(tmp_path), creator_session_id="ses_creator")
     assert result["status"] == "running"
     assert result["pid"] is None
     assert result["runnerPid"] == 4321
     assert result["runnerProcessCreatedAt"] == 12.5
+    assert result["creatorSessionId"] == "ses_creator"
     assert jobs.get(result["jobId"])["logPath"].endswith(".log")
     assert jobs.subprocess.Popen.call_args.kwargs["stdin"] is jobs.subprocess.DEVNULL
 
@@ -71,6 +74,11 @@ def test_terminal_notification_is_idempotent(monkeypatch, tmp_path):
     assert asyncio.run(jobs.recover_notifications()) == 0
     assert len(calls) == 1
     assert calls[0][1]["event_id"] == "job_terminal:terminal"
+    assert calls[0][1]["envelope"] == {
+        "jobId": "job_terminal", "kind": None, "status": "completed",
+        "targetSessionId": target.id, "targetSessionIds": None,
+        "creatorSessionId": None,
+    }
     assert jobs.get("job_terminal")["notificationState"] == "delivered"
 
 
@@ -85,6 +93,26 @@ def test_enqueue_notice_same_event_does_not_duplicate(tmp_path, monkeypatch):
     second = asyncio.run(worker.enqueue_notice(target.id, "done", source="automation", event_id="job_x:terminal"))
     assert first["ok"] and second["duplicate"]
     assert len(target.queue_pending) == 1
+
+
+def test_automatic_job_notice_keeps_structured_envelope_and_automation_label(tmp_path, monkeypatch):
+    target = _session(tmp_path)
+
+    async def save(_session):
+        return None
+
+    monkeypatch.setattr(sess, "save_async", save)
+    monkeypatch.setattr(worker, "_wake_worker", lambda *a, **k: asyncio.sleep(0))
+    result = asyncio.run(worker.enqueue_notice(
+        target.id, '{"jobId":"job_x"}', source="automation",
+        event_id="job_x:terminal", envelope={
+            "jobId": "job_x", "status": "completed",
+            "targetSessionId": target.id, "creatorSessionId": None}))
+    assert result["ok"]
+    item = target.queue_pending[0]
+    assert item["envelope"]["jobId"] == "job_x"
+    rendered = worker._format_report_batch([item])
+    assert "@@@@by agent : automation | automation" in rendered
 
 
 def test_runner_registry_survives_reload(tmp_path):

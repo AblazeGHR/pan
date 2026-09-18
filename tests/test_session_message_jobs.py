@@ -40,10 +40,12 @@ def test_once_delay_persists_and_dispatches_via_send_semantics(monkeypatch, tmp_
     job = jobs.start_message(
         target.id, "////by agent : ses_caller | caller\nrun report",
         {"type": "once", "delaySeconds": 1},
-        description="T-043 once", source="agent", source_session_id=caller.id)
+        description="T-043 once", source="agent", source_session_id=caller.id,
+        creator_session_id=caller.id)
     assert job["kind"] == jobs.SESSION_MESSAGE_KIND
     assert job["targetSessionId"] == target.id
     assert job["description"] == "T-043 once"
+    assert job["creatorSessionId"] == caller.id
     assert job["status"] == "pending"
 
     assert asyncio.run(jobs.run_due_message_jobs(now=time.time() + 2)) == 1
@@ -140,3 +142,95 @@ def test_message_job_never_enters_process_runner_retry_path(tmp_path):
         "type": "once", "delaySeconds": 60})
     with pytest.raises(ValueError, match="edited or recreated"):
         jobs.retry(job["jobId"])
+
+
+def test_scheduled_broadcast_deduplicates_and_isolates_target_failures(monkeypatch, tmp_path):
+    for sid in ("ses_a", "ses_b", "ses_c", "ses_caller"):
+        _session(tmp_path, sid)
+    calls = []
+
+    async def send(session_id, text, **kwargs):
+        calls.append((session_id, text, kwargs))
+        if session_id == "ses_b":
+            raise RuntimeError("target unavailable")
+        return {"status": "queued", "workerId": f"worker-{session_id}"}
+
+    monkeypatch.setattr(worker, "send_session", send)
+    job = jobs.start_broadcast(
+        ["ses_a", "ses_b", "ses_a", "ses_c"],
+        "////by agent : ses_caller | sender\nrun",
+        {"type": "once", "delaySeconds": 1},
+        description="scheduled fan-out", source="agent",
+        source_session_id="ses_caller", creator_session_id="ses_caller")
+    assert job["kind"] == jobs.SESSION_BROADCAST_KIND
+    assert job["targetSessionIds"] == ["ses_a", "ses_b", "ses_c"]
+    assert job["creatorSessionId"] == "ses_caller"
+
+    assert asyncio.run(jobs.run_due_message_jobs(now=time.time() + 2)) == 1
+    stored = jobs.get(job["jobId"])
+    assert stored["status"] == "completed"
+    assert stored["runCount"] == 1
+    assert stored["lastDelivery"]["status"] == "partial"
+    assert [item["sessionId"] for item in stored["lastDelivery"]["results"]] == [
+        "ses_a", "ses_b", "ses_c"]
+    assert stored["lastDelivery"]["results"][1]["status"] == "error"
+    assert [item[0] for item in calls] == ["ses_a", "ses_b", "ses_c"]
+    assert all(item[2] == {"source": "agent", "source_session_id": "ses_caller"}
+               for item in calls)
+    # A completed one-shot occurrence is idempotent across a second scheduler scan.
+    assert asyncio.run(jobs.run_due_message_jobs(now=time.time() + 1000)) == 0
+    assert [item[0] for item in calls] == ["ses_a", "ses_b", "ses_c"]
+
+
+def test_scheduled_broadcast_interval_recovery_and_no_burst(monkeypatch, tmp_path):
+    for sid in ("ses_a", "ses_b"):
+        _session(tmp_path, sid)
+    calls = []
+
+    async def send(session_id, text, **kwargs):
+        calls.append(session_id)
+        return {"status": "queued", "sessionId": session_id}
+
+    monkeypatch.setattr(worker, "send_session", send)
+    job = jobs.start_broadcast(["ses_a", "ses_b"], "tick", {
+        "type": "interval", "intervalSeconds": 60})
+    assert asyncio.run(jobs.run_due_message_jobs(now=time.time() + 61)) == 1
+    first = jobs.get(job["jobId"])
+    assert first["status"] == "scheduled"
+    assert first["runCount"] == 1
+    assert len(calls) == 2
+
+    stale = jobs.get(job["jobId"])
+    stale.update(status="running", runStartedAt=time.time() - 30,
+                 nextRunAt=jobs._iso_utc(time.time() - 30))
+    jobs._save(stale)
+    assert asyncio.run(jobs.run_due_message_jobs(now=time.time())) == 1
+    recovered = jobs.get(job["jobId"])
+    assert recovered["status"] == "scheduled"
+    assert recovered["runCount"] == 2
+    assert len(calls) == 4
+    assert recovered["nextRunAt"]
+
+
+def test_scheduled_broadcast_edit_and_cancel_prevent_future_send(monkeypatch, tmp_path):
+    for sid in ("ses_a", "ses_b", "ses_c"):
+        _session(tmp_path, sid)
+    calls = []
+
+    async def send(session_id, text, **kwargs):
+        calls.append(session_id)
+        return {"status": "queued", "sessionId": session_id}
+
+    monkeypatch.setattr(worker, "send_session", send)
+    job = jobs.start_broadcast(["ses_a", "ses_b"], "later", {
+        "type": "once", "delaySeconds": 60})
+    changed = jobs.update_message(
+        job["jobId"], target_session_ids=["ses_c", "ses_c", "ses_a"],
+        schedule={"type": "once", "delaySeconds": 120}, description="edited")
+    assert changed["targetSessionIds"] == ["ses_c", "ses_a"]
+    assert changed["status"] == "pending"
+    assert changed["description"] == "edited"
+    cancelled = jobs.cancel_message(job["jobId"])
+    assert cancelled["status"] == "cancelled"
+    assert asyncio.run(jobs.run_due_message_jobs(now=time.time() + 1000)) == 0
+    assert calls == []

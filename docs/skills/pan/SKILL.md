@@ -267,20 +267,25 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 | `agent_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out / 新任务默认首选）：立即返回 queued，worker 自动 spawn；完成经 `report_subscribe` 内部报告回调（§3）/ `session_get` 读取。传 `task_id` 幂等（同 taskId 重发不双跑，见 §7.4） |
 | `agent_send` | `session_id`, `text` | 向 Session 发消息（多轮协作，§2.3）；**仅用于非即时补充**：消息排队送达，不打断进行中任务；**无活 worker 不报错**——入持久队列（返回 `pendingSpawn=true`），watchdog 自动 spawn 后分发；需打断/立即生效用 `agent_send_force`；Pan 内 session 自动加 `////by agent` 前缀（§7.5） |
 | `agent_send_force` | `session_id`, `text` | **强制推送** = restart + send（§2.3）：卡死/忙/连接异常导致普通 `agent_send` 无法送达时兜底；**也用于需要打断当前执行的时效性消息**（操作约束、危险操作警告）；无活 worker 时直接入队不报错；自动加 `////by agent` 前缀（§7.5） |
-| `agent_send_many` | `session_ids`, `text` | 对选定 Session 逐个复用 `agent_send` 的持久 FIFO 语义；返回每个目标结果；定时群发留待后续阶段 |
+| `agent_send_many` | `session_ids`, `text` | 对选定 Session 逐个复用 `agent_send` 的持久 FIFO 语义；返回每个目标结果 |
 | `agent_notify` | `target_session_id`, `text` | **持久化通知**：用于异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或长时间任务（nohup、长时测试、编译、外部脚本等），后台命令完成后事后回报；不要求 SMA 轮询或阻塞等待。通知进入目标 `queue_pending`，原 worker 退出不丢；无活 worker 自动唤醒/spawn。仅自己或自己 managed 的 Agent 可投递。它不是普通任务派发替代品，普通任务继续用 `agent_assign`/`agent_send`；后台命令仍须遵守权限、审批、安全和结果验证规则，不能绕过审批或隔离。 |
 | `agent_background_start` | `argv`, `cwd`, `target_session_id?`, `label?` | 启动持久后台 Job；默认目标为当前 Agent Session。argv 不经过 shell，MVP 的 `cwd` 仅允许 Pan 项目目录内；Job 由独立 Runner 执行，不占用当前 Session 的 Worker 生命周期 |
 | `agent_background_get` | `job_id` | 读取 Job Registry 事实，包括状态、PID 身份、日志路径和通知状态；只允许当前或 managed Session 目标，不消费目标的 `queue_pending` |
 | `agent_background_list` | `target_session_id?` | 列出后台 Job；省略目标时默认列出当前 Agent Session，显式目标必须是当前或 managed Session。目标 Session 删除后 Job 事实仍可保留 |
 | `agent_background_cancel` | `job_id` | 取消已拥有的 Job 并终止经身份校验的进程树；Runner/任务 PID 创建时间无法验证时返回 `cancel_unsafe`，绝不按不明 PID 强杀 |
 | `agent_background_retry` | `job_id` | 重试已终态 Job（`completed`/`failed`/`cancelled`）；创建新的 Job ID。`starting`/`running` 返回 `job_not_retryable`，须先取消 |
-| `agent_message_job_create` | `text`, `schedule`, `target_session_id?`, `description?` | 创建一个 Session 时间消息 Job；支持一次性 `at`/`delaySeconds`、固定 `intervalSeconds`、每周 `weekday`+`time`；正文只发送给 Session，不执行 OS shell |
-| `agent_message_job_get` | `job_id` | 查询时间消息 Job 的 Session 归属、描述、调度、状态和最近投递 |
-| `agent_message_job_list` | `target_session_id?` | 查询当前或 managed Session 的时间消息 Job |
-| `agent_message_job_update` | `job_id`, `schedule?`, `text?`, `description?` | 调整未终态 Job；调度编辑会重新进入 `pending` |
-| `agent_message_job_cancel` | `job_id` | 取消未终态时间消息 Job；已开始的单次发送无法撤回 |
+| `agent_message_job_create` | `text`, `schedule`, `target_session_id?`, `target_session_ids?`, `description?` | 创建单 Session 时间消息或定时群发 Job；目标列表去重并保持稳定顺序；支持一次性 `at`/`delaySeconds`、固定 `intervalSeconds`、每周 `weekday`+`time`/`timezone`；正文只发送给 Session，不执行 OS shell |
+| `agent_message_job_get` | `job_id` | 查询时间消息/定时群发 Job 的 Session 归属、描述、调度、状态和逐目标最近投递结果 |
+| `agent_message_job_list` | `target_session_id?` | 查询当前或 managed Session 的时间消息/定时群发 Job |
+| `agent_message_job_update` | `job_id`, `schedule?`, `text?`, `description?`, `target_session_ids?` | 调整未终态 Job；群发目标列表和调度编辑会重新进入 `pending` |
+| `agent_message_job_cancel` | `job_id` | 取消未终态时间消息/定时群发 Job；已开始的目标发送无法撤回 |
 | `agent_kill` | `session_id` | 终止 Session 的 worker 进程（Session 数据保留）；**无活 worker 时无害 no-op**（返回 `killed=false`） |
 | `agent_list` | `summary?` | 列出全部 Session 摘要；`session_list` 的别名，参数/返回一致 |
+
+> 定时群发示例：调用 `agent_message_job_create` 时传入
+> `schedule={type: once, delaySeconds: 60}` 和
+> `target_session_ids=[ses_b, ses_c]`。Job 另存调用方 `creatorSessionId`，
+> 实际投递只使用 `targetSessionIds`；目标列表会去重并保持顺序。
 
 ### Worker 管理（兼容别名，DEPRECATED → agent_*）
 
@@ -303,7 +308,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 - **后台 Job**：`agent_background_start` 创建可查询、可取消、可重试的独立 Runner 任务；stdout/stderr 写入持久日志，Job 事实写入 Registry。Runner 不依赖 Pan Worker、Worker stdout 或 live WebSocket。
 - **后台通知**：`agent_notify` 只是把调用方已经得到的状态/结果写入目标 Session 的 `queue_pending`，不是命令执行器，也不提供额外权限。
 
-后台 Job 进入终态后，Pan 通过稳定事件键 `<jobId>:terminal` 将一次终态通知投影到目标 Session 的 `queue_pending`。Pan 重启会 reconcile 未完成 Job，并重试尚未投递的终态通知；只有投递成功后才标记 `notificationState=delivered`。Job 的 Registry 事实独立于目标 Session，目标被删除或暂时不存在时不会被静默删除。Windows 取消要求 PID 创建时间匹配并杀完整子进程树；跨进程 Registry 更新使用 Job 锁和原子替换。
+后台 Runner Job 进入终态后，Pan 通过稳定事件键 `<jobId>:terminal` 将一次终态通知投影到持久化 target Session 的 `queue_pending`。通知 queue item 另带结构化 `envelope.jobId`、status、target(s) 和 `creatorSessionId`；creator 只用于来源/审计，不会被自动当作通知目标。Pan 重启会 reconcile 未完成 Job，并重试尚未投递的终态通知；只有投递成功后才标记 `notificationState=delivered`。Job 的 Registry 事实独立于目标 Session，目标被删除或暂时不存在时不会被静默删除。Windows 取消要求 PID 创建时间匹配并杀完整子进程树；跨进程 Registry 更新使用 Job 锁和原子替换。Session-message/broadcast Job 复用普通 send，不自动复制终态通知回 creator。
 
 当前 MVP 的产品边界：argv 不经过 shell，`cwd` 仅允许 Pan 项目目录内；尚未提供命令白名单、结果文件契约或 Remote/Tunnel 认证。不要把后台 Job 当成绕过权限、审批、managed 隔离或远程安全边界的通道。
 
