@@ -11,7 +11,7 @@
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
 - `main`：`HEAD`（当前工作流文档提交；代码基线 `fc2b00146038a0631eea1567aff370497efd98a0`，未 push。T-040/T-041/T-042/T-043/T-044/T-045/T-046/T-047/T-048 均已本地合入）；已归档任务见 [developLog.md](developLog.md)，代码交付与无代码验证的开发者验收入口见下方唯一任务卡。
-- `practical`：2026-09-18 上次核对 `D:\project\Pan` 已检出 practical、HEAD 为 `b466a76`；本轮 T-043/T-044 尚未同步 practical；前端 pnpm build 已通过。
+- `practical`：2026-09-18 已核对 `D:\project\Pan`，`practical` 已快进到 `78f2c0f012688a7ea63fb96378da8c28bf10dbf3`，包含 T-043/T-044/T-048；前端 `pnpm build` 已通过。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
@@ -332,7 +332,7 @@
 - 边界：使用隔离 worktree；不改 `D:\project\Pan`、不 push、不操作 8768；补充相关 Vitest/组件测试，并在依赖可用时执行前端 build。
 - 阻塞：无。
 - TA/任务：`ses_0010355a6b0bf824` / `T-048-ui-manage-settings-20260918`；已完成报告；实现提交 `7874ee32b55e584678c731fddf269690ab0cff4d`，已合入本地 `main`。
-- 提交/测试：TA worktree `D:\project\pan-worktrees\manage-settings-mobile-20260918`，分支 `feature/manage-settings-mobile-20260918`，工作树 clean；定向 Vitest 5 files/31 tests 通过，`tsc -b && vite build`、Prettier check、diff check 通过；完整 Vitest 508 passed，另有 3 个既有失败文件/11 个失败，不归因于 T-048。
+- 提交/测试：TA worktree `D:\project\pan-worktrees\manage-settings-mobile-20260918`，分支 `feature/manage-settings-mobile-20260918`，工作树 clean；定向 Vitest 5 files/31 tests 通过，`tsc -b && vite build`、Prettier check、diff check 通过；完整 Vitest 508 passed，另有 3 个既有失败文件/11 个失败，不归因于 T-048。失败分类：Toast 测试缺少 jsdom 环境（6）；NewSessionModal 默认名称断言与当前 `session-1` 行为不一致（4）；SessionList 真实后端拖拽测试未进入预期 unclaim 路径（1）。
 - 未验证：真实 Chromium 移动端手势/设备 viewport；共享依赖未安装，仅复用已有 `Pan-main` 依赖。
 - 下一动作：开发者在合入 `main` 后验收移动端 Manage 关闭后 Sidebar 保持弹出，以及 Session Settings 任意外部点击关闭；解除：开发者完成验收。
 - [x] 实现并补充交互测试
