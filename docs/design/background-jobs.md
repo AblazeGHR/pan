@@ -10,13 +10,15 @@ Process Jobs never use a shell. Session-message Jobs never interpret their
 
 `POST /api/background-jobs` writes a job record before starting an independent
 `python -m packages.core.background_runner` process. The record contains the
-stable `jobId`, target Session, argv, a short command summary, resolved cwd,
-log path, PID, and process creation time. The Runner starts the requested argv
-without a shell, streams stdout/stderr to the log, and writes `completed` or
-`failed` to the same job record. Cancellation validates PID creation time and
-kills the complete descendant tree on Windows (psutil is required for a safe
-kill); when identity cannot be verified, cancellation is rejected rather than
-killing an unrelated reused PID.
+stable `jobId`, `creatorSessionId` (the creating/owning Agent, when present),
+`targetSessionId` (the only Session that receives the terminal notice), argv,
+a short command summary, resolved cwd, log path, PID, and process creation
+time. The Runner starts the requested argv without a shell, streams
+stdout/stderr to the log, and writes `completed` or `failed` to the same job
+record. Cancellation validates PID creation time and kills the complete
+descendant tree on Windows (psutil is required for a safe kill); when identity
+cannot be verified, cancellation is rejected rather than killing an
+unrelated reused PID.
 
 Pan's lifespan starts a small recovery loop. It first reconciles `starting` /
 `running` records: a live Runner with a matching PID creation time is left
@@ -41,7 +43,7 @@ updates.
 
 HTTP endpoints are:
 
-- `POST /api/background-jobs` with `{targetSessionId, argv, cwd, label?}`
+- `POST /api/background-jobs` with `{targetSessionId, creatorSessionId?, argv, cwd, label?}`
 - `GET /api/background-jobs` (optional `targetSessionId`), and `GET /api/background-jobs/{jobId}`
 - `POST /api/background-jobs/{jobId}/cancel` and `/retry`
 
@@ -98,7 +100,44 @@ future callbacks must add a short-lived token or signed event boundary.
 
 The current API follows Pan's existing loopback/no-auth model. No new remote
 binding or tunnel exposure is introduced. A retry creates a new Job ID and
-keeps the original terminal event identity intact.
+keeps the original terminal event identity intact for the original Job. The
+retry inherits `creatorSessionId`, while its terminal notice is routed only to
+its `targetSessionId`.
+
+## Terminal notice envelope
+
+Process Job terminal states (`completed`, `failed`, `cancelled`, including an
+orphaned Runner reconciled to `failed`) are projected through the existing
+`queue_pending`/`enqueue_notice` path. The durable queue item carries these
+structured fields; consumers must not parse them back out of `result` text:
+
+```json
+{
+  "type": "notice",
+  "source": "automation",
+  "noticeKind": "background_job_terminal",
+  "jobId": "job_...",
+  "status": "completed",
+  "targetSessionId": "ses_target",
+  "targetSessionIds": ["ses_target"],
+  "creatorSessionId": "ses_creator",
+  "eventId": "job_...:terminal"
+}
+```
+
+`creatorSessionId` is audit/ownership metadata only. It does not add a second
+delivery target, and a missing creator remains absent/null. The formatted
+Agent message starts with `////by pan system`, including when no creator is
+known. The existing `agent_notify` path has no `noticeKind` and continues to
+render its Agent source with the existing `@@@@by agent` format. Agent-created
+Session-message Jobs still use normal `agent_send` semantics and retain
+`sourceSessionId` plus the `////by agent : <creatorSessionId> | <title>`
+message prefix.
+
+Legacy Job JSON without `creatorSessionId` remains readable and is exposed as
+`null` at read time without rewriting the file. Service lifecycle Jobs remain
+system-level Registry records with no target Session and are never projected
+into `queue_pending`.
 
 ## Service lifecycle Jobs
 

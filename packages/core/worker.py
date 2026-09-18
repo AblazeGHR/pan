@@ -2042,9 +2042,11 @@ async def _consumer(w: Worker):
 # ── 订阅制报告消费（立项 4.3）──
 
 def _format_report_batch(reports: list[dict]) -> str:
-    """积压报告拼接为可读文本：`@@@@by agent : {sessionId} | {title}` 抬头 + 每字段一行。
+    """积压报告拼接为可读文本。
 
-    报告形状：{"status","result","sessionId","taskId","workerId"}。
+    Agent 报告/通知使用 ``@@@@by agent : {sessionId} | {title}``；
+    ``noticeKind=background_job_terminal`` 使用固定的 ``////by pan system``
+    抬头。报告形状：{"status","result","sessionId","taskId","workerId"}。
     title 取被管 session 的 name（`_sess.get(session_id).name`），session 不存在则回退 unknown。
     result 值单独成行、去引号、保留多行原文；None → null。
     """
@@ -2077,6 +2079,29 @@ def _format_report_batch(reports: list[dict]) -> str:
                 "message:",
                 _field_value(r.get("text")),
                 f"time: {_field_value(r.get('time'))}",
+            ]
+            parts.append("\n".join(lines))
+            continue
+        if r.get("noticeKind") == "background_job_terminal":
+            target_ids = r.get("targetSessionIds")
+            if not isinstance(target_ids, list):
+                target_ids = [r.get("targetSessionId") or r.get("sessionId")]
+            target_ids = [value for value in target_ids if value is not None]
+            lines = [
+                "////by pan system",
+                f"status: {_field_value(r.get('status'))}",
+                f"noticeKind: {_field_value(r.get('noticeKind'))}",
+                f"jobId: {_field_value(r.get('jobId'))}",
+                f"targetSessionId: {_field_value(r.get('targetSessionId') or r.get('sessionId'))}",
+                f"targetSessionIds: {_field_value(target_ids)}",
+            ]
+            if r.get("creatorSessionId") is not None:
+                lines.append(f"creatorSessionId: {_field_value(r.get('creatorSessionId'))}")
+            if r.get("eventId") is not None:
+                lines.append(f"eventId: {_field_value(r.get('eventId'))}")
+            lines += [
+                "result:",
+                _field_value(r.get("result")),
             ]
             parts.append("\n".join(lines))
             continue
@@ -3221,6 +3246,11 @@ async def enqueue_notice(target_session_id: str, text: str,
                          source: str = "agent",
                          source_session_id: str | None = None,
                          event_id: str | None = None,
+                         *, notice_kind: str | None = None,
+                         job_id: str | None = None,
+                         notice_status: str | None = None,
+                         creator_session_id: str | None = None,
+                         target_session_ids: list[str] | None = None,
                          envelope: dict | None = None) -> dict:
     """向显式指定的 session 投递一条提醒（MCP agent_notify 的后端实现）。
 
@@ -3233,8 +3263,11 @@ async def enqueue_notice(target_session_id: str, text: str,
        **立即** create_worker 恢复（事件驱动，不等 watchdog tick；spawn
        失败打 warning，消息已落盘、由全局 watchdog 兜底）。
 
-    提醒项形状与 report 一致（{source,sourceSessionId,status,result,sessionId,
-    taskId,workerId}），
+    普通 agent 通知保持 report 兼容形状；后台 Job 终态通知可额外携带
+    ``noticeKind``, ``jobId``, ``status``, ``creatorSessionId``,
+    ``targetSessionId`` 和 ``targetSessionIds``。这些字段是结构化 envelope
+    元数据，不改变
+    ``agent_notify`` 的调用语义。
     加 type="notice" 区分语义：消费端按
     ``type != "task"`` 取报告、前端 normalize 非 task/qq 按 report 分支
     渲染，均天然兼容。渲染时抬头取 sourceSessionId（``@@@@by agent``），
@@ -3300,6 +3333,19 @@ async def enqueue_notice(target_session_id: str, text: str,
     item["queueItemId"] = item["id"]
     if source_sid is not None:
         item["sourceSessionId"] = source_sid
+    if notice_kind is not None:
+        item["noticeKind"] = notice_kind
+    if notice_kind == "background_job_terminal" and notice_status is not None:
+        item["status"] = notice_status
+    if job_id is not None:
+        item["jobId"] = job_id
+    if creator_session_id is not None:
+        item["creatorSessionId"] = creator_session_id
+    item["targetSessionId"] = target_session_id
+    item["targetSessionIds"] = (
+        list(target_session_ids) if target_session_ids is not None
+        else [target_session_id]
+    )
     item["position"] = len(target.queue_pending)
     target.queue_pending.append(item)
     _remember_queue_item(target, item, _DELIVERY_QUEUED)

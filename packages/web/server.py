@@ -3725,6 +3725,15 @@ def _serialize_queue_item(item, session=None) -> dict | None:
         "revision": item.get("revision", 1),
         "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
     }
+    # Preserve structured system-Job metadata in the queue API.  The text
+    # remains available for the Agent/CLI, but clients must not parse jobId or
+    # routing identity back out of result text.
+    for key in (
+        "noticeKind", "jobId", "targetSessionId", "targetSessionIds",
+        "creatorSessionId", "eventId",
+    ):
+        if key in item:
+            meta[key] = item[key]
     if item.get("sourceSessionId") is not None:
         meta["sourceSessionId"] = item.get("sourceSessionId")
     return {
@@ -4443,13 +4452,15 @@ async def api_sessions_broadcast(data: dict):
 
 @app.post("/api/background-jobs")
 async def api_background_job_start(data: dict):
+    """Create a durable process Job with independent creator/target fields."""
     target = data.get("targetSessionId")
     argv = data.get("argv")
     cwd = data.get("cwd")
     try:
         return background_jobs.start(
             target, argv, cwd, label=data.get("label"),
-            creator_session_id=data.get("creatorSessionId"))
+            creator_session_id=data.get("creatorSessionId"),
+        )
     except ValueError as exc:
         return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
     except OSError as exc:

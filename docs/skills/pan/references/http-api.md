@@ -40,7 +40,7 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 | `POST` | `/api/sessions/{id}/branch` | `{"name": "fork-name"}` | 复制 adapter transcript 新建 session（保留 workdir/character/MCP 绑定）。**无 MCP 工具，需 HTTP 直调** |
 | `POST` | `/api/sessions/{id}/handoff` | `{"handoffPrompt": "...", "copySettings": true, "adapter"?: "...", "model"?: "...", "permissionMode"?: "..."}` | **替身交接**：创建孪生 session B 接替 A（见 SKILL.md §2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填 |
 | `POST` | `/api/readonly` | `{"managerId": "...", "sessionId": "...", "readonlySession": true}` | 设置或清除已由 `managerId` 管理的 session 的持久只读状态；不能借此认领 session。只读目标拒绝其他 session 的任务/消息/通知，返回 `readonly_session` |
-| `POST` | `/api/notify` | `{"targetSessionId": "...", "text": "...", "source"?: "..."}` | 持久化后台任务完成/状态通知到目标 `queue_pending`；无活 worker 时自动唤醒/spawn。该路由供 MCP `agent_notify` 使用，权限隔离由 MCP 层执行，不是普通任务派发 |
+| `POST` | `/api/notify` | `{"targetSessionId": "...", "text": "...", "source"?: "...", "sourceSessionId"?: "..."}` | 持久化 Agent 主动通知到目标 `queue_pending`；无活 worker 时自动唤醒/spawn。该路由供 MCP `agent_notify` 使用，权限隔离由 MCP 层执行，不是普通任务派发；调度器/后台 Job 终态通知另带结构化 `noticeKind=background_job_terminal`、`jobId`、`status`、`targetSessionId(s)` 和可选 `creatorSessionId`，并渲染为 `////by pan system` |
 | `POST` | `/api/notifications/send` | `{"sessionId":"...", "title":"...", "body":"...", "sourceSessionId":"..."}` | 发送 best-effort Pan 系统通知；MCP `notification_send` 使用，调用者身份和 managed 隔离由 MCP 层执行 |
 | `POST` | `/api/sessions/{id}/reminders` | `{"dueAt":"<absolute ISO-8601>", "title":"...", "body":"..."}` | 注册一次性持久提醒；MCP `reminder_register` 使用 |
 | `GET` | `/api/sessions/{id}/reminders` | — | 列出该 session 的待处理提醒；MCP `reminder_list` 使用 |
@@ -48,7 +48,7 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 | `POST` | `/api/background-jobs` | `{"targetSessionId":"...", "argv":[...], "cwd":"...", "label"?:"...", "creatorSessionId"?:"..."}` | 创建脱离 Worker 生命周期的持久后台 Job；argv 不经 shell，MVP 的 cwd 仅允许 Pan 项目目录内；creator 与接收 target 分开持久化 |
 | `GET` | `/api/background-jobs[?targetSessionId=...]` | — | 列出 Job Registry 记录 |
 | `GET` | `/api/background-jobs/{jobId}` | — | 查询 Job 事实、PID、日志和通知状态 |
-| `POST` | `/api/session-message-jobs` | `{"targetSessionId":"...", "creatorSessionId"?:"..."}` 或 `{"targetSessionIds":["..."], "text":"...", "schedule":{...}, "description"?:"...", "sourceSessionId"?:"...", "creatorSessionId"?:"..."}` | 创建单目标 Session 时间消息或定时群发 Job；creator 与接收 target 分开持久化，群发目标去重且保持输入顺序；`text` 只作为消息发送，不执行 shell |
+| `POST` | `/api/session-message-jobs` | `{"targetSessionId":"...", "creatorSessionId"?:"..."}` 或 `{"targetSessionIds":["..."], "text":"...", "schedule":{...}, "description"?:"...", "sourceSessionId"?:"...", "creatorSessionId"?:"..."}` | 创建单目标 Session 时间消息或定时群发 Job；creator 与接收 target 分开持久化，群发目标去重且保持输入顺序；单目标消息沿用 agent send 语义，保留 `sourceSessionId` 与 `////by agent : <creatorSessionId> | <title>`；`text` 只作为消息发送，不执行 shell |
 | `PATCH` | `/api/background-jobs/{jobId}` | `{"schedule"?:{...}, "text"?:"...", "description"?:"...", "targetSessionIds"?:[...]}` | 编辑未终态 Session 消息/定时群发 Job；重排或改目标后回到 `pending` |
 | `POST` | `/api/background-jobs/{jobId}/cancel` | — | 取消并杀完整进程树（PID 创建时间必须匹配；无法安全确认时返回 `cancel_unsafe`） |
 | `POST` | `/api/background-jobs/{jobId}/retry` | — | 用新 jobId 重试原命令 |

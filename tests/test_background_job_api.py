@@ -25,6 +25,24 @@ def test_http_start_invalid_argv_and_cwd(monkeypatch):
     assert result["error"]["code"] == "invalid_job"
 
 
+def test_http_start_forwards_creator_and_target_separately(monkeypatch):
+    calls = []
+
+    def start(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"jobId": "job_t046", "targetSessionId": args[0],
+                "creatorSessionId": kwargs["creator_session_id"]}
+
+    monkeypatch.setattr(web_server.background_jobs, "start", start)
+    result = asyncio.run(web_server.api_background_job_start({
+        "targetSessionId": "ses_b", "creatorSessionId": "ses_a",
+        "argv": ["python"], "cwd": "C:\\Pan"}))
+    assert result["targetSessionId"] == "ses_b"
+    assert result["creatorSessionId"] == "ses_a"
+    assert calls == [(('ses_b', ['python'], 'C:\\Pan'),
+                      {"label": None, "creator_session_id": "ses_a"})]
+
+
 def test_mcp_start_defaults_to_current_session_and_checks_access(monkeypatch):
     calls = []
     monkeypatch.setattr(mcp_server, "_caller_identity", lambda: {"id": "ses_self"})
@@ -35,6 +53,20 @@ def test_mcp_start_defaults_to_current_session_and_checks_access(monkeypatch):
     assert result["jobId"] == "job_1"
     assert calls[0][2]["targetSessionId"] == "ses_self"
     assert calls[0][2]["creatorSessionId"] == "ses_self"
+
+
+def test_mcp_start_records_creator_when_target_is_managed(monkeypatch):
+    calls = []
+    monkeypatch.setattr(mcp_server, "_caller_identity", lambda: {"id": "ses_a"})
+    monkeypatch.setattr(mcp_server, "_check_access", lambda target, claim=False: None)
+    monkeypatch.setattr(mcp_server, "_api", lambda method, path, body=None, timeout=30.0:
+                        calls.append((method, path, body)) or {"jobId": "job_t046"})
+
+    result = mcp_server.agent_background_start(
+        ["python", "job.py"], "C:\\Pan", target_session_id="ses_b")
+    assert result["jobId"] == "job_t046"
+    assert calls[0][2]["creatorSessionId"] == "ses_a"
+    assert calls[0][2]["targetSessionId"] == "ses_b"
 
 
 def test_mcp_start_denies_unmanaged_target(monkeypatch):

@@ -44,6 +44,8 @@ def test_once_delay_persists_and_dispatches_via_send_semantics(monkeypatch, tmp_
         creator_session_id=caller.id)
     assert job["kind"] == jobs.SESSION_MESSAGE_KIND
     assert job["targetSessionId"] == target.id
+    assert job["creatorSessionId"] == caller.id
+    assert job["sourceSessionId"] == caller.id
     assert job["description"] == "T-043 once"
     assert job["creatorSessionId"] == caller.id
     assert job["status"] == "pending"
