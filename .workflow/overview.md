@@ -10,26 +10,26 @@
 ### 当前概况
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`HEAD`（当前工作流文档提交；代码基线 `37d7668`，未 push。T-040/T-041/T-042/T-043/T-044/T-045/T-046/T-047 均已本地合入）；已归档任务见 [developLog.md](developLog.md)，代码交付与无代码验证的开发者验收入口见下方唯一任务卡。
+- `main`：`HEAD`（当前工作流文档提交；代码基线 `fc2b00146038a0631eea1567aff370497efd98a0`，未 push。T-040/T-041/T-042/T-043/T-044/T-045/T-046/T-047/T-048 均已本地合入）；已归档任务见 [developLog.md](developLog.md)，代码交付与无代码验证的开发者验收入口见下方唯一任务卡。
 - `practical`：2026-09-18 上次核对 `D:\project\Pan` 已检出 practical、HEAD 为 `b466a76`；本轮 T-043/T-044 尚未同步 practical；前端 pnpm build 已通过。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
-- 整体状态：批次 A、D 已由用户确认验收；当前新增的 UI 修复 `T-048` 正在执行，Job/Workspace UI 仍分别等待 `DEC-004`/`DEC-005`。
-- 当前焦点：完成 `T-048` 的移动端 Manage 关闭行为与 Session 设置点击外关闭；其余已合入改动继续等待开发者验收。
-- 可执行：`T-048` 无决策阻塞；Job/Workspace UI 仍按各自决策局部阻塞。
-- TA 执行中：`T-048`，`ses_0010355a6b0bf824` / `worker-2`。
+- 整体状态：批次 A、D 已由用户确认验收；`T-048` 已实现并合入本地 `main`，现在等待合入后的开发者验收；Job/Workspace UI 仍分别等待 `DEC-004`/`DEC-005`。
+- 当前焦点：开发者验收 `T-048` 的两项 UI 交互；其余已合入改动继续等待开发者验收。
+- 可执行：当前无新的非阻塞代码任务；开发者验收由开发者执行，Job/Workspace UI 仍按各自决策局部阻塞。
+- TA 执行中：无；`T-048` 已收到完成报告并完成本地合入。
 - 最近收口：批次 A、批次 D 已由用户确认全部验收（2026-09-18）。
 
 ### 需要用户处理
 
-- 待开发者验收：[附件/运行时批次 B–E](tasks/acceptance-batches.md)——`T-027`、`T-027.1`、`T-027.2`、`T-030`、`T-031`、`T-033`、`T-034`、`T-037`、`T-038`、`T-040`、`T-041`、`T-042`、`T-043`、`T-044`、`T-045`、`T-046`、`T-047`。
+- 待开发者验收：[附件/运行时批次 B–E](tasks/acceptance-batches.md)——`T-027`、`T-027.1`、`T-027.2`、`T-030`、`T-031`、`T-033`、`T-034`、`T-037`、`T-038`、`T-040`、`T-041`、`T-042`、`T-043`、`T-044`、`T-045`、`T-046`、`T-047`、`T-048`。
 - 待用户决策：`DEC-004`（Job 标签页/Create Job UI）、`DEC-005`（Workspace 标签页 UI）。
 - 待授权：无。外部阻塞：无；真实 provider/CLI、HTTP/WS、Chromium、移动端等未验证项随对应验收清单保留。
 
 ### MA 正在推进
 
-- 为 `T-048` 核对现有移动端 Manage 路由、Sidebar 弹出状态和 SettingsPopover 的点击边界，随后派发实现与回归测试。
+- 已核对并整合 T-048 TA 交付；定向测试和前端 build 已由 TA 报告通过，完整 Vitest 的既有基线失败已单独记录。
 
 ### 等待与暂停
 
@@ -320,23 +320,24 @@
 
 ## 当前执行与待验收的近期改动
 
-> `T-048` 是当前执行中的 UI 修复；其余条目为已实现或已合入、等待开发者验收或收口的近期交付。
+> `T-048` 已完成实现并合入本地 `main`，当前等待开发者验收；其余条目为已实现或已合入、等待开发者验收或收口的近期交付。
 
 ### T-048：移动端 Manage 关闭行为与 Session 设置点击外关闭
 
-- 任务类型：代码改动｜阶段/状态：已派发 / 实现中｜合入 main：否｜开发者验收：待确认
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`fc2b00146038a0631eea1567aff370497efd98a0`）｜开发者验收：待确认
 - 来源：用户于 2026-09-18 明确新增 UI 改动任务 1。
 - 目标：移动端 Manage 使用与 Session Details 一致的右上角 X 关闭；关闭后保持 Sidebar 弹出状态，不直接导航进入 Session。Session 设置弹层改为点击设置窗口外任意位置即关闭，窗口内控件交互不误关闭。
 - 验收：移动端从 Sidebar 打开 Manage、点击右上角 X 后仍停留在 Sidebar 弹出态；桌面端既有 Manage Modal 行为不回归；打开 Session Settings 后点击聊天区、Sidebar、其他页面空白和窗口外控件均关闭；点击设置窗口及其下拉/按钮不关闭；Escape/原有 gear toggle 保持有效。
 - 决策/授权：无新增决策门；用户已授权实现。UI 具体形态仅限本任务明确的两项交互，不扩展 Job/Workspace UI。
 - 边界：使用隔离 worktree；不改 `D:\project\Pan`、不 push、不操作 8768；补充相关 Vitest/组件测试，并在依赖可用时执行前端 build。
 - 阻塞：无。
-- TA/任务：`ses_0010355a6b0bf824` / `T-048-ui-manage-settings-20260918`；已派发，返回 `queued` / `worker-2`；已订阅完成报告。
-- 下一动作：等待 TA 报告 worktree、commit、测试及未验证项。
-- [ ] 实现移动端 Manage 右上角 X 与 Sidebar 保持逻辑
-- [ ] 实现 Session Settings 点击窗口外关闭
-- [ ] 补充/更新交互测试并通过前端 build（若依赖可用）
-- [ ] 合入 main 后开发者验收
+- TA/任务：`ses_0010355a6b0bf824` / `T-048-ui-manage-settings-20260918`；已完成报告；实现提交 `7874ee32b55e584678c731fddf269690ab0cff4d`，已合入本地 `main`。
+- 提交/测试：TA worktree `D:\project\pan-worktrees\manage-settings-mobile-20260918`，分支 `feature/manage-settings-mobile-20260918`，工作树 clean；定向 Vitest 5 files/31 tests 通过，`tsc -b && vite build`、Prettier check、diff check 通过；完整 Vitest 508 passed，另有 3 个既有失败文件/11 个失败，不归因于 T-048。
+- 未验证：真实 Chromium 移动端手势/设备 viewport；共享依赖未安装，仅复用已有 `Pan-main` 依赖。
+- 下一动作：开发者在合入 `main` 后验收移动端 Manage 关闭后 Sidebar 保持弹出，以及 Session Settings 任意外部点击关闭；解除：开发者完成验收。
+- [x] 实现并补充交互测试
+- [x] 合入 main（`fc2b00146038a0631eea1567aff370497efd98a0`）
+- [ ] 开发者验收（合入后）
 
 ### T-042：本地文件链接可拖入附件且保留 Editor 打开
 
