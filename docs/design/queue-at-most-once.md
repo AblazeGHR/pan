@@ -87,6 +87,8 @@ queue/history as well as the bounded in-memory cache.
 
 On Worker restart, `reserved`, `writing`, old `in_flight`, `write_failed` and
 `unknown_after_crash` rows are restored to `queued` with persisted retry
-backoff. `sent_to_cli` rows are removed. Original session files are preserved
-by the migration script in a timestamped backup directory. Running the script
-again is a no-op for already migrated files.
+backoff. Recovery also reconciles contradictory copies: an unfinished ledger
+receipt is normalized back to the queued row, while a durable `sent_to_cli`
+receipt wins over a stale pending row and removes it without replay. Original
+session files are preserved by the migration script in a timestamped backup
+directory. Running the script again is a no-op for already migrated files.

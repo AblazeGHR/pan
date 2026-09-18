@@ -262,3 +262,112 @@ def test_queue_retry_addresses_original_item(monkeypatch):
     assert "lastDeliveryError" not in task
     assert spawned == ["ses_mgr"], "retry without live worker must schedule recovery"
     _cleanup()
+
+
+def test_inherited_task_id_is_not_terminal_idempotency_key(monkeypatch):
+    """An ordinary follow-up keeps report pairing but gets its own terminal key."""
+    _cleanup()
+    s = _setup_session()
+    w = _make_worker(s.id)
+
+    async def no_flush(_worker):
+        return None
+
+    monkeypatch.setattr(worker, "_flush_history_now", no_flush)
+
+    async def scenario():
+        w._current_seq = 1
+        w._current_task_id = "T-045"
+        w._current_task_idempotent = True
+        first = await worker._persist_terminal_state(w, s, "done", "formal")
+
+        # The next queue row is an agent_send_force follow-up.  It inherits
+        # T-045 for report pairing, but taskIdSource=active means it is not an
+        # assign retry and must not reuse task:T-045 as its terminal key.
+        w._terminal_handled = False
+        w._current_seq = 2
+        w._current_task_id = "T-045"
+        w._current_task_idempotent = False
+        second = await worker._persist_terminal_state(w, s, "done", "follow-up")
+        return first, second
+
+    first, second = asyncio.run(scenario())
+    assert s.history[0]["content"] == "formal"
+    assert s.last_result["terminalKey"] == "seq:2"
+    assert first["taskId"] == second["taskId"] == "T-045"
+    assert worker._terminal_enrichment_key(
+        "T-045", 1, w.worker_id, w.generation, task_idempotent=True
+    ) == "task:T-045"
+    assert worker._terminal_enrichment_key(
+        "T-045", 2, w.worker_id, w.generation, task_idempotent=False
+    ) == "seq:2"
+    assert s.last_result["result"] == "follow-up"
+    _cleanup()
+
+
+def test_durable_duplicate_terminal_wakes_serial_consumer(monkeypatch):
+    """Duplicate terminal suppression must not leave the queue consumer waiting."""
+    _cleanup()
+    s = _setup_session()
+    w = _make_worker(s.id)
+    s.last_result = {"status": "done", "terminalKey": "task:T-045"}
+    w._current_task_id = "T-045"
+    w._current_task_idempotent = True
+    w._task_done.clear()
+
+    result = asyncio.run(worker._persist_terminal_state(w, s, "done", "duplicate"))
+
+    assert result is None
+    assert w._terminal_handled is True
+    assert w._task_done.is_set()
+    _cleanup()
+
+
+def test_recovery_reconciles_stale_ledger_reservation_to_queued():
+    """A queued row plus stale reserved ledger is retryable, not permanently stuck."""
+    _cleanup()
+    s = _setup_session()
+    item = _make_task()
+    item["queueItemId"] = item["id"]
+    s.queue_pending = [item]
+    s.queue_delivery_ledger[item["id"]] = {
+        **item,
+        "deliveryState": "reserved",
+        "reservedBy": "worker-2",
+        "reservedGeneration": 3,
+        "reservedAt": 123.0,
+    }
+    w = _make_worker(s.id)
+
+    changed = worker._recover_pending_signals(w, s)
+
+    assert changed is True
+    assert s.queue_pending == [item]
+    assert item["deliveryState"] == "queued"
+    assert "reservedBy" not in item
+    assert s.queue_delivery_ledger[item["id"]]["deliveryState"] == "queued"
+    assert "reservedBy" not in s.queue_delivery_ledger[item["id"]]
+    _cleanup()
+
+
+def test_recovery_drops_pending_row_when_sent_ledger_is_durable():
+    """A persisted sent receipt wins over a stale queue row and prevents replay."""
+    _cleanup()
+    s = _setup_session()
+    item = _make_task()
+    item["queueItemId"] = item["id"]
+    s.queue_pending = [item]
+    s.queue_delivery_ledger[item["id"]] = {
+        **item,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+    }
+    w = _make_worker(s.id)
+
+    changed = worker._recover_pending_signals(w, s)
+
+    assert changed is True
+    assert s.queue_pending == []
+    assert s.queue_delivery_ledger[item["id"]]["deliveryState"] == "sent_to_cli"
+    assert w.pending_signal.empty()
+    _cleanup()

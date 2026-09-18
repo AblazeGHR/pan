@@ -526,10 +526,15 @@ async def _record_legal_worker_state(
 
 def _terminal_enrichment_key(
     task_id: str | None, task_seq: int | None, worker_id: str,
-    generation: int,
+    generation: int, *, task_idempotent: bool = True,
 ) -> str:
     """Build the durable idempotency key for one terminal turn."""
-    if task_id:
+    # An inherited agent_send/agent_send_force row deliberately carries the
+    # current formal task id for report pairing.  It is not the formal assign
+    # idempotency key: each queue row has its own sequence and must get its own
+    # terminal identity, otherwise a follow-up can be swallowed as a durable
+    # duplicate of the preceding assign.
+    if task_id and task_idempotent:
         return f"task:{task_id}"
     if task_seq is not None:
         return f"seq:{task_seq}"
@@ -541,7 +546,7 @@ def _terminal_enrichment_key(
 
 def _queue_usage_enrichment(
     s, adapter: CliAdapter, *, task_id: str | None, task_seq: int | None,
-    worker_id: str, generation: int,
+    worker_id: str, generation: int, task_idempotent: bool = True,
 ) -> str | None:
     """Append one durable post-terminal usage job, without changing queues."""
     if not callable(getattr(adapter, "enrich_after_result", None)):
@@ -551,7 +556,10 @@ def _queue_usage_enrichment(
     # usage source, so do not create a no-op durable job (or an extra save).
     if not s.cli_session_id:
         return None
-    key = _terminal_enrichment_key(task_id, task_seq, worker_id, generation)
+    key = _terminal_enrichment_key(
+        task_id, task_seq, worker_id, generation,
+        task_idempotent=task_idempotent,
+    )
     pending = getattr(s, "usage_enrichment_pending", None)
     if not isinstance(pending, list):
         pending = s.usage_enrichment_pending = []
@@ -793,6 +801,7 @@ async def _persist_terminal_state(
     source_session_id = w._current_source_session_id
     terminal_key = _terminal_enrichment_key(
         task_id, task_seq, w.worker_id, w.generation,
+        task_idempotent=task_idempotent,
     )
     result_text = result_text if result_text is not None else ""
     w.status = status
@@ -814,6 +823,11 @@ async def _persist_terminal_state(
         )
         w.status = "idle"
         w._terminal_handled = True
+        # A duplicate terminal is still a terminal for the current consumer
+        # generation.  Without waking _consumer_stream, a durable duplicate
+        # can strand the serial queue until the watchdog removes the worker.
+        _signal_task_done(w)
+        w.last_activity = time.monotonic()
         return None
 
     s.last_result = {
@@ -839,6 +853,7 @@ async def _persist_terminal_state(
     enrichment_key = _queue_usage_enrichment(
         s, w.adapter, task_id=task_id, task_seq=task_seq,
         worker_id=w.worker_id, generation=w.generation,
+        task_idempotent=task_idempotent,
     )
     if enrichment_key:
         s.last_result["usageEnrichmentKey"] = enrichment_key
@@ -2627,6 +2642,30 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
             changed = True
         pending_ids.add(_queue_item_id(item))
         state = _delivery_state(item)
+        ledger_record = _ledger_record(s, _queue_item_id(item))
+        ledger_state = _delivery_state(ledger_record) if ledger_record else None
+        # A sent ledger receipt is durable proof that the provider hand-off
+        # crossed the at-most-once boundary.  If a crash left the old row in
+        # queue_pending, remove only that stale row; never replay it.
+        if ledger_state == _DELIVERY_SENT:
+            _remember_queue_item(s, item, _DELIVERY_SENT)
+            changed = True
+            continue
+        # The pending row is the retryable source of truth, but a stale ledger
+        # reservation must not remain visible after recovery.  Treat the
+        # provider boundary as uncertain and normalize both copies to queued;
+        # the existing bounded backoff preserves the documented duplicate
+        # window when the hand-off outcome cannot be known.
+        if (state == _DELIVERY_QUEUED and ledger_state in {
+                _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
+                _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN,
+        }):
+            item["lastDeliveryState"] = ledger_state
+            _queue_item_backoff(item, "reconciled stale queue delivery ledger")
+            _remember_queue_item(s, item, _DELIVERY_QUEUED)
+            keep.append(item)
+            changed = True
+            continue
         if state == _DELIVERY_SENT:
             _remember_queue_item(s, item, _DELIVERY_SENT)
             changed = True

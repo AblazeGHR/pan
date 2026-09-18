@@ -441,7 +441,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 - **普通任务**：入队 `{type:"task", id, text, source, taskId?, clientMessageId?}` → consumer 唤醒 → `queued→reserved→writing→sent_to_cli` 交接。
 - **报告信号**：入队 `{"type":"report_signal"}`——只负责唤醒，报告正文在 MA 的落盘队列（真源）。consumer 被唤醒后从落盘队列取 FIFO 头部交付单元（连续 report/QQ 段合并为一个交付单元），拼接成一条消息（`─────` 分隔 + 来源标注）处理。**出队边界 = 本地 CLI 交接成功**（stdin 完整写入 + drain，或 one-shot 进程创建成功并持久化 `sent_to_cli`），**不是**业务终态；交接前崩溃 → 恢复流程按 backoff 归队重投，交接后（at-most-once 边界）不因 provider 无终态而重投——接受窄重复窗口而非静默丢失（语义见 `docs/design/queue-at-most-once.md`）。
 - **QQ 提醒信号（2026-08-22 起）**：`/api/qq/notify` 被 QQ 插件调用后，`enqueue_qq_reminder` 对所有订阅了该 QQ 会话的 session append `{"type":"qq","kind":"qq",...}` 到其 `queue_pending` 并唤醒（同一信号通道）——即订阅者 worker 会收到 `@@@@by qq` 抬头提醒（与报告同队列/同出队边界，见 §3）。
-- 落盘真源 + 内存信号：服务重启不丢未交接项；`queue_delivery_ledger` 是已越过交接边界的幂等收据（**不是第二条队列**）；全局 watchdog 看到 `queue_pending` 非空无活 worker 会自动拉起。
+- 落盘真源 + 内存信号：服务重启不丢未交接项；`queue_delivery_ledger` 是已越过交接边界的幂等收据（**不是第二条队列**）。恢复时未完成的 reserved/writing/in-flight 收据会与 pending 行对账回 queued；若 ledger 已持久化 `sent_to_cli` 而 pending 行残留，以收据为准清除且不重发。全局 watchdog 看到 `queue_pending` 非空无活 worker 会自动拉起。
 
 ### 7.7 其他约定
 
