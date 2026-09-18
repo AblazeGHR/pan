@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SettingsPopover } from './SettingsPopover';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -53,6 +53,7 @@ function setup(session = makeSession(), config = codexConfig) {
   const applySettings = vi.fn().mockResolvedValue({ requireRestart: true });
   const loadSessions = vi.fn().mockResolvedValue(undefined);
   const showToast = vi.fn();
+  const onClose = vi.fn();
 
   useSessionStore.setState({
     sessions: [session],
@@ -71,10 +72,8 @@ function setup(session = makeSession(), config = codexConfig) {
   const anchor = document.createElement('button');
   document.body.append(anchor);
   const anchorRef = { current: anchor };
-  const rendered = render(
-    <SettingsPopover open onClose={vi.fn()} anchorRef={anchorRef} />,
-  );
-  return { ...rendered, applySettings, loadSessions, showToast };
+  const rendered = render(<SettingsPopover open onClose={onClose} anchorRef={anchorRef} />);
+  return { ...rendered, applySettings, loadSessions, showToast, onClose };
 }
 
 describe('Codex context settings in SettingsPopover', () => {
@@ -91,8 +90,9 @@ describe('Codex context settings in SettingsPopover', () => {
     const { applySettings } = setup();
     await act(async () => {});
 
-    const more = Array.from(document.querySelectorAll('button[aria-expanded="false"]'))
-      .find((button) => button.textContent?.includes('More'));
+    const more = Array.from(document.querySelectorAll('button[aria-expanded="false"]')).find(
+      (button) => button.textContent?.includes('More'),
+    );
     expect(more?.textContent).toContain('More');
     expect(document.querySelector('input[aria-label="model_context_window"]')).toBeNull();
 
@@ -115,8 +115,8 @@ describe('Codex context settings in SettingsPopover', () => {
     await act(async () => fireEvent.blur(contextInput!));
     expect(applySettings).toHaveBeenCalledWith('session-1', { modelContextWindow: 64001 });
 
-    const restore = Array.from(document.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('Restore defaults'),
+    const restore = Array.from(document.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Restore defaults'),
     );
     expect(restore).toBeDefined();
     expect((restore as HTMLButtonElement).disabled).toBe(false);
@@ -133,5 +133,35 @@ describe('Codex context settings in SettingsPopover', () => {
     await act(async () => {});
     expect(document.body.textContent).not.toContain('More');
     expect(document.querySelector('input[aria-label="model_context_window"]')).toBeNull();
+  });
+
+  it('closes on any outside pointer but keeps settings and portal controls open', async () => {
+    const { onClose } = setup();
+    await act(async () => {});
+
+    const settings = document.querySelector('[data-settings-popover]');
+    expect(settings).toBeTruthy();
+    fireEvent.pointerDown(settings!);
+    expect(onClose).not.toHaveBeenCalled();
+
+    const modelButton = screen.getByRole('button', { name: /gpt-5-codex/ });
+    fireEvent.click(modelButton);
+    const modelMenu = document.querySelector('[data-model-select-menu]');
+    expect(modelMenu).toBeTruthy();
+    fireEvent.pointerDown(modelMenu!);
+    expect(onClose).not.toHaveBeenCalled();
+
+    const outside = document.createElement('div');
+    document.body.append(outside);
+    fireEvent.pointerDown(outside);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Escape available as a direct close action', async () => {
+    const { onClose } = setup();
+    await act(async () => {});
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
