@@ -5,656 +5,525 @@
 >
 > 维护者：Pan SMA；迁移日期：2026-09-12
 
-## 当前项目事实
+## 工作流控制
+
+### 当前概况
 
 - 项目根：`D:\project\Pan-main`（`git rev-parse --show-toplevel` 已核对）。
-- `main`：`6c74dea`（2026-09-15 本轮归档复核）；T-004、T-007、T-009 已完成归档；T-025 文件输入与结构化附件协议已合入并完成归档；T-027.1 / T-027.2 已合入、待开发者验收；T-035 已合入、待开发者验收；T-037/T-038 已合入、仍待开发者验收；**未 push**。
-- `practical`：分支 ref 仍为 `1f55021`；`D:\project\Pan` 工作树仍为 detached `f76bcd1`、clean，本次未改动它。
+- `main`：`HEAD`（当前工作流文档提交；代码基线 `37d7668`，未 push。T-040/T-041/T-042/T-043/T-044/T-045/T-046/T-047 均已本地合入）；已归档任务见 [developLog.md](developLog.md)，代码交付与无代码验证的开发者验收入口见下方唯一任务卡。
+- `practical`：2026-09-18 上次核对 `D:\project\Pan` 已检出 practical、HEAD 为 `b466a76`；本轮 T-043/T-044 尚未同步 practical；前端 pnpm build 已通过。
 - TA worktree 根：`D:\project\pan-worktrees`；新 TA worktree 必须先用 `git worktree add` 注册后交付。
 - 受保护服务：`8768`（未经用户授权不得重启/停止/修改）；隔离验证实例按任务分配端口（当前 T-031 = `8767`、T-033 = `8766`；`8765` 被其他 worktree 占用，不得停止或复用）。
 
-## 工作流控制
+- 整体状态：MA 已完成当前获授权的实现、验证和本地 `main` 整合；现在等待开发者验收，以及 Job/Workspace UI 的用户决策。没有正在执行的 TA。
+- 当前焦点：开发者验收 `T-040`–`T-047` 及此前批次；用户决定 `DEC-004`、`DEC-005` 后再启动对应 UI 阶段。
+- 可执行：无新的非阻塞代码任务；开发者验收由开发者执行，UI 阶段分别受 `DEC-004`/`DEC-005` 局部阻塞。
+- TA 执行中：无。
 
-- 整体状态：T-004、T-007、T-009 已归档；T-027 批次与 T-030、T-035、T-037、T-038 均已合入 main（T-030 合并提交 `7f2667b`；T-035 合并提交 `82823ad`；T-037 合并提交 `083a09d`；T-038 合并提交 `317e46e`）；T-031 已完成 T-037 修复后的真实复验，T-033 真实运行时验证已完成并发现 D-1/D-2，T-032 调查已闭环待 `DEC-003`；当前批次已收束，继续推进直到只剩用户决策/授权/外部条件/开发者验收阻塞
-- 当前焦点：`DEC-003` 决策（T-032 第 2 档）；T-036 调查方案待决；T-039 挂起待商讨
-- 可执行：无；其余任务待开发者验收、用户决策或被用户暂停/取消
-- TA 执行中/待验收：无活跃 TA；T-034 浏览器/UI 真实证据已完成、待开发者验收；T-036 终态广播次序调查已完成、等待方案决策；T-038/T-035/T-037 及 T-027 批次仍待开发者验收。一次性已完成 TA session 已清理。
-- 后置动作：已通过 QQ 私聊联系人“焕之”（用户本人）发送固定正文：`紧急修复已经合入main，待验收`；message_id `504271875`（不重复发送）
-- 待执行后置动作：T-033、T-037 及其直接复验/整合全部收束后，向 QQ 联系人“焕之”发送一条一行简报；内容按最终事实概括本批次完成项、未通过项和仍待开发者验收项；不得提前发送，也不得重复 message_id `504271875`。
-- TA 模型规则（2026-09-15 用户最新口径）：当前批次已完成，后续所有新 TA 与返工统一使用 Codex `gpt-5.6-luna`，默认 `high`，按任务风险升 `xhigh`，权限默认 `bypass`；Codex 不需要开启 thinking，保持 `always_thinking_enabled=false`。这覆盖此前“新任务直接派 CBC”的安排；Codex 硬性额度/服务不可用时遵守 constraints 的外部阻塞或替身交接规则，不静默换模型。
-- 持续推进规则（2026-09-15）：紧急批次完成后不得自动停工；重新扫描 overview，持续处理可执行的设计、实现、验证、整合和归档动作，直到只剩用户决策、授权、外部条件或开发者验收阻塞。
-- 已暂停：T-026 的原 Worker 与实现动作；其历史要求已并入 T-027 审查范围。T-029、T-039 仅完成挂起立项，未开始推进
-- 决策阻塞：`DEC-003`（T-032 第 2/3 档实现范围；不阻塞其他任务）
-- 授权阻塞：无
-- 外部阻塞：无
-- 唤醒条件：TA 报告、用户消息、overview/约束变更或再次启动工作流
+### 需要用户处理
 
-## 待决策与待授权
+- 待开发者验收：[早期已合入批次 A](tasks/acceptance-batches.md)——`T-005`、`T-006`、`T-008`、`T-010`–`T-019`、`T-020`、`T-021/T-022`、`T-024`。
+- 待开发者验收：[附件/运行时批次 B–E](tasks/acceptance-batches.md)——`T-027`、`T-027.1`、`T-027.2`、`T-030`、`T-031`、`T-033`、`T-034`、`T-035`、`T-037`、`T-038`、`T-040`、`T-041`、`T-042`、`T-043`、`T-044`、`T-045`、`T-046`、`T-047`。
+- 待用户决策：`DEC-004`（Job 标签页/Create Job UI）、`DEC-005`（Workspace 标签页 UI）。
+- 待授权：无。外部阻塞：无；真实 provider/CLI、HTTP/WS、Chromium、移动端等未验证项随对应验收清单保留。
+
+### MA 正在推进
+
+- 无。代码交付和本地整合已完成；当前没有需要继续派发或返工的 TA 动作。
+
+### 等待与暂停
+
+- 决策阻塞：`T-043` UI 阶段 → `DEC-004`；`T-044` UI 阶段 → `DEC-005`；解除条件：用户明确对应 UI 形态和交互范围。
+- 用户暂停：T-026 → 等待用户恢复；T-029 → 等待用户明确恢复；T-039 → 等待用户开启方案讨论。
+
+### 资料入口
+
+- 长期约束：[constraints.md](constraints.md)
+- 归档日志：[developLog.md](developLog.md)
+- 任务详情：以下四个状态索引中的唯一任务卡；复杂证据按任务条目中的链接按需阅读。
+- 开发者验收单：[acceptance-batches.md](tasks/acceptance-batches.md)
+- 唤醒条件：TA 报告、用户决策/验收、外部条件变化、overview/约束变更或再次启动工作流。
+
+## 已决策/授权
 
 ### AUTH-001：测试通过后直接合入本地 main
 
-- 状态：已授权
-- 作用域：Pan 隔离 worktree 中、测试通过且无冲突的功能修复和文档整合
-- 允许：创建 worktree/分支、提交功能改动、合入本地 `main`、更新工作流文档
-- 不包含：push、发布、生产/受保护服务操作、覆盖用户 dirty/untracked 文件
-- 有效期：后续同类任务，直至用户撤销或修改
-- 来源：用户会话，2026-09-12；已用于 `c1a5ace` 及后续本地整合
+- 状态：已授权；作用域：隔离 worktree 中测试通过且无冲突的功能修复和文档整合
+- 允许：创建 worktree、提交、合入本地 `main`、更新工作流文档；不包含 push、发布、受保护服务操作或覆盖用户 dirty/untracked 文件
+- 来源/时间：用户会话，2026-09-12；持续有效，直至用户撤销或修改
+- 详情：[决策方案附件](tasks/decisions.md)
 
 ### DEC-001：文件复制/拖入输入框的正式实现方案
 
-- 状态：已决定（A + C，2026-09-13）
-- 影响功能和阶段：T-023 方案调查及其后续文件输入、附件引用、发送和持久化实现；T-023 当前被本决策直接阻塞
-- 已核实事实：系统文件复制/拖入在浏览器中通常提供 `File`/`FileList`，应上传文件内容而不是客户端绝对路径；目录依赖额外且兼容性不一的 handle/entry API；当前 Pan 已有服务端文件和客户端上传两条链路，但发送协议仍以 Markdown 文本为主
-- 选项 A：只支持普通文件的复制/粘贴和拖入，目录明确拒绝；先复用现有上传接口和 Markdown 校验，复杂度最低、兼容性最好
-- 选项 B：支持普通文件和目录递归上传；需要目录枚举、相对路径、批量进度、取消、部分失败和跨浏览器 fallback，复杂度较高
-- 选项 C：直接采用结构化 `AttachmentRef`/`parts` 发送协议；客户端文件、服务端文件和消息附件统一使用 session-scoped opaque `attachmentId`，长期最稳健但需要改 queue/history/WebSocket 和旧协议兼容
-- 推荐：A + C；第一阶段先实现普通文件输入并拒绝目录，同时采用结构化附件引用；目录能力以后单独建立任务
-- 最终决定：A + C。第一阶段支持普通文件复制/粘贴和拖入，目录明确拒绝；同时采用结构化 AttachmentRef/parts 协议，兼容旧 text/Markdown 协议。
-- 决定来源：开发者会话，2026-09-13；用户明确回复“使用A+C”。
-- 决策要求：请明确选择 A、B、C 或 A + C；可同时补充目录、重复文件、上传时机和未发送附件生命周期规则
-- 决定后动作：已解除 T-023 决策阻塞并建立 T-025 正式实现任务；本阶段不实现目录递归上传。T-026 为已合入实现的路径表示修复，不改变 A+C 决策。
+- 状态：已决定（A + C，2026-09-13）；不再等待用户选择
+- 结论：普通文件复制/粘贴和拖入，目录第一阶段拒绝；采用结构化 `AttachmentRef/parts`，兼容旧 text/Markdown 协议
+- 影响：T-023 决策阻塞已解除，T-025 已承接正式实现；目录能力另立任务
+- 来源：用户明确回复“A+C”，2026-09-13
+- 详情：[决策方案附件](tasks/decisions.md)
 
 ### DEC-002：输入框、跨 Session 附件与发送事务语义
 
-- 状态：已决定（2026-09-15）
-- 影响：T-027 及其输入框、附件、editor 文件链接和发送实现
-- 最终决定：输入框上下的待发送 chip、输入框内附件节点不能跨 Session；对话正文中渲染出的文件路径/editor 链接可以跨 Session 拖入，并直接复用服务端文件引用，不重复上传；点击 Send 立即清空并乐观显示已发送，失败时恢复一份可编辑副本；服务端文件使用实时路径；客户端文件只在上传阶段作为浏览器 File，上传完成后统一按服务端本地文件处理；复制的图片文件和 HTML 文件保持原文件上传，只有网页富文本粘贴转换为安全纯文本；目录或目录混合拖入整批拒绝；同一资源允许在一条消息中出现多个 occurrence。
-- 约束：浏览器不暴露或信任客户端绝对路径；editor/download href 只是 UI 投影；Worker 文本由服务端解析为实际路径；跨 Session 的正文文件链接必须通过服务端权限和引用校验。
-- 决策来源：用户会话，2026-09-15。
+- 状态：已决定（2026-09-15）；不再等待用户选择
+- 结论：structured chip/inline 不跨 Session；合法正文 editor/server-file 可复用；Send 乐观清空，失败恢复可编辑副本
+- 影响：T-027/T-027.1/T-027.2 已按此实现；T-031/T-037 提供隔离证据
+- 来源/时间：用户会话，2026-09-15
+- 详情：[决策方案附件](tasks/decisions.md)
 
-### DEC-003：报告/队列身份贯通（T-032 第 2 档实现范围）
+### DEC-003：报告与任务身份的最小继承规则
+
+- 状态：已决定（2026-09-17）；不再等待用户选择
+- 结论：正式任务使用 `taskId`；普通 `agent_send` 不需要独立业务编号，入队时继承目标 TA 当前任务的 `taskId`（没有任务上下文时可为空）；report 只回传本次执行输入携带的 `taskId`
+- 不实施：`sourceQueueItemId`、`deliveryUnitId`、完整事件模型；`queueItemId` 仅保留为队列内部技术 ID
+- 约束：不得在 report 生成时按历史“上一条/最近任务”猜测归属；任务归属必须在输入入队或 Worker 领取时确定并随本次执行保存
+- 影响：关闭原 DEC-003；T-032 调查结论转为 T-040 实现依据；相关 D-2 改由 T-040 处理
+- 来源/时间：用户明确回复“按照这个原则推进”，2026-09-17
+- 详情：[DEC-003 方案与证据](tasks/decisions.md)
+
+### DEC-006：时间 Job 的创建者、接收者与 Agent 入口
+
+- 状态：已决定（2026-09-18）；不再等待用户选择
+- 结论：时间 Job 分离保存 `creatorSessionId`/所有者与 `targetSessionId` 或 `targetSessionIds`/实际接收者；创建者不等于接收者。Agent A 可以创建发送给 Agent B 的 Job，终态通知按目标接收者路由，不自动复制回创建者。
+- 身份语义：创建者 ID 用于所有权、审计和权限；目标 Session ID 用于实际消息投递。系统 Job 无创建者时显示 `automation`，不显示 `unknown`。
+- 通知结构：终态通知单独暴露 `jobId`、状态、目标和可用的创建者元数据；调度器/后台 Job 的完成、失败、取消通知使用 `////by pan system` 前缀。
+- 消息区分：Agent 创建的定时消息沿用 `////by agent : <creatorSessionId> | <title>` 和 `sourceSessionId`；只有调度器产生的终态通知使用 `////by pan system`。
+- Agent 入口：复用现有 Pan MCP 的 `agent_message_job_create/get/list/update/cancel` 体系，不新建重型 MCP 服务。
+- 影响：T-043/T-045 后端 Job 模型、终态通知和 Agent/MCP 文档已完成；不解除 `DEC-004`/`DEC-005` 的 UI 阻塞。
+- 来源/时间：用户明确要求，2026-09-18
+
+## 待决策与待授权
+
+### DEC-004：Job UI 形态与时间编辑入口
 
 - 状态：待决策
-- 影响功能和阶段：T-032 调查结论落地（报告粒度与任务身份贯通）；`agent_send` 的 MCP 参数面；T-029（挂起）将来恢复时的模型统一
-- 已核实事实（MA 抽查行号属实）：报告 item **无** `sourceQueueItemId`/`clientMessageId`（`packages/core/worker.py:2668-2717`）；`agent_send` MCP 只有 `(session_id, text)`，无 `task_id`/`client_message_id`，也不返回 `queueItemId`（`packages/mcp/server.py:1364-1394`）；连续 report/QQ 项会**合并**成一条 delivery unit（`packages/core/worker.py:1324-1345`）；`GET /api/sessions/{id}/queue` 只显示 `queued` 子集（`packages/web/server.py:3447-3478`）；`sent_to_cli` ≠ provider 业务完成。
-- MA 建议：采纳**第 2 档**——报告携带 `sourceQueueItemId`/`taskId`/`clientMessageId`/`deliveryUnitId`，完成/idle 时给结构化队列摘要，`agent_send` 增加可选 `client_message_id` 并返回 `queueItemId`；**不改变**现有 FIFO 与 at-most-once 交接语义。**第 3 档**（QueueItem → DeliveryAttempt → Receipt → CompletionEvent → ReportDeliveryUnit → MA ack 的完整事件模型）与挂起的 T-029 一并延后。
-- 选项（逐条勾选或直接写结论）：
-  - [ ] A1：是否规定"需要独立验收的追加任务必须用 `agent_assign(task_id=...)`，`agent_send` 只作补充信息"？（MA 建议：是）
-  - [ ] A2：是否为 `agent_send` 增加可选 `client_message_id` 并返回 `queueItemId`？（MA 建议：是）
-  - [ ] A3：报告模型——每个源队列项一条 report／允许批量但必须带结构化 `reports[]`／两者都支持？（MA 建议：两者都支持，批量必须带 `reports[]`）
-  - [ ] A4：`queueItemId`/`taskId`/`clientMessageId` 是否出现在文本报告里，还是只放结构化字段？（MA 建议：结构化字段 + 文本显示 `queueItemId`/`sourceQueueItemId`）
-  - [ ] A5：MA 需要观察到哪一级队列状态——仅 `queued`／`queued`+active／完整 ledger hand-off／provider 终态？（MA 建议：`queued`+active+最近终态，带 `queueRevision`）
-  - [ ] A6：T-029 恢复时 queue 查询是否只读、是否允许查询 `reserved`/`writing`/`sent_to_cli` ledger？（MA 建议：只读，允许 ledger）
-  - [ ] A7：是否接受当前 at-most-once 的窄重复窗口语义，还是要引入 provider acknowledgement 模型？（MA 建议：保留现状，文档写明边界）
-- 未决定时：只执行第 1 档 MA 纪律（已立即采用），不启动第 2/3 档实现；T-032 调查结论保留在 overview。
-- 阻塞：T-032 第 2 档实现任务（实现时需新分配 `T-nnn` 与独立 worktree）
-- 最终决定：
-- 决策来源：T-032 调查结论（用户 2026-09-15 会话委托的调查任务）
-- 用户附件/备注：
+- 影响：T-043 的 App Settings 独立 Job 标签页、Create Job 窗口、时间显示与调整交互
+- 已核实事实：用户要求所有时间类型 Job 在 UI 中显示时间且可调整；具体标签页布局、创建/编辑控件和时间编辑交互尚未确定。
+- 未决定时：T-043 可以先设计和实现后端/Agent/MCP 契约；UI 实现阶段暂停。
+- 阻塞：T-043 的 UI 实现与 UI 验收阶段
+- 最终决定：待用户确定
+- 决策来源：用户会话，2026-09-18
 
-## 一、已合入 main 的改动
+### DEC-005：工作区标签页 UI 形态与交互范围
 
-### T-001：Session prompt 拆分与非递归交接准备（旧编号 1）
+- 状态：待决策
+- 影响：T-044 的工作区标签页、Session 展示布局、切换和归属编辑 UI
+- 已核实事实：后端已支持 Workspace 持久化、Session 多工作区归属、查询和管理接口；用户明确暂不决定 UI。
+- 未决定时：T-044 后端进入开发者验收，不冻结其他后端、Agent/MCP 或测试工作；UI 实现阶段暂停。
+- 阻塞：T-044 的 UI 实现与 UI 验收阶段
+- 最终决定：待用户确定
+- 决策来源：用户会话，2026-09-18
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：开发者已验收；关联的 Session prompt UI 后续仍由 T-020 独立追踪
-- 目标/结论：将 `system_prompt` 拆为 `original_prompt` 与 `handoff_prompt`，计算兼容的 `systemPrompt`；持久化、旧 JSON、worker/HTTP/MCP/导入/分支路径均已接入，不猜测历史混合文本。
-- 工作树/提交：历史 feature 与 practical 承接提交 `77a2e66`；main `bf73b5b`。
-- 测试/未验证：真实 handoff 按安全边界未执行。
-- 有序待办：
-  - [x] 合入 main
-  - [x] 开发者验收
+> 以下四节是兼容性的状态索引；每个任务只在其中保留一张任务卡。阶段/状态、下一动作、解除条件和关系以唯一任务卡为准。代码任务必须先实际合入 `main`，之后才进入开发者验收；未合入时只写“开发者验收：合入后”。无代码任务明确“合入 main：不适用”后进入开发者验收。
 
-### T-002：Session Details / Rename / Usage / System prompt UI（旧编号 2）
+## 已合入main的改动/已完成的任务
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：开发者已验收；关联的 Session Details 后续仍由 T-020 独立追踪
-- 目标/实现：Session name 复制、rename 预填全选、Usage 默认折叠、System prompt 折叠并保留换行、Codex quota 窗口过滤、ChatMessages 底部跟随行为。
-- 工作树/提交：`D:\project\pan-worktrees\session-detail-usage-rename-20260909`；最终 `e716f617`；main 整合 `f497d35196e7bbddde3aee564619871acc277edc`。
-- 测试/未验证：46 files / 407 tests、lint、build 通过；未做真实 browser/mobile E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [x] 开发者验收
+### T-005：practical 启动脚本与 MCP 依赖检查
 
-### T-003：ChatMessages 底部跟随与 Scroll to bottom（旧编号 3）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`9138a79`）｜开发者验收：待确认
+- 下一动作：开发者纳入早期合入批次验收；解除：确认启动脚本与依赖检查
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：开发者已验收；exact-bottom 一像素基线问题由 T-034 证据单独追踪
-- 结论：距底部 `<=48px` 时跟随并隐藏按钮，超过时显示按钮且不吸附历史浏览；保留分页、会话切换和几何快照处理。
-- 工作树/提交：来源 practical `1f05127`；main `51a159c`。
-- 测试/未验证：前端相关及全量测试曾通过；真实 browser/mobile 滚动物理行为未做 E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [x] 开发者验收
+### T-006：Codex 全局额度缓存
 
-### T-005：practical 启动脚本与 MCP 依赖检查（旧编号 5）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收额度缓存、离线 API 与 Session Details projection；解除：开发者确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，待开发者验收
-- 结论：启动脚本补齐 Pan Core 与 stdio MCP 依赖检查，保留 practical 用户脚本修改。
-- 提交：`9138a79`。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-008：带行号 Markdown 文件链接在 Editor 中打开
 
-### T-006：Codex 全局额度缓存（旧编号 7）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`cea2611`）｜开发者验收：待确认
+- 下一动作：开发者验收行号、Windows/UNC/`file://` 链接；解除：确认或另立补验
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：额度属于 Codex provider profile/账号，不属于 Session；已实现 profile 缓存、app-server push 持久化、离线 API、窗口归一化、可选 WHAM 刷新和 Session Details projection。
-- 工作树/提交：`D:\project\pan-worktrees\codex-quota-cache-luna-20260909`；`dd9ef954`、`466782c`；main `97930f7`、`6159644`、`b1770f9`。
-- 测试/未验证：Python quota 17 passed、Session Details jsdom 13 passed；未做真实服务/browser E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-010：Codex Session 上下文窗口与压缩阈值设置
 
-### T-008：带行号 Markdown 文件链接在 Editor 中打开（旧编号 9）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收设置入口、spawn/import 和 restart 生效边界；解除：开发者确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：支持 `#L42`、`#L42-L48`、`:42`、`:42-48`、URL 编码、Windows/UNC 和 `file://`，经 `pendingLocation` 与 Monaco 定位。
-- 工作树/提交：`D:\project\pan-worktrees\markdown-file-link-line-20260911`；来源 `4d3dae1`；main `cea2611`。
-- 测试/未验证：定向 jsdom 8 passed，`git diff --check` 通过；未做真实服务/browser/mobile E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-011：附件 Markdown 链接与附件下载改造
 
-### T-010：Codex Session 上下文窗口与压缩阈值设置（旧编号 11）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收安全链接、下载 URL 和历史 `@"path"` 兼容；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，待开发者验收
-- 结论：SettingsPopover、Web/MCP/import/spawn 和 idle/pending restart 已接入；未设置时不传并恢复默认。
-- 提交：来源 `a9843c1`，随 React-only/附件整合进入 main。
-- 测试/未验证：adapter、Session、worker、SettingsPopover 定向测试与 build 通过；全量 lint 历史上受旧 Hook 规则失败阻断；未做 provider E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-012：附件选择与 New Session 目录输入统一改造
 
-### T-011：附件 Markdown 链接与附件下载改造（旧编号 12）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收目录选择、stale path 阻止和新目录创建；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：统一安全 Markdown 附件链接与受限下载 URL，兼容历史 `@"path"`，避免误判 Editor 文件链接。
-- 提交：来源 `240d858`；冲突整合 `cd09841`；门禁修复 `4444371`。
-- 测试/未验证：相关 Vitest 41 passed、build 和 ESLint 通过；未做真实服务/browser/mobile E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-013：浏览器后台恢复前端状态
 
-### T-012：附件选择与 New Session 目录输入统一改造（旧编号 13）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收后台恢复、重连与权威状态刷新；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：T-034 提供独立浏览器证据；不承接未完成验收
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：复用 `DirectoryInput`，服务端发送前重新枚举目录并阻止 stale path；New Session 可确认创建不存在目录。
-- 提交：来源 `9c0852b`；整合 `cd09841`；门禁修复 `4444371`。
-- 测试/未验证：目录 pytest 17 passed、InputRow 28 passed、目录工具 12 passed、build/ESLint 通过；未做真实服务/browser/mobile E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-014：Memory 关闭时的 minimal requirements 分层
 
-### T-013：浏览器后台恢复前端状态（旧编号 14）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收 Memory 开关下的运行边界；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：共享 WS 安全 reconnect，集中监听 visibility/pageshow/focus 并 debounce；刷新权威 sessions/workers/history/queue，保留草稿、滚动和本地状态。
-- 工作树/提交：`D:\project\pan-worktrees\web-resume-on-focus-20260911`；来源 `a25a123`、`77dd322`；main `5d1f214`。
-- 测试/未验证：jsdom 2 files / 52 tests、build、ESLint 通过；未做真实 browser visibility/bfcache、服务/WS/provider E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-015：Pan 通知、系统提醒与 msgBridge
 
-### T-014：Memory 关闭时的 minimal requirements 分层（旧编号 15）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收通知链路；未验证桌面能力按详情处理
+- 解除条件：开发者完成该任务验收
+- 关系：T-034 提供部分独立浏览器证据；桌面未验证项可另立任务
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，待开发者验收
-- 结论：拆分 minimal/dev/memory requirements；Memory ML 保持 optional；setup/start 探测 Core/API/MCP 依赖。
-- 工作树/提交：`D:\project\pan-worktrees\minimal-requirements-memory-off-20260911`；实现 `37199dc`；main `421c591`。
-- 测试/未验证：指定 Python 60 passed；缺 `pytest-timeout` 有 warning；未启动服务或执行真实 API/MCP/browser E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-016：Pan MCP 工具清单与 skill 同步审计
 
-### T-015：Pan 通知、系统提醒与 msgBridge（旧编号 16）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收工具清单与 skill 同步结果；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：通知前缀、Session 通知开关、持久提醒、msgBridge UI、Windows sender 和 MCP 工具已接入，`agent_notify` 语义保持不变。
-- 提交：来源 `1033582`、Windows 修复 `5406953`；main `0b23a86`。
-- 测试/未验证：后端 95 passed、compileall、前端通知 68 tests、Windows sender/API/MCP 部分 E2E 通过；Chromium 权限与桌面可见性、provider/mobile E2E 仍未完全验证。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-017：搜索结果双击文件夹后搜索目录不更新
 
-### T-016：Pan MCP 工具清单与 skill 同步审计（旧编号 17）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收搜索目录更新；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 当前阶段：已合入，待开发者验收
-- 结论：以 `packages/mcp/server.py` 为事实源同步 Pan skill，确认 49 个 Pan 工具、7 个 pan-qq 工具及 worker 兼容别名。
-- 工作树/提交：`D:\project\pan-worktrees\pan-skill-tool-sync-20260912`；来源 `c5239c41`；main `683f012`、`cf7ff82`。
-- 测试/未验证：静态工具检查、py_compile、pytest 28 passed / 1 skipped、diff check 通过；未启动服务或访问 8765/8767/8768。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-018：Windows Markdown 带行号链接打不开
 
-### T-017：搜索结果双击文件夹后搜索目录不更新（旧编号 18）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收 Windows/UNC/`file://` 路径；未验证项按详情处理
+- 解除条件：开发者完成该任务验收
+- 关系：与 T-008 能力相邻；T-034 提供部分独立证据
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：目录单击延迟 250ms，双击取消选择并更新 `path\\`，文件点击保持立即选择。
-- 工作树/提交：`D:\project\pan-worktrees\pan-directory-input-doubleclick-20260912`；`d7930831`；main `683f012`。
-- 测试/未验证：目录/InputRow/Vitest、tsc、ESLint、diff check 通过；NewSessionModal 仍有 4 个既有断言失败。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-019：Codex Steer 按 Worker running 时可见性
 
-### T-018：Windows Markdown 带行号链接打不开（旧编号 19）
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收 running Steer 入口；真实 Codex running Steer 未验证
+- 解除条件：开发者完成该任务验收
+- 关系：T-034 提供部分独立证据；不承接未验证项
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：识别单个前导斜杠加 Windows 盘符，保留 Unix rooted/UNC/file URL 与行号格式。
-- 工作树/提交：`D:\project\pan-worktrees\pan-markdown-windows-line-link-20260912`；`051018fe`；main `683f012`。
-- 测试/未验证：Windows href 与 MarkdownRenderer 回归 13 tests passed、tsc、ESLint、diff check 通过；未做真实服务/磁盘 E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
+### T-020：Session Detail、System prompt 与 Codex quota
 
-### T-019：Codex Steer 按钮在 Worker running 时偶尔消失（旧编号 20）
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入，待开发者验收
-- 结论：InputRow 改用同一 Session 的 workerStore live running 状态和 session-level steer endpoint，避免 stale summary。
-- 工作树/提交：`D:\project\pan-worktrees\pan-steer-visibility-20260912`；`8f69c96`；main `cf7ff82`。
-- 测试/未验证：相关 Vitest 99 passed、tsc、Python worker branch 2 passed、diff check 通过；未做真实 browser/API E2E。
-- 有序待办：
-  - [x] 合入 main
-  - [ ] 开发者验收
-
-### T-020：Session Detail React #310、System prompt 与 Codex quota
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端
-- 决策门：无；实现路线不改变用户需求或数据语义
-- 当前阶段：已合入，等待开发者验收
-- 目标/调查结论：summary Session 不含 `systemPrompt`，Details 原先未请求完整 Session；五小时 Codex 窗口后端归一化为 `kind=five_hour`，旧前端过滤规则丢弃；TopBar 原先只读 Worker live quota，Worker 离线或重渲染时额度消失。
-- 实现：Details 按 ID 请求完整 Session 并保留 summary fallback；Detail 与 TopBar 统一读取 `/api/sessions/{id}/usage` 的 provider-profile 持久化 projection；支持五小时/周/月窗口和未知/空数据过滤。
-- 工作树/分支：`D:\project\pan-worktrees\session-detail-system-prompt-20260912`；`fix/session-detail-system-prompt-20260912`；基于 `main@1be6a5c`；修复提交后 clean。
-- TA/任务：`ses_fe7e472cf96c96af`；`gpt-5.6-luna` / effort `high`；TA done；MA 独立复跑通过；TA Session 已清理。
-- 提交/整合：功能提交 `5f545f5`；合并提交 `c1a5ace`；`main` 已确认包含该分支。
-- 测试/未验证：前端 4 files / 24 tests、ESLint、`tsc -b` 通过；相关后端 64 passed（排除已有 quota MCP docstring 断言失败）；未做真实服务/API/browser E2E。
-- 有序待办：
-  - [x] 调查并确认根因
-  - [x] 实现与回归测试
-  - [x] 定向验证
-  - [x] 合入 main
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：是（`main@c1a5ace`，祖先关系核对成功）；push：否。
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`c1a5ace`）｜开发者验收：待确认
+- 下一动作：开发者验收 Session Detail、prompt/Usage 折叠与 quota 展示；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：T-035 是独立移动端后续，不是本任务未完成项
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
 ### T-021/T-022：附件拖放 UI 与真实后端链路
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入本地 main，等待开发者验收
-- 目标/结论：完成消息附件拖入、输入框内附件重排、附件节点保留图标、Ctrl+A/Delete 删除语义、客户端上传、附件引用安全校验、队列发送和 Session history 持久化；未嵌入的上方附件 chip 仍会正常发送并追加到消息尾部，嵌入附件按编辑器位置发送。
-- TA/工作树：`ses_f1bebe98cb738ec3`；`D:\project\pan-worktrees\attachment-dnd-ui-demo-20260913`；`feature/attachment-dnd-ui-demo-20260913`；worktree clean
-- 提交/合并：后端提交 `480e63e064a5bdc0be5662b9e6f28577484826bd`；合并提交 `784866b`；未 push
-- 测试/未验证：真实 Chromium 4/4、真实 API 8767 回归、定向前端 73/73、相关后端队列/API 测试、TypeScript、ESLint、build、diff check 通过；全量 Vitest 有 10 个既有基线失败；完整 Python pytest 受 QQ 可选依赖缺失和 2 个既有失败影响；Firefox/Safari/移动端与真实生产服务链路未验证。
-- 有序待办：
-  - [x] UI demo 实现与开发者验收
-  - [x] 真实后端上传、引用校验、发送和持久化接入
-  - [x] 分层测试与真实隔离 API/浏览器验证
-  - [x] 合入 main
-  - [ ] 开发者验收
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是｜开发者验收：待确认
+- 下一动作：开发者验收基础附件拖放与后端链路；后续完整语义见 T-027 组
+- 解除条件：开发者完成该任务验收
+- 关系：后续完整语义由 T-027/T-027.1/T-027.2 承接
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
-### T-024：Pan 解释器的 config.json 配置与环境变量优先级
+### T-024：Pan 解释器 config.json 配置与环境变量优先级
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入本地 main，等待开发者验收
-- 目标/结论：支持顶层 `config.json.python` 配置；优先级为 `config.json.python` > `PAN_PYTHON` > 当前 Pan 进程的 `sys.executable`。支持字符串、argv 数组和 `{command,args}` 结构，非法候选明确回退，不把坏值写入 MCP descriptor 或 worker argv。
-- 范围：统一接入 manifest 展开、MCP descriptor、cbc/claude/kimi/opencode/codex wrapper、durable background runner、Windows start/restart/exit 脚本和 config reload 生效边界。
-- TA/工作树：`ses_43962b89b225afde`；`D:\project\pan-worktrees\pan-interpreter-config-priority-20260913`；`feature/pan-interpreter-config-json-priority-20260913`；worktree clean
-- 提交/合并：功能提交 `8b61ddba3ea880a3795e4ede1b68df5ef2838f51`；合并提交 `17632cc`；未 push
-- 测试/未验证：相关 resolver/manifest/MCP/adapter/background/lifecycle/reload 测试、`tests/` 排除既有 quota docstring 失败的完整 runnable 集合、compileall、JSON/PowerShell 检查通过；完整 pytest 仍有 1 个既有失败，QQ 测试缺少可选 nonebot 依赖；前端未执行（本次无前端源码变更）。
-- 有序待办：
-  - [x] 审计解释器解析与所有消费路径
-  - [x] 实现 config.json > PAN_PYTHON > 默认优先级
-  - [x] 添加非法配置、Windows 路径、MCP command 和热加载边界回归
-  - [x] 完成测试并检查 worktree clean
-  - [x] 合入 main
-  - [ ] 开发者验收
-
-### T-027：输入框、附件与发送链路完整审查及方案设计
-
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：审查与子任务已实现、验证并合入 main，待开发者验收（T-030 的后续状态问题已合入；服务端广播次序后续项见 T-036）
-- 下一动作：等待开发者验收
-- 决策门：已解除；产品语义记录于 DEC-002
-- 调查结论：TA 已完成全链路审查。高优先级问题包括 Send 成功后 DOM 未清空、发送/会话切换竞态、HTML paste 未强制纯文本、Worker 当前仍可能收到 API href、queue 编辑 text/parts 不一致，以及已渲染 editor 普通本地文件链接缺少统一附件拖动 payload。报告还指出当前审查 Session workdir 不是独立 Git worktree，未进行真实 Windows Explorer/桌面剪贴板验收。
-- TA Session：`ses_cf22dbcbd289c6e9`；模型 `gpt-6-astra`；effort `low`；权限 `read-only`
-- 目标：一次性检查 Pan 当前所有输入框、附件、粘贴/拖入、编辑器渲染、发送和状态清理代码链，给出完整修复方案；实际修复待本次审查完成并经 SMA 审查后，另派 Luna high/xhigh 执行
-- 必查问题：附件插入后文字重复；输入框内附件继续拖动和重排；Ctrl+A/Backspace/Delete/删除按钮语义；未嵌入附件 chip 与嵌入节点发送语义；点击 Send 后输入框文本、draft、parts 和附件状态未清空；上传、取消、失败、重试和会话切换时序；复制/粘贴/拖入文件及目录拒绝策略；网页 HTML 粘贴导致整页进入输入框
-- 路径与渲染重点：AI/Worker/adapter 文本使用服务端实际绝对路径；UI 仅将其渲染为 editor/下载 API 链接；审查服务端目录文件或历史文件已渲染为 `editor` 后是否仍可打开、识别并再次拖入输入框作为附件；设计打开/下载与附件拖动的元数据、MIME、拖放优先级和安全边界
-- 兼容与协议：A + C（普通文件 paste/drop、目录第一阶段拒绝、结构化 AttachmentRef/MessagePart），同时覆盖旧 Markdown、旧 `@"path"`、`/api` history、queue、WebSocket、history、重试和重启恢复
-- 审查边界：只读检查、源码数据流分析、必要的安全复现/测试观察；不得修改业务代码、不得提交或合并；不能把合成 DataTransfer 测试当作 Windows 文件管理器真实验收
-- 交付报告必须包含：完整代码链路图、每个用户问题的事实/推断/未知区分、可复现条件、根因排序、editor 打开与再次拖动的可行方案对比、推荐架构、API/数据模型/渲染边界、测试矩阵、分阶段实施计划、迁移兼容和安全风险、待产品决策点
-- 前置背景：T-026 `ses_2e3ce9ae8faa0645` 已暂停；其“绝对路径分层、对话本地文件链接拖入、Send 清空”要求全部并入本审查，不复用其 Session
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`17632cc`）｜开发者验收：待确认
+- 下一动作：开发者验收配置优先级、MCP descriptor 与生命周期 reload；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：无
+- 详情：[T-005～T-024 详情](tasks/legacy-merged.md)
 
 ### T-027.1：输入框、发送事务与粘贴/拖入状态修复
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入 main，待开发者验收；不得修改 T-027.2 的 composer/send 文件
-- 历史阻塞：共享 worktree 元数据、依赖和测试环境曾阻塞验证，已通过正常重试解决；未删除锁、未修改 ACL、未使用替代 index。
-- 目标：修复 Send 乐观清空与失败恢复、Session/revision 竞态、DOM/parts/draft 清理；统一附件 occurrence/resource 状态；修复普通输入、附件拖动重排、Ctrl+A/Backspace/Delete；处理文件 paste/drop、网页 HTML 转纯文本、图片/HTML 文件保持原文件上传、目录整批拒绝和客户端路径不可信。
-- 工作树/分支：`D:\project\pan-worktrees\input-attachment-composer-send-20260915`；`feature/input-attachment-composer-send-20260915`
-- TA/任务：`ses_7079ef10a62ddf5b`；`input-attachment-composer-send-20260915`；Luna xhigh；Worker `worker-2`；已完成
-- 提交/整合：功能提交 `33aa52ada9cbe92037b5e44b1a90c3820776299d`；合并提交 `7a9c7e89cd8e313d6e506b39ba99842465603a8a`；契约补齐提交 `fadebefcdda7094ba59b321685817921996fe2c2` 已合入 main；未 push
-- 测试：定向 Vitest 4 files / 73 tests、TypeScript、ESLint、Prettier 通过；隔离 Chromium E2E 6/6 通过；未做真实 8768 API/服务端集成
-- 有序待办：
-  - [x] 完成实现并添加回归测试
-  - [x] 完成前端定向、类型、lint、浏览器验证
-  - [x] 提交并检查 worktree clean
-  - [x] 合入 main（测试通过后按 `AUTH-001` 执行）
-  - [ ] 开发者验收
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`7a9c7e89`）｜开发者验收：待确认
+- 下一动作：开发者验收输入清空、失败恢复、竞态与粘贴/拖入；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：T-027 的实现子任务；与 T-027.2 分工
+- 详情：[T-027 及运行时详情](tasks/attachment-runtime.md)
 
 ### T-027.2：服务端路径投影与 editor 文件链接跨 Session 拖动
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已合入 main，待开发者验收；不得修改 T-027.1 的 composer/send 文件
-- 目标：将服务端文件/附件在 Worker 文本中投影为实时绝对路径，在 UI 中继续使用安全 editor/download href；让对话正文中渲染出的文件路径/editor 链接可跨 Session 拖入并复用服务端文件，不重复上传；保留打开、下载、行号定位、Windows/UNC/file URI 和旧 Markdown 兼容及权限校验。
-- 工作树/分支：`D:\project\pan-worktrees\attachment-path-editor-drag-20260915`；`feature/attachment-path-editor-drag-20260915`
-- TA/任务：`ses_a59709c910ad4859`；`attachment-path-editor-drag-20260915`；Luna high；Worker `worker-3`；已完成
-- 提交/整合：功能提交链 `dd01634`、`9f260e2`、`89ffa1d`、`a25091c`、`10b39cb898719461bfd9372da121dd387c344b8e`；已合入 main，合并提交 `99f1774ac4ec7a88366012fe2011e6bf5c36a3e0`；未 push
-- 测试：定向 Vitest 9 files / 110 tests、pytest 13 passed、TypeScript、ESLint、build、附件专用 Chromium 6/6、隔离 API + Chromium 相关场景通过；完整 E2E 仅剩既有 stream 一像素滚动基线失败；未做真实第三方 provider/CLI 发送
-- 有序待办：
-  - [x] 完成服务端/renderer/drag payload 实现并添加回归测试
-  - [x] 完成后端/API/结构化协议、前端定向和浏览器验证
-  - [x] 提交并检查 worktree clean
-  - [x] 合入 main（测试通过后按 `AUTH-001` 执行）
-  - [ ] 开发者验收
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`99f1774a`）｜开发者验收：待确认
+- 下一动作：开发者验收路径投影、editor 拖入和跨 Session 引用；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：T-027 的实现子任务；与 T-027.1 分工
+- 详情：[T-027 及运行时详情](tasks/attachment-runtime.md)
 
-### T-030：done 事件已传出但状态指示灯延迟更新
+### T-030：done 事件与状态指示灯延迟
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端（调查 → 修复 → 验证 → 报告）
-- 当前阶段：已合入 main，待开发者验收
-- 下一动作：等待开发者验收；服务端广播次序的后续项见 T-036
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`7f2667b`）｜开发者验收：待确认
+- 下一动作：开发者验收状态指示灯终态刷新；T-036 是独立后续
+- 解除条件：开发者完成该任务验收
+- 关系：T-036 是独立后续，不是 T-030 未完成项
+- 详情：[T-027 及运行时详情](tasks/attachment-runtime.md)
+
+### T-035：移动端 Session Details 全屏
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`82823ad`）｜开发者验收：待确认
+- 下一动作：开发者在真机/设计环境验收安全区、触摸滚动和全屏交互；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：无；真机未验证项不自动视为缺陷
+- 详情：[T-027 及运行时详情](tasks/attachment-runtime.md)
+
+### T-037：structured attachment 跨 Session 隔离
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`083a09d`）｜开发者验收：待确认
+- 下一动作：开发者验收 structured 隔离及合法 server_file/editor 复用；解除：确认
+- 解除条件：开发者完成该任务验收
+- 关系：修复 T-031 发现的缺陷；T-031 复验已完成
+- 详情：[T-027 及运行时详情](tasks/attachment-runtime.md)
+
+### T-038：主动 kill running worker 的完成报告
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`317e46e`）｜开发者验收：待确认
+- 下一动作：开发者验收 running/queued kill 的单次 completion report；D-2 由 T-040 处理
+- 解除条件：开发者完成该任务验收
+- 关系：承接 T-033 的 D-1；D-2 已由 T-040 独立承接
+- 详情：[T-027 及运行时详情](tasks/attachment-runtime.md)
+
+## 已完成且合入 main 不适用的验证任务
+
+### T-031：附件与发送链路真实隔离实例 E2E
+
+- 任务类型：无代码任务｜阶段/状态：验证 / 待开发者验收｜合入 main：不适用｜开发者验收：待确认
+- 下一动作：开发者验收真实 8767 HTTP/WS/Chromium 隔离证据；解除：确认或另立未验证项
+- 解除条件：开发者完成该任务验收
+- 关系：为 T-027/T-027.1/T-027.2 提供独立验证；T-037 已承接其发现的直接缺陷
+- 详情：[T-031 及运行时详情](tasks/attachment-runtime.md)
+
+### T-033：Worker 生命周期、队列与报告投递真实 E2E
+
+- 任务类型：无代码任务｜阶段/状态：验证 / 待开发者验收｜合入 main：不适用｜开发者验收：待确认
+- 下一动作：开发者验收真实 8766 生命周期与报告证据；D-2 由 T-040 处理
+- 解除条件：开发者完成该任务验收
+- 关系：T-038 已承接 D-1；D-2 已由 T-040 独立处理
+- 详情：[T-033 及运行时详情](tasks/attachment-runtime.md)
+
+### T-034：已合入批次的浏览器/UI 真实运行证据补全
+
+- 任务类型：无代码任务｜阶段/状态：验证 / 待开发者验收｜合入 main：不适用｜开发者验收：待确认
+- 下一动作：开发者验收 8792 浏览器证据；未验证项需明确另立或接受
+- 解除条件：开发者完成该任务验收
+- 关系：为 T-008/T-013/T-015/T-018/T-019 提供独立验证，不承接其未完成验收
+- 详情：[T-034 详情](tasks/paused-followups.md)
+
+## 待验收的近期改动
+
+> 当前没有 TA 执行中的任务；本节只保留已实现或已合入、等待开发者验收或收口的近期交付。
+
+### T-042：本地文件链接可拖入附件且保留 Editor 打开
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`c5e0a19beac448f76b5415714446d794b68fec6a`）｜开发者验收：待确认
+- 来源：2026-09-18 用户明确“开始做任务”。
+- 目标：正文原始本地文件链接首次拖入即可成为附件，点击仍打开 Editor 并定位行号；合法 server_file 跨 Session 复用，保留现有附件隔离。
+- 关系：T-027.2 的直接补交付；原任务不能因先前自动化通过而归档。
+- 工作树：`D:\project\pan-worktrees\local-link-drag-20260918`；分支 `feature/local-link-drag-20260918`；基线 `b466a76d714fcd68852d3b466de07f71a180aa65`。
+- TA：`ses_0010355a6b0bf824`；派发 taskId `T-042-local-link-drag-20260918`；派发返回 queued / worker-4，完成报告已订阅。
+- 下一动作：开发者在 practical/main 同步版本验收原始链接点击、首次拖入、发送和跨 Session 复用；解除：开发者完成验收。
+- 边界：不改 practical、不 push、不操作 8768；保留 main 既有 dirty 文档；不得削弱 opaque 引用及服务端校验。
+- 阻塞：无。
+- [x] 实现与自动化/隔离浏览器验证
+- [x] 合入 main
+- [ ] 开发者验收（合入后）
+
+### T-027：输入框、附件与发送链路审查及方案
+
+- 任务类型：代码改动（总任务）｜阶段/状态：整合 / 待开发者验收｜合入 main：不适用（实现由 T-027.1/T-027.2 合入）｜开发者验收：待确认
+- 下一动作：开发者验收 T-027 总体语义与 T-027.1/T-027.2 交付；解除：完成该验收批次
+- 解除条件：开发者完成 T-027/T-027.1/T-027.2 验收批次
+- 关系：T-027.1/T-027.2 为实现子任务；T-031/T-037 为独立验证/修复；T-036 不承接未完成项
+- 详情：[T-027 及运行时详情](tasks/attachment-runtime.md)
+
+### T-032：MA→TA 多任务排队时的报告粒度调查
+
+- 任务类型：无代码任务｜阶段/状态：调查 / 已完成，结论已转实现｜合入 main：不适用｜开发者验收：T-040 合入后待确认
+- 下一动作：调查结论已转入 T-040；T-032 保留为调查记录，不再等待用户决定
+- 解除条件：T-040 完成并通过验收
+- 阻塞：无；后续实现由 T-040 承接
+- 关系：调查任务；T-040 是基于本调查结论的新实现任务
+- 详情：[T-032 及运行时详情](tasks/attachment-runtime.md)
+
+### T-040：普通消息继承当前任务 taskId，report 回传本次输入 taskId
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`22254eec284ae1418095e4bfb517622edd05a3d1`）｜开发者验收：待确认
+- 下一动作：开发者验收 taskId 继承、任务切换、重启恢复与 report 配对语义；验收后再判断是否归档
+- 解除条件：开发者完成该任务验收
 - 阻塞：无
-- 目标：调查并修复系统已发送或收到 done 状态后，前端状态指示灯仍长时间保持旧状态的延迟问题。
-- 调查结论（已核实，根因）：指示灯只读 `Session.workerStatus`；`worker.result` 到达时同步写 store，正常路径本就不延迟——缺陷是**事件一旦丢失就再也无法纠正**：`loadSessions()` 用**全局** touch 计数器与**单 session** 值做 `>=` 比较（修复前 `packages/web/src/stores/sessionStore.ts:171`），导致（1）“最后被触碰的那个 session”被永久豁免于权威快照，任何刷新（含 T-013 的重连/焦点恢复）都无法修正，指示灯卡在 `running`；（2）一个 session 的状态判定取决于无关 session 的流量。次要缺陷：`WorkerDot.tsx:6` 缺 `done`/`queued`/`restarting` 配色（渲染成 offline 灰）；`useWebSocket.ts` 的 generation 守卫丢弃终态事件后**无兜底**。
-- 修复实现（commit `fb42e76`，11 files，+682/−30）：`sessionStore.ts` 守卫改为**严格按 session** 判定（仅当该 session 自身计数在本次请求进行中前进才保留本地值），并保留两个必要例外（本地显式 `null` 的销毁/崩溃；后端瞬态终态 `done`）；`useWebSocket.ts` 在 generation 守卫丢弃 `worker.result` 时退回防抖权威刷新；`WorkerDot.tsx` 补齐 `done`(success)/`queued`(accent)/`restarting`(warning) 配色；新增 `sessionStore.doneIndicator.test.ts`(7)、`WorkerDot.test.tsx`(10)、`e2e/done-indicator.e2e.mjs`，扩展 `useWebSocket.test.tsx`。
-- TA/任务：`ses_2834ad61bb0d5b74`；`done-indicator-latency-20260915`；CBC `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；Worker `worker-2`；TA 报告 done（在新模型规则前派发，按规则未回溯切换模型）
-- 工作树/分支：`D:\project\pan-worktrees\done-indicator-latency-20260915`；`audit/done-indicator-latency-20260915`；基于 `main@99f1774`；worktree clean
-- 提交：`fb42e76`（功能提交）；合并提交 `7f2667b` 已合入 main；未 push
-- 测试/未验证项：**MA 独立复跑**——定向 7 files / 102 passed；**MA 独立复跑全量**——501 passed / 10 failed (511)，且已在**修复前**的 commit 上单跑 `Toast.test.tsx` + `NewSessionModal.test.tsx` 复现同样 10 failed，确认既有基线、非本次引入；`tsc -b` 0 错；Chromium E2E `e2e/done-indicator.e2e.mjs` 4/4（隔离端口 8766；修复前焦点恢复后 5s 仍卡 running，修复后 121ms 收敛）；**未验证**——真实 Pan 服务/真实 provider 的耗时实测、真实半开连接/重连（`ws.ts` 无测试）、多 session 并发与 visibility/bfcache、Firefox/Safari/移动端；仓库自带真实服务 E2E（`e2e/run.ps1`）因需 8765 空闲而无法运行（8765 被 PID 7612 占用，未触碰）
-- 有序待办：
-  - [x] 调查并确认根因
-  - [x] 实现与回归测试
-  - [x] 定向验证（MA 复跑）
-  - [x] 合入 main（`7f2667b`，按 `AUTH-001`）
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：是（`main@7f2667b`）；push：否
+- 关系：承接 T-032 的最小实现结论；不实施 sourceQueueItemId、deliveryUnitId 或完整事件模型
+- 工作树/分支：`D:\project\pan-worktrees\task-id-inheritance-20260917` / `feature/task-id-inheritance-20260917`，基线 `4fa4bb4a2dfee80f654c3d004d89d450acdf965a`
+- TA/任务：`ses_0010355a6b0bf824` / `T-040-impl-01`，已完成；业务任务号仍为 `T-040`
+- 提交/测试：实现提交 `22254eec284ae1418095e4bfb517622edd05a3d1`，已合入本地 `main`；定向 5 passed、相关回归 110 passed、核心队列/Worker 基线 66 passed、compileall 和 skill 检查通过；未 push、未操作 8768
+- 未验证：真实 Pan HTTP/WS、真实 provider/CLI、Chromium E2E、前端 TypeScript 编译；提交钩子因既有类型依赖缺失使用 `--no-verify`
+- 详情：[DEC-003 方案与证据](tasks/decisions.md)
 
-## 二、已完成但尚未合入 main 的改动
+### T-041：基础终态先持久化广播，enrich/usage 异步串行后处理
 
-当前暂无。T-023 为纯调查任务，没有待合入的代码或文档改动；其结论和 A + C 决策保留在 DEC-001，并已用于已合入的 T-025。
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`b466a76d714fcd68852d3b466de07f71a180aa65`）｜开发者验收：待确认
+- 下一动作：开发者验收真实 provider/CLI 下的终态时序、usage 最终一致性以及 HTTP/WS/Chromium 表现
+- 解除条件：开发者完成该任务验收
+- 阻塞：无
+- 关系：承接 T-036 调查结论；不改变 T-040 的 taskId 继承语义，不引入完整事件模型
+- 工作树/分支：`D:\project\pan-worktrees\terminal-broadcast-impl-20260917` / `feature/terminal-broadcast-20260917`，基线 `22254eec284ae1418095e4bfb517622edd05a3d1`
+- TA/任务：`ses_c28ff8194c88f3dc` / `T-041`，已完成
+- 提交/测试：实现提交 `b466a76d714fcd68852d3b466de07f71a180aa65`，已合入本地 `main`；TA 定向回归和排除两项既有失败后的 tests 全集通过；MA 合入后复跑终态/oneshot/taskId 关键回归 `15 passed`
+- 未验证：真实 HTTP/WS、真实 provider/CLI、Chromium E2E、真实 cbc/kimi usage 延迟及 Worker 崩溃后的线上恢复时序；仓库级 pytest 因可选 nonebot 缺失无法收集 QQ 测试
+- 边界：未 push、未操作 8768；未过滤全量仅有既有 quota 文档断言失败
+- 详情：[T-036 详情](tasks/paused-followups.md)
 
-## 三、正在进行的任务/改动
+## 后续验收、决策依赖与暂停事项
 
-### T-028：QQ 通道未连接归因调查（Pan vs llbot）
+> 本节中的后端交付已实现并合入 `main`，尚未完成开发者验收；UI 阶段等待 `DEC-004`/`DEC-005`，其余暂停项等待用户恢复。
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已取消；用户已确认根因为端口占用，不再继续调查或实现
-- 取消原因（2026-09-15）：用户明确取消 QQ 调查任务，并确认问题属于端口占用。
-- 目标：调查 QQ 通道显示未连接的根因属于 Pan、llbot，还是两侧之间的配置/网络/协议连接边界；给出可复现证据、责任边界和下一步修复方案。
-- 调查范围：Pan QQ adapter、bot/channel 生命周期、llbot WebSocket/HTTP 连接、鉴权与配置、端口/URL、心跳/重连、消息收发和状态映射、日志与错误吞噬；明确“Pan 未连接”“llbot 未连接”“连接存在但状态未同步”的区分。
-- 约束：不得操作受保护的 8768；不得停止或修改现有 QQ 服务；优先静态审查、配置核对和隔离环境证据，真实外部连接未验证必须明确记录。
-- 工作树/分支：`D:\project\pan-worktrees\qq-channel-connection-audit-20260915`；`audit/qq-channel-connection-20260915`
-- TA/任务：`ses_883290f5f803a034`；`qq-channel-connection-audit-20260915`；已取消；Session 已不存在，专用 clean worktree 已移除
-- 有序待办：
-  - [ ] 核对 Pan 与 llbot 的实际连接链路和状态来源
-  - [ ] 收集最小复现和日志/错误证据，区分事实、推断、未知
-  - [ ] 给出责任归因、修复方案、测试矩阵和需要用户提供的外部信息
-  - [ ] 调查报告交付并由 SMA 审查
-  - [ ] 开发者验收（若后续进入实现，另建实现阶段）
+### T-043（用户任务 1）：App Settings 独立 Job 标签页与定时消息 Job
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`62ffffb63b4a6ae4c42e9d88f44f4f5a325ca473`）｜开发者验收：待确认
+- 目标：在 App Settings 下新增独立的 Job 标签页，展示当前后台 Job；Job 具备 Session 归属和描述字段；用户可以 kill Job。点击 Create Job 打开创建窗口，现阶段提供“定时向指定 Session 发送消息”和“周期性发送消息”两个 Job 选项。
+- 调度语义：一次性定时消息支持设置绝对执行时间，或设置相对当前时间的等待时长；周期性消息支持设置固定间隔，或设置每周指定星期的指定时间。
+- Agent/MCP 能力：为一次性和周期性 Job 提供 Pan agent 模板/MCP 快捷创建能力，便于 agent 创建、查询、调整和终止时间类任务。
+- 消息输入：Job 不限于预设的发消息/群发类型，允许直接输入要发送给 Session 的命令文本；同时面向用户和 agent 提供一键创建“发消息”和“群发”的快捷入口。agent 创建或触发发送时继续复用 `send`，保留 agent ID 和 MA 消息格式。
+- UI 时间要求：所有带时间的 Job 都要在 UI 显示当前调度时间，并支持调整；具体 UI 形态等待 DEC-004。
+- 后续范围：群发功能先核对历史任务；已有则考虑复用/合并，未有则另立实现任务。群发默认入口为选择 Session 后执行，Job 标签页为第二入口；群发完成后，再在 Job 创建窗口增加“定时群发”能力，并沿用上述一次性/周期性调度语义。
+- 当前结果：后端 Job Registry、持久化恢复、一次性/周期性单 Session 消息、Job MCP、即时群发 API/MCP 已实现并合入；UI、真实 Provider 到期发送和开发者验收仍未完成。
+- 下一动作：开发者验收已合入后端；T-045 承接定时群发后端；DEC-004 解除后再实施 Job UI。
+- 阻塞：UI 具体形态等待 DEC-004；后端、Agent/MCP 和调度能力不阻塞。
+- 关系：独立新需求；与 Session Worker kill 区分，需保留 Job 与 Session 的归属关系；定时群发依赖群发功能完成。
+- [x] 调查现有 Job 字段、列表 API 和 kill 能力
+- [x] 设计并实现一次性/周期性调度模型、持久化、恢复和取消语义
+- [ ] 实现 App Settings 独立 Job 标签页、Job 列表、Session 归属与描述展示
+- [ ] 实现 Create Job 窗口与一次性定时发送消息到指定 Session
+- [ ] 支持绝对执行时间与相对等待时间
+- [ ] 支持按间隔或按每周星期/时间周期发送消息
+- [x] 为一次性/周期性 Job 提供 Pan agent 模板与 MCP 快捷创建、查询、调整和终止能力
+- [x] 支持直接输入发送给 Session 的命令文本
+- [ ] 提供用户与 agent 共用的 UI 发消息/群发快捷创建入口（后端 `agent_send_many` 已实现；UI 等待 DEC-004）
+- [ ] 所有时间类 Job 在 UI 显示并可调整（等待 DEC-004 后实施）
+
+- 工作树/分支：`D:\project\pan-worktrees\jobs-backend-20260918` / `feature/jobs-backend-20260918`，基线 `c5e0a19beac448f76b5415714446d794b68fec6a`；已合入本地 `main`
+- TA/任务：`ses_0010355a6b0bf824` / `T-043-backend-jobs-20260918`，已完成报告；定向回归已复跑通过
+- [ ] 实现用户 kill Job 的 UI 入口（后端 cancel 已实现，等待 DEC-004）
+- [x] 核对并复用或实现即时群发功能
+- [x] 群发完成后增加定时群发 Job 类型（由 T-045 承接）
+
+### T-045：定时群发 Job 后端与 Agent/MCP
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`6250c8a63082b840a01cf54b78dc383b9f770eda`）｜开发者验收：待确认
+- 目标：在 T-043 已有 Job 调度引擎和即时群发语义上，增加一次性与周期性定时群发；不实现 UI。
+- 范围：支持目标 Session 列表去重、绝对时间/相对等待、固定间隔/每周星期与时间、时区、取消/编辑、重启恢复、逐目标结果和错误；沿用 `agent_send` 的 agent 身份与 MA 消息格式。
+- Agent/MCP：提供创建、查询、调整、取消定时群发的 MCP 入口；与单 Session Job 保持一致的权限、sourceSessionId 和持久化语义。
+- 约束：复用现有 Job Registry、调度器和 broadcast/send 实现，不直接写 CLI stdin；不触碰 8768；UI 仍受 DEC-004 局部阻塞。
+- 下一动作：开发者验收已合入的定时群发后端；UI 不在本任务范围，继续等待 DEC-004。
+- 阻塞：无；后端已完成，开发者验收尚未完成。
+- 工作树/分支：`D:\project\pan-worktrees\scheduled-broadcast-backend-20260918` / `feature/scheduled-broadcast-backend-20260918`，基线 `c97b95768c2d273cd7ef3db0af6ed4525ab7e681`
+- TA/任务：`ses_0010355a6b0bf824` / `T-045-scheduled-broadcast-backend-20260918`，已完成报告；提交 `6250c8a63082b840a01cf54b78dc383b9f770eda`
+- [x] 设计并实现 scheduled broadcast Job 模型与 API/MCP
+- [x] 覆盖一次性/周期性、时区、去重、取消/编辑、重启恢复和逐目标结果
+- [x] 分离 creatorSessionId 与 targetSessionId(s)，实现系统通知结构化 jobId（`////by pan system` 的通用修复已由 T-046完成）
+- [x] 定向回归、compileall、Pan MCP 工具一致性检查
+- [x] 合入 main
+- [ ] 开发者验收（合入后）
+
+### T-046：Pan 系统后台 Job 通知身份与结构化 Job ID
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`926022d`）｜开发者验收：待确认
+- 目标：修复独立后台 Job 终态通知的身份投影；系统通知使用 `////by pan system`，不再出现 `@@@@by agent : unknown | unknown`。
+- 范围：后台 Job 持久化创建者 `creatorSessionId`（如有），与 `targetSessionId` 分离；终态通知只投递给目标，不自动复制回创建者；通知结构单独暴露 `jobId`、状态、目标和创建者元数据。
+- 兼容：Agent 主动创建的定时消息仍使用 `////by agent` 发送语义；没有创建者的系统 Job 使用 Pan system 前缀；不新增 MCP Server。
+- 下一动作：开发者验收真实后台 Runner 完成、重启恢复、`queue_pending` 消费和前端终态展示；解除：开发者完成验收。
+- 阻塞：无；与 T-045 并行，UI 决策不影响本任务。
+- 工作树/分支：`D:\project\pan-worktrees\pan-system-notice-20260918` / `feature/pan-system-notice-20260918`，基线 `c97b95768c2d273cd7ef3db0af6ed4525ab7e681`
+- TA/任务：`ses_c28ff8194c88f3dc` / `T-046-pan-system-notice-20260918`，已完成报告
+- 提交/测试：实现提交 `29dbce2cf54de4c9a8e622d4b0e7fde1533e979d`；合并提交 `926022d`；TA 定向 145 passed，合并后相关定向与排除已知基线问题的 tests 全集通过，compileall、skill 工具一致性和 diff check 通过
+- 未验证：真实 Pan HTTP/WebSocket、真实 provider/CLI、Chromium、真实 Scheduler/Runner 跨重启；未触碰 8768、未 push
+- [x] 后台 Job 保存 creatorSessionId 与 targetSessionId
+- [x] 系统通知使用 `////by pan system` 并携带结构化 jobId
+- [x] 覆盖无创建者、有创建者、目标与创建者不同、重启重试和去重
+- [x] 更新 Pan skill/通知协议文档
+- [x] 定向测试、compileall、合入 main
+- [ ] 开发者验收（合入后）
+
+### T-047：持久队列投递/清除状态恢复
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`fae290b`）｜开发者验收：待确认
+- 目标：修复消息已经领取或尝试发送后，`queue_pending`、delivery ledger、history receipt 与 Worker 恢复状态不一致，导致前端持续显示但没有自动再次消费的问题。
+- 证据：`ses_0010355a6b0bf824` 的 q_a4850617e2f943fbbff4a3c7d983dc80 仍在 `queue_pending`；ledger 出现过 worker reservation，但无 `sent_to_cli` 或 history receipt；T-045 完成后出现同 taskId 的 durable duplicate terminal 日志，Worker 随后消失。
+- 范围：覆盖 inherited taskId 普通消息不被正式任务幂等误伤；明确 provider hand-off 未确认时可恢复重试，已确认但清除失败时通过 durable receipt 对账避免重复；无活 Worker 且有可投递队列时必能 recovery。
+- 约束：不改变正式 assign taskId 幂等语义；不把普通 send 的继承 taskId当作幂等键；不触碰 8768；不通过真实服务强制重发现场消息。
+- 下一动作：开发者验收真实 Worker/Provider hand-off、恢复与现场同类队列状态；本次不对原现场消息执行强制重发；解除：开发者完成验收。
+- 阻塞：无；独立于 UI 和开发者验收。
+- 工作树/分支：`D:\project\pan-worktrees\queue-delivery-recovery-20260918` / `feature/queue-delivery-recovery-20260918`，基线 `6250c8a63082b840a01cf54b78dc383b9f770eda`
+- TA/任务：`ses_2c93476e30d3a676` / `T-047-queue-delivery-recovery-20260918`，已完成报告
+- 提交/测试：实现提交 `116cc2e156f069b094d3f9b3487c2da433a99285`；合并提交 `fae290b`；相关队列交付/恢复、taskId 继承、终态和执行状态回归全部通过，compileall、diff check 通过
+- 未验证：未对真实 `ses_0010355a6b0bf824` 重发/清除；未启动隔离服务或进行真实 HTTP/WS/provider E2E；未触碰 8768、未 push
+- [x] 复现并定位 reservation/handoff/terminal dedup 竞态
+- [x] 修复队列清除、receipt 对账和无 Worker recovery
+- [x] 增加 inherited taskId、重启和重复终态回归
+- [x] 定向测试、compileall、合入 main
+- [ ] 开发者验收（合入后）
+
+### T-044：工作区后端与 Session 分组
+
+- 任务类型：代码改动｜阶段/状态：整合 / 待开发者验收｜合入 main：是（`c97b95768c2d273cd7ef3db0af6ed4525ab7e681`）｜开发者验收：待确认
+- 目标：允许将 Session 分组到不同工作区；工作区在产品概念上相当于一个标签页，每个工作区展示其包含的 Session。
+- 第一阶段范围：先实现后端工作区模型、Session 与工作区的归属关系、持久化、查询和基础管理能力；UI 标签页、布局与交互暂不实施。
+- UI 决策：等待用户决定工作区标签页的 UI 形式和交互范围后再立项 UI 实现阶段。
+- 下一动作：开发者验收已合入后端；DEC-005 解除后再立项 UI 标签页、布局和交互。
+- 阻塞：UI 实现等待用户决定；后端模型、接口和持久化不阻塞。
+- 关系：独立新需求；后端能力应为未来 UI 标签页提供稳定接口。
+- [x] 调查现有 Session 持久化、分组和 API 边界
+- [x] 设计工作区模型与 Session 归属语义
+- [x] 实现后端持久化、查询和基础管理接口
+- [x] 后端回归与隔离验证
+- [x] 合入 main
+- [ ] 开发者验收（合入后）
+
+- 工作树/分支：`D:\project\pan-worktrees\workspaces-backend-20260918` / `feature/workspaces-backend-20260918`，基线 `c5e0a19beac448f76b5415714446d794b68fec6a`；已合入本地 `main`
+- TA/任务：`ses_2c93476e30d3a676` / `T-044-backend-workspaces-20260918`，已完成报告；定向回归已复跑通过
 
 ### T-026：附件 AI 绝对路径与 UI 下载 API 渲染分层
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 当前阶段：已暂停，未合入 main
-- 暂停原因（2026-09-14）：用户要求先记录当前任务，然后暂停其他所有动作，等待一件最高优先级事项。
-- 目标：给 AI/Worker/adapter 的文本使用服务端真实绝对路径；UI 消息渲染时再将已验证的路径或 attachmentId 转换为 editor/下载 API 链接。
-- 新增需求（2026-09-14）：对话中出现的、非附件 chip 的本地文件 Markdown 链接也可直接拖入输入框；支持 Windows/UNC/file URI 及带行号目标，行号只用于定位，不进入附件实际路径；普通 HTTP 网页链接不误判为附件。
-- 产品语义：客户端文件上传后使用服务端实际存储路径；服务端文件使用已验证实际路径；浏览器不提交或信任客户端绝对路径；上方 chip 和编辑器内嵌附件的发送语义保持不变。
-- 开发者反馈（2026-09-14）：点击 Send 后输入框内文本没有清空；需要检查结构化 parts 入队成功后的 composer、draft 和附件状态清理时序。
-- 兼容范围：结构化 AttachmentRef/parts、旧 text/Markdown、旧 `@"path"`、旧 `/api` history、queue、WebSocket、history、重试和重启恢复。
-- TA/任务：`ses_2e3ce9ae8faa0645`；`attachment-path-rendering-separation-20260914`；Worker `worker-3`
-- 工作树/分支：`D:\project\pan-worktrees\attachment-path-rendering-separation-20260914`；`feature/attachment-path-rendering-separation-20260914`；基于 `main@e1d11a9`
-- 有序待办：
-  - [ ] 审计当前 AI 文本、结构化 parts 和 UI renderer 的所有表示边界
-  - [ ] 实现服务端绝对路径到 AI 文本、UI 安全 API href 的分层转换
-  - [ ] 修复 Send 成功后输入框文本、draft 和已发送附件未清空的回归
-  - [ ] 支持对话中的本地文件 Markdown 链接拖入并转为服务端附件引用
-  - [ ] 添加 client upload/server file、旧历史、跨 session/stale/path traversal 回归
-  - [ ] 完成真实 API/浏览器和全量门禁验证
-  - [ ] 提交并检查 worktree clean
-  - [ ] 合入 main（测试通过后按 `AUTH-001` 执行）
-  - [ ] 开发者验收
-
-### T-031：已合入 main 的附件与发送链路真实隔离实例端到端验证
-
-- 优先级/依赖：T-027.1、T-027.2 合入后的独立验证；与 T-030 改动文件不重叠，可并行
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
-- 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告，由 MA 建立决策点
-- 当前阶段：初轮真实隔离验证与 T-037 修复后独立真实复验均已完成；核心隔离链路通过
-- 下一动作：将本轮证据回填 T-027.1 / T-027.2，保留既有 stream 一像素失败及未验证项，等待开发者验收
-- 阻塞：无
-- 目标：在隔离服务实例 `8767`（**禁止 8768**；`8765` 未使用）上用真实 HTTP/WS + 真实 Chromium 验证 `main@429cafd` 已合入的附件输入、发送事务与路径投影链路，补齐此前记录的“未做真实服务/API 集成”缺口，为 T-027.1、T-027.2 的开发者验收提供分层证据。
-- 验证范围：客户端上传→发送→队列/history→Worker 收到 canonical 绝对路径；UI opaque editor/download href 与跨 Session 拖入复用服务端引用；chip/inline 禁止跨 Session 的负路径；Send 后清空与失败恢复；目录整批拒绝、HTML 富文本转纯文本、图片/HTML 文件保持原文件；旧 Markdown/`@"path"`/带行号/Windows/UNC 回归；`../` 路径穿越、越权引用、stale 路径的安全负用例。
-- 边界：只读验证，不得修改产品代码；不 commit/不合入/不 push；不操作 8768、QQ 服务、用户 dirty 文件；真实浏览器行为必须用真实 Chromium，不得只用合成 DataTransfer。
-- 工作树/分支：`D:\project\pan-worktrees\verify-attachment-chain-e2e-20260915`；`audit/verify-attachment-chain-e2e-20260915`；基线 `main@429cafd`（MA 已用 `git worktree add` 注册）
-- TA/任务：`ses_826c588ce84122b5`；`verify-attachment-chain-e2e-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-4`；已 `report_subscribe`
-- 提交：无（验证任务，不产生产品代码改动）
-- 测试/未验证项：真实 HTTP/WS/Chromium（8767）、Python 14 passed、前端 6 files/79 tests、build 均有报告证据；正向链路与大多数负路径通过；structured parts 跨 Session 越权负路径失败（T031-001）；另有既有 browser one-pixel 失败、mobile、第三方 provider/QQ、真实 Finder/桌面剪贴板和真实 provider 崩溃恢复未验证；MA 已核对源码根因，修复后需独立复验；真人开发者验收阻塞
-- 有序待办：
-  - [x] 建立隔离服务实例并确认端口/身份对齐（非 8768）
-  - [x] 完成真实 HTTP/WS + Chromium 端到端用例并记录原始证据
-  - [x] 完成负路径与安全边界验证（发现 T031-001）
-  - [x] 交付报告；MA 已核对源码根因，修复后再做完整证据复验
-  - [x] T031-001 修复后的独立回归与重新验收（`T-037-direct-real-revalidation-20260915`）
-  - [ ] 合入 main（本任务无产品代码改动，如发现缺陷则另立返工项）
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：不适用（无产品代码改动）；push：否
-
-### T-032：MA→TA 多任务排队时的报告粒度缺陷（仅调查）
-
-- 优先级/依赖：独立调查；与 T-031、T-033 无文件冲突（纯只读）
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`
-- 执行模式：仅调查（只交付解决方案，不实现）
-- 决策门：无；若方案涉及改变队列/报告模型或兼容性，只报告并列出需用户决策点，不自行实施
-- 当前阶段：调查完成，MA 已核验；解决方案待 `DEC-003` 决策后转入实现
-- 下一动作：等待 `DEC-003` 决策；决策生效后派第 2 档实现任务（新分配 `T-nnn`，独立 worktree）
-- 阻塞：决策阻塞 `DEC-003`（仅阻塞第 2/3 档实现，不阻塞其他任务）
-- 目标：解释并解决「MA 派任务 A → A 执行中追发任务 B → TA 完成 A 后继续执行 B → MA 只收到 A 的报告，误判 B 未执行并重发 B」的报告粒度缺陷，给出分档解决方案与推荐。
-- 调查结论（已核实）：存在**三层粒度**——`worker.result`（按 Worker 一次终态结果）、`queue_pending` report item（每个结果一项，自带 `queueItemId`）、MA 消费时的 delivery unit（**连续 report/QQ 项合并成一条消息**）。根因是**任务身份与报告身份没有贯通** + MA 按"消息条数"而非"报告段/任务 ID"计数，而不是 FIFO 必然丢 B。已核验的关键事实（行号均经 MA 抽查属实）：`_enqueue_report`（`packages/core/worker.py:2668-2717`）报告里**没有** `sourceQueueItemId` / `clientMessageId`；`agent_send` MCP 只有 `(session_id, text)`，无 `task_id` / `client_message_id`，也不返回 `queueItemId`（`packages/mcp/server.py:1364-1394`）；`_select_queue_unit` 只批处理**连续** report/QQ 项（`packages/core/worker.py:1324-1345`）；`GET /api/sessions/{id}/queue` 只返回 `queued` 项，隐藏 reserved/sent（`packages/web/server.py:3447-3478`）；`sent_to_cli` ≠ provider 业务完成。
-- 推荐方案：第 1 档（MA 纪律，零代码，**已立即采用**）→ 第 2 档（报告与源队列项身份贯通 + 队列摘要，建议作为近期实现）→ 第 3 档（完整队列/报告事件模型，与 T-029 统一，成本与迁移风险高）。
-- 文档落点建议：新建 `docs/design/ma-ta-report-granularity.md`（完整模型）；`docs/design/queue-at-most-once.md` 补 report↔source item 关系与"sent_to_cli ≠ 业务完成"；`docs/skills/pan/SKILL.md` 只放 MA 操作纪律与已知限制。
-- 关联：与挂起的 T-029（Session queue 查询与修改 MCP）能力缺口相关，但方案不得假定 T-029 已实现；同场景运行时行为证据由 T-033 提供。
-- T-033 真实 8766 证据已回填：A 执行中追发 B 时，B 确实进入 provider、TA history 与 delivery ledger，说明 FIFO 排队本身未丢失；但 `send` 来源的 report `taskId` 恒为 `null`（D-2），且主动 kill running worker 不产生 completion report（D-1），均属于报告身份/完成信号可观测性缺口。
-- TA/任务：`ses_704ba1fd334045b6`；`ma-ta-task-ordering-20260915`；codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；Worker `worker-1`；已完成报告，MA 抽查核验通过
-- 工作树/分支：`D:\project\pan-worktrees\ma-ta-task-ordering-20260915`；`audit/ma-ta-task-ordering-20260915`；基线 `main@52a434b`；worktree clean（无提交）
-- 提交：无（仅调查，不产生产品代码改动）
-- 测试/未验证项：无自动化验证；结论为机制分析与设计方案（MA 已抽查 4 条关键论断）；未复现历史事故（当时 B 未完成/报告晚到/被合并/只读第一段，四者未区分）；未启动服务、未访问 8768；未做真实 provider E2E；未验证不同 adapter 的报告时序差异
-- 有序待办：
-  - [x] 完成机制事实核对（报告粒度 / 队列项生命周期 / 幂等边界，含 `文件:行号`）
-  - [x] 交付分档解决方案与推荐
-  - [x] MA 核验报告证据（抽查行号与语义）
-  - [ ] `DEC-003` 决策后派第 2 档实现任务
-  - [ ] 合入 main（仅调查，无代码改动；方案若采纳则另立实现任务）
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：不适用（本调查无代码改动）；push：否
-
-### T-033：Pan 核心运行时链路（Worker 生命周期 + 队列/报告投递）真实隔离实例 E2E 验证
-
-- 优先级/依赖：独立验证；端口与 T-031 分工（T-033 = 8766；**8765 不可用**，见 E2E-ENV-001）
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端（纯验证任务；发现缺陷只报告，由 MA 决定是否另立返工项）
-- 决策门：无；若发现需要改变产品行为/兼容性/数据语义的缺陷，停止并报告
-- 当前阶段：真实隔离实例 E2E 已完成；报告发现 D-1/D-2，未修改产品代码
-- 下一动作：将运行时证据回填 T-032；D-1/D-2 是否另立修复任务由 MA/用户决定
-- 阻塞：无（E2E-ENV-002 已给出绕行方案并写入简报）
-- 目标：在 8766 隔离实例上验证 Worker 生命周期、持久队列投递、完成报告链路与 zombie/watchdog 行为，补齐多个已合入批次共同记录的“未做真实服务/运行时 E2E”缺口。
-- 验证范围：spawn → 执行 → done → idle 回收 → 自动重建与 `cliSessionId` resume；assign 幂等与 send 排队 / 无 worker 入队 / watchdog 拉起；`queue_pending` 跨重启恢复；`report_subscribe` 收到 done/error 报告字段；zombie 报告；A/B 排队可观察性行为取证；`send_force` restart、不存在/已删 session、服务重启恢复等边界。
-- 边界：只读验证，不得修改产品代码（允许 worktree 内临时脚本/驱动与 launcher 副本，须在报告列出）；不 commit/合入/push；不碰 8768/8767/8765、QQ 服务、用户 dirty 文件；结束必须停止实例、删除临时 `config.json` 并释放 8766。
-- 工作树/分支：`D:\project\pan-worktrees\runtime-queue-report-e2e-20260915`；`audit/runtime-queue-report-e2e-20260915`；基线 `main@52a434b`；MA 核验 clean
-- TA/任务：原 TA `ses_1385abb15d4b3b3e`（codex `gpt-5.6-luna`，worker-5，已归档为 `(archive) runtime-queue-report-e2e-20260915`）→ 接续 TA `ses_c8671119a2dd9bb4`（cbc `deepseek-v4.1-flash`，effort `high`，`bypassPermissions`，最近一次补充指令已排队为 `worker-2`，隔离端口 8766）；已 `report_subscribe`；按用户 2026-09-15 口径不重做、用 `session_handoff` 接续
-- 交付异常记录（E2E-DELIVERY-001）：第 1 次接续（task `T-033-cont-handoff-20260915`）返回 `done`，但 result 内容是**对话/上下文压缩摘要**（分析 + summary），六项验证一项未执行、无任何证据。MA 判定为交付失败（非产品缺陷），处置：**在同一 session 上原样重派**（不重做任务范围、不换 session），并在简报中明确要求“最后一条消息必须是报告本体”。
-- 环境阻塞记录（E2E-ENV-001，已绕开）：原定端口 `8765` 被 PID 7612 占用——另一 worktree `input-attachment-composer-send-20260915` 的 `vite preview`（01:26 启动的残留进程）。MA 核验 `netstat`/`Win32_Process` 后裁定：**不停止他人进程**，改分配端口；该残留进程仍占用 8765，如需回收须用户确认。
-- 环境约束记录（E2E-ENV-002，MA 已核验并写入简报）：① `tests/support/isolated_http_server.py:66-67` 的端口白名单只有 `{8767, 8765}`，**8766 会被 `SystemExit` 拒绝** → 绕行方案：复制 launcher 到 worktree 内的临时文件并扩展白名单，**不改动已提交文件**；② worktree 内无 `config.json` 时 worker 默认 `idle_sec=300`/`timeout_sec=300`/`task_timeout_sec=1800`；用户已选择**方案 A**，因此本次 E2E 允许用临时 `config.json` 将 `idle_sec` 缩短到约 20s 以验证回收链路，但报告必须标明这是**非默认配置证据**，结束删除 `config.json` 并确认 worktree 干净，不得把它表述为默认 300s 的时序证据；③ `tests/support/fake_stream_cli.py:27-32` 的 gate scope 硬绑 workdir basename（`real-fifo`/`real-recovery`/`real-manager`）；④ 只有 `running`/`queued` 状态的 worker 被杀才可能产生 zombie 报告（idle 被 kill 不报）。
-- 测试口径决策（用户会话，2026-09-15）：选择 A——保留缩短 `idle_sec` 的 T-033 watchdog E2E 路径；进程内 watchdog 定时语义仍由既有回归覆盖，T-033 以非默认临时阈值加速验证真实服务中的回收后果，并单独标注证据边界。
-- 提交：无（验证任务，不产生产品代码改动）
-- 测试/未验证项：真实 8766 服务/API/WebSocket/CLI worker E2E 已完成；C1/C2/C3/C5/C6 通过，done report 通过；C4 的 running-worker kill completion report 失败并确认 D-1；D-2 为 `send` 来源报告 `taskId=null` 的协议缺口；idle 回收为临时 `idle_sec=20` 非默认证据，默认 300s 时序未验证；进程内 77 passed、静态检查与清理均完成；真人开发者验收仍待用户
-- 有序待办：
-  - [x] 8766 隔离实例启动与端口/数据根核对（用 launcher 副本）
-  - [x] Worker 生命周期用例
-  - [x] 队列投递与幂等用例
-  - [x] 报告链路与 zombie 用例（发现 D-1）
-  - [x] A/B 排队行为取证（供 T-032）
-  - [x] 交付报告并由 MA 核验证据
-  - [ ] 合入 main（无产品代码改动；如发现缺陷则另立返工项）
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：不适用；push：否
-
-### T-035：移动端 Session Details 改为全屏
-
-- 优先级/依赖：用户 2026-09-15 直接需求；与 T-030 同改 `packages/web/src` 但文件不重叠（T-030 在 stores/hooks/WorkerDot，本任务在 `SessionDetailsModal.tsx` 与 `ui/Modal.tsx`）
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端（需求明确，实现路线由 TA 在既有 `Modal` / `useMediaQuery` 约定内自主选择）
-- 决策门：无；若必须改变其他弹窗的既有行为才能实现，在报告中说明并暂停该部分
-- 当前阶段：MA 核验通过，已合入本地 `main`；等待开发者验收
-- 下一动作：开发者在真机/设计环境验收安全区、触摸滚动和全屏交互；若发现问题再立返工项
-- 阻塞：无
-- 目标：移动端打开 Session Details 时占满视口全屏（`100dvh`、无圆角/外边距、内容可滚动、标题与关闭按钮不被安全区遮挡）；桌面端保持居中窗口与 `size="lg"` 不变。
-- 起点（MA 侦察）：`packages/web/src/components/session/SessionDetailsModal.tsx:171` 使用共享 `<Modal size="lg">`；移动全屏先例见 `InputRow.tsx` 的 `isMobile` + `max-md:h-[100dvh]` / `max-md:rounded-none`，断言写法见 `InputRow.test.tsx:1081-1083`。
-- 边界：只改 `packages/web/src/**` 及本任务验证脚本；不改 dist；不碰 8768；8767 / 8765 已分别归 T-031 / T-033；提交本分支后按 `AUTH-001` 合入本地 `main`，不 push。
-- 工作树/分支：`D:\project\pan-worktrees\mobile-detail-fullscreen-20260915`；`feature/mobile-detail-fullscreen-20260915`；基线 `main@e98b871`
-- TA/任务：`ses_34efb6996f826a27`；`mobile-detail-fullscreen-20260915`；cbc `deepseek-v4.1-flash`；effort `high`；权限 `bypassPermissions`；Worker `worker-6`；已 `report_subscribe`
-- 提交：功能提交 `356961fc7ffe84c46322c43bb2706fcf012192bd`；本地合并提交 `82823ad`；worktree clean；未 push
-- 测试/未验证项：MA 独立重跑定向 Vitest 2 files / 24 passed；TA 报告 `tsc -b`、ESLint（0 errors / 11 既有 warnings）、`pnpm build` 通过；全量 Vitest 486 passed / 10 baseline failures（已用 stash A/B 核对）；真实 Chromium 390×844、390×480、700×800、1440×900 三用例通过，产物位于 `%TEMP%\pan-e2e-session-details\artifacts\`；未验证真机 safe-area 实际遮挡、触摸惯性与软键盘/地址栏收缩；真人开发者验收仍待用户
-- 有序待办：
-  - [x] 实现移动端全屏并保持桌面端不变
-  - [x] 定向 Vitest 与类型 / lint / build 通过
-  - [x] 移动与桌面视口真实浏览器证据
-  - [x] 提交并检查 worktree clean
-  - [x] 合入 main（MA 核验后按 `AUTH-001`）
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：`82823ad`；push：否
-
-### T-037：修复 structured attachment 的跨 Session 隔离绕过
-
-- 优先级/依赖：T-031 发现的 High 服务端边界缺陷；既定 DEC-002 已明确 chip/inline/待发送 structured attachment 不得跨 Session
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端实现与验证；不改变 DEC-002 语义，保留正文 editor/server-file 链接经过服务端校验后的跨 Session 复用
-- 决策门：无；若无法安全区分 structured parts 与正文引用，或必须扩大权限/数据语义，停止并报告
-- 当前阶段：实现已完成并经 MA 核验，已合入本地 `main`；等待 8767 真实复验
-- 下一动作：等待 `ses_826c588ce84122b5` 直接复验报告；根据真实证据回填 T-031/T-027；仍待开发者验收
-- 阻塞：无
-- 目标：跨 Session 直接提交其他 Session 的 structured `attachmentId` 返回 `attachment_session_mismatch`，不得入队；同 Session structured attachment 继续通过；合法正文 editor/server-file 跨 Session 复用继续通过
-- 起点：`packages/web/server.py` 的 `_attachment_id_error()` 已有 owner 校验，但 `_normalize_message_parts()` 传入 `allow_cross_session=True` 并调用 `_import_attachment_reference()`，由 T-031 真实 8767 E2E 复现
-- 边界：只改服务端实现、直接相关回归测试和必要文档；不改 dist、不碰 8768、不改 T-033/T-035 worktree；不 push；只提交本分支，MA 验收后按 `AUTH-001` 合入本地 main
-- 工作树/分支：`D:\project\pan-worktrees\attachment-session-isolation-20260915`；`fix/attachment-session-isolation-20260915`；基线 `main@e50fd32`；worktree clean
-- TA/任务：`ses_022781914942f1b2`；`attachment-session-isolation-20260915`；cbc `deepseek-v4.1-flash`；effort `auto`；权限 `bypassPermissions`；已 `report_subscribe`；task `T-037-implement-attachment-session-isolation-20260915`
-- 提交：功能提交 `4ebe0dfca7ecb0f4857a079fbba0805529a0cc3d`；本地合并提交 `083a09d`；未 push
-- 测试/未验证项：MA 独立复跑相关 10 个 Python 测试文件 `104 passed, 1 skipped`，`git diff --check` 通过；修复后真实 8767 HTTP 核心隔离、同 Session upload、合法 server_file/editor 跨 Session 复用、相关 HTTP 回归、Chromium editor/server-file 拖动与 build 均通过；既有 Chromium stream bottom 一像素场景仍失败但与 T-037 无关。T-031 原先已通过的 chip/inline 浏览器负路径本轮未重复；发送失败、provider 崩溃等外部故障恢复和真人开发者验收仍待完成。协议边界已核对：DEC-002 允许的正文 editor/server-file 引用保留，T-031 复现的客户端 upload id 跨 Session 被拒绝。
-- 有序待办：
-  - [x] 调查并实现最小服务端修复
-  - [x] 新增/调整跨 Session structured parts 回归
-  - [x] 验证合法正文 editor/server-file 跨 Session 复用不回归（定向 Python/API 级）
-  - [x] 定向测试、diff check、worktree clean
-  - [x] 交付报告并由 MA 核验
-  - [x] 合入 main（`083a09d`，按 `AUTH-001`）
-  - [x] 修复后真实 8767 复验
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：`083a09d`；push：否
-
-### T-038：修复主动 kill running worker 的完成报告缺失
-
-- 优先级/依赖：T-033 真实 8766 E2E 缺陷 D-1；不处理同报告中的 D-2（受 `DEC-003` 决策门约束）
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`TEST-1`、`TEST-2`
-- 执行模式：实现与定向验证；需保持 idle kill、watchdog、正常 provider error 路径不重复投递
-- 当前阶段：实现、定向验证与 MA 核验完成，已合入本地 main；等待开发者验收
-- 下一动作：开发者验收 running/queued kill 的 completion report 语义；D-2 继续等待 `DEC-003`
-- 决策门：无；D-2 另受 `DEC-003` 约束，不在本任务扩展
-- 工作树/分支：`D:\project\pan-worktrees\worker-kill-report-20260915`；`fix/worker-kill-report-20260915`；基线 `main@d61638d`；worktree clean
-- TA/任务：`ses_0ca1e712f13feee7`；Codex `gpt-5.6-luna`；effort `high`；权限 `bypass`；thinking 关闭；task `T-038-fix-running-worker-kill-report-20260915`
-- 边界：不需要启动服务或访问任何 876x 端口；不 push；只改产品代码、直接相关测试和必要文档；worktree clean 后提交
-- 提交：实现提交 `2c0b674152d509f6b0cf04945fc05cd9d05aa5ce`；本地合并提交 `317e46e`；未 push
-- 测试/未验证项：MA 独立复跑两组相关回归共 `214 passed`，`compileall`、`git diff --check` 通过；覆盖显式 kill running/queued 产生单次 zombie/error report、idle kill 不报告、已有 watchdog report 不重复、两个 kill endpoint 传参回归。未运行真实服务/876x、全量 Python、前端/browser E2E；真人开发者验收仍待用户。
-- 有序待办：
-  - [x] 核对 D-1 根因与现有 zombie/error 投递语义
-  - [x] 实现最小修复并补 running-kill/no-duplicate 回归
-  - [x] 定向测试与 diff check
-  - [x] 交付报告并由 MA 核验
-  - [x] 合入 main（`317e46e`，按 `AUTH-001`）
-  - [ ] 开发者验收
-- 合入/push 状态：合入 main：`317e46e`；push：否
-
-## 四、计划要做的任务
+- 任务类型：代码改动｜阶段/状态：实现 / 暂停｜合入 main：未开始｜开发者验收：合入后
+- 下一动作：用户明确恢复 T-026 后，先重核 T-027 已交付范围；解除：用户明确恢复
+- 解除条件：用户明确恢复或开启该任务
+- 阻塞：用户暂停
+- 关系：要求已并入 T-027/T-027.1/T-027.2；恢复时只处理剩余缺口
+- 详情：[T-026 详情](tasks/paused-followups.md)
 
 ### T-029：Session queue 查询与修改 MCP
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-2`、`TEST-1`、`TEST-2`
-- 当前阶段：已挂起立项，不推进
-- 目标：为 MCP 增加查询 Session queue 及受控修改 queue 的能力；具体覆盖 queue_pending、worker/发送队列或其他 queue 类型的范围，待恢复后调查并明确。
-- 初始范围：查询队列内容、状态和来源；提供受权限隔离、幂等和审计约束的修改操作；明确可修改字段、取消/编辑/重排/删除语义，以及与报告队列、任务队列、消息队列的边界。
-- 挂起原因（2026-09-15）：用户要求先加入待办，挂起立项，不推进。
-- 下一动作：等待用户明确恢复后，再进行方案调查和接口设计；在此之前不派 TA、不创建 worktree、不修改 MCP 或服务端代码。
-- 合入 main：未开始
-- 开发者验收：未开始
+- 任务类型：代码改动｜阶段/状态：方案 / 暂停｜合入 main：未开始｜开发者验收：合入后
+- 下一动作：用户明确恢复 T-029 后进行方案调查；解除：用户明确恢复
+- 解除条件：用户明确恢复或开启该任务
+- 阻塞：用户暂停
+- 关系：恢复时与已决定的 taskId 继承规则、T-027 已交付范围一起核对
+- 详情：[T-029 详情](tasks/paused-followups.md)
 
-### T-034：已合入批次的浏览器/UI 侧真实运行证据补全
+### T-036：终态广播被 enrich/落盘推迟
 
-- 优先级/依赖：排在 T-031 / T-033 之后；与二者均为验证类任务，需错开隔离端口
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-1`、`AUTONOMY-1`、`TEST-1`、`TEST-2`
-- 执行模式：端到端（纯验证；发现缺陷只报告）
-- 决策门：无；发现需要改变产品行为/兼容性的缺陷即停止并报告
-- 当前阶段：验证完成，MA 已核验；未修改产品代码，待开发者验收
-- 下一动作：保留验证证据供开发者验收；如需修复当前基线失败项或补未验证项，另立任务
-- 阻塞：无；一次性 TA session 已清理，验证 worktree/证据暂保留
-- 工作树/分支：`D:\project\pan-worktrees\browser-evidence-followup-20260915`；`audit/browser-evidence-followup-20260915`；基线 `main@7f7bf74`
-- TA/任务：`ses_d18dcb29623282e7`（已清理）；`T-034-browser-evidence-followup-20260915`
-- 目标：为已合入但仍记录“未做真实浏览器/移动端 E2E”的批次补运行证据——T-013 浏览器后台恢复（visibility/pageshow/focus + 共享 WS 重连与权威状态刷新）、T-019 Codex Steer 在 worker running 时的可见性与 session-level endpoint、T-015 通知/系统提醒/msgBridge、T-008 / T-018 带行号 Markdown 链接（Windows 盘符 / UNC / `file://`）在 Editor 中打开。
-- 验证方式：真实 Chromium（仓库已有 Playwright 基础设施）+ 隔离服务实例；逐用例 通过/失败/未验证，证据含端口、命令、时间与截图/日志路径。
-- 测试/未验证项：真实 Chromium/8792 下 T-013 visibility/pageshow/focus 权威刷新与真实服务重启后的 WS 重连通过；T-008/T-018 盘符、相对路径、`file://` 与行号定位通过；构建、编译及 24 项 Python 定向测试通过。当前基线 exact-bottom stream 的 1px 场景仍失败，未修复且未判定为本批引入；T-015 Windows sender 返回 `windows_powershell_unavailable`，桌面 toast、Notification/msgBridge、reminder 到期未验证；T-019 Codex running Steer、UNC 路径、OS 文件拖放未验证。8792 已释放，8768 仅只读核对且 PID `28652` 未变，8765/8766/8767 未使用。
-- 有序待办：
-  - [x] 派发独立验证 TA 并记录 worktree / 端口
-  - [x] 完成浏览器侧用例与证据采集
-  - [x] 交付报告并由 MA 核验，结论回填对应已合入批次
-  - [x] 清理一次性 session；保留验证 worktree/证据供开发者验收
-  - [x] 合入 main（无产品代码改动，无需合入）
-  - [ ] 开发者验收
-
-### T-036：终态广播被阻塞的 enrich/落盘推迟（服务端次序，先调查再决定）
-
-- 优先级/依赖：T-030 的 TA 明确上报的后续项（本次刻意未实现）；排在 T-031 / T-033 / T-035 之后
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-2`、`TEST-1`、`TEST-2`
-- 执行模式：分阶段决策门（先调查事件/账本持久化次序与 `enrich_after_result` 的写入面，再决定是否实现）
-- 决策门：若调查证明需要改变事件/账本持久化次序或 Session 状态写入时机，先给方案、影响与风险，不直接实现
-- 当前阶段：调查完成，MA 已核验；是否实现等待方案/用户决策
-- 下一动作：保留调查结论，若采纳方案再另立实现任务；不在本调查中直接改次序
-- 阻塞：方案决策；本任务使用 Codex Luna high，thinking 关闭，一次性 TA session 已清理
-- 工作树/分支：`D:\project\pan-worktrees\terminal-broadcast-investigation-20260915`；`audit/terminal-broadcast-investigation-20260915`；基线 `main@7f7bf74`
-- TA/任务：`ses_64167d0e212ce98b`（已清理）；`T-036-investigate-terminal-broadcast-order-20260915`；已完成，worktree clean
-- 测试/未验证项：MA 用 `E:/software/miniforge/python.exe` 独立复跑 `tests/test_backend_perf_opt.py tests/test_worker_oneshot_usage.py`，`11 passed`；独立 timing probe 观察 CBC `enrich_after_result` 约 200.5ms 且期间 asyncio ticker 为 0。未做真实服务/provider、多 Session 并发、慢 WS、崩溃/重启及默认配置延迟分布验证。
-- 目标：`packages/core/worker.py` 终态路径当前次序为 `w.status="done"`(≈963) → `adapter.enrich_after_result(s)`（cbc `adapter.py:475` 含 `time.sleep(0.2)`、kimi `adapter.py:455` 为 `0.3`，均在 asyncio 循环上）→ `_flush_history_now`（`session.py:43` 进程级 `_SAVE_LOCK` 落盘）→ **才** `_bcast worker.result`(≈1027) → `w.status="idle"` + 广播(≈1052)。即"清除指示灯的那个事件"被阻塞工作推迟。需评估：能否在不破坏事件/账本持久化次序语义的前提下降低该延迟（先广播后落盘？把 enrich 移出事件循环？分帧？），给出最小改动、风险与验收方式。
-- 已知约束：`enrich_after_result` 会写 `Session` 状态，不能简单挪到线程；改次序属语义变更，须先报告。
-- 调查结论/推荐：不采用“无保护地先广播再落盘/enrich”。推荐“方案 C + 方案 A 线程化原则”：先完成基础 `last_result`/history 持久化，再广播现有 `worker.result`，随后按 Session 串行执行可重试的异步 enrich/usage 后处理；需定义 usage/session 更新信号、幂等 cursor、崩溃恢复及 stream/oneshot 分别验收。该方案会把 usage 可见性明确为最终一致，必须先取得用户/开发者决策后另立实现任务。
-- 有序待办：
-  - [x] 派调查 TA：事件/账本持久化次序 + `enrich_after_result` 写入面 + 可行的最小改动与风险
-  - [x] MA 核验方案；是否实现等待用户/开发者决策（必要时建 `DEC-nnn`）
-  - [ ] 若实现：定向测试 + 真实隔离实例验证
-  - [ ] 合入 main
-  - [ ] 开发者验收
+- 任务类型：无代码任务｜阶段/状态：调查 / 已完成，结论已实现｜合入 main：不适用｜开发者验收：T-041 已合入后待确认
+- 下一动作：随 T-041 一并进行开发者验收；T-036 保留调查事实
+- 解除条件：开发者完成 T-041 及本调查结论验收
+- 阻塞：无；T-041 是独立实现任务
+- 关系：T-030 的独立后续；T-041 承接本调查结论
+- 详情：[T-036 详情](tasks/paused-followups.md)
 
 ### T-039：Worker 主动消费 queue 信息的 MCP 工具方案讨论
 
-- 约束策略：`GIT-1`、`GIT-2`、`MODEL-3`、`AUTONOMY-2`、`TEST-1`、`TEST-2`
-- 执行模式：待商讨方案；本阶段不直接执行、不派发 TA、不创建 worktree、不修改产品代码
-- 当前阶段：已挂起立项，等待方案讨论与用户决策
-- 目标：讨论并明确是否、以及如何提供“Worker 主动消费 queue 信息”的 MCP 工具；先厘清消费对象（`queue_pending`、active/ledger 或其他队列）、消费触发方式、权限与 Session 隔离、幂等/竞态、保留 FIFO 与 at-most-once 语义、报告/任务身份关联及失败恢复边界
-- 方案讨论范围：工具命名与参数、只读观察与主动 claim/consume 的边界、是否允许消费/确认/重试/取消、与 `agent_assign`/`agent_send`/报告投递及 `DEC-003` 的关系、审计与兼容性；不预设实现方案
-- 挂起原因（2026-09-15）：用户明确要求先添加为待商讨方案任务，不直接执行
-- 下一动作：等待用户开启方案讨论并确认范围；确认前不派 TA、不创建 worktree、不修改 MCP、Worker、queue 或服务端代码
-- 决策门：方案讨论完成后再决定是否建立独立实现任务；若涉及报告/队列身份贯通，须与 `DEC-003` 对齐
-- 合入 main：未开始
-- 开发者验收：未开始
+- 任务类型：无代码任务｜阶段/状态：方案 / 暂停｜合入 main：不适用｜开发者验收：方案完成后
+- 下一动作：用户明确开启方案讨论；解除：用户开启讨论并确认范围
+- 解除条件：用户明确恢复或开启该任务
+- 阻塞：用户暂停
+- 关系：若涉及任务上下文归属，与已决定的 DEC-003 最小继承规则对齐
+- 详情：[T-039 详情](tasks/paused-followups.md)
 
 新需求必须分配新的 `T-nnn`，不得复用已完成任务 ID。
