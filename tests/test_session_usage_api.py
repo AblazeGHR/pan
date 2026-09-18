@@ -41,6 +41,40 @@ def test_http_usage_route_returns_projection_and_not_raw_payload(monkeypatch):
     assert "totalUsage" not in result
 
 
+def test_http_usage_route_returns_cached_codex_quota_without_waiting_for_refresh(
+    monkeypatch, tmp_path,
+):
+    from packages.core.codex_quota_store import CodexQuotaStore, resolve_profile_identity
+
+    monkeypatch.setenv("PAN_CODEX_QUOTA_DIR", str(tmp_path / "codex-quota"))
+    CodexQuotaStore(resolve_profile_identity()).update({
+        "primary": {"usedPercent": 12, "windowDurationMins": 300},
+        "secondary": {"usedPercent": 34, "windowDurationMins": 10080},
+    })
+    target = SimpleNamespace(
+        id="ses-codex-cache",
+        adapter="codex",
+        raw_usage={"gpt": {"rawUsage": {"input_tokens": 7, "output_tokens": 5}}},
+        total_usage={"prompt_tokens": 7, "completion_tokens": 5},
+        updated_at="2026-09-18T01:02:03+00:00",
+    )
+    monkeypatch.setattr(web_server.sess, "get", lambda sid: target)
+
+    async def slow_refresh(_store):
+        await asyncio.sleep(1)
+        raise AssertionError("cache-only usage must not wait for WHAM")
+
+    monkeypatch.setattr(web_server._codex_wham_provider, "maybe_refresh", slow_refresh)
+    result = asyncio.run(asyncio.wait_for(
+        web_server.api_get_session_usage(target.id), timeout=0.5,
+    ))
+
+    assert result["input"] == 7
+    assert result["output"] == 5
+    assert result["codexQuota"]["ok"] is True
+    assert result["codexQuota"]["windows"]["first"]["usage"]["usedPercent"] == 12
+
+
 def test_http_usage_route_has_stable_not_found_error(monkeypatch):
     monkeypatch.setattr(web_server.sess, "get", lambda sid: None)
     result = asyncio.run(web_server.api_get_session_usage("ses-missing"))

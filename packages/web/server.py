@@ -3531,8 +3531,10 @@ async def api_get_session_usage(session_id: str):
     """Return the stable persisted input/output/cache usage projection.
 
     This is a read-only view over Session.raw_usage / Session.total_usage. It
-    does not refresh provider state and, unlike the full session response, does
-    not expose the historical raw payload.
+    does not wait for an active provider refresh and, unlike the full session
+    response, does not expose the historical raw payload. Codex receives the
+    last persisted quota snapshot only; callers that need a best-effort live
+    refresh use ``/api/codex/quota`` separately.
     """
     s = sess.get(session_id)
     if not s:
@@ -3542,7 +3544,7 @@ async def api_get_session_usage(session_id: str):
         }}
     result = sess.session_usage_view(s)
     if s.adapter == "codex":
-        quota = await api_codex_quota(session_id=session_id)
+        quota = await api_codex_quota(session_id=session_id, refresh=False)
         result["codexQuota"] = quota if quota.get("ok") else None
     return result
 
@@ -5689,6 +5691,7 @@ async def _codex_quota_for_request(
     target_worker=None,
     candidates: list | None = None,
     requested_window: str = "all",
+    refresh: bool = True,
 ) -> dict:
     base_profile = resolve_profile_identity()
     live_worker = target_worker
@@ -5749,9 +5752,12 @@ async def _codex_quota_for_request(
         live_snapshot_updated = await _persist_live_codex_quota(live_worker, store)
 
     record = store.load()
-    refresh = await _codex_wham_provider.maybe_refresh(store)
-    if refresh.record is not None:
-        record = refresh.record
+    refresh_result = (
+        await _codex_wham_provider.maybe_refresh(store)
+        if refresh else None
+    )
+    if refresh_result is not None and refresh_result.record is not None:
+        record = refresh_result.record
     if record is None:
         error = {
             "code": "quota_unavailable",
@@ -5759,10 +5765,10 @@ async def _codex_quota_for_request(
             "provider": "codex",
             "sessionId": session_id,
         }
-        if refresh.error_code:
-            error["refresh"] = refresh.error_code
-        if refresh.credential_status:
-            error["credentialStatus"] = refresh.credential_status
+        if refresh_result is not None and refresh_result.error_code:
+            error["refresh"] = refresh_result.error_code
+        if refresh_result is not None and refresh_result.credential_status:
+            error["credentialStatus"] = refresh_result.credential_status
         return {"ok": False, "error": error}
 
     stale = is_stale(record, _codex_wham_provider.ttl_seconds)
@@ -5775,15 +5781,15 @@ async def _codex_quota_for_request(
     )
     result["cacheMode"] = "live" if live_snapshot_updated else "persisted"
     result["profileKey"] = profile.profile_key
-    if refresh.error_code and refresh.error_code != "feature_disabled":
-        result["refreshError"] = refresh.error_code
-        if refresh.credential_status:
-            result["credentialStatus"] = refresh.credential_status
+    if refresh_result is not None and refresh_result.error_code and refresh_result.error_code != "feature_disabled":
+        result["refreshError"] = refresh_result.error_code
+        if refresh_result.credential_status:
+            result["credentialStatus"] = refresh_result.credential_status
     return result
 
 
 @app.get("/api/codex/quota")
-async def api_codex_quota(session_id: str = "", window: str = "all"):
+async def api_codex_quota(session_id: str = "", window: str = "all", refresh: bool = True):
     """Query global Codex account windows, preferring live push data.
 
     ``first`` is the five-hour window and ``secondary`` is the weekly window;
@@ -5797,8 +5803,10 @@ async def api_codex_quota(session_id: str = "", window: str = "all"):
     is enforced by the MCP caller layer before it calls this endpoint.
 
     The response may be a live app-server push, a persisted last-good value, or
-    an optional WHAM refresh. ``observedAt``/``receivedAt`` are local Pan
-    times; the provider's original update time is not fabricated or exposed.
+    an optional WHAM refresh. ``refresh=false`` is the cache-only form used by
+    the Session usage endpoint and never waits for WHAM. ``observedAt``/
+    ``receivedAt`` are local Pan times; the provider's original update time is
+    not fabricated or exposed.
     """
     if not validate_quota_window(window):
         return {"ok": False, "error": {
@@ -5823,6 +5831,7 @@ async def api_codex_quota(session_id: str = "", window: str = "all"):
             session_id=session_id,
             target_worker=selected,
             requested_window=window,
+            refresh=refresh,
         )
     else:
         candidates = [w for w in worker.list_live_workers() if _is_codex_worker(w)]
@@ -5830,6 +5839,7 @@ async def api_codex_quota(session_id: str = "", window: str = "all"):
         session_id="",
         candidates=candidates,
         requested_window=window,
+        refresh=refresh,
     )
 
 

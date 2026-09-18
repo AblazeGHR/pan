@@ -1,6 +1,7 @@
 import type {
   Session,
   SessionUsageView,
+  CodexQuotaProjection,
   ApiSessionsResponse,
   ApiSessionResponse,
   ApiSessionHistoryResponse,
@@ -209,6 +210,15 @@ export async function fetchSession(id: string): Promise<Session> {
 export async function fetchSessionUsage(id: string): Promise<SessionUsageView> {
   const data = await request<SessionUsageView>(`${BASE}/sessions/${encodeURIComponent(id)}/usage`);
   if (data.ok === false) throw new Error(data.error?.message || 'Failed to load session usage');
+  return data;
+}
+
+/** Refresh account-scoped Codex quota separately from persisted Session usage. */
+export async function fetchCodexQuota(id: string): Promise<CodexQuotaProjection> {
+  const data = await request<CodexQuotaProjection & { error?: { message?: string } }>(
+    `${BASE}/codex/quota?session_id=${encodeURIComponent(id)}`,
+  );
+  if (data.ok === false) throw new Error(data.error?.message || 'Failed to refresh Codex quota');
   return data;
 }
 
