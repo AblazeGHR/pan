@@ -1567,16 +1567,27 @@ def agent_background_start(argv: list[str], cwd: str, target_session_id: str | N
                            label: str | None = None) -> dict:
     """Start a durable background process; target defaults to this Agent Session.
 
+    ``creatorSessionId`` is recorded from the calling Agent Session, while
+    ``targetSessionId`` is the only Session that receives the terminal Job
+    notice.  A Job may therefore be created by Agent A for Agent B without
+    copying the notice back to A.
+
     完整编排流程见 /pan skill。
     """
-    target = target_session_id or ((_caller_identity() or {}).get("id"))
+    caller = _caller_identity()
+    creator = (caller or {}).get("id")
+    target = target_session_id or creator
     if not target:
         return {"ok": False, "error": {"code": "target_session_required", "message": "no current Agent Session"}}
     denied = _check_access(target, claim=False)
     if denied:
         return denied
-    return _api("POST", "/api/background-jobs", {
-        "targetSessionId": target, "argv": argv, "cwd": cwd, "label": label})
+    body = {
+        "targetSessionId": target, "argv": argv, "cwd": cwd, "label": label,
+    }
+    if creator:
+        body["creatorSessionId"] = creator
+    return _api("POST", "/api/background-jobs", body)
 
 
 @mcp.tool()

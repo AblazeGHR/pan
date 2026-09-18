@@ -170,6 +170,12 @@ def _normalize_job(job: dict | None) -> dict | None:
     result = dict(job)
     result.setdefault("kind", BACKGROUND_PROCESS_KIND)
     result.setdefault("operation", "run")
+    # T-046: creator and target are independent identities.  Old records did
+    # not persist creatorSessionId, so keep them readable with a null creator.
+    if result.get("kind") == SESSION_MESSAGE_KIND:
+        result.setdefault("creatorSessionId", result.get("sourceSessionId"))
+    else:
+        result.setdefault("creatorSessionId", None)
     if result.get("kind") == SERVICE_LIFECYCLE_KIND:
         result.setdefault("options", {})
         # ``errors`` was added after the first lifecycle Job schema.  Keep
@@ -246,7 +252,9 @@ def _runner_command(job_id: str) -> list[str]:
     return [*resolve_pan_python_argv(), "-m", "packages.core.background_runner", "--job-id", job_id]
 
 
-def start(target_session_id: str, argv: list[str], cwd: str, *, label: str | None = None) -> dict:
+def start(target_session_id: str, argv: list[str], cwd: str, *,
+          label: str | None = None,
+          creator_session_id: str | None = None) -> dict:
     if not _sessions.get(target_session_id):
         raise ValueError("target session does not exist")
     argv, cwd_path = _validate_command(argv, cwd)
@@ -255,6 +263,7 @@ def start(target_session_id: str, argv: list[str], cwd: str, *, label: str | Non
     log_path = _root() / "logs" / f"{job_id}.log"
     job = {
         "jobId": job_id, "targetSessionId": target_session_id, "argv": argv,
+        "creatorSessionId": creator_session_id,
         "kind": BACKGROUND_PROCESS_KIND, "operation": "run",
         "commandSummary": " ".join(argv[:3]) + (" …" if len(argv) > 3 else ""),
         "cwd": str(cwd_path), "label": label, "status": "starting",
@@ -437,6 +446,7 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
         "targetSessionId": target_session_id, "text": text,
         "description": description if description is not None else "",
         "source": source_type, "sourceSessionId": source_sid,
+        "creatorSessionId": source_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
         "status": "pending", "runCount": 0, "lastRunAt": None,
         "lastDelivery": None, "lastError": None,
@@ -659,7 +669,10 @@ def retry(job_id: str) -> dict:
         raise ValueError("running jobs cannot be retried; cancel them first")
     if old.get("status") not in {"completed", "failed", "cancelled"}:
         raise ValueError("job is not retryable")
-    new_job = start(old["targetSessionId"], old["argv"], old["cwd"], label=old.get("label"))
+    new_job = start(
+        old["targetSessionId"], old["argv"], old["cwd"], label=old.get("label"),
+        creator_session_id=old.get("creatorSessionId"),
+    )
     new_job["retryOf"] = job_id
     return _update(new_job["jobId"], {"retryOf": job_id})
 
@@ -864,8 +877,20 @@ async def recover_notifications() -> int:
                 continue
             target = current.get("targetSessionId")
             event_id = current.get("terminalEventId") or f"{current['jobId']}:terminal"
-            text = json.dumps({"jobId": current["jobId"], "status": current["status"], "exitCode": current.get("exitCode"), "logPath": current.get("logPath")}, ensure_ascii=False)
-            result = await _worker.enqueue_notice(target, text, source="automation", event_id=event_id)
+            text = json.dumps({
+                "jobId": current["jobId"],
+                "status": current["status"],
+                "exitCode": current.get("exitCode"),
+                "logPath": current.get("logPath"),
+            }, ensure_ascii=False)
+            result = await _worker.enqueue_notice(
+                target, text, source="automation", event_id=event_id,
+                notice_kind="background_job_terminal",
+                job_id=current["jobId"],
+                notice_status=current["status"],
+                creator_session_id=current.get("creatorSessionId"),
+                target_session_ids=[target] if target else [],
+            )
             if result.get("ok"):
                 current["notificationState"] = "delivered"
                 current["terminalEventId"] = event_id

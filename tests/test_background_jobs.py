@@ -36,11 +36,15 @@ def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
     proc = Mock(pid=4321)
     monkeypatch.setattr(jobs.subprocess, "Popen", Mock(return_value=proc))
     monkeypatch.setattr(jobs, "_process_create_time", lambda pid: 12.5)
-    result = jobs.start("ses_target", ["python", "train.py", "--epochs", "2"], str(tmp_path))
+    result = jobs.start(
+        "ses_target", ["python", "train.py", "--epochs", "2"], str(tmp_path),
+        creator_session_id="ses_creator",
+    )
     assert result["status"] == "running"
     assert result["pid"] is None
     assert result["runnerPid"] == 4321
     assert result["runnerProcessCreatedAt"] == 12.5
+    assert result["creatorSessionId"] == "ses_creator"
     assert jobs.get(result["jobId"])["logPath"].endswith(".log")
     assert jobs.subprocess.Popen.call_args.kwargs["stdin"] is jobs.subprocess.DEVNULL
 
@@ -57,7 +61,7 @@ def test_terminal_notification_is_idempotent(monkeypatch, tmp_path):
     job = {
         "jobId": "job_terminal", "targetSessionId": target.id, "status": "completed",
         "exitCode": 0, "notificationState": "pending", "terminalEventId": "job_terminal:terminal",
-        "logPath": "x", "createdAt": 1,
+        "logPath": "x", "createdAt": 1, "creatorSessionId": "ses_creator",
     }
     jobs._save(job)
     calls = []
@@ -71,6 +75,11 @@ def test_terminal_notification_is_idempotent(monkeypatch, tmp_path):
     assert asyncio.run(jobs.recover_notifications()) == 0
     assert len(calls) == 1
     assert calls[0][1]["event_id"] == "job_terminal:terminal"
+    assert calls[0][1]["notice_kind"] == "background_job_terminal"
+    assert calls[0][1]["job_id"] == "job_terminal"
+    assert calls[0][1]["notice_status"] == "completed"
+    assert calls[0][1]["creator_session_id"] == "ses_creator"
+    assert calls[0][1]["target_session_ids"] == [target.id]
     assert jobs.get("job_terminal")["notificationState"] == "delivered"
 
 
@@ -92,6 +101,16 @@ def test_runner_registry_survives_reload(tmp_path):
     jobs._save({"jobId": "job_reload", "targetSessionId": "ses_target", "status": "running", "createdAt": 1})
     assert jobs.list_jobs()[0]["jobId"] == "job_reload"
     assert json.loads((tmp_path / "background_jobs" / "jobs" / "job_reload.json").read_text())["status"] == "running"
+
+
+def test_legacy_job_defaults_creator_without_rewriting(tmp_path):
+    _session(tmp_path)
+    jobs._save({"jobId": "job_legacy", "targetSessionId": "ses_target",
+                "status": "completed", "createdAt": 1})
+    raw = json.loads((tmp_path / "background_jobs" / "jobs" / "job_legacy.json").read_text())
+    result = jobs.get("job_legacy")
+    assert result["creatorSessionId"] is None
+    assert "creatorSessionId" not in raw
 
 
 def test_cancel_kills_descendants_and_marks_terminal(monkeypatch, tmp_path):
@@ -146,6 +165,29 @@ def test_retry_rejects_running_job(tmp_path):
                 "argv": ["python"], "cwd": str(tmp_path), "createdAt": 1})
     with pytest.raises(ValueError, match="cannot be retried"):
         jobs.retry("job_running")
+
+
+def test_retry_inherits_creator_and_target(monkeypatch, tmp_path):
+    _session(tmp_path)
+    jobs._save({
+        "jobId": "job_finished", "targetSessionId": "ses_target",
+        "creatorSessionId": "ses_creator", "status": "failed",
+        "argv": ["python", "job.py"], "cwd": str(tmp_path), "createdAt": 1,
+    })
+    calls = []
+
+    def fake_start(target, argv, cwd, *, label=None, creator_session_id=None):
+        calls.append((target, argv, cwd, label, creator_session_id))
+        retry = {"jobId": "job_retry", "targetSessionId": target,
+                 "creatorSessionId": creator_session_id, "status": "running"}
+        jobs._save(retry)
+        return retry
+
+    monkeypatch.setattr(jobs, "start", fake_start)
+    result = jobs.retry("job_finished")
+    assert result["retryOf"] == "job_finished"
+    assert calls == [("ses_target", ["python", "job.py"], str(tmp_path),
+                      None, "ses_creator")]
 
 
 def test_concurrent_read_modify_write_preserves_updates(tmp_path):
