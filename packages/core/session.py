@@ -43,6 +43,219 @@ _MAIN_HISTORY_TAIL = 20          # 主文件内保留的尾部 history 条数（
 _SAVE_LOCK = threading.RLock()   # 写锁：save_async(to_thread) 并发时防双写；也保护交接命名分配
 _newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
 
+# Session-list previews are a persisted projection, not a second history
+# representation.  Keep this bound compatible with the old ``lastMessage``
+# contract, but never project attachment/editor links here: those helpers may
+# read or mutate the attachment registry and are intentionally history-view
+# only.
+SUMMARY_PREVIEW_MAX = 200
+_SUMMARY_MAIN_ROLES = frozenset({"user", "assistant", "system"})
+_SUMMARY_AUXILIARY_ROLES = frozenset({"thinking", "tool"})
+_SUMMARY_PROJECTION_KEYS = (
+    "revision", "last_user_preview", "last_assistant_preview",
+    "last_display_preview", "last_system_preview", "last_thinking_preview",
+    "last_tool_preview", "last_main_role", "history_total", "updated_at",
+)
+
+
+def _summary_preview(message: object) -> str:
+    """Return a bounded, raw text preview without interpreting its contents."""
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if not isinstance(content, str):
+        return ""
+    # Deliberately slice the stored text.  No markdown/link parsing, pathlib
+    # access, stat, registry lookup, or dynamic editor-reference registration
+    # belongs on a Session summary path.
+    return content[:SUMMARY_PREVIEW_MAX]
+
+
+def _empty_summary_projection(*, revision: int = 0,
+                              history_total: int | None = 0,
+                              updated_at: str = "") -> dict:
+    return {
+        "revision": max(0, int(revision or 0)),
+        "last_user_preview": "",
+        "last_assistant_preview": "",
+        "last_display_preview": "",
+        "last_system_preview": "",
+        "last_thinking_preview": "",
+        "last_tool_preview": "",
+        "last_main_role": "",
+        "history_total": history_total,
+        "updated_at": updated_at or "",
+    }
+
+
+def _normalize_summary_projection(value: object, *, fallback_updated_at: str = "") -> dict | None:
+    """Normalize the optional durable projection without doing any I/O."""
+    if not isinstance(value, dict):
+        return None
+    # Accept both the canonical snake_case storage spelling and a hand-authored
+    # camelCase snapshot from an intermediate build.
+    def read(name: str, camel: str, default):
+        return value[name] if name in value else value.get(camel, default)
+
+    projection = _empty_summary_projection(
+        revision=read("revision", "summaryRevision", 0),
+        history_total=read("history_total", "historyTotal", None),
+        updated_at=read("updated_at", "updatedAt", fallback_updated_at) or "",
+    )
+    for snake, camel in (
+        ("last_user_preview", "lastUserPreview"),
+        ("last_assistant_preview", "lastAssistantPreview"),
+        ("last_display_preview", "lastDisplayPreview"),
+        ("last_system_preview", "lastSystemPreview"),
+        ("last_thinking_preview", "lastThinkingPreview"),
+        ("last_tool_preview", "lastToolPreview"),
+    ):
+        candidate = read(snake, camel, "")
+        projection[snake] = candidate[:SUMMARY_PREVIEW_MAX] if isinstance(candidate, str) else ""
+    main_role = read("last_main_role", "lastMainRole", "")
+    projection["last_main_role"] = main_role if main_role in _SUMMARY_MAIN_ROLES else ""
+    total = projection["history_total"]
+    if total is not None:
+        try:
+            projection["history_total"] = max(0, int(total))
+        except (TypeError, ValueError):
+            projection["history_total"] = None
+    return projection
+
+
+def _summary_projection_from_history(history: list[dict], *, revision: int = 0,
+                                     updated_at: str = "") -> dict:
+    """Build a projection for an explicitly loaded history.
+
+    This is used at Session construction/reimport time, never by the summary
+    API for an otherwise cold Session.  Its cost is therefore proportional to
+    the history operation that explicitly supplied the list.
+    """
+    projection = _empty_summary_projection(
+        revision=revision, history_total=0, updated_at=updated_at,
+    )
+    for message in history:
+        _apply_summary_message(projection, message, bump=False)
+    if history:
+        projection["revision"] = max(projection["revision"], 1)
+    return projection
+
+
+def _apply_summary_message(projection: dict, message: object, *, bump: bool = True) -> bool:
+    """Apply one appended message to the bounded projection in O(1)."""
+    if not isinstance(message, dict):
+        return False
+    role = str(message.get("role") or "").strip().lower()
+    preview = _summary_preview(message)
+    total = projection.get("history_total")
+    projection["history_total"] = (total + 1) if isinstance(total, int) else None
+
+    changed = True
+    if role == "user":
+        projection["last_user_preview"] = preview
+        projection["last_display_preview"] = preview
+        projection["last_main_role"] = role
+    elif role == "assistant":
+        projection["last_assistant_preview"] = preview
+        projection["last_display_preview"] = preview
+        projection["last_main_role"] = role
+    elif role == "system":
+        projection["last_system_preview"] = preview
+        projection["last_display_preview"] = preview
+        projection["last_main_role"] = role
+    elif role == "thinking":
+        projection["last_thinking_preview"] = preview
+        # Thinking/tool rows are auxiliary. They may be used only before any
+        # user/assistant/system preview exists and must never overwrite the
+        # established assistant (or other main-role) preview.
+        if not projection.get("last_main_role"):
+            projection["last_display_preview"] = preview
+    elif role == "tool":
+        projection["last_tool_preview"] = preview
+        if not projection.get("last_main_role"):
+            projection["last_display_preview"] = preview
+    else:
+        # Unknown roles still count toward historyTotal, but cannot become a
+        # user-visible summary preview.
+        changed = False
+
+    if bump:
+        projection["revision"] = max(0, int(projection.get("revision") or 0)) + 1
+        projection["updated_at"] = datetime.now().isoformat()
+    return True
+
+
+def append_history(s: "Session", message: dict) -> None:
+    """Append one history row and advance the summary projection."""
+    ensure_summary_projection(s)
+    s.history.append(message)
+    _apply_summary_message(s.summary_projection, message)
+    s._summary_history_index = len(s.history)
+
+
+def replace_history(s: "Session", history: list[dict]) -> None:
+    """Replace history and rebuild only at an explicit full-history boundary."""
+    s.history = list(history or [])
+    previous_revision = int(s.summary_projection.get("revision") or 0)
+    s.summary_projection = _summary_projection_from_history(
+        s.history,
+        revision=previous_revision + 1,
+        updated_at=datetime.now().isoformat(),
+    )
+    s._summary_history_index = len(s.history)
+
+
+def ensure_summary_projection(s: "Session") -> None:
+    """Reconcile direct legacy history mutations without a full-history scan."""
+    projection = getattr(s, "summary_projection", None)
+    if not isinstance(projection, dict):
+        s.summary_projection = _summary_projection_from_history(
+            s.history, updated_at=getattr(s, "updated_at", ""),
+        )
+        s._summary_history_index = len(s.history)
+        return
+    seen = getattr(s, "_summary_history_index", 0)
+    if not isinstance(seen, int) or seen < 0:
+        seen = 0
+    if len(s.history) < seen:
+        # A replacement performed by an old caller is an explicit full-history
+        # boundary.  Rebuild here (normally called from save/import, not GET).
+        replace_history(s, s.history)
+        return
+    for message in s.history[seen:]:
+        _apply_summary_message(projection, message)
+    s._summary_history_index = len(s.history)
+
+
+def summary_projection(s: "Session") -> dict:
+    """Return a copy of the bounded, raw summary projection."""
+    ensure_summary_projection(s)
+    return dict(s.summary_projection)
+
+
+def update_worker_summary(s: "Session", *, status: str | None,
+                         worker_id: str | None, generation: int | None,
+                         task_id: str | None, task_seq: int | None) -> bool:
+    """Advance revision when live worker summary state changes.
+
+    Worker identity/status is runtime state and is intentionally not written
+    as durable Session metadata.  The revision is shared with the persisted
+    history/metadata projection so WS patches and HTTP summaries are ordered.
+    """
+    state = {
+        "status": status,
+        "worker_id": worker_id,
+        "generation": generation,
+        "task_id": task_id,
+        "task_seq": task_seq,
+    }
+    if getattr(s, "_summary_worker_state", None) == state:
+        return False
+    s._summary_worker_state = state
+    s.summary_projection["revision"] = max(0, int(s.summary_projection.get("revision") or 0)) + 1
+    s.summary_projection["updated_at"] = datetime.now().isoformat()
+    return True
+
 
 def _path(session_id: str) -> Path:
     return SESSION_DIR / f"{session_id}.json"
@@ -266,7 +479,8 @@ class Session:
                  task_seq: int = 0,
                  active_task_id: str | None = None,
                  accepted_input_ids: list[str] | None = None,
-                  report_subscriptions=None,
+                 summary_projection: dict | None = None,
+                 report_subscriptions=None,
                  qq_subscriptions=None, notification_settings=None, *,
                  original_prompt: str | None | object = _PROMPT_UNSET,
                  handoff_prompt: str | None = None):
@@ -333,6 +547,15 @@ class Session:
         self.task_seq = task_seq
         self.active_task_id = active_task_id
         self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
+        self.summary_projection = (
+            _normalize_summary_projection(
+                summary_projection, fallback_updated_at=updated_at,
+            )
+            or _summary_projection_from_history(self.history, updated_at=updated_at)
+        )
+        self._summary_history_index = len(self.history)
+        self._history_loaded = True
+        self._summary_worker_state = None
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
         self.notification_settings = normalize_notification_settings(notification_settings)
@@ -431,6 +654,7 @@ class Session:
         # migrate any legacy top-level fields that ended up on the instance
         # (from Session(**data) with old JSON having cbc_session_id, etc.)
         _migrate_legacy_fields(self)
+        self._summary_meta_sig = _summary_metadata_signature(self)
 
     @classmethod
     def _from_data(cls, data: dict) -> Session:
@@ -448,6 +672,11 @@ class Session:
             data["last_legal_worker_state"] = data.pop("lastLegalWorkerState")
         if "active_task_id" not in data and "activeTaskId" in data:
             data["active_task_id"] = data.pop("activeTaskId")
+        if "summary_projection" not in data:
+            for alias in ("summaryProjection", "summary"):
+                if alias in data:
+                    data["summary_projection"] = data.pop(alias)
+                    break
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
             ("cbc_session_id", "cli_session_id"),
@@ -502,6 +731,7 @@ class Session:
             "task_seq": self.task_seq,
             "active_task_id": self.active_task_id,
             "accepted_input_ids": self.accepted_input_ids,
+            "summary_projection": dict(self.summary_projection),
             "report_subscriptions": sorted(self.report_subscriptions),
             "qq_subscriptions": sorted(self.qq_subscriptions),
             "notification_settings": normalize_notification_settings(self.notification_settings),
@@ -610,6 +840,40 @@ def _meta_signature(s: Session) -> str:
     return repr(meta)
 
 
+def _summary_metadata_signature(s: Session) -> str:
+    """Stable signature of fields exposed by the lean Session summary."""
+    value = {
+        "id": s.id,
+        "name": s.name,
+        "adapter": s.adapter,
+        "cli_session_id": s.cli_session_id,
+        "model": s.model,
+        "permission_mode": s.permission_mode,
+        "adapter_config": s.adapter_config,
+        "session_template": s.session_template,
+        "workdir": s.workdir,
+        "last_legal_worker_state": s.last_legal_worker_state,
+        "total_usage": s.total_usage,
+        "order": s.order,
+        "workspace_ids": list(s.workspace_ids),
+        "managed": list(s.managed),
+        "managed_by": s.managed_by,
+        "readonly_session": s.readonly_session,
+    }
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _ensure_summary_metadata(s: Session) -> None:
+    ensure_summary_projection(s)
+    signature = _summary_metadata_signature(s)
+    if signature != getattr(s, "_summary_meta_sig", None):
+        s.summary_projection["revision"] = max(
+            0, int(s.summary_projection.get("revision") or 0),
+        ) + 1
+        s.summary_projection["updated_at"] = datetime.now().isoformat()
+        s._summary_meta_sig = signature
+
+
 def _from_data_with_history(sid: str, data: dict) -> Session:
     """从主文件 data 构造 Session，并用 <id>.history.jsonl 合并 history。
 
@@ -622,6 +886,7 @@ def _from_data_with_history(sid: str, data: dict) -> Session:
         "original_prompt" not in data or "handoff_prompt" not in data
         or "system_prompt" in data
     )
+    had_projection = isinstance(data.get("summary_projection"), dict)
     s = Session._from_data(data)
     _migrate_legacy_fields(s)
     _migrate_session_usage(s)
@@ -631,20 +896,86 @@ def _from_data_with_history(sid: str, data: dict) -> Session:
     else:
         _strip_delivery_marks(s.history)
     s._hist_persisted = len(s.history)
+    if had_projection:
+        # The persisted projection is authoritative and already accounts for
+        # the complete JSONL history.  Only its cursor needs to follow the
+        # loaded list so a compatibility append can be reconciled incrementally.
+        s._summary_history_index = len(s.history)
+    else:
+        # Legacy data has no bounded projection.  Full Session GET is an
+        # explicit history load, so rebuilding here is allowed; summary list
+        # loads use the shallow path below and never read JSONL.
+        s.summary_projection = _summary_projection_from_history(
+            s.history, updated_at=s.updated_at,
+        )
+        s._summary_history_index = len(s.history)
+    s._summary_meta_sig = _summary_metadata_signature(s)
     # Loading is read-only. The next explicit save writes canonical prompts,
     # even when no other metadata changed (including old JSONL-backed stores).
     s._last_meta_sig = None if migrate_prompt else _meta_signature(s)
     return s
 
 
-def get(session_id: str) -> Session | None:
+def _from_data_without_history(sid: str, data: dict) -> Session:
+    """Load only Session metadata plus the persisted bounded projection.
+
+    Older main JSON files may contain a small history tail but no projection.
+    Use at most that already-parsed tail as a compatibility preview and mark
+    the total unknown; never open the companion JSONL from a summary request.
+    """
+    payload = dict(data)
+    raw_history = payload.pop("history", None)
+    had_projection = any(
+        isinstance(payload.get(key), dict)
+        for key in ("summary_projection", "summaryProjection", "summary")
+    )
+    s = Session._from_data(payload)
+    if not had_projection and isinstance(raw_history, list):
+        tail = [item for item in raw_history[-_MAIN_HISTORY_TAIL:]
+                if isinstance(item, dict)]
+        s.summary_projection = _summary_projection_from_history(
+            tail, updated_at=s.updated_at,
+        )
+        # The legacy main file does not distinguish a complete old history from
+        # an incremental tail.  Null is safer than presenting the tail length
+        # as a current total.
+        s.summary_projection["history_total"] = None
+        s._summary_history_index = 0
+    s._history_loaded = False
+    s._summary_meta_sig = _summary_metadata_signature(s)
+    return s
+
+
+def _hydrate_cached_session(session_id: str, cached: Session) -> Session | None:
+    """Hydrate a shallow summary cache entry in place for full callers."""
+    path = _path(session_id)
+    if not path.exists():
+        return None
+    try:
+        loaded = _from_data_with_history(
+            session_id, json.loads(path.read_text(encoding="utf-8")),
+        )
+    except (json.JSONDecodeError, OSError):
+        return None
+    cached.__dict__.update(loaded.__dict__)
+    cached._history_loaded = True
+    _cache[session_id] = cached
+    return cached
+
+
+def get(session_id: str, *, load_history: bool = True) -> Session | None:
     if session_id in _cache:
-        return _cache[session_id]
+        cached = _cache[session_id]
+        if load_history and not getattr(cached, "_history_loaded", True):
+            return _hydrate_cached_session(session_id, cached)
+        return cached
     path = _path(session_id)
     if not path.exists():
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
+        if not load_history:
+            return _from_data_without_history(session_id, data)
         s = _from_data_with_history(session_id, data)
         _cache[session_id] = s
         return s
@@ -652,7 +983,7 @@ def get(session_id: str) -> Session | None:
         return None
 
 
-def agent_level(session_id: str) -> int:
+def agent_level(session_id: str, *, load_history: bool = True) -> int:
     """Compute a session's agent level along its managedBy chain.
 
     Level 1 = no manager (managedBy is None). Each resolvable hop upward
@@ -670,14 +1001,23 @@ def agent_level(session_id: str) -> int:
 
     Cost: O(depth) cache lookups per call (get() is an in-memory dict hit).
     """
+    def lookup(sid: str):
+        # A few embedders/tests replace get() with the historical one-argument
+        # callable.  Keep the optional shallow-load optimization compatible
+        # with those callers.
+        try:
+            return get(sid, load_history=load_history)
+        except TypeError:
+            return get(sid)
+
     seen: set[str] = {session_id}
     level = 1
-    cur = get(session_id)
+    cur = lookup(session_id)
     while cur is not None:
         mb = cur.managed_by
         if not mb or mb in seen:
             break
-        manager = get(mb)
+        manager = lookup(mb)
         if manager is None:
             break  # dangling reference → treat as chain top
         seen.add(mb)
@@ -704,6 +1044,7 @@ def _save_sync(s: Session, force_full: bool = False):
         # round's end under the same lock, then never advance past that end.
         # Anything appended after this point is deliberately left for the
         # next flush.
+        _ensure_summary_metadata(s)
         s.updated_at = datetime.now().isoformat()  # API reads the live object
         meta_sig = _meta_signature(s)
         start = getattr(s, "_hist_persisted", 0)
@@ -1068,7 +1409,7 @@ def handoff_session(
 _all_loaded: bool = False
 
 
-def list_all() -> list[Session]:
+def list_all(*, load_history: bool = True) -> list[Session]:
     global _all_loaded
     if not _all_loaded:
         if SESSION_DIR.exists():
@@ -1080,11 +1421,22 @@ def list_all() -> list[Session]:
                         # 不覆盖已缓存的 Session（worker 可能在 _read_stdout
                         # 里 append 了 history 但还没 save，磁盘版本更旧）
                         if sid and sid not in _cache:
-                            s = _from_data_with_history(sid, data)
+                            s = (
+                                _from_data_with_history(sid, data)
+                                if load_history
+                                else _from_data_without_history(sid, data)
+                            )
                             _cache[sid] = s
                     except (json.JSONDecodeError, OSError):
                         pass
         _all_loaded = True
+    if load_history:
+        # A previous summary=1 request may have populated shallow cache entries.
+        # Hydrate those entries only when a caller explicitly asks for full
+        # history; ordinary summary/list reads never touch companion JSONL.
+        for sid, cached in list(_cache.items()):
+            if not getattr(cached, "_history_loaded", True):
+                _hydrate_cached_session(sid, cached)
     # after initial load, cache is always current (create/save/delete sync it)
     # 排序：显式 order 优先（升序）；未排序（order=None）按 created_at 排在末尾，
     # 因此新建 session 自然出现在列表底部，已有自定义顺序不被打乱。

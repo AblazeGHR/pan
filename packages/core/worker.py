@@ -916,7 +916,7 @@ async def _persist_terminal_state(
         last = s.history[-1] if s.history else None
         if not (last and last.get("role") == "assistant"
                 and last.get("content") == result_text):
-            s.history.append({"role": "assistant", "content": result_text})
+            _sess.append_history(s, {"role": "assistant", "content": result_text})
 
     # Queue rows crossed the existing provider hand-off boundary earlier; this
     # only clears runtime routing references and never changes FIFO state.
@@ -1477,7 +1477,7 @@ async def _read_stdout(w: Worker):
             s = _session(w)
             if s:
                 for b in adapter.extract_assistant_blocks(event):
-                    s.history.append(b)
+                    _sess.append_history(s, b)
                 # A1 防抖：append 只标记 dirty，由防抖任务批量落盘（不逐块全量 save）
                 _mark_history_dirty(w)
 
@@ -1724,7 +1724,7 @@ async def _legacy_consumer_reference(w: Worker):
                         hist_entry["clientMessageId"] = claimed["clientMessageId"]
                 old_history_len = len(s.history)
                 if not already_delivered:
-                    s.history.append(hist_entry)
+                    _sess.append_history(s, hist_entry)
                 try:
                     # Queue consumption is committed together with the history
                     # receipt before writing stdin/spawning oneshot.  Once this
@@ -1733,6 +1733,7 @@ async def _legacy_consumer_reference(w: Worker):
                 except Exception as e:
                     if not already_delivered:
                         del s.history[old_history_len:]
+                        _sess.replace_history(s, s.history)
                     if claimed is not None:
                         # _claim_pending_task removed the item synchronously to
                         # reserve it against API delete/order and duplicate signals.
@@ -1875,7 +1876,7 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
             })
             if source_ids:
                 entry["sourceSessionIds"] = source_ids
-        s.history.append(entry)
+        _sess.append_history(s, entry)
         history_added = True
 
     for item in items:
@@ -1891,6 +1892,7 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
             _delivery_key(item) for item in history_items
         }:
             s.history.pop()
+            _sess.replace_history(s, s.history)
         for item in items:
             _queue_item_backoff(item, "queue reservation save failed")
             _remember_queue_item(s, item, _DELIVERY_QUEUED)
@@ -1920,6 +1922,7 @@ async def _requeue_queue_unit(w: Worker, s, items: list[dict], reason: str,
             entry = s.history[index]
             if keys.intersection(entry.get("delivered_keys") or ()):
                 s.history.pop(index)
+                _sess.replace_history(s, s.history)
                 break
     try:
         await _save_receipt(s)
@@ -2981,6 +2984,7 @@ async def _legacy_consume_pending_reports(w: Worker, s):
         except Exception as exc:
             s.queue_pending = old_queue_snapshot
             del s.history[old_history_len:]
+            _sess.replace_history(s, s.history)
             _log.warning(
                 "[Worker %s] legacy queue cleanup save failed; leaving rows "
                 "untouched: %s", w.worker_id, exc)
@@ -3043,11 +3047,12 @@ async def _legacy_consume_pending_reports(w: Worker, s):
                              and it.get("sourceSessionId")})
         if source_ids:
             report_entry["sourceSessionIds"] = source_ids
-        s.history.append(report_entry)
+        _sess.append_history(s, report_entry)
         try:
             await _save_receipt(s)
         except Exception as e:
             del s.history[old_history_len:]
+            _sess.replace_history(s, s.history)
             for index, it in reversed(report_positions):
                 s.queue_pending.insert(min(index, len(s.queue_pending)), it)
             for it in reports:
@@ -4315,7 +4320,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         s.model = captured_model
     # Append extracted blocks (assistant/thinking/tool) — same as stream mode.
     for block in assistant_blocks:
-        s.history.append(block)
+        _sess.append_history(s, block)
 
     # Surface failures the user can actually see (#8 timeout, #9 non-zero exit).
     if result_event is not None and adapter.is_result_error(result_event):
@@ -5339,9 +5344,10 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
                 s.workdir or None,
             )
             s.cli_session_id = new_cli_id
-            s.history = await asyncio.to_thread(
+            parsed_history = await asyncio.to_thread(
                 provider.parse_history, new_cli_id, s.workdir or None
             )
+            _sess.replace_history(s, parsed_history)
             raw_usage_entries = await asyncio.to_thread(
                 provider.get_raw_usage, new_cli_id, s.workdir or None
             )
@@ -5446,7 +5452,7 @@ async def steer_worker(worker_id: str, text: str) -> str | None:
     w = workers.get(worker_id)
     s = _session(w) if w else None
     if s is not None:
-        s.history.append({"role": "user", "content": text})
+        _sess.append_history(s, {"role": "user", "content": text})
         await _sess.save_async(s)
     return None
 

@@ -1077,6 +1077,62 @@ async def _close_slow_dashboard(ws: WebSocket) -> None:
     await asyncio.sleep(0)
 
 
+_SUMMARY_WORKER_EVENT_TYPES = frozenset({
+    "worker.spawned", "worker.restarted", "worker.reconfigured",
+    "worker.status", "worker.result", "worker.destroyed", "worker.crashed",
+})
+_SUMMARY_SESSION_EVENT_TYPES = frozenset({
+    "session.created", "session.updated", "session.renamed",
+    "session.workspaceUpdated",
+})
+
+
+def _summary_session_get(session_id: str):
+    """Read Session metadata shallowly, tolerating legacy test embedders."""
+    try:
+        return sess.get(session_id, load_history=False)
+    except TypeError:
+        # Compatibility with callers that replace sess.get with the old
+        # one-argument function; production Session.get supports the keyword.
+        return sess.get(session_id)
+
+
+def _attach_session_summary_patch(data: dict) -> dict:
+    """Attach one revisioned Session summary to low-frequency WS patches."""
+    if not isinstance(data, dict):
+        return data
+    session_id = data.get("sessionId")
+    event_type = data.get("type")
+    if not isinstance(session_id, str) or not session_id:
+        return data
+    if event_type in _SUMMARY_WORKER_EVENT_TYPES:
+        status = data.get("status")
+        worker_id = data.get("workerId")
+        generation = data.get("generation")
+        task_id = data.get("taskId")
+        task_seq = data.get("taskSeq")
+        if event_type in {"worker.destroyed", "worker.crashed"}:
+            status, worker_id, task_id, task_seq = None, None, None, None
+        current = _summary_session_get(session_id)
+        if isinstance(current, sess.Session):
+            sess.update_worker_summary(
+                current,
+                status=status,
+                worker_id=worker_id,
+                generation=generation,
+                task_id=task_id,
+                task_seq=task_seq,
+            )
+    if event_type not in (_SUMMARY_WORKER_EVENT_TYPES | _SUMMARY_SESSION_EVENT_TYPES):
+        return data
+    current = _summary_session_get(session_id)
+    if not isinstance(current, sess.Session):
+        return data
+    # A server-side event is emitted from the current Session object, so its
+    # nested patch is newer than any caller-provided legacy summary payload.
+    return {**data, "session": _session_summary(current)}
+
+
 def _project_worker_event(data: dict) -> dict:
     """Project local Markdown links before exposing a Worker event to UI.
 
@@ -1146,6 +1202,7 @@ async def broadcast(data: dict):
     # Keep the persisted provider/history representation untouched.  This is
     # the common outbound boundary for live browser events and is intentionally
     # before both dashboard and agent-client fan-out.
+    data = _attach_session_summary_patch(data)
     data = _project_worker_event(data)
     for ws in list(ws_clients):
         _client_channel(ws, "dashboard").enqueue(data)
@@ -1300,6 +1357,7 @@ def _session_to_api(
             "result": _project_editor_links(s.id, last_result["result"]),
         }
     mcp_lock_reason = _get_mcp_locked_state(s)
+    projection = sess.summary_projection(s)
     return {
         "id": s.id,
         "name": s.name,
@@ -1361,6 +1419,14 @@ def _session_to_api(
         "outputMode": ac.get("output_mode"),
         "executionModes": list(a.execution_modes),
         "gameId": s.game_id,
+        # Bounded, raw summary projection.  The full view keeps its existing
+        # history/attachment behavior; these fields let metadata/detail
+        # consumers share the same revisioned summary contract.
+        "summaryRevision": projection["revision"],
+        "lastUserPreview": projection["last_user_preview"],
+        "lastAssistantPreview": projection["last_assistant_preview"],
+        "lastDisplayPreview": projection["last_display_preview"],
+        "historyTotal": projection["history_total"],
     }
 
 
@@ -1373,45 +1439,57 @@ def _session_summary(s: sess.Session) -> dict:
     cliSessionId lets MCP session_import locate the session that a reimport
     would overwrite (§8.2).
 
-    Since 2026-08-23: also exposes lastMessage / historyTotal / totalUsage so
-    the React sidebar can be driven entirely by summary=1 (no per-session
-    history download for hidden sessions). lastMessage is the last history
-    item's text truncated to 200 chars (no full message bodies).
+    The preview fields are a bounded in-memory/persisted projection.  This
+    function must not load config.json, parse attachment links, touch the
+    attachment registry, stat a local path, register an editor reference, or
+    traverse the full history. ``lastMessage`` remains the old API alias for
+    the raw ``lastDisplayPreview`` value.
 
     Since 2026-09-01: also exposes managed / mcpServers / mcpLockReason so the
     sidebar can run the "has subagent" and "is MetaAgent" special filters
     without per-session detail calls (mirrors _session_to_api).
     """
     w = worker.find_alive_worker_by_session(s.id)
-    a = get_adapter(s.adapter)
-    config = load_config().get(s.adapter, {})
+    projection = sess.summary_projection(s)
+    worker_state = getattr(s, "_summary_worker_state", None) or {}
+    worker_status = w.status if w else worker_state.get("status")
+    worker_id = w.worker_id if w else worker_state.get("worker_id")
+    worker_generation = (
+        getattr(w, "generation", None) if w else worker_state.get("generation")
+    )
+    worker_task_id = (
+        worker_state.get("task_id") if worker_state else
+        (getattr(w, "_current_task_id", None) if w else None)
+    )
+    worker_task_seq = (
+        worker_state.get("task_seq") if worker_state else
+        (getattr(w, "_current_seq", None) if w else None)
+    )
+    updated_at = projection["updated_at"] or s.updated_at
     ac = s.adapter_config
-    last_text = ""
-    if s.history:
-        last = s.history[-1]
-        if isinstance(last, dict):
-            last_text = _project_editor_links(
-                s.id,
-                _normalize_legacy_attachment_links(
-                    s.id,
-                    str(last.get("content") or ""),
-                ),
-            )[:200]
     return {
         "id": s.id,
         "name": s.name,
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
-        "workerStatus": w.status if w else None,
+        "workerStatus": worker_status,
+        "workerId": worker_id,
+        "workerGeneration": worker_generation,
+        "workerTaskId": worker_task_id,
+        "workerTaskSeq": worker_task_seq,
         "lastLegalWorkerState": s.last_legal_worker_state,
-        "updatedAt": s.updated_at,
+        "updatedAt": updated_at,
+        "summaryRevision": projection["revision"],
         "order": s.order,
         "workspaceIds": list(s.workspace_ids),
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
-        "agentLevel": sess.agent_level(s.id),
-        "lastMessage": last_text,
-        "historyTotal": len(s.history),
+        "agentLevel": sess.agent_level(s.id, load_history=False),
+        "lastUserPreview": projection["last_user_preview"],
+        "lastAssistantPreview": projection["last_assistant_preview"],
+        "lastDisplayPreview": projection["last_display_preview"],
+        "lastMessage": projection["last_display_preview"],
+        "historyTotal": projection["history_total"],
         "totalUsage": s.total_usage,
         "managed": s.managed,
         "mcpServers": [
@@ -1421,10 +1499,13 @@ def _session_summary(s: sess.Session) -> dict:
         ],
         "mcpLockReason": _get_mcp_locked_state(s),
         # 设置字段（供前端列表/InputRow 显示真实值，避免未打开设置弹窗时回退默认）
-        "model": s.model or a.default_model,
-        "permissionMode": s.permission_mode or config.get("permission_mode") or None,
+        # Do not resolve defaults here.  A list summary is a projection of
+        # persisted Session state; configuration/default resolution belongs to
+        # the detail/settings path.
+        "model": s.model,
+        "permissionMode": s.permission_mode,
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
-        "effort": ac.get("effort") or config.get("effort", ""),
+        "effort": ac.get("effort", ""),
         "modelContextWindow": ac.get("model_context_window"),
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
@@ -3812,7 +3893,9 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     轻量巡检，避免全量传输再过滤). Default stays the full payload for
     backward compatibility.
     """
-    sessions = sess.list_all()
+    # Summary reads use the metadata/projection loader.  Full history is only
+    # loaded by the legacy full response below.
+    sessions = sess.list_all(load_history=not bool(summary))
     if workspaceId is not None:
         # ``ungrouped`` is a stable query alias; an empty workspaceId is kept
         # equivalent to the historical all-sessions response.
@@ -3980,7 +4063,8 @@ async def api_set_workspace_sessions(workspace_id: str, data: dict):
 async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
     if workspaces.get(workspace_id) is None:
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
-    sessions = [s for s in sess.list_all() if workspace_id in s.workspace_ids]
+    sessions = [s for s in sess.list_all(load_history=not bool(summary))
+                if workspace_id in s.workspace_ids]
     return {"ok": True, "workspaceId": workspace_id,
             "sessions": [_session_summary(s) if summary else _session_to_api(s) for s in sessions]}
 
@@ -6619,7 +6703,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
             # which would otherwise duplicate agent-side messages.
             w._replaying = True
             try:
-                existing.history = history
+                sess.replace_history(existing, history)
                 existing.raw_usage = raw_usage
                 existing.total_usage = total_usage
                 # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
@@ -6635,7 +6719,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         w = worker.find_worker_by_session(existing.id)
         if w:
             await worker.kill_worker(w.worker_id)
-        existing.history = history
+        sess.replace_history(existing, history)
         existing.raw_usage = raw_usage
         existing.total_usage = total_usage
         existing.last_result = None

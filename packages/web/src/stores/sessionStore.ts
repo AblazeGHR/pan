@@ -390,6 +390,27 @@ function sameSessionSnapshot(previous: Session, next: Session, server: Session):
   );
 }
 
+const SUMMARY_PROJECTION_FIELDS = [
+  'summaryRevision', 'lastUserPreview', 'lastAssistantPreview',
+  'lastDisplayPreview', 'lastMessage', 'historyTotal', 'updatedAt',
+  'workerStatus', 'workerId', 'workerGeneration', 'workerTaskId', 'workerTaskSeq',
+] as const;
+
+/** A delayed HTTP/WS snapshot must not roll a newer summary projection back. */
+function preserveNewerSummary(current: Session, incoming: Session): Session {
+  const currentRevision = current.summaryRevision;
+  const incomingRevision = incoming.summaryRevision;
+  if (typeof currentRevision !== 'number'
+      || currentRevision <= (typeof incomingRevision === 'number' ? incomingRevision : -1)) {
+    return incoming;
+  }
+  const preserved = { ...incoming, summaryRevision: currentRevision };
+  for (const field of SUMMARY_PROJECTION_FIELDS) {
+    if (field in current) Object.assign(preserved, { [field]: current[field] });
+  }
+  return preserved;
+}
+
 /** True when the server-reported history is a prefix of the locally-rendered
  *  history (element-wise by role+content). A stale snapshot during streaming
  *  is exactly this — the backend persists each streamed block slightly after
@@ -565,6 +586,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               next = mergeSessionSettingPatch(next, mutation?.authoritative);
             }
           }
+          next = preserveNewerSummary(cur, next);
           return sameSessionSnapshot(cur, next, sess) ? cur : next;
         });
         const consumedEventIds = new Set(sessions.map((sess) => sess.id));
@@ -1494,11 +1516,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({
       sessions: s.sessions.map((session) =>
         session.id === id
-          ? mergeSessionSettingPatch(
-              { ...session, ...data },
-              s.sessionSettingMutations[id]?.pending
-                ? s.sessionSettingMutations[id].patch
-                : undefined,
+          ? preserveNewerSummary(
+              session,
+              mergeSessionSettingPatch(
+                { ...session, ...data },
+                s.sessionSettingMutations[id]?.pending
+                  ? s.sessionSettingMutations[id].patch
+                  : undefined,
+              ),
             )
           : session,
       ),
