@@ -14,6 +14,7 @@
 import asyncio
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -338,6 +339,52 @@ def test_concurrent_save_async_no_duplication(tmp_path, monkeypatch):
     expected = [{"role": "user", "content": f"c{i}"} for i in range(20)]
     assert s2.history == expected
     assert len(_jsonl_lines(sid)) == 20
+    _cleanup()
+
+
+def test_save_async_freezes_history_end_during_blocked_write(tmp_path, monkeypatch):
+    """An append racing the write is deferred to the next flush, not skipped."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="barrier")
+    sid = s.id
+    first = {"role": "user", "content": "first"}
+    second = {"role": "assistant", "content": "second"}
+    s.history.append(first)
+
+    entered = threading.Event()
+    release = threading.Event()
+    batches = []
+    original_append = _sess._append_jsonl
+
+    def blocked_append(path, items):
+        batches.append(list(items))
+        entered.set()
+        assert release.wait(2), "save hook was not released"
+        return original_append(path, items)
+
+    monkeypatch.setattr(_sess, "_append_jsonl", blocked_append)
+
+    async def scenario():
+        saving = asyncio.create_task(_sess.save_async(s))
+        assert await asyncio.to_thread(entered.wait, 2)
+        # This append occurs while _append_jsonl is blocked, after the writer
+        # has fixed its [start, end) snapshot.
+        s.history.append(second)
+        release.set()
+        await saving
+        assert s._hist_persisted == 1
+        await _sess.save_async(s)
+
+    asyncio.run(scenario())
+    assert batches == [[first], [second]]
+    assert _jsonl_lines(sid) == [first, second]
+
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    reloaded = _sess.get(sid)
+    assert reloaded.history == [first, second]
+    assert len(_jsonl_lines(sid)) == len(reloaded.history) == 2
     _cleanup()
 
 

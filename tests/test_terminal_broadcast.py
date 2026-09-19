@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -227,6 +228,116 @@ def test_usage_failure_is_persisted_and_retried_serially(monkeypatch, tmp_path):
         assert s.total_usage["completion_tokens"] == 4
     finally:
         _reset()
+
+
+def test_usage_enrichment_minimal_snapshot_compare_and_merge(monkeypatch, tmp_path):
+    """Provider state merges without copying or overwriting live Session state."""
+    _reset()
+    s = _sess.Session(id="ses_t062_snapshot", name="t062", adapter="cbc")
+    s.cli_session_id = "cli-t062"
+    s.history = [{"role": "user", "content": "large-but-live"}]
+    s.queue_pending = [{"type": "task_signal", "taskId": "queued"}]
+    s.adapter_config["provider_cursor"] = 1
+    _sess._cache[s.id] = s
+    _sess.SESSION_DIR = tmp_path / "sessions"
+    started = threading.Event()
+    release = threading.Event()
+    seen = []
+
+    class Adapter:
+        name = "cbc"
+
+        def enrich_after_result(self, snapshot):
+            seen.append(snapshot)
+            assert not hasattr(snapshot, "history")
+            assert not hasattr(snapshot, "queue_pending")
+            started.set()
+            assert release.wait(2)
+            snapshot.model = "provider-model"
+            snapshot.set_adapter_field("provider_cursor", 2)
+            return [{"model": "m", "rawUsage": {"completion_tokens": 5}}]
+
+    worker._queue_usage_enrichment(
+        s, Adapter(), task_id="task-t062-snapshot", task_seq=1,
+        worker_id="worker-t062", generation=1,
+    )
+
+    async def scenario():
+        task = asyncio.create_task(worker._run_usage_enrichment(s.id))
+        assert await asyncio.to_thread(started.wait, 2)
+        # These are legitimate live updates while provider I/O is in flight.
+        s.history.append({"role": "assistant", "content": "live"})
+        s.adapter_config["live_setting"] = "keep"
+        s.model = "live-model"
+        s.raw_usage = {
+            "m": {"model": "m", "request_count": 1,
+                  "rawUsage": {"completion_tokens": 3}},
+        }
+        s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        release.set()
+        await asyncio.wait_for(task, timeout=2)
+
+    asyncio.run(scenario())
+    assert len(seen) == 1
+    assert s.history[-1]["content"] == "live"
+    assert s.queue_pending == [{"type": "task_signal", "taskId": "queued"}]
+    assert s.adapter_config["live_setting"] == "keep"
+    assert s.adapter_config["provider_cursor"] == 2
+    assert s.model == "live-model"
+    assert s.total_usage["completion_tokens"] == 8
+    assert not s.usage_enrichment_pending
+    _reset()
+
+
+def test_usage_enrichment_failure_does_not_rollback_live_updates(monkeypatch, tmp_path):
+    """A provider exception retries without restoring an older full Session snapshot."""
+    _reset()
+    s = _sess.Session(id="ses_t062_failure", name="t062", adapter="cbc")
+    s.cli_session_id = "cli-t062-failure"
+    _sess._cache[s.id] = s
+    _sess.SESSION_DIR = tmp_path / "sessions"
+    started = threading.Event()
+    release = threading.Event()
+    attempts = 0
+
+    class Adapter:
+        name = "cbc"
+
+        def enrich_after_result(self, _snapshot):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                started.set()
+                assert release.wait(2)
+                raise RuntimeError("provider file is not ready")
+            return [{"model": "m", "rawUsage": {"completion_tokens": 2}}]
+
+    worker._queue_usage_enrichment(
+        s, Adapter(), task_id="task-t062-failure", task_seq=1,
+        worker_id="worker-t062", generation=1,
+    )
+    monkeypatch.setattr(worker, "_ENRICH_RETRY_BASE_SEC", 0.001)
+    monkeypatch.setattr(worker, "_ENRICH_RETRY_MAX_SEC", 0.001)
+
+    async def scenario():
+        task = asyncio.create_task(worker._run_usage_enrichment(s.id))
+        assert await asyncio.to_thread(started.wait, 2)
+        # Simulate a valid live terminal/account update during the failed call.
+        s.adapter_config["live_setting"] = "keep"
+        s.raw_usage = {
+            "m": {"model": "m", "request_count": 1,
+                  "rawUsage": {"completion_tokens": 5}},
+        }
+        s.total_usage = _sess.compute_total_usage(s.raw_usage)
+        release.set()
+        await asyncio.wait_for(task, timeout=2)
+
+    asyncio.run(scenario())
+    assert attempts == 2
+    assert s.adapter_config["live_setting"] == "keep"
+    assert s.total_usage["completion_tokens"] == 7
+    assert not s.usage_enrichment_pending
+    _reset()
 
 
 def test_pending_usage_recovers_without_a_live_worker(monkeypatch, tmp_path):
