@@ -1286,19 +1286,22 @@ export function InputRow() {
                     onClick={togglePanel}
                     title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
                     aria-label="发送队列"
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
+                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
                   >
                     <ChevronUp
                       size={14}
                       className={`transition-transform duration-200 ${panelOpen ? 'rotate-180' : ''}`}
                     />
                     <span className="ml-1 hidden text-xs md:inline">Queue</span>
+                    {queueCount > 0 && (
+                      <span
+                        data-testid="queue-count-badge"
+                        className="pointer-events-none absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white"
+                      >
+                        {queueCount > 99 ? '99+' : queueCount}
+                      </span>
+                    )}
                   </button>
-                  {queueCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-medium leading-none text-white">
-                      {queueCount > 99 ? '99+' : queueCount}
-                    </span>
-                  )}
                 </div>
               </div>
               <ModelPill
