@@ -204,6 +204,54 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() =>
       expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'continue with the latest result'),
     );
+    await waitFor(() => expect(
+      useSessionStore.getState().currentMessages.map((message) => message.content),
+    ).toEqual(['continue with the latest result']));
+    expect(useSessionStore.getState().sessions[0]?.history.map((message) => message.content))
+      .toEqual(['continue with the latest result']);
+  });
+
+  it('does not put a delayed Steer response into a newly selected Session', async () => {
+    const pending = deferred<{ workerId: string; status: string }>();
+    vi.mocked(steerSessionWorker).mockReturnValueOnce(pending.promise);
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: [],
+      sessions: [
+        {
+          id: 's1', name: 'A', adapter: 'codex', model: null, permissionMode: null,
+          alwaysThinkingEnabled: false, effort: '', workerStatus: 'running', workerId: 'w1',
+          history: [],
+        },
+        {
+          id: 's2', name: 'B', adapter: 'codex', model: null, permissionMode: null,
+          alwaysThinkingEnabled: false, effort: '', workerStatus: 'running', workerId: 'w2',
+          history: [],
+        },
+      ],
+    });
+    useWorkerStore.setState({
+      workers: { s1: { id: 'w1', sessionId: 's1', status: 'running' } },
+      currentWorkerId: 'w1',
+      currentWorker: { id: 'w1', sessionId: 's1', status: 'running' },
+    });
+
+    render(<InputRow />);
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'steer A' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Steer' }));
+    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'steer A'));
+
+    useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
+    pending.resolve({ workerId: 'w1', status: 'steer sent' });
+    await waitFor(() => expect(
+      useSessionStore.getState().sessions.find((session) => session.id === 's1')?.history
+        .map((message) => message.content),
+    ).toEqual(['steer A']));
+
+    expect(useSessionStore.getState().currentSessionId).toBe('s2');
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
   it('selects server files, renders attachment chips, and enqueues standard Markdown links', async () => {

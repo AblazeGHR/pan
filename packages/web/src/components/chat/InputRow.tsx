@@ -335,7 +335,7 @@ export function InputRow() {
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentSession = useCurrentSession();
-  const addMessage = useSessionStore((s) => s.addMessage);
+  const appendLocalMessage = useSessionStore((s) => s.appendLocalMessage);
   const setInputDraft = useSessionStore((s) => s.setInputDraft);
   const steer = useWorkerStore((s) => s.steer);
   // The worker store is keyed by durable sessionId and is refreshed from the
@@ -1126,17 +1126,23 @@ export function InputRow() {
 
   const handleSteer = useCallback(
     async (text: string) => {
-      if (!currentSessionId || !text.trim()) return;
+      const steerSessionId = currentSessionId;
+      if (!steerSessionId || !text.trim()) return;
       try {
-        await steer(currentSessionId, text);
-        composerRef.current?.replaceText('');
-        setInputDraft(currentSessionId, '');
-        addMessage({ role: 'user', content: text });
+        await steer(steerSessionId, text);
+        // The request may outlive a Session switch.  Only the original
+        // composer may be cleared; the message projection is always written
+        // to the captured target Session, never whichever Session is current
+        // when the provider control resolves.
+        const stillSelected = useSessionStore.getState().currentSessionId === steerSessionId;
+        if (stillSelected) composerRef.current?.replaceText('');
+        setInputDraft(steerSessionId, '');
+        appendLocalMessage(steerSessionId, { role: 'user', content: text });
       } catch (e) {
         showToast((e as Error).message || 'Steer failed', 'error');
       }
     },
-    [currentSessionId, steer, setInputDraft, addMessage, showToast],
+    [currentSessionId, steer, setInputDraft, appendLocalMessage, showToast],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {

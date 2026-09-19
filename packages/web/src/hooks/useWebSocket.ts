@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { wsClient } from '@/services/ws';
-import { fetchSessionHistory } from '@/services/api';
 import { isMockMode } from '@/demo/mockBackend';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -495,6 +494,7 @@ export function useWebSocket() {
         workerId: e.workerId,
         generation: e.generation,
         taskSeq: e.taskSeq,
+        taskId: typeof e.taskId === 'string' ? e.taskId : undefined,
       });
       if (!reconciled) {
         scheduleRefreshSessions();
@@ -626,7 +626,12 @@ function handleWorkerUpdate(
   const accepted = sessStore.applyWorkerStatus(
     e.sessionId,
     status,
-    { workerId: e.workerId, generation: e.generation, taskSeq: e.taskSeq },
+    {
+      workerId: e.workerId,
+      generation: e.generation,
+      taskSeq: e.taskSeq,
+      taskId: typeof e.taskId === 'string' ? e.taskId : undefined,
+    },
     terminal,
   );
   if (!accepted) return false;
@@ -783,19 +788,31 @@ function appendEventToMessages(
   sessionId: string,
   event: StreamEvent['event'],
   initialMessages: Message[],
+  scope?: Pick<StreamEvent, 'workerId' | 'generation' | 'taskSeq' | 'taskId'>,
 ): Message[] {
   if (!event) return initialMessages;
   const t = event.type;
   if (t === 'system' && event.subtype === 'init') return initialMessages;
   if (t === 'result') return initialMessages;
   let messages = initialMessages;
+  const blocks = extractBlocks(event);
+  // A single native event may contain thinking, text, and tool blocks for the
+  // same item. Each block must consume a different existing row; otherwise a
+  // repeated findIndex() updates the first row and later blocks drift into it.
+  // The ordinary one-block path avoids allocating this Set.
+  const usedIndexes = blocks.length > 1 ? new Set<number>() : undefined;
+  const cumulativeStreamText = event.delta
+    && blocks.length === 1
+    && typeof event.stream_text === 'string'
+    ? event.stream_text
+    : undefined;
 
   // Stream arrival order is the display order: the first event for a native
   // item reserves its position, and later deltas/completion replace that item
   // in place. Thinking/tool blocks therefore stay before or after content
   // according to the adapter's event semantics, never according to the
   // render timing or the current viewport position.
-  for (const b of extractBlocks(event)) {
+  for (const b of blocks) {
     // A Codex assistant reply is one logical message for the whole turn. The
     // native bridge can expose different item ids for its delta and completed
     // notifications (and an interleaved tool can become the last message), so
@@ -805,7 +822,12 @@ function appendEventToMessages(
     const turnId = b.role === 'assistant' && event.turn_id !== undefined
       ? String(event.turn_id)
       : undefined;
-    const aliasKey = turnId ? `${sessionId}:${turnId}` : undefined;
+    const scopeSuffix = turnId && scope?.taskSeq !== undefined
+      ? `:seq:${scope.taskSeq}`
+      : turnId && scope?.taskId
+        ? `:task:${scope.taskId}`
+        : '';
+    const aliasKey = turnId ? `${sessionId}${scopeSuffix}:${turnId}` : undefined;
     const aliasedItemId = aliasKey ? nativeTurnItemAliases.get(aliasKey) : undefined;
     const nativeItemId = itemId ?? (aliasedItemId ?? (turnId ? `turn:${turnId}` : undefined));
     if (aliasKey && itemId && !aliasedItemId) nativeTurnItemAliases.set(aliasKey, itemId);
@@ -816,14 +838,28 @@ function appendEventToMessages(
         : []),
       ...(turnId && nativeItemId !== `turn:${turnId}` ? [`turn:${turnId}`] : []),
     ].filter((id): id is string => Boolean(id));
-    const nativeIndex = nativeIds.length > 0
-      ? messages.findIndex((message) => message.nativeItemId && nativeIds.includes(message.nativeItemId))
-      : -1;
+    let nativeIndex = -1;
+    if (nativeIds.length > 0) {
+      nativeIndex = usedIndexes
+        ? messages.findIndex((message, index) =>
+            !usedIndexes.has(index)
+            && message.role === b.role
+            && message.nativeItemId
+            && nativeIds.includes(message.nativeItemId))
+        : messages.findIndex((message) =>
+            message.nativeItemId && nativeIds.includes(message.nativeItemId));
+      if (!usedIndexes && nativeIndex >= 0
+          && messages[nativeIndex]?.role !== b.role) {
+        nativeIndex = -1;
+      }
+    }
     const lastIndex = messages.length - 1;
     // A native id is an explicit target. Falling back to the last message here
     // lets an interleaved later item be replaced by an earlier item's update.
     // Untagged adapter events retain the legacy last-message behavior.
-    const targetIndex = nativeIndex >= 0 || nativeItemId ? nativeIndex : lastIndex;
+    const targetIndex = nativeIndex >= 0 || nativeItemId
+      ? nativeIndex
+      : usedIndexes?.has(lastIndex) ? -1 : lastIndex;
     const target = targetIndex >= 0 ? messages[targetIndex] : undefined;
     const aliasOnlyMatch = Boolean(
       itemId && aliasedItemId && target?.nativeItemId === aliasedItemId && itemId !== aliasedItemId,
@@ -832,11 +868,20 @@ function appendEventToMessages(
       const updated = { ...target, content: b.content };
       inheritMessageIdentity(updated, target);
       messages = messages.map((message, index) => index === targetIndex ? updated : message);
+      if (usedIndexes) usedIndexes.add(targetIndex);
       continue;
     }
     if (event.delta) {
       if (target?.role === b.role && (nativeIndex >= 0 || !nativeItemId)) {
-        const content = event.replace ? b.content : target.content + b.content;
+        const cumulativeContent = cumulativeStreamText !== undefined
+          && (b.role === 'assistant' || b.role === 'thinking')
+          ? cumulativeStreamText
+          : undefined;
+        const content = event.replace
+          ? b.content
+          : cumulativeContent !== undefined
+            ? cumulativeContent
+            : target.content + b.content;
         const updated = {
           ...target,
           content,
@@ -844,14 +889,16 @@ function appendEventToMessages(
         };
         inheritMessageIdentity(updated, target);
         messages = messages.map((message, index) => index === targetIndex ? updated : message);
+        if (usedIndexes) usedIndexes.add(targetIndex);
       } else {
         const message = {
           role: b.role,
           content: b.content,
-          ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
+          ...(nativeItemId ? { nativeItemId } : {}),
         };
         rememberMessageIdentity(message);
         messages = [...messages, message];
+        if (usedIndexes) usedIndexes.add(messages.length - 1);
       }
       continue;
     }
@@ -869,10 +916,12 @@ function appendEventToMessages(
         };
         inheritMessageIdentity(updated, target);
         messages = messages.map((message, index) => index === targetIndex ? updated : message);
+        if (usedIndexes) usedIndexes.add(targetIndex);
         continue;
       }
     }
     if (event.final && target?.role === b.role && target.content === b.content) {
+      if (usedIndexes) usedIndexes.add(targetIndex);
       continue;
     }
     if (b.role === 'assistant') {
@@ -883,6 +932,7 @@ function appendEventToMessages(
       };
       rememberMessageIdentity(message);
       messages = [...messages, message];
+      if (usedIndexes) usedIndexes.add(messages.length - 1);
     } else if (b.role === 'thinking') {
       const message = {
         role: 'thinking',
@@ -891,6 +941,7 @@ function appendEventToMessages(
       };
       rememberMessageIdentity(message);
       messages = [...messages, message];
+      if (usedIndexes) usedIndexes.add(messages.length - 1);
     } else if (b.role === 'tool') {
       const message = {
         role: 'tool',
@@ -899,6 +950,7 @@ function appendEventToMessages(
       };
       rememberMessageIdentity(message);
       messages = [...messages, message];
+      if (usedIndexes) usedIndexes.add(messages.length - 1);
     }
   }
   return messages;
@@ -907,19 +959,28 @@ function appendEventToMessages(
 function appendEvent(sessionId: string, event: StreamEvent['event'], meta: StreamEvent): boolean {
   if (!event) return false;
   const store = useSessionStore.getState();
+  const scope = {
+    workerId: meta.workerId,
+    generation: meta.generation,
+    taskSeq: meta.taskSeq,
+    taskId: typeof meta.taskId === 'string' ? meta.taskId : undefined,
+    turnId: event.turn_id,
+    itemId: event.item_id !== undefined ? String(event.item_id) : undefined,
+    streamText: event.delta && typeof event.stream_text === 'string'
+      ? event.stream_text
+      : undefined,
+  };
+  // Do this check before resolving native ids/aliases.  A stale frame must
+  // not mutate the transient alias table and then make a later native item
+  // look like a current task, even when applyLiveStream would reject it.
+  if (!store.canApplyLiveStream(sessionId, scope)) return false;
   const before = store.getLiveStreamMessages(sessionId);
   // The native alias table is only a transient accelerator. If the durable
   // live buffer is gone (result/restart or a fresh client state), an alias
   // from an earlier turn must not attach a new event to that old turn.
   if (before.length === 0) clearNativeTurnAliases(sessionId);
-  const messages = appendEventToMessages(sessionId, event, before);
-  const accepted = store.applyLiveStream(sessionId, messages, {
-    workerId: meta.workerId,
-    generation: meta.generation,
-    taskSeq: meta.taskSeq,
-    turnId: event.turn_id,
-    itemId: event.item_id !== undefined ? String(event.item_id) : undefined,
-  });
+  const messages = appendEventToMessages(sessionId, event, before, meta);
+  const accepted = store.applyLiveStream(sessionId, messages, scope);
   if (accepted) {
     for (const block of extractBlocks(event)) {
       if (block.role === 'thinking' || block.role === 'tool') {
@@ -964,12 +1025,14 @@ function syncAgentInjectedMessage(): void {
       if (store.currentSessionId !== sid) return; // 用户已切走，丢弃过期结果
 
       try {
-        const data = await fetchSessionHistory(sid, 0, 50);
+        const before = store.currentMessages;
+        // Use the store's guarded history reconciliation rather than writing
+        // the HTTP response directly.  This keeps agent/report injection on
+        // the same identity-aware path as Steer, queue delivery, and replay.
+        await useSessionStore.getState().refreshCurrentSessionHistory();
         const latest = useSessionStore.getState();
         if (latest.currentSessionId !== sid) return;
-        const merged = mergeServerMessages(latest.currentMessages, data.history || []);
-        if (merged !== latest.currentMessages) {
-          useSessionStore.setState({ currentMessages: merged });
+        if (latest.currentMessages !== before) {
           return;
         }
         // 当前快照没有带来新消息：注入可能仍在异步落盘，继续下一轮。
@@ -982,49 +1045,4 @@ function syncAgentInjectedMessage(): void {
   void sync().finally(() => {
     agentSyncInFlight = false;
   });
-}
-
-/** 把服务端历史里本地缺失的消息并入本地（幂等），同时保留本地已在流式的
- *  assistant 块（服务端落盘滞后）。无变化时返回原引用，避免多余重渲染。 */
-function mergeServerMessages(
-  local: Message[],
-  server: Message[],
-): Message[] {
-  if (server.length === 0) return local;
-  // 最长公共前缀：服务端在分叉点之前与本地一致
-  let k = 0;
-  while (
-    k < local.length &&
-    k < server.length &&
-    local[k]!.role === server[k]!.role &&
-    local[k]!.content === server[k]!.content &&
-    JSON.stringify(local[k]!.parts ?? null) === JSON.stringify(server[k]!.parts ?? null)
-  ) {
-    k++;
-  }
-  // 服务端历史是本地前缀 → 服务端没有本地没有的消息（流式中）→ 不动
-  if (k === server.length) return local;
-  const serverTail = server.slice(k);
-  const localTail = local.slice(k);
-  // 本地尾部中已被服务端新段覆盖的部分（流式块已落盘 + 新 user 消息），按
-  // 「本地前缀 == 服务端后缀」判定，插入后不重复。
-  let overlap = 0;
-  for (let n = 1; n <= Math.min(localTail.length, serverTail.length); n++) {
-    let match = true;
-    for (let i = 0; i < n; i++) {
-      const a = localTail[i]!;
-      const b = serverTail[serverTail.length - n + i]!;
-      if (a.role !== b.role || a.content !== b.content
-          || JSON.stringify(a.parts ?? null) !== JSON.stringify(b.parts ?? null)) {
-        match = false;
-        break;
-      }
-    }
-    if (match) overlap = n;
-  }
-  return [
-    ...local.slice(0, k),
-    ...serverTail,
-    ...localTail.slice(overlap),
-  ];
 }
