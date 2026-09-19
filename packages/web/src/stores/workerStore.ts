@@ -316,6 +316,16 @@ export const useWorkerStore = create<WorkerStore>((set) => ({
   },
 }));
 
+/**
+ * Read the cached runtime worker for one durable Session without touching the
+ * network. A map entry with a mismatched (or missing) sessionId is unknown,
+ * rather than allowing another Session's worker to suppress UI.
+ */
+export function isRuntimeWorkerRunning(sessionId: string): boolean {
+  const worker = useWorkerStore.getState().workers[sessionId];
+  return worker?.sessionId === sessionId && worker.status === 'running';
+}
+
 // Keep currentWorkerId in lockstep with the selected session. Worker events
 // and refresh() also sync, but the initial session selection (or switching)
 // happens through sessionStore.selectSession — this subscription covers it.

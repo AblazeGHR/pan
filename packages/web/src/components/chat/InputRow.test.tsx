@@ -864,6 +864,81 @@ describe('InputRow send queue wiring', () => {
     expect(screen.getByText('queued msg')).toBeTruthy();
   });
 
+  it('uses the current Session runtime worker, not the stale summary, to suppress optimistic history', async () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: [],
+      sessions: [
+        {
+          id: 's1',
+          name: 'Test',
+          adapter: 'cbc',
+          model: null,
+          permissionMode: null,
+          alwaysThinkingEnabled: false,
+          effort: '',
+          workerStatus: 'offline',
+          workerId: null,
+          history: [],
+        },
+      ],
+    });
+    useWorkerStore.setState({
+      workers: { s1: { id: 'w-runtime', sessionId: 's1', status: 'running' } },
+      currentWorkerId: 'w-runtime',
+      currentWorker: { id: 'w-runtime', sessionId: 's1', status: 'running' },
+    });
+    render(<InputRow />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'live path msg' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('live path msg'),
+    );
+    expect(enqueueSessionMessage).toHaveBeenCalledWith(
+      's1',
+      'live path msg',
+      expect.any(String),
+      expect.any(Array),
+    );
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it.each([
+    ['idle runtime', { s1: { id: 'w-idle', sessionId: 's1', status: 'idle' as const } }],
+    ['offline runtime', { s1: { id: 'w-offline', sessionId: 's1', status: 'offline' as const } }],
+    ['no runtime entry', {}],
+    [
+      'another Session runtime',
+      { s2: { id: 'w-other', sessionId: 's2', status: 'running' as const } },
+    ],
+    [
+      'mismatched runtime entry',
+      { s1: { id: 'w-other', sessionId: 's2', status: 'running' as const } },
+    ],
+  ])('keeps one optimistic row for %s', async (_name, workers) => {
+    // The summary deliberately says running in every case; only the
+    // current-session runtime registry is authoritative for this decision.
+    setBusySession();
+    useWorkerStore.setState({ workers });
+    render(<InputRow />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'fallback path msg' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('fallback path msg'),
+    );
+    expect(useSessionStore.getState().currentMessages).toEqual([{
+      role: 'user', content: 'fallback path msg', queueItemIds: ['q-fallback-path-msg'],
+    }]);
+  });
+
   it('does not render a stale localStorage queue after a page reload', async () => {
     // Legacy localStorage is not a business source of truth.
     localStorage.setItem(
@@ -996,6 +1071,76 @@ describe('InputRow send queue wiring', () => {
     expect(textarea.value).toBe('new input while waiting');
   });
 
+  it('suppresses the optimistic row if the runtime becomes running before enqueue acknowledgement', async () => {
+    setBusySession();
+    useWorkerStore.setState({
+      workers: { s1: { id: 'w-idle', sessionId: 's1', status: 'idle' } },
+      currentWorkerId: 'w-idle',
+      currentWorker: { id: 'w-idle', sessionId: 's1', status: 'idle' },
+    });
+    const request = deferred<Awaited<ReturnType<typeof enqueueSessionMessage>>>();
+    vi.mocked(enqueueSessionMessage).mockReturnValueOnce(request.promise);
+    render(<InputRow />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'transition to live' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    useWorkerStore.getState().updateWorker('s1', 'w-running', 'running');
+    request.resolve({
+      item: {
+        id: 'q-transition-to-live',
+        queueItemId: 'q-transition-to-live',
+        text: 'transition to live',
+        source: 'user',
+        kind: 'task',
+        createdAt: 1,
+        meta: { dispatchState: 'queued', revision: 1 },
+      },
+      queueRevision: 1,
+    });
+
+    await waitFor(() =>
+      expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('transition to live'),
+    );
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('keeps a send that started in the live path suppressed if the runtime becomes idle before acknowledgement', async () => {
+    setBusySession();
+    useWorkerStore.setState({
+      workers: { s1: { id: 'w-running', sessionId: 's1', status: 'running' } },
+      currentWorkerId: 'w-running',
+      currentWorker: { id: 'w-running', sessionId: 's1', status: 'running' },
+    });
+    const request = deferred<Awaited<ReturnType<typeof enqueueSessionMessage>>>();
+    vi.mocked(enqueueSessionMessage).mockReturnValueOnce(request.promise);
+    render(<InputRow />);
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'started while live' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    useWorkerStore.getState().updateWorker('s1', 'w-running', 'idle');
+    request.resolve({
+      item: {
+        id: 'q-started-while-live',
+        queueItemId: 'q-started-while-live',
+        text: 'started while live',
+        source: 'user',
+        kind: 'task',
+        createdAt: 1,
+        meta: { dispatchState: 'queued', revision: 1 },
+      },
+      queueRevision: 1,
+    });
+
+    await waitFor(() =>
+      expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('started while live'),
+    );
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
   it('keeps a new Session draft isolated while the old Session send completes', async () => {
     setBusySession();
     useSessionStore.setState((state) => ({
@@ -1047,6 +1192,7 @@ describe('InputRow send queue wiring', () => {
       ),
     );
     expect(textarea.value).toBe('belongs to s2');
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
     expect(useQueueStore.getState().queues.s2).toBeUndefined();
     expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('belongs to s1');
   });

@@ -13,6 +13,7 @@ vi.mock('@/services/api', () => api);
 
 import { useQueueStore } from './queueStore';
 import { useSessionStore } from './sessionStore';
+import { useWorkerStore } from './workerStore';
 
 type Source = 'user' | 'agent' | 'report' | 'qq';
 type Kind = 'task' | 'report' | 'qq';
@@ -37,6 +38,7 @@ function snapshot(items: ReturnType<typeof item>[], revision = 1) {
 beforeEach(() => {
   localStorage.clear();
   useSessionStore.setState({ currentSessionId: 's1', sessions: [], currentMessages: [] });
+  useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
   useQueueStore.setState({
     queues: {},
     agentQueues: {},
@@ -96,6 +98,33 @@ describe('server-backed queue store', () => {
     expect(api.enqueueSessionMessage).toHaveBeenCalledWith('s1', 'captured', 'client-stable');
     expect(useQueueStore.getState().queues.s1).toEqual([queued]);
     expect(useQueueStore.getState().queues.s2).toBeUndefined();
+  });
+
+  it('keeps the server queue update but skips optimistic history when explicitly disabled', async () => {
+    const queued = item('q-live', 'live path');
+    api.enqueueSessionMessage.mockResolvedValue({ item: queued, queueRevision: 6 });
+
+    await expect(
+      useQueueStore.getState().enqueue('live path', undefined, 's1', 'client-live', {
+        appendOptimisticHistory: false,
+      }),
+    ).resolves.toBe(true);
+
+    expect(useQueueStore.getState().queues.s1).toEqual([queued]);
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+  });
+
+  it('uses the current Session runtime worker at the append boundary', async () => {
+    const queued = item('q-runtime', 'runtime path');
+    api.enqueueSessionMessage.mockResolvedValue({ item: queued, queueRevision: 7 });
+    useWorkerStore.setState({
+      workers: { s1: { id: 'w-runtime', sessionId: 's1', status: 'running' } },
+    });
+
+    await expect(useQueueStore.getState().enqueue('runtime path')).resolves.toBe(true);
+
+    expect(useQueueStore.getState().queues.s1).toEqual([queued]);
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
   it('edits a queued user item through the server while retaining its identity', async () => {

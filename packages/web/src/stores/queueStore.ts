@@ -8,9 +8,19 @@ import {
   updateSessionQueueItem,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
+import { isRuntimeWorkerRunning } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 
 /** The business queue is the server snapshot; localStorage is not a queue. */
+export interface EnqueueOptions {
+  /**
+   * Whether this send transaction may append the queued row to chat history.
+   * InputRow captures this at send start so a running→idle transition cannot
+   * turn a send that began in the live path into a duplicate optimistic row.
+   */
+  appendOptimisticHistory?: boolean;
+}
+
 interface QueueStore {
   queues: Record<string, AgentQueueItem[]>;
   edits: Record<string, QueuedEdit | null>;
@@ -35,6 +45,7 @@ interface QueueStore {
     parts?: MessagePart[],
     sessionId?: string,
     clientId?: string,
+    options?: EnqueueOptions,
   ) => Promise<boolean>;
   remove: (id: string) => void;
   startEdit: (id: string) => void;
@@ -211,7 +222,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     }
   },
 
-  enqueue: async (text, parts, sessionId, clientId) => {
+  enqueue: async (text, parts, sessionId, clientId, options) => {
     // A send transaction captures its Session before any await.  Falling back
     // to the current Session is retained for queue-panel/legacy callers, but
     // InputRow passes the explicit id so a Session switch cannot reroute or
@@ -228,7 +239,15 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
         ? current
         : [...current, result.item];
       setSnapshot(set, sid, next, result.queueRevision);
-      useSessionStore.getState().appendQueuedMessage(sid, result.item);
+      // Re-check the same cached, Session-keyed runtime registry at the
+      // append boundary.  This covers a non-running→running transition
+      // during HTTP enqueue without another request or an async wait.
+      // Unknown/null/mismatched entries intentionally retain the historical
+      // optimistic behavior; only a confirmed current-session `running`
+      // state suppresses the row.
+      if (options?.appendOptimisticHistory !== false && !isRuntimeWorkerRunning(sid)) {
+        useSessionStore.getState().appendQueuedMessage(sid, result.item);
+      }
       useUIStore.getState().showToast('消息已进入服务端队列');
       return true;
     } catch (error) {

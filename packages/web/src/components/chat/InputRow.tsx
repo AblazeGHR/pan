@@ -5,7 +5,7 @@ import {
   useCurrentSession,
   type SessionSettingPatch,
 } from '@/stores/sessionStore';
-import { useWorkerStore } from '@/stores/workerStore';
+import { isRuntimeWorkerRunning, useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useQueueStore } from '@/stores/queueStore';
@@ -125,6 +125,7 @@ interface SendSnapshot {
   attachments: PendingAttachment[];
   message: string;
   parts?: MessagePart[];
+  appendOptimisticHistory: boolean;
 }
 
 interface SessionComposerDraft {
@@ -937,6 +938,10 @@ export function InputRow() {
         showToast('Select a session first');
         return;
       }
+      // Read the cached, Session-keyed runtime registry synchronously at the
+      // start of the send transaction.  Session summaries can lag worker
+      // events; this must not add a request or wait before enqueueing.
+      const appendOptimisticHistory = !isRuntimeWorkerRunning(currentSessionId);
       if (attachments.some((attachment) => attachment.status === 'uploading')) {
         showToast('附件仍在上传，请稍候', 'error');
         return;
@@ -1055,6 +1060,7 @@ export function InputRow() {
         attachments: snapshotAttachments,
         message,
         parts: structuredParts.length > 0 ? structuredParts : undefined,
+        appendOptimisticHistory,
       };
       sendSnapshotsRef.current.set(snapshot.transactionId, snapshot);
 
@@ -1098,6 +1104,7 @@ export function InputRow() {
             snapshot.parts,
             snapshot.sessionId,
             snapshot.clientMessageId,
+            { appendOptimisticHistory: snapshot.appendOptimisticHistory },
           );
           if (!ok) throw new Error('消息尚未入队');
           sendSnapshotsRef.current.delete(snapshot.transactionId);
