@@ -181,6 +181,25 @@ session_handoff(session_id="ses_a...",
 
 交接后 B 即可 `agent_assign` 派活；切换 adapter 的典型用法：`copy_settings=false + adapter="kimi" + handoff_prompt=...`。
 
+### 2.8 验收批次、任务卡与报告的可执行写法
+
+维护 `acceptance-batches`、`overview`、任务卡或 TA 报告时，验收入口和开发者动作必须让下一位 MA/TA 可以直接执行，不能写成没有出处和操作对象的“查看详情”。每一项动作至少写清：
+
+1. **动作对象**：要检查的报告文件、任务 ID、Session/worktree/commit、证据目录或明确的持久化链接；
+2. **操作步骤/检查项**：打开、运行、对比或核对什么，以及必要的范围；
+3. **预期结果**：什么结果才算通过，什么结果算失败；
+4. **回填位置**：把通过、失败或未验证状态写回哪个批次、任务卡、`overview` 字段或报告文件。
+
+验收清单的每个“通过 / 失败 / 未验证”都必须带可定位出处（例如报告文件、任务 ID、Session/worktree/commit、证据目录或持久化链接）。找不到出处时必须明确写 **“证据入口缺失”**，不得要求用户自行猜测。已验收批次在标题或状态字段中显式写 **“已验收”**；待处理批次显式写 **“待处理/未验收”**。批次/父任务与后续独立任务分开记录，不能用后续任务的待验收状态反推已验收批次未完成。
+
+开发者动作必须逐项说明如何：
+
+- 接受当前范围，并记录接受依据；
+- 记录失败（现象、出处和回填位置）；或
+- 另立验证/修复任务（新任务 ID、依赖和回填位置）。
+
+不得用一个总勾选覆盖多个仍“未验证”的项目。该规则同时适用于 TA 的完成报告和 MA 的整合/验收记录。验收动作本身不要求操作 8768，也不以启动服务作为默认前置；只做文档、报告、静态证据或已授权的目标验证即可。编写或回填时保留用户 dirty 文件，不覆盖、回滚或代替处理与当前验收无关的用户改动。
+
 ## 3. 完成通知：report_subscribe → queue_pending（MA 内部订阅，唯一编排路径）
 
 MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**：MCP `report_subscribe` 把目标 session 的完成报告（done/error）推送到你的**落盘队列** `queue_pending`，由 consumer 批量拼成一条消息唤醒你。主链路：`session_create → report_subscribe（订阅）→ agent_assign → queue_pending 等完成 → session_get → session_delete`（订阅在 assign 前或后均可）。
