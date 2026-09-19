@@ -717,7 +717,7 @@ async def _run_usage_enrichment(session_id: str) -> None:
             return True
 
         while True:
-            s = _sess.get(session_id)
+            s = _get_session_shallow(session_id)
             if s is None:
                 return
             pending = getattr(s, "usage_enrichment_pending", None)
@@ -850,7 +850,7 @@ def _schedule_usage_enrichment(session_id: str) -> asyncio.Task | None:
 def recover_pending_usage_enrichment() -> int:
     """Schedule persisted usage jobs after startup/recovery scans."""
     scheduled = 0
-    for s in _sess.list_all():
+    for s in _list_sessions_shallow():
         if _has_pending_usage_enrichment(s):
             if _schedule_usage_enrichment(s.id) is not None:
                 scheduled += 1
@@ -2242,7 +2242,7 @@ def _format_report_batch(reports: list[dict]) -> str:
         sid = candidate_sid if isinstance(candidate_sid, str) else ""
         title = "unknown"
         if sid:
-            sess = _sess.get(sid)
+            sess = _get_session_shallow(sid)
             if sess and sess.name:
                 title = sess.name
         elif r.get("source") == "automation":
@@ -2527,6 +2527,253 @@ def _queue_source(item: dict) -> str | None:
     return _task_source(item)
 
 
+_IDEMPOTENCY_INDEX_VERSION = 1
+_IDEMPOTENCY_BUCKETS = ("taskId", "clientMessageId")
+# A freshly completed receipt must survive at least this small crash/retry
+# window even if a test or deployment overrides the normal seven-day TTL.
+# Count eviction uses the same floor, so an in-flight retry cannot lose its
+# only durable proof merely because the ledger is temporarily over capacity.
+_RECEIPT_MIN_RETRY_SEC = getattr(_sess, "QUEUE_RECEIPT_MIN_RETRY_SEC", 60.0)
+_RECEIPT_COMPACT_KEYS = frozenset({
+    "id", "queueItemId", "type", "kind", "source", "sourceSessionId",
+    "sessionId", "taskId", "taskIdSource", "clientMessageId", "eventId",
+    "jobId", "creatorSessionId", "targetSessionId", "targetSessionIds",
+    "status", "workerId", "seq", "revision", "createdAt", "updatedAt",
+    "receiptAt", "deliveredAt", "deletedAt", "deliveryState",
+    "dispatchState", "receiptVersion", "receiptOnly",
+})
+
+
+def _list_sessions_shallow():
+    """Use the shallow loader while tolerating legacy test/embedder shims."""
+    try:
+        return _sess.list_all(load_history=False)
+    except TypeError:
+        return _sess.list_all()
+
+
+def _get_session_shallow(session_id: str):
+    """Read queue/metadata state without hydrating a cold history JSONL."""
+    try:
+        return _sess.get(session_id, load_history=False)
+    except TypeError:
+        return _sess.get(session_id)
+
+
+def _empty_idempotency_index() -> dict:
+    return {
+        "version": _IDEMPOTENCY_INDEX_VERSION,
+        "taskId": {},
+        "clientMessageId": {},
+    }
+
+
+def _idempotency_index(s, *, normalize: bool = True) -> tuple[dict, bool]:
+    """Return the index and whether its top-level shape needed repair.
+
+    Full entry normalization is only needed once per loaded Session.  Hot
+    idempotency lookups pass ``normalize=False`` so a 4k-entry index does not
+    turn every retry into another linear scan.
+    """
+    raw = getattr(s, "queue_idempotency_index", None)
+    changed = False
+    if not isinstance(raw, dict) or raw.get("version") != _IDEMPOTENCY_INDEX_VERSION:
+        index = _empty_idempotency_index()
+        changed = raw is not None
+    else:
+        index = raw
+        for bucket in _IDEMPOTENCY_BUCKETS:
+            values = index.get(bucket)
+            if not isinstance(values, dict):
+                index[bucket] = {}
+                changed = True
+                continue
+            if normalize:
+                for key, entry in list(values.items()):
+                    if not isinstance(key, str) or not key:
+                        values.pop(key, None)
+                        changed = True
+                    elif isinstance(entry, str):
+                        values[key] = {"queueItemId": entry, "seenAt": 0.0}
+                        changed = True
+                    elif not isinstance(entry, dict):
+                        values.pop(key, None)
+                        changed = True
+    if index is not raw:
+        s.queue_idempotency_index = index
+    return index, changed
+
+
+def _idempotency_seen_at(item: dict | None, fallback: float | None = None) -> float:
+    if isinstance(item, dict):
+        for key in (
+            "receiptAt", "deliveredAt", "deletedAt", "createdAt", "updatedAt",
+            "seenAt",
+        ):
+            value = item.get(key)
+            if isinstance(value, (int, float)):
+                return float(value)
+    return float(fallback if fallback is not None else time.time())
+
+
+def _index_idempotency_key(
+    s, bucket: str, key: object, *, queue_item_id: str | None,
+    seen_at: float | None = None, prefer_existing: bool = False,
+) -> bool:
+    if bucket not in _IDEMPOTENCY_BUCKETS or not isinstance(key, str) or not key:
+        return False
+    index, changed = _idempotency_index(s, normalize=False)
+    values = index[bucket]
+    existing = values.get(key)
+    if isinstance(existing, str):
+        existing = {"queueItemId": existing, "seenAt": 0.0}
+        values[key] = existing
+        changed = True
+    if not isinstance(existing, dict):
+        values[key] = {
+            "queueItemId": queue_item_id,
+            "seenAt": _idempotency_seen_at(None, seen_at),
+        }
+        return True
+    old_id = existing.get("queueItemId")
+    # A current queue/ledger record is more useful than a history-only
+    # tombstone.  Otherwise preserve the first durable receipt for idempotency.
+    if queue_item_id and not old_id:
+        if old_id != queue_item_id:
+            existing["queueItemId"] = queue_item_id
+            changed = True
+    if not isinstance(existing.get("seenAt"), (int, float)):
+        existing["seenAt"] = _idempotency_seen_at(None, seen_at)
+        changed = True
+    elif seen_at is not None and queue_item_id and not old_id:
+        existing["seenAt"] = float(seen_at)
+        changed = True
+    return changed
+
+
+def _index_queue_item(s, item: dict, *, state: str | None = None) -> bool:
+    """Index formal task/client receipt keys without scanning history."""
+    if not isinstance(item, dict):
+        return False
+    item_id = _queue_item_id(item)
+    seen_at = _idempotency_seen_at(item)
+    changed = False
+    if _is_formal_task_item(item) and item.get("taskId"):
+        changed = _index_idempotency_key(
+            s, "taskId", item.get("taskId"), queue_item_id=item_id,
+            seen_at=seen_at, prefer_existing=True,
+        ) or changed
+    if item.get("clientMessageId"):
+        changed = _index_idempotency_key(
+            s, "clientMessageId", item.get("clientMessageId"),
+            queue_item_id=item_id, seen_at=seen_at, prefer_existing=True,
+        ) or changed
+    return changed
+
+
+def _synthetic_receipt(s, bucket: str, key: str, entry: dict) -> dict:
+    """Represent an indexed-but-compacted receipt without restoring its body."""
+    queue_item_id = entry.get("queueItemId")
+    receipt = {
+        "type": "task" if bucket in {"taskId", "clientMessageId"} else "receipt",
+        "kind": "task",
+        "deliveryState": _DELIVERY_SENT,
+        "dispatchState": _DELIVERY_SENT,
+        "receiptOnly": True,
+        "receiptVersion": 1,
+    }
+    if isinstance(queue_item_id, str) and queue_item_id:
+        receipt.update({"id": queue_item_id, "queueItemId": queue_item_id})
+    if bucket == "taskId":
+        receipt["taskId"] = key
+    else:
+        receipt["clientMessageId"] = key
+    return receipt
+
+
+def _history_idempotency_rows(s) -> list[dict]:
+    """Load only a bounded tail when rebuilding an old Session's index."""
+    limit = max(
+        getattr(_sess, "ACCEPTED_INPUT_ID_MAX", 256),
+        getattr(_sess, "QUEUE_IDEMPOTENCY_INDEX_MAX_ENTRIES", 4096),
+    )
+    if getattr(s, "_history_loaded", True):
+        return [row for row in (s.history or [])[-limit:]
+                if isinstance(row, dict)]
+    history_path = _sess._history_path(s.id)
+    if history_path.exists():
+        rows, _ = _sess._history_page_from_jsonl(
+            history_path, before=0, limit=limit,
+        )
+        return [row for row in rows if isinstance(row, dict)]
+    page = _sess.history_page(s.id, limit=limit)
+    if not page:
+        return []
+    return [row for row in page.get("history", []) if isinstance(row, dict)]
+
+
+def _ensure_idempotency_index(s) -> bool:
+    """Build/repair the durable task/client receipt index once per Session.
+
+    Old data has no index.  The compatibility rebuild scans at most the
+    bounded history tail once; subsequent assign/browser retries use the
+    persisted O(1) maps and the ledger's queueItemId lookup.
+    """
+    if s is None:
+        return False
+    had_index = bool(getattr(s, "_idempotency_index_present", False))
+    index, changed = _idempotency_index(
+        s, normalize=not getattr(s, "_idempotency_index_built", False),
+    )
+    if getattr(s, "_idempotency_index_built", False):
+        return changed
+    if not getattr(s, "_idempotency_index_built", False):
+        rows = _history_idempotency_rows(s)
+        for entry in rows:
+            # A legacy history row often has no timestamp.  Treat the first
+            # index build as the receipt's observation time rather than as a
+            # 1970 epoch value, otherwise the compatibility index would be
+            # expired immediately on its first compaction pass.
+            seen_at = _idempotency_seen_at(entry)
+            task_id = entry.get("taskId")
+            if task_id and entry.get("taskIdSource", "assign") != "active":
+                changed = _index_idempotency_key(
+                    s, "taskId", task_id, queue_item_id=(
+                        entry.get("queueItemId") or entry.get("queueItemID")
+                    ), seen_at=seen_at,
+                ) or changed
+            client_id = entry.get("clientMessageId")
+            if client_id:
+                changed = _index_idempotency_key(
+                    s, "clientMessageId", client_id, queue_item_id=(
+                        entry.get("queueItemId") or entry.get("queueItemID")
+                    ), seen_at=seen_at,
+                ) or changed
+        s._idempotency_index_built = True
+        changed = (not had_index) or changed
+
+    # Queue/ledger rows are bounded independently from history and may have
+    # been edited by the HTTP queue API since the last index persistence.  A
+    # legacy pending row without a ledger mirror is copied once here so a
+    # subsequent lookup can resolve its queueItemId directly, without a
+    # fallback scan through the ever-growing pending list.
+    for item in (s.queue_pending or []):
+        item_id = _queue_item_id(item) if isinstance(item, dict) else None
+        if (item_id and item_id not in s.queue_delivery_ledger
+                and isinstance(item, dict)):
+            s.queue_delivery_ledger[item_id] = dict(item)
+            changed = True
+        changed = _index_queue_item(s, item) or changed
+    for item in (getattr(s, "queue_delivery_ledger", {}) or {}).values():
+        changed = _index_queue_item(s, item) or changed
+    for client_id in getattr(s, "accepted_input_ids", []) or []:
+        changed = _index_idempotency_key(
+            s, "clientMessageId", client_id, queue_item_id=None,
+        ) or changed
+    s._idempotency_index_present = True
+    return changed
+
+
 def _ledger_record(s, queue_item_id: str | None) -> dict | None:
     if not queue_item_id:
         return None
@@ -2536,10 +2783,17 @@ def _ledger_record(s, queue_item_id: str | None) -> dict | None:
 
 def _remember_queue_item(s, item: dict, state: str | None = None) -> dict:
     item_id = _queue_item_id(item)
+    if state in {_DELIVERY_SENT, _DELIVERY_DELETED}:
+        item.setdefault("receiptAt", time.time())
+        if state == _DELIVERY_SENT:
+            item.setdefault("deliveredAt", item.get("receiptAt"))
+        elif state == _DELIVERY_DELETED:
+            item.setdefault("deletedAt", item.get("receiptAt"))
     record = dict(item)
     if state is not None:
         record["deliveryState"] = state
     s.queue_delivery_ledger[item_id] = record
+    _index_queue_item(s, record, state=state)
     return record
 
 
@@ -2555,12 +2809,20 @@ def _sync_queued_ledger(s) -> bool:
             if previous != record:
                 s.queue_delivery_ledger[item_id] = record
                 changed = True
+            changed = _index_queue_item(s, record) or changed
     return changed
 
 
 def _set_delivery_state(s, item: dict, state: str) -> None:
     item["deliveryState"] = state
     item["dispatchState"] = state
+    if state in {_DELIVERY_SENT, _DELIVERY_DELETED}:
+        now = time.time()
+        item.setdefault("receiptAt", now)
+        if state == _DELIVERY_SENT:
+            item.setdefault("deliveredAt", item.get("receiptAt"))
+        else:
+            item.setdefault("deletedAt", item.get("receiptAt"))
     _remember_queue_item(s, item, state)
 
 
@@ -2569,20 +2831,37 @@ def _recover_delivery_states(s) -> bool:
 
 
 def _find_queue_item_by_idempotency(s, client_message_id=None, task_id=None):
-    for item in (s.queue_pending or []):
-        if not isinstance(item, dict):
+    if s is None:
+        return None
+    _ensure_idempotency_index(s)
+    for bucket, key in (("clientMessageId", client_message_id),
+                        ("taskId", task_id)):
+        if not key:
             continue
-        if client_message_id and item.get("clientMessageId") == client_message_id:
-            return item
-        if task_id and _is_formal_task_item(item) and item.get("taskId") == task_id:
-            return item
-    for item in (getattr(s, "queue_delivery_ledger", {}) or {}).values():
-        if not isinstance(item, dict):
+        entry = (getattr(s, "queue_idempotency_index", {}) or {}).get(bucket, {}).get(key)
+        if not isinstance(entry, dict):
             continue
-        if client_message_id and item.get("clientMessageId") == client_message_id:
-            return item
-        if task_id and _is_formal_task_item(item) and item.get("taskId") == task_id:
-            return item
+        queue_item_id = entry.get("queueItemId")
+        if isinstance(queue_item_id, str) and queue_item_id:
+            record = _ledger_record(s, queue_item_id)
+            if isinstance(record, dict):
+                return record
+            # The index is an acceleration layer, not an independent receipt
+            # store.  If its ledger target has been evicted (or an operator
+            # has compacted the ledger directly), discard the stale pointer
+            # and let the process-local terminal cache or the durable history
+            # index decide the retry outcome.  Returning a synthetic
+            # sent_to_cli receipt here would mask a valid local ``done``
+            # result and could keep an expired task id alive forever.
+            values = (getattr(s, "queue_idempotency_index", {}) or {}).get(
+                bucket, {})
+            if values.get(key) is entry:
+                values.pop(key, None)
+            return None
+        # History/accepted-input entries without a queue receipt still count
+        # for the boolean dedup path, but cannot provide a terminal receipt
+        # payload to callers such as assign().
+        return None
     return None
 
 
@@ -2608,6 +2887,184 @@ def _queue_item_backoff(item: dict, reason: str, *, immediate: bool = False) -> 
     if reason:
         item["lastDeliveryError"] = str(reason)[:1000]
     _clear_delivery_reservation(item)
+
+
+def _compact_receipt_record(record: dict, queue_item_id: str) -> dict:
+    """Drop message bodies from an old terminal receipt, keeping its proof."""
+    compact = {
+        key: value for key, value in record.items()
+        if key in _RECEIPT_COMPACT_KEYS
+    }
+    compact["id"] = queue_item_id
+    compact["queueItemId"] = queue_item_id
+    compact["receiptOnly"] = True
+    compact["receiptVersion"] = 1
+    compact.setdefault("receiptAt", _idempotency_seen_at(record))
+    return compact
+
+
+def _remove_idempotency_receipt(s, record: dict, queue_item_id: str) -> bool:
+    """Remove only index entries that still point at this evicted receipt."""
+    changed = False
+    index, normalized = _idempotency_index(s, normalize=False)
+    changed = normalized
+    for bucket in _IDEMPOTENCY_BUCKETS:
+        values = index[bucket]
+        for key, entry in list(values.items()):
+            if not isinstance(entry, dict):
+                values.pop(key, None)
+                changed = True
+                continue
+            if entry.get("queueItemId") == queue_item_id:
+                values.pop(key, None)
+                changed = True
+    return changed
+
+
+def _compact_delivery_receipts(s) -> bool:
+    """Bound terminal receipt count/age while preserving recovery rows.
+
+    ``queue_pending`` is never shortened here.  Every non-terminal ledger row
+    is retained, as is a terminal row that still has a matching pending copy.
+    Terminal rows are first reduced to metadata-only receipts after the
+    compaction age, then evicted by TTL/count; the idempotency index is swept
+    in the same operation so an expired key is the only way a retry can start
+    a new item.
+    """
+    if s is None:
+        return False
+    changed = _ensure_idempotency_index(s)
+    ledger = getattr(s, "queue_delivery_ledger", None)
+    if not isinstance(ledger, dict):
+        s.queue_delivery_ledger = ledger = {}
+        changed = True
+    pending_ids = {
+        _queue_item_id(item) for item in (s.queue_pending or [])
+        if isinstance(item, dict)
+    }
+    now = time.time()
+    ttl = max(
+        _RECEIPT_MIN_RETRY_SEC,
+        float(getattr(_sess, "QUEUE_RECEIPT_TTL_SEC", 7 * 24 * 60 * 60)),
+    )
+    # Compact reasonably old bodies even when the count bound has not fired.
+    # This keeps the common long-running case cheap without changing the
+    # receipt key/state visible to duplicate callers.
+    compact_after = min(ttl, 15 * 60)
+    terminal: list[tuple[str, dict, float]] = []
+    for queue_item_id, record in list(ledger.items()):
+        if not isinstance(record, dict):
+            ledger.pop(queue_item_id, None)
+            changed = True
+            continue
+        state = _delivery_state(record)
+        if state not in {_DELIVERY_SENT, _DELIVERY_DELETED}:
+            changed = _index_queue_item(s, record, state=state) or changed
+            continue
+        receipt_at = _idempotency_seen_at(record, now)
+        if not record.get("receiptAt"):
+            record["receiptAt"] = receipt_at
+            changed = True
+        if queue_item_id not in pending_ids:
+            terminal.append((str(queue_item_id), record, receipt_at))
+        if (now - receipt_at) >= compact_after and not record.get("receiptOnly"):
+            ledger[queue_item_id] = _compact_receipt_record(record, str(queue_item_id))
+            changed = True
+
+    terminal.sort(key=lambda value: value[2])
+    evict = {
+        queue_item_id for queue_item_id, _, receipt_at in terminal
+        if (now - receipt_at) >= ttl
+    }
+    overflow = len(terminal) - max(
+        0, int(getattr(_sess, "QUEUE_RECEIPT_MAX_ENTRIES", 2048)),
+    )
+    if overflow > 0:
+        evict.update(queue_item_id for queue_item_id, _, _ in terminal[:overflow])
+        # Never use count pressure to evict a receipt still inside the
+        # minimum crash/retry window.  A short-lived overflow is safer than
+        # opening a duplicate-provider-turn window for a fresh receipt.
+        evict.difference_update(
+            queue_item_id for queue_item_id, _, _ in terminal
+            if (now - _idempotency_seen_at(
+                ledger.get(queue_item_id), now)) < _RECEIPT_MIN_RETRY_SEC
+        )
+    for queue_item_id in evict:
+        if queue_item_id in pending_ids:
+            continue
+        removed = ledger.pop(queue_item_id, None)
+        if isinstance(removed, dict):
+            changed = _remove_idempotency_receipt(
+                s, removed, str(queue_item_id),
+            ) or changed
+
+    # Bound the compact index independently.  Active/pending entries are
+    # never dropped; detached tombstones expire with the same retention window.
+    index, normalized = _idempotency_index(s, normalize=False)
+    changed = normalized or changed
+    active_ids = set(pending_ids)
+    active_ids.update(
+        str(queue_item_id) for queue_item_id, record in ledger.items()
+        if isinstance(record, dict)
+        and _delivery_state(record) not in {_DELIVERY_SENT, _DELIVERY_DELETED}
+    )
+    index_entries: list[tuple[float, str, str, dict]] = []
+    for bucket in _IDEMPOTENCY_BUCKETS:
+        for key, entry in list(index[bucket].items()):
+            if not isinstance(entry, dict):
+                index[bucket].pop(key, None)
+                changed = True
+                continue
+            qid = entry.get("queueItemId")
+            seen_at = _idempotency_seen_at(entry, now)
+            if qid in active_ids:
+                continue
+            if (isinstance(qid, str) and qid in ledger
+                    and _delivery_state(ledger[qid]) not in {
+                        _DELIVERY_SENT, _DELIVERY_DELETED}):
+                continue
+            index_entries.append((seen_at, bucket, key, entry))
+    index_entries.sort(key=lambda value: value[0])
+    index_limit = max(
+        0, int(getattr(_sess, "QUEUE_IDEMPOTENCY_INDEX_MAX_ENTRIES", 4096)),
+    )
+    index_evict = {
+        (bucket, key) for seen_at, bucket, key, _ in index_entries
+        if (now - seen_at) >= ttl
+    }
+    if len(index_entries) > index_limit:
+        eligible_entries = [
+            value for value in index_entries
+            if (now - value[0]) >= _RECEIPT_MIN_RETRY_SEC
+        ]
+        overflow = len(index_entries) - index_limit
+        index_evict.update(
+            (bucket, key)
+            for _, bucket, key, _ in eligible_entries[:overflow]
+        )
+    for bucket, key in index_evict:
+        if index[bucket].pop(key, None) is not None:
+            changed = True
+
+    client_index = index["clientMessageId"]
+    bounded_ids = [
+        value for value in (getattr(s, "accepted_input_ids", []) or [])
+        if value in client_index
+    ]
+    accepted_limit = int(getattr(_sess, "ACCEPTED_INPUT_ID_MAX", 256))
+    bounded_ids = list(dict.fromkeys(bounded_ids))[-accepted_limit:]
+    if bounded_ids != getattr(s, "accepted_input_ids", []):
+        s.accepted_input_ids = bounded_ids
+        changed = True
+    return changed
+
+
+def _prepare_receipt_persistence(s) -> bool:
+    """Normalize/index/compact receipt metadata before a durable save."""
+    changed = _sync_queued_ledger(s)
+    changed = _ensure_idempotency_index(s) or changed
+    changed = _compact_delivery_receipts(s) or changed
+    return changed
 
 
 def _has_dispatchable_items(s) -> bool:
@@ -2667,7 +3124,7 @@ def _normalize_source_session_id(source_session_id) -> tuple[str | None, str | N
         return None, None
     if not isinstance(source_session_id, str):
         return None, "sourceSessionId must be a string"
-    if _sess.get(source_session_id) is None:
+    if _get_session_shallow(source_session_id) is None:
         return None, f"Source session {source_session_id} not found"
     return source_session_id, None
 
@@ -2833,6 +3290,13 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
     if not restore_ledger:
         changed = changed or len(keep) != len(s.queue_pending or [])
         s.queue_pending = keep
+        # Building the in-memory acceleration index is deliberately not a
+        # queue-contract migration.  A clean legacy row must keep the
+        # historical ``changed=False`` result (callers use it to decide
+        # whether recovery needs a write); the next receipt save persists the
+        # index, while a restart can safely rebuild it from the durable queue
+        # and bounded history tail.
+        _ensure_idempotency_index(s)
         return changed
 
     for queue_item_id, record in list((getattr(s, "queue_delivery_ledger", {}) or {}).items()):
@@ -2865,6 +3329,10 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
     if len(keep) != len(s.queue_pending or []):
         changed = True
     s.queue_pending = keep
+    # See the non-restoring branch above: index construction is an
+    # acceleration/migration detail, not a reason to report a queue-state
+    # change for an otherwise canonical row.
+    _ensure_idempotency_index(s)
     return changed
 
 
@@ -2929,6 +3397,10 @@ async def _save_receipt(s) -> None:
     cancellation only after a successful commit.  Callers can safely rollback
     on ordinary save errors; a successful cancelled save remains consumed.
     """
+    # Keep the receipt/index state bounded at the same persistence boundary as
+    # queue hand-off.  This does not alter queue_pending or terminal event
+    # ordering; it only removes/compresses old terminal metadata.
+    _prepare_receipt_persistence(s)
     save_task = asyncio.create_task(_sess.save_async(s))
     try:
         await asyncio.shield(save_task)
@@ -3257,10 +3729,10 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     """
     if _shutdown_started:
         return
-    s = _sess.get(session_id)
+    s = _get_session_shallow(session_id)
     if not s or not s.managed_by:
         return
-    manager = _sess.get(s.managed_by)
+    manager = _get_session_shallow(s.managed_by)
     if not manager:
         return
     if session_id not in (manager.report_subscriptions or set()):
@@ -3290,7 +3762,7 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     manager.queue_pending.append(item)
     _remember_queue_item(manager, item, _DELIVERY_QUEUED)
     manager.queue_revision = getattr(manager, "queue_revision", 0) + 1
-    await _sess.save_async(manager)
+    await _save_receipt(manager)
     await _bcast({"type": "queue.item_added", "sessionId": manager.id,
                   "queueItemId": item["id"],
                   "queueRevision": manager.queue_revision,
@@ -3318,7 +3790,7 @@ async def _wake_worker(session_id: str, auto_spawn: bool = False) -> None:
         mw.last_activity = time.monotonic()
         await mw.pending_signal.put({"type": "queue_signal"})
     elif not mw or mw.status not in {"held", "restarting"}:
-        session = _sess.get(session_id)
+        session = _get_session_shallow(session_id)
         if auto_spawn and (session is None or not session.queue_pending):
             # Legacy callers use auto_spawn to materialize an idle worker even
             # before the first item exists; retain that contract synchronously.
@@ -3375,7 +3847,7 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
     if bot_uin:
         item["botUin"] = str(bot_uin)
     delivered = 0
-    for s in _sess.list_all():
+    for s in _list_sessions_shallow():
         subs = s.qq_subscriptions or set()
         if target_key not in subs and not (bot_key and bot_key in subs):
             continue
@@ -3387,7 +3859,7 @@ async def enqueue_qq_reminder(target_type: str, target_id: str,
         s.queue_pending.append(subscriber_item)
         _remember_queue_item(s, subscriber_item, _DELIVERY_QUEUED)
         s.queue_revision = getattr(s, "queue_revision", 0) + 1
-        await _sess.save_async(s)
+        await _save_receipt(s)
         await _bcast({"type": "queue.item_added", "sessionId": s.id,
                       "queueItemId": subscriber_item["id"],
                       "queueRevision": s.queue_revision,
@@ -3435,7 +3907,7 @@ async def enqueue_notice(target_session_id: str, text: str,
         return {"ok": False, "error": {
             "code": "pan_shutting_down",
             "message": "Pan main service is shutting down"}}
-    target = _sess.get(target_session_id)
+    target = _get_session_shallow(target_session_id)
     if not target:
         return {"ok": False, "error": {
             "code": "session_not_found",
@@ -3505,7 +3977,7 @@ async def enqueue_notice(target_session_id: str, text: str,
     target.queue_pending.append(item)
     _remember_queue_item(target, item, _DELIVERY_QUEUED)
     target.queue_revision = getattr(target, "queue_revision", 0) + 1
-    await _sess.save_async(target)
+    await _save_receipt(target)
     await _bcast({"type": "queue.item_added", "sessionId": target.id,
                   "queueItemId": item["id"],
                   "queueRevision": target.queue_revision,
@@ -3679,7 +4151,7 @@ _global_watchdog_task: asyncio.Task | None = None
 
 async def _recover_session(session_id: str, *, force: bool = False) -> None:
     """Best-effort recovery for durable work or an abnormally dead worker."""
-    s = _sess.get(session_id)
+    s = _get_session_shallow(session_id)
     if not s:
         _recovery_required.discard(session_id)
         return
@@ -3777,7 +4249,7 @@ async def drain_recoveries(timeout: float = 10.0) -> int:
 
 def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
     """Wake a session once its earliest persisted retry becomes due."""
-    session = _sess.get(session_id)
+    session = _get_session_shallow(session_id)
     if session is None or not any(
         isinstance(item, dict)
         and _queue_item_kind(item) is not None
@@ -3800,7 +4272,7 @@ def _schedule_queue_retry(session_id: str) -> asyncio.Task | None:
 
     async def _wait_and_wake() -> None:
         while True:
-            s = _sess.get(session_id)
+            s = _get_session_shallow(session_id)
             if s is None:
                 return
             future_times = [
@@ -3879,7 +4351,7 @@ async def _global_watchdog_tick():
     整个 tick 由 _global_watchdog 的 try/except 兜底，单个 session 的异常不会
     中断后续轮次。
     """
-    for s in list(_sess.list_all()):
+    for s in list(_list_sessions_shallow()):
         # Usage post-processing is independent from Worker liveness.  A
         # crashed/restarted Worker must not strand a terminal's eventual usage
         # job, and this scan must not spawn a provider merely for enrichment.
@@ -4446,7 +4918,7 @@ async def restart_or_start_worker(session_id: str) -> Worker | str:
     """
     if _shutdown_started:
         return "Pan main service is shutting down"
-    if _sess.get(session_id) is None:
+    if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     recovery_pending = session_id in _recovery_required
     lock = await _session_spawn_lock(session_id)
@@ -4644,7 +5116,7 @@ async def _create_worker(session_id: str) -> Worker | str:
         # Persist the compatibility migration before the consumer can execute
         # it.  Otherwise another crash would classify the same user message as
         # a report again on the following start.
-        await _sess.save_async(s)
+        await _save_receipt(s)
     # Queue signals are intentionally buffered while the consumer is being
     # created.  Starting it after the migration save closes the old-data race:
     # a legacy row is never consumed from memory before its new envelope is
@@ -4906,7 +5378,7 @@ async def kill_worker(worker_id: str, *, recover: bool = False,
 async def kill_session_worker(session_id: str, *,
                               report_abnormal: bool = False) -> Worker | str | None:
     """Kill the live worker for a session, if present."""
-    if _sess.get(session_id) is None:
+    if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     lock = await _session_spawn_lock(session_id)
     async with lock:
@@ -4935,7 +5407,7 @@ async def takeover_worker(worker_id: str) -> str | None:
 
 async def takeover_session_worker(session_id: str) -> Worker | str | None:
     """Put the live worker for a session into takeover mode, if present."""
-    if _sess.get(session_id) is None:
+    if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     lock = await _session_spawn_lock(session_id)
     async with lock:
@@ -5081,7 +5553,7 @@ async def _restart_tasks(w: Worker):
     if s and _has_pending_usage_enrichment(s):
         _schedule_usage_enrichment(s.id)
     if s and _recover_pending_signals(w, s):
-        await _sess.save_async(s)
+        await _save_receipt(s)
     # Start only after recovery has migrated unfinished rows and queued the
     # generic wake-up signal.  The signal queue safely buffers that wake-up.
     w._consume_task = asyncio.create_task(_consumer(w))
@@ -5505,7 +5977,7 @@ async def interrupt_worker(worker_id: str) -> str | None:
 
 async def interrupt_session_worker(session_id: str) -> Worker | str | None:
     """Interrupt the live worker for a session, if present."""
-    if _sess.get(session_id) is None:
+    if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     lock = await _session_spawn_lock(session_id)
     async with lock:
@@ -5516,37 +5988,27 @@ async def interrupt_session_worker(session_id: str) -> Worker | str | None:
         return error or w
 
 
-_ACCEPTED_INPUT_ID_LIMIT = 256
+_ACCEPTED_INPUT_ID_LIMIT = getattr(_sess, "ACCEPTED_INPUT_ID_MAX", 256)
 
 
 def _has_accepted_input_id(s, client_message_id: str | None) -> bool:
     if not client_message_id:
         return False
-    if client_message_id in s.accepted_input_ids:
+    _ensure_idempotency_index(s)
+    if client_message_id in (
+            (getattr(s, "queue_idempotency_index", {}) or {})
+            .get("clientMessageId", {})):
         return True
-    # accepted_input_ids is intentionally bounded for hot-path metadata.  The
-    # receipt history is the durable long-term ledger and survives its eviction.
-    return any(
-        isinstance(entry, dict) and entry.get("clientMessageId") == client_message_id
-        for entry in (s.history or [])
-    )
+    return client_message_id in (getattr(s, "accepted_input_ids", []) or [])
 
 
 def _durable_task_id_seen(s, task_id: str | None) -> bool:
     """Whether a task id already crossed or is waiting at the receipt boundary."""
     if not task_id or s is None:
         return False
-    if any(
-        _is_formal_task_item(item)
-        and item.get("taskId") == task_id
-        for item in (s.queue_pending or [])
-    ):
-        return True
-    return any(
-        isinstance(entry, dict)
-        and entry.get("taskId") == task_id
-        and entry.get("taskIdSource", "assign") != "active"
-        for entry in (s.history or [])
+    _ensure_idempotency_index(s)
+    return task_id in (
+        (getattr(s, "queue_idempotency_index", {}) or {}).get("taskId", {})
     )
 
 
@@ -5564,10 +6026,11 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         s, source, source_session_id)
     if source_error:
         return None, source_error
+    _ensure_idempotency_index(s)
     if client_message_id:
         existing = _find_queue_item_by_idempotency(
             s, client_message_id=client_message_id)
-        if existing is not None:
+        if existing is not None and not existing.get("receiptOnly"):
             # A retry addresses the original durable receipt and may only
             # re-arm it; it must never create a second queue item.
             return existing, None
@@ -5579,7 +6042,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     # second provider turn.
     if idempotent_task_id and task_id:
         existing = _find_queue_item_by_idempotency(s, task_id=task_id)
-        if existing is not None:
+        if existing is not None and not existing.get("receiptOnly"):
             return existing, None
         if _durable_task_id_seen(s, task_id):
             return None, None
@@ -5628,7 +6091,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     _remember_queue_item(s, item, _DELIVERY_QUEUED)
     s.queue_revision = old_queue_revision + 1
     try:
-        await _sess.save_async(s)
+        await _save_receipt(s)
     except Exception as exc:
         # Do not poison retry idempotency after a failed durable write.
         s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
@@ -5637,6 +6100,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         s.queue_revision = old_queue_revision
         s.active_task_id = old_active_task_id
         s.queue_delivery_ledger.pop(item["id"], None)
+        _remove_idempotency_receipt(s, item, item["id"])
         return None, f"Failed to persist queued task: {exc}"
     _log.info("[Session %s] queued task id=%s source=%s sourceSessionId=%s",
               s.id, item["id"], source_type, source_sid)
@@ -5660,13 +6124,14 @@ async def enqueue_user_message(session_id: str, text: str,
     Retrying the same clientMessageId resolves the original pending item or
     durable ledger receipt and never creates a second queue item.
     """
-    s = _sess.get(session_id)
+    s = _get_session_shallow(session_id)
     if s is None:
         return {"status": "error", "result": f"Session {session_id} not found"}
     async with queue_lock(session_id):
         migrated = _recover_delivery_states(s)
         migrated = _sync_queued_ledger(s) or migrated
-        if migrated:
+        prepared = _prepare_receipt_persistence(s)
+        if migrated or prepared:
             await _save_receipt(s)
         existing = _find_queue_item_by_idempotency(
             s, client_message_id=client_message_id)
@@ -5733,7 +6198,7 @@ def _worker_owns_queue_item(w: Worker | None, item: dict) -> bool:
 
 async def retry_pending_item(session_id: str, item_id: str) -> dict | str:
     """Retry the original queued receipt without creating a second item."""
-    s = _sess.get(session_id)
+    s = _get_session_shallow(session_id)
     if not s:
         return f"Session {session_id} not found"
     async with queue_lock(session_id):
@@ -5878,7 +6343,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
     """
     if _shutdown_started:
         return {"status": "error", "result": "Pan main service is shutting down"}
-    target = _sess.get(session_id)
+    target = _get_session_shallow(session_id)
     if target is None:
         return {"status": "error", "result": f"Session {session_id} not found"}
     source_type, source_sid, source_error = _validate_source_metadata(
@@ -5918,7 +6383,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
     # durable queue/history before spawning a worker so a late retry cannot
     # create a second execution after a Pan restart or TTL expiry.
     if task_id is not None:
-        durable_session = _sess.get(session_id)
+        durable_session = _get_session_shallow(session_id)
         if _durable_task_id_seen(durable_session, task_id):
             return {"status": "pending", "taskId": task_id}
 
@@ -6010,7 +6475,7 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     """
     if _shutdown_started:
         return {"status": "error", "result": "Pan main service is shutting down"}
-    target = _sess.get(session_id)
+    target = _get_session_shallow(session_id)
     if target is None:
         return {"status": "error", "result": f"Session {session_id} not found"}
     source_type, source_sid, source_error = _validate_source_metadata(
@@ -6027,7 +6492,7 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     w = find_alive_worker_by_session(session_id)
     alive = w is not None
     if not alive:
-        s = _sess.get(session_id)
+        s = _get_session_shallow(session_id)
         if not s:
             return {"status": "error", "result": f"Session {session_id} not found"}
         item, persist_error = await _persist_task_item(
@@ -6085,7 +6550,7 @@ def find_worker_by_session(session_id: str) -> Worker | None:
 
 async def steer_session_worker(session_id: str, text: str) -> Worker | str | None:
     """Steer the session's live worker without exposing its runtime id."""
-    if _sess.get(session_id) is None:
+    if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     lock = await _session_spawn_lock(session_id)
     async with lock:
@@ -6098,7 +6563,7 @@ async def steer_session_worker(session_id: str, text: str) -> Worker | str | Non
 
 async def send_session_control(session_id: str, control: dict) -> Worker | str | None:
     """Send an out-of-band control to the session's current worker."""
-    if _sess.get(session_id) is None:
+    if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     lock = await _session_spawn_lock(session_id)
     async with lock:
