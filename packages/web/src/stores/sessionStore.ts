@@ -3,6 +3,8 @@ import type {
   Session,
   Message,
   ApiSessionHistoryResponse,
+  ApiGenericResponse,
+  SettingsBody,
 } from '@/types';
 import {
   fetchSessions,
@@ -48,8 +50,11 @@ interface SessionStore {
   _sessionWsTouchedSeq: Record<string, number>;
   _historyRefreshSeq: Record<string, number>;
   _sessionLocalTouchedSeq: Record<string, number>;
+  _sessionSettingsTouchedSeq: Record<string, number>;
   _sessionEventPatches: Record<string, Partial<Session>>;
   _deliveredQueueIds: Record<string, Set<string>>;
+  /** Latest optimistic settings mutation per Session. */
+  sessionSettingMutations: Record<string, SessionSettingMutationInternal>;
 
   // Actions
   loadSessions: () => Promise<void>;
@@ -82,6 +87,12 @@ interface SessionStore {
   appendQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
   /** Append user messages after the server confirms local CLI hand-off. */
   appendDeliveredMessages: (sessionId: string, msgs: Message[]) => void;
+  /** Apply settings locally first, then reconcile or roll back the exact mutation. */
+  patchSessionSettings: (
+    sessionId: string,
+    patch: SessionSettingPatch,
+    persist: (id: string, settings: SettingsBody) => Promise<Session | ApiGenericResponse>,
+  ) => Promise<SessionSettingsMutationResult>;
   updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot?: boolean) => void;
   /** 就地更新某 session 卡片：追加结果文本到 history + lastResult + historyTotal，
    *  不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新（镜像 vanilla
@@ -111,10 +122,42 @@ const EMPTY_UNREAD_SET: Set<string> = new Set();
  *  the one captured when that fetch was issued. */
 let wsTouchSeq = 0;
 let localTouchSeq = 0;
+let settingsTouchSeq = 0;
 
 function sameMessage(a: Message, b: Message): boolean {
   return a.role === b.role && a.content === b.content
     && JSON.stringify(a.parts ?? null) === JSON.stringify(b.parts ?? null);
+}
+
+const SESSION_SETTING_KEYS = [
+  'model',
+  'permissionMode',
+  'alwaysThinkingEnabled',
+  'effort',
+  'outputMode',
+  'modelContextWindow',
+  'modelAutoCompactTokenLimit',
+] as const satisfies readonly (keyof Session)[];
+
+type SessionSettingKey = (typeof SESSION_SETTING_KEYS)[number];
+export type SessionSettingPatch = Partial<Pick<Session, SessionSettingKey>>;
+
+export interface SessionSettingMutationState {
+  sequence: number;
+  pending: boolean;
+  patch?: SessionSettingPatch;
+  error?: string | null;
+}
+
+interface SessionSettingMutationInternal extends SessionSettingMutationState {
+  rollback: SessionSettingPatch;
+  authoritative: SessionSettingPatch;
+}
+
+export interface SessionSettingsMutationResult {
+  response: Session | ApiGenericResponse;
+  applied: boolean;
+  stale: boolean;
 }
 
 /** Keep local synthetic completion rows when a later server snapshot adds a
@@ -144,6 +187,27 @@ function valueEqual(a: unknown, b: unknown): boolean {
   return Array.isArray(a) || Array.isArray(b)
     ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
     : a === b;
+}
+
+function pickSessionSettings(session: Partial<Session>): SessionSettingPatch {
+  const result: SessionSettingPatch = {};
+  for (const key of SESSION_SETTING_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(session, key)) {
+      result[key] = session[key] as never;
+    }
+  }
+  return result;
+}
+
+function mergeSessionSettingPatch(
+  session: Session,
+  patch: SessionSettingPatch | undefined,
+): Session {
+  return patch && Object.keys(patch).length > 0 ? { ...session, ...patch } : session;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || 'Failed to save settings');
 }
 
 /** Compare only fields returned by summary=1; preserve the existing object
@@ -192,8 +256,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   _sessionWsTouchedSeq: {},
   _historyRefreshSeq: {},
   _sessionLocalTouchedSeq: {},
+  _sessionSettingsTouchedSeq: {},
   _sessionEventPatches: {},
   _deliveredQueueIds: {},
+  sessionSettingMutations: {},
 
   loadSessions: async () => {
     // Reserve this refresh's sequence + snapshot the per-session WS touch
@@ -203,6 +269,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const loadSeq = get()._loadSeq + 1;
     const touchedAtStart = get()._sessionWsTouchedSeq;
     const localTouchedAtStart = get()._sessionLocalTouchedSeq ?? {};
+    const settingsTouchedAtStart = get()._sessionSettingsTouchedSeq ?? {};
     const eventPatchesAtStart = get()._sessionEventPatches ?? {};
     set({ _loadSeq: loadSeq, sessionsLoading: true });
     try {
@@ -246,6 +313,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             (s._sessionWsTouchedSeq[sid] ?? 0) > (touchedAtStart[sid] ?? 0);
           const locallyTouchedDuringFetch =
             (s._sessionLocalTouchedSeq?.[sid] ?? 0) > (localTouchedAtStart[sid] ?? 0);
+          const settingsTouchedDuringFetch =
+            (s._sessionSettingsTouchedSeq?.[sid] ?? 0) > (settingsTouchedAtStart[sid] ?? 0);
           const snapshotIsTransientDone = sess.workerStatus === 'done';
           const preserveLocalWorker =
             touchedDuringFetch ||
@@ -306,6 +375,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           const eventPatch = s._sessionEventPatches?.[sid] ?? eventPatchesAtStart[sid];
           if (eventPatch && Object.keys(eventPatch).length > 0) {
             next = { ...next, ...eventPatch };
+          }
+          const mutation = s.sessionSettingMutations?.[sid];
+          if (settingsTouchedDuringFetch || mutation?.pending) {
+            // This HTTP snapshot was issued before the latest local settings
+            // mutation settled, or the mutation is still pending.  Keep the
+            // newer local fields and let a later refresh perform authority
+            // reconciliation.
+            next = mergeSessionSettingPatch(next, mutation?.patch);
+            if (settingsTouchedDuringFetch && !mutation?.pending) {
+              next = mergeSessionSettingPatch(next, mutation?.authoritative);
+            }
           }
           return sameSessionSnapshot(cur, next, sess) ? cur : next;
         });
@@ -634,6 +714,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       _sessionLocalTouchedSeq: Object.fromEntries(
         Object.entries(s._sessionLocalTouchedSeq ?? {}).filter(([sid]) => sid !== id),
       ),
+      _sessionSettingsTouchedSeq: Object.fromEntries(
+        Object.entries(s._sessionSettingsTouchedSeq ?? {}).filter(([sid]) => sid !== id),
+      ),
+      sessionSettingMutations: Object.fromEntries(
+        Object.entries(s.sessionSettingMutations ?? {}).filter(([sid]) => sid !== id),
+      ),
       _sessionEventPatches: Object.fromEntries(
         Object.entries(s._sessionEventPatches ?? {}).filter(([sid]) => sid !== id),
       ),
@@ -667,6 +753,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       _sessionLocalTouchedSeq: Object.fromEntries(
         Object.entries(s._sessionLocalTouchedSeq ?? {}).filter(([sid]) => !selected.has(sid)),
       ),
+      _sessionSettingsTouchedSeq: Object.fromEntries(
+        Object.entries(s._sessionSettingsTouchedSeq ?? {}).filter(([sid]) => !selected.has(sid)),
+      ),
+      sessionSettingMutations: Object.fromEntries(
+        Object.entries(s.sessionSettingMutations ?? {}).filter(([sid]) => !selected.has(sid)),
+      ),
       _sessionEventPatches: Object.fromEntries(
         Object.entries(s._sessionEventPatches ?? {}).filter(([sid]) => !selected.has(sid)),
       ),
@@ -690,6 +782,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       ),
       multiSelectMode: false,
       selectedIds: new Set(),
+      _sessionSettingsTouchedSeq: Object.fromEntries(
+        Object.entries(s._sessionSettingsTouchedSeq ?? {}).filter(([sid]) => !selectedIds.has(sid)),
+      ),
+      sessionSettingMutations: Object.fromEntries(
+        Object.entries(s.sessionSettingMutations ?? {}).filter(([sid]) => !selectedIds.has(sid)),
+      ),
     }));
 
     // Clear current if deleted
@@ -863,11 +961,127 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
+  patchSessionSettings: async (sessionId, patch, persist) => {
+    const current = get().sessions.find((session) => session.id === sessionId);
+    if (!current) throw new Error('Session not found');
+    const previous = get().sessionSettingMutations[sessionId];
+    const sequence = (previous?.sequence ?? 0) + 1;
+    const rollback = pickSessionSettings(current);
+    const authoritative = previous?.authoritative ?? rollback;
+    const touchSeq = (settingsTouchSeq += 1);
+
+    set((s) => ({
+      sessions: s.sessions.map((session) =>
+        session.id === sessionId ? mergeSessionSettingPatch(session, patch) : session,
+      ),
+      sessionSettingMutations: {
+        ...s.sessionSettingMutations,
+        [sessionId]: {
+          sequence,
+          pending: true,
+          patch,
+          rollback,
+          authoritative,
+          error: null,
+        },
+      },
+      _sessionSettingsTouchedSeq: {
+        ...s._sessionSettingsTouchedSeq,
+        [sessionId]: touchSeq,
+      },
+    }));
+
+    try {
+      const response = await persist(sessionId, patch as SettingsBody);
+      const responsePatch =
+        response && 'id' in response && response.id === sessionId
+          ? pickSessionSettings(response)
+          : {};
+      const latest = get().sessionSettingMutations[sessionId];
+      if (!latest || latest.sequence !== sequence) {
+        // An A response may improve the rollback baseline, but it must never
+        // replace the newer optimistic B value rendered by the store.
+        if (latest?.pending && Object.keys(responsePatch).length > 0) {
+          set((s) => ({
+            sessionSettingMutations: {
+              ...s.sessionSettingMutations,
+              [sessionId]: { ...latest, authoritative: responsePatch },
+            },
+          }));
+        }
+        return { response, applied: false, stale: true };
+      }
+
+      const settled = { ...patch, ...responsePatch };
+      const settledTouchSeq = (settingsTouchSeq += 1);
+      set((s) => ({
+        sessions: s.sessions.map((session) =>
+          session.id === sessionId ? mergeSessionSettingPatch(session, settled) : session,
+        ),
+        sessionSettingMutations: {
+          ...s.sessionSettingMutations,
+          [sessionId]: {
+            ...latest,
+            pending: false,
+            patch: undefined,
+            authoritative: settled,
+            error: null,
+          },
+        },
+        _sessionSettingsTouchedSeq: {
+          ...s._sessionSettingsTouchedSeq,
+          [sessionId]: settledTouchSeq,
+        },
+      }));
+      return { response, applied: true, stale: false };
+    } catch (error) {
+      const message = errorMessage(error);
+      const latest = get().sessionSettingMutations[sessionId];
+      if (!latest || latest.sequence !== sequence) {
+        // An old failure is obsolete too: it must not toast or roll back B.
+        return {
+          response: { error: message },
+          applied: false,
+          stale: true,
+        };
+      }
+      const rollbackTouchSeq = (settingsTouchSeq += 1);
+      set((s) => ({
+        sessions: s.sessions.map((session) =>
+          session.id === sessionId
+            ? mergeSessionSettingPatch(session, latest.authoritative)
+            : session,
+        ),
+        sessionSettingMutations: {
+          ...s.sessionSettingMutations,
+          [sessionId]: {
+            ...latest,
+            pending: false,
+            patch: undefined,
+            error: message,
+          },
+        },
+        _sessionSettingsTouchedSeq: {
+          ...s._sessionSettingsTouchedSeq,
+          [sessionId]: rollbackTouchSeq,
+        },
+      }));
+      throw error;
+    }
+  },
+
   updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot = false) => {
     const touchSeq = (wsTouchSeq += 1);
     set((s) => ({
       sessions: s.sessions.map((session) =>
-        session.id === id ? { ...session, ...data } : session,
+        session.id === id
+          ? mergeSessionSettingPatch(
+              { ...session, ...data },
+              s.sessionSettingMutations[id]?.pending
+                ? s.sessionSettingMutations[id].patch
+                : undefined,
+            )
+          : session,
       ),
       _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [id]: touchSeq },
       ...(preserveOnSnapshot

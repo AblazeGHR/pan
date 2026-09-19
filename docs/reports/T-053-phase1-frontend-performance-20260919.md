@@ -35,6 +35,13 @@
 - `_persist_terminal_state` 仍先于终态广播。
 - 桌面通知改为 `asyncio.to_thread` 后台 best-effort；worker.result/status 不等待 PowerShell、固定 Start-Sleep 或通知失败。
 
+### 追加 UI：Session 模型设置乐观更新
+
+- `sessionStore.patchSessionSettings` 为每个 Session 维护 mutation sequence、乐观字段、真实回滚基线和服务端收敛值；PATCH 尚未返回时当前模型、effort、设置控件和 Session 卡片立即更新。
+- model 变更按 `modelEfforts` 同步携带不兼容 effort 的隐式清空；失败或网络异常恢复完整字段并显示错误提示。
+- A→B 快速选择、Session 切换、关闭 Popover 后的旧响应均受 per-Session sequence/request guard 保护；旧成功/失败响应不能覆盖较新的乐观值。
+- `session.updated` 与 `loadSessions` 的旧快照在 pending 或请求期间完成时不会回退本地较新值；SettingsPopover 和 InputRow 的模型入口共用同一状态路径。
+
 ## 验证证据
 
 ### 定向测试
@@ -42,12 +49,13 @@
 - Frontend：12 个相关 Vitest 文件，`173 passed / 0 failed`。
 - Backend：`tests/test_backend_perf_opt.py tests/test_websocket_user_inject.py tests/test_notifications_reminders.py tests/test_terminal_broadcast.py`，`30 passed / 0 failed`。
 - 新增/强化覆盖：重复 queue delivery、跨 Session、inline parts、乐观失败恢复、Session object reuse、旧 snapshot、DONE 合并、pong、1013 close、慢通知。
+- 追加 UI 设置 Vitest：`SettingsPopover.optimistic.test.tsx`，`7 passed / 0 failed`，覆盖 deferred PATCH 立即可见、服务端成功收敛、失败回滚、model/effort 联动、A→B 乱序、Session 切换隔离、pending 快照保护。
 
 ### 静态与构建
 
 - `pnpm exec tsc -b`：通过。
 - `pnpm run build`：通过；Vite 仅报告既有大 chunk warning。
-- 改动前端文件 ESLint：`0 errors`；`MessageBubble.tsx` 保留 2 条既有 Fast Refresh warning。
+- 全部改动前端文件 ESLint：`0 errors`；保留 `MessageBubble.tsx` 的 2 条既有 Fast Refresh warning，以及 `SettingsPopover.tsx` 的 4 条既有 React Hook 依赖 warning。
 - `python -m compileall -q packages/core packages/web/server.py`：通过。
 - `git diff --check`：通过；Git 仅报告工作树 LF/CRLF 转换提示。
 
@@ -72,4 +80,5 @@
 - 未启用 CBC `--include-partial-messages`；Phase 2 仍按计划另行处理。
 - 未新增 `session.patch/summaryRevision` 协议，未做 durable queue 多次持久化写合并。
 - E2E 使用隔离 launcher 的 disposable session 与事件注入；未将外部真实 provider 调用作为本阶段通过条件。
+- 模型设置的 deferred PATCH、乱序响应和失败回滚由 Vitest 直接证明；本次真实 Chromium 4/4 保持 Phase 1 的队列、editor/manage、DONE 与静默 WS 覆盖，未将浏览器级 deferred PATCH 作为已验证项。
 - 完整 Vitest 的 10 个失败属于未改测试文件/环境基线问题，已与改动相关定向证据分开列出。

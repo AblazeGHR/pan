@@ -1,6 +1,10 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
+import {
+  useSessionStore,
+  useCurrentSession,
+  type SessionSettingPatch,
+} from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
@@ -415,7 +419,7 @@ export function InputRow() {
   const config = useAdapterStore((s) => s.getConfig());
   const loadConfig = useAdapterStore((s) => s.loadConfig);
   const applySettings = useAdapterStore((s) => s.applySettings);
-  const { loadSessions } = useSessionStore();
+  const { loadSessions, patchSessionSettings } = useSessionStore();
 
   useEffect(() => {
     if (currentSession) {
@@ -425,9 +429,17 @@ export function InputRow() {
 
   const applySetting = async (key: string, value: unknown) => {
     if (!currentSession) return;
+    const patch: SessionSettingPatch = { [key]: value } as SessionSettingPatch;
+    if (key === 'model' && config?.modelEfforts) {
+      const nextEfforts = config.modelEfforts[String(value)];
+      const currentEffort = currentSession.effort || '';
+      if (nextEfforts && currentEffort && !nextEfforts.includes(currentEffort)) {
+        patch.effort = '';
+      }
+    }
     try {
-      await applySettings(currentSession.id, { [key]: value });
-      await loadSessions();
+      await patchSessionSettings(currentSession.id, patch, applySettings);
+      void loadSessions();
     } catch (e) {
       showToast((e as Error).message || 'Failed', 'error');
     }
