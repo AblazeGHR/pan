@@ -250,8 +250,14 @@ def test_refresh_codex_official_models_replaces_whitelist(monkeypatch):
         {"slug": "official-b", "display_name": "B", "visibility": None},
     ]})
 
+    monkeypatch.setattr(
+        CodexAdapter,
+        "resolved_cli_argv",
+        lambda self: ["resolved-node", "resolved-codex.js"],
+    )
+
     def fake_run(args, **kwargs):
-        assert args == ["codex", "debug", "models"]
+        assert args == ["resolved-node", "resolved-codex.js", "debug", "models"]
         assert kwargs["timeout"] == 30
         return subprocess.CompletedProcess(args, 0, stdout=output, stderr="")
 
@@ -281,6 +287,28 @@ def test_refresh_codex_official_models_accepts_bare_array(monkeypatch):
     assert result["after"] == ["m1"]
 
 
+def test_refresh_codex_official_models_reports_missing_command(monkeypatch):
+    def fake_run(args, **kwargs):
+        raise FileNotFoundError(2, "No such file or directory", args[0])
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    with pytest.raises(srv.HTTPException) as exc:
+        asyncio.run(srv.api_codex_refresh_official_models())
+    assert exc.value.status_code == 502
+    assert "failed to run codex debug models" in str(exc.value.detail)
+
+
+def test_refresh_codex_official_models_reports_timeout(monkeypatch):
+    def fake_run(args, **kwargs):
+        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    with pytest.raises(srv.HTTPException) as exc:
+        asyncio.run(srv.api_codex_refresh_official_models())
+    assert exc.value.status_code == 504
+    assert "timed out" in str(exc.value.detail)
+
+
 def test_refresh_codex_official_models_reports_command_failure(monkeypatch):
     def fake_run(args, **kwargs):
         return subprocess.CompletedProcess(args, 1, stdout="", stderr="not logged in")
@@ -301,6 +329,62 @@ def test_refresh_codex_official_models_reports_invalid_json(monkeypatch):
         asyncio.run(srv.api_codex_refresh_official_models())
     assert exc.value.status_code == 502
     assert "invalid codex model catalog" in str(exc.value.detail)
+
+
+def test_refresh_codex_official_models_rejects_help_or_stderr_as_catalog(monkeypatch):
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout="Usage: codex debug models",
+            stderr=json.dumps({"models": [{"slug": "from-stderr"}]}),
+        )
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    with pytest.raises(srv.HTTPException) as exc:
+        asyncio.run(srv.api_codex_refresh_official_models())
+    assert exc.value.status_code == 502
+    assert "invalid codex model catalog" in str(exc.value.detail)
+
+
+def test_refresh_codex_official_models_rejects_error_json(monkeypatch):
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout='{"error":"not a catalog"}', stderr="")
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    with pytest.raises(srv.HTTPException) as exc:
+        asyncio.run(srv.api_codex_refresh_official_models())
+    assert exc.value.status_code == 502
+    assert "models[]" in str(exc.value.detail)
+
+
+def test_refresh_codex_official_models_rejects_visible_entry_without_slug(monkeypatch):
+    output = json.dumps({"models": [{"display_name": "No slug", "visibility": "list"}]})
+
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    with pytest.raises(srv.HTTPException) as exc:
+        asyncio.run(srv.api_codex_refresh_official_models())
+    assert exc.value.status_code == 502
+    assert "no valid slug" in str(exc.value.detail)
+
+
+def test_refresh_codex_official_models_filters_non_visible_entries(monkeypatch):
+    output = json.dumps({"models": [
+        {"slug": "listed", "visibility": "list"},
+        {"slug": "hidden", "visibility": "hide"},
+        {"slug": "private", "visibility": "unlisted"},
+        {"slug": "without-visibility"},
+    ]})
+
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(srv.subprocess, "run", fake_run)
+    result = asyncio.run(srv.api_codex_refresh_official_models())
+    assert result["after"] == ["listed", "without-visibility"]
 
 
 def test_reload_plugin_picks_up_added_manifest():

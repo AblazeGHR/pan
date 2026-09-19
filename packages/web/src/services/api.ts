@@ -99,7 +99,16 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    let detail = '';
+    try {
+      const body = (await res.json()) as { detail?: unknown; error?: unknown };
+      const candidate = body.detail ?? body.error;
+      if (typeof candidate === 'string' && candidate.trim()) detail = candidate.trim();
+    } catch {
+      // Some error responses are empty or not JSON; retain the HTTP status below.
+    }
+    const status = res.statusText ? `HTTP ${res.status}: ${res.statusText}` : `HTTP ${res.status}`;
+    throw new Error(detail ? `${status}: ${detail}` : status);
   }
   return res.json() as Promise<T>;
 }

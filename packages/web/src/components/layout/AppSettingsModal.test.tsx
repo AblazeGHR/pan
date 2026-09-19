@@ -145,6 +145,25 @@ describe('AppSettingsModal', () => {
     expect(refreshCodexOfficialModelsMock).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a readable Codex refresh error in the Adapter tab', async () => {
+    const message = 'HTTP 502: codex debug models failed: authentication required';
+    refreshCodexOfficialModelsMock.mockRejectedValueOnce(new Error(message));
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+        button.textContent?.includes('Adapter'),
+      )!,
+    );
+
+    await waitFor(() => expect(cardEl().textContent).toContain('替换为官方模型目录'));
+    fireEvent.click(
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+        button.textContent?.includes('替换为官方模型目录'),
+      )!,
+    );
+    await waitFor(() => expect(cardEl().textContent).toContain(message));
+  });
+
   it('toggles the Codex terminal input popup option and persists it', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(

@@ -4861,8 +4861,19 @@ def _reload_adapter_models() -> tuple[list[dict], list[str]]:
 async def api_codex_refresh_official_models():
     """Replace the Codex whitelist with the visible official model catalog."""
     try:
+        codex_argv = [str(part) for part in get_adapter("codex").resolved_cli_argv()]
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"failed to resolve codex executable: {e}",
+        ) from e
+    if not codex_argv:
+        raise HTTPException(status_code=502, detail="failed to resolve codex executable: empty argv")
+
+    command = [*codex_argv, "debug", "models"]
+    try:
         completed = subprocess.run(
-            ["codex", "debug", "models"],
+            command,
             capture_output=True,
             text=True,
             timeout=30,
@@ -4871,15 +4882,18 @@ async def api_codex_refresh_official_models():
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="codex debug models timed out")
     except OSError as e:
-        raise HTTPException(status_code=502, detail=f"failed to run codex: {e}")
+        raise HTTPException(status_code=502, detail=f"failed to run codex debug models: {e}") from e
 
     if completed.returncode != 0:
         message = (completed.stderr or completed.stdout or "command failed").strip()
         raise HTTPException(status_code=502, detail=f"codex debug models failed: {message[-500:]}")
+
     try:
         catalog = json.loads(completed.stdout)
         if isinstance(catalog, dict):
-            catalog = catalog.get("models")  # actual `codex debug models` shape
+            if "models" not in catalog:
+                raise ValueError("expected a JSON object with models[] or a JSON array")
+            catalog = catalog["models"]
         if not isinstance(catalog, list):
             raise ValueError("expected a JSON object with models[] or a JSON array")
         models = []
@@ -4888,10 +4902,12 @@ async def api_codex_refresh_official_models():
                 raise ValueError("catalog entries must be objects")
             if item.get("visibility") in (None, "list"):
                 slug = item.get("slug")
-                if not isinstance(slug, str) or not slug:
+                if not isinstance(slug, str) or not slug.strip():
                     raise ValueError("visible catalog entry has no valid slug")
-                models.append(slug)
-    except (json.JSONDecodeError, ValueError) as e:
+                models.append(slug.strip())
+        if not models:
+            raise ValueError("catalog contains no visible models")
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
         raise HTTPException(status_code=502, detail=f"invalid codex model catalog: {e}")
 
     before = list(get_adapter("codex").supported_models)
