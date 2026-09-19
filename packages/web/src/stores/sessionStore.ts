@@ -91,6 +91,8 @@ interface SessionStore {
   /** Append a user-side control/message to its target Session projection. */
   appendLocalMessage: (sessionId: string, msg: Message) => void;
   getLiveStreamMessages: (sessionId: string) => Message[];
+  /** Read the current task watermark before building a stream projection. */
+  canApplyLiveStream: (sessionId: string, meta: LiveStreamMeta) => boolean;
   applyLiveStream: (sessionId: string, messages: Message[], meta: LiveStreamMeta) => boolean;
   reconcileWorkerResult: (
     sessionId: string,
@@ -334,6 +336,55 @@ function mergeServerHistoryWithLive(
   return result;
 }
 
+function matchesHistoryProjection(message: Message, candidate: Message): boolean {
+  if (message.role !== candidate.role) return false;
+  if (message.nativeItemId && candidate.nativeItemId
+      && message.nativeItemId === candidate.nativeItemId) {
+    return true;
+  }
+  if (sameMessage(message, candidate)) return true;
+  return message.role === 'assistant'
+    && (message.content.startsWith(candidate.content)
+      || candidate.content.startsWith(message.content));
+}
+
+/** Find selected-chat rows which are already rendered but not in the HTTP
+ * snapshot.  User rows deliberately do not enter this list: their durable
+ * queue/Steer identities are handled by mergeServerHistoryPreservingLocal.
+ * Assistant/tool rows are the transient stream tail, including the testable
+ * case where a history refresh inserts a newly persisted agent user row before
+ * an assistant block that is still only in the selected chat projection. */
+function inferDivergedLiveMessages(local: Message[], server: Message[]): Message[] {
+  const claimedIndexes = new Set<number>();
+  const result: Message[] = [];
+  for (const message of local) {
+    if (message.role === 'user' || message.role === 'system') continue;
+    const matchedIndex = server.findIndex((candidate, index) =>
+      !claimedIndexes.has(index) && matchesHistoryProjection(message, candidate));
+    if (matchedIndex >= 0) {
+      claimedIndexes.add(matchedIndex);
+    } else {
+      result.push(message);
+    }
+  }
+  return result;
+}
+
+/** Merge an HTTP history page into the selected chat without dropping a live
+ * assistant tail.  The explicit live buffer is preferred, but the selected
+ * projection itself is also evidence: an agent/report refresh can race a
+ * stream before the first live buffer write is observable. */
+function mergeSelectedHistoryPreservingLive(
+  local: Message[],
+  server: Message[],
+  liveMessages: Message[],
+  options: { serverTotal?: number } = {},
+): Message[] {
+  const reconciled = mergeServerHistoryPreservingLocal(local, server, options);
+  const inferred = inferDivergedLiveMessages(local, reconciled);
+  return mergeServerHistoryWithLive(reconciled, [...inferred, ...liveMessages]);
+}
+
 function sameWorkerGeneration(a: LiveStreamMeta, b: LiveStreamMeta): boolean {
   return Boolean(a.workerId && b.workerId && a.workerId === b.workerId
     && (a.generation === undefined || b.generation === undefined || a.generation === b.generation));
@@ -351,6 +402,12 @@ function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
   if (incoming.taskSeq !== undefined && known.taskSeq !== undefined) {
     if (incoming.taskSeq < known.taskSeq) return true;
     if (incoming.taskSeq > known.taskSeq) return false;
+    // taskSeq is the primary cursor, but a mismatched taskId at the same
+    // cursor is still a foreign/replayed task.  Do not let its native alias
+    // or stream row enter the current task window.
+    if (incoming.taskId && known.taskId && incoming.taskId !== known.taskId) {
+      return true;
+    }
   }
   // Once a task-scoped frame has been accepted, an unscoped frame from the
   // same worker generation cannot prove that it belongs to a newer turn.
@@ -819,9 +876,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const current = get();
         const found = current.sessions.find((s) => s.id === restoreSessionId);
         if (found) {
+          const liveMessages = current.liveStreamBuffers[restoreSessionId]?.messages || [];
           const serverHistory = mergeServerHistoryWithLive(
             found.history || [],
-            current.liveStreamBuffers[restoreSessionId]?.messages || [],
+            liveMessages,
           );
           const keepLocal = isServerHistoryPrefix(
             current.currentMessages,
@@ -830,9 +888,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           set({
             currentMessages: keepLocal
               ? current.currentMessages
-              : mergeServerHistoryPreservingLocal(
+              : mergeSelectedHistoryPreservingLive(
                 current.currentMessages,
-                serverHistory,
+                found.history || [],
+                liveMessages,
                 { serverTotal: found.historyTotal },
               ),
             hasMoreMessages: !!found.historyTruncated,
@@ -952,9 +1011,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeServerHistoryPreservingLocal(
+          : mergeSelectedHistoryPreservingLive(
             s.currentMessages,
-            historyWithLive,
+            reconciledHistory,
+            s.liveStreamBuffers[id]?.messages || [],
             { serverTotal: data.total },
           ),
         hasMoreMessages: data.hasMore,
@@ -1013,9 +1073,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           : session),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeServerHistoryPreservingLocal(
+          : mergeSelectedHistoryPreservingLive(
             s.currentMessages,
-            historyWithLive,
+            reconciledHistory,
+            s.liveStreamBuffers[sid]?.messages || [],
             { serverTotal: data.total },
           ),
         hasMoreMessages: data.hasMore,
@@ -1371,6 +1432,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   getLiveStreamMessages: (sessionId) =>
     (get().liveStreamBuffers[sessionId]?.messages || []).slice(),
 
+  canApplyLiveStream: (sessionId, meta) => {
+    const state = get();
+    const terminal = state.terminalWatermarks[sessionId];
+    if (isBlockedByTerminal(meta, terminal, 'stream')) return false;
+    const previous = state.liveStreamBuffers[sessionId];
+    return !previous || !isOlderMeta(meta, previous);
+  },
+
   applyLiveStream: (sessionId, messages, meta) => {
     if (!messages.length) return false;
     let accepted = false;
@@ -1532,6 +1601,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const watermark = s.terminalWatermarks[sessionId];
       if (isBlockedByTerminal(meta, watermark, status || 'idle')) return s;
       const previous = s.liveStreamBuffers[sessionId];
+      // A late status must not move the Session projection back to an older
+      // task while the current live buffer remains authoritative.  Keep the
+      // legacy/taskId-only path compatible by applying this guard only when a
+      // taskSeq is present on either side.
+      if (previous
+          && (meta.taskSeq !== undefined || previous.taskSeq !== undefined)
+          && isOlderMeta(meta, previous)) return s;
       if (previous && status === 'running' && meta.taskSeq !== undefined
           && previous.taskSeq !== undefined && meta.taskSeq > previous.taskSeq) {
         // A new task on the same worker starts a fresh transient turn. Keep an

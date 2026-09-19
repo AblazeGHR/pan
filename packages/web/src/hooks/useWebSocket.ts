@@ -959,13 +959,7 @@ function appendEventToMessages(
 function appendEvent(sessionId: string, event: StreamEvent['event'], meta: StreamEvent): boolean {
   if (!event) return false;
   const store = useSessionStore.getState();
-  const before = store.getLiveStreamMessages(sessionId);
-  // The native alias table is only a transient accelerator. If the durable
-  // live buffer is gone (result/restart or a fresh client state), an alias
-  // from an earlier turn must not attach a new event to that old turn.
-  if (before.length === 0) clearNativeTurnAliases(sessionId);
-  const messages = appendEventToMessages(sessionId, event, before, meta);
-  const accepted = store.applyLiveStream(sessionId, messages, {
+  const scope = {
     workerId: meta.workerId,
     generation: meta.generation,
     taskSeq: meta.taskSeq,
@@ -975,7 +969,18 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
     streamText: event.delta && typeof event.stream_text === 'string'
       ? event.stream_text
       : undefined,
-  });
+  };
+  // Do this check before resolving native ids/aliases.  A stale frame must
+  // not mutate the transient alias table and then make a later native item
+  // look like a current task, even when applyLiveStream would reject it.
+  if (!store.canApplyLiveStream(sessionId, scope)) return false;
+  const before = store.getLiveStreamMessages(sessionId);
+  // The native alias table is only a transient accelerator. If the durable
+  // live buffer is gone (result/restart or a fresh client state), an alias
+  // from an earlier turn must not attach a new event to that old turn.
+  if (before.length === 0) clearNativeTurnAliases(sessionId);
+  const messages = appendEventToMessages(sessionId, event, before, meta);
+  const accepted = store.applyLiveStream(sessionId, messages, scope);
   if (accepted) {
     for (const block of extractBlocks(event)) {
       if (block.role === 'thinking' || block.role === 'tool') {
