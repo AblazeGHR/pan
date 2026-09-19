@@ -2354,6 +2354,17 @@ async def health():
     return {"status": "ok", "version": __version__}
 
 
+@app.get("/api/diagnostics/persistence")
+async def api_persistence_diagnostics(session_id: str | None = None,
+                                      limit: int = 32):
+    """Return bounded per-Session save contention counters.
+
+    The response contains queue depth and timings only; it deliberately never
+    exposes history/queue message bodies or durable Session state.
+    """
+    return sess.save_diagnostics(session_id, limit=limit)
+
+
 @app.get("/api/main/restart/status")
 async def api_main_restart_status():
     """Report whether the safe Windows main-service restart is available."""

@@ -28,8 +28,10 @@ import os
 import re
 import secrets
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 
 from packages.core.notifications import normalize_notification_settings
@@ -40,8 +42,190 @@ SESSION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sessions
 # 不再每次全量重写主文件。主文件只含元数据 + 尾部 history（供人工查看/旧读者
 # 兼容），jsonl 存在时加载一律以 jsonl 为 history 权威来源。
 _MAIN_HISTORY_TAIL = 20          # 主文件内保留的尾部 history 条数（常量开销）
-_SAVE_LOCK = threading.RLock()   # 写锁：save_async(to_thread) 并发时防双写；也保护交接命名分配
+# Locking contract:
+#   _STORE_LOCK serializes global Session-index operations (names, handoff,
+#   relationships, and ordering).  A _SessionSaveState serializes file writes
+#   for one Session only.  Save code never acquires _STORE_LOCK after entering
+#   its per-Session state, so the only nested order is _STORE_LOCK -> state.
+#   In particular, a slow history/metadata flush for Session A does not hold
+#   the store lock and cannot delay Session B's flush.
+_STORE_LOCK = threading.RLock()
+_SAVE_STATES: dict[str, "_SessionSaveState"] = {}
+_MAX_SAVE_DIAGNOSTIC_SESSIONS = 128
 _newline_terminated_jsonl: set[str] = set()  # 进程内已知以 \n 结尾的 jsonl 路径（热路径跳过探测）
+
+
+@dataclass
+class _SessionSaveState:
+    """Ordered, per-Session persistence gate and bounded counters.
+
+    ``save_async`` requests receive a ticket before entering the executor.
+    This gives one Session FIFO ordering even when the default executor starts
+    later requests first, while allowing different Session IDs to use separate
+    executor threads.  The ticket is always retired in a ``finally`` block;
+    cancellation of the awaiting coroutine is shielded until the underlying
+    filesystem operation releases this state.
+
+    Only counters/timestamps are retained here.  No history, queue text, or
+    exception message is kept in diagnostics.
+    """
+
+    condition: threading.Condition = field(default_factory=threading.Condition)
+    next_ticket: int = 0
+    serving_ticket: int = 0
+    pending: int = 0
+    active: bool = False
+    cancelled: set[int] = field(default_factory=set)
+    last_wait_ms: float = 0.0
+    last_flush_ms: float = 0.0
+    last_pending_age_ms: float = 0.0
+    flush_count: int = 0
+    failure_count: int = 0
+    last_error_type: str | None = None
+    last_completed_at: str | None = None
+    last_activity: float = field(default_factory=time.monotonic)
+
+    def reserve(self) -> tuple[int, float]:
+        now = time.monotonic()
+        with self.condition:
+            ticket = self.next_ticket
+            self.next_ticket += 1
+            self.pending += 1
+            self.last_activity = now
+            return ticket, now
+
+    def _skip_cancelled_locked(self) -> None:
+        while self.serving_ticket in self.cancelled:
+            self.cancelled.remove(self.serving_ticket)
+            self.serving_ticket += 1
+
+    def begin(self, ticket: int, enqueued_at: float) -> float:
+        with self.condition:
+            while ticket != self.serving_ticket:
+                self.condition.wait()
+            self.pending = max(0, self.pending - 1)
+            self.active = True
+            now = time.monotonic()
+            self.last_activity = now
+            wait_ms = max(0.0, (now - enqueued_at) * 1000.0)
+            self.last_wait_ms = wait_ms
+            self.last_pending_age_ms = wait_ms
+            return wait_ms
+
+    def cancel_before_begin(self, ticket: int) -> None:
+        """Retire a ticket if executor submission fails before it starts."""
+        with self.condition:
+            self.pending = max(0, self.pending - 1)
+            self.cancelled.add(ticket)
+            self._skip_cancelled_locked()
+            self.last_activity = time.monotonic()
+            self.condition.notify_all()
+
+    def finish(self, *, flush_ms: float, error_type: str | None) -> None:
+        with self.condition:
+            self.active = False
+            self.serving_ticket += 1
+            self._skip_cancelled_locked()
+            self.last_flush_ms = max(0.0, flush_ms)
+            self.flush_count += 1
+            if error_type is not None:
+                self.failure_count += 1
+                self.last_error_type = error_type
+            else:
+                self.last_error_type = None
+            self.last_completed_at = datetime.now().isoformat()
+            self.last_activity = time.monotonic()
+            self.condition.notify_all()
+
+    def snapshot(self) -> dict:
+        with self.condition:
+            return {
+                "queueDepth": self.pending,
+                "active": self.active,
+                "lastWaitMs": round(self.last_wait_ms, 3),
+                "lastFlushMs": round(self.last_flush_ms, 3),
+                "lastPendingAgeMs": round(self.last_pending_age_ms, 3),
+                "flushCount": self.flush_count,
+                "failureCount": self.failure_count,
+                "lastErrorType": self.last_error_type,
+                "lastCompletedAt": self.last_completed_at,
+                "_lastActivity": self.last_activity,
+            }
+
+
+def _store_serialized(func):
+    """Run a low-frequency cross-Session/index operation under _STORE_LOCK."""
+    @wraps(func)
+    def locked(*args, **kwargs):
+        with _STORE_LOCK:
+            return func(*args, **kwargs)
+    return locked
+
+
+def _reserve_save_ticket(session_id: str) -> tuple[_SessionSaveState, int, float]:
+    """Atomically obtain a state and reserve its next FIFO ticket.
+
+    Keeping lookup and reservation under ``_STORE_LOCK`` lets ``delete`` retire
+    an idle state without a stale caller reserving on the old state after it has
+    been removed from the registry.
+    """
+    with _STORE_LOCK:
+        state = _SAVE_STATES.get(session_id)
+        if state is None:
+            state = _SessionSaveState()
+            _SAVE_STATES[session_id] = state
+        ticket, enqueued_at = state.reserve()
+        return state, ticket, enqueued_at
+
+
+def save_diagnostics(session_id: str | None = None, *, limit: int = 32) -> dict:
+    """Return bounded save queue/latency counters without message contents.
+
+    With ``session_id`` the result is the exact per-Session snapshot.  Without
+    it, at most ``limit`` recently active Session snapshots are returned along
+    with aggregate queue/active counts.  This is intentionally process-local:
+    the counters diagnose contention and are not durable Session state.
+    """
+    if session_id is not None:
+        with _STORE_LOCK:
+            state = _SAVE_STATES.get(session_id)
+        if state is None:
+            return {
+                "sessionId": session_id,
+                "queueDepth": 0,
+                "active": False,
+                "lastWaitMs": 0.0,
+                "lastFlushMs": 0.0,
+                "lastPendingAgeMs": 0.0,
+                "flushCount": 0,
+                "failureCount": 0,
+                "lastErrorType": None,
+                "lastCompletedAt": None,
+            }
+        result = state.snapshot()
+        result.pop("_lastActivity", None)
+        return {"sessionId": session_id, **result}
+
+    try:
+        bounded_limit = max(1, min(int(limit), _MAX_SAVE_DIAGNOSTIC_SESSIONS))
+    except (TypeError, ValueError):
+        bounded_limit = 32
+    with _STORE_LOCK:
+        states = list(_SAVE_STATES.items())
+    snapshots = [
+        {"sessionId": sid, **state.snapshot()}
+        for sid, state in states
+    ]
+    snapshots.sort(key=lambda item: item.get("_lastActivity", 0.0), reverse=True)
+    visible = snapshots[:bounded_limit]
+    for item in visible:
+        item.pop("_lastActivity", None)
+    return {
+        "sessions": visible,
+        "totalTracked": len(snapshots),
+        "totalQueued": sum(item["queueDepth"] for item in snapshots),
+        "activeSessions": sum(1 for item in snapshots if item["active"]),
+    }
 
 # Session-list previews are a persisted projection, not a second history
 # representation.  Keep this bound compatible with the old ``lastMessage``
@@ -744,6 +928,7 @@ _cache: dict[str, Session] = {}
 
 # ── CRUD ──
 
+@_store_serialized
 def create(name: str, model: str | None = None,
            permission_mode: str | None = None,
            adapter: str = "cbc",
@@ -815,7 +1000,7 @@ def create(name: str, model: str | None = None,
 def _available_name(name: str, *, exclude_ids: set[str] | None = None) -> str:
     """Return the first unused session name, starting with ``name``.
 
-    The caller must hold ``_SAVE_LOCK`` when the result is used to create a
+    The caller must hold ``_STORE_LOCK`` when the result is used to create a
     session. ``exclude_ids`` is used by handoff so the session being replaced
     does not make its own name appear occupied.
     """
@@ -1026,8 +1211,90 @@ def agent_level(session_id: str, *, load_history: bool = True) -> int:
     return level
 
 
+def _run_persistence_ticket(state: _SessionSaveState, ticket: int,
+                            enqueued_at: float, operation):
+    """Run one ordered per-Session operation and always release its ticket."""
+    started = False
+    flush_started = 0.0
+    error_type: str | None = None
+    try:
+        state.begin(ticket, enqueued_at)
+        started = True
+        flush_started = time.monotonic()
+        return operation()
+    except BaseException as exc:
+        error_type = type(exc).__name__
+        raise
+    finally:
+        if started:
+            state.finish(
+                flush_ms=(time.monotonic() - flush_started) * 1000.0,
+                error_type=error_type,
+            )
+        else:
+            state.cancel_before_begin(ticket)
+
+
+def _save_body(s: Session, force_full: bool = False):
+    """Write one Session while its per-Session ticket is active.
+
+    The history ``[start, end)`` cursor is deliberately kept from T-062.2:
+    appends that happen while the filesystem call is blocked remain for the
+    next ticket and cannot be skipped.
+    """
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    hist_path = _history_path(s.id)
+    # Append can happen from the event loop while this synchronous writer is
+    # blocked in the filesystem.  Take both the cursor and this round's end
+    # before the write, then never advance past that end.
+    _ensure_summary_metadata(s)
+    s.updated_at = datetime.now().isoformat()  # API reads the live object
+    meta_sig = _meta_signature(s)
+    start = getattr(s, "_hist_persisted", 0)
+    if not isinstance(start, int) or start < 0:
+        start = 0
+    end = len(s.history)
+    # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
+    # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
+    rewrite_full = force_full or start > end or not hist_path.exists()
+    if rewrite_full:
+        history_to_write = s.history[:end]
+        _write_jsonl(hist_path, history_to_write)
+    else:
+        history_to_write = s.history[start:end]
+        _append_jsonl(hist_path, history_to_write)
+    # Do not use len(s.history) here: appends that raced the write belong to
+    # the next save and must not be skipped.
+    s._hist_persisted = end
+
+    # 元数据变化 → 重写主文件（元数据 + 尾部 history，常量序列化开销）。
+    # 写临时文件 + os.replace 原子替换：主文件写一半崩溃也不会损坏
+    # （history 真源在 jsonl，主文件只是元数据镜像 + 存在标记）。
+    if force_full or meta_sig != getattr(s, "_last_meta_sig", None):
+        d = s.to_dict()
+        d.pop("system_prompt")  # derived API/export alias is not durable state
+        d["history"] = s.history[-_MAIN_HISTORY_TAIL:]
+        main_path = _path(s.id)
+        tmp_path = main_path.with_suffix(".json.tmp")
+        tmp_path.write_text(
+            json.dumps(d, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        os.replace(tmp_path, main_path)
+        s._last_meta_sig = meta_sig
+    _cache[s.id] = s
+
+
+def _save_sync_reserved(s: Session, force_full: bool,
+                        state: _SessionSaveState, ticket: int,
+                        enqueued_at: float):
+    return _run_persistence_ticket(
+        state, ticket, enqueued_at,
+        lambda: _save_body(s, force_full=force_full),
+    )
+
+
 def _save_sync(s: Session, force_full: bool = False):
-    """落盘 Session。热路径只做增量：
+    """Synchronously enqueue one ordered per-Session persistence operation.
 
     - history 追加（自 s._hist_persisted 起的未落盘条目）到 <id>.history.jsonl；
     - 主文件仅在元数据变化（或首次 / 迁移 / force_full）时重写——纯 history
@@ -1036,49 +1303,8 @@ def _save_sync(s: Session, force_full: bool = False):
     force_full=True（首次创建 / 迁移 / history 整体替换）时整重写 jsonl。
     进程内内存 history 是权威，落盘是镜像；_hist_persisted 记录已镜像条数。
     """
-    SESSION_DIR.mkdir(parents=True, exist_ok=True)
-    hist_path = _history_path(s.id)
-    with _SAVE_LOCK:
-        # Append can happen from the event loop while this synchronous writer
-        # is blocked in the filesystem.  Take both the cursor and this
-        # round's end under the same lock, then never advance past that end.
-        # Anything appended after this point is deliberately left for the
-        # next flush.
-        _ensure_summary_metadata(s)
-        s.updated_at = datetime.now().isoformat()  # API reads the live object
-        meta_sig = _meta_signature(s)
-        start = getattr(s, "_hist_persisted", 0)
-        if not isinstance(start, int) or start < 0:
-            start = 0
-        end = len(s.history)
-        # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
-        # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
-        rewrite_full = force_full or start > end or not hist_path.exists()
-        if rewrite_full:
-            history_to_write = s.history[:end]
-            _write_jsonl(hist_path, history_to_write)
-        else:
-            history_to_write = s.history[start:end]
-            _append_jsonl(hist_path, history_to_write)
-        # Do not use len(s.history) here: appends that raced the write belong
-        # to the next save and must not be skipped.
-        s._hist_persisted = end
-
-        # 元数据变化 → 重写主文件（元数据 + 尾部 history，常量序列化开销）。
-        # 写临时文件 + os.replace 原子替换：主文件写一半崩溃也不会损坏
-        # （history 真源在 jsonl，主文件只是元数据镜像 + 存在标记）。
-        if force_full or meta_sig != getattr(s, "_last_meta_sig", None):
-            d = s.to_dict()
-            d.pop("system_prompt")  # derived API/export alias is not durable state
-            d["history"] = s.history[-_MAIN_HISTORY_TAIL:]
-            main_path = _path(s.id)
-            tmp_path = main_path.with_suffix(".json.tmp")
-            tmp_path.write_text(
-                json.dumps(d, ensure_ascii=False, indent=2),
-                encoding="utf-8")
-            os.replace(tmp_path, main_path)
-            s._last_meta_sig = meta_sig
-        _cache[s.id] = s
+    state, ticket, enqueued_at = _reserve_save_ticket(s.id)
+    return _save_sync_reserved(s, force_full, state, ticket, enqueued_at)
 
 
 def save(s: Session):
@@ -1096,19 +1322,59 @@ def save_full(s: Session):
 
 
 async def save_async(s: Session):
-    """Async save (for high-frequency worker stdout/consumer calls)."""
-    await asyncio.to_thread(_save_sync, s)
+    """Async save for high-frequency worker calls, ordered per Session.
+
+    The executor task is shielded so cancelling the caller cannot abandon a
+    ticket in the per-Session queue or leave a filesystem writer holding the
+    state.  The caller still receives ``CancelledError`` after that durable
+    operation has retired.
+    """
+    state, ticket, enqueued_at = _reserve_save_ticket(s.id)
+    try:
+        save_task = asyncio.create_task(asyncio.to_thread(
+            _save_sync_reserved, s, False, state, ticket, enqueued_at,
+        ))
+    except BaseException:
+        state.cancel_before_begin(ticket)
+        raise
+    try:
+        return await asyncio.shield(save_task)
+    except asyncio.CancelledError:
+        try:
+            await asyncio.shield(save_task)
+        except BaseException:
+            # Preserve the caller's cancellation while the worker thread has
+            # nevertheless completed its release path and recorded failure.
+            pass
+        raise
 
 
+@_store_serialized
 def delete(session_id: str):
-    path = _path(session_id)
-    if path.exists():
-        path.unlink()
-    hist_path = _history_path(session_id)
-    if hist_path.exists():
-        hist_path.unlink()
-    _cache.pop(session_id, None)
-    _newline_terminated_jsonl.discard(str(hist_path))  # 文件已删，缓存作废
+    # Delete is ordered behind already queued writes for this Session.  A
+    # global name/index operation may hold _STORE_LOCK while waiting here; the
+    # writer never takes _STORE_LOCK after entering its per-Session state.
+    state, ticket, enqueued_at = _reserve_save_ticket(session_id)
+
+    def remove_files():
+        path = _path(session_id)
+        if path.exists():
+            path.unlink()
+        hist_path = _history_path(session_id)
+        if hist_path.exists():
+            hist_path.unlink()
+        _cache.pop(session_id, None)
+        _newline_terminated_jsonl.discard(str(hist_path))  # 文件已删，缓存作废
+
+    try:
+        _run_persistence_ticket(state, ticket, enqueued_at, remove_files)
+    finally:
+        # No caller can reserve on this state between the atomic reservation
+        # above and this cleanup.  Future writes to a deleted Session ID get a
+        # fresh state rather than growing diagnostics forever.
+        with _STORE_LOCK:
+            if _SAVE_STATES.get(session_id) is state:
+                _SAVE_STATES.pop(session_id, None)
 
 
 def expand_managed_descendants(root_ids: list[str]) -> list[str]:
@@ -1137,6 +1403,7 @@ def expand_managed_descendants(root_ids: list[str]) -> list[str]:
     return descendants
 
 
+@_store_serialized
 def claim(manager_id: str, session_id: str) -> str | None:
     """Set a bidirectional managed relationship (立项 4.2).
 
@@ -1182,6 +1449,7 @@ def claim(manager_id: str, session_id: str) -> str | None:
     return None
 
 
+@_store_serialized
 def release(session_id: str) -> str | None:
     """Remove the managed relationship pointing at session_id.
 
@@ -1225,6 +1493,7 @@ def release(session_id: str) -> str | None:
     return None
 
 
+@_store_serialized
 def unclaim(manager_id: str, session_id: str) -> str | None:
     """Remove the managed relationship (manager_id → session_id).
 
@@ -1267,6 +1536,7 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
     return None
 
 
+@_store_serialized
 def handoff_session(
     session_id: str,
     handoff_prompt: str,
@@ -1330,10 +1600,10 @@ def handoff_session(
         new_game_id = None
         new_notification_settings = None
 
-    # Allocate and persist B while holding the same lock used by save().
+    # Allocate and persist B while holding the global store lock.
     # This closes the check/create window between concurrent handoffs. A is
     # excluded because it is about to be archived and must not force a suffix.
-    with _SAVE_LOCK:
+    with _STORE_LOCK:
         b = create(
             name=_available_name(orig_name, exclude_ids={a.id}),
             adapter=new_adapter,
@@ -1398,7 +1668,7 @@ def handoff_session(
     # Re-check the archive name after relationship work. Another handoff may
     # have archived a session while this one was transferring relationships.
     # Keep allocation and save atomic under the same lock as B creation.
-    with _SAVE_LOCK:
+    with _STORE_LOCK:
         a.name = _available_name(
             f"(archive) {orig_name}", exclude_ids={a.id, b.id})
         save(a)
@@ -1409,6 +1679,7 @@ def handoff_session(
 _all_loaded: bool = False
 
 
+@_store_serialized
 def list_all(*, load_history: bool = True) -> list[Session]:
     global _all_loaded
     if not _all_loaded:
@@ -1446,6 +1717,7 @@ def list_all(*, load_history: bool = True) -> list[Session]:
                                  s.created_at))
 
 
+@_store_serialized
 def apply_order(ordered_ids: list[str]) -> str | None:
     """Persist a user-defined display order for the session list.
 
