@@ -887,7 +887,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
   if (accepted) {
     for (const block of extractBlocks(event)) {
       if (block.role === 'thinking' || block.role === 'tool') {
-        store.markUnread(block.content);
+        store.markUnread(sessionId, block.content);
       }
     }
   }

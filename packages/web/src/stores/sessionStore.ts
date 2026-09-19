@@ -18,6 +18,7 @@ import {
 } from '@/services/api';
 import { isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
+import { cloneMessageWithIdentity, inheritMessageIdentity } from '@/utils/messageIdentity';
 
 interface SessionStore {
   // State
@@ -122,7 +123,7 @@ interface SessionStore {
   exitMultiSelect: () => void;
   setRendering: (v: boolean) => void;
   getUnread: () => Set<string>;
-  markUnread: (content: string) => void;
+  markUnread: (sessionId: string, content: string) => void;
   clearUnread: () => void;
 }
 
@@ -220,29 +221,43 @@ function mergeServerHistoryWithLive(
   serverHistory: Message[],
   liveMessages: Message[],
 ): Message[] {
-  const result = serverHistory.map((message) => ({ ...message }));
+  // Preserve object identity for unchanged history and live rows. TanStack
+  // Virtual uses a WeakMap-backed key, so cloning every row on every delta
+  // remounts the growing Markdown block and makes the viewport flash.
+  const result = [...serverHistory];
+  const claimedIndexes = new Set<number>();
   for (const live of liveMessages) {
     const identityIndex = live.nativeItemId
-      ? result.findIndex((message) => message.nativeItemId === live.nativeItemId)
+      ? result.findIndex((message, index) =>
+          !claimedIndexes.has(index)
+          && message.nativeItemId === live.nativeItemId
+          && message.role === live.role)
       : -1;
-    const contentIndex = result.findIndex((message) =>
-      message.role === live.role && message.content === live.content,
+    const contentIndex = result.findIndex((message, index) =>
+      !claimedIndexes.has(index)
+      && message.role === live.role
+      && message.content === live.content,
     );
     const compatibleIndex = identityIndex >= 0
       ? identityIndex
       : live.role === 'assistant'
-        ? result.findIndex((message) => message.role === 'assistant'
+        ? result.findIndex((message, index) => !claimedIndexes.has(index)
+          && message.role === 'assistant'
           && (message.content.startsWith(live.content) || live.content.startsWith(message.content)))
         : contentIndex;
     if (compatibleIndex < 0) {
-      result.push({ ...live });
+      result.push(live);
+      claimedIndexes.add(result.length - 1);
       continue;
     }
+    claimedIndexes.add(compatibleIndex);
     const existing = result[compatibleIndex]!;
     // Prefer the longer/current live assistant, but never replace a server
     // final answer with a shorter stale delta.
     if (live.role !== 'assistant' || live.content.length >= existing.content.length) {
-      result[compatibleIndex] = { ...existing, ...live };
+      const merged = { ...existing, ...live };
+      inheritMessageIdentity(merged, live);
+      result[compatibleIndex] = merged;
     }
   }
   return result;
@@ -294,18 +309,18 @@ function isBlockedByTerminal(
 }
 
 function mergeFinalMessages(local: Message[], canonical: Message[]): Message[] {
-  const result = canonical.map((message) => ({ ...message }));
+  const result = canonical.map(cloneMessageWithIdentity);
   for (const message of local) {
     if (message.role === 'system') continue;
     if (result.some((candidate) => sameMessage(candidate, message))) continue;
     // Keep a locally queued/agent user turn if the authoritative history was
     // fetched before that hand-off became durable. Never retain an old live
     // assistant here: canonical already contains the final replacement.
-    if (message.role === 'user') result.push({ ...message });
+    if (message.role === 'user') result.push(cloneMessageWithIdentity(message));
   }
   for (const message of local.filter((candidate) => candidate.role === 'system')) {
     if (result.some((candidate) => sameMessage(candidate, message))) continue;
-    result.push({ ...message });
+    result.push(cloneMessageWithIdentity(message));
   }
   return result;
 }
@@ -1031,7 +1046,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   getLiveStreamMessages: (sessionId) =>
-    (get().liveStreamBuffers[sessionId]?.messages || []).map((message) => ({ ...message })),
+    (get().liveStreamBuffers[sessionId]?.messages || []).slice(),
 
   applyLiveStream: (sessionId, messages, meta) => {
     if (!messages.length) return false;
@@ -1048,7 +1063,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const buffer: LiveStreamBuffer = {
         ...meta,
         revision,
-        messages: messages.map((message) => ({ ...message })),
+        messages: messages.slice(),
       };
       accepted = true;
       const session = s.sessions.find((candidate) => candidate.id === sessionId);
@@ -1093,11 +1108,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           : 'done';
       const liveMessages = previousBuffer?.messages || [];
       const liveAssistant = [...liveMessages].reverse().find((message) => message.role === 'assistant');
-      const finalLiveMessages = result.trim()
-        ? liveMessages.map((message) => message === liveAssistant
+      const finalLiveMessages = liveMessages.map((message) => {
+        const finalMessage = result.trim() && message === liveAssistant
           ? { ...message, content: result }
-          : { ...message })
-        : liveMessages.map((message) => ({ ...message }));
+          : { ...message };
+        inheritMessageIdentity(finalMessage, message);
+        return finalMessage;
+      });
       if (result.trim() && !liveAssistant) {
         finalLiveMessages.push({
           role: 'assistant',
@@ -1574,18 +1591,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return sessionUnread[currentSessionId] ?? EMPTY_UNREAD_SET;
   },
 
-  markUnread: (content: string) => {
-    const { currentSessionId } = get();
-    if (!currentSessionId) return;
+  markUnread: (sessionId: string, content: string) => {
+    if (!sessionId) return;
     set((s) => {
-      const previous = s.sessionUnread[currentSessionId] ?? EMPTY_UNREAD_SET;
+      const previous = s.sessionUnread[sessionId] ?? EMPTY_UNREAD_SET;
       if (previous.has(content)) return {};
       const perSession = new Set(previous);
       perSession.add(content);
       return {
         sessionUnread: {
           ...s.sessionUnread,
-          [currentSessionId]: perSession,
+          [sessionId]: perSession,
         },
       };
     });
