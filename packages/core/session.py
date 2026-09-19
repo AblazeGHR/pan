@@ -1810,6 +1810,14 @@ def _save_body(s: Session, force_full: bool = False):
     if not isinstance(start, int) or start < 0:
         start = 0
     end = len(s.history)
+    # 新落盘条目补本地时间戳 ts（ISO-8601，写入时刻打点）。游标之前的条目
+    # 是已落盘的旧数据（无 ts），保持缺失——前端对缺失 ts 不显示时间。
+    new_entries = s.history[start:end]
+    if new_entries:
+        now = datetime.now().isoformat()
+        for entry in new_entries:
+            if isinstance(entry, dict) and not entry.get("ts"):
+                entry["ts"] = now
     # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
     # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
     if not shallow_existing_history:

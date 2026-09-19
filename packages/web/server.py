@@ -1318,6 +1318,36 @@ def _project_worker_event(data: dict) -> dict:
     return {**data, "event": event} if changed else data
 
 
+def _stamp_ws_event_ts(data: dict):
+    """实时消息事件补 ts（本地 ISO-8601），供前端即时显示时间。
+
+    只在最终消息上打一次点：queue.item_delivered 的 user 消息（此时历史已
+    落盘），以及 worker.stream 的完整 assistant 事件（非 delta chunk）。
+    流式增量（delta）不带 ts，历史条目自身的 ts 由 session 落盘入口打点。
+    """
+    etype = data.get("type")
+    now: str | None = None
+    if etype == "queue.item_delivered":
+        msgs = data.get("messages")
+        if isinstance(msgs, list):
+            now = datetime.now().isoformat()
+            for m in msgs:
+                if isinstance(m, dict) and not m.get("ts"):
+                    m["ts"] = now
+        return
+    if etype == "worker.stream":
+        ev = data.get("event")
+        if not isinstance(ev, dict) or ev.get("delta"):
+            return
+        # kimi 增量块（content.part）不是完整消息；role/type 为 assistant
+        # 的完整事件（cbc/kimi 单块完成、codex final）才是最终消息。
+        if ev.get("type") == "content.part":
+            return
+        role = ev.get("role") or ev.get("type")
+        if role == "assistant" and not ev.get("ts"):
+            ev["ts"] = datetime.now().isoformat()
+
+
 async def broadcast(data: dict):
     """Enqueue one event for each eligible client and return immediately.
 
@@ -1331,6 +1361,7 @@ async def broadcast(data: dict):
     data = _attach_session_summary_patch(data)
     data = _project_worker_event(data)
     data = _stamp_live_event(data)
+    _stamp_ws_event_ts(data)
     for ws in list(ws_clients):
         _client_channel(ws, "dashboard").enqueue(data)
 

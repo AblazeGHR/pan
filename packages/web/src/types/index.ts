@@ -15,6 +15,8 @@ export interface Message {
   turnId?: string;
   /** Server-canonical parts; content remains the adapter/legacy fallback. */
   parts?: MessagePart[];
+  /** 本地 ISO-8601 发送/回复时间（后端写入历史时刻打点）；旧数据缺失则不显示时间。 */
+  ts?: string;
   /** Transient native Codex identity used to merge live Codex messages. */
   nativeItemId?: string;
   /** Queue item(s) whose local CLI hand-off produced this user message. */
@@ -215,6 +217,8 @@ export interface WorkerEventContent {
 
 export interface WorkerEvent {
   type: string;
+  /** 本地 ISO-8601 完成时刻（最终 assistant 消息一次性携带，delta 不带）。 */
+  ts?: string;
   /** Native app-server incremental event; UI merges it into one message. */
   delta?: boolean;
   /** Cumulative text for sidebar previews while `delta` is true. */

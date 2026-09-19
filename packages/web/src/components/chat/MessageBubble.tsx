@@ -41,6 +41,36 @@ interface MessageBubbleProps {
   prevRole?: PrevRole;
 }
 
+/** HH:MM；非今天附日期（YYYY-MM-DD）。解析失败返回空（不显示）。 */
+export function formatMessageTs(ts: string): string {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const now = new Date();
+  if (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  ) {
+    return time;
+  }
+  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${date} ${time}`;
+}
+
+/** 消息时间标签：小号次要色；旧历史条目无 ts 时不渲染。 */
+function MessageTimestamp({ ts }: { ts?: string }) {
+  if (!ts) return null;
+  const label = formatMessageTs(ts);
+  if (!label) return null;
+  return (
+    <div className="text-[11px] text-text-secondary mt-0.5 select-none">
+      {label}
+    </div>
+  );
+}
+
 export const MessageBubble = memo(function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
   const role = message.role;
   const mt = marginTopClass(role, prevRole);
@@ -86,6 +116,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
             className="text-sm"
           />
         </div>
+        <MessageTimestamp ts={message.ts} />
       </div>
     );
   }
@@ -99,6 +130,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
           attachmentIds={attachmentIds}
         />
       </div>
+      <MessageTimestamp ts={message.ts} />
     </div>
   );
 });

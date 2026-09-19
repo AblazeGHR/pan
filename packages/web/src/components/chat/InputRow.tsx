@@ -1170,7 +1170,10 @@ export function InputRow() {
           setInputDraft(steerSessionId, '');
           if (stillSelected) updateAttachments(() => []);
         }
-        appendLocalMessage(steerSessionId, { role: 'user', content: text, messageId });
+        // Optimistic append with a local ts; the server stamps the same
+        // moment into history (steer_worker appends + saves right after the
+        // control write).
+        appendLocalMessage(steerSessionId, { role: 'user', content: text, messageId, ts: new Date().toISOString() });
       } catch (e) {
         showToast((e as Error).message || 'Steer failed', 'error');
       }
