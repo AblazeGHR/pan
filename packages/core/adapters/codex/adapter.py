@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 from ...session import Session
 from ..mcp import build_mcp_servers
+from .tool_projection import canonical_tool_content, canonical_tool_json
 
 _log = logging.getLogger(__name__)
 
@@ -417,6 +418,7 @@ class CodexAdapter:
         if event.get("type") == "assistant":
             content = ((event.get("message") or {}).get("content") or [])
             blocks: list[dict] = []
+            native_item_id = event.get("item_id") or event.get("itemId")
             for part in content:
                 if not isinstance(part, dict):
                     continue
@@ -429,8 +431,11 @@ class CodexAdapter:
                 elif part.get("type") == "tool_use":
                     name = part.get("name") or "tool"
                     args = part.get("input") or {}
-                    inp = json.dumps(args, ensure_ascii=False) if isinstance(args, (dict, list)) else str(args)
-                    blocks.append({"role": "tool", "content": f"{name}({inp})"})
+                    content = canonical_tool_content(name, args)
+                    block = {"role": "tool", "content": content}
+                    if native_item_id is not None:
+                        block["nativeItemId"] = str(native_item_id)
+                    blocks.append(block)
             return blocks
         if event.get("type") == "thinking":
             text = event.get("content") or ""
@@ -461,14 +466,19 @@ class CodexAdapter:
                 blocks.append({"role": "thinking", "content": text})
         elif itype == "commandexecution":
             cmd = item.get("command", "")
-            out = item.get("aggregated_output", "")
-            content = cmd
+            out = item.get("aggregated_output", "") or item.get("aggregatedOutput", "") or item.get("output", "")
+            args = {"command": str(cmd)}
             if out:
-                content += "\n→ " + out
-            blocks.append({"role": "tool", "content": content})
+                args["output"] = str(out)
+            block = {"role": "tool", "content": canonical_tool_content("Command", args)}
+            if item.get("id") is not None:
+                block["nativeItemId"] = str(item["id"])
+            blocks.append(block)
         elif itype in ("filechange", "patchapply"):
-            inp = json.dumps(item, ensure_ascii=False)
-            blocks.append({"role": "tool", "content": f"FileChange({inp})"})
+            block = {"role": "tool", "content": canonical_tool_content("FileChange", item)}
+            if item.get("id") is not None:
+                block["nativeItemId"] = str(item["id"])
+            blocks.append(block)
         elif itype in {
             "collabagenttoolcall", "subagentactivity", "websearch", "imagegeneration",
             "sleep", "enteredreviewmode", "exitedreviewmode", "contextcompaction",
@@ -488,16 +498,20 @@ class CodexAdapter:
                 name = f"{name}/{item['tool']}"
             tool_input = {key: value for key, value in item.items()
                           if key not in {"id", "type"}}
-            blocks.append({"role": "tool", "content": f"{name}({json.dumps(tool_input, ensure_ascii=False)})"})
+            block = {"role": "tool", "content": canonical_tool_content(name, tool_input)}
+            if item.get("id") is not None:
+                block["nativeItemId"] = str(item["id"])
+            blocks.append(block)
         elif itype == "functioncall":
             name = item.get("name") or item.get("pluginId") or "tool"
             args = item.get("arguments") or item.get("parameters") or {}
-            inp = json.dumps(args, ensure_ascii=False) if isinstance(args, (dict, list)) else str(args or "")
             out = item.get("output") or item.get("result") or ""
-            content = f"{name}({inp})"
-            if out:
-                content += "\n→ " + out
-            blocks.append({"role": "tool", "content": content})
+            if out and isinstance(args, dict):
+                args = {**args, "result": out}
+            block = {"role": "tool", "content": canonical_tool_content(name, args)}
+            if item.get("id") is not None:
+                block["nativeItemId"] = str(item["id"])
+            blocks.append(block)
         elif itype == "usermessage":
             parts = item.get("content") or []
             text = "".join(
@@ -514,10 +528,13 @@ class CodexAdapter:
             kind = str(item.get("type") or "CodexItem")
             details = {key: value for key, value in item.items()
                        if key not in {"id", "type"}}
-            rendered = json.dumps(details, ensure_ascii=False)
+            rendered = canonical_tool_json(details)
             if len(rendered) > 4000:
                 rendered = rendered[:4000] + "…"
-            blocks.append({"role": "tool", "content": f"{kind}({rendered})"})
+            block = {"role": "tool", "content": f"{kind}({rendered})"}
+            if item.get("id") is not None:
+                block["nativeItemId"] = str(item["id"])
+            blocks.append(block)
 
         return blocks
 
