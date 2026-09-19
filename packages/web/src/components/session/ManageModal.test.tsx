@@ -413,4 +413,41 @@ describe('ManageModal', () => {
       }),
     );
   });
+
+  it('does not let an older detail response replace the newly opened Session', async () => {
+    const first = mk('s1', 'First', { managed: [] });
+    const second = mk('s2', 'Second', { managed: [] });
+    let resolveFirst: (value: Session) => void = () => {};
+    let resolveSecond: (value: Session) => void = () => {};
+    apiMock.fetchSession.mockImplementation((id: string) => new Promise((resolve) => {
+      if (id === first.id) resolveFirst = resolve;
+      else resolveSecond = resolve;
+    }));
+    useSessionStore.setState({ sessions: [first, second], currentSessionId: first.id });
+
+    const { rerender } = render(<ManageModal open onClose={() => {}} sessionId={first.id} />);
+    rerender(<ManageModal open onClose={() => {}} sessionId={second.id} />);
+
+    resolveFirst({ ...first, name: 'Stale First' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText(/Stale First manages/)).toBeNull();
+
+    resolveSecond({ ...second, name: 'Fresh Second' });
+    expect(await screen.findByText(/Fresh Second manages/)).toBeTruthy();
+    expect(screen.queryByText(/Stale First manages/)).toBeNull();
+  });
+
+  it('keeps cached metadata visible and offers retry after a detail failure', async () => {
+    apiMock.fetchSession
+      .mockRejectedValueOnce(new Error('metadata timeout'))
+      .mockResolvedValueOnce(mk('s1', 'Fresh after retry', { managed: [] }));
+    useSessionStore.setState({ sessions: [mk('s1', 'Child')] });
+
+    render(<ManageModal open onClose={() => {}} sessionId="s1" />);
+    expect(await screen.findByText('error')).toBeTruthy();
+    expect(screen.getByText(/metadata timeout/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('updated')).toBeTruthy();
+    expect(screen.getByText(/Fresh after retry manages/)).toBeTruthy();
+  });
 });

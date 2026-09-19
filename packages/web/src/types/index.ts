@@ -119,6 +119,8 @@ export interface SessionUsageView {
   total: { tokens: number | null; credit: number | null };
   /** Account-scoped Codex quota projection; never part of raw/total usage. */
   codexQuota?: CodexQuotaProjection | null;
+  /** Stable projection provenance; raw payloads are intentionally excluded. */
+  source?: Record<string, unknown> | string | null;
   updatedAt?: string | null;
   error?: { code?: string | number; message?: string };
 }

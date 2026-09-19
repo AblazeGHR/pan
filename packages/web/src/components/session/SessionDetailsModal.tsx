@@ -7,6 +7,7 @@ import type { Session, SessionUsageView } from '@/types';
 import { copyText } from '@/utils/clipboard';
 import { normalizeCodexQuotaProjection, type CodexQuotaWindow } from '@/utils/codexRateLimits';
 import { getSessionUsageCache, setSessionUsageCache } from './sessionUsageCache';
+import { FreshnessSkeleton, FreshnessStatus, type FreshnessState } from './FreshnessStatus';
 
 interface SessionDetailsModalProps {
   session: Session | null;
@@ -107,6 +108,13 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
   const [detailSession, setDetailSession] = useState<Session | null>(null);
   const usageRequestId = useRef(0);
+  const detailRequestId = useRef(0);
+  const detailCache = useRef(new Map<string, Session>());
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRefreshing, setDetailRefreshing] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailRetrySeq, setDetailRetrySeq] = useState(0);
+  const [usageRetrySeq, setUsageRetrySeq] = useState(0);
 
   useEffect(() => {
     usageRequestId.current += 1;
@@ -118,22 +126,38 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     setQuotaLoading(false);
     setUsageError(null);
     setSystemPromptExpanded(false);
-    setDetailSession(null);
+    setDetailSession(sessionId ? detailCache.current.get(sessionId) ?? null : null);
+    setDetailLoading(false);
+    setDetailRefreshing(false);
+    setDetailError(null);
   }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
+    const requestId = ++detailRequestId.current;
+    const cached = detailCache.current.get(sessionId);
     let active = true;
+    setDetailLoading(!cached);
+    setDetailRefreshing(Boolean(cached));
+    setDetailError(null);
     fetchSession(sessionId)
       .then((full) => {
-        if (active) setDetailSession(full);
+        if (!active || detailRequestId.current !== requestId || full.id !== sessionId) return;
+        detailCache.current.set(sessionId, full);
+        setDetailSession(full);
+        setDetailLoading(false);
+        setDetailRefreshing(false);
       })
-      .catch(() => {
-        // The summary session remains the fallback when the detail request
-        // fails, so opening Details is still useful during a transient error.
+      .catch((error) => {
+        if (!active || detailRequestId.current !== requestId) return;
+        setDetailLoading(false);
+        setDetailRefreshing(false);
+        setDetailError(error instanceof Error ? error.message : 'Session details unavailable');
       });
-    return () => { active = false; };
-  }, [sessionId]);
+    return () => {
+      active = false;
+    };
+  }, [sessionId, detailRetrySeq]);
 
   useEffect(() => {
     if (!usageExpanded || !sessionId) return;
@@ -196,7 +220,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
         if (isCurrent()) setUsageLoading(false);
       });
     return () => { active = false; };
-  }, [sessionId, usageExpanded]);
+  }, [sessionId, usageExpanded, usageRetrySeq]);
 
   if (!session) return null;
 
@@ -206,6 +230,35 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   const displayedSession = detailSession ?? session;
   const usageView = usage ?? fallbackUsage(displayedSession);
   const quotaRefreshError = usageView.codexQuota?.refreshError;
+  const detailFreshness: FreshnessState = detailError
+    ? 'error'
+    : detailLoading
+      ? 'loading'
+      : detailRefreshing
+        ? 'refreshing'
+        : detailSession
+          ? 'updated'
+          : 'cached';
+  const detailSource = detailSession ? 'session metadata' : 'session summary cache';
+  const usageCache = sessionId ? getSessionUsageCache(sessionId) : undefined;
+  const usageFreshness: FreshnessState = usageError
+    ? 'error'
+    : usageLoading
+      ? usageRefreshing
+        ? 'refreshing'
+        : 'loading'
+      : usage
+        ? 'updated'
+        : 'unknown';
+  const usageSource = usage
+    ? typeof usage.source === 'string'
+      ? usage.source
+      : (usage.source as { kind?: string } | null | undefined)?.kind || 'persisted usage projection'
+    : usageCache
+      ? 'session usage cache'
+      : 'unknown';
+  const usageUpdatedAt = usage?.updatedAt ?? usageCache?.cachedAt ?? null;
+  const retryUsage = () => setUsageRetrySeq((value) => value + 1);
   const copyValue = (label: string, value: string | undefined) => {
     if (!value) {
       showToast(`${label} 暂无可复制内容`, 'error');
@@ -250,6 +303,13 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     // of a centered window (< md breakpoint only). Desktop keeps size="lg".
     <Modal open title="Session Details" onClose={onClose} size="lg" mobileFullscreen>
       <div className="space-y-3">
+        <FreshnessStatus
+          state={detailFreshness}
+          updatedAt={displayedSession.updatedAt}
+          source={detailSource}
+          error={detailError}
+          onRetry={detailError ? () => setDetailRetrySeq((value) => value + 1) : undefined}
+        />
         {rows.map((row) => {
           const copyable = true;
           return (
@@ -317,6 +377,16 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
           </button>
           {usageExpanded && (
             <div id="session-usage-details" role="region" aria-label="Usage details" className="space-y-3 border-t border-border-default px-3 py-3">
+              <FreshnessStatus
+                state={usageFreshness}
+                updatedAt={usageUpdatedAt}
+                source={usageSource}
+                error={null}
+                onRetry={usageError || quotaRefreshError ? retryUsage : undefined}
+              />
+              {usageLoading && !usage && displayedSession.totalUsage == null && (
+                <FreshnessSkeleton label="Loading usage" />
+              )}
               {usageError && !quotaRefreshError && <div className="text-xs text-text-tertiary">{usageError}，当前显示已有数据</div>}
               {isCodex ? (
                 <div className="space-y-3" role="region" aria-label="Codex quota">

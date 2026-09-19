@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { ModelSelect } from '@/components/ui/ModelSelect';
 import { fetchSession } from '@/services/api';
 import type { AdapterConfig, PermissionMode, Session } from '@/types';
+import { FreshnessStatus } from '@/components/session/FreshnessStatus';
 
 interface SettingsPopoverProps {
   open: boolean;
@@ -81,6 +82,10 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
     null,
   );
   const detailRequestSeq = useRef(0);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRefreshing, setDetailRefreshing] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailRetrySeq, setDetailRetrySeq] = useState(0);
   const updatePopoverPosition = () => {
     const rect = anchorRef?.current?.getBoundingClientRect();
     if (!rect) return;
@@ -110,6 +115,9 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
     const requestSeq = (detailRequestSeq.current += 1);
     const sessionId = session.id;
     setDetailSession(null);
+    setDetailLoading(true);
+    setDetailRefreshing(false);
+    setDetailError(null);
     setMoreOpen(false);
     setContextWindowInput(session.modelContextWindow?.toString() ?? '');
     setAutoCompactInput(session.modelAutoCompactTokenLimit?.toString() ?? '');
@@ -122,6 +130,8 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
           useSessionStore.getState().currentSessionId !== sessionId
         ) return;
         setDetailSession(full);
+        setDetailLoading(false);
+        setDetailRefreshing(false);
         setContextWindowInput(full.modelContextWindow?.toString() ?? '');
         setAutoCompactInput(full.modelAutoCompactTokenLimit?.toString() ?? '');
         useSessionStore.getState().updateSession(full.id, {
@@ -134,10 +144,14 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
           workdir: full.workdir,
         });
       })
-      .catch(() => {
-        if (detailRequestSeq.current === requestSeq) setDetailSession(null);
+      .catch((error) => {
+        if (detailRequestSeq.current !== requestSeq) return;
+        setDetailLoading(false);
+        setDetailRefreshing(false);
+        setDetailError(error instanceof Error ? error.message : 'Session metadata unavailable');
+        setDetailSession(null);
       });
-  }, [open, session?.id]);
+  }, [open, session?.id, detailRetrySeq]);
 
   // Same per-session effective-worker logic as TopBar/SettingsPanel.
   const effectiveWorkerId =
@@ -321,6 +335,13 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
       style={{ position: 'fixed', left: popoverPosition.left, bottom: popoverPosition.bottom }}
       className="z-[60] mb-1 w-72 max-w-[calc(100vw-1rem)] max-h-[60vh] overflow-y-auto rounded-md border border-border-default bg-bg-primary shadow-xl p-3 space-y-3"
     >
+      <FreshnessStatus
+        state={detailError ? 'error' : detailLoading ? (detailRefreshing ? 'refreshing' : 'loading') : detailSession ? 'updated' : 'cached'}
+        updatedAt={detailSession?.updatedAt ?? session.updatedAt}
+        source={detailSession ? 'session metadata' : 'session summary cache'}
+        error={detailError}
+        onRetry={detailError ? () => setDetailRetrySeq((value) => value + 1) : undefined}
+      />
       {settingMutation?.pending && (
         <div data-settings-pending className="text-[11px] text-text-muted" aria-live="polite">
           保存中…

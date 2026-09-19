@@ -63,4 +63,25 @@ describe('adapterStore CLI status', () => {
 
     expect(useAdapterStore.getState().adapters).toEqual([]);
   });
+
+  it('does not let a slow previous adapter config move currentAdapter backwards', async () => {
+    let resolveCbc: (value: object) => void = () => {};
+    let resolveCodex: (value: object) => void = () => {};
+    apiMock.fetchAdapterConfig.mockImplementation((adapter: string) => new Promise((resolve) => {
+      if (adapter === 'cbc') resolveCbc = resolve;
+      else resolveCodex = resolve;
+    }));
+
+    const cbc = { models: ['cbc'], defaultModel: 'cbc', effortValues: [], permissionModes: [], defaultPermissionMode: 'default', supportedSettings: [] };
+    const codex = { models: ['codex'], defaultModel: 'codex', effortValues: [], permissionModes: [], defaultPermissionMode: 'default', supportedSettings: [] };
+    const first = useAdapterStore.getState().loadConfig('cbc');
+    const second = useAdapterStore.getState().loadConfig('codex');
+    resolveCbc(cbc);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useAdapterStore.getState().currentAdapter).toBe('codex');
+    resolveCodex(codex);
+    await Promise.all([first, second]);
+    expect(useAdapterStore.getState().currentAdapter).toBe('codex');
+    expect(useAdapterStore.getState().adapterConfigs.codex?.defaultModel).toBe('codex');
+  });
 });

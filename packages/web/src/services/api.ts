@@ -210,22 +210,34 @@ export async function fetchSessions(summary = false): Promise<Session[]> {
   return data.sessions || [];
 }
 
-export async function fetchSession(id: string): Promise<Session> {
-  const data = await request<ApiSessionResponse>(`${BASE}/sessions/${id}`);
+export type SessionFetchView = 'metadata' | 'full';
+
+/**
+ * Session metadata is the default UI read. The legacy full response remains
+ * available explicitly for callers that need history/raw payloads.
+ */
+export async function fetchSession(
+  id: string,
+  view: SessionFetchView = 'metadata',
+  signal?: AbortSignal,
+): Promise<Session> {
+  const query = view === 'metadata' ? '?view=metadata' : '';
+  const data = await request<ApiSessionResponse>(`${BASE}/sessions/${id}${query}`, { signal });
   if (data.error) throw new Error(data.error);
   return data;
 }
 
-export async function fetchSessionUsage(id: string): Promise<SessionUsageView> {
-  const data = await request<SessionUsageView>(`${BASE}/sessions/${encodeURIComponent(id)}/usage`);
+export async function fetchSessionUsage(id: string, signal?: AbortSignal): Promise<SessionUsageView> {
+  const data = await request<SessionUsageView>(`${BASE}/sessions/${encodeURIComponent(id)}/usage`, { signal });
   if (data.ok === false) throw new Error(data.error?.message || 'Failed to load session usage');
   return data;
 }
 
 /** Refresh account-scoped Codex quota separately from persisted Session usage. */
-export async function fetchCodexQuota(id: string): Promise<CodexQuotaProjection> {
+export async function fetchCodexQuota(id: string, signal?: AbortSignal): Promise<CodexQuotaProjection> {
   const data = await request<CodexQuotaProjection & { error?: { message?: string } }>(
     `${BASE}/codex/quota?session_id=${encodeURIComponent(id)}`,
+    { signal },
   );
   if (data.ok === false) throw new Error(data.error?.message || 'Failed to refresh Codex quota');
   return data;
@@ -289,8 +301,8 @@ export async function fetchSessionTemplates(): Promise<SessionTemplate[]> {
   return data.sessionTemplates || [];
 }
 
-export async function fetchMcpServers(): Promise<McpServerInfo[]> {
-  const data = await request<ApiMcpServersResponse>(`${BASE}/mcp/servers`);
+export async function fetchMcpServers(signal?: AbortSignal): Promise<McpServerInfo[]> {
+  const data = await request<ApiMcpServersResponse>(`${BASE}/mcp/servers`, { signal });
   // `loaded: false` means the manifest isn't loaded yet — return empty rather
   // than throwing, so the modal can show an explanatory empty state.
   if (!data.loaded) return [];
