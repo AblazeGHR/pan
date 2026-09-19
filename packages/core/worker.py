@@ -600,16 +600,122 @@ def _enrichment_job(s, key: str) -> dict | None:
     return None
 
 
+@dataclass
+class _UsageEnrichmentSnapshot:
+    """Minimal provider input/output state for background usage lookup.
+
+    Adapter enrichment only needs the provider session id, workdir, model,
+    accumulated usage, and adapter cursor/config.  Keeping this as a small
+    object is intentional: ``copy.deepcopy(Session)`` would also copy the
+    complete history, queue, and attachment-related state while the provider
+    is running in a background thread.
+    """
+
+    session_id: str
+    cli_session_id: str | None
+    workdir: str
+    model: str | None
+    model_before: str | None
+    raw_usage: dict | None
+    adapter_config: dict
+    adapter_config_before: dict
+
+    def set_adapter_field(self, key: str, value):
+        """Match ``Session.set_adapter_field`` for provider cursors."""
+        if value is not None and value != "" and value is not False:
+            self.adapter_config[key] = value
+        else:
+            self.adapter_config.pop(key, None)
+
+
+def _make_usage_enrichment_snapshot(s) -> _UsageEnrichmentSnapshot:
+    """Copy only fields that provider usage readers can inspect or advance."""
+    adapter_config = copy.deepcopy(s.adapter_config)
+    return _UsageEnrichmentSnapshot(
+        session_id=s.id,
+        cli_session_id=s.cli_session_id,
+        workdir=s.workdir,
+        model=s.model,
+        model_before=s.model,
+        raw_usage=copy.deepcopy(s.raw_usage),
+        adapter_config=adapter_config,
+        adapter_config_before=copy.deepcopy(adapter_config),
+    )
+
+
+def _merge_usage_enrichment_snapshot(s, snapshot: _UsageEnrichmentSnapshot) -> None:
+    """Merge provider-side model/cursor changes without clobbering live edits."""
+    if snapshot.model != snapshot.model_before:
+        # A live terminal/config path may have selected a model while the
+        # provider lookup was in flight.  Only fill the value if it still has
+        # the snapshot's original value.
+        if s.model == snapshot.model_before:
+            s.model = snapshot.model
+
+    missing = object()
+    before_config = snapshot.adapter_config_before
+    current_config = s.adapter_config
+    for key in set(before_config) | set(snapshot.adapter_config):
+        before = before_config.get(key, missing)
+        after = snapshot.adapter_config.get(key, missing)
+        if before == after:
+            continue
+        current = current_config.get(key, missing)
+        # Compare-and-merge: a concurrent live update owns the field and must
+        # win over the detached provider snapshot.
+        if current != before:
+            continue
+        if after is missing:
+            current_config.pop(key, None)
+        else:
+            current_config[key] = copy.deepcopy(after)
+
+
 async def _run_usage_enrichment(session_id: str) -> None:
     """Run durable usage jobs serially for one Session.
 
     Adapter lookup and the whole synchronous enrich call run in a worker
     thread.  The Session lock serializes post-processing jobs; the provider
-    receives a snapshot so a later terminal path can still persist/broadcast
-    without waiting for provider I/O or racing a provider cursor write.
+    receives a minimal snapshot so a later terminal path can still
+    persist/broadcast without waiting for provider I/O or racing a provider
+    cursor write.
     """
     lock = _usage_enrichment_lock(session_id)
     async with lock:
+        async def retry_job(s, job, exc) -> bool:
+            current = _enrichment_job(s, job.get("key"))
+            if current is None:
+                # Another recovery path completed this exact durable job.
+                return False
+            try:
+                attempts = max(0, int(current.get("attempts", 0))) + 1
+            except (TypeError, ValueError):
+                attempts = 1
+            delay = min(
+                _ENRICH_RETRY_MAX_SEC,
+                _ENRICH_RETRY_BASE_SEC * (2 ** min(attempts - 1, 5)),
+            )
+            current.update({
+                "state": "retrying",
+                "attempts": attempts,
+                "lastError": f"{type(exc).__name__}: {exc}",
+                "nextAttemptAt": time.time() + delay,
+            })
+            try:
+                await _sess.save_async(s)
+            except Exception:
+                _log.exception(
+                    "[Session %s] failed to persist usage retry state key=%s",
+                    session_id, current.get("key"),
+                )
+            _log.warning(
+                "[Session %s] usage enrichment failed key=%s attempt=%d; "
+                "retrying in %.1fs: %s",
+                session_id, current.get("key"), attempts, delay, exc,
+            )
+            await asyncio.sleep(delay)
+            return True
+
         while True:
             s = _sess.get(session_id)
             if s is None:
@@ -635,27 +741,33 @@ async def _run_usage_enrichment(session_id: str) -> None:
                 await asyncio.sleep(min(next_attempt - time.time(), _ENRICH_RETRY_MAX_SEC))
                 continue
 
-            # Every built-in enrich implementation mutates only usage-related
-            # Session fields (raw/total usage, model, and an adapter cursor).
-            # Run it against a detached snapshot: the live Session can receive
-            # the next terminal result while provider I/O is in progress.
-            before = {
-                "raw_usage": copy.deepcopy(s.raw_usage),
-                "total_usage": copy.deepcopy(s.total_usage),
-                "model": s.model,
-                "adapter_config": copy.deepcopy(s.adapter_config),
-                "pending": copy.deepcopy(s.usage_enrichment_pending),
-            }
+            # Run provider I/O against a detached, minimal snapshot.  The
+            # live Session can receive the next terminal result while this
+            # thread is blocked, without copying or exposing large state.
+            enrichment_session = _make_usage_enrichment_snapshot(s)
             try:
                 adapter = _usage_enrichment_adapters.get(job.get("key"))
                 if adapter is None:
                     adapter = get_adapter(job.get("adapter") or s.adapter)
-                enrichment_session = copy.deepcopy(s)
                 enrichment = await asyncio.to_thread(
                     adapter.enrich_after_result, enrichment_session,
                 )
                 if inspect.isawaitable(enrichment):
                     enrichment = await enrichment
+            except asyncio.CancelledError:
+                # The live Session was not touched by provider execution, so
+                # the durable pending job remains for the next generation.
+                raise
+            except Exception as exc:
+                if await retry_job(s, job, exc):
+                    continue
+                return
+
+            # Provider success: merge only its usage delta and snapshot cursor
+            # changes.  Live usage/config updates win when the same field was
+            # changed after the snapshot was taken.
+            removed = False
+            try:
                 if enrichment:
                     prev_total = s.total_usage
                     s.raw_usage = _sess.accumulate_raw_usage(
@@ -668,14 +780,7 @@ async def _run_usage_enrichment(session_id: str) -> None:
                         session_id, prev_credit, new_credit,
                         new_credit - prev_credit,
                     )
-                if not s.model and enrichment_session.model:
-                    s.model = enrichment_session.model
-                # Merge only provider cursor fields changed by the snapshot.
-                # This preserves unrelated live Session configuration updates.
-                before_config = before["adapter_config"] or {}
-                for key_name, value in enrichment_session.adapter_config.items():
-                    if before_config.get(key_name) != value:
-                        s.adapter_config[key_name] = value
+                _merge_usage_enrichment_snapshot(s, enrichment_session)
                 # Remove by key rather than list position: another terminal
                 # may have appended a later job while this one was in a thread.
                 s.usage_enrichment_pending = [
@@ -685,59 +790,27 @@ async def _run_usage_enrichment(session_id: str) -> None:
                         or candidate.get("key") != job.get("key")
                     )
                 ]
+                removed = True
                 await _sess.save_async(s)
-                _usage_enrichment_adapters.pop(job.get("key"), None)
-                _log.info(
-                    "[Session %s] usage enrichment complete key=%s attempts=%s",
-                    session_id, job.get("key"), job.get("attempts", 0),
-                )
             except asyncio.CancelledError:
-                # Do not turn cancellation into a false success.  The durable
-                # pending job remains for the next Worker/service generation.
-                s.raw_usage = before["raw_usage"]
-                s.total_usage = before["total_usage"]
-                s.model = before["model"]
-                s.adapter_config = before["adapter_config"]
-                s.usage_enrichment_pending = before["pending"]
+                if removed and _enrichment_job(s, job.get("key")) is None:
+                    s.usage_enrichment_pending.insert(0, job)
                 raise
             except Exception as exc:
-                s.raw_usage = before["raw_usage"]
-                s.total_usage = before["total_usage"]
-                s.model = before["model"]
-                s.adapter_config = before["adapter_config"]
-                s.usage_enrichment_pending = before["pending"]
-                current = _enrichment_job(s, job.get("key"))
-                if current is None:
-                    # A concurrent cleanup already completed this exact job;
-                    # do not resurrect it as a retry.
+                # A failed save must not turn a successful provider lookup into
+                # a lost durable job.  Keep merged live usage/config, restore
+                # the job, and retry; compare-and-merge makes the retry safe.
+                if removed and _enrichment_job(s, job.get("key")) is None:
+                    s.usage_enrichment_pending.insert(0, job)
+                if await retry_job(s, job, exc):
                     continue
-                try:
-                    attempts = max(0, int(current.get("attempts", 0))) + 1
-                except (TypeError, ValueError):
-                    attempts = 1
-                delay = min(
-                    _ENRICH_RETRY_MAX_SEC,
-                    _ENRICH_RETRY_BASE_SEC * (2 ** min(attempts - 1, 5)),
-                )
-                current.update({
-                    "state": "retrying",
-                    "attempts": attempts,
-                    "lastError": f"{type(exc).__name__}: {exc}",
-                    "nextAttemptAt": time.time() + delay,
-                })
-                try:
-                    await _sess.save_async(s)
-                except Exception:
-                    _log.exception(
-                        "[Session %s] failed to persist usage retry state key=%s",
-                        session_id, current.get("key"),
-                    )
-                _log.warning(
-                    "[Session %s] usage enrichment failed key=%s attempt=%d; "
-                    "retrying in %.1fs: %s",
-                    session_id, current.get("key"), attempts, delay, exc,
-                )
-                await asyncio.sleep(delay)
+                return
+
+            _usage_enrichment_adapters.pop(job.get("key"), None)
+            _log.info(
+                "[Session %s] usage enrichment complete key=%s attempts=%s",
+                session_id, job.get("key"), job.get("attempts", 0),
+            )
 
 
 def _schedule_usage_enrichment(session_id: str) -> asyncio.Task | None:

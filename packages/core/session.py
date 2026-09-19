@@ -696,21 +696,32 @@ def _save_sync(s: Session, force_full: bool = False):
     force_full=True（首次创建 / 迁移 / history 整体替换）时整重写 jsonl。
     进程内内存 history 是权威，落盘是镜像；_hist_persisted 记录已镜像条数。
     """
-    s.updated_at = datetime.now().isoformat()  # 内存总是新鲜（API 读内存）
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
-    meta_sig = _meta_signature(s)
     hist_path = _history_path(s.id)
     with _SAVE_LOCK:
+        # Append can happen from the event loop while this synchronous writer
+        # is blocked in the filesystem.  Take both the cursor and this
+        # round's end under the same lock, then never advance past that end.
+        # Anything appended after this point is deliberately left for the
+        # next flush.
+        s.updated_at = datetime.now().isoformat()  # API reads the live object
+        meta_sig = _meta_signature(s)
         start = getattr(s, "_hist_persisted", 0)
         if not isinstance(start, int) or start < 0:
             start = 0
+        end = len(s.history)
         # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
         # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
-        if force_full or start > len(s.history) or not hist_path.exists():
-            _write_jsonl(hist_path, s.history)
+        rewrite_full = force_full or start > end or not hist_path.exists()
+        if rewrite_full:
+            history_to_write = s.history[:end]
+            _write_jsonl(hist_path, history_to_write)
         else:
-            _append_jsonl(hist_path, s.history[start:])
-        s._hist_persisted = len(s.history)
+            history_to_write = s.history[start:end]
+            _append_jsonl(hist_path, history_to_write)
+        # Do not use len(s.history) here: appends that raced the write belong
+        # to the next save and must not be skipped.
+        s._hist_persisted = end
 
         # 元数据变化 → 重写主文件（元数据 + 尾部 history，常量序列化开销）。
         # 写临时文件 + os.replace 原子替换：主文件写一半崩溃也不会损坏
