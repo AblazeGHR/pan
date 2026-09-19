@@ -172,6 +172,13 @@ export function useWebSocket() {
     // remount), no new `open` event will arrive; sync explicitly as well.
     if (wsClient.isOpen) syncInteractiveRequests();
 
+    // A bounded sender can explicitly evict this dashboard when it cannot
+    // preserve the live stream.  The event is not replay: converge from the
+    // authoritative HTTP snapshots, then let the socket reconnect normally.
+    unsubscribers.push(wsClient.on('resync_required', () => {
+      refreshAuthoritativeState();
+    }));
+
     // Browser lifecycle events are only signals. The singleton connection
     // layer remains the single owner of reconnect/open synchronization.
     let recoveryTimer: ReturnType<typeof setTimeout> | null = null;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import ctypes
 import errno
 import hashlib
@@ -22,7 +23,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Callable
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
@@ -561,22 +562,519 @@ def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
             creationflags=flags,
         )
 
-async def _send_ws(ws: WebSocket, data: dict):
-    """单个客户端发送（带 2s 超时）；超时/失败由 broadcast 统一剔除。
+_WS_OUTBOUND_QUEUE_MAX = 64
+_WS_SEND_TIMEOUT_SEC = 2.0
+_WS_RESYNC_CLOSE_CODE = 1013
 
-    慢客户端（TCP 缓冲满）2s 内不消费即断开，防止阻塞 broadcast → 卡死
-    所有 _read_stdout / worker（实测 Edge 后台标签页）。
+# A Worker stdout producer must never wait for a browser/agent socket.  The
+# queue is deliberately process-local: queue_pending/history remain the
+# durable truth for business/report delivery, while this is only a bounded
+# live-view transport buffer.
+_WS_DIAGNOSTICS = {
+    "enqueued": 0,
+    "coalescedDeltas": 0,
+    "droppedDeltas": 0,
+    "droppedControlEvents": 0,
+    "slowClients": 0,
+    "resyncRequired": 0,
+    "resyncFrames": 0,
+    "sendFailures": 0,
+    "maxQueueDepth": 0,
+}
+
+
+@dataclass
+class _OutboundMessage:
+    data: dict
+    control: bool
+    coalesce_key: tuple | None = None
+    on_delivered: Callable[[], None] | None = None
+
+
+# This map is intentionally bounded by live connections.  It is separate from
+# ws_clients/agent_clients because tests and legacy embedders may populate
+# those sets directly before the first broadcast.
+_ws_outbound: dict[WebSocket, "_OutboundClient"] = {}
+
+
+_NON_COALESCIBLE_STREAM_TYPES = frozenset({
+    # Native requests/responses are control traffic.  Losing one without an
+    # explicit resync/close would strand a provider waiting for a decision.
+    "approval.request",
+    "codex.user_input",
+    "codex.elicitation",
+    "codex.terminal_interaction",
+    "claude.permission_resolved",
+    "codex.request_resolved",
+})
+
+
+def _stream_delta_key(data: dict) -> tuple | None:
+    """Return the identity of a safe, coalescible intermediate stream delta.
+
+    The key includes the durable Session address, the temporary Worker
+    identity, its generation, the current task, and the native item/turn.  A
+    delta without an explicit native item falls back to its event kind; the
+    Worker serializes tasks, and the stream broadcast now carries taskSeq so
+    this remains isolated across tasks as well.
     """
-    await asyncio.wait_for(ws.send_json(data), timeout=2)
+    if not isinstance(data, dict) or data.get("type") != "worker.stream":
+        return None
+    event = data.get("event")
+    if not isinstance(event, dict) or event.get("delta") is not True:
+        return None
+    if event.get("type") in _NON_COALESCIBLE_STREAM_TYPES:
+        return None
+    session_id = data.get("sessionId")
+    worker_id = data.get("workerId")
+    if not session_id or not worker_id:
+        return None
+    task_key = data.get("taskId")
+    if task_key is None:
+        task_key = data.get("taskSeq", "implicit-task")
+    item_key = None
+    for candidate in (
+        event.get("item_id"),
+        event.get("itemId"),
+        event.get("turn_id"),
+        event.get("turnId"),
+    ):
+        if candidate is not None:
+            item_key = candidate
+            break
+    if item_key is None:
+        part = event.get("part")
+        part_type = part.get("type") if isinstance(part, dict) else None
+        item_key = (event.get("type"), event.get("role"), part_type)
+    return (
+        str(session_id),
+        str(worker_id),
+        data.get("generation"),
+        str(task_key),
+        str(item_key),
+    )
+
+
+def _append_delta_content(previous, current):
+    """Append compatible delta content without retaining the prior payload."""
+    if isinstance(previous, str) and isinstance(current, str):
+        return previous + current
+    if not isinstance(previous, list) or not isinstance(current, list):
+        return None
+    result = [dict(item) if isinstance(item, dict) else item for item in previous]
+    for item in current:
+        if not isinstance(item, dict):
+            result.append(item)
+            continue
+        if result and isinstance(result[-1], dict):
+            prior = result[-1]
+            if prior.get("type") == item.get("type"):
+                text_key = "text" if isinstance(item.get("text"), str) else None
+                if text_key is None and isinstance(item.get("thinking"), str):
+                    text_key = "thinking"
+                if text_key is None and isinstance(item.get("think"), str):
+                    text_key = "think"
+                if text_key is not None and isinstance(prior.get(text_key), str):
+                    result[-1] = {**prior, text_key: prior[text_key] + item[text_key]}
+                    continue
+        result.append(dict(item))
+    return result
+
+
+def _merge_stream_deltas(previous: dict, current: dict) -> dict | None:
+    """Merge two adjacent deltas while preserving the UI's final text.
+
+    Codex content.part carries a cumulative ``stream_text`` but a delta-sized
+    ``part.text``; in that case the merged event is marked ``replace`` and
+    carries the cumulative text so a client that receives only this event
+    still renders the complete prefix.  Claude/Kimi-style delta blocks are
+    appended instead.  Replace snapshots such as plan/diff simply keep the
+    newest snapshot.
+    """
+    previous_event = previous.get("event")
+    current_event = current.get("event")
+    if not isinstance(previous_event, dict) or not isinstance(current_event, dict):
+        return None
+    merged = dict(current)
+    event = dict(current_event)
+
+    cumulative = current_event.get("stream_text")
+    previous_cumulative = previous_event.get("stream_text")
+    if isinstance(cumulative, str):
+        # The bridge contract defines stream_text as the current cumulative
+        # text.  A non-prefix reset can only be safe when the provider marked
+        # the item as a replacement; otherwise keep the events separate.
+        if (isinstance(previous_cumulative, str)
+                and not (cumulative.startswith(previous_cumulative)
+                         or previous_cumulative.startswith(cumulative))
+                and not current_event.get("replace")):
+            return None
+        part = event.get("part")
+        if isinstance(part, dict):
+            part = dict(part)
+            part_type = part.get("type")
+            part_key = part_type if isinstance(part_type, str) else None
+            if part_key and isinstance(part.get(part_key), str):
+                part[part_key] = cumulative
+                event["part"] = part
+                event["replace"] = True
+        content = event.get("content")
+        if isinstance(content, str):
+            event["content"] = cumulative
+            event["replace"] = True
+        elif isinstance(content, list):
+            replaced = False
+            blocks = []
+            for block in content:
+                if not isinstance(block, dict):
+                    blocks.append(block)
+                    continue
+                block = dict(block)
+                for content_key in ("text", "thinking", "think"):
+                    if isinstance(block.get(content_key), str):
+                        block[content_key] = cumulative
+                        replaced = True
+                        break
+                blocks.append(block)
+            if replaced:
+                event["content"] = blocks
+                event["replace"] = True
+        message = event.get("message")
+        if isinstance(message, dict) and isinstance(message.get("content"), list):
+            blocks = []
+            replaced = False
+            for block in message["content"]:
+                if not isinstance(block, dict):
+                    blocks.append(block)
+                    continue
+                block = dict(block)
+                for content_key in ("text", "thinking", "think"):
+                    if isinstance(block.get(content_key), str):
+                        block[content_key] = cumulative
+                        replaced = True
+                        break
+                blocks.append(block)
+            if replaced:
+                event["message"] = {**message, "content": blocks}
+                event["replace"] = True
+        event["stream_text"] = cumulative
+    elif current_event.get("replace"):
+        # The latest event is already an authoritative item snapshot.
+        merged["event"] = event
+        return merged
+    else:
+        for key in ("content", "text", "thinking", "think", "diff"):
+            old_value = previous_event.get(key)
+            new_value = current_event.get(key)
+            if isinstance(old_value, str) and isinstance(new_value, str):
+                event[key] = old_value + new_value
+
+        for container_key in ("message",):
+            old_container = previous_event.get(container_key)
+            new_container = current_event.get(container_key)
+            if not isinstance(old_container, dict) or not isinstance(new_container, dict):
+                continue
+            old_content = old_container.get("content")
+            new_content = new_container.get("content")
+            appended = _append_delta_content(old_content, new_content)
+            if appended is not None:
+                event[container_key] = {**new_container, "content": appended}
+
+        old_content = previous_event.get("content")
+        new_content = current_event.get("content")
+        appended = _append_delta_content(old_content, new_content)
+        if appended is not None:
+            event["content"] = appended
+
+        old_part = previous_event.get("part")
+        new_part = current_event.get("part")
+        if isinstance(old_part, dict) and isinstance(new_part, dict):
+            part = dict(new_part)
+            part_type = part.get("type")
+            part_key = part_type if isinstance(part_type, str) else None
+            if part_key and isinstance(old_part.get(part_key), str) and isinstance(part.get(part_key), str):
+                part[part_key] = old_part[part_key] + part[part_key]
+                event["part"] = part
+
+    merged["event"] = event
+    return merged
+
+
+def _is_control_event(data: dict) -> bool:
+    """Classify an outbound event for overflow policy, without inspecting body."""
+    return _stream_delta_key(data) is None
+
+
+class _OutboundClient:
+    """One bounded FIFO and sender task for one WebSocket connection."""
+
+    def __init__(self, ws: WebSocket, kind: str):
+        self.ws = ws
+        self.kind = kind
+        self.loop = asyncio.get_running_loop()
+        self._queue: deque[_OutboundMessage] = deque()
+        self._wake = asyncio.Event()
+        self._sender_task: asyncio.Task | None = None
+        self._accepting = True
+        self._closing = False
+        self.closed = False
+        self.resync_required = False
+        self.resync_frame_enqueued = False
+        self.coalesced_deltas = 0
+        self.dropped_deltas = 0
+        self.dropped_control_events = 0
+        self.send_failures = 0
+
+    @property
+    def queue_depth(self) -> int:
+        return len(self._queue)
+
+    def _ensure_sender(self) -> None:
+        if self.closed or self._sender_task is not None and not self._sender_task.done():
+            return
+        self._sender_task = asyncio.create_task(
+            self._sender_loop(),
+            name=f"pan-ws-sender:{self.kind}",
+        )
+
+    def enqueue(
+        self,
+        data: dict,
+        *,
+        on_delivered: Callable[[], None] | None = None,
+    ) -> bool:
+        """Enqueue without awaiting socket I/O; return False only on eviction."""
+        if self.closed or not self._accepting:
+            self._record_drop(data)
+            return False
+        coalesce_key = _stream_delta_key(data)
+        if coalesce_key is not None and self._queue:
+            tail = self._queue[-1]
+            if tail.coalesce_key == coalesce_key:
+                merged = _merge_stream_deltas(tail.data, data)
+                if merged is not None:
+                    tail.data = merged
+                    tail.on_delivered = on_delivered
+                    self.coalesced_deltas += 1
+                    _WS_DIAGNOSTICS["coalescedDeltas"] += 1
+                    self._ensure_sender()
+                    self._wake.set()
+                    return True
+
+        if len(self._queue) >= _WS_OUTBOUND_QUEUE_MAX:
+            if coalesce_key is not None:
+                self._record_drop(data)
+                pending_control = None
+            else:
+                # A control event arriving behind deltas gets priority.  The
+                # overflow handler removes queued deltas first and retains
+                # this event whenever a bounded slot is available.
+                pending_control = data
+            self._require_resync("outbound queue full", pending_control=pending_control)
+            return False
+
+        self._queue.append(_OutboundMessage(
+            data=data,
+            control=_is_control_event(data),
+            coalesce_key=coalesce_key,
+            on_delivered=on_delivered,
+        ))
+        _WS_DIAGNOSTICS["enqueued"] += 1
+        _WS_DIAGNOSTICS["maxQueueDepth"] = max(
+            _WS_DIAGNOSTICS["maxQueueDepth"], len(self._queue),
+        )
+        self._ensure_sender()
+        self._wake.set()
+        return True
+
+    def _record_drop(self, data_or_item: dict | _OutboundMessage) -> None:
+        data = data_or_item.data if isinstance(data_or_item, _OutboundMessage) else data_or_item
+        if _stream_delta_key(data) is not None:
+            self.dropped_deltas += 1
+            _WS_DIAGNOSTICS["droppedDeltas"] += 1
+        else:
+            self.dropped_control_events += 1
+            _WS_DIAGNOSTICS["droppedControlEvents"] += 1
+
+    def _require_resync(
+        self, reason: str, *, pending_control: dict | None = None,
+    ) -> None:
+        if self.resync_required:
+            self._wake.set()
+            return
+        self.resync_required = True
+        self._accepting = False
+        self._closing = True
+        _WS_DIAGNOSTICS["slowClients"] += 1
+        _WS_DIAGNOSTICS["resyncRequired"] += 1
+        # Preserve queued control events.  Intermediate deltas are explicitly
+        # discarded because the close/resync marker tells the consumer that a
+        # fresh authoritative snapshot is required.
+        retained: deque[_OutboundMessage] = deque()
+        for item in self._queue:
+            if item.coalesce_key is not None:
+                self._record_drop(item)
+            else:
+                retained.append(item)
+        self._queue = retained
+        if pending_control is not None:
+            if len(self._queue) < _WS_OUTBOUND_QUEUE_MAX:
+                self._queue.append(_OutboundMessage(
+                    data=pending_control, control=True,
+                ))
+            else:
+                self._record_drop(pending_control)
+        marker = {
+            "type": "resync_required",
+            "scope": self.kind,
+            "reason": "slow_client_queue_full",
+            "queueDepth": len(self._queue),
+            "droppedDeltas": self.dropped_deltas,
+            "coalescedDeltas": self.coalesced_deltas,
+        }
+        if len(self._queue) < _WS_OUTBOUND_QUEUE_MAX:
+            self._queue.append(_OutboundMessage(data=marker, control=True))
+            self.resync_frame_enqueued = True
+            _WS_DIAGNOSTICS["resyncFrames"] += 1
+        _detach_client(self)
+        _log(
+            f"[ws] slow {self.kind} client evicted: depth={len(self._queue)} "
+            f"droppedDeltas={self.dropped_deltas} "
+            f"droppedControlEvents={self.dropped_control_events} reason={reason}"
+        )
+        self._ensure_sender()
+        self._wake.set()
+
+    async def _sender_loop(self) -> None:
+        while True:
+            while not self._queue:
+                if self._closing:
+                    await self._finish_close()
+                    return
+                self._wake.clear()
+                if self._queue:
+                    break
+                await self._wake.wait()
+            item = self._queue.popleft()
+            try:
+                await asyncio.wait_for(
+                    self.ws.send_json(item.data), timeout=_WS_SEND_TIMEOUT_SEC,
+                )
+            except asyncio.CancelledError:
+                raise
+            except asyncio.TimeoutError:
+                self.send_failures += 1
+                self.resync_required = True
+                self._accepting = False
+                self._closing = True
+                _WS_DIAGNOSTICS["sendFailures"] += 1
+                _WS_DIAGNOSTICS["slowClients"] += 1
+                _WS_DIAGNOSTICS["resyncRequired"] += 1
+                self._record_drop(item)
+                for queued in self._queue:
+                    self._record_drop(queued)
+                self._queue.clear()
+                _detach_client(self)
+                _log(
+                    f"[ws] slow {self.kind} client send timeout: "
+                    f"droppedDeltas={self.dropped_deltas}"
+                )
+                await self._finish_close(
+                    code=_WS_RESYNC_CLOSE_CODE, reason="resync_required",
+                )
+                return
+            except Exception:
+                self.send_failures += 1
+                _WS_DIAGNOSTICS["sendFailures"] += 1
+                self._accepting = False
+                self._closing = True
+                self._record_drop(item)
+                for queued in self._queue:
+                    self._record_drop(queued)
+                self._queue.clear()
+                _detach_client(self)
+                await self._finish_close(code=1011, reason="websocket send failed")
+                return
+            if item.on_delivered is not None:
+                try:
+                    item.on_delivered()
+                except Exception:
+                    _log("[ws] delivery callback failed")
+
+    async def _finish_close(
+        self, *, code: int = _WS_RESYNC_CLOSE_CODE,
+        reason: str = "resync_required",
+    ) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        _detach_client(self)
+        if _ws_outbound.get(self.ws) is self:
+            _ws_outbound.pop(self.ws, None)
+        close = getattr(self.ws, "close", None)
+        if close is not None:
+            try:
+                await close(code=code, reason=reason)
+            except Exception:
+                pass
+
+    async def close_now(self) -> None:
+        """Stop a connection from its receive loop without draining it."""
+        self._accepting = False
+        self._closing = True
+        self._queue.clear()
+        _detach_client(self)
+        task = self._sender_task
+        if task is not None and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        await self._finish_close(code=1000, reason="connection closed")
+
+
+def _detach_client(client: _OutboundClient) -> None:
+    ws = client.ws
+    ws_clients.discard(ws)
+    agent_clients.discard(ws)
+    agent_subscriptions.pop(ws, None)
+
+
+def _client_channel(ws: WebSocket, kind: str) -> _OutboundClient:
+    loop = asyncio.get_running_loop()
+    client = _ws_outbound.get(ws)
+    if client is None or client.loop is not loop or client.closed:
+        if client is not None and client._sender_task is not None:
+            client._sender_task.cancel()
+        client = _OutboundClient(ws, kind)
+        _ws_outbound[ws] = client
+    return client
+
+
+async def _send_ws(
+    ws: WebSocket, data: dict, *,
+    on_delivered: Callable[[], None] | None = None,
+    kind: str | None = None,
+) -> bool:
+    """Queue one outbound frame; never await socket I/O in the caller."""
+    if kind is None:
+        kind = "agent" if ws in agent_clients else "dashboard"
+    accepted = _client_channel(ws, kind).enqueue(
+        data, on_delivered=on_delivered,
+    )
+    # Give the sender one scheduling turn.  This keeps fast in-process test
+    # doubles deterministic while a real slow ``send_json`` remains entirely
+    # inside its own sender task.
+    await asyncio.sleep(0)
+    return accepted
 
 
 async def _close_slow_dashboard(ws: WebSocket) -> None:
-    """Tell a dashboard client why it is being evicted before removing it."""
-    try:
-        await ws.close(code=1013, reason="dashboard client too slow")
-    except Exception:
-        # The socket may already have disappeared while send_json timed out.
-        pass
+    """Compatibility helper: evict a dashboard with an explicit resync mark."""
+    client = _client_channel(ws, "dashboard")
+    client._require_resync("send timeout")
+    await asyncio.sleep(0)
 
 
 def _project_worker_event(data: dict) -> dict:
@@ -639,32 +1137,18 @@ def _project_worker_event(data: dict) -> dict:
 
 
 async def broadcast(data: dict):
-    """向 dashboard（ws_clients）+ agent（agent_clients）广播。
+    """Enqueue one event for each eligible client and return immediately.
 
-    A4 并行化：asyncio.gather 并发发送，慢客户端只拖自己的 2s 超时，不再串行
-    拖累全部客户端（此前一个 TCP 缓冲满的客户端让整个 broadcast 卡 2s×N）。
-    死连接在 gather 后统一剔除。
+    Socket writes happen in one sender task per connection.  A producer may
+    yield once to let a fast in-process socket make progress, but it never
+    awaits that socket's send or a slow client's timeout.
     """
     # Keep the persisted provider/history representation untouched.  This is
     # the common outbound boundary for live browser events and is intentionally
     # before both dashboard and agent-client fan-out.
     data = _project_worker_event(data)
-    dead = set()
-    clients = list(ws_clients)
-    if clients:
-        results = await asyncio.gather(
-            *[_send_ws(ws, data) for ws in clients],
-            return_exceptions=True,
-        )
-        for ws, exc in zip(clients, results):
-            if exc is not None:
-                dead.add(ws)
-        if dead:
-            await asyncio.gather(
-                *[_close_slow_dashboard(ws) for ws in dead],
-                return_exceptions=True,
-            )
-    ws_clients.difference_update(dead)
+    for ws in list(ws_clients):
+        _client_channel(ws, "dashboard").enqueue(data)
 
     etype = data.get("type", "")
     data_session_id = data.get("sessionId")
@@ -678,24 +1162,48 @@ async def broadcast(data: dict):
         if etype == "worker.result" and sub.session_ids and data_session_id not in sub.session_ids:
             continue
         targets.append(ws)
-    dead_a = set()
-    if targets:
-        results = await asyncio.gather(
-            *[_send_ws(ws, data) for ws in targets],
-            return_exceptions=True,
+    for ws in targets:
+        callback = None
+        # 记录已消费的 result 序号（实际 sender 成功后才推进）。
+        if etype == "worker.result" and data_session_id:
+            seq = data.get("taskSeq")
+            if isinstance(seq, int):
+                callback = lambda ws=ws, sid=data_session_id, seq=seq: _mark_agent_result_delivered(
+                    ws, sid, seq,
+                )
+        _client_channel(ws, "agent").enqueue(data, on_delivered=callback)
+
+    # Do not wait for any send_json.  This turn only makes fast test doubles
+    # deterministic and starts sender tasks; a real socket is still isolated.
+    await asyncio.sleep(0)
+
+
+def _mark_agent_result_delivered(ws: WebSocket, session_id: str, seq: int) -> None:
+    sub = agent_subscriptions.get(ws)
+    if sub is not None:
+        sub.consumed_seq[session_id] = max(
+            sub.consumed_seq.get(session_id, 0), seq,
         )
-        for ws, exc in zip(targets, results):
-            if exc is not None:
-                dead_a.add(ws)
-                continue
-            # 记录已消费的 result 序号（重连补发用）——发送成功后才推进
-            if etype == "worker.result" and data_session_id:
-                seq = data.get("taskSeq")
-                if isinstance(seq, int):
-                    sub = agent_subscriptions.get(ws)
-                    if sub is not None:
-                        sub.consumed_seq[data_session_id] = max(sub.consumed_seq.get(data_session_id, 0), seq)
-    agent_clients.difference_update(dead_a)
+
+
+def websocket_diagnostics() -> dict:
+    """Return bounded live transport counters without retaining message bodies."""
+    return {
+        "totals": dict(_WS_DIAGNOSTICS),
+        "clients": [
+            {
+                "kind": client.kind,
+                "queueDepth": client.queue_depth,
+                "coalescedDeltas": client.coalesced_deltas,
+                "droppedDeltas": client.dropped_deltas,
+                "droppedControlEvents": client.dropped_control_events,
+                "resyncRequired": client.resync_required,
+                "sendFailures": client.send_failures,
+            }
+            for client in tuple(_ws_outbound.values())
+            if not client.closed
+        ],
+    }
 
 
 worker.set_broadcaster(broadcast)
@@ -725,18 +1233,25 @@ async def _replay_agent_results(ws: WebSocket, session_ids: list[str]) -> None:
             latest_seq = 0
         elif sub.consumed_seq.get(sid, 0) >= latest_seq:
             continue
-        await ws.send_json({
-            "type": "worker.result",
-            "workerId": "",
-            "sessionId": sid,
-            "status": status,
-            "result": _project_editor_links(
-                sid, str(s.last_result.get("result") or "")),
-            "taskSeq": latest_seq,
-            "replayed": True,
-        })
-        # 补发成功后再推进游标，避免下次 reconnect 重复补发
-        sub.consumed_seq[sid] = max(sub.consumed_seq.get(sid, 0), latest_seq)
+        accepted = await _send_ws(
+            ws,
+            {
+                "type": "worker.result",
+                "workerId": "",
+                "sessionId": sid,
+                "status": status,
+                "result": _project_editor_links(
+                    sid, str(s.last_result.get("result") or "")),
+                "taskSeq": latest_seq,
+                "replayed": True,
+            },
+            on_delivered=lambda ws=ws, sid=sid, seq=latest_seq: _mark_agent_result_delivered(
+                ws, sid, seq,
+            ),
+            kind="agent",
+        )
+        if not accepted:
+            return
 
 
 @app.middleware("http")
@@ -2940,7 +3455,7 @@ async def _replay_pending_interactions(
             continue
         status_event = worker.native_status_event(w)
         if status_event is not None:
-            await ws.send_json({
+            await _send_ws(ws, {
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
@@ -2950,7 +3465,7 @@ async def _replay_pending_interactions(
             })
         usage_event = worker.native_usage_event(w)
         if usage_event is not None:
-            await ws.send_json({
+            await _send_ws(ws, {
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
@@ -2960,7 +3475,7 @@ async def _replay_pending_interactions(
             })
         rate_limits_event = worker.native_rate_limits_event(w)
         if rate_limits_event is not None:
-            await ws.send_json({
+            await _send_ws(ws, {
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
@@ -2973,7 +3488,7 @@ async def _replay_pending_interactions(
             worker.native_diff_event(w),
         ):
             if native_event is not None:
-                await ws.send_json({
+                await _send_ws(ws, {
                     "type": "worker.stream",
                     "workerId": w.worker_id,
                     "sessionId": w.session_id,
@@ -2982,7 +3497,7 @@ async def _replay_pending_interactions(
                     "replayed": True,
                 })
         for event in worker.pending_interaction_events(w):
-            await ws.send_json({
+            await _send_ws(ws, {
                 "type": "worker.stream",
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
@@ -3008,7 +3523,7 @@ async def ws_endpoint(ws: WebSocket):
                 # Browser heartbeats are application-level JSON frames. A
                 # pong updates the client's inbound activity timestamp and
                 # prevents an OPEN-but-silent connection from lingering.
-                await ws.send_json({"type": "pong"})
+                await _send_ws(ws, {"type": "pong"})
             elif msg_type == "user_inject":
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
@@ -3019,7 +3534,7 @@ async def ws_endpoint(ws: WebSocket):
                         normalized_parts, generated_text, parts_error = _normalize_message_parts(
                             session_id, parts)
                         if parts_error is not None:
-                            await ws.send_json({
+                            await _send_ws(ws, {
                                 "type": "user_inject.rejected",
                                 "sessionId": session_id,
                                 "message": parts_error["message"],
@@ -3030,7 +3545,7 @@ async def ws_endpoint(ws: WebSocket):
                     elif isinstance(text, str):
                         attachment_error = _validate_message_attachment_references(session_id, text)
                         if attachment_error is not None:
-                            await ws.send_json({
+                            await _send_ws(ws, {
                                 "type": "user_inject.rejected",
                                 "sessionId": session_id,
                                 "message": attachment_error["message"],
@@ -3038,7 +3553,7 @@ async def ws_endpoint(ws: WebSocket):
                             })
                             continue
                     if not isinstance(text, str) or not text.strip():
-                        await ws.send_json({
+                        await _send_ws(ws, {
                             "type": "user_inject.rejected",
                             "sessionId": session_id,
                             "message": "text is required",
@@ -3047,12 +3562,12 @@ async def ws_endpoint(ws: WebSocket):
                         continue
                     client_message_id = msg.get("clientMessageId")
                     if client_message_id is not None and not isinstance(client_message_id, str):
-                        await ws.send_json({"type": "user_inject.rejected",
+                        await _send_ws(ws, {"type": "user_inject.rejected",
                                             "sessionId": session_id,
                                             "message": "clientMessageId must be a string"})
                         continue
                     if isinstance(client_message_id, str) and len(client_message_id) > 512:
-                        await ws.send_json({"type": "user_inject.rejected",
+                        await _send_ws(ws, {"type": "user_inject.rejected",
                                             "sessionId": session_id,
                                             "clientMessageId": client_message_id,
                                             "message": "clientMessageId is too long"})
@@ -3068,13 +3583,13 @@ async def ws_endpoint(ws: WebSocket):
                         result = await worker.enqueue_user_message(
                             session_id, text, client_message_id, parts=normalized_parts)
                     if result.get("status") == "error":
-                        await ws.send_json({"type": "user_inject.rejected",
+                        await _send_ws(ws, {"type": "user_inject.rejected",
                                             "sessionId": session_id,
                                             "clientMessageId": client_message_id,
                                             "queueItemId": result.get("queueItemId"),
                                             "message": result.get("result", "send failed")})
                     else:
-                        await ws.send_json({"type": "user_inject.accepted",
+                        await _send_ws(ws, {"type": "user_inject.accepted",
                                             "sessionId": session_id,
                                             "workerId": result.get("workerId"),
                                             "clientMessageId": client_message_id,
@@ -3087,20 +3602,20 @@ async def ws_endpoint(ws: WebSocket):
                 if session_id and isinstance(control, dict):
                     result = await worker.send_session_control(session_id, control)
                     if isinstance(result, str):
-                        await ws.send_json({"type": "error", "message": result})
+                        await _send_ws(ws, {"type": "error", "message": result})
                     elif result is None:
-                        await ws.send_json({"type": "error", "message": "Worker not found"})
+                        await _send_ws(ws, {"type": "error", "message": "Worker not found"})
                 elif worker_id and isinstance(control, dict):
                     err = await worker.send_control_message(worker_id, control)
                     if err:
-                        await ws.send_json({"type": "error", "message": err})
+                        await _send_ws(ws, {"type": "error", "message": err})
             elif msg_type == "sync_interactive":
                 # Optional sessionIds narrows the replay; omitted means all
                 # live workers visible to this dashboard, matching /ws's
                 # existing broadcast scope.
                 raw_session_ids = msg.get("sessionIds")
                 if raw_session_ids is not None and not isinstance(raw_session_ids, list):
-                    await ws.send_json({
+                    await _send_ws(ws, {
                         "type": "error",
                         "message": "sessionIds must be a list",
                     })
@@ -3109,7 +3624,11 @@ async def ws_endpoint(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        ws_clients.discard(ws)
+        client = _ws_outbound.get(ws)
+        if client is not None:
+            await client.close_now()
+        else:
+            ws_clients.discard(ws)
 
 
 # ── WebSocket: Main Agent ──
@@ -3139,17 +3658,17 @@ async def ws_agent_endpoint(ws: WebSocket):
                 raw_types = msg.get("eventTypes")
                 if raw_types is not None:
                     if not isinstance(raw_types, list):
-                        await ws.send_json({"type": "error", "message": "eventTypes must be a list"})
+                        await _send_ws(ws, {"type": "error", "message": "eventTypes must be a list"})
                         continue
                     types = set(str(t) for t in raw_types)
                     sub.event_types = types if types else set(_AGENT_DEFAULT_SUBSCRIPTION)
                 raw_sids = msg.get("sessionIds")
                 if raw_sids is not None:
                     if not isinstance(raw_sids, list):
-                        await ws.send_json({"type": "error", "message": "sessionIds must be a list"})
+                        await _send_ws(ws, {"type": "error", "message": "sessionIds must be a list"})
                         continue
                     sub.session_ids = set(str(s) for s in raw_sids)
-                await ws.send_json({
+                await _send_ws(ws, {
                     "type": "subscribed",
                     "eventTypes": sorted(sub.event_types),
                     "sessionIds": sorted(sub.session_ids),
@@ -3168,31 +3687,31 @@ async def ws_agent_endpoint(ws: WebSocket):
                     if not w:
                         result = await worker.create_worker(session_id)
                         if isinstance(result, str):
-                            await ws.send_json({"type": "error", "message": result})
+                            await _send_ws(ws, {"type": "error", "message": result})
                             continue
                         else:
                             w = result
                     err = await worker.send_task(w.worker_id, text, source="agent")
                     if err:
-                        await ws.send_json({"type": "error", "message": err})
+                        await _send_ws(ws, {"type": "error", "message": err})
 
             elif msg_type == "spawn":
                 try:
                     params = _build_session_params(msg)
                 except ValueError as exc:
-                    await ws.send_json({"type": "error", "message": str(exc)})
+                    await _send_ws(ws, {"type": "error", "message": str(exc)})
                     continue
                 # 名称校验与 HTTP spawn 对齐（缺名/重名此前会静默建出重复名 session）
                 err_name = _check_session_name(params.get("name", "default"))
                 if err_name:
-                    await ws.send_json({"type": "error", "message": err_name})
+                    await _send_ws(ws, {"type": "error", "message": err_name})
                     continue
                 s = sess.create(**params)
                 result = await worker.create_worker(s.id)
                 if isinstance(result, str):
-                    await ws.send_json({"type": "error", "message": result})
+                    await _send_ws(ws, {"type": "error", "message": result})
                 else:
-                    await ws.send_json({
+                    await _send_ws(ws, {
                         "type": "worker.spawned",
                         "sessionId": s.id,
                         "workerId": result.worker_id,
@@ -3206,29 +3725,29 @@ async def ws_agent_endpoint(ws: WebSocket):
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
                 if not session_id or not text:
-                    await ws.send_json({"type": "error", "message": "sessionId and text required"})
+                    await _send_ws(ws, {"type": "error", "message": "sessionId and text required"})
                     continue
                 result = await worker.assign(session_id, text, source="agent")
-                await ws.send_json({"type": "assign.result", **result})
+                await _send_ws(ws, {"type": "assign.result", **result})
 
             elif msg_type == "send":
                 worker_id = msg.get("workerId")
                 text = msg.get("text")
                 if not worker_id or not text:
-                    await ws.send_json({"type": "error", "message": "workerId and text required"})
+                    await _send_ws(ws, {"type": "error", "message": "workerId and text required"})
                     continue
                 result = await worker.send(worker_id, text, source="agent")
-                await ws.send_json({"type": "send.result", **result})
+                await _send_ws(ws, {"type": "send.result", **result})
 
             elif msg_type == "kill":
                 session_id = msg.get("sessionId") or msg.get("workerId")
                 result = await worker.kill_session_worker(session_id)
                 if isinstance(result, str):
-                    await ws.send_json({"type": "error", "message": result})
+                    await _send_ws(ws, {"type": "error", "message": result})
 
             elif msg_type == "list":
                 sessions = sess.list_all()
-                await ws.send_json({
+                await _send_ws(ws, {
                     "type": "session.list",
                     "sessions": [_session_to_api(s) for s in sessions],
                 })
@@ -3236,8 +3755,12 @@ async def ws_agent_endpoint(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        agent_clients.discard(ws)
-        agent_subscriptions.pop(ws, None)
+        client = _ws_outbound.get(ws)
+        if client is not None:
+            await client.close_now()
+        else:
+            agent_clients.discard(ws)
+            agent_subscriptions.pop(ws, None)
 
 
 # ── Session API ──

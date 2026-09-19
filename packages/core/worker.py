@@ -1531,6 +1531,8 @@ async def _read_stdout(w: Worker):
                 "workerId": w.worker_id,
                 "sessionId": w.session_id,
                 "generation": w.generation,
+                "taskSeq": w._current_seq,
+                "taskId": w._current_task_id,
                 "event": event,
             })
 
@@ -2338,6 +2340,8 @@ async def request_claude_permission(
             "workerId": worker_id,
             "sessionId": w.session_id,
             "generation": w.generation,
+            "taskSeq": w._current_seq,
+            "taskId": w._current_task_id,
             "event": event,
         })
         try:
@@ -2386,6 +2390,8 @@ async def _resolve_claude_permission(worker_id: str, control: dict) -> bool:
             "workerId": worker_id,
             "sessionId": w.session_id,
             "generation": w.generation,
+            "taskSeq": w._current_seq,
+            "taskId": w._current_task_id,
             "event": {
                 "type": "claude.permission_resolved",
                 "request_id": key,
@@ -4351,6 +4357,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             "workerId": w.worker_id,
             "sessionId": w.session_id,
             "generation": w.generation,
+            "taskSeq": w._current_seq,
+            "taskId": w._current_task_id,
             "event": event,
         })
 

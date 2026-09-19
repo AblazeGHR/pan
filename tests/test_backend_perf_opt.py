@@ -248,7 +248,7 @@ def test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification(mo
         _cleanup()
 
 
-# ── A4: broadcast 并行 ──
+# ── A4/T-062.4: broadcast enqueue isolation ──
 
 def test_broadcast_sends_clients_in_parallel():
     import packages.web.server as srv
@@ -271,8 +271,9 @@ def test_broadcast_sends_clients_in_parallel():
         t0 = time.monotonic()
         await srv.broadcast({"type": "perf.test"})
         elapsed = time.monotonic() - t0
-        # 串行 = 0.6s；并行 ≈ 0.2s。阈值为 0.45s 足以区分且抗慢机抖动。
-        assert elapsed < 0.45, f"broadcast not parallel: {elapsed:.3f}s"
+        # The producer only enqueues; it must not wait for the 200ms socket.
+        assert elapsed < 0.1, f"broadcast waited for socket: {elapsed:.3f}s"
+        await asyncio.sleep(0.25)
         assert all(len(w.sent) == 1 for w in (ws1, ws2, ws3))
         return elapsed
 
@@ -307,18 +308,25 @@ def test_broadcast_slow_client_pruned_and_does_not_block_others():
         slow = BlockingWS()
         fast = FastWS()
         srv.ws_clients.update([slow, fast])
-        t0 = time.monotonic()
-        await srv.broadcast({"type": "perf.test"})
-        elapsed = time.monotonic() - t0
-        # 慢客户端被 2s 超时剔除；fast 立即送达，broadcast 总时长 ≈ 2s（慢客户端自己的超时）。
-        assert elapsed < 4, f"slow client blocked broadcast: {elapsed:.2f}s"
-        assert slow not in srv.ws_clients, "blocked client not pruned"
-        assert slow.closed == [(1013, "dashboard client too slow")]
-        assert fast in srv.ws_clients and len(fast.sent) == 1
-        return elapsed
+        old_timeout = srv._WS_SEND_TIMEOUT_SEC
+        srv._WS_SEND_TIMEOUT_SEC = 0.05
+        try:
+            t0 = time.monotonic()
+            await srv.broadcast({"type": "perf.test"})
+            elapsed = time.monotonic() - t0
+            # The slow client's timeout belongs to its sender task, not the
+            # producer.  Give that task time to evict it explicitly.
+            assert elapsed < 0.1, f"slow client blocked broadcast: {elapsed:.2f}s"
+            await asyncio.sleep(0.1)
+            assert slow not in srv.ws_clients, "blocked client not pruned"
+            assert slow.closed == [(1013, "resync_required")]
+            assert fast in srv.ws_clients and len(fast.sent) == 1
+            return elapsed
+        finally:
+            srv._WS_SEND_TIMEOUT_SEC = old_timeout
 
     elapsed = asyncio.run(scenario())
-    print(f"    slow client timed out after 2s; broadcast total {elapsed:.2f}s, fast delivered")
+    print(f"    slow client isolated; broadcast total {elapsed:.2f}s, fast delivered")
 
 
 if __name__ == "__main__":
