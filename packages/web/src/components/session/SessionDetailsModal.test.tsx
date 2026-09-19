@@ -2,9 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SessionDetailsModal } from './SessionDetailsModal';
+import { clearSessionUsageCache } from './sessionUsageCache';
 import { useUIStore } from '@/stores/uiStore';
 import * as api from '@/services/api';
-import type { Session } from '@/types';
+import type { Session, SessionUsageView } from '@/types';
 
 const baseSession: Session = {
   id: 'ses_full_session_id',
@@ -21,6 +22,7 @@ const baseSession: Session = {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  clearSessionUsageCache();
   useUIStore.setState({ toastQueue: [] });
 });
 
@@ -186,6 +188,127 @@ describe('SessionDetailsModal', () => {
     expect(screen.getByText('101')).toBeTruthy();
     expect(screen.getByText('202')).toBeTruthy();
     expect(screen.getByText(/总计 34.*读 30.*写 4/)).toBeTruthy();
+  });
+
+  it('reuses the Session-scoped usage cache after close and re-open', async () => {
+    const refreshed = {
+      sessionId: baseSession.id, adapter: 'cbc', input: 111, output: 222,
+      cache: { read: null, write: null, total: null }, total: { tokens: 333, credit: 12.3 },
+    };
+    let resolveRefresh: (value: typeof refreshed) => void = () => {};
+    vi.mocked(api.fetchSessionUsage)
+      .mockResolvedValueOnce({ ...refreshed, input: 101, output: 202 })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }));
+
+    const { rerender } = render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+    expect(await screen.findByText('101')).toBeTruthy();
+
+    rerender(<SessionDetailsModal session={null} onClose={() => {}} />);
+    rerender(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+
+    expect(screen.getByText('101')).toBeTruthy();
+    await waitFor(() => expect(api.fetchSessionUsage).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('button', { name: /Usage/ }).textContent).toContain('更新中…');
+
+    resolveRefresh(refreshed);
+    expect(await screen.findByText('111')).toBeTruthy();
+  });
+
+  it('shows cached Codex quota before a slow refresh and then applies the fresh result', async () => {
+    const cached: SessionUsageView = {
+      sessionId: 'ses_codex_slow_refresh', adapter: 'codex', input: 10, output: 20,
+      cache: { read: null, write: null, total: null }, total: { tokens: 30, credit: null },
+      codexQuota: {
+        ok: true, stale: true, windows: { primary: { kind: 'five_hour', usage: { usedPercent: 10 } } },
+      },
+    };
+    let resolveQuota: (value: NonNullable<typeof cached.codexQuota>) => void = () => {};
+    vi.mocked(api.fetchSessionUsage).mockResolvedValue(cached);
+    vi.spyOn(api, 'fetchCodexQuota').mockImplementation(
+      () => new Promise((resolve) => { resolveQuota = resolve; }),
+    );
+
+    render(<SessionDetailsModal session={{ ...baseSession, id: cached.sessionId, adapter: 'codex' }} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+
+    expect(await screen.findByText(/已使用 10%/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Usage/ }).textContent).toContain('更新中…');
+
+    resolveQuota({
+      ok: true, stale: false,
+      windows: { primary: { kind: 'five_hour', usage: { usedPercent: 20 } } },
+    });
+    expect(await screen.findByText(/已使用 20%/)).toBeTruthy();
+  });
+
+  it('keeps cached quota and marks stale/error when refresh fails', async () => {
+    const cached: SessionUsageView = {
+      sessionId: 'ses_codex_refresh_error', adapter: 'codex', input: 10, output: 20,
+      cache: { read: null, write: null, total: null }, total: { tokens: 30, credit: null },
+      codexQuota: {
+        ok: true, stale: false, windows: { primary: { kind: 'five_hour', usage: { usedPercent: 10 } } },
+      },
+    };
+    vi.mocked(api.fetchSessionUsage).mockResolvedValue(cached);
+    vi.spyOn(api, 'fetchCodexQuota').mockRejectedValue(new Error('network timeout'));
+
+    render(<SessionDetailsModal session={{ ...baseSession, id: cached.sessionId, adapter: 'codex' }} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+
+    expect(await screen.findByText('Quota（最近缓存，可能已过期）')).toBeTruthy();
+    expect(await screen.findByText(/Quota 刷新失败：network timeout，当前显示缓存/)).toBeTruthy();
+    expect(screen.getByText(/已使用 10%/)).toBeTruthy();
+  });
+
+  it('keeps the base Usage loading/error path when there is no quota cache', async () => {
+    let rejectQuota: (error: Error) => void = () => {};
+    const empty = {
+      sessionId: 'ses_codex_no_cache', adapter: 'codex', input: null, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
+    };
+    vi.mocked(api.fetchSessionUsage).mockResolvedValue(empty);
+    vi.spyOn(api, 'fetchCodexQuota').mockImplementation(
+      () => new Promise((_resolve, reject) => { rejectQuota = reject; }),
+    );
+
+    render(<SessionDetailsModal session={{ ...baseSession, id: empty.sessionId, adapter: 'codex', totalUsage: null }} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+
+    expect(await screen.findByText('Quota 加载中…')).toBeTruthy();
+    expect(screen.getByText('输入 Token')).toBeTruthy();
+    rejectQuota(new Error('quota unavailable'));
+    expect(await screen.findByText(/Quota 刷新失败：quota unavailable/)).toBeTruthy();
+    expect(screen.getByText('当前没有可用的五小时/周/月 quota 缓存')).toBeTruthy();
+  });
+
+  it('ignores an old Session usage response after switching Sessions', async () => {
+    const sessionA = { ...baseSession, id: 'ses-usage-a' };
+    const sessionB = { ...baseSession, id: 'ses-usage-b', totalUsage: null };
+    let resolveA: (value: SessionUsageView) => void = () => {};
+    let resolveB: (value: SessionUsageView) => void = () => {};
+    vi.mocked(api.fetchSessionUsage).mockImplementation((id) => new Promise((resolve) => {
+      if (id === sessionA.id) resolveA = resolve;
+      else resolveB = resolve;
+    }));
+    const usage = (sessionId: string, input: number): SessionUsageView => ({
+      sessionId, adapter: 'cbc', input, output: null,
+      cache: { read: null, write: null, total: null }, total: { tokens: null, credit: null },
+    });
+
+    const { rerender } = render(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+    rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Usage/ }));
+
+    resolveA(usage(sessionA.id, 111));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText('111')).toBeNull();
+
+    resolveB(usage(sessionB.id, 222));
+    expect(await screen.findByText('222')).toBeTruthy();
+    expect(screen.queryByText('111')).toBeNull();
   });
 
   it('copies identifiers without invoking the modal close or card handlers', async () => {
