@@ -181,6 +181,14 @@ agent_clients: set[WebSocket] = set()
 # agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
 _AGENT_DEFAULT_SUBSCRIPTION = frozenset({"worker.result"})
 _AGENT_TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
+_RESYNC_HISTORY_LIMIT = 50
+_RESYNC_MAX_SESSIONS = 512
+
+# This is a live transport cursor, not durable business state.  A restart
+# changes the epoch and therefore makes an old cursor ineligible for delta
+# replay; the client must accept the authoritative snapshot boundary instead.
+_EVENT_EPOCH = uuid.uuid4().hex
+_EVENT_SEQ = 0
 
 
 @dataclass
@@ -195,6 +203,9 @@ class AgentSubscription:
     event_types: set[str] = field(default_factory=lambda: set(_AGENT_DEFAULT_SUBSCRIPTION))
     session_ids: set[str] = field(default_factory=set)
     consumed_seq: dict[str, int] = field(default_factory=dict)
+    # Durable result cursor acknowledged by the external agent.  ``consumed_seq``
+    # remains as the taskSeq compatibility view used by older clients.
+    consumed_cursor: dict[str, int] = field(default_factory=dict)
 
 
 # 每个 /ws/agent 连接的订阅状态；未订阅默认只推 worker.result
@@ -928,6 +939,8 @@ class _OutboundClient:
             "type": "resync_required",
             "scope": self.kind,
             "reason": "slow_client_queue_full",
+            "eventEpoch": _EVENT_EPOCH,
+            "eventSeq": _EVENT_SEQ,
             "queueDepth": len(self._queue),
             "droppedDeltas": self.dropped_deltas,
             "coalescedDeltas": self.coalesced_deltas,
@@ -1133,6 +1146,22 @@ def _attach_session_summary_patch(data: dict) -> dict:
     return {**data, "session": _session_summary(current)}
 
 
+def _stamp_live_event(data: dict) -> dict:
+    """Attach a process-epoch cursor to one logical broadcast event.
+
+    The cursor is intentionally assigned before fan-out, so every client sees
+    the same boundary for the same event.  It is only a gap detector; durable
+    Session/queue/history projections remain the recovery authority.
+    """
+    global _EVENT_SEQ
+    _EVENT_SEQ += 1
+    return {
+        **data,
+        "eventEpoch": _EVENT_EPOCH,
+        "eventSeq": _EVENT_SEQ,
+    }
+
+
 def _project_worker_event(data: dict) -> dict:
     """Project local Markdown links before exposing a Worker event to UI.
 
@@ -1204,6 +1233,7 @@ async def broadcast(data: dict):
     # before both dashboard and agent-client fan-out.
     data = _attach_session_summary_patch(data)
     data = _project_worker_event(data)
+    data = _stamp_live_event(data)
     for ws in list(ws_clients):
         _client_channel(ws, "dashboard").enqueue(data)
 
@@ -1224,9 +1254,13 @@ async def broadcast(data: dict):
         # 记录已消费的 result 序号（实际 sender 成功后才推进）。
         if etype == "worker.result" and data_session_id:
             seq = data.get("taskSeq")
-            if isinstance(seq, int):
-                callback = lambda ws=ws, sid=data_session_id, seq=seq: _mark_agent_result_delivered(
-                    ws, sid, seq,
+            result_cursor = data.get("resultCursor")
+            if isinstance(seq, int) or isinstance(result_cursor, int):
+                callback = lambda ws=ws, sid=data_session_id, seq=seq, rc=result_cursor: _mark_agent_result_delivered(
+                    ws,
+                    sid,
+                    seq if isinstance(seq, int) else 0,
+                    result_cursor if isinstance(result_cursor, int) else None,
                 )
         _client_channel(ws, "agent").enqueue(data, on_delivered=callback)
 
@@ -1235,12 +1269,18 @@ async def broadcast(data: dict):
     await asyncio.sleep(0)
 
 
-def _mark_agent_result_delivered(ws: WebSocket, session_id: str, seq: int) -> None:
+def _mark_agent_result_delivered(
+    ws: WebSocket, session_id: str, seq: int, result_cursor: int | None = None,
+) -> None:
     sub = agent_subscriptions.get(ws)
     if sub is not None:
         sub.consumed_seq[session_id] = max(
             sub.consumed_seq.get(session_id, 0), seq,
         )
+        if isinstance(result_cursor, int):
+            sub.consumed_cursor[session_id] = max(
+                sub.consumed_cursor.get(session_id, 0), result_cursor,
+            )
 
 
 def websocket_diagnostics() -> dict:
@@ -1268,47 +1308,219 @@ worker.load_worker_config()
 worker.load_memory_config()
 
 
-async def _replay_agent_results(ws: WebSocket, session_ids: list[str]) -> None:
-    """补发 agent 尚未消费的终态结果（成功、失败、取消均不能静默丢失）。"""
+def _terminal_result_rows(s) -> list[dict]:
+    """Return a bounded, ordered terminal-result view for replay.
+
+    Old Sessions have only ``last_result``.  They remain replayable as one
+    compatibility row, while new Sessions use the durable result cursor.
+    """
+    rows = [
+        dict(item) for item in (getattr(s, "terminal_results", None) or [])
+        if isinstance(item, dict)
+        and item.get("status") in _AGENT_TERMINAL_RESULT_STATUSES
+    ]
+    rows.sort(key=lambda item: (_result_cursor(item), str(item.get("terminalKey") or "")))
+    if rows:
+        return rows[-sess.RESULT_REPLAY_MAX_ENTRIES:]
+    last = getattr(s, "last_result", None)
+    if isinstance(last, dict) and last.get("status") in _AGENT_TERMINAL_RESULT_STATUSES:
+        return [dict(last)]
+    return []
+
+
+def _result_cursor(row: dict) -> int:
+    value = row.get("resultCursor")
+    if isinstance(value, bool):
+        return 0
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        # Legacy rows only had taskSeq.  This is a compatibility cursor, not
+        # a durable claim that older rows formed a complete result log.
+        try:
+            return max(0, int(row.get("taskSeq", 0) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+
+def _resync_snapshot(
+    session_ids: list[str] | None = None, *, include_all_sessions: bool = False,
+) -> dict:
+    """Build a bounded authoritative boundary without copying whole Sessions.
+
+    All visible rows are shallow summary projections.  History and the
+    durable queue are included only for explicitly selected Sessions and use
+    the existing bounded page/queue serializers.  This is deliberately a
+    snapshot fallback, not an in-memory replay cache.
+    """
+    requested = {
+        str(value) for value in (session_ids or [])
+        if isinstance(value, str) and value
+    }
+    all_sessions = sess.list_all(load_history=False)
+    if include_all_sessions or not requested:
+        visible = all_sessions[:_RESYNC_MAX_SESSIONS]
+    else:
+        visible = [s for s in all_sessions if s.id in requested]
+
+    details: dict[str, dict] = {}
+    result_cursors: dict[str, int] = {}
+    results_available_from: dict[str, int] = {}
+    for sid in sorted(requested):
+        current = _summary_session_get(sid)
+        if not isinstance(current, sess.Session):
+            continue
+        page = sess.history_page(sid, limit=_RESYNC_HISTORY_LIMIT) or {
+            "history": [], "total": 0, "hasMore": False, "start": 0,
+        }
+        detail = _session_to_api(
+            current,
+            include_history=False,
+            include_raw_usage=False,
+        )
+        detail["history"] = _api_history(sid, page.get("history") or [])
+        detail["historyTotal"] = page.get("total", len(detail["history"]))
+        detail["historyTruncated"] = bool(page.get("hasMore"))
+        detail["historyStart"] = page.get("start", 0)
+        detail["queue"] = {
+            "items": _session_queue_items(current),
+            "queueRevision": getattr(current, "queue_revision", 0),
+        }
+        rows = _terminal_result_rows(current)
+        result_cursor = max(
+            [int(getattr(current, "result_cursor", 0) or 0)]
+            + [_result_cursor(row) for row in rows]
+        )
+        result_cursors[sid] = result_cursor
+        if rows:
+            available = _result_cursor(rows[0])
+            if available:
+                results_available_from[sid] = available
+        detail["resultCursor"] = result_cursor
+        details[sid] = detail
+
+    workers = []
+    for runtime in worker.list_workers():
+        if worker.find_alive_worker_by_session(runtime.session_id) is not runtime:
+            continue
+        if requested and runtime.session_id not in requested:
+            continue
+        workers.append({
+            "workerId": runtime.worker_id,
+            "sessionId": runtime.session_id,
+            "generation": getattr(runtime, "generation", 0),
+            "status": runtime.status,
+            "taskId": getattr(runtime, "_current_task_id", None),
+            "taskSeq": getattr(runtime, "_current_seq", None),
+        })
+
+    return {
+        "type": "resync.snapshot",
+        "snapshotId": f"{_EVENT_EPOCH}:{_EVENT_SEQ}",
+        "eventEpoch": _EVENT_EPOCH,
+        "eventSeq": _EVENT_SEQ,
+        "boundary": "authoritative",
+        "sessions": [_session_summary(s) for s in visible],
+        "sessionsTruncated": len(all_sessions) > len(visible) and not requested,
+        "workers": workers,
+        "details": details,
+        "resultCursors": result_cursors,
+        "resultsAvailableFrom": results_available_from,
+    }
+
+
+async def _send_resync_snapshot(
+    ws: WebSocket, session_ids: list[str] | None = None, *,
+    include_all_sessions: bool = False,
+) -> bool:
+    return await _send_ws(
+        ws,
+        _resync_snapshot(
+            session_ids, include_all_sessions=include_all_sessions,
+        ),
+        kind="agent" if ws in agent_clients else "dashboard",
+    )
+
+
+async def _replay_agent_results(
+    ws: WebSocket, session_ids: list[str],
+    result_cursors: dict[str, int] | None = None,
+) -> None:
+    """Replay a bounded cursor window; fall back to a snapshot on expiry."""
     sub = agent_subscriptions.get(ws)
     if sub is None:
         sub = AgentSubscription()
         agent_subscriptions[ws] = sub
+    explicit_cursors = isinstance(result_cursors, dict)
     for sid in session_ids:
-        s = sess.get(sid)
-        if not s or not s.last_result:
+        s = _summary_session_get(sid)
+        if not s:
             continue
-        status = s.last_result.get("status")
-        if status not in _AGENT_TERMINAL_RESULT_STATUSES:
+        rows = _terminal_result_rows(s)
+        if not rows:
             continue
-        # 补发条件：consumed_seq < latest_seq（中途断线、部分消费也补发）
-        latest_seq = s.last_result.get("taskSeq")
-        if latest_seq is None:
-            # 旧数据未存 taskSeq：仅当完全未消费时补发（保持原有行为）
-            if sub.consumed_seq.get(sid, 0) > 0:
-                continue
-            latest_seq = 0
-        elif sub.consumed_seq.get(sid, 0) >= latest_seq:
-            continue
-        accepted = await _send_ws(
-            ws,
-            {
-                "type": "worker.result",
-                "workerId": "",
+        if explicit_cursors:
+            raw_cursor = result_cursors.get(sid, 0)
+            try:
+                cursor = max(0, int(raw_cursor or 0))
+            except (TypeError, ValueError):
+                cursor = 0
+        else:
+            cursor = max(
+                sub.consumed_cursor.get(sid, 0),
+                sub.consumed_seq.get(sid, 0),
+            )
+
+        cursored_rows = [row for row in rows if _result_cursor(row) > 0]
+        oldest = _result_cursor(cursored_rows[0]) if cursored_rows else 0
+        if explicit_cursors and oldest and cursor < oldest - 1:
+            await _send_ws(ws, {
+                "type": "resync_required",
+                "scope": "agent",
+                "reason": "result_cursor_expired",
                 "sessionId": sid,
-                "status": status,
-                "result": _project_editor_links(
-                    sid, str(s.last_result.get("result") or "")),
-                "taskSeq": latest_seq,
-                "replayed": True,
-            },
-            on_delivered=lambda ws=ws, sid=sid, seq=latest_seq: _mark_agent_result_delivered(
-                ws, sid, seq,
-            ),
-            kind="agent",
-        )
-        if not accepted:
+                "eventEpoch": _EVENT_EPOCH,
+                "eventSeq": _EVENT_SEQ,
+                "resultCursor": max(_result_cursor(row) for row in rows),
+            }, kind="agent")
+            await _send_resync_snapshot(ws, [sid])
             return
+
+        # Legacy reconnect callers receive the latest compatibility result;
+        # clients that send an explicit cursor receive every retained row.
+        pending_rows = (
+            [row for row in rows if _result_cursor(row) > cursor]
+            if explicit_cursors else rows[-1:]
+        )
+        for row in pending_rows:
+            result_cursor = _result_cursor(row)
+            task_seq = row.get("taskSeq")
+            if not explicit_cursors and result_cursor <= cursor:
+                continue
+            payload = {
+                "type": "worker.result",
+                "workerId": row.get("workerId", ""),
+                "sessionId": sid,
+                "status": row.get("status"),
+                "result": _project_editor_links(
+                    sid, str(row.get("result") or "")),
+                "taskSeq": task_seq,
+                "resultCursor": result_cursor or None,
+                "terminalKey": row.get("terminalKey"),
+                "replayed": True,
+            }
+            accepted = await _send_ws(
+                ws,
+                payload,
+                on_delivered=lambda ws=ws, sid=sid, seq=(
+                    int(task_seq) if isinstance(task_seq, int) else 0
+                ), rc=result_cursor: _mark_agent_result_delivered(
+                    ws, sid, seq, rc or None,
+                ),
+                kind="agent",
+            )
+            if not accepted:
+                return
 
 
 @app.middleware("http")
@@ -3733,6 +3945,19 @@ async def ws_endpoint(ws: WebSocket):
                     })
                     continue
                 await _replay_pending_interactions(ws, raw_session_ids)
+            elif msg_type == "resync":
+                raw_session_ids = msg.get("sessionIds")
+                if raw_session_ids is not None and not isinstance(raw_session_ids, list):
+                    await _send_ws(ws, {
+                        "type": "error",
+                        "message": "sessionIds must be a list",
+                    })
+                    continue
+                await _send_resync_snapshot(
+                    ws,
+                    raw_session_ids,
+                    include_all_sessions=bool(msg.get("includeAllSessions", True)),
+                )
     except WebSocketDisconnect:
         pass
     finally:
@@ -3788,8 +4013,35 @@ async def ws_agent_endpoint(ws: WebSocket):
 
             elif msg_type == "reconnect":
                 # 断线重连补发：{"type":"reconnect","sessionIds":[...]}
-                # 补发各 session 未消费的终态 worker.result（成功/失败/取消）
-                await _replay_agent_results(ws, msg.get("sessionIds") or [])
+                # 补发各 session 未消费的终态 worker.result（成功/失败/取消）。
+                # resultCursors 是新的 durable cursor；缺失时保留旧版 latest
+                # compatibility 行为。
+                raw_session_ids = msg.get("sessionIds") or []
+                if not isinstance(raw_session_ids, list):
+                    await _send_ws(ws, {"type": "error", "message": "sessionIds must be a list"}, kind="agent")
+                    continue
+                cursors = msg.get("resultCursors")
+                if cursors is not None and not isinstance(cursors, dict):
+                    await _send_ws(ws, {"type": "error", "message": "resultCursors must be an object"}, kind="agent")
+                    continue
+                await _replay_agent_results(ws, raw_session_ids, cursors)
+
+            elif msg_type == "resync":
+                raw_session_ids = msg.get("sessionIds") or []
+                if not isinstance(raw_session_ids, list):
+                    await _send_ws(ws, {"type": "error", "message": "sessionIds must be a list"}, kind="agent")
+                    continue
+                cursors = msg.get("resultCursors")
+                if cursors is not None and not isinstance(cursors, dict):
+                    await _send_ws(ws, {"type": "error", "message": "resultCursors must be an object"}, kind="agent")
+                    continue
+                await _send_resync_snapshot(
+                    ws,
+                    raw_session_ids,
+                    include_all_sessions=bool(msg.get("includeAllSessions", False)),
+                )
+                if cursors is not None:
+                    await _replay_agent_results(ws, raw_session_ids, cursors)
 
             elif msg_type == "task":
                 session_id = msg.get("sessionId")

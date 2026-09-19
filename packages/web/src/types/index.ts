@@ -277,6 +277,18 @@ export interface TerminalInteraction {
 
 export interface StreamEvent {
   type: string;
+  /** Process-epoch live event cursor; resync.snapshot is authoritative. */
+  eventEpoch?: string;
+  eventSeq?: number;
+  snapshotId?: string;
+  boundary?: 'authoritative' | string;
+  reason?: string;
+  sessions?: Session[];
+  sessionsTruncated?: boolean;
+  workers?: Array<Record<string, unknown>>;
+  details?: Record<string, Record<string, unknown>>;
+  resultCursors?: Record<string, number>;
+  resultsAvailableFrom?: Record<string, number>;
   sessionId?: string;
   workerId?: string;
   /** Monotonic runtime generation, used to ignore late lifecycle events. */

@@ -25,13 +25,14 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | 消息 | 格式 | 说明 |
 |------|------|------|
 | subscribe | `{"type":"subscribe","eventTypes":["worker.result","worker.zombie"],"sessionIds":["ses_..."]}` | `eventTypes`：省略/空数组 → 默认 `["worker.result"]`；`["*"]` 订阅全部。`sessionIds`：省略 → 所有 session；只过滤 `worker.result`。回 `{"type":"subscribed",...}` |
-| reconnect | `{"type":"reconnect","sessionIds":["ses_..."]}` | 断线重连补发：每 session 未消费的终态 `worker.result`（`done/error/cancelled`，且 `consumed_seq < taskSeq`），带 `replayed: true` |
+| reconnect | `{"type":"reconnect","sessionIds":["ses_..."],"resultCursors":{"ses_...":12}}` | 断线重连补发：每 session 中 `resultCursor` 大于客户端游标的保留终态，带 `replayed: true`。省略 `resultCursors` 时兼容旧客户端，仅补发当前可见的最新终态 |
+| resync | `{"type":"resync","sessionIds":["ses_..."],"includeAllSessions":true}` | 获取权威、有限边界的快照：session summary、存活 worker、指定 session 的 history/queue/lastResult；用于 `resync_required`、服务恢复或游标过期 |
 
 ### 服务端 → 客户端事件
 
 | 事件 | 字段 | 说明 |
 |------|------|------|
-| `worker.result` | `workerId, sessionId, status(done/error/cancelled), result, taskSeq` | **任务完成/失败/取消**，默认订阅；终态结果可在 reconnect 时补发 |
+| `worker.result` | `workerId, sessionId, status(done/error/cancelled), result, taskSeq, resultCursor, terminalKey` | **任务完成/失败/取消**，默认订阅；终态结果可按 `resultCursor` 在 reconnect 时补发 |
 | `worker.zombie` | `workerId, sessionId, returncode` | 进程退出/被杀/回收瞬间广播（订阅方据此感知异常丢失） |
 | `worker.crashed` | `workerId, sessionId, returncode` | 非零退出 |
 | `worker.status` | `workerId, sessionId, status, source` | 状态切换（running 等） |
@@ -44,15 +45,27 @@ WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 | `assign.result` / `send.result` | 含 `status/result` | WS 主动调用（type=assign/send）的同步应答 |
 | `subscribed` / `error` | — | 协议握手 / 错误 |
 
-订阅状态：每个连接独立维护 `consumed_seq`（每 session 已消费的 result 序号），重连补发据此推进。**订阅可限定 session**：只收关心的 session，减少无关唤醒。
+订阅状态：每个连接独立维护 `consumed_cursor`（每 session 已成功送达的 `resultCursor`）。只有 WebSocket `send` 成功后才推进游标；客户端重复 reconnect 使用同一游标不会重复返回已成功送达的结果。服务端只保留每个 Session 最近 64 个终态结果；游标早于保留窗口时返回 `resync_required(reason=result_cursor_expired)`，随后发送 `resync.snapshot`，不构建无限 replay log。
+
+实时事件还带服务实例内的 `eventEpoch` 与单调 `eventSeq`。客户端发现同一 epoch 的序号出现间隙时必须请求 `resync`；epoch 变化（服务重启）也应视为需要快照。快照带当前事件边界 `snapshotId`，其内容是权威投影，不是可无限回放的事件日志。
+
+`resync.snapshot` 的语义如下：
+
+- `sessions` 是有限的 Session summary；`includeAllSessions` 最多返回 512 个。
+- `details[sessionId]` 只为请求的 Session 返回 bounded history（最近 50 条）及 summary/lastResult；更早历史继续通过带 cursor 的 HTTP history API 获取。
+- `details[sessionId].queue` 来自持久化 `queue_pending`（含 `queueRevision`），不是 `pending_signal` 或 `sent_to_cli` 的推断。`sent_to_cli` 只表示已交给 CLI，不表示 provider/business completion。
+- 快照与增量同时存在时，客户端按 `summaryRevision`、`queueRevision`、`resultCursor` 和事件边界收敛，不能用旧快照覆盖较新的本地投影。
 
 ## Dashboard `/ws` 交互请求恢复
 
 React dashboard 使用 `ws://127.0.0.1:<port>/ws`。连接建立后发送：
 
 ```json
+{"type":"resync","sessionIds":["ses_..."],"includeAllSessions":true}
 {"type":"sync_interactive"}
 ```
+
+dashboard 收到 `resync_required` 或检测到事件游标间隙时重复请求 `resync`，并通过现有 HTTP revision/history reader 合并权威结果。`resync.snapshot` 是恢复边界，不代表已经重新发送了每一条 delta；客户端不能把它当作比随后到达的较新 live event 更新的状态。
 
 Dashboard 端其它入站消息（浏览器发送即**持久化入队**，`accepted` = 已落盘而非 Provider 完成）：
 

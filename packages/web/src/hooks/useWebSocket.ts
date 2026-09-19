@@ -141,6 +141,20 @@ export function useWebSocket() {
       wsClient.send({ type: 'sync_interactive' });
     };
 
+    const syncAuthoritativeSnapshot = (): void => {
+      const sessionId = useSessionStore.getState().currentSessionId;
+      const cursor = typeof wsClient.getEventCursor === 'function'
+        ? wsClient.getEventCursor()
+        : { eventEpoch: null, eventSeq: 0 };
+      wsClient.send({
+        type: 'resync',
+        ...(sessionId ? { sessionIds: [sessionId] } : {}),
+        includeAllSessions: true,
+        ...(cursor.eventEpoch ? { eventEpoch: cursor.eventEpoch } : {}),
+        eventSeq: cursor.eventSeq,
+      });
+    };
+
     const refreshAuthoritativeState = (): void => {
       const sessionId = useSessionStore.getState().currentSessionId;
       void useSessionStore.getState().loadSessions();
@@ -166,16 +180,31 @@ export function useWebSocket() {
         void useSessionStore.getState().refreshCurrentSessionHistory();
         void useQueueStore.getState().loadAgentQueue(sessionId);
       }
+      syncAuthoritativeSnapshot();
       syncInteractiveRequests();
     }));
     // If the singleton was already open before this hook mounted (HMR/route
     // remount), no new `open` event will arrive; sync explicitly as well.
-    if (wsClient.isOpen) syncInteractiveRequests();
+    if (wsClient.isOpen) {
+      syncAuthoritativeSnapshot();
+      syncInteractiveRequests();
+    }
 
     // A bounded sender can explicitly evict this dashboard when it cannot
     // preserve the live stream.  The event is not replay: converge from the
     // authoritative HTTP snapshots, then let the socket reconnect normally.
     unsubscribers.push(wsClient.on('resync_required', () => {
+      refreshAuthoritativeState();
+      // If the server did not close the socket (for example, the client
+      // detected a live event cursor gap), request a fresh boundary on the
+      // same connection.  A close-triggered resync simply returns false and
+      // the normal open/reconnect path repeats this handshake.
+      syncAuthoritativeSnapshot();
+    }));
+    unsubscribers.push(wsClient.on('resync.snapshot', () => {
+      // The payload is a bounded server boundary.  HTTP remains the canonical
+      // lazy history/queue reader, so converge through the existing guarded
+      // loaders instead of replacing local live buffers with a snapshot.
       refreshAuthoritativeState();
     }));
 
