@@ -69,9 +69,9 @@ export function SendQueuePanel() {
                     <div key={item.id} className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
                       {editing ? (
                         <>
-                          <textarea autoFocus rows={2} value={edit.text} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); saveEdit(); } else if (event.key === 'Escape') { event.preventDefault(); cancelEdit(); } }} className="flex-1 resize-none rounded border border-accent/50 bg-bg-tertiary px-2 py-1 text-sm text-text-primary focus:outline-none" />
-                          <button className={BUTTON} onClick={saveEdit} title="保存"><Check size={14} /></button>
-                          <button className={BUTTON} onClick={cancelEdit} title="取消"><X size={14} /></button>
+                          <textarea autoFocus rows={2} value={edit.text} disabled={edit.saving} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); saveEdit(); } else if (event.key === 'Escape') { event.preventDefault(); cancelEdit(); } }} className="flex-1 resize-none rounded border border-accent/50 bg-bg-tertiary px-2 py-1 text-sm text-text-primary focus:outline-none disabled:opacity-60" />
+                          <button className={BUTTON} disabled={edit.saving} onClick={saveEdit} title="保存"><Check size={14} /></button>
+                          <button className={BUTTON} disabled={edit.saving} onClick={cancelEdit} title="取消"><X size={14} /></button>
                         </>
                       ) : (
                         <>

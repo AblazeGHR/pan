@@ -948,6 +948,8 @@ async def _persist_terminal_state(
         "generation": w.generation,
         "sourceSessionId": source_session_id,
         "timestamp": datetime.now().isoformat(),
+        "historyEpoch": getattr(s, "history_epoch", None),
+        "historyRevision": getattr(s, "history_revision", 0),
     }
     s.terminal_results = (
         prior_terminals + [terminal_record]
@@ -972,6 +974,17 @@ async def _persist_terminal_state(
         if not (last and last.get("role") == "assistant"
                 and last.get("content") == result_text):
             _sess.append_history(s, {"role": "assistant", "content": result_text})
+
+    # The result must cover the canonical history revision after the final
+    # append, not the revision that happened to exist when the replay record
+    # was allocated above. Persist this coverage in the same base commit as
+    # last_result/terminal_results before publishing result or idle.
+    history_epoch = getattr(s, "history_epoch", None)
+    history_revision = getattr(s, "history_revision", 0)
+    terminal_record["historyEpoch"] = history_epoch
+    terminal_record["historyRevision"] = history_revision
+    s.last_result["historyEpoch"] = history_epoch
+    s.last_result["historyRevision"] = history_revision
 
     # Queue rows crossed the existing provider hand-off boundary earlier; this
     # only clears runtime routing references and never changes FIFO state.
@@ -1006,6 +1019,8 @@ async def _persist_terminal_state(
         "result": result_text,
         "status": status,
         "enrichmentKey": enrichment_key,
+        "historyEpoch": getattr(s, "history_epoch", None),
+        "historyRevision": getattr(s, "history_revision", 0),
     }
 
 
@@ -1026,6 +1041,12 @@ async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
         "resultCursor": terminal["resultCursor"],
         "terminalKey": terminal["terminalKey"],
         "sourceSessionId": terminal["sourceSessionId"],
+        "historyEpoch": terminal.get("historyEpoch"),
+        "historyRevision": terminal.get("historyRevision", 0),
+        "terminalCoverage": {
+            "historyEpoch": terminal.get("historyEpoch"),
+            "historyRevision": terminal.get("historyRevision", 0),
+        },
         **({"notification": completion_notification}
            if completion_notification else {}),
     })

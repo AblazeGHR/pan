@@ -398,6 +398,25 @@ def test_app_server_run_turn_message_loop(monkeypatch):
     print("PASS: app-server run_turn message loop")
 
 
+def test_app_server_cumulative_text_is_item_local(monkeypatch):
+    """Interleaved native items never inherit another item's cumulative text."""
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    state = {"item_cumulative": {}, "turn_id": "turn-1"}
+
+    for item_id, delta in (("item-a", "A"), ("item-b", "B"), ("item-b", "C")):
+        app._handle_server_message({
+            "method": "item/agentMessage/delta",
+            "params": {
+                "turnId": "turn-1", "itemId": item_id, "delta": delta,
+            },
+        }, state)
+
+    assert [event["stream_text"] for event in emitted] == ["A", "B", "BC"]
+    print("PASS: item-local cumulative text")
+
+
 def test_app_server_interrupted_turn_is_not_an_error(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     app.thread_id = "thread-1"

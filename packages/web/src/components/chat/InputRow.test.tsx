@@ -254,6 +254,43 @@ describe('InputRow send queue wiring', () => {
     expect(useSessionStore.getState().currentMessages).toEqual([]);
   });
 
+  it('does not let a delayed Steer success clear a newer draft in the same Session', async () => {
+    const pending = deferred<{ workerId: string; status: string }>();
+    vi.mocked(steerSessionWorker).mockReturnValueOnce(pending.promise);
+    setBusySession();
+    useSessionStore.setState({
+      sessions: [{
+        id: 's1', name: 'Test', adapter: 'codex', model: null, permissionMode: null,
+        alwaysThinkingEnabled: false, effort: '', workerStatus: 'running', workerId: 'w1',
+        history: [],
+      }],
+    });
+    useWorkerStore.setState({
+      workers: { s1: { id: 'w1', sessionId: 's1', status: 'running' } },
+      currentWorkerId: 'w1',
+      currentWorker: { id: 'w1', sessionId: 's1', status: 'running' },
+    });
+
+    render(<InputRow />);
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'steer A' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Steer' }));
+    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'steer A'));
+
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'new draft after request' },
+    });
+    pending.resolve({ workerId: 'w1', status: 'steer sent' });
+
+    await waitFor(() => expect(
+      (screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement).value,
+    ).toBe('new draft after request'));
+    expect(useSessionStore.getState().inputDrafts.s1).toBe('new draft after request');
+    expect(useSessionStore.getState().currentMessages.map((message) => message.content))
+      .toEqual(['steer A']);
+  });
+
   it('selects server files, renders attachment chips, and enqueues standard Markdown links', async () => {
     setBusySession();
     render(<InputRow />);

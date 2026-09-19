@@ -25,3 +25,5 @@ def test_loads_session_written_by_newer_queue_version():
     assert session.queue_revision == 7
     assert session.to_dict()["queue_delivery_ledger"] == session.queue_delivery_ledger
     assert session.to_dict()["queue_revision"] == 7
+    assert session.history_epoch == "legacy:ses_forward_compat"
+    assert Session._from_data(data).history_epoch == session.history_epoch

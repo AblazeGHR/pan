@@ -37,6 +37,7 @@ interface SessionStore {
   multiSelectMode: boolean;
   selectedIds: Set<string>;
   inputDrafts: Record<string, string>;
+  inputDraftRevisions: Record<string, number>;
   sessionUnread: Record<string, Set<string>>;
   rendering: boolean;
 
@@ -50,16 +51,22 @@ interface SessionStore {
   // events actually freshened *while its own HTTP request was in flight*.
   _sessionWsTouchedSeq: Record<string, number>;
   _historyRefreshSeq: Record<string, number>;
+  _historyPageSeq: Record<string, number>;
   /** Monotonic per-session selection request sequence; protects A→B→A. */
   _selectionSeq: Record<string, number>;
   _sessionLocalTouchedSeq: Record<string, number>;
   _sessionSettingsTouchedSeq: Record<string, number>;
   _sessionEventPatches: Record<string, Partial<Session>>;
   _deliveredQueueIds: Record<string, Set<string>>;
+  _pendingQueueIds: Record<string, Set<string>>;
   liveStreamBuffers: Record<string, LiveStreamBuffer>;
   terminalWatermarks: Record<string, TerminalWatermark>;
   /** Latest optimistic settings mutation per Session. */
   sessionSettingMutations: Record<string, SessionSettingMutationInternal>;
+  /** Authoritative server process epoch for runtime watermarks. */
+  serverEpoch: string | null;
+  /** Start offset of each Session's loaded canonical history window. */
+  historyWindowStarts: Record<string, number>;
 
   // Actions
   loadSessions: () => Promise<void>;
@@ -86,6 +93,7 @@ interface SessionStore {
   branch: (id: string, name: string) => Promise<void>;
   reimport: (id: string) => Promise<void>;
   setInputDraft: (id: string, draft: string) => void;
+  acceptServerEpoch: (epoch: string | null | undefined) => void;
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
   /** Append a user-side control/message to its target Session projection. */
@@ -108,6 +116,9 @@ interface SessionStore {
   clearLiveStream: (sessionId: string) => void;
   /** Show a durably queued user message before local CLI hand-off. */
   appendQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
+  /** Update only the still-pending projection for an in-place queue edit. */
+  updateQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
+  removeQueuedMessage: (sessionId: string, queueItemId: string) => void;
   /** Append user messages after the server confirms local CLI hand-off. */
   appendDeliveredMessages: (sessionId: string, msgs: Message[]) => void;
   /** Apply settings locally first, then reconcile or roll back the exact mutation. */
@@ -166,9 +177,27 @@ function queueIds(message: Message): string[] {
     : [];
 }
 
+function canonicalQueueId(id: string): string {
+  return id.startsWith('queue:') ? id.slice('queue:'.length) : id;
+}
+
+function queueIdMatches(a: string, b: string): boolean {
+  return a === b || canonicalQueueId(a) === canonicalQueueId(b);
+}
+
+function queueSetMatches(ids: Set<string>, candidate: string): boolean {
+  return [...ids].some((id) => queueIdMatches(id, candidate));
+}
+
+function messageShapeKey(message: Message): string {
+  return `${message.role}\u0000${message.content}\u0000${JSON.stringify(message.parts ?? null)}`;
+}
+
 function explicitMessageIdentity(message: Message): string[] {
   return [
-    ...queueIds(message).map((id) => `queue:${id}`),
+    ...(message.messageId ? [`message:${message.messageId}`] : []),
+    ...(message.blockId ? [`block:${message.blockId}`] : []),
+    ...queueIds(message).map((id) => `queue:${canonicalQueueId(id)}`),
     ...(message.nativeItemId ? [`native:${message.nativeItemId}`] : []),
   ];
 }
@@ -256,9 +285,12 @@ export interface LiveStreamBuffer {
   streamText?: string;
   revision: number;
   messages: Message[];
+  /** Projection indexes let delta updates avoid scanning canonical history. */
+  projectionIndexes?: Record<string, number>;
 }
 
 export interface LiveStreamMeta {
+  serverEpoch?: string;
   workerId?: string;
   generation?: number;
   taskSeq?: number;
@@ -299,28 +331,22 @@ function mergeServerHistoryWithLive(
   // remounts the growing Markdown block and makes the viewport flash.
   const result = [...serverHistory];
   const claimedIndexes = new Set<number>();
+  const identityIndexes = new Map<string, number>();
+  result.forEach((message, index) => {
+    for (const identity of explicitMessageIdentity(message)) {
+      if (!identityIndexes.has(identity)) identityIndexes.set(identity, index);
+    }
+  });
   for (const live of liveMessages) {
-    const identityIndex = live.nativeItemId
-      ? result.findIndex((message, index) =>
-          !claimedIndexes.has(index)
-          && message.nativeItemId === live.nativeItemId
-          && message.role === live.role)
-      : -1;
-    const contentIndex = result.findIndex((message, index) =>
-      !claimedIndexes.has(index)
-      && message.role === live.role
-      && message.content === live.content,
-    );
-    const compatibleIndex = identityIndex >= 0
-      ? identityIndex
-      : live.role === 'assistant'
-        ? result.findIndex((message, index) => !claimedIndexes.has(index)
-          && message.role === 'assistant'
-          && (message.content.startsWith(live.content) || live.content.startsWith(message.content)))
-        : contentIndex;
+    const compatibleIndex = explicitMessageIdentity(live)
+      .map((identity) => identityIndexes.get(identity))
+      .find((index): index is number => index !== undefined && !claimedIndexes.has(index)) ?? -1;
     if (compatibleIndex < 0) {
       result.push(live);
       claimedIndexes.add(result.length - 1);
+      for (const identity of explicitMessageIdentity(live)) {
+        identityIndexes.set(identity, result.length - 1);
+      }
       continue;
     }
     claimedIndexes.add(compatibleIndex);
@@ -336,61 +362,15 @@ function mergeServerHistoryWithLive(
   return result;
 }
 
-function matchesHistoryProjection(message: Message, candidate: Message): boolean {
-  if (message.role !== candidate.role) return false;
-  if (message.nativeItemId && candidate.nativeItemId
-      && message.nativeItemId === candidate.nativeItemId) {
-    return true;
-  }
-  if (sameMessage(message, candidate)) return true;
-  return message.role === 'assistant'
-    && (message.content.startsWith(candidate.content)
-      || candidate.content.startsWith(message.content));
-}
-
-/** Find selected-chat rows which are already rendered but not in the HTTP
- * snapshot.  User rows deliberately do not enter this list: their durable
- * queue/Steer identities are handled by mergeServerHistoryPreservingLocal.
- * Assistant/tool rows are the transient stream tail, including the testable
- * case where a history refresh inserts a newly persisted agent user row before
- * an assistant block that is still only in the selected chat projection. */
-function inferDivergedLiveMessages(local: Message[], server: Message[]): Message[] {
-  const claimedIndexes = new Set<number>();
-  const result: Message[] = [];
-  for (const message of local) {
-    if (message.role === 'user' || message.role === 'system') continue;
-    const matchedIndex = server.findIndex((candidate, index) =>
-      !claimedIndexes.has(index) && matchesHistoryProjection(message, candidate));
-    if (matchedIndex >= 0) {
-      claimedIndexes.add(matchedIndex);
-    } else {
-      result.push(message);
-    }
-  }
-  return result;
-}
-
-/** Merge an HTTP history page into the selected chat without dropping a live
- * assistant tail.  The explicit live buffer is preferred, but the selected
- * projection itself is also evidence: an agent/report refresh can race a
- * stream before the first live buffer write is observable. */
-function mergeSelectedHistoryPreservingLive(
-  local: Message[],
-  server: Message[],
-  liveMessages: Message[],
-  options: { serverTotal?: number } = {},
-): Message[] {
-  const reconciled = mergeServerHistoryPreservingLocal(local, server, options);
-  const inferred = inferDivergedLiveMessages(local, reconciled);
-  return mergeServerHistoryWithLive(reconciled, [...inferred, ...liveMessages]);
-}
-
 function sameWorkerGeneration(a: LiveStreamMeta, b: LiveStreamMeta): boolean {
   return Boolean(a.workerId && b.workerId && a.workerId === b.workerId
     && (a.generation === undefined || b.generation === undefined || a.generation === b.generation));
 }
 
 function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
+  if (incoming.serverEpoch && known.serverEpoch && incoming.serverEpoch !== known.serverEpoch) {
+    return true;
+  }
   if (incoming.generation !== undefined && known.generation !== undefined) {
     if (incoming.generation < known.generation) return true;
     if (incoming.generation > known.generation) return false;
@@ -552,11 +532,7 @@ function mergeServerHistoryPreservingLocal(
       );
       matchedIndex = sameAtOrdinal >= 0
         ? sameAtOrdinal
-        : result.findIndex((candidate, index) =>
-            !claimedIndexes.has(index)
-            && candidate.role === 'user'
-            && sameMessage(candidate, message),
-          );
+        : -1;
     }
 
     if (matchedIndex >= 0) {
@@ -666,6 +642,81 @@ function isServerHistoryPrefix(
   return true;
 }
 
+function projectionKeys(message: Message): string[] {
+  const ids = explicitMessageIdentity(message);
+  return ids.length > 0
+    ? ids.map((id) => `${message.role}:${id}`)
+    : [`${message.role}:legacy:${message.content}`];
+}
+
+/**
+ * Replace only the absolute history interval declared by the server page.
+ * The old implementation treated every row absent from a tail page as a live
+ * row and appended it, which dropped old users and moved old assistants. This
+ * helper keeps the loaded canonical window indexed by absolute position and
+ * appends live/pending overlays only after the page union is complete.
+ */
+function mergeHistoryPageByWindow(
+  local: Message[],
+  page: Message[],
+  pageStart: number,
+  previousWindowStart: number,
+  liveMessages: Message[] = [],
+): Message[] {
+  const liveIds = new Set(liveMessages.flatMap(explicitMessageIdentity));
+  const overlays: Message[] = [];
+  const canonical: Message[] = [];
+  for (const message of local) {
+    const ids = explicitMessageIdentity(message);
+    const isLive = ids.some((id) => liveIds.has(id));
+    if (isLive) overlays.push(message);
+    else canonical.push(message);
+  }
+
+  // A non-overlapping older page is a prepend. This is the only operation
+  // allowed to move the loaded window; tail refreshes stay in-place.
+  if (page.length > 0 && pageStart + page.length <= previousWindowStart) {
+    return [...page, ...canonical, ...overlays];
+  }
+
+  const result = canonical.slice();
+  for (let offset = 0; offset < page.length; offset++) {
+    const incoming = page[offset]!;
+    const absolute = pageStart + offset;
+    const incomingIds = new Set(explicitMessageIdentity(incoming));
+    let target = -1;
+    if (incomingIds.size > 0) {
+      target = result.findIndex((candidate) =>
+        [...incomingIds].some((id) => explicitMessageIdentity(candidate).includes(id)),
+      );
+    }
+    if (target < 0) {
+      const relative = absolute - previousWindowStart;
+      if (relative >= 0 && relative < result.length) target = relative;
+    }
+    if (target >= 0) {
+      const previous = result[target]!;
+      if (previous.role !== incoming.role) {
+        result.splice(target, 0, incoming);
+        continue;
+      }
+      const next = {
+        ...incoming,
+        ...(queueIds(incoming).length === 0 && queueIds(previous).length > 0
+          ? { queueItemIds: [...queueIds(previous)] }
+          : {}),
+      };
+      inheritMessageIdentity(next, previous);
+      result[target] = next;
+    } else if (absolute >= previousWindowStart + result.length) {
+      result.push(incoming);
+    } else {
+      result.splice(Math.max(0, absolute - previousWindowStart), 0, incoming);
+    }
+  }
+  return [...result, ...overlays];
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   sessionsLoading: false,
@@ -678,19 +729,24 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   multiSelectMode: false,
   selectedIds: new Set(),
   inputDrafts: {},
+  inputDraftRevisions: {},
   sessionUnread: {},
   rendering: false,
   _loadSeq: 0,
   _sessionWsTouchedSeq: {},
   _historyRefreshSeq: {},
+  _historyPageSeq: {},
   _selectionSeq: {},
   _sessionLocalTouchedSeq: {},
   _sessionSettingsTouchedSeq: {},
   _sessionEventPatches: {},
   _deliveredQueueIds: {},
+  _pendingQueueIds: {},
   liveStreamBuffers: {},
   terminalWatermarks: {},
   sessionSettingMutations: {},
+  serverEpoch: null,
+  historyWindowStarts: {},
 
   loadSessions: async () => {
     // Reserve this refresh's sequence + snapshot the per-session WS touch
@@ -877,10 +933,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const found = current.sessions.find((s) => s.id === restoreSessionId);
         if (found) {
           const liveMessages = current.liveStreamBuffers[restoreSessionId]?.messages || [];
-          const serverHistory = mergeServerHistoryWithLive(
+          const previousHistory = current.sessions.find((session) =>
+            session.id === restoreSessionId,
+          )?.history || [];
+          const windowStart = found.historyStart
+            ?? current.historyWindowStarts[restoreSessionId]
+            ?? Math.max(0, (found.historyTotal ?? found.history?.length ?? 0)
+              - (found.history?.length ?? 0));
+          const canonicalHistory = mergeHistoryPageByWindow(
+            previousHistory,
             found.history || [],
+            windowStart,
+            current.historyWindowStarts[restoreSessionId] ?? windowStart,
             liveMessages,
           );
+          const serverHistory = mergeServerHistoryWithLive(canonicalHistory, liveMessages);
           const keepLocal = isServerHistoryPrefix(
             current.currentMessages,
             serverHistory,
@@ -888,18 +955,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           set({
             currentMessages: keepLocal
               ? current.currentMessages
-              : mergeSelectedHistoryPreservingLive(
-                current.currentMessages,
-                found.history || [],
-                liveMessages,
-                { serverTotal: found.historyTotal },
-              ),
+              : mergeServerHistoryWithLive(canonicalHistory, liveMessages),
             hasMoreMessages: !!found.historyTruncated,
-            historyLoadEnd: Math.max(
-              0,
-              (found.historyTotal ?? serverHistory.length) -
-                serverHistory.length,
-            ),
+            historyLoadEnd: windowStart,
+            historyWindowStarts: {
+              ...current.historyWindowStarts,
+              [restoreSessionId]: windowStart,
+            },
           });
         } else {
           set({
@@ -951,6 +1013,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         0,
         (session.historyTotal ?? loaded) - loaded,
       ),
+      historyWindowStarts: {
+        ...get().historyWindowStarts,
+        [id]: session.historyStart ?? Math.max(0, (session.historyTotal ?? loaded) - loaded),
+      },
       // summary=1 快照不带每 session 的 history → 快照为空时，在下方 fresh
       // history 拉取期间 chat 面板应显示转圈 loading，而不是「无消息」空态。
       initialLoading: loaded === 0,
@@ -977,10 +1043,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
       const serverHistory = data.history || [];
       const previousHistory = get().sessions.find((x) => x.id === id)?.history || [];
-      const reconciledHistory = mergeServerHistoryPreservingLocal(
+      const previousWindowStart = get().historyWindowStarts[id]
+        ?? Math.max(0, data.total - previousHistory.length);
+      const reconciledHistory = mergeHistoryPageByWindow(
         previousHistory,
         serverHistory,
-        { serverTotal: data.total },
+        data.start,
+        previousWindowStart,
+        get().liveStreamBuffers[id]?.messages || [],
       );
       const historyWithLive = mergeServerHistoryWithLive(
         reconciledHistory,
@@ -1004,21 +1074,29 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 ...x,
                 history: reconciledHistory,
                 historyTruncated: data.hasMore,
-                historyTotal: Math.max(data.total, reconciledHistory.length),
+                historyTotal: data.total,
+                historyStart: data.start,
+                historyEpoch: data.historyEpoch ?? x.historyEpoch,
+                historyRevision: data.historyRevision ?? x.historyRevision,
                 lastMessage,
               }
             : x,
         ),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeSelectedHistoryPreservingLive(
+          : mergeServerHistoryWithLive(
+            mergeHistoryPageByWindow(
             s.currentMessages,
-            reconciledHistory,
+              serverHistory,
+              data.start,
+              previousWindowStart,
+              s.liveStreamBuffers[id]?.messages || [],
+            ),
             s.liveStreamBuffers[id]?.messages || [],
-            { serverTotal: data.total },
           ),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
+        historyWindowStarts: { ...s.historyWindowStarts, [id]: data.start },
         initialLoading: false,
       }));
     } catch {
@@ -1050,10 +1128,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       ) return;
       const serverHistory = data.history || [];
       const previousHistory = current.sessions.find((x) => x.id === sid)?.history || [];
-      const reconciledHistory = mergeServerHistoryPreservingLocal(
+      const firstPageRow = data.history?.[0];
+      const firstCurrentRow = current.currentMessages[0];
+      const pageAnchorsCurrentStart = Boolean(
+        firstPageRow && firstCurrentRow
+        && (hasExplicitIdentityOverlap(firstPageRow, firstCurrentRow)
+          || sameMessage(firstPageRow, firstCurrentRow)),
+      );
+      const previousWindowStart = previousHistory.length === 0 || pageAnchorsCurrentStart
+        ? data.start
+        : current.historyWindowStarts[sid]
+          ?? Math.max(0, data.total - previousHistory.length);
+      const reconciledHistory = mergeHistoryPageByWindow(
         previousHistory,
         serverHistory,
-        { serverTotal: data.total },
+        data.start,
+        previousWindowStart,
+        current.liveStreamBuffers[sid]?.messages || [],
       );
       const historyWithLive = mergeServerHistoryWithLive(
         reconciledHistory,
@@ -1067,20 +1158,28 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               ...session,
               history: reconciledHistory,
               historyTruncated: data.hasMore,
-              historyTotal: Math.max(data.total, reconciledHistory.length),
+              historyTotal: data.total,
+              historyStart: data.start,
+              historyEpoch: data.historyEpoch ?? session.historyEpoch,
+              historyRevision: data.historyRevision ?? session.historyRevision,
               lastMessage: lastServerMsg ? String(lastServerMsg.content).slice(0, 200) : '',
             }
           : session),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeSelectedHistoryPreservingLive(
+          : mergeServerHistoryWithLive(
+            mergeHistoryPageByWindow(
             s.currentMessages,
-            reconciledHistory,
+              serverHistory,
+              data.start,
+              previousWindowStart,
+              s.liveStreamBuffers[sid]?.messages || [],
+            ),
             s.liveStreamBuffers[sid]?.messages || [],
-            { serverTotal: data.total },
           ),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
+        historyWindowStarts: { ...s.historyWindowStarts, [sid]: data.start },
         initialLoading: false,
       }));
     } catch {
@@ -1099,6 +1198,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     set({ historyLoading: true });
     const sid = currentSessionId;
+    const pageSeq = (get()._historyPageSeq[sid] ?? 0) + 1;
+    set((s) => ({ _historyPageSeq: { ...s._historyPageSeq, [sid]: pageSeq } }));
 
     try {
       const data: ApiSessionHistoryResponse = await fetchSessionHistory(
@@ -1106,7 +1207,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         historyLoadEnd,
         50,
       );
-      if (get().currentSessionId !== sid) return;
+      if (get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
+        if (get().currentSessionId === sid) set({ historyLoading: false });
+        return;
+      }
 
       const msgs = data.history || data.history || [];
       if (msgs.length === 0) {
@@ -1115,7 +1219,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
 
       set((s) => {
-        const merged = [...msgs, ...s.currentMessages];
+        const previousWindowStart = s.historyWindowStarts[sid] ?? historyLoadEnd;
+        const merged = mergeHistoryPageByWindow(
+          s.currentMessages,
+          msgs,
+          data.start,
+          previousWindowStart,
+          s.liveStreamBuffers[sid]?.messages || [],
+        );
         // Update session in the list
         const sessions = s.sessions.map((session) => {
           if (session.id === sid) {
@@ -1123,6 +1234,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               ...session,
               history: merged,
               historyTruncated: data.start > 0,
+              historyStart: data.start,
+              historyTotal: data.total,
+              historyEpoch: data.historyEpoch ?? session.historyEpoch,
+              historyRevision: data.historyRevision ?? session.historyRevision,
             };
           }
           return session;
@@ -1132,11 +1247,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           currentMessages: merged,
           hasMoreMessages: data.start > 0,
           historyLoadEnd: data.start,
+          historyWindowStarts: { ...s.historyWindowStarts, [sid]: data.start },
           historyLoading: false,
         };
       });
     } catch {
-      set({ historyLoading: false });
+      if (get().currentSessionId === sid && get()._historyPageSeq[sid] === pageSeq) {
+        set({ historyLoading: false });
+      }
     }
   },
 
@@ -1353,7 +1471,62 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   setInputDraft: (id: string, draft: string) => {
     set((s) => ({
       inputDrafts: { ...s.inputDrafts, [id]: draft },
+      inputDraftRevisions: {
+        ...(s.inputDraftRevisions ?? {}),
+        [id]: (s.inputDraftRevisions?.[id] ?? 0) + 1,
+      },
     }));
+  },
+
+  acceptServerEpoch: (epoch) => {
+    if (!epoch) return;
+    set((s) => {
+      if (s.serverEpoch === epoch) return s;
+      // A process restart invalidates runtime-only watermarks and transient
+      // live buffers. Durable history, queue projections, and drafts remain.
+      const runtimeMessages = Object.values(s.liveStreamBuffers).flatMap(
+        (buffer) => buffer.messages,
+      );
+      const staleIds = new Set(runtimeMessages.flatMap(explicitMessageIdentity));
+      const runtimeRefs = new Set(runtimeMessages);
+      const runtimeShapes = new Set(runtimeMessages.map(messageShapeKey));
+      const durableMessages = s.sessions.find((session) =>
+        session.id === s.currentSessionId,
+      )?.history || [];
+      const durableRefs = new Set(durableMessages);
+      const durableIds = new Set(durableMessages.flatMap(explicitMessageIdentity));
+      const durableShapeCounts = new Map<string, number>();
+      for (const message of durableMessages) {
+        const key = messageShapeKey(message);
+        durableShapeCounts.set(key, (durableShapeCounts.get(key) ?? 0) + 1);
+      }
+      const retainedDurableShapes = new Map<string, number>();
+      return {
+        serverEpoch: epoch,
+        liveStreamBuffers: {},
+        terminalWatermarks: {},
+        _sessionEventPatches: {},
+        ...(runtimeMessages.length > 0
+          ? {
+              currentMessages: s.currentMessages.filter((message) => {
+                const ids = explicitMessageIdentity(message);
+                if (runtimeRefs.has(message) && !durableRefs.has(message)) return false;
+                if (ids.some((id) => staleIds.has(id))
+                    && !ids.some((id) => durableIds.has(id))) return false;
+                const shape = messageShapeKey(message);
+                if (!runtimeShapes.has(shape)) return true;
+                const durableCount = durableShapeCounts.get(shape) ?? 0;
+                const retained = retainedDurableShapes.get(shape) ?? 0;
+                if (retained < durableCount) {
+                  retainedDurableShapes.set(shape, retained + 1);
+                  return true;
+                }
+                return false;
+              }),
+            }
+          : {}),
+      };
+    });
   },
 
   addMessage: (msg: Message) => {
@@ -1458,28 +1631,49 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         messages: messages.slice(),
       };
       accepted = true;
-      const session = s.sessions.find((candidate) => candidate.id === sessionId);
-      const currentBase = s.currentSessionId === sessionId
-        ? nonSystemMessages(s.currentMessages).filter((message) =>
-          !(previous?.messages || []).some((live) =>
-            (live.nativeItemId && message.nativeItemId === live.nativeItemId)
-            || sameMessage(live, message)
-            || (live.role === 'assistant' && message.role === 'assistant'
-              && (live.content.startsWith(message.content) || message.content.startsWith(live.content)))),
-        )
-        : [];
-      const historyWithLive = s.currentSessionId === sessionId
-        ? mergeServerHistoryWithLive(currentBase, buffer.messages)
-        : session
-          ? mergeServerHistoryWithLive(session.history || [], buffer.messages)
-          : buffer.messages;
+      if (s.currentSessionId === sessionId) {
+        const projected = s.currentMessages.slice();
+        const indexes: Record<string, number> = {};
+        for (const [liveOffset, live] of buffer.messages.entries()) {
+          const keys = projectionKeys(live);
+          let targetIndex = keys
+            .map((key) => previous?.projectionIndexes?.[key])
+            .find((index): index is number =>
+              index !== undefined && index >= 0 && index < projected.length
+                && projected[index]?.role === live.role,
+            ) ?? -1;
+          if (targetIndex < 0 && previous?.messages[liveOffset]?.role === live.role) {
+            targetIndex = projectionKeys(previous.messages[liveOffset]!)
+              .map((key) => previous.projectionIndexes?.[key])
+              .find((index): index is number =>
+                index !== undefined && index >= 0 && index < projected.length,
+              ) ?? -1;
+          }
+          if (targetIndex < 0) {
+            targetIndex = projected.findIndex((candidate) =>
+              candidate.role === live.role
+              && projectionKeys(candidate).some((key) => keys.includes(key)),
+            );
+          }
+          if (targetIndex >= 0) {
+            const merged = { ...projected[targetIndex], ...live };
+            inheritMessageIdentity(merged, projected[targetIndex]!);
+            projected[targetIndex] = merged;
+          } else {
+            targetIndex = projected.length;
+            projected.push(live);
+          }
+          for (const key of keys) indexes[key] = targetIndex;
+        }
+        buffer.projectionIndexes = indexes;
+        return {
+          liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
+          currentMessages: projected,
+        };
+      }
+      buffer.projectionIndexes = {};
       return {
         liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
-        ...(s.currentSessionId === sessionId && session
-          ? { currentMessages: isServerHistoryPrefix(s.currentMessages, historyWithLive)
-            ? s.currentMessages
-            : mergeServerHistoryPreservingLocal(s.currentMessages, historyWithLive) }
-          : {}),
       };
     });
     return accepted;
@@ -1520,15 +1714,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         let historyTotal = session.historyTotal ?? history.length;
         let replaced = false;
         if (result.trim()) {
+          const liveIds = liveAssistant
+            ? new Set(explicitMessageIdentity(liveAssistant))
+            : new Set<string>();
+          const lastAssistantIndex = history.reduce(
+            (last, candidate, index) => candidate.role === 'assistant' ? index : last,
+            -1,
+          );
           for (let index = history.length - 1; index >= 0; index--) {
             const candidate = history[index];
             if (!candidate || candidate.role !== 'assistant') continue;
-            const liveMatches = liveAssistant
-              && (candidate.content === liveAssistant.content
-                || candidate.content.startsWith(liveAssistant.content)
-                || liveAssistant.content.startsWith(candidate.content));
-            const exact = candidate.content === result;
-            if (exact || liveMatches) {
+            const candidateIds = new Set(explicitMessageIdentity(candidate));
+            const sameIdentity = liveIds.size > 0
+              && [...liveIds].some((id) => candidateIds.has(id));
+            // Legacy rows without identities may only converge by exact text
+            // at the current history tail. Never search all old assistant
+            // messages for a prefix or same text.
+            const legacyTailExact = liveIds.size === 0
+              && index === lastAssistantIndex
+              && candidate.content === result;
+            if (sameIdentity || legacyTailExact) {
               history[index] = {
                 ...candidate,
                 content: result,
@@ -1690,13 +1895,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const target = s.sessions.find((session) => session.id === sessionId);
       if (!target) return s;
       const history = target.history || [];
-      const historyHasItem = history.some((message) => queueIds(message).includes(item.id));
+      const historyHasItem = history.some((message) =>
+        queueIds(message).some((id) => queueIdMatches(id, item.id)),
+      );
       const currentHasItem = s.currentSessionId === sessionId
-        && s.currentMessages.some((message) => queueIds(message).includes(item.id));
+        && s.currentMessages.some((message) =>
+          queueIds(message).some((id) => queueIdMatches(id, item.id)),
+        );
       const historyTotal = target.historyTotal ?? history.length;
       rememberLocalMessageOrigin(localMessage, historyTotal);
       const nextHistory = historyHasItem ? history : [...history, localMessage];
-      const existingHistoryMessage = history.find((message) => queueIds(message).includes(item.id));
+      const existingHistoryMessage = history.find((message) =>
+        queueIds(message).some((id) => queueIdMatches(id, item.id)),
+      );
       const currentMessage = existingHistoryMessage ?? localMessage;
       const sessions = s.sessions.map((session) => session.id === sessionId
         ? {
@@ -1712,6 +1923,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         : session);
       return {
         sessions,
+        _pendingQueueIds: {
+          ...s._pendingQueueIds,
+          [sessionId]: new Set([
+            ...(s._pendingQueueIds[sessionId] ?? []),
+            canonicalQueueId(item.id),
+          ]),
+        },
         _sessionLocalTouchedSeq: {
           ...s._sessionLocalTouchedSeq,
           [sessionId]: touchSeq,
@@ -1723,19 +1941,115 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
+  updateQueuedMessage: (sessionId, item) => {
+    if (!sessionId || !item.id || !item.text.trim()) return;
+    const update = (message: Message, pendingIds: Set<string>): Message => {
+      if (!queueIds(message).some((id) => queueSetMatches(pendingIds, id))) return message;
+      if (!queueIds(message).some((id) => queueIdMatches(id, item.id))) return message;
+      const next: Message = {
+        ...message,
+        content: item.text,
+        ...(item.parts ? { parts: item.parts } : {}),
+      };
+      if (!item.parts) delete next.parts;
+      copyLocalMessageOrigin(next, message);
+      inheritMessageIdentity(next, message);
+      return next;
+    };
+    set((s) => {
+      const target = s.sessions.find((session) => session.id === sessionId);
+      if (!target) return s;
+      const pendingIds = s._pendingQueueIds[sessionId] ?? new Set<string>();
+      const history = (target.history || []).map((message) => update(message, pendingIds));
+      const currentMessages = s.currentSessionId === sessionId
+        ? s.currentMessages.map((message) => update(message, pendingIds))
+        : s.currentMessages;
+      const changed = history.some((message, index) => message !== target.history?.[index])
+        || (s.currentSessionId === sessionId
+          && currentMessages.some((message, index) => message !== s.currentMessages[index]));
+      if (!changed) return s;
+      return {
+        sessions: s.sessions.map((session) => session.id === sessionId
+          ? { ...session, history, lastMessage: item.text.slice(0, 200) }
+          : session),
+        ...(s.currentSessionId === sessionId ? { currentMessages } : {}),
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sessionId]: (localTouchSeq += 1),
+        },
+      };
+    });
+  },
+
+  removeQueuedMessage: (sessionId, queueItemId) => {
+    if (!sessionId || !queueItemId) return;
+    set((s) => {
+      const removePending = (message: Message): Message | null => {
+        const pendingIds = s._pendingQueueIds[sessionId] ?? new Set<string>();
+        if (!queueIds(message).some((id) => queueSetMatches(pendingIds, id))) return message;
+        if (!queueIds(message).some((id) => queueIdMatches(id, queueItemId))) return message;
+        return null;
+      };
+      const target = s.sessions.find((session) => session.id === sessionId);
+      if (!target) return s;
+      const history = (target.history || []).map(removePending).filter(
+        (message): message is Message => message !== null,
+      );
+      const currentMessages = s.currentSessionId === sessionId
+        ? s.currentMessages.map(removePending).filter(
+          (message): message is Message => message !== null,
+        )
+        : s.currentMessages;
+      const nextPendingIds = new Set(s._pendingQueueIds[sessionId] ?? []);
+      for (const pendingId of nextPendingIds) {
+        if (queueIdMatches(pendingId, queueItemId)) nextPendingIds.delete(pendingId);
+      }
+      if (history.length === (target.history || []).length
+          && currentMessages.length === s.currentMessages.length
+          && nextPendingIds.size === (s._pendingQueueIds[sessionId] ?? new Set()).size) return s;
+      return {
+        sessions: s.sessions.map((session) => session.id === sessionId
+          ? { ...session, history }
+          : session),
+        ...(s.currentSessionId === sessionId ? { currentMessages } : {}),
+        _pendingQueueIds: { ...s._pendingQueueIds, [sessionId]: nextPendingIds },
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sessionId]: (localTouchSeq += 1),
+        },
+      };
+    });
+  },
+
   appendDeliveredMessages: (sessionId: string, msgs: Message[]) => {
     if (!msgs.length) return;
     const touchSeq = (localTouchSeq += 1);
-    const localMessages = msgs.map((message) =>
-      message.role === 'user' ? withLocalUserIdentity(sessionId, message) : message,
-    );
+    const localMessages = msgs.map((message) => ({
+      ...(message.role === 'user' ? withLocalUserIdentity(sessionId, message) : message),
+    }));
     set((s) => {
+      const pendingIds = s._pendingQueueIds[sessionId] ?? new Set<string>();
+      const selected = s.currentSessionId === sessionId;
+      const selectedMessages = selected ? [...s.currentMessages] : [];
       const existingIds = new Set(
-        s.currentMessages.flatMap((message) => explicitMessageIdentity(message)),
+        selectedMessages.flatMap((message) => explicitMessageIdentity(message)),
       );
       const currentAppend: Message[] = [];
+      let currentChanged = false;
       for (const message of localMessages) {
         const ids = explicitMessageIdentity(message);
+        const queueMatch = selectedMessages.findIndex((candidate) =>
+          queueIds(candidate).some((candidateId) =>
+            queueIds(message).some((incomingId) => queueIdMatches(candidateId, incomingId)),
+          ),
+        );
+        if (queueMatch >= 0 && queueIds(selectedMessages[queueMatch]!).some((id) => queueSetMatches(pendingIds, id))) {
+          const updated = { ...selectedMessages[queueMatch], ...message };
+          inheritMessageIdentity(updated, selectedMessages[queueMatch]!);
+          selectedMessages[queueMatch] = updated;
+          currentChanged = true;
+          continue;
+        }
         // A duplicate WS delivery event must not render the same hand-off
         // twice. Distinct queue/native ids are allowed to carry identical
         // text, so sameMessage() is intentionally not used here.
@@ -1746,18 +2060,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       const deliveredIds = new Set(s._deliveredQueueIds?.[sessionId] ?? []);
       const previouslyDelivered = new Set(deliveredIds);
-      localMessages.flatMap((message) => queueIds(message)).forEach((id) => deliveredIds.add(id));
+      localMessages
+        .flatMap((message) => queueIds(message))
+        .forEach((id) => deliveredIds.add(canonicalQueueId(id)));
       const sessions = s.sessions.map((session) => {
         if (session.id !== sessionId) return session;
         const history = session.history || [];
-        const historyIds = new Set(
-          history.flatMap((message) => explicitMessageIdentity(message)),
-        );
+        const nextHistory = history.slice();
+        const historyIds = new Set(history.flatMap((message) => explicitMessageIdentity(message)));
         const historyAppend: Message[] = [];
         let added = 0;
         for (const message of localMessages) {
           const ids = explicitMessageIdentity(message);
-          if (ids.some((id) => previouslyDelivered.has(id))) continue;
+          const queueMatch = nextHistory.findIndex((candidate) =>
+            queueIds(candidate).some((candidateId) =>
+              queueIds(message).some((incomingId) => queueIdMatches(candidateId, incomingId)),
+            ),
+          );
+          if (queueMatch >= 0 && queueIds(nextHistory[queueMatch]!).some((id) => queueSetMatches(pendingIds, id))) {
+            const updated = { ...nextHistory[queueMatch], ...message };
+            inheritMessageIdentity(updated, nextHistory[queueMatch]!);
+            nextHistory[queueMatch] = updated;
+            continue;
+          }
+          if (queueIds(message).some((id) => queueSetMatches(previouslyDelivered, id))) continue;
           if (ids.some((id) => historyIds.has(id))) continue;
           rememberLocalMessageOrigin(
             message,
@@ -1771,7 +2097,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         // transient queue identity and are reconciled against the next
         // canonical history response; leaving the projection empty is what
         // made A→B→A erase an otherwise successful hand-off.
-        const nextHistory = [...history, ...historyAppend];
+        nextHistory.push(...historyAppend);
         const last = localMessages[localMessages.length - 1];
         return {
           ...session,
@@ -1786,6 +2112,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       return {
         sessions,
+        _pendingQueueIds: {
+          ...s._pendingQueueIds,
+          [sessionId]: new Set(
+            [...pendingIds].filter((pendingId) => !queueSetMatches(deliveredIds, pendingId)),
+          ),
+        },
         _deliveredQueueIds: {
           ...(s._deliveredQueueIds ?? {}),
           [sessionId]: deliveredIds,
@@ -1794,8 +2126,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ...s._sessionLocalTouchedSeq,
           [sessionId]: touchSeq,
         },
-        ...(s.currentSessionId === sessionId && currentAppend.length
-          ? { currentMessages: [...s.currentMessages, ...currentAppend] }
+        ...(selected && (currentAppend.length || currentChanged)
+          ? { currentMessages: [...selectedMessages, ...currentAppend] }
           : {}),
       };
     });

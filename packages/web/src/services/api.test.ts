@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { uploadSessionAttachment } from './api';
+import { steerSessionWorker, uploadSessionAttachment } from './api';
 
 class FakeXMLHttpRequest {
   static instances: FakeXMLHttpRequest[] = [];
@@ -68,5 +68,22 @@ describe('uploadSessionAttachment', () => {
       storageFilename: 'upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md',
     });
     expect(progress.at(-1)).toEqual([file.size, file.size]);
+  });
+});
+
+describe('worker control business errors', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('rejects HTTP 200 responses that carry a worker error body', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ error: 'Worker not found' }),
+    })));
+
+    await expect(steerSessionWorker('s1', 'continue')).rejects.toThrow('Worker not found');
   });
 });

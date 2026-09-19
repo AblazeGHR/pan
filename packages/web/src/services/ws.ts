@@ -24,6 +24,8 @@ class WsClient {
   private lastActivityAt = 0;
   private eventEpoch: string | null = null;
   private eventSeq = 0;
+  private deliveryEpoch: string | null = null;
+  private deliverySeq = 0;
   private resyncPending = false;
 
   constructor(url?: string) {
@@ -50,27 +52,69 @@ class WsClient {
       this.lastActivityAt = Date.now();
       try {
         const data: StreamEvent = JSON.parse(e.data as string);
-        const epoch = data.eventEpoch;
-        const seq = data.eventSeq;
-        if (typeof epoch === 'string' && typeof seq === 'number') {
-          const isSnapshot = data.type === 'resync.snapshot';
-          const gap = !isSnapshot
-            && this.eventEpoch === epoch
-            && this.eventSeq > 0
-            && seq > this.eventSeq + 1;
-          if (gap && !this.resyncPending) {
+        const isSnapshot = data.type === 'resync.snapshot';
+        const sourceEpoch = data.serverEpoch || data.eventEpoch;
+        const deliveryEpoch = data.deliveryEpoch || sourceEpoch;
+        const deliverySeq = data.deliverySeq;
+        const sourceStart = data.sourceCursorStart ?? data.eventSeq;
+        const sourceEnd = data.sourceCursorEnd ?? data.eventSeq;
+
+        // A delivery cursor is contiguous per socket. A source cursor is
+        // global and may advance by a range when the server coalesces adjacent
+        // deltas. Never use the latter as a raw `last + 1` transport check.
+        if (typeof deliveryEpoch === 'string' && typeof deliverySeq === 'number') {
+          if (!isSnapshot && this.deliveryEpoch === deliveryEpoch
+              && deliverySeq <= this.deliverySeq
+              && data.type !== 'resync_required') {
+            return;
+          }
+          const deliveryGap = !isSnapshot
+            && this.deliveryEpoch === deliveryEpoch
+            && this.deliverySeq > 0
+            && deliverySeq > this.deliverySeq + 1;
+          if (deliveryGap && !this.resyncPending) {
             this.resyncPending = true;
             this.emit('resync_required', {
               type: 'resync_required',
-              reason: 'event_cursor_gap',
-              eventEpoch: epoch,
-              eventSeq: seq,
+              reason: 'delivery_cursor_gap',
+              eventEpoch: sourceEpoch,
+              eventSeq: sourceEnd,
+            });
+          }
+          if (this.deliveryEpoch !== deliveryEpoch || isSnapshot) this.deliverySeq = deliverySeq;
+          else this.deliverySeq = Math.max(this.deliverySeq, deliverySeq);
+          this.deliveryEpoch = deliveryEpoch;
+        }
+
+        if (typeof sourceEpoch === 'string' && typeof sourceEnd === 'number') {
+          const sourceGap = !isSnapshot
+            && this.eventEpoch === sourceEpoch
+            && this.eventSeq > 0
+            && (sourceStart ?? sourceEnd) > this.eventSeq + 1;
+          if (sourceGap && !this.resyncPending) {
+            this.resyncPending = true;
+            this.emit('resync_required', {
+              type: 'resync_required',
+              reason: 'source_cursor_gap',
+              eventEpoch: sourceEpoch,
+              eventSeq: sourceEnd,
+            });
+          }
+          if (!isSnapshot && this.eventEpoch === sourceEpoch
+              && sourceEnd <= this.eventSeq && data.type !== 'resync_required') {
+            return;
+          }
+          if (this.eventEpoch !== sourceEpoch && this.eventEpoch !== null) {
+            this.emit('server_epoch_changed', {
+              type: 'server_epoch_changed',
+              eventEpoch: sourceEpoch,
+              serverEpoch: sourceEpoch,
             });
           }
           if (isSnapshot) this.resyncPending = false;
-          if (this.eventEpoch !== epoch || isSnapshot) this.eventSeq = seq;
-          else this.eventSeq = Math.max(this.eventSeq, seq);
-          this.eventEpoch = epoch;
+          if (this.eventEpoch !== sourceEpoch || isSnapshot) this.eventSeq = sourceEnd;
+          else this.eventSeq = Math.max(this.eventSeq, sourceEnd);
+          this.eventEpoch = sourceEpoch;
         }
         if (data.type === 'resync_required') this.resyncPending = true;
         this.dispatch(data);

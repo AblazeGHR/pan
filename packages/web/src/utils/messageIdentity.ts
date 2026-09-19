@@ -6,10 +6,27 @@ import type { Message } from '@/types';
 // is not a safe React key; every displayed Message gets a unique local key and
 // immutable replacements explicitly inherit that key.
 const messageIdentities = new WeakMap<Message, string>();
+const persistentIdentities = new Map<string, string>();
 let nextLocalIdentity = 0;
 
 export function rememberMessageIdentity(message: Message): void {
   if (messageIdentities.has(message)) return;
+  const persistentKey = message.blockId
+    ? `block:${message.blockId}`
+    : message.messageId
+      ? `message:${message.messageId}`
+      : null;
+  if (persistentKey) {
+    const existing = persistentIdentities.get(persistentKey);
+    if (existing) {
+      messageIdentities.set(message, existing);
+      return;
+    }
+    const identity = `${persistentKey}:${nextLocalIdentity++}`;
+    persistentIdentities.set(persistentKey, identity);
+    messageIdentities.set(message, identity);
+    return;
+  }
   const nativeId = message.nativeItemId;
   const prefix = nativeId ? `native:${nativeId}` : 'local';
   messageIdentities.set(message, `${prefix}:${nextLocalIdentity++}`);

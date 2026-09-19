@@ -95,6 +95,10 @@ def test_slow_client_does_not_block_worker_broadcast_and_coalesces_final_text():
         assert merged["event"]["part"]["text"] == "abc"
         assert merged["event"]["replace"] is True
         assert merged["event"]["stream_text"] == "abc"
+        # Coalescing advances the global source range but keeps the per-client
+        # delivery cursor contiguous, so a browser must not manufacture a gap.
+        assert [event["deliverySeq"] for event in ws.sent] == [1, 2]
+        assert merged["sourceCursorEnd"] > merged["sourceCursorStart"]
 
         await client.close_now()
         _reset()

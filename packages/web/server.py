@@ -835,6 +835,9 @@ class _OutboundClient:
         self.dropped_deltas = 0
         self.dropped_control_events = 0
         self.send_failures = 0
+        # deliverySeq is per connection. It is deliberately separate from
+        # eventSeq: adjacent source deltas may be coalesced into one frame.
+        self._delivery_seq = 0
 
     @property
     def queue_depth(self) -> int:
@@ -864,6 +867,17 @@ class _OutboundClient:
             if tail.coalesce_key == coalesce_key:
                 merged = _merge_stream_deltas(tail.data, data)
                 if merged is not None:
+                    source_start = tail.data.get(
+                        "sourceCursorStart", tail.data.get("eventSeq"),
+                    )
+                    source_end = data.get(
+                        "sourceCursorEnd", data.get("eventSeq"),
+                    )
+                    if isinstance(source_start, int) and isinstance(source_end, int):
+                        merged["sourceCursorStart"] = source_start
+                        merged["sourceCursorEnd"] = max(source_start, source_end)
+                    merged["deliveryEpoch"] = tail.data.get("deliveryEpoch", _EVENT_EPOCH)
+                    merged["deliverySeq"] = tail.data.get("deliverySeq", 0)
                     tail.data = merged
                     tail.on_delivered = on_delivered
                     self.coalesced_deltas += 1
@@ -884,8 +898,21 @@ class _OutboundClient:
             self._require_resync("outbound queue full", pending_control=pending_control)
             return False
 
+        if isinstance(data.get("eventSeq"), int):
+            self._delivery_seq += 1
+            delivery_data = {
+                **data,
+                "deliveryEpoch": _EVENT_EPOCH,
+                "deliverySeq": self._delivery_seq,
+                "sourceCursorStart": data.get("eventSeq"),
+                "sourceCursorEnd": data.get("eventSeq"),
+            }
+        else:
+            # Legacy direct replay/control frames have no source cursor. Keep
+            # their wire shape compatible with old clients and fixtures.
+            delivery_data = data
         self._queue.append(_OutboundMessage(
-            data=data,
+            data=delivery_data,
             control=_is_control_event(data),
             coalesce_key=coalesce_key,
             on_delivered=on_delivered,
@@ -1159,6 +1186,9 @@ def _stamp_live_event(data: dict) -> dict:
         **data,
         "eventEpoch": _EVENT_EPOCH,
         "eventSeq": _EVENT_SEQ,
+        "serverEpoch": _EVENT_EPOCH,
+        "sourceCursorStart": _EVENT_SEQ,
+        "sourceCursorEnd": _EVENT_SEQ,
     }
 
 
@@ -1345,6 +1375,7 @@ def _result_cursor(row: dict) -> int:
 
 def _resync_snapshot(
     session_ids: list[str] | None = None, *, include_all_sessions: bool = False,
+    include_identity: bool = False,
 ) -> dict:
     """Build a bounded authoritative boundary without copying whole Sessions.
 
@@ -1378,10 +1409,18 @@ def _resync_snapshot(
             include_history=False,
             include_raw_usage=False,
         )
-        detail["history"] = _api_history(sid, page.get("history") or [])
+        detail["history"] = _api_history(
+            sid,
+            page.get("history") or [],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+            include_identity=include_identity,
+        )
         detail["historyTotal"] = page.get("total", len(detail["history"]))
         detail["historyTruncated"] = bool(page.get("hasMore"))
         detail["historyStart"] = page.get("start", 0)
+        detail["historyEpoch"] = page.get("historyEpoch")
+        detail["historyRevision"] = page.get("historyRevision", 0)
         detail["queue"] = {
             "items": _session_queue_items(current),
             "queueRevision": getattr(current, "queue_revision", 0),
@@ -1419,6 +1458,16 @@ def _resync_snapshot(
         "snapshotId": f"{_EVENT_EPOCH}:{_EVENT_SEQ}",
         "eventEpoch": _EVENT_EPOCH,
         "eventSeq": _EVENT_SEQ,
+        "serverEpoch": _EVENT_EPOCH,
+        "sourceCursorStart": _EVENT_SEQ,
+        "sourceCursorEnd": _EVENT_SEQ,
+        "boundaryRevision": max(
+            [
+                int(getattr(item, "history_revision", 0) or 0)
+                for item in details.values()
+                if isinstance(item, dict)
+            ] or [0]
+        ),
         "boundary": "authoritative",
         "sessions": [_session_summary(s) for s in visible],
         "sessionsTruncated": len(all_sessions) > len(visible) and not requested,
@@ -1431,12 +1480,14 @@ def _resync_snapshot(
 
 async def _send_resync_snapshot(
     ws: WebSocket, session_ids: list[str] | None = None, *,
-    include_all_sessions: bool = False,
+    include_all_sessions: bool = False, include_identity: bool = False,
 ) -> bool:
     return await _send_ws(
         ws,
         _resync_snapshot(
-            session_ids, include_all_sessions=include_all_sessions,
+            session_ids,
+            include_all_sessions=include_all_sessions,
+            include_identity=include_identity,
         ),
         kind="agent" if ws in agent_clients else "dashboard",
     )
@@ -1597,7 +1648,9 @@ def _session_to_api(
         "modelContextWindow": ac.get("model_context_window"),
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
-        **({"history": _api_history(s.id, s.history)} if include_history else {}),
+        **({"history": _api_history(
+            s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
+        )} if include_history else {}),
         **({"lastResult": last_result} if include_last_result else {}),
         "activeTaskId": s.active_task_id,
         "lastLegalWorkerState": s.last_legal_worker_state,
@@ -1639,6 +1692,8 @@ def _session_to_api(
         "lastAssistantPreview": projection["last_assistant_preview"],
         "lastDisplayPreview": projection["last_display_preview"],
         "historyTotal": projection["history_total"],
+        "historyEpoch": getattr(s, "history_epoch", None),
+        "historyRevision": getattr(s, "history_revision", 0),
     }
 
 
@@ -1654,10 +1709,34 @@ def _session_list_api(s: sess.Session, *, history_limit: int = 50) -> dict:
         history = page.get("history") or []
         total = page.get("total", len(history))
         has_more = bool(page.get("hasMore"))
-    api["history"] = _api_history(s.id, history)
+    api["history"] = _api_history(
+        s.id,
+        history,
+        start=page.get("start", 0) if page else 0,
+        history_epoch=page.get("historyEpoch") if page else getattr(s, "history_epoch", None),
+    )
     api["historyTruncated"] = has_more
     api["historyTotal"] = total
+    if page:
+        api["historyStart"] = page.get("start", 0)
+        api["historyEpoch"] = page.get("historyEpoch")
+        api["historyRevision"] = page.get("historyRevision", 0)
     return api
+
+
+def _session_import_api(s: sess.Session) -> dict:
+    """Compatibility view for native import endpoints.
+
+    Import responses historically exposed provider-shaped history rows. The
+    normal history/page APIs carry the newer stable message identity fields;
+    keeping this one response shape avoids breaking older import clients.
+    """
+    response = _session_to_api(s)
+    response["history"] = [
+        {key: value for key, value in row.items() if key != "messageId"}
+        for row in response.get("history", [])
+    ]
+    return response
 
 
 def _session_summary(s: sess.Session) -> dict:
@@ -1720,6 +1799,8 @@ def _session_summary(s: sess.Session) -> dict:
         "lastDisplayPreview": projection["last_display_preview"],
         "lastMessage": projection["last_display_preview"],
         "historyTotal": projection["history_total"],
+        "historyEpoch": getattr(s, "history_epoch", None),
+        "historyRevision": getattr(s, "history_revision", 0),
         "totalUsage": s.total_usage,
         "managed": s.managed,
         "mcpServers": [
@@ -3467,25 +3548,49 @@ def _normalize_text_attachment_parts(
     return normalized, "".join(fallback), None
 
 
-def _api_history(session_id: str, history: list[dict]) -> list[dict]:
+def _api_history(
+    session_id: str,
+    history: list[dict],
+    *,
+    start: int = 0,
+    history_epoch: str | None = None,
+    include_identity: bool = True,
+) -> list[dict]:
     """Serialize history with a compatibility view for old attachment text."""
     normalized: list[dict] = []
-    for message in history:
+    for offset, message in enumerate(history):
+        absolute_index = max(0, int(start or 0)) + offset
+        wire_identity = None
+        if include_identity:
+            wire_identity = (
+                message.get("messageId") if isinstance(message, dict) else None
+            )
+            if not isinstance(wire_identity, str) or not wire_identity:
+                epoch = history_epoch or "legacy"
+                wire_identity = f"legacy:{session_id}:{epoch}:{absolute_index}"
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             if isinstance(message, dict) and isinstance(message.get("parts"), list):
                 normalized.append({
                     **message,
+                    **({"messageId": wire_identity} if wire_identity else {}),
                     "parts": [
                         {key: value for key, value in part.items() if key != "__serverPath"}
                         for part in message["parts"] if isinstance(part, dict)
                     ],
                 })
             else:
-                normalized.append(message)
+                normalized.append(
+                    {**message, **({"messageId": wire_identity} if wire_identity else {})}
+                    if isinstance(message, dict) else message
+                )
             continue
         content = _normalize_legacy_attachment_links(session_id, message["content"])
         content = _project_editor_links(session_id, content)
-        safe_message = {**message, "content": content}
+        safe_message = {
+            **message,
+            "content": content,
+            **({"messageId": wire_identity} if wire_identity else {}),
+        }
         if isinstance(message.get("parts"), list):
             safe_message["parts"] = [
                 {key: value for key, value in part.items() if key != "__serverPath"}
@@ -3957,6 +4062,7 @@ async def ws_endpoint(ws: WebSocket):
                     ws,
                     raw_session_ids,
                     include_all_sessions=bool(msg.get("includeAllSessions", True)),
+                    include_identity=bool(msg.get("includeIdentity", False)),
                 )
     except WebSocketDisconnect:
         pass
@@ -4039,6 +4145,7 @@ async def ws_agent_endpoint(ws: WebSocket):
                     ws,
                     raw_session_ids,
                     include_all_sessions=bool(msg.get("includeAllSessions", False)),
+                    include_identity=bool(msg.get("includeIdentity", False)),
                 )
                 if cursors is not None:
                     await _replay_agent_results(ws, raw_session_ids, cursors)
@@ -4453,9 +4560,17 @@ async def api_get_session(session_id: str, view: str = "full",
         result = _session_to_api(s, include_history=False)
         page = sess.history_page(session_id, limit=historyLimit)
         page = page or {"history": [], "total": 0, "hasMore": False, "start": 0}
-        result["history"] = _api_history(session_id, page["history"])
+        result["history"] = _api_history(
+            session_id,
+            page["history"],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+        )
         result["historyTruncated"] = bool(page["hasMore"])
         result["historyTotal"] = page["total"]
+        result["historyStart"] = page.get("start", 0)
+        result["historyEpoch"] = page.get("historyEpoch")
+        result["historyRevision"] = page.get("historyRevision", 0)
         return result
     return _session_to_api(s)
 
@@ -4540,10 +4655,17 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50)
     if page is None:
         return {"error": "Session not found"}
     return {
-        "history": _api_history(session_id, page["history"]),
+        "history": _api_history(
+            session_id,
+            page["history"],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+        ),
         "total": page["total"],
         "hasMore": page["hasMore"],
         "start": page["start"],
+        "historyEpoch": page.get("historyEpoch"),
+        "historyRevision": page.get("historyRevision", 0),
     }
 
 
@@ -7007,7 +7129,8 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                 })
             finally:
                 w._replaying = False
-            return {**_session_to_api(existing), "reimported": True}
+            response = _session_import_api(existing)
+            return {**response, "reimported": True}
         w = worker.find_worker_by_session(existing.id)
         if w:
             await worker.kill_worker(w.worker_id)
@@ -7020,7 +7143,8 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
             "type": "session.updated",
             "sessionId": existing.id,
         })
-        return {**_session_to_api(existing), "reimported": True}
+        response = _session_import_api(existing)
+        return {**response, "reimported": True}
 
     name = (
         data.get("name", "")
@@ -7080,7 +7204,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         "name": s.name,
     })
 
-    return _session_to_api(s)
+    return _session_import_api(s)
 
 
 @app.get("/api/adapters/{adapter}/sessions")

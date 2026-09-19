@@ -238,6 +238,28 @@ export function ChatMessages() {
     );
   }
 
+  // A tail can be entirely hidden by the Meta/Task/QQ filters while older
+  // canonical pages still contain visible messages. Scroll-to-top cannot
+  // fire when there are no rendered rows, so expose an explicit bounded page
+  // load entry instead of presenting a permanent blank state.
+  if (grouped.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-text-tertiary text-sm">
+        <span>当前尾页消息已被过滤</span>
+        {hasMoreMessages && (
+          <button
+            type="button"
+            onClick={() => void loadOlderMessages()}
+            disabled={historyLoading}
+            className="rounded border border-border px-3 py-1.5 text-text-secondary hover:bg-bg-hover disabled:opacity-50"
+          >
+            {historyLoading ? 'Loading older messages...' : 'Load older messages'}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div

@@ -23,6 +23,7 @@ describe('optimistic queue message convergence', () => {
       currentSessionId: 's1',
       currentMessages: [{ role: 'assistant', content: 'ready' }],
       _deliveredQueueIds: {},
+      _pendingQueueIds: {},
       _sessionLocalTouchedSeq: {},
     });
   });
@@ -66,6 +67,22 @@ describe('optimistic queue message convergence', () => {
       .toEqual(['ready']);
     expect(useSessionStore.getState().sessions.find((item) => item.id === 's2')?.historyTotal)
       .toBe(1);
+  });
+
+  it('maps raw and prefixed delivery ids onto one pending projection', () => {
+    useSessionStore.getState().appendQueuedMessage('s1', {
+      id: 'q-raw-prefix', text: 'pending',
+    });
+    useSessionStore.getState().appendDeliveredMessages('s1', [{
+      role: 'user', content: 'pending', queueItemIds: ['queue:q-raw-prefix'],
+    }]);
+    useSessionStore.getState().appendDeliveredMessages('s1', [{
+      role: 'user', content: 'pending', queueItemIds: ['q-raw-prefix'],
+    }]);
+
+    expect(useSessionStore.getState().currentMessages.filter((message) =>
+      message.queueItemIds?.some((id) => id.replace(/^queue:/, '') === 'q-raw-prefix'),
+    )).toHaveLength(1);
   });
 
   it('increments a summary-only card once even when delivery is replayed', () => {

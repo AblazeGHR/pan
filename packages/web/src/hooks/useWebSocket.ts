@@ -149,6 +149,7 @@ export function useWebSocket() {
         type: 'resync',
         ...(sessionId ? { sessionIds: [sessionId] } : {}),
         includeAllSessions: true,
+        includeIdentity: true,
         ...(cursor.eventEpoch ? { eventEpoch: cursor.eventEpoch } : {}),
         eventSeq: cursor.eventSeq,
       });
@@ -200,10 +201,16 @@ export function useWebSocket() {
       // the normal open/reconnect path repeats this handshake.
       syncAuthoritativeSnapshot();
     }));
-    unsubscribers.push(wsClient.on('resync.snapshot', () => {
+    unsubscribers.push(wsClient.on('server_epoch_changed', (e: StreamEvent) => {
+      useSessionStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
+      useWorkerStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
+    }));
+    unsubscribers.push(wsClient.on('resync.snapshot', (e: StreamEvent) => {
       // The payload is a bounded server boundary.  HTTP remains the canonical
       // lazy history/queue reader, so converge through the existing guarded
       // loaders instead of replacing local live buffers with a snapshot.
+      useSessionStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
+      useWorkerStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
       refreshAuthoritativeState();
     }));
 
@@ -491,6 +498,7 @@ export function useWebSocket() {
       const sessionStore = useSessionStore.getState();
       clearInteractiveRequests(sessionId);
       const reconciled = sessionStore.reconcileWorkerResult(sessionId, e, {
+        serverEpoch: e.serverEpoch || e.eventEpoch,
         workerId: e.workerId,
         generation: e.generation,
         taskSeq: e.taskSeq,
@@ -627,6 +635,7 @@ function handleWorkerUpdate(
     e.sessionId,
     status,
     {
+      serverEpoch: e.serverEpoch || e.eventEpoch,
       workerId: e.workerId,
       generation: e.generation,
       taskSeq: e.taskSeq,
@@ -847,7 +856,9 @@ function appendEventToMessages(
             && message.nativeItemId
             && nativeIds.includes(message.nativeItemId))
         : messages.findIndex((message) =>
-            message.nativeItemId && nativeIds.includes(message.nativeItemId));
+            message.role === b.role
+            && message.nativeItemId
+            && nativeIds.includes(message.nativeItemId));
       if (!usedIndexes && nativeIndex >= 0
           && messages[nativeIndex]?.role !== b.role) {
         nativeIndex = -1;
@@ -960,6 +971,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
   if (!event) return false;
   const store = useSessionStore.getState();
   const scope = {
+    serverEpoch: meta.serverEpoch || meta.eventEpoch,
     workerId: meta.workerId,
     generation: meta.generation,
     taskSeq: meta.taskSeq,

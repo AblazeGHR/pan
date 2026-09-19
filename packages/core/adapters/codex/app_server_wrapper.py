@@ -486,15 +486,21 @@ class AppServer:
             params = message.get("params") or {}
             delta = params.get("delta")
             if delta:
+                item_key = params.get("itemId") or params.get("item_id")
+                turn_key = params.get("turnId", params.get("turn_id"))
+                accumulation_key = f"assistant:{item_key or turn_key or 'implicit'}"
                 if state is not None:
-                    state["assistant_text"] = state.get("assistant_text", "") + str(delta)
+                    cumulative = state.setdefault("item_cumulative", {})
+                    cumulative[accumulation_key] = cumulative.get(accumulation_key, "") + str(delta)
+                else:
+                    cumulative = {accumulation_key: str(delta)}
                 turn_id = params.get("turnId", params.get("turn_id"))
                 if turn_id is None and state is not None:
                     turn_id = state.get("turn_id")
                 _write_stdout({
                     "type": "content.part", "role": "assistant", "delta": True,
                     "part": {"type": "text", "text": str(delta)},
-                    "stream_text": state.get("assistant_text", "") if state is not None else str(delta),
+                    "stream_text": cumulative.get(accumulation_key, str(delta)),
                     "thread_id": params.get("threadId", params.get("thread_id")),
                     "turn_id": turn_id,
                     "item_id": params.get("itemId"),
@@ -504,12 +510,18 @@ class AppServer:
             params = message.get("params") or {}
             delta = params.get("delta")
             if delta:
+                item_key = params.get("itemId") or params.get("item_id")
+                turn_key = params.get("turnId", params.get("turn_id"))
+                accumulation_key = f"thinking:{item_key or turn_key or 'implicit'}"
                 if state is not None:
-                    state["reasoning_text"] = state.get("reasoning_text", "") + str(delta)
+                    cumulative = state.setdefault("item_cumulative", {})
+                    cumulative[accumulation_key] = cumulative.get(accumulation_key, "") + str(delta)
+                else:
+                    cumulative = {accumulation_key: str(delta)}
                 _write_stdout({
                     "type": "content.part", "role": "thinking", "delta": True,
                     "part": {"type": "think", "think": str(delta)},
-                    "stream_text": state.get("reasoning_text", "") if state is not None else str(delta),
+                    "stream_text": cumulative.get(accumulation_key, str(delta)),
                     "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
                     "item_id": params.get("itemId"),
                 })
@@ -518,12 +530,18 @@ class AppServer:
             params = message.get("params") or {}
             delta = params.get("delta")
             if delta:
+                item_key = params.get("itemId") or params.get("item_id")
+                turn_key = params.get("turnId", params.get("turn_id"))
+                accumulation_key = f"plan:{item_key or turn_key or 'implicit'}"
                 if state is not None:
-                    state["plan_text"] = state.get("plan_text", "") + str(delta)
+                    cumulative = state.setdefault("item_cumulative", {})
+                    cumulative[accumulation_key] = cumulative.get(accumulation_key, "") + str(delta)
+                else:
+                    cumulative = {accumulation_key: str(delta)}
                 _write_stdout({
                     "type": "content.part", "role": "thinking", "delta": True,
                     "part": {"type": "think", "think": str(delta)},
-                    "stream_text": state.get("plan_text", "") if state is not None else str(delta),
+                    "stream_text": cumulative.get(accumulation_key, str(delta)),
                     "thread_id": params.get("threadId"), "turn_id": params.get("turnId"),
                     "item_id": params.get("itemId"),
                 })
@@ -996,7 +1014,10 @@ class AppServer:
         # attach the previous turn's snapshot to a result if the native server
         # finishes a turn without sending a fresh usage notification.
         self.last_usage = None
-        state: dict[str, Any] = {"last_text": "", "error": "", "done": False, "is_error": False}
+        state: dict[str, Any] = {
+            "last_text": "", "error": "", "done": False, "is_error": False,
+            "item_cumulative": {},
+        }
         params: dict[str, Any] = {
             "threadId": self.thread_id,
             "input": [{"type": "text", "text": text}],

@@ -29,6 +29,7 @@ import re
 import secrets
 import threading
 import time
+import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -390,6 +391,7 @@ def append_history(s: "Session", message: dict) -> None:
     """Append one history row and advance the summary projection."""
     ensure_summary_projection(s)
     s.history.append(message)
+    s.history_revision = max(0, int(getattr(s, "history_revision", 0) or 0)) + 1
     _apply_summary_message(s.summary_projection, message)
     s._summary_history_index = len(s.history)
 
@@ -397,6 +399,8 @@ def append_history(s: "Session", message: dict) -> None:
 def replace_history(s: "Session", history: list[dict]) -> None:
     """Replace history and rebuild only at an explicit full-history boundary."""
     s.history = list(history or [])
+    s.history_epoch = uuid.uuid4().hex
+    s.history_revision = max(0, int(getattr(s, "history_revision", 0) or 0)) + 1
     s._history_loaded = True
     previous_revision = int(s.summary_projection.get("revision") or 0)
     s.summary_projection = _summary_projection_from_history(
@@ -666,6 +670,8 @@ def history_page(session_id: str, *, before: int = 0,
             "total": total,
             "hasMore": start > 0,
             "start": start,
+            "historyEpoch": getattr(cached, "history_epoch", None),
+            "historyRevision": getattr(cached, "history_revision", 0),
         }
 
     path = _path(session_id)
@@ -697,6 +703,8 @@ def history_page(session_id: str, *, before: int = 0,
         "total": total,
         "hasMore": start > 0,
         "start": start,
+        "historyEpoch": data.get("history_epoch") or data.get("historyEpoch"),
+        "historyRevision": data.get("history_revision", data.get("historyRevision", 0)),
     }
 
 
@@ -759,6 +767,8 @@ class Session:
     usage_enrichment_pending: list[dict] = field(default_factory=list)
     workdir: str = ""
     history: list[dict] = field(default_factory=list)
+    history_epoch: str = ""
+    history_revision: int = 0
     last_result: dict | None = None
     result_cursor: int = 0
     terminal_results: list[dict] = field(default_factory=list)
@@ -840,6 +850,8 @@ class Session:
                  managed_by: str | None = None,
                  readonly_session: bool = False,
                  queue_pending: list | None = None,
+                 history_epoch: str | None = None,
+                 history_revision: int = 0,
                  queue_delivery_ledger: dict | None = None,
                  queue_idempotency_index: dict | None = None,
                  queue_revision: int = 0,
@@ -886,6 +898,14 @@ class Session:
         )
         self.workdir = workdir
         self.history = history if history is not None else []
+        self.history_epoch = (
+            history_epoch if isinstance(history_epoch, str) and history_epoch
+            else uuid.uuid4().hex
+        )
+        try:
+            self.history_revision = max(0, int(history_revision or 0))
+        except (TypeError, ValueError):
+            self.history_revision = 0
         self.last_result = last_result
         try:
             self.result_cursor = max(0, int(result_cursor or 0))
@@ -1079,6 +1099,16 @@ class Session:
             data["last_legal_worker_state"] = data.pop("lastLegalWorkerState")
         if "active_task_id" not in data and "activeTaskId" in data:
             data["active_task_id"] = data.pop("activeTaskId")
+        if "history_epoch" not in data and "historyEpoch" in data:
+            data["history_epoch"] = data.pop("historyEpoch")
+        if "history_revision" not in data and "historyRevision" in data:
+            data["history_revision"] = data.pop("historyRevision")
+        # Old JSONL/main JSON had no history epoch. Derive a stable legacy
+        # scope from the durable Session id instead of allocating a new UUID
+        # on every cold process restart; explicit replace_history still gets a
+        # fresh epoch below.
+        if not isinstance(data.get("history_epoch"), str) or not data.get("history_epoch"):
+            data["history_epoch"] = f"legacy:{data.get('id', 'unknown')}"
         if "queue_idempotency_index" not in data:
             for alias in ("queueIdempotencyIndex", "idempotency_index"):
                 if alias in data:
@@ -1128,6 +1158,8 @@ class Session:
             "usage_enrichment_pending": self.usage_enrichment_pending,
             "workdir": self.workdir,
             "history": self.history,
+            "history_epoch": self.history_epoch,
+            "history_revision": self.history_revision,
             "last_result": self.last_result,
             "result_cursor": self.result_cursor,
             "terminal_results": self.terminal_results,

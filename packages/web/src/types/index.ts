@@ -7,6 +7,12 @@ export type { AttachmentLocation } from './attachment';
 export interface Message {
   role: string;
   content: string;
+  /** Stable canonical history identity. Absent on legacy rows. */
+  messageId?: string;
+  /** Stable provider block identity for compound messages. */
+  blockId?: string;
+  /** Stable provider turn identity when the adapter exposes one. */
+  turnId?: string;
   /** Server-canonical parts; content remains the adapter/legacy fallback. */
   parts?: MessagePart[];
   /** Transient native Codex identity used to merge live Codex messages. */
@@ -102,6 +108,12 @@ export interface Session {
   activeTaskId?: string | null;
   historyTruncated?: boolean;
   historyTotal?: number;
+  /** Server history identity scope. Old sessions/clients may omit it. */
+  historyEpoch?: string | null;
+  /** Monotonic canonical history revision within historyEpoch. */
+  historyRevision?: number;
+  /** Absolute start offset of the currently loaded history window. */
+  historyStart?: number;
   /** Raw bounded display preview (summary=1 endpoint, truncated ~200 chars). */
   lastMessage?: string;
   /** Monotonic backend summary projection version. */
@@ -277,9 +289,25 @@ export interface TerminalInteraction {
 
 export interface StreamEvent {
   type: string;
-  /** Process-epoch live event cursor; resync.snapshot is authoritative. */
+  /** Legacy/source cursor; new clients prefer sourceCursorStart/End. */
   eventEpoch?: string;
   eventSeq?: number;
+  /** Per-connection contiguous transport cursor. */
+  deliveryEpoch?: string;
+  deliverySeq?: number;
+  /** Global source cursor range represented by this frame. */
+  sourceCursorStart?: number;
+  sourceCursorEnd?: number;
+  /** Server process epoch; aliases eventEpoch for old payloads. */
+  serverEpoch?: string;
+  historyEpoch?: string;
+  historyRevision?: number;
+  /** Durable result/history coverage boundary. */
+  terminalCoverage?: {
+    historyEpoch?: string;
+    historyRevision?: number;
+    messageIds?: string[];
+  };
   snapshotId?: string;
   boundary?: 'authoritative' | string;
   reason?: string;
@@ -320,6 +348,9 @@ export interface StreamEvent {
   queueItemIds?: string[];
   /** Raw or normalized queue item carried by queue update notifications. */
   item?: Record<string, unknown>;
+  /** Stable canonical message/block identity when the event carries one. */
+  messageId?: string;
+  blockId?: string;
   /** True when the server replays a still-pending interactive prompt after WS reconnect. */
   replayed?: boolean;
 }
@@ -442,6 +473,8 @@ export interface ApiSessionHistoryResponse {
   total: number;
   hasMore: boolean;
   start: number;
+  historyEpoch?: string;
+  historyRevision?: number;
   error?: string;
 }
 
@@ -791,6 +824,10 @@ export interface QueuedEdit {
   /** 原队列位置（Enter 保存后插回原位置）。 */
   index: number;
   createdAt: number;
+  /** Monotonic identity for one edit transaction; never sent to the server. */
+  editToken?: number;
+  /** Keep editing locked while its PATCH and authoritative refresh settle. */
+  saving?: boolean;
 }
 
 // ── Agent queue (backend session.queue_pending, normalized) ──

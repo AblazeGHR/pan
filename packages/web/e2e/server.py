@@ -67,7 +67,9 @@ def _seed_sessions() -> None:
     session_store._all_loaded = False
 
     history = []
-    for i in range(1, 46):
+    # Keep enough canonical rows to exercise a tail-only refresh without
+    # turning the browser fixture into an unbounded history scan.
+    for i in range(1, 151):
         history.append({"role": "user", "content": f"history question {i}"})
         history.append({"role": "assistant", "content": f"history answer {i} " + ("x " * 18)})
     history.append({"role": "assistant", "content": _stream_markdown()})
@@ -115,12 +117,16 @@ def main() -> None:
         """Inject a stream event through the real dashboard WS broadcaster."""
         session_id = str(payload["sessionId"])
         event = dict(payload["event"])
+        task_seq = payload.get("taskSeq", event.get("taskSeq"))
+        task_id = payload.get("taskId", event.get("taskId", event.get("task_id")))
         await server_module.broadcast(
             {
                 "type": "worker.stream",
                 "sessionId": session_id,
                 "workerId": "e2e-browser-worker",
                 "generation": 0,
+                **({"taskSeq": task_seq} if task_seq is not None else {}),
+                **({"taskId": task_id} if task_id is not None else {}),
                 "event": event,
             }
         )
@@ -131,6 +137,26 @@ def main() -> None:
         """Inject an arbitrary dashboard event through the real WS fan-out."""
         await server_module.broadcast(dict(payload["event"]))
         return {"ok": True}
+
+    @server_module.app.post("/__e2e/append-history")
+    async def e2e_append_history(payload: dict = Body(...)):
+        """Persist deterministic canonical rows for browser recovery cases."""
+        session_id = str(payload["sessionId"])
+        messages = payload.get("messages")
+        if not isinstance(messages, list):
+            return {"ok": False, "error": "messages must be a list"}
+        target = session_store.get(session_id)
+        if target is None:
+            return {"ok": False, "error": "session not found"}
+        for message in messages:
+            if isinstance(message, dict) and isinstance(message.get("role"), str):
+                session_store.append_history(target, dict(message))
+        session_store.save(target)
+        return {
+            "ok": True,
+            "historyRevision": target.history_revision,
+            "historyEpoch": target.history_epoch,
+        }
 
     RUNTIME.mkdir(parents=True, exist_ok=True)
     (RUNTIME / "server-identity.json").write_text(

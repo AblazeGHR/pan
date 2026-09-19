@@ -48,11 +48,88 @@ beforeEach(() => {
     panelOpen: false,
     agentQueueLoadSeq: {},
     queueRevisions: {},
+    queueTombstones: {},
+    queueDeliveredIds: {},
   });
   vi.clearAllMocks();
 });
 
 describe('server-backed queue store', () => {
+  it('does not resurrect a delivered item when a stale ACK or prefixed id arrives', () => {
+    const queued = item('q-delivery', 'queued');
+    useQueueStore.setState({
+      queues: { s1: [queued] },
+      agentQueues: { s1: [queued] },
+      queueRevisions: { s1: 1 },
+    });
+
+    useQueueStore.getState().applyQueueEvent({
+      type: 'queue.item_delivered',
+      sessionId: 's1',
+      queueItemIds: ['queue:q-delivery'],
+      queueRevision: 2,
+    });
+    useQueueStore.getState().applyQueueEvent({
+      type: 'queue.item_added',
+      sessionId: 's1',
+      item: queued,
+      queueRevision: 1,
+    });
+
+    expect(useQueueStore.getState().queues.s1).toEqual([]);
+    expect(useQueueStore.getState().queueRevisions.s1).toBe(2);
+  });
+
+  it('keeps a queue edit transaction locked until its PATCH settles', async () => {
+    const first = item('q-edit-lock', 'first');
+    useQueueStore.setState({ queues: { s1: [first] }, queueRevisions: { s1: 1 } });
+    let resolveEdit!: (value: unknown) => void;
+    api.updateSessionQueueItem.mockReturnValueOnce(new Promise((resolve) => { resolveEdit = resolve; }));
+    api.enqueueSessionMessage.mockResolvedValue({ item: item('q-new', 'new'), queueRevision: 2 });
+
+    useQueueStore.getState().startEdit(first.id);
+    useQueueStore.getState().saveEdit();
+    await vi.waitFor(() => expect(useQueueStore.getState().edits.s1?.saving).toBe(true));
+    await expect(useQueueStore.getState().enqueue('new')).resolves.toBe(false);
+    expect(api.enqueueSessionMessage).not.toHaveBeenCalled();
+
+    resolveEdit({ item: { ...first, text: 'first' }, queueRevision: 2 });
+    api.fetchSessionQueue.mockResolvedValue(snapshot([{ ...first, text: 'first' }], 2));
+    await vi.waitFor(() => expect(useQueueStore.getState().edits.s1).toBeNull());
+  });
+
+  it('applies raw and prefixed queue edit identities in place', () => {
+    const queued = item('q-edit-identity', 'before');
+    useQueueStore.setState({
+      queues: { s1: [{ ...queued, id: 'queue:q-edit-identity' }] },
+      agentQueues: { s1: [{ ...queued, id: 'queue:q-edit-identity' }] },
+      queueRevisions: { s1: 1 },
+    });
+    useSessionStore.setState({
+      sessions: [{
+        id: 's1', name: 's1', adapter: 'cbc', alwaysThinkingEnabled: false, effort: '',
+        history: [],
+      }],
+      currentSessionId: 's1',
+      currentMessages: [],
+    });
+    useSessionStore.getState().appendQueuedMessage('s1', queued);
+
+    useQueueStore.getState().applyQueueEvent({
+      type: 'queue.item_updated',
+      sessionId: 's1',
+      queueItemId: 'q-edit-identity',
+      queueRevision: 2,
+      item: { ...queued, id: 'q-edit-identity', text: 'after' },
+    });
+
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.text)).toEqual(['after']);
+    expect(useSessionStore.getState().currentMessages[0]).toMatchObject({
+      content: 'after',
+      queueItemIds: ['q-edit-identity'],
+    });
+  });
+
   it('loads only the server snapshot and never restores localStorage business state', async () => {
     localStorage.setItem('pan.sendQueue.s1', JSON.stringify([{ id: 'stale', text: 'stale' }]));
     api.fetchSessionQueue.mockResolvedValue(snapshot([item('q-server', 'authoritative')], 7));

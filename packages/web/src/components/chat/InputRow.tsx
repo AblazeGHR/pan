@@ -415,6 +415,9 @@ export function InputRow() {
     const e = s.edits[currentSessionId];
     return (q ? q.length : 0) + (e ? 1 : 0);
   });
+  const queueEditActive = useQueueStore((s) =>
+    currentSessionId ? Boolean(s.edits[currentSessionId]) : false,
+  );
   const queuedWhileBusy = currentSession?.workerStatus === 'running' && queueCount > 0;
 
   // ── Adapter settings ──
@@ -938,6 +941,10 @@ export function InputRow() {
         showToast('Select a session first');
         return;
       }
+      if (useQueueStore.getState().edits[currentSessionId]) {
+        showToast('请先保存或取消队列消息编辑', 'error');
+        return;
+      }
       // Read the cached, Session-keyed runtime registry synchronously at the
       // start of the send transaction.  Session summaries can lag worker
       // events; this must not add a request or wait before enqueueing.
@@ -1099,6 +1106,9 @@ export function InputRow() {
             }
             throw new Error('当前目录非法');
           }
+          if (useQueueStore.getState().edits[snapshot.sessionId]) {
+            throw new Error('队列消息正在编辑');
+          }
           const ok = await enqueue(
             snapshot.message,
             snapshot.parts,
@@ -1135,21 +1145,37 @@ export function InputRow() {
     async (text: string) => {
       const steerSessionId = currentSessionId;
       if (!steerSessionId || !text.trim()) return;
+      if (useQueueStore.getState().edits[steerSessionId]) {
+        showToast('请先保存或取消队列消息编辑', 'error');
+        return;
+      }
+      const draftState = useSessionStore.getState();
+      const draftRevision = draftState.inputDraftRevisions[steerSessionId] ?? 0;
+      const draftText = draftState.inputDrafts[steerSessionId] ?? text;
+      const attachmentRevision = attachments.map(attachmentOccurrenceId).join('\u0000');
       try {
         await steer(steerSessionId, text);
         // The request may outlive a Session switch.  Only the original
         // composer may be cleared; the message projection is always written
         // to the captured target Session, never whichever Session is current
         // when the provider control resolves.
-        const stillSelected = useSessionStore.getState().currentSessionId === steerSessionId;
-        if (stillSelected) composerRef.current?.replaceText('');
-        setInputDraft(steerSessionId, '');
+        const latest = useSessionStore.getState();
+        const draftStillOwnsTransaction =
+          latest.inputDraftRevisions[steerSessionId] === draftRevision
+          && (latest.inputDrafts[steerSessionId] ?? draftText) === draftText
+          && attachments.map(attachmentOccurrenceId).join('\u0000') === attachmentRevision;
+        const stillSelected = latest.currentSessionId === steerSessionId;
+        if (draftStillOwnsTransaction) {
+          if (stillSelected) composerRef.current?.replaceText('');
+          setInputDraft(steerSessionId, '');
+          if (stillSelected) updateAttachments(() => []);
+        }
         appendLocalMessage(steerSessionId, { role: 'user', content: text });
       } catch (e) {
         showToast((e as Error).message || 'Steer failed', 'error');
       }
     },
-    [currentSessionId, steer, setInputDraft, appendLocalMessage, showToast],
+    [currentSessionId, steer, setInputDraft, appendLocalMessage, showToast, attachments, updateAttachments],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -1296,9 +1322,10 @@ export function InputRow() {
                     </span>
                   )}
                   <button
+                    id="send-queue-button"
                     onClick={togglePanel}
                     title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
-                    aria-label="发送队列"
+                    aria-label={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
                     className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded border transition-colors md:h-8 md:w-auto md:px-2 ${panelOpen || queueCount > 0 ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}
                   >
                     <ChevronUp
@@ -1315,6 +1342,7 @@ export function InputRow() {
                       </span>
                     )}
                   </button>
+                  <label htmlFor="send-queue-button" className="sr-only">发送队列</label>
                 </div>
               </div>
               <ModelPill
@@ -1715,6 +1743,7 @@ export function InputRow() {
             <div className="flex flex-col gap-1 items-end">
               {canSteer && (
                 <button
+                  disabled={queueEditActive}
                   onClick={() => handleSteer(composerValueRef.current.text)}
                   className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
                   title="Send an instruction to the running Codex turn"
@@ -1727,8 +1756,12 @@ export function InputRow() {
                 <button
                   type="button"
                   onClick={() => handleSend(composerValueRef.current.text)}
-                  disabled={attachmentsBlocked}
-                  title={attachmentsBlocked ? '请等待附件上传完成，或重试/取消失败附件' : 'Send'}
+                  disabled={attachmentsBlocked || queueEditActive}
+                  title={queueEditActive
+                    ? '请先保存或取消队列消息编辑'
+                    : attachmentsBlocked
+                      ? '请等待附件上传完成，或重试/取消失败附件'
+                      : 'Send'}
                   className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Send
