@@ -304,6 +304,8 @@ export interface StreamEvent {
   };
   cancelled?: boolean;
   taskSeq?: number;
+  /** Durable task identity carried by worker.stream for late-frame isolation. */
+  taskId?: string | null;
   name?: string;
   newName?: string;
   /** Safe session fields included by session lifecycle events when available. */

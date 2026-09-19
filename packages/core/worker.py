@@ -5941,7 +5941,19 @@ async def steer_worker(worker_id: str, text: str) -> str | None:
     s = _session(w) if w else None
     if s is not None:
         _sess.append_history(s, {"role": "user", "content": text})
-        await _sess.save_async(s)
+        # The native control has already been written successfully.  A
+        # transient history-file failure must not make the caller retry Steer
+        # (which would send the provider control a second time), so retry only
+        # the failed persistence operation once.  This stays off the normal
+        # delta/done path and remains bounded if the second write also fails.
+        for attempt in range(2):
+            try:
+                await _sess.save_async(s)
+                break
+            except Exception:
+                if attempt == 1:
+                    raise
+                await asyncio.sleep(0)
     return None
 
 

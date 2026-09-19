@@ -88,6 +88,8 @@ interface SessionStore {
   setInputDraft: (id: string, draft: string) => void;
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
+  /** Append a user-side control/message to its target Session projection. */
+  appendLocalMessage: (sessionId: string, msg: Message) => void;
   getLiveStreamMessages: (sessionId: string) => Message[];
   applyLiveStream: (sessionId: string, messages: Message[], meta: LiveStreamMeta) => boolean;
   reconcileWorkerResult: (
@@ -142,10 +144,73 @@ const EMPTY_UNREAD_SET: Set<string> = new Set();
 let wsTouchSeq = 0;
 let localTouchSeq = 0;
 let settingsTouchSeq = 0;
+let localMessageSeq = 0;
+
+// Local user rows are transient projection state, not a new persisted wire
+// field.  Keep the count at which a row was created outside Zustand so an
+// older history response can be distinguished from the canonical response
+// that eventually contains it without adding state that every test/reset must
+// know how to clear.
+const localMessageOrigins = new WeakMap<Message, number>();
 
 function sameMessage(a: Message, b: Message): boolean {
   return a.role === b.role && a.content === b.content
     && JSON.stringify(a.parts ?? null) === JSON.stringify(b.parts ?? null);
+}
+
+function queueIds(message: Message): string[] {
+  return Array.isArray(message.queueItemIds)
+    ? message.queueItemIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : [];
+}
+
+function explicitMessageIdentity(message: Message): string[] {
+  return [
+    ...queueIds(message).map((id) => `queue:${id}`),
+    ...(message.nativeItemId ? [`native:${message.nativeItemId}`] : []),
+  ];
+}
+
+function hasExplicitIdentityOverlap(a: Message, b: Message): boolean {
+  const bIds = new Set(explicitMessageIdentity(b));
+  return explicitMessageIdentity(a).some((id) => bIds.has(id));
+}
+
+function isLocallyOwnedUserMessage(message: Message): boolean {
+  return message.role === 'user'
+    && (queueIds(message).length > 0
+      || message.nativeItemId?.startsWith('local:user:') === true);
+}
+
+function rememberLocalMessageOrigin(message: Message, historyTotal: number): void {
+  if (isLocallyOwnedUserMessage(message) && !localMessageOrigins.has(message)) {
+    localMessageOrigins.set(message, Math.max(0, historyTotal));
+  }
+}
+
+function copyLocalMessageOrigin(next: Message, previous: Message): void {
+  const origin = localMessageOrigins.get(previous);
+  if (origin !== undefined) localMessageOrigins.set(next, origin);
+}
+
+function canMatchLocalMessageToSnapshot(
+  message: Message,
+  serverTotal: number | undefined,
+): boolean {
+  const origin = localMessageOrigins.get(message);
+  return origin === undefined || serverTotal === undefined || serverTotal > origin;
+}
+
+function withLocalUserIdentity(sessionId: string, message: Message): Message {
+  if (message.role !== 'user') return message;
+  if (queueIds(message).length > 0 || message.nativeItemId?.startsWith('local:user:')) {
+    return message;
+  }
+  localMessageSeq += 1;
+  return {
+    ...message,
+    nativeItemId: `local:user:${sessionId}:${localMessageSeq}`,
+  };
 }
 
 const SESSION_SETTING_KEYS = [
@@ -183,8 +248,10 @@ export interface LiveStreamBuffer {
   workerId?: string;
   generation?: number;
   taskSeq?: number;
+  taskId?: string;
   turnId?: string;
   itemId?: string;
+  streamText?: string;
   revision: number;
   messages: Message[];
 }
@@ -193,8 +260,10 @@ export interface LiveStreamMeta {
   workerId?: string;
   generation?: number;
   taskSeq?: number;
+  taskId?: string;
   turnId?: string;
   itemId?: string;
+  streamText?: string;
 }
 
 interface TerminalWatermark extends LiveStreamMeta {
@@ -280,7 +349,37 @@ function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
       || incoming.generation <= known.generation;
   }
   if (incoming.taskSeq !== undefined && known.taskSeq !== undefined) {
-    return incoming.taskSeq < known.taskSeq;
+    if (incoming.taskSeq < known.taskSeq) return true;
+    if (incoming.taskSeq > known.taskSeq) return false;
+  }
+  // Once a task-scoped frame has been accepted, an unscoped frame from the
+  // same worker generation cannot prove that it belongs to a newer turn.
+  // This is the small gap between a status/task boundary and adapters that
+  // still emit legacy frames without taskSeq.
+  if (incoming.taskSeq === undefined && known.taskSeq !== undefined
+      && sameWorkerGeneration(incoming, known)) {
+    return true;
+  }
+  if (incoming.taskId && known.taskId && incoming.taskId !== known.taskId
+      && incoming.taskSeq === undefined && known.taskSeq === undefined
+      && sameWorkerGeneration(incoming, known)) {
+    return true;
+  }
+  // stream_text is cumulative.  A delayed shorter prefix (or an exact replay)
+  // is stale even when its transport envelope has no monotonic cursor.
+  const sameStreamTarget = Boolean(
+    (incoming.itemId && known.itemId && incoming.itemId === known.itemId)
+      || (incoming.turnId && known.turnId && incoming.turnId === known.turnId)
+      || (!incoming.itemId && !known.itemId
+        && !incoming.turnId && !known.turnId
+        && sameWorkerGeneration(incoming, known)
+        && (incoming.taskSeq === known.taskSeq)),
+  );
+  if (sameStreamTarget && incoming.streamText !== undefined
+      && known.streamText !== undefined
+      && known.streamText.startsWith(incoming.streamText)
+      && incoming.streamText.length <= known.streamText.length) {
+    return true;
   }
   return false;
 }
@@ -301,6 +400,12 @@ function isBlockedByTerminal(
     // this ambiguous shape is safer than resurrecting a completed turn.
     return true;
   }
+  if (status === 'stream'
+      && sameWorkerGeneration(incoming, terminal)
+      && terminal.taskSeq !== undefined
+      && incoming.taskSeq === undefined) {
+    return true;
+  }
   if (incoming.taskSeq !== undefined && terminal.taskSeq !== undefined
       && incoming.taskSeq <= terminal.taskSeq
       && (incoming.generation === undefined || terminal.generation === undefined
@@ -311,36 +416,44 @@ function isBlockedByTerminal(
 }
 
 function mergeFinalMessages(local: Message[], canonical: Message[]): Message[] {
-  const result = canonical.map(cloneMessageWithIdentity);
-  for (const message of local) {
-    if (message.role === 'system') continue;
-    if (result.some((candidate) => sameMessage(candidate, message))) continue;
-    // Keep a locally queued/agent user turn if the authoritative history was
-    // fetched before that hand-off became durable. Never retain an old live
-    // assistant here: canonical already contains the final replacement.
-    if (message.role === 'user') result.push(cloneMessageWithIdentity(message));
-  }
-  for (const message of local.filter((candidate) => candidate.role === 'system')) {
-    if (result.some((candidate) => sameMessage(candidate, message))) continue;
-    result.push(cloneMessageWithIdentity(message));
-  }
-  return result;
+  return mergeServerHistoryPreservingLocal(local, canonical)
+    .map((message) => {
+      const clone = cloneMessageWithIdentity(message);
+      copyLocalMessageOrigin(clone, message);
+      return clone;
+    });
 }
 
-/** Keep local synthetic completion rows when a later server snapshot adds a
- * real user turn but does not persist the browser-only [DONE] row. */
-function mergeServerHistoryPreservingLocal(local: Message[], server: Message[]): Message[] {
-  // A selected session may have a locally queued user message or a live
-  // assistant suffix that is not in the lagging server snapshot yet. Keep the
-  // whole local view when the server is only a prefix; system rows such as
-  // [DONE] are ignored by the prefix check and remain in that local view.
-  if (isServerHistoryPrefix(local, server)) return local;
+/** Keep explicitly local user/system rows when a history snapshot lags them.
+ *
+ * User rows are matched by queue/native identity first.  A canonical history
+ * response normally strips those transient ids, so a content+parts match is
+ * allowed only after the response's total has advanced past the local row's
+ * creation count.  That prevents an old same-text snapshot from consuming a
+ * newly queued duplicate while still letting the canonical row converge
+ * without a second visible copy.  There is deliberately no global text
+ * dedupe: two queue ids carrying the same prompt are two messages.
+ */
+function mergeServerHistoryPreservingLocal(
+  local: Message[],
+  server: Message[],
+  options: { serverTotal?: number } = {},
+): Message[] {
+  const serverNonSystem = server.filter((message) => message.role !== 'system');
+  const localNonSystem = local.filter((message) => message.role !== 'system');
+  const serverShorterPrefix = isServerHistoryPrefix(local, server)
+    && serverNonSystem.length < localNonSystem.length;
+  if (serverShorterPrefix) return local;
+
   const result = [...server];
-  const localSystem = local.filter((message) => message.role === 'system');
-  for (const message of localSystem) {
-    if (result.some((candidate) => sameMessage(candidate, message))) continue;
-    const ordinal = local.slice(0, local.indexOf(message))
-      .filter((candidate) => candidate.role !== 'system').length;
+  const claimedIndexes = new Set<number>();
+  const pendingInsertions: Array<{
+    message: Message;
+    ordinal: number;
+    localIndex: number;
+  }> = [];
+
+  const insertAtOrdinal = (message: Message, ordinal: number): void => {
     let seen = 0;
     let insertAt = result.length;
     for (let index = 0; index < result.length; index++) {
@@ -348,10 +461,72 @@ function mergeServerHistoryPreservingLocal(local: Message[], server: Message[]):
         insertAt = index;
         break;
       }
-      if (result[index]!.role !== 'system') seen++;
+      if (result[index]!.role !== 'system') seen += 1;
     }
     result.splice(insertAt, 0, message);
+  };
+
+  for (let localIndex = 0; localIndex < local.length; localIndex++) {
+    const message = local[localIndex]!;
+    const preserve = message.role === 'system' || isLocallyOwnedUserMessage(message);
+    if (!preserve) continue;
+
+    const ordinal = local.slice(0, localIndex)
+      .filter((candidate) => candidate.role !== 'system').length;
+    const origin = localMessageOrigins.get(message);
+    // A summary-only projection may contain just the newly local row while
+    // historyTotal already says that many canonical rows precede it.  Use
+    // that durable count for placement when the full page arrives; otherwise
+    // the row would be inserted at ordinal zero before the old history.
+    const expectedOrdinal = message.role === 'user'
+      ? Math.max(ordinal, origin ?? ordinal)
+      : ordinal;
+    let matchedIndex = result.findIndex((candidate, index) =>
+      !claimedIndexes.has(index) && hasExplicitIdentityOverlap(message, candidate),
+    );
+
+    if (matchedIndex < 0 && message.role === 'user'
+        && canMatchLocalMessageToSnapshot(message, options.serverTotal)) {
+      const sameAtOrdinal = result.findIndex((candidate, index) =>
+        !claimedIndexes.has(index)
+        && candidate.role === 'user'
+        && sameMessage(candidate, message)
+        && result.slice(0, index).filter((item) => item.role !== 'system').length === expectedOrdinal,
+      );
+      matchedIndex = sameAtOrdinal >= 0
+        ? sameAtOrdinal
+        : result.findIndex((candidate, index) =>
+            !claimedIndexes.has(index)
+            && candidate.role === 'user'
+            && sameMessage(candidate, message),
+          );
+    }
+
+    if (matchedIndex >= 0) {
+      claimedIndexes.add(matchedIndex);
+      const canonical = result[matchedIndex]!;
+      const merged = { ...canonical };
+      // Carry transient ownership only for the local row.  Server content and
+      // parts remain authoritative once a matching canonical row exists.
+      if (message.role === 'user') {
+        if (queueIds(message).length > 0) merged.queueItemIds = [...queueIds(message)];
+        if (message.nativeItemId?.startsWith('local:user:')) {
+          merged.nativeItemId = message.nativeItemId;
+        }
+      }
+      inheritMessageIdentity(merged, message);
+      copyLocalMessageOrigin(merged, message);
+      result[matchedIndex] = merged;
+      continue;
+    }
+
+    const retained = cloneMessageWithIdentity(message);
+    copyLocalMessageOrigin(retained, message);
+    pendingInsertions.push({ message: retained, ordinal: expectedOrdinal, localIndex });
   }
+  pendingInsertions
+    .sort((a, b) => a.ordinal - b.ordinal || a.localIndex - b.localIndex)
+    .forEach(({ message, ordinal }) => insertAtOrdinal(message, ordinal));
   return result;
 }
 
@@ -477,7 +652,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // session's messages are loaded by selectSession via fetchSessionHistory.
       const sessions = await fetchSessions(true);
       if (get()._loadSeq !== loadSeq) return; // superseded by a newer refresh
-      const { currentSessionId, currentMessages } = get();
+      const { currentSessionId } = get();
 
       set((s) => {
         // Merge the snapshot with locally-fresher workerStatus/workerId.
@@ -519,9 +694,34 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             touchedDuringFetch ||
             (touchedBefore && (cur.workerStatus === null || snapshotIsTransientDone));
           let next = sess;
+          // summary=1 intentionally omits history.  Do not let that empty
+          // projection erase a loaded/local history that is needed when the
+          // user leaves this Session and returns (especially a just-completed
+          // Steer or queue hand-off).  The next select/refresh still fetches
+          // canonical history and reconciles this projection by identity.
+          const summaryHasHistory = Array.isArray(sess.history)
+            && sess.history.length > 0;
+          const hasLocalUserProjection = Boolean(
+            cur && (cur.history || []).some(isLocallyOwnedUserMessage),
+          );
+          if (cur && !summaryHasHistory && (cur.history || []).length > 0) {
+            next = {
+              ...next,
+              history: cur.history,
+              historyTruncated: cur.historyTruncated,
+              historyTotal: Math.max(
+                sess.historyTotal ?? 0,
+                cur.historyTotal ?? 0,
+                cur.history.length,
+              ),
+              ...(hasLocalUserProjection && cur.lastMessage
+                ? { lastMessage: cur.lastMessage }
+                : {}),
+            };
+          }
           if (preserveLocalWorker) {
             next = {
-              ...sess,
+              ...next,
               // WS state is newer than this snapshot.  Preserve explicit null:
               // it is the destroy/crash transition, not a missing value.
               workerStatus: cur.workerStatus,
@@ -611,21 +811,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // backend persists each block slightly after broadcasting it), so a
       // blind overwrite would wipe the in-flight assistant reply (bug: needs
       // a manual refresh to reappear).
-      if (currentSessionId) {
-        const found = sessions.find((s) => s.id === currentSessionId);
+      const restoreSessionId = get().currentSessionId;
+      if (restoreSessionId) {
+        // Read the merged store projection, not the raw summary response:
+        // summary=1 has no history and would otherwise replace current chat
+        // rows with an empty array immediately after the guarded merge above.
+        const current = get();
+        const found = current.sessions.find((s) => s.id === restoreSessionId);
         if (found) {
           const serverHistory = mergeServerHistoryWithLive(
             found.history || [],
-            get().liveStreamBuffers[currentSessionId]?.messages || [],
+            current.liveStreamBuffers[restoreSessionId]?.messages || [],
           );
           const keepLocal = isServerHistoryPrefix(
-            currentMessages,
+            current.currentMessages,
             serverHistory,
           );
           set({
             currentMessages: keepLocal
-              ? currentMessages
-              : mergeServerHistoryPreservingLocal(currentMessages, serverHistory),
+              ? current.currentMessages
+              : mergeServerHistoryPreservingLocal(
+                current.currentMessages,
+                serverHistory,
+                { serverTotal: found.historyTotal },
+              ),
             hasMoreMessages: !!found.historyTruncated,
             historyLoadEnd: Math.max(
               0,
@@ -708,8 +917,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         return;
       }
       const serverHistory = data.history || [];
-      const historyWithLive = mergeServerHistoryWithLive(
+      const previousHistory = get().sessions.find((x) => x.id === id)?.history || [];
+      const reconciledHistory = mergeServerHistoryPreservingLocal(
+        previousHistory,
         serverHistory,
+        { serverTotal: data.total },
+      );
+      const historyWithLive = mergeServerHistoryWithLive(
+        reconciledHistory,
         get().liveStreamBuffers[id]?.messages || [],
       );
       // 流式窗口防护：若服务端历史只是本地已渲染消息的前缀（部分块尚未
@@ -719,7 +934,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         historyWithLive,
       );
       // Keep the card preview in sync with the freshly-fetched history tail.
-      const lastServerMsg = serverHistory[serverHistory.length - 1];
+      const lastServerMsg = reconciledHistory[reconciledHistory.length - 1];
       const lastMessage = lastServerMsg
         ? String(lastServerMsg.content).slice(0, 200)
         : '';
@@ -728,16 +943,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           x.id === id
             ? {
                 ...x,
-                history: serverHistory,
+                history: reconciledHistory,
                 historyTruncated: data.hasMore,
-                historyTotal: data.total,
+                historyTotal: Math.max(data.total, reconciledHistory.length),
                 lastMessage,
               }
             : x,
         ),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeServerHistoryPreservingLocal(s.currentMessages, historyWithLive),
+          : mergeServerHistoryPreservingLocal(
+            s.currentMessages,
+            historyWithLive,
+            { serverTotal: data.total },
+          ),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
         initialLoading: false,
@@ -770,25 +989,35 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         current._historyRefreshSeq[sid] !== requestSeq
       ) return;
       const serverHistory = data.history || [];
-      const historyWithLive = mergeServerHistoryWithLive(
+      const previousHistory = current.sessions.find((x) => x.id === sid)?.history || [];
+      const reconciledHistory = mergeServerHistoryPreservingLocal(
+        previousHistory,
         serverHistory,
+        { serverTotal: data.total },
+      );
+      const historyWithLive = mergeServerHistoryWithLive(
+        reconciledHistory,
         current.liveStreamBuffers[sid]?.messages || [],
       );
       const keepLocal = isServerHistoryPrefix(current.currentMessages, historyWithLive);
-      const lastServerMsg = serverHistory[serverHistory.length - 1];
+      const lastServerMsg = reconciledHistory[reconciledHistory.length - 1];
       set((s) => ({
         sessions: s.sessions.map((session) => session.id === sid
           ? {
               ...session,
-              history: serverHistory,
+              history: reconciledHistory,
               historyTruncated: data.hasMore,
-              historyTotal: data.total,
+              historyTotal: Math.max(data.total, reconciledHistory.length),
               lastMessage: lastServerMsg ? String(lastServerMsg.content).slice(0, 200) : '',
             }
           : session),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeServerHistoryPreservingLocal(s.currentMessages, historyWithLive),
+          : mergeServerHistoryPreservingLocal(
+            s.currentMessages,
+            historyWithLive,
+            { serverTotal: data.total },
+          ),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
         initialLoading: false,
@@ -1067,15 +1296,76 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   addMessage: (msg: Message) => {
+    const touchSeq = (localTouchSeq += 1);
     set((s) => ({
       currentMessages: [...s.currentMessages, msg],
+      ...(s.currentSessionId
+        ? {
+            _sessionLocalTouchedSeq: {
+              ...s._sessionLocalTouchedSeq,
+              [s.currentSessionId]: touchSeq,
+            },
+          }
+        : {}),
     }));
   },
 
   appendMessages: (msgs: Message[]) => {
+    if (!msgs.length) return;
+    const touchSeq = (localTouchSeq += 1);
     set((s) => ({
       currentMessages: [...s.currentMessages, ...msgs],
+      ...(s.currentSessionId
+        ? {
+            _sessionLocalTouchedSeq: {
+              ...s._sessionLocalTouchedSeq,
+              [s.currentSessionId]: touchSeq,
+            },
+          }
+        : {}),
     }));
+  },
+
+  appendLocalMessage: (sessionId, message) => {
+    if (!sessionId || message.role !== 'user' || !message.content) return;
+    const localMessage = withLocalUserIdentity(sessionId, message);
+    const touchSeq = (localTouchSeq += 1);
+    set((s) => {
+      const target = s.sessions.find((session) => session.id === sessionId);
+      if (!target) return s;
+      const history = target.history || [];
+      const alreadyInHistory = history.some((candidate) =>
+        hasExplicitIdentityOverlap(candidate, localMessage),
+      );
+      const historyTotal = target.historyTotal ?? history.length;
+      rememberLocalMessageOrigin(localMessage, historyTotal);
+      const nextHistory = alreadyInHistory ? history : [...history, localMessage];
+      const sessions = s.sessions.map((session) => session.id === sessionId
+        ? {
+            ...session,
+            history: nextHistory,
+            historyTotal: Math.max(
+              session.historyTotal ?? history.length,
+              nextHistory.length,
+              historyTotal + (alreadyInHistory ? 0 : 1),
+            ),
+            lastMessage: localMessage.content.slice(0, 200),
+          }
+        : session);
+      const alreadyCurrent = s.currentMessages.some((candidate) =>
+        hasExplicitIdentityOverlap(candidate, localMessage),
+      );
+      return {
+        sessions,
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sessionId]: touchSeq,
+        },
+        ...(s.currentSessionId === sessionId && !alreadyCurrent
+          ? { currentMessages: [...s.currentMessages, localMessage] }
+          : {}),
+      };
+    });
   },
 
   getLiveStreamMessages: (sessionId) =>
@@ -1244,9 +1534,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const previous = s.liveStreamBuffers[sessionId];
       if (previous && status === 'running' && meta.taskSeq !== undefined
           && previous.taskSeq !== undefined && meta.taskSeq > previous.taskSeq) {
-        // A new task on the same worker starts a fresh transient turn.
+        // A new task on the same worker starts a fresh transient turn. Keep an
+        // empty task-scoped watermark instead of deleting the buffer outright:
+        // a late old delta must be rejected during the gap before the first
+        // new-task delta arrives.
+        const revision = Math.max(
+          previous.revision,
+          s.terminalWatermarks[sessionId]?.revision ?? 0,
+        ) + 1;
         const nextBuffers = { ...s.liveStreamBuffers };
-        delete nextBuffers[sessionId];
+        nextBuffers[sessionId] = {
+          workerId: meta.workerId,
+          generation: meta.generation,
+          taskSeq: meta.taskSeq,
+          taskId: meta.taskId,
+          revision,
+          messages: [],
+        };
         accepted = true;
         return {
           liveStreamBuffers: nextBuffers,
@@ -1300,25 +1604,45 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   appendQueuedMessage: (sessionId, item) => {
     if (!item.id || !item.text.trim()) return;
     const touchSeq = (localTouchSeq += 1);
+    const localMessage: Message = {
+      role: 'user',
+      content: item.text,
+      ...(item.parts ? { parts: item.parts } : {}),
+      queueItemIds: [item.id],
+    };
     set((s) => {
-      if (s.currentSessionId !== sessionId) return {};
-      if (s.currentMessages.some((message) => message.queueItemIds?.includes(item.id))) {
-        return {};
-      }
+      const target = s.sessions.find((session) => session.id === sessionId);
+      if (!target) return s;
+      const history = target.history || [];
+      const historyHasItem = history.some((message) => queueIds(message).includes(item.id));
+      const currentHasItem = s.currentSessionId === sessionId
+        && s.currentMessages.some((message) => queueIds(message).includes(item.id));
+      const historyTotal = target.historyTotal ?? history.length;
+      rememberLocalMessageOrigin(localMessage, historyTotal);
+      const nextHistory = historyHasItem ? history : [...history, localMessage];
+      const existingHistoryMessage = history.find((message) => queueIds(message).includes(item.id));
+      const currentMessage = existingHistoryMessage ?? localMessage;
+      const sessions = s.sessions.map((session) => session.id === sessionId
+        ? {
+            ...session,
+            history: nextHistory,
+            historyTotal: Math.max(
+              session.historyTotal ?? history.length,
+              nextHistory.length,
+              historyTotal + (historyHasItem ? 0 : 1),
+            ),
+            lastMessage: item.text.slice(0, 200),
+          }
+        : session);
       return {
-        currentMessages: [
-          ...s.currentMessages,
-          {
-            role: 'user',
-            content: item.text,
-            ...(item.parts ? { parts: item.parts } : {}),
-            queueItemIds: [item.id],
-          },
-        ],
+        sessions,
         _sessionLocalTouchedSeq: {
           ...s._sessionLocalTouchedSeq,
           [sessionId]: touchSeq,
         },
+        ...(s.currentSessionId === sessionId && !currentHasItem
+          ? { currentMessages: [...s.currentMessages, currentMessage] }
+          : {}),
       };
     });
   },
@@ -1326,61 +1650,60 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   appendDeliveredMessages: (sessionId: string, msgs: Message[]) => {
     if (!msgs.length) return;
     const touchSeq = (localTouchSeq += 1);
+    const localMessages = msgs.map((message) =>
+      message.role === 'user' ? withLocalUserIdentity(sessionId, message) : message,
+    );
     set((s) => {
-      const queueIds = (message: Message): string[] => (
-        Array.isArray(message.queueItemIds)
-          ? message.queueItemIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
-          : []
-      );
       const existingIds = new Set(
-        s.currentMessages.flatMap((message) => queueIds(message)),
+        s.currentMessages.flatMap((message) => explicitMessageIdentity(message)),
       );
       const currentAppend: Message[] = [];
-      for (const message of msgs) {
-        const ids = queueIds(message);
+      for (const message of localMessages) {
+        const ids = explicitMessageIdentity(message);
         // A duplicate WS delivery event must not render the same hand-off
-        // twice. Distinct queue ids are allowed to carry identical text.
-        if (ids.length && ids.some((id) => existingIds.has(id))) continue;
+        // twice. Distinct queue/native ids are allowed to carry identical
+        // text, so sameMessage() is intentionally not used here.
+        if (ids.some((id) => existingIds.has(id))) continue;
         currentAppend.push(message);
         ids.forEach((id) => existingIds.add(id));
       }
 
       const deliveredIds = new Set(s._deliveredQueueIds?.[sessionId] ?? []);
+      const previouslyDelivered = new Set(deliveredIds);
+      localMessages.flatMap((message) => queueIds(message)).forEach((id) => deliveredIds.add(id));
       const sessions = s.sessions.map((session) => {
         if (session.id !== sessionId) return session;
         const history = session.history || [];
         const historyIds = new Set(
-          history.flatMap((message) => queueIds(message)),
+          history.flatMap((message) => explicitMessageIdentity(message)),
         );
-        let newlyDelivered = 0;
-        // A fresh history response intentionally strips transient queue ids.
-        // The current chat still has them, so use that view as an additional
-        // dedupe source when a duplicate notification arrives after refresh.
-        const historyAppend = msgs.filter((message) => {
-          const ids = queueIds(message);
-          if (ids.length && ids.some((id) => deliveredIds.has(id))) return false;
-          if (ids.length && ids.some((id) => historyIds.has(id))) return false;
-          if (history.some((candidate) => sameMessage(candidate, message))) return false;
+        const historyAppend: Message[] = [];
+        let added = 0;
+        for (const message of localMessages) {
+          const ids = explicitMessageIdentity(message);
+          if (ids.some((id) => previouslyDelivered.has(id))) continue;
+          if (ids.some((id) => historyIds.has(id))) continue;
+          rememberLocalMessageOrigin(
+            message,
+            (session.historyTotal ?? history.length) + added,
+          );
+          historyAppend.push(message);
           ids.forEach((id) => historyIds.add(id));
-          ids.forEach((id) => deliveredIds.add(id));
-          newlyDelivered += 1;
-          return true;
-        });
-        // summary=1 intentionally has no history. Keep it empty and update
-        // only its card counters; a later selectSession fetches the canonical
-        // history instead of turning one delivered event into a fake snapshot.
-        const hasLoadedHistory = history.length > 0 || (session.historyTotal ?? 0) === 0;
-        const nextHistory = hasLoadedHistory
-          ? [...history, ...historyAppend]
-          : history;
-        const added = hasLoadedHistory
-          ? historyAppend.length
-          : newlyDelivered;
-        const last = msgs[msgs.length - 1];
+          added += 1;
+        }
+        // Keep the local projection even for summary=1 cards.  The rows carry
+        // transient queue identity and are reconciled against the next
+        // canonical history response; leaving the projection empty is what
+        // made A→B→A erase an otherwise successful hand-off.
+        const nextHistory = [...history, ...historyAppend];
+        const last = localMessages[localMessages.length - 1];
         return {
           ...session,
           history: nextHistory,
-          historyTotal: (session.historyTotal ?? history.length) + added,
+          historyTotal: Math.max(
+            (session.historyTotal ?? history.length) + added,
+            nextHistory.length,
+          ),
           lastMessage: last?.content.slice(0, 200) ?? session.lastMessage,
         };
       });

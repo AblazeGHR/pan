@@ -46,7 +46,6 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
 
     worker.workers.clear()
     _sess._cache.clear()
-
     parent = _sess.Session(
         id="ses_parent",
         name="parent",
@@ -128,6 +127,35 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
     assert child.adapter_config["model_context_window"] == 64000
     assert child.adapter_config["model_auto_compact_token_limit"] == 60800
     assert [item[0] for item in calls] == ["fork", "history", "usage"]
+
+    worker.workers.clear()
+    _sess._cache.clear()
+
+
+def test_steer_worker_retries_one_transient_history_save_failure(monkeypatch):
+    worker.workers.clear()
+    _sess._cache.clear()
+    session = _sess.Session(id="ses_steer_retry", name="steer-retry", adapter="codex")
+    _sess._cache[session.id] = session
+    live = worker.Worker(
+        worker_id="worker-steer-retry",
+        session_id=session.id,
+        adapter=CodexAdapter(),
+        process=MagicMock(),
+    )
+    worker.workers[live.worker_id] = live
+
+    control = AsyncMock(return_value=None)
+    monkeypatch.setattr(worker, "send_control_message", control)
+    save = AsyncMock(side_effect=[OSError("temporary save failure"), None])
+    monkeypatch.setattr(_sess, "save_async", save)
+
+    assert asyncio.run(worker.steer_worker(live.worker_id, "retry this")) is None
+    control.assert_awaited_once_with(
+        live.worker_id, {"type": "steer", "text": "retry this"},
+    )
+    assert save.await_count == 2
+    assert session.history == [{"role": "user", "content": "retry this"}]
 
     worker.workers.clear()
     _sess._cache.clear()

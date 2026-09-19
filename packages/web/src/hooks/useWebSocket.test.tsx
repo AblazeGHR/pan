@@ -1442,6 +1442,71 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(new Set(messages.map(getMessageIdentity)).size).toBe(3);
   });
 
+  it('updates compound thinking/text/tool blocks by role without collapsing them', () => {
+    renderHook(() => useWebSocket());
+
+    const compound = (thinking: string, text: string, output: string) => ({
+      type: 'assistant',
+      delta: true,
+      replace: true,
+      item_id: 'compound-update',
+      message: { content: [
+        { type: 'thinking', thinking },
+        { type: 'text', text },
+        { type: 'tool_use', name: 'Command', input: { command: 'true', output } },
+      ] },
+    });
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: compound('plan-1', 'answer-1', 'one'),
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: compound('plan-2', 'answer-2', 'two'),
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((message) => message.content)).toEqual([
+      'plan-2',
+      'answer-2',
+      'Command({"command":"true","output":"two"})',
+    ]);
+  });
+
+  it('keeps old task deltas out of the new task watermark window', () => {
+    renderHook(() => useWebSocket());
+
+    const stream = (taskSeq: number, text: string) => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', taskSeq,
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: `turn-${taskSeq}`, stream_text: text,
+          part: { type: 'text', text },
+        },
+      });
+    };
+    act(() => {
+      wsMock.trigger('worker.status', {
+        type: 'worker.status', sessionId: 'A', workerId: 'w1',
+        generation: 1, taskSeq: 1, status: 'running',
+      });
+      stream(1, 'old');
+      wsMock.trigger('worker.status', {
+        type: 'worker.status', sessionId: 'A', workerId: 'w1',
+        generation: 1, taskSeq: 2, status: 'running',
+      });
+      stream(1, 'old-late');
+      stream(2, 'new');
+    });
+
+    expect(useSessionStore.getState().getLiveStreamMessages('A')
+      .map((message) => message.content)).toEqual(['new']);
+    expect(useSessionStore.getState().currentMessages.filter((message) => message.role === 'assistant')
+      .map((message) => message.content)).toEqual(['old', 'new']);
+  });
+
   it('records background stream unread state on its own session', () => {
     renderHook(() => useWebSocket());
 
