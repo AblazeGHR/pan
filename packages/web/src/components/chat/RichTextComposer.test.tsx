@@ -883,6 +883,43 @@ describe('RichTextComposer attachment demo', () => {
     expect(changes.at(-1)?.text).toBe('ab安全一\n安全二ef');
   });
 
+  it.each([
+    ['a non-file directory path', 'D:\\project\\src\\folder'],
+    ['a URL', 'https://example.test/docs/report.txt'],
+  ])('pastes %s as plain text without creating an attachment or link', (_label, pasted) => {
+    const changes: ComposerValue[] = [];
+    render(
+      <RichTextComposer
+        initialText="before after"
+        attachments={[]}
+        onChange={(value) => changes.push(value)}
+        onAttachmentDrop={vi.fn(() => null)}
+        onNativeFiles={vi.fn(() => [])}
+        onRemoveAttachment={vi.fn()}
+      />,
+    );
+    const editor = screen.getByTestId('rich-text-composer');
+    const text = editor.firstElementChild?.firstChild;
+    const selection = document.createRange();
+    selection.setStart(text!, 7);
+    selection.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(selection);
+    const clipboardData = {
+      files: [],
+      items: [],
+      types: ['text/plain'],
+      getData: (type: string) => (type === 'text/plain' ? pasted : ''),
+    } as unknown as DataTransfer;
+
+    fireEvent.paste(editor, { clipboardData });
+
+    expect(editor.textContent).toBe(`before ${pasted}after`);
+    expect(editor.querySelector('[data-composer-attachment]')).toBeNull();
+    expect(editor.querySelector('a')).toBeNull();
+    expect(changes.at(-1)).toMatchObject({ text: `before ${pasted}after`, attachmentIds: [] });
+  });
+
   it('deletes a selected attachment atomically on Ctrl+A/Delete', () => {
     const changes: ComposerValue[] = [];
     const { editor } = renderComposer((value) => changes.push(value));

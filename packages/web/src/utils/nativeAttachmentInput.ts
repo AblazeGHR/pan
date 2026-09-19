@@ -4,6 +4,11 @@
 export type NativeAttachmentInput =
   { kind: 'files'; files: File[] } | { kind: 'directory' } | { kind: 'uri' } | { kind: 'none' };
 
+export interface NativeAttachmentInputOptions {
+  /** Clipboard text is not evidence of a file. */
+  treatTextOnlyAsPlainText?: boolean;
+}
+
 export const PAN_ATTACHMENT_MIME = 'application/x-pan-attachment';
 
 export function hasPanAttachmentMime(dataTransfer: DataTransfer | null): boolean {
@@ -22,6 +27,7 @@ function looksLikePathOrWebUri(value: string): boolean {
 
 export function inspectNativeAttachmentInput(
   dataTransfer: DataTransfer | null,
+  options: NativeAttachmentInputOptions = {},
 ): NativeAttachmentInput {
   if (!dataTransfer) return { kind: 'none' };
   let directory = false;
@@ -43,6 +49,7 @@ export function inspectNativeAttachmentInput(
   // the all-or-nothing directory rule.
   if (directory) return { kind: 'directory' };
   if (files.length > 0) return { kind: 'files', files };
+  if (options.treatTextOnlyAsPlainText) return { kind: 'none' };
   const uriList = dataTransfer.getData?.('text/uri-list') || '';
   const plainText = dataTransfer.getData?.('text/plain') || '';
   if (

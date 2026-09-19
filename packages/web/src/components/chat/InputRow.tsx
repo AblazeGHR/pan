@@ -123,6 +123,14 @@ interface SendSnapshot {
   parts?: MessagePart[];
 }
 
+interface SessionComposerDraft {
+  value: ComposerValue;
+  attachments: PendingAttachment[];
+}
+
+type AttachmentStateUpdate =
+  PendingAttachment[] | ((current: PendingAttachment[]) => PendingAttachment[]);
+
 function composerPartOccurrenceId(part: ComposerValue['parts'][number]): string | null {
   return part.type === 'attachment' ? part.occurrenceId || part.attachmentId : null;
 }
@@ -346,6 +354,7 @@ export function InputRow() {
   const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
   const [attachmentDirectoryError, setAttachmentDirectoryError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const attachmentsRef = useRef<PendingAttachment[]>([]);
   const [composerText, setComposerText] = useState(() =>
     currentSessionId ? useSessionStore.getState().inputDrafts[currentSessionId] || '' : '',
   );
@@ -353,9 +362,43 @@ export function InputRow() {
   const uploadControllersRef = useRef(new Map<string, AbortController>());
   const attachmentEpochRef = useRef(0);
   const activeAttachmentSessionRef = useRef<string | null>(currentSessionId);
+  const draftsBySessionRef = useRef(new Map<string, SessionComposerDraft>());
   const sendSnapshotsRef = useRef(new Map<string, SendSnapshot>());
   const recoveryBySessionRef = useRef(new Map<string, SendSnapshot>());
   const pendingRecoveryValueRef = useRef<ComposerValue | null>(null);
+
+  const rememberSessionDraft = useCallback(
+    (sessionId: string, value: ComposerValue, nextAttachments: PendingAttachment[]) => {
+      const clonedValue = cloneComposerValue(value);
+      const clonedAttachments = nextAttachments.map((attachment) => ({ ...attachment }));
+      if (
+        !clonedValue.text &&
+        clonedValue.occurrenceIds.length === 0 &&
+        clonedAttachments.length === 0
+      ) {
+        draftsBySessionRef.current.delete(sessionId);
+        return;
+      }
+      draftsBySessionRef.current.set(sessionId, {
+        value: clonedValue,
+        attachments: clonedAttachments,
+      });
+    },
+    [],
+  );
+
+  const updateAttachments = useCallback(
+    (update: AttachmentStateUpdate) => {
+      setAttachments((current) => {
+        const next = typeof update === 'function' ? update(current) : update;
+        attachmentsRef.current = next;
+        const sessionId = activeAttachmentSessionRef.current;
+        if (sessionId) rememberSessionDraft(sessionId, composerValueRef.current, next);
+        return next;
+      });
+    },
+    [rememberSessionDraft],
+  );
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
@@ -395,32 +438,47 @@ export function InputRow() {
     setAttachmentDirectoryError(null);
   };
 
-  // Restore draft when session changes. Reads from getState() so it does not
-  // depend on `inputDrafts` (which would re-run — and reset the caret — on
-  // every keystroke now that onChange persists drafts).
+  // Keep the complete composer draft (text + inline structure + attachment
+  // metadata) in the mounted InputRow, keyed by durable Session id. The
+  // session store still owns the plain-text projection for compatibility, but
+  // text alone cannot reconstruct inline occurrence ordering.
   useEffect(() => {
+    const previousSessionId = activeAttachmentSessionRef.current;
+    if (previousSessionId && previousSessionId !== currentSessionId) {
+      rememberSessionDraft(previousSessionId, composerValueRef.current, attachmentsRef.current);
+    }
+
+    attachmentEpochRef.current += 1;
+    activeAttachmentSessionRef.current = currentSessionId;
+
     const draft = currentSessionId ? useSessionStore.getState().inputDrafts[currentSessionId] : '';
+    const stored = currentSessionId ? draftsBySessionRef.current.get(currentSessionId) : undefined;
     const recovery = currentSessionId
       ? recoveryBySessionRef.current.get(currentSessionId)
       : undefined;
-    const value = recovery?.value || {
-      parts: draft
-        ? [{ type: 'text' as const, value: draft }]
-        : [{ type: 'text' as const, value: '' }],
-      text: draft || '',
-      occurrenceIds: [],
-      attachmentIds: [],
-    };
-    if (recovery) {
-      pendingRecoveryValueRef.current = value;
-      setAttachments(recovery.attachments.map((attachment) => ({ ...attachment })));
-    } else {
-      pendingRecoveryValueRef.current = null;
-      setAttachments([]);
-      composerRef.current?.replaceValue(value);
-    }
+    const value = recovery?.value ||
+      stored?.value || {
+        parts: draft
+          ? [{ type: 'text' as const, value: draft }]
+          : [{ type: 'text' as const, value: '' }],
+        text: draft || '',
+        occurrenceIds: [],
+        attachmentIds: [],
+      };
+    const restoredAttachments = recovery?.attachments || stored?.attachments || [];
+    const clonedAttachments = restoredAttachments.map((attachment) => ({ ...attachment }));
+    composerValueRef.current = cloneComposerValue(value);
+    attachmentsRef.current = clonedAttachments;
+    setAttachments(clonedAttachments);
+    pendingRecoveryValueRef.current = value.occurrenceIds.length ? cloneComposerValue(value) : null;
+    if (!pendingRecoveryValueRef.current) composerRef.current?.replaceValue(value);
     setComposerText(value.text);
-  }, [currentSessionId]);
+    return () => {
+      if (activeAttachmentSessionRef.current === currentSessionId && currentSessionId) {
+        rememberSessionDraft(currentSessionId, composerValueRef.current, attachmentsRef.current);
+      }
+    };
+  }, [currentSessionId, rememberSessionDraft]);
 
   useEffect(() => {
     const pending = pendingRecoveryValueRef.current;
@@ -436,9 +494,7 @@ export function InputRow() {
 
   useEffect(() => {
     const uploadControllers = uploadControllersRef.current;
-    attachmentEpochRef.current += 1;
-    activeAttachmentSessionRef.current = currentSessionId;
-    if (!currentSessionId) setAttachments([]);
+    if (!currentSessionId) updateAttachments([]);
     setAttachmentBrowserOpen(false);
     setAttachmentMenuOpen(false);
     return () => {
@@ -446,7 +502,7 @@ export function InputRow() {
       uploadControllers.clear();
       attachmentEpochRef.current += 1;
     };
-  }, [currentSessionId]);
+  }, [currentSessionId, updateAttachments]);
 
   // The editor can be a separate route, so it hands a server path to the
   // mounted composer through a one-shot UI request. The actual attachment
@@ -466,7 +522,7 @@ export function InputRow() {
           attachmentEpochRef.current !== sessionEpoch
         )
           return;
-        setAttachments((current) => {
+        updateAttachments((current) => {
           const additions = registered.map((item) => {
             const occurrenceId = attachmentId();
             return {
@@ -493,7 +549,13 @@ export function InputRow() {
         showToast(error instanceof Error ? error.message : '服务端附件注册失败', 'error');
       });
     consumeChatAttachmentRequests(currentSessionId, requested);
-  }, [chatAttachmentRequests, consumeChatAttachmentRequests, currentSessionId, showToast]);
+  }, [
+    chatAttachmentRequests,
+    consumeChatAttachmentRequests,
+    currentSessionId,
+    showToast,
+    updateAttachments,
+  ]);
 
   useEffect(() => {
     if (!isMobile) {
@@ -566,7 +628,7 @@ export function InputRow() {
           attachment.file,
           (loaded, total) => {
             if (!isLive()) return;
-            setAttachments((current) =>
+            updateAttachments((current) =>
               current.map((item) =>
                 attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
                   ? { ...item, loadedBytes: loaded, totalBytes: total }
@@ -577,7 +639,7 @@ export function InputRow() {
           controller.signal,
         );
         if (!isLive()) return;
-        setAttachments((current) =>
+        updateAttachments((current) =>
           current.map((item) =>
             attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
               ? {
@@ -598,7 +660,7 @@ export function InputRow() {
         );
       } catch (error) {
         if (!isLive()) return;
-        setAttachments((current) =>
+        updateAttachments((current) =>
           current.map((item) =>
             attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
               ? {
@@ -615,7 +677,7 @@ export function InputRow() {
         }
       }
     },
-    [currentSessionId],
+    [currentSessionId, updateAttachments],
   );
 
   const queueClientFiles = useCallback(
@@ -646,11 +708,11 @@ export function InputRow() {
         }))
         .map((attachment) => ({ ...attachment, id: attachment.occurrenceId }));
       if (added.length === 0) return [];
-      setAttachments((current) => [...current, ...added]);
+      updateAttachments((current) => [...current, ...added]);
       void Promise.all(added.map((attachment) => uploadClientAttachment(attachment)));
       return added.map((attachment) => attachment.id);
     },
-    [attachments, currentSessionId, uploadClientAttachment],
+    [attachments, currentSessionId, updateAttachments, uploadClientAttachment],
   );
 
   const handleClientFiles = useCallback(
@@ -690,9 +752,10 @@ export function InputRow() {
           recoveryBySessionRef.current.delete(currentSessionId);
         }
         setInputDraft(currentSessionId, value.text);
+        rememberSessionDraft(currentSessionId, value, attachmentsRef.current);
       }
     },
-    [currentSessionId, setInputDraft],
+    [currentSessionId, rememberSessionDraft, setInputDraft],
   );
 
   const handleAttachmentDrop = useCallback(
@@ -714,7 +777,7 @@ export function InputRow() {
       const occurrenceId = attachmentId();
       const remoteId = payload.serverAttachmentId || uploadAttachmentIdFromHref(payload.href);
       const needsRegistration = !remoteId && !!payload.path;
-      setAttachments((current) => [
+      updateAttachments((current) => [
         ...current,
         {
           occurrenceId,
@@ -740,7 +803,7 @@ export function InputRow() {
               attachmentEpochRef.current !== sessionEpoch
             )
               return;
-            setAttachments((current) =>
+            updateAttachments((current) =>
               current.map((item) =>
                 attachmentOccurrenceId(item) === occurrenceId
                   ? {
@@ -763,7 +826,7 @@ export function InputRow() {
               attachmentEpochRef.current !== sessionEpoch
             )
               return;
-            setAttachments((current) =>
+            updateAttachments((current) =>
               current.map((item) =>
                 attachmentOccurrenceId(item) === occurrenceId
                   ? {
@@ -778,16 +841,19 @@ export function InputRow() {
       }
       return occurrenceId;
     },
-    [attachments, currentSessionId, showToast],
+    [attachments, currentSessionId, showToast, updateAttachments],
   );
 
-  const handleRemoveComposerAttachment = useCallback((attachmentIdToRemove: string) => {
-    uploadControllersRef.current.get(attachmentIdToRemove)?.abort();
-    uploadControllersRef.current.delete(attachmentIdToRemove);
-    setAttachments((current) =>
-      current.filter((attachment) => attachmentOccurrenceId(attachment) !== attachmentIdToRemove),
-    );
-  }, []);
+  const handleRemoveComposerAttachment = useCallback(
+    (attachmentIdToRemove: string) => {
+      uploadControllersRef.current.get(attachmentIdToRemove)?.abort();
+      uploadControllersRef.current.delete(attachmentIdToRemove);
+      updateAttachments((current) =>
+        current.filter((attachment) => attachmentOccurrenceId(attachment) !== attachmentIdToRemove),
+      );
+    },
+    [updateAttachments],
+  );
 
   const restoreSubmission = useCallback(
     (snapshot: SendSnapshot) => {
@@ -817,7 +883,7 @@ export function InputRow() {
       const value = hasCurrentInput
         ? appendComposerValues(current, snapshot.value)
         : cloneComposerValue(snapshot.value);
-      setAttachments((currentAttachments) => {
+      updateAttachments((currentAttachments) => {
         const existingIds = new Set(currentAttachments.map(attachmentOccurrenceId));
         const additions = snapshot.attachments
           .filter((attachment) => !existingIds.has(attachmentOccurrenceId(attachment)))
@@ -840,7 +906,7 @@ export function InputRow() {
       // both the merged text and every attachment occurrence.
       recoveryBySessionRef.current.set(snapshot.sessionId, { ...snapshot, value });
     },
-    [attachments, setInputDraft],
+    [attachments, setInputDraft, updateAttachments],
   );
 
   const handleSend = useCallback(
@@ -975,7 +1041,7 @@ export function InputRow() {
       // cleared or restored by the old request.
       composerRef.current?.replaceValue(emptyComposerValue());
       setInputDraft(currentSessionId, '');
-      setAttachments((current) =>
+      updateAttachments((current) =>
         current.filter(
           (attachment) =>
             !snapshotAttachments.some(
@@ -1027,6 +1093,7 @@ export function InputRow() {
       setInputDraft,
       enqueue,
       attachments,
+      updateAttachments,
       restoreSubmission,
       setAttachmentDirectoryError,
       setAttachmentBrowserPath,
@@ -1080,7 +1147,22 @@ export function InputRow() {
     currentSession?.adapter === 'codex' &&
     currentWorker?.status === 'running' &&
     !!currentWorker.id;
-  const clientAttachments = attachments.filter((attachment) => !!attachment.file);
+  // During the render between a Session id change and its restoration effect,
+  // the React state still contains the previous Session's value. Never expose
+  // that transient state in the new Session's composer or attachment chips.
+  const sessionDraft = currentSessionId
+    ? draftsBySessionRef.current.get(currentSessionId)
+    : undefined;
+  const sessionAttachments =
+    activeAttachmentSessionRef.current === currentSessionId
+      ? attachments
+      : (sessionDraft?.attachments ?? []);
+  const sessionComposerText =
+    activeAttachmentSessionRef.current === currentSessionId
+      ? composerText
+      : (sessionDraft?.value.text ??
+        (currentSessionId ? useSessionStore.getState().inputDrafts[currentSessionId] || '' : ''));
+  const clientAttachments = sessionAttachments.filter((attachment) => !!attachment.file);
   const uploadTotalBytes = clientAttachments.reduce(
     (total, attachment) => total + (attachment.totalBytes ?? attachment.file?.size ?? 0),
     0,
@@ -1104,9 +1186,9 @@ export function InputRow() {
     : clientAttachments.some((attachment) => attachment.status === 'error')
       ? '失败'
       : '已完成';
-  const attachmentsBlocked = attachments.some((attachment) => attachment.status !== 'ready');
+  const attachmentsBlocked = sessionAttachments.some((attachment) => attachment.status !== 'ready');
   const embeddedAttachmentIds = new Set(composerValueRef.current.occurrenceIds);
-  const visibleAttachmentChips = attachments.filter(
+  const visibleAttachmentChips = sessionAttachments.filter(
     (attachment) => !embeddedAttachmentIds.has(attachmentOccurrenceId(attachment)),
   );
 
@@ -1350,7 +1432,7 @@ export function InputRow() {
                       aria-label={`重试上传 ${attachment.displayName}`}
                       onClick={() => {
                         if (attachment.file) {
-                          setAttachments((current) =>
+                          updateAttachments((current) =>
                             current.map((item) =>
                               attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
                                 ? { ...item, status: 'uploading', error: undefined }
@@ -1364,7 +1446,7 @@ export function InputRow() {
                           const retrySessionId = currentSessionId;
                           const retryEpoch = attachmentEpochRef.current;
                           if (!retrySessionId) return;
-                          setAttachments((current) =>
+                          updateAttachments((current) =>
                             current.map((item) =>
                               attachmentOccurrenceId(item) === attachmentOccurrenceId(attachment)
                                 ? { ...item, status: 'registering', error: undefined }
@@ -1381,7 +1463,7 @@ export function InputRow() {
                                 attachmentEpochRef.current !== retryEpoch
                               )
                                 return;
-                              setAttachments((current) =>
+                              updateAttachments((current) =>
                                 current.map((item) =>
                                   attachmentOccurrenceId(item) ===
                                   attachmentOccurrenceId(attachment)
@@ -1403,7 +1485,7 @@ export function InputRow() {
                                 attachmentEpochRef.current !== retryEpoch
                               )
                                 return;
-                              setAttachments((current) =>
+                              updateAttachments((current) =>
                                 current.map((item) =>
                                   attachmentOccurrenceId(item) ===
                                   attachmentOccurrenceId(attachment)
@@ -1435,7 +1517,7 @@ export function InputRow() {
                     onClick={() => {
                       uploadControllersRef.current.get(attachmentOccurrenceId(attachment))?.abort();
                       uploadControllersRef.current.delete(attachmentOccurrenceId(attachment));
-                      setAttachments((current) =>
+                      updateAttachments((current) =>
                         current.filter(
                           (item) =>
                             attachmentOccurrenceId(item) !== attachmentOccurrenceId(attachment),
@@ -1482,7 +1564,7 @@ export function InputRow() {
                       )
                         return;
                       const occurrenceId = attachmentId();
-                      setAttachments((current) => [
+                      updateAttachments((current) => [
                         ...current,
                         {
                           occurrenceId,
@@ -1554,8 +1636,8 @@ export function InputRow() {
             <RichTextComposer
               key={currentSessionId || 'no-session'}
               ref={composerRef}
-              initialText={composerText}
-              attachments={attachments.map(
+              initialText={sessionComposerText}
+              attachments={sessionAttachments.map(
                 ({
                   id,
                   occurrenceId,

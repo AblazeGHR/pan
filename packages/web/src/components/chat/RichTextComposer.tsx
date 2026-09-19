@@ -1110,7 +1110,12 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         commitReplacement(offsets.start, offsets.end, [attachmentPart(occurrenceId)]);
         return;
       }
-      const native = inspectNativeAttachmentInput(dataTransfer);
+      // A clipboard path/URL is text, not proof that a file was selected.
+      // Keep the stricter path/URI classification for drag-and-drop, while
+      // paste only treats real File payloads as attachment input.
+      const native = inspectNativeAttachmentInput(dataTransfer, {
+        treatTextOnlyAsPlainText: true,
+      });
       const html = dataTransfer?.getData?.('text/html') || '';
       const richText = html ? safePlainTextFromHtml(html) : '';
       if (html && native.kind !== 'files') {
@@ -1124,7 +1129,16 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
         ]);
         return;
       }
-      if (native.kind === 'none') return;
+      if (native.kind === 'none') {
+        const plainText = dataTransfer?.getData?.('text/plain') || '';
+        if (!plainText) return;
+        event.preventDefault();
+        const root = editorRef.current;
+        const offsets = root ? selectedOffsets(root) : null;
+        if (!root || !offsets) return;
+        commitReplacement(offsets.start, offsets.end, [{ type: 'text', value: plainText }]);
+        return;
+      }
       event.preventDefault();
       if (native.kind === 'files') {
         const root = editorRef.current;
@@ -1137,7 +1151,12 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
           commitReplacement(start, end, ids.map(attachmentPart));
         }
       } else {
-        onNativeInputIssue?.(native.kind);
+        const plainText = dataTransfer?.getData?.('text/plain') || '';
+        if (!plainText) return;
+        const root = editorRef.current;
+        const offsets = root ? selectedOffsets(root) : null;
+        if (!root || !offsets) return;
+        commitReplacement(offsets.start, offsets.end, [{ type: 'text', value: plainText }]);
       }
     };
 
