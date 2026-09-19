@@ -71,6 +71,9 @@ export interface Session {
   systemPrompt?: string | null;
   workerStatus?: string | null;
   workerId?: string | null;
+  workerGeneration?: number | null;
+  workerTaskId?: string | null;
+  workerTaskSeq?: number | null;
   /** Last Worker state confirmed through an explicit Pan lifecycle action. */
   lastLegalWorkerState?: string | null;
   /** Id of the managing (parent) session; absent/null means unmanaged. */
@@ -99,8 +102,13 @@ export interface Session {
   activeTaskId?: string | null;
   historyTruncated?: boolean;
   historyTotal?: number;
-  /** Last history message text (summary=1 endpoint, truncated ~200 chars). */
+  /** Raw bounded display preview (summary=1 endpoint, truncated ~200 chars). */
   lastMessage?: string;
+  /** Monotonic backend summary projection version. */
+  summaryRevision?: number;
+  lastUserPreview?: string;
+  lastAssistantPreview?: string;
+  lastDisplayPreview?: string;
   /** Explicit worker execution mode for this session: "stream" / "oneshot" / null(unset). */
   outputMode?: string | null;
   lastResult?: Record<string, unknown> | null;

@@ -278,7 +278,11 @@ def test_live_result_and_stream_projection_match_history_projection(monkeypatch,
     first.last_result = {"status": "done", "result": content}
     api = srv._session_to_api(first)
     assert "/api/attachments/editor/att_" in api["lastResult"]["result"]
-    assert "/api/attachments/editor/att_" in srv._session_summary(first)["lastMessage"]
+    # Summary previews are deliberately raw/bounded. Attachment/editor
+    # projection remains limited to history/full-result views because summary
+    # GET must not touch the registry or stat local paths.
+    assert srv._session_summary(first)["lastMessage"] == content
+    assert "/api/attachments/editor/att_" not in srv._session_summary(first)["lastMessage"]
 
 
 def test_attachment_source_rejects_relative_workdir_escape(tmp_path):
