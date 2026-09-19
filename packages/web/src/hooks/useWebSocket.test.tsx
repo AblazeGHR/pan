@@ -10,6 +10,7 @@ import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore
 import type { Session, Message } from '@/types';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { SessionItem } from '@/components/session/SessionItem';
+import { getMessageIdentity } from '@/utils/messageIdentity';
 
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
 const wsMock = vi.hoisted(() => {
@@ -105,6 +106,7 @@ describe('useWebSocket worker.result wiring', () => {
       _historyRefreshSeq: {},
       liveStreamBuffers: {},
       terminalWatermarks: {},
+      sessionUnread: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
@@ -1231,6 +1233,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       _sessionWsTouchedSeq: {},
       liveStreamBuffers: {},
       terminalWatermarks: {},
+      sessionUnread: {},
     });
     vi.useFakeTimers();
   });
@@ -1386,6 +1389,75 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(useSessionStore.getState().currentMessages).toEqual([
       { role: 'assistant', content: 'Hello!' },
     ]);
+  });
+
+  it('keeps the same display identity across id-less streaming deltas', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          part: { type: 'text', text: 'Hel' },
+        },
+      });
+    });
+    const first = useSessionStore.getState().currentMessages.at(-1)!;
+    const firstIdentity = getMessageIdentity(first);
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          part: { type: 'text', text: 'lo' },
+        },
+      });
+    });
+    const second = useSessionStore.getState().currentMessages.at(-1)!;
+    expect(second.content).toBe('Hello');
+    expect(getMessageIdentity(second)).toBe(firstIdentity);
+  });
+
+  it('gives separate display identities to blocks from one native item', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        event: {
+          type: 'assistant', item_id: 'compound-item',
+          message: { content: [
+            { type: 'thinking', thinking: 'plan' },
+            { type: 'text', text: 'answer' },
+            { type: 'tool_use', name: 'Command', input: { command: 'true' } },
+          ] },
+        },
+      });
+    });
+
+    const messages = useSessionStore.getState().currentMessages;
+    expect(messages).toHaveLength(3);
+    expect(new Set(messages.map(getMessageIdentity)).size).toBe(3);
+  });
+
+  it('records background stream unread state on its own session', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'B', workerId: 'w1',
+        event: {
+          type: 'content.part', role: 'thinking', delta: true,
+          part: { type: 'think', think: 'background plan' },
+        },
+      });
+    });
+
+    const unread = useSessionStore.getState().sessionUnread;
+    expect(unread.A).toBeUndefined();
+    expect(unread.B).toEqual(new Set(['background plan']));
   });
 
   it('converges a delta that arrives after its turn item completed under another native id', () => {

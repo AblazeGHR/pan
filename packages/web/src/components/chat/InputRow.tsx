@@ -362,6 +362,7 @@ export function InputRow() {
   const [composerText, setComposerText] = useState(() =>
     currentSessionId ? useSessionStore.getState().inputDrafts[currentSessionId] || '' : '',
   );
+  const [composerOccurrenceIds, setComposerOccurrenceIds] = useState<string[]>([]);
   const clientAttachmentInputRef = useRef<HTMLInputElement>(null);
   const uploadControllersRef = useRef(new Map<string, AbortController>());
   const attachmentEpochRef = useRef(0);
@@ -419,7 +420,8 @@ export function InputRow() {
   const config = useAdapterStore((s) => s.getConfig());
   const loadConfig = useAdapterStore((s) => s.loadConfig);
   const applySettings = useAdapterStore((s) => s.applySettings);
-  const { loadSessions, patchSessionSettings } = useSessionStore();
+  const loadSessions = useSessionStore((s) => s.loadSessions);
+  const patchSessionSettings = useSessionStore((s) => s.patchSessionSettings);
 
   useEffect(() => {
     if (currentSession) {
@@ -486,6 +488,7 @@ export function InputRow() {
     pendingRecoveryValueRef.current = value.occurrenceIds.length ? cloneComposerValue(value) : null;
     if (!pendingRecoveryValueRef.current) composerRef.current?.replaceValue(value);
     setComposerText(value.text);
+    setComposerOccurrenceIds([...value.occurrenceIds]);
     return () => {
       if (activeAttachmentSessionRef.current === currentSessionId && currentSessionId) {
         rememberSessionDraft(currentSessionId, composerValueRef.current, attachmentsRef.current);
@@ -755,6 +758,12 @@ export function InputRow() {
     (value: ComposerValue) => {
       composerValueRef.current = value;
       setComposerText(value.text);
+      setComposerOccurrenceIds((current) =>
+        current.length === value.occurrenceIds.length
+          && current.every((occurrenceId, index) => occurrenceId === value.occurrenceIds[index])
+          ? current
+          : [...value.occurrenceIds],
+      );
       if (currentSessionId) {
         const recovery = recoveryBySessionRef.current.get(currentSessionId);
         if (
@@ -1200,7 +1209,7 @@ export function InputRow() {
       ? '失败'
       : '已完成';
   const attachmentsBlocked = sessionAttachments.some((attachment) => attachment.status !== 'ready');
-  const embeddedAttachmentIds = new Set(composerValueRef.current.occurrenceIds);
+  const embeddedAttachmentIds = new Set(composerOccurrenceIds);
   const visibleAttachmentChips = sessionAttachments.filter(
     (attachment) => !embeddedAttachmentIds.has(attachmentOccurrenceId(attachment)),
   );
@@ -1650,6 +1659,7 @@ export function InputRow() {
                   attachmentIds: [],
                 };
                 setComposerText(text);
+                setComposerOccurrenceIds([]);
                 composerRef.current?.replaceText(text);
                 if (currentSessionId) setInputDraft(currentSessionId, text);
               }}
