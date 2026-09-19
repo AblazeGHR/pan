@@ -109,7 +109,7 @@ describe('New Session directory input', () => {
     render(<NewSessionModal open onClose={() => {}} />);
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\app' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('Session 1', 'D:\\workspace\\app', 'cbc', undefined, { outputMode: undefined }));
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('session-1', 'D:\\workspace\\app', 'cbc', undefined, { outputMode: undefined }));
     expect(apiMock.fetchDirectories).toHaveBeenLastCalledWith('D:\\workspace\\app');
   });
 
@@ -118,8 +118,9 @@ describe('New Session directory input', () => {
     apiMock.fetchDirectories.mockRejectedValue(new Error('HTTP 404: Not Found'));
     render(<NewSessionModal open onClose={() => {}} />);
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\new' } });
+    await waitFor(() => expect(screen.getByTestId('directory-error').textContent).toBe('当前目录非法'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(screen.getByText('目录不存在，是否创建？')).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '创建工作目录' }).textContent).toContain('目录不存在，是否创建？'));
     fireEvent.click(screen.getByRole('button', { name: '取消' }));
     expect(apiMock.createDirectory).not.toHaveBeenCalled();
     expect(createNewSession).not.toHaveBeenCalled();
@@ -131,8 +132,9 @@ describe('New Session directory input', () => {
     apiMock.createDirectory.mockRejectedValue(new Error('HTTP 403: Forbidden'));
     render(<NewSessionModal open onClose={() => {}} />);
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\new' } });
+    await waitFor(() => expect(screen.getByTestId('directory-error').textContent).toBe('当前目录非法'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => screen.getByText('目录不存在，是否创建？'));
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '创建工作目录' }).textContent).toContain('目录不存在，是否创建？'));
     fireEvent.click(screen.getByRole('button', { name: '创建目录' }));
     await waitFor(() => expect(showToast).toHaveBeenCalledWith('HTTP 403: Forbidden', 'error'));
     expect(createNewSession).not.toHaveBeenCalled();
@@ -143,11 +145,12 @@ describe('New Session directory input', () => {
     apiMock.fetchDirectories.mockRejectedValue(new Error('HTTP 404: Not Found'));
     render(<NewSessionModal open onClose={() => {}} />);
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\new' } });
+    await waitFor(() => expect(screen.getByTestId('directory-error').textContent).toBe('当前目录非法'));
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => screen.getByText('目录不存在，是否创建？'));
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '创建工作目录' }).textContent).toContain('目录不存在，是否创建？'));
     fireEvent.click(screen.getByRole('button', { name: '创建目录' }));
     await waitFor(() => expect(apiMock.createDirectory).toHaveBeenCalledWith('D:\\workspace\\new'));
-    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('Session 1', 'D:\\workspace\\new', 'cbc', undefined, { outputMode: undefined }));
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('session-1', 'D:\\workspace\\new', 'cbc', undefined, { outputMode: undefined }));
   });
 
   it('keeps adapter availability and mobile dialog guards intact', () => {
