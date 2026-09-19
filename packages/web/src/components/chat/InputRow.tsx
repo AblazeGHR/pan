@@ -409,6 +409,7 @@ export function InputRow() {
     const e = s.edits[currentSessionId];
     return (q ? q.length : 0) + (e ? 1 : 0);
   });
+  const queuedWhileBusy = currentSession?.workerStatus === 'running' && queueCount > 0;
 
   // ── Adapter settings ──
   const config = useAdapterStore((s) => s.getConfig());
@@ -1251,6 +1252,15 @@ export function InputRow() {
                   />
                 </div>
                 <div className="relative">
+                  {queuedWhileBusy && (
+                    <span
+                      data-testid="queued-while-busy"
+                      className="mr-1 hidden text-xs text-accent md:inline"
+                      title="Worker 正在处理上一条任务，当前消息将在之后处理"
+                    >
+                      排队中
+                    </span>
+                  )}
                   <button
                     onClick={togglePanel}
                     title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}

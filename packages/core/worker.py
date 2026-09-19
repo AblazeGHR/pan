@@ -881,7 +881,7 @@ async def _persist_terminal_state(
 
 async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
     """Publish result then idle, without waiting for usage enrichment."""
-    completion_notification = _notifications.dispatch_completion(
+    completion_notification = _notifications.dispatch_completion_nonblocking(
         s, terminal["status"], terminal["result"],
     )
     await _bcast({

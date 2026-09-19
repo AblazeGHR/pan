@@ -1,3 +1,5 @@
+import asyncio
+import time
 from datetime import datetime, timedelta, timezone
 import base64
 
@@ -53,6 +55,33 @@ def test_done_dispatch_browser_payload_and_system_failure_is_nonfatal(monkeypatc
     assert sent[0][0].startswith("Pan:")
     assert notifications.dispatch_completion(s, "error", "failed") is None
     notifications.set_system_sender(notifications.default_system_sender)
+
+
+def test_nonblocking_completion_does_not_wait_for_slow_system_sender():
+    s = session.Session("ses_async_notify", "Async notify", notification_settings={"browser": True, "system": True})
+    calls = []
+
+    def slow_sender(title, body):
+        time.sleep(0.15)
+        calls.append((title, body))
+        return {"ok": True}
+
+    notifications.set_system_sender(slow_sender)
+    try:
+        async def scenario():
+            started = time.monotonic()
+            payload = notifications.dispatch_completion_nonblocking(s, "done", "finished")
+            elapsed = time.monotonic() - started
+            await asyncio.sleep(0.25)
+            return payload, elapsed
+
+        payload, elapsed = asyncio.run(scenario())
+        assert elapsed < 0.1
+        assert payload["browser"] is True
+        assert payload["system"] == {"ok": True, "method": "background"}
+        assert len(calls) == 1
+    finally:
+        notifications.set_system_sender(notifications.default_system_sender)
 
 
 def test_windows_sender_success_passes_normalized_args_without_real_notification(monkeypatch):

@@ -5,6 +5,7 @@ import type { StreamEvent } from '@/types';
 const MAX_RETRY_DELAY = 30_000;
 const BASE_RETRY_DELAY = 1_000;
 const HEARTBEAT_INTERVAL = 30_000;
+const SILENT_CONNECTION_TIMEOUT = HEARTBEAT_INTERVAL * 3;
 
 type MessageHandler = (event: StreamEvent) => void;
 
@@ -18,6 +19,7 @@ class WsClient {
   private handlers = new Map<string, Set<MessageHandler>>();
   private retryAttempt = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private silentWatchdogTimer: ReturnType<typeof setInterval> | null = null;
   private url: string;
   private lastActivityAt = 0;
 
@@ -36,6 +38,7 @@ class WsClient {
       this.retryAttempt = 0;
       this.lastActivityAt = Date.now();
       this.startHeartbeat();
+      this.startSilentWatchdog();
       this.emit('open', { type: 'open' });
     };
 
@@ -69,11 +72,13 @@ class WsClient {
       this.ws = null;
     }
     this.stopHeartbeat();
+    this.stopSilentWatchdog();
     this.lastActivityAt = 0;
   }
 
   /** Replaces only this client's stale socket; subscribers remain attached. */
   reconnect(): void {
+    if (this.ws?.readyState === WebSocket.CONNECTING) return;
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;
@@ -83,6 +88,7 @@ class WsClient {
       this.ws = null;
     }
     this.stopHeartbeat();
+    this.stopSilentWatchdog();
     this.lastActivityAt = 0;
     this.connect();
   }
@@ -151,6 +157,26 @@ class WsClient {
         this.ws.send(JSON.stringify({ type: 'ping' }));
       }
     }, HEARTBEAT_INTERVAL);
+  }
+
+  private startSilentWatchdog(): void {
+    this.stopSilentWatchdog();
+    this.silentWatchdogTimer = setInterval(() => {
+      if (this.ws?.readyState !== WebSocket.OPEN || this.lastActivityAt <= 0) return;
+      if (Date.now() - this.lastActivityAt > SILENT_CONNECTION_TIMEOUT) {
+        // A socket can remain OPEN after the server or an intermediary stopped
+        // forwarding frames. Reconnect here as a single flight; focus and
+        // visibility recovery continue to share the same wsClient backoff.
+        this.reconnect();
+      }
+    }, HEARTBEAT_INTERVAL);
+  }
+
+  private stopSilentWatchdog(): void {
+    if (this.silentWatchdogTimer) {
+      clearInterval(this.silentWatchdogTimer);
+      this.silentWatchdogTimer = null;
+    }
   }
 
   private stopHeartbeat(): void {

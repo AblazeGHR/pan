@@ -137,20 +137,23 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     set((state) => ({
       agentQueueLoadSeq: { ...state.agentQueueLoadSeq, [sessionId]: requestSeq },
     }));
-    try {
-      const items = await fetchSessionQueue(sessionId);
-      if (get().agentQueueLoadSeq[sessionId] !== requestSeq) return;
-      const currentRevision = get().queueRevisions[sessionId];
-      if (
-        items.queueRevision !== undefined &&
-        currentRevision !== undefined &&
-        items.queueRevision < currentRevision
-      )
-        return;
-      setSnapshot(set, sessionId, items, items.queueRevision);
-    } catch {
-      // Preserve the last authoritative snapshot; reconnect/session switch retries.
-    }
+    const request = (async () => {
+      try {
+        const items = await fetchSessionQueue(sessionId);
+        if (get().agentQueueLoadSeq[sessionId] !== requestSeq) return;
+        const currentRevision = get().queueRevisions[sessionId];
+        if (
+          items.queueRevision !== undefined &&
+          currentRevision !== undefined &&
+          items.queueRevision < currentRevision
+        )
+          return;
+        setSnapshot(set, sessionId, items, items.queueRevision);
+      } catch {
+        // Preserve the last authoritative snapshot; reconnect/session switch retries.
+      }
+    })();
+    await request;
   },
 
   applyQueueEvent: (event) => {
@@ -225,6 +228,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
         ? current
         : [...current, result.item];
       setSnapshot(set, sid, next, result.queueRevision);
+      useSessionStore.getState().appendQueuedMessage(sid, result.item);
       useUIStore.getState().showToast('消息已进入服务端队列');
       return true;
     } catch (error) {

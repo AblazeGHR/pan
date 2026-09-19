@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import platform
 import base64
+import asyncio
 import shutil
 import subprocess
 from typing import Callable
@@ -120,25 +121,49 @@ def set_system_sender(sender: Callable[[str, str], dict]) -> None:
     _system_sender = sender
 
 
-def dispatch_completion(session, status: str, result: str) -> dict | None:
-    """Build browser payload and best-effort system delivery for a done task."""
+def _completion_parts(session, status: str, result: str) -> tuple[dict | None, str, str, bool]:
     settings = normalize_notification_settings(getattr(session, "notification_settings", None))
     if status != "done" or not (settings["browser"] or settings["system"]):
-        return None
+        return None, "", "", False
     title = normalize_title(f"{session.name} completed")
     body = str(result or "Task completed")
-    system = None
-    if settings["system"]:
-        try:
-            system = _system_sender(title, body)
-        except Exception as exc:  # notification failure must not fail completion
-            system = {"ok": False, "code": "system_notification_failed", "message": str(exc)}
     return {
         "title": title,
         "body": body,
         "browser": settings["browser"],
-        "system": system,
-    }
+        "system": None,
+    }, title, body, settings["system"]
+
+
+def dispatch_completion_nonblocking(session, status: str, result: str) -> dict | None:
+    """Return the browser event now and run the OS sender off the event loop."""
+    payload, title, body, needs_system = _completion_parts(session, status, result)
+    if payload is None:
+        return None
+    if needs_system:
+        async def send_in_background() -> None:
+            try:
+                await asyncio.to_thread(_system_sender, title, body)
+            except Exception:
+                # Desktop delivery is best effort and must never affect the
+                # already-persisted terminal result or its broadcasts.
+                return
+        asyncio.create_task(send_in_background())
+        payload["system"] = {"ok": True, "method": "background"}
+    return payload
+
+
+def dispatch_completion(session, status: str, result: str) -> dict | None:
+    """Build browser payload and best-effort system delivery for a done task."""
+    payload, title, body, needs_system = _completion_parts(session, status, result)
+    if payload is None:
+        return None
+    if needs_system:
+        try:
+            payload["system"] = _system_sender(title, body)
+        except Exception as exc:  # notification failure must not fail completion
+            payload["system"] = {"ok": False, "code": "system_notification_failed", "message": str(exc)}
+    return payload
 
 
 def dispatch_reminder(title: object, body: object) -> dict:

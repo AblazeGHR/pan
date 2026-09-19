@@ -126,6 +126,12 @@ def main() -> None:
         )
         return {"ok": True}
 
+    @server_module.app.post("/__e2e/broadcast")
+    async def e2e_broadcast(payload: dict = Body(...)):
+        """Inject an arbitrary dashboard event through the real WS fan-out."""
+        await server_module.broadcast(dict(payload["event"]))
+        return {"ok": True}
+
     RUNTIME.mkdir(parents=True, exist_ok=True)
     (RUNTIME / "server-identity.json").write_text(
         json.dumps(

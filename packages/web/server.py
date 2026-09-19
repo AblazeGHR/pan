@@ -570,6 +570,15 @@ async def _send_ws(ws: WebSocket, data: dict):
     await asyncio.wait_for(ws.send_json(data), timeout=2)
 
 
+async def _close_slow_dashboard(ws: WebSocket) -> None:
+    """Tell a dashboard client why it is being evicted before removing it."""
+    try:
+        await ws.close(code=1013, reason="dashboard client too slow")
+    except Exception:
+        # The socket may already have disappeared while send_json timed out.
+        pass
+
+
 def _project_worker_event(data: dict) -> dict:
     """Project local Markdown links before exposing a Worker event to UI.
 
@@ -650,6 +659,11 @@ async def broadcast(data: dict):
         for ws, exc in zip(clients, results):
             if exc is not None:
                 dead.add(ws)
+        if dead:
+            await asyncio.gather(
+                *[_close_slow_dashboard(ws) for ws in dead],
+                return_exceptions=True,
+            )
     ws_clients.difference_update(dead)
 
     etype = data.get("type", "")
@@ -2984,7 +2998,12 @@ async def ws_endpoint(ws: WebSocket):
                 continue
 
             msg_type = msg.get("type")
-            if msg_type == "user_inject":
+            if msg_type == "ping":
+                # Browser heartbeats are application-level JSON frames. A
+                # pong updates the client's inbound activity timestamp and
+                # prevents an OPEN-but-silent connection from lingering.
+                await ws.send_json({"type": "pong"})
+            elif msg_type == "user_inject":
                 session_id = msg.get("sessionId")
                 text = msg.get("text")
                 parts = msg.get("parts")
@@ -4069,6 +4088,9 @@ async def api_update_session(session_id: str, data: dict):
     await broadcast({
         "type": "session.updated",
         "sessionId": s.id,
+        # Safe summary fields let connected routes update immediately; the
+        # debounced list refresh below remains the final reconciliation.
+        "session": _session_summary(s),
     })
     result = _session_to_api(s)
     # 进程相关字段变更（model/effort/thinking/MCP 等）：idle worker 立即
@@ -4128,6 +4150,8 @@ async def api_rename_session(session_id: str, data: dict):
         "sessionId": s.id,
         "oldName": old_name,
         "newName": new_name,
+        "name": new_name,
+        "session": _session_summary(s),
     })
     return {"sessionId": s.id, "name": new_name, "status": "renamed"}
 

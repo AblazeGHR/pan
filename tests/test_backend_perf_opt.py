@@ -242,8 +242,14 @@ def test_broadcast_slow_client_pruned_and_does_not_block_others():
     srv.agent_subscriptions.clear()
 
     class BlockingWS:
+        def __init__(self):
+            self.closed = []
+
         async def send_json(self, data):
             await asyncio.sleep(10)
+
+        async def close(self, code=None, reason=None):
+            self.closed.append((code, reason))
 
     class FastWS:
         def __init__(self):
@@ -262,6 +268,7 @@ def test_broadcast_slow_client_pruned_and_does_not_block_others():
         # 慢客户端被 2s 超时剔除；fast 立即送达，broadcast 总时长 ≈ 2s（慢客户端自己的超时）。
         assert elapsed < 4, f"slow client blocked broadcast: {elapsed:.2f}s"
         assert slow not in srv.ws_clients, "blocked client not pruned"
+        assert slow.closed == [(1013, "dashboard client too slow")]
         assert fast in srv.ws_clients and len(fast.sent) == 1
         return elapsed
 

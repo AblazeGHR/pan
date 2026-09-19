@@ -42,8 +42,15 @@ function showCodexWarningToast(): boolean {
   return useAppSettingsStore.getState().notifications.codexWarningToast;
 }
 
+const queueRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function refreshAgentQueue(sessionId?: string): void {
-  if (sessionId) void useQueueStore.getState().loadAgentQueue(sessionId);
+  if (!sessionId || queueRefreshTimers.has(sessionId)) return;
+  // Coalesce queue.item_* + worker.status bursts into one authoritative GET;
+  // the queue store also suppresses overlapping requests across callers.
+  queueRefreshTimers.set(sessionId, setTimeout(() => {
+    queueRefreshTimers.delete(sessionId);
+    void useQueueStore.getState().loadAgentQueue(sessionId);
+  }, 0));
 }
 
 /**
@@ -208,7 +215,6 @@ export function useWebSocket() {
       }));
     }
     unsubscribers.push(wsClient.on('queue.item_delivered', (e: StreamEvent) => {
-      refreshAgentQueue(e.sessionId);
       if (!e.sessionId || !Array.isArray(e.messages)) return;
       useSessionStore.getState().appendDeliveredMessages(e.sessionId, e.messages);
     }));
@@ -443,10 +449,19 @@ export function useWebSocket() {
           : e.status === 'cancelled' || e.cancelled
             ? 'cancelled'
             : 'done';
-        sessionStore.addMessage({
-          role: 'system',
-          content: `[${status.toUpperCase()}] Task completed`,
-        });
+        const resultKey = e.taskSeq === undefined
+          ? undefined
+          : `worker.result:${e.sessionId}:${e.taskSeq}`;
+        const alreadyShown = resultKey
+          ? sessionStore.currentMessages.some((message) => message.nativeItemId === resultKey)
+          : false;
+        if (!alreadyShown) {
+          sessionStore.addMessage({
+            role: 'system',
+            content: `[${status.toUpperCase()}] Task completed`,
+            ...(resultKey ? { nativeItemId: resultKey } : {}),
+          });
+        }
       }
       // 流式预览节流：result 为最终 lastMessage，先清掉该 session 未 flush 的
       // pending 文本与尾随 timer，防止其迟到覆盖 result（applyResultToSession
@@ -467,10 +482,25 @@ export function useWebSocket() {
 
     // Session events — created/deleted 也需刷新列表（否则新 session 不出现、
     // 删除的残留，需手动刷新才更新）。同样防抖合并。
-    unsubscribers.push(wsClient.on('session.renamed', () => {
+    const applySessionEvent = (e: StreamEvent): void => {
+      if (!e.sessionId) return;
+      const patch: Partial<import('@/types').Session> = e.session
+        ? { ...e.session }
+        : {};
+      if (e.type === 'session.renamed') {
+        const nextName = e.name ?? e.newName;
+        if (nextName) patch.name = nextName;
+      }
+      if (Object.keys(patch).length > 0) {
+        useSessionStore.getState().updateSession(e.sessionId, patch, true);
+      }
+    };
+    unsubscribers.push(wsClient.on('session.renamed', (e: StreamEvent) => {
+      applySessionEvent(e);
       scheduleRefreshSessions();
     }));
-    unsubscribers.push(wsClient.on('session.updated', () => {
+    unsubscribers.push(wsClient.on('session.updated', (e: StreamEvent) => {
+      applySessionEvent(e);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('session.created', () => {
@@ -504,6 +534,8 @@ export function useWebSocket() {
       streamPreviewTimers.clear();
       streamPreviewPending.clear();
       streamPreviewLastFlush.clear();
+      for (const timer of queueRefreshTimers.values()) clearTimeout(timer);
+      queueRefreshTimers.clear();
       if (recoveryTimer) clearTimeout(recoveryTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pageshow', recover);

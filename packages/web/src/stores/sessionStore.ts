@@ -47,6 +47,9 @@ interface SessionStore {
   // events actually freshened *while its own HTTP request was in flight*.
   _sessionWsTouchedSeq: Record<string, number>;
   _historyRefreshSeq: Record<string, number>;
+  _sessionLocalTouchedSeq: Record<string, number>;
+  _sessionEventPatches: Record<string, Partial<Session>>;
+  _deliveredQueueIds: Record<string, Set<string>>;
 
   // Actions
   loadSessions: () => Promise<void>;
@@ -75,9 +78,11 @@ interface SessionStore {
   setInputDraft: (id: string, draft: string) => void;
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
+  /** Show a durably queued user message before local CLI hand-off. */
+  appendQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
   /** Append user messages after the server confirms local CLI hand-off. */
   appendDeliveredMessages: (sessionId: string, msgs: Message[]) => void;
-  updateSession: (id: string, data: Partial<Session>) => void;
+  updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot?: boolean) => void;
   /** 就地更新某 session 卡片：追加结果文本到 history + lastResult + historyTotal，
    *  不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新（镜像 vanilla
    *  `_applyWorkerUpdate` 的就地更新路径）。 */
@@ -105,6 +110,49 @@ const EMPTY_UNREAD_SET: Set<string> = new Set();
  *  (see loadSessions): a value recorded during a fetch is strictly greater than
  *  the one captured when that fetch was issued. */
 let wsTouchSeq = 0;
+let localTouchSeq = 0;
+
+function sameMessage(a: Message, b: Message): boolean {
+  return a.role === b.role && a.content === b.content
+    && JSON.stringify(a.parts ?? null) === JSON.stringify(b.parts ?? null);
+}
+
+/** Keep local synthetic completion rows when a later server snapshot adds a
+ * real user turn but does not persist the browser-only [DONE] row. */
+function mergeServerHistoryPreservingLocal(local: Message[], server: Message[]): Message[] {
+  const result = [...server];
+  const localSystem = local.filter((message) => message.role === 'system');
+  for (const message of localSystem) {
+    if (result.some((candidate) => sameMessage(candidate, message))) continue;
+    const ordinal = local.slice(0, local.indexOf(message))
+      .filter((candidate) => candidate.role !== 'system').length;
+    let seen = 0;
+    let insertAt = result.length;
+    for (let index = 0; index < result.length; index++) {
+      if (result[index]!.role !== 'system' && seen >= ordinal) {
+        insertAt = index;
+        break;
+      }
+      if (result[index]!.role !== 'system') seen++;
+    }
+    result.splice(insertAt, 0, message);
+  }
+  return result;
+}
+
+function valueEqual(a: unknown, b: unknown): boolean {
+  return Array.isArray(a) || Array.isArray(b)
+    ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+    : a === b;
+}
+
+/** Compare only fields returned by summary=1; preserve the existing object
+ * reference when the server did not change any sidebar-visible value. */
+function sameSessionSnapshot(previous: Session, next: Session, server: Session): boolean {
+  return Object.keys(server).every((key) =>
+    valueEqual(previous[key as keyof Session], next[key as keyof Session]),
+  );
+}
 
 /** True when the server-reported history is a prefix of the locally-rendered
  *  history (element-wise by role+content). A stale snapshot during streaming
@@ -143,6 +191,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   _loadSeq: 0,
   _sessionWsTouchedSeq: {},
   _historyRefreshSeq: {},
+  _sessionLocalTouchedSeq: {},
+  _sessionEventPatches: {},
+  _deliveredQueueIds: {},
 
   loadSessions: async () => {
     // Reserve this refresh's sequence + snapshot the per-session WS touch
@@ -151,6 +202,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // request was in flight.
     const loadSeq = get()._loadSeq + 1;
     const touchedAtStart = get()._sessionWsTouchedSeq;
+    const localTouchedAtStart = get()._sessionLocalTouchedSeq ?? {};
+    const eventPatchesAtStart = get()._sessionEventPatches ?? {};
     set({ _loadSeq: loadSeq, sessionsLoading: true });
     try {
       // summary=1: lean list (no per-session history download). Card preview
@@ -191,13 +244,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           );
           const touchedDuringFetch =
             (s._sessionWsTouchedSeq[sid] ?? 0) > (touchedAtStart[sid] ?? 0);
+          const locallyTouchedDuringFetch =
+            (s._sessionLocalTouchedSeq?.[sid] ?? 0) > (localTouchedAtStart[sid] ?? 0);
           const snapshotIsTransientDone = sess.workerStatus === 'done';
-          if (
+          const preserveLocalWorker =
             touchedDuringFetch ||
-            (touchedBefore &&
-              (cur.workerStatus === null || snapshotIsTransientDone))
-          ) {
-            return {
+            (touchedBefore && (cur.workerStatus === null || snapshotIsTransientDone));
+          let next = sess;
+          if (preserveLocalWorker) {
+            next = {
               ...sess,
               // WS state is newer than this snapshot.  Preserve explicit null:
               // it is the destroy/crash transition, not a missing value.
@@ -211,15 +266,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // server still reports a live worker (workerStatus present): once the
           // worker is killed/crashed the summary flips workerStatus to null,
           // and a dead workerId must not keep the action buttons alive.
-          const carryWorkerId =
-            cur.workerId && sess.workerStatus ? cur.workerId : sess.workerId;
+          const carryWorkerId = preserveLocalWorker
+            ? cur.workerId
+            : (cur.workerId && sess.workerStatus ? cur.workerId : sess.workerId);
           // summary=1 omits the per-session settings — keep the current
           // session's known values (loaded on demand via the settings popover)
           // across refreshes so the pills / effort select don't flip to
           // defaults.
           if (sid === currentSessionId && cur.model) {
-            return {
-              ...sess,
+            next = {
+              ...next,
               model: sess.model ?? cur.model,
               permissionMode: sess.permissionMode ?? cur.permissionMode,
               alwaysThinkingEnabled:
@@ -228,10 +284,38 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               workdir: sess.workdir ?? cur.workdir,
               workerId: carryWorkerId,
             };
+          } else if (carryWorkerId && next.workerId !== carryWorkerId) {
+            next = { ...next, workerId: carryWorkerId };
           }
-          return carryWorkerId ? { ...sess, workerId: carryWorkerId } : sess;
+          // Result/delivery events can update a card before this request
+          // returns. Preserve those monotonic fields for this response; a
+          // later refresh still performs the final server reconciliation.
+          if (locallyTouchedDuringFetch) {
+            if ((cur.historyTotal ?? 0) > (next.historyTotal ?? 0)) {
+              next = { ...next, historyTotal: cur.historyTotal, lastMessage: cur.lastMessage };
+            } else if (cur.lastMessage && cur.lastMessage !== next.lastMessage) {
+              next = { ...next, lastMessage: cur.lastMessage };
+            }
+            if (cur.lastResult) next = { ...next, lastResult: cur.lastResult };
+          }
+          // A session event is safe to apply immediately, but its debounced
+          // snapshot may have been queued before the write reached the
+          // backend (or may be an intentionally synthetic/stale snapshot from
+          // another client). Consume the event patch once at reconciliation so
+          // that this response cannot visibly roll back the newer payload.
+          const eventPatch = s._sessionEventPatches?.[sid] ?? eventPatchesAtStart[sid];
+          if (eventPatch && Object.keys(eventPatch).length > 0) {
+            next = { ...next, ...eventPatch };
+          }
+          return sameSessionSnapshot(cur, next, sess) ? cur : next;
         });
-        return { sessions: merged };
+        const consumedEventIds = new Set(sessions.map((sess) => sess.id));
+        return {
+          sessions: merged,
+          _sessionEventPatches: Object.fromEntries(
+            Object.entries(s._sessionEventPatches ?? {}).filter(([sid]) => !consumedEventIds.has(sid)),
+          ),
+        };
       });
 
       // 服务端 order 驱动：custom 排序模式下，把服务端返回的 session 顺序
@@ -256,7 +340,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             serverHistory,
           );
           set({
-            currentMessages: keepLocal ? currentMessages : serverHistory,
+            currentMessages: keepLocal
+              ? currentMessages
+              : mergeServerHistoryPreservingLocal(currentMessages, serverHistory),
             hasMoreMessages: !!found.historyTruncated,
             historyLoadEnd: Math.max(
               0,
@@ -354,7 +440,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               }
             : x,
         ),
-        currentMessages: keepLocal ? s.currentMessages : serverHistory,
+        currentMessages: keepLocal
+          ? s.currentMessages
+          : mergeServerHistoryPreservingLocal(s.currentMessages, serverHistory),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
         initialLoading: false,
@@ -396,7 +484,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               lastMessage: lastServerMsg ? String(lastServerMsg.content).slice(0, 200) : '',
             }
           : session),
-        currentMessages: keepLocal ? s.currentMessages : serverHistory,
+        currentMessages: keepLocal
+          ? s.currentMessages
+          : mergeServerHistoryPreservingLocal(s.currentMessages, serverHistory),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
         initialLoading: false,
@@ -538,6 +628,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         s.currentSessionId === id ? null : s.currentSessionId,
       currentMessages:
         s.currentSessionId === id ? [] : s.currentMessages,
+      _deliveredQueueIds: Object.fromEntries(
+        Object.entries(s._deliveredQueueIds ?? {}).filter(([sid]) => sid !== id),
+      ),
+      _sessionLocalTouchedSeq: Object.fromEntries(
+        Object.entries(s._sessionLocalTouchedSeq ?? {}).filter(([sid]) => sid !== id),
+      ),
+      _sessionEventPatches: Object.fromEntries(
+        Object.entries(s._sessionEventPatches ?? {}).filter(([sid]) => sid !== id),
+      ),
     }));
 
     try {
@@ -562,6 +661,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ? [] : s.currentMessages,
       selectedIds: new Set(),
       multiSelectMode: false,
+      _deliveredQueueIds: Object.fromEntries(
+        Object.entries(s._deliveredQueueIds ?? {}).filter(([sid]) => !selected.has(sid)),
+      ),
+      _sessionLocalTouchedSeq: Object.fromEntries(
+        Object.entries(s._sessionLocalTouchedSeq ?? {}).filter(([sid]) => !selected.has(sid)),
+      ),
+      _sessionEventPatches: Object.fromEntries(
+        Object.entries(s._sessionEventPatches ?? {}).filter(([sid]) => !selected.has(sid)),
+      ),
     }));
     try {
       await batchDeleteSessions([...selected], cascadeIds.filter((id) => selected.has(id)));
@@ -650,8 +758,35 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
   },
 
+  appendQueuedMessage: (sessionId, item) => {
+    if (!item.id || !item.text.trim()) return;
+    const touchSeq = (localTouchSeq += 1);
+    set((s) => {
+      if (s.currentSessionId !== sessionId) return {};
+      if (s.currentMessages.some((message) => message.queueItemIds?.includes(item.id))) {
+        return {};
+      }
+      return {
+        currentMessages: [
+          ...s.currentMessages,
+          {
+            role: 'user',
+            content: item.text,
+            ...(item.parts ? { parts: item.parts } : {}),
+            queueItemIds: [item.id],
+          },
+        ],
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sessionId]: touchSeq,
+        },
+      };
+    });
+  },
+
   appendDeliveredMessages: (sessionId: string, msgs: Message[]) => {
     if (!msgs.length) return;
+    const touchSeq = (localTouchSeq += 1);
     set((s) => {
       const queueIds = (message: Message): string[] => (
         Array.isArray(message.queueItemIds)
@@ -671,23 +806,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ids.forEach((id) => existingIds.add(id));
       }
 
+      const deliveredIds = new Set(s._deliveredQueueIds?.[sessionId] ?? []);
       const sessions = s.sessions.map((session) => {
         if (session.id !== sessionId) return session;
         const history = session.history || [];
         const historyIds = new Set(
           history.flatMap((message) => queueIds(message)),
         );
+        let newlyDelivered = 0;
         // A fresh history response intentionally strips transient queue ids.
         // The current chat still has them, so use that view as an additional
         // dedupe source when a duplicate notification arrives after refresh.
-        if (session.id === s.currentSessionId) {
-          s.currentMessages.flatMap((message) => queueIds(message))
-            .forEach((id) => historyIds.add(id));
-        }
         const historyAppend = msgs.filter((message) => {
           const ids = queueIds(message);
+          if (ids.length && ids.some((id) => deliveredIds.has(id))) return false;
           if (ids.length && ids.some((id) => historyIds.has(id))) return false;
+          if (history.some((candidate) => sameMessage(candidate, message))) return false;
           ids.forEach((id) => historyIds.add(id));
+          ids.forEach((id) => deliveredIds.add(id));
+          newlyDelivered += 1;
           return true;
         });
         // summary=1 intentionally has no history. Keep it empty and update
@@ -697,7 +834,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const nextHistory = hasLoadedHistory
           ? [...history, ...historyAppend]
           : history;
-        const added = hasLoadedHistory ? historyAppend.length : msgs.length;
+        const added = hasLoadedHistory
+          ? historyAppend.length
+          : newlyDelivered;
         const last = msgs[msgs.length - 1];
         return {
           ...session,
@@ -709,6 +848,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       return {
         sessions,
+        _deliveredQueueIds: {
+          ...(s._deliveredQueueIds ?? {}),
+          [sessionId]: deliveredIds,
+        },
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sessionId]: touchSeq,
+        },
         ...(s.currentSessionId === sessionId && currentAppend.length
           ? { currentMessages: [...s.currentMessages, ...currentAppend] }
           : {}),
@@ -716,13 +863,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  updateSession: (id: string, data: Partial<Session>) => {
+  updateSession: (id: string, data: Partial<Session>, preserveOnSnapshot = false) => {
     const touchSeq = (wsTouchSeq += 1);
     set((s) => ({
       sessions: s.sessions.map((session) =>
         session.id === id ? { ...session, ...data } : session,
       ),
       _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [id]: touchSeq },
+      ...(preserveOnSnapshot
+        ? {
+            _sessionEventPatches: {
+              ...s._sessionEventPatches,
+              [id]: { ...(s._sessionEventPatches?.[id] ?? {}), ...data },
+            },
+          }
+        : {}),
     }));
   },
 
@@ -733,6 +888,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ? 'cancelled'
         : 'done';
     const result = e.result;
+    const touchSeq = (localTouchSeq += 1);
     set((s) => {
       const sessions = s.sessions.map((x) => {
         if (x.id !== id) return x;
@@ -757,9 +913,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // Card preview is summary-driven (lastMessage); keep it in sync with
           // the in-place append so the sidebar updates immediately.
           lastMessage:
-            typeof result === 'string'
+            typeof result === 'string' && result.trim()
               ? result.slice(0, 200)
-              : x.lastMessage ?? '',
+              : x.lastMessage,
           lastResult: {
             status,
             result: result ?? '',
@@ -767,7 +923,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           },
         };
       });
-      return { sessions };
+      return {
+        sessions,
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [id]: touchSeq,
+        },
+      };
     });
   },
 
@@ -811,7 +973,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const { currentSessionId } = get();
     if (!currentSessionId) return;
     set((s) => {
-      const perSession = s.sessionUnread[currentSessionId] ?? new Set();
+      const previous = s.sessionUnread[currentSessionId] ?? EMPTY_UNREAD_SET;
+      if (previous.has(content)) return {};
+      const perSession = new Set(previous);
       perSession.add(content);
       return {
         sessionUnread: {

@@ -41,7 +41,7 @@ export function ChatMessages() {
   );
 
   // Group messages: consecutive tool messages become ToolGroup
-  const grouped = groupMessages(visibleMessages);
+  const grouped = useMemo(() => groupMessages(visibleMessages), [visibleMessages]);
 
   const virtualizer = useVirtualizer({
     count: grouped.length,
