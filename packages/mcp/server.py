@@ -683,13 +683,8 @@ def session_get(session_id: str, limit: int = 0) -> dict:
     denied = _check_access(session_id)
     if denied:
         return denied
-    result = _api("GET", f"/api/sessions/{session_id}")
-    if limit and "history" in result and isinstance(result["history"], list):
-        history = result["history"]
-        result = dict(result)
-        result["history"] = history[-limit:]
-        result["historyTruncated"] = len(history) > limit
-        result["historyTotal"] = len(history)
+    query = f"?historyLimit={int(limit)}" if limit else ""
+    result = _api("GET", f"/api/sessions/{session_id}{query}")
     return _strip_usage(result)
 
 

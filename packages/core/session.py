@@ -29,6 +29,7 @@ import re
 import secrets
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
@@ -42,6 +43,17 @@ SESSION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "sessions
 # 不再每次全量重写主文件。主文件只含元数据 + 尾部 history（供人工查看/旧读者
 # 兼容），jsonl 存在时加载一律以 jsonl 为 history 权威来源。
 _MAIN_HISTORY_TAIL = 20          # 主文件内保留的尾部 history 条数（常量开销）
+# Long-running sessions must not make a metadata read or a duplicate receipt
+# check proportional to their complete conversation history.  These are
+# compatibility-preserving bounds: pending/uncertain queue rows are never
+# evicted, while completed receipt metadata may expire after this window.
+HISTORY_PAGE_MAX = 200
+ACCEPTED_INPUT_ID_MAX = 256
+QUEUE_RECEIPT_MAX_ENTRIES = 2048
+QUEUE_RECEIPT_TTL_SEC = 7 * 24 * 60 * 60
+QUEUE_IDEMPOTENCY_INDEX_MAX_ENTRIES = 4096
+QUEUE_RECEIPT_MIN_RETRY_SEC = 60.0
+_QUEUE_TERMINAL_STATES = frozenset({"sent_to_cli", "deleted"})
 # Locking contract:
 #   _STORE_LOCK serializes global Session-index operations (names, handoff,
 #   relationships, and ordering).  A _SessionSaveState serializes file writes
@@ -380,6 +392,7 @@ def append_history(s: "Session", message: dict) -> None:
 def replace_history(s: "Session", history: list[dict]) -> None:
     """Replace history and rebuild only at an explicit full-history boundary."""
     s.history = list(history or [])
+    s._history_loaded = True
     previous_revision = int(s.summary_projection.get("revision") or 0)
     s.summary_projection = _summary_projection_from_history(
         s.history,
@@ -526,6 +539,162 @@ def _read_jsonl(path: Path) -> list[dict]:
     return out
 
 
+def _receipt_timestamp(record: object) -> float:
+    """Best-effort age used only for bounded terminal-receipt retention."""
+    if not isinstance(record, dict):
+        return 0.0
+    for key in ("receiptAt", "deliveredAt", "deletedAt", "createdAt"):
+        value = record.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return 0.0
+
+
+def _bound_loaded_receipt_ledger(
+    ledger: object, pending: list | None = None,
+) -> tuple[dict, set[str]]:
+    """Keep legacy session metadata from exploding during a cold load.
+
+    This is intentionally conservative.  Rows that are not terminal, or that
+    still have a matching pending row, are retained because they may be needed
+    for crash recovery.  Only old terminal receipts are eligible for the
+    count-bound eviction; the worker performs the age/index-aware sweep before
+    the next durable queue write.
+    """
+    if not isinstance(ledger, dict):
+        return {}, set()
+    result = {
+        str(key): value for key, value in ledger.items()
+        if isinstance(key, str) and isinstance(value, dict)
+    }
+    pending_ids = set()
+    for item in pending or []:
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("queueItemId") or item.get("id")
+        if isinstance(item_id, str) and item_id:
+            pending_ids.add(item_id)
+    terminal = [
+        (key, record)
+        for key, record in result.items()
+        if record.get("deliveryState") in _QUEUE_TERMINAL_STATES
+        and key not in pending_ids
+    ]
+    overflow = len(terminal) - QUEUE_RECEIPT_MAX_ENTRIES
+    if overflow <= 0:
+        return result, set()
+    # JSON object insertion order is the only ordering available for old
+    # records without receiptAt.  Use it as a stable fallback after timestamps.
+    now = time.time()
+    eligible = [
+        value for value in terminal
+        if (now - _receipt_timestamp(value[1])) >= QUEUE_RECEIPT_MIN_RETRY_SEC
+    ]
+    ranked = sorted(
+        enumerate(eligible),
+        key=lambda pair: (_receipt_timestamp(pair[1][1]), pair[0]),
+    )
+    evicted = set()
+    for _, (key, _) in ranked[:overflow]:
+        result.pop(key, None)
+        evicted.add(key)
+    return result, evicted
+
+
+def _history_page_from_jsonl(
+    path: Path, *, before: int, limit: int,
+) -> tuple[list[dict], int]:
+    """Read one bounded history page without materializing the full JSONL."""
+    page: deque[dict] = deque(maxlen=limit)
+    total = 0
+    try:
+        with open(path, "rb") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line.decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    # Match _read_jsonl: a crash-tail half-line is not a
+                    # history row and must not change pagination positions.
+                    _newline_terminated_jsonl.discard(str(path))
+                    continue
+                if not isinstance(value, dict):
+                    continue
+                if before <= 0 or total < before:
+                    page.append(value)
+                total += 1
+    except OSError:
+        return [], 0
+    return list(page), total
+
+
+def history_page(session_id: str, *, before: int = 0,
+                 limit: int = 50) -> dict | None:
+    """Return a bounded history page while keeping cold Sessions shallow.
+
+    A fully hydrated Session is served from its in-memory history so unsaved
+    worker appends remain visible.  A shallow/cold Session reads only the
+    requested tail window from the companion JSONL and never replaces the
+    cached shallow object with the complete history.  This is the read/page
+    boundary for Manage/session-history callers; explicit ``get()`` remains the
+    compatibility full-history API.
+    """
+    try:
+        bounded_limit = max(1, min(int(limit), HISTORY_PAGE_MAX))
+    except (TypeError, ValueError):
+        bounded_limit = 50
+    try:
+        requested_before = max(0, int(before or 0))
+    except (TypeError, ValueError):
+        requested_before = 0
+
+    cached = _cache.get(session_id)
+    if cached is not None and getattr(cached, "_history_loaded", True):
+        total = len(cached.history)
+        effective_before = total if requested_before <= 0 else min(requested_before, total)
+        start = max(0, effective_before - bounded_limit)
+        page = list(cached.history[start:effective_before])
+        return {
+            "history": _strip_delivery_marks(page),
+            "total": total,
+            "hasMore": start > 0,
+            "start": start,
+        }
+
+    path = _path(session_id)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    history_path = _history_path(session_id)
+    if history_path.exists():
+        page, total = _history_page_from_jsonl(
+            history_path, before=requested_before, limit=bounded_limit,
+        )
+        effective_before = total if requested_before <= 0 else min(requested_before, total)
+        start = max(0, effective_before - min(bounded_limit, len(page)))
+    else:
+        raw_history = data.get("history")
+        rows = raw_history if isinstance(raw_history, list) else []
+        total = len(rows)
+        effective_before = total if requested_before <= 0 else min(requested_before, total)
+        start = max(0, effective_before - bounded_limit)
+        page = [item for item in rows[start:effective_before]
+                if isinstance(item, dict)]
+
+    return {
+        "history": _strip_delivery_marks(page),
+        "total": total,
+        "hasMore": start > 0,
+        "start": start,
+    }
+
+
 def _new_id() -> str:
     return "ses_" + secrets.token_hex(8)
 
@@ -603,6 +772,10 @@ class Session:
     # the retryable (queued) subset; this ledger is what makes a removed item
     # idempotent after a crash or a late client retry.
     queue_delivery_ledger: dict = field(default_factory=dict)
+    # Durable O(1) lookup from formal taskId/clientMessageId to the original
+    # queue receipt.  The worker maintains the index; old Sessions without it
+    # rebuild a bounded tail once on first idempotency access.
+    queue_idempotency_index: dict = field(default_factory=dict)
     queue_revision: int = 0
     task_seq: int = 0  # 已分配的任务序号计数（send_task 入队时自增；持久化在 session 上，跨 worker respawn 保持单调递增）
     # The latest formal assign task selected for this Session.  This is a
@@ -659,6 +832,7 @@ class Session:
                  readonly_session: bool = False,
                  queue_pending: list | None = None,
                  queue_delivery_ledger: dict | None = None,
+                 queue_idempotency_index: dict | None = None,
                  queue_revision: int = 0,
                  task_seq: int = 0,
                  active_task_id: str | None = None,
@@ -721,16 +895,45 @@ class Session:
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
-        self.queue_delivery_ledger = (
-            queue_delivery_ledger if isinstance(queue_delivery_ledger, dict) else {}
+        self.queue_delivery_ledger, evicted_receipt_ids = _bound_loaded_receipt_ledger(
+            queue_delivery_ledger, self.queue_pending,
         )
+        if isinstance(queue_idempotency_index, dict):
+            self.queue_idempotency_index = copy.deepcopy(queue_idempotency_index)
+        else:
+            self.queue_idempotency_index = {}
+        if evicted_receipt_ids:
+            # A cold-load count bound may remove old terminal bodies before
+            # worker.py gets a chance to run its age-aware sweep.  Do not
+            # leave a dangling durable index entry that would turn a removed
+            # receipt into a permanent synthetic duplicate.
+            for bucket in ("taskId", "clientMessageId"):
+                values = self.queue_idempotency_index.get(bucket)
+                if not isinstance(values, dict):
+                    continue
+                for key, entry in list(values.items()):
+                    if (isinstance(entry, dict)
+                            and entry.get("queueItemId") in evicted_receipt_ids):
+                        values.pop(key, None)
         try:
             self.queue_revision = int(queue_revision or 0)
         except (TypeError, ValueError):
             self.queue_revision = 0
         self.task_seq = task_seq
         self.active_task_id = active_task_id
-        self.accepted_input_ids = accepted_input_ids if accepted_input_ids is not None else []
+        raw_accepted_ids = accepted_input_ids if accepted_input_ids is not None else []
+        self.accepted_input_ids = list(dict.fromkeys(
+            item for item in raw_accepted_ids
+            if isinstance(item, str) and item
+        ))[-ACCEPTED_INPUT_ID_MAX:]
+        # worker.py validates/rebuilds the persisted map once, then marks this
+        # private flag.  Treat even version-1 data as not yet reconciled with
+        # queue_pending/ledger: a crash can commit those fields separately.
+        self._idempotency_index_built = False
+        self._idempotency_index_present = (
+            isinstance(queue_idempotency_index, dict)
+            and queue_idempotency_index.get("version") == 1
+        )
         self.summary_projection = (
             _normalize_summary_projection(
                 summary_projection, fallback_updated_at=updated_at,
@@ -856,6 +1059,11 @@ class Session:
             data["last_legal_worker_state"] = data.pop("lastLegalWorkerState")
         if "active_task_id" not in data and "activeTaskId" in data:
             data["active_task_id"] = data.pop("activeTaskId")
+        if "queue_idempotency_index" not in data:
+            for alias in ("queueIdempotencyIndex", "idempotency_index"):
+                if alias in data:
+                    data["queue_idempotency_index"] = data.pop(alias)
+                    break
         if "summary_projection" not in data:
             for alias in ("summaryProjection", "summary"):
                 if alias in data:
@@ -911,6 +1119,7 @@ class Session:
             "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
             "queue_delivery_ledger": self.queue_delivery_ledger,
+            "queue_idempotency_index": self.queue_idempotency_index,
             "queue_revision": self.queue_revision,
             "task_seq": self.task_seq,
             "active_task_id": self.active_task_id,
@@ -1005,7 +1214,7 @@ def _available_name(name: str, *, exclude_ids: set[str] | None = None) -> str:
     does not make its own name appear occupied.
     """
     excluded = exclude_ids or set()
-    used = {s.name for s in list_all() if s.id not in excluded}
+    used = {s.name for s in list_all(load_history=False) if s.id not in excluded}
     if name not in used:
         return name
     suffix = 1
@@ -1126,6 +1335,12 @@ def _from_data_without_history(sid: str, data: dict) -> Session:
         # as a current total.
         s.summary_projection["history_total"] = None
         s._summary_history_index = 0
+    else:
+        tail = [item for item in (raw_history or [])[-_MAIN_HISTORY_TAIL:]
+                if isinstance(item, dict)] if isinstance(raw_history, list) else []
+    # Keep the already-parsed main-file tail available to a metadata-only save
+    # without promoting the companion JSONL into resident history.
+    s._history_tail = tail
     s._history_loaded = False
     s._summary_meta_sig = _summary_metadata_signature(s)
     return s
@@ -1211,6 +1426,63 @@ def agent_level(session_id: str, *, load_history: bool = True) -> int:
     return level
 
 
+def _prepare_history_for_save(s: Session, hist_path: Path, *, force_full: bool = False) -> None:
+    """Hydrate a shallow Session before a metadata/queue save.
+
+    Summary and queue readers intentionally keep cold Sessions shallow.  A
+    later metadata mutation must not write an empty history tail over a legacy
+    main-file-only Session, nor reset the JSONL cursor.  This is a save-time
+    boundary: the explicit writer may pay the one full-history read, while
+    ordinary list/summary/history-page reads remain bounded.
+    """
+    if getattr(s, "_history_loaded", True):
+        return
+
+    # New-format metadata/queue saves need no history hydration when the
+    # shallow object has not received a history mutation.  _save_body will
+    # preserve the parsed main-file tail and leave the JSONL cursor untouched.
+    # An explicit append/replace makes s.history non-empty (or marks the
+    # Session loaded), and then takes the full save-time boundary below.
+    if hist_path.exists() and not s.history and not force_full:
+        return
+
+    pending_history = list(s.history or [])
+    if hist_path.exists():
+        recovered = _strip_delivery_marks(_read_jsonl(hist_path))
+        persisted = len(recovered)
+    else:
+        recovered = []
+        persisted = 0
+        try:
+            data = json.loads(_path(s.id).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        raw_history = data.get("history") if isinstance(data, dict) else None
+        if isinstance(raw_history, list):
+            recovered = _strip_delivery_marks(
+                [row for row in raw_history if isinstance(row, dict)]
+            )
+
+    s.history = recovered
+    s._hist_persisted = persisted
+    s._history_loaded = True
+    projection = getattr(s, "summary_projection", None)
+    if not isinstance(projection, dict) or projection.get("history_total") is None:
+        revision = (
+            int(projection.get("revision") or 0)
+            if isinstance(projection, dict) else 0
+        )
+        s.summary_projection = _summary_projection_from_history(
+            s.history, revision=revision, updated_at=s.updated_at,
+        )
+    s._summary_history_index = len(s.history)
+    # A caller may have appended to the shallow object before reaching save;
+    # preserve those rows after the on-disk baseline and let the normal
+    # incremental projection reconciliation account for them.
+    if pending_history:
+        s.history.extend(pending_history)
+
+
 def _run_persistence_ticket(state: _SessionSaveState, ticket: int,
                             enqueued_at: float, operation):
     """Run one ordered per-Session operation and always release its ticket."""
@@ -1244,6 +1516,12 @@ def _save_body(s: Session, force_full: bool = False):
     """
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
     hist_path = _history_path(s.id)
+    _prepare_history_for_save(s, hist_path, force_full=force_full)
+    shallow_existing_history = (
+        not getattr(s, "_history_loaded", True)
+        and hist_path.exists()
+        and not s.history
+    )
     # Append can happen from the event loop while this synchronous writer is
     # blocked in the filesystem.  Take both the cursor and this round's end
     # before the write, then never advance past that end.
@@ -1256,16 +1534,17 @@ def _save_body(s: Session, force_full: bool = False):
     end = len(s.history)
     # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
     # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
-    rewrite_full = force_full or start > end or not hist_path.exists()
-    if rewrite_full:
-        history_to_write = s.history[:end]
-        _write_jsonl(hist_path, history_to_write)
-    else:
-        history_to_write = s.history[start:end]
-        _append_jsonl(hist_path, history_to_write)
-    # Do not use len(s.history) here: appends that raced the write belong to
-    # the next save and must not be skipped.
-    s._hist_persisted = end
+    if not shallow_existing_history:
+        rewrite_full = force_full or start > end or not hist_path.exists()
+        if rewrite_full:
+            history_to_write = s.history[:end]
+            _write_jsonl(hist_path, history_to_write)
+        else:
+            history_to_write = s.history[start:end]
+            _append_jsonl(hist_path, history_to_write)
+        # Do not use len(s.history) here: appends that raced the write belong
+        # to the next save and must not be skipped.
+        s._hist_persisted = end
 
     # 元数据变化 → 重写主文件（元数据 + 尾部 history，常量序列化开销）。
     # 写临时文件 + os.replace 原子替换：主文件写一半崩溃也不会损坏
@@ -1273,7 +1552,10 @@ def _save_body(s: Session, force_full: bool = False):
     if force_full or meta_sig != getattr(s, "_last_meta_sig", None):
         d = s.to_dict()
         d.pop("system_prompt")  # derived API/export alias is not durable state
-        d["history"] = s.history[-_MAIN_HISTORY_TAIL:]
+        d["history"] = (
+            getattr(s, "_history_tail", [])
+            if shallow_existing_history else s.history[-_MAIN_HISTORY_TAIL:]
+        )
         main_path = _path(s.id)
         tmp_path = main_path.with_suffix(".json.tmp")
         tmp_path.write_text(
@@ -1464,7 +1746,7 @@ def release(session_id: str) -> str | None:
     # 订阅残留清理：任何其它 session 的 report_subscriptions 不得引用被删 id。
     # 同时解除被删 session 作为 manager 时留下的子 session 关系，避免
     # children 被永久锁在一个不存在的 manager 上。
-    for s in list_all():
+    for s in list_all(load_history=False):
         if s.id == session_id:
             continue
         if session_id in s.report_subscriptions:
@@ -1649,7 +1931,7 @@ def handoff_session(
         b.managed_by = parent_id
 
     # 2d. 其它会话对 A 的 report 订阅 → 改指向 B（一般即原父 manager，兜底全量扫）
-    for s in list_all():
+    for s in list_all(load_history=False):
         if s.id in (a.id, b.id):
             continue
         if a.id in s.report_subscriptions:
@@ -1739,7 +2021,7 @@ def apply_order(ordered_ids: list[str]) -> str | None:
     """
     if len(set(ordered_ids)) != len(ordered_ids):
         return "ordered session ids contain duplicates"
-    all_sessions = list_all()
+    all_sessions = list_all(load_history=False)
     by_id = {s.id: s for s in all_sessions}
     unknown = [sid for sid in ordered_ids if sid not in by_id]
     if unknown:

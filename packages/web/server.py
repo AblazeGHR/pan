@@ -105,7 +105,7 @@ _LOG_SKIP = [
 async def lifespan(app: FastAPI):
     """Startup: load all saved sessions (don't auto-spawn Workers).
     Shutdown: kill all child processes."""
-    sessions = sess.list_all()
+    sessions = sess.list_all(load_history=False)
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
 
@@ -1399,7 +1399,7 @@ def _session_to_api(
         "managed": s.managed,
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
-        "agentLevel": sess.agent_level(s.id),
+        "agentLevel": sess.agent_level(s.id, load_history=False),
         "reportSubscriptions": sorted(s.report_subscriptions),
         "qqSubscriptions": sorted(s.qq_subscriptions),
         "notificationSettings": notifications.normalize_notification_settings(s.notification_settings),
@@ -1428,6 +1428,24 @@ def _session_to_api(
         "lastDisplayPreview": projection["last_display_preview"],
         "historyTotal": projection["history_total"],
     }
+
+
+def _session_list_api(s: sess.Session, *, history_limit: int = 50) -> dict:
+    """Serialize the list view without hydrating a Session's full history."""
+    api = _session_to_api(s, include_history=False)
+    page = sess.history_page(s.id, limit=history_limit)
+    if page is None:
+        history = []
+        total = 0
+        has_more = False
+    else:
+        history = page.get("history") or []
+        total = page.get("total", len(history))
+        has_more = bool(page.get("hasMore"))
+    api["history"] = _api_history(s.id, history)
+    api["historyTruncated"] = has_more
+    api["historyTotal"] = total
+    return api
 
 
 def _session_summary(s: sess.Session) -> dict:
@@ -1542,7 +1560,7 @@ def _check_session_name(name: str) -> str | None:
         return f"Session name too long (max {_MAX_NAME_LEN})"
     if not _NAME_RE.match(name):
         return "Session name cannot contain spaces"
-    for s in sess.list_all():
+    for s in sess.list_all(load_history=False):
         if s.name == name:
             return f"Session name '{name}' already exists"
     return None
@@ -1673,7 +1691,7 @@ def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
     for now. A future security policy can add containment checks here without
     changing the client-side link or editor flow.
     """
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     if not s or not s.workdir:
         raise ValueError("session has no workdir")
     target = Path(rel_path)
@@ -1686,7 +1704,7 @@ def _resolve_attachment_source_path(session_id: str, raw_path: str) -> Path:
     """Resolve an attachment source and reject relative workdir escape."""
     target = _resolve_fs_path(session_id, raw_path)
     if not Path(raw_path).is_absolute():
-        session = sess.get(session_id)
+        session = _summary_session_get(session_id)
         if not session or not session.workdir:
             raise ValueError("session has no workdir")
         try:
@@ -3017,7 +3035,7 @@ def _validate_message_attachment_references(session_id: str, text: str) -> dict 
     """Return the first invalid internal attachment reference in message text."""
     # Preserve the queue endpoint's established session-not-found response;
     # worker.enqueue_user_message remains authoritative for that case.
-    if sess.get(session_id) is None:
+    if _summary_session_get(session_id) is None:
         return None
     for match in _MESSAGE_ATTACHMENT_HREF_RE.finditer(text):
         error = _attachment_reference_error(session_id, match.group("href"))
@@ -3273,7 +3291,7 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
     names containing non-ASCII characters survive URL handling; the query
     parameter remains a simple fallback for clients that cannot set headers.
     """
-    if sess.get(session_id) is None:
+    if _summary_session_get(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     raw_name = request.headers.get("x-filename") or filename
     display_name = _attachment_filename(raw_name)
@@ -3686,7 +3704,9 @@ async def ws_endpoint(ws: WebSocket):
                                             "workerId": result.get("workerId"),
                                             "clientMessageId": client_message_id,
                                             "queueItemId": result.get("queueItemId"),
-                                            "queueRevision": getattr(sess.get(session_id), "queue_revision", 0)})
+                                            "queueRevision": getattr(
+                                                _summary_session_get(session_id),
+                                                "queue_revision", 0)})
             elif msg_type == "worker_control":
                 session_id = msg.get("sessionId")
                 worker_id = msg.get("workerId")
@@ -3838,10 +3858,10 @@ async def ws_agent_endpoint(ws: WebSocket):
                     await _send_ws(ws, {"type": "error", "message": result})
 
             elif msg_type == "list":
-                sessions = sess.list_all()
+                sessions = sess.list_all(load_history=False)
                 await _send_ws(ws, {
                     "type": "session.list",
-                    "sessions": [_session_to_api(s) for s in sessions],
+                    "sessions": [_session_list_api(s) for s in sessions],
                 })
 
     except WebSocketDisconnect:
@@ -3904,9 +3924,10 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     轻量巡检，避免全量传输再过滤). Default stays the full payload for
     backward compatibility.
     """
-    # Summary reads use the metadata/projection loader.  Full history is only
-    # loaded by the legacy full response below.
-    sessions = sess.list_all(load_history=not bool(summary))
+    # Both list variants use the shallow metadata loader.  The legacy full
+    # list shape still contains its bounded 50-message tail, but the tail is
+    # read through the paging boundary instead of hydrating the JSONL file.
+    sessions = sess.list_all(load_history=False)
     if workspaceId is not None:
         # ``ungrouped`` is a stable query alias; an empty workspaceId is kept
         # equivalent to the historical all-sessions response.
@@ -3918,19 +3939,12 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
             sessions = [s for s in sessions if workspaceId in s.workspace_ids]
     if summary:
         return {"sessions": [_session_summary(s) for s in sessions]}
-    result = []
-    for s in sessions:
-        api = _session_to_api(s)
-        full_history = api.get("history") or []
-        api["history"] = full_history[-50:] if len(full_history) > 50 else full_history
-        api["historyTruncated"] = len(full_history) > 50
-        api["historyTotal"] = len(full_history)
-        result.append(api)
-    return {"sessions": result}
+    return {"sessions": [_session_list_api(s) for s in sessions]}
 
 
 def _workspace_view(workspace: workspaces.Workspace) -> dict:
-    members = [s.id for s in sess.list_all() if workspace.id in s.workspace_ids]
+    members = [s.id for s in sess.list_all(load_history=False)
+               if workspace.id in s.workspace_ids]
     return {
         "id": workspace.id,
         "name": workspace.name,
@@ -4025,7 +4039,7 @@ async def api_workspaces_order(data: dict):
 async def api_delete_workspace(workspace_id: str):
     if workspaces.get(workspace_id) is None:
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
-    for session in sess.list_all():
+    for session in sess.list_all(load_history=False):
         if workspace_id in session.workspace_ids:
             session.workspace_ids.remove(workspace_id)
             sess.save(session)
@@ -4049,7 +4063,7 @@ async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=Non
         if not _workspace_write_allowed(actor_id, session):
             return {"ok": False, "error": {"code": "forbidden", "message": "Workspace membership is restricted"}}
     wanted = set(session_ids)
-    for session in sess.list_all():
+    for session in sess.list_all(load_history=False):
         if not _workspace_write_allowed(actor_id, session):
             continue
         has = workspace_id in session.workspace_ids
@@ -4061,7 +4075,8 @@ async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=Non
                 session.workspace_ids.remove(workspace_id)
             sess.save(session)
     await broadcast({"type": "workspace.membershipUpdated", "workspaceId": workspace_id,
-                     "sessionIds": [s.id for s in sess.list_all() if workspace_id in s.workspace_ids]})
+                     "sessionIds": [s.id for s in sess.list_all(load_history=False)
+                                     if workspace_id in s.workspace_ids]})
     return {"ok": True, "workspace": _workspace_view(workspace)}
 
 
@@ -4074,10 +4089,11 @@ async def api_set_workspace_sessions(workspace_id: str, data: dict):
 async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
     if workspaces.get(workspace_id) is None:
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
-    sessions = [s for s in sess.list_all(load_history=not bool(summary))
+    sessions = [s for s in sess.list_all(load_history=False)
                 if workspace_id in s.workspace_ids]
     return {"ok": True, "workspaceId": workspace_id,
-            "sessions": [_session_summary(s) if summary else _session_to_api(s) for s in sessions]}
+            "sessions": [_session_summary(s) if summary else _session_list_api(s)
+                         for s in sessions]}
 
 
 @app.put("/api/sessions/{session_id}/workspaces")
@@ -4156,14 +4172,19 @@ async def api_sessions_order(data: dict):
         return {"ok": False, "error": {
             "code": "session_not_found",
             "message": err}}
-    order = [s.id for s in sess.list_all()]
+    order = [s.id for s in sess.list_all(load_history=False)]
     await broadcast({"type": "session.orderUpdated", "order": order})
     return {"ok": True, "order": order}
 
 
 @app.get("/api/sessions/{session_id}")
-async def api_get_session(session_id: str, view: str = "full"):
-    s = sess.get(session_id)
+async def api_get_session(session_id: str, view: str = "full",
+                          historyLimit: int = 0):
+    bounded_history = historyLimit > 0
+    if view in {"metadata", "detail"} or bounded_history:
+        s = _summary_session_get(session_id)
+    else:
+        s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
     if view in {"metadata", "detail"}:
@@ -4176,6 +4197,14 @@ async def api_get_session(session_id: str, view: str = "full"):
             include_raw_usage=False,
             include_last_result=False,
         )
+    if bounded_history:
+        result = _session_to_api(s, include_history=False)
+        page = sess.history_page(session_id, limit=historyLimit)
+        page = page or {"history": [], "total": 0, "hasMore": False, "start": 0}
+        result["history"] = _api_history(session_id, page["history"])
+        result["historyTruncated"] = bool(page["hasMore"])
+        result["historyTotal"] = page["total"]
+        return result
     return _session_to_api(s)
 
 
@@ -4189,7 +4218,7 @@ async def api_get_session_usage(session_id: str):
     last persisted quota snapshot only; callers that need a best-effort live
     refresh use ``/api/codex/quota`` separately.
     """
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     if not s:
         return {"ok": False, "error": {
             "code": "session_not_found",
@@ -4219,7 +4248,7 @@ async def api_session_managers(session_id: str):
     - Unknown session_id → {"error": "Session not found"}.
     - Session with no manager → {"managers": []}.
     """
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     if not s:
         return {"error": "Session not found"}
     chain: list[sess.Session] = []
@@ -4229,7 +4258,7 @@ async def api_session_managers(session_id: str):
         mb = cur.managed_by
         if not mb or mb in seen:
             break
-        manager = sess.get(mb)
+        manager = _summary_session_get(mb)
         if manager is None:
             break  # dangling reference → chain ends here
         seen.add(mb)
@@ -4253,19 +4282,16 @@ async def api_session_managers(session_id: str):
 @app.get("/api/sessions/{session_id}/history")
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50):
     """Paginated session history for lazy-loading older messages."""
-    s = sess.get(session_id)
-    if not s:
+    if not _summary_session_get(session_id):
         return {"error": "Session not found"}
-    total = len(s.history)
-    if before <= 0:
-        before = total
-    start = max(0, before - limit)
-    page = _api_history(session_id, s.history[start:before])
+    page = sess.history_page(session_id, before=before, limit=limit)
+    if page is None:
+        return {"error": "Session not found"}
     return {
-        "history": page,
-        "total": total,
-        "hasMore": start > 0,
-        "start": start,
+        "history": _api_history(session_id, page["history"]),
+        "total": page["total"],
+        "hasMore": page["hasMore"],
+        "start": page["start"],
     }
 
 
@@ -4425,13 +4451,13 @@ def _session_queue_items(s) -> list[dict]:
 @app.get("/api/sessions/{session_id}/queue")
 async def api_session_queue(session_id: str):
     """Normalized agent queue (session.queue_pending) for the frontend panel."""
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     if not s:
         return {"error": "Session not found"}
     migrated = worker._migrate_queue_delivery_state(s)
     migrated = worker._sync_queued_ledger(s) or migrated
     if migrated:
-        await sess.save_async(s)
+        await worker._save_receipt(s)
     return {"items": _session_queue_items(s),
             "queueRevision": getattr(s, "queue_revision", 0)}
 
@@ -4499,7 +4525,7 @@ async def api_session_queue_enqueue(session_id: str, data: dict):
     if result.get("status") == "error":
         return {"ok": False, "error": {"code": "enqueue_failed",
                                          "message": result.get("result", "enqueue failed")}}
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     return {"ok": True,
             "item": _serialize_queue_item(result.get("item") or {}, s),
             "queueRevision": getattr(s, "queue_revision", 0),
@@ -4523,7 +4549,7 @@ async def api_session_queue_order_route(session_id: str, data: dict):
 @app.patch("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_update(session_id: str, item_id: str, data: dict):
     """Edit only a queued user task, retaining its durable identity."""
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     if not s:
         return {"ok": False, "error": "Session not found"}
     text = data.get("text")
@@ -4570,7 +4596,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         _ledger.update(target)
         s.queue_revision += 1
         try:
-            await sess.save_async(s)
+            await worker._save_receipt(s)
         except Exception:
             target.clear()
             target.update(old_target)
@@ -4595,7 +4621,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
 @app.delete("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_delete(session_id: str, item_id: str):
     """Remove one still-queued item; delivery receipts remain auditable."""
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     if not s:
         return {"error": "Session not found"}
     async with worker.queue_lock(session_id):
@@ -4613,12 +4639,13 @@ async def api_session_queue_delete(session_id: str, item_id: str):
         old_queue_revision = s.queue_revision
         s.queue_pending = [it for it in pending if it is not target]
         record = s.queue_delivery_ledger.get(item_id)
-        if isinstance(record, dict):
-            record["deliveryState"] = "deleted"
-            record["dispatchState"] = "deleted"
+        if not isinstance(record, dict):
+            record = dict(target)
+            s.queue_delivery_ledger[item_id] = record
+        worker._set_delivery_state(s, record, worker._DELIVERY_DELETED)
         s.queue_revision += 1
         try:
-            await sess.save_async(s)
+            await worker._save_receipt(s)
         except Exception:
             s.queue_pending = old_pending
             if old_record:
@@ -4640,7 +4667,8 @@ async def api_session_queue_retry(session_id: str, item_id: str):
     if isinstance(result, str):
         return {"ok": False, "error": result}
     item = result.get("item", result) if isinstance(result, dict) else result
-    return {"ok": True, "item": _serialize_queue_item(item, sess.get(session_id)),
+    return {"ok": True, "item": _serialize_queue_item(
+                item, _summary_session_get(session_id)),
             "status": result.get("status") if isinstance(result, dict) else None}
 
 
@@ -4652,7 +4680,7 @@ async def api_session_queue_order(session_id: str, data: dict):
     pending sequence; omitted queued items keep their relative order at the end.
     Returns the reordered normalized items.
     """
-    s = sess.get(session_id)
+    s = _summary_session_get(session_id)
     if not s:
         return {"error": "Session not found"}
     order = data.get("orderedIds", data.get("order"))
@@ -4687,7 +4715,7 @@ async def api_session_queue_order(session_id: str, data: dict):
             it["position"] = position
         s.queue_revision += 1
         try:
-            await sess.save_async(s)
+            await worker._save_receipt(s)
         except Exception:
             s.queue_pending = old_pending
             for it in old_pending:
@@ -5851,7 +5879,8 @@ async def api_task(data: dict):
         "sessionId": w.session_id if w else session_id,
         "status": "queued",
         "queueItemId": (worker._find_queue_item_by_idempotency(
-            sess.get(session_id), client_message_id=data.get("clientMessageId"),
+            _summary_session_get(session_id),
+            client_message_id=data.get("clientMessageId"),
             task_id=data.get("taskId")) or {}).get("queueItemId"),
     }
 
@@ -6694,7 +6723,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
 
     # Dedup by cli_session_id（限定同 adapter）
     existing = None
-    for s in sess.list_all():
+    for s in sess.list_all(load_history=False):
         if s.cli_session_id == session_id and s.adapter == adapter:
             existing = s
             break
