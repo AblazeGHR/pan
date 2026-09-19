@@ -14,6 +14,7 @@ vi.mock('@/services/api', () => api);
 import { useQueueStore } from './queueStore';
 import { useSessionStore } from './sessionStore';
 import { useWorkerStore } from './workerStore';
+import type { Session } from '@/types';
 
 type Source = 'user' | 'agent' | 'report' | 'qq';
 type Kind = 'task' | 'report' | 'qq';
@@ -221,6 +222,138 @@ describe('server-backed queue store', () => {
 
     expect(api.updateSessionQueueItem).toHaveBeenCalledWith('s1', 'q-first', 'first edited', 1);
     expect(useQueueStore.getState().queues.s1?.[0]?.id).toBe('q-first');
+  });
+
+  it('updates the existing chat projection before canonical delivery, without appending a row', async () => {
+    const first = item('q-edit-projection', 'before edit');
+    const session = {
+      id: 's1',
+      name: 's1',
+      alwaysThinkingEnabled: false,
+      effort: '',
+      history: [],
+      historyTotal: 0,
+    } satisfies Session;
+    const edited = { ...first, text: 'after edit', meta: { ...first.meta, revision: 2 } };
+    useSessionStore.setState({
+      sessions: [session],
+      currentSessionId: 's1',
+      currentMessages: [],
+    });
+    // Use the production projection entry point so the durable queue identity
+    // is registered as pending. Canonical history rows must never become
+    // editable merely because a fixture gives them a matching-looking id.
+    useSessionStore.getState().appendQueuedMessage('s1', first);
+    useQueueStore.setState({
+      queues: { s1: snapshot([first], 4) },
+      queueRevisions: { s1: 4 },
+    });
+    api.updateSessionQueueItem.mockResolvedValue({ item: edited, queueRevision: 5 });
+    api.fetchSessionQueue.mockResolvedValue(snapshot([edited], 5));
+
+    useQueueStore.getState().startEdit(first.id);
+    useQueueStore.getState().updateEditDraft(edited.text);
+    useQueueStore.getState().saveEdit();
+    await vi.waitFor(() => expect(api.updateSessionQueueItem).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().currentMessages.map((message) => message.content))
+        .toEqual(['after edit']),
+    );
+
+    // The delivery carries the same durable queue identity. It must reconcile
+    // with the edited projection instead of adding a second user row.
+    useSessionStore.getState().appendDeliveredMessages('s1', [{
+      role: 'user', content: 'after edit', queueItemIds: [first.id],
+    }]);
+    expect(useSessionStore.getState().currentMessages).toHaveLength(1);
+    expect(useSessionStore.getState().currentMessages[0]).toMatchObject({
+      content: 'after edit',
+      queueItemIds: [first.id],
+    });
+    await vi.waitFor(() => expect(useQueueStore.getState().edits.s1).toBeNull());
+  });
+
+  it('does not change chat history when an edit is cancelled', () => {
+    const first = item('q-cancel', 'keep this');
+    const localMessage = { role: 'user', content: first.text, queueItemIds: [first.id] };
+    const session = {
+      id: 's1',
+      name: 's1',
+      alwaysThinkingEnabled: false,
+      effort: '',
+      history: [localMessage],
+      historyTotal: 1,
+    } satisfies Session;
+    useSessionStore.setState({
+      sessions: [session],
+      currentSessionId: 's1',
+      currentMessages: [localMessage],
+    });
+    useQueueStore.setState({ queues: { s1: snapshot([first], 1) } });
+
+    useQueueStore.getState().startEdit(first.id);
+    useQueueStore.getState().updateEditDraft('discarded');
+    useQueueStore.getState().cancelEdit();
+
+    expect(api.updateSessionQueueItem).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().currentMessages).toEqual([localMessage]);
+    expect(useSessionStore.getState().sessions[0]?.history).toEqual([localMessage]);
+  });
+
+  it('rejects an imperative enqueue while the target Session has an active edit', async () => {
+    const first = item('q-imperative-guard', 'queued original');
+    api.enqueueSessionMessage.mockResolvedValue({ item: item('q-new', 'must not enqueue'), queueRevision: 2 });
+    useQueueStore.setState({ queues: { s1: snapshot([first], 1) } });
+    useQueueStore.getState().startEdit(first.id);
+
+    await expect(useQueueStore.getState().enqueue('imperative send', undefined, 's1', 'client-guard'))
+      .resolves.toBe(false);
+    expect(api.enqueueSessionMessage).not.toHaveBeenCalled();
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual([first.id]);
+  });
+
+  it('keeps one edit transaction and writes the captured Session after a switch', async () => {
+    const first = item('q-switch-edit', 'A before');
+    const edited = { ...first, text: 'A after', meta: { ...first.meta, revision: 2 } };
+    let resolveUpdate!: (value: { item: typeof edited; queueRevision: number }) => void;
+    const update = new Promise<{ item: typeof edited; queueRevision: number }>((resolve) => {
+      resolveUpdate = resolve;
+    });
+    api.updateSessionQueueItem.mockReset().mockReturnValue(update);
+    api.fetchSessionQueue.mockResolvedValue(snapshot([edited], 2));
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      sessions: [
+        { id: 's1', name: 'A', alwaysThinkingEnabled: false, effort: '', history: [] },
+        { id: 's2', name: 'B', alwaysThinkingEnabled: false, effort: '', history: [] },
+      ],
+      currentMessages: [],
+    });
+    useQueueStore.setState({ queues: { s1: snapshot([first], 1) } });
+
+    useQueueStore.getState().startEdit(first.id);
+    useQueueStore.getState().updateEditDraft(edited.text);
+    useQueueStore.getState().saveEdit();
+    useQueueStore.getState().saveEdit();
+    expect(api.updateSessionQueueItem).toHaveBeenCalledTimes(1);
+    await expect(useQueueStore.getState().enqueue(
+      'send while edit PATCH is pending',
+      undefined,
+      's1',
+      'client-pending-edit',
+    )).resolves.toBe(false);
+
+    useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [] });
+    expect(useQueueStore.getState().edits.s1?.text).toBe('A after');
+    useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
+    resolveUpdate({ item: edited, queueRevision: 2 });
+    await vi.waitFor(() => expect(useQueueStore.getState().edits.s1).toBeNull());
+
+    expect(useQueueStore.getState().queues.s1?.[0]?.text).toBe('A after');
+    expect(useQueueStore.getState().queues.s2).toBeUndefined();
+    expect(useQueueStore.getState().edits.s2).toBeUndefined();
+    expect(useSessionStore.getState().currentSessionId).toBe('s2');
   });
 
   it('reorders any queued source through one server order operation', async () => {

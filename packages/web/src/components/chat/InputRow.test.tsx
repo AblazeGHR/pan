@@ -901,6 +901,42 @@ describe('InputRow send queue wiring', () => {
     expect(screen.getByText('queued msg')).toBeTruthy();
   });
 
+  it('blocks button, Enter, and imperative send paths while a queue item is being edited', async () => {
+    setBusySession();
+    useQueueStore.setState({
+      queues: {
+        s1: [{
+          id: 'q-edit-send',
+          queueItemId: 'q-edit-send',
+          text: 'queued original',
+          source: 'user',
+          kind: 'task',
+          createdAt: '2026-09-01T00:00:00Z',
+          meta: { dispatchState: 'queued', revision: 1 },
+        }],
+      },
+    });
+    useQueueStore.getState().startEdit('q-edit-send');
+    render(<InputRow />);
+
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'must not send while editing' },
+    });
+    fireEvent.keyDown(screen.getByPlaceholderText(/Type a message/), { key: 'Enter' });
+    fireEvent.keyDown(screen.getByTestId('rich-text-composer'), { key: 'Enter' });
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().currentMessages).toEqual([]);
+
+    // Cancel is local-only; it reopens the ordinary send path without
+    // changing the queue item's projection or adding an edit row.
+    useQueueStore.getState().cancelEdit();
+    await waitFor(() => expect(send.disabled).toBe(false));
+    fireEvent.click(send);
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledTimes(1));
+  });
+
   it('uses the current Session runtime worker, not the stale summary, to suppress optimistic history', async () => {
     useSessionStore.setState({
       currentSessionId: 's1',

@@ -112,6 +112,8 @@ function setSnapshot(
       const id = canonicalQueueId(item.id);
       return !tombstones.has(id) && !delivered.has(id);
     });
+    const edit = state.edits[sessionId];
+    const editMissing = edit && !filtered.some((item) => queueIdMatches(item.id, edit.id));
     accepted = true;
     return {
       queues: { ...state.queues, [sessionId]: filtered },
@@ -119,6 +121,7 @@ function setSnapshot(
       ...(revision === undefined
         ? {}
         : { queueRevisions: { ...state.queueRevisions, [sessionId]: revision } }),
+      ...(editMissing ? { edits: { ...state.edits, [sessionId]: null } } : {}),
     };
   });
   return accepted;
@@ -362,6 +365,9 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   startEdit: (id) => {
     const sid = useSessionStore.getState().currentSessionId;
     if (!sid) return;
+    // Preserve the first edit transaction, including an in-flight PATCH.
+    // Repeated clicks must not replace its draft or token.
+    if (get().edits[sid]) return;
     const items = get().queues[sid] ?? [];
     const item = items.find((candidate) => queueIdMatches(candidate.id, id));
     if (
