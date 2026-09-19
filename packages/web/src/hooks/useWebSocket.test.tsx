@@ -103,6 +103,8 @@ describe('useWebSocket worker.result wiring', () => {
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
       _historyRefreshSeq: {},
+      liveStreamBuffers: {},
+      terminalWatermarks: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
@@ -890,6 +892,8 @@ describe('useWebSocket agent-injected message sync', () => {
       historyLoadEnd: 0,
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
+      liveStreamBuffers: {},
+      terminalWatermarks: {},
     });
   });
 
@@ -1225,6 +1229,8 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       historyLoadEnd: 0,
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
+      liveStreamBuffers: {},
+      terminalWatermarks: {},
     });
     vi.useFakeTimers();
   });

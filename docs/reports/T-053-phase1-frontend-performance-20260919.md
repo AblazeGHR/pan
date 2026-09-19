@@ -5,7 +5,7 @@
 - Worktree：`D:\project\pan-worktrees\t053-frontend-performance-luna-20260919`
 - 分支：`feature/t053-frontend-performance-luna-20260919`
 - 基线：T-051 `e7600b59166a7a83e7382657dbf0165b64455877`
-- 端口：真实浏览器验证使用隔离 `8798`；未操作 `8768`、`D:\project\Pan` 或 `D:\project\Pan-main`。
+- 端口：既有 Phase 1 浏览器验证使用隔离 `8798`；T-055 Codex 验收使用隔离 `8799`；未操作 `8768`、`D:\project\Pan` 或 `D:\project\Pan-main`。
 - 604eeef 未 cherry-pick；只移植了经过审查的 memo/stable plugin/group memo 方向，并修正 unread Set 原地变异风险。
 
 ## 交付内容
@@ -42,6 +42,15 @@
 - A→B 快速选择、Session 切换、关闭 Popover 后的旧响应均受 per-Session sequence/request guard 保护；旧成功/失败响应不能覆盖较新的乐观值。
 - `session.updated` 与 `loadSessions` 的旧快照在 pending 或请求期间完成时不会回退本地较新值；SettingsPopover 和 InputRow 的模型入口共用同一状态路径。
 
+### 追加 T-055：Codex per-Session live stream 与终态门禁
+
+- `sessionStore` 新增 per-session live buffer，保存 `workerId/generation/taskSeq/turnId/itemId/revision` 与当前 live messages；`worker.stream` 不再只更新当前选中 Session，未选中 Session 的 delta 也会保留。
+- `selectSession`、`loadSessions`、focus/history reload 将 server history 与未持久化 live suffix 合并；旧 snapshot 只能作为较旧前缀，不能覆盖更高 live revision。live message 按 item/turn identity 合并，避免 A→B→A 丢 delta 或重复 assistant。
+- `worker.result` 做最终 reconciliation：同一 item/turn/taskSeq 的 partial assistant 替换为唯一 final assistant；缺 final 时补一条 canonical assistant；live buffer 清理。`[DONE]` 仍只作为 UI system row，history 不落 delta event 或 `[DONE]`。
+- `worker.result`/`idle`/`running` 统一使用 session、worker、generation、taskSeq 门禁；terminal watermark 后延迟旧 `running` 被丢弃，重复 `idle` 保持幂等，终态仍可做 authoritative reconciliation。
+- worker lifecycle status 广播补带 `taskSeq`，让前端能区分同一 worker 的旧 running 与新 turn；旧 worker/generation 不会清掉替代 worker 的 live state。
+- 系统通知继续在终态基础持久化之后以后台 best-effort 执行；慢 sender 或异常不会延迟 result/idle，也不会重复完成广播。
+
 ## 验证证据
 
 ### 定向测试
@@ -50,6 +59,8 @@
 - Backend：`tests/test_backend_perf_opt.py tests/test_websocket_user_inject.py tests/test_notifications_reminders.py tests/test_terminal_broadcast.py`，`30 passed / 0 failed`。
 - 新增/强化覆盖：重复 queue delivery、跨 Session、inline parts、乐观失败恢复、Session object reuse、旧 snapshot、DONE 合并、pong、1013 close、慢通知。
 - 追加 UI 设置 Vitest：`SettingsPopover.optimistic.test.tsx`，`7 passed / 0 failed`，覆盖 deferred PATCH 立即可见、服务端成功收敛、失败回滚、model/effort 联动、A→B 乱序、Session 切换隔离、pending 快照保护。
+- T-055 SessionStore Vitest：`sessionStore.t055.test.ts`，`4 passed / 0 failed`，覆盖 A→B→A live suffix、focus/snapshot/history reload 旧前缀保护、final canonical assistant、terminal watermark 拒绝旧 running。
+- T-055 backend notification/lifecycle：`tests/test_backend_perf_opt.py tests/test_notifications_reminders.py`，`20 passed / 0 failed`；新增慢/失败通知 sender 不阻塞终态且只发一次的断言，并校验 idle 广播携带 taskSeq。
 
 ### 静态与构建
 
@@ -75,6 +86,18 @@
 3. `[DONE] Task completed` 在下一轮 focus/history reconciliation 后仍保留，且本次运行只出现一次。
 4. 静默 OPEN WebSocket 在加速测试时钟下自愈，观察到 `sockets=7`，证明看门狗触发重连。
 
+### T-055 真实 Codex Chromium E2E
+
+命令：`PAN_E2E_BASE_URL=http://127.0.0.1:8799 pnpm exec node e2e/t055-codex.e2e.mjs`，由 `packages/web/e2e/server.py` 启动隔离 FastAPI，使用真实 production build、真实 `/api/send`、Codex `model=gpt-5.6-luna`、`effort=low` 与 dashboard `/ws`；8799 已释放。
+
+结果：通过。A 流式期间切换到 B 再回 A，final output 可见；history 只有一个 canonical assistant，无 `[DONE]`/delta event；旧 running 注入后卡片仍为 idle。时间点及间隔：
+
+- last delta `1789792830844` → final item `1789792830961`：`117 ms`。
+- final item → worker.result `1789792831111`：`150 ms`。
+- worker.result → worker.status(idle) `1789792831114`：`3 ms`。
+
+该脚本以 `framereceived.payload` 解析真实浏览器入站帧，可重复运行；脚本本身已纳入交付，不保留 runtime、日志或结果 JSON。
+
 ## GLM 5.3 Flash 补充调查审核
 
 这份补充报告作为外部调查输入审核，不将调查脚本或候选 commit 的结论自动视为本 worktree 的验证结果。调查使用的 8794 已清理，8768 未触碰；604eeef 仍未 cherry-pick。
@@ -93,13 +116,14 @@
 - S3：`_session_summary` 的 summary projection。当前实现取 `history[-1]`，尚未在本阶段改变其 thinking/tool 过滤语义；应单独定义 user/assistant preview 规则并补 backend、snapshot 回退测试，防止 300 ms 对账把 assistant preview 改回 thinking/tool 文本。
 - S4：浏览器 `/ws` replay 或等价重连补偿。需要先定义 seq、幂等键、重连边界和与现有 `queueItemId`/taskSeq 的关系，再实现协议及断线错过 result 的真实闭环；本阶段不新增 `session.patch` 或 `summaryRevision`，也不声称 Case B 已通过。
 
-补充报告中的 cbc/hy3 与 glm-5.3-flash provider hand-off 超过 120 秒无 stdout/result 属于本轮实验干扰，不能归因于 Pan UI，也不能用来宣称“恢复后 ≤2 秒收敛”。同理，本阶段真实 Chromium 已验证的是隔离事件注入下的队列、editor/manage、DONE 和静默 WS 自愈 4/4；“result 后 800 ms 不回退”与“provider 恢复后 ≤2 s 收敛”尚未形成独立的真实 provider E2E 证据。
+补充报告中的 cbc/hy3 与 glm-5.3-flash provider hand-off 超过 120 秒无 stdout/result 属于调查实验干扰，不能归因于 Pan UI；本次 T-055 已另以真实 Codex `gpt-5.6-luna` 完成一次正常终态时间线，但这不等价于断线 replay/恢复闭环。
 
 ## 未验证项与边界
 
 - 未启用 CBC `--include-partial-messages`；Phase 2 仍按计划另行处理。
 - 未新增 `session.patch/summaryRevision` 协议，未做 durable queue 多次持久化写合并。
-- E2E 使用隔离 launcher 的 disposable session 与事件注入；未将外部真实 provider 调用作为本阶段通过条件。
+- 既有 T-053 E2E 使用隔离 launcher 的 disposable session 与事件注入；新增 T-055 脚本使用真实 Codex provider，仍只在隔离 launcher/session/8799 上运行。
 - 模型设置的 deferred PATCH、乱序响应和失败回滚由 Vitest 直接证明；本次真实 Chromium 4/4 保持 Phase 1 的队列、editor/manage、DONE 与静默 WS 覆盖，未将浏览器级 deferred PATCH 作为已验证项。
-- 追加 UI 定向联测最新组合为 6 个文件、116 passed / 0 failed；其中包含 SettingsPopover 乐观设置、Session snapshot/queue delivery 和 WS 生命周期回归。GLM 补充报告建议的 S1–S4 尚未被计入 Phase 1 的“已完成”项。
+- 追加 UI 定向联测另有 9 个文件、136 passed / 0 failed；其中包含 T-055 live stream reconciliation、SettingsPopover 乐观设置、Session snapshot/queue delivery 和 WS 生命周期回归。GLM 补充报告建议的 S1–S4 尚未被计入 Phase 1 的“已完成”项。
+- T-055 的真实断线 replay/重连丢 result 闭环仍未验证；S1 loadSessions 失败受控重试、S2 worker 退出后 queue_pending recovery runtime audit、S3 thinking/tool summary projection、S4 浏览器 `/ws` replay/补偿仍后置或另立任务。adapter 时间戳、result 异常恢复、stream revision/replay/session.patch 不在本次范围内。
 - 完整 Vitest 的 10 个失败属于未改测试文件/环境基线问题，已与改动相关定向证据分开列出。

@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from packages.core import worker, session as _sess
+from packages.core import notifications, worker, session as _sess
 from packages.core.adapters import CbcAdapter
 
 
@@ -200,7 +200,52 @@ def test_idle_status_broadcast_on_result(monkeypatch):
     assert len(idle) == 1, f"expected idle status broadcast, got {calls}"
     assert idle[0]["workerId"] == w.worker_id
     assert idle[0]["sessionId"] == s.id
+    assert "taskSeq" in idle[0]
     _cleanup()
+
+
+def test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification(monkeypatch):
+    """终态广播只走非阻塞 sender，result/idle 各出现一次。"""
+    _cleanup()
+    s, w = _make_worker()
+    s.notification_settings = {"browser": True, "system": True}
+    calls = []
+
+    def slow_sender(title, body):
+        time.sleep(0.15)
+        calls.append((title, body))
+        raise RuntimeError("desktop sender failed")
+
+    broadcasts = []
+
+    async def fake_bcast(data):
+        broadcasts.append(data)
+
+    async def fake_save(sess):
+        pass
+
+    worker.set_broadcaster(fake_bcast)
+    monkeypatch.setattr(_sess, "save_async", fake_save)
+    notifications.set_system_sender(slow_sender)
+    try:
+        w.process = MockProcess([_assistant_event(text="hi"), _result_event(result="hi")])
+
+        async def scenario():
+            started = time.monotonic()
+            await worker._read_stdout(w)
+            elapsed = time.monotonic() - started
+            # Let the background sender finish so failure handling is observed.
+            await asyncio.sleep(0.25)
+            return elapsed
+
+        elapsed = asyncio.run(scenario())
+        assert elapsed < 0.12, f"terminal path waited for notification: {elapsed:.3f}s"
+        assert len([e for e in broadcasts if e.get("type") == "worker.result"]) == 1
+        assert len([e for e in broadcasts if e.get("type") == "worker.status" and e.get("status") == "idle"]) == 1
+        assert len(calls) == 1
+    finally:
+        notifications.set_system_sender(notifications.default_system_sender)
+        _cleanup()
 
 
 # ── A4: broadcast 并行 ──

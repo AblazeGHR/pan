@@ -53,6 +53,8 @@ interface SessionStore {
   _sessionSettingsTouchedSeq: Record<string, number>;
   _sessionEventPatches: Record<string, Partial<Session>>;
   _deliveredQueueIds: Record<string, Set<string>>;
+  liveStreamBuffers: Record<string, LiveStreamBuffer>;
+  terminalWatermarks: Record<string, TerminalWatermark>;
   /** Latest optimistic settings mutation per Session. */
   sessionSettingMutations: Record<string, SessionSettingMutationInternal>;
 
@@ -83,6 +85,20 @@ interface SessionStore {
   setInputDraft: (id: string, draft: string) => void;
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
+  getLiveStreamMessages: (sessionId: string) => Message[];
+  applyLiveStream: (sessionId: string, messages: Message[], meta: LiveStreamMeta) => boolean;
+  reconcileWorkerResult: (
+    sessionId: string,
+    event: { status?: string; cancelled?: boolean; result?: string },
+    meta: LiveStreamMeta,
+  ) => boolean;
+  applyWorkerStatus: (
+    sessionId: string,
+    status: string | null,
+    meta: LiveStreamMeta,
+    terminal?: boolean,
+  ) => boolean;
+  clearLiveStream: (sessionId: string) => void;
   /** Show a durably queued user message before local CLI hand-off. */
   appendQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
   /** Append user messages after the server confirms local CLI hand-off. */
@@ -160,9 +176,148 @@ export interface SessionSettingsMutationResult {
   stale: boolean;
 }
 
+export interface LiveStreamBuffer {
+  workerId?: string;
+  generation?: number;
+  taskSeq?: number;
+  turnId?: string;
+  itemId?: string;
+  revision: number;
+  messages: Message[];
+}
+
+export interface LiveStreamMeta {
+  workerId?: string;
+  generation?: number;
+  taskSeq?: number;
+  turnId?: string;
+  itemId?: string;
+}
+
+interface TerminalWatermark extends LiveStreamMeta {
+  status: string;
+  revision: number;
+}
+
+function nonSystemMessages(messages: Message[]): Message[] {
+  return messages.filter((message) => message.role !== 'system');
+}
+
+function messagePrefixCompatible(local: Message, server: Message): boolean {
+  if (local.role !== server.role) return false;
+  if (local.nativeItemId && server.nativeItemId && local.nativeItemId !== server.nativeItemId) {
+    return false;
+  }
+  return local.content === server.content
+    || (local.role === 'assistant'
+      // Only local-longer means the HTTP snapshot is stale. A server final
+      // answer that is longer than the local delta must be allowed to replace
+      // it rather than being mistaken for a prefix and retained forever.
+      && local.content.startsWith(server.content));
+}
+
+function mergeServerHistoryWithLive(
+  serverHistory: Message[],
+  liveMessages: Message[],
+): Message[] {
+  const result = serverHistory.map((message) => ({ ...message }));
+  for (const live of liveMessages) {
+    const identityIndex = live.nativeItemId
+      ? result.findIndex((message) => message.nativeItemId === live.nativeItemId)
+      : -1;
+    const contentIndex = result.findIndex((message) =>
+      message.role === live.role && message.content === live.content,
+    );
+    const compatibleIndex = identityIndex >= 0
+      ? identityIndex
+      : live.role === 'assistant'
+        ? result.findIndex((message) => message.role === 'assistant'
+          && (message.content.startsWith(live.content) || live.content.startsWith(message.content)))
+        : contentIndex;
+    if (compatibleIndex < 0) {
+      result.push({ ...live });
+      continue;
+    }
+    const existing = result[compatibleIndex]!;
+    // Prefer the longer/current live assistant, but never replace a server
+    // final answer with a shorter stale delta.
+    if (live.role !== 'assistant' || live.content.length >= existing.content.length) {
+      result[compatibleIndex] = { ...existing, ...live };
+    }
+  }
+  return result;
+}
+
+function sameWorkerGeneration(a: LiveStreamMeta, b: LiveStreamMeta): boolean {
+  return Boolean(a.workerId && b.workerId && a.workerId === b.workerId
+    && (a.generation === undefined || b.generation === undefined || a.generation === b.generation));
+}
+
+function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
+  if (incoming.generation !== undefined && known.generation !== undefined) {
+    if (incoming.generation < known.generation) return true;
+    if (incoming.generation > known.generation) return false;
+  }
+  if (incoming.workerId && known.workerId && incoming.workerId !== known.workerId) {
+    return incoming.generation === undefined || known.generation === undefined
+      || incoming.generation <= known.generation;
+  }
+  if (incoming.taskSeq !== undefined && known.taskSeq !== undefined) {
+    return incoming.taskSeq < known.taskSeq;
+  }
+  return false;
+}
+
+function isBlockedByTerminal(
+  incoming: LiveStreamMeta,
+  terminal: TerminalWatermark | undefined,
+  status: string,
+): boolean {
+  if (!terminal) return false;
+  if (isOlderMeta(incoming, terminal)) return true;
+  if (status === 'idle' && sameWorkerGeneration(incoming, terminal)) return false;
+  if (status === 'running'
+      && sameWorkerGeneration(incoming, terminal)
+      && incoming.taskSeq === undefined) {
+    // Running events without taskSeq cannot prove that they belong to a new
+    // turn. The backend includes taskSeq on new lifecycle events; rejecting
+    // this ambiguous shape is safer than resurrecting a completed turn.
+    return true;
+  }
+  if (incoming.taskSeq !== undefined && terminal.taskSeq !== undefined
+      && incoming.taskSeq <= terminal.taskSeq
+      && (incoming.generation === undefined || terminal.generation === undefined
+        || incoming.generation === terminal.generation)) {
+    return true;
+  }
+  return false;
+}
+
+function mergeFinalMessages(local: Message[], canonical: Message[]): Message[] {
+  const result = canonical.map((message) => ({ ...message }));
+  for (const message of local) {
+    if (message.role === 'system') continue;
+    if (result.some((candidate) => sameMessage(candidate, message))) continue;
+    // Keep a locally queued/agent user turn if the authoritative history was
+    // fetched before that hand-off became durable. Never retain an old live
+    // assistant here: canonical already contains the final replacement.
+    if (message.role === 'user') result.push({ ...message });
+  }
+  for (const message of local.filter((candidate) => candidate.role === 'system')) {
+    if (result.some((candidate) => sameMessage(candidate, message))) continue;
+    result.push({ ...message });
+  }
+  return result;
+}
+
 /** Keep local synthetic completion rows when a later server snapshot adds a
  * real user turn but does not persist the browser-only [DONE] row. */
 function mergeServerHistoryPreservingLocal(local: Message[], server: Message[]): Message[] {
+  // A selected session may have a locally queued user message or a live
+  // assistant suffix that is not in the lagging server snapshot yet. Keep the
+  // whole local view when the server is only a prefix; system rows such as
+  // [DONE] are ignored by the prefix check and remain in that local view.
+  if (isServerHistoryPrefix(local, server)) return local;
   const result = [...server];
   const localSystem = local.filter((message) => message.role === 'system');
   for (const message of localSystem) {
@@ -228,12 +383,15 @@ function isServerHistoryPrefix(
   localHistory: Message[],
   serverHistory: Message[],
 ): boolean {
-  if (serverHistory.length > localHistory.length) return false;
-  for (let i = 0; i < serverHistory.length; i++) {
-    const s = serverHistory[i];
-    const c = localHistory[i];
-    if (!s || !c || s.role !== c.role || s.content !== c.content
-        || JSON.stringify(s.parts ?? null) !== JSON.stringify(c.parts ?? null)) return false;
+  const local = nonSystemMessages(localHistory);
+  const server = nonSystemMessages(serverHistory);
+  if (server.length > local.length) return false;
+  for (let i = 0; i < server.length; i++) {
+    const s = server[i];
+    const c = local[i];
+    if (!s || !c || !sameMessage(s, c)) {
+      if (!s || !c || !messagePrefixCompatible(c, s)) return false;
+    }
   }
   return true;
 }
@@ -259,6 +417,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   _sessionSettingsTouchedSeq: {},
   _sessionEventPatches: {},
   _deliveredQueueIds: {},
+  liveStreamBuffers: {},
+  terminalWatermarks: {},
   sessionSettingMutations: {},
 
   loadSessions: async () => {
@@ -414,7 +574,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (currentSessionId) {
         const found = sessions.find((s) => s.id === currentSessionId);
         if (found) {
-          const serverHistory = found.history || [];
+          const serverHistory = mergeServerHistoryWithLive(
+            found.history || [],
+            get().liveStreamBuffers[currentSessionId]?.messages || [],
+          );
           const keepLocal = isServerHistoryPrefix(
             currentMessages,
             serverHistory,
@@ -468,7 +631,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // spurious loads on session switch.
     set({
       currentSessionId: id,
-      currentMessages: session.history || [],
+      currentMessages: mergeServerHistoryWithLive(
+        session.history || [],
+        get().liveStreamBuffers[id]?.messages || [],
+      ),
       hasMoreMessages: needsOlder,
       historyLoading: false,
       historyLoadEnd: Math.max(
@@ -497,11 +663,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         return;
       }
       const serverHistory = data.history || [];
+      const historyWithLive = mergeServerHistoryWithLive(
+        serverHistory,
+        get().liveStreamBuffers[id]?.messages || [],
+      );
       // 流式窗口防护：若服务端历史只是本地已渲染消息的前缀（部分块尚未
       // 落盘），保留本地，避免把正在流式的回复抹掉。
       const keepLocal = isServerHistoryPrefix(
         get().currentMessages,
-        serverHistory,
+        historyWithLive,
       );
       // Keep the card preview in sync with the freshly-fetched history tail.
       const lastServerMsg = serverHistory[serverHistory.length - 1];
@@ -522,7 +692,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeServerHistoryPreservingLocal(s.currentMessages, serverHistory),
+          : mergeServerHistoryPreservingLocal(s.currentMessages, historyWithLive),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
         initialLoading: false,
@@ -552,7 +722,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         current._historyRefreshSeq[sid] !== requestSeq
       ) return;
       const serverHistory = data.history || [];
-      const keepLocal = isServerHistoryPrefix(current.currentMessages, serverHistory);
+      const historyWithLive = mergeServerHistoryWithLive(
+        serverHistory,
+        current.liveStreamBuffers[sid]?.messages || [],
+      );
+      const keepLocal = isServerHistoryPrefix(current.currentMessages, historyWithLive);
       const lastServerMsg = serverHistory[serverHistory.length - 1];
       set((s) => ({
         sessions: s.sessions.map((session) => session.id === sid
@@ -566,7 +740,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           : session),
         currentMessages: keepLocal
           ? s.currentMessages
-          : mergeServerHistoryPreservingLocal(s.currentMessages, serverHistory),
+          : mergeServerHistoryPreservingLocal(s.currentMessages, historyWithLive),
         hasMoreMessages: data.hasMore,
         historyLoadEnd: data.start,
         initialLoading: false,
@@ -854,6 +1028,223 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({
       currentMessages: [...s.currentMessages, ...msgs],
     }));
+  },
+
+  getLiveStreamMessages: (sessionId) =>
+    (get().liveStreamBuffers[sessionId]?.messages || []).map((message) => ({ ...message })),
+
+  applyLiveStream: (sessionId, messages, meta) => {
+    if (!messages.length) return false;
+    let accepted = false;
+    set((s) => {
+      const terminal = s.terminalWatermarks[sessionId];
+      if (isBlockedByTerminal(meta, terminal, 'stream')) return s;
+      const previous = s.liveStreamBuffers[sessionId];
+      if (previous && isOlderMeta(meta, previous)) return s;
+      const revision = Math.max(
+        previous?.revision ?? 0,
+        terminal?.revision ?? 0,
+      ) + 1;
+      const buffer: LiveStreamBuffer = {
+        ...meta,
+        revision,
+        messages: messages.map((message) => ({ ...message })),
+      };
+      accepted = true;
+      const session = s.sessions.find((candidate) => candidate.id === sessionId);
+      const currentBase = s.currentSessionId === sessionId
+        ? nonSystemMessages(s.currentMessages).filter((message) =>
+          !(previous?.messages || []).some((live) =>
+            (live.nativeItemId && message.nativeItemId === live.nativeItemId)
+            || sameMessage(live, message)
+            || (live.role === 'assistant' && message.role === 'assistant'
+              && (live.content.startsWith(message.content) || message.content.startsWith(live.content)))),
+        )
+        : [];
+      const historyWithLive = s.currentSessionId === sessionId
+        ? mergeServerHistoryWithLive(currentBase, buffer.messages)
+        : session
+          ? mergeServerHistoryWithLive(session.history || [], buffer.messages)
+          : buffer.messages;
+      return {
+        liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
+        ...(s.currentSessionId === sessionId && session
+          ? { currentMessages: isServerHistoryPrefix(s.currentMessages, historyWithLive)
+            ? s.currentMessages
+            : mergeServerHistoryPreservingLocal(s.currentMessages, historyWithLive) }
+          : {}),
+      };
+    });
+    return accepted;
+  },
+
+  reconcileWorkerResult: (sessionId, event, meta) => {
+    let accepted = false;
+    set((s) => {
+      const terminal = s.terminalWatermarks[sessionId];
+      if (terminal && isOlderMeta(meta, terminal)) return s;
+      const previousBuffer = s.liveStreamBuffers[sessionId];
+      if (previousBuffer && isOlderMeta(meta, previousBuffer)) return s;
+      const result = typeof event.result === 'string' ? event.result : '';
+      const status = event.status === 'error'
+        ? 'error'
+        : event.status === 'cancelled' || event.cancelled
+          ? 'cancelled'
+          : 'done';
+      const liveMessages = previousBuffer?.messages || [];
+      const liveAssistant = [...liveMessages].reverse().find((message) => message.role === 'assistant');
+      const finalLiveMessages = result.trim()
+        ? liveMessages.map((message) => message === liveAssistant
+          ? { ...message, content: result }
+          : { ...message })
+        : liveMessages.map((message) => ({ ...message }));
+      if (result.trim() && !liveAssistant) {
+        finalLiveMessages.push({
+          role: 'assistant',
+          content: result,
+          ...(meta.turnId ? { nativeItemId: `turn:${meta.turnId}` } : {}),
+        });
+      }
+      const sessions = s.sessions.map((session) => {
+        if (session.id !== sessionId) return session;
+        const history = (session.history || []).slice();
+        let historyTotal = session.historyTotal ?? history.length;
+        let replaced = false;
+        if (result.trim()) {
+          for (let index = history.length - 1; index >= 0; index--) {
+            const candidate = history[index];
+            if (!candidate || candidate.role !== 'assistant') continue;
+            const liveMatches = liveAssistant
+              && (candidate.content === liveAssistant.content
+                || candidate.content.startsWith(liveAssistant.content)
+                || liveAssistant.content.startsWith(candidate.content));
+            const exact = candidate.content === result;
+            if (exact || liveMatches) {
+              history[index] = {
+                ...candidate,
+                content: result,
+                ...(liveAssistant?.nativeItemId
+                  ? { nativeItemId: liveAssistant.nativeItemId }
+                  : {}),
+              };
+              replaced = true;
+              break;
+            }
+          }
+          if (!replaced) {
+            history.push({
+              role: 'assistant',
+              content: result,
+              ...(liveAssistant?.nativeItemId
+                ? { nativeItemId: liveAssistant.nativeItemId }
+                : {}),
+            });
+            historyTotal += 1;
+          }
+        }
+        return {
+          ...session,
+          history: history.length > 500 ? history.slice(-500) : history,
+          historyTotal,
+          lastMessage: result.trim() ? result.slice(0, 200) : session.lastMessage,
+          lastResult: {
+            status,
+            result,
+            timestamp: new Date().toISOString(),
+            ...(meta.taskSeq !== undefined ? { taskSeq: meta.taskSeq } : {}),
+          },
+        };
+      });
+      const session = sessions.find((candidate) => candidate.id === sessionId);
+      const canonical = session
+        ? mergeServerHistoryWithLive(session.history || [], finalLiveMessages)
+        : finalLiveMessages;
+      const revision = Math.max(
+        previousBuffer?.revision ?? 0,
+        terminal?.revision ?? 0,
+      ) + 1;
+      accepted = true;
+      return {
+        sessions,
+        liveStreamBuffers: Object.fromEntries(
+          Object.entries(s.liveStreamBuffers).filter(([id]) => id !== sessionId),
+        ),
+        terminalWatermarks: {
+          ...s.terminalWatermarks,
+          [sessionId]: { ...meta, status, revision },
+        },
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sessionId]: (localTouchSeq += 1),
+        },
+        ...(s.currentSessionId === sessionId
+          ? { currentMessages: mergeFinalMessages(s.currentMessages, canonical) }
+          : {}),
+      };
+    });
+    return accepted;
+  },
+
+  applyWorkerStatus: (sessionId, status, meta, terminal = false) => {
+    if (!sessionId) return false;
+    let accepted = false;
+    set((s) => {
+      const watermark = s.terminalWatermarks[sessionId];
+      if (isBlockedByTerminal(meta, watermark, status || 'idle')) return s;
+      const previous = s.liveStreamBuffers[sessionId];
+      if (previous && status === 'running' && meta.taskSeq !== undefined
+          && previous.taskSeq !== undefined && meta.taskSeq > previous.taskSeq) {
+        // A new task on the same worker starts a fresh transient turn.
+        const nextBuffers = { ...s.liveStreamBuffers };
+        delete nextBuffers[sessionId];
+        accepted = true;
+        return {
+          liveStreamBuffers: nextBuffers,
+          sessions: s.sessions.map((session) => session.id === sessionId
+            ? { ...session, workerId: meta.workerId ?? session.workerId, workerStatus: status }
+            : session),
+          _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [sessionId]: (wsTouchSeq += 1) },
+        };
+      }
+      accepted = true;
+      const next = {
+        sessions: s.sessions.map((session) => session.id === sessionId
+          ? {
+              ...session,
+              workerId: terminal ? null : meta.workerId ?? session.workerId,
+              workerStatus: status,
+            }
+          : session),
+        _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [sessionId]: (wsTouchSeq += 1) },
+      };
+      if (terminal) {
+        const revision = Math.max(
+          previous?.revision ?? 0,
+          watermark?.revision ?? 0,
+        ) + 1;
+        const nextBuffers = { ...s.liveStreamBuffers };
+        delete nextBuffers[sessionId];
+        return {
+          ...next,
+          liveStreamBuffers: nextBuffers,
+          terminalWatermarks: {
+            ...s.terminalWatermarks,
+            [sessionId]: { ...meta, status: status || 'terminal', revision },
+          },
+        };
+      }
+      return next;
+    });
+    return accepted;
+  },
+
+  clearLiveStream: (sessionId) => {
+    set((s) => {
+      if (!s.liveStreamBuffers[sessionId]) return s;
+      const liveStreamBuffers = { ...s.liveStreamBuffers };
+      delete liveStreamBuffers[sessionId];
+      return { liveStreamBuffers };
+    });
   },
 
   appendQueuedMessage: (sessionId, item) => {
