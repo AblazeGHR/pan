@@ -881,7 +881,7 @@ async def _persist_terminal_state(
 
 async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
     """Publish result then idle, without waiting for usage enrichment."""
-    completion_notification = _notifications.dispatch_completion(
+    completion_notification = _notifications.dispatch_completion_nonblocking(
         s, terminal["status"], terminal["result"],
     )
     await _bcast({
@@ -903,6 +903,7 @@ async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
         "sessionId": w.session_id,
         "generation": w.generation,
         "status": "idle",
+        "taskSeq": terminal["taskSeq"],
         "sourceSessionId": terminal["sourceSessionId"],
     })
 
@@ -3909,6 +3910,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
         "sessionId": w.session_id,
         "generation": w.generation,
         "status": "running",
+        "taskSeq": w._current_seq,
         "source": source,
         "sourceSessionId": w._current_source_session_id,
     })
@@ -4027,6 +4029,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         "sessionId": w.session_id,
         "generation": w.generation,
         "status": "running",
+        "taskSeq": w._current_seq,
         "source": source,
         "sourceSessionId": w._current_source_session_id,
     })
@@ -5751,6 +5754,7 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
             "sessionId": w.session_id,
             "generation": w.generation,
             "status": "queued",
+            "taskSeq": seq,
             "source": source,
             "sourceSessionId": source_sid,
         })

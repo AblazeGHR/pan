@@ -16,6 +16,8 @@ import {
   patchSession,
 } from '@/services/api';
 
+const configLoadsInFlight = new Map<string, Promise<void>>();
+
 interface AdapterStore {
   // State
   adapters: AdapterInfo[];
@@ -84,15 +86,30 @@ export const useAdapterStore = create<AdapterStore>((set, get) => ({
   },
 
   loadConfig: async (adapter) => {
+    const loaded = get().adapterConfigs[adapter];
+    if (loaded) {
+      set({ currentAdapter: adapter, configReady: true });
+      return;
+    }
+    const existing = configLoadsInFlight.get(adapter);
+    if (existing) return existing;
+    const request = (async () => {
+      try {
+        const config = await fetchAdapterConfig(adapter);
+        set((s) => ({
+          adapterConfigs: { ...s.adapterConfigs, [adapter]: config },
+          currentAdapter: adapter,
+          configReady: true,
+        }));
+      } catch {
+        // retry on next settings open
+      }
+    })();
+    configLoadsInFlight.set(adapter, request);
     try {
-      const config = await fetchAdapterConfig(adapter);
-      set((s) => ({
-        adapterConfigs: { ...s.adapterConfigs, [adapter]: config },
-        currentAdapter: adapter,
-        configReady: true,
-      }));
-    } catch {
-      // retry on next settings open
+      await request;
+    } finally {
+      if (configLoadsInFlight.get(adapter) === request) configLoadsInFlight.delete(adapter);
     }
   },
 

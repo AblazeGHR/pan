@@ -10,9 +10,14 @@ import { DemoBadge } from './demo/DemoBadge';
 import { isMockMode } from './demo/mockBackend';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useUIStore } from './stores/uiStore';
+import { useWebSocket } from './hooks/useWebSocket';
 import { Outlet, useNavigate } from 'react-router-dom';
 
 function Layout() {
+  // The dashboard connection is route-independent. Keeping this singleton
+  // consumer above <Outlet> lets editor/manage continue receiving Session,
+  // worker, queue and reconnect events while ChatView is unmounted.
+  useWebSocket();
   const { isMobile } = useMediaQuery();
   const mobileSidebarOpen = useUIStore((s) => s.mobileSidebarOpen);
   const setMobileSidebarOpen = useUIStore((s) => s.setMobileSidebarOpen);

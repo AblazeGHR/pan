@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useState } from 'react';
+import React, { createContext, memo, useContext, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -174,6 +174,11 @@ interface MarkdownRendererProps {
   attachmentIds?: string[];
 }
 
+// Keep plugin identity stable so react-markdown does not rebuild its unified
+// pipeline when an unrelated message or sidebar state changes.
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeHighlight, rehypeKatex];
+
 /** Recursively extract plain text from React nodes (handles hljs spans). */
 function extractCodeText(node: React.ReactNode): string {
   if (typeof node === 'string') return node;
@@ -275,7 +280,7 @@ function PreBlock({ children }: PreProps) {
   return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
-export function MarkdownRenderer({ content, className = '', attachmentIds = [] }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [] }: MarkdownRendererProps) {
   const currentSession = useCurrentSession();
   if (!content) return null;
   const renderedContent = normalizeLegacyAttachmentLinks(content, currentSession?.id);
@@ -284,8 +289,8 @@ export function MarkdownRenderer({ content, className = '', attachmentIds = [] }
   return (
     <div className={`prose-kimi max-w-none break-words ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight, rehypeKatex]}
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
         components={{
           code: CodeBlock,
           pre: PreBlock,
@@ -302,4 +307,4 @@ export function MarkdownRenderer({ content, className = '', attachmentIds = [] }
       </ReactMarkdown>
     </div>
   );
-}
+});

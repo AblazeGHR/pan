@@ -1,6 +1,10 @@
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useLayoutEffect, useState, type RefObject } from 'react';
-import { useCurrentSession, useSessionStore } from '@/stores/sessionStore';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useCurrentSession,
+  useSessionStore,
+  type SessionSettingPatch,
+} from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
@@ -20,6 +24,28 @@ function supportsSetting(config: AdapterConfig | null, name: string): boolean {
   return config.supportedSettings.includes(name);
 }
 
+function pickSettings(session: Session): SessionSettingPatch {
+  return {
+    ...(Object.prototype.hasOwnProperty.call(session, 'model') ? { model: session.model } : {}),
+    ...(Object.prototype.hasOwnProperty.call(session, 'permissionMode')
+      ? { permissionMode: session.permissionMode }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(session, 'alwaysThinkingEnabled')
+      ? { alwaysThinkingEnabled: session.alwaysThinkingEnabled }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(session, 'effort') ? { effort: session.effort } : {}),
+    ...(Object.prototype.hasOwnProperty.call(session, 'outputMode')
+      ? { outputMode: session.outputMode }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(session, 'modelContextWindow')
+      ? { modelContextWindow: session.modelContextWindow }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(session, 'modelAutoCompactTokenLimit')
+      ? { modelAutoCompactTokenLimit: session.modelAutoCompactTokenLimit }
+      : {}),
+  };
+}
+
 /**
  * Upward-expanding settings popover anchored to the toolbar's gear button
  * (rendered `absolute bottom-full`, so it appears above the input row and
@@ -33,7 +59,11 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
   const config = useAdapterStore((s) => s.getConfig());
   const applySettings = useAdapterStore((s) => s.applySettings);
-  const { loadSessions } = useSessionStore();
+  const loadSessions = useSessionStore((s) => s.loadSessions);
+  const patchSessionSettings = useSessionStore((s) => s.patchSessionSettings);
+  const settingMutation = useSessionStore((s) =>
+    session?.id ? s.sessionSettingMutations[session.id] : undefined,
+  );
 
   // The sidebar list is summary=1 driven and does NOT carry model /
   // permissionMode / alwaysThinkingEnabled / effort — fetch the full session
@@ -50,6 +80,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   const [popoverPosition, setPopoverPosition] = useState<{ left: number; bottom: number } | null>(
     null,
   );
+  const detailRequestSeq = useRef(0);
   const updatePopoverPosition = () => {
     const rect = anchorRef?.current?.getBoundingClientRect();
     if (!rect) return;
@@ -76,6 +107,8 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   }, [open, anchorRef]);
   useEffect(() => {
     if (!open || !session?.id) return;
+    const requestSeq = (detailRequestSeq.current += 1);
+    const sessionId = session.id;
     setDetailSession(null);
     setMoreOpen(false);
     setContextWindowInput(session.modelContextWindow?.toString() ?? '');
@@ -84,6 +117,10 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
     setAutoCompactError('');
     fetchSession(session.id)
       .then((full) => {
+        if (
+          detailRequestSeq.current !== requestSeq ||
+          useSessionStore.getState().currentSessionId !== sessionId
+        ) return;
         setDetailSession(full);
         setContextWindowInput(full.modelContextWindow?.toString() ?? '');
         setAutoCompactInput(full.modelAutoCompactTokenLimit?.toString() ?? '');
@@ -97,7 +134,9 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
           workdir: full.workdir,
         });
       })
-      .catch(() => setDetailSession(null));
+      .catch(() => {
+        if (detailRequestSeq.current === requestSeq) setDetailSession(null);
+      });
   }, [open, session?.id]);
 
   // Same per-session effective-worker logic as TopBar/SettingsPanel.
@@ -109,7 +148,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   const applySetting = useCallback(
     async (key: string, value: unknown): Promise<boolean> => {
       if (!session) return false;
-      const patch: Record<string, unknown> = { [key]: value };
+      const patch: SessionSettingPatch = { [key]: value } as SessionSettingPatch;
       // Codex exposes model-specific reasoning levels. Clear an effort that
       // the newly selected model cannot accept; empty means native default.
       if (key === 'model' && config?.modelEfforts) {
@@ -120,15 +159,22 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
         }
       }
       try {
-        const res = await applySettings(session.id, patch);
-        // Reflect the change locally so the select/checkbox stays in sync.
+        // Reflect the change locally before awaiting PATCH so every control
+        // and the sidebar can show the selection without network latency.
         setDetailSession((d) => (d ? { ...d, ...patch } : d));
-        await loadSessions();
+        const result = await patchSessionSettings(session.id, patch, applySettings);
+        const latest = useSessionStore.getState().sessions.find((item) => item.id === session.id);
+        if (latest) {
+          setDetailSession((d) => (d ? { ...d, ...pickSettings(latest) } : d));
+        }
+        // Snapshot reconciliation is background work and must not delay the
+        // optimistic render or make a closed popover observable.
+        void loadSessions();
         // Process-affecting settings (output_mode / model / mcp …) require a
         // worker restart to take effect. When a worker is NOT running the
         // backend flags `requireRestart`; surface it so the user knows the
         // change applies on next spawn / when the worker goes idle.
-        if ((res as { requireRestart?: boolean }).requireRestart) {
+        if (result.applied && (result.response as { requireRestart?: boolean }).requireRestart) {
           showToast('配置已保存，Worker 将自动 respawn 后生效；当前 turn 结束后切换', 'info');
         }
         return true;
@@ -137,7 +183,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
         return false;
       }
     },
-    [session, detailSession, config, effectiveWorkerId, applySettings, loadSessions, showToast],
+    [session, detailSession, config, effectiveWorkerId, applySettings, patchSessionSettings, loadSessions, showToast],
   );
 
   const updateCodexNumber = async (
@@ -162,21 +208,23 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
     if (!session || restoringCodexDefaults) return;
     setRestoringCodexDefaults(true);
     try {
-      const ok = await applySettings(session.id, {
+      const result = await patchSessionSettings(session.id, {
         modelContextWindow: null,
         modelAutoCompactTokenLimit: null,
-      });
-      setDetailSession((d) =>
-        d
-          ? {
-              ...d,
-              modelContextWindow: null,
-              modelAutoCompactTokenLimit: null,
-            }
-          : d,
-      );
-      await loadSessions();
-      if (!(ok as { error?: string }).error) {
+      }, applySettings);
+      if (result.applied) {
+        setDetailSession((d) =>
+          d
+            ? {
+                ...d,
+                modelContextWindow: null,
+                modelAutoCompactTokenLimit: null,
+              }
+            : d,
+        );
+      }
+      void loadSessions();
+      if (result.applied && !(result.response as { error?: string }).error) {
         setContextWindowInput('');
         setAutoCompactInput('');
         setContextWindowError('');
@@ -223,7 +271,13 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
 
   // Prefer the on-demand full session when loaded; fall back to the store's
   // (summary) session for id / workerStatus etc.
-  const s = detailSession ?? session;
+  // The on-demand detail object is intentionally retained for fields omitted
+  // by summary=1, but the store is the live source for optimistic settings.
+  // Overlay only fields that are actually present so a summary cannot erase
+  // detail values while a PATCH is pending.
+  const s = detailSession?.id === session.id
+    ? { ...detailSession, ...pickSettings(session) }
+    : session;
 
   const models = config.models || [];
   const currentModel = s.model || config.defaultModel;
@@ -267,6 +321,16 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
       style={{ position: 'fixed', left: popoverPosition.left, bottom: popoverPosition.bottom }}
       className="z-[60] mb-1 w-72 max-w-[calc(100vw-1rem)] max-h-[60vh] overflow-y-auto rounded-md border border-border-default bg-bg-primary shadow-xl p-3 space-y-3"
     >
+      {settingMutation?.pending && (
+        <div data-settings-pending className="text-[11px] text-text-muted" aria-live="polite">
+          保存中…
+        </div>
+      )}
+      {!settingMutation?.pending && settingMutation?.error && (
+        <div data-settings-error className="text-[11px] text-danger" role="status">
+          {settingMutation.error}
+        </div>
+      )}
       {/* Model — ModelSelect 支持关键字过滤（opencode 几十上百个模型时可快速检索） */}
       <div>
         <label className="block text-xs text-text-secondary mb-1">Model</label>

@@ -281,7 +281,11 @@ export interface StreamEvent {
     system?: Record<string, unknown> | null;
   };
   cancelled?: boolean;
+  taskSeq?: number;
   name?: string;
+  newName?: string;
+  /** Safe session fields included by session lifecycle events when available. */
+  session?: Partial<Session>;
   cliSessionId?: string;
   /** 任务来源标记（worker.status 事件透传）：agent=meta-agent 编排注入、
    *  report=订阅报告、user=前端发送、system_prompt=系统提示词注入。 */

@@ -1,6 +1,10 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
+import {
+  useSessionStore,
+  useCurrentSession,
+  type SessionSettingPatch,
+} from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
@@ -409,12 +413,13 @@ export function InputRow() {
     const e = s.edits[currentSessionId];
     return (q ? q.length : 0) + (e ? 1 : 0);
   });
+  const queuedWhileBusy = currentSession?.workerStatus === 'running' && queueCount > 0;
 
   // ── Adapter settings ──
   const config = useAdapterStore((s) => s.getConfig());
   const loadConfig = useAdapterStore((s) => s.loadConfig);
   const applySettings = useAdapterStore((s) => s.applySettings);
-  const { loadSessions } = useSessionStore();
+  const { loadSessions, patchSessionSettings } = useSessionStore();
 
   useEffect(() => {
     if (currentSession) {
@@ -424,9 +429,17 @@ export function InputRow() {
 
   const applySetting = async (key: string, value: unknown) => {
     if (!currentSession) return;
+    const patch: SessionSettingPatch = { [key]: value } as SessionSettingPatch;
+    if (key === 'model' && config?.modelEfforts) {
+      const nextEfforts = config.modelEfforts[String(value)];
+      const currentEffort = currentSession.effort || '';
+      if (nextEfforts && currentEffort && !nextEfforts.includes(currentEffort)) {
+        patch.effort = '';
+      }
+    }
     try {
-      await applySettings(currentSession.id, { [key]: value });
-      await loadSessions();
+      await patchSessionSettings(currentSession.id, patch, applySettings);
+      void loadSessions();
     } catch (e) {
       showToast((e as Error).message || 'Failed', 'error');
     }
@@ -1251,6 +1264,15 @@ export function InputRow() {
                   />
                 </div>
                 <div className="relative">
+                  {queuedWhileBusy && (
+                    <span
+                      data-testid="queued-while-busy"
+                      className="mr-1 hidden text-xs text-accent md:inline"
+                      title="Worker 正在处理上一条任务，当前消息将在之后处理"
+                    >
+                      排队中
+                    </span>
+                  )}
                   <button
                     onClick={togglePanel}
                     title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}

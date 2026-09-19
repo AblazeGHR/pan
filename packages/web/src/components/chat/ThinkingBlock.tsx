@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { ChevronDown, ChevronUp } from 'lucide-react';
@@ -8,7 +8,7 @@ interface ThinkingBlockProps {
   message: Message;
 }
 
-export function ThinkingBlock({ message }: ThinkingBlockProps) {
+export const ThinkingBlock = memo(function ThinkingBlock({ message }: ThinkingBlockProps) {
   const [isOpen, setIsOpen] = useState(false);
   const unread = useSessionStore((s) => s.getUnread());
   const hasUnread = unread.has(message.content);
@@ -59,4 +59,4 @@ export function ThinkingBlock({ message }: ThinkingBlockProps) {
       </div>
     </div>
   );
-}
+});

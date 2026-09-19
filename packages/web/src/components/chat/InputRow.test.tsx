@@ -802,8 +802,11 @@ describe('InputRow send queue wiring', () => {
       expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('queued msg'),
     );
     expect((textarea as HTMLTextAreaElement).value).toBe('');
-    // 排队消息不上屏：它不在服务端 history 中，伪装进聊天会在刷新后凭空消失
-    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    // Successful enqueue is visible immediately, correlated by the server
+    // queue id; a later delivery event must merge idempotently.
+    expect(useSessionStore.getState().currentMessages).toEqual([{
+      role: 'user', content: 'queued msg', queueItemIds: ['q-queued-msg'],
+    }]);
 
     // ^ 按钮角标显示 1（面板头部的计数也在 DOM 中，用 getAllByText）
     expect(screen.getAllByText('1').length).toBeGreaterThan(0);
@@ -857,7 +860,9 @@ describe('InputRow send queue wiring', () => {
     await waitFor(() =>
       expect(useQueueStore.getState().queues['s1']?.[0]?.text).toBe('direct msg'),
     );
-    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    expect(useSessionStore.getState().currentMessages).toEqual([{
+      role: 'user', content: 'direct msg', queueItemIds: ['q-direct-msg'],
+    }]);
   });
 
   it('uses the durable HTTP enqueue path when WS is unavailable', async () => {
@@ -895,7 +900,9 @@ describe('InputRow send queue wiring', () => {
         expect.any(Array),
       ),
     );
-    expect(useSessionStore.getState().currentMessages).toEqual([]);
+    expect(useSessionStore.getState().currentMessages).toEqual([{
+      role: 'user', content: 'survive reconnect', queueItemIds: ['q-survive-reconnect'],
+    }]);
   });
 
   it('clears optimistically and restores the complete draft when enqueue fails', async () => {

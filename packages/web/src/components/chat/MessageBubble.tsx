@@ -1,4 +1,5 @@
 import type { Message } from '@/types';
+import { memo, useMemo } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ToolGroup } from './ToolGroup';
@@ -35,9 +36,13 @@ interface MessageBubbleProps {
   prevRole?: PrevRole;
 }
 
-export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ message, prevRole = null }: MessageBubbleProps) {
   const role = message.role;
   const mt = marginTopClass(role, prevRole);
+  const attachmentIds = useMemo(
+    () => message.parts?.flatMap((part) => part.type === 'attachment' ? [part.attachmentId] : []),
+    [message.parts],
+  );
 
   // Thinking blocks get their own component
   if (role === 'thinking') {
@@ -72,7 +77,7 @@ export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) 
         <div className="msg user w-full text-sm">
           <MarkdownRenderer
             content={message.content}
-            attachmentIds={message.parts?.flatMap((part) => part.type === 'attachment' ? [part.attachmentId] : [])}
+            attachmentIds={attachmentIds}
             className="text-sm"
           />
         </div>
@@ -86,12 +91,12 @@ export function MessageBubble({ message, prevRole = null }: MessageBubbleProps) 
       <div className="msg assistant text-sm leading-relaxed">
         <MarkdownRenderer
           content={message.content}
-          attachmentIds={message.parts?.flatMap((part) => part.type === 'attachment' ? [part.attachmentId] : [])}
+          attachmentIds={attachmentIds}
         />
       </div>
     </div>
   );
-}
+});
 
 /**
  * Group consecutive messages into display items.
@@ -127,7 +132,7 @@ interface MessageDisplayItemProps {
   prevRole?: PrevRole;
 }
 
-export function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItemProps) {
+export const MessageDisplayItem = memo(function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItemProps) {
   if ('type' in item && item.type === 'tool_group') {
     return (
       <div className={`${marginTopClass('tool', prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>
@@ -136,4 +141,4 @@ export function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItem
     );
   }
   return <MessageBubble message={item as Message} prevRole={prevRole} />;
-}
+});

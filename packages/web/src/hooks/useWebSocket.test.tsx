@@ -103,6 +103,8 @@ describe('useWebSocket worker.result wiring', () => {
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
       _historyRefreshSeq: {},
+      liveStreamBuffers: {},
+      terminalWatermarks: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
@@ -187,6 +189,30 @@ describe('useWebSocket worker.result wiring', () => {
     renderHook(() => useWebSocket());
 
     expect(wsMock.send).toHaveBeenCalledWith({ type: 'sync_interactive' });
+  });
+
+  it('applies session rename/update payloads before the debounced snapshot', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('session.renamed', {
+        type: 'session.renamed',
+        sessionId: 'A',
+        name: 'renamed immediately',
+        session: { id: 'A', name: 'renamed immediately', historyTotal: 4 },
+      });
+      wsMock.trigger('session.updated', {
+        type: 'session.updated',
+        sessionId: 'A',
+        session: { id: 'A', lastMessage: 'updated immediately', historyTotal: 5 },
+      });
+    });
+
+    expect(useSessionStore.getState().sessions.find((s) => s.id === 'A')).toMatchObject({
+      name: 'renamed immediately',
+      lastMessage: 'updated immediately',
+      historyTotal: 5,
+    });
   });
 
   it('routes Claude permission requests and removes them after resolution', () => {
@@ -866,6 +892,8 @@ describe('useWebSocket agent-injected message sync', () => {
       historyLoadEnd: 0,
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
+      liveStreamBuffers: {},
+      terminalWatermarks: {},
     });
   });
 
@@ -1201,6 +1229,8 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       historyLoadEnd: 0,
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
+      liveStreamBuffers: {},
+      terminalWatermarks: {},
     });
     vi.useFakeTimers();
   });

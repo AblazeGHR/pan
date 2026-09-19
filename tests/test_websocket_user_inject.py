@@ -89,6 +89,16 @@ def test_user_inject_rejects_attachment_for_another_session(monkeypatch):
     assert ws not in srv.ws_clients
 
 
+def test_dashboard_ping_gets_pong():
+    srv.ws_clients.clear()
+    ws = _FakeWS({"type": "ping"})
+
+    asyncio.run(srv.ws_endpoint(ws))
+
+    assert ws.sent == [{"type": "pong"}]
+    assert ws not in srv.ws_clients
+
+
 def test_user_inject_rejects_cross_session_structured_parts(monkeypatch, tmp_path):
     """DEC-002: a queued chip/inline part never adopts another Session's upload."""
     from packages.core import session as _sess

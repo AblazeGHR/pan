@@ -42,8 +42,15 @@ function showCodexWarningToast(): boolean {
   return useAppSettingsStore.getState().notifications.codexWarningToast;
 }
 
+const queueRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function refreshAgentQueue(sessionId?: string): void {
-  if (sessionId) void useQueueStore.getState().loadAgentQueue(sessionId);
+  if (!sessionId || queueRefreshTimers.has(sessionId)) return;
+  // Coalesce queue.item_* + worker.status bursts into one authoritative GET;
+  // the queue store also suppresses overlapping requests across callers.
+  queueRefreshTimers.set(sessionId, setTimeout(() => {
+    queueRefreshTimers.delete(sessionId);
+    void useQueueStore.getState().loadAgentQueue(sessionId);
+  }, 0));
 }
 
 /**
@@ -208,7 +215,6 @@ export function useWebSocket() {
       }));
     }
     unsubscribers.push(wsClient.on('queue.item_delivered', (e: StreamEvent) => {
-      refreshAgentQueue(e.sessionId);
       if (!e.sessionId || !Array.isArray(e.messages)) return;
       useSessionStore.getState().appendDeliveredMessages(e.sessionId, e.messages);
     }));
@@ -216,21 +222,30 @@ export function useWebSocket() {
     // Worker spawned / restarted / reconfigured
     unsubscribers.push(wsClient.on('worker.spawned', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e)) return;
-      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
+      if (e.sessionId) {
+        clearNativeTurnAliases(e.sessionId);
+        useSessionStore.getState().clearLiveStream(e.sessionId);
+      }
       clearInteractiveRequests(e.sessionId);
       if (!handleWorkerUpdate(e, 'idle')) return;
       refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.restarted', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e)) return;
-      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
+      if (e.sessionId) {
+        clearNativeTurnAliases(e.sessionId);
+        useSessionStore.getState().clearLiveStream(e.sessionId);
+      }
       clearInteractiveRequests(e.sessionId);
       if (!handleWorkerUpdate(e, 'idle')) return;
       refreshAgentQueue(e.sessionId);
     }));
     unsubscribers.push(wsClient.on('worker.reconfigured', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e)) return;
-      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
+      if (e.sessionId) {
+        clearNativeTurnAliases(e.sessionId);
+        useSessionStore.getState().clearLiveStream(e.sessionId);
+      }
       clearInteractiveRequests(e.sessionId);
       if (!handleWorkerUpdate(e, 'idle')) return;
       refreshAgentQueue(e.sessionId);
@@ -410,9 +425,10 @@ export function useWebSocket() {
         ui.removeUserInputRequest(e.sessionId, requestId);
         ui.removeElicitationRequest(e.sessionId, requestId);
       }
-      const store = useSessionStore.getState();
-      // 消息区：仅当前 session 追加（原有逻辑，保留）
-      if (e.sessionId === store.currentSessionId) appendEvent(e.sessionId, e.event);
+      // Persist a transient live suffix for every session. The store projects
+      // it into currentMessages only when that session is selected, so A→B→A
+      // does not lose deltas while the selected-session viewport changes.
+      appendEvent(e.sessionId, e.event, e);
       // 卡片预览：所有 session 就地 throttle 更新 lastMessage（无文本事件跳过）
       const text = extractStreamText(e.event);
       if (text) throttledLastMessageUpdate(e.sessionId, text);
@@ -428,6 +444,8 @@ export function useWebSocket() {
         scheduleRefreshSessions();
         return;
       }
+      if (!e.sessionId) return;
+      const sessionId = e.sessionId;
       const notification = e.notification as { title?: string; body?: string; browser?: boolean } | undefined;
       // Permission is explicitly requested from msgBridge; completion events
       // never prompt in the background.
@@ -436,28 +454,46 @@ export function useWebSocket() {
         new Notification(notification.title || 'Pan:', { body: notification.body || '' });
       }
       const sessionStore = useSessionStore.getState();
-      clearInteractiveRequests(e.sessionId);
-      if (e.sessionId === sessionStore.currentSessionId) {
+      clearInteractiveRequests(sessionId);
+      const reconciled = sessionStore.reconcileWorkerResult(sessionId, e, {
+        workerId: e.workerId,
+        generation: e.generation,
+        taskSeq: e.taskSeq,
+      });
+      if (!reconciled) {
+        scheduleRefreshSessions();
+        return;
+      }
+      const afterReconcile = useSessionStore.getState();
+      if (sessionId === afterReconcile.currentSessionId) {
         const status = e.status === 'error'
           ? 'error'
           : e.status === 'cancelled' || e.cancelled
             ? 'cancelled'
             : 'done';
-        sessionStore.addMessage({
-          role: 'system',
-          content: `[${status.toUpperCase()}] Task completed`,
-        });
+        const resultKey = e.taskSeq === undefined
+          ? undefined
+          : `worker.result:${e.sessionId}:${e.taskSeq}`;
+        const alreadyShown = resultKey
+          ? afterReconcile.currentMessages.some((message) => message.nativeItemId === resultKey)
+          : false;
+        if (!alreadyShown) {
+          afterReconcile.addMessage({
+            role: 'system',
+            content: `[${status.toUpperCase()}] Task completed`,
+            ...(resultKey ? { nativeItemId: resultKey } : {}),
+          });
+        }
       }
       // 流式预览节流：result 为最终 lastMessage，先清掉该 session 未 flush 的
       // pending 文本与尾随 timer，防止其迟到覆盖 result（applyResultToSession
       // 紧接着以 result 写入 lastMessage）。
-      if (e.sessionId) cancelStreamPreview(e.sessionId);
-      if (e.sessionId) clearNativeTurnAliases(e.sessionId);
+      cancelStreamPreview(sessionId);
+      clearNativeTurnAliases(sessionId);
       handleWorkerUpdate(e, 'idle');
       refreshAgentQueue(e.sessionId);
       // 就地更新该 session 卡片（lastResult + 结果文本追加 + historyTotal），
       // 不等 300ms 防抖全量兜底即可让「最后消息 summary」立即最新。
-      if (e.sessionId) sessionStore.applyResultToSession(e.sessionId, e);
       // 实时刷新侧边栏列表（lastResult / historyTotal / workerStatus 等卡片
       // 数据）。防抖合并为单次全量抓取：既避免每个任务完成都触发整列表重渲染
       // 造成的滞涩，也避开了后端「done→idle」的瞬态窗口（否则快照可能把已置为
@@ -467,10 +503,25 @@ export function useWebSocket() {
 
     // Session events — created/deleted 也需刷新列表（否则新 session 不出现、
     // 删除的残留，需手动刷新才更新）。同样防抖合并。
-    unsubscribers.push(wsClient.on('session.renamed', () => {
+    const applySessionEvent = (e: StreamEvent): void => {
+      if (!e.sessionId) return;
+      const patch: Partial<import('@/types').Session> = e.session
+        ? { ...e.session }
+        : {};
+      if (e.type === 'session.renamed') {
+        const nextName = e.name ?? e.newName;
+        if (nextName) patch.name = nextName;
+      }
+      if (Object.keys(patch).length > 0) {
+        useSessionStore.getState().updateSession(e.sessionId, patch, true);
+      }
+    };
+    unsubscribers.push(wsClient.on('session.renamed', (e: StreamEvent) => {
+      applySessionEvent(e);
       scheduleRefreshSessions();
     }));
-    unsubscribers.push(wsClient.on('session.updated', () => {
+    unsubscribers.push(wsClient.on('session.updated', (e: StreamEvent) => {
+      applySessionEvent(e);
       scheduleRefreshSessions();
     }));
     unsubscribers.push(wsClient.on('session.created', () => {
@@ -504,6 +555,8 @@ export function useWebSocket() {
       streamPreviewTimers.clear();
       streamPreviewPending.clear();
       streamPreviewLastFlush.clear();
+      for (const timer of queueRefreshTimers.values()) clearTimeout(timer);
+      queueRefreshTimers.clear();
       if (recoveryTimer) clearTimeout(recoveryTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pageshow', recover);
@@ -534,12 +587,13 @@ function handleWorkerUpdate(
   if (!e.sessionId) return false;
   if (!isCurrentWorkerEvent(e, terminal)) return false;
   const sessStore = useSessionStore.getState();
-  sessStore.updateSession(e.sessionId, {
-    // A destroy/crash event is authoritative even though older event payloads
-    // may omit workerId.  Do not turn its explicit null into "leave unchanged".
-    workerId: status === null ? null : e.workerId ?? undefined,
-    workerStatus: status,
-  });
+  const accepted = sessStore.applyWorkerStatus(
+    e.sessionId,
+    status,
+    { workerId: e.workerId, generation: e.generation, taskSeq: e.taskSeq },
+    terminal,
+  );
+  if (!accepted) return false;
   const workerStore = useWorkerStore.getState();
   workerStore.updateWorker(e.sessionId, e.workerId ?? null, status, e.generation, terminal);
 
@@ -689,11 +743,16 @@ const nativeTurnItemAliases = new Map<string, string>();
 // multiple native items can legitimately interleave within one turn.
 const nativeTurnCompleted = new Set<string>();
 
-function appendEvent(sessionId: string, event: StreamEvent['event']): void {
-  if (!event) return;
+function appendEventToMessages(
+  sessionId: string,
+  event: StreamEvent['event'],
+  initialMessages: Message[],
+): Message[] {
+  if (!event) return initialMessages;
   const t = event.type;
-  if (t === 'system' && event.subtype === 'init') return;
-  if (t === 'result') return;
+  if (t === 'system' && event.subtype === 'init') return initialMessages;
+  if (t === 'result') return initialMessages;
+  let messages = initialMessages;
 
   // Stream arrival order is the display order: the first event for a native
   // item reserves its position, and later deltas/completion replace that item
@@ -701,8 +760,6 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
   // according to the adapter's event semantics, never according to the
   // render timing or the current viewport position.
   for (const b of extractBlocks(event)) {
-    const store = useSessionStore.getState();
-    const messages = store.currentMessages;
     // A Codex assistant reply is one logical message for the whole turn. The
     // native bridge can expose different item ids for its delta and completed
     // notifications (and an interleaved tool can become the last message), so
@@ -738,9 +795,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
     if (event.replace && target?.role === b.role) {
       const updated = { ...target, content: b.content };
       inheritMessageIdentity(updated, target);
-      useSessionStore.setState({
-        currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
-      });
+      messages = messages.map((message, index) => index === targetIndex ? updated : message);
       continue;
     }
     if (event.delta) {
@@ -752,9 +807,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
           ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
         };
         inheritMessageIdentity(updated, target);
-        useSessionStore.setState({
-          currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
-        });
+        messages = messages.map((message, index) => index === targetIndex ? updated : message);
       } else {
         const message = {
           role: b.role,
@@ -762,7 +815,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
           ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
         };
         rememberMessageIdentity(message);
-        useSessionStore.getState().addMessage(message);
+        messages = [...messages, message];
       }
       continue;
     }
@@ -779,9 +832,7 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
           ...(nativeItemId && !target.nativeItemId ? { nativeItemId } : {}),
         };
         inheritMessageIdentity(updated, target);
-        useSessionStore.setState({
-          currentMessages: messages.map((message, index) => index === targetIndex ? updated : message),
-        });
+        messages = messages.map((message, index) => index === targetIndex ? updated : message);
         continue;
       }
     }
@@ -795,27 +846,52 @@ function appendEvent(sessionId: string, event: StreamEvent['event']): void {
         ...(nativeItemId ? { nativeItemId } : {}),
       };
       rememberMessageIdentity(message);
-      useSessionStore.getState().addMessage(message);
+      messages = [...messages, message];
     } else if (b.role === 'thinking') {
-      store.markUnread(b.content);
       const message = {
         role: 'thinking',
         content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
       };
       rememberMessageIdentity(message);
-      useSessionStore.getState().addMessage(message);
+      messages = [...messages, message];
     } else if (b.role === 'tool') {
-      store.markUnread(b.content);
       const message = {
         role: 'tool',
         content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
       };
       rememberMessageIdentity(message);
-      useSessionStore.getState().addMessage(message);
+      messages = [...messages, message];
     }
   }
+  return messages;
+}
+
+function appendEvent(sessionId: string, event: StreamEvent['event'], meta: StreamEvent): boolean {
+  if (!event) return false;
+  const store = useSessionStore.getState();
+  const before = store.getLiveStreamMessages(sessionId);
+  // The native alias table is only a transient accelerator. If the durable
+  // live buffer is gone (result/restart or a fresh client state), an alias
+  // from an earlier turn must not attach a new event to that old turn.
+  if (before.length === 0) clearNativeTurnAliases(sessionId);
+  const messages = appendEventToMessages(sessionId, event, before);
+  const accepted = store.applyLiveStream(sessionId, messages, {
+    workerId: meta.workerId,
+    generation: meta.generation,
+    taskSeq: meta.taskSeq,
+    turnId: event.turn_id,
+    itemId: event.item_id !== undefined ? String(event.item_id) : undefined,
+  });
+  if (accepted) {
+    for (const block of extractBlocks(event)) {
+      if (block.role === 'thinking' || block.role === 'tool') {
+        store.markUnread(block.content);
+      }
+    }
+  }
+  return accepted;
 }
 
 function clearNativeTurnAliases(sessionId: string): void {

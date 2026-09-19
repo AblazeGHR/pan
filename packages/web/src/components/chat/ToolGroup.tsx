@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { ChevronDown, ChevronUp, CircleCheck, CircleX, Loader2, Wrench } from 'lucide-react';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -136,7 +136,7 @@ function StatusIcon({ status }: { status: ToolInfo['status'] }) {
   }
 }
 
-export function ToolGroup({ items }: ToolGroupProps) {
+export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const unread = useSessionStore((s) => s.getUnread());
@@ -216,4 +216,4 @@ export function ToolGroup({ items }: ToolGroupProps) {
       )}
     </div>
   );
-}
+});
