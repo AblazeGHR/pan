@@ -903,12 +903,67 @@ async def _persist_terminal_state(
         w.last_activity = time.monotonic()
         return None
 
+    # ``last_result`` is deliberately only the latest compatibility view.  A
+    # reconnect may cross several terminal turns, so keep a small durable
+    # ordered window as the source for cursor replay.  Check the window before
+    # allocating a new cursor as well; a replacement Worker may lose the
+    # in-memory terminal guard after a crash.
+    prior_terminals = [
+        item for item in (getattr(s, "terminal_results", None) or [])
+        if isinstance(item, dict)
+    ]
+    if any(
+        item.get("terminalKey") == terminal_key
+        and item.get("status") == status
+        for item in prior_terminals
+    ):
+        _log.warning(
+            "[Worker %s] durable terminal replay duplicate ignored key=%s",
+            w.worker_id, terminal_key,
+        )
+        w.status = "idle"
+        w._terminal_handled = True
+        _signal_task_done(w)
+        w.last_activity = time.monotonic()
+        return None
+
+    try:
+        result_cursor = max(
+            int(getattr(s, "result_cursor", 0) or 0),
+            max((int(item.get("resultCursor", 0) or 0)
+                 for item in prior_terminals), default=0),
+        ) + 1
+    except (TypeError, ValueError):
+        result_cursor = max(0, int(getattr(s, "result_cursor", 0) or 0)) + 1
+    s.result_cursor = result_cursor
+    terminal_record = {
+        "resultCursor": result_cursor,
+        "terminalKey": terminal_key,
+        "status": status,
+        "result": result_text,
+        "taskSeq": task_seq,
+        "taskId": task_id,
+        "taskIdempotent": task_idempotent,
+        "workerId": w.worker_id,
+        "generation": w.generation,
+        "sourceSessionId": source_session_id,
+        "timestamp": datetime.now().isoformat(),
+    }
+    s.terminal_results = (
+        prior_terminals + [terminal_record]
+    )[-_sess.RESULT_REPLAY_MAX_ENTRIES:]
+
     s.last_result = {
         "status": status,
         "result": result_text,
         "cli_session_id": s.cli_session_id,
         "timestamp": datetime.now().isoformat(),
         "taskSeq": task_seq,
+        "taskId": task_id,
+        "taskIdempotent": task_idempotent,
+        "workerId": w.worker_id,
+        "generation": w.generation,
+        "resultCursor": result_cursor,
         "sourceSessionId": source_session_id,
         "terminalKey": terminal_key,
     }
@@ -945,6 +1000,8 @@ async def _persist_terminal_state(
         "taskSeq": task_seq,
         "taskId": task_id,
         "taskIdempotent": task_idempotent,
+        "resultCursor": result_cursor,
+        "terminalKey": terminal_key,
         "sourceSessionId": source_session_id,
         "result": result_text,
         "status": status,
@@ -965,6 +1022,9 @@ async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
         "status": terminal["status"],
         "result": terminal["result"],
         "taskSeq": terminal["taskSeq"],
+        "taskId": terminal["taskId"],
+        "resultCursor": terminal["resultCursor"],
+        "terminalKey": terminal["terminalKey"],
         "sourceSessionId": terminal["sourceSessionId"],
         **({"notification": completion_notification}
            if completion_notification else {}),
@@ -1282,49 +1342,19 @@ def _ack_current_reports(w: Worker, s) -> None:
 
 async def _finish_task_error(w: Worker, s, result: str) -> None:
     """把执行前失败也收敛成可见的 terminal result。"""
-    task_id = w._current_task_id
-    w.status = "error"
-    if s is not None:
-        s.last_result = {
-            "status": "error",
-            "result": result,
-            "cli_session_id": s.cli_session_id,
-            "timestamp": datetime.now().isoformat(),
-            "taskSeq": w._current_seq,
-        }
-        _ack_current_task(w, s)
-        _ack_current_reports(w, s)
-        _clear_active_task_if_current(s, task_id)
-        # The existing terminal-result save should also persist the final
-        # legal state, avoiding extra full-session writes on this hot path.
-        await _record_legal_worker_state(w, "error", "task/error", persist=False)
-        w.status = "idle"
-        await _record_legal_worker_state(w, "idle", "task/error-complete", persist=False)
-        await _sess.save_async(s)
-    await _bcast({
-        "type": "worker.result",
-        "workerId": w.worker_id,
-        "sessionId": w.session_id,
-        "generation": w.generation,
-        "status": "error",
-        "result": result,
-        "taskSeq": w._current_seq,
-        "sourceSessionId": w._current_source_session_id,
-    })
-    await _enqueue_report(w.session_id, "error", result, task_id, w.worker_id)
-    if w._current_task_idempotent and task_id and task_id in _task_status:
-        _task_status[task_id] = {
-            "status": "error", "result": result,
-            "workerId": w.worker_id, "taskId": task_id, "ts": time.monotonic(),
-        }
-    w._current_task_id = None
-    w._current_task_idempotent = False
-    w._current_source_session_id = None
-    w.status = "idle"
     if s is None:
-        await _record_legal_worker_state(w, "error", "task/error", persist=False)
-        await _record_legal_worker_state(w, "idle", "task/error-complete", persist=False)
-    _signal_task_done(w)
+        raise RuntimeError(
+            f"Session {w.session_id} disappeared before terminal persistence"
+        )
+    terminal = await _persist_terminal_state(w, s, "error", result)
+    if terminal is None:
+        return
+    await _publish_terminal_events(w, terminal, s)
+    await _enqueue_report(
+        w.session_id, terminal["status"], terminal["result"],
+        terminal["taskId"], w.worker_id,
+    )
+    _finish_terminal_bookkeeping(w, terminal)
 
 
 # ── 流式块防抖落盘（A1）──
@@ -4397,25 +4427,11 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
     if w.process is None or w.process.returncode is not None:
         # No provider hand-off happened.  The queue coordinator will requeue
         # the still-pending item after this helper returns.
-        if s:
-            s.last_result = {
-                "status": "error",
-                "result": f"Worker process dead (returncode={w.process.returncode if w.process else 'none'})",
-                "cli_session_id": s.cli_session_id,
-                "timestamp": datetime.now().isoformat(),
-                "sourceSessionId": w._current_source_session_id,
-            }
-            await _sess.save_async(s)
-        await _bcast({
-            "type": "worker.result",
-            "workerId": w.worker_id,
-            "sessionId": w.session_id,
-            "generation": w.generation,
-            "status": "error",
-            "result": "Worker process dead",
-            "taskSeq": w._current_seq,
-            "sourceSessionId": w._current_source_session_id,
-        })
+        await _finish_task_error(
+            w,
+            s,
+            f"Worker process dead (returncode={w.process.returncode if w.process else 'none'})",
+        )
         return
 
     # Clear the completion latch before handing the prompt to the provider.

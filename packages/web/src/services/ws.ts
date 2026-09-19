@@ -22,6 +22,9 @@ class WsClient {
   private silentWatchdogTimer: ReturnType<typeof setInterval> | null = null;
   private url: string;
   private lastActivityAt = 0;
+  private eventEpoch: string | null = null;
+  private eventSeq = 0;
+  private resyncPending = false;
 
   constructor(url?: string) {
     const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -37,6 +40,7 @@ class WsClient {
     this.ws.onopen = () => {
       this.retryAttempt = 0;
       this.lastActivityAt = Date.now();
+      this.resyncPending = false;
       this.startHeartbeat();
       this.startSilentWatchdog();
       this.emit('open', { type: 'open' });
@@ -46,6 +50,29 @@ class WsClient {
       this.lastActivityAt = Date.now();
       try {
         const data: StreamEvent = JSON.parse(e.data as string);
+        const epoch = data.eventEpoch;
+        const seq = data.eventSeq;
+        if (typeof epoch === 'string' && typeof seq === 'number') {
+          const isSnapshot = data.type === 'resync.snapshot';
+          const gap = !isSnapshot
+            && this.eventEpoch === epoch
+            && this.eventSeq > 0
+            && seq > this.eventSeq + 1;
+          if (gap && !this.resyncPending) {
+            this.resyncPending = true;
+            this.emit('resync_required', {
+              type: 'resync_required',
+              reason: 'event_cursor_gap',
+              eventEpoch: epoch,
+              eventSeq: seq,
+            });
+          }
+          if (isSnapshot) this.resyncPending = false;
+          if (this.eventEpoch !== epoch || isSnapshot) this.eventSeq = seq;
+          else this.eventSeq = Math.max(this.eventSeq, seq);
+          this.eventEpoch = epoch;
+        }
+        if (data.type === 'resync_required') this.resyncPending = true;
         this.dispatch(data);
       } catch {
         // Ignore malformed messages
@@ -107,6 +134,10 @@ class WsClient {
     // 消息静默丢失而调用方已按成功处理（H6）。调用方收到 false 应保留待重发状态；
     // queueStore 在 'open' 事件时自动 flush 重试（见 queueStore.ts 底部联动）。
     return false;
+  }
+
+  getEventCursor(): { eventEpoch: string | null; eventSeq: number } {
+    return { eventEpoch: this.eventEpoch, eventSeq: this.eventSeq };
   }
 
   on(type: string, handler: MessageHandler): () => void {

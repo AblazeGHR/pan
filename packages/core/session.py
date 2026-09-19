@@ -54,6 +54,11 @@ QUEUE_RECEIPT_TTL_SEC = 7 * 24 * 60 * 60
 QUEUE_IDEMPOTENCY_INDEX_MAX_ENTRIES = 4096
 QUEUE_RECEIPT_MIN_RETRY_SEC = 60.0
 _QUEUE_TERMINAL_STATES = frozenset({"sent_to_cli", "deleted"})
+# ``worker.result`` replay is a bounded recovery aid, not an event log.  The
+# durable cursor is kept on the Session so a Pan restart cannot make a
+# reconnect mistake a newer result for an older one.  Results outside this
+# window require the resync snapshot rather than an unbounded replay cache.
+RESULT_REPLAY_MAX_ENTRIES = 64
 # Locking contract:
 #   _STORE_LOCK serializes global Session-index operations (names, handoff,
 #   relationships, and ordering).  A _SessionSaveState serializes file writes
@@ -755,6 +760,8 @@ class Session:
     workdir: str = ""
     history: list[dict] = field(default_factory=list)
     last_result: dict | None = None
+    result_cursor: int = 0
+    terminal_results: list[dict] = field(default_factory=list)
     # Last Worker state reached through an explicitly successful Pan
     # lifecycle transition.  This is deliberately separate from the live
     # worker status, which is derived from the in-memory Worker runtime.
@@ -822,6 +829,8 @@ class Session:
                  workdir: str = "",
                  history: list[dict] | None = None,
                  last_result: dict | None = None,
+                 result_cursor: int = 0,
+                 terminal_results: list[dict] | None = None,
                  last_legal_worker_state: str | None = None,
                  created_at: str = "",
                  updated_at: str = "",
@@ -878,6 +887,17 @@ class Session:
         self.workdir = workdir
         self.history = history if history is not None else []
         self.last_result = last_result
+        try:
+            self.result_cursor = max(0, int(result_cursor or 0))
+        except (TypeError, ValueError):
+            self.result_cursor = 0
+        self.terminal_results = [
+            dict(item) for item in (terminal_results or [])
+            if isinstance(item, dict)
+        ][-RESULT_REPLAY_MAX_ENTRIES:]
+        # Older sessions only have last_result.  Do not synthesize a durable
+        # replay entry here: its result cursor is unknown and a future save
+        # must not pretend that an old result can fill a historical gap.
         self.last_legal_worker_state = (
             last_legal_worker_state if isinstance(last_legal_worker_state, str)
             else None
@@ -1109,6 +1129,8 @@ class Session:
             "workdir": self.workdir,
             "history": self.history,
             "last_result": self.last_result,
+            "result_cursor": self.result_cursor,
+            "terminal_results": self.terminal_results,
             "last_legal_worker_state": self.last_legal_worker_state,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
