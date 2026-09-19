@@ -1274,6 +1274,31 @@ describe('InputRow pill visibility', () => {
 });
 
 describe('InputRow control row layout contract', () => {
+  it('anchors the queue count badge to the Queue button, including the desktop busy hint', () => {
+    mockMatchMedia(false);
+    setBusySession();
+    useQueueStore.setState({
+      queues: {
+        s1: [{
+          id: 'q-1',
+          queueItemId: 'q-1',
+          kind: 'task',
+          text: 'queued',
+          createdAt: 1,
+          meta: { dispatchState: 'queued', revision: 1 },
+        }],
+      },
+    });
+    render(<InputRow />);
+
+    const queueButton = screen.getByRole('button', { name: /发送队列（1 条待发）/ });
+    const badge = screen.getByTestId('queue-count-badge');
+    expect(queueButton.className).toContain('relative');
+    expect(badge.parentElement).toBe(queueButton);
+    expect(badge.className).toContain('absolute');
+    expect(badge.className).toContain('pointer-events-none');
+  });
+
   it('uses a wider Queue control and right-aligns desktop attachment', () => {
     mockMatchMedia(false);
     setModelAndPermissionSession();
