@@ -766,14 +766,20 @@ async def no_cache_api(request: Request, call_next):
 
 # ── helpers ──
 
-def _session_to_api(s: sess.Session):
+def _session_to_api(
+    s: sess.Session,
+    *,
+    include_history: bool = True,
+    include_raw_usage: bool = True,
+    include_last_result: bool = True,
+):
     """Convert Session to API response dict."""
     w = worker.find_alive_worker_by_session(s.id)
     a = get_adapter(s.adapter)
     config = load_config().get(s.adapter, {})
     ac = s.adapter_config
-    last_result = s.last_result
-    if isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
+    last_result = s.last_result if include_last_result else None
+    if include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
         last_result = {
             **last_result,
             "result": _project_editor_links(s.id, last_result["result"]),
@@ -806,11 +812,11 @@ def _session_to_api(s: sess.Session):
         "modelContextWindow": ac.get("model_context_window"),
         "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
         "workdir": s.workdir,
-        "history": _api_history(s.id, s.history),
-        "lastResult": last_result,
+        **({"history": _api_history(s.id, s.history)} if include_history else {}),
+        **({"lastResult": last_result} if include_last_result else {}),
         "activeTaskId": s.active_task_id,
         "lastLegalWorkerState": s.last_legal_worker_state,
-        "rawUsage": s.raw_usage,
+        **({"rawUsage": s.raw_usage} if include_raw_usage else {}),
         "totalUsage": s.total_usage,
         "usageEnrichmentPending": s.usage_enrichment_pending,
         "createdAt": s.created_at,
@@ -3538,10 +3544,20 @@ async def api_sessions_order(data: dict):
 
 
 @app.get("/api/sessions/{session_id}")
-async def api_get_session(session_id: str):
+async def api_get_session(session_id: str, view: str = "full"):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
+    if view in {"metadata", "detail"}:
+        # Keep relationship/settings/system-prompt fields while avoiding the
+        # expensive and potentially large history/rawUsage/lastResult payloads.
+        # The default full view is unchanged for API/MCP compatibility.
+        return _session_to_api(
+            s,
+            include_history=False,
+            include_raw_usage=False,
+            include_last_result=False,
+        )
     return _session_to_api(s)
 
 

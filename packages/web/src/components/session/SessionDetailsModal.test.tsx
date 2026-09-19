@@ -168,6 +168,25 @@ describe('SessionDetailsModal', () => {
       .toContain('暂无 / 未建立');
   });
 
+  it('shows detail freshness and retries without replacing the summary fallback', async () => {
+    const summarySession: Session = { ...baseSession, systemPrompt: undefined };
+    vi.mocked(api.fetchSession)
+      .mockRejectedValueOnce(new Error('metadata timeout'))
+      .mockResolvedValueOnce({
+        ...summarySession,
+        systemPrompt: 'Fresh prompt',
+        updatedAt: '2026-09-19T01:02:03+00:00',
+      });
+
+    render(<SessionDetailsModal session={summarySession} onClose={() => {}} />);
+    expect(await screen.findByText('error')).toBeTruthy();
+    expect(screen.getByText(/metadata timeout/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('updated')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /System prompt/ }));
+    expect(screen.getByText('Fresh prompt')).toBeTruthy();
+  });
+
   it('shows the missing system prompt state when the prompt is blank', () => {
     render(<SessionDetailsModal session={{ ...baseSession, systemPrompt: '   ' }} onClose={() => {}} />);
 

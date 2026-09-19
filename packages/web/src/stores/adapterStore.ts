@@ -17,6 +17,7 @@ import {
 } from '@/services/api';
 
 const configLoadsInFlight = new Map<string, Promise<void>>();
+let cliStatusRequestSeq = 0;
 
 interface AdapterStore {
   // State
@@ -71,11 +72,14 @@ export const useAdapterStore = create<AdapterStore>((set, get) => ({
   },
 
   loadCliStatus: async () => {
+    const requestSeq = ++cliStatusRequestSeq;
     set({ cliStatusLoading: true, cliStatusError: null });
     try {
       const cliStatus = await fetchCliStatus();
+      if (cliStatusRequestSeq !== requestSeq) return;
       set({ cliStatus, cliStatusLoading: false });
     } catch (error: unknown) {
+      if (cliStatusRequestSeq !== requestSeq) return;
       set({
         cliStatus: null,
         cliStatusLoading: false,
@@ -86,6 +90,10 @@ export const useAdapterStore = create<AdapterStore>((set, get) => ({
   },
 
   loadConfig: async (adapter) => {
+    // Make the requested adapter authoritative immediately. A slower request
+    // for the previously selected adapter may still resolve later, but it
+    // must not move the shared currentAdapter pointer back behind the user.
+    set({ currentAdapter: adapter, configReady: Boolean(get().adapterConfigs[adapter]) });
     const loaded = get().adapterConfigs[adapter];
     if (loaded) {
       set({ currentAdapter: adapter, configReady: true });
@@ -98,8 +106,8 @@ export const useAdapterStore = create<AdapterStore>((set, get) => ({
         const config = await fetchAdapterConfig(adapter);
         set((s) => ({
           adapterConfigs: { ...s.adapterConfigs, [adapter]: config },
-          currentAdapter: adapter,
-          configReady: true,
+          currentAdapter: s.currentAdapter === adapter ? adapter : s.currentAdapter,
+          configReady: s.currentAdapter === adapter ? true : s.configReady,
         }));
       } catch {
         // retry on next settings open

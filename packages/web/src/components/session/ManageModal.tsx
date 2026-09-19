@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -14,6 +14,7 @@ import {
 } from '@/services/api';
 import type { McpServerInfo, PanAccess, Session } from '@/types';
 import { Search, Star, Check, Bell, Unlink, Lock, Unlock } from 'lucide-react';
+import { FreshnessSkeleton, FreshnessStatus, type FreshnessState } from './FreshnessStatus';
 
 const SHOW_LIMIT = 20;
 
@@ -150,6 +151,8 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([]);
   // True when the manifest catalog could not be loaded (empty + loaded:false).
   const [mcpCatalogLoaded, setMcpCatalogLoaded] = useState(false);
+  const [mcpError, setMcpError] = useState<string | null>(null);
+  const [mcpRetrySeq, setMcpRetrySeq] = useState(0);
   // Busy flag scoped to the MCP section's save calls.
   const [savingMcp, setSavingMcp] = useState(false);
   // Force-release of a "never" template lock after user confirmation. Local
@@ -159,6 +162,18 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   // does NOT carry `managed` / `reportSubscriptions` / `panAccess`, so we pull
   // them on demand (and only for the session whose modal is open).
   const [detailSession, setDetailSession] = useState<Session | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRefreshing, setDetailRefreshing] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailRetrySeq, setDetailRetrySeq] = useState(0);
+  const [managerLoading, setManagerLoading] = useState(false);
+  const [managerError, setManagerError] = useState<string | null>(null);
+  const detailRequestSeq = useRef(0);
+  const managerRequestSeq = useRef(0);
+  const mcpRequestSeq = useRef(0);
+  const detailCache = useRef(new Map<string, Session>());
+  const managerCache = useRef(new Map<string, Session>());
+  const mcpCache = useRef<McpServerInfo[] | null>(null);
 
   // Reset on open + fetch the full session (managed / reportSubscriptions /
   // managedBy / panAccess).
@@ -173,23 +188,54 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
       setDetailSession(null);
       setMcpServers([]);
       setMcpCatalogLoaded(false);
+      setMcpError(null);
       setSavingMcp(false);
       setMcpForced(false);
+      const detailRequest = ++detailRequestSeq.current;
+      const cachedDetail = detailCache.current.get(sessionId);
+      setDetailSession(cachedDetail ?? null);
+      setDetailLoading(!cachedDetail);
+      setDetailRefreshing(Boolean(cachedDetail));
+      setDetailError(null);
       fetchSession(sessionId)
-        .then((full) => setDetailSession(full))
-        .catch(() => setDetailSession(null));
+        .then((full) => {
+          if (detailRequestSeq.current !== detailRequest) return;
+          detailCache.current.set(sessionId, full);
+          setDetailSession(full);
+          setDetailLoading(false);
+          setDetailRefreshing(false);
+        })
+        .catch((error) => {
+          if (detailRequestSeq.current !== detailRequest) return;
+          setDetailLoading(false);
+          setDetailRefreshing(false);
+          setDetailError(error instanceof Error ? error.message : 'Session metadata unavailable');
+          // Keep a prior metadata snapshot when the refresh fails.
+          setDetailSession(detailCache.current.get(sessionId) ?? null);
+        });
       // Pull the full MCP server catalog (independent of the session fetch).
+      const mcpRequest = ++mcpRequestSeq.current;
+      const cachedMcp = mcpCache.current;
+      if (cachedMcp) {
+        setMcpServers(cachedMcp);
+        setMcpCatalogLoaded(true);
+      }
       fetchMcpServers()
         .then((list) => {
+          if (mcpRequestSeq.current !== mcpRequest) return;
+          mcpCache.current = list;
+          setMcpError(null);
           setMcpServers(list);
           setMcpCatalogLoaded(true);
         })
-        .catch(() => {
-          setMcpServers([]);
+        .catch((error) => {
+          if (mcpRequestSeq.current !== mcpRequest) return;
+          setMcpError(error instanceof Error ? error.message : 'MCP catalog unavailable');
+          setMcpServers(cachedMcp ?? []);
           setMcpCatalogLoaded(false);
         });
     }
-  }, [open, sessionId]);
+  }, [open, sessionId, detailRetrySeq, mcpRetrySeq]);
 
   const managerId = detailSession?.id ?? session?.id ?? null;
 
@@ -208,23 +254,43 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   // else, so section 1 can mirror the manager's row controls for this session
   // (report subscription state only lives on the manager).
   useEffect(() => {
-    let alive = true;
     if (open && managedBy && managerId && managedBy !== managerId) {
-      setManagerDetail(null);
+      const requestId = ++managerRequestSeq.current;
+      const cached = managerCache.current.get(managedBy);
+      setManagerDetail(cached ?? null);
+      setManagerLoading(!cached);
+      setManagerError(null);
       fetchSession(managedBy)
         .then((m) => {
-          if (alive) setManagerDetail(m);
+          if (managerRequestSeq.current !== requestId) return;
+          managerCache.current.set(managedBy, m);
+          setManagerDetail(m);
+          setManagerLoading(false);
         })
-        .catch(() => {
-          if (alive) setManagerDetail(null);
+        .catch((error) => {
+          if (managerRequestSeq.current !== requestId) return;
+          setManagerLoading(false);
+          setManagerError(error instanceof Error ? error.message : 'Manager metadata unavailable');
         });
     } else {
+      ++managerRequestSeq.current;
       setManagerDetail(null);
+      setManagerLoading(false);
+      setManagerError(null);
     }
-    return () => {
-      alive = false;
-    };
   }, [open, managedBy, managerId]);
+
+  const detailFreshness: FreshnessState = detailError
+    ? 'error'
+    : detailLoading
+      ? 'loading'
+      : detailRefreshing
+        ? 'refreshing'
+        : detailSession
+          ? 'updated'
+          : session
+            ? 'cached'
+            : 'unknown';
 
   // Section 1 state — mirrors the row the manager would see for this session:
   //   - managedBy set  → the manager's "Managed" toggle is on → offer Unmanage.
@@ -358,7 +424,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   };
 
   const togglePanAccess = async (key: keyof PanAccess, next: boolean) => {
-    if (!managerId || savingFlag) return;
+    if (!managerId || !detailSession || savingFlag) return;
     setSavingFlag(key);
     // Send only the toggled flag — the backend patches it in place and leaves
     // the other two capability flags untouched.
@@ -404,7 +470,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   // Toggle one MCP server in/out of the session's enabled set and persist the
   // full name list. Empty list clears them (backend supports [] / null).
   const toggleMcpServer = async (name: string, checked: boolean) => {
-    if (!managerId || savingMcp || !mcpEditable) return;
+    if (!managerId || !detailSession || savingMcp || !mcpEditable) return;
     // Keep the backend's always-on invariant intact even during a render
     // transition or if an event is triggered programmatically.
     if (mcpLockReason === 'always' && !checked && enabledMcp.size <= 1) return;
@@ -438,7 +504,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   };
 
   const toggle = async (targetId: string, checked: boolean) => {
-    if (!managerId || busyId) return;
+    if (!managerId || !detailSession || busyId) return;
     setBusyId(targetId);
     const target = sessions.find((s) => s.id === targetId);
     const label = target?.name || targetId;
@@ -481,7 +547,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   };
 
   const toggleSubscribe = async (targetId: string, checked: boolean) => {
-    if (!managerId || busyId) return;
+    if (!managerId || !detailSession || busyId) return;
     setBusyId(targetId);
     const target = sessions.find((s) => s.id === targetId);
     const label = target?.name || targetId;
@@ -510,7 +576,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   };
 
   const toggleReadonly = async (targetId: string, enabled: boolean) => {
-    if (!managerId || busyId || !managedIds.has(targetId)) return;
+    if (!managerId || !detailSession || busyId || !managedIds.has(targetId)) return;
     setBusyId(targetId);
     const target = sessions.find((s) => s.id === targetId);
     const label = target?.name || targetId;
@@ -534,6 +600,14 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
 
       {managerId && (
         <>
+          <FreshnessStatus
+            state={detailFreshness}
+            updatedAt={detailSession?.updatedAt ?? session?.updatedAt}
+            source={detailSession ? 'session metadata' : 'session summary cache'}
+            error={detailError}
+            onRetry={detailError ? () => setDetailRetrySeq((value) => value + 1) : undefined}
+          />
+          {detailLoading && !detailSession && <FreshnessSkeleton label="Loading session metadata" />}
           {/* ── Section 1: Managed by ── */}
           <section className="flex flex-col gap-2">
             <SectionHeader
@@ -551,6 +625,36 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                   </>
                 ) : (
                   <div className="text-sm text-text-tertiary">Unmanaged</div>
+                )}
+                {managerLoading && managedBy && <div className="mt-1 text-[11px] text-text-tertiary">manager metadata refreshing…</div>}
+                {managerError && managedBy && (
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-danger">
+                    <span>manager metadata error: {managerError}</span>
+                    <button
+                      type="button"
+                      className="rounded border border-border-default px-1.5 py-0.5 text-text-secondary hover:bg-bg-tertiary"
+                      onClick={() => {
+                        setManagerError(null);
+                        setManagerDetail(null);
+                        setManagerLoading(true);
+                        const requestId = ++managerRequestSeq.current;
+                        fetchSession(managedBy)
+                          .then((m) => {
+                            if (managerRequestSeq.current !== requestId) return;
+                            managerCache.current.set(managedBy, m);
+                            setManagerDetail(m);
+                            setManagerLoading(false);
+                          })
+                          .catch((error) => {
+                            if (managerRequestSeq.current !== requestId) return;
+                            setManagerLoading(false);
+                            setManagerError(error instanceof Error ? error.message : 'Manager metadata unavailable');
+                          });
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
                 )}
               </div>
               {managedBy && (
@@ -815,6 +919,18 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                   </div>
                 )}
                 <div className="rounded border border-border-muted bg-bg-primary p-1 space-y-0.5">
+                  {mcpError && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-2 text-[11px] text-danger">
+                      <span>MCP catalog error: {mcpError}</span>
+                      <button
+                        type="button"
+                        className="rounded border border-border-default px-1.5 py-0.5 text-text-secondary hover:bg-bg-tertiary"
+                        onClick={() => setMcpRetrySeq((value) => value + 1)}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
                   {!mcpCatalogLoaded && mcpServers.length === 0 && (
                     <div className="py-3 text-center text-[11px] text-text-tertiary">
                       Loading MCP servers…

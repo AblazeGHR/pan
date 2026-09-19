@@ -50,6 +50,8 @@ interface SessionStore {
   // events actually freshened *while its own HTTP request was in flight*.
   _sessionWsTouchedSeq: Record<string, number>;
   _historyRefreshSeq: Record<string, number>;
+  /** Monotonic per-session selection request sequence; protects A→B→A. */
+  _selectionSeq: Record<string, number>;
   _sessionLocalTouchedSeq: Record<string, number>;
   _sessionSettingsTouchedSeq: Record<string, number>;
   _sessionEventPatches: Record<string, Partial<Session>>;
@@ -428,6 +430,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   _loadSeq: 0,
   _sessionWsTouchedSeq: {},
   _historyRefreshSeq: {},
+  _selectionSeq: {},
   _sessionLocalTouchedSeq: {},
   _sessionSettingsTouchedSeq: {},
   _sessionEventPatches: {},
@@ -635,6 +638,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     const loaded = (session.history || []).length;
     const needsOlder = !!session.historyTruncated;
+    const selectionSeq = (get()._selectionSeq[id] ?? 0) + 1;
 
     // Single set — one render for session switch.
     // NOTE: do NOT set historyLoading=true here. Previously this blocked the
@@ -646,6 +650,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // spurious loads on session switch.
     set({
       currentSessionId: id,
+      _selectionSeq: { ...get()._selectionSeq, [id]: selectionSeq },
       currentMessages: mergeServerHistoryWithLive(
         session.history || [],
         get().liveStreamBuffers[id]?.messages || [],
@@ -670,7 +675,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         0,
         50,
       );
-      if (get().currentSessionId !== id) {
+      if (
+        get().currentSessionId !== id ||
+        get()._selectionSeq[id] !== selectionSeq
+      ) {
         // 用户已切走，丢弃过期结果。若当前已无选中 session（如该 session 在
         // 请求期间被删除），不会有后续 selectSession 重置 initialLoading——
         // 这里兜底清掉，避免 chat 面板一直停在转圈。
@@ -715,7 +723,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     } catch {
       // 网络失败：保留快照（上方已 set），不阻塞切换。同样清掉
       // initialLoading——否则「空快照 + 拉取失败」会让 chat 面板一直转圈。
-      if (get().currentSessionId === id || !get().currentSessionId) {
+      if (
+        (get().currentSessionId === id && get()._selectionSeq[id] === selectionSeq) ||
+        !get().currentSessionId
+      ) {
         set({ initialLoading: false });
       }
       console.warn('[sessionStore] selectSession fresh-history fetch failed', id);
