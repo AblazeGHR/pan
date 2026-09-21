@@ -90,12 +90,16 @@ const code = build ? null : null;
     useSessionStore.setState({
       serverEpoch: 'E',
       currentSessionId: sid,
-      sessions: [{
-        id: sid, name: sid, adapter: opts.adapter || 'codex', workdir: '',
-        history: history.map((r) => ({ ...r })),
-        historyTotal: history.length,
-        lastMessage: '',
-      }],
+    sessions: [{
+      id: sid, name: sid, adapter: opts.adapter || 'codex', workdir: '',
+      history: history.map((r) => ({ ...r })),
+      historyTotal: history.length,
+      ...(typeof opts.historyRevision === 'number'
+        ? { historyRevision: opts.historyRevision } : {}),
+      ...(typeof opts.historyEpoch === 'string'
+        ? { historyEpoch: opts.historyEpoch } : {}),
+      lastMessage: '',
+    }],
       // Each case must start from an empty transcript or the previous case's
       // window/runtime leaks into this one.
       sessionTranscripts: {},
@@ -116,6 +120,7 @@ const code = build ? null : null;
     useSessionStore.getState().reconcileWorkerResult(sid, {
       type: 'worker.result', sessionId: sid, status: 'done',
       result, taskSeq: 1, taskId: 'task-1', generation: 0, workerId: 'w1',
+      ...(opts.terminalCoverage ? { terminalCoverage: opts.terminalCoverage } : {}),
     }, scope);
     const after = useSessionStore.getState();
     const session = after.sessions.find((s) => s.id === sid);
@@ -192,7 +197,16 @@ const code = build ? null : null;
     orderedTurn.slice(1),
     orderedTurn,
     'final',
-    { adapter: 'cbc' },
+    {
+      adapter: 'cbc',
+      // The canonical window already holds this turn at revision 1 (the
+      // client loaded the persisted history).  The terminal event carries
+      // terminalCoverage with the same revision, signalling that the
+      // durable history already covers this task.  The replayed live rows
+      // must converge onto the already-durable rows, not be appended again.
+      historyEpoch: 'E', historyRevision: 1,
+      terminalCoverage: { historyEpoch: 'E', historyRevision: 1 },
+    },
   );
   runCase(
     'ordered_turn_idless_result_differs',

@@ -29,9 +29,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// ../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.production.js
+// ../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.production.js
 var require_react_production = __commonJS({
-  "../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.production.js"(exports2) {
+  "../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.production.js"(exports2) {
     "use strict";
     var REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element");
     var REACT_PORTAL_TYPE = Symbol.for("react.portal");
@@ -470,9 +470,9 @@ var require_react_production = __commonJS({
   }
 });
 
-// ../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.development.js
+// ../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.development.js
 var require_react_development = __commonJS({
-  "../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.development.js"(exports2, module2) {
+  "../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/cjs/react.development.js"(exports2, module2) {
     "use strict";
     "production" !== process.env.NODE_ENV && function() {
       function defineDeprecationWarning(methodName, info) {
@@ -1442,9 +1442,9 @@ var require_react_development = __commonJS({
   }
 });
 
-// ../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/index.js
+// ../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/index.js
 var require_react = __commonJS({
-  "../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/index.js"(exports2, module2) {
+  "../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/react@19.2.8/node_modules/react/index.js"(exports2, module2) {
     "use strict";
     if (process.env.NODE_ENV === "production") {
       module2.exports = require_react_production();
@@ -1461,7 +1461,7 @@ __export(stdin_exports, {
 });
 module.exports = __toCommonJS(stdin_exports);
 
-// ../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_react@19.2.8/node_modules/zustand/esm/vanilla.mjs
+// ../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_react@19.2.8/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
   let state;
   const listeners = /* @__PURE__ */ new Set();
@@ -1485,7 +1485,7 @@ var createStoreImpl = (createState) => {
 };
 var createStore = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
 
-// ../t062-12-frontend-consistency-luna-max-20260920/packages/web/node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_react@19.2.8/node_modules/zustand/esm/react.mjs
+// ../frontend-reaudit-history-ds-20260921/packages/web/node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_react@19.2.8/node_modules/zustand/esm/react.mjs
 var import_react = __toESM(require_react(), 1);
 var identity = (arg) => arg;
 function useStore(api, selector = identity) {
@@ -2793,6 +2793,25 @@ var useSessionStore = create((set, get) => ({
         previousBuffer?.revision ?? 0,
         terminal?.revision ?? 0
       ) + 1;
+      let convergedReplay = false;
+      if (typeof coverage.historyRevision === "number" && base.window.revision >= coverage.historyRevision && finalized.length > 0 && !appendedResult) {
+        const start = base.anchorOffset - finalized.length;
+        if (start >= 0) {
+          let allMatch = true;
+          for (let index = 0; index < finalized.length; index += 1) {
+            const durable = base.window.rows.get(start + index);
+            const row = finalized[index];
+            if (!durable || durable.role !== row.role || durable.content !== row.content) {
+              allMatch = false;
+              break;
+            }
+          }
+          convergedReplay = allMatch;
+        }
+      }
+      if (convergedReplay) {
+        needsRecovery = false;
+      }
       const previousLiveKeys = liveMessages.map(
         (row, slot) => liveProjectionKeys(row, { taskKey: previousBuffer?.taskKey ?? incomingTaskKey, slot })[0]
       );
@@ -2800,7 +2819,7 @@ var useSessionStore = create((set, get) => ({
         const key = runtimeKeyOf(row);
         return key === null || !previousLiveKeys.includes(key);
       });
-      const finalizedRuntime = finalized.map(
+      const finalizedRuntime = convergedReplay ? [] : finalized.map(
         (row, slot) => bindRuntimeKey(row, liveProjectionKeys(row, { taskKey: incomingTaskKey, slot })[0])
       );
       let nextTranscript = {
@@ -2808,7 +2827,7 @@ var useSessionStore = create((set, get) => ({
         runtime: [...keptRuntime, ...finalizedRuntime]
       };
       const isCurrent = s.currentSessionId === sessionId;
-      if (isCurrent) {
+      if (isCurrent && !convergedReplay) {
         const tracked = new Set(nextTranscript.runtime);
         const trackedKeys = new Set(
           nextTranscript.runtime.map((row) => runtimeKeyOf(row)).filter((key) => key !== null)

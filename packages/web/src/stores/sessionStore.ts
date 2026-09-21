@@ -1841,6 +1841,43 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         terminal?.revision ?? 0,
       ) + 1;
 
+      // Authoritative convergence for a replayed turn: when the terminal
+      // event carries a coverage revision that the loaded durable window
+      // already satisfies, the canonical history already holds this task's
+      // rows.  The live rows are then a replay/reconnect echo of durable
+      // content, not new blocks.  The check is structural — the finalized
+      // rows must line up, in order, with the window rows that end at the
+      // runtime anchor (anchorOffset - K .. anchorOffset - 1) — and guarded
+      // by exact role+content equality, so identity is never guessed from
+      // body text or an arbitrary ordinal and a legitimate new delta whose
+      // body differs (or that extends past the anchor) is never swallowed.
+      // Providers without a coverage revision on the terminal event keep the
+      // pre-existing behaviour unchanged.
+      let convergedReplay = false;
+      if (typeof coverage.historyRevision === 'number'
+          && base.window.revision >= coverage.historyRevision
+          && finalized.length > 0 && !appendedResult) {
+        const start = base.anchorOffset - finalized.length;
+        if (start >= 0) {
+          let allMatch = true;
+          for (let index = 0; index < finalized.length; index += 1) {
+            const durable = base.window.rows.get(start + index);
+            const row = finalized[index]!;
+            if (!durable || durable.role !== row.role
+                || durable.content !== row.content) {
+              allMatch = false;
+              break;
+            }
+          }
+          convergedReplay = allMatch;
+        }
+      }
+      if (convergedReplay) {
+        // The window is authoritative and already covers the task: recovery
+        // would re-fetch the same rows and converge nothing.
+        needsRecovery = false;
+      }
+
       // The task's finalized rows keep their runtime order: rows another path
       // appended while the task was running (a Steer or a delivered user row)
       // stay in front of the result, which is the order the backend persists.
@@ -1851,7 +1888,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const key = runtimeKeyOf(row);
         return key === null || !previousLiveKeys.includes(key);
       });
-      const finalizedRuntime = finalized.map((row, slot) =>
+      const finalizedRuntime = convergedReplay ? [] : finalized.map((row, slot) =>
         bindRuntimeKey(row, liveProjectionKeys(row, { taskKey: incomingTaskKey, slot })[0]!),
       );
       let nextTranscript: SessionTranscript = {
@@ -1861,8 +1898,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       // Re-project in place, keeping display order. Rows that exist only in the
       // rendered projection (seeded state) are adopted so a rebuild keeps them.
+      // A converged replay must not adopt: the replayed live rows duplicate
+      // rows the window already holds, and adopting them would re-append the
+      // very duplication the convergence just removed.
       const isCurrent = s.currentSessionId === sessionId;
-      if (isCurrent) {
+      if (isCurrent && !convergedReplay) {
         const tracked = new Set(nextTranscript.runtime);
         const trackedKeys = new Set(
           nextTranscript.runtime

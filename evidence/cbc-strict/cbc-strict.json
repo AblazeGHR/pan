@@ -1,6 +1,6 @@
 {
   "meta": {
-    "port": 8797,
+    "port": 8799,
     "head": "591367a65f88e9d5270e8e99920ef5448d1d68c9",
     "phases": {
       "S": {
@@ -10,22 +10,22 @@
           "history answer 149 x x x x x x x x x x x x x x x x x x ",
           "history question 150",
           "history answer 150 x x x x x x x x x x x x x x x x x x ",
-          "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>"
+          "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>"
         ],
         "turns": [
           {
             "turn": "alpha",
             "preTurnStableLen": 50,
             "expectedTurnSequence": [
-              "analysis alpha 1790010522683",
+              "analysis alpha 1790013503452",
               "Bash({\"cmd\":\"echo alpha\"})",
-              "final alpha 1790010522683",
+              "final alpha 1790013503452",
               "DONE"
             ],
             "windowFromAnalysis": [
-              "analysis alpha 1790010522683",
+              "analysis alpha 1790013503452",
               "Bash({\"cmd\":\"echo alpha\"})",
-              "final alpha 1790010522683",
+              "final alpha 1790013503452",
               "DONE"
             ],
             "turnOrderOk": true,
@@ -50,11 +50,11 @@
               "history answer 149 x x x x x x x x x x x x x x x x x x ",
               "history question 150",
               "history answer 150 x x x x x x x x x x x x x x x x x x ",
-              "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-              "q alpha 1790010522683",
-              "analysis alpha 1790010522683",
+              "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+              "q alpha 1790013503452",
+              "analysis alpha 1790013503452",
               "Bash({\"cmd\":\"echo alpha\"})",
-              "final alpha 1790010522683",
+              "final alpha 1790013503452",
               "DONE"
             ],
             "domTail": [
@@ -63,10 +63,10 @@
               "history question 150",
               "history answer 150 x x x x x x x x x x x x x x x x x x",
               "Browser file-link fixtures |  | relative file windows server path file URI http link mailto link anchor link missing file <a id=\"local-anchor\"></a>",
-              "q alpha 1790010522683",
-              "thinking |  | analysis alpha 1790010522683",
+              "q alpha 1790013503452",
+              "thinking |  | analysis alpha 1790013503452",
               "1 tools",
-              "final alpha 1790010522683",
+              "final alpha 1790013503452",
               "[DONE] Task completed"
             ],
             "domAnalysisIdx": 12,
@@ -79,15 +79,15 @@
             "turn": "bravo",
             "preTurnStableLen": 55,
             "expectedTurnSequence": [
-              "analysis bravo 1790010522683",
+              "analysis bravo 1790013503452",
               "Bash({\"cmd\":\"echo bravo\"})",
-              "final bravo 1790010522683",
+              "final bravo 1790013503452",
               "DONE"
             ],
             "windowFromAnalysis": [
-              "analysis bravo 1790010522683",
+              "analysis bravo 1790013503452",
               "Bash({\"cmd\":\"echo bravo\"})",
-              "final bravo 1790010522683",
+              "final bravo 1790013503452",
               "DONE"
             ],
             "turnOrderOk": true,
@@ -107,28 +107,28 @@
               "history answer 149 x x x x x x x x x x x x x x x x x x ",
               "history question 150",
               "history answer 150 x x x x x x x x x x x x x x x x x x ",
-              "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-              "q alpha 1790010522683",
-              "analysis alpha 1790010522683",
+              "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+              "q alpha 1790013503452",
+              "analysis alpha 1790013503452",
               "Bash({\"cmd\":\"echo alpha\"})",
-              "final alpha 1790010522683",
+              "final alpha 1790013503452",
               "DONE",
-              "q bravo 1790010522683",
-              "analysis bravo 1790010522683",
+              "q bravo 1790013503452",
+              "analysis bravo 1790013503452",
               "Bash({\"cmd\":\"echo bravo\"})",
-              "final bravo 1790010522683",
+              "final bravo 1790013503452",
               "DONE"
             ],
             "domTail": [
-              "q alpha 1790010522683",
-              "thinking |  | analysis alpha 1790010522683",
+              "q alpha 1790013503452",
+              "thinking |  | analysis alpha 1790013503452",
               "1 tools",
-              "final alpha 1790010522683",
+              "final alpha 1790013503452",
               "[DONE] Task completed",
-              "q bravo 1790010522683",
-              "thinking |  | analysis bravo 1790010522683",
+              "q bravo 1790013503452",
+              "thinking |  | analysis bravo 1790013503452",
               "1 tools",
-              "final bravo 1790010522683",
+              "final bravo 1790013503452",
               "[DONE] Task completed"
             ],
             "domAnalysisIdx": 14,
@@ -141,15 +141,15 @@
             "turn": "charlie",
             "preTurnStableLen": 60,
             "expectedTurnSequence": [
-              "analysis charlie 1790010522683",
+              "analysis charlie 1790013503452",
               "Bash({\"cmd\":\"echo charlie\"})",
-              "final charlie 1790010522683",
+              "final charlie 1790013503452",
               "DONE"
             ],
             "windowFromAnalysis": [
-              "analysis charlie 1790010522683",
+              "analysis charlie 1790013503452",
               "Bash({\"cmd\":\"echo charlie\"})",
-              "final charlie 1790010522683",
+              "final charlie 1790013503452",
               "DONE"
             ],
             "turnOrderOk": true,
@@ -166,31 +166,31 @@
             "finalCount": 1,
             "storeLen": 65,
             "fullTail": [
-              "analysis alpha 1790010522683",
+              "analysis alpha 1790013503452",
               "Bash({\"cmd\":\"echo alpha\"})",
-              "final alpha 1790010522683",
+              "final alpha 1790013503452",
               "DONE",
-              "q bravo 1790010522683",
-              "analysis bravo 1790010522683",
+              "q bravo 1790013503452",
+              "analysis bravo 1790013503452",
               "Bash({\"cmd\":\"echo bravo\"})",
-              "final bravo 1790010522683",
+              "final bravo 1790013503452",
               "DONE",
-              "q charlie 1790010522683",
-              "analysis charlie 1790010522683",
+              "q charlie 1790013503452",
+              "analysis charlie 1790013503452",
               "Bash({\"cmd\":\"echo charlie\"})",
-              "final charlie 1790010522683",
+              "final charlie 1790013503452",
               "DONE"
             ],
             "domTail": [
-              "q bravo 1790010522683",
-              "thinking |  | analysis bravo 1790010522683",
+              "q bravo 1790013503452",
+              "thinking |  | analysis bravo 1790013503452",
               "1 tools",
-              "final bravo 1790010522683",
+              "final bravo 1790013503452",
               "[DONE] Task completed",
-              "q charlie 1790010522683",
-              "thinking |  | analysis charlie 1790010522683",
+              "q charlie 1790013503452",
+              "thinking |  | analysis charlie 1790013503452",
               "1 tools",
-              "final charlie 1790010522683",
+              "final charlie 1790013503452",
               "[DONE] Task completed"
             ],
             "domAnalysisIdx": 16,
@@ -210,7 +210,7 @@
                 "history answer 149 x x x x x x x x x x x x x x x x x x ",
                 "history question 150",
                 "history answer 150 x x x x x x x x x x x x x x x x x x ",
-                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>"
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>"
               ],
               "len": 50
             },
@@ -221,8 +221,8 @@
                 "history answer 149 x x x x x x x x x x x x x x x x x x ",
                 "history question 150",
                 "history answer 150 x x x x x x x x x x x x x x x x x x ",
-                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-                "analysis alpha 1790010522683"
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "analysis alpha 1790013503452"
               ],
               "len": 51
             },
@@ -232,8 +232,8 @@
                 "history answer 149 x x x x x x x x x x x x x x x x x x ",
                 "history question 150",
                 "history answer 150 x x x x x x x x x x x x x x x x x x ",
-                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-                "analysis alpha 1790010522683",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "analysis alpha 1790013503452",
                 "Bash({\"cmd\":\"echo alpha\"})"
               ],
               "len": 52
@@ -243,21 +243,21 @@
               "tail": [
                 "history question 150",
                 "history answer 150 x x x x x x x x x x x x x x x x x x ",
-                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-                "analysis alpha 1790010522683",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "analysis alpha 1790013503452",
                 "Bash({\"cmd\":\"echo alpha\"})",
-                "final alpha 1790010522683"
+                "final alpha 1790013503452"
               ],
               "len": 53
             },
             {
               "step": "after-result",
               "tail": [
-                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-                "q alpha 1790010522683",
-                "analysis alpha 1790010522683",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "q alpha 1790013503452",
+                "analysis alpha 1790013503452",
                 "Bash({\"cmd\":\"echo alpha\"})",
-                "final alpha 1790010522683",
+                "final alpha 1790013503452",
                 "DONE"
               ],
               "len": 55
@@ -265,11 +265,11 @@
             {
               "step": "after-idle",
               "tail": [
-                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-                "q alpha 1790010522683",
-                "analysis alpha 1790010522683",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "q alpha 1790013503452",
+                "analysis alpha 1790013503452",
                 "Bash({\"cmd\":\"echo alpha\"})",
-                "final alpha 1790010522683",
+                "final alpha 1790013503452",
                 "DONE"
               ],
               "len": 55
@@ -279,11 +279,11 @@
             {
               "step": "after-append-user",
               "tail": [
-                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-                "q alpha 1790010522683",
-                "analysis alpha 1790010522683",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "q alpha 1790013503452",
+                "analysis alpha 1790013503452",
                 "Bash({\"cmd\":\"echo alpha\"})",
-                "final alpha 1790010522683",
+                "final alpha 1790013503452",
                 "DONE"
               ],
               "len": 55
@@ -291,23 +291,23 @@
             {
               "step": "after-stream-thinking",
               "tail": [
-                "q alpha 1790010522683",
-                "analysis alpha 1790010522683",
+                "q alpha 1790013503452",
+                "analysis alpha 1790013503452",
                 "Bash({\"cmd\":\"echo alpha\"})",
-                "final alpha 1790010522683",
+                "final alpha 1790013503452",
                 "DONE",
-                "analysis bravo 1790010522683"
+                "analysis bravo 1790013503452"
               ],
               "len": 56
             },
             {
               "step": "after-stream-tool",
               "tail": [
-                "analysis alpha 1790010522683",
+                "analysis alpha 1790013503452",
                 "Bash({\"cmd\":\"echo alpha\"})",
-                "final alpha 1790010522683",
+                "final alpha 1790013503452",
                 "DONE",
-                "analysis bravo 1790010522683",
+                "analysis bravo 1790013503452",
                 "Bash({\"cmd\":\"echo bravo\"})"
               ],
               "len": 57
@@ -316,11 +316,11 @@
               "step": "after-stream-text",
               "tail": [
                 "Bash({\"cmd\":\"echo alpha\"})",
-                "final alpha 1790010522683",
+                "final alpha 1790013503452",
                 "DONE",
-                "analysis bravo 1790010522683",
+                "analysis bravo 1790013503452",
                 "Bash({\"cmd\":\"echo bravo\"})",
-                "final bravo 1790010522683"
+                "final bravo 1790013503452"
               ],
               "len": 58
             },
@@ -328,10 +328,10 @@
               "step": "after-result",
               "tail": [
                 "DONE",
-                "q bravo 1790010522683",
-                "analysis bravo 1790010522683",
+                "q bravo 1790013503452",
+                "analysis bravo 1790013503452",
                 "Bash({\"cmd\":\"echo bravo\"})",
-                "final bravo 1790010522683",
+                "final bravo 1790013503452",
                 "DONE"
               ],
               "len": 60
@@ -340,10 +340,10 @@
               "step": "after-idle",
               "tail": [
                 "DONE",
-                "q bravo 1790010522683",
-                "analysis bravo 1790010522683",
+                "q bravo 1790013503452",
+                "analysis bravo 1790013503452",
                 "Bash({\"cmd\":\"echo bravo\"})",
-                "final bravo 1790010522683",
+                "final bravo 1790013503452",
                 "DONE"
               ],
               "len": 60
@@ -354,10 +354,10 @@
               "step": "after-append-user",
               "tail": [
                 "DONE",
-                "q bravo 1790010522683",
-                "analysis bravo 1790010522683",
+                "q bravo 1790013503452",
+                "analysis bravo 1790013503452",
                 "Bash({\"cmd\":\"echo bravo\"})",
-                "final bravo 1790010522683",
+                "final bravo 1790013503452",
                 "DONE"
               ],
               "len": 60
@@ -365,23 +365,23 @@
             {
               "step": "after-stream-thinking",
               "tail": [
-                "q bravo 1790010522683",
-                "analysis bravo 1790010522683",
+                "q bravo 1790013503452",
+                "analysis bravo 1790013503452",
                 "Bash({\"cmd\":\"echo bravo\"})",
-                "final bravo 1790010522683",
+                "final bravo 1790013503452",
                 "DONE",
-                "analysis charlie 1790010522683"
+                "analysis charlie 1790013503452"
               ],
               "len": 61
             },
             {
               "step": "after-stream-tool",
               "tail": [
-                "analysis bravo 1790010522683",
+                "analysis bravo 1790013503452",
                 "Bash({\"cmd\":\"echo bravo\"})",
-                "final bravo 1790010522683",
+                "final bravo 1790013503452",
                 "DONE",
-                "analysis charlie 1790010522683",
+                "analysis charlie 1790013503452",
                 "Bash({\"cmd\":\"echo charlie\"})"
               ],
               "len": 62
@@ -390,11 +390,11 @@
               "step": "after-stream-text",
               "tail": [
                 "Bash({\"cmd\":\"echo bravo\"})",
-                "final bravo 1790010522683",
+                "final bravo 1790013503452",
                 "DONE",
-                "analysis charlie 1790010522683",
+                "analysis charlie 1790013503452",
                 "Bash({\"cmd\":\"echo charlie\"})",
-                "final charlie 1790010522683"
+                "final charlie 1790013503452"
               ],
               "len": 63
             },
@@ -402,10 +402,10 @@
               "step": "after-result",
               "tail": [
                 "DONE",
-                "q charlie 1790010522683",
-                "analysis charlie 1790010522683",
+                "q charlie 1790013503452",
+                "analysis charlie 1790013503452",
                 "Bash({\"cmd\":\"echo charlie\"})",
-                "final charlie 1790010522683",
+                "final charlie 1790013503452",
                 "DONE"
               ],
               "len": 65
@@ -414,10 +414,10 @@
               "step": "after-idle",
               "tail": [
                 "DONE",
-                "q charlie 1790010522683",
-                "analysis charlie 1790010522683",
+                "q charlie 1790013503452",
+                "analysis charlie 1790013503452",
                 "Bash({\"cmd\":\"echo charlie\"})",
-                "final charlie 1790010522683",
+                "final charlie 1790013503452",
                 "DONE"
               ],
               "len": 65
@@ -433,19 +433,19 @@
           },
           "doneCount": 3,
           "tail": [
-            "analysis alpha 1790010522683",
+            "analysis alpha 1790013503452",
             "Bash({\"cmd\":\"echo alpha\"})",
-            "final alpha 1790010522683",
+            "final alpha 1790013503452",
             "DONE",
-            "q bravo 1790010522683",
-            "analysis bravo 1790010522683",
+            "q bravo 1790013503452",
+            "analysis bravo 1790013503452",
             "Bash({\"cmd\":\"echo bravo\"})",
-            "final bravo 1790010522683",
+            "final bravo 1790013503452",
             "DONE",
-            "q charlie 1790010522683",
-            "analysis charlie 1790010522683",
+            "q charlie 1790013503452",
+            "analysis charlie 1790013503452",
             "Bash({\"cmd\":\"echo charlie\"})",
-            "final charlie 1790010522683",
+            "final charlie 1790013503452",
             "DONE"
           ]
         }
@@ -453,9 +453,9 @@
       "D": {
         "staleTotal": 313,
         "staleMessageIds": [
-          "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:310",
-          "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:311",
-          "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:312"
+          "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:310",
+          "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:311",
+          "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:312"
         ],
         "heldRequestFired": true,
         "whileHeld": {
@@ -465,14 +465,14 @@
           "dIdx": 69,
           "finalCount": 1,
           "tail": [
-            "analysis charlie 1790010522683",
+            "analysis charlie 1790013503452",
             "Bash({\"cmd\":\"echo charlie\"})",
-            "final charlie 1790010522683",
+            "final charlie 1790013503452",
             "DONE",
-            "q deltaD 1790010522683",
-            "analysis deltaD 1790010522683",
+            "q deltaD 1790013503452",
+            "analysis deltaD 1790013503452",
             "Bash({\"cmd\":\"echo deltaD\"})",
-            "final deltaD 1790010522683",
+            "final deltaD 1790013503452",
             "DONE"
           ]
         },
@@ -483,14 +483,14 @@
           "dIdx": 69,
           "finalCount": 1,
           "tail": [
-            "analysis charlie 1790010522683",
+            "analysis charlie 1790013503452",
             "Bash({\"cmd\":\"echo charlie\"})",
-            "final charlie 1790010522683",
+            "final charlie 1790013503452",
             "DONE",
-            "q deltaD 1790010522683",
-            "analysis deltaD 1790010522683",
+            "q deltaD 1790013503452",
+            "analysis deltaD 1790013503452",
             "Bash({\"cmd\":\"echo deltaD\"})",
-            "final deltaD 1790010522683",
+            "final deltaD 1790013503452",
             "DONE"
           ]
         },
@@ -499,15 +499,15 @@
       "R": {
         "storeLen": 70,
         "tail": [
-          "q charlie 1790010522683",
-          "analysis charlie 1790010522683",
+          "q charlie 1790013503452",
+          "analysis charlie 1790013503452",
           "Bash({\"cmd\":\"echo charlie\"})",
-          "final charlie 1790010522683",
+          "final charlie 1790013503452",
           "DONE",
-          "q deltaD 1790010522683",
-          "analysis deltaD 1790010522683",
+          "q deltaD 1790013503452",
+          "analysis deltaD 1790013503452",
           "Bash({\"cmd\":\"echo deltaD\"})",
-          "final deltaD 1790010522683",
+          "final deltaD 1790013503452",
           "DONE"
         ],
         "finalCounts": {
@@ -522,15 +522,15 @@
       "R2": {
         "storeLen": 70,
         "tail": [
-          "q charlie 1790010522683",
-          "analysis charlie 1790010522683",
+          "q charlie 1790013503452",
+          "analysis charlie 1790013503452",
           "Bash({\"cmd\":\"echo charlie\"})",
-          "final charlie 1790010522683",
+          "final charlie 1790013503452",
           "DONE",
-          "q deltaD 1790010522683",
-          "analysis deltaD 1790010522683",
+          "q deltaD 1790013503452",
+          "analysis deltaD 1790013503452",
           "Bash({\"cmd\":\"echo deltaD\"})",
-          "final deltaD 1790010522683",
+          "final deltaD 1790013503452",
           "DONE"
         ],
         "doneCount": 4,
@@ -543,10 +543,10 @@
       "P": {
         "markerPresentBefore": false,
         "preTop": [
-          "50:q alpha 1790010522683",
+          "50:q alpha 1790013503452",
           "51:thinking |  | analysis a",
           "52:1 tools",
-          "53:final alpha 179001052268",
+          "53:final alpha 179001350345",
           "54:[DONE] Task completed"
         ],
         "prependScroll": {
@@ -559,10 +559,10 @@
         "marker2Count": 0,
         "tail": [
           "DONE",
-          "q deltaD 1790010522683",
-          "analysis deltaD 1790010522683",
+          "q deltaD 1790013503452",
+          "analysis deltaD 1790013503452",
           "Bash({\"cmd\":\"echo deltaD\"})",
-          "final deltaD 1790010522683",
+          "final deltaD 1790013503452",
           "DONE"
         ],
         "head": [
@@ -578,21 +578,21 @@
         "markerDuplicated": false
       }
     },
-    "sessionId": "ses_9790c49fd1ff4149",
+    "sessionId": "ses_a3c296d0bee6ac21",
     "results": [
       {
         "name": "S:alpha:turn-sequence-is-analysis,tool,final,DONE",
         "passes": true,
         "expected": [
-          "analysis alpha 1790010522683",
+          "analysis alpha 1790013503452",
           "Bash({\"cmd\":\"echo alpha\"})",
-          "final alpha 1790010522683",
+          "final alpha 1790013503452",
           "DONE"
         ],
         "actual": [
-          "analysis alpha 1790010522683",
+          "analysis alpha 1790013503452",
           "Bash({\"cmd\":\"echo alpha\"})",
-          "final alpha 1790010522683",
+          "final alpha 1790013503452",
           "DONE"
         ],
         "turnOrderOk": true,
@@ -609,10 +609,10 @@
           "history question 150",
           "history answer 150 x x x x x x x x x x x x x x x x x x",
           "Browser file-link fixtures |  | relative file windows server path file URI http link mailto link anchor link missing file <a id=\"local-anchor\"></a>",
-          "q alpha 1790010522683",
-          "thinking |  | analysis alpha 1790010522683",
+          "q alpha 1790013503452",
+          "thinking |  | analysis alpha 1790013503452",
           "1 tools",
-          "final alpha 1790010522683",
+          "final alpha 1790013503452",
           "[DONE] Task completed"
         ]
       },
@@ -620,15 +620,15 @@
         "name": "S:bravo:turn-sequence-is-analysis,tool,final,DONE",
         "passes": true,
         "expected": [
-          "analysis bravo 1790010522683",
+          "analysis bravo 1790013503452",
           "Bash({\"cmd\":\"echo bravo\"})",
-          "final bravo 1790010522683",
+          "final bravo 1790013503452",
           "DONE"
         ],
         "actual": [
-          "analysis bravo 1790010522683",
+          "analysis bravo 1790013503452",
           "Bash({\"cmd\":\"echo bravo\"})",
-          "final bravo 1790010522683",
+          "final bravo 1790013503452",
           "DONE"
         ],
         "turnOrderOk": true,
@@ -643,12 +643,12 @@
         "actual": "analysis@14 tools@15 final@[16] done@17",
         "domTail": [
           "1 tools",
-          "final alpha 1790010522683",
+          "final alpha 1790013503452",
           "[DONE] Task completed",
-          "q bravo 1790010522683",
-          "thinking |  | analysis bravo 1790010522683",
+          "q bravo 1790013503452",
+          "thinking |  | analysis bravo 1790013503452",
           "1 tools",
-          "final bravo 1790010522683",
+          "final bravo 1790013503452",
           "[DONE] Task completed"
         ]
       },
@@ -656,15 +656,15 @@
         "name": "S:charlie:turn-sequence-is-analysis,tool,final,DONE",
         "passes": true,
         "expected": [
-          "analysis charlie 1790010522683",
+          "analysis charlie 1790013503452",
           "Bash({\"cmd\":\"echo charlie\"})",
-          "final charlie 1790010522683",
+          "final charlie 1790013503452",
           "DONE"
         ],
         "actual": [
-          "analysis charlie 1790010522683",
+          "analysis charlie 1790013503452",
           "Bash({\"cmd\":\"echo charlie\"})",
-          "final charlie 1790010522683",
+          "final charlie 1790013503452",
           "DONE"
         ],
         "turnOrderOk": true,
@@ -679,12 +679,12 @@
         "actual": "analysis@16 tools@17 final@[18] done@19",
         "domTail": [
           "1 tools",
-          "final bravo 1790010522683",
+          "final bravo 1790013503452",
           "[DONE] Task completed",
-          "q charlie 1790010522683",
-          "thinking |  | analysis charlie 1790010522683",
+          "q charlie 1790013503452",
+          "thinking |  | analysis charlie 1790013503452",
           "1 tools",
-          "final charlie 1790010522683",
+          "final charlie 1790013503452",
           "[DONE] Task completed"
         ]
       },
@@ -692,7 +692,7 @@
         "name": "D:held-stale-snapshot-then-new-CBC-turn-order+DONE",
         "passes": true,
         "expected": "analysis < tool < final < DONE, final x1 (and the new turn must not be rolled back)",
-        "actual": "whileHeld=[\"analysis charlie 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo charlie\\\"})\",\"final charlie 1790010522683\",\"DONE\",\"q deltaD 1790010522683\",\"analysis deltaD 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo deltaD\\\"})\",\"final deltaD 1790010522683\",\"DONE\"] afterRelease=[\"analysis charlie 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo charlie\\\"})\",\"final charlie 1790010522683\",\"DONE\",\"q deltaD 1790010522683\",\"analysis deltaD 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo deltaD\\\"})\",\"final deltaD 1790010522683\",\"DONE\"]",
+        "actual": "whileHeld=[\"analysis charlie 1790013503452\",\"Bash({\\\"cmd\\\":\\\"echo charlie\\\"})\",\"final charlie 1790013503452\",\"DONE\",\"q deltaD 1790013503452\",\"analysis deltaD 1790013503452\",\"Bash({\\\"cmd\\\":\\\"echo deltaD\\\"})\",\"final deltaD 1790013503452\",\"DONE\"] afterRelease=[\"analysis charlie 1790013503452\",\"Bash({\\\"cmd\\\":\\\"echo charlie\\\"})\",\"final charlie 1790013503452\",\"DONE\",\"q deltaD 1790013503452\",\"analysis deltaD 1790013503452\",\"Bash({\\\"cmd\\\":\\\"echo deltaD\\\"})\",\"final deltaD 1790013503452\",\"DONE\"]",
         "whileHeldOrderOk": true,
         "afterReleaseOrderOk": true,
         "survives": true
@@ -711,14 +711,14 @@
       "Failed to load resource: net::ERR_FAILED"
     ],
     "serverPids": [
-      5396
+      5376
     ]
   },
   "raw": {
     "serverStart": {
-      "stdoutPath": "D:\\project\\pan-worktrees\\frontend-consistency-repair-ds-20260922\\evidence\\cbc-strict\\runtime\\server-1790010517558-0.stdout.log",
-      "stderrPath": "D:\\project\\pan-worktrees\\frontend-consistency-repair-ds-20260922\\evidence\\cbc-strict\\runtime\\server-1790010517558-0.stderr.log",
-      "pid": 5396
+      "stdoutPath": "D:\\project\\pan-worktrees\\frontend-consistency-followup-glm-20260922\\evidence\\cbc-strict\\runtime\\server-1790013499012-0.stdout.log",
+      "stderrPath": "D:\\project\\pan-worktrees\\frontend-consistency-followup-glm-20260922\\evidence\\cbc-strict\\runtime\\server-1790013499012-0.stderr.log",
+      "pid": 5376
     },
     "wsFrames": [
       {
@@ -727,7 +727,7 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis alpha 1790010522683"
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis alpha 1790013503452"
       },
       {
         "type": "worker.stream",
@@ -743,14 +743,14 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"text\",\"text\":\"final alpha 1790010522683\"}]"
+        "content": "[{\"type\":\"text\",\"text\":\"final alpha 1790013503452\"}]"
       },
       {
         "type": "worker.result",
         "taskSeq": 501,
         "workerId": "e2e-browser-worker",
         "generation": 0,
-        "content": "\"final alpha 1790010522683\""
+        "content": "\"final alpha 1790013503452\""
       },
       {
         "type": "worker.status",
@@ -765,7 +765,7 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis bravo 1790010522683"
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis bravo 1790013503452"
       },
       {
         "type": "worker.stream",
@@ -781,14 +781,14 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"text\",\"text\":\"final bravo 1790010522683\"}]"
+        "content": "[{\"type\":\"text\",\"text\":\"final bravo 1790013503452\"}]"
       },
       {
         "type": "worker.result",
         "taskSeq": 502,
         "workerId": "e2e-browser-worker",
         "generation": 0,
-        "content": "\"final bravo 1790010522683\""
+        "content": "\"final bravo 1790013503452\""
       },
       {
         "type": "worker.status",
@@ -803,7 +803,7 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis charlie 17900105226"
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis charlie 17900135034"
       },
       {
         "type": "worker.stream",
@@ -819,14 +819,14 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"text\",\"text\":\"final charlie 1790010522683\"}]"
+        "content": "[{\"type\":\"text\",\"text\":\"final charlie 1790013503452\"}]"
       },
       {
         "type": "worker.result",
         "taskSeq": 503,
         "workerId": "e2e-browser-worker",
         "generation": 0,
-        "content": "\"final charlie 1790010522683\""
+        "content": "\"final charlie 1790013503452\""
       },
       {
         "type": "worker.status",
@@ -841,7 +841,7 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis deltaD 179001052268"
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis deltaD 179001350345"
       },
       {
         "type": "worker.stream",
@@ -857,14 +857,14 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"text\",\"text\":\"final deltaD 1790010522683\"}]"
+        "content": "[{\"type\":\"text\",\"text\":\"final deltaD 1790013503452\"}]"
       },
       {
         "type": "worker.result",
         "taskSeq": 701,
         "workerId": "e2e-browser-worker",
         "generation": 0,
-        "content": "\"final deltaD 1790010522683\""
+        "content": "\"final deltaD 1790013503452\""
       },
       {
         "type": "worker.status",
@@ -879,7 +879,7 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"text\",\"text\":\"plive 1790010522683\"}]"
+        "content": "[{\"type\":\"text\",\"text\":\"plive 1790013503452\"}]"
       },
       {
         "type": "worker.stream",
@@ -887,7 +887,7 @@
         "workerId": "e2e-browser-worker",
         "generation": 0,
         "evType": "assistant",
-        "content": "[{\"type\":\"text\",\"text\":\"plive-updated 1790010522683\"}]"
+        "content": "[{\"type\":\"text\",\"text\":\"plive-updated 1790013503452\"}]"
       }
     ],
     "historyTail": {
@@ -895,108 +895,108 @@
         {
           "role": "assistant",
           "content": "history answer 147 x x x x x x x x x x x x x x x x x x ",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:293"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:293"
         },
         {
           "role": "user",
           "content": "history question 148",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:294"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:294"
         },
         {
           "role": "assistant",
           "content": "history answer 148 x x x x x x x x x x x x x x x x x x ",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:295"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:295"
         },
         {
           "role": "user",
           "content": "history question 149",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:296"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:296"
         },
         {
           "role": "assistant",
           "content": "history answer 149 x x x x x x x x x x x x x x x x x x ",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:297"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:297"
         },
         {
           "role": "user",
           "content": "history question 150",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:298"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:298"
         },
         {
           "role": "assistant",
           "content": "history answer 150 x x x x x x x x x x x x x x x x x x ",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:299"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:299"
         },
         {
           "role": "assistant",
-          "content": "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:300"
+          "content": "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_66fc2139face461baca2c398f461336a?session_id=ses_a3c296d0bee6ac21#L42)\n[windows server path](/api/attachments/editor/att_4d4eb2a7175748338681c02a61598ee1?session_id=ses_a3c296d0bee6ac21#L42-L48)\n[file URI](/api/attachments/editor/att_3325341de2234637879b86f1ed18ae19?session_id=ses_a3c296d0bee6ac21)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:300"
         },
         {
           "role": "user",
-          "content": "q alpha 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:301"
+          "content": "q alpha 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:301"
         },
         {
           "role": "thinking",
-          "content": "analysis alpha 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:302"
+          "content": "analysis alpha 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:302"
         },
         {
           "role": "tool",
           "content": "Bash({\"cmd\":\"echo alpha\"})",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:303"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:303"
         },
         {
           "role": "assistant",
-          "content": "final alpha 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:304"
+          "content": "final alpha 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:304"
         },
         {
           "role": "user",
-          "content": "q bravo 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:305"
+          "content": "q bravo 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:305"
         },
         {
           "role": "thinking",
-          "content": "analysis bravo 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:306"
+          "content": "analysis bravo 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:306"
         },
         {
           "role": "tool",
           "content": "Bash({\"cmd\":\"echo bravo\"})",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:307"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:307"
         },
         {
           "role": "assistant",
-          "content": "final bravo 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:308"
+          "content": "final bravo 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:308"
         },
         {
           "role": "user",
-          "content": "q charlie 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:309"
+          "content": "q charlie 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:309"
         },
         {
           "role": "thinking",
-          "content": "analysis charlie 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:310"
+          "content": "analysis charlie 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:310"
         },
         {
           "role": "tool",
           "content": "Bash({\"cmd\":\"echo charlie\"})",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:311"
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:311"
         },
         {
           "role": "assistant",
-          "content": "final charlie 1790010522683",
-          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:312"
+          "content": "final charlie 1790013503452",
+          "messageId": "legacy:ses_a3c296d0bee6ac21:4ad6573bba7a4e3d8a880e4c6250e0cb:312"
         }
       ],
       "total": 313,
       "hasMore": true,
       "start": 293,
-      "historyEpoch": "0a29fdc6c8c449cfb87a7be64c073113",
+      "historyEpoch": "4ad6573bba7a4e3d8a880e4c6250e0cb",
       "historyRevision": 12
     }
   },
