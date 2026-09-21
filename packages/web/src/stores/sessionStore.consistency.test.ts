@@ -98,6 +98,7 @@ function resetStore(history: Message[] = [], start = 0, total = history.length, 
     _deliveredQueueIds: {},
     _pendingQueueIds: {},
     serverEpoch: 'server',
+    sessionTranscripts: {},
   });
 }
 
@@ -414,6 +415,8 @@ describe('R1/P1 — history pagination window, revision and epoch', () => {
 });
 
 describe('R1/P1 — terminal coverage and late events', () => {
+  beforeEach(() => resetStore([msg('user', 'question', 'u')]));
+
   it('keeps the seen body when the terminal result is covered but a late delta arrives', () => {
     resetStore([{ role: 'user', content: 'q' }]);
     const store = useSessionStore.getState();

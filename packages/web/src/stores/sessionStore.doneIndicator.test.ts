@@ -76,6 +76,7 @@ describe('done indicator latency — snapshot vs WS worker status', () => {
       historyLoading: false,
       initialLoading: false,
       historyLoadEnd: 0,
+      sessionTranscripts: {},
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
     });

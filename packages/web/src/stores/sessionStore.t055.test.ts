@@ -52,6 +52,7 @@ function reset(): void {
     _sessionLocalTouchedSeq: {},
     liveStreamBuffers: {},
     terminalWatermarks: {},
+    sessionTranscripts: {},
   });
 }
 

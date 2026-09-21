@@ -31,6 +31,7 @@ describe('stage 3 delta hot-path benchmark', () => {
           currentSessionId: 'benchmark',
           currentMessages: history,
           liveStreamBuffers: {},
+          sessionTranscripts: {},
           terminalWatermarks: {},
         });
         const initial = Array.from({ length: liveSize }, (_, index) =>

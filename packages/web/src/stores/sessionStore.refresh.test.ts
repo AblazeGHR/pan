@@ -63,6 +63,7 @@ describe('sessionStore refresh staleness guards', () => {
       historyLoading: false,
       initialLoading: false,
       historyLoadEnd: 0,
+      sessionTranscripts: {},
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
     });
