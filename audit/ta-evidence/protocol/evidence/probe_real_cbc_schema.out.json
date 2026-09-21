@@ -1,0 +1,523 @@
+{
+  "files_scanned": 103,
+  "lines_scanned": 8518,
+  "event_types": {
+    "ai-title": [
+      [
+        "id",
+        12
+      ],
+      [
+        "timestamp",
+        12
+      ],
+      [
+        "type",
+        12
+      ],
+      [
+        "aiTitle",
+        12
+      ],
+      [
+        "sessionId",
+        12
+      ],
+      [
+        "cwd",
+        12
+      ],
+      [
+        "_meta",
+        1
+      ]
+    ],
+    "file-history-snapshot": [
+      [
+        "timestamp",
+        888
+      ],
+      [
+        "type",
+        888
+      ],
+      [
+        "messageId",
+        888
+      ],
+      [
+        "isSnapshotUpdate",
+        888
+      ],
+      [
+        "snapshot",
+        888
+      ],
+      [
+        "cwd",
+        888
+      ],
+      [
+        "_meta",
+        379
+      ]
+    ],
+    "function_call": [
+      [
+        "id",
+        2514
+      ],
+      [
+        "timestamp",
+        2514
+      ],
+      [
+        "type",
+        2514
+      ],
+      [
+        "providerData",
+        2514
+      ],
+      [
+        "callId",
+        2514
+      ],
+      [
+        "name",
+        2514
+      ],
+      [
+        "arguments",
+        2514
+      ],
+      [
+        "sessionId",
+        2514
+      ],
+      [
+        "cwd",
+        2514
+      ],
+      [
+        "parentId",
+        2512
+      ],
+      [
+        "message",
+        2026
+      ],
+      [
+        "_meta",
+        1329
+      ]
+    ],
+    "function_call_result": [
+      [
+        "id",
+        2481
+      ],
+      [
+        "parentId",
+        2481
+      ],
+      [
+        "timestamp",
+        2481
+      ],
+      [
+        "type",
+        2481
+      ],
+      [
+        "name",
+        2481
+      ],
+      [
+        "callId",
+        2481
+      ],
+      [
+        "status",
+        2481
+      ],
+      [
+        "output",
+        2481
+      ],
+      [
+        "providerData",
+        2481
+      ],
+      [
+        "sessionId",
+        2481
+      ],
+      [
+        "cwd",
+        2481
+      ],
+      [
+        "_meta",
+        1310
+      ]
+    ],
+    "message": [
+      [
+        "id",
+        1153
+      ],
+      [
+        "timestamp",
+        1153
+      ],
+      [
+        "type",
+        1153
+      ],
+      [
+        "role",
+        1153
+      ],
+      [
+        "content",
+        1153
+      ],
+      [
+        "providerData",
+        1153
+      ],
+      [
+        "sessionId",
+        1153
+      ],
+      [
+        "cwd",
+        1153
+      ],
+      [
+        "parentId",
+        1055
+      ],
+      [
+        "status",
+        855
+      ],
+      [
+        "_meta",
+        583
+      ],
+      [
+        "__codebuddyLocal",
+        196
+      ],
+      [
+        "message",
+        137
+      ]
+    ],
+    "reasoning": [
+      [
+        "id",
+        1423
+      ],
+      [
+        "parentId",
+        1423
+      ],
+      [
+        "timestamp",
+        1423
+      ],
+      [
+        "type",
+        1423
+      ],
+      [
+        "providerData",
+        1423
+      ],
+      [
+        "content",
+        1423
+      ],
+      [
+        "rawContent",
+        1423
+      ],
+      [
+        "sessionId",
+        1423
+      ],
+      [
+        "cwd",
+        1423
+      ],
+      [
+        "_meta",
+        713
+      ],
+      [
+        "status",
+        1
+      ]
+    ],
+    "session-meta": [
+      [
+        "type",
+        2
+      ],
+      [
+        "id",
+        2
+      ],
+      [
+        "sessionId",
+        2
+      ],
+      [
+        "timestamp",
+        2
+      ],
+      [
+        "meta",
+        2
+      ]
+    ],
+    "summary": [
+      [
+        "id",
+        18
+      ],
+      [
+        "timestamp",
+        18
+      ],
+      [
+        "type",
+        18
+      ],
+      [
+        "summary",
+        18
+      ],
+      [
+        "providerData",
+        18
+      ]
+    ],
+    "turn-metrics": [
+      [
+        "id",
+        27
+      ],
+      [
+        "timestamp",
+        27
+      ],
+      [
+        "type",
+        27
+      ],
+      [
+        "durationMs",
+        27
+      ],
+      [
+        "tokenDelta",
+        27
+      ],
+      [
+        "cwd",
+        27
+      ],
+      [
+        "source",
+        6
+      ],
+      [
+        "taskStatus",
+        6
+      ]
+    ]
+  },
+  "block_types": {
+    "image_blob_ref": [
+      [
+        "type",
+        1
+      ],
+      [
+        "blob_id",
+        1
+      ],
+      [
+        "mime",
+        1
+      ],
+      [
+        "size",
+        1
+      ],
+      [
+        "blob_path",
+        1
+      ]
+    ],
+    "input_text": [
+      [
+        "type",
+        300
+      ],
+      [
+        "text",
+        300
+      ]
+    ],
+    "output_text": [
+      [
+        "type",
+        855
+      ],
+      [
+        "text",
+        855
+      ],
+      [
+        "providerData",
+        840
+      ]
+    ]
+  },
+  "nested_message_keys": {
+    "function_call": [
+      [
+        "usage",
+        2026
+      ]
+    ],
+    "message": [
+      [
+        "usage",
+        137
+      ]
+    ]
+  },
+  "identity_fields_present": {
+    "top:function_call.id": 2514,
+    "top:function_call.sessionId": 2514,
+    "top:function_call_result.id": 2481,
+    "top:function_call_result.sessionId": 2481,
+    "top:reasoning.id": 1423,
+    "top:reasoning.sessionId": 1423,
+    "top:message.id": 1153,
+    "top:message.sessionId": 1153,
+    "top:file-history-snapshot.messageId": 888,
+    "top:turn-metrics.id": 27,
+    "top:summary.id": 18,
+    "top:ai-title.id": 12,
+    "top:ai-title.sessionId": 12,
+    "top:session-meta.id": 2,
+    "top:session-meta.sessionId": 2
+  },
+  "sample_shapes": {
+    "top:ai-title": {
+      "id": "str",
+      "timestamp": "int",
+      "type": "str",
+      "aiTitle": "str",
+      "sessionId": "str",
+      "cwd": "str",
+      "_meta": "object{baggage,traceparent}"
+    },
+    "top:file-history-snapshot": {
+      "timestamp": "int",
+      "type": "str",
+      "messageId": "str",
+      "isSnapshotUpdate": "bool",
+      "snapshot": "object{messageId,trackedFileBackups}",
+      "cwd": "str",
+      "_meta": "object{baggage,traceparent}"
+    },
+    "top:function_call": {
+      "id": "str",
+      "parentId": "str",
+      "timestamp": "int",
+      "type": "str",
+      "providerData": "object{agent,argumentsDisplayText,conversationRequestId,messageId,model,rawUsage,requestModelId,requestModelName,traceId,usage}",
+      "callId": "str",
+      "name": "str",
+      "arguments": "str",
+      "sessionId": "str",
+      "message": "object{usage}",
+      "cwd": "str",
+      "_meta": "object{baggage,traceparent}"
+    },
+    "top:function_call_result": {
+      "id": "str",
+      "parentId": "str",
+      "timestamp": "int",
+      "type": "str",
+      "name": "str",
+      "callId": "str",
+      "status": "str",
+      "output": "object{text,type}",
+      "providerData": "object{agent,conversationRequestId,messageId,model,requestModelId,requestModelName,toolResult,traceId}",
+      "sessionId": "str",
+      "cwd": "str",
+      "_meta": "object{baggage,traceparent}"
+    },
+    "top:message": {
+      "id": "str",
+      "timestamp": "int",
+      "type": "str",
+      "role": "str",
+      "content": "array<object{providerData,text,type}>",
+      "providerData": "object{agent,conversationRequestId,messageId,model,rawUsage,requestModelId,requestModelName,traceId,usage}",
+      "__codebuddyLocal": "object{sensitiveUserInputReviewed}",
+      "sessionId": "str",
+      "cwd": "str",
+      "parentId": "str",
+      "status": "str",
+      "message": "object{usage}",
+      "_meta": "object{baggage,traceparent}"
+    },
+    "top:reasoning": {
+      "id": "str",
+      "parentId": "str",
+      "timestamp": "int",
+      "type": "str",
+      "providerData": "object{agent,conversationRequestId,messageId,model,requestModelId,requestModelName,traceId}",
+      "content": "array<NoneType>",
+      "rawContent": "array<object{text,type}>",
+      "sessionId": "str",
+      "cwd": "str",
+      "status": "str",
+      "_meta": "object{baggage,traceparent}"
+    },
+    "top:session-meta": {
+      "type": "str",
+      "id": "str",
+      "sessionId": "str",
+      "timestamp": "int",
+      "meta": "object{codebuddy.ai/hostKind}"
+    },
+    "top:summary": {
+      "id": "str",
+      "timestamp": "int",
+      "type": "str",
+      "summary": "str",
+      "providerData": "object{source}"
+    },
+    "top:turn-metrics": {
+      "id": "str",
+      "timestamp": "int",
+      "type": "str",
+      "durationMs": "int",
+      "tokenDelta": "int",
+      "cwd": "str",
+      "source": "str",
+      "taskStatus": "str"
+    }
+  }
+}

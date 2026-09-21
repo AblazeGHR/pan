@@ -1,0 +1,50 @@
+FF.                                                                      [100%]
+================================== FAILURES ===================================
+_______________ test_partial_history_does_not_reorder_the_turn ________________
+
+reconcile_cases = {'aggregate_result_vs_two_canonical_rows': {'sessionHistory': [['user', 'q', None], ['assistant', 'first half ', 'a1']...is', 'n1'], ['tool', 'Read({"file_path":"a.txt"})', 'n2'], ['assistant', 'final', 'n3']], 'lastMessage': 'final'}, ...}
+
+    @pytest.mark.xfail(strict=True, reason=(
+        "REPRODUCED: when the client's cached session.history lags the live turn, "
+        "reconcileWorkerResult pushes the result row into history BEFORE the live-only "
+        "rows are merged, producing [user, final, analysis, tool] instead of the "
+        "provider order [user, analysis, tool, final]."))
+    def test_partial_history_does_not_reorder_the_turn(reconcile_cases):
+        case = reconcile_cases["partial_history_with_ids"]
+        roles_contents = [(r[0], r[1]) for r in case["currentMessages"]]
+>       assert roles_contents == [
+            ("user", "q"),
+            ("assistant", "analysis"),
+            ("tool", 'Read({"file_path":"a.txt"})'),
+            ("assistant", "final"),
+        ]
+E       assert [('user', 'q'...":"a.txt"})')] == [('user', 'q'...nt', 'final')]
+E         
+E         At index 1 diff: ('assistant', 'final') != ('assistant', 'analysis')
+E         Use -v to get more diff
+
+tests\test_reaudit_frontend_reconcile_order.py:52: AssertionError
+_____________________ test_idless_turn_is_not_duplicated ______________________
+
+reconcile_cases = {'aggregate_result_vs_two_canonical_rows': {'sessionHistory': [['user', 'q', None], ['assistant', 'first half ', 'a1']...is', 'n1'], ['tool', 'Read({"file_path":"a.txt"})', 'n2'], ['assistant', 'final', 'n3']], 'lastMessage': 'final'}, ...}
+
+    @pytest.mark.xfail(strict=True, reason=(
+        "REPRODUCED: for an id-less provider (real cbc) the whole live turn is "
+        "appended a second time because no live row can be matched by identity."))
+    def test_idless_turn_is_not_duplicated(reconcile_cases):
+        case = reconcile_cases["ordered_turn_idless_result_equals_last"]
+>       assert case["currentMessages"] == [
+            ["user", "q", None],
+            ["assistant", "analysis", None],
+            ["tool", 'Read({"file_path":"a.txt"})', None],
+            ["assistant", "final", None],
+        ]
+E       AssertionError: assert [['user', 'q'...', None], ...] == [['user', 'q'...final', None]]
+E         
+E         Left contains 3 more items, first extra item: ['assistant', 'analysis', None]
+E         Use -v to get more diff
+
+tests\test_reaudit_frontend_reconcile_order.py:65: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_reaudit_frontend_reconcile_order.py::test_partial_history_does_not_reorder_the_turn
+FAILED tests/test_reaudit_frontend_reconcile_order.py::test_idless_turn_is_not_duplicated

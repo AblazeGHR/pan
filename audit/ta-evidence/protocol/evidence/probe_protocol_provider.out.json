@@ -1,0 +1,1320 @@
+{
+  "P1_codex_projection": {
+    "command": {
+      "live": {
+        "role": "tool",
+        "content": "Command({\"command\":\"echo hi\",\"output\":\"hi\"})",
+        "nativeItemId": "c1"
+      },
+      "canonical": {
+        "role": "tool",
+        "content": "Command({\"command\":\"echo hi\",\"output\":\"hi\"})",
+        "nativeItemId": "c1"
+      },
+      "identical": true,
+      "frontend": null
+    },
+    "mcp": {
+      "live": {
+        "role": "tool",
+        "content": "pan_probe({\"x\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"ok\"}],\"structuredContent\":null}})",
+        "nativeItemId": "m1"
+      },
+      "canonical": {
+        "role": "tool",
+        "content": "pan_probe({\"x\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"ok\"}],\"structuredContent\":null}})",
+        "nativeItemId": "m1"
+      },
+      "identical": true,
+      "frontend": null
+    },
+    "filechange": {
+      "live": {
+        "role": "tool",
+        "content": "FileChange({\"id\":\"f1\",\"type\":\"fileChange\",\"changes\":[{\"path\":\"a.txt\",\"kind\":\"update\"}],\"status\":\"completed\"})",
+        "nativeItemId": "f1"
+      },
+      "canonical": {
+        "role": "tool",
+        "content": "FileChange({\"id\":\"f1\",\"type\":\"fileChange\",\"changes\":[{\"path\":\"a.txt\",\"kind\":\"update\"}],\"status\":\"completed\"})",
+        "nativeItemId": "f1"
+      },
+      "identical": true,
+      "frontend": null
+    },
+    "unknown_native": {
+      "live": [
+        {
+          "role": "tool",
+          "content": "futureNativeItem({\"summary\":\"kept\"})",
+          "nativeItemId": "u1"
+        }
+      ],
+      "canonical": null,
+      "identical": false,
+      "frontend": null
+    },
+    "exec_mcptoolcall_raw": {
+      "live": {
+        "role": "tool",
+        "content": "mcpToolCall({\"tool\":\"pan_probe\",\"arguments\":{\"x\":1},\"result\":\"ok\"})",
+        "nativeItemId": "x1"
+      },
+      "canonical": {
+        "role": "tool",
+        "content": "pan_probe({\"x\":1,\"result\":\"ok\"})",
+        "nativeItemId": "x1"
+      },
+      "identical": false,
+      "frontend": null
+    },
+    "exec_dynamictoolcall_raw": {
+      "live": {
+        "role": "tool",
+        "content": "dynamicToolCall({\"name\":\"pan_probe\",\"input\":{\"y\":2}})",
+        "nativeItemId": "x2"
+      },
+      "canonical": {
+        "role": "tool",
+        "content": "pan_probe({\"y\":2})",
+        "nativeItemId": "x2"
+      },
+      "identical": false,
+      "frontend": null
+    },
+    "float_args": {
+      "live": {
+        "role": "tool",
+        "content": "Wait({\"seconds\":30.0})",
+        "nativeItemId": "t1"
+      },
+      "canonical": {
+        "role": "tool",
+        "content": "Sleep({\"seconds\":30.0})",
+        "nativeItemId": "t1"
+      },
+      "identical": false,
+      "frontend": "Wait({\"seconds\":30})"
+    },
+    "appserver_unknown_item": {
+      "live_event_type": "codex.item.completed",
+      "persisted_live": false,
+      "canonical": null
+    }
+  },
+  "P2_worker_terminal": {
+    "a_baseline": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "A"
+        }
+      ],
+      "last_result": {
+        "status": "done",
+        "result": "A",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.441219",
+        "taskSeq": 7,
+        "taskId": "task-7",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:task-7",
+        "historyEpoch": "d0d1c308f97e454aa6ad3ff396e5f04b",
+        "historyRevision": 1
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:task-7",
+          "status": "done",
+          "result": "A",
+          "taskSeq": 7,
+          "taskId": "task-7",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.441219",
+          "historyEpoch": "d0d1c308f97e454aa6ad3ff396e5f04b",
+          "historyRevision": 1
+        }
+      ],
+      "history_revision": 1,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 7,
+          "taskId": "task-7",
+          "event": {
+            "type": "assistant",
+            "final": true,
+            "item_id": "a1",
+            "message": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "A",
+          "taskSeq": 7,
+          "taskId": "task-7",
+          "resultCursor": 1,
+          "terminalKey": "task:task-7",
+          "sourceSessionId": null,
+          "historyEpoch": "d0d1c308f97e454aa6ad3ff396e5f04b",
+          "historyRevision": 1,
+          "terminalCoverage": {
+            "historyEpoch": "d0d1c308f97e454aa6ad3ff396e5f04b",
+            "historyRevision": 1
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.stream",
+        "worker.result",
+        "worker.status",
+        "worker.crashed",
+        "worker.zombie"
+      ]
+    },
+    "b_tool_last": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "A"
+        },
+        {
+          "role": "tool",
+          "content": "Command({\"command\":\"ls\"})",
+          "nativeItemId": "t1"
+        },
+        {
+          "role": "assistant",
+          "content": "A"
+        }
+      ],
+      "last_result": {
+        "status": "done",
+        "result": "A",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.452429",
+        "taskSeq": 8,
+        "taskId": "task-8",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:task-8",
+        "historyEpoch": "170cbe06a4214b69a12a00e003be3068",
+        "historyRevision": 3
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:task-8",
+          "status": "done",
+          "result": "A",
+          "taskSeq": 8,
+          "taskId": "task-8",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.452429",
+          "historyEpoch": "170cbe06a4214b69a12a00e003be3068",
+          "historyRevision": 3
+        }
+      ],
+      "history_revision": 3,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 8,
+          "taskId": "task-8",
+          "event": {
+            "type": "assistant",
+            "final": true,
+            "item_id": "a1",
+            "message": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "A"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 8,
+          "taskId": "task-8",
+          "event": {
+            "type": "assistant",
+            "final": true,
+            "item_id": "t1",
+            "message": {
+              "content": [
+                {
+                  "type": "tool_use",
+                  "name": "Command",
+                  "input": {
+                    "command": "ls"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "A",
+          "taskSeq": 8,
+          "taskId": "task-8",
+          "resultCursor": 1,
+          "terminalKey": "task:task-8",
+          "sourceSessionId": null,
+          "historyEpoch": "170cbe06a4214b69a12a00e003be3068",
+          "historyRevision": 3,
+          "terminalCoverage": {
+            "historyEpoch": "170cbe06a4214b69a12a00e003be3068",
+            "historyRevision": 3
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.stream",
+        "worker.stream",
+        "worker.result",
+        "worker.status",
+        "worker.crashed",
+        "worker.zombie"
+      ]
+    },
+    "c_result_then_assistant": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "partial"
+        },
+        {
+          "role": "assistant",
+          "content": "final answer"
+        },
+        {
+          "role": "assistant",
+          "content": "final answer"
+        }
+      ],
+      "last_result": {
+        "status": "done",
+        "result": "final answer",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.453429",
+        "taskSeq": 9,
+        "taskId": "task-9",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:task-9",
+        "historyEpoch": "28b266b6173544c69ed103afb9ad2765",
+        "historyRevision": 2
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:task-9",
+          "status": "done",
+          "result": "final answer",
+          "taskSeq": 9,
+          "taskId": "task-9",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.453429",
+          "historyEpoch": "28b266b6173544c69ed103afb9ad2765",
+          "historyRevision": 2
+        }
+      ],
+      "history_revision": 3,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 9,
+          "taskId": "task-9",
+          "event": {
+            "type": "assistant",
+            "final": true,
+            "item_id": "a1",
+            "message": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "partial"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 9,
+          "taskId": null,
+          "event": {
+            "type": "assistant",
+            "final": true,
+            "item_id": "a2",
+            "message": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "final answer"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "final answer",
+          "taskSeq": 9,
+          "taskId": "task-9",
+          "resultCursor": 1,
+          "terminalKey": "task:task-9",
+          "sourceSessionId": null,
+          "historyEpoch": "28b266b6173544c69ed103afb9ad2765",
+          "historyRevision": 2,
+          "terminalCoverage": {
+            "historyEpoch": "28b266b6173544c69ed103afb9ad2765",
+            "historyRevision": 2
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.stream",
+        "worker.result",
+        "worker.status",
+        "worker.stream",
+        "worker.crashed",
+        "worker.zombie"
+      ]
+    },
+    "d_aggregate_result": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "first half "
+        },
+        {
+          "role": "assistant",
+          "content": "second half"
+        },
+        {
+          "role": "assistant",
+          "content": "first half second half"
+        }
+      ],
+      "last_result": {
+        "status": "done",
+        "result": "first half second half",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.454429",
+        "taskSeq": 10,
+        "taskId": "task-10",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:task-10",
+        "historyEpoch": "bc04e439887c4d06a21e12d81762b41d",
+        "historyRevision": 3
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:task-10",
+          "status": "done",
+          "result": "first half second half",
+          "taskSeq": 10,
+          "taskId": "task-10",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.454429",
+          "historyEpoch": "bc04e439887c4d06a21e12d81762b41d",
+          "historyRevision": 3
+        }
+      ],
+      "history_revision": 3,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 10,
+          "taskId": "task-10",
+          "event": {
+            "type": "assistant",
+            "final": true,
+            "item_id": "a1",
+            "message": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "first half "
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 10,
+          "taskId": "task-10",
+          "event": {
+            "type": "assistant",
+            "final": true,
+            "item_id": "a2",
+            "message": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "second half"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "first half second half",
+          "taskSeq": 10,
+          "taskId": "task-10",
+          "resultCursor": 1,
+          "terminalKey": "task:task-10",
+          "sourceSessionId": null,
+          "historyEpoch": "bc04e439887c4d06a21e12d81762b41d",
+          "historyRevision": 3,
+          "terminalCoverage": {
+            "historyEpoch": "bc04e439887c4d06a21e12d81762b41d",
+            "historyRevision": 3
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.stream",
+        "worker.stream",
+        "worker.result",
+        "worker.status",
+        "worker.crashed",
+        "worker.zombie"
+      ]
+    },
+    "e_empty_result": {
+      "history": [],
+      "last_result": {
+        "status": "done",
+        "result": "",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.454429",
+        "taskSeq": 11,
+        "taskId": "task-11",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:task-11",
+        "historyEpoch": "c122d3ab85d3450c81e4505e0d5861cc",
+        "historyRevision": 0
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:task-11",
+          "status": "done",
+          "result": "",
+          "taskSeq": 11,
+          "taskId": "task-11",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.454429",
+          "historyEpoch": "c122d3ab85d3450c81e4505e0d5861cc",
+          "historyRevision": 0
+        }
+      ],
+      "history_revision": 0,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "",
+          "taskSeq": 11,
+          "taskId": "task-11",
+          "resultCursor": 1,
+          "terminalKey": "task:task-11",
+          "sourceSessionId": null,
+          "historyEpoch": "c122d3ab85d3450c81e4505e0d5861cc",
+          "historyRevision": 0,
+          "terminalCoverage": {
+            "historyEpoch": "c122d3ab85d3450c81e4505e0d5861cc",
+            "historyRevision": 0
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.result",
+        "worker.status",
+        "worker.crashed",
+        "worker.zombie"
+      ]
+    }
+  },
+  "P3_cbc_shapes": {
+    "text_blocks": [
+      {
+        "role": "assistant",
+        "content": "hello"
+      }
+    ],
+    "text_is_assistant_event": true,
+    "thinking_blocks": [
+      {
+        "role": "thinking",
+        "content": "hmm"
+      }
+    ],
+    "thinking_text_blocks": null,
+    "thinking_text_error": "KeyError: 'thinking'",
+    "tool_blocks": [
+      {
+        "role": "tool",
+        "content": "Read({\"file_path\":\"a.txt\",\"limit\":10.0})"
+      }
+    ],
+    "final_attr_present_in_adapter_source": false
+  },
+  "P4_history_cursor": {
+    "history": [
+      {
+        "role": "user",
+        "content": "q"
+      },
+      {
+        "role": "assistant",
+        "content": "tail agent"
+      },
+      {
+        "role": "tool",
+        "content": "Command({\"command\":\"ls\"})",
+        "nativeItemId": "t1"
+      },
+      {
+        "role": "assistant",
+        "content": "tail agent"
+      }
+    ],
+    "hist_persisted": 1,
+    "history_revision": 3,
+    "hist_dirty": false,
+    "last_result": {
+      "status": "done",
+      "result": "tail agent",
+      "cli_session_id": null,
+      "timestamp": "2026-09-22T00:19:53.456429",
+      "taskSeq": 12,
+      "taskId": "task-12",
+      "taskIdempotent": true,
+      "workerId": "worker-probe",
+      "generation": 0,
+      "resultCursor": 1,
+      "sourceSessionId": null,
+      "terminalKey": "task:task-12",
+      "historyEpoch": "13abbbc1ce3e49bf8da2e501d1ab3e76",
+      "historyRevision": 3
+    }
+  },
+  "P5_cbc_worker": {
+    "thinking_then_text_then_result": {
+      "history": [
+        {
+          "role": "thinking",
+          "content": "reasoning..."
+        },
+        {
+          "role": "assistant",
+          "content": "final answer"
+        }
+      ],
+      "last_result": {
+        "status": "done",
+        "result": "final answer",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.456805",
+        "taskSeq": 21,
+        "taskId": "cbc-task-21",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:cbc-task-21",
+        "historyEpoch": "4a1ddfa2f1474fdf8c8a683162eeb637",
+        "historyRevision": 2
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:cbc-task-21",
+          "status": "done",
+          "result": "final answer",
+          "taskSeq": 21,
+          "taskId": "cbc-task-21",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.456805",
+          "historyEpoch": "4a1ddfa2f1474fdf8c8a683162eeb637",
+          "historyRevision": 2
+        }
+      ],
+      "history_revision": 2,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 21,
+          "taskId": "cbc-task-21",
+          "event": {
+            "type": "assistant",
+            "session_id": "cbc-1",
+            "message": {
+              "content": [
+                {
+                  "type": "thinking",
+                  "thinking": "reasoning..."
+                },
+                {
+                  "type": "text",
+                  "text": "final answer"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "final answer",
+          "taskSeq": 21,
+          "taskId": "cbc-task-21",
+          "resultCursor": 1,
+          "terminalKey": "task:cbc-task-21",
+          "sourceSessionId": null,
+          "historyEpoch": "4a1ddfa2f1474fdf8c8a683162eeb637",
+          "historyRevision": 2,
+          "terminalCoverage": {
+            "historyEpoch": "4a1ddfa2f1474fdf8c8a683162eeb637",
+            "historyRevision": 2
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.stream",
+        "worker.result",
+        "worker.status",
+        "worker.crashed",
+        "worker.zombie"
+      ],
+      "stream_final_flags": [
+        null
+      ],
+      "stream_item_ids": [
+        null
+      ]
+    },
+    "tool_only_then_result": {
+      "history": [
+        {
+          "role": "tool",
+          "content": "Read({\"file_path\":\"a.txt\"})"
+        },
+        {
+          "role": "assistant",
+          "content": "done reading"
+        }
+      ],
+      "last_result": {
+        "status": "done",
+        "result": "done reading",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.457309",
+        "taskSeq": 22,
+        "taskId": "cbc-task-22",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:cbc-task-22",
+        "historyEpoch": "eddb887900a04fa2a58f7df9f1d6643c",
+        "historyRevision": 2
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:cbc-task-22",
+          "status": "done",
+          "result": "done reading",
+          "taskSeq": 22,
+          "taskId": "cbc-task-22",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.457309",
+          "historyEpoch": "eddb887900a04fa2a58f7df9f1d6643c",
+          "historyRevision": 2
+        }
+      ],
+      "history_revision": 2,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 22,
+          "taskId": "cbc-task-22",
+          "event": {
+            "type": "assistant",
+            "session_id": "cbc-1",
+            "message": {
+              "content": [
+                {
+                  "type": "tool_use",
+                  "name": "Read",
+                  "input": {
+                    "file_path": "a.txt"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "done reading",
+          "taskSeq": 22,
+          "taskId": "cbc-task-22",
+          "resultCursor": 1,
+          "terminalKey": "task:cbc-task-22",
+          "sourceSessionId": null,
+          "historyEpoch": "eddb887900a04fa2a58f7df9f1d6643c",
+          "historyRevision": 2,
+          "terminalCoverage": {
+            "historyEpoch": "eddb887900a04fa2a58f7df9f1d6643c",
+            "historyRevision": 2
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.stream",
+        "worker.result",
+        "worker.status",
+        "worker.crashed",
+        "worker.zombie"
+      ],
+      "stream_final_flags": [
+        null
+      ],
+      "stream_item_ids": [
+        null
+      ]
+    },
+    "duplicate_tool_text": {
+      "history": [
+        {
+          "role": "tool",
+          "content": "Read({\"file_path\":\"a.txt\"})"
+        },
+        {
+          "role": "tool",
+          "content": "Read({\"file_path\":\"a.txt\"})"
+        }
+      ],
+      "last_result": {
+        "status": "done",
+        "result": "",
+        "cli_session_id": null,
+        "timestamp": "2026-09-22T00:19:53.458315",
+        "taskSeq": 23,
+        "taskId": "cbc-task-23",
+        "taskIdempotent": true,
+        "workerId": "worker-probe",
+        "generation": 0,
+        "resultCursor": 1,
+        "sourceSessionId": null,
+        "terminalKey": "task:cbc-task-23",
+        "historyEpoch": "96fbc4c35a2f4b9f876745a88c36f9a2",
+        "historyRevision": 2
+      },
+      "terminal_results": [
+        {
+          "resultCursor": 1,
+          "terminalKey": "task:cbc-task-23",
+          "status": "done",
+          "result": "",
+          "taskSeq": 23,
+          "taskId": "cbc-task-23",
+          "taskIdempotent": true,
+          "workerId": "worker-probe",
+          "generation": 0,
+          "sourceSessionId": null,
+          "timestamp": "2026-09-22T00:19:53.458315",
+          "historyEpoch": "96fbc4c35a2f4b9f876745a88c36f9a2",
+          "historyRevision": 2
+        }
+      ],
+      "history_revision": 2,
+      "hist_persisted": null,
+      "hist_dirty": false,
+      "result_cursor": 1,
+      "status": "zombie",
+      "stream_events": [
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 23,
+          "taskId": "cbc-task-23",
+          "event": {
+            "type": "assistant",
+            "session_id": "cbc-1",
+            "message": {
+              "content": [
+                {
+                  "type": "tool_use",
+                  "name": "Read",
+                  "input": {
+                    "file_path": "a.txt"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "worker.stream",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "taskSeq": 23,
+          "taskId": "cbc-task-23",
+          "event": {
+            "type": "assistant",
+            "session_id": "cbc-1",
+            "message": {
+              "content": [
+                {
+                  "type": "tool_use",
+                  "name": "Read",
+                  "input": {
+                    "file_path": "a.txt"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "terminal_events": [
+        {
+          "type": "worker.result",
+          "workerId": "worker-probe",
+          "sessionId": "ses-probe",
+          "generation": 0,
+          "status": "done",
+          "result": "",
+          "taskSeq": 23,
+          "taskId": "cbc-task-23",
+          "resultCursor": 1,
+          "terminalKey": "task:cbc-task-23",
+          "sourceSessionId": null,
+          "historyEpoch": "96fbc4c35a2f4b9f876745a88c36f9a2",
+          "historyRevision": 2,
+          "terminalCoverage": {
+            "historyEpoch": "96fbc4c35a2f4b9f876745a88c36f9a2",
+            "historyRevision": 2
+          }
+        }
+      ],
+      "all_broadcast_types": [
+        "worker.stream",
+        "worker.stream",
+        "worker.result",
+        "worker.status",
+        "worker.crashed",
+        "worker.zombie"
+      ],
+      "stream_final_flags": [
+        null,
+        null
+      ],
+      "stream_item_ids": [
+        null,
+        null
+      ]
+    }
+  },
+  "P6_cbc_live_vs_history": {
+    "tool": {
+      "live": [
+        {
+          "role": "tool",
+          "content": "Read({\"path\":\"a.txt\",\"limit\":10})"
+        }
+      ],
+      "history": {
+        "role": "tool",
+        "content": "Read({\"path\": \"a.txt\", \"limit\": 10})"
+      },
+      "identical": false
+    },
+    "tool_non_ascii": {
+      "live": [
+        {
+          "role": "tool",
+          "content": "Write({\"content\":\"\\u4e2d\\u6587\\ud83d\\ude00\"})"
+        }
+      ],
+      "history": {
+        "role": "tool",
+        "content": "Write({\"content\": \"中文😀\"})"
+      },
+      "identical": false
+    },
+    "multi_text_block": {
+      "live": [
+        {
+          "role": "assistant",
+          "content": " line1\n"
+        },
+        {
+          "role": "assistant",
+          "content": "line2 "
+        }
+      ],
+      "history": {
+        "role": "assistant",
+        "content": "line1\nline2"
+      },
+      "identical": false
+    },
+    "reasoning": {
+      "live": [
+        {
+          "role": "thinking",
+          "content": "hmm"
+        }
+      ],
+      "history": {
+        "role": "thinking",
+        "content": "hmm"
+      },
+      "identical": true
+    },
+    "long_args": {
+      "live_len": 618,
+      "history_len": 507
+    }
+  },
+  "P7_cbc_result_alignment": {
+    "multi_text_block_message": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "part1 "
+        },
+        {
+          "role": "assistant",
+          "content": "part2"
+        },
+        {
+          "role": "assistant",
+          "content": "part1 part2"
+        }
+      ],
+      "assistant_rows": [
+        "part1 ",
+        "part2",
+        "part1 part2"
+      ],
+      "result": "part1 part2",
+      "result_equals_last_assistant_row": true,
+      "result_equals_join_of_all_assistant_rows": false,
+      "result_equals_last_live_text_block": false
+    },
+    "two_assistant_messages": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "first"
+        },
+        {
+          "role": "assistant",
+          "content": "second"
+        }
+      ],
+      "assistant_rows": [
+        "first",
+        "second"
+      ],
+      "result": "second",
+      "result_equals_last_assistant_row": true,
+      "result_equals_join_of_all_assistant_rows": false,
+      "result_equals_last_live_text_block": true
+    },
+    "tool_only_last_message": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "let me look"
+        },
+        {
+          "role": "tool",
+          "content": "Read({\"file_path\":\"a.txt\"})"
+        },
+        {
+          "role": "assistant",
+          "content": "let me look"
+        }
+      ],
+      "assistant_rows": [
+        "let me look",
+        "let me look"
+      ],
+      "result": "let me look",
+      "result_equals_last_assistant_row": true,
+      "result_equals_join_of_all_assistant_rows": false,
+      "result_equals_last_live_text_block": false
+    },
+    "result_repeats_earlier_text": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "A"
+        },
+        {
+          "role": "assistant",
+          "content": "B"
+        },
+        {
+          "role": "assistant",
+          "content": "A"
+        }
+      ],
+      "assistant_rows": [
+        "A",
+        "B",
+        "A"
+      ],
+      "result": "A",
+      "result_equals_last_assistant_row": true,
+      "result_equals_join_of_all_assistant_rows": false,
+      "result_equals_last_live_text_block": false
+    },
+    "thinking_then_text": {
+      "history": [
+        {
+          "role": "thinking",
+          "content": "reason"
+        },
+        {
+          "role": "assistant",
+          "content": "answer"
+        }
+      ],
+      "assistant_rows": [
+        "answer"
+      ],
+      "result": "answer",
+      "result_equals_last_assistant_row": true,
+      "result_equals_join_of_all_assistant_rows": true,
+      "result_equals_last_live_text_block": true
+    }
+  },
+  "P8_identity_trace": {
+    "canonical_message_block": {
+      "role": "assistant",
+      "content": "hello"
+    },
+    "canonical_function_call_block": {
+      "role": "tool",
+      "content": "Read({\"file_path\": \"a.txt\"})"
+    },
+    "canonical_reasoning_block": {
+      "role": "thinking",
+      "content": "because"
+    },
+    "canonical_kept_any_id": false,
+    "live_blocks": [
+      {
+        "role": "assistant",
+        "content": "hello"
+      },
+      {
+        "role": "tool",
+        "content": "Read({\"file_path\":\"a.txt\"})"
+      }
+    ],
+    "live_kept_any_id": false,
+    "wire_message_ids": [
+      {
+        "role": "user",
+        "messageId": "legacy:cbc-session:epoch-1:0"
+      },
+      {
+        "role": "assistant",
+        "messageId": "legacy:cbc-session:epoch-1:1"
+      },
+      {
+        "role": "tool",
+        "messageId": "legacy:cbc-session:epoch-1:2"
+      },
+      {
+        "role": "assistant",
+        "messageId": "legacy:cbc-session:epoch-1:3"
+      }
+    ],
+    "wire_ids_are_index_derived": true,
+    "cbc_modules_reading_ids": {
+      "__init__.py": {
+        "get('id')": 0,
+        "callId": 0,
+        "parentId": 0,
+        "nativeItemId": 0
+      },
+      "adapter.py": {
+        "get('id')": 0,
+        "callId": 0,
+        "parentId": 0,
+        "nativeItemId": 0
+      },
+      "sessions.py": {
+        "get('id')": 0,
+        "callId": 0,
+        "parentId": 0,
+        "nativeItemId": 0
+      }
+    }
+  }
+}

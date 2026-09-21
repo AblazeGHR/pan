@@ -92,3 +92,13 @@ auth_token*
 !/assets/3.png
 !/assets/4.png
 !/assets/5.png
+
+# E2E disposable runtime state (evidence JSON/PNG under audit/e2e-runtime and
+# evidence/cbc-strict are kept; the per-run server session data is not).
+audit/e2e-runtime/sessions/
+audit/e2e-runtime/data/
+audit/e2e-runtime/session-workdir/
+audit/e2e-runtime/workdirs/
+audit/e2e-runtime/attachments/
+evidence/cbc-strict/runtime/
+packages/web/test-results/

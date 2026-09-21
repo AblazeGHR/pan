@@ -1,0 +1,1004 @@
+{
+  "meta": {
+    "port": 8797,
+    "head": "591367a65f88e9d5270e8e99920ef5448d1d68c9",
+    "phases": {
+      "S": {
+        "baseTail": [
+          "history answer 148 x x x x x x x x x x x x x x x x x x ",
+          "history question 149",
+          "history answer 149 x x x x x x x x x x x x x x x x x x ",
+          "history question 150",
+          "history answer 150 x x x x x x x x x x x x x x x x x x ",
+          "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>"
+        ],
+        "turns": [
+          {
+            "turn": "alpha",
+            "preTurnStableLen": 50,
+            "expectedTurnSequence": [
+              "analysis alpha 1790010522683",
+              "Bash({\"cmd\":\"echo alpha\"})",
+              "final alpha 1790010522683",
+              "DONE"
+            ],
+            "windowFromAnalysis": [
+              "analysis alpha 1790010522683",
+              "Bash({\"cmd\":\"echo alpha\"})",
+              "final alpha 1790010522683",
+              "DONE"
+            ],
+            "turnOrderOk": true,
+            "doneAfterFinal": true,
+            "singleFinal": true,
+            "finalBeforeAnalysis": false,
+            "finalIdxs": [
+              53
+            ],
+            "aIdx": 51,
+            "tIdx": 52,
+            "fIdx": 53,
+            "dIdx": 54,
+            "finalCount": 1,
+            "storeLen": 55,
+            "fullTail": [
+              "history question 147",
+              "history answer 147 x x x x x x x x x x x x x x x x x x ",
+              "history question 148",
+              "history answer 148 x x x x x x x x x x x x x x x x x x ",
+              "history question 149",
+              "history answer 149 x x x x x x x x x x x x x x x x x x ",
+              "history question 150",
+              "history answer 150 x x x x x x x x x x x x x x x x x x ",
+              "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+              "q alpha 1790010522683",
+              "analysis alpha 1790010522683",
+              "Bash({\"cmd\":\"echo alpha\"})",
+              "final alpha 1790010522683",
+              "DONE"
+            ],
+            "domTail": [
+              "history question 149",
+              "history answer 149 x x x x x x x x x x x x x x x x x x",
+              "history question 150",
+              "history answer 150 x x x x x x x x x x x x x x x x x x",
+              "Browser file-link fixtures |  | relative file windows server path file URI http link mailto link anchor link missing file <a id=\"local-anchor\"></a>",
+              "q alpha 1790010522683",
+              "thinking |  | analysis alpha 1790010522683",
+              "1 tools",
+              "final alpha 1790010522683",
+              "[DONE] Task completed"
+            ],
+            "domAnalysisIdx": 12,
+            "domFinalIdxs": [
+              14
+            ],
+            "domDoneIdx": 15
+          },
+          {
+            "turn": "bravo",
+            "preTurnStableLen": 55,
+            "expectedTurnSequence": [
+              "analysis bravo 1790010522683",
+              "Bash({\"cmd\":\"echo bravo\"})",
+              "final bravo 1790010522683",
+              "DONE"
+            ],
+            "windowFromAnalysis": [
+              "analysis bravo 1790010522683",
+              "Bash({\"cmd\":\"echo bravo\"})",
+              "final bravo 1790010522683",
+              "DONE"
+            ],
+            "turnOrderOk": true,
+            "doneAfterFinal": true,
+            "singleFinal": true,
+            "finalBeforeAnalysis": false,
+            "finalIdxs": [
+              58
+            ],
+            "aIdx": 56,
+            "tIdx": 57,
+            "fIdx": 58,
+            "dIdx": 59,
+            "finalCount": 1,
+            "storeLen": 60,
+            "fullTail": [
+              "history answer 149 x x x x x x x x x x x x x x x x x x ",
+              "history question 150",
+              "history answer 150 x x x x x x x x x x x x x x x x x x ",
+              "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+              "q alpha 1790010522683",
+              "analysis alpha 1790010522683",
+              "Bash({\"cmd\":\"echo alpha\"})",
+              "final alpha 1790010522683",
+              "DONE",
+              "q bravo 1790010522683",
+              "analysis bravo 1790010522683",
+              "Bash({\"cmd\":\"echo bravo\"})",
+              "final bravo 1790010522683",
+              "DONE"
+            ],
+            "domTail": [
+              "q alpha 1790010522683",
+              "thinking |  | analysis alpha 1790010522683",
+              "1 tools",
+              "final alpha 1790010522683",
+              "[DONE] Task completed",
+              "q bravo 1790010522683",
+              "thinking |  | analysis bravo 1790010522683",
+              "1 tools",
+              "final bravo 1790010522683",
+              "[DONE] Task completed"
+            ],
+            "domAnalysisIdx": 14,
+            "domFinalIdxs": [
+              16
+            ],
+            "domDoneIdx": 17
+          },
+          {
+            "turn": "charlie",
+            "preTurnStableLen": 60,
+            "expectedTurnSequence": [
+              "analysis charlie 1790010522683",
+              "Bash({\"cmd\":\"echo charlie\"})",
+              "final charlie 1790010522683",
+              "DONE"
+            ],
+            "windowFromAnalysis": [
+              "analysis charlie 1790010522683",
+              "Bash({\"cmd\":\"echo charlie\"})",
+              "final charlie 1790010522683",
+              "DONE"
+            ],
+            "turnOrderOk": true,
+            "doneAfterFinal": true,
+            "singleFinal": true,
+            "finalBeforeAnalysis": false,
+            "finalIdxs": [
+              63
+            ],
+            "aIdx": 61,
+            "tIdx": 62,
+            "fIdx": 63,
+            "dIdx": 64,
+            "finalCount": 1,
+            "storeLen": 65,
+            "fullTail": [
+              "analysis alpha 1790010522683",
+              "Bash({\"cmd\":\"echo alpha\"})",
+              "final alpha 1790010522683",
+              "DONE",
+              "q bravo 1790010522683",
+              "analysis bravo 1790010522683",
+              "Bash({\"cmd\":\"echo bravo\"})",
+              "final bravo 1790010522683",
+              "DONE",
+              "q charlie 1790010522683",
+              "analysis charlie 1790010522683",
+              "Bash({\"cmd\":\"echo charlie\"})",
+              "final charlie 1790010522683",
+              "DONE"
+            ],
+            "domTail": [
+              "q bravo 1790010522683",
+              "thinking |  | analysis bravo 1790010522683",
+              "1 tools",
+              "final bravo 1790010522683",
+              "[DONE] Task completed",
+              "q charlie 1790010522683",
+              "thinking |  | analysis charlie 1790010522683",
+              "1 tools",
+              "final charlie 1790010522683",
+              "[DONE] Task completed"
+            ],
+            "domAnalysisIdx": 16,
+            "domFinalIdxs": [
+              18
+            ],
+            "domDoneIdx": 19
+          }
+        ],
+        "trace": {
+          "alpha": [
+            {
+              "step": "after-append-user",
+              "tail": [
+                "history answer 148 x x x x x x x x x x x x x x x x x x ",
+                "history question 149",
+                "history answer 149 x x x x x x x x x x x x x x x x x x ",
+                "history question 150",
+                "history answer 150 x x x x x x x x x x x x x x x x x x ",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>"
+              ],
+              "len": 50
+            },
+            {
+              "step": "after-stream-thinking",
+              "tail": [
+                "history question 149",
+                "history answer 149 x x x x x x x x x x x x x x x x x x ",
+                "history question 150",
+                "history answer 150 x x x x x x x x x x x x x x x x x x ",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "analysis alpha 1790010522683"
+              ],
+              "len": 51
+            },
+            {
+              "step": "after-stream-tool",
+              "tail": [
+                "history answer 149 x x x x x x x x x x x x x x x x x x ",
+                "history question 150",
+                "history answer 150 x x x x x x x x x x x x x x x x x x ",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "analysis alpha 1790010522683",
+                "Bash({\"cmd\":\"echo alpha\"})"
+              ],
+              "len": 52
+            },
+            {
+              "step": "after-stream-text",
+              "tail": [
+                "history question 150",
+                "history answer 150 x x x x x x x x x x x x x x x x x x ",
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "analysis alpha 1790010522683",
+                "Bash({\"cmd\":\"echo alpha\"})",
+                "final alpha 1790010522683"
+              ],
+              "len": 53
+            },
+            {
+              "step": "after-result",
+              "tail": [
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "q alpha 1790010522683",
+                "analysis alpha 1790010522683",
+                "Bash({\"cmd\":\"echo alpha\"})",
+                "final alpha 1790010522683",
+                "DONE"
+              ],
+              "len": 55
+            },
+            {
+              "step": "after-idle",
+              "tail": [
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "q alpha 1790010522683",
+                "analysis alpha 1790010522683",
+                "Bash({\"cmd\":\"echo alpha\"})",
+                "final alpha 1790010522683",
+                "DONE"
+              ],
+              "len": 55
+            }
+          ],
+          "bravo": [
+            {
+              "step": "after-append-user",
+              "tail": [
+                "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+                "q alpha 1790010522683",
+                "analysis alpha 1790010522683",
+                "Bash({\"cmd\":\"echo alpha\"})",
+                "final alpha 1790010522683",
+                "DONE"
+              ],
+              "len": 55
+            },
+            {
+              "step": "after-stream-thinking",
+              "tail": [
+                "q alpha 1790010522683",
+                "analysis alpha 1790010522683",
+                "Bash({\"cmd\":\"echo alpha\"})",
+                "final alpha 1790010522683",
+                "DONE",
+                "analysis bravo 1790010522683"
+              ],
+              "len": 56
+            },
+            {
+              "step": "after-stream-tool",
+              "tail": [
+                "analysis alpha 1790010522683",
+                "Bash({\"cmd\":\"echo alpha\"})",
+                "final alpha 1790010522683",
+                "DONE",
+                "analysis bravo 1790010522683",
+                "Bash({\"cmd\":\"echo bravo\"})"
+              ],
+              "len": 57
+            },
+            {
+              "step": "after-stream-text",
+              "tail": [
+                "Bash({\"cmd\":\"echo alpha\"})",
+                "final alpha 1790010522683",
+                "DONE",
+                "analysis bravo 1790010522683",
+                "Bash({\"cmd\":\"echo bravo\"})",
+                "final bravo 1790010522683"
+              ],
+              "len": 58
+            },
+            {
+              "step": "after-result",
+              "tail": [
+                "DONE",
+                "q bravo 1790010522683",
+                "analysis bravo 1790010522683",
+                "Bash({\"cmd\":\"echo bravo\"})",
+                "final bravo 1790010522683",
+                "DONE"
+              ],
+              "len": 60
+            },
+            {
+              "step": "after-idle",
+              "tail": [
+                "DONE",
+                "q bravo 1790010522683",
+                "analysis bravo 1790010522683",
+                "Bash({\"cmd\":\"echo bravo\"})",
+                "final bravo 1790010522683",
+                "DONE"
+              ],
+              "len": 60
+            }
+          ],
+          "charlie": [
+            {
+              "step": "after-append-user",
+              "tail": [
+                "DONE",
+                "q bravo 1790010522683",
+                "analysis bravo 1790010522683",
+                "Bash({\"cmd\":\"echo bravo\"})",
+                "final bravo 1790010522683",
+                "DONE"
+              ],
+              "len": 60
+            },
+            {
+              "step": "after-stream-thinking",
+              "tail": [
+                "q bravo 1790010522683",
+                "analysis bravo 1790010522683",
+                "Bash({\"cmd\":\"echo bravo\"})",
+                "final bravo 1790010522683",
+                "DONE",
+                "analysis charlie 1790010522683"
+              ],
+              "len": 61
+            },
+            {
+              "step": "after-stream-tool",
+              "tail": [
+                "analysis bravo 1790010522683",
+                "Bash({\"cmd\":\"echo bravo\"})",
+                "final bravo 1790010522683",
+                "DONE",
+                "analysis charlie 1790010522683",
+                "Bash({\"cmd\":\"echo charlie\"})"
+              ],
+              "len": 62
+            },
+            {
+              "step": "after-stream-text",
+              "tail": [
+                "Bash({\"cmd\":\"echo bravo\"})",
+                "final bravo 1790010522683",
+                "DONE",
+                "analysis charlie 1790010522683",
+                "Bash({\"cmd\":\"echo charlie\"})",
+                "final charlie 1790010522683"
+              ],
+              "len": 63
+            },
+            {
+              "step": "after-result",
+              "tail": [
+                "DONE",
+                "q charlie 1790010522683",
+                "analysis charlie 1790010522683",
+                "Bash({\"cmd\":\"echo charlie\"})",
+                "final charlie 1790010522683",
+                "DONE"
+              ],
+              "len": 65
+            },
+            {
+              "step": "after-idle",
+              "tail": [
+                "DONE",
+                "q charlie 1790010522683",
+                "analysis charlie 1790010522683",
+                "Bash({\"cmd\":\"echo charlie\"})",
+                "final charlie 1790010522683",
+                "DONE"
+              ],
+              "len": 65
+            }
+          ]
+        },
+        "settledAll": {
+          "storeLen": 65,
+          "finalCounts": {
+            "alpha": 1,
+            "bravo": 1,
+            "charlie": 1
+          },
+          "doneCount": 3,
+          "tail": [
+            "analysis alpha 1790010522683",
+            "Bash({\"cmd\":\"echo alpha\"})",
+            "final alpha 1790010522683",
+            "DONE",
+            "q bravo 1790010522683",
+            "analysis bravo 1790010522683",
+            "Bash({\"cmd\":\"echo bravo\"})",
+            "final bravo 1790010522683",
+            "DONE",
+            "q charlie 1790010522683",
+            "analysis charlie 1790010522683",
+            "Bash({\"cmd\":\"echo charlie\"})",
+            "final charlie 1790010522683",
+            "DONE"
+          ]
+        }
+      },
+      "D": {
+        "staleTotal": 313,
+        "staleMessageIds": [
+          "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:310",
+          "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:311",
+          "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:312"
+        ],
+        "heldRequestFired": true,
+        "whileHeld": {
+          "aIdx": 66,
+          "tIdx": 67,
+          "fIdx": 68,
+          "dIdx": 69,
+          "finalCount": 1,
+          "tail": [
+            "analysis charlie 1790010522683",
+            "Bash({\"cmd\":\"echo charlie\"})",
+            "final charlie 1790010522683",
+            "DONE",
+            "q deltaD 1790010522683",
+            "analysis deltaD 1790010522683",
+            "Bash({\"cmd\":\"echo deltaD\"})",
+            "final deltaD 1790010522683",
+            "DONE"
+          ]
+        },
+        "afterRelease": {
+          "aIdx": 66,
+          "tIdx": 67,
+          "fIdx": 68,
+          "dIdx": 69,
+          "finalCount": 1,
+          "tail": [
+            "analysis charlie 1790010522683",
+            "Bash({\"cmd\":\"echo charlie\"})",
+            "final charlie 1790010522683",
+            "DONE",
+            "q deltaD 1790010522683",
+            "analysis deltaD 1790010522683",
+            "Bash({\"cmd\":\"echo deltaD\"})",
+            "final deltaD 1790010522683",
+            "DONE"
+          ]
+        },
+        "turnSurvivesStaleSnapshot": true
+      },
+      "R": {
+        "storeLen": 70,
+        "tail": [
+          "q charlie 1790010522683",
+          "analysis charlie 1790010522683",
+          "Bash({\"cmd\":\"echo charlie\"})",
+          "final charlie 1790010522683",
+          "DONE",
+          "q deltaD 1790010522683",
+          "analysis deltaD 1790010522683",
+          "Bash({\"cmd\":\"echo deltaD\"})",
+          "final deltaD 1790010522683",
+          "DONE"
+        ],
+        "finalCounts": {
+          "alpha": 1,
+          "bravo": 1,
+          "charlie": 1
+        },
+        "doneCount": 4,
+        "toolCount": 4,
+        "analysisCount": 4
+      },
+      "R2": {
+        "storeLen": 70,
+        "tail": [
+          "q charlie 1790010522683",
+          "analysis charlie 1790010522683",
+          "Bash({\"cmd\":\"echo charlie\"})",
+          "final charlie 1790010522683",
+          "DONE",
+          "q deltaD 1790010522683",
+          "analysis deltaD 1790010522683",
+          "Bash({\"cmd\":\"echo deltaD\"})",
+          "final deltaD 1790010522683",
+          "DONE"
+        ],
+        "doneCount": 4,
+        "finalCounts": {
+          "alpha": 1,
+          "bravo": 1,
+          "charlie": 1
+        }
+      },
+      "P": {
+        "markerPresentBefore": false,
+        "preTop": [
+          "50:q alpha 1790010522683",
+          "51:thinking |  | analysis a",
+          "52:1 tools",
+          "53:final alpha 179001052268",
+          "54:[DONE] Task completed"
+        ],
+        "prependScroll": {
+          "scrollTop": 4532,
+          "scrollHeight": 9871,
+          "clientHeight": 679,
+          "distanceFromBottom": 4660
+        },
+        "markerCount": 0,
+        "marker2Count": 0,
+        "tail": [
+          "DONE",
+          "q deltaD 1790010522683",
+          "analysis deltaD 1790010522683",
+          "Bash({\"cmd\":\"echo deltaD\"})",
+          "final deltaD 1790010522683",
+          "DONE"
+        ],
+        "head": [
+          "history answer 101 x x x x x x x x x x x x x x x x x x ",
+          "history question 102",
+          "history answer 102 x x x x x x x x x x x x x x x x x x ",
+          "history question 103"
+        ],
+        "lengthBefore": 120,
+        "lengthAfter": 120,
+        "replacedRows": [],
+        "rerangedRows": 0,
+        "markerDuplicated": false
+      }
+    },
+    "sessionId": "ses_9790c49fd1ff4149",
+    "results": [
+      {
+        "name": "S:alpha:turn-sequence-is-analysis,tool,final,DONE",
+        "passes": true,
+        "expected": [
+          "analysis alpha 1790010522683",
+          "Bash({\"cmd\":\"echo alpha\"})",
+          "final alpha 1790010522683",
+          "DONE"
+        ],
+        "actual": [
+          "analysis alpha 1790010522683",
+          "Bash({\"cmd\":\"echo alpha\"})",
+          "final alpha 1790010522683",
+          "DONE"
+        ],
+        "turnOrderOk": true,
+        "doneAfterFinal": true,
+        "singleFinal": true,
+        "finalBeforeAnalysis": false
+      },
+      {
+        "name": "S:alpha:DOM-paints-analysis,toolgroup,final,DONE",
+        "passes": true,
+        "expected": "analysis < tools-group < single final < DONE",
+        "actual": "analysis@12 tools@13 final@[14] done@15",
+        "domTail": [
+          "history question 150",
+          "history answer 150 x x x x x x x x x x x x x x x x x x",
+          "Browser file-link fixtures |  | relative file windows server path file URI http link mailto link anchor link missing file <a id=\"local-anchor\"></a>",
+          "q alpha 1790010522683",
+          "thinking |  | analysis alpha 1790010522683",
+          "1 tools",
+          "final alpha 1790010522683",
+          "[DONE] Task completed"
+        ]
+      },
+      {
+        "name": "S:bravo:turn-sequence-is-analysis,tool,final,DONE",
+        "passes": true,
+        "expected": [
+          "analysis bravo 1790010522683",
+          "Bash({\"cmd\":\"echo bravo\"})",
+          "final bravo 1790010522683",
+          "DONE"
+        ],
+        "actual": [
+          "analysis bravo 1790010522683",
+          "Bash({\"cmd\":\"echo bravo\"})",
+          "final bravo 1790010522683",
+          "DONE"
+        ],
+        "turnOrderOk": true,
+        "doneAfterFinal": true,
+        "singleFinal": true,
+        "finalBeforeAnalysis": false
+      },
+      {
+        "name": "S:bravo:DOM-paints-analysis,toolgroup,final,DONE",
+        "passes": true,
+        "expected": "analysis < tools-group < single final < DONE",
+        "actual": "analysis@14 tools@15 final@[16] done@17",
+        "domTail": [
+          "1 tools",
+          "final alpha 1790010522683",
+          "[DONE] Task completed",
+          "q bravo 1790010522683",
+          "thinking |  | analysis bravo 1790010522683",
+          "1 tools",
+          "final bravo 1790010522683",
+          "[DONE] Task completed"
+        ]
+      },
+      {
+        "name": "S:charlie:turn-sequence-is-analysis,tool,final,DONE",
+        "passes": true,
+        "expected": [
+          "analysis charlie 1790010522683",
+          "Bash({\"cmd\":\"echo charlie\"})",
+          "final charlie 1790010522683",
+          "DONE"
+        ],
+        "actual": [
+          "analysis charlie 1790010522683",
+          "Bash({\"cmd\":\"echo charlie\"})",
+          "final charlie 1790010522683",
+          "DONE"
+        ],
+        "turnOrderOk": true,
+        "doneAfterFinal": true,
+        "singleFinal": true,
+        "finalBeforeAnalysis": false
+      },
+      {
+        "name": "S:charlie:DOM-paints-analysis,toolgroup,final,DONE",
+        "passes": true,
+        "expected": "analysis < tools-group < single final < DONE",
+        "actual": "analysis@16 tools@17 final@[18] done@19",
+        "domTail": [
+          "1 tools",
+          "final bravo 1790010522683",
+          "[DONE] Task completed",
+          "q charlie 1790010522683",
+          "thinking |  | analysis charlie 1790010522683",
+          "1 tools",
+          "final charlie 1790010522683",
+          "[DONE] Task completed"
+        ]
+      },
+      {
+        "name": "D:held-stale-snapshot-then-new-CBC-turn-order+DONE",
+        "passes": true,
+        "expected": "analysis < tool < final < DONE, final x1 (and the new turn must not be rolled back)",
+        "actual": "whileHeld=[\"analysis charlie 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo charlie\\\"})\",\"final charlie 1790010522683\",\"DONE\",\"q deltaD 1790010522683\",\"analysis deltaD 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo deltaD\\\"})\",\"final deltaD 1790010522683\",\"DONE\"] afterRelease=[\"analysis charlie 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo charlie\\\"})\",\"final charlie 1790010522683\",\"DONE\",\"q deltaD 1790010522683\",\"analysis deltaD 1790010522683\",\"Bash({\\\"cmd\\\":\\\"echo deltaD\\\"})\",\"final deltaD 1790010522683\",\"DONE\"]",
+        "whileHeldOrderOk": true,
+        "afterReleaseOrderOk": true,
+        "survives": true
+      },
+      {
+        "name": "P:no-history-row-replaced-by-live-delta",
+        "passes": true,
+        "passCoverage": false,
+        "expected": [],
+        "actual": []
+      }
+    ],
+    "failures": [],
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_FAILED"
+    ],
+    "serverPids": [
+      5396
+    ]
+  },
+  "raw": {
+    "serverStart": {
+      "stdoutPath": "D:\\project\\pan-worktrees\\frontend-consistency-repair-ds-20260922\\evidence\\cbc-strict\\runtime\\server-1790010517558-0.stdout.log",
+      "stderrPath": "D:\\project\\pan-worktrees\\frontend-consistency-repair-ds-20260922\\evidence\\cbc-strict\\runtime\\server-1790010517558-0.stderr.log",
+      "pid": 5396
+    },
+    "wsFrames": [
+      {
+        "type": "worker.stream",
+        "taskSeq": 501,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis alpha 1790010522683"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 501,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"cmd\":\"echo alpha"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 501,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"text\",\"text\":\"final alpha 1790010522683\"}]"
+      },
+      {
+        "type": "worker.result",
+        "taskSeq": 501,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"final alpha 1790010522683\""
+      },
+      {
+        "type": "worker.status",
+        "taskSeq": 501,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"\""
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 502,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis bravo 1790010522683"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 502,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"cmd\":\"echo bravo"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 502,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"text\",\"text\":\"final bravo 1790010522683\"}]"
+      },
+      {
+        "type": "worker.result",
+        "taskSeq": 502,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"final bravo 1790010522683\""
+      },
+      {
+        "type": "worker.status",
+        "taskSeq": 502,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"\""
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 503,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis charlie 17900105226"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 503,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"cmd\":\"echo charl"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 503,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"text\",\"text\":\"final charlie 1790010522683\"}]"
+      },
+      {
+        "type": "worker.result",
+        "taskSeq": 503,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"final charlie 1790010522683\""
+      },
+      {
+        "type": "worker.status",
+        "taskSeq": 503,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"\""
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 701,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"thinking\",\"thinking\":\"analysis deltaD 179001052268"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 701,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"cmd\":\"echo delta"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 701,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"text\",\"text\":\"final deltaD 1790010522683\"}]"
+      },
+      {
+        "type": "worker.result",
+        "taskSeq": 701,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"final deltaD 1790010522683\""
+      },
+      {
+        "type": "worker.status",
+        "taskSeq": 701,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "content": "\"\""
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 601,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"text\",\"text\":\"plive 1790010522683\"}]"
+      },
+      {
+        "type": "worker.stream",
+        "taskSeq": 601,
+        "workerId": "e2e-browser-worker",
+        "generation": 0,
+        "evType": "assistant",
+        "content": "[{\"type\":\"text\",\"text\":\"plive-updated 1790010522683\"}]"
+      }
+    ],
+    "historyTail": {
+      "history": [
+        {
+          "role": "assistant",
+          "content": "history answer 147 x x x x x x x x x x x x x x x x x x ",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:293"
+        },
+        {
+          "role": "user",
+          "content": "history question 148",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:294"
+        },
+        {
+          "role": "assistant",
+          "content": "history answer 148 x x x x x x x x x x x x x x x x x x ",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:295"
+        },
+        {
+          "role": "user",
+          "content": "history question 149",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:296"
+        },
+        {
+          "role": "assistant",
+          "content": "history answer 149 x x x x x x x x x x x x x x x x x x ",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:297"
+        },
+        {
+          "role": "user",
+          "content": "history question 150",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:298"
+        },
+        {
+          "role": "assistant",
+          "content": "history answer 150 x x x x x x x x x x x x x x x x x x ",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:299"
+        },
+        {
+          "role": "assistant",
+          "content": "## Browser file-link fixtures\n[relative file](/api/attachments/editor/att_4271a55e967f4d83a511df5a3ff3ea8f?session_id=ses_9790c49fd1ff4149#L42)\n[windows server path](/api/attachments/editor/att_a77dd94b5f3f42d1a32442003a282b91?session_id=ses_9790c49fd1ff4149#L42-L48)\n[file URI](/api/attachments/editor/att_2c1270f8a65d471ba6017fa351a89b77?session_id=ses_9790c49fd1ff4149)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:300"
+        },
+        {
+          "role": "user",
+          "content": "q alpha 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:301"
+        },
+        {
+          "role": "thinking",
+          "content": "analysis alpha 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:302"
+        },
+        {
+          "role": "tool",
+          "content": "Bash({\"cmd\":\"echo alpha\"})",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:303"
+        },
+        {
+          "role": "assistant",
+          "content": "final alpha 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:304"
+        },
+        {
+          "role": "user",
+          "content": "q bravo 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:305"
+        },
+        {
+          "role": "thinking",
+          "content": "analysis bravo 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:306"
+        },
+        {
+          "role": "tool",
+          "content": "Bash({\"cmd\":\"echo bravo\"})",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:307"
+        },
+        {
+          "role": "assistant",
+          "content": "final bravo 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:308"
+        },
+        {
+          "role": "user",
+          "content": "q charlie 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:309"
+        },
+        {
+          "role": "thinking",
+          "content": "analysis charlie 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:310"
+        },
+        {
+          "role": "tool",
+          "content": "Bash({\"cmd\":\"echo charlie\"})",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:311"
+        },
+        {
+          "role": "assistant",
+          "content": "final charlie 1790010522683",
+          "messageId": "legacy:ses_9790c49fd1ff4149:0a29fdc6c8c449cfb87a7be64c073113:312"
+        }
+      ],
+      "total": 313,
+      "hasMore": true,
+      "start": 293,
+      "historyEpoch": "0a29fdc6c8c449cfb87a7be64c073113",
+      "historyRevision": 12
+    }
+  },
+  "status": "passed"
+}

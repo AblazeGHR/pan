@@ -1,0 +1,15 @@
+wrote D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\evidence\probe_real_cbc_schema.out.json
+files=103 lines=8518
+  type='ai-title': keys=['_meta', 'aiTitle', 'cwd', 'id', 'sessionId', 'timestamp', 'type']
+  type='file-history-snapshot': keys=['_meta', 'cwd', 'isSnapshotUpdate', 'messageId', 'snapshot', 'timestamp', 'type']
+  type='function_call': keys=['_meta', 'arguments', 'callId', 'cwd', 'id', 'message', 'name', 'parentId', 'providerData', 'sessionId', 'timestamp', 'type']
+  type='function_call_result': keys=['_meta', 'callId', 'cwd', 'id', 'name', 'output', 'parentId', 'providerData', 'sessionId', 'status', 'timestamp', 'type']
+  type='message': keys=['__codebuddyLocal', '_meta', 'content', 'cwd', 'id', 'message', 'parentId', 'providerData', 'role', 'sessionId', 'status', 'timestamp', 'type']
+  type='reasoning': keys=['_meta', 'content', 'cwd', 'id', 'parentId', 'providerData', 'rawContent', 'sessionId', 'status', 'timestamp', 'type']
+  type='session-meta': keys=['id', 'meta', 'sessionId', 'timestamp', 'type']
+  type='summary': keys=['id', 'providerData', 'summary', 'timestamp', 'type']
+  type='turn-metrics': keys=['cwd', 'durationMs', 'id', 'source', 'taskStatus', 'timestamp', 'tokenDelta', 'type']
+  block='image_blob_ref': keys=['blob_id', 'blob_path', 'mime', 'size', 'type']
+  block='input_text': keys=['text', 'type']
+  block='output_text': keys=['providerData', 'text', 'type']
+  identity fields: {'top:function_call.id': 2514, 'top:function_call.sessionId': 2514, 'top:function_call_result.id': 2481, 'top:function_call_result.sessionId': 2481, 'top:reasoning.id': 1423, 'top:reasoning.sessionId': 1423, 'top:message.id': 1153, 'top:message.sessionId': 1153, 'top:file-history-snapshot.messageId': 888, 'top:turn-metrics.id': 27, 'top:summary.id': 18, 'top:ai-title.id': 12, 'top:ai-title.sessionId': 12, 'top:session-meta.id': 2, 'top:session-meta.sessionId': 2}

@@ -1,0 +1,110 @@
+{
+  "projection": {
+    "frontend_tool_block": {
+      "role": "tool",
+      "content": "Sleep({\"seconds\":30})"
+    },
+    "backend_canonical": "Sleep({\"seconds\":30.0})",
+    "mismatch": true
+  },
+  "reducer": {
+    "b1_single_item_prefix": [
+      [
+        "assistant",
+        "Hello",
+        "a1"
+      ]
+    ],
+    "b2_live_before_result": [
+      [
+        "assistant",
+        "first half ",
+        "a1"
+      ],
+      [
+        "assistant",
+        "second half",
+        "a2"
+      ]
+    ],
+    "b3_cbc_identical_non_final": [
+      [
+        "assistant",
+        "same",
+        null
+      ],
+      [
+        "assistant",
+        "same",
+        null
+      ]
+    ],
+    "b4_unknown_native_item": [
+      {
+        "role": "tool",
+        "content": "futureNativeItem({\"summary\":\"kept\"})"
+      }
+    ],
+    "b5_compound_then_replace": [
+      [
+        "thinking",
+        "think",
+        "c1"
+      ],
+      [
+        "assistant",
+        "answer2",
+        "c1"
+      ]
+    ],
+    "b6_same_turn_prefix_items": [
+      [
+        "assistant",
+        "Hello world",
+        "x1"
+      ]
+    ],
+    "b7_same_turn_nonprefix_items": [
+      [
+        "assistant",
+        "Hello world",
+        "y1"
+      ],
+      [
+        "assistant",
+        "Different",
+        "y2"
+      ]
+    ]
+  },
+  "ws": {
+    "contiguous_then_coalesced_resync": 0,
+    "duplicate_delivery_dispatched": 0,
+    "after_gap_resync": [
+      {
+        "type": "resync_required",
+        "reason": "delivery_cursor_gap"
+      }
+    ],
+    "resyncPendingAfterSnapshot": false,
+    "gapFlagsCleared": 1,
+    "stale_snapshot": {
+      "cursorAfterStaleSnap": {
+        "eventEpoch": "E",
+        "eventSeq": 10
+      },
+      "emittedAfter": [
+        {
+          "type": "resync_required",
+          "reason": "source_cursor_gap"
+        }
+      ]
+    },
+    "epoch_changes": [
+      {
+        "type": "server_epoch_changed",
+        "reason": null
+      }
+    ]
+  }
+}

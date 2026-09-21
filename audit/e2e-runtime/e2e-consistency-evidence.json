@@ -5,7 +5,7 @@
     {
       "label": "t0-empty-session",
       "store": {
-        "sessionId": "ses_5e062102297750bf",
+        "sessionId": "ses_689045bccd38375c",
         "messages": [],
         "historyTotal": 0,
         "windowStart": 0
@@ -14,7 +14,7 @@
       "server": {
         "start": 0,
         "total": 0,
-        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyEpoch": "d6057bb4dc524ec7b2569003c7993539",
         "historyRevision": 0,
         "messages": []
       }
@@ -23,7 +23,7 @@
       "label": "t1-after-stream",
       "taskSeq": 1,
       "store": {
-        "sessionId": "ses_5e062102297750bf",
+        "sessionId": "ses_689045bccd38375c",
         "messages": [
           {
             "role": "thinking",
@@ -55,7 +55,7 @@
       "server": {
         "start": 0,
         "total": 0,
-        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyEpoch": "d6057bb4dc524ec7b2569003c7993539",
         "historyRevision": 0,
         "messages": []
       }
@@ -64,37 +64,37 @@
       "label": "t1-after-result",
       "taskSeq": 1,
       "store": {
-        "sessionId": "ses_5e062102297750bf",
+        "sessionId": "ses_689045bccd38375c",
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0",
             "nativeItemId": null
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1",
             "nativeItemId": null
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2",
             "nativeItemId": null
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3",
             "nativeItemId": null
           },
           {
             "role": "system",
             "text": "[DONE] Task completed",
             "messageId": null,
-            "nativeItemId": "worker.result:ses_5e062102297750bf:1"
+            "nativeItemId": "worker.result:ses_689045bccd38375c:1"
           }
         ],
         "historyTotal": 4,
@@ -110,28 +110,28 @@
       "server": {
         "start": 0,
         "total": 4,
-        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyEpoch": "d6057bb4dc524ec7b2569003c7993539",
         "historyRevision": 4,
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0"
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1"
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2"
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3"
           }
         ]
       }
@@ -140,37 +140,37 @@
       "label": "t2-after-stream",
       "taskSeq": 2,
       "store": {
-        "sessionId": "ses_5e062102297750bf",
+        "sessionId": "ses_689045bccd38375c",
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0",
             "nativeItemId": null
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1",
             "nativeItemId": null
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2",
             "nativeItemId": null
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3",
             "nativeItemId": null
           },
           {
             "role": "system",
             "text": "[DONE] Task completed",
             "messageId": null,
-            "nativeItemId": "worker.result:ses_5e062102297750bf:1"
+            "nativeItemId": "worker.result:ses_689045bccd38375c:1"
           },
           {
             "role": "thinking",
@@ -207,28 +207,28 @@
       "server": {
         "start": 0,
         "total": 4,
-        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyEpoch": "d6057bb4dc524ec7b2569003c7993539",
         "historyRevision": 4,
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0"
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1"
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2"
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3"
           }
         ]
       }
@@ -237,67 +237,67 @@
       "label": "t2-after-result",
       "taskSeq": 2,
       "store": {
-        "sessionId": "ses_5e062102297750bf",
+        "sessionId": "ses_689045bccd38375c",
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0",
             "nativeItemId": null
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1",
             "nativeItemId": null
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2",
             "nativeItemId": null
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3",
             "nativeItemId": null
           },
           {
             "role": "system",
             "text": "[DONE] Task completed",
             "messageId": null,
-            "nativeItemId": "worker.result:ses_5e062102297750bf:1"
+            "nativeItemId": "worker.result:ses_689045bccd38375c:1"
           },
           {
             "role": "user",
             "text": "question two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:4",
             "nativeItemId": null
           },
           {
             "role": "thinking",
             "text": "analysis two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:5",
             "nativeItemId": null
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo two\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:6",
             "nativeItemId": null
           },
           {
             "role": "assistant",
             "text": "final two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:7",
             "nativeItemId": null
           },
           {
             "role": "system",
             "text": "[DONE] Task completed",
             "messageId": null,
-            "nativeItemId": "worker.result:ses_5e062102297750bf:2"
+            "nativeItemId": "worker.result:ses_689045bccd38375c:2"
           }
         ],
         "historyTotal": 8,
@@ -318,48 +318,48 @@
       "server": {
         "start": 0,
         "total": 8,
-        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyEpoch": "d6057bb4dc524ec7b2569003c7993539",
         "historyRevision": 8,
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0"
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1"
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2"
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3"
           },
           {
             "role": "user",
             "text": "question two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:4"
           },
           {
             "role": "thinking",
             "text": "analysis two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:5"
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo two\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:6"
           },
           {
             "role": "assistant",
             "text": "final two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:7"
           }
         ]
       }
@@ -367,54 +367,54 @@
     {
       "label": "t9-after-reload",
       "store": {
-        "sessionId": "ses_5e062102297750bf",
+        "sessionId": "ses_689045bccd38375c",
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0",
             "nativeItemId": null
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1",
             "nativeItemId": null
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2",
             "nativeItemId": null
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3",
             "nativeItemId": null
           },
           {
             "role": "user",
             "text": "question two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:4",
             "nativeItemId": null
           },
           {
             "role": "thinking",
             "text": "analysis two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:5",
             "nativeItemId": null
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo two\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:6",
             "nativeItemId": null
           },
           {
             "role": "assistant",
             "text": "final two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7",
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:7",
             "nativeItemId": null
           }
         ],
@@ -434,48 +434,48 @@
       "server": {
         "start": 0,
         "total": 8,
-        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyEpoch": "d6057bb4dc524ec7b2569003c7993539",
         "historyRevision": 8,
         "messages": [
           {
             "role": "user",
             "text": "question one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:0"
           },
           {
             "role": "thinking",
             "text": "analysis one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:1"
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo one\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:2"
           },
           {
             "role": "assistant",
             "text": "final one",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:3"
           },
           {
             "role": "user",
             "text": "question two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:4"
           },
           {
             "role": "thinking",
             "text": "analysis two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:5"
           },
           {
             "role": "tool",
             "text": "Bash({\"command\":\"echo two\"})",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:6"
           },
           {
             "role": "assistant",
             "text": "final two",
-            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7"
+            "messageId": "legacy:ses_689045bccd38375c:d6057bb4dc524ec7b2569003c7993539:7"
           }
         ]
       }
@@ -508,7 +508,7 @@
     },
     {
       "name": "store order matches the rendered DOM order",
-      "pass": false,
+      "pass": true,
       "detail": "dom=[\"question one\",\"thinkinganalysis one\",\"1 tools\",\"final one\",\"[DONE] Task completed\",\"question two\",\"thinkinganalysis two\",\"1 tools\",\"final two\",\"[DONE] Task completed\"]"
     },
     {

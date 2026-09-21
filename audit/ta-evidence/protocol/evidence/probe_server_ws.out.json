@@ -1,0 +1,152 @@
+{
+  "ordering": [
+    {
+      "type": "worker.stream",
+      "eventSeq": 1,
+      "deliverySeq": 1,
+      "sourceCursorStart": 1,
+      "sourceCursorEnd": 1,
+      "delta": true,
+      "stream_text": "Hel",
+      "result": null
+    },
+    {
+      "type": "worker.stream",
+      "eventSeq": 2,
+      "deliverySeq": 2,
+      "sourceCursorStart": 2,
+      "sourceCursorEnd": 2,
+      "delta": true,
+      "stream_text": "Hello",
+      "result": null
+    },
+    {
+      "type": "worker.stream",
+      "eventSeq": 3,
+      "deliverySeq": 3,
+      "sourceCursorStart": 3,
+      "sourceCursorEnd": 3,
+      "delta": false,
+      "stream_text": null,
+      "result": null
+    },
+    {
+      "type": "worker.result",
+      "eventSeq": 4,
+      "deliverySeq": 4,
+      "sourceCursorStart": 4,
+      "sourceCursorEnd": 4,
+      "delta": null,
+      "stream_text": null,
+      "result": "Hello"
+    }
+  ],
+  "coalesce": [
+    {
+      "type": "worker.stream",
+      "eventSeq": 5,
+      "deliverySeq": 1,
+      "sourceCursorStart": 5,
+      "sourceCursorEnd": 5,
+      "delta": true,
+      "stream_text": "A",
+      "result": null
+    },
+    {
+      "type": "worker.stream",
+      "eventSeq": 7,
+      "deliverySeq": 2,
+      "sourceCursorStart": 6,
+      "sourceCursorEnd": 7,
+      "delta": true,
+      "stream_text": "ABC",
+      "result": null
+    },
+    {
+      "type": "worker.stream",
+      "eventSeq": 8,
+      "deliverySeq": 3,
+      "sourceCursorStart": 8,
+      "sourceCursorEnd": 8,
+      "delta": false,
+      "stream_text": null,
+      "result": null
+    }
+  ],
+  "bad_coalesce_boundary": [
+    {
+      "type": "worker.stream",
+      "eventSeq": 9,
+      "deliverySeq": 1,
+      "sourceCursorStart": 9,
+      "sourceCursorEnd": 9,
+      "delta": true,
+      "stream_text": "AB",
+      "result": null
+    },
+    {
+      "type": "worker.stream",
+      "eventSeq": 10,
+      "deliverySeq": 2,
+      "sourceCursorStart": 10,
+      "sourceCursorEnd": 10,
+      "delta": true,
+      "stream_text": "XY",
+      "result": null
+    }
+  ],
+  "snapshot_order": [
+    {
+      "type": "worker.stream",
+      "eventSeq": 11,
+      "deliverySeq": 1,
+      "sourceCursorStart": 11,
+      "sourceCursorEnd": 11,
+      "delta": true,
+      "stream_text": "A",
+      "result": null
+    },
+    {
+      "type": "resync.snapshot",
+      "eventSeq": 11,
+      "deliverySeq": 2,
+      "sourceCursorStart": 11,
+      "sourceCursorEnd": 11,
+      "delta": null,
+      "stream_text": null,
+      "result": null
+    },
+    {
+      "type": "worker.stream",
+      "eventSeq": 12,
+      "deliverySeq": 3,
+      "sourceCursorStart": 12,
+      "sourceCursorEnd": 12,
+      "delta": true,
+      "stream_text": "AB",
+      "result": null
+    }
+  ],
+  "overflow": {
+    "max_queue": 64,
+    "frame_count": 65,
+    "has_resync_required": false,
+    "has_worker_result": false,
+    "tail_types": [
+      "queue.snapshot",
+      "queue.snapshot",
+      "queue.snapshot",
+      "queue.snapshot"
+    ]
+  },
+  "delta_flood": {
+    "max_queue": 64,
+    "frame_count": 2,
+    "has_resync_required": true,
+    "has_worker_result": false,
+    "tail_types": [
+      "worker.stream",
+      "resync_required"
+    ]
+  }
+}

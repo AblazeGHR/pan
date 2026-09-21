@@ -1,0 +1,65 @@
+{
+  "normal": {
+    "in_memory_history": [
+      "A"
+    ],
+    "in_memory_len": 1,
+    "hist_persisted": 1,
+    "history_revision": 1,
+    "jsonl_rows": [
+      "A"
+    ],
+    "jsonl_len": 1,
+    "terminal_historyRevision": 1,
+    "reloaded_history": [
+      "A"
+    ],
+    "reloaded_hist_persisted": 1
+  },
+  "tool_last": {
+    "in_memory_history": [
+      "A",
+      "Command({\"command\":\"ls\"})",
+      "A"
+    ],
+    "in_memory_len": 3,
+    "hist_persisted": 3,
+    "history_revision": 3,
+    "jsonl_rows": [
+      "A",
+      "Command({\"command\":\"ls\"})",
+      "A"
+    ],
+    "jsonl_len": 3,
+    "terminal_historyRevision": 3,
+    "reloaded_history": [
+      "A",
+      "Command({\"command\":\"ls\"})",
+      "A"
+    ],
+    "reloaded_hist_persisted": 3
+  },
+  "late_after_result": {
+    "in_memory_history": [
+      "partial",
+      "final answer",
+      "final answer"
+    ],
+    "in_memory_len": 3,
+    "hist_persisted": 3,
+    "history_revision": 3,
+    "jsonl_rows": [
+      "partial",
+      "final answer",
+      "final answer"
+    ],
+    "jsonl_len": 3,
+    "terminal_historyRevision": 2,
+    "reloaded_history": [
+      "partial",
+      "final answer",
+      "final answer"
+    ],
+    "reloaded_hist_persisted": 3
+  }
+}

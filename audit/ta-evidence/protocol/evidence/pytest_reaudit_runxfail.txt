@@ -1,0 +1,65 @@
+.F..FFFFF.....FFFF.                                                      [100%]
+================================== FAILURES ===================================
+E   AssertionError: assert 2 == 3
+     +  where 3 = len([{'role': 'assistant', 'content': 'partial'}, {'role': 'assistant', 'content': 'final answer'}, {'role': 'assistant', 'content': 'final answer'}])
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:172: AssertionError: assert 2 == 3
+E   AssertionError: assert ['A', 'A'] == ['A']
+      
+      Left contains one more item: 'A'
+      Use -v to get more diff
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:224: AssertionError: assert ['A', 'A'] == ['A']
+E   AssertionError: assert ['first half ... second half'] == ['first half ', 'second half']
+      
+      Left contains one more item: 'first half second half'
+      Use -v to get more diff
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:241: AssertionError: assert ['first half ... second half'] == ['first half ', 'second half']
+E   AssertionError: assert 2 == 3
+     +  where 3 = Session(id='ses-reaudit', name='reaudit', adapter='codex', model=None, permission_mode=None, pan_access={'restrict_to_..._ids=[], report_subscriptions=set(), qq_subscriptions=set(), notification_settings={'browser': False, 'system': False}).history_revision
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:257: AssertionError: assert 2 == 3
+E   assert [{'role': 'to...limit":10})'}] == [{'role': 'to...imit": 10})'}]
+      
+      At index 0 diff: {'role': 'tool', 'content': 'Read({"path":"a.txt","limit":10})'} != {'role': 'tool', 'content': 'Read({"path": "a.txt", "limit": 10})'}
+      Use -v to get more diff
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:278: assert [{'role': 'to...limit":10})'}] == [{'role': 'to...imit": 10})'}]
+E   AssertionError: assert [{'role': 'as...t': 'line2 '}] == [{'role': 'as...ine1\nline2'}]
+      
+      At index 0 diff: {'role': 'assistant', 'content': ' line1\n'} != {'role': 'assistant', 'content': 'line1\nline2'}
+      Left contains one more item: {'role': 'assistant', 'content': 'line2 '}
+      Use -v to get more diff
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:296: AssertionError: assert [{'role': 'as...t': 'line2 '}] == [{'role': 'as...ine1\nline2'}]
+E   assert (None or None or None)
+     +  where None = <built-in method get of dict object at 0x000002253ECE0E00>('nativeItemId')
+     +    where <built-in method get of dict object at 0x000002253ECE0E00> = {'role': 'tool', 'content': 'Read({"file_path": "a.txt"})'}.get
+     +  and   None = <built-in method get of dict object at 0x000002253ECE0E00>('messageId')
+     +    where <built-in method get of dict object at 0x000002253ECE0E00> = {'role': 'tool', 'content': 'Read({"file_path": "a.txt"})'}.get
+     +  and   None = <built-in method get of dict object at 0x000002253ECE0E00>('blockId')
+     +    where <built-in method get of dict object at 0x000002253ECE0E00> = {'role': 'tool', 'content': 'Read({"file_path": "a.txt"})'}.get
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:384: assert (None or None or None)
+E   assert ([{'role': 'tool', 'content': 'Read({"file_path":"a.txt"})'}] and (None or None))
+     +  where None = <built-in method get of dict object at 0x000002253ECE1700>('nativeItemId')
+     +    where <built-in method get of dict object at 0x000002253ECE1700> = {'role': 'tool', 'content': 'Read({"file_path":"a.txt"})'}.get
+     +  and   None = <built-in method get of dict object at 0x000002253ECE1700>('blockId')
+     +    where <built-in method get of dict object at 0x000002253ECE1700> = {'role': 'tool', 'content': 'Read({"file_path":"a.txt"})'}.get
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:400: assert ([{'role': 'tool', 'content': 'Read({"file_path":"a.txt"})'}] and (None or None))
+E   AssertionError: assert ['part1 ', 'p...'part1 part2'] == ['part1 ', 'part2']
+      
+      Left contains one more item: 'part1 part2'
+      Use -v to get more diff
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:416: AssertionError: assert ['part1 ', 'p...'part1 part2'] == ['part1 ', 'part2']
+E   AssertionError: assert ['let me look', 'let me look'] == ['let me look']
+      
+      Left contains one more item: 'let me look'
+      Use -v to get more diff
+D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921\tests\test_reaudit_protocol_provider.py:430: AssertionError: assert ['let me look', 'let me look'] == ['let me look']
+=========================== short test summary info ===========================
+FAILED tests/test_reaudit_protocol_provider.py::test_terminal_coverage_matches_persisted_rows
+FAILED tests/test_reaudit_protocol_provider.py::test_terminal_result_is_not_appended_when_a_trailing_tool_covers_it
+FAILED tests/test_reaudit_protocol_provider.py::test_aggregate_result_does_not_add_a_duplicate_assistant_row
+FAILED tests/test_reaudit_protocol_provider.py::test_terminal_coverage_revision_covers_a_late_assistant_event
+FAILED tests/test_reaudit_protocol_provider.py::test_cbc_tool_projection_matches_between_live_and_history
+FAILED tests/test_reaudit_protocol_provider.py::test_cbc_multi_text_block_projection_is_stable
+FAILED tests/test_reaudit_protocol_provider.py::test_cbc_canonical_parser_preserves_envelope_identity
+FAILED tests/test_reaudit_protocol_provider.py::test_cbc_live_adapter_preserves_native_identity
+FAILED tests/test_reaudit_protocol_provider.py::test_cbc_multi_text_block_result_does_not_add_aggregate_row
+FAILED tests/test_reaudit_protocol_provider.py::test_cbc_tool_only_last_message_does_not_duplicate_earlier_text
+10 failed, 9 passed in 0.59s
