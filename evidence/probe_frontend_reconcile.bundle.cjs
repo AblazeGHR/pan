@@ -2813,7 +2813,12 @@ var useSessionStore = create((set, get) => ({
         const trackedKeys = new Set(
           nextTranscript.runtime.map((row) => runtimeKeyOf(row)).filter((key) => key !== null)
         );
-        const adopted = s.currentMessages.filter((row) => {
+        const windowList = windowRows(nextTranscript.window);
+        let mirrored = 0;
+        while (mirrored < s.currentMessages.length && mirrored < windowList.length && s.currentMessages[mirrored].role === windowList[mirrored].role && s.currentMessages[mirrored].content === windowList[mirrored].content) {
+          mirrored += 1;
+        }
+        const adopted = s.currentMessages.slice(mirrored).filter((row) => {
           if (isDurableRow(row) || tracked.has(row)) return false;
           const key = runtimeKeyOf(row);
           return key === null || !trackedKeys.has(key);

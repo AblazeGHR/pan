@@ -453,11 +453,6 @@
         "local:user:ses-reconcile:0"
       ],
       [
-        "user",
-        "q",
-        "local:user:ses-reconcile:0"
-      ],
-      [
         "assistant",
         "analysis",
         "n1"
@@ -473,13 +468,8 @@
         "n3"
       ]
     ],
-    "historyTotal": 5,
+    "historyTotal": 4,
     "currentMessages": [
-      [
-        "user",
-        "q",
-        "local:user:ses-reconcile:0"
-      ],
       [
         "user",
         "q",
@@ -511,11 +501,6 @@
         null
       ],
       [
-        "user",
-        "q",
-        null
-      ],
-      [
         "assistant",
         "analysis",
         null
@@ -546,13 +531,8 @@
         null
       ]
     ],
-    "historyTotal": 8,
+    "historyTotal": 7,
     "currentMessages": [
-      [
-        "user",
-        "q",
-        null
-      ],
       [
         "user",
         "q",

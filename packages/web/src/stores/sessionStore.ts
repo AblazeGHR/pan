@@ -1869,7 +1869,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             .map((row) => runtimeKeyOf(row))
             .filter((key): key is string => key !== null),
         );
-        const adopted = s.currentMessages.filter((row) => {
+        // The leading run that already mirrors the window (same order, role and
+        // body) is this projection's own copy of those canonical rows, exactly
+        // as in applyHistoryPage: adopting it would emit it a second time next
+        // to its window row.
+        const windowList = windowRows(nextTranscript.window);
+        let mirrored = 0;
+        while (
+          mirrored < s.currentMessages.length
+          && mirrored < windowList.length
+          && s.currentMessages[mirrored]!.role === windowList[mirrored]!.role
+          && s.currentMessages[mirrored]!.content === windowList[mirrored]!.content
+        ) {
+          mirrored += 1;
+        }
+        const adopted = s.currentMessages.slice(mirrored).filter((row) => {
           if (isDurableRow(row) || tracked.has(row)) return false;
           // A row that already carries a runtime key is this transcript's own
           // previous version of a row (a superseded live buffer object), not an
