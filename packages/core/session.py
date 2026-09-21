@@ -664,7 +664,13 @@ def history_page(session_id: str, *, before: int = 0,
         total = len(cached.history)
         effective_before = total if requested_before <= 0 else min(requested_before, total)
         start = max(0, effective_before - bounded_limit)
-        page = list(cached.history[start:effective_before])
+        # Shallow-copy the rows instead of handing out the live Session
+        # objects.  This page is serialized from FastAPI worker threads, so
+        # the boundary must neither publish nor rewrite (``_strip_delivery_
+        # marks`` below) memory the event loop and the streaming worker keep
+        # mutating.  It also matches the disk branch, which already returns
+        # freshly parsed rows.
+        page = [dict(row) for row in cached.history[start:effective_before]]
         return {
             "history": _strip_delivery_marks(page),
             "total": total,

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import ctypes
 import errno
+import functools
 import hashlib
 import inspect
 import json
@@ -1697,10 +1699,79 @@ def _session_to_api(
     }
 
 
-def _session_list_api(s: sess.Session, *, history_limit: int = 50) -> dict:
-    """Serialize the list view without hydrating a Session's full history."""
+# ── BE-3: Session-store reads scheduled off the event loop ──
+#
+# ``/api/sessions`` and ``/api/sessions/{id}/history`` are the dashboard's cold
+# load.  Both parse Session metadata and stream the companion ``.history.jsonl``
+# (O(total history) per request), which blocks the FastAPI event loop and
+# therefore stalls dashboard WebSocket traffic and worker streaming.
+#
+# The helpers below are the blocking halves of those endpoints.  They are
+# deliberately restricted to what is already thread-safe in the Session store:
+#
+#   * ``list_all`` is serialized by the existing ``_STORE_LOCK`` (it is
+#     ``@_store_serialized``), so concurrent loads cannot build two objects for
+#     one Session id;
+#   * ``history_page`` only reads the store (it never writes ``_cache``) and its
+#     in-memory branch now copies the rows it returns, so it never publishes or
+#     rewrites live Session history from a worker thread;
+#   * ``_summary_session_get`` uses ``load_history=False``, which never
+#     hydrates the cache or adopts a shallow entry.
+#
+# Response shaping (``_api_history``, ``_session_to_api``, ``_session_summary``)
+# stays on the event loop: it mutates the bounded summary projection and the
+# session attachment registry (``_editor_reference_id`` can register a new
+# reference), and those read-modify-write paths remain single-threaded.
+_PAGE_UNSET = object()
+_NOT_FOUND = object()
+
+# One dedicated thread serves every offloaded store read.  The reads are
+# pure-Python JSON parsing, so they are GIL-bound: a pool cannot make them
+# faster, but an unbounded pool (the default executor's min(32, cpu+4)) lets a
+# cold-read storm starve the event loop, which measurement showed as 200ms+
+# heartbeat gaps.  A single thread keeps at most one competing Python thread,
+# which is also exactly the serialization these reads had before they moved off
+# the loop.
+_STORE_READ_EXECUTOR = ThreadPoolExecutor(
+    max_workers=1, thread_name_prefix="pan-store-read")
+
+
+async def _store_read(func, /, *args, **kwargs):
+    """Run one blocking Session-store read on the dedicated store-read thread."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _STORE_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
+
+
+def _history_pages_for(session_ids: list[str], limit: int) -> dict:
+    """Read one bounded history page per Session in a single blocking call."""
+    return {sid: sess.history_page(sid, limit=limit) for sid in session_ids}
+
+
+def _history_page_lookup(session_id: str, before: int, limit: int):
+    """Shallow membership check plus one bounded page, in one blocking call.
+
+    ``_NOT_FOUND`` covers both "no such Session" and "unreadable main file",
+    which the HTTP layer reports as the historical
+    ``{"error": "Session not found"}`` payload.
+    """
+    if not _summary_session_get(session_id):
+        return _NOT_FOUND
+    page = sess.history_page(session_id, before=before, limit=limit)
+    return _NOT_FOUND if page is None else page
+
+
+def _session_list_api(s: sess.Session, *, history_limit: int = 50, page=_PAGE_UNSET) -> dict:
+    """Serialize the list view without hydrating a Session's full history.
+
+    ``page`` is the BE-3 seam: an async caller may pass a history page that was
+    already read on a worker thread, so the cold dashboard load never parses
+    the companion JSONL on the event loop.  Omitting it keeps the historical
+    inline read for the remaining synchronous callers.
+    """
     api = _session_to_api(s, include_history=False)
-    page = sess.history_page(s.id, limit=history_limit)
+    if page is _PAGE_UNSET:
+        page = sess.history_page(s.id, limit=history_limit)
     if page is None:
         history = []
         total = 0
@@ -4217,10 +4288,13 @@ async def ws_agent_endpoint(ws: WebSocket):
                     await _send_ws(ws, {"type": "error", "message": result})
 
             elif msg_type == "list":
-                sessions = sess.list_all(load_history=False)
+                sessions = await _store_read(sess.list_all, load_history=False)
+                pages = await _store_read(
+                    _history_pages_for, [s.id for s in sessions], 50)
                 await _send_ws(ws, {
                     "type": "session.list",
-                    "sessions": [_session_list_api(s) for s in sessions],
+                    "sessions": [_session_list_api(s, page=pages.get(s.id))
+                                 for s in sessions],
                 })
 
     except WebSocketDisconnect:
@@ -4286,19 +4360,28 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     # Both list variants use the shallow metadata loader.  The legacy full
     # list shape still contains its bounded 50-message tail, but the tail is
     # read through the paging boundary instead of hydrating the JSONL file.
-    sessions = sess.list_all(load_history=False)
-    if workspaceId is not None:
+    # The store read and every per-Session page read are blocking filesystem
+    # work, so they run on a worker thread (BE-3); the response shaping below
+    # stays on the event loop.
+    if workspaceId is not None and workspaceId not in ("", "ungrouped"):
+        # The workspace store has no lock of its own; keep its (bounded,
+        # cached) lookup on the event loop rather than sharing it with a
+        # worker thread.
+        if workspaces.get(workspaceId) is None:
+            return {"sessions": [], "workspaceId": workspaceId}
+    sessions = await _store_read(sess.list_all, load_history=False)
+    if workspaceId == "ungrouped":
         # ``ungrouped`` is a stable query alias; an empty workspaceId is kept
         # equivalent to the historical all-sessions response.
-        if workspaceId == "ungrouped":
-            sessions = [s for s in sessions if not s.workspace_ids]
-        elif workspaceId:
-            if workspaces.get(workspaceId) is None:
-                return {"sessions": [], "workspaceId": workspaceId}
-            sessions = [s for s in sessions if workspaceId in s.workspace_ids]
+        sessions = [s for s in sessions if not s.workspace_ids]
+    elif workspaceId:
+        sessions = [s for s in sessions if workspaceId in s.workspace_ids]
     if summary:
         return {"sessions": [_session_summary(s) for s in sessions]}
-    return {"sessions": [_session_list_api(s) for s in sessions]}
+    pages = await _store_read(
+        _history_pages_for, [s.id for s in sessions], 50)
+    return {"sessions": [_session_list_api(s, page=pages.get(s.id))
+                         for s in sessions]}
 
 
 def _workspace_view(workspace: workspaces.Workspace) -> dict:
@@ -4448,10 +4531,15 @@ async def api_set_workspace_sessions(workspace_id: str, data: dict):
 async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
     if workspaces.get(workspace_id) is None:
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
-    sessions = [s for s in sess.list_all(load_history=False)
+    sessions = [s for s in await _store_read(sess.list_all, load_history=False)
                 if workspace_id in s.workspace_ids]
+    if summary:
+        return {"ok": True, "workspaceId": workspace_id,
+                "sessions": [_session_summary(s) for s in sessions]}
+    pages = await _store_read(
+        _history_pages_for, [s.id for s in sessions], 50)
     return {"ok": True, "workspaceId": workspace_id,
-            "sessions": [_session_summary(s) if summary else _session_list_api(s)
+            "sessions": [_session_list_api(s, page=pages.get(s.id))
                          for s in sessions]}
 
 
@@ -4541,8 +4629,12 @@ async def api_get_session(session_id: str, view: str = "full",
                           historyLimit: int = 0):
     bounded_history = historyLimit > 0
     if view in {"metadata", "detail"} or bounded_history:
-        s = _summary_session_get(session_id)
+        s = await _store_read(_summary_session_get, session_id)
     else:
+        # The explicit full-history GET still hydrates the in-memory Session
+        # cache, which owns the store's read/write cache contract; BE-3 only
+        # moves the bounded list/history reads that back the cold dashboard
+        # load.  See the BE-3 note above _session_list_api.
         s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
@@ -4558,7 +4650,8 @@ async def api_get_session(session_id: str, view: str = "full",
         )
     if bounded_history:
         result = _session_to_api(s, include_history=False)
-        page = sess.history_page(session_id, limit=historyLimit)
+        page = await _store_read(
+            sess.history_page, session_id, limit=historyLimit)
         page = page or {"history": [], "total": 0, "hasMore": False, "start": 0}
         result["history"] = _api_history(
             session_id,
@@ -4649,10 +4742,8 @@ async def api_session_managers(session_id: str):
 @app.get("/api/sessions/{session_id}/history")
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50):
     """Paginated session history for lazy-loading older messages."""
-    if not _summary_session_get(session_id):
-        return {"error": "Session not found"}
-    page = sess.history_page(session_id, before=before, limit=limit)
-    if page is None:
+    page = await _store_read(_history_page_lookup, session_id, before, limit)
+    if page is _NOT_FOUND:
         return {"error": "Session not found"}
     return {
         "history": _api_history(
