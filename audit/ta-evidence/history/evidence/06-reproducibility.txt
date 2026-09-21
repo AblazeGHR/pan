@@ -1,0 +1,8 @@
+=== invocation 1 (vitest exit=1) ===
+[31m⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 14 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m14 failed[39m[22m[2m | [22m[1m[32m8 passed[39m[22m[90m (22)[39m
+=== invocation 2 (vitest exit=1) ===
+[31m⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 14 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m14 failed[39m[22m[2m | [22m[1m[32m8 passed[39m[22m[90m (22)[39m

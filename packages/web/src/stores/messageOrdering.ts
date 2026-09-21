@@ -177,7 +177,21 @@ export function mergeWindowPage(
   const revision = typeof page.historyRevision === 'number' ? page.historyRevision : 0;
   const rows = page.history ?? [];
 
+  // An epoch change is a full-history boundary, but it is only authoritative
+  // when the response is at least as new as what is already applied. A page
+  // from an *older* epoch (lower revision) is a stale response and must be
+  // rejected outright — accepting every epoch change is what let an old epoch's
+  // page roll a newer canonical projection back.
   if (epoch && current.epoch && epoch !== current.epoch) {
+    if (revision < current.revision) {
+      return {
+        window: current,
+        accepted: false,
+        replacedEpoch: false,
+        newOffsets: 0,
+        reason: 'older-epoch-page',
+      };
+    }
     const next = createWindow();
     next.epoch = epoch;
     next.revision = revision;

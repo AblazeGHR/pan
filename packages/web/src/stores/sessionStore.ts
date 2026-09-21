@@ -539,13 +539,28 @@ function ensureTranscript(
   session: Session,
 ): SessionTranscript {
   const existing = transcripts?.[session.id];
-  if (existing) return existing;
+  if (existing && !transcriptIsStale(existing, session)) return existing;
   return {
     window: windowFromSession(session),
     runtime: [],
     anchorOffset: session.historyTotal ?? (session.history?.length ?? 0),
     serverEpoch: null,
   };
+}
+
+/**
+ * A transcript is stale when the Session's canonical projection cannot be a
+ * continuation of the window it was built from: the epoch changed, or the row
+ * count shrank (history replaced rather than appended). Real flows only grow,
+ * so this never fires in production; it is what keeps a transcript from
+ * outliving the Session snapshot it was derived from.
+ */
+function transcriptIsStale(transcript: SessionTranscript, session: Session): boolean {
+  if (session.historyEpoch && transcript.window.epoch
+      && session.historyEpoch !== transcript.window.epoch) return true;
+  if (typeof session.historyTotal === 'number'
+      && session.historyTotal < transcript.window.total) return true;
+  return false;
 }
 
 /**
@@ -797,8 +812,19 @@ function applyHistoryPageToState(
   // the window we already have must not reconstruct the display: rows that
   // exist only in the rendered projection (an optimistic user row, an
   // agent-injected message) would be dropped by a rebuild.
-  const rebuild = merged.replacedEpoch || merged.newOffsets > 0;
-  const display = rebuild ? projectTranscript(next) : s.currentMessages;
+  const projected = projectTranscript(next);
+  // Keep the previous array reference when the projection is unchanged: callers
+  // (and the agent-injection retry) compare array identity to decide whether a
+  // refresh brought new content.
+  const unchanged = projected.length === s.currentMessages.length
+    && projected.every((row, index) => {
+      const other = s.currentMessages[index]!;
+      return row.role === other.role
+        && row.content === other.content
+        && (row.messageId ?? null) === (other.messageId ?? null)
+        && (row.nativeItemId ?? null) === (other.nativeItemId ?? null);
+    });
+  const display = unchanged ? s.currentMessages : projected;
   const lastRow = windowRows(merged.window)[merged.window.rows.size - 1];
   return {
     sessions: s.sessions.map((candidate) => candidate.id === sessionId
@@ -821,7 +847,7 @@ function applyHistoryPageToState(
     hasMoreMessages: (merged.window.start ?? 0) > 0,
     historyLoading: false,
     initialLoading: false,
-    ...(s.currentSessionId === sessionId && rebuild ? { currentMessages: display } : {}),
+    ...(s.currentSessionId === sessionId && !unchanged ? { currentMessages: display } : {}),
     ...withTranscript(s, sessionId, next),
   };
 }
@@ -2567,4 +2593,16 @@ export function useCurrentSession() {
       ? s.sessions.find((session) => session.id === s.currentSessionId) ?? null
       : null,
   );
+}
+
+// ── E2E inspection seam ─────────────────────────────────────────────────────
+// The read-only browser verification
+// (audit/run-e2e-consistency.mjs) must export the *store* order alongside the
+// server canonical history and the DOM order. The store is intentionally not a
+// global, so it is exposed only when the page is opened with an explicit
+// `?panE2E=1` query parameter. Normal app URLs never set it and the bundle
+// behaves exactly as before.
+if (typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('panE2E')) {
+  (window as unknown as Record<string, unknown>).__panSessionStore = useSessionStore;
 }

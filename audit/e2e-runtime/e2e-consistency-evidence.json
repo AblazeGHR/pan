@@ -1,0 +1,524 @@
+{
+  "baseURL": "http://127.0.0.1:8796",
+  "runtime": "D:/project/pan-worktrees/frontend-consistency-repair-ds-20260922/audit/e2e-runtime",
+  "stages": [
+    {
+      "label": "t0-empty-session",
+      "store": {
+        "sessionId": "ses_5e062102297750bf",
+        "messages": [],
+        "historyTotal": 0,
+        "windowStart": 0
+      },
+      "dom": [],
+      "server": {
+        "start": 0,
+        "total": 0,
+        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyRevision": 0,
+        "messages": []
+      }
+    },
+    {
+      "label": "t1-after-stream",
+      "taskSeq": 1,
+      "store": {
+        "sessionId": "ses_5e062102297750bf",
+        "messages": [
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": null,
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": null,
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": null,
+            "nativeItemId": null
+          }
+        ],
+        "historyTotal": 0,
+        "windowStart": 0
+      },
+      "dom": [
+        "thinkinganalysis one",
+        "1 tools",
+        "final one"
+      ],
+      "server": {
+        "start": 0,
+        "total": 0,
+        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyRevision": 0,
+        "messages": []
+      }
+    },
+    {
+      "label": "t1-after-result",
+      "taskSeq": 1,
+      "store": {
+        "sessionId": "ses_5e062102297750bf",
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "nativeItemId": null
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "nativeItemId": null
+          },
+          {
+            "role": "system",
+            "text": "[DONE] Task completed",
+            "messageId": null,
+            "nativeItemId": "worker.result:ses_5e062102297750bf:1"
+          }
+        ],
+        "historyTotal": 4,
+        "windowStart": 0
+      },
+      "dom": [
+        "question one",
+        "thinkinganalysis one",
+        "1 tools",
+        "final one",
+        "[DONE] Task completed"
+      ],
+      "server": {
+        "start": 0,
+        "total": 4,
+        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyRevision": 4,
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+          }
+        ]
+      }
+    },
+    {
+      "label": "t2-after-stream",
+      "taskSeq": 2,
+      "store": {
+        "sessionId": "ses_5e062102297750bf",
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "nativeItemId": null
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "nativeItemId": null
+          },
+          {
+            "role": "system",
+            "text": "[DONE] Task completed",
+            "messageId": null,
+            "nativeItemId": "worker.result:ses_5e062102297750bf:1"
+          },
+          {
+            "role": "thinking",
+            "text": "analysis two",
+            "messageId": null,
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo two\"})",
+            "messageId": null,
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final two",
+            "messageId": null,
+            "nativeItemId": null
+          }
+        ],
+        "historyTotal": 4,
+        "windowStart": 0
+      },
+      "dom": [
+        "question one",
+        "thinkinganalysis one",
+        "1 tools",
+        "final one",
+        "[DONE] Task completed",
+        "thinkinganalysis two",
+        "1 tools",
+        "final two"
+      ],
+      "server": {
+        "start": 0,
+        "total": 4,
+        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyRevision": 4,
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+          }
+        ]
+      }
+    },
+    {
+      "label": "t2-after-result",
+      "taskSeq": 2,
+      "store": {
+        "sessionId": "ses_5e062102297750bf",
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "nativeItemId": null
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "nativeItemId": null
+          },
+          {
+            "role": "system",
+            "text": "[DONE] Task completed",
+            "messageId": null,
+            "nativeItemId": "worker.result:ses_5e062102297750bf:1"
+          },
+          {
+            "role": "user",
+            "text": "question two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4",
+            "nativeItemId": null
+          },
+          {
+            "role": "thinking",
+            "text": "analysis two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5",
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo two\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6",
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7",
+            "nativeItemId": null
+          },
+          {
+            "role": "system",
+            "text": "[DONE] Task completed",
+            "messageId": null,
+            "nativeItemId": "worker.result:ses_5e062102297750bf:2"
+          }
+        ],
+        "historyTotal": 8,
+        "windowStart": 0
+      },
+      "dom": [
+        "question one",
+        "thinkinganalysis one",
+        "1 tools",
+        "final one",
+        "[DONE] Task completed",
+        "question two",
+        "thinkinganalysis two",
+        "1 tools",
+        "final two",
+        "[DONE] Task completed"
+      ],
+      "server": {
+        "start": 0,
+        "total": 8,
+        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyRevision": 8,
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+          },
+          {
+            "role": "user",
+            "text": "question two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4"
+          },
+          {
+            "role": "thinking",
+            "text": "analysis two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5"
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo two\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6"
+          },
+          {
+            "role": "assistant",
+            "text": "final two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7"
+          }
+        ]
+      }
+    },
+    {
+      "label": "t9-after-reload",
+      "store": {
+        "sessionId": "ses_5e062102297750bf",
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0",
+            "nativeItemId": null
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1",
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2",
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3",
+            "nativeItemId": null
+          },
+          {
+            "role": "user",
+            "text": "question two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4",
+            "nativeItemId": null
+          },
+          {
+            "role": "thinking",
+            "text": "analysis two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5",
+            "nativeItemId": null
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo two\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6",
+            "nativeItemId": null
+          },
+          {
+            "role": "assistant",
+            "text": "final two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7",
+            "nativeItemId": null
+          }
+        ],
+        "historyTotal": 8,
+        "windowStart": 0
+      },
+      "dom": [
+        "question one",
+        "thinkinganalysis one",
+        "1 tools",
+        "final one",
+        "question two",
+        "thinkinganalysis two",
+        "1 tools",
+        "final two"
+      ],
+      "server": {
+        "start": 0,
+        "total": 8,
+        "historyEpoch": "3ad0fb83887e40db94211d4240b82ad0",
+        "historyRevision": 8,
+        "messages": [
+          {
+            "role": "user",
+            "text": "question one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:0"
+          },
+          {
+            "role": "thinking",
+            "text": "analysis one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:1"
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo one\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:2"
+          },
+          {
+            "role": "assistant",
+            "text": "final one",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:3"
+          },
+          {
+            "role": "user",
+            "text": "question two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:4"
+          },
+          {
+            "role": "thinking",
+            "text": "analysis two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:5"
+          },
+          {
+            "role": "tool",
+            "text": "Bash({\"command\":\"echo two\"})",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:6"
+          },
+          {
+            "role": "assistant",
+            "text": "final two",
+            "messageId": "legacy:ses_5e062102297750bf:3ad0fb83887e40db94211d4240b82ad0:7"
+          }
+        ]
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "turn-1 analysis/tool blocks survive turn 2",
+      "pass": true,
+      "detail": "[\"question one\",\"analysis one\",\"Bash({\\\"command\\\":\\\"echo one\\\"})\",\"final one\",\"[DONE] Task completed\",\"question two\",\"analysis two\",\"Bash({\\\"command\\\":\\\"echo two\\\"})\",\"final two\",\"[DONE] Task completed\"]"
+    },
+    {
+      "name": "final block precedes its own DONE marker",
+      "pass": true,
+      "detail": "final one@3 DONE-1@4"
+    },
+    {
+      "name": "DONE-1 is anchored before turn 2 starts",
+      "pass": true,
+      "detail": "DONE-1@4 question two@5"
+    },
+    {
+      "name": "turn-2 final is the last row before DONE-2",
+      "pass": true
+    },
+    {
+      "name": "two DONE markers for two tasks",
+      "pass": true,
+      "detail": "count=2"
+    },
+    {
+      "name": "store order matches the rendered DOM order",
+      "pass": false,
+      "detail": "dom=[\"question one\",\"thinkinganalysis one\",\"1 tools\",\"final one\",\"[DONE] Task completed\",\"question two\",\"thinkinganalysis two\",\"1 tools\",\"final two\",\"[DONE] Task completed\"]"
+    },
+    {
+      "name": "server canonical history holds one canonical block per row",
+      "pass": true
+    },
+    {
+      "name": "reload preserves turn-1 blocks and order",
+      "pass": true,
+      "detail": "[\"question one\",\"analysis one\",\"Bash({\\\"command\\\":\\\"echo one\\\"})\",\"final one\",\"question two\",\"analysis two\",\"Bash({\\\"command\\\":\\\"echo two\\\"})\",\"final two\"]"
+    }
+  ]
+}

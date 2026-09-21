@@ -1,0 +1,8 @@
+{"role":"user","content":"question one"}
+{"role":"thinking","content":"analysis one"}
+{"role":"tool","content":"Bash({\"command\":\"echo one\"})"}
+{"role":"assistant","content":"final one"}
+{"role":"user","content":"question two"}
+{"role":"thinking","content":"analysis two"}
+{"role":"tool","content":"Bash({\"command\":\"echo two\"})"}
+{"role":"assistant","content":"final two"}

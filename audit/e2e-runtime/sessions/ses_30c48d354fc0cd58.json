@@ -1,0 +1,142 @@
+{
+  "id": "ses_30c48d354fc0cd58",
+  "name": "Chat Stream",
+  "adapter": "cbc",
+  "model": null,
+  "permission_mode": null,
+  "pan_access": {
+    "restrict_to_managed": false,
+    "can_claim_unmanaged": false,
+    "auto_claim_created": false
+  },
+  "adapter_config": {},
+  "character_id": null,
+  "session_template": null,
+  "original_prompt": null,
+  "handoff_prompt": null,
+  "game_id": null,
+  "raw_usage": null,
+  "total_usage": null,
+  "usage_enrichment_pending": [],
+  "workdir": "D:\\project\\pan-worktrees\\frontend-consistency-repair-ds-20260922\\audit\\e2e-runtime\\session-workdir",
+  "history": [
+    {
+      "role": "assistant",
+      "content": "history answer 141 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 142"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 142 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 143"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 143 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 144"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 144 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 145"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 145 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 146"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 146 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 147"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 147 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 148"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 148 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 149"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 149 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "user",
+      "content": "history question 150"
+    },
+    {
+      "role": "assistant",
+      "content": "history answer 150 x x x x x x x x x x x x x x x x x x "
+    },
+    {
+      "role": "assistant",
+      "content": "## Browser file-link fixtures\n[relative file](notes.md#L42)\n[windows server path](D:/project/pan-worktrees/frontend-consistency-repair-ds-20260922/audit/e2e-runtime/session-workdir/linked.ts#L42-L48)\n[file URI](file:///D:/project/pan-worktrees/frontend-consistency-repair-ds-20260922/audit/e2e-runtime/session-workdir/linked.ts)\n[http link](https://example.com/pan-e2e)\n[mailto link](mailto:pan-e2e@example.com)\n[anchor link](#local-anchor)\n[missing file](missing-e2e-file.md#L1)\n<a id=\"local-anchor\"></a>"
+    }
+  ],
+  "history_epoch": "a77e797095224c3d8ae9a90ddef75ae8",
+  "history_revision": 0,
+  "last_result": null,
+  "result_cursor": 0,
+  "terminal_results": [],
+  "last_legal_worker_state": null,
+  "created_at": "2026-09-22T00:42:17.849591",
+  "updated_at": "2026-09-22T00:42:17.849591",
+  "order": null,
+  "workspace_ids": [],
+  "managed": [],
+  "managed_by": null,
+  "readonly_session": false,
+  "queue_pending": [],
+  "queue_delivery_ledger": {},
+  "queue_idempotency_index": {},
+  "queue_revision": 0,
+  "task_seq": 0,
+  "active_task_id": null,
+  "accepted_input_ids": [],
+  "summary_projection": {
+    "revision": 1,
+    "last_user_preview": "history question 150",
+    "last_assistant_preview": "## Browser file-link fixtures\n[relative file](notes.md#L42)\n[windows server path](D:/project/pan-worktrees/frontend-consistency-repair-ds-20260922/audit/e2e-runtime/session-workdir/linked.ts#L42-L48)\n",
+    "last_display_preview": "## Browser file-link fixtures\n[relative file](notes.md#L42)\n[windows server path](D:/project/pan-worktrees/frontend-consistency-repair-ds-20260922/audit/e2e-runtime/session-workdir/linked.ts#L42-L48)\n",
+    "last_system_preview": "",
+    "last_thinking_preview": "",
+    "last_tool_preview": "",
+    "last_main_role": "assistant",
+    "history_total": 301,
+    "updated_at": ""
+  },
+  "report_subscriptions": [],
+  "qq_subscriptions": [],
+  "notification_settings": {
+    "browser": false,
+    "system": false
+  }
+}

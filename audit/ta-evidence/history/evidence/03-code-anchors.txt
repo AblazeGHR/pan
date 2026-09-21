@@ -1,0 +1,75 @@
+# Code anchors verified at main 591367a65f88e9d5270e8e99920ef5448d1d68c9
+
+All line numbers below were re-verified with `grep -n` in this worktree.
+
+## packages/web/src/stores/sessionStore.ts
+
+### Tail-refresh window bookkeeping (Defect F-A)
+- 1046-1047  selectSession: `const previousWindowStart = get().historyWindowStarts[id] ?? Math.max(0, ...)`
+- 1098-1099  selectSession set(): `historyLoadEnd: data.start`, `historyWindowStarts: { ... , [id]: data.start }`
+- 1115       `refreshCurrentSessionHistory: async () =>`
+- 1131-1141  `firstPageRow` / `firstCurrentRow` / `pageAnchorsCurrentStart` / `previousWindowStart`
+             (fallback `Math.max(0, data.total - previousHistory.length)`)
+- 1181-1182  refresh set(): `historyLoadEnd: data.start`, `historyWindowStarts: { ... , [sid]: data.start }`
+- 1190       `loadOlderMessages: async () =>`
+- 1222       `const previousWindowStart = s.historyWindowStarts[sid] ?? historyLoadEnd;`
+- 1249-1250  loadOlderMessages set(): `historyLoadEnd: data.start`, `historyWindowStarts: { ... , [sid]: data.start }`
+
+### mergeHistoryPageByWindow (window/index math)
+- 659        `function mergeHistoryPageByWindow(local, page, pageStart, previousWindowStart, liveMessages)`
+- 678        prepend branch: `if (page.length > 0 && pageStart + page.length <= previousWindowStart)`
+- 688-696    identity-target lookup (`explicitMessageIdentity` only)
+- 711        `else if (absolute >= previousWindowStart + result.length) result.push(incoming)`
+- 714        `else result.splice(Math.max(0, absolute - previousWindowStart), 0, incoming)`
+
+### live → result → history rebuild (Defect F-B)
+- 325        `function mergeServerHistoryWithLive(serverHistory, liveMessages)`
+- 344-350    unmatched live row is `result.push(live)` — appended after the whole server/history prefix
+- 455-462    `function mergeFinalMessages(local, canonical)`
+- 1682       `reconcileWorkerResult: (sessionId, event, meta) =>`
+- 1695-1710  `finalLiveMessages` built from the previous live buffer
+- 1772-1775  `const canonical = mergeServerHistoryWithLive(session.history, finalLiveMessages)`
+
+### historyEpoch / historyRevision (Defect F-C: stored, never compared)
+- 1079-1080  selectSession: `historyEpoch: data.historyEpoch ?? x.historyEpoch`, `historyRevision: data.historyRevision ?? x.historyRevision`
+- 1163-1164  refresh: same shape
+- 1239-1240  loadOlderMessages: same shape
+- No read/compare of `historyEpoch` / `historyRevision` exists anywhere in the store
+  (`grep -n "historyEpoch\|historyRevision" src/stores/sessionStore.ts` returns only the three writes above).
+
+### Live/terminal guards (for reference, unchanged behaviour)
+- 365-422    `sameWorkerGeneration` / `isOlderMeta`
+- 424-453    `isBlockedByTerminal`
+
+## packages/web/src/types/index.ts
+- 111-116    `Session.historyEpoch?`, `Session.historyRevision?`, `Session.historyStart?`
+- 471-479    `ApiSessionHistoryResponse` carries `start/historyEpoch/historyRevision`
+
+## packages/web/server.py (backend contract, read-only reference)
+- 3551-3600  `_api_history`: `wire_identity = message.messageId or f"legacy:{session_id}:{epoch}:{absolute_index}"`
+- 1695-1696  `_session_to_api`: echoes `historyEpoch` / `historyRevision`
+- 1718-1723  `_session_list_api`: sets `historyTruncated`, `historyTotal`, `historyStart`, `historyEpoch`, `historyRevision`
+
+## packages/core/session.py (backend contract, read-only reference)
+- 390-395    `append_history`: `s.history_revision += 1`
+- 399-405    `replace_history`: new `s.history_epoch = uuid4().hex`, `s.history_revision += 1`
+- 642-707    `history_page`: returns `historyEpoch` / `historyRevision` per page
+
+## Round-2 additions (migrated from frontend-reaudit-astra-20260921 probe)
+
+### applyLiveStream projection cache (Defect F-E) — packages/web/src/stores/sessionStore.ts
+- 645-650    `function projectionKeys(message)`: falls back to `${role}:legacy:${content}` when no explicit identity (Defect F-F)
+- 1616       `applyLiveStream: (sessionId, messages, meta) =>`
+- 1639-1644  first fallback: cached index, WITH `projected[index]?.role === live.role` check
+- 1645-1651  second fallback: cached index from `previous.projectionIndexes`, **bounds check only** (no role, no identity)  <-- F-E root cause
+- 1653-1656  third fallback: findIndex on role + key overlap
+- 1658-1661  on hit: `{...projected[targetIndex], ...live}` overwrites in place
+
+### Multi-block / consecutive-DONE rebuild (Defect F-B extension)
+- 325-363    `mergeServerHistoryWithLive` — unmatched live row `result.push(live)` at 345
+- 474-…      `mergeServerHistoryPreservingLocal` (local-preservation convergence)
+- 1682-1800  `reconcileWorkerResult`; history convergence loop 1724-1747; `canonical` rebuilt at 1773-1775
+- 1794-1796  `currentMessages: mergeFinalMessages(s.currentMessages, canonical)`
+
+### history page merge helpers
+- 659-718    `mergeHistoryPageByWindow` (prepend 678; identity 688-696; push/splice 711-715)
