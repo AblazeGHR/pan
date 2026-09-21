@@ -1,0 +1,289 @@
+{
+  "baseline": "591367a65f88e9d5270e8e99920ef5448d1d68c9",
+  "runtime": "real Zustand; transpiled unmodified product TS; mocked API/UI",
+  "snapshots": [
+    {
+      "name": "ordered-stream-before-result",
+      "expected": [
+        "question",
+        "analysis",
+        "tool",
+        "final"
+      ],
+      "actual": [
+        {
+          "role": "user",
+          "text": "question",
+          "id": "u"
+        },
+        {
+          "role": "assistant",
+          "text": "analysis",
+          "id": "a"
+        },
+        {
+          "role": "tool",
+          "text": "tool",
+          "id": "t"
+        },
+        {
+          "role": "assistant",
+          "text": "final",
+          "id": "f"
+        }
+      ],
+      "passes": true
+    },
+    {
+      "name": "ordered-stream-after-result",
+      "expected": [
+        "question",
+        "analysis",
+        "tool",
+        "final"
+      ],
+      "actual": [
+        {
+          "role": "user",
+          "text": "question",
+          "id": "u"
+        },
+        {
+          "role": "assistant",
+          "text": "final",
+          "id": "f"
+        },
+        {
+          "role": "assistant",
+          "text": "analysis",
+          "id": "a"
+        },
+        {
+          "role": "tool",
+          "text": "tool",
+          "id": "t"
+        }
+      ],
+      "passes": false
+    },
+    {
+      "name": "second-result-loses-earlier-turn-blocks",
+      "expected": [
+        "question",
+        "analysis",
+        "tool",
+        "final",
+        "DONE-1",
+        "question2",
+        "second analysis",
+        "second final"
+      ],
+      "actual": [
+        {
+          "role": "user",
+          "text": "question",
+          "id": "u"
+        },
+        {
+          "role": "assistant",
+          "text": "final",
+          "id": "f"
+        },
+        {
+          "role": "user",
+          "text": "question2",
+          "id": null
+        },
+        {
+          "role": "assistant",
+          "text": "second final",
+          "id": "f2"
+        },
+        {
+          "role": "system",
+          "text": "DONE-1",
+          "id": "done-1"
+        },
+        {
+          "role": "assistant",
+          "text": "second analysis",
+          "id": "a2"
+        }
+      ],
+      "passes": false
+    },
+    {
+      "name": "different-task-idless-same-text-swallowed",
+      "expected": [
+        "same reply",
+        "new question",
+        "same reply"
+      ],
+      "actual": [
+        {
+          "role": "assistant",
+          "text": "same reply",
+          "id": null
+        },
+        {
+          "role": "user",
+          "text": "new question",
+          "id": null
+        }
+      ],
+      "passes": false
+    },
+    {
+      "name": "cached-index-after-prepend",
+      "expected": [
+        "old-history",
+        "question",
+        "live updated"
+      ],
+      "actual": [
+        {
+          "role": "assistant",
+          "text": "old-history",
+          "id": "old"
+        },
+        {
+          "role": "assistant",
+          "text": "live updated",
+          "id": "a"
+        },
+        {
+          "role": "assistant",
+          "text": "live",
+          "id": "a"
+        }
+      ],
+      "passes": false
+    },
+    {
+      "name": "tail-refresh-then-load-overlapping-old-page",
+      "expected": [
+        "m0",
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+        "m5"
+      ],
+      "actual": [
+        {
+          "role": "user",
+          "text": "m2",
+          "id": "m2"
+        },
+        {
+          "role": "assistant",
+          "text": "m3",
+          "id": "m3"
+        },
+        {
+          "role": "user",
+          "text": "m0",
+          "id": "m0"
+        },
+        {
+          "role": "assistant",
+          "text": "m1",
+          "id": "m1"
+        },
+        {
+          "role": "user",
+          "text": "m2",
+          "id": "m2"
+        },
+        {
+          "role": "assistant",
+          "text": "m3",
+          "id": "m3"
+        },
+        {
+          "role": "user",
+          "text": "m4",
+          "id": "m4"
+        },
+        {
+          "role": "assistant",
+          "text": "m5",
+          "id": "m5"
+        }
+      ],
+      "passes": false,
+      "windowStart": 2
+    },
+    {
+      "name": "history-revision-regression",
+      "expected": [
+        "revision10"
+      ],
+      "actual": [
+        {
+          "role": "assistant",
+          "text": "revision9",
+          "id": "same"
+        }
+      ],
+      "passes": false,
+      "revision": 9
+    },
+    {
+      "name": "history-epoch-replacement-removes-old-tail",
+      "expected": [
+        "replacement"
+      ],
+      "actual": [
+        {
+          "role": "user",
+          "text": "replacement",
+          "id": "new-u"
+        },
+        {
+          "role": "assistant",
+          "text": "old answer",
+          "id": "old-a"
+        }
+      ],
+      "passes": false
+    },
+    {
+      "name": "idless-provider-result",
+      "expected": [
+        "question",
+        "interim",
+        "tool",
+        "final"
+      ],
+      "actual": [
+        {
+          "role": "user",
+          "text": "question",
+          "id": "u"
+        },
+        {
+          "role": "assistant",
+          "text": "final",
+          "id": null
+        },
+        {
+          "role": "assistant",
+          "text": "interim",
+          "id": null
+        },
+        {
+          "role": "tool",
+          "text": "tool",
+          "id": null
+        },
+        {
+          "role": "assistant",
+          "text": "final",
+          "id": null
+        }
+      ],
+      "passes": false
+    }
+  ]
+}
