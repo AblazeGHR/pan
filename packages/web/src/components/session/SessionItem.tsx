@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import type { DropZone } from './sessionDrag';
@@ -91,17 +91,16 @@ export const SessionItem = memo(function SessionItem({
   // Preview comes from the summary endpoint's lastMessage (the list carries no
   // history now); fall back to the last local history message when present.
   const messages = session.history || [];
-  const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-  const previewText = session.lastMessage
-    ? stripMarkdown(session.lastMessage)
-    : lastMsg
-      ? stripMarkdown(lastMsg.content)
-      : '';
-  const preview = previewText
-    ? previewText.length > 50
-      ? previewText.slice(0, 50) + '...'
-      : previewText
-    : null;
+  const lastContent = messages.length > 0 ? messages[messages.length - 1]?.content : undefined;
+  // stripMarkdown + 截断的成本不低，而卡片会因 isActive / isSelected / 拖拽反馈
+  // 等无关 props 变化重渲染。按来源文本缓存：内容不变则跳过重复计算。
+  const preview = useMemo(() => {
+    const source = session.lastMessage || lastContent;
+    if (!source) return null;
+    const text = stripMarkdown(source);
+    if (!text) return null;
+    return text.length > 50 ? `${text.slice(0, 50)}...` : text;
+  }, [session.lastMessage, lastContent]);
   const credit = session.totalUsage?.credit ?? null;
 
   const handleClick = () => {

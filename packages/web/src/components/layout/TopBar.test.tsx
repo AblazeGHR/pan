@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { Profiler } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { TopBar } from './TopBar';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -117,5 +118,40 @@ describe('TopBar compact worker presentation', () => {
     await waitFor(() => expect(api.fetchSessionUsage).toHaveBeenCalledWith('session-codex'));
     expect(screen.queryByTitle('Codex account rate-limit usage (persisted profile cache)')).toBeNull();
     expect(screen.queryByText(/quota/)).toBeNull();
+  });
+});
+
+// FE-1: TopBar must only re-render for the slice it reads. Toasts, interactive
+// requests and other sessions' worker updates are irrelevant to it.
+describe('TopBar render isolation (fine-grained selectors)', () => {
+  it('ignores unrelated UI-store and worker-store updates', () => {
+    const commits: number[] = [];
+    render(
+      <Profiler id="topbar" onRender={() => commits.push(1)}>
+        <TopBar />
+      </Profiler>,
+    );
+    const afterMount = commits.length;
+    expect(afterMount).toBeGreaterThan(0);
+
+    act(() => {
+      useUIStore.setState({ toastQueue: [{ id: 't1', message: 'hi', type: 'info' }] });
+      useUIStore.setState({
+        approvalRequests: [
+          { sessionId: 'other', workerId: 'w', requestId: 1, method: 'm', params: {} },
+        ],
+      });
+    });
+    act(() => {
+      // Another session's worker changes; currentWorker keeps its identity.
+      useWorkerStore.setState((s) => ({
+        workers: {
+          ...s.workers,
+          other: { id: 'w-other', sessionId: 'other', status: 'running' },
+        },
+        workerTouchedSeq: { ...s.workerTouchedSeq, other: 1 },
+      }));
+    });
+    expect(commits.length).toBe(afterMount);
   });
 });

@@ -18,6 +18,27 @@ function session(lastMessage: string, workerStatus: string = 'idle'): Session {
   };
 }
 
+/**
+ * A string-like value whose first `.replace()` call is counted. `stripMarkdown`
+ * begins with `text.replace(...)`, so each derivation increments `calls` exactly
+ * once while still returning the real stripped preview. This lets a test observe
+ * whether the memoized card-text derivation actually ran.
+ */
+function countingText(value: string): { source: string; calls: () => number } {
+  let calls = 0;
+  const boxed = new String(value) as unknown as {
+    replace: (...args: unknown[]) => string;
+  };
+  boxed.replace = (...args) => {
+    calls += 1;
+    return (String.prototype.replace as unknown as (...a: unknown[]) => string).apply(
+      String(value),
+      args,
+    );
+  };
+  return { source: boxed as unknown as string, calls: () => calls };
+}
+
 describe('SessionItem streaming preview', () => {
   afterEach(() => cleanup());
 
@@ -49,5 +70,27 @@ describe('SessionItem streaming preview', () => {
     );
 
     expect(screen.getByText('Answer body')).toBeTruthy();
+  });
+
+  it('does not recompute the derived preview when only unrelated props change', () => {
+    const text = countingText('## Answer\n\n**body**');
+    const parent = session(text.source);
+    const { rerender } = render(<SessionItem session={parent} isActive={false} />);
+    const afterMount = text.calls();
+    expect(afterMount).toBeGreaterThan(0);
+    expect(screen.getByText('Answer body')).toBeTruthy();
+
+    // Unrelated prop change (active flag) — source text is unchanged.
+    rerender(<SessionItem session={parent} isActive />);
+    expect(text.calls()).toBe(afterMount);
+
+    // A new session object carrying the same source text stays cached too.
+    rerender(<SessionItem session={{ ...parent }} isActive />);
+    expect(text.calls()).toBe(afterMount);
+
+    // A changed source text must recompute.
+    const next = countingText('## Next');
+    rerender(<SessionItem session={{ ...parent, lastMessage: next.source }} isActive />);
+    expect(next.calls()).toBeGreaterThan(0);
   });
 });

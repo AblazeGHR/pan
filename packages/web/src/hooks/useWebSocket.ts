@@ -214,31 +214,54 @@ export function useWebSocket() {
       refreshAuthoritativeState();
     }));
 
-    // Browser lifecycle events are only signals. The singleton connection
-    // layer remains the single owner of reconnect/open synchronization.
+    // Browser lifecycle events (visibilitychange / pageshow / focus) are only
+    // signals. The singleton connection layer remains the single owner of
+    // reconnect/open synchronization. All three funnel through one debounced
+    // recovery so a window switch cannot fan out into duplicate request bursts:
+    //   - signals within RECOVERY_DEBOUNCE_MS collapse into a single run;
+    //   - if the socket is still fresh and authoritative state was refreshed
+    //     within RECOVERY_COALESCE_MS, the duplicate signal is absorbed — the
+    //     live connection already keeps the UI current, so there is nothing new
+    //     to fetch.
+    // The stale-socket path is always preserved: the freshness check runs for
+    // every recovery, a stale socket is always reconnected (whose open handler
+    // performs the authoritative refresh), and absorption only happens on a
+    // fresh socket — so a duplicate signal never loses disconnect recovery.
+    const RECOVERY_DEBOUNCE_MS = 100;
+    const RECOVERY_COALESCE_MS = 500;
     let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
-    let recoveryInFlight: Promise<void> | null = null;
+    let lastRecoveryAt = 0;
+
+    const isConnectionFresh = (): boolean =>
+      typeof wsClient.isConnectionFresh === 'function'
+        ? wsClient.isConnectionFresh()
+        : wsClient.isOpen;
+
+    const drainRecovery = (): void => {
+      const fresh = isConnectionFresh();
+      const elapsed = Date.now() - lastRecoveryAt;
+      if (fresh && lastRecoveryAt > 0 && elapsed < RECOVERY_COALESCE_MS) {
+        // Same resume already refreshed authoritative state on a live socket —
+        // absorb the duplicate instead of issuing a second request burst.
+        return;
+      }
+      lastRecoveryAt = Date.now();
+      if (!fresh) {
+        // reconnect() preserves all subscribers and its open handler above
+        // performs the authoritative refresh once the new socket is live.
+        if (typeof wsClient.reconnect === 'function') wsClient.reconnect();
+        else wsClient.connect();
+        return;
+      }
+      refreshAuthoritativeState();
+    };
+
     const recover = (): void => {
       if (recoveryTimer) clearTimeout(recoveryTimer);
       recoveryTimer = setTimeout(() => {
         recoveryTimer = null;
-        if (recoveryInFlight) return;
-        recoveryInFlight = (async () => {
-          const fresh = typeof wsClient.isConnectionFresh === 'function'
-            ? wsClient.isConnectionFresh()
-            : wsClient.isOpen;
-          if (!fresh) {
-            // reconnect() preserves all subscribers and its open handler above
-            // performs the authoritative refresh once the new socket is live.
-            if (typeof wsClient.reconnect === 'function') wsClient.reconnect();
-            else wsClient.connect();
-            return;
-          }
-          refreshAuthoritativeState();
-        })().finally(() => {
-          recoveryInFlight = null;
-        });
-      }, 100);
+        drainRecovery();
+      }, RECOVERY_DEBOUNCE_MS);
     };
     const onVisibilityChange = (): void => {
       if (document.visibilityState === 'visible') recover();

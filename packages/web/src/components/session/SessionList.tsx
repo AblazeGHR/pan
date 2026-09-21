@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
@@ -213,7 +214,22 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     pruneHiddenSessions,
     showToast,
     dragEnabled: dragPreference,
-  } = useUIStore();
+  } = useUIStore(useShallow((s) => ({
+    groupBy: s.groupBy,
+    searchQuery: s.searchQuery,
+    sortBy: s.sortBy,
+    specialFilters: s.specialFilters,
+    hiddenSessionIds: s.hiddenSessionIds,
+    collapsedGroups: s.collapsedGroups,
+    customOrder: s.customOrder,
+    toggleGroupCollapse: s.toggleGroupCollapse,
+    addCollapsedGroups: s.addCollapsedGroups,
+    removeCollapsedGroups: s.removeCollapsedGroups,
+    pruneCollapsedGroups: s.pruneCollapsedGroups,
+    pruneHiddenSessions: s.pruneHiddenSessions,
+    showToast: s.showToast,
+    dragEnabled: s.dragEnabled,
+  })));
   const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
 
   // Default grouping: adopt the app-settings default as long as the user has
