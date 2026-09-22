@@ -918,10 +918,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // refresh nor revert sessions that were locally freshened while THIS
     // request was in flight.
     const loadSeq = get()._loadSeq + 1;
-    // The Session snapshot below overwrites `history`; remember the projection's
-    // own window so the restore step compares against the pre-refresh state.
-    const transcriptBeforeLoad = { ...get().sessionTranscripts };
-    const sessionsBeforeLoad = get().sessions;
     const touchedAtStart = get()._sessionWsTouchedSeq;
     const localTouchedAtStart = get()._sessionLocalTouchedSeq ?? {};
     const settingsTouchedAtStart = get()._sessionSettingsTouchedSeq ?? {};
@@ -999,6 +995,50 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 ? { lastMessage: cur.lastMessage }
                 : {}),
             };
+          }
+          // The selected chat is rendered from `currentMessages` plus its
+          // transcript, not from the session-list response. `fetchSessions(true)`
+          // is a summary read and must not replace that projection with a
+          // compatibility payload containing only a tail window. Keep the
+          // selected window metadata too: copying a stale epoch/revision from
+          // the summary would make the next history response look like an epoch
+          // replacement and drop the already-rendered prefix.
+          if (sid === currentSessionId) {
+            const localHistory = (cur.history || []).length > 0
+              ? cur.history
+              : canonicalHistory(s.currentMessages);
+            const localTranscript = s.sessionTranscripts?.[sid];
+            if (localHistory.length > 0) {
+              const localTotal = localTranscript?.window.total
+                ?? cur.historyTotal
+                ?? localHistory.length;
+              next = {
+                ...next,
+                history: localHistory,
+                historyTruncated: cur.historyTruncated,
+                historyTotal: Math.max(
+                  sess.historyTotal ?? 0,
+                  cur.historyTotal ?? 0,
+                  localTotal,
+                ),
+                ...(typeof cur.historyStart === 'number'
+                  ? { historyStart: cur.historyStart }
+                  : localTranscript?.window.start !== null
+                    && localTranscript?.window.start !== undefined
+                    ? { historyStart: localTranscript.window.start }
+                    : {}),
+                ...(cur.historyEpoch !== undefined
+                  ? { historyEpoch: cur.historyEpoch }
+                  : localTranscript?.window.epoch
+                    ? { historyEpoch: localTranscript.window.epoch }
+                    : {}),
+                ...(typeof cur.historyRevision === 'number'
+                  ? { historyRevision: cur.historyRevision }
+                  : localTranscript
+                    ? { historyRevision: localTranscript.window.revision }
+                    : {}),
+              };
+            }
           }
           if (preserveLocalWorker) {
             next = {
@@ -1086,62 +1126,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         useUIStore.getState().setCustomOrder(sessions.map((s) => s.id));
       }
 
-      // Restore the selected Session's projection after a list refresh — but
-      // never clobber it with a summary-only snapshot.
-      //
-      // `summary=1` carries no per-Session history: the durable window and the
-      // runtime rows are the projection, and replaying an empty snapshot here
-      // is what used to erase a just-completed turn until the next manual
-      // refresh. A snapshot that *does* carry history is merged through the same
-      // offset-keyed window path as every other history response.
-      const restoreSessionId = get().currentSessionId;
-      if (restoreSessionId) {
-        const current = get();
-        const found = current.sessions.find((s) => s.id === restoreSessionId);
-        if (found) {
-          if (Array.isArray(found.history) && found.history.length > 0) {
-            const previousSession = sessionsBeforeLoad.find((s) => s.id === restoreSessionId);
-            const base = transcriptBeforeLoad[restoreSessionId]
-              ?? (previousSession
-                ? {
-                    window: windowFromSession(previousSession),
-                    runtime: current.sessionTranscripts[restoreSessionId]?.runtime ?? [],
-                    anchorOffset: current.sessionTranscripts[restoreSessionId]?.anchorOffset
-                      ?? (previousSession.historyTotal ?? 0),
-                    serverEpoch: current.serverEpoch,
-                  }
-                : undefined);
-            const windowStart = typeof found.historyStart === 'number'
-              ? found.historyStart
-              : base?.window.start ?? 0;
-            set((s) => applyHistoryPageToState(s, restoreSessionId, {
-              history: found.history,
-              start: windowStart,
-              total: found.historyTotal ?? found.history.length,
-              hasMore: !!found.historyTruncated,
-              historyEpoch: found.historyEpoch,
-              historyRevision: found.historyRevision,
-            }, base));
-          }
-          const after = get();
-          const transcript = after.sessionTranscripts[restoreSessionId]
-            ?? ensureTranscript(after.sessionTranscripts, found);
-          set({
-            hasMoreMessages: (transcript.window.start ?? 0) > 0,
-            historyLoadEnd: transcript.window.start ?? 0,
-            historyWindowStarts: {
-              ...after.historyWindowStarts,
-              [restoreSessionId]: transcript.window.start ?? 0,
-            },
-          });
-        } else {
-          set({
-            currentSessionId: null,
-            currentMessages: [],
-            hasMoreMessages: false,
-            initialLoading: false,
-          });
-        }
+      // Do not rebuild the selected transcript from a session-list response.
+      // The list request is summary=1; its history is intentionally absent and
+      // any compatibility/partial tail is not an authoritative history page.
+      // Current history is refreshed only by the guarded history loaders
+      // (selectSession/refreshCurrentSessionHistory/loadOlderMessages). This is
+      // the isolation boundary for summaryBackfillCompleted: a sidebar metadata
+      // refresh cannot replace the chat window.
+      const selectedAfterRefresh = get().currentSessionId;
+      if (selectedAfterRefresh
+          && !get().sessions.some((session) => session.id === selectedAfterRefresh)) {
+        // Preserve the existing deletion semantics: a session that is no
+        // longer in the authoritative list cannot remain selected. This is
+        // separate from the normal selected-session projection path above.
+        set({
+          currentSessionId: null,
+          currentMessages: [],
+          hasMoreMessages: false,
+          initialLoading: false,
+        });
       }
     } catch {
       console.warn('[sessionStore] loadSessions failed');

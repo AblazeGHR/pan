@@ -25,6 +25,7 @@ function msg(role: string, content: string): Message {
 // Deferred fetchSessions so tests can interleave WS updates / second refreshes
 // while an HTTP load is in flight.
 let pendingFetches: Array<(sessions: Session[]) => void> = [];
+const api = vi.hoisted(() => ({ fetchSessionHistory: vi.fn() }));
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -36,6 +37,7 @@ vi.mock('@/services/api', async (importOriginal) => {
           pendingFetches.push(resolve);
         }),
     ),
+    fetchSessionHistory: api.fetchSessionHistory,
   };
 });
 
@@ -54,6 +56,7 @@ function resolveFetchAt(index: number, sessions: Session[]) {
 describe('sessionStore refresh staleness guards', () => {
   beforeEach(() => {
     pendingFetches = [];
+    api.fetchSessionHistory.mockReset();
     useSessionStore.setState({
       sessions: [],
       sessionsLoading: false,
@@ -94,24 +97,26 @@ describe('sessionStore refresh staleness guards', () => {
     expect(useSessionStore.getState().currentMessages).toEqual(live);
   });
 
-  it('applies server history when it has content we do not have locally', async () => {
+  it('applies a fresh history page when it has content we do not have locally', async () => {
     useSessionStore.setState({
       sessions: [mk('A', 'A', { history: [msg('user', 'u1')] })],
       currentSessionId: 'A',
       currentMessages: [msg('user', 'u1')],
     });
 
+    api.fetchSessionHistory.mockResolvedValueOnce({
+      history: [msg('user', 'u1'), msg('assistant', 'a1')],
+      total: 2,
+      hasMore: false,
+      start: 0,
+      historyEpoch: 'epoch-current',
+      historyRevision: 2,
+    });
     let promise: Promise<void>;
     act(() => {
-      promise = useSessionStore.getState().loadSessions();
+      promise = useSessionStore.getState().refreshCurrentSessionHistory();
     });
     await act(async () => {
-      resolveNextFetch([
-        mk('A', 'A', {
-          history: [msg('user', 'u1'), msg('assistant', 'a1')],
-          historyTotal: 2,
-        }),
-      ]);
       await promise!;
     });
 

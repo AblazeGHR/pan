@@ -159,8 +159,10 @@ export interface WindowMergeResult {
 /**
  * Merge one history page into the loaded window.
  *
- *  - A different non-empty epoch replaces the window: the old canonical rows
- *    belong to a dead identity scope and must not survive as a tail.
+ *  - A different non-empty epoch replaces the window only when the response
+ *    is strictly newer: the old canonical rows belong to a dead identity
+ *    scope and must not survive as a tail, while an equal-revision response
+ *    cannot prove which epoch is authoritative and is therefore stale.
  *  - Inside one epoch, rows are keyed by absolute offset. Missing offsets are
  *    always filled (append-only epochs legitimately deliver disjoint pages),
  *    but an *overlapping* row is only overwritten by a response whose revision
@@ -183,13 +185,15 @@ export function mergeWindowPage(
   // rejected outright — accepting every epoch change is what let an old epoch's
   // page roll a newer canonical projection back.
   if (epoch && current.epoch && epoch !== current.epoch) {
-    if (revision < current.revision) {
+    if (revision <= current.revision) {
       return {
         window: current,
         accepted: false,
         replacedEpoch: false,
         newOffsets: 0,
-        reason: 'older-epoch-page',
+        reason: revision === current.revision
+          ? 'ambiguous-epoch-page'
+          : 'older-epoch-page',
       };
     }
     const next = createWindow();

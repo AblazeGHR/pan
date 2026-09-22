@@ -312,6 +312,253 @@ describe('useWebSocket worker.result wiring', () => {
     });
   });
 
+  it('keeps the selected transcript through summary backfill, live events, and delayed history', async () => {
+    vi.useFakeTimers();
+    const history = Array.from({ length: 12 }, (_, index) => msg(
+      index % 2 === 0 ? 'user' : 'assistant',
+      `old-${index}`,
+    ));
+    const selected = mk('A', 'A', {
+      history,
+      historyStart: 0,
+      historyTotal: history.length,
+      historyEpoch: 'new-epoch',
+      historyRevision: 10,
+      workerStatus: 'running',
+      workerId: 'w1',
+    });
+    const other = mk('B', 'B', { history: [msg('user', 'other')] });
+    useSessionStore.setState({
+      sessions: [selected, other],
+      currentSessionId: 'A',
+      currentMessages: history.slice(),
+      sessionTranscripts: {},
+      _historyRefreshSeq: {},
+      _selectionSeq: {},
+    });
+
+    // The hook's initial list load is a real summary shape: no history rows.
+    apiMock.fetchSessions.mockResolvedValueOnce([
+      mk('A', 'A', {
+        history: [],
+        historyTotal: history.length,
+        historyEpoch: 'new-epoch',
+        historyRevision: 10,
+      }),
+      other,
+    ]);
+    renderHook(() => useWebSocket());
+    await act(async () => {
+      for (let i = 0; i < 6; i += 1) await Promise.resolve();
+    });
+
+    let resolveSummary!: (sessions: Session[]) => void;
+    apiMock.fetchSessions.mockImplementationOnce(
+      () => new Promise<Session[]>((resolve) => { resolveSummary = resolve; }),
+    );
+    let resolveHistory!: (page: unknown) => void;
+    apiMock.fetchSessionHistory.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveHistory = resolve; }),
+    );
+
+    act(() => {
+      // This is the optimistic user row created by the send transaction.
+      useSessionStore.getState().appendLocalMessage('A', {
+        role: 'user',
+        content: 'just sent',
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        generation: 1,
+        taskSeq: 1,
+        event: {
+          type: 'assistant',
+          message: { content: [{ type: 'thinking', thinking: 'thinking now' }] },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream',
+        sessionId: 'A',
+        workerId: 'w1',
+        generation: 1,
+        taskSeq: 1,
+        event: {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'streamed answer' }] },
+        },
+      });
+    });
+
+    const delayedHistory = useSessionStore.getState().refreshCurrentSessionHistory();
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result',
+        sessionId: 'A',
+        workerId: 'w1',
+        generation: 1,
+        taskSeq: 1,
+        status: 'done',
+        result: 'final answer',
+      });
+      wsMock.trigger('worker.status', {
+        type: 'worker.status',
+        sessionId: 'A',
+        workerId: 'w1',
+        generation: 1,
+        taskSeq: 1,
+        status: 'idle',
+      });
+      wsMock.trigger('session.summaryBackfillCompleted', {
+        type: 'session.summaryBackfillCompleted',
+      });
+      wsMock.trigger('session.updated', {
+        type: 'session.updated',
+        sessionId: 'A',
+        session: { id: 'A', summaryRevision: 11 },
+      });
+    });
+
+    const beforeRefresh = useSessionStore.getState().currentMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+    expect(beforeRefresh.some((message) => message.content === 'just sent')).toBe(true);
+    expect(beforeRefresh.some((message) => message.content === 'old-0')).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+    expect(resolveSummary).toBeTypeOf('function');
+
+    // This is the real summary shape: it carries metadata but no history.
+    // The delayed history response below is an older window from another
+    // epoch with an equal revision (the ambiguous legacy shape); it must not
+    // replace the selected transcript after the summary refresh.
+    resolveSummary([
+      mk('A', 'A', {
+        history: [],
+        historyTotal: history.length + 2,
+        historyEpoch: 'new-epoch',
+        historyRevision: 10,
+      }),
+      other,
+    ]);
+    await act(async () => {
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    });
+
+    // This is an older response from the refresh that was already in flight.
+    resolveHistory({
+      history: history.slice(-2),
+      start: history.length - 2,
+      total: history.length,
+      hasMore: true,
+      historyEpoch: 'old-epoch',
+      historyRevision: 10,
+    });
+    await act(async () => { await delayedHistory; });
+
+    expect(useSessionStore.getState().currentMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))).toEqual(beforeRefresh);
+
+    // Switching away and back must not be the operation that restores the
+    // rows. A fresh authoritative page is supplied only to prove convergence.
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        ...history,
+        { role: 'user', content: 'just sent' },
+        { role: 'thinking', content: 'thinking now' },
+        { role: 'assistant', content: 'final answer' },
+      ],
+      start: 0,
+      total: history.length + 3,
+      hasMore: false,
+      historyEpoch: 'new-epoch',
+      historyRevision: 12,
+    });
+    act(() => {
+      useSessionStore.setState({ currentSessionId: 'B', currentMessages: other.history });
+    });
+    await act(async () => {
+      await useSessionStore.getState().selectSession('A');
+    });
+    expect(useSessionStore.getState().currentMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))).toEqual(beforeRefresh);
+  });
+
+  it('does not feed a partial compatibility history carried by summary into the selected chat', async () => {
+    vi.useFakeTimers();
+    const history = Array.from({ length: 8 }, (_, index) => msg(
+      index % 2 === 0 ? 'user' : 'assistant',
+      `history-${index}`,
+    ));
+    const selected = mk('A', 'A', {
+      history,
+      historyStart: 0,
+      historyTotal: history.length,
+      historyEpoch: 'epoch-current',
+      historyRevision: 20,
+    });
+    const other = mk('B', 'B');
+    useSessionStore.setState({
+      sessions: [selected, other],
+      currentSessionId: 'A',
+      currentMessages: history.slice(),
+      sessionTranscripts: {},
+    });
+    apiMock.fetchSessions.mockResolvedValueOnce([
+      mk('A', 'A', {
+        history: [],
+        historyTotal: history.length,
+        historyEpoch: 'epoch-current',
+        historyRevision: 20,
+      }),
+      other,
+    ]);
+    renderHook(() => useWebSocket());
+    await act(async () => {
+      for (let i = 0; i < 6; i += 1) await Promise.resolve();
+    });
+
+    let resolveSummary!: (sessions: Session[]) => void;
+    apiMock.fetchSessions.mockImplementationOnce(
+      () => new Promise<Session[]>((resolve) => { resolveSummary = resolve; }),
+    );
+    act(() => {
+      wsMock.trigger('session.summaryBackfillCompleted', {
+        type: 'session.summaryBackfillCompleted',
+      });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    resolveSummary([
+      mk('A', 'A', {
+        history: history.slice(-2),
+        historyStart: history.length - 2,
+        historyTotal: history.length,
+        historyEpoch: 'epoch-compat-tail',
+        historyRevision: 21,
+      }),
+      other,
+    ]);
+    await act(async () => {
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((message) => message.content))
+      .toEqual(history.map((message) => message.content));
+  });
+
   it('routes Claude permission requests and removes them after resolution', () => {
     useUIStore.setState({ approvalRequests: [] });
     renderHook(() => useWebSocket());
