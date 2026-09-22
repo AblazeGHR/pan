@@ -26,10 +26,15 @@ def test_requirement_layers_are_explicit():
     assert "nonebot" not in minimal
 
 def test_runtime_probe_scripts_check_httpx_and_fastmcp():
-    for script in (ROOT / "scripts/setup.bat", ROOT / "scripts/start_pan.bat"):
-        text = script.read_text(encoding="utf-8")
-        assert "import fastapi, uvicorn, websockets, psutil, httpx" in text
-        assert "mcp.server.fastmcp" in text
+    setup = (ROOT / "scripts/setup.bat").read_text(encoding="utf-8")
+    assert "import fastapi, uvicorn, websockets, psutil, httpx" in setup
+    assert "mcp.server.fastmcp" in setup
+
+    # Startup is intentionally a thin hand-off. Dependency/readiness probes
+    # belong to packages.core.launcher, not a second batch implementation.
+    startup = (ROOT / "scripts/start_pan.bat").read_text(encoding="utf-8")
+    assert "packages.core.launcher" in startup
+    assert "import fastapi, uvicorn, websockets, psutil, httpx" not in startup
 
 def test_core_and_mcp_import_with_memory_providers_blocked():
     code = """

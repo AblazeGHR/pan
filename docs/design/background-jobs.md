@@ -156,9 +156,9 @@ blocks a duplicate and a supervisor failure remains visible. Readiness is
 accepted only when the target port is owned by a new process whose creation
 time, checkout marker, Pan entry marker, and `/api/health` response all verify.
 
-The PowerShell file remains a detached two-hop launcher, but its second hop
-delegates stop/start and these checks to `packages.core.main_lifecycle`. The
-helper invokes the existing checkout-scoped `stop_pan.bat` and `start_pan.bat`;
-it does not recursively kill its own supervisor. Exit integration can attach
-to `create_service_job` and `transition_service_job` later without changing
-the Session or background-process contracts.
+The detached supervisor invokes `packages.core.main_lifecycle`, which directly
+delegates process identity, graceful exit, verified fallback, start and
+readiness to `packages.core.launcher`. No stop/start batch script is part of
+the lifecycle path, and the supervisor is kept outside the old Pan process
+tree. Exit uses the same durable Job contract without changing Session or
+background-process semantics.

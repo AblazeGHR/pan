@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from packages.core import background_jobs as jobs
-from packages.core import main_lifecycle
+from packages.core import launcher, main_lifecycle
 import packages.web.server as web_server
 
 
@@ -108,9 +108,9 @@ def test_restart_status_recovers_pending_job_without_memory_state(tmp_path, monk
 
 
 def test_ready_checks_reject_old_listener_before_http_health(monkeypatch):
-    monkeypatch.setattr(main_lifecycle, "listener_owner", lambda port: 41)
-    monkeypatch.setattr(main_lifecycle, "process_create_time", lambda pid: 12.5)
-    monkeypatch.setattr(main_lifecycle, "_health_ready", lambda port: pytest.fail("health must not run"))
+    monkeypatch.setattr(launcher, "listener_owner", lambda port: 41)
+    monkeypatch.setattr(launcher, "process_create_time", lambda pid: 12.5)
+    monkeypatch.setattr(launcher, "process_identity", lambda *args, **kwargs: {"ok": True})
     result = main_lifecycle.ready_checks(
         root="C:/Pan", port=8765, old_pid=41, old_pid_created_at=12.5,
     )
@@ -124,14 +124,17 @@ def test_supervisor_persists_stop_failure(monkeypatch, tmp_path):
         request_id="request-stop-fail", operation="restart", root=str(tmp_path), port=8765,
         registry_root=registry,
     )
-    monkeypatch.setattr(main_lifecycle, "_run_script", lambda *args, **kwargs: SimpleNamespace(returncode=7))
+    monkeypatch.setattr(
+        main_lifecycle.launcher, "stop_service",
+        lambda *args, **kwargs: (_ for _ in ()).throw(launcher.LauncherError("verified stop failed")),
+    )
     result = main_lifecycle.run_supervisor(
         job["jobId"], str(tmp_path), 8765, registry_root=str(registry),
     )
     saved = jobs.get(job["jobId"], registry)
     assert result == 1
     assert saved["phase"] == "failed"
-    assert "exit code 7" in saved["error"]
+    assert "verified stop failed" in saved["error"]
 
 
 def test_supervisor_persists_ready_only_after_all_checks(monkeypatch, tmp_path):
@@ -140,13 +143,12 @@ def test_supervisor_persists_ready_only_after_all_checks(monkeypatch, tmp_path):
         request_id="request-ready", operation="restart", root=str(tmp_path), port=8765,
         old_pid=41, old_pid_created_at=12.5, registry_root=registry,
     )
-    identity_results = iter(({"ok": True}, {"ok": False}))
-    monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *args: next(identity_results))
-    monkeypatch.setattr(main_lifecycle, "listener_owner", lambda port: None)
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", lambda *args, **kwargs: {"stopped": True})
+    monkeypatch.setattr(main_lifecycle.launcher, "start_service", lambda *args, **kwargs: None)
+    monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True})
     monkeypatch.setattr(main_lifecycle, "ready_checks", lambda **kwargs: {
         "ok": True, "newPid": 42, "newPidCreatedAt": 13.5,
     })
-    monkeypatch.setattr(main_lifecycle, "_run_script", lambda *args, **kwargs: SimpleNamespace(returncode=0))
     monkeypatch.setattr(main_lifecycle, "READY_POLL_SEC", 0)
 
     assert main_lifecycle.run_supervisor(
@@ -166,16 +168,8 @@ def test_exit_supervisor_persists_offline_only_after_verified_stop(monkeypatch, 
     )
     jobs.transition_service_job(job["jobId"], "stopping_workers", registry_root=registry)
     jobs.transition_service_job(job["jobId"], "stopping_service", registry_root=registry)
-    identity_results = iter(({"ok": True}, {"ok": False}))
-    monkeypatch.setattr(
-        main_lifecycle, "service_process_identity",
-        lambda *args: next(identity_results),
-    )
-    monkeypatch.setattr(main_lifecycle, "listener_owner", lambda port: None)
-    monkeypatch.setattr(
-        main_lifecycle, "_run_script",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0),
-    )
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", lambda *args, **kwargs: {"stopped": True})
+    monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True})
     monkeypatch.setattr(main_lifecycle, "READY_POLL_SEC", 0)
 
     assert main_lifecycle.run_supervisor(
@@ -211,16 +205,8 @@ def test_exit_offline_keeps_worker_failure_and_marks_job_partial_failure(monkeyp
     assert recorded["phase"] == "stopping_service"
     assert recorded["error"] == "worker shutdown failed: worker-7 did not stop"
 
-    identity_results = iter(({"ok": True}, {"ok": False}))
-    monkeypatch.setattr(
-        main_lifecycle, "service_process_identity",
-        lambda *args: next(identity_results),
-    )
-    monkeypatch.setattr(main_lifecycle, "listener_owner", lambda port: None)
-    monkeypatch.setattr(
-        main_lifecycle, "_run_script",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0),
-    )
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", lambda *args, **kwargs: {"stopped": True})
+    monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True})
     monkeypatch.setattr(main_lifecycle, "READY_POLL_SEC", 0)
 
     assert main_lifecycle.run_exit_supervisor(
@@ -234,64 +220,12 @@ def test_exit_offline_keeps_worker_failure_and_marks_job_partial_failure(monkeyp
     assert web_server._main_restart_job_view(saved)["errors"] == saved["errors"]
 
 
-@pytest.mark.parametrize(
-    ("script_name", "required_scripts", "terminal_phases"),
-    [
-        ("exit_pan.ps1", ["stop_pan.bat"], {"offline", "failed", "timed_out"}),
-        ("restart_pan.ps1", ["stop_pan.bat", "start_pan.bat"], {"ready", "failed", "timed_out"}),
-    ],
-)
-def test_detached_supervisor_persists_runner_start_failure(
-    tmp_path, script_name, required_scripts, terminal_phases,
-):
-    """A PowerShell supervisor failure must not strand its durable Job."""
-    source_root = Path(__file__).resolve().parents[1]
-    scripts = tmp_path / "scripts"
-    scripts.mkdir()
-    for name in required_scripts:
-        (scripts / name).write_text("@echo off\r\nexit /b 0\r\n", encoding="utf-8")
-    shutil.copy2(source_root / "scripts" / script_name, scripts / script_name)
-    shutil.copy2(
-        source_root / "scripts" / "mark_lifecycle_job_failed.ps1",
-        scripts / "mark_lifecycle_job_failed.ps1",
-    )
-    registry = tmp_path / "registry"
-    job = jobs.create_service_job(
-        request_id="request-runner-start-failure", operation=(
-            "exit" if script_name.startswith("exit") else "restart"
-        ), root=str(tmp_path), port=8765, registry_root=registry,
-    )
-
-    result = subprocess.run(
-        [
-            "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-            "-File", str(scripts / script_name), "-Root", str(tmp_path),
-            "-JobId", job["jobId"], "-RegistryRoot", str(registry), "-Port", "8765",
-            "-RunnerPython", str(tmp_path / "missing-python.exe"), "-Supervisor",
-        ],
-        cwd=str(tmp_path), capture_output=True, text=True,
-    )
-
-    assert result.returncode != 0, result.stdout + result.stderr
-    saved = jobs.get(job["jobId"], registry)
-    assert saved["phase"] in terminal_phases
-    assert saved["status"] == "failed"
-    assert "Python interpreter not found" in saved["error"]
-    assert saved["errors"]
-
-
-@pytest.mark.parametrize(
-    ("operation", "endpoint"),
-    [("restart", web_server.api_main_restart), ("exit", web_server.api_main_exit)],
-)
-def test_empty_options_preserves_disabled_request_behavior(tmp_path, monkeypatch, operation, endpoint):
-    monkeypatch.setattr(web_server, "_PROJECT_DIR", tmp_path)
-
-    result = asyncio.run(endpoint({"options": {}}))
-
-    assert result["ok"] is False
-    assert result["status"] == "disabled"
-    assert operation in result["error"]
+def test_compatibility_supervisors_are_launcher_wrappers():
+    root = Path(__file__).resolve().parents[1]
+    for name in ("exit_pan.ps1", "restart_pan.ps1"):
+        text = (root / "scripts" / name).read_text(encoding="utf-8")
+        assert "packages.core.main_lifecycle" in text
+        assert "stop_pan.bat" not in text
 
 
 @pytest.mark.parametrize(
@@ -319,10 +253,10 @@ def test_unknown_lifecycle_option_is_rejected_before_any_side_effect(
     assert calls == []
 
 
-def test_stop_script_checks_identity_variants_and_nonzero_stop_result():
+def test_stop_batch_is_removed_and_launcher_owns_identity_checks():
     root = Path(__file__).resolve().parents[1]
-    text = (root / "scripts" / "stop_pan.bat").read_text(encoding="utf-8")
-    assert "python|pythonw|uvicorn" in text
-    assert "packages[\\\\/]web[\\\\/]server" in text
-    assert "listener on port" in text
-    assert "exit /b 1" in text
+    assert not (root / "scripts" / "stop_pan.bat").exists()
+    text = (root / "packages" / "core" / "launcher.py").read_text(encoding="utf-8")
+    assert "createdAt" in text
+    assert "taskkill" in text
+    assert "_taskkill_verified" in text

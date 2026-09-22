@@ -370,8 +370,8 @@ python main.py
 
 | 平台 | 安装依赖 | 启动 | 停止 |
 |------|----------|------|------|
-| Windows | 上文步骤 1-3（或 `scripts\setup.bat`） | `scripts\start_pan.bat`，或前台 `python main.py` | `scripts\stop_pan.bat`，或 Ctrl+C |
-| macOS / Linux | `bash scripts/setup.sh`（首次） | `bash scripts/start.sh`（后台启动，PID 记 `data/process.pid`，日志 `data/pan.out.log`） | `bash scripts/stop.sh`（只杀记录的 PID + 进程组，绝不误伤其他 python） |
+| Windows | 上文步骤 1-3（或 `scripts\setup.bat`） | `scripts\start_pan.bat`，或前台 `python main.py` | Pan UI 的 Exit、`python -m packages.core.launcher exit`，或 Ctrl+C |
+| macOS / Linux | `bash scripts/setup.sh`（首次） | `bash scripts/start.sh`（交给 Python launcher，PID/state 记在 `data/`） | `bash scripts/stop.sh`（仅转交 Python launcher exit，不扫描或宽泛终止进程） |
 
 macOS / Linux 一键路径：
 
@@ -458,7 +458,7 @@ QQ 需要先运行 NapCat（3001）或 LLOneBot（3002），在 `qq.channel` 选
 
 ### 停止与常见限制
 
-Ctrl+C 可优雅退出；也可使用 `scripts/stop_pan.bat` / `scripts/stop.sh`。macOS/Linux 路径大小写敏感；后台启动时 PATH 可能不同，修改 CLI 或 PATH 后要重启 Pan。API 默认无鉴权，Remote/Cloudflare Tunnel 会把主端口暴露到公网；使用前必须评估风险。Worker 被 watchdog 回收后可重新 Start，Session 历史仍会保留；删除 Session 不会删除其 workdir。更多排障见[用户手册第 12、13 章](docs/USER_MANUAL.md#13-安全清理与常见问题)。
+Ctrl+C 可优雅退出；后台实例使用 Pan UI 的 Exit 或 `python -m packages.core.launcher exit`。macOS/Linux 路径大小写敏感；后台启动时 PATH 可能不同，修改 CLI 或 PATH 后要重启 Pan。API 默认无鉴权，Remote/Cloudflare Tunnel 会把主端口暴露到公网；使用前必须评估风险。Worker 被 watchdog 回收后可重新 Start，Session 历史仍会保留；删除 Session 不会删除其 workdir。更多排障见[用户手册第 12、13 章](docs/USER_MANUAL.md#13-安全清理与常见问题)。
 
 ### 前端说明：React 是唯一前端
 
@@ -855,11 +855,11 @@ QQ 接入被抽象为可切换的**通道（Channel）**：`QQChannel` 接口（
 
 ```bash
 python -m packages.remote
-# 或 scripts/start_cf.ps1
+# Remote tunnel is started by the internal launcher when remote.enabled=true.
 ```
 
 - `quick_tunnel: true` → 输出 `*.trycloudflare.com` 临时 URL；`false` → 需 `remote.config_path` 指定 named tunnel 的 yml
-- `remote.enabled` 只控制 Tunnel：必须明确设为 `true`，`scripts/start_pan.bat` / `scripts/start_cf.ps1` 才会检查并启动 `cloudflared`；它不控制 Pan Core、Web UI 或普通 `/api/*`。`config.json.port` 独立控制主服务端口，默认仍为 8768。
+- `remote.enabled` 只控制 Tunnel：必须明确设为 `true`，内部 launcher 才会检查并启动 `cloudflared`；它不控制 Pan Core、Web UI 或普通 `/api/*`。`config.json.port` 独立控制主服务端口，默认仍为 8768。
 - 状态服务：`curl http://127.0.0.1:8769/status`
 - 公网域名来自 `config_path` 指向的 yml 的 `ingress.hostname`；tunnel 暴露的是 Pan 主端口（`config.port`）
 - Remote status/restart 接口只管理 Tunnel，不改变主服务的启动语义。
@@ -879,7 +879,7 @@ python -m packages.remote
 - **Worker 超时语义**：stream running 按**任务运行时长**判定卡死（`worker.task_timeout_sec`，默认 1800s）；queued 用静默超时（`worker.timeout_sec`，默认 300s）——长思考 / 大文件读取不会被误杀。
 - **Worker 双模式**：`stream` 长驻（可挂载 MCP）；`one-shot` 一次性（仅 `output_mode=oneshot` 时启用）。派发统一走 `agent_assign` / `agent_send`（`worker_assign` / `worker_send` 为兼容别名；阻塞式 `worker_handoff` 已于 2026-08-26 移除，串行依赖同样走 assign + report_subscribe）。
 - **Memory 依赖与降级**：`minimal-requirements.txt` 不含 ML 链；启用向量检索需 `sentence-transformers`（web 端默认 embedding provider）。可选库缺失时懒加载 + ImportError 兜底自动降级，不影响 Core 启动；`jieba` 缺失会显著降低中文检索质量。
-- **QQ bot 进程管理**：main.py 按 `qq.enabled` 统一 spawn / 终止（写 `data/qq_bot.pid`）；`scripts/stop_pan.bat` 精确树杀，不全局杀 python.exe。
+- **QQ bot 进程管理**：main.py 按 `qq.enabled` 统一 spawn / 终止（写 `data/qq_bot.pid`）；launcher 通过 PID、创建时间、checkout 和 `bot.py` marker 协同收尾，不扫描或全局杀 python.exe。
 - **依赖与 worktree**：`main` 应保持完整的 Python/前端依赖；小改动可直接在 `main` 合并并测试。不确定的大改动优先在 `test` 或独立 worktree 验证，Python 使用 `Pan-main/.venv`，前端 `node_modules` 可复用 `main` 的依赖或在隔离 worktree 单独安装。
 - **Python 版本**：仓库无版本声明文件（无 pyproject.toml / .python-version），实际运行环境为 Python 3.14.5。
 

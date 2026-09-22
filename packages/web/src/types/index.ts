@@ -618,7 +618,7 @@ export interface ApiWorkerSettingsUpdateResponse {
   after: Partial<ApiConfigReloadWorkerValues>;
 }
 
-// ── Remote tunnel (cloudflared via scripts/start_cf.ps1) ──
+// ── Remote tunnel (cloudflared via the internal Python launcher) ──
 
 export interface ApiRemoteStatusResponse {
   available: boolean;

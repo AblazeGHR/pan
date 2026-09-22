@@ -1,170 +1,65 @@
-"""Small, durable supervisor helpers for the Pan main-service lifecycle.
+"""Durable lifecycle supervisor for the Pan main service.
 
-This module intentionally owns no Session and never writes queue_pending.  The
-PowerShell hop runs it from outside the Pan process tree, so it can record the
-stop/start result after the old service has exited.
+The durable Job state remains here, but all Windows process work is delegated
+to :mod:`packages.core.launcher`.  There is no stop/start batch-script hop:
+the supervisor invokes the same verified Python launcher primitives used by
+the one-click entry point.
 """
 from __future__ import annotations
 
 import argparse
-import json
-import os
-import subprocess
 import time
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 from packages.core import background_jobs
+from packages.core import launcher
 
-STOP_TIMEOUT_SEC = 20.0
-# start_pan.bat waits for the API and may also start the optional tunnel and
-# wait briefly for its URL.  Keep this budget separate from the later health
-# polling so a slow but valid startup is not mistaken for a failed restart.
+# The launcher waits for the API and may also start the optional tunnel. Keep
+# this budget separate from later lifecycle polling.
 START_TIMEOUT_SEC = 90.0
 READY_POLL_SEC = 0.5
-SERVICE_ENTRY_MARKERS = ("main.py", "packages.web.server", "packages/web/server.py", "uvicorn")
 
 
 def process_create_time(pid: int | None) -> float | None:
-    if not pid:
-        return None
-    try:
-        import psutil
-        return float(psutil.Process(int(pid)).create_time())
-    except Exception:
-        return None
+    return launcher.process_create_time(pid)
 
 
 def listener_owner(port: int) -> int | None:
-    """Return the PID listening on the local TCP port, if any."""
-    try:
-        import psutil
-        for conn in psutil.net_connections(kind="tcp"):
-            address = conn.laddr
-            local_port = getattr(address, "port", None)
-            if local_port is None and isinstance(address, (tuple, list)) and len(address) > 1:
-                local_port = address[1]
-            if int(local_port or -1) == int(port) and str(conn.status).upper() in {
-                "LISTEN", "LISTENING", str(getattr(psutil, "CONN_LISTEN", "LISTEN")).upper(),
-            }:
-                return int(conn.pid) if conn.pid else None
-    except Exception:
-        return None
-    return None
-
-
-def _normal_path(value: str) -> str:
-    return os.path.normcase(os.path.abspath(os.path.expanduser(value))).rstrip("\\/")
-
-
-def _under_root(value: str, root: str) -> bool:
-    candidate, base = _normal_path(value), _normal_path(root)
-    return candidate == base or candidate.startswith(base + os.sep)
-
-
-def _has_root_marker(cmdline: list[str], cwd: str | None, root: str) -> bool:
-    return any(_under_root(item, root) for item in (cmdline or []) if item) or bool(
-        cwd and _under_root(cwd, root)
-    )
+    return launcher.listener_owner(port)
 
 
 def service_process_identity(pid: int | None, root: str,
                              expected_created_at: float | None = None) -> dict[str, Any]:
-    """Validate a candidate Pan process without killing or mutating it."""
-    result: dict[str, Any] = {
-        "pid": pid, "createdAt": None, "rootMarker": False,
-        "entryMarker": False, "ok": False, "error": None,
-    }
-    if not pid:
-        result["error"] = "service PID is missing"
-        return result
-    try:
-        import psutil
-        proc = psutil.Process(int(pid))
-        created = float(proc.create_time())
-        cmdline = [str(value) for value in (proc.cmdline() or [])]
-        cwd = None
-        try:
-            cwd = proc.cwd()
-        except Exception:
-            pass
-        result.update(createdAt=created, cmdline=cmdline, cwd=cwd)
-        if expected_created_at is None:
-            result["error"] = "expected PID creation time is missing"
-            return result
-        if abs(created - float(expected_created_at)) > 1.0:
-            result["error"] = "service PID creation time does not match"
-            return result
-        result["rootMarker"] = _has_root_marker(cmdline, cwd, root)
-        haystack = " ".join(cmdline).replace("\\", "/").lower()
-        result["entryMarker"] = any(marker in haystack for marker in SERVICE_ENTRY_MARKERS)
-        if not result["rootMarker"]:
-            result["error"] = "service process is outside the target checkout"
-        elif not result["entryMarker"]:
-            result["error"] = "service process command line has no Pan entry marker"
-        elif not proc.is_running():
-            result["error"] = "service process is not running"
-        else:
-            result["ok"] = True
-    except Exception as exc:
-        result["error"] = f"service process inspection failed: {exc}"
-    return result
-
-
-def _health_ready(port: int, timeout: float = 1.0) -> tuple[bool, str | None]:
-    url = f"http://127.0.0.1:{int(port)}/api/health"
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
-            if response.status != 200:
-                return False, f"health returned HTTP {response.status}"
-            body = json.loads(response.read().decode("utf-8"))
-            if body.get("status") not in {"ok", "healthy"}:
-                return False, f"health status is {body.get('status')!r}"
-            return True, None
-    except Exception as exc:
-        return False, f"health probe failed: {exc}"
+    return launcher.service_process_identity(pid, root, expected_created_at)
 
 
 def ready_checks(*, root: str, port: int, old_pid: int | None,
                  old_pid_created_at: float | None) -> dict[str, Any]:
-    """Require new process identity, port ownership, and HTTP readiness."""
-    pid = listener_owner(port)
-    result: dict[str, Any] = {"newPid": pid, "newPidCreatedAt": process_create_time(pid), "ok": False}
-    if not pid:
+    """Require a new verified listener and the historical HTTP readiness path."""
+    pid = launcher.listener_owner(port)
+    created = process_create_time(pid)
+    result: dict[str, Any] = {
+        "port": int(port), "listenerOwner": pid,
+        "listenerOwnerCreatedAt": created, "newPid": pid,
+        "newPidCreatedAt": created, "ok": False,
+    }
+    if pid is None:
         result["error"] = "target port has no listener"
         return result
     if old_pid and pid == old_pid:
-        result["error"] = "target port is still owned by the old PID"
+        result.update(ok=False, error="target port is still owned by the old PID")
         return result
     if old_pid and old_pid_created_at is not None and process_create_time(old_pid) == old_pid_created_at:
-        result["error"] = "old service PID is still alive"
+        result.update(ok=False, error="old service PID is still alive")
         return result
-    identity = service_process_identity(pid, root, result["newPidCreatedAt"])
-    result["identity"] = identity
-    if not identity["ok"]:
-        result["error"] = identity["error"]
-        return result
-    healthy, error = _health_ready(port)
-    result["health"] = healthy
-    if not healthy:
-        result["error"] = error
-        return result
-    result["ok"] = True
+    checked = launcher.readiness(
+        root=root, port=port, expected_pid=pid, expected_created_at=created,
+    )
+    result.update(checked)
+    result["newPid"] = result.get("listenerOwner")
+    result["newPidCreatedAt"] = result.get("listenerOwnerCreatedAt")
     return result
-
-
-def _run_script(path: Path, root: Path, log_path: str | None, timeout: float) -> subprocess.CompletedProcess:
-    log = open(log_path, "ab") if log_path else subprocess.DEVNULL
-    try:
-        return subprocess.run(
-            ["cmd.exe", "/d", "/c", str(path)], cwd=str(root),
-            stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-            timeout=timeout, check=False,
-        )
-    finally:
-        if log is not subprocess.DEVNULL:
-            log.close()
 
 
 def _fail(job_id: str, phase: str, message: str, registry_root: str | None = None) -> int:
@@ -203,22 +98,18 @@ def _stop_service(*, job_id: str, root_path: Path, port: int, old_pid: int | Non
         raise _ServiceStopFailure("failed", "old service identity could not be verified")
 
     background_jobs.transition_service_job(job_id, phase, registry_root=registry_root)
-    stop = _run_script(
-        root_path / "scripts" / "stop_pan.bat", root_path, log_path, STOP_TIMEOUT_SEC,
-    )
-    if stop.returncode != 0:
-        raise _ServiceStopFailure("failed", f"stop_pan.bat failed with exit code {stop.returncode}")
-
-    deadline = time.monotonic() + STOP_TIMEOUT_SEC
-    while time.monotonic() < deadline:
-        listener_gone = listener_owner(port) is None
-        process_gone = not old_pid or not service_process_identity(
-            old_pid, str(root_path), old_pid_created_at,
-        ).get("ok")
-        if listener_gone and process_gone:
-            return
-        time.sleep(READY_POLL_SEC)
-    raise _ServiceStopFailure("timed_out", "Pan service remained alive after stop")
+    try:
+        result = launcher.stop_service(
+            root_path, port, old_pid, old_pid_created_at,
+            log_path=Path(log_path) if log_path else None,
+            require_identity=require_verified_identity,
+        )
+    except launcher.LauncherError as exc:
+        message = str(exc)
+        phase_name = "timed_out" if "timeout" in message.lower() or "remained" in message.lower() else "failed"
+        raise _ServiceStopFailure(phase_name, message) from exc
+    if not result.get("stopped"):
+        raise _ServiceStopFailure("failed", "Pan launcher did not confirm service stop")
 
 
 def run_exit_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None,
@@ -250,8 +141,6 @@ def run_exit_supervisor(job_id: str, root: str, port: int, old_pid: int | None =
         return 0
     except _ServiceStopFailure as exc:
         return _fail(job_id, exc.phase, str(exc), registry_root)
-    except subprocess.TimeoutExpired as exc:
-        return _fail(job_id, "timed_out", f"stop script timed out: {exc}", registry_root)
     except Exception as exc:
         return _fail(job_id, "failed", str(exc), registry_root)
 
@@ -283,9 +172,12 @@ def run_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None
         )
         background_jobs.transition_service_job(job_id, "stopped", registry_root=registry_root)
         background_jobs.transition_service_job(job_id, "starting", registry_root=registry_root)
-        start = _run_script(root_path / "scripts" / "start_pan.bat", root_path, log_path, START_TIMEOUT_SEC)
-        if start.returncode != 0:
-            return _fail(job_id, "failed", f"start_pan.bat failed with exit code {start.returncode}", registry_root)
+        launcher.start_service(
+            # Keep the historical 30-second launcher readiness barrier; the
+            # larger supervisor budget below covers durable phase polling.
+            root_path, timeout=launcher.READY_TIMEOUT_SEC,
+            log_path=Path(log_path) if log_path else None,
+        )
         deadline = time.monotonic() + START_TIMEOUT_SEC
         last_error = "new service did not become ready"
         while time.monotonic() < deadline:
@@ -303,8 +195,6 @@ def run_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None
         return _fail(job_id, "timed_out", last_error, registry_root)
     except _ServiceStopFailure as exc:
         return _fail(job_id, exc.phase, str(exc), registry_root)
-    except subprocess.TimeoutExpired as exc:
-        return _fail(job_id, "timed_out", f"restart script timed out: {exc}", registry_root)
     except Exception as exc:
         return _fail(job_id, "failed", str(exc), registry_root)
 

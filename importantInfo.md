@@ -8,7 +8,7 @@
 | NapCat (QQ) | **3001** | NapCat 正向 WebSocket 服务端，供 NoneBot2 连接 |
 | LLOneBot (QQ) | **3002** | LLOneBot 通道（`qq.channel: llonebot` 时使用），OneBot 11 网关插件化的另一通道实现 |
 
-> **Remote Tunnel URL 机制**：公网域名来自 `config.json` → `remote.config_path` 指向的 cloudflared yml 的 `ingress.hostname`；tunnel 暴露的是 Pan 主端口（`config.port`）。`scripts/start_cf.ps1` 会读取 `config.json` 并注入临时 yml，**不依赖 `remote.enabled` 字段**。
+> **Remote Tunnel URL 机制**：公网域名来自 `config.json` → `remote.config_path` 指向的 cloudflared yml 的 `ingress.hostname`；tunnel 暴露的是 Pan 主端口（`config.port`）。内部 Python launcher 会读取 `config.json` 并注入 checkout 内临时 yml，且只在 `remote.enabled=true` 时启动。
 
 ### Pan
 

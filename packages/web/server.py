@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Callable
+from typing import Annotated, Any, Callable
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
@@ -77,6 +77,7 @@ from packages.core.codex_quota_store import (
     resolve_profile_identity,
 )
 from packages.core import main_lifecycle
+from packages.core import launcher
 from packages.core import notifications, reminders
 
 # ── logging ──
@@ -396,12 +397,7 @@ def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
 
 
 def _main_restart_paths() -> dict[str, Path]:
-    scripts = _PROJECT_DIR / "scripts"
-    return {
-        "supervisor": scripts / "restart_pan.ps1",
-        "stop": scripts / "stop_pan.bat",
-        "start": scripts / "start_pan.bat",
-    }
+    return {"supervisor": _PROJECT_DIR / "packages" / "core" / "main_lifecycle.py"}
 
 
 def _main_restart_registry_root() -> Path:
@@ -440,7 +436,8 @@ def _main_restart_job_view(job: dict | None) -> dict:
 
 def _main_restart_status() -> dict:
     paths = _main_restart_paths()
-    available = os.name == "nt" and all(path.is_file() for path in paths.values())
+    launcher_module = Path(launcher.__file__).resolve()
+    available = os.name == "nt" and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -476,7 +473,7 @@ def _main_restart_status() -> dict:
         result["reason"] = (
             "main service restart is available only on Windows"
             if os.name != "nt"
-            else "restart scripts are missing: " + ", ".join(missing)
+            else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
     return result
 
@@ -499,48 +496,24 @@ def _watch_main_restart(process: subprocess.Popen, request_id: str) -> None:
 
 
 def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
-    """Launch a hidden, detached PowerShell supervisor.
-
-    The supervisor is deliberately not awaited here.  It starts a second
-    PowerShell process before running stop_pan.bat, so taskkill /T against the
-    current Pan process cannot take the restart orchestration with it.
-    """
-    script = _main_restart_paths()["supervisor"]
+    """Launch the Python durable supervisor outside the current process tree."""
     registry_root = _main_restart_registry_root()
     job = background_jobs.find_service_job(request_id, registry_root)
     if not job:
         raise ValueError("durable restart Job not found")
-    powershell_args = [
-        "powershell.exe",
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        str(script),
-        "-Root",
-        str(_PROJECT_DIR),
-        "-RequestId",
-        request_id,
-        "-JobId",
-        job["jobId"],
-        "-RegistryRoot",
-        str(registry_root),
-        "-Port",
-        str(job["port"]),
-        # The shell launcher enters the real supervisor directly instead of
-        # relying on restart_pan.ps1's second Start-Process hop.
-        "-Supervisor",
+    python_argv, _source = launcher.resolve_python_argv(_PROJECT_DIR, probe=False)
+    supervisor_args = [
+        *python_argv, "-m", "packages.core.main_lifecycle", "--supervise",
+        "--job-id", job["jobId"], "--root", str(_PROJECT_DIR),
+        "--registry-root", str(registry_root), "--port", str(job["port"]),
     ]
     if job.get("oldPid"):
-        powershell_args += ["-OldPid", str(job["oldPid"])]
+        supervisor_args += ["--old-pid", str(job["oldPid"])]
     if job.get("oldPidCreatedAt") is not None:
-        powershell_args += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
-    # A new process group does not change the parent PID relationship.  The
-    # old Pan service's stop_pan.bat uses taskkill /T, so launch through the
-    # short-lived `start` shell and let it exit after CreateProcess succeeds;
-    # the PowerShell supervisor is then no longer below the old Pan tree.
-    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + powershell_args
+        supervisor_args += ["--old-pid-created-at", str(job["oldPidCreatedAt"])]
+    # The short-lived cmd start shell breaks the parent relationship before
+    # the Python supervisor asks the current service to shut itself down.
+    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + supervisor_args
     launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-restart-launcher.log"
     launcher_log.parent.mkdir(parents=True, exist_ok=True)
     # Windows DETACHED_PROCESS can report a successful Popen while the
@@ -553,8 +526,6 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
     )
     # Keep the handle open only across Popen.  subprocess duplicates the
     # redirected standard handle for the detached child before this closes it.
-    # This captures PowerShell parameter/parser/startup failures that happen
-    # before restart_pan.ps1 can create its own pan-restart.log.
     with launcher_log.open("ab") as log:
         return subprocess.Popen(
             command,
@@ -568,13 +539,13 @@ def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
 
 
 def _main_exit_paths() -> dict[str, Path]:
-    scripts = _PROJECT_DIR / "scripts"
-    return {"supervisor": scripts / "exit_pan.ps1", "stop": scripts / "stop_pan.bat"}
+    return {"supervisor": _PROJECT_DIR / "packages" / "core" / "main_lifecycle.py"}
 
 
 def _main_exit_status() -> dict:
     paths = _main_exit_paths()
-    available = os.name == "nt" and all(path.is_file() for path in paths.values())
+    launcher_module = Path(launcher.__file__).resolve()
+    available = os.name == "nt" and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -622,33 +593,28 @@ def _main_exit_status() -> dict:
         result["reason"] = (
             "main service exit is available only on Windows"
             if os.name != "nt"
-            else "exit scripts are missing: " + ", ".join(missing)
+            else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
     return result
 
 
 def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
-    """Launch the stop-only exit supervisor outside the old Pan process tree."""
-    script = _main_exit_paths()["supervisor"]
+    """Launch the stop-only Python supervisor outside the old Pan process tree."""
     registry_root = _main_restart_registry_root()
     job = background_jobs.find_service_job(request_id, registry_root)
     if not job or job.get("operation") != "exit":
         raise ValueError("durable exit Job not found")
-    powershell_args = [
-        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-        "-File", str(script), "-Root", str(_PROJECT_DIR),
-        "-RequestId", request_id, "-JobId", job["jobId"],
-        "-RegistryRoot", str(registry_root), "-Port", str(job["port"]),
-        "-Supervisor",
+    python_argv, _source = launcher.resolve_python_argv(_PROJECT_DIR, probe=False)
+    supervisor_args = [
+        *python_argv, "-m", "packages.core.main_lifecycle", "--supervise",
+        "--job-id", job["jobId"], "--root", str(_PROJECT_DIR),
+        "--registry-root", str(registry_root), "--port", str(job["port"]),
     ]
     if job.get("oldPid"):
-        powershell_args += ["-OldPid", str(job["oldPid"])]
+        supervisor_args += ["--old-pid", str(job["oldPid"])]
     if job.get("oldPidCreatedAt") is not None:
-        powershell_args += ["-OldPidCreatedAt", str(job["oldPidCreatedAt"])]
-    # CREATE_NEW_PROCESS_GROUP alone does not break the old Pan parent tree;
-    # stop_pan.bat uses taskkill /T.  The short-lived start shell creates the
-    # PowerShell child and exits before the stop-only supervisor runs.
-    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + powershell_args
+        supervisor_args += ["--old-pid-created-at", str(job["oldPidCreatedAt"])]
+    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + supervisor_args
     launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-exit-launcher.log"
     launcher_log.parent.mkdir(parents=True, exist_ok=True)
     flags = (
@@ -2827,6 +2793,22 @@ async def health():
     return {"status": "ok", "version": __version__}
 
 
+@app.post("/api/internal/main/shutdown")
+async def api_internal_main_shutdown():
+    """Ask the owning Uvicorn server to perform its normal lifespan shutdown.
+
+    This loopback-only coordination point is used by ``launcher.exit`` and
+    ``launcher.restart`` after the durable supervisor has verified the target
+    PID.  It does not terminate a process and therefore cannot replace the
+    identity checks in the launcher.
+    """
+    server = getattr(app.state, "pan_uvicorn_server", None)
+    if server is None:
+        return {"ok": False, "error": "Pan Uvicorn server is not registered"}
+    server.should_exit = True
+    return {"ok": True, "status": "stopping"}
+
+
 @app.get("/api/diagnostics/persistence")
 async def api_persistence_diagnostics(session_id: str | None = None,
                                       limit: int = 32):
@@ -2850,8 +2832,8 @@ async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
 
     Returning before the supervisor stops this process is essential: waiting
     for stop/start inside this request would turn the expected disconnect into
-    an HTTP failure in the browser.  ``restart_pan.ps1`` owns the subsequent
-    stop/start chain and uses this checkout's scripts only.
+    an HTTP failure in the browser. The detached Python lifecycle supervisor
+    owns the subsequent launcher stop/start chain.
     """
     global _main_restart_pending, _main_restart_request_id
 
@@ -5982,15 +5964,18 @@ async def api_put_settings_worker(data: dict):
     return worker.reload_worker_config()
 
 
-# ── Remote tunnel (cloudflared, scripts/start_cf.ps1) ──
+# ── Remote tunnel (cloudflared, owned by packages.core.launcher) ──
 #
-# Pan's own tunnel cloudflared is started by scripts/start_cf.ps1 with a
-# generated temp yml (%TEMP%/pan_cf_config_<port>.yml). PidFiles written at
-# start are deleted by start_pan.bat, so running processes are identified by
-# command line instead — the temp-yml marker is unique to Pan's tunnel and
-# never matches service installs (e.g. cloudflared-ssh).
+# The launcher writes a checkout-scoped state record containing the PID,
+# creation time, port-specific marker, argv and process type.  The web API
+# never scans or kills an unrecorded cloudflared process.
 
 _PAN_TUNNEL_MARKER = "pan_cf_config_"
+
+
+def _owned_tunnel() -> dict[str, Any] | None:
+    """Read only the launcher-recorded cloudflared process for this checkout."""
+    return launcher.owned_cloudflared(_PROJECT_DIR)
 
 
 def _matches_pan_tunnel(name: str, cmdline: str) -> bool:
@@ -5999,7 +5984,8 @@ def _matches_pan_tunnel(name: str, cmdline: str) -> bool:
     True only when the process is a cloudflared binary AND its command line
     references the temp tunnel config marker (pan_cf_config_<port>.yml).
     Service processes (cloudflared-ssh etc.) never reference that file and
-    are never matched — mirrors scripts/stop_pan.bat's precise 5c fallback.
+    are never matched; the actual lifecycle operation is delegated to the
+    launcher-owned state record below.
     """
     if not cmdline:
         return False
@@ -6010,65 +5996,21 @@ def _matches_pan_tunnel(name: str, cmdline: str) -> bool:
 
 
 def _find_pan_tunnel_processes() -> list[dict]:
-    """Return [{pid, name, cmdline}] for Pan's cloudflared tunnel processes."""
-    procs: list[dict] = []
-    try:
-        import psutil
-
-        for p in psutil.process_iter(["pid", "name", "cmdline"]):
-            try:
-                info = p.info
-                cmdline = " ".join(info.get("cmdline") or [])
-                if _matches_pan_tunnel(info.get("name") or "", cmdline):
-                    procs.append({
-                        "pid": info["pid"],
-                        "name": info.get("name") or "",
-                        "cmdline": cmdline,
-                    })
-            except Exception:
-                continue
-    except ImportError:
-        # PowerShell fallback (same matcher as scripts/stop_pan.bat 5c).
-        try:
-            out = subprocess.run(
-                [
-                    "powershell", "-NoProfile", "-Command",
-                    "Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\""
-                    " | Select-Object ProcessId,CommandLine | ConvertTo-Json",
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            data = json.loads(out.stdout or "null")
-            items = data if isinstance(data, list) else ([data] if data else [])
-            for it in items:
-                cmdline = it.get("CommandLine") or ""
-                if _matches_pan_tunnel("cloudflared.exe", cmdline):
-                    procs.append({
-                        "pid": int(it["ProcessId"]),
-                        "name": "cloudflared.exe",
-                        "cmdline": cmdline,
-                    })
-        except Exception as e:
-            _log(f"[remote] cloudflared process scan failed: {e}")
-    return procs
+    """Return only the launcher-recorded tunnel after identity validation."""
+    owned = launcher.owned_cloudflared(_PROJECT_DIR)
+    if not owned or not owned.get("identity", {}).get("ok"):
+        return []
+    record = owned["record"]
+    return [{
+        "pid": record.get("pid"), "name": "cloudflared.exe",
+        "cmdline": " ".join(record.get("argv") or []),
+        "createdAt": record.get("createdAt"),
+    }]
 
 
 def _kill_pan_tunnel_processes(procs: list[dict]) -> list[int]:
-    """Kill the given processes (tree-kill); returns pids actually killed."""
-    killed: list[int] = []
-    for pr in procs:
-        try:
-            r = subprocess.run(
-                ["taskkill", "/PID", str(pr["pid"]), "/T", "/F"],
-                capture_output=True, text=True, timeout=10,
-            )
-            if r.returncode == 0:
-                killed.append(pr["pid"])
-            else:
-                _log(f"[remote] kill pid {pr['pid']} failed: {r.stderr.strip()}")
-        except Exception as e:
-            _log(f"[remote] kill pid {pr['pid']} error: {e}")
-    return killed
+    """Deprecated compatibility hook; destructive work belongs to launcher."""
+    return []
 
 
 @app.get("/api/remote/status")
@@ -6076,8 +6018,8 @@ async def api_remote_status():
     """Remote tunnel status for the App Settings modal.
 
     ``available`` reflects the raw on-disk config (remote section present);
-    ``enabled`` comes from the merged config. ``running`` = a Pan tunnel
-    cloudflared process was found by command-line match.
+    ``enabled`` comes from the merged config. ``running`` is true only for
+    the launcher-recorded tunnel whose identity still matches.
     """
     config = load_config()
     raw = read_config_file()
@@ -6089,48 +6031,25 @@ async def api_remote_status():
         "quickTunnel": bool(remote.get("quick_tunnel")),
         "protocol": remote.get("protocol") or "",
         "port": config.get("port"),
-        "running": bool(_find_pan_tunnel_processes()),
+        "running": bool((_owned_tunnel() or {}).get("identity", {}).get("ok")),
     }
 
 
 @app.post("/api/remote/restart")
 async def api_remote_restart():
-    """Restart Pan's cloudflared tunnel via scripts/start_cf.ps1.
-
-    Only processes whose command line carries the temp-yml marker are killed
-    (never the cloudflared-ssh service). Restarting re-runs start_cf.ps1 —
-    the same entry point start_pan.bat uses — so the freshly generated temp
-    yml picks up current config.json values (port + remote.protocol).
-    """
+    """Restart only this checkout's launcher-recorded cloudflared tunnel."""
     config = load_config()
     remote = config.get("remote") or {}
     if not remote.get("enabled"):
         return {"ok": False, "error": "remote is not enabled in config.json"}
 
-    killed = _kill_pan_tunnel_processes(_find_pan_tunnel_processes())
-
-    script = _PROJECT_DIR / "scripts" / "start_cf.ps1"
-    if not script.exists():
-        return {"ok": False, "error": f"start script not found: {script}",
-                "killed": killed}
     try:
-        r = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-             "-File", str(script)],
-            capture_output=True, text=True, timeout=30,
-            cwd=str(_PROJECT_DIR),
-        )
-    except Exception as e:
-        return {"ok": False, "error": str(e), "killed": killed}
-    if r.returncode != 0:
-        err = (r.stderr or r.stdout or "").strip()[-500:]
-        return {"ok": False, "error": f"start_cf.ps1 failed: {err}",
-                "killed": killed}
-
-    # Give cloudflared a moment to appear, then confirm via process scan.
-    await asyncio.sleep(2)
-    restarted = bool(_find_pan_tunnel_processes())
-    return {"ok": True, "killed": killed, "restarted": restarted}
+        result = launcher.restart_cloudflared(_PROJECT_DIR)
+    except launcher.LauncherError as exc:
+        return {"ok": False, "error": str(exc), "killed": []}
+    await asyncio.sleep(0.2)
+    result["restarted"] = bool((_owned_tunnel() or {}).get("identity", {}).get("ok"))
+    return result
 
 
 # ── Config hot-reload ──

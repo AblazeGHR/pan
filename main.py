@@ -180,9 +180,9 @@ def _resolve_qq_python() -> str:
 def _spawn_qq_bot() -> None:
     """Start the QQ bridge (packages/qq/bot.py) if config qq.enabled.
 
-    The QQ bot is a child of this process, so stopping main.py (e.g. via
-    stop_pan.bat's process-tree kill) takes the QQ bot down with it. A pid
-    file is written so the stop script can also target it directly.
+    The QQ bot is a child of this process.  The internal launcher records its
+    PID and creation time after readiness; normal Pan shutdown reaches this
+    function through the main process' atexit/lifespan path.
     """
     global _qq_proc
     from packages.core.config import load_config
@@ -192,16 +192,26 @@ def _spawn_qq_bot() -> None:
         _log.info("[Pan] QQ module disabled (qq.enabled=false), skipping bot.py")
         return
 
-    # Avoid double-spawning if a previous QQ bot is still alive (e.g. main.py
-    # was restarted without going through stop_pan.bat).
+    # Avoid double-spawning only when the recorded PID is still an actual bot
+    # from this checkout.  A bare pid_exists check would be unsafe under PID
+    # reuse and could silently suppress the QQ bridge.
     if _QQ_PID_FILE.exists():
         try:
             old_pid = int(_QQ_PID_FILE.read_text(encoding="utf-8").strip())
         except ValueError:
             old_pid = 0
         if old_pid and _is_pid_alive(old_pid):
-            _log.warning("[Pan] QQ bot pid %s still alive, skipping spawn — stop it first", old_pid)
-            return
+            try:
+                import psutil
+                old = psutil.Process(old_pid)
+                command = " ".join(old.cmdline() or []).replace("\\", "/").lower()
+                root_marker = str(_PROJECT_ROOT).replace("\\", "/").lower().rstrip("/") + "/"
+                if "bot.py" in command and root_marker in command:
+                    _log.warning("[Pan] QQ bot pid %s still belongs to this checkout; skipping spawn", old_pid)
+                    return
+            except Exception:
+                pass
+        _QQ_PID_FILE.unlink(missing_ok=True)
 
     python = _resolve_qq_python()
     try:
@@ -265,8 +275,13 @@ if __name__ == "__main__":
 
     config = uvicorn.Config(app, host=host, port=port, log_level="info", access_log=False)
     server = uvicorn.Server(config)
+    # launcher.exit/restart requests this object through the loopback internal
+    # coordination endpoint.  Uvicorn then runs the normal lifespan teardown,
+    # which remains the sole graceful owner of Worker and QQ cleanup.
+    app.state.pan_uvicorn_server = server
     server.run()
 
     # uvicorn returns after a graceful shutdown (Ctrl+C / SIGTERM handled
     # internally); make sure the QQ bot is torn down too.
     _stop_qq_bot()
+    app.state.pan_uvicorn_server = None

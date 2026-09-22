@@ -88,7 +88,7 @@ if exist "%ROOT%\config.json" (
 )
 
 REM 把 [2/5] 探测到的 QQ 解释器固化进 config.json 的 qq.python（单一事实源），
-REM main.py / stop_pan.bat 均从该字段解析。字段已有相同值时跳过，不重复覆盖。
+REM main.py / packages.core.launcher 均从该字段解析。字段已有相同值时跳过，不重复覆盖。
 if defined QQ_PY (
     powershell -NoProfile -Command "$f='%ROOT%\config.json'; $py='%QQ_PY%'; try { $c=Get-Content -Raw -LiteralPath $f | ConvertFrom-Json } catch { $c=$null }; if ($c) { if (-not $c.qq) { $c | Add-Member -Force -MemberType NoteProperty -Name qq -Value (New-Object PSObject) }; if ($c.qq.python -ne $py) { $c.qq | Add-Member -Force -MemberType NoteProperty -Name python -Value $py; $t=$f+'.tmp'; ConvertTo-Json -InputObject $c -Depth 32 | ForEach-Object { [IO.File]::WriteAllText($t, $_) }; Move-Item -Force $t $f; Write-Host \"[OK] qq.python -> $py\" } else { Write-Host \"[INFO] qq.python 已一致，跳过\" } } else { Write-Host \"[WARN] config.json 不可读，未写入 qq.python\" }"
 ) else (

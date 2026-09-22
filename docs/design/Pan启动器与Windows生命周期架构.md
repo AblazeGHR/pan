@@ -20,10 +20,10 @@ main.py                               Pan Core / Uvicorn 服务本体
 
 具体方向：
 
-- 新增或扩展 `packages/core/launcher.py`，承载一次启动、停止和附属进程编排业务。
+- `packages/core/launcher.py` 承载一次启动、退出和附属进程编排业务。
 - 保留 `packages/core/main_lifecycle.py`，负责 restart / exit 的持久任务状态、监督和跨进程生命周期编排。
 - `main.py` 只负责 Pan Core 服务本身，不成为完整的 Windows 服务管理器。
-- `start_pan.bat` 暂时保留为兼容入口，逐步缩减为调用本目录 `.venv` 的薄封装。
+- `start_pan.bat` 保留为唯一一键启动兼容入口，只调用 Python launcher。
 - PowerShell 或 `cmd.exe /c start` 只在 Windows 需要脱离当前 Pan 进程树时使用。
 - 暂不把 Pan Core 打包成 `.exe`；exe 作为未来分发形态单独评估，不作为当前启动性能方案。
 
@@ -33,12 +33,14 @@ main.py                               Pan Core / Uvicorn 服务本体
 
 ```text
 start_pan.bat
-    ├─ 检查重复进程
-    ├─ 读取配置和端口
-    ├─ 启动 start_main.ps1
-    ├─ 等待 /api/sessions?summary=1
-    ├─ 启动 cloudflared
-    └─ 记录 PID
+    └─ 调用 packages.core.launcher start
+
+packages/core/launcher.py
+    ├─ 解析 Python、配置端口和启动窗口
+    ├─ 校验重复实例、PID/create time/root/argv/入口和 listener
+    ├─ 启动 main.py，等待 /api/sessions?summary=1
+    ├─ 记录主服务、QQ 和 cloudflared 的 checkout-scoped state
+    └─ 负责内部 exit/restart 和失败清理
 
 main.py
     ├─ 初始化日志和 CLI preflight
@@ -46,12 +48,12 @@ main.py
     └─ 启动 Uvicorn / FastAPI
 
 main_lifecycle.py
-    └─ 通过 stop_pan.bat / start_pan.bat 执行 restart
+    └─ 维护 durable Job，并直接调用 launcher 的 stop/start primitives
 ```
 
 这种结构存在以下问题：
 
-1. 启动业务分散在 BAT、PowerShell 和 Python 三处。
+1. 旧版本的启动业务分散在 BAT、PowerShell 和 Python 三处。
 2. CMD 变量展开、括号和退出码规则容易造成 Windows 特有错误。
 3. 重启由 Python 发起，但实际又绕回 BAT，职责边界不清晰。
 4. BAT 不容易做单元测试；静态断言不能完全证明真实进程树行为。
@@ -63,7 +65,7 @@ main_lifecycle.py
 
 ### 3.1 目标
 
-- Pan Core 启动、停止、重启的业务逻辑由 Python 统一管理。
+- Pan Core 启动、退出、重启的业务逻辑由 Python 统一管理。
 - 所有 Python 启动都显式使用当前 checkout 的 `.venv\\Scripts\\python.exe`。
 - readiness 以真实 HTTP 成功为准，而不是 PID、端口或控制台文本。
 - 保留 Windows 双击启动和旧快捷方式兼容性。
@@ -100,13 +102,14 @@ main_lifecycle.py
 - 解析复杂的 Windows launcher 参数；
 - 决定 BAT/PowerShell 如何脱离当前进程树。
 
-### 4.2 `packages/core/launcher.py`：一次启动/停止业务
+### 4.2 `packages/core/launcher.py`：一次启动/退出业务
 
-拟新增的 launcher 是启动业务的单一事实源。它应提供可测试的 Python 函数和 CLI 子命令，例如：
+launcher 是启动业务的单一事实源，提供可测试的 Python 函数和 CLI 子命令：
 
 ```text
 python -m packages.core.launcher start
-python -m packages.core.launcher stop
+python -m packages.core.launcher exit
+python -m packages.core.launcher restart
 python -m packages.core.launcher status
 ```
 
@@ -115,7 +118,7 @@ python -m packages.core.launcher status
 - 解析并校验项目根目录；
 - 解析 `config.json`；
 - 解析 `PAN_PORT` → `config.json.port` → `8768` 的端口优先级；
-- 固定选择 `<root>\\.venv\\Scripts\\python.exe`；
+- 按 `config.json python → PAN_PYTHON → checkout .venv → PATH → 当前解释器` 解析 Python；
 - 必要时校验 `fastapi` / `uvicorn` 等 Core 依赖；
 - 检查当前 checkout 是否已有属于自己的 Pan 进程；
 - 启动 `main.py`；
@@ -123,7 +126,7 @@ python -m packages.core.launcher status
 - 等待 `GET /api/sessions?summary=1` 返回 HTTP 200；
 - 记录阶段耗时和失败原因；
 - 按配置启动 Cloudflare Tunnel；
-- 在不重复接管 QQ 所有权的前提下协调附属组件状态；
+- 通过 main 的 graceful shutdown 协调 QQ，并按精确 state 记录管理 cloudflared；
 - 启动失败时只清理自己确认拥有的进程和临时文件。
 
 launcher 不应把业务状态只存在内存中。restart / exit 任务的持久状态仍由 `background_jobs` 和 `main_lifecycle.py` 管理。
@@ -134,17 +137,17 @@ launcher 不应把业务状态只存在内存中。restart / exit 任务的持�
 
 - 创建和推进 restart / exit durable job；
 - 保存 `requested → stopping → stopped → starting → ready` 等阶段；
-- 校验旧服务的 PID、创建时间、命令行和监听端口；
+- 校验旧服务的 PID、创建时间、命令行、入口、进程类型和监听端口；
 - 启动脱离当前 Pan 进程树的 supervisor；
 - 调用 launcher 的 Python API 或模块命令；
 - 等待并记录最终 ready / failed / timed_out 状态；
 - 防止同一 checkout、端口和操作的重复生命周期任务。
 
-它不应继续把 `start_pan.bat` 当作唯一的业务实现。迁移完成后，BAT 只作为兼容路径，Python supervisor 直接调用 launcher。
+它不把任何 BAT 当作业务实现，Python supervisor 直接调用 launcher。
 
 ### 4.4 `start_pan.bat`：兼容入口
 
-过渡阶段保留 BAT，避免旧快捷方式和用户习惯立即失效。
+保留 BAT，避免旧快捷方式和用户习惯失效。
 
 最终应缩减为类似：
 
@@ -165,16 +168,11 @@ BAT 不再负责：
 
 如果 Windows 双击场景需要隐藏窗口，隐藏行为应由一个明确的 launcher 参数或极薄的 PowerShell 跳板实现，而不是重新把业务塞回 BAT。
 
-### 4.5 `start_main.ps1` / `start_pan_probe.ps1`：Windows 辅助层
+### 4.5 旧 PowerShell 辅助层
 
-PowerShell 可以保留以下低层能力：
-
-- `Start-Process` 的窗口和标准输出重定向；
-- `Get-CimInstance` / PID 进程身份探测；
-- 单个持续运行的 HTTP readiness probe；
-- Windows 进程树安全检查。
-
-复杂的启动决策和错误处理应迁移到 Python。`start_pan_probe.ps1` 中的 `WaitReady` 可以继续作为轻量 Windows 探测器使用。
+启动、身份探测、readiness、cloudflared 和进程树处理已经迁入 Python。保留的
+`exit_pan.ps1` / `restart_pan.ps1` 仅是旧调用方的无业务逻辑兼容壳，直接转交
+`packages.core.main_lifecycle`；`stop_pan.bat` 和旧启动辅助脚本已取消。
 
 ## 5. 启动与重启流程
 
@@ -342,32 +340,31 @@ PyInstaller `onefile` 通常需要启动时解压资源，未必比现有 `.venv
 
 ## 9. 分阶段迁移方案
 
-### 阶段一：当前已完成/进行中
+### 阶段一：已完成
 
 - 删除启动前全仓库缓存清理；
 - readiness 改为单个持续 probe；
 - 依赖安装使用本目录 `.venv` 和 `minimal-requirements.txt`；
-- 保留 `start_pan.bat` 作为现有入口。
+- 保留 `start_pan.bat` 作为唯一一键启动入口。
 
-### 阶段二：建立 Python launcher
+### 阶段二：建立 Python launcher（已完成）
 
 - 新增 `packages/core/launcher.py`；
-- 把端口解析、`.venv` 解析、PID 检查、main 启动和 readiness 迁移进去；
-- 为 launcher 增加 `start` / `status` / `stop` 命令；
-- 启动阶段写入结构化耗时日志；
-- 增加临时目录和临时端口的 Python 测试。
+- 把端口解析、Python 解析、PID 检查、main 启动和 readiness 迁移进去；
+- 为 launcher 增加 `start` / `status` / `identity` / `readiness` / `exit` / `restart` 命令；
+- 写入结构化 PID state、日志，并覆盖临时目录和临时端口测试。
 
-### 阶段三：切换 main lifecycle 到 launcher
+### 阶段三：切换 main lifecycle 到 launcher（已完成）
 
 - `main_lifecycle.py` 直接调用 launcher API 或模块命令；
-- 不再把 `start_pan.bat` 当作 restart 的核心实现；
+- 不再把任何脚本当作 restart/exit 的核心实现；
 - 保留独立 supervisor 和 Windows 进程树隔离；
 - 对 restart / exit 做真实 Windows 进程树验证。
 
-### 阶段四：缩减兼容脚本
+### 阶段四：缩减兼容脚本（已完成）
 
 - 将 `start_pan.bat` 缩减为薄入口；
-- 保留必要的 PowerShell 低层能力；
+- 仅保留 restart/exit 的无业务逻辑 PowerShell 兼容壳；
 - 更新 README、快捷方式和启动诊断文档；
 - 记录旧入口仍可用的兼容期限。
 

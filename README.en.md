@@ -337,8 +337,8 @@ python main.py
 
 | Platform | Install dependencies | Start | Stop |
 |----------|----------------------|-------|------|
-| Windows | Steps 1-3 above (or `scripts\setup.bat`) | `scripts\start_pan.bat`, or foreground `python main.py` | `scripts\stop_pan.bat`, or Ctrl+C |
-| macOS / Linux | `bash scripts/setup.sh` (first time) | `bash scripts/start.sh` (background; PID in `data/process.pid`, log `data/pan.out.log`) | `bash scripts/stop.sh` (kills only the recorded PID + process group, never other python processes) |
+| Windows | Steps 1-3 above (or `scripts\setup.bat`) | `scripts\start_pan.bat`, or foreground `python main.py` | Pan UI Exit, `python -m packages.core.launcher exit`, or Ctrl+C |
+| macOS / Linux | `bash scripts/setup.sh` (first time) | `bash scripts/start.sh` (delegates to the Python launcher; PID/state stay under `data/`) | `bash scripts/stop.sh` (delegates to Python launcher exit; no process scan or broad kill) |
 
 macOS / Linux one-liner path:
 
@@ -424,7 +424,7 @@ For QQ, start NapCat (3001) or LLOneBot (3002) first and set `qq.channel`; `qq.m
 
 ### Stopping and Common Limits
 
-Use Ctrl+C for a graceful exit, or `scripts/stop_pan.bat` / `scripts/stop.sh`. macOS/Linux paths are case-sensitive; a background service may have a different PATH, so restart Pan after changing a CLI or PATH. The API has no authentication by default, and Remote/Cloudflare Tunnel exposes the main port publicly; assess the risk before enabling it. A Worker reclaimed by the watchdog can be started again while Session history remains; deleting a Session does not delete its workdir. See [Chapters 12 and 13 of the User Manual](docs/USER_MANUAL.en.md#13-security-and-cleanup) for troubleshooting and security notes.
+Use Ctrl+C for a graceful exit; for a background instance use Pan UI Exit or `python -m packages.core.launcher exit`. macOS/Linux paths are case-sensitive; a background service may have a different PATH, so restart Pan after changing a CLI or PATH. The API has no authentication by default, and Remote/Cloudflare Tunnel exposes the main port publicly; assess the risk before enabling it. A Worker reclaimed by the watchdog can be started again while Session history remains; deleting a Session does not delete its workdir. See [Chapters 12 and 13 of the User Manual](docs/USER_MANUAL.en.md#13-security-and-cleanup) for troubleshooting and security notes.
 
 ### Frontend: React only
 
@@ -826,7 +826,7 @@ QQ access is abstracted as a switchable **Channel**: the `QQChannel` interface (
 
 ```bash
 python -m packages.remote
-# or scripts/start_cf.ps1
+# When Pan is started by start_pan.bat, the internal launcher owns this tunnel.
 ```
 
 - `quick_tunnel: true` → prints a temporary `*.trycloudflare.com` URL; `false` → requires a named-tunnel yml at `remote.config_path`
@@ -848,7 +848,7 @@ Before using Pan, be aware of these defaults and evaluate your own trust boundar
 - **Worker timeout semantics**: a stream-running task is judged hung by its **task runtime** (`worker.task_timeout_sec`, default 1800s); queued tasks use a quiet timeout (`worker.timeout_sec`, default 300s) — long thinking / large file reads are not falsely killed.
 - **Worker dual mode**: `stream` (long-running; can mount MCP); `one-shot` (single task; only when `output_mode=oneshot`). Dispatching goes through `agent_assign` / `agent_send` (`worker_assign` / `worker_send` are compatibility aliases; the blocking `worker_handoff` was removed on 2026-08-26; serial dependencies use assign + report_subscribe too).
 - **Memory dependencies & degradation**: `minimal-requirements.txt` excludes the ML chain. Enabling vector search requires `sentence-transformers` (default embedding provider for the web frontend). When optional libraries are missing, lazy loading + ImportError fallback degrade gracefully without affecting Core startup; missing `jieba` notably degrades Chinese retrieval quality.
-- **QQ bot process management**: main.py spawns / terminates the QQ bot based on `qq.enabled` (PID in `data/qq_bot.pid`); `scripts/stop_pan.bat` kills the exact process tree, not all python.exe.
+- **QQ bot process management**: main.py spawns / terminates the QQ bot based on `qq.enabled` (PID in `data/qq_bot.pid`); the launcher validates PID, creation time, checkout and `bot.py` markers rather than scanning all python.exe processes.
 - **No separate .venv in worktrees**: when testing / running inside a git worktree, use the main repo's `.venv`.
 - **Python version**: the repo declares no version file (no pyproject.toml / .python-version); the actual runtime is Python 3.14.5.
 

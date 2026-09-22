@@ -1053,7 +1053,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   </p>
                 )}
                 <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Restarts this Pan instance through scripts/stop_pan.bat and scripts/start_pan.bat.
+                  Restarts this Pan instance through the internal Python launcher supervisor.
                   Worker and Remote/Tunnel restart controls are separate.
                 </p>
               </section>
@@ -1134,12 +1134,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </p>
               </section>
 
-              {/* Remote / Tunnel — cloudflared tunnel managed by
-              scripts/start_cf.ps1. Only rendered when config.json has a
+              {/* Remote / Tunnel — cloudflared tunnel managed by the internal
+              Python launcher. Only rendered when config.json has a
               remote section with enabled=true (the tunnel itself is optional;
               without it the section would be dead UI). Restart kills only
-              Pan's own tunnel process (temp-yml command-line match) and
-              re-runs start_cf.ps1, picking up port + remote.protocol. */}
+              Pan's own launcher-recorded tunnel process and picks up port +
+              remote.protocol. */}
               {remoteStatus?.available && remoteStatus.enabled && (
                 <section>
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
@@ -1174,8 +1174,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     </button>
                   </div>
                   <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                    Kills Pan's own cloudflared (temp-yml match only — the cloudflared-ssh service
-                    is untouched) and re-runs scripts/start_cf.ps1 with the current config.json.
+                    Stops Pan's own launcher-recorded cloudflared only — the cloudflared-ssh service
+                    is untouched — and restarts it with the current config.json.
                   </p>
                 </section>
               )}

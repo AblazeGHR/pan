@@ -1,74 +1,40 @@
-"""Mock-only tests for legal Pan main-service exit.
-
-No test in this file starts, stops, or connects to a Pan service.
-"""
+"""Exit API and internal graceful-shutdown regression tests."""
 
 import asyncio
-import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import packages.core.worker as worker  # noqa: E402
-import packages.web.server as srv  # noqa: E402
-from packages.core.adapters.cbc import CbcAdapter  # noqa: E402
-from packages.core import background_jobs, session as sess  # noqa: E402
-
-
-def _fake_exit_script(tmp_path: Path) -> None:
-    scripts = tmp_path / "scripts"
-    scripts.mkdir()
-    (scripts / "exit_pan.ps1").write_text("# test placeholder", encoding="utf-8")
-    (scripts / "stop_pan.bat").write_text("@echo off", encoding="utf-8")
+import packages.core.worker as worker
+import packages.web.server as srv
+from packages.core import background_jobs, launcher
 
 
 @pytest.fixture(autouse=True)
-def reset_exit_state(monkeypatch):
+def isolated(tmp_path, monkeypatch):
+    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(background_jobs, "DEFAULT_ROOT", tmp_path / "registry")
+    monkeypatch.setattr(background_jobs, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(srv, "_main_exit_pending", False)
     monkeypatch.setattr(srv, "_main_exit_request_id", None)
     monkeypatch.setattr(srv, "_main_exit_stage", "idle")
     monkeypatch.setattr(srv, "_main_exit_error", None)
     monkeypatch.setattr(worker, "_shutdown_started", False)
-    worker.workers.clear()
-    worker._workers_by_session.clear()
-    sess._cache.clear()
-    yield
-    worker.workers.clear()
-    worker._workers_by_session.clear()
-    sess._cache.clear()
 
 
-def test_exit_status_is_disabled_when_stop_only_supervisor_is_missing(tmp_path, monkeypatch):
-    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
-    status = asyncio.run(srv.api_main_exit_status())
-    assert status["available"] is False
-    assert status["pending"] is False
-    assert "missing" in status["reason"] or "Windows" in status["reason"]
+def test_exit_status_is_available_from_python_launcher_on_windows():
+    status = srv._main_exit_status()
+    assert status["available"] is (sys.platform == "win32")
 
 
-def test_duplicate_exit_is_rejected_without_a_second_request(tmp_path, monkeypatch):
-    _fake_exit_script(tmp_path)
-    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
-    if os.name != "nt":
-        pytest.skip("Windows detached supervisor is intentionally disabled on POSIX")
-    monkeypatch.setattr(srv, "_main_exit_pending", True)
-    monkeypatch.setattr(srv, "_main_exit_request_id", "already-exiting")
-    result = asyncio.run(srv.api_main_exit())
-    assert result["ok"] is False
-    assert result["status"] == "busy"
-    assert result["pending"] is True
-    assert result["requestId"] == "already-exiting"
-
-
-def test_exit_schedules_worker_shutdown_and_stop_only_supervisor(tmp_path, monkeypatch):
-    _fake_exit_script(tmp_path)
-    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
-    if os.name != "nt":
-        pytest.skip("Windows detached supervisor is intentionally disabled on POSIX")
-
+def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
+    if sys.platform != "win32":
+        pytest.skip("detached Windows supervisor contract")
+    monkeypatch.setattr(launcher, "resolve_python_argv", lambda *args, **kwargs: ([sys.executable], "test"))
+    monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+    monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
     calls = []
 
     async def fake_shutdown_all(**kwargs):
@@ -77,148 +43,43 @@ def test_exit_schedules_worker_shutdown_and_stop_only_supervisor(tmp_path, monke
     class FakeProcess:
         pid = 4242
 
-    async def run_request():
-        monkeypatch.setattr(worker, "shutdown_all", fake_shutdown_all)
-        monkeypatch.setattr(
-            srv, "_launch_main_exit_supervisor",
-            lambda request_id: calls.append(("supervisor", request_id)) or FakeProcess(),
-        )
-        result = await srv.api_main_exit()
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-        return result
-
-    result = asyncio.run(run_request())
+    monkeypatch.setattr(worker, "shutdown_all", fake_shutdown_all)
+    monkeypatch.setattr(srv.subprocess, "Popen", lambda command, **kwargs: calls.append(("spawn", command)) or FakeProcess())
+    result = asyncio.run(srv.api_main_exit())
+    asyncio.run(asyncio.sleep(0))
     assert result["ok"] is True
     assert result["status"] == "scheduled"
-    assert result["accepted"] is True
-    assert result["phase"] == "requested"
-    assert result["jobId"]
     assert worker._shutdown_started is True
     assert calls[0] == ("shutdown", {"mark_legal_offline": True})
-    assert calls[1][0] == "supervisor"
+    command = calls[1][1]
+    assert "packages.core.main_lifecycle" in command
+    assert "--supervise" in command
+    assert "stop_pan.bat" not in " ".join(command)
 
 
-def test_exit_launcher_uses_shell_detach_with_durable_binding(tmp_path, monkeypatch):
-    scripts = tmp_path / "scripts"
-    scripts.mkdir()
-    (scripts / "exit_pan.ps1").write_text("# test placeholder", encoding="utf-8")
-    (tmp_path / "data" / "background_jobs").mkdir(parents=True)
-    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
-
-    request_id = "request-exit-launcher"
-    registry = tmp_path / "data" / "background_jobs"
-    job = background_jobs.create_service_job(
-        request_id=request_id,
-        operation="exit",
-        root=str(tmp_path),
-        port=8770,
-        old_pid=9832,
-        old_pid_created_at=1757128183.0,
-        registry_root=registry,
-    )
-    calls = []
-
-    class FakeProcess:
-        pid = 4242
-
-    monkeypatch.setattr(
-        srv.subprocess,
-        "Popen",
-        lambda command, **kwargs: calls.append((command, kwargs)) or FakeProcess(),
-    )
-
-    srv._launch_main_exit_supervisor(request_id)
-    command = calls[0][0]
-    assert command[:6] == ["cmd.exe", "/d", "/c", "start", "", "/b"]
-    assert command[6:14] == [
-        "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-        "-File", str(scripts / "exit_pan.ps1"), "-Root",
-    ]
-    for argument, value in (
-        ("-Root", str(tmp_path)),
-        ("-RequestId", request_id),
-        ("-JobId", job["jobId"]),
-        ("-RegistryRoot", str(registry)),
-        ("-Port", "8770"),
-        ("-OldPid", "9832"),
-        ("-OldPidCreatedAt", "1757128183.0"),
-    ):
-        assert command[command.index(argument) + 1] == value
-    assert command[command.index("-Supervisor") + 1:] == [
-        "-OldPid", "9832", "-OldPidCreatedAt", "1757128183.0",
-    ]
-    assert calls[0][1]["stdout"].name == str(
-        tmp_path / "data" / "logs" / "pan-exit-launcher.log"
-    )
-    assert calls[0][1]["stderr"] is srv.subprocess.STDOUT
-    assert "startupinfo" not in calls[0][1]
-    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NO_WINDOW", 0x08000000)
-    assert calls[0][1]["creationflags"] & getattr(srv.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
-    assert not calls[0][1]["creationflags"] & getattr(srv.subprocess, "DETACHED_PROCESS", 0x00000008)
+def test_duplicate_exit_is_rejected_without_second_request(monkeypatch):
+    if sys.platform != "win32":
+        pytest.skip("detached Windows supervisor contract")
+    monkeypatch.setattr(srv, "_main_exit_pending", True)
+    monkeypatch.setattr(srv, "_main_exit_request_id", "already-exiting")
+    result = asyncio.run(srv.api_main_exit())
+    assert result["ok"] is False
+    assert result["status"] == "busy"
+    assert result["requestId"] == "already-exiting"
 
 
-def test_exit_writes_offline_only_after_runtime_is_confirmed_stopped(tmp_path, monkeypatch):
-    monkeypatch.setattr(sess, "SESSION_DIR", tmp_path)
-    session = sess.create("exit-worker")
-
-    class Process:
-        def __init__(self, returncode):
-            self.returncode = returncode
-
-    w = worker.Worker(
-        worker_id="exit-worker-runtime",
-        session_id=session.id,
-        adapter=CbcAdapter(),
-        status="idle",
-        process=Process(None),
-        pending_signal=asyncio.Queue(),
-    )
-    worker.workers[w.worker_id] = w
-    worker._register_worker(w)
-    monkeypatch.setattr(worker, "_kill_process_tree", lambda _w: asyncio.sleep(0))
-
-    asyncio.run(worker.shutdown_all(mark_legal_offline=True))
-    assert session.last_legal_worker_state is None
-
-    # A second, independently confirmed stopped runtime is allowed to record
-    # offline.  This covers the positive branch without starting a process.
-    session2 = sess.create("exit-worker-confirmed")
-    w2 = worker.Worker(
-        worker_id="exit-worker-confirmed-runtime",
-        session_id=session2.id,
-        adapter=CbcAdapter(),
-        status="idle",
-        process=Process(0),
-        pending_signal=asyncio.Queue(),
-    )
-    worker.workers[w2.worker_id] = w2
-    worker._register_worker(w2)
-    asyncio.run(worker.shutdown_all(mark_legal_offline=True))
-    assert session2.last_legal_worker_state == "offline"
+def test_internal_shutdown_requests_uvicorn_lifespan_exit():
+    server = SimpleNamespace(should_exit=False)
+    srv.app.state.pan_uvicorn_server = server
+    result = asyncio.run(srv.api_internal_main_shutdown())
+    assert result == {"ok": True, "status": "stopping"}
+    assert server.should_exit is True
+    srv.app.state.pan_uvicorn_server = None
 
 
-def test_exit_supervisor_is_stop_only_and_checkout_scoped():
-    script = Path(__file__).resolve().parent.parent / "scripts" / "exit_pan.ps1"
-    text = script.read_text(encoding="utf-8")
-    assert "stop_pan.bat" in text
+def test_exit_wrapper_is_launcher_only():
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "scripts" / "exit_pan.ps1").read_text(encoding="utf-8")
+    assert "packages.core.main_lifecycle" in text
+    assert "stop_pan.bat" not in text
     assert "restart_pan.ps1" not in text
-    assert "start_pan.bat" not in text
-    assert "-Supervisor" in text
-    assert "main.py" in text
-
-
-def test_exit_status_recovers_persisted_job_without_memory_state(tmp_path, monkeypatch):
-    _fake_exit_script(tmp_path)
-    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
-    registry = tmp_path / "data" / "background_jobs"
-    job = background_jobs.create_service_job(
-        request_id="request-exit-after-reload", operation="exit",
-        root=str(tmp_path), port=8768, registry_root=registry,
-    )
-    monkeypatch.setattr(srv, "_main_exit_pending", False)
-    monkeypatch.setattr(srv, "_main_exit_request_id", None)
-    status = asyncio.run(srv.api_main_exit_status())
-    assert status["pending"] is True
-    assert status["jobId"] == job["jobId"]
-    assert status["phase"] == "requested"

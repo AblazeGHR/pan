@@ -2,12 +2,14 @@
 
 import asyncio
 import json
+import inspect
 import sys
 from pathlib import Path
 
 import pytest
 
 from packages.core import config
+from packages.core import launcher
 from packages.core.adapters.mcp import build_mcp_servers
 from packages.core.adapters.mcp import write_mcp_json
 from packages.core.adapters.kimi.adapter import KimiAdapter
@@ -189,10 +191,14 @@ def test_config_reload_reports_non_sensitive_python_choice(isolated_config, tmp_
     assert "should-not-win" not in json.dumps(result)
 
 
-def test_startup_script_documents_the_same_priority_chain():
+def test_startup_script_is_a_thin_launcher_wrapper():
     root = Path(__file__).resolve().parents[1]
-    script = (root / "scripts" / "resolve_pan_python.ps1").read_text(encoding="utf-8")
-    assert "config.json python" in script
-    assert "PAN_PYTHON" in script
-    assert "checkout .venv" in script
-    assert script.index("config.json python") < script.index("PAN_PYTHON") < script.index("checkout .venv")
+    script = (root / "scripts" / "start_pan.bat").read_text(encoding="utf-8")
+    assert "packages.core.launcher" in script
+    assert "start_main.ps1" not in script
+    assert "resolve_pan_python.ps1" not in script
+    assert not (root / "scripts" / "resolve_pan_python.ps1").exists()
+
+    resolver = inspect.getsource(launcher.resolve_python_argv)
+    assert resolver.index("config.json python") < resolver.index("PAN_PYTHON")
+    assert resolver.index("PAN_PYTHON") < resolver.index("checkout .venv")

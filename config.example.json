@@ -144,10 +144,10 @@
     "_字段说明": {
       "enabled": "是否启用远程通道（默认 false）。false 或缺失时 start_pan.bat 跳过远程通道，Pan Core 照常启动",
       "provider": "远程通道供应商，目前仅支持 cloudflare",
-      "quick_tunnel": "start_pan.bat 按此字段分支（缺省视为 true，与 main.py 一致）。true = Quick Tunnel：运行 cloudflared tunnel --url http://127.0.0.1:<port>，无需 config.yml，Cloudflare 分配临时随机的 trycloudflare.com URL（每次启动/重启都会变化，仅适合开发测试，不宜作为长期稳定入口）；URL 会尝试打印在启动输出中，并写入 data/logs/pan_cf_quick_<port>.log。false = named tunnel：走 scripts/start_cf.ps1 既有路径（支持 PAN_CF_CONFIG 环境变量与 USERPROFILE 默认 yml 兜底、protocol 注入）",
+      "quick_tunnel": "launcher 按此字段分支（缺省视为 true，与 main.py 一致）。true = Quick Tunnel：运行 cloudflared tunnel --url http://127.0.0.1:<port>，无需 config.yml，Cloudflare 分配临时随机的 trycloudflare.com URL（每次启动/重启都会变化，仅适合开发测试，不宜作为长期稳定入口）；URL 会写入 data/logs/pan_cf_quick_<port>.log。false = named tunnel：launcher 生成 checkout 内临时 yml（支持 PAN_CF_CONFIG 与 USERPROFILE 默认 yml 兜底、protocol 注入）",
       "config_path": "named tunnel 的 cloudflared config.yml 路径；仅 quick_tunnel=false 时必填（quick_tunnel=true 时忽略）。缺失或无效时隧道启动失败，start_pan.bat 仅提示 warning，Pan Core 不受影响",
       "binary_path": "cloudflared 可执行文件路径，留空则从 PATH 查找",
-      "protocol": "named tunnel 的传输协议 auto/quic/http2（默认 http2）；仅 quick_tunnel=false 时由 start_cf.ps1 注入临时 yml",
+      "protocol": "named tunnel 的传输协议 auto/quic/http2（默认 http2）；仅 quick_tunnel=false 时由 launcher 注入临时 yml",
       "status_port": "Remote 状态 HTTP 服务端口（默认 8769）"
     },
     "enabled": false,
