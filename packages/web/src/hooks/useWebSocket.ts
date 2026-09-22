@@ -133,29 +133,37 @@ export function useWebSocket() {
       streamPreviewLastFlush.delete(sessionId);
     };
 
+    let lastInteractiveSyncGeneration: number | null = null;
     const syncInteractiveRequests = (): void => {
       // The backend keeps a worker-local snapshot of native prompts while the
       // JSON-RPC request is still open. Ask for it after every connection so a
       // browser refresh/reconnect does not strand the user at a hidden prompt.
-      wsClient.sendInteractiveSync();
+      const generation = wsClient.getConnectionGeneration();
+      if (generation > 0 && generation === lastInteractiveSyncGeneration) return;
+      if (wsClient.sendInteractiveSync() && generation > 0) {
+        lastInteractiveSyncGeneration = generation;
+      }
     };
 
-    const syncAuthoritativeSnapshot = (): void => {
+    const syncAuthoritativeSnapshot = (recovery = false): void => {
       const sessionId = useSessionStore.getState().currentSessionId;
       const cursor = typeof wsClient.getEventCursor === 'function'
         ? wsClient.getEventCursor()
         : { eventEpoch: null, eventSeq: 0 };
-      wsClient.send({
+      wsClient.sendAuthoritativeResync({
         type: 'resync',
         ...(sessionId ? { sessionIds: [sessionId] } : {}),
         includeAllSessions: true,
         includeIdentity: true,
         ...(cursor.eventEpoch ? { eventEpoch: cursor.eventEpoch } : {}),
         eventSeq: cursor.eventSeq,
-      });
+      }, recovery ? 'recovery' : 'initial');
     };
 
     const refreshAuthoritativeState = (): void => {
+      // HTTP convergence is deliberately separate from the native-interaction
+      // handshake.  resync_required may need a new snapshot on this socket,
+      // but must not turn every refresh/snapshot callback into another replay.
       const sessionId = useSessionStore.getState().currentSessionId;
       void useSessionStore.getState().loadSessions();
       void useWorkerStore.getState().refresh();
@@ -163,7 +171,6 @@ export function useWebSocket() {
         void useSessionStore.getState().refreshCurrentSessionHistory();
         void useQueueStore.getState().loadAgentQueue(sessionId);
       }
-      syncInteractiveRequests();
     };
 
     // Open handler — refresh sessions and restore live native prompts on connect
@@ -199,7 +206,7 @@ export function useWebSocket() {
       // detected a live event cursor gap), request a fresh boundary on the
       // same connection.  A close-triggered resync simply returns false and
       // the normal open/reconnect path repeats this handshake.
-      syncAuthoritativeSnapshot();
+      syncAuthoritativeSnapshot(true);
     }));
     unsubscribers.push(wsClient.on('server_epoch_changed', (e: StreamEvent) => {
       useSessionStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
@@ -220,6 +227,7 @@ export function useWebSocket() {
       ];
       useSessionStore.getState().beginUnscopedReplay(knownSessionIds);
       refreshAuthoritativeState();
+      syncInteractiveRequests();
     }));
 
     // Browser lifecycle events (visibilitychange / pageshow / focus) are only
@@ -1057,8 +1065,9 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
     serverEpoch: meta.serverEpoch || meta.eventEpoch,
     workerId: meta.workerId,
     generation: meta.generation,
-    taskSeq: meta.taskSeq,
-    taskId: typeof meta.taskId === 'string' ? meta.taskId : undefined,
+    taskSeq: typeof meta.taskSeq === 'number' ? meta.taskSeq : undefined,
+    taskId: typeof meta.taskId === 'string' && meta.taskId ? meta.taskId : undefined,
+    replayed: meta.replayed === true,
     turnId: event.turn_id,
     itemId: event.item_id !== undefined ? String(event.item_id) : undefined,
     streamText: event.delta && typeof event.stream_text === 'string'

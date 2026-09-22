@@ -16,6 +16,10 @@ const wsMock = vi.hoisted(() => {
     connect: vi.fn(),
     send: vi.fn(() => true),
     sendInteractiveSync: vi.fn(() => true),
+    sendAuthoritativeResync: vi.fn(
+      (_payload: Record<string, unknown>, _mode?: 'initial' | 'recovery') => true,
+    ),
+    getConnectionGeneration: vi.fn(() => 1),
     reconnect: vi.fn(),
     isConnectionFresh: vi.fn(() => true),
     on: vi.fn((type: string, h: (e: unknown) => void) => {
@@ -30,6 +34,8 @@ vi.mock('@/services/ws', () => ({
   wsClient: {
     connect: wsMock.connect, reconnect: wsMock.reconnect, on: wsMock.on,
     send: wsMock.send, sendInteractiveSync: wsMock.sendInteractiveSync,
+    sendAuthoritativeResync: wsMock.sendAuthoritativeResync,
+    getConnectionGeneration: wsMock.getConnectionGeneration,
     isOpen: true, isConnectionFresh: wsMock.isConnectionFresh,
   },
 }));
@@ -72,7 +78,7 @@ function resetStore() {
     hasMoreMessages: false, historyLoading: false, initialLoading: false, sessionsLoading: false,
     historyLoadEnd: 0, historyWindowStarts: { A: 0 }, _loadSeq: 0, _sessionWsTouchedSeq: {},
     _sessionLocalTouchedSeq: {}, _historyRefreshSeq: {}, _historyPageSeq: {}, _selectionSeq: {},
-    liveStreamBuffers: {}, terminalWatermarks: {}, sessionUnread: {}, _pendingQueueIds: {},
+    liveStreamBuffers: {}, terminalWatermarks: {}, sessionUnread: {}, unscopedReplayPending: {},
     _deliveredQueueIds: {}, _sessionEventPatches: {}, sessionSettingMutations: {},
     sessionTranscripts: {},
   });
@@ -128,6 +134,7 @@ describe('reaudit · ordered event pipeline', () => {
     renderHook(() => useWebSocket());
     const replay = (sessionId: string) => ({
       type: 'worker.stream', sessionId, workerId: 'w1', generation: 4,
+      replayed: true,
       event: {
         type: 'assistant', item_id: `replay-${sessionId}`,
         message: { content: [{ type: 'text', text: `replayed-${sessionId}` }] },
@@ -163,6 +170,28 @@ describe('reaudit · ordered event pipeline', () => {
     expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['live-A']);
     expect(useSessionStore.getState().liveStreamBuffers.B?.messages.map((m) => m.content))
       .toEqual(['live-B']);
+  });
+
+  it('does not permanently quarantine an unscoped live frame without replay marker', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('resync.snapshot', {
+        type: 'resync.snapshot', serverEpoch: 'server-5', eventSeq: 81513,
+        sessions: [mk('A')], workers: [{ sessionId: 'A' }],
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 4,
+        event: {
+          type: 'assistant', delta: true, replace: true,
+          item_id: 'live-unscoped', stream_text: 'live-unscoped',
+          message: { content: [{ type: 'text', text: 'live-unscoped' }] },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content))
+      .toEqual(['live-unscoped']);
   });
 
   it('E1b · Codex delta and final tool envelope with one item renders once', () => {

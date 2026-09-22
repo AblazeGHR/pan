@@ -138,6 +138,22 @@ describe('stage 3 WebSocket delivery/source cursors', () => {
     expect(secondRequest.replayRequestId).not.toBe(firstRequest.replayRequestId);
   });
 
+  it('single-flights initial resync per generation but allows an explicit gap recovery', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+
+    wsClient.connect();
+    const socket = FakeWebSocket.latest!;
+    socket.onopen?.();
+    expect(wsClient.sendAuthoritativeResync({ type: 'resync' })).toBe(true);
+    expect(wsClient.sendAuthoritativeResync({ type: 'resync' })).toBe(true);
+    expect(wsClient.sendAuthoritativeResync({ type: 'resync' }, 'recovery')).toBe(true);
+
+    const resyncs = socket.sent
+      .map((raw) => JSON.parse(raw) as Record<string, unknown>)
+      .filter((message) => message.type === 'resync');
+    expect(resyncs).toHaveLength(2);
+  });
+
   it('emits one recovery signal for a delivery gap and announces a new server epoch', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     const gaps: unknown[] = [];

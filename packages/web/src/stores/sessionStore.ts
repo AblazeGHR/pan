@@ -298,6 +298,7 @@ export interface LiveStreamBuffer {
   generation?: number;
   taskSeq?: number;
   taskId?: string;
+  replayed?: boolean;
   turnId?: string;
   itemId?: string;
   streamText?: string;
@@ -360,6 +361,8 @@ export interface LiveStreamMeta {
   generation?: number;
   taskSeq?: number;
   taskId?: string;
+  /** True only for the server's reconnect replay cache, not live traffic. */
+  replayed?: boolean;
   turnId?: string;
   itemId?: string;
   streamText?: string;
@@ -1636,9 +1639,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   beginUnscopedReplay: (sessionIds) => {
     set(() => ({
-      // Keep the marker even when the snapshot has no session list: an
-      // unscoped frame for a newly learned running Session is still a replay
-      // echo until that Session exposes taskSeq/taskId.
+      // Keep the marker even when the snapshot has no session list.  The gate
+      // below additionally requires replayed:true, so a legitimate unscoped
+      // live frame is not permanently swallowed while the marker is pending.
       unscopedReplayPending: Object.fromEntries(
         [['*', true], ...[...new Set(sessionIds)].map((sessionId) => [sessionId, true])],
       ),
@@ -1750,7 +1753,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   canApplyLiveStream: (sessionId, meta) => {
     const state = get();
-    if (meta.taskSeq === undefined && !meta.taskId
+    if (meta.replayed === true && meta.taskSeq === undefined && !meta.taskId
         && (state.unscopedReplayPending[sessionId]
           || (state.unscopedReplayPending['*']
             && state.unscopedReplayPending[sessionId] !== false))) return false;
@@ -1764,7 +1767,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!messages.length) return false;
     let accepted = false;
     set((s) => {
-      if (meta.taskSeq === undefined && !meta.taskId
+      if (meta.replayed === true && meta.taskSeq === undefined && !meta.taskId
           && (s.unscopedReplayPending[sessionId]
             || (s.unscopedReplayPending['*']
               && s.unscopedReplayPending[sessionId] !== false))) return s;

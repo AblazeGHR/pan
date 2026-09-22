@@ -27,6 +27,10 @@ const wsMock = vi.hoisted(() => {
     connect: vi.fn(),
     send,
     sendInteractiveSync,
+    sendAuthoritativeResync: vi.fn(
+      (payload: Record<string, unknown>, _mode?: 'initial' | 'recovery') => send(payload),
+    ),
+    getConnectionGeneration: vi.fn(() => 1),
     resetInteractiveSync: () => { syncSent = false; },
     reconnect: vi.fn(),
     isConnectionFresh: vi.fn(() => true),
@@ -47,9 +51,11 @@ vi.mock('@/services/ws', () => ({
     connect: wsMock.connect,
     reconnect: wsMock.reconnect,
     on: wsMock.on,
-    send: wsMock.send,
-    sendInteractiveSync: wsMock.sendInteractiveSync,
-    isOpen: true,
+      send: wsMock.send,
+      sendInteractiveSync: wsMock.sendInteractiveSync,
+      sendAuthoritativeResync: wsMock.sendAuthoritativeResync,
+      getConnectionGeneration: wsMock.getConnectionGeneration,
+      isOpen: true,
     isConnectionFresh: wsMock.isConnectionFresh,
   },
 }));
@@ -94,6 +100,8 @@ describe('useWebSocket worker.result wiring', () => {
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
     wsMock.send.mockClear();
     wsMock.sendInteractiveSync.mockClear();
+    wsMock.sendAuthoritativeResync.mockClear();
+    wsMock.getConnectionGeneration.mockReturnValue(1);
     wsMock.resetInteractiveSync();
     wsMock.connect.mockClear();
     wsMock.reconnect.mockClear();
@@ -120,6 +128,7 @@ describe('useWebSocket worker.result wiring', () => {
       liveStreamBuffers: {},
       terminalWatermarks: {},
       sessionUnread: {},
+      unscopedReplayPending: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
     useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
@@ -304,7 +313,7 @@ describe('useWebSocket worker.result wiring', () => {
   });
 
   it('sends sync_interactive at most once for one socket generation during open/mount race', () => {
-    const firstMount = renderHook(() => useWebSocket());
+    renderHook(() => useWebSocket());
 
     // The mock models the real singleton being OPEN before mount, followed by
     // its already-registered open callback running in the same turn.
@@ -312,13 +321,43 @@ describe('useWebSocket worker.result wiring', () => {
       wsMock.trigger('open', { type: 'open' });
     });
 
-    firstMount.unmount();
-    renderHook(() => useWebSocket()); // same physical socket generation
+    expect(wsMock.sendInteractiveSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps two hook mounts on one socket generation to one interactive replay frame', () => {
+    renderHook(() => useWebSocket());
+    renderHook(() => useWebSocket());
 
     const syncCalls = wsMock.send.mock.calls.filter(
       ([payload]) => (payload as { type?: string }).type === 'sync_interactive',
     );
     expect(syncCalls).toHaveLength(1);
+  });
+
+  it('does not resync native interactions after the authoritative snapshot callback', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('resync.snapshot', {
+        type: 'resync.snapshot', sessions: [], workers: [], eventSeq: 81512,
+      });
+    });
+
+    expect(wsMock.sendInteractiveSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets resync_required send a snapshot without another interactive replay', () => {
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('resync_required', { type: 'resync_required', reason: 'source_cursor_gap' });
+    });
+
+    expect(wsMock.sendInteractiveSync).toHaveBeenCalledTimes(1);
+    const resyncCalls = wsMock.send.mock.calls.filter(
+      ([payload]) => (payload as { type?: string }).type === 'resync',
+    );
+    expect(resyncCalls).toHaveLength(2); // initial handshake + explicit gap recovery
   });
 
   it('applies session rename/update payloads before the debounced snapshot', () => {

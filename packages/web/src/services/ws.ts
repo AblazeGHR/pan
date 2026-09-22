@@ -37,7 +37,7 @@ class WsClient {
   /** Monotonic identity of the physical socket, not of a React subscriber. */
   private connectionGeneration = 0;
   private replayRequestId: string | null = null;
-  private interactiveSyncSentGeneration = 0;
+  private handshakeSentGenerations = new Map<string, number>();
 
   constructor(url?: string) {
     const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -48,11 +48,14 @@ class WsClient {
     if (this.ws?.readyState === WebSocket.OPEN) return;
     if (this.ws?.readyState === WebSocket.CONNECTING) return;
 
-    const connectionGeneration = ++this.connectionGeneration;
-    this.replayRequestId = createReplayRequestId(connectionGeneration);
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
+      // A generation is a real opened physical connection.  Increment here,
+      // rather than at construction, so a socket that never reaches OPEN
+      // cannot consume a handshake generation.
+      const connectionGeneration = ++this.connectionGeneration;
+      this.replayRequestId = createReplayRequestId(connectionGeneration);
       this.retryAttempt = 0;
       this.lastActivityAt = Date.now();
       this.resyncPending = false;
@@ -201,16 +204,35 @@ class WsClient {
    * new socket. Keep the idempotency at the singleton boundary so those paths
    * cannot produce a second replay request for the same connection.
    */
-  sendInteractiveSync(): boolean {
+  private sendOncePerConnectionGeneration(
+    handshakeKey: string,
+    data: Record<string, unknown>,
+  ): boolean {
     if (!this.isOpen) return false;
-    if (this.interactiveSyncSentGeneration === this.connectionGeneration) return true;
-    const sent = this.send({
+    if (this.handshakeSentGenerations.get(handshakeKey) === this.connectionGeneration) {
+      return true;
+    }
+    const sent = this.send(data);
+    if (sent) this.handshakeSentGenerations.set(handshakeKey, this.connectionGeneration);
+    return sent;
+  }
+
+  sendInteractiveSync(): boolean {
+    return this.sendOncePerConnectionGeneration('sync_interactive', {
       type: 'sync_interactive',
       replayGeneration: this.connectionGeneration,
       replayRequestId: this.replayRequestId,
     });
-    if (sent) this.interactiveSyncSentGeneration = this.connectionGeneration;
-    return sent;
+  }
+
+  sendAuthoritativeResync(
+    data: Record<string, unknown>,
+    mode: 'initial' | 'recovery' = 'initial',
+  ): boolean {
+    // A gap/epoch recovery is an explicit new boundary request and must not
+    // be swallowed by the initial-open single-flight key.
+    if (mode === 'recovery') return this.send(data);
+    return this.sendOncePerConnectionGeneration('resync.initial', data);
   }
 
   getConnectionGeneration(): number {
