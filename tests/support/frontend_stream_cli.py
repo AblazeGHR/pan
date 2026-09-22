@@ -43,17 +43,25 @@ def main():
         emit({'type': 'thinking', 'content': f'think:{label}', 'item_id': f'think:{label}', 'turn_id': turn, 'final': True})
         # One tool starts as text and finalizes with a different role, just as
         # app-server command output can do. The native item id stays stable.
-        emit({'type': 'content.part', 'role': 'assistant', 'content': 'running command',
-              'item_id': f'tool:{label}', 'turn_id': turn, 'delta': True})
-        emit({'type': 'assistant', 'item_id': f'tool:{label}', 'turn_id': turn, 'final': True,
-              'message': {'content': [{'type': 'tool_use', 'name': 'Command', 'input': {'command': label}}]}})
-        chunks = [f'answer:{label}\n'] + [f'line {i:03d} streaming text\n' for i in range(80)]
+        # The stress label deliberately creates one openable multi-tool group
+        # and a much taller answer so the browser test exercises the exact
+        # variable-height/scrolling path that is easy to miss with one tool.
+        tool_count = 8 if label == 'visual-order-stress' else 1
+        for tool_index in range(tool_count):
+            tool_id = f'tool:{label}:{tool_index}'
+            emit({'type': 'content.part', 'role': 'assistant', 'content': 'running command',
+                  'item_id': tool_id, 'turn_id': turn, 'delta': True})
+            emit({'type': 'assistant', 'item_id': tool_id, 'turn_id': turn, 'final': True,
+                  'message': {'content': [{'type': 'tool_use', 'name': 'Command',
+                                            'input': {'command': f'{label}:{tool_index}'}}]}})
+        chunk_count = 220 if label == 'visual-order-stress' else 80
+        chunks = [f'answer:{label}\n'] + [f'line {i:03d} streaming text\n' for i in range(chunk_count)]
         cumulative = ''
         for chunk in chunks:
             cumulative += chunk
             emit({'type': 'content.part', 'role': 'assistant', 'content': chunk,
                   'stream_text': cumulative, 'item_id': f'answer:{label}', 'turn_id': turn, 'delta': True})
-            time.sleep(.018)
+            time.sleep(.008 if label == 'visual-order-stress' else .018)
         emit({'type': 'assistant', 'item_id': f'answer:{label}', 'turn_id': turn, 'final': True,
               'message': {'content': [{'type': 'text', 'text': cumulative}]}})
         emit({'type': 'result', 'result': cumulative, 'is_error': False})

@@ -1,4 +1,4 @@
-/* global window, performance, requestAnimationFrame, PerformanceObserver, fetch, console */
+/* global window, document, performance, requestAnimationFrame, PerformanceObserver, fetch, console */
 /** Real production bundle + HTTP/WS + real Workers + deterministic CLI.
  * Run: node e2e/frontend-full.e2e.mjs (after building packages/web).
  * Artifacts stay in test-results/full-<timestamp>, including cold-restart data.
@@ -132,6 +132,76 @@ async function equalCanonical(label) {
   evidence.stages.push({ label, id: result.id, start: result.start, count: result.rows.length, canonicalCount: expected.length, dom });
   console.log('PASS', label, result.rows.length, 'canonical', expected.length, 'start', result.start);
   return result;
+}
+
+async function assertLiveVisualOrder(label, snapshots) {
+  const sample = await page.evaluate(() => {
+    const store = window.__panSessionStore.getState();
+    const grouped = [];
+    for (const message of store.currentMessages) {
+      const previous = grouped.at(-1);
+      if (message.role === 'tool' && previous?.role === 'tool') {
+        previous.items.push(message);
+      } else if (message.role === 'tool') {
+        grouped.push({ role: 'tool', items: [message] });
+      } else {
+        grouped.push({ role: message.role, content: message.content, items: [message] });
+      }
+    }
+    const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();
+    const nodes = [...document.querySelectorAll('main [data-index]')].map((el) => {
+      const rect = el.getBoundingClientRect();
+      const index = Number(el.dataset.index);
+      const expected = grouped[index];
+      const actualRole = el.querySelector('.msg.tool') || el.querySelector('.tool-group')
+        ? 'tool'
+        : el.querySelector('.thinking')
+          ? 'thinking'
+          : el.querySelector('.msg.user')
+            ? 'user'
+            : el.querySelector('.msg.assistant')
+              ? 'assistant'
+              : el.querySelector('.system-message')
+                ? 'system'
+                : 'unknown';
+      return {
+        index,
+        top: rect.top,
+        bottom: rect.bottom,
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 180),
+        actualRole,
+        expectedRole: expected?.role || 'missing',
+        expectedContent: expected?.content ? normalize(expected.content).slice(0, 180).trimEnd() : null,
+        expectedToolCount: expected?.role === 'tool' ? expected.items.length : 0,
+      };
+    });
+    const violations = [];
+    for (let i = 1; i < nodes.length; i += 1) {
+      const previous = nodes[i - 1];
+      const current = nodes[i];
+      if (current.index <= previous.index) {
+        violations.push({ kind: 'index-order', previous, current });
+      }
+      if (current.top < previous.top - 1) {
+        violations.push({ kind: 'geometry-order', previous, current });
+      }
+      if (current.top < previous.bottom - 1) {
+        violations.push({ kind: 'geometry-overlap', previous, current });
+      }
+    }
+    for (const node of nodes) {
+      if (node.expectedRole !== node.actualRole) {
+        violations.push({ kind: 'role-mismatch', node });
+      }
+      if (node.expectedRole !== 'tool' && node.expectedContent
+          && !normalize(node.text).includes(node.expectedContent)) {
+        violations.push({ kind: 'content-mismatch', node });
+      }
+    }
+    return { nodes, violations };
+  });
+  snapshots.push({ at: Date.now(), label, ...sample });
+  assert.deepEqual(sample.violations, [], `${label}: live DOM order/geometry violation`);
 }
 const ids = {};
 const faults = { duplicate: false, reorder: false, held: null, delayedHistory: 0, historyDelay: 0, delaySnapshot: false };
@@ -274,6 +344,67 @@ try {
     } });
   }
   await equalCanonical('late duplicate terminal results and obsolete task deltas');
+
+  // Regression: while the tool group is already above an actively growing
+  // assistant delta, scroll the user away from the bottom and sample every
+  // frame. Final-state equality alone misses transient virtual-row movement.
+  await select('E2E-A');
+  const liveVisualSnapshots = [];
+  evidence.liveVisualSnapshots = liveVisualSnapshots;
+  const liveInput = page.locator('[contenteditable="true"]').first();
+  await liveInput.fill('visual-order-round');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await poll(state, s => s.rows.some(m => m.role === 'tool' && m.content.includes('visual-order-round')), 'visual-order tool visible');
+  await scroller.hover();
+  await page.mouse.wheel(0, -500);
+  for (let i = 0; i < 55; i += 1) {
+    await assertLiveVisualOrder('visual-order-round', liveVisualSnapshots);
+    await sleep(25);
+  }
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:visual-order-round'), 'visual-order final');
+  evidence.stages.push({ label: 'live delta visual order while user scrolls', samples: liveVisualSnapshots.length });
+
+  // The same invariant while follow-bottom is active. A growing delta must
+  // move the viewport, never reorder or repaint the already-rendered tool row.
+  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d <= 2, 'visual-order pinned before stream');
+  const pinnedVisualSnapshots = [];
+  evidence.pinnedVisualSnapshots = pinnedVisualSnapshots;
+  const pinnedInput = page.locator('[contenteditable="true"]').first();
+  await pinnedInput.fill('visual-order-pinned');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await poll(state, s => s.rows.some(m => m.role === 'tool' && m.content.includes('visual-order-pinned')), 'pinned visual-order tool visible');
+  for (let i = 0; i < 90; i += 1) {
+    await assertLiveVisualOrder('visual-order-pinned', pinnedVisualSnapshots);
+    await sleep(20);
+  }
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:visual-order-pinned'), 'pinned visual-order final');
+  evidence.stages.push({ label: 'live delta visual order while pinned to bottom', samples: pinnedVisualSnapshots.length });
+
+  // Stress the variable-height case with a real expandable multi-tool group,
+  // then keep moving the reader while the answer delta grows underneath it.
+  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d <= 2, 'visual-order stress before stream');
+  const stressVisualSnapshots = [];
+  evidence.stressVisualSnapshots = stressVisualSnapshots;
+  const stressInput = page.locator('[contenteditable="true"]').first();
+  await stressInput.fill('visual-order-stress');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await poll(state, s => s.rows.filter(m => m.role === 'tool' && m.content.includes('visual-order-stress')).length >= 8, 'stress tool group visible');
+  const stressGroup = page.locator('.tool-group-header').last();
+  await stressGroup.click();
+  assert.ok(
+    await page.locator('.tool-group').last().evaluate(el => el.getBoundingClientRect().height > 200),
+    'stress tool group should be expanded to a variable-height block',
+  );
+  await scroller.hover();
+  for (let i = 0; i < 140; i += 1) {
+    if (i % 5 === 0) await page.mouse.wheel(0, -120);
+    await assertLiveVisualOrder('visual-order-stress', stressVisualSnapshots);
+    await sleep(16);
+  }
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:visual-order-stress'), 'stress visual-order final');
+  evidence.stages.push({ label: 'expanded multi-tool group while scrolling through delta', samples: stressVisualSnapshots.length });
 
   await send('disconnect-round');
   await poll(state, s => s.rows.some(m => m.content.includes('answer:disconnect-round')), 'pre-disconnect live');

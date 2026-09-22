@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, act, fireEvent, cleanup } from '@testing-library/react';
 import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
+import { groupMessages } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Message } from '@/types';
@@ -771,6 +772,34 @@ describe('ChatMessages scroll positioning', () => {
     });
     const overlappedRows = [...container.querySelectorAll('[data-index]')] as HTMLElement[];
     expect(overlappedRows.map((row) => row.style.marginTop)).toEqual(['0px', '0px', '0px']);
+  });
+
+  it('keeps the virtual key when a provisional tool delta changes role', () => {
+    const provisional: Message = {
+      role: 'assistant',
+      content: 'running command',
+      nativeItemId: 'tool-transition-1',
+    };
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [provisional] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 120 }]);
+    const { container } = render(<ChatMessages />);
+
+    const getItemKey = m.state.options?.getItemKey;
+    expect(getItemKey).toBeTypeOf('function');
+    const provisionalKey = getItemKey!(0);
+    expect(groupMessages([provisional])[0]).toEqual(provisional);
+
+    // appendEventToMessages preserves the Message identity when the provider
+    // finalizes the same native item as a tool. Reusing the logical display
+    // key prevents a virtual row remount during a neighboring delta resize.
+    provisional.role = 'tool';
+    act(() => {
+      useSessionStore.setState({ currentMessages: [provisional] });
+    });
+
+    expect(getItemKey!(0)).toBe(provisionalKey);
+    expect([...container.querySelectorAll('[data-index]')].map((row) => row.getAttribute('data-index')))
+      .toEqual(['0']);
   });
 
   it('keeps a tall streamed block in document flow while preserving a scrolled-up viewport', () => {
