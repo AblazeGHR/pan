@@ -41,6 +41,6 @@
 - `DEC-003`：正式任务使用稳定 `taskId`；普通消息继承目标 TA 当前任务上下文，无任务时允许 `null`，不实施 sourceQueueItemId、deliveryUnitId 或按历史猜报告归属。
 - `DEC-006`：Job Registry、一次性/周期性消息、定时群发和 Agent/MCP 创建/取消按既定后端语义推进；该决定不预设 Job UI 外观。
 - `DEC-004/005` 只阻塞对应 Job/Workspace UI 形态，不冻结已明确的后端、Agent/MCP 和持久化验收；`T-029/T-039` 在用户恢复授权前保持暂停，`T-062` 已获用户恢复授权，当前按 T-062.2/T-062.3 等阶段实施；仍不得操作 practical、8768 或未授权真实服务。
-- `T-FRONTEND-CONSOLIDATED-20260922` 是一次边界明确的选择性前端整合：`cba9df0` 的 TA 交付已获 MA 整合验收，但不代表已合入 `main`、已 push 或已通过真人验收；真实 provider、生产 8768 和 Steer receipt 服务端协议仍分开记录。
+- `T-FRONTEND-CONSOLIDATED-20260922` 是一次边界明确的选择性前端整合：`cba9df0` 的 TA 交付已获 MA 整合验收，并由 `92b363c` 合入本地 `main`，但不代表已 push 或已通过真人验收；真实 provider、生产 8768 和 Steer receipt 服务端协议仍分开记录。
 - 工作树“待清理”清单只表示待后续人工核对的候选，不授权删除 worktree、branch、session 或未跟踪证据；有未跟踪报告、测试或运行证据的调查树必须保留。
 - 其他任务无专属策略映射；需要新的例外时只记录范围、责任人、恢复/失效条件和来源，并在覆盖后删除旧口径。

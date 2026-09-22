@@ -6,7 +6,7 @@
 
 - `DEC-004`：决定 Job UI 的标签页、创建/编辑控件和时间交互；责任人：用户；状态：待决策；下一事件：用户给出形态后恢复 T-043 UI。
 - `DEC-005`：决定 Workspace 标签页、Session 切换和归属编辑范围；责任人：用户；状态：待决策；下一事件：用户给出交互范围后恢复 T-044 UI。
-- `T-FRONTEND-CONSOLIDATED-20260922`：选择性前端集成已由 TA 完成并经 MA 验收；提交 `cba9df0d143127b10500e237b0468a80f521b18d`，尚未合入 `main@591367a`、尚未 push、尚未真人验收；责任人：用户/开发者；下一事件：完成真人验收并另行决定是否合入。
+- `T-FRONTEND-CONSOLIDATED-20260922`：选择性前端集成已由 TA 完成、经 MA 验收并以 merge commit `92b363c0ab9d022a8fd89e03dbe1ab1dda251cf1` 合入本地 `main`；尚未 push、尚未真人验收；责任人：用户/开发者；下一事件：完成真人验收并决定是否 push。
 - `T-034`：补齐早期功能的真实浏览器、Windows 和 OS 证据；责任人：开发者；状态：待验收；下一事件：按[批次 E](tasks/acceptance-batches.md)逐项填写操作、预期和结果。
 - `T-040`：确认普通消息的 taskId 继承与报告配对；责任人：开发者；状态：待验收；下一事件：按任务详情执行任务切换、重启恢复和 report 检查。
 - `T-041`：确认终态持久化、result/idle 广播与 usage 最终一致性；责任人：开发者；状态：待验收；下一事件：按任务详情完成真实 provider/CLI 与 HTTP/WS 行为检查。
@@ -49,7 +49,7 @@
 - `T-062.7`：bounded result cursor、终态 replay/resync、断线 snapshot 和队列恢复边界已合入本地 main，集成提交为 `7416445`；真实 HTTP/WS、provider/CLI、Chromium 和长压仍未验证。
 - `T-FRONTEND-COLDLOAD-FE-INTEGRATION`：FE-1/FE-2/FE-4 的原始 TA 提交为 `b324aa1b4c30ebd6a4345ecdc1750c170a9dff5b`；其选择性范围已由 `cba9df0` 的 `44b9ccd` 覆盖，原始分支仍未 merge/push；真实浏览器/服务层边界见整合报告。
 - `T-FRONTEND-COLDLOAD-BE3`：history/list 冷读原始独立 commit `5110f28f7d4e34dd895646843ef3c28836cd1a99`，其中选择性变更由 `cba9df0` 的 `94b62e3` 覆盖；独立 BE-3 E2E 证据仍保留，原始提交未 merge/push，生产/8768/provider 仍未验证。
-- `T-FRONTEND-CONSOLIDATED-20260922`：在 `feature/frontend-consolidated-20260922` 上完成选择性整合，提交 `cba9df0d143127b10500e237b0468a80f521b18d`；TA 已完成，MA 已验收整合范围。Vitest 73 files/649 tests、TypeScript/build、消息探针 9/9、reconcile 3/3、event-loop 13/13、120k 冷历史 E2E、Chromium CBC strict 8/8 均通过；全库 pytest 仅有既有 Codex quota docstring 失败。未验证真实 provider、生产 8768；Steer receipt 服务端协议仍是后续缺口；未真人验收、未合入 main、未 push。
+- `T-FRONTEND-CONSOLIDATED-20260922`：在 `feature/frontend-consolidated-20260922` 上完成选择性整合，提交 `cba9df0d143127b10500e237b0468a80f521b18d`，并以 `92b363c0ab9d022a8fd89e03dbe1ab1dda251cf1` 合入本地 `main`；TA 已完成，MA 已验收整合范围。Vitest 73 files/649 tests、TypeScript/build、消息探针 9/9、reconcile 3/3、event-loop 13/13、120k 冷历史 E2E、Chromium CBC strict 8/8 均通过；全库 pytest 仅有既有 Codex quota docstring 失败。未验证真实 provider、生产 8768；Steer receipt 服务端协议仍是后续缺口；未真人验收、未 push。
 - `T-062.8`：在隔离端口 8794/8795 完成真实 FastAPI/WS、cursor replay/resync、queue 幂等、服务重启恢复和 4 Session/40 任务合成负载验收，未发现回归；真实 provider、Chromium、OS 和超长压测仍未验证，无代码提交。
 - `T-UI-queue-badge`：Queue 数量徽标改为相对 Queue 按钮定位，合入提交为 `e72b097`；Vitest/TypeScript 因 worktree 缺少 `node_modules`、`vite/client` 和 `node` 类型未运行成功。
 - 批次 A/B/C/D：用户已确认验收通过；状态：已关闭，不重新要求验收；未覆盖边界仅按原验收单记录。

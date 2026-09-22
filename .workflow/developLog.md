@@ -2,7 +2,7 @@
 
 ## 2026-09-22（待真人验收，不构成归档）
 
-- `cba9df0d143127b10500e237b0468a80f521b18d` · `T-FRONTEND-CONSOLIDATED-20260922` · `feature/frontend-consolidated-20260922` 完成选择性前端集成；TA 已完成，MA 已验收整合范围。Vitest 649/649、TypeScript/build、消息探针 9/9、reconcile 3/3、event-loop 13/13、120k 冷历史 E2E、Chromium CBC strict 8/8 通过；全库 pytest 仅有既有 Codex quota docstring 失败。当前 `main@591367a65f88e9d5270e8e99920ef5448d1d68c9` 尚未合入，尚未 push，尚未真人验收；真实 provider、生产 8768 未验证，Steer receipt 服务端协议仍是后续缺口。报告：`D:\project\pan-worktrees\frontend-consolidated-20260922\FRONTEND_INTEGRATION_REPORT.md`。
+- `92b363c0ab9d022a8fd89e03dbe1ab1dda251cf1` · `T-FRONTEND-CONSOLIDATED-20260922` · `cba9df0d143127b10500e237b0468a80f521b18d` 的选择性前端集成已由 TA 完成、经 MA 验收并合入本地 `main`。Vitest 649/649、TypeScript/build、消息探针 9/9、reconcile 3/3、event-loop 13/13、120k 冷历史 E2E、Chromium CBC strict 8/8 通过；全库 pytest 仅有既有 Codex quota docstring 失败。尚未 push、尚未真人验收；真实 provider、生产 8768 未验证，Steer receipt 服务端协议仍是后续缺口。报告：`D:\project\pan-worktrees\frontend-consolidated-20260922\FRONTEND_INTEGRATION_REPORT.md`。
 
 ## 2026-09-19
 

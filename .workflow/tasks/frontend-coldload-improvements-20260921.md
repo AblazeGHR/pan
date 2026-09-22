@@ -40,5 +40,5 @@
 
 - 选择性整合 worktree：`D:\project\pan-worktrees\frontend-consolidated-20260922`；branch：`feature/frontend-consolidated-20260922`；提交：`cba9df0d143127b10500e237b0468a80f521b18d`。报告：[FRONTEND_INTEGRATION_REPORT.md](<D:\project\pan-worktrees\frontend-consolidated-20260922\FRONTEND_INTEGRATION_REPORT.md>)。
 - `94b62e3` 选择性覆盖 BE-3 的冷读事件循环变更，`44b9ccd` 选择性覆盖 FE-1/FE-2/FE-4，`6534682` 在修复后的 store 上覆盖 queue edit/send contract；原始 `5110f28` 与 `b324aa1` 仍作为独立证据/来源保留，不等于已合入 main。
-- 状态：TA 已完成，MA 已验收选择性整合范围；`main@591367a65f88e9d5270e8e99920ef5448d1d68c9` 尚未合入，尚未 push，尚未真人验收。Vitest 649/649、TypeScript/build、消息探针 9/9、reconcile 3/3、event-loop 13/13、120k 冷历史 E2E、Chromium CBC strict 8/8 通过；全库 pytest 仅有既有 Codex quota docstring 失败。
+- 状态：TA 已完成，MA 已验收选择性整合范围，并由 merge commit `92b363c0ab9d022a8fd89e03dbe1ab1dda251cf1` 合入本地 `main`；尚未 push，尚未真人验收。Vitest 649/649、TypeScript/build、消息探针 9/9、reconcile 3/3、event-loop 13/13、120k 冷历史 E2E、Chromium CBC strict 8/8 通过；全库 pytest 仅有既有 Codex quota docstring 失败。
 - 未验证/后续：真实 provider、生产 8768；Steer receipt 服务端稳定请求身份与 receipt 查询协议仍未实现。BE-3 独立 worktree 的完整 E2E 证据继续保留，不因其中一部分已被选择性整合而标为可清理。
