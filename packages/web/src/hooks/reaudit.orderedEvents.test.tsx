@@ -15,6 +15,7 @@ const wsMock = vi.hoisted(() => {
     handlers,
     connect: vi.fn(),
     send: vi.fn(() => true),
+    sendInteractiveSync: vi.fn(() => true),
     reconnect: vi.fn(),
     isConnectionFresh: vi.fn(() => true),
     on: vi.fn((type: string, h: (e: unknown) => void) => {
@@ -28,7 +29,8 @@ const wsMock = vi.hoisted(() => {
 vi.mock('@/services/ws', () => ({
   wsClient: {
     connect: wsMock.connect, reconnect: wsMock.reconnect, on: wsMock.on,
-    send: wsMock.send, isOpen: true, isConnectionFresh: wsMock.isConnectionFresh,
+    send: wsMock.send, sendInteractiveSync: wsMock.sendInteractiveSync,
+    isOpen: true, isConnectionFresh: wsMock.isConnectionFresh,
   },
 }));
 

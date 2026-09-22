@@ -322,6 +322,11 @@ export interface StreamEvent {
   workerId?: string;
   /** Monotonic runtime generation, used to ignore late lifecycle events. */
   generation?: number;
+  /** Physical browser WebSocket generation for client handshake idempotency. */
+  connectionGeneration?: number;
+  /** Identity of a native-interaction replay handshake batch. */
+  replayGeneration?: number;
+  replayRequestId?: string;
   event?: WorkerEvent;
   message?: string;
   status?: string;

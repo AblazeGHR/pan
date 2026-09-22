@@ -28,6 +28,20 @@ class FakeWS:
         self.sent.append(data)
 
 
+class DashboardWS(FakeWS):
+    def __init__(self, messages: list[str]):
+        super().__init__()
+        self.messages = messages
+
+    async def accept(self):
+        pass
+
+    async def receive_text(self):
+        if self.messages:
+            return self.messages.pop(0)
+        raise srv.WebSocketDisconnect()
+
+
 def _cleanup():
     srv.agent_clients.clear()
     srv.agent_subscriptions.clear()
@@ -386,6 +400,68 @@ def test_dashboard_replay_can_filter_sessions():
         srv.worker.native_status_event = original_status
 
     assert [m["sessionId"] for m in ws.sent] == ["ses-b"]
+    _cleanup()
+
+
+def test_dashboard_replay_carries_handshake_identity():
+    """Replay envelopes expose the request batch, without content dedupe."""
+    _cleanup()
+    ws = FakeWS()
+
+    class LiveProcess:
+        returncode = None
+
+    class FakeWorker:
+        worker_id = "worker-id"
+        session_id = "ses-id"
+        process = LiveProcess()
+
+    original_list = srv.worker.list_workers
+    original_events = srv.worker.native_status_event
+    original_pending = srv.worker.pending_interaction_events
+    try:
+        srv.worker.list_workers = lambda: [FakeWorker()]
+        srv.worker.native_status_event = lambda w: {"type": "codex.thread_status"}
+        srv.worker.pending_interaction_events = lambda w: []
+        _run(srv._replay_pending_interactions(
+            ws,
+            replay_generation=4,
+            replay_request_id="replay-request-4",
+        ))
+    finally:
+        srv.worker.list_workers = original_list
+        srv.worker.native_status_event = original_events
+        srv.worker.pending_interaction_events = original_pending
+
+    assert ws.sent == [{
+        "type": "worker.stream", "workerId": "worker-id", "sessionId": "ses-id",
+        "generation": 0, "event": {"type": "codex.thread_status"}, "replayed": True,
+        "replayGeneration": 4, "replayRequestId": "replay-request-4",
+    }]
+    _cleanup()
+
+
+def test_dashboard_replay_request_id_is_idempotent_per_socket():
+    """The same handshake request cannot replay a worker batch twice."""
+    _cleanup()
+    ws = DashboardWS([
+        '{"type":"sync_interactive","replayGeneration":1,"replayRequestId":"r-1"}',
+        '{"type":"sync_interactive","replayGeneration":1,"replayRequestId":"r-1"}',
+    ])
+    calls = []
+    original_replay = srv._replay_pending_interactions
+
+    async def record_replay(*args, **kwargs):
+        calls.append((args, kwargs))
+
+    try:
+        srv._replay_pending_interactions = record_replay
+        _run(srv.ws_endpoint(ws))
+    finally:
+        srv._replay_pending_interactions = original_replay
+
+    assert len(calls) == 1
+    assert calls[0][1] == {"replay_generation": 1, "replay_request_id": "r-1"}
     _cleanup()
 
 

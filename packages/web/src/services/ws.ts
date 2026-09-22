@@ -14,6 +14,13 @@ function getRetryDelay(attempt: number): number {
   return delay + Math.random() * 1000;
 }
 
+function createReplayRequestId(generation: number): string {
+  const randomId = typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `ws-${generation}-${randomId}`;
+}
+
 class WsClient {
   private ws: WebSocket | null = null;
   private handlers = new Map<string, Set<MessageHandler>>();
@@ -27,6 +34,10 @@ class WsClient {
   private deliveryEpoch: string | null = null;
   private deliverySeq = 0;
   private resyncPending = false;
+  /** Monotonic identity of the physical socket, not of a React subscriber. */
+  private connectionGeneration = 0;
+  private replayRequestId: string | null = null;
+  private interactiveSyncSentGeneration = 0;
 
   constructor(url?: string) {
     const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -37,6 +48,8 @@ class WsClient {
     if (this.ws?.readyState === WebSocket.OPEN) return;
     if (this.ws?.readyState === WebSocket.CONNECTING) return;
 
+    const connectionGeneration = ++this.connectionGeneration;
+    this.replayRequestId = createReplayRequestId(connectionGeneration);
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
@@ -45,7 +58,7 @@ class WsClient {
       this.resyncPending = false;
       this.startHeartbeat();
       this.startSilentWatchdog();
-      this.emit('open', { type: 'open' });
+      this.emit('open', { type: 'open', connectionGeneration });
     };
 
     this.ws.onmessage = (e: MessageEvent) => {
@@ -178,6 +191,30 @@ class WsClient {
     // 消息静默丢失而调用方已按成功处理（H6）。调用方收到 false 应保留待重发状态；
     // queueStore 在 'open' 事件时自动 flush 重试（见 queueStore.ts 底部联动）。
     return false;
+  }
+
+  /**
+   * Ask the server to replay native prompts once for this physical socket.
+   *
+   * The hook can reach this method through both the open callback and the
+   * already-open mount path, and StrictMode/HMR can mount it again without a
+   * new socket. Keep the idempotency at the singleton boundary so those paths
+   * cannot produce a second replay request for the same connection.
+   */
+  sendInteractiveSync(): boolean {
+    if (!this.isOpen) return false;
+    if (this.interactiveSyncSentGeneration === this.connectionGeneration) return true;
+    const sent = this.send({
+      type: 'sync_interactive',
+      replayGeneration: this.connectionGeneration,
+      replayRequestId: this.replayRequestId,
+    });
+    if (sent) this.interactiveSyncSentGeneration = this.connectionGeneration;
+    return sent;
+  }
+
+  getConnectionGeneration(): number {
+    return this.connectionGeneration;
   }
 
   getEventCursor(): { eventEpoch: string | null; eventSeq: number } {

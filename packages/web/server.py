@@ -4029,6 +4029,7 @@ async def dashboard():
 
 async def _replay_pending_interactions(
     ws: WebSocket, session_ids: list[str] | None = None,
+    *, replay_generation: int | None = None, replay_request_id: str | None = None,
 ) -> None:
     """Restore live native prompts to a dashboard that just reconnected.
 
@@ -4037,6 +4038,11 @@ async def _replay_pending_interactions(
     dead/restarted worker cannot safely receive the old response.
     """
     selected = {str(sid) for sid in session_ids or []}
+    replay_identity = {}
+    if replay_generation is not None:
+        replay_identity["replayGeneration"] = replay_generation
+    if replay_request_id is not None:
+        replay_identity["replayRequestId"] = replay_request_id
     for w in worker.list_workers():
         if selected and w.session_id not in selected:
             continue
@@ -4051,6 +4057,7 @@ async def _replay_pending_interactions(
                 "generation": getattr(w, "generation", 0),
                 "event": status_event,
                 "replayed": True,
+                **replay_identity,
             })
         usage_event = worker.native_usage_event(w)
         if usage_event is not None:
@@ -4061,6 +4068,7 @@ async def _replay_pending_interactions(
                 "generation": getattr(w, "generation", 0),
                 "event": usage_event,
                 "replayed": True,
+                **replay_identity,
             })
         rate_limits_event = worker.native_rate_limits_event(w)
         if rate_limits_event is not None:
@@ -4071,6 +4079,7 @@ async def _replay_pending_interactions(
                 "generation": getattr(w, "generation", 0),
                 "event": rate_limits_event,
                 "replayed": True,
+                **replay_identity,
             })
         for native_event in (
             worker.native_plan_event(w),
@@ -4084,6 +4093,7 @@ async def _replay_pending_interactions(
                     "generation": getattr(w, "generation", 0),
                     "event": native_event,
                     "replayed": True,
+                    **replay_identity,
                 })
         for event in worker.pending_interaction_events(w):
             await _send_ws(ws, {
@@ -4093,12 +4103,14 @@ async def _replay_pending_interactions(
                 "generation": getattr(w, "generation", 0),
                 "event": event,
                 "replayed": True,
+                **replay_identity,
             })
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     ws_clients.add(ws)
+    last_replay_request_id: str | None = None
     try:
         while True:
             raw = await ws.receive_text()
@@ -4211,7 +4223,40 @@ async def ws_endpoint(ws: WebSocket):
                         "message": "sessionIds must be a list",
                     })
                     continue
-                await _replay_pending_interactions(ws, raw_session_ids)
+                replay_request_id = msg.get("replayRequestId")
+                if replay_request_id is not None and (
+                    not isinstance(replay_request_id, str) or not replay_request_id
+                    or len(replay_request_id) > 512
+                ):
+                    await _send_ws(ws, {
+                        "type": "error",
+                        "message": "replayRequestId must be a non-empty string of at most 512 characters",
+                    })
+                    continue
+                replay_generation = msg.get("replayGeneration")
+                if replay_generation is not None and (
+                    not isinstance(replay_generation, int)
+                    or isinstance(replay_generation, bool)
+                ):
+                    await _send_ws(ws, {
+                        "type": "error",
+                        "message": "replayGeneration must be an integer",
+                    })
+                    continue
+                # A reconnecting client can reach this branch from both its
+                # open callback and its already-open mount path. A request ID
+                # makes that handshake idempotent at the server boundary too;
+                # no message/content dedupe is involved here.
+                if replay_request_id is not None and replay_request_id == last_replay_request_id:
+                    continue
+                if replay_request_id is not None:
+                    last_replay_request_id = replay_request_id
+                await _replay_pending_interactions(
+                    ws,
+                    raw_session_ids,
+                    replay_generation=replay_generation,
+                    replay_request_id=replay_request_id,
+                )
             elif msg_type == "resync":
                 raw_session_ids = msg.get("sessionIds")
                 if raw_session_ids is not None and not isinstance(raw_session_ids, list):

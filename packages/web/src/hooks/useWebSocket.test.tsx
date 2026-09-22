@@ -15,10 +15,19 @@ import { getMessageIdentity } from '@/utils/messageIdentity';
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
 const wsMock = vi.hoisted(() => {
   const handlers: Record<string, Array<(e: unknown) => void>> = {};
+  const send = vi.fn((_payload: Record<string, unknown>) => true);
+  let syncSent = false;
+  const sendInteractiveSync = vi.fn(() => {
+    if (syncSent) return true;
+    syncSent = true;
+    return send({ type: 'sync_interactive' });
+  });
   return {
     handlers,
     connect: vi.fn(),
-    send: vi.fn(() => true),
+    send,
+    sendInteractiveSync,
+    resetInteractiveSync: () => { syncSent = false; },
     reconnect: vi.fn(),
     isConnectionFresh: vi.fn(() => true),
     on: vi.fn((type: string, h: (e: unknown) => void) => {
@@ -39,6 +48,7 @@ vi.mock('@/services/ws', () => ({
     reconnect: wsMock.reconnect,
     on: wsMock.on,
     send: wsMock.send,
+    sendInteractiveSync: wsMock.sendInteractiveSync,
     isOpen: true,
     isConnectionFresh: wsMock.isConnectionFresh,
   },
@@ -83,6 +93,8 @@ describe('useWebSocket worker.result wiring', () => {
   beforeEach(() => {
     for (const k of Object.keys(wsMock.handlers)) delete wsMock.handlers[k];
     wsMock.send.mockClear();
+    wsMock.sendInteractiveSync.mockClear();
+    wsMock.resetInteractiveSync();
     wsMock.connect.mockClear();
     wsMock.reconnect.mockClear();
     wsMock.isConnectionFresh.mockReturnValue(true);
@@ -285,7 +297,28 @@ describe('useWebSocket worker.result wiring', () => {
   it('requests pending native interactions when the singleton is already open', () => {
     renderHook(() => useWebSocket());
 
-    expect(wsMock.send).toHaveBeenCalledWith({ type: 'sync_interactive' });
+    const syncCalls = wsMock.send.mock.calls.filter(
+      ([payload]) => (payload as { type?: string }).type === 'sync_interactive',
+    );
+    expect(syncCalls).toHaveLength(1);
+  });
+
+  it('sends sync_interactive at most once for one socket generation during open/mount race', () => {
+    const firstMount = renderHook(() => useWebSocket());
+
+    // The mock models the real singleton being OPEN before mount, followed by
+    // its already-registered open callback running in the same turn.
+    act(() => {
+      wsMock.trigger('open', { type: 'open' });
+    });
+
+    firstMount.unmount();
+    renderHook(() => useWebSocket()); // same physical socket generation
+
+    const syncCalls = wsMock.send.mock.calls.filter(
+      ([payload]) => (payload as { type?: string }).type === 'sync_interactive',
+    );
+    expect(syncCalls).toHaveLength(1);
   });
 
   it('applies session rename/update payloads before the debounced snapshot', () => {

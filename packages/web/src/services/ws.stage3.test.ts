@@ -104,6 +104,40 @@ describe('stage 3 WebSocket delivery/source cursors', () => {
     offGap();
   });
 
+  it('sends native-interaction replay once per physical socket generation', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+
+    wsClient.connect();
+    const firstSocket = FakeWebSocket.latest!;
+    firstSocket.onopen?.();
+    expect(wsClient.sendInteractiveSync()).toBe(true);
+    expect(wsClient.sendInteractiveSync()).toBe(true);
+
+    const firstSync = firstSocket.sent
+      .map((raw) => JSON.parse(raw) as Record<string, unknown>)
+      .filter((message) => message.type === 'sync_interactive');
+    expect(firstSync).toHaveLength(1);
+    const firstRequest = firstSync[0]!;
+    expect(firstRequest).toMatchObject({
+      replayGeneration: expect.any(Number),
+      replayRequestId: expect.any(String),
+    });
+
+    wsClient.reconnect();
+    const secondSocket = FakeWebSocket.latest!;
+    secondSocket.onopen?.();
+    expect(wsClient.sendInteractiveSync()).toBe(true);
+    expect(wsClient.sendInteractiveSync()).toBe(true);
+
+    const secondSync = secondSocket.sent
+      .map((raw) => JSON.parse(raw) as Record<string, unknown>)
+      .filter((message) => message.type === 'sync_interactive');
+    expect(secondSync).toHaveLength(1);
+    const secondRequest = secondSync[0]!;
+    expect(secondRequest.replayGeneration).not.toBe(firstRequest.replayGeneration);
+    expect(secondRequest.replayRequestId).not.toBe(firstRequest.replayRequestId);
+  });
+
   it('emits one recovery signal for a delivery gap and announces a new server epoch', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     const gaps: unknown[] = [];

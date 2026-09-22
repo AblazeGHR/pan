@@ -137,7 +137,7 @@ export function useWebSocket() {
       // The backend keeps a worker-local snapshot of native prompts while the
       // JSON-RPC request is still open. Ask for it after every connection so a
       // browser refresh/reconnect does not strand the user at a hidden prompt.
-      wsClient.send({ type: 'sync_interactive' });
+      wsClient.sendInteractiveSync();
     };
 
     const syncAuthoritativeSnapshot = (): void => {
