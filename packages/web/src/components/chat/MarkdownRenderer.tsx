@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import { Copy, Check, File as FileIcon } from 'lucide-react';
-import { useCurrentSession } from '@/stores/sessionStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
@@ -27,7 +27,8 @@ function transformMarkdownUrl(value: string): string {
 
 function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: LinkProps & { attachmentId?: string }) {
   const navigate = useNavigate();
-  const currentSession = useCurrentSession();
+  const sessionId = useSessionStore((s) => s.currentSessionId);
+  const workdir = useSessionStore((s) => s.sessions.find(x => x.id === s.currentSessionId)?.workdir);
   const showToast = useUIStore((s) => s.showToast);
   const draggedRef = useRef(false);
   const dragResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,11 +51,11 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
     if (!fileLink) return;
     event.preventDefault();
 
-    if (!currentSession?.id) {
+    if (!sessionId) {
       showToast('当前没有可用的 Session，无法打开文件', 'error');
       return;
     }
-    if (!currentSession.workdir) {
+    if (!workdir) {
       showToast('当前 Session 没有工作目录，无法打开文件', 'error');
       return;
     }
@@ -64,7 +65,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
       try {
         const response = await fetch(
           `/api/attachments/editor/${encodeURIComponent(fileLink.serverAttachmentId)}`
-          + `?session_id=${encodeURIComponent(fileLink.serverSessionId || currentSession.id)}`,
+          + `?session_id=${encodeURIComponent(fileLink.serverSessionId || sessionId)}`,
         );
         const metadata = await response.json() as { ok?: boolean; path?: unknown };
         if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
@@ -79,7 +80,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
 
     // Keep the existing editor root in sync before opening. This also covers
     // links clicked in Chat/DetailPanel before EditorView has mounted.
-    await useEditorStore.getState().setRoot(currentSession.id, currentSession.workdir);
+    await useEditorStore.getState().setRoot(sessionId, workdir);
     const location = fileLink.location && editorPath
       ? { ...fileLink.location, path: editorPath }
       : fileLink.location;
@@ -94,7 +95,7 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
       || attachmentId
       || extractOpaqueAttachmentId(href)
       || extractUploadAttachmentId(href);
-    const sourceSessionId = fileLink?.serverSessionId || extractAttachmentSessionId(href) || currentSession?.id;
+    const sourceSessionId = fileLink?.serverSessionId || extractAttachmentSessionId(href) || sessionId || undefined;
     const dragHref = dragId && sourceSessionId
       ? serverAttachmentDownloadHref(sourceSessionId, dragId)
       : href;
@@ -281,9 +282,11 @@ function PreBlock({ children }: PreProps) {
 }
 
 export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [] }: MarkdownRendererProps) {
-  const currentSession = useCurrentSession();
+  // Historical Markdown does not depend on the live session object. Subscribing
+  // to it reparsed every visible history row on every streamed token.
+  const sessionId = useSessionStore((s) => s.currentSessionId);
   if (!content) return null;
-  const renderedContent = normalizeLegacyAttachmentLinks(content, currentSession?.id);
+  const renderedContent = normalizeLegacyAttachmentLinks(content, sessionId ?? undefined);
   let attachmentIndex = 0;
 
   return (

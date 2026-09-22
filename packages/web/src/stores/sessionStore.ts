@@ -749,17 +749,21 @@ function projectLiveRows(
     if (targetIndex < 0 && sameTask) {
       const explicit = explicitIdentityOf(live);
       if (explicit.length > 0) {
-        targetIndex = display.findIndex((candidate) =>
-          !usedTargetIndexes.has(display.indexOf(candidate))
+        targetIndex = display.findIndex((candidate, index) =>
+          !usedTargetIndexes.has(index)
           && candidate.role === live.role
           && explicitIdentityOf(candidate).some((id) => explicit.includes(id)),
         );
       }
     }
     if (targetIndex >= 0) {
-      const merged = { ...display[targetIndex], ...live };
-      inheritMessageIdentity(merged, display[targetIndex]!);
-      display[targetIndex] = merged;
+      // Only the changed block needs a new object. Retain all other row refs
+      // so React.memo can skip their Markdown/tool renderers during deltas.
+      if (live !== previousRow || !sameTask) {
+        const merged = { ...display[targetIndex], ...live };
+        inheritMessageIdentity(merged, display[targetIndex]!);
+        display[targetIndex] = merged;
+      }
       usedTargetIndexes.add(targetIndex);
     } else {
       targetIndex = display.length;
@@ -820,6 +824,7 @@ function applyHistoryPageToState(
     // otherwise it would be emitted a second time next to its window row.
     const windowList = windowRows(next.window);
     const tracked = new Set(next.runtime);
+    const trackedKeys = new Set(next.runtime.map(runtimeKeyOf).filter((key) => key !== null));
     // `currentMessages` is global UI state. It is safe as a compatibility
     // source only while this target is selected; a background Session's page
     // must derive from that Session's own transcript or it will adopt A's
@@ -838,7 +843,11 @@ function applyHistoryPageToState(
     }
     const adopted = targetDisplay
       .slice(mirrored)
-      .filter((row) => !isDurableRow(row) && !tracked.has(row));
+      .filter((row) => {
+        const key = runtimeKeyOf(row);
+        return !isDurableRow(row) && !tracked.has(row)
+          && (key === null || !trackedKeys.has(key));
+      });
     if (adopted.length > 0) next = { ...next, runtime: [...next.runtime, ...adopted] };
   }
   // Rebuild the rendered transcript only when the page actually contributed
@@ -1803,12 +1812,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       buffer.projectionRefs = projected.refs;
       // The live rows replace the previous buffer's run in the runtime region;
       // earlier turns' unconverged rows stay in front of them.
-      const previousLiveKeys = (previous?.messages ?? []).map((row, slot) =>
+      const previousLiveKeys = new Set((previous?.messages ?? []).map((row, slot) =>
         liveProjectionKeys(row, { taskKey: previous?.taskKey ?? taskKey, slot })[0]!,
-      );
+      ));
       const runtime = base.runtime.filter((row) => {
         const key = runtimeKeyOf(row);
-        return key === null || !previousLiveKeys.includes(key);
+        return key === null || !previousLiveKeys.has(key);
       });
       const nextRuntime = buffer.messages.map((row, slot) => {
         const key = liveProjectionKeys(row, { taskKey, slot })[0]!;
@@ -1950,12 +1959,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // The task's finalized rows keep their runtime order: rows another path
       // appended while the task was running (a Steer or a delivered user row)
       // stay in front of the result, which is the order the backend persists.
-      const previousLiveKeys = liveMessages.map((row, slot) =>
+      const previousLiveKeys = new Set(liveMessages.map((row, slot) =>
         liveProjectionKeys(row, { taskKey: previousBuffer?.taskKey ?? incomingTaskKey, slot })[0]!,
-      );
+      ));
       const keptRuntime = base.runtime.filter((row) => {
         const key = runtimeKeyOf(row);
-        return key === null || !previousLiveKeys.includes(key);
+        return key === null || !previousLiveKeys.has(key);
       });
       const finalizedRuntime = convergedReplay ? [] : finalized.map((row, slot) =>
         bindRuntimeKey(row, liveProjectionKeys(row, { taskKey: incomingTaskKey, slot })[0]!),
@@ -2219,6 +2228,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         queueIds(message).some((id) => queueIdMatches(id, item.id)),
       );
       const currentMessage = existingHistoryMessage ?? localMessage;
+      const base = ensureTranscript(s.sessionTranscripts, target);
+      const runtimeHasItem = base.runtime.some(message =>
+        queueIds(message).some(id => queueIdMatches(id, item.id)));
       const sessions = s.sessions.map((session) => session.id === sessionId
         ? {
             ...session,
@@ -2233,6 +2245,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         : session);
       return {
         sessions,
+        ...(!runtimeHasItem && !historyHasItem
+          ? withTranscript(s, sessionId, { ...base,
+              runtime: [...base.runtime, bindRuntimeKey(currentMessage, `queued:${sessionId}:${item.id}`)],
+            })
+          : {}),
         _pendingQueueIds: {
           ...s._pendingQueueIds,
           [sessionId]: new Set([
@@ -2264,6 +2281,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (!item.parts) delete next.parts;
       copyLocalMessageOrigin(next, message);
       inheritMessageIdentity(next, message);
+      const key = runtimeKeyOf(message);
+      if (key !== null) bindRuntimeKey(next, key);
       return next;
     };
     set((s) => {
@@ -2282,6 +2301,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         sessions: s.sessions.map((session) => session.id === sessionId
           ? { ...session, history, lastMessage: item.text.slice(0, 200) }
           : session),
+        ...(s.sessionTranscripts[sessionId] ? withTranscript(s, sessionId, {
+          ...s.sessionTranscripts[sessionId]!,
+          runtime: s.sessionTranscripts[sessionId]!.runtime.map(message => update(message, pendingIds)),
+        }) : {}),
         ...(s.currentSessionId === sessionId ? { currentMessages } : {}),
         _sessionLocalTouchedSeq: {
           ...s._sessionLocalTouchedSeq,
@@ -2321,6 +2344,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         sessions: s.sessions.map((session) => session.id === sessionId
           ? { ...session, history }
           : session),
+        ...(s.sessionTranscripts[sessionId] ? withTranscript(s, sessionId, {
+          ...s.sessionTranscripts[sessionId]!,
+          runtime: s.sessionTranscripts[sessionId]!.runtime.map(removePending).filter(
+            (message): message is Message => message !== null),
+        }) : {}),
         ...(s.currentSessionId === sessionId ? { currentMessages } : {}),
         _pendingQueueIds: { ...s._pendingQueueIds, [sessionId]: nextPendingIds },
         _sessionLocalTouchedSeq: {
@@ -2340,7 +2368,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => {
       const pendingIds = s._pendingQueueIds[sessionId] ?? new Set<string>();
       const selected = s.currentSessionId === sessionId;
-      const selectedMessages = selected ? [...s.currentMessages] : [];
+      const base = sessionOf(s, sessionId)
+        ? ensureTranscript(s.sessionTranscripts, sessionOf(s, sessionId)!)
+        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const selectedMessages = selected ? [...s.currentMessages] : projectTranscript(base);
       const existingIds = new Set(
         selectedMessages.flatMap((message) => explicitMessageIdentity(message)),
       );
@@ -2356,6 +2387,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         if (queueMatch >= 0 && queueIds(selectedMessages[queueMatch]!).some((id) => queueSetMatches(pendingIds, id))) {
           const updated = { ...selectedMessages[queueMatch], ...message };
           inheritMessageIdentity(updated, selectedMessages[queueMatch]!);
+          const key = runtimeKeyOf(selectedMessages[queueMatch]!);
+          if (key !== null) bindRuntimeKey(updated, key);
           selectedMessages[queueMatch] = updated;
           currentChanged = true;
           continue;
@@ -2390,6 +2423,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           if (queueMatch >= 0 && queueIds(nextHistory[queueMatch]!).some((id) => queueSetMatches(pendingIds, id))) {
             const updated = { ...nextHistory[queueMatch], ...message };
             inheritMessageIdentity(updated, nextHistory[queueMatch]!);
+            const key = runtimeKeyOf(nextHistory[queueMatch]!);
+            if (key !== null) bindRuntimeKey(updated, key);
             nextHistory[queueMatch] = updated;
             continue;
           }
@@ -2420,9 +2455,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         };
       });
 
-      const base = sessionOf(s, sessionId)
-        ? ensureTranscript(s.sessionTranscripts, sessionOf(s, sessionId)!)
-        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const deliveredRuntime = base.runtime.map(row => {
+        const incoming = localMessages.find(message => queueIds(message).some(id =>
+          queueIds(row).some(existing => queueIdMatches(existing, id))));
+        if (!incoming) return row;
+        const updated = { ...row, ...incoming };
+        inheritMessageIdentity(updated, row);
+        const key = runtimeKeyOf(row);
+        if (key !== null) bindRuntimeKey(updated, key);
+        return updated;
+      });
       const runtimeRows = currentAppend.length > 0
         ? currentAppend.map((row, index) =>
             bindRuntimeKey(row, `delivered:${touchSeq}:${index}`),
@@ -2447,9 +2489,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ...(selected && (currentAppend.length || currentChanged)
           ? { currentMessages: [...selectedMessages, ...currentAppend] }
           : {}),
-        ...(runtimeRows.length > 0
-          ? withTranscript(s, sessionId, { ...base, runtime: [...base.runtime, ...runtimeRows] })
-          : {}),
+        ...withTranscript(s, sessionId, { ...base, runtime: [...deliveredRuntime, ...runtimeRows] }),
       };
     });
   },

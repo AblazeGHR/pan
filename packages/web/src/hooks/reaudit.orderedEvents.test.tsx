@@ -194,6 +194,44 @@ describe('reaudit · ordered event pipeline', () => {
       .toEqual(['live-unscoped']);
   });
 
+  it('exact native item wins over an earlier tool alias when the assistant final arrives', () => {
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('worker.stream', assistantDelta('command output', 'tool', 'turn', 1));
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0, taskSeq: 1,
+        event: { type: 'assistant', final: true, item_id: 'tool', turn_id: 'turn',
+          message: { content: [{ type: 'tool_use', name: 'Command', input: { command: 'echo' } }] } } });
+      wsMock.trigger('worker.stream', assistantDelta('answer', 'answer', 'turn', 1));
+      wsMock.trigger('worker.stream', { type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0, taskSeq: 1,
+        event: { type: 'assistant', final: true, item_id: 'answer', turn_id: 'turn',
+          message: { content: [{ type: 'text', text: 'answer' }] } } });
+    });
+    expect(shape()).toEqual(['tool:Command({"command":"echo"})', 'assistant:answer']);
+  });
+
+  it('reconnect snapshot finalizes a partial answer when its terminal frame was lost', () => {
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('worker.stream', assistantDelta('partial', 'answer', 'turn', 1));
+      wsMock.trigger('resync.snapshot', { type: 'resync.snapshot', details: {
+        A: { lastResult: { taskSeq: 1, workerId: 'w1', generation: 0, status: 'done', result: 'complete answer' } },
+      } });
+      useSessionStore.getState().applyHistoryPage('A', { history: [{ role: 'assistant', content: 'complete answer' }],
+        start: 0, total: 1, hasMore: false, historyEpoch: 'h', historyRevision: 1 });
+    });
+    expect(shape()).toEqual(['assistant:complete answer']);
+    expect(useSessionStore.getState().liveStreamBuffers.A).toBeUndefined();
+  });
+
+  it('uses the cumulative body when the first observed frame starts mid-item', () => {
+    renderHook(() => useWebSocket());
+    act(() => wsMock.trigger('worker.stream', {
+      ...assistantDelta('tail', 'answer', 'turn', 1),
+      event: { ...assistantDelta('tail', 'answer', 'turn', 1).event, stream_text: 'missing prefix tail' },
+    }));
+    expect(shape()).toEqual(['assistant:missing prefix tail']);
+  });
+
   it('E1b · Codex delta and final tool envelope with one item renders once', () => {
     renderHook(() => useWebSocket());
     act(() => {

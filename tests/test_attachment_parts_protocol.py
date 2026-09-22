@@ -210,6 +210,25 @@ def test_unknown_cross_session_reference_is_rejected(monkeypatch, tmp_path):
     assert result["error"]["code"] == "attachment_not_found"
 
 
+def test_queue_edit_updates_plain_composer_parts_and_delivery(monkeypatch, tmp_path):
+    first, _second = _setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(_sess, "save_async", _noop_save_async)
+    monkeypatch.setattr(srv.worker, "_schedule_session_recovery", lambda _sid: None)
+    result = asyncio.run(srv.api_session_queue_enqueue(first.id, {
+        "parts": [{"type": "text", "text": "original"}],
+    }))
+    item_id = result["item"]["id"]
+    edited = asyncio.run(srv.api_session_queue_update(first.id, item_id, {
+        "text": "edited", "expectedRevision": 1,
+    }))
+    assert edited["ok"] is True
+    assert edited["item"]["text"] == "edited"
+    target = next(item for item in first.queue_pending if item["id"] == item_id)
+    assert target["parts"] == [{"type": "text", "text": "edited"}]
+    assert srv.worker.project_message_parts(target["parts"], target["text"]) == "edited"
+    assert first.queue_delivery_ledger[item_id]["parts"] == target["parts"]
+
+
 def test_queue_edit_cannot_make_text_disagree_with_parts(monkeypatch, tmp_path):
     first, _second = _setup(tmp_path, monkeypatch)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)

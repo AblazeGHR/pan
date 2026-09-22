@@ -1,0 +1,102 @@
+// @vitest-environment jsdom
+import { beforeEach, expect, it, vi } from 'vitest';
+import { useSessionStore } from './sessionStore';
+import type { Message, Session } from '@/types';
+
+vi.mock('@/services/api', async (original) => ({
+  ...(await original<typeof import('@/services/api')>()),
+  fetchSessionHistory: vi.fn(() => new Promise(() => {})),
+}));
+const row = (content: string): Message => ({ role: 'assistant', content });
+const meta = { workerId: 'w', generation: 0, taskSeq: 1 };
+const store = () => useSessionStore.getState();
+const texts = () => store().currentMessages.map(m => m.content);
+beforeEach(() => {
+  const sessions = ['A', 'B'].map(id => ({ id, name: id, history: [], historyTotal: 0,
+    alwaysThinkingEnabled: false, effort: '' }) as Session);
+  useSessionStore.setState({ sessions, currentSessionId: 'A', currentMessages: [],
+    sessionTranscripts: {}, liveStreamBuffers: {}, terminalWatermarks: {},
+    unscopedReplayPending: {}, _selectionSeq: {}, _historyRefreshSeq: {}, serverEpoch: null });
+  useSessionStore.setState({ _pendingQueueIds: {}, _deliveredQueueIds: {} });
+});
+
+it('history refresh between deltas never adopts the displayed clone as a second runtime row', () => {
+  store().applyLiveStream('A', [row('one')], meta);
+  store().applyLiveStream('A', [row('one two')], meta);
+  store().applyHistoryPage('A', { history: [{ role: 'user', content: 'question' }],
+    start: 0, total: 1, hasMore: false, historyRevision: 1, historyEpoch: 'h' });
+  expect(texts()).toEqual(['question', 'one two']);
+  store().applyLiveStream('A', [row('one two three')], meta);
+  expect(texts()).toEqual(['question', 'one two three']);
+  void store().selectSession('B');
+  void store().selectSession('A');
+  expect(texts()).toEqual(['question', 'one two three']);
+});
+
+it('switching away and back invalidates cached displayed clones without duplicating the next delta', () => {
+  store().applyLiveStream('A', [row('one')], meta);
+  store().applyLiveStream('A', [row('one two')], meta);
+  void store().selectSession('B');
+  void store().selectSession('A');
+  store().applyLiveStream('A', [row('one two three')], meta);
+  expect(texts()).toEqual(['one two three']);
+});
+
+it('completed runtime rows remain anchored when history is refreshed repeatedly then another task starts', () => {
+  for (let taskSeq = 1; taskSeq <= 5; taskSeq++) {
+    store().applyLiveStream('A', [row(`answer-${taskSeq}`)], { ...meta, taskSeq });
+    store().reconcileWorkerResult('A', { result: `answer-${taskSeq}`, status: 'done' }, { ...meta, taskSeq });
+    const history = Array.from({ length: taskSeq }, (_, i) => row(`answer-${i + 1}`));
+    store().applyHistoryPage('A', { history, start: 0, total: taskSeq, hasMore: false,
+      historyRevision: taskSeq, historyEpoch: 'h' });
+    void store().selectSession('B');
+    void store().selectSession('A');
+    expect(texts()).toEqual(history.map(m => m.content));
+  }
+});
+
+it('a queued second user row keeps its position after the first completed turn', () => {
+  store().appendQueuedMessage('A', { id: 'q1', text: 'question-1' });
+  store().appendDeliveredMessages('A', [{ role: 'user', content: 'question-1', queueItemIds: ['q1'] }]);
+  store().applyLiveStream('A', [row('answer-1')], meta);
+  store().reconcileWorkerResult('A', { result: 'answer-1', status: 'done' }, meta);
+  store().addMessage({ role: 'system', content: '[DONE] Task completed' });
+  store().applyHistoryPage('A', { history: [{ role: 'user', content: 'question-1' }, row('answer-1')],
+    start: 0, total: 2, hasMore: false, historyRevision: 2, historyEpoch: 'h' });
+  store().appendQueuedMessage('A', { id: 'q2', text: 'question-2' });
+  store().appendDeliveredMessages('A', [{ role: 'user', content: 'question-2', queueItemIds: ['q2'] }]);
+  store().applyLiveStream('A', [row('answer-2')], { ...meta, taskSeq: 2 });
+  store().reconcileWorkerResult('A', { result: 'answer-2', status: 'done' }, { ...meta, taskSeq: 2 });
+  expect(texts()).toEqual(['question-1', 'answer-1', '[DONE] Task completed', 'question-2', 'answer-2']);
+});
+
+it('editing and removing pending messages also updates the background transcript', () => {
+  store().appendQueuedMessage('A', { id: 'q1', text: 'original' });
+  void store().selectSession('B');
+  store().updateQueuedMessage('A', { id: 'q1', text: 'edited' });
+  void store().selectSession('A');
+  expect(texts()).toEqual(['edited']);
+  void store().selectSession('B');
+  store().removeQueuedMessage('A', 'q1');
+  void store().selectSession('A');
+  expect(texts()).toEqual([]);
+});
+
+it('background delivery replaces the pending row and survives repeated delivery', () => {
+  store().appendQueuedMessage('A', { id: 'q1', text: 'question' });
+  void store().selectSession('B');
+  const message = { role: 'user', content: 'delivered question', queueItemIds: ['q1'] };
+  store().appendDeliveredMessages('A', [message]);
+  store().appendDeliveredMessages('A', [message]);
+  void store().selectSession('A');
+  expect(texts()).toEqual(['delivered question']);
+});
+
+it('unchanged live blocks keep their rendered object references', () => {
+  const first = row('first item');
+  const second = row('second item');
+  store().applyLiveStream('A', [first, second], meta);
+  const rendered = store().currentMessages[0];
+  store().applyLiveStream('A', [first, row('second item grows')], meta);
+  expect(store().currentMessages[0]).toBe(rendered);
+});

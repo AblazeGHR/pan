@@ -1,0 +1,57 @@
+{
+  "date": "2026-09-22",
+  "base": "28be089",
+  "branch": "fix/frontend-full-e2e-20260922",
+  "root": "D:/project/pan-worktrees/frontend-full-e2e-20260922",
+  "runtime": "D:/project/pan-worktrees/frontend-full-e2e-20260922/packages/web/test-results/full-1790081727958",
+  "rawEvidence": "packages/web/test-results/full-1790081727958/evidence.json",
+  "screenshot": "packages/web/test-results/full-1790081727958/final.png",
+  "port": 8765,
+  "processes": [
+    { "launcher": 4060, "server": 26708 },
+    { "launcher": 37012, "server": 38904 }
+  ],
+  "modelBoundary": "Deterministic CBC/Codex CLI subprocess; no paid provider calls. Real browser, HTTP, WebSocket, Worker, queue and persistence.",
+  "stages": [
+    "initial tail",
+    "wheel pagination",
+    "A multi-turn 1",
+    "B compound 1",
+    "A multi-turn 2",
+    "B compound 2",
+    "A multi-turn 3",
+    "B compound 3",
+    "A multi-turn 4",
+    "B compound 4",
+    "two live transport frames reordered",
+    "authoritative snapshot delayed across live frames",
+    "delayed history + duplicate/reordered frames + rapid A/B/A",
+    "late duplicate terminal results and obsolete task deltas",
+    "disconnect during delta and reconnect after terminal",
+    "real queued edit + delete + A/B/A + sequential delivery",
+    "long history fully paginated",
+    "5000 loaded rows + delta + upscroll + return bottom",
+    "long history A/B/A after streaming",
+    "browser reload",
+    "cold server restart and websocket reconnect"
+  ],
+  "comparison": "Loaded canonical suffix matches store role/content/order, excluding local DONE markers; mounted DOM content/order/geometry checked; transient duplicate-answer assertions enabled.",
+  "performance": {
+    "durationMs": 1981,
+    "frameCount": 119,
+    "p95FrameMs": 16.70000000001164,
+    "maxFrameMs": 16.80000000000291,
+    "longTasks": []
+  },
+  "errors": [],
+  "pass": true,
+  "cleanup": { "portFree": true },
+  "regression": {
+    "frontendFiles": 74,
+    "frontendTestsPassed": 694,
+    "targetedBackendTestsPassed": 62,
+    "typescriptAndProductionBuild": "passed",
+    "changedFrontendAndRunnerLint": "passed"
+  },
+  "deployment": "Not merged, pushed or deployed. Protected production 8768 untouched."
+}

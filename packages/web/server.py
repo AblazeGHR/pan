@@ -5175,9 +5175,17 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
         if not isinstance(text, str) or not text.strip():
             return _queue_error("text_required", "text is required", s)
+        normalized_parts = None
         if isinstance(target.get("parts"), list):
+            parts = target["parts"]
+            # The rich-text composer also supplies parts for plain text.
+            # Editing that queue row must update both representations. Keep
+            # attachment-bearing parts immutable here: the plain queue editor
+            # cannot safely remap attachment occurrences from arbitrary text.
+            if all(isinstance(part, dict) and part.get("type") == "text" for part in parts):
+                parts = [{"type": "text", "text": text}]
             normalized_parts, canonical_text, parts_error = _normalize_message_parts(
-                session_id, target["parts"])
+                session_id, parts)
             if parts_error is not None:
                 return _queue_error(parts_error["code"], parts_error["message"], s)
             if text != canonical_text:
@@ -5186,7 +5194,6 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
                     "Queued message text must match its structured attachment parts",
                     s,
                 )
-            target["parts"] = normalized_parts
         current_revision = int(target.get("revision", 1))
         if expected is not None and expected != current_revision:
             return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
@@ -5194,6 +5201,8 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         old_ledger = dict(s.queue_delivery_ledger.get(item_id, {}))
         old_queue_revision = s.queue_revision
         target["text"] = text
+        if normalized_parts is not None:
+            target["parts"] = normalized_parts
         target["revision"] = current_revision + 1
         target["updatedAt"] = datetime.now().isoformat()
         _ledger = s.queue_delivery_ledger.get(item_id)

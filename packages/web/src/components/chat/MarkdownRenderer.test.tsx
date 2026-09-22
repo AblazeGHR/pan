@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { Profiler } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
@@ -45,6 +46,20 @@ beforeEach(() => {
 });
 
 describe('MarkdownRenderer', () => {
+  it('does not reparse historical Markdown when another message streams', () => {
+    const commits = vi.fn();
+    render(<Profiler id="historical-markdown" onRender={commits}>
+      <MarkdownRenderer content={'# Existing history\n```js\nconst x = 1;\n```'} />
+    </Profiler>);
+    commits.mockClear();
+    act(() => {
+      useSessionStore.setState(s => ({ sessions: s.sessions.map(session => ({
+        ...session, history: [...session.history, { role: 'assistant', content: 'new delta' }],
+      })) }));
+    });
+    expect(commits).not.toHaveBeenCalled();
+  });
+
   it('renders list bullets structure and hljs spans', () => {
     const md = [
       '- item one',

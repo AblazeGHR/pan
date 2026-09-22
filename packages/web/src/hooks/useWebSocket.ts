@@ -146,13 +146,17 @@ export function useWebSocket() {
     };
 
     const syncAuthoritativeSnapshot = (recovery = false): void => {
-      const sessionId = useSessionStore.getState().currentSessionId;
+      const state = useSessionStore.getState();
+      const sessionIds = [...new Set([
+        ...(state.currentSessionId ? [state.currentSessionId] : []),
+        ...Object.keys(state.liveStreamBuffers),
+      ])];
       const cursor = typeof wsClient.getEventCursor === 'function'
         ? wsClient.getEventCursor()
         : { eventEpoch: null, eventSeq: 0 };
       wsClient.sendAuthoritativeResync({
         type: 'resync',
-        ...(sessionId ? { sessionIds: [sessionId] } : {}),
+        ...(sessionIds.length ? { sessionIds } : {}),
         includeAllSessions: true,
         includeIdentity: true,
         ...(cursor.eventEpoch ? { eventEpoch: cursor.eventEpoch } : {}),
@@ -180,11 +184,10 @@ export function useWebSocket() {
       useAdapterStore.getState().loadAdapterList();
       useAdapterStore.getState().loadConfig('cbc');
       // An open event is the completion point for a focus-triggered stale
-      // reconnect. Refresh the selected session and queue here so recovery
-      // does not race a new socket with HTTP snapshots.
+      // reconnect. The snapshot callback finalizes buffered tasks before
+      // refreshing history, so a missed terminal cannot leave a partial echo.
       const sessionId = useSessionStore.getState().currentSessionId;
       if (sessionId) {
-        void useSessionStore.getState().refreshCurrentSessionHistory();
         void useQueueStore.getState().loadAgentQueue(sessionId);
       }
       syncAuthoritativeSnapshot();
@@ -201,7 +204,6 @@ export function useWebSocket() {
     // preserve the live stream.  The event is not replay: converge from the
     // authoritative HTTP snapshots, then let the socket reconnect normally.
     unsubscribers.push(wsClient.on('resync_required', () => {
-      refreshAuthoritativeState();
       // If the server did not close the socket (for example, the client
       // detected a live event cursor gap), request a fresh boundary on the
       // same connection.  A close-triggered resync simply returns false and
@@ -213,11 +215,31 @@ export function useWebSocket() {
       useWorkerStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
     }));
     unsubscribers.push(wsClient.on('resync.snapshot', (e: StreamEvent) => {
-      // The payload is a bounded server boundary.  HTTP remains the canonical
-      // lazy history/queue reader, so converge through the existing guarded
-      // loaders instead of replacing local live buffers with a snapshot.
       useSessionStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
       useWorkerStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
+      // A task may have completed while the physical socket was absent. The
+      // snapshot's lastResult is the durable terminal boundary, even when no
+      // worker.result frame can be replayed. Finalize its buffered partial
+      // answer before any history merge, otherwise the id-less canonical final
+      // and the old partial are rendered as two separate assistant messages.
+      for (const [sessionId, detail] of Object.entries(e.details ?? {})) {
+        const last = detail.lastResult as Record<string, unknown> | null | undefined;
+        const buffer = useSessionStore.getState().liveStreamBuffers[sessionId];
+        if (!buffer || !last || typeof last.taskSeq !== 'number') continue;
+        if (last.taskSeq !== buffer.taskSeq) continue;
+        useSessionStore.getState().reconcileWorkerResult(sessionId, {
+          result: typeof last.result === 'string' ? last.result : '',
+          status: typeof last.status === 'string' ? last.status : 'done',
+          historyEpoch: typeof last.historyEpoch === 'string' ? last.historyEpoch : undefined,
+          historyRevision: typeof last.historyRevision === 'number' ? last.historyRevision : undefined,
+        }, {
+          serverEpoch: e.serverEpoch || e.eventEpoch,
+          workerId: typeof last.workerId === 'string' ? last.workerId : buffer.workerId,
+          generation: typeof last.generation === 'number' ? last.generation : buffer.generation,
+          taskSeq: last.taskSeq,
+          taskId: typeof last.taskId === 'string' ? last.taskId : undefined,
+        });
+      }
       const knownSessionIds = [
         ...useSessionStore.getState().sessions.map((session) => session.id),
         ...(e.sessions ?? []).map((session) => session.id),
@@ -269,7 +291,13 @@ export function useWebSocket() {
         else wsClient.connect();
         return;
       }
-      refreshAuthoritativeState();
+      // A buffered task needs its durable terminal boundary before history
+      // can converge. Without a partial stream, HTTP alone is sufficient.
+      if (Object.keys(useSessionStore.getState().liveStreamBuffers).length > 0) {
+        syncAuthoritativeSnapshot(true);
+      } else {
+        refreshAuthoritativeState();
+      }
     };
 
     const recover = (): void => {
@@ -919,16 +947,16 @@ function appendEventToMessages(
             && message.blockId === blockId);
     }
     if (nativeIndex < 0 && nativeIds.length > 0) {
-      nativeIndex = usedIndexes
-        ? messages.findIndex((message, index) =>
-            !usedIndexes.has(index)
-            && (message.role === b.role || event.final || event.replace)
-            && message.nativeItemId
-            && nativeIds.includes(message.nativeItemId))
-        : messages.findIndex((message) =>
-            (message.role === b.role || event.final || event.replace)
-            && message.nativeItemId
-            && nativeIds.includes(message.nativeItemId));
+      // Exact item identity takes precedence over the turn's compatibility
+      // aliases, regardless of row order. A tool delta can have claimed the
+      // first assistant alias before the real answer item began streaming.
+      for (const id of nativeIds) {
+        nativeIndex = messages.findIndex((message, index) =>
+          !usedIndexes?.has(index)
+          && (message.role === b.role || event.final || event.replace)
+          && message.nativeItemId === id);
+        if (nativeIndex >= 0) break;
+      }
     }
     const lastIndex = messages.length - 1;
     // A native id is an explicit target. Falling back to the last message here
@@ -972,7 +1000,12 @@ function appendEventToMessages(
       } else {
         const message = {
           role: b.role,
-          content: b.content,
+          // The first frame this browser sees may be a coalesced/reconnected
+          // delta from the middle of an item. Its cumulative body includes
+          // the prefix that never arrived on this socket.
+          content: cumulativeStreamText !== undefined
+            && (b.role === 'assistant' || b.role === 'thinking')
+            ? cumulativeStreamText : b.content,
           ...(nativeItemId ? { nativeItemId } : {}),
           ...(blockId ? { blockId } : {}),
         };
