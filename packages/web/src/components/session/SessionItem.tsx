@@ -101,6 +101,14 @@ export const SessionItem = memo(function SessionItem({
     if (!text) return null;
     return text.length > 50 ? `${text.slice(0, 50)}...` : text;
   }, [session.lastMessage, lastContent]);
+  // A cold summary intentionally uses null/undefined for an unknown total.
+  // Only a loaded local message list can provide a conservative fallback;
+  // never turn an unloaded empty list into a misleading zero.
+  const messageCount = typeof session.historyTotal === 'number'
+    ? session.historyTotal
+    : messages.length > 0
+      ? messages.length
+      : '—';
   const credit = session.totalUsage?.credit ?? null;
 
   const handleClick = () => {
@@ -226,7 +234,7 @@ export const SessionItem = memo(function SessionItem({
         <div className="flex items-center gap-2 mt-1 text-xs text-text-secondary">
           <span className="flex items-center gap-0.5">
             <MessageSquare size={10} />
-            {session.historyTotal ?? messages.length}
+            {messageCount}
           </span>
           {session.model && (
             <span className="flex items-center gap-0.5 truncate">

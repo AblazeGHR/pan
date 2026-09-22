@@ -111,6 +111,15 @@ async def lifespan(app: FastAPI):
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
 
+    # Upgrade-shaped/incomplete summary projections are repaired in one
+    # bounded worker-thread scan.  The summary HTTP path remains projection
+    # only, while this task gives the frontend a deterministic convergence
+    # event once the durable metadata is authoritative.
+    summary_backfill_task = asyncio.create_task(
+        _run_summary_projection_backfill(),
+        name="pan-summary-projection-backfill",
+    )
+
     # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
     worker.start_global_watchdog()
@@ -130,6 +139,13 @@ async def lifespan(app: FastAPI):
         _log(f"[Pan] Character manifest not loaded: {e}")
     
     yield
+    # asyncio.to_thread cannot safely be abandoned halfway through an atomic
+    # metadata replace; let the current one-session operation finish before
+    # shutdown proceeds.
+    try:
+        await summary_backfill_task
+    except Exception as exc:
+        _log(f"[Pan] Summary projection backfill failed: {exc}")
     reminder_task.cancel()
     try:
         await reminder_task
@@ -149,6 +165,17 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     _log("[Pan] All workers shut down")
+
+
+async def _run_summary_projection_backfill() -> dict:
+    result = await sess.backfill_summary_projections()
+    if result.get("repaired", 0):
+        await broadcast({
+            "type": "session.summaryBackfillCompleted",
+            "repaired": result["repaired"],
+            "discovered": result["discovered"],
+        })
+    return result
 
 
 _character_manager: CharacterManager | None = None
@@ -4382,6 +4409,12 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
         _history_pages_for, [s.id for s in sessions], 50)
     return {"sessions": [_session_list_api(s, page=pages.get(s.id))
                          for s in sessions]}
+
+
+@app.get("/api/sessions/summary-repair")
+async def api_summary_projection_repair_status():
+    """Expose cold-start summary repair progress without touching history."""
+    return sess.summary_backfill_status()
 
 
 def _workspace_view(workspace: workspaces.Workspace) -> dict:

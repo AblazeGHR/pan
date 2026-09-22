@@ -106,6 +106,42 @@ def test_session_list_cold_read_does_not_block_event_loop():
     assert max(gaps) < 0.05, f"event loop blocked for {max(gaps) * 1000:.1f}ms"
 
 
+def test_summary_projection_120k_history_stays_jsonl_free_and_keeps_heartbeat(
+    monkeypatch,
+):
+    """A long cold summary uses metadata only and leaves the loop schedulable."""
+    count = 120_000
+    sid = "ses-summary-120k"
+    _sess.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    projection = _sess._summary_projection_from_history(
+        [{"role": "assistant", "content": "latest"}],
+    )
+    projection["history_total"] = count
+    main_path = _sess.SESSION_DIR / f"{sid}.json"
+    main_path.write_text(json.dumps({
+        "id": sid, "name": sid, "adapter": "cbc", "history": [],
+        "summary_projection": projection,
+    }), encoding="utf-8")
+    (_sess.SESSION_DIR / f"{sid}.history.jsonl").write_text(
+        (json.dumps({"role": "assistant", "content": "row"}) + "\n") * count,
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(_sess, "_read_jsonl", lambda *_args: (_ for _ in ()).throw(
+        AssertionError("summary path must not scan a long JSONL")
+    ))
+
+    response, gaps, ticks = _max_loop_gap(
+        lambda: server.api_list_sessions(summary=1),
+    )
+    item = next(row for row in response["sessions"] if row["id"] == sid)
+    assert item["historyTotal"] == count
+    assert item["lastMessage"] == "latest"
+    # The metadata-only request can finish in only a few scheduler turns on a
+    # warm Windows filesystem; at least one heartbeat proves the loop yielded.
+    assert ticks > 0
+    assert max(gaps) < 0.05, f"event loop blocked for {max(gaps) * 1000:.1f}ms"
+
+
 def test_session_history_cold_read_does_not_block_event_loop():
     """A single 60k-row history must not freeze the loop while it is paged."""
     _seed("ses-cold-history", _rows(60_000))

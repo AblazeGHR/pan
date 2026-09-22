@@ -600,6 +600,12 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('sessions.deleted', () => {
       scheduleRefreshSessions();
     }));
+    // Cold-start projection repair is an eventual metadata-only operation.
+    // Its completion event is the explicit refresh trigger for cards that
+    // initially rendered an unknown count/preview.
+    unsubscribers.push(wsClient.on('session.summaryBackfillCompleted', () => {
+      scheduleRefreshSessions();
+    }));
     // Custom session order persisted (POST /api/sessions/order broadcast). A
     // debounced full-list refresh re-reads the server snapshot; in custom sort
     // mode loadSessions aligns customOrder with the authoritative order, so a

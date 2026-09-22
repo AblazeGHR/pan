@@ -107,7 +107,8 @@ export interface Session {
   /** Latest formal assign task context used by subsequent agent_send messages. */
   activeTaskId?: string | null;
   historyTruncated?: boolean;
-  historyTotal?: number;
+  /** Null/undefined means the cold summary cannot know the total yet. */
+  historyTotal?: number | null;
   /** Server history identity scope. Old sessions/clients may omit it. */
   historyEpoch?: string | null;
   /** Monotonic canonical history revision within historyEpoch. */

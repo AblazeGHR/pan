@@ -4,7 +4,11 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { SessionItem } from './SessionItem';
 import type { Session } from '@/types';
 
-function session(lastMessage: string, workerStatus: string = 'idle'): Session {
+function session(
+  lastMessage: string,
+  workerStatus: string = 'idle',
+  extra: Partial<Session> = {},
+): Session {
   return {
     id: 'session-1',
     name: 'Codex',
@@ -15,6 +19,7 @@ function session(lastMessage: string, workerStatus: string = 'idle'): Session {
     historyTotal: 1,
     lastMessage,
     workerStatus,
+    ...extra,
   };
 }
 
@@ -70,6 +75,39 @@ describe('SessionItem streaming preview', () => {
     );
 
     expect(screen.getByText('Answer body')).toBeTruthy();
+  });
+
+  it('shows an explicit unknown count when the cold summary total is null', () => {
+    render(
+      <SessionItem
+        session={session('preview', 'idle', { historyTotal: null, history: [] })}
+        isActive={false}
+      />,
+    );
+
+    expect(screen.getByText('—')).toBeTruthy();
+    expect(screen.queryByText(/^0$/)).toBeNull();
+  });
+
+  it('keeps an explicit zero distinct from unknown and loaded local history', () => {
+    const { rerender } = render(
+      <SessionItem
+        session={session('', 'idle', { historyTotal: 0, history: [] })}
+        isActive={false}
+      />,
+    );
+    expect(screen.getByText('0')).toBeTruthy();
+
+    rerender(
+      <SessionItem
+        session={session('', 'idle', {
+          historyTotal: null,
+          history: [{ role: 'user', content: 'loaded' }],
+        })}
+        isActive={false}
+      />,
+    );
+    expect(screen.getByText('1')).toBeTruthy();
   });
 
   it('does not recompute the derived preview when only unrelated props change', () => {
