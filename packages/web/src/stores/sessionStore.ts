@@ -81,6 +81,9 @@ interface SessionStore {
   sessionSettingMutations: Record<string, SessionSettingMutationInternal>;
   /** Authoritative server process epoch for runtime watermarks. */
   serverEpoch: string | null;
+  /** After a resync boundary, unscoped stream frames are replay echoes until
+   * the first task-scoped frame for that Session arrives. */
+  unscopedReplayPending: Record<string, boolean>;
   /** Start offset of each Session's loaded canonical history window. */
   historyWindowStarts: Record<string, number>;
 
@@ -110,6 +113,7 @@ interface SessionStore {
   reimport: (id: string) => Promise<void>;
   setInputDraft: (id: string, draft: string) => void;
   acceptServerEpoch: (epoch: string | null | undefined) => void;
+  beginUnscopedReplay: (sessionIds: string[]) => void;
   addMessage: (msg: Message) => void;
   appendMessages: (msgs: Message[]) => void;
   /** Append a user-side control/message to its target Session projection. */
@@ -578,7 +582,13 @@ function transcriptIsStale(transcript: SessionTranscript, session: Session): boo
 function runtimeRowCompatible(runtimeRow: Message, durableRow: Message): boolean {
   if (runtimeRow.role !== durableRow.role) return false;
   if (runtimeRow.content === durableRow.content) return true;
-  return runtimeRow.role !== 'user';
+  // A role-only match is unsafe: two adjacent assistant/thinking/tool rows
+  // from different tasks can have different bodies at the same offset.  The
+  // final result/history convergence path supplies the authoritative body; a
+  // non-identical runtime row may only consume it when the provider/canonical
+  // identity explicitly agrees.
+  return explicitIdentityOf(runtimeRow).some((identity) =>
+    explicitIdentityOf(durableRow).includes(identity));
 }
 
 /**
@@ -698,6 +708,7 @@ function projectLiveRows(
   const display = current.slice();
   const indexes: Record<string, number> = {};
   const refs: Record<string, Message> = {};
+  const usedTargetIndexes = new Set<number>();
   let appended = 0;
   for (const [slot, live] of rows.entries()) {
     const keys = liveProjectionKeys(live, { taskKey, slot });
@@ -717,8 +728,11 @@ function projectLiveRows(
       const cached = previousBuffer?.projectionIndexes?.[key];
       if (cached === undefined || cached < 0 || cached >= display.length) continue;
       const row = display[cached]!;
-      if (row.role !== live.role) continue;
+      const sameIdentity = explicitIdentityOf(row).some((identity) =>
+        explicitIdentityOf(live).includes(identity));
+      if (row.role !== live.role && !sameIdentity) continue;
       if (previousBuffer?.projectionRefs?.[key] !== row) continue;
+      if (usedTargetIndexes.has(cached)) continue;
       targetIndex = cached;
       break;
     }
@@ -726,13 +740,15 @@ function projectLiveRows(
       // The previous row object is still in the array (an older page was
       // prepended, so its index moved). Locate it by object identity.
       const found = display.indexOf(previousRow);
-      if (found >= 0 && display[found]!.role === live.role) targetIndex = found;
+      if (found >= 0 && display[found]!.role === live.role
+          && !usedTargetIndexes.has(found)) targetIndex = found;
     }
-    if (targetIndex < 0) {
+    if (targetIndex < 0 && sameTask) {
       const explicit = explicitIdentityOf(live);
       if (explicit.length > 0) {
         targetIndex = display.findIndex((candidate) =>
-          candidate.role === live.role
+          !usedTargetIndexes.has(display.indexOf(candidate))
+          && candidate.role === live.role
           && explicitIdentityOf(candidate).some((id) => explicit.includes(id)),
         );
       }
@@ -741,16 +757,21 @@ function projectLiveRows(
       const merged = { ...display[targetIndex], ...live };
       inheritMessageIdentity(merged, display[targetIndex]!);
       display[targetIndex] = merged;
+      usedTargetIndexes.add(targetIndex);
     } else {
       targetIndex = display.length;
       display.push(live);
       appended += 1;
+      usedTargetIndexes.add(targetIndex);
     }
     for (const key of keys) {
       indexes[key] = targetIndex;
       refs[key] = display[targetIndex]!;
-      bindRuntimeKey(display[targetIndex]!, key);
     }
+    // A row has one runtime ownership key.  The slot key is stable for the
+    // task and is deliberately primary; binding the later fallback identity
+    // here made the displayed clone look untracked during terminal rebuild.
+    bindRuntimeKey(display[targetIndex]!, keys[0]!);
   }
   return { display, indexes, refs, appended };
 }
@@ -925,6 +946,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionTranscripts: {},
   sessionSettingMutations: {},
   serverEpoch: null,
+  unscopedReplayPending: {},
   historyWindowStarts: {},
 
   loadSessions: async () => {
@@ -1612,6 +1634,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
+  beginUnscopedReplay: (sessionIds) => {
+    set(() => ({
+      // Keep the marker even when the snapshot has no session list: an
+      // unscoped frame for a newly learned running Session is still a replay
+      // echo until that Session exposes taskSeq/taskId.
+      unscopedReplayPending: Object.fromEntries(
+        [['*', true], ...[...new Set(sessionIds)].map((sessionId) => [sessionId, true])],
+      ),
+    }));
+  },
+
   addMessage: (msg: Message) => {
     const touchSeq = (localTouchSeq += 1);
     set((s) => {
@@ -1717,6 +1750,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   canApplyLiveStream: (sessionId, meta) => {
     const state = get();
+    if (meta.taskSeq === undefined && !meta.taskId
+        && (state.unscopedReplayPending[sessionId]
+          || (state.unscopedReplayPending['*']
+            && state.unscopedReplayPending[sessionId] !== false))) return false;
     const terminal = state.terminalWatermarks[sessionId];
     if (isBlockedByTerminal(meta, terminal, 'stream')) return false;
     const previous = state.liveStreamBuffers[sessionId];
@@ -1727,6 +1764,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!messages.length) return false;
     let accepted = false;
     set((s) => {
+      if (meta.taskSeq === undefined && !meta.taskId
+          && (s.unscopedReplayPending[sessionId]
+            || (s.unscopedReplayPending['*']
+              && s.unscopedReplayPending[sessionId] !== false))) return s;
       const terminal = s.terminalWatermarks[sessionId];
       if (isBlockedByTerminal(meta, terminal, 'stream')) return s;
       const previous = s.liveStreamBuffers[sessionId];
@@ -1743,6 +1784,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         messages: messages.slice(),
       };
       accepted = true;
+      const replayPending = (meta.taskSeq !== undefined || Boolean(meta.taskId))
+        && (s.unscopedReplayPending[sessionId]
+          || s.unscopedReplayPending['*'])
+        ? { ...s.unscopedReplayPending, [sessionId]: false }
+        : s.unscopedReplayPending;
       const session = sessionOf(s, sessionId);
       const base = session
         ? ensureTranscript(s.sessionTranscripts, session)
@@ -1772,6 +1818,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (s.currentSessionId === sessionId) {
         return {
           liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
+          unscopedReplayPending: replayPending,
           currentMessages: projected.display,
           sessions: mirrorHistory(s.sessions, sessionId, projected.display),
           ...withTranscript(s, sessionId, transcript),
@@ -1779,6 +1826,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
       return {
         liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
+        unscopedReplayPending: replayPending,
         ...withTranscript(s, sessionId, transcript),
       };
     });

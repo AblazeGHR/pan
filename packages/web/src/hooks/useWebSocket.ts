@@ -211,6 +211,14 @@ export function useWebSocket() {
       // loaders instead of replacing local live buffers with a snapshot.
       useSessionStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
       useWorkerStore.getState().acceptServerEpoch(e.serverEpoch || e.eventEpoch);
+      const knownSessionIds = [
+        ...useSessionStore.getState().sessions.map((session) => session.id),
+        ...(e.sessions ?? []).map((session) => session.id),
+        ...(e.workers ?? [])
+          .map((worker) => typeof worker.sessionId === 'string' ? worker.sessionId : null)
+          .filter((id): id is string => Boolean(id)),
+      ];
+      useSessionStore.getState().beginUnscopedReplay(knownSessionIds);
       refreshAuthoritativeState();
     }));
 
@@ -708,10 +716,15 @@ function pyJsonDumps(value: unknown): string {
  *          {type:'content.part', role:'assistant', part:{type,text}}、
  *          以及 tool_calls —— kimi 事件以 role 标识、可无 type 字段，
  *          此前前端只认 type==='assistant' 导致 kimi 流式/完成后均不渲染。 */
-function extractBlocks(
-  event: WorkerEvent,
-): Array<{ role: string; content: string }> {
-  const blocks: Array<{ role: string; content: string }> = [];
+interface ExtractedBlock {
+  role: string;
+  content: string;
+  /** Provider-supplied block identity when one exists. */
+  blockId?: string;
+}
+
+function extractBlocks(event: WorkerEvent): ExtractedBlock[] {
+  const blocks: ExtractedBlock[] = [];
   if (event.type === 'codex.plan' && Array.isArray(event.plan)) {
     const statusMark: Record<string, string> = {
       completed: '[x]',
@@ -789,6 +802,14 @@ function extractBlocks(
     }
   }
 
+  // Codex can expose a tool delta only as the cumulative stream_text while
+  // the final envelope carries the structured tool_use block.  Keep the
+  // delta visible and let the final item identity replace this placeholder.
+  if (blocks.length === 0 && event.delta && typeof event.stream_text === 'string'
+      && (event.type === 'assistant' || event.role === 'assistant')) {
+    blocks.push({ role: 'assistant', content: event.stream_text });
+  }
+
   // kimi tool_calls：{tool_calls:[{function:{name, arguments}}]}
   for (const tc of event.tool_calls ?? []) {
     const fn = tc?.function ?? {};
@@ -850,7 +871,7 @@ function appendEventToMessages(
   // in place. Thinking/tool blocks therefore stay before or after content
   // according to the adapter's event semantics, never according to the
   // render timing or the current viewport position.
-  for (const b of blocks) {
+  for (const [blockIndex, b] of blocks.entries()) {
     // A Codex assistant reply is one logical message for the whole turn. The
     // native bridge can expose different item ids for its delta and completed
     // notifications (and an interleaved tool can become the last message), so
@@ -868,6 +889,8 @@ function appendEventToMessages(
     const aliasKey = turnId ? `${sessionId}${scopeSuffix}:${turnId}` : undefined;
     const aliasedItemId = aliasKey ? nativeTurnItemAliases.get(aliasKey) : undefined;
     const nativeItemId = itemId ?? (aliasedItemId ?? (turnId ? `turn:${turnId}` : undefined));
+    const blockId = b.blockId
+      ?? (itemId && blocks.length > 1 ? `${itemId}:block:${blockIndex}` : undefined);
     if (aliasKey && itemId && !aliasedItemId) nativeTurnItemAliases.set(aliasKey, itemId);
     const nativeIds = [
       nativeItemId,
@@ -877,21 +900,27 @@ function appendEventToMessages(
       ...(turnId && nativeItemId !== `turn:${turnId}` ? [`turn:${turnId}`] : []),
     ].filter((id): id is string => Boolean(id));
     let nativeIndex = -1;
-    if (nativeIds.length > 0) {
+    if (blockId) {
       nativeIndex = usedIndexes
         ? messages.findIndex((message, index) =>
             !usedIndexes.has(index)
-            && message.role === b.role
+            && (message.role === b.role || event.final || event.replace)
+            && message.blockId === blockId)
+        : messages.findIndex((message) =>
+            (message.role === b.role || event.final || event.replace)
+            && message.blockId === blockId);
+    }
+    if (nativeIndex < 0 && nativeIds.length > 0) {
+      nativeIndex = usedIndexes
+        ? messages.findIndex((message, index) =>
+            !usedIndexes.has(index)
+            && (message.role === b.role || event.final || event.replace)
             && message.nativeItemId
             && nativeIds.includes(message.nativeItemId))
         : messages.findIndex((message) =>
-            message.role === b.role
+            (message.role === b.role || event.final || event.replace)
             && message.nativeItemId
             && nativeIds.includes(message.nativeItemId));
-      if (!usedIndexes && nativeIndex >= 0
-          && messages[nativeIndex]?.role !== b.role) {
-        nativeIndex = -1;
-      }
     }
     const lastIndex = messages.length - 1;
     // A native id is an explicit target. Falling back to the last message here
@@ -904,8 +933,9 @@ function appendEventToMessages(
     const aliasOnlyMatch = Boolean(
       itemId && aliasedItemId && target?.nativeItemId === aliasedItemId && itemId !== aliasedItemId,
     );
-    if (event.replace && target?.role === b.role) {
-      const updated = { ...target, content: b.content };
+    if (event.replace && target && (target.role === b.role || nativeIndex >= 0)) {
+      const updated = { ...target, role: b.role, content: b.content };
+      if (blockId && !updated.blockId) updated.blockId = blockId;
       inheritMessageIdentity(updated, target);
       messages = messages.map((message, index) => index === targetIndex ? updated : message);
       if (usedIndexes) usedIndexes.add(targetIndex);
@@ -926,6 +956,7 @@ function appendEventToMessages(
           ...target,
           content,
           ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
+          ...(blockId && !target?.blockId ? { blockId } : {}),
         };
         inheritMessageIdentity(updated, target);
         messages = messages.map((message, index) => index === targetIndex ? updated : message);
@@ -935,6 +966,7 @@ function appendEventToMessages(
           role: b.role,
           content: b.content,
           ...(nativeItemId ? { nativeItemId } : {}),
+          ...(blockId ? { blockId } : {}),
         };
         rememberMessageIdentity(message);
         messages = [...messages, message];
@@ -945,12 +977,14 @@ function appendEventToMessages(
     if (aliasKey && event.final && b.role === 'assistant') {
       nativeTurnCompleted.add(aliasKey);
     }
-    if (event.final && target?.role === b.role && target.content !== b.content) {
+    if (event.final && target && (target.role === b.role || nativeIndex >= 0)
+        && target.content !== b.content) {
       // Replace the prefix accumulated from app-server deltas with the
       // authoritative completed item.  If it is unrelated, retain both.
       if ((!aliasOnlyMatch && nativeIndex >= 0) || b.content.startsWith(target.content)) {
         const updated = {
           ...target,
+          role: b.role,
           content: b.content,
           ...(nativeItemId && !target.nativeItemId ? { nativeItemId } : {}),
         };
@@ -960,7 +994,24 @@ function appendEventToMessages(
         continue;
       }
     }
-    if (event.final && target?.role === b.role && target.content === b.content) {
+    if (event.final && target && (target.role === b.role || nativeIndex >= 0)
+        && target.content === b.content) {
+      if (target.role !== b.role) {
+        const updated = { ...target, role: b.role };
+        inheritMessageIdentity(updated, target);
+        messages = messages.map((message, index) => index === targetIndex ? updated : message);
+      }
+      if (usedIndexes) usedIndexes.add(targetIndex);
+      continue;
+    }
+    // Some adapters repeat a complete item envelope without setting either
+    // delta or final.  Native identity makes this an idempotent replay, not a
+    // second message.  Do not use body text globally: this check is scoped to
+    // the explicit item/block target above.
+    if (!event.delta && !event.final && !event.replace
+        && nativeIds.length > 0
+        && targetIndex >= 0 && target?.role === b.role
+        && target.content === b.content) {
       if (usedIndexes) usedIndexes.add(targetIndex);
       continue;
     }
@@ -969,6 +1020,7 @@ function appendEventToMessages(
         role: 'assistant',
         content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
+        ...(blockId ? { blockId } : {}),
       };
       rememberMessageIdentity(message);
       messages = [...messages, message];
@@ -978,6 +1030,7 @@ function appendEventToMessages(
         role: 'thinking',
         content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
+        ...(blockId ? { blockId } : {}),
       };
       rememberMessageIdentity(message);
       messages = [...messages, message];
@@ -987,6 +1040,7 @@ function appendEventToMessages(
         role: 'tool',
         content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
+        ...(blockId ? { blockId } : {}),
       };
       rememberMessageIdentity(message);
       messages = [...messages, message];

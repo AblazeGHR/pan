@@ -36,6 +36,19 @@ function sess(history: Message[], extra: Partial<Session> = {}): Session {
   };
 }
 
+/** Shape fixture from the protected 8768 read-only evidence: canonical HTTP
+ * history has stable message ids, no native live ids, and no adjacent duplicate
+ * role/body rows.  The contents are synthetic; no protected service is read by
+ * this test. */
+function canonicalHttpHistoryFixture(sessionId: string, count: number): Message[] {
+  const roles = ['user', 'assistant', 'tool'];
+  return Array.from({ length: count }, (_, index) => ({
+    role: roles[index % roles.length]!,
+    content: `${sessionId}-canonical-${index}`,
+    messageId: `${sessionId}-http-message-${index}`,
+  }));
+}
+
 const ids = (msgs: Message[]) => msgs.map((x) => x.messageId ?? `<${x.role}:${x.content}>`);
 
 describe('reaudit · history window start', () => {
@@ -495,6 +508,42 @@ describe('reaudit · multi-block turn order & consecutive DONE rounds', () => {
     // observed: ['user:question','assistant:final','assistant:interim','tool:tool','assistant:final']
   });
 
+  it('R11a · a canonical tail arriving after result stays after the completed turn', async () => {
+    const start = [m('user', 'question', 'u')];
+    useSessionStore.setState({
+      sessions: [sess(start)], currentSessionId: 'A',
+      currentMessages: start.slice(), historyWindowStarts: { A: 0 },
+    });
+    const meta = { serverEpoch: 'e1', workerId: 'w1', generation: 0, taskSeq: 1, taskId: 'task-1' };
+    act(() => {
+      useSessionStore.getState().applyLiveStream('A', [
+        { role: 'thinking', content: 'plan', nativeItemId: 'plan-1' },
+        { role: 'tool', content: 'Run(x)', nativeItemId: 'tool-1' },
+        { role: 'assistant', content: 'answer', nativeItemId: 'answer-1' },
+      ], meta);
+      useSessionStore.getState().reconcileWorkerResult(
+        'A', { result: 'answer', status: 'done' }, meta,
+      );
+    });
+
+    api.fetchSessionHistory.mockResolvedValueOnce({
+      history: [
+        m('user', 'question', 'u'),
+        m('thinking', 'plan', 'h-plan'),
+        m('tool', 'Run(x)', 'h-tool'),
+        m('assistant', 'answer', 'h-answer'),
+        m('user', 'tail user', 'tail-user'),
+      ],
+      total: 5, hasMore: false, start: 0, historyEpoch: 'e1', historyRevision: 5,
+    });
+    await act(async () => { await useSessionStore.getState().refreshCurrentSessionHistory(); });
+
+    expect(useSessionStore.getState().currentMessages.map((row) => `${row.role}:${row.content}`))
+      .toEqual([
+        'user:question', 'thinking:plan', 'tool:Run(x)', 'assistant:answer', 'user:tail user',
+      ]);
+  });
+
   // DEFECT R12 (astra: history-epoch-replacement-removes-old-tail). A historyEpoch
   // change means the server replaced its whole history (session.replace_history).
   // history_revision is a persisted Session-level cursor, not an epoch-local
@@ -518,5 +567,51 @@ describe('reaudit · multi-block turn order & consecutive DONE rounds', () => {
 
     expect(useSessionStore.getState().currentMessages.map(row)).toEqual(['user:replacement']);
     // observed: ['user:replacement','assistant:old answer'] — the stale tail survived
+  });
+});
+
+describe('reaudit · background history recovery never adopts selected rows', () => {
+  it('R13 · applying Session B history while Session A is selected cannot copy A runtime rows', async () => {
+    const aHistory = canonicalHttpHistoryFixture('A', 733);
+    const bHistory = canonicalHttpHistoryFixture('B', 471);
+    const a = sess(aHistory, { historyTotal: aHistory.length });
+    const b = { ...sess(bHistory, { historyTotal: bHistory.length }), id: 'B', name: 'B' };
+    const canonicalIds = (rows: Message[]) => rows.map((row) => row.messageId);
+    expect(new Set(canonicalIds(aHistory)).size).toBe(733);
+    expect(new Set(canonicalIds(bHistory)).size).toBe(471);
+    expect(aHistory.some((row, index) => index > 0
+      && row.role === aHistory[index - 1]!.role
+      && row.content === aHistory[index - 1]!.content)).toBe(false);
+    const userAssistant = aHistory
+      .filter((row) => row.role === 'user' || row.role === 'assistant')
+      .map((row) => `${row.role}:${row.content}`);
+    expect(new Set(userAssistant).size).toBe(userAssistant.length);
+    expect(aHistory.every((row) => !row.nativeItemId)).toBe(true);
+    useSessionStore.setState({
+      sessions: [a, b], currentSessionId: 'A',
+      currentMessages: [...aHistory, { role: 'assistant', content: 'A live tail' }],
+      historyWindowStarts: { A: 0, B: 0 }, sessionTranscripts: {},
+    });
+
+    act(() => {
+      useSessionStore.getState().applyHistoryPage('B', {
+        history: bHistory.map((row) => ({ ...row })),
+        start: 0, total: bHistory.length, hasMore: false,
+        historyEpoch: 'b-epoch', historyRevision: bHistory.length,
+      });
+    });
+
+    expect(useSessionStore.getState().sessionTranscripts.B?.runtime).toEqual([]);
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'B')?.history)
+      .toEqual(bHistory);
+
+    api.fetchSessionHistory.mockResolvedValueOnce({
+      history: bHistory,
+      start: 0, total: bHistory.length, hasMore: false,
+      historyEpoch: 'b-epoch', historyRevision: bHistory.length,
+    });
+    await act(async () => { await useSessionStore.getState().selectSession('B'); });
+    expect(useSessionStore.getState().currentMessages.map((row) => row.content))
+      .toEqual(bHistory.map((row) => row.content));
   });
 });

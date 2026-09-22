@@ -121,6 +121,210 @@ describe('reaudit · ordered event pipeline', () => {
     expect(assistants).toEqual(['A', 'B']);
   });
 
+  it('E1a · resync replay frames without task scope are quarantined per Session', () => {
+    useSessionStore.setState({ sessions: [mk('A'), mk('B')] });
+    renderHook(() => useWebSocket());
+    const replay = (sessionId: string) => ({
+      type: 'worker.stream', sessionId, workerId: 'w1', generation: 4,
+      event: {
+        type: 'assistant', item_id: `replay-${sessionId}`,
+        message: { content: [{ type: 'text', text: `replayed-${sessionId}` }] },
+      },
+    });
+    const live = (sessionId: string, taskSeq: number) => ({
+      type: 'worker.stream', sessionId, workerId: 'w1', generation: 4,
+      taskSeq, taskId: `task-${sessionId}-${taskSeq}`,
+      event: {
+        type: 'assistant', delta: true, replace: true,
+        item_id: `live-${sessionId}`, turn_id: `turn-${sessionId}`,
+        stream_text: `live-${sessionId}`,
+        message: { content: [{ type: 'text', text: `live-${sessionId}` }] },
+      },
+    });
+
+    act(() => {
+      wsMock.trigger('resync.snapshot', {
+        type: 'resync.snapshot', serverEpoch: 'server-4', eventSeq: 81512,
+        sessions: [mk('A'), mk('B')],
+        workers: [{ sessionId: 'A' }, { sessionId: 'B' }],
+      });
+      // The physical socket replays the same unscoped batch twice before the
+      // first task-scoped live frame for either running Session.
+      wsMock.trigger('worker.stream', replay('A'));
+      wsMock.trigger('worker.stream', replay('A'));
+      wsMock.trigger('worker.stream', replay('B'));
+      wsMock.trigger('worker.stream', replay('B'));
+      wsMock.trigger('worker.stream', live('A', 11));
+      wsMock.trigger('worker.stream', live('B', 22));
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['live-A']);
+    expect(useSessionStore.getState().liveStreamBuffers.B?.messages.map((m) => m.content))
+      .toEqual(['live-B']);
+  });
+
+  it('E1b · Codex delta and final tool envelope with one item renders once', () => {
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('worker.status', {
+        type: 'worker.status', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-1', status: 'running',
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-1', event: {
+          type: 'assistant', delta: true, replace: true,
+          stream_text: 'Command({"command":"echo hi"})',
+          item_id: 'exec-X', turn_id: 'T',
+          message: { content: [{ type: 'text', text: 'Command({"command":"echo hi"})' }] },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-1', event: {
+          type: 'assistant', final: true, replace: true,
+          item_id: 'exec-X', turn_id: 'T',
+          message: { content: [{ type: 'tool_use', name: 'Command', input: { command: 'echo hi' } }] },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages).toEqual([
+      { role: 'tool', content: 'Command({"command":"echo hi"})', nativeItemId: 'exec-X' },
+    ]);
+  });
+
+  it('E1c · repeated non-delta full item and same-item multi-block replay are idempotent', () => {
+    renderHook(() => useWebSocket());
+    const envelope = (event: Record<string, unknown>) => ({
+      type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+      taskSeq: 1, taskId: 'task-1', event,
+    });
+    act(() => {
+      wsMock.trigger('worker.stream', envelope({
+        type: 'assistant', item_id: 'full-item',
+        message: { content: [{ type: 'text', text: 'full item' }] },
+      }));
+      wsMock.trigger('worker.stream', envelope({
+        type: 'assistant', item_id: 'full-item',
+        message: { content: [{ type: 'text', text: 'full item' }] },
+      }));
+      const multi = {
+        type: 'assistant', final: true, replace: true, item_id: 'multi-item',
+        message: { content: [
+          { type: 'text', text: 'block one' },
+          { type: 'text', text: 'block two' },
+        ] },
+      };
+      wsMock.trigger('worker.stream', envelope(multi));
+      wsMock.trigger('worker.stream', envelope(multi));
+    });
+
+    const rows = useSessionStore.getState().currentMessages;
+    expect(rows.map((m) => m.content)).toEqual(['full item', 'block one', 'block two']);
+    expect(rows.filter((m) => m.nativeItemId === 'multi-item')).toHaveLength(2);
+    expect(new Set(rows.filter((m) => m.nativeItemId === 'multi-item').map((m) => m.blockId)).size)
+      .toBe(2);
+  });
+
+  it('E1d · consecutive tasks with identical text remain two ordered messages', () => {
+    renderHook(() => useWebSocket());
+    act(() => {
+      for (const [taskSeq, itemId] of [[1, 'item-1'], [2, 'item-2']] as const) {
+        wsMock.trigger('worker.status', {
+          type: 'worker.status', sessionId: 'A', workerId: 'w1', generation: 0,
+          taskSeq, taskId: `task-${taskSeq}`, status: 'running',
+        });
+        wsMock.trigger('worker.stream', {
+          type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+          taskSeq, taskId: `task-${taskSeq}`, event: {
+            type: 'assistant', final: true, replace: true,
+            item_id: itemId, turn_id: `turn-${taskSeq}`,
+            message: { content: [{ type: 'text', text: 'same body' }] },
+          },
+        });
+        wsMock.trigger('worker.result', {
+          type: 'worker.result', sessionId: 'A', workerId: 'w1', generation: 0,
+          taskSeq, taskId: `task-${taskSeq}`, status: 'done', result: 'same body',
+        });
+      }
+    });
+
+    expect(useSessionStore.getState().currentMessages
+      .filter((m) => m.role === 'assistant').map((m) => m.content))
+      .toEqual(['same body', 'same body']);
+  });
+
+  it('E1e · full lifecycle keeps user→thinking/tool→assistant→DONE across A/B switching', async () => {
+    const a = mk('A');
+    const b = mk('B');
+    a.history = [{ role: 'user', content: 'question A', messageId: 'a-user' }];
+    b.history = [{ role: 'user', content: 'question B', messageId: 'b-user' }];
+    a.historyTotal = 1;
+    b.historyTotal = 1;
+    useSessionStore.setState({
+      sessions: [a, b], currentSessionId: 'A', currentMessages: a.history,
+    });
+    renderHook(() => useWebSocket());
+
+    act(() => {
+      wsMock.trigger('worker.status', {
+        type: 'worker.status', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-A-1', status: 'running',
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-A-1', event: {
+          type: 'assistant', delta: true, replace: true, item_id: 'think-A',
+          message: { content: [{ type: 'thinking', thinking: 'plan A' }] },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-A-1', event: {
+          type: 'codex.item.completed', item_id: 'tool-A',
+          item: { id: 'tool-A', type: 'Command', command: 'echo A' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-A-1', event: {
+          type: 'assistant', final: true, replace: true, item_id: 'answer-A',
+          message: { content: [{ type: 'text', text: 'answer A' }] },
+        },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1', generation: 0,
+        taskSeq: 1, taskId: 'task-A-1', status: 'done', result: 'answer A',
+      });
+      // B is allowed to stream while A is selected, but must not enter A's
+      // viewport.  Its own transcript is retained for the later switch.
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'B', workerId: 'w2', generation: 0,
+        taskSeq: 3, taskId: 'task-B-3', event: {
+          type: 'assistant', delta: true, stream_text: 'answer B', item_id: 'answer-B',
+          message: { content: [{ type: 'text', text: 'answer B' }] },
+        },
+      });
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((m) => `${m.role}:${m.content}`))
+      .toEqual([
+        'user:question A', 'thinking:plan A', 'tool:Command({"command":"echo A"})',
+        'assistant:answer A', 'system:[DONE] Task completed',
+      ]);
+
+    await act(async () => { await useSessionStore.getState().selectSession('B'); });
+    expect(useSessionStore.getState().currentMessages.map((m) => m.content))
+      .toEqual(['question B', 'answer B']);
+    await act(async () => { await useSessionStore.getState().selectSession('A'); });
+    expect(useSessionStore.getState().currentMessages.map((m) => `${m.role}:${m.content}`))
+      .toEqual([
+        'user:question A', 'thinking:plan A', 'tool:Command({"command":"echo A"})',
+        'assistant:answer A', 'system:[DONE] Task completed',
+      ]);
+  });
+
   // DEFECT E2 (F-B). A tool event that arrives before the assistant text is
   // reordered after it once worker.result rebuilds the live projection.
   it('E2 · a tool block streamed before the assistant text keeps its position after result', () => {

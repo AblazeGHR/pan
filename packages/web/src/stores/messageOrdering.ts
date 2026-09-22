@@ -93,13 +93,20 @@ export interface LiveKeyScope {
  * distinct across tasks, and never derived from the body text.
  */
 export function liveProjectionKeys(message: Message, scope: LiveKeyScope): string[] {
-  const identity = [
-    ...(message.messageId ? [`message:${message.messageId}`] : []),
-    ...(message.blockId ? [`block:${message.blockId}`] : []),
-    ...(message.nativeItemId ? [`native:${message.nativeItemId}`] : []),
-  ];
-  if (identity.length > 0) return identity.map((id) => `${message.role}:${id}`);
-  return [`${message.role}:slot:${scope.taskKey}:${scope.slot}`];
+  // The task-local slot is the primary key.  A native item is a provider item
+  // identity, not necessarily a block identity: Codex can emit two blocks of
+  // the same role for one item.  Keeping the slot first prevents the second
+  // block from overwriting the first one's cached projection key; explicit
+  // identity remains a fallback when a page prepend moves the row.
+  const slotKey = `slot:${scope.taskKey}:${scope.slot}`;
+  const identity = message.blockId
+    ? [`block:${message.blockId}`]
+    : message.messageId
+      ? [`message:${message.messageId}`]
+      : message.nativeItemId
+        ? [`native:${message.nativeItemId}`]
+        : [];
+  return [slotKey, ...identity.map((id) => `${message.role}:${id}`)];
 }
 
 // ── Loaded durable window ───────────────────────────────────────────────────
