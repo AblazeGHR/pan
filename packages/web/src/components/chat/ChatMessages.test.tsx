@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, act, fireEvent, cleanup } from '@testing-library/react';
 import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -78,6 +80,15 @@ function userScroll(element: HTMLElement, top: number) {
   fireEvent.wheel(element);
   fireEvent.scroll(element);
 }
+
+function programmaticScroll(element: HTMLElement) {
+  fireEvent.scroll(element);
+}
+
+const chatMessagesSource = readFileSync(
+  resolve(process.cwd(), 'src/components/chat/ChatMessages.tsx'),
+  'utf8',
+);
 
 const msgs = (n: number, prefix = 'm') =>
   Array.from({ length: n }, (_, i) => ({
@@ -246,7 +257,7 @@ describe('ChatMessages scroll positioning', () => {
       // old scrollTop is still at the previous bottom. There is no user
       // gesture in this sequence.
       m.setTotalSize(totalSize);
-      fireEvent.scroll(scrollEl);
+      programmaticScroll(scrollEl);
       act(() => {
         useSessionStore.setState({ currentMessages });
       });
@@ -279,6 +290,114 @@ describe('ChatMessages scroll positioning', () => {
       { role: 'assistant', content: 'final answer refreshed', messageId: 'canonical-1' },
       { role: 'system', content: '[DONE] Task completed', nativeItemId: 'done-1' },
     ]);
+  });
+
+  it.each(['wheel', 'touchstart'] as const)(
+    'keeps a %s gesture active across delayed multi-frame inertia scrolls',
+    (inputType) => {
+      vi.useFakeTimers();
+      useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+      m.setTotalSize(2000);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+      expect(scrollEl.scrollTop).toBe(2000);
+
+      // The first input does not have to produce a scroll event immediately.
+      // Inertia/smooth scrolling can deliver the actual movement several
+      // animation frames later. The old one-rAF intent marker expires here.
+      if (inputType === 'wheel') fireEvent.wheel(scrollEl, { deltaY: -700 });
+      else fireEvent.touchStart(scrollEl);
+      vi.advanceTimersByTime(64);
+
+      scrollEl.scrollTop = 700;
+      fireEvent.scroll(scrollEl);
+      vi.advanceTimersByTime(48);
+      scrollEl.scrollTop = 500;
+      fireEvent.scroll(scrollEl);
+
+      m.setTotalSize(2600);
+      act(() => {
+        useSessionStore.setState({
+          currentMessages: [...msgs(4), { role: 'assistant', content: 'late stream delta' }],
+        });
+      });
+
+      expect(scrollEl.scrollTop).toBe(500);
+      expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
+    },
+  );
+
+  it('does not opt out of follow mode for a trusted scroll without user input intent', () => {
+    // jsdom cannot manufacture a trusted Event: its isTrusted property is a
+    // non-configurable UA-owned getter. Guard the stronger source contract
+    // here, then exercise the same no-input programmatic-scroll path below.
+    expect(chatMessagesSource).not.toMatch(/isTrusted/);
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    // A browser/virtualizer correction can deliver a trusted scroll while no
+    // wheel, touch, pointer, or keyboard input preceded it.
+    scrollEl.scrollTop = 700;
+    programmaticScroll(scrollEl);
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4)] });
+    });
+
+    expect(scrollEl.scrollTop).toBe(2400);
+  });
+
+  it('lets a real user scroll opt out after the programmatic layout window ends', () => {
+    vi.useFakeTimers();
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    // Finish a measurement/resize generation before the next user gesture.
+    m.setTotalSize(2200);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4)] });
+      vi.advanceTimersByTime(1000);
+    });
+
+    userScroll(scrollEl, 600);
+    m.setTotalSize(2600);
+    act(() => {
+      useSessionStore.setState({
+        currentMessages: [...msgs(4), { role: 'assistant', content: 'must not pull user down' }],
+      });
+    });
+
+    expect(scrollEl.scrollTop).toBe(600);
+  });
+
+  it('keeps follow mode after button recovery and a later UA scroll correction', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+    userScroll(scrollEl, 600);
+    const button = container.querySelector('[title="Scroll to bottom"]') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    fireEvent.click(button);
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    scrollEl.scrollTop = 1600;
+    programmaticScroll(scrollEl);
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({
+        currentMessages: [...msgs(4), { role: 'assistant', content: 'after correction' }],
+      });
+    });
+
+    expect(scrollEl.scrollTop).toBe(2400);
   });
 
   it('keeps follow mode through a programmatic viewport resize', () => {

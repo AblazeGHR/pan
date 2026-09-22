@@ -13,6 +13,16 @@ import { ArrowDown, Loader2 } from 'lucide-react';
 // rounding near the end of the list.
 export const SCROLL_BOTTOM_THRESHOLD = 48;
 
+// Scroll events do not carry portable source attribution. Keep an explicit
+// user-input activity window instead: input starts it, subsequent scrolls
+// refresh it, and scrollend/timer expiry ends it. The window is long enough
+// for wheel/touch inertia to deliver scrolls over several animation frames,
+// but bounded so a stale gesture cannot swallow a later real gesture.
+const USER_SCROLL_QUIET_MS = 320;
+const USER_SCROLLEND_GRACE_MS = 240;
+const PROGRAMMATIC_SETTLE_FRAMES = 2;
+const PROGRAMMATIC_SETTLE_TIMEOUT_MS = 120;
+
 export function ChatMessages() {
   const parentRef = useRef<HTMLDivElement>(null);
   const currentMessages = useSessionStore((s) => s.currentMessages);
@@ -82,14 +92,23 @@ export function ChatMessages() {
   } | null>(null);
   const paginationAnchorRef = useRef<{ top: number; height: number } | null>(null);
   // A browser may emit a scroll event when a measured row changes the scroll
-  // range, even though the user did not scroll. Keep that event from being
-  // mistaken for an opt-out. Real user input is recorded separately below;
-  // the short layout window also covers jsdom and browsers that report an
-  // untrusted layout scroll event after a streamed row grows.
+  // range, even though the user did not scroll. Keep that event separate from
+  // the user-input state machine below. The generation and bounded settle
+  // window suppress the next layout/virtualizer correction without using a
+  // browser trust flag as a source-of-intent heuristic.
   const layoutChangePendingRef = useRef(false);
   const layoutChangeRafRef = useRef<number | null>(null);
-  const userScrollIntentRef = useRef(false);
-  const userScrollIntentRafRef = useRef<number | null>(null);
+  const programmaticGenerationRef = useRef(0);
+  const programmaticSuppressionRef = useRef<{
+    generation: number;
+    raf: number | null;
+    timer: ReturnType<typeof setTimeout> | null;
+  } | null>(null);
+  const userScrollStateRef = useRef<{
+    active: boolean;
+    generation: number;
+    timer: ReturnType<typeof setTimeout> | null;
+  }>({ active: false, generation: 0, timer: null });
 
   // Clamp only negative browser rounding artefacts to zero, then use the
   // small follow zone below instead of requiring exact geometry equality.
@@ -113,8 +132,99 @@ export function ChatMessages() {
     };
   }, []);
 
+  const clearProgrammaticSuppression = useCallback(() => {
+    const suppression = programmaticSuppressionRef.current;
+    if (!suppression) return;
+    if (suppression.raf !== null) cancelAnimationFrame(suppression.raf);
+    if (suppression.timer !== null) clearTimeout(suppression.timer);
+    programmaticSuppressionRef.current = null;
+  }, []);
+
+  const markProgrammaticChange = useCallback(() => {
+    clearProgrammaticSuppression();
+    const generation = ++programmaticGenerationRef.current;
+    const suppression = {
+      generation,
+      raf: null as number | null,
+      timer: null as ReturnType<typeof setTimeout> | null,
+    };
+    programmaticSuppressionRef.current = suppression;
+
+    let frames = 0;
+    const settle = () => {
+      if (programmaticSuppressionRef.current?.generation !== generation) return;
+      if (++frames >= PROGRAMMATIC_SETTLE_FRAMES) {
+        clearProgrammaticSuppression();
+        return;
+      }
+      suppression.raf = requestAnimationFrame(settle);
+    };
+    suppression.raf = requestAnimationFrame(settle);
+    suppression.timer = setTimeout(() => {
+      if (programmaticSuppressionRef.current?.generation === generation) {
+        clearProgrammaticSuppression();
+      }
+    }, PROGRAMMATIC_SETTLE_TIMEOUT_MS);
+  }, [clearProgrammaticSuppression]);
+
+  const clearUserScrollActivity = useCallback(() => {
+    const state = userScrollStateRef.current;
+    if (state.timer !== null) clearTimeout(state.timer);
+    state.timer = null;
+    state.active = false;
+  }, []);
+
+  const scheduleUserScrollExpiry = useCallback((delay = USER_SCROLL_QUIET_MS) => {
+    const state = userScrollStateRef.current;
+    if (state.timer !== null) clearTimeout(state.timer);
+    const generation = state.generation;
+    state.timer = setTimeout(() => {
+      const current = userScrollStateRef.current;
+      if (current.generation === generation) {
+        current.timer = null;
+        current.active = false;
+      }
+    }, delay);
+  }, []);
+
+  const markUserScrollInput = useCallback(() => {
+    // A new explicit input always wins over an older layout suppression. This
+    // prevents a bounded correction window from swallowing the next gesture.
+    clearProgrammaticSuppression();
+    const state = userScrollStateRef.current;
+    state.generation += 1;
+    state.active = true;
+    scheduleUserScrollExpiry();
+  }, [clearProgrammaticSuppression, scheduleUserScrollExpiry]);
+
+  const refreshUserScrollActivity = useCallback(() => {
+    if (!userScrollStateRef.current.active) return false;
+    scheduleUserScrollExpiry();
+    return true;
+  }, [scheduleUserScrollExpiry]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = parentRef.current;
+    if (el) {
+      shouldFollowBottomRef.current = true;
+      markProgrammaticChange();
+      el.scrollTop = el.scrollHeight;
+      setIsNearBottom(true);
+      captureScrollMetrics();
+    }
+  }, [captureScrollMetrics, markProgrammaticChange]);
+
+  const recoverToBottom = useCallback(() => {
+    // Explicit recovery ends the previous input sequence. Automatic pinning
+    // keeps the sequence alive so a delayed inertia scroll cannot be lost to
+    // a same-frame session/layout rAF.
+    clearUserScrollActivity();
+    scrollToBottom();
+  }, [clearUserScrollActivity, scrollToBottom]);
+
   const markLayoutChange = useCallback(() => {
     layoutChangePendingRef.current = true;
+    markProgrammaticChange();
     if (layoutChangeRafRef.current !== null) {
       cancelAnimationFrame(layoutChangeRafRef.current);
     }
@@ -122,28 +232,7 @@ export function ChatMessages() {
       layoutChangeRafRef.current = null;
       layoutChangePendingRef.current = false;
     });
-  }, []);
-
-  const markUserScrollIntent = useCallback(() => {
-    userScrollIntentRef.current = true;
-    if (userScrollIntentRafRef.current !== null) {
-      cancelAnimationFrame(userScrollIntentRafRef.current);
-    }
-    userScrollIntentRafRef.current = requestAnimationFrame(() => {
-      userScrollIntentRafRef.current = null;
-      userScrollIntentRef.current = false;
-    });
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    const el = parentRef.current;
-    if (el) {
-      shouldFollowBottomRef.current = true;
-      el.scrollTop = el.scrollHeight;
-      setIsNearBottom(true);
-      captureScrollMetrics();
-    }
-  }, [captureScrollMetrics]);
+  }, [markProgrammaticChange]);
 
   // Auto-scroll on new messages / measurement-driven size changes — but only
   // when the user hasn't scrolled away from the bottom. This is ALSO what
@@ -188,21 +277,25 @@ export function ChatMessages() {
 
     const markUserScrollKey = (event: KeyboardEvent) => {
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) {
-        markUserScrollIntent();
+        markUserScrollInput();
       }
     };
-    const handler = (event: Event) => {
-      // A scroll event alone does not identify its source. A measured row,
-      // virtualizer correction, or resize can emit one while the user is
-      // idle. Only an explicit user gesture (or a trusted browser scroll)
-      // may turn follow mode off when the event is away from the bottom.
+    const handler = () => {
       initialScrollPendingRef.current = false;
       const nearBottom = isNearBottomPosition();
-      const userDriven = userScrollIntentRef.current || event.isTrusted;
-      if (nearBottom || userDriven) {
+      const programmaticSuppressed = programmaticSuppressionRef.current !== null;
+      if (programmaticSuppressed) {
+        // Consume the correction window on the first resulting scroll. A new
+        // wheel/touch/pointer/key input cancels this suppression first, so a
+        // later genuine gesture can never be permanently ignored.
+        clearProgrammaticSuppression();
+      } else if (refreshUserScrollActivity()) {
+        shouldFollowBottomRef.current = nearBottom;
+      } else if (nearBottom) {
+        // Returning to the bottom is an explicit recovery path even when the
+        // browser emits the final scroll without another input event.
         shouldFollowBottomRef.current = nearBottom;
       }
-      userScrollIntentRef.current = false;
       setIsNearBottom(nearBottom);
       captureScrollMetrics();
 
@@ -224,6 +317,7 @@ export function ChatMessages() {
             requestAnimationFrame(() => {
               const anchor = paginationAnchorRef.current;
               if (!anchor) return;
+              markProgrammaticChange();
               el.scrollTop = anchor.top + el.scrollHeight - anchor.height;
               paginationAnchorRef.current = null;
             });
@@ -232,18 +326,49 @@ export function ChatMessages() {
       }, 150);
     };
 
-    el.addEventListener('wheel', markUserScrollIntent, { passive: true });
-    el.addEventListener('touchstart', markUserScrollIntent, { passive: true });
+    const handleScrollEnd = () => {
+      // Chromium/WebKit expose scrollend, but Firefox and older browsers do
+      // not. Keep a bounded grace period after scrollend because touch/wheel
+      // inertia can still deliver a late scroll task; the normal scroll
+      // handler expands it back to USER_SCROLL_QUIET_MS when that happens.
+      if (userScrollStateRef.current.active) {
+        scheduleUserScrollExpiry(USER_SCROLLEND_GRACE_MS);
+      }
+    };
+
+    el.addEventListener('wheel', markUserScrollInput, { passive: true });
+    el.addEventListener('touchstart', markUserScrollInput, { passive: true });
+    el.addEventListener('touchmove', markUserScrollInput, { passive: true });
+    el.addEventListener('pointerdown', markUserScrollInput, { passive: true });
+    el.addEventListener('pointermove', markUserScrollInput, { passive: true });
     el.addEventListener('keydown', markUserScrollKey);
     el.addEventListener('scroll', handler);
+    el.addEventListener('scrollend', handleScrollEnd);
     return () => {
-      el.removeEventListener('wheel', markUserScrollIntent);
-      el.removeEventListener('touchstart', markUserScrollIntent);
+      el.removeEventListener('wheel', markUserScrollInput);
+      el.removeEventListener('touchstart', markUserScrollInput);
+      el.removeEventListener('touchmove', markUserScrollInput);
+      el.removeEventListener('pointerdown', markUserScrollInput);
+      el.removeEventListener('pointermove', markUserScrollInput);
       el.removeEventListener('keydown', markUserScrollKey);
       el.removeEventListener('scroll', handler);
+      el.removeEventListener('scrollend', handleScrollEnd);
       if (timer) clearTimeout(timer);
     };
-  }, [captureScrollMetrics, grouped.length, hasMoreMessages, historyLoading, isNearBottomPosition, loadOlderMessages, markUserScrollIntent]);
+  }, [
+    captureScrollMetrics,
+    clearProgrammaticSuppression,
+    clearUserScrollActivity,
+    grouped.length,
+    hasMoreMessages,
+    historyLoading,
+    isNearBottomPosition,
+    loadOlderMessages,
+    markProgrammaticChange,
+    markUserScrollInput,
+    refreshUserScrollActivity,
+    scheduleUserScrollExpiry,
+  ]);
 
   // A viewport resize changes the meaning of "bottom" without changing the
   // message array or virtualizer total size. Re-pin only while follow mode is
@@ -282,7 +407,8 @@ export function ChatMessages() {
     lastScrollMetricsRef.current = null;
     paginationAnchorRef.current = null;
     layoutChangePendingRef.current = false;
-    userScrollIntentRef.current = false;
+    clearUserScrollActivity();
+    clearProgrammaticSuppression();
     scrollToBottom();
     // If this session already has a mounted message container, the session
     // switch itself performed the initial positioning. Keep later updates
@@ -295,9 +421,15 @@ export function ChatMessages() {
     return () => {
       cancelAnimationFrame(raf);
       if (layoutChangeRafRef.current !== null) cancelAnimationFrame(layoutChangeRafRef.current);
-      if (userScrollIntentRafRef.current !== null) cancelAnimationFrame(userScrollIntentRafRef.current);
+      clearUserScrollActivity();
+      clearProgrammaticSuppression();
     };
-  }, [currentSessionId, scrollToBottom]);
+  }, [
+    clearProgrammaticSuppression,
+    clearUserScrollActivity,
+    currentSessionId,
+    scrollToBottom,
+  ]);
 
   // Empty state — but ONLY after the initial history fetch has settled. While
   // it is in flight (currentMessages empty + initialLoading) show a spinner so
@@ -397,7 +529,7 @@ export function ChatMessages() {
       {/* Scroll-to-bottom button */}
       {!isNearBottom && (
         <button
-          onClick={scrollToBottom}
+          onClick={recoverToBottom}
           className="absolute bottom-2 right-4 rounded-full bg-accent text-white p-2 shadow-lg hover:bg-accent-hover transition-colors z-10"
           title="Scroll to bottom"
         >
