@@ -779,7 +779,9 @@ describe('useWebSocket worker.result wiring', () => {
       await Promise.resolve();
     });
 
-    expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('B');
+    // Queue refreshes are intentionally coalesced through a zero-delay timer;
+    // wait for that timer instead of relying on incidental event-loop timing.
+    await vi.waitFor(() => expect(apiMock.fetchSessionQueue).toHaveBeenCalledWith('B'));
     expect(useQueueStore.getState().agentQueues.B).toEqual([]);
   });
 
