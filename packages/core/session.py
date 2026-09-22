@@ -270,6 +270,25 @@ _SUMMARY_PROJECTION_ALIASES = {
     "history_total": "historyTotal",
     "updated_at": "updatedAt",
 }
+_SUMMARY_PROJECTION_DATA_ALIASES = ("summaryProjection", "summary")
+
+
+def _canonicalize_summary_projection_data(data: dict) -> dict:
+    """Extract the top-level projection alias into canonical storage.
+
+    Older/intermediate writers used ``summaryProjection`` or ``summary`` as
+    the field name.  Keep unrelated forward-compatible fields untouched, but
+    consume both known aliases so a later ``Session(**data)`` cannot receive
+    an unexpected constructor keyword.
+    """
+    if "summary_projection" not in data:
+        for alias in _SUMMARY_PROJECTION_DATA_ALIASES:
+            if alias in data:
+                data["summary_projection"] = data[alias]
+                break
+    for alias in _SUMMARY_PROJECTION_DATA_ALIASES:
+        data.pop(alias, None)
+    return data
 
 
 def _projection_value(value: dict, key: str, default=None):
@@ -477,7 +496,10 @@ def ensure_summary_projection(s: "Session") -> None:
         s._summary_projection_complete = getattr(s, "_history_loaded", True)
         s._summary_history_index = len(s.history)
         return
-    if not getattr(s, "_summary_projection_complete", False):
+    if (
+        not getattr(s, "_summary_projection_complete", False)
+        or not is_complete_summary_projection(projection)
+    ):
         # A shallow session has only a bounded main-file tail.  Keep its total
         # unknown and let append_history update previews; only a full load or
         # the background repair worker may promote it to authoritative.
@@ -627,29 +649,27 @@ def _summary_projection_from_jsonl(
     projection = _empty_summary_projection(
         revision=revision, history_total=0, updated_at=updated_at,
     )
-    try:
-        with open(path, "rb") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line:
-                    continue
-                try:
-                    value = json.loads(line.decode("utf-8"))
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    _newline_terminated_jsonl.discard(str(path))
-                    continue
-                if not isinstance(value, dict):
-                    continue
-                # Do not mutate the decoded row while stripping a legacy
-                # delivery marker; this helper is also safe for diagnostics.
-                if isinstance(value.get("content"), str) and "[delivered:" in value["content"]:
-                    value = dict(value)
-                    _strip_delivery_marks([value])
-                _apply_summary_message(projection, value, bump=False)
-    except OSError:
-        return _summary_projection_from_history(
-            [], revision=revision, updated_at=updated_at,
-        )
+    # OSError is deliberately allowed to reach the repair caller.  A failed
+    # read is not an empty history and must never be persisted as a complete
+    # zero projection.
+    with open(path, "rb") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                value = json.loads(line.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                _newline_terminated_jsonl.discard(str(path))
+                continue
+            if not isinstance(value, dict):
+                continue
+            # Do not mutate the decoded row while stripping a legacy
+            # delivery marker; this helper is also safe for diagnostics.
+            if isinstance(value.get("content"), str) and "[delivered:" in value["content"]:
+                value = dict(value)
+                _strip_delivery_marks([value])
+            _apply_summary_message(projection, value, bump=False)
     projection["revision"] = max(0, int(revision or 0))
     return projection
 
@@ -1211,6 +1231,7 @@ class Session:
         Old top-level capability fields are migrated into nested pan_access
         (and the old keys removed) so pre-refactor JSON keeps loading.
         """
+        _canonicalize_summary_projection_data(data)
         # Accept the API spelling as a defensive compatibility bridge for
         # hand-authored/older metadata, while the canonical session JSON keeps
         # the repository's existing snake_case field style.
@@ -1232,11 +1253,6 @@ class Session:
             for alias in ("queueIdempotencyIndex", "idempotency_index"):
                 if alias in data:
                     data["queue_idempotency_index"] = data.pop(alias)
-                    break
-        if "summary_projection" not in data:
-            for alias in ("summaryProjection", "summary"):
-                if alias in data:
-                    data["summary_projection"] = data.pop(alias)
                     break
         ac = data.pop("adapter_config", {}) or {}
         for old_key, new_key in [
@@ -1396,12 +1412,24 @@ def _available_name(name: str, *, exclude_ids: set[str] | None = None) -> str:
     return f"{name}-{suffix}"
 
 
-def _meta_signature(s: Session) -> str:
+_META_PROJECTION_UNSET = object()
+
+
+def _meta_signature(
+    s: Session, *, summary_projection: object = _META_PROJECTION_UNSET,
+) -> str:
     """元数据（不含 history / updated_at）的稳定签名。
 
     用于判断主文件是否需要重写：history append 不改变元数据 → 跳过主文件写。
+
+    ``summary_projection`` is an explicit durable-snapshot override used by
+    the background repairer.  A cache can contain a newer unsaved projection;
+    signing the cache as if that projection were already on disk would make
+    the next ordered save incorrectly skip the main-file rewrite.
     """
     meta = s.to_dict()
+    if summary_projection is not _META_PROJECTION_UNSET:
+        meta["summary_projection"] = dict(summary_projection)
     meta.pop("history", None)
     meta.pop("updated_at", None)
     return repr(meta)
@@ -1454,6 +1482,7 @@ def _from_data_with_history(sid: str, data: dict) -> Session:
         "original_prompt" not in data or "handoff_prompt" not in data
         or "system_prompt" in data
     )
+    _canonicalize_summary_projection_data(data)
     had_projection = is_complete_summary_projection(data.get("summary_projection"))
     s = Session._from_data(data)
     _migrate_legacy_fields(s)
@@ -1530,11 +1559,8 @@ def _from_data_without_history(sid: str, data: dict) -> Session:
     """
     payload = dict(data)
     raw_history = payload.pop("history", None)
-    raw_projection = next(
-        (payload.get(key) for key in ("summary_projection", "summaryProjection", "summary")
-         if key in payload),
-        None,
-    )
+    _canonicalize_summary_projection_data(payload)
+    raw_projection = payload.get("summary_projection")
     had_projection = is_complete_summary_projection(raw_projection)
     s = Session._from_data(payload)
     if not had_projection and isinstance(raw_history, list):
@@ -1673,7 +1699,8 @@ def _prepare_history_for_save(s: Session, hist_path: Path, *, force_full: bool =
     # An explicit append/replace makes s.history non-empty (or marks the
     # Session loaded), and then takes the full save-time boundary below.
     if (hist_path.exists() and not s.history and not force_full
-            and getattr(s, "_summary_projection_complete", False)):
+            and getattr(s, "_summary_projection_complete", False)
+            and is_complete_summary_projection(s.summary_projection)):
         return
 
     pending_history = list(s.history or [])
@@ -1890,36 +1917,64 @@ def _set_summary_backfill_status(**updates) -> None:
 def _repair_summary_projection_file(session_id: str) -> bool:
     """Repair one metadata file while holding its ordered save ticket."""
     main_path = _path(session_id)
-    try:
-        data = json.loads(main_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return False
-    if not isinstance(data, dict) or is_complete_summary_projection(
-        data.get("summary_projection")
-    ):
+    data = json.loads(main_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
         return False
 
+    had_projection_alias = any(
+        alias in data for alias in _SUMMARY_PROJECTION_DATA_ALIASES
+    )
+    _canonicalize_summary_projection_data(data)
     raw_projection = data.get("summary_projection")
+    if is_complete_summary_projection(raw_projection) and not had_projection_alias:
+        return False
     prior = _normalize_summary_projection(raw_projection, fallback_updated_at=data.get("updated_at", ""))
     prior_revision = int(prior.get("revision") or 0) if prior else 0
-    hist_path = _history_path(session_id)
-    if hist_path.exists():
-        projection = _summary_projection_from_jsonl(
-            hist_path,
-            revision=max(1, prior_revision + 1) if prior else 1,
-            updated_at=data.get("updated_at", ""),
+    if is_complete_summary_projection(raw_projection):
+        # A complete aliased projection needs only canonicalization.  Do not
+        # scan JSONL on this path; the durable projection is already the
+        # bounded source of truth for a cold summary.
+        projection = _normalize_summary_projection(
+            raw_projection, fallback_updated_at=data.get("updated_at", ""),
         )
     else:
-        raw_history = data.get("history")
-        history = _strip_delivery_marks(
-            [row for row in raw_history if isinstance(row, dict)]
-            if isinstance(raw_history, list) else []
-        )
-        projection = _summary_projection_from_history(
-            history,
-            revision=max(1, prior_revision + 1) if prior else 1,
-            updated_at=data.get("updated_at", ""),
-        )
+        hist_path = _history_path(session_id)
+        try:
+            hist_path.stat()
+        except FileNotFoundError:
+            history_file_present = False
+        except OSError:
+            # Path.exists() intentionally collapses some access errors into
+            # False on modern Python.  stat() keeps an unreadable source from
+            # being mistaken for a legitimate legacy no-JSONL session.
+            raise
+        else:
+            history_file_present = True
+        if history_file_present:
+            # OSError must escape this helper.  A failed source read is not a
+            # valid empty history and therefore must not be atomically
+            # promoted to a complete zero projection.
+            projection = _summary_projection_from_jsonl(
+                hist_path,
+                revision=max(1, prior_revision + 1) if prior else 1,
+                updated_at=data.get("updated_at", ""),
+            )
+        else:
+            raw_history = data.get("history")
+            history = _strip_delivery_marks(
+                [row for row in raw_history if isinstance(row, dict)]
+                if isinstance(raw_history, list) else []
+            )
+            projection = _summary_projection_from_history(
+                history,
+                revision=max(1, prior_revision + 1) if prior else 1,
+                updated_at=data.get("updated_at", ""),
+            )
+    if projection is None:
+        # This is defensive for malformed aliased input; all normal builders
+        # above return a dict.  Treat it as a failed repair rather than writing
+        # an incomplete object.
+        raise ValueError("summary projection normalization failed")
     data["summary_projection"] = projection
     tmp_path = main_path.with_name(f"{main_path.name}.summary.tmp")
     try:
@@ -1936,43 +1991,90 @@ def _repair_summary_projection_file(session_id: str) -> bool:
             pass
 
     # Keep an already-cached cold Session aligned with the durable repair.  A
-    # shallow object retains only pending appends; ensure_summary_projection()
-    # will apply those rows after this base projection.  A hydrated object is
-    # rebuilt from its in-memory history so an unsaved append cannot be erased.
+    # cache can race this worker: its history/projection may include an append
+    # whose save ticket is still queued.  Preserve that newer in-memory view,
+    # but sign the cache against the projection actually written above.  The
+    # next ordered save then sees a real signature delta and rewrites the main
+    # metadata after appending JSONL; it cannot mistake the cache for durable.
     cached = _cache.get(session_id)
     if cached is not None:
         with cached._summary_lock:
-            cached_revision = int(cached.summary_projection.get("revision") or 0)
-            repair_revision = max(
-                1,
-                prior_revision + 1,
-                cached_revision + 1,
+            cached_meta_sig = _meta_signature(cached)
+            last_meta_sig = getattr(cached, "_last_meta_sig", None)
+            history_loaded = getattr(cached, "_history_loaded", True)
+            persisted_count = getattr(cached, "_hist_persisted", 0)
+            if not isinstance(persisted_count, int) or persisted_count < 0:
+                persisted_count = 0
+            has_pending_history = (
+                (history_loaded and persisted_count < len(cached.history))
+                or (not history_loaded and bool(cached.history))
             )
-            if getattr(cached, "_history_loaded", True):
-                cached.summary_projection = _summary_projection_from_history(
-                    cached.history,
-                    revision=repair_revision,
-                    updated_at=cached.updated_at,
+            if history_loaded:
+                has_unsaved_cache = (
+                    last_meta_sig is None
+                    or cached_meta_sig != last_meta_sig
+                    or has_pending_history
                 )
-                cached._summary_history_index = len(cached.history)
             else:
+                # A shallow object created by list_all() has no in-memory
+                # history and historically has no baseline signature.  That
+                # absence is not an unsaved edit: promote it to the durable
+                # repair result so same-process summaries converge too.
+                has_unsaved_cache = (
+                    bool(cached.history)
+                    or (
+                        last_meta_sig is not None
+                        and cached_meta_sig != last_meta_sig
+                    )
+                )
+            if not has_unsaved_cache:
                 cached.summary_projection = projection
                 cached._summary_projection_complete = True
-                cached._summary_history_index = 0
-            cached._summary_projection_complete = True
+                cached._summary_history_index = (
+                    len(cached.history) if history_loaded else 0
+                )
+            elif history_loaded:
+                # A hydrated object should already have a complete projection,
+                # but repair defensively rebuilds it if a legacy caller left a
+                # malformed private state.  It never replaces a newer valid
+                # projection that includes an unsaved append.
+                if not is_complete_summary_projection(cached.summary_projection):
+                    cached_revision = int(
+                        cached.summary_projection.get("revision") or 0
+                    ) if isinstance(cached.summary_projection, dict) else 0
+                    cached.summary_projection = _summary_projection_from_history(
+                        cached.history,
+                        revision=max(1, cached_revision, prior_revision + 1),
+                        updated_at=cached.updated_at,
+                    )
+                    cached._summary_projection_complete = True
+                cached._summary_history_index = len(cached.history)
+            # A shallow cache with pending rows must retain its incomplete
+            # state so _prepare_history_for_save hydrates the durable JSONL
+            # baseline and applies only those pending rows once.
             cached._summary_meta_sig = _summary_metadata_signature(cached)
-            cached._last_meta_sig = _meta_signature(cached)
+            cached._last_meta_sig = _meta_signature(
+                cached, summary_projection=projection,
+            )
     return True
 
 
-def backfill_summary_projections_sync() -> dict:
+def _backfill_cancel_requested(cancel_event: threading.Event | None) -> bool:
+    return cancel_event is not None and cancel_event.is_set()
+
+
+def backfill_summary_projections_sync(
+    *, cancel_event: threading.Event | None = None,
+) -> dict:
     """Sequentially repair incomplete projections without reading JSONL on the loop.
 
     The scanner creates no per-session tasks and retains no message batches
     beyond the one Session currently being repaired.  Each file operation is
     behind the same per-Session FIFO ticket as normal save/save_async calls.
     Only ``summary_projection`` is changed in the main JSON; history JSONL is
-    read as the source of truth and never rewritten.
+    read as the source of truth and never rewritten.  ``cancel_event`` is
+    checked between Sessions, so shutdown lets the current ticket finish its
+    atomic operation and then stops before the next file.
     """
     started_at = datetime.now().isoformat()
     _set_summary_backfill_status(
@@ -1983,6 +2085,8 @@ def backfill_summary_projections_sync() -> dict:
     try:
         paths = sorted(SESSION_DIR.glob("*.json")) if SESSION_DIR.exists() else []
         for main_path in paths:
+            if _backfill_cancel_requested(cancel_event):
+                break
             try:
                 data = json.loads(main_path.read_text(encoding="utf-8"))
                 sid = data.get("id") if isinstance(data, dict) else None
@@ -1992,11 +2096,21 @@ def backfill_summary_projections_sync() -> dict:
             if not isinstance(sid, str) or not sid:
                 skipped += 1
                 continue
-            if is_complete_summary_projection(
-                data.get("summary_projection") if isinstance(data, dict) else None
+            if not isinstance(data, dict):
+                skipped += 1
+                continue
+            had_projection_alias = any(
+                alias in data for alias in _SUMMARY_PROJECTION_DATA_ALIASES
+            )
+            _canonicalize_summary_projection_data(data)
+            if (
+                is_complete_summary_projection(data.get("summary_projection"))
+                and not had_projection_alias
             ):
                 skipped += 1
                 continue
+            if _backfill_cancel_requested(cancel_event):
+                break
             discovered += 1
             state, ticket, enqueued_at = _reserve_save_ticket(sid)
             try:
@@ -2006,19 +2120,33 @@ def backfill_summary_projections_sync() -> dict:
                 )
                 repaired += int(bool(repaired_one))
                 skipped += int(not repaired_one)
-            except (OSError, json.JSONDecodeError):
+            except Exception:
                 errors += 1
+    except Exception:
+        # Directory enumeration or another scanner-level failure is terminal
+        # for this pass; report it as failed instead of falsely completing.
+        errors += 1
     finally:
+        if errors:
+            final_state = "failed"
+        elif _backfill_cancel_requested(cancel_event):
+            final_state = "cancelled"
+        else:
+            final_state = "completed"
         _set_summary_backfill_status(
-            state="completed", discovered=discovered, repaired=repaired,
+            state=final_state, discovered=discovered, repaired=repaired,
             skipped=skipped, errors=errors, completedAt=datetime.now().isoformat(),
         )
     return summary_backfill_status()
 
 
-async def backfill_summary_projections() -> dict:
+async def backfill_summary_projections(
+    *, cancel_event: threading.Event | None = None,
+) -> dict:
     """Run cold-start repair in one worker thread, never on asyncio's loop."""
-    return await asyncio.to_thread(backfill_summary_projections_sync)
+    return await asyncio.to_thread(
+        backfill_summary_projections_sync, cancel_event=cancel_event,
+    )
 
 
 @_store_serialized

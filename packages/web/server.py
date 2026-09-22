@@ -102,6 +102,65 @@ _LOG_SKIP = [
 
 # ── lifespan ──
 
+_SUMMARY_BACKFILL_SHUTDOWN_TIMEOUT_SEC = 5.0
+_DETACHED_SUMMARY_BACKFILL_TASKS: set[asyncio.Task] = set()
+
+
+def _consume_detached_summary_backfill(task: asyncio.Task) -> None:
+    """Keep a timed-out cooperative worker observable until it retires."""
+    try:
+        result = task.result()
+        _log(
+            "[Pan] Summary projection backfill retired after shutdown wait: "
+            f"{result.get('state') if isinstance(result, dict) else 'unknown'}"
+        )
+    except asyncio.CancelledError:
+        _log("[Pan] Summary projection backfill task was cancelled")
+    except Exception as exc:
+        _log(f"[Pan] Summary projection backfill task failed after shutdown: {exc}")
+    finally:
+        _DETACHED_SUMMARY_BACKFILL_TASKS.discard(task)
+
+
+async def _shutdown_summary_projection_backfill(
+    task: asyncio.Task,
+    cancel_event: threading.Event,
+    *,
+    timeout: float | None = None,
+) -> bool:
+    """Request cooperative cancellation and wait a bounded amount of time.
+
+    The task is shielded deliberately: cancelling an ``asyncio.to_thread``
+    wrapper cannot stop an in-flight filesystem replace and would leave an
+    unobserved thread mutating Session files after shutdown.  The scanner
+    checks ``cancel_event`` at Session boundaries; a timeout only detaches the
+    supervised task and its completion callback, leaving its state truthful.
+    """
+    cancel_event.set()
+    wait_seconds = (
+        _SUMMARY_BACKFILL_SHUTDOWN_TIMEOUT_SEC if timeout is None else timeout
+    )
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout=wait_seconds)
+    except asyncio.TimeoutError:
+        _DETACHED_SUMMARY_BACKFILL_TASKS.add(task)
+        task.add_done_callback(_consume_detached_summary_backfill)
+        _log(
+            "[Pan] Summary projection backfill did not retire within shutdown "
+            f"deadline ({wait_seconds:.2f}s); cancellation remains supervised"
+        )
+        return False
+    except asyncio.CancelledError:
+        if task.cancelled():
+            _log("[Pan] Summary projection backfill task was cancelled")
+        else:
+            # Preserve cancellation of the lifespan caller; shield only
+            # protects the worker task from an accidental wrapper cancel.
+            raise
+    except Exception as exc:
+        _log(f"[Pan] Summary projection backfill stopped with error: {exc}")
+    return True
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -115,8 +174,9 @@ async def lifespan(app: FastAPI):
     # bounded worker-thread scan.  The summary HTTP path remains projection
     # only, while this task gives the frontend a deterministic convergence
     # event once the durable metadata is authoritative.
+    summary_backfill_cancel = threading.Event()
     summary_backfill_task = asyncio.create_task(
-        _run_summary_projection_backfill(),
+        _run_summary_projection_backfill(summary_backfill_cancel),
         name="pan-summary-projection-backfill",
     )
 
@@ -139,13 +199,12 @@ async def lifespan(app: FastAPI):
         _log(f"[Pan] Character manifest not loaded: {e}")
     
     yield
-    # asyncio.to_thread cannot safely be abandoned halfway through an atomic
-    # metadata replace; let the current one-session operation finish before
-    # shutdown proceeds.
-    try:
-        await summary_backfill_task
-    except Exception as exc:
-        _log(f"[Pan] Summary projection backfill failed: {exc}")
+    # Request cancellation at a Session boundary.  The bounded wait protects
+    # shutdown from a stuck/slow disk while the shield and done callback keep
+    # any late worker observable instead of leaving an untracked mutator.
+    await _shutdown_summary_projection_backfill(
+        summary_backfill_task, summary_backfill_cancel,
+    )
     reminder_task.cancel()
     try:
         await reminder_task
@@ -167,9 +226,14 @@ async def lifespan(app: FastAPI):
     _log("[Pan] All workers shut down")
 
 
-async def _run_summary_projection_backfill() -> dict:
-    result = await sess.backfill_summary_projections()
-    if result.get("repaired", 0):
+async def _run_summary_projection_backfill(
+    cancel_event: threading.Event | None = None,
+) -> dict:
+    result = await sess.backfill_summary_projections(cancel_event=cancel_event)
+    # ``repaired`` is incremented only after the per-Session atomic replace
+    # succeeds.  A partial failed pass may still have durable repairs that
+    # the client must refresh; a cancelled shutdown pass must not broadcast.
+    if result.get("state") != "cancelled" and result.get("repaired", 0):
         await broadcast({
             "type": "session.summaryBackfillCompleted",
             "repaired": result["repaired"],

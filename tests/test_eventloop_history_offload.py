@@ -142,6 +142,78 @@ def test_summary_projection_120k_history_stays_jsonl_free_and_keeps_heartbeat(
     assert max(gaps) < 0.05, f"event loop blocked for {max(gaps) * 1000:.1f}ms"
 
 
+def test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_projection(
+    monkeypatch,
+):
+    """The real repair path, not only GET, must stay off-loop for long JSONL."""
+    count = 120_000
+    sid = "ses-backfill-120k"
+    _sess.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    main_path = _sess.SESSION_DIR / f"{sid}.json"
+    history_path = _sess.SESSION_DIR / f"{sid}.history.jsonl"
+    main_path.write_text(json.dumps({
+        "id": sid,
+        "name": sid,
+        "adapter": "cbc",
+        "history": [],
+        "summary_projection": {"revision": 7},
+    }), encoding="utf-8")
+    history_path.write_text(
+        "".join(json.dumps({
+            "role": "assistant" if index % 2 else "user",
+            "content": f"backfill-{index}",
+        }) + "\n" for index in range(count)),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(_sess, "_read_jsonl", lambda *_args: (_ for _ in ()).throw(
+        AssertionError("backfill must use the streaming projection reader")
+    ))
+    streaming_calls = 0
+    original_streaming_reader = _sess._summary_projection_from_jsonl
+
+    def instrumented_streaming_reader(path, **kwargs):
+        nonlocal streaming_calls
+        streaming_calls += 1
+        return original_streaming_reader(path, **kwargs)
+
+    monkeypatch.setattr(_sess, "_summary_projection_from_jsonl", instrumented_streaming_reader)
+
+    async def scenario():
+        loop = asyncio.get_running_loop()
+        done = asyncio.Event()
+        ticks = 0
+        gaps: list[float] = []
+        last = loop.time()
+
+        async def ticker():
+            nonlocal ticks, last
+            while not done.is_set():
+                await asyncio.sleep(0)
+                now = loop.time()
+                gaps.append(now - last)
+                last = now
+                ticks += 1
+
+        ticker_task = asyncio.create_task(ticker())
+        try:
+            result = await _sess.backfill_summary_projections()
+        finally:
+            done.set()
+            await ticker_task
+        return result, ticks, gaps
+
+    result, ticks, gaps = asyncio.run(scenario())
+    assert result["state"] == "completed"
+    assert result["repaired"] == 1
+    assert streaming_calls == 1
+    assert ticks > 0
+    assert max(gaps) < 0.05
+    persisted = json.loads(main_path.read_text(encoding="utf-8"))
+    projection = persisted["summary_projection"]
+    assert projection["history_total"] == count
+    assert projection["last_display_preview"] == f"backfill-{count - 1}"
+
+
 def test_session_history_cold_read_does_not_block_event_loop():
     """A single 60k-row history must not freeze the loop while it is paged."""
     _seed("ses-cold-history", _rows(60_000))

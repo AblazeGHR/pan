@@ -78,13 +78,22 @@ describe('SessionItem streaming preview', () => {
   });
 
   it('shows an explicit unknown count when the cold summary total is null', () => {
-    render(
+    const { rerender } = render(
       <SessionItem
         session={session('preview', 'idle', { historyTotal: null, history: [] })}
         isActive={false}
       />,
     );
 
+    expect(screen.getByText('—')).toBeTruthy();
+    expect(screen.queryByText(/^0$/)).toBeNull();
+
+    rerender(
+      <SessionItem
+        session={session('preview', 'idle', { historyTotal: undefined, history: [] })}
+        isActive={false}
+      />,
+    );
     expect(screen.getByText('—')).toBeTruthy();
     expect(screen.queryByText(/^0$/)).toBeNull();
   });

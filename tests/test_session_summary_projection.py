@@ -5,6 +5,8 @@ import json
 import threading
 import time
 
+import pytest
+
 from packages.core import session as sess
 from packages.web import server
 
@@ -172,6 +174,9 @@ def test_summary_projection_backfill_is_restart_idempotent_and_does_not_touch_hi
     }), encoding="utf-8")
     history.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
     before_history = history.read_bytes()
+    cold = sess.get(sid, load_history=False)
+    assert cold is not None
+    sess._cache[sid] = cold
 
     first = sess.backfill_summary_projections_sync()
     after_first = json.loads(main.read_text(encoding="utf-8"))
@@ -182,7 +187,31 @@ def test_summary_projection_backfill_is_restart_idempotent_and_does_not_touch_hi
     assert second["repaired"] == 0
     assert after_first["summary_projection"] == after_second["summary_projection"]
     assert after_first["summary_projection"]["history_total"] == 2
+    assert sess.summary_projection(cold)["history_total"] == 2
     assert history.read_bytes() == before_history
+
+
+def test_summary_projection_completeness_accepts_legal_empty_values_only():
+    empty = sess._empty_summary_projection(revision=0, history_total=0)
+    assert sess.is_complete_summary_projection(empty)
+    assert sess.is_complete_summary_projection({
+        "summaryRevision": 0,
+        "lastUserPreview": "",
+        "lastAssistantPreview": "",
+        "lastDisplayPreview": "",
+        "lastSystemPreview": "",
+        "lastThinkingPreview": "",
+        "lastToolPreview": "",
+        "lastMainRole": "",
+        "historyTotal": 0,
+        "updatedAt": "",
+    })
+    assert not sess.is_complete_summary_projection({
+        **empty, "history_total": False,
+    })
+    assert not sess.is_complete_summary_projection({
+        **empty, "history_total": None,
+    })
 
 
 def test_legacy_empty_history_is_a_real_zero_not_unknown():
@@ -241,6 +270,310 @@ def test_backfill_serializes_with_append_and_save_without_losing_order(monkeypat
     assert loaded is not None
     assert [row["content"] for row in loaded.history] == ["before", "answer", "after"]
     assert sess.summary_projection(loaded)["history_total"] == 3
+
+
+def test_hydrated_unsaved_append_backfill_then_save_converges_on_cold_restart(
+    monkeypatch,
+):
+    """A repair must not mark an in-memory unsaved projection as durable."""
+    sid = "ses-hydrated-backfill-race"
+    sess.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"role": "user", "content": "before"},
+        {"role": "assistant", "content": "old answer"},
+    ]
+    main = sess.SESSION_DIR / f"{sid}.json"
+    history = sess.SESSION_DIR / f"{sid}.history.jsonl"
+    main.write_text(json.dumps({
+        "id": sid,
+        "name": "hydrated race",
+        "adapter": "cbc",
+        "history": rows[-1:],
+        "summary_projection": {"revision": 4},
+    }), encoding="utf-8")
+    history.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    hydrated = sess.get(sid)
+    assert hydrated is not None
+    assert hydrated._history_loaded is True
+    entered = threading.Event()
+    release = threading.Event()
+    original_streaming_rebuild = sess._summary_projection_from_jsonl
+
+    def blocked_streaming_rebuild(path, **kwargs):
+        entered.set()
+        assert release.wait(2), "backfill did not reach the JSONL read boundary"
+        return original_streaming_rebuild(path, **kwargs)
+
+    monkeypatch.setattr(sess, "_summary_projection_from_jsonl", blocked_streaming_rebuild)
+
+    async def scenario():
+        repair = asyncio.create_task(sess.backfill_summary_projections())
+        assert await asyncio.to_thread(entered.wait, 2)
+        sess.append_history(hydrated, {"role": "assistant", "content": "new answer"})
+        saving = asyncio.create_task(sess.save_async(hydrated))
+        release.set()
+        await asyncio.gather(repair, saving)
+
+    asyncio.run(scenario())
+
+    # Deliberately do not call full get(): the regression was masked by full
+    # load rebuilding from JSONL. The cold summary must be authoritative.
+    sess._cache.clear()
+    sess._all_loaded = False
+    cold = sess.get(sid, load_history=False)
+    assert cold is not None
+    projection = sess.summary_projection(cold)
+    assert projection["history_total"] == 3
+    assert projection["last_display_preview"] == "new answer"
+    assert projection["revision"] >= 6
+
+
+@pytest.mark.parametrize(
+    ("top_level_name", "projection_kind", "projection_factory"),
+    [
+        ("summaryProjection", "complete", lambda rows: {
+            "summaryRevision": 3,
+            "lastUserPreview": "camel question",
+            "lastAssistantPreview": "camel answer",
+            "lastSystemPreview": "",
+            "lastThinkingPreview": "",
+            "lastToolPreview": "",
+            "lastDisplayPreview": "camel answer",
+            "lastMainRole": "assistant",
+            "historyTotal": len(rows),
+            "updatedAt": "2026-01-01T00:00:00",
+        }),
+        ("summaryProjection", "incomplete", lambda rows: {
+            "summaryRevision": 3, "historyTotal": len(rows),
+        }),
+        ("summary", "complete", lambda rows: {
+            "summaryRevision": 3,
+            "lastUserPreview": "camel question",
+            "lastAssistantPreview": "camel answer",
+            "lastSystemPreview": "",
+            "lastThinkingPreview": "",
+            "lastToolPreview": "",
+            "lastDisplayPreview": "camel answer",
+            "lastMainRole": "assistant",
+            "historyTotal": len(rows),
+            "updatedAt": "2026-01-01T00:00:00",
+        }),
+        ("summary", "incomplete", lambda rows: {
+            "summaryRevision": 3, "historyTotal": len(rows),
+        }),
+    ],
+    ids=["summaryProjection-complete", "summaryProjection-incomplete",
+         "summary-complete", "summary-incomplete"],
+)
+def test_backfill_canonicalizes_camel_projection_aliases_and_reload(
+    top_level_name, projection_kind, projection_factory, monkeypatch,
+):
+    sid = f"ses-{top_level_name}-{projection_kind}"
+    sess.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"role": "user", "content": "camel question"},
+        {"role": "assistant", "content": "camel answer"},
+    ]
+    main = sess.SESSION_DIR / f"{sid}.json"
+    history = sess.SESSION_DIR / f"{sid}.history.jsonl"
+    payload = {
+        "id": sid,
+        "name": sid,
+        "adapter": "cbc",
+        "history": rows[-1:],
+        top_level_name: projection_factory(rows),
+    }
+    main.write_text(json.dumps(payload), encoding="utf-8")
+    history.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    if projection_kind == "complete":
+        monkeypatch.setattr(
+            sess,
+            "_summary_projection_from_jsonl",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("complete aliased projection must not scan JSONL")
+            ),
+        )
+
+    result = sess.backfill_summary_projections_sync()
+    assert result["errors"] == 0
+    persisted = json.loads(main.read_text(encoding="utf-8"))
+    assert "summaryProjection" not in persisted
+    assert "summary" not in persisted
+    assert sess.is_complete_summary_projection(persisted["summary_projection"])
+
+    sess._cache.clear()
+    sess._all_loaded = False
+    cold = sess.get(sid, load_history=False)
+    assert cold is not None
+    projection = sess.summary_projection(cold)
+    assert projection["history_total"] == 2
+    assert projection["last_assistant_preview"] == "camel answer"
+
+
+def test_backfill_preserves_unrelated_main_metadata_while_consuming_alias():
+    sid = "ses-summary-alias-preserves-unknown"
+    sess.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    main = sess.SESSION_DIR / f"{sid}.json"
+    main.write_text(json.dumps({
+        "id": sid,
+        "name": sid,
+        "adapter": "cbc",
+        "summary": {"summaryRevision": 1, "historyTotal": 0},
+        "future_metadata": {"keep": True},
+    }), encoding="utf-8")
+
+    result = sess.backfill_summary_projections_sync()
+    assert result["errors"] == 0
+    persisted = json.loads(main.read_text(encoding="utf-8"))
+    assert "summary" not in persisted
+    assert persisted["future_metadata"] == {"keep": True}
+
+
+def test_backfill_read_error_is_failed_and_never_persists_zero(monkeypatch):
+    sid = "ses-summary-read-error"
+    sess.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    main = sess.SESSION_DIR / f"{sid}.json"
+    history = sess.SESSION_DIR / f"{sid}.history.jsonl"
+    main.write_text(json.dumps({
+        "id": sid,
+        "name": sid,
+        "adapter": "cbc",
+        "summary_projection": {"revision": 9},
+    }), encoding="utf-8")
+    history.write_text(
+        json.dumps({"role": "assistant", "content": "must survive"}) + "\n",
+        encoding="utf-8",
+    )
+    before = main.read_bytes()
+    path_type = type(history)
+    original_stat = path_type.stat
+
+    def unavailable_history_stat(path, *args, **kwargs):
+        if path == history:
+            raise OSError("history temporarily unavailable")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(path_type, "stat", unavailable_history_stat)
+
+    result = sess.backfill_summary_projections_sync()
+    assert result["state"] == "failed"
+    assert result["errors"] == 1
+    assert result["repaired"] == 0
+    assert main.read_bytes() == before
+    assert not list(sess.SESSION_DIR.glob("*.summary.tmp"))
+
+
+def test_failed_backfill_does_not_broadcast_completion(monkeypatch):
+    events: list[dict] = []
+
+    async def failed_backfill(*, cancel_event=None):
+        return {
+            "state": "failed",
+            "discovered": 1,
+            "repaired": 0,
+            "skipped": 0,
+            "errors": 1,
+        }
+
+    async def record_broadcast(event):
+        events.append(event)
+
+    monkeypatch.setattr(sess, "backfill_summary_projections", failed_backfill)
+    monkeypatch.setattr(server, "broadcast", record_broadcast)
+
+    result = asyncio.run(
+        server._run_summary_projection_backfill(threading.Event())
+    )
+    assert result["state"] == "failed"
+    assert events == []
+
+
+def test_shutdown_backfill_wait_is_bounded_without_cancelling_worker():
+    release = threading.Event()
+    cancel_event = threading.Event()
+
+    async def slow_worker():
+        await asyncio.to_thread(release.wait, 2)
+        return {"state": "cancelled"}
+
+    async def scenario():
+        task = asyncio.create_task(slow_worker())
+        await asyncio.sleep(0)
+        started = time.monotonic()
+        stopped = await server._shutdown_summary_projection_backfill(
+            task, cancel_event, timeout=0.02,
+        )
+        elapsed = time.monotonic() - started
+        assert stopped is False
+        assert elapsed < 0.5
+        assert cancel_event.is_set()
+        assert not task.done()
+        release.set()
+        return await task
+
+    assert asyncio.run(scenario())["state"] == "cancelled"
+
+
+def test_backfill_cancellation_stops_at_session_boundary_and_reports_cancelled(
+    monkeypatch,
+):
+    session_ids = [f"ses-cancel-{index}" for index in range(3)]
+    sess.SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    for sid in session_ids:
+        (sess.SESSION_DIR / f"{sid}.json").write_text(json.dumps({
+            "id": sid,
+            "name": sid,
+            "adapter": "cbc",
+            "history": [{"role": "assistant", "content": sid}],
+            "summary_projection": {"revision": 1},
+        }), encoding="utf-8")
+
+    entered = threading.Event()
+    release = threading.Event()
+    calls: list[str] = []
+    before_later_files = {
+        sid: (sess.SESSION_DIR / f"{sid}.json").read_bytes()
+        for sid in session_ids[1:]
+    }
+    original_repair = sess._repair_summary_projection_file
+
+    def slow_first_repair(sid):
+        calls.append(sid)
+        if len(calls) == 1:
+            entered.set()
+            assert release.wait(2), "test did not release the current atomic repair"
+        return original_repair(sid)
+
+    monkeypatch.setattr(sess, "_repair_summary_projection_file", slow_first_repair)
+    cancel_event = threading.Event()
+
+    async def scenario():
+        task = asyncio.create_task(
+            sess.backfill_summary_projections(cancel_event=cancel_event),
+        )
+        assert await asyncio.to_thread(entered.wait, 2)
+        async def release_current_ticket():
+            await asyncio.sleep(0.02)
+            release.set()
+
+        releaser = asyncio.create_task(release_current_ticket())
+        stopped = await server._shutdown_summary_projection_backfill(
+            task, cancel_event, timeout=1,
+        )
+        await releaser
+        return stopped, task.result()
+
+    stopped, result = asyncio.run(scenario())
+    assert stopped is True
+    assert result["state"] == "cancelled"
+    assert calls == [session_ids[0]]
+    assert not list(sess.SESSION_DIR.glob("*.summary.tmp"))
+    assert "summary_projection" in json.loads(
+        (sess.SESSION_DIR / f"{session_ids[0]}.json").read_text(encoding="utf-8")
+    )
+    for sid in session_ids[1:]:
+        assert (sess.SESSION_DIR / f"{sid}.json").read_bytes() == before_later_files[sid]
 
 
 def test_preview_roles_are_bounded_and_auxiliary_rows_do_not_hide_assistant():
