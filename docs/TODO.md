@@ -2,6 +2,7 @@
 
 > 创建：2026-08-27。集中收录散落在各文档中的待办 / 未完成 / 待决策项，每条注明来源文档。
 > 各原文档中的对应条目保留原位（或已划线标注），本文件是**唯一汇总视图**；完成某项后请在本文件划线并回写来源文档（若该文档仍现行）。
+> **2026-09-23 launcher 收口状态**：`aedd8ed` 已将 Windows 启动、身份校验、readiness、cloudflared 归属、失败清理和 exit/restart 业务收敛到 `packages.core.launcher`；`scripts/stop_pan.bat` 已删除，正常关闭统一走 Pan 内部 exit 协同链路。已在隔离 8767 完成真实启动/readiness/内部 exit；生产 8768、真实浏览器生命周期和真实 cloudflared 仍未验证。
 
 ---
 
@@ -35,7 +36,7 @@
 | ~~R2 补 3 个集成测试~~ | **已完成（2026-08-29）**：新增 Codex stream 序号/终态配对、WS 中途断线后新序号补发，以及超时→kill→同 taskId 重试回归覆盖 | 阶段计划与进度.md |
 | ~~测试夹具用户名~~ | ~~`tests/test_kimi_adapter.py:19` `KIMI_TEST_WORKDIR` 含本机用户名，其他机器跑测试失败~~ **已缓解（2026-09-03 核对）**：夹具仍含本机路径，但已由 `skipif`（目录不存在即跳过，reason="kimi test workdir absent (machine-local data)"）兜底，其他机器不再失败而是跳过该组 | 跨设备移植报告 / 阶段计划与进度.md |
 | Python 依赖环境收敛 | 依赖审计（2026-09-02）发现 Pan `.venv`、C 盘全局 Python 和 Miniforge 存在同栈副本及版本漂移；先生成/核对锁定依赖并评估仓库外 canonical venv（建议 `D:\pan-venv`），再决定是否收敛或清理，当前不迁移/删除现有环境 | 依赖共享审计-2026-09-02 |
-| Pan main service restart 实机链路 | 实机点击后未观察到主服务/worker 重新创建：8768 仍由原进程树监听，`process.pid` 记录的主 PID 与实际监听 PID 不一致，`pan-restart.log` 无本次记录。待服务空闲时验证并修复 `POST /api/main/restart` → detached supervisor → `stop_pan.bat` → `start_pan.bat` 全链路；补充 supervisor 失败反馈、PID/子进程归属和新 PID/启动时间验收，不能只以 `scheduled` 作为成功。 | 服务空闲且允许中断时 |
+| Pan Windows launcher/exit 实机验收 | `aedd8ed` 已完成 `packages.core.launcher` 统一启动与内部 exit/restart 链路，删除 `scripts/stop_pan.bat`；隔离 8767 已验证真实启动、`/api/sessions?summary=1` readiness、PID/create time/root/argv/listener 归属、QQ 清理和 graceful exit。仍需在明确授权且可中断的环境验证生产 8768、真实浏览器触发的 restart/exit，以及真实 named/quick cloudflared；不能只以 `scheduled` 作为成功。 | 生产服务空闲且允许中断时 |
 | opencode handoff 复验 | 原 worker_handoff 已移除；新 `agent_assign`（别名 worker_assign）/`session_handoff` 链路下 opencode stream 完成信号是否仍超时未复验 | design/opencode-adaptation.md |
 | opencode fork event 溯源 | fork 经 DB 复制，假定从 session/message/part 恢复；若还需 event 溯源行需补 | design/opencode-adaptation.md |
 | HTTP 全链路 sanity（kimi MCP） | 独立端口起 server 走 `/api/sessions`+`/api/spawn`+`/api/task` 链路未跑（worker 级集成已覆盖，低风险） | design/kimi-mcp-solution.md |
