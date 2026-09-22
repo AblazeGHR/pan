@@ -125,6 +125,74 @@ describe('sessionStore refresh staleness guards', () => {
     expect(currentMessages[1]?.content).toBe('a1');
   });
 
+  it('isolates a background history page from the selected transcript and pagination', async () => {
+    const aHistory = [msg('user', 'A durable'), msg('assistant', 'A answer')];
+    const aOptimistic = msg('user', 'A optimistic');
+    const bTail = msg('assistant', 'B tail');
+    useSessionStore.setState({
+      sessions: [
+        mk('A', 'A', { history: aHistory, historyTotal: 2 }),
+        mk('B', 'B', { history: [], historyTotal: 100, historyStart: 0 }),
+      ],
+      currentSessionId: 'A',
+      currentMessages: [...aHistory, aOptimistic],
+      historyWindowStarts: { A: 0 },
+      historyLoadEnd: 0,
+      hasMoreMessages: false,
+      sessionTranscripts: {},
+    });
+
+    // summaryBackfillCompleted/loadSessions is in flight while a background
+    // Session B receives an authoritative page.
+    let listRefresh: Promise<void>;
+    act(() => {
+      listRefresh = useSessionStore.getState().loadSessions();
+      useSessionStore.getState().applyHistoryPage('B', {
+        history: [bTail],
+        start: 50,
+        total: 100,
+        hasMore: true,
+        historyEpoch: 'B-epoch',
+        historyRevision: 1,
+      });
+    });
+    await act(async () => {
+      resolveNextFetch([
+        mk('A', 'A', { history: [], historyTotal: 2 }),
+        mk('B', 'B', { history: [], historyTotal: 100 }),
+      ]);
+      await listRefresh!;
+    });
+
+    const afterBackgroundPage = useSessionStore.getState();
+    expect(afterBackgroundPage.currentSessionId).toBe('A');
+    expect(afterBackgroundPage.currentMessages.map((row) => row.content)).toEqual([
+      'A durable', 'A answer', 'A optimistic',
+    ]);
+    // These are A's pagination fields. B's page must not overwrite them.
+    expect(afterBackgroundPage.historyLoadEnd).toBe(0);
+    expect(afterBackgroundPage.hasMoreMessages).toBe(false);
+    expect(afterBackgroundPage.historyWindowStarts.A).toBe(0);
+    expect(afterBackgroundPage.historyWindowStarts.B).toBe(50);
+    expect(afterBackgroundPage.sessionTranscripts.B?.runtime).toEqual([]);
+
+    // A→B must not reveal A's runtime rows that were adopted by B's page.
+    api.fetchSessionHistory.mockResolvedValueOnce({
+      history: [bTail],
+      start: 50,
+      total: 100,
+      hasMore: true,
+      historyEpoch: 'B-epoch',
+      historyRevision: 1,
+    });
+    await act(async () => {
+      await useSessionStore.getState().selectSession('B');
+    });
+    expect(useSessionStore.getState().currentMessages.map((row) => row.content)).toEqual([
+      'B tail',
+    ]);
+  });
+
   it('does not revert workerStatus freshened by WS while a fetch is in flight', async () => {
     useSessionStore.setState({
       sessions: [mk('A', 'A', { workerStatus: 'offline' })],

@@ -24,6 +24,14 @@
 
 因此根因是“sidebar summary refresh 越权写 selected transcript”与“跨 epoch equal-revision stale page 未拒绝”的组合，不是 durable JSONL 消息内容被删除，也不是本次 cold summary count=0 修复本身。
 
+## SESSION-HISTORY-DISAPPEAR-LIVE 追加线索：跨 Session history page 污染
+
+主审补充的 practical 源码线索已纳入本调查。`applyHistoryPageToState(s, sessionId, page)` 在合并目标 Session 的 window 时，原先无条件从全局 `s.currentMessages` 推断 runtime rows；当当前选中的是 A、page 实际属于后台 B 时，就会把 A 的 optimistic/live rows 追加进 B 的 transcript。随后 A→B 切换会从已经污染的 B transcript 投影出错序、重复或表面缺行。
+
+同一函数还无条件写入全局 `historyLoadEnd`、`hasMoreMessages`（以及 loading flags）。后台 B 的 page 因此可以覆盖当前 A 的分页游标；`summaryBackfillCompleted → loadSessions()` 虽然只触发 sidebar summary refresh，但它与后台 history page 并发时会扩大这个交错窗口。当前 `loadSessions()` 已不会直接重建 selected transcript，但 apply-history 入口仍必须独立保证 Session 隔离。
+
+本次追加修复将 runtime adoption 限定为：目标 Session 已选中时才读取当前显示；目标在后台时只从该 Session 自己的 transcript/runtime 投影。`historyWindowStarts[sessionId]` 仍按目标 Session 更新，而 `historyLoadEnd`、`hasMoreMessages`、`historyLoading`、`initialLoading` 只在 `currentSessionId === sessionId` 时更新。
+
 ## 当前修复
 
 - `loadSessions()` 现在把 `summary=1` 限定为 session/card metadata reconciliation；不会用 list response 重建 selected `currentMessages` 或 transcript。
@@ -31,6 +39,8 @@
 - 真正的 history 仍只通过 `selectSession()`、`refreshCurrentSessionHistory()`、`loadOlderMessages()` 的请求序列和 window merge 入口更新。
 - 跨 epoch 的 history replacement 只有在 `incomingRevision > currentRevision` 时接受；equal-revision 跨 epoch 响应标记为 ambiguous/stale 并拒绝。
 - `session.summaryBackfillCompleted` 仍保留为卡片 metadata refresh trigger，因此 backfill 后卡片可收敛，但不会触碰聊天窗口；selected Session 真正不存在时仍保留原有清空选择行为。
+
+追加的确定性回归同时覆盖：A 选中时 B 的 background history page 与未完成的 `loadSessions()`/summary refresh 交错、A 的 optimistic/runtime rows 不得进入 B、A 的分页游标不得被 B 覆盖，以及随后 A→B 切换不能显示污染内容。
 
 ## 回归测试
 

@@ -775,8 +775,11 @@ function applyHistoryPageToState(
     // A page that neither adds an offset nor advances the revision is not an
     // error — a focus refresh of an unchanged window is exactly this — but the
     // in-flight loading flags must still settle.
-    return { historyLoading: false, initialLoading: false };
+    return s.currentSessionId === sessionId
+      ? { historyLoading: false, initialLoading: false }
+      : s;
   }
+  const isCurrentSession = s.currentSessionId === sessionId;
   let next: SessionTranscript = {
     ...transcript,
     window: merged.window,
@@ -793,16 +796,23 @@ function applyHistoryPageToState(
     // otherwise it would be emitted a second time next to its window row.
     const windowList = windowRows(next.window);
     const tracked = new Set(next.runtime);
+    // `currentMessages` is global UI state. It is safe as a compatibility
+    // source only while this target is selected; a background Session's page
+    // must derive from that Session's own transcript or it will adopt A's
+    // runtime rows while applying B's history page.
+    const targetDisplay = isCurrentSession
+      ? s.currentMessages
+      : projectTranscript(transcript);
     let mirrored = 0;
     while (
-      mirrored < s.currentMessages.length
+      mirrored < targetDisplay.length
       && mirrored < windowList.length
-      && s.currentMessages[mirrored]!.role === windowList[mirrored]!.role
-      && s.currentMessages[mirrored]!.content === windowList[mirrored]!.content
+      && targetDisplay[mirrored]!.role === windowList[mirrored]!.role
+      && targetDisplay[mirrored]!.content === windowList[mirrored]!.content
     ) {
       mirrored += 1;
     }
-    const adopted = s.currentMessages
+    const adopted = targetDisplay
       .slice(mirrored)
       .filter((row) => !isDurableRow(row) && !tracked.has(row));
     if (adopted.length > 0) next = { ...next, runtime: [...next.runtime, ...adopted] };
@@ -843,11 +853,15 @@ function applyHistoryPageToState(
       ...s.historyWindowStarts,
       [sessionId]: merged.window.start ?? 0,
     },
-    historyLoadEnd: merged.window.start ?? 0,
-    hasMoreMessages: (merged.window.start ?? 0) > 0,
-    historyLoading: false,
-    initialLoading: false,
-    ...(s.currentSessionId === sessionId && !unchanged ? { currentMessages: display } : {}),
+    ...(isCurrentSession
+      ? {
+          historyLoadEnd: merged.window.start ?? 0,
+          hasMoreMessages: (merged.window.start ?? 0) > 0,
+          historyLoading: false,
+          initialLoading: false,
+          ...(!unchanged ? { currentMessages: display } : {}),
+        }
+      : {}),
     ...withTranscript(s, sessionId, next),
   };
 }
