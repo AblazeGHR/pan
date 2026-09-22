@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "test": "vitest",
     "e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run.ps1",
+    "e2e:bottom-follow": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run-bottom-follow.ps1",
     "e2e:attachment-dnd": "node e2e/attachment-dnd.mock.mjs",
     "e2e:done-indicator": "node e2e/done-indicator.e2e.mjs",
     "gen:api": "openapi-typescript http://localhost:8768/api/openapi.json -o src/types/api.d.ts",

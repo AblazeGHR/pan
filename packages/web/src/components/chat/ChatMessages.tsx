@@ -81,6 +81,15 @@ export function ChatMessages() {
     clientHeight: number;
   } | null>(null);
   const paginationAnchorRef = useRef<{ top: number; height: number } | null>(null);
+  // A browser may emit a scroll event when a measured row changes the scroll
+  // range, even though the user did not scroll. Keep that event from being
+  // mistaken for an opt-out. Real user input is recorded separately below;
+  // the short layout window also covers jsdom and browsers that report an
+  // untrusted layout scroll event after a streamed row grows.
+  const layoutChangePendingRef = useRef(false);
+  const layoutChangeRafRef = useRef<number | null>(null);
+  const userScrollIntentRef = useRef(false);
+  const userScrollIntentRafRef = useRef<number | null>(null);
 
   // Clamp only negative browser rounding artefacts to zero, then use the
   // small follow zone below instead of requiring exact geometry equality.
@@ -104,6 +113,28 @@ export function ChatMessages() {
     };
   }, []);
 
+  const markLayoutChange = useCallback(() => {
+    layoutChangePendingRef.current = true;
+    if (layoutChangeRafRef.current !== null) {
+      cancelAnimationFrame(layoutChangeRafRef.current);
+    }
+    layoutChangeRafRef.current = requestAnimationFrame(() => {
+      layoutChangeRafRef.current = null;
+      layoutChangePendingRef.current = false;
+    });
+  }, []);
+
+  const markUserScrollIntent = useCallback(() => {
+    userScrollIntentRef.current = true;
+    if (userScrollIntentRafRef.current !== null) {
+      cancelAnimationFrame(userScrollIntentRafRef.current);
+    }
+    userScrollIntentRafRef.current = requestAnimationFrame(() => {
+      userScrollIntentRafRef.current = null;
+      userScrollIntentRef.current = false;
+    });
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     const el = parentRef.current;
     if (el) {
@@ -124,7 +155,9 @@ export function ChatMessages() {
   // render.
   useEffect(() => {
     const el = parentRef.current;
+    markLayoutChange();
     const previous = lastScrollMetricsRef.current;
+    const layoutDrivenUpdate = layoutChangePendingRef.current;
     const grewWhilePinned = Boolean(
       el &&
         previous &&
@@ -137,7 +170,7 @@ export function ChatMessages() {
     let followedBottom = false;
     if (
       shouldFollowBottomRef.current &&
-      (initialScrollPendingRef.current || nearBottom || grewWhilePinned)
+      (initialScrollPendingRef.current || nearBottom || grewWhilePinned || layoutDrivenUpdate)
     ) {
       initialScrollPendingRef.current = false;
       scrollToBottom();
@@ -145,7 +178,7 @@ export function ChatMessages() {
     }
     setIsNearBottom(followedBottom || nearBottom || grewWhilePinned);
     captureScrollMetrics();
-  }, [currentMessages, totalSize, captureScrollMetrics, isNearBottomPosition, scrollToBottom]);
+  }, [currentMessages, totalSize, captureScrollMetrics, isNearBottomPosition, markLayoutChange, scrollToBottom]);
 
   // Lazy load older messages on scroll to top
   useEffect(() => {
@@ -153,12 +186,23 @@ export function ChatMessages() {
     if (!el) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const handler = () => {
-      // Scrolling beyond the follow zone opts out. Programmatic scrolls
-      // (scrollToBottom) also fire scroll events and re-pin at the bottom.
+    const markUserScrollKey = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) {
+        markUserScrollIntent();
+      }
+    };
+    const handler = (event: Event) => {
+      // A scroll event alone does not identify its source. A measured row,
+      // virtualizer correction, or resize can emit one while the user is
+      // idle. Only an explicit user gesture (or a trusted browser scroll)
+      // may turn follow mode off when the event is away from the bottom.
       initialScrollPendingRef.current = false;
       const nearBottom = isNearBottomPosition();
-      shouldFollowBottomRef.current = nearBottom;
+      const userDriven = userScrollIntentRef.current || event.isTrusted;
+      if (nearBottom || userDriven) {
+        shouldFollowBottomRef.current = nearBottom;
+      }
+      userScrollIntentRef.current = false;
       setIsNearBottom(nearBottom);
       captureScrollMetrics();
 
@@ -188,12 +232,44 @@ export function ChatMessages() {
       }, 150);
     };
 
+    el.addEventListener('wheel', markUserScrollIntent, { passive: true });
+    el.addEventListener('touchstart', markUserScrollIntent, { passive: true });
+    el.addEventListener('keydown', markUserScrollKey);
     el.addEventListener('scroll', handler);
     return () => {
+      el.removeEventListener('wheel', markUserScrollIntent);
+      el.removeEventListener('touchstart', markUserScrollIntent);
+      el.removeEventListener('keydown', markUserScrollKey);
       el.removeEventListener('scroll', handler);
       if (timer) clearTimeout(timer);
     };
-  }, [captureScrollMetrics, hasMoreMessages, historyLoading, isNearBottomPosition, loadOlderMessages]);
+  }, [captureScrollMetrics, grouped.length, hasMoreMessages, historyLoading, isNearBottomPosition, loadOlderMessages, markUserScrollIntent]);
+
+  // A viewport resize changes the meaning of "bottom" without changing the
+  // message array or virtualizer total size. Re-pin only while follow mode is
+  // active; a reader who opted out keeps their viewport.
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let raf: number | null = null;
+    const observer = new ResizeObserver(() => {
+      markLayoutChange();
+      if (!shouldFollowBottomRef.current) {
+        captureScrollMetrics();
+        return;
+      }
+      if (raf !== null) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        if (shouldFollowBottomRef.current) scrollToBottom();
+      });
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [captureScrollMetrics, grouped.length, markLayoutChange, scrollToBottom]);
 
   // Scroll to bottom when the session changes. Reset the pinned anchor first
   // so the auto-scroll effect above forces us down once this session's history
@@ -205,6 +281,8 @@ export function ChatMessages() {
     initialScrollPendingRef.current = true;
     lastScrollMetricsRef.current = null;
     paginationAnchorRef.current = null;
+    layoutChangePendingRef.current = false;
+    userScrollIntentRef.current = false;
     scrollToBottom();
     // If this session already has a mounted message container, the session
     // switch itself performed the initial positioning. Keep later updates
@@ -214,7 +292,11 @@ export function ChatMessages() {
       initialScrollPendingRef.current = false;
     }
     const raf = requestAnimationFrame(scrollToBottom);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (layoutChangeRafRef.current !== null) cancelAnimationFrame(layoutChangeRafRef.current);
+      if (userScrollIntentRafRef.current !== null) cancelAnimationFrame(userScrollIntentRafRef.current);
+    };
   }, [currentSessionId, scrollToBottom]);
 
   // Empty state — but ONLY after the initial history fetch has settled. While

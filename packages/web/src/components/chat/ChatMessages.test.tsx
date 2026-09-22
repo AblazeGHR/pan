@@ -4,6 +4,7 @@ import { render, act, fireEvent, cleanup } from '@testing-library/react';
 import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import type { Message } from '@/types';
 
 // ── Mock @tanstack/react-virtual ──
 // The real virtualizer needs real layout / ResizeObserver, which jsdom does not
@@ -47,6 +48,7 @@ vi.mock('@tanstack/react-virtual', () => ({
 // div) and a fixed clientHeight, so the bottom-zone / scrollToBottom() make
 // decisions from real numbers. ──
 function mockScrollMetrics() {
+  const clientHeight = () => mockClientHeight;
   Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
     configurable: true,
     get(this: HTMLElement) {
@@ -62,10 +64,19 @@ function mockScrollMetrics() {
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
     configurable: true,
     get(this: HTMLElement) {
-      if (this.classList?.contains('overflow-auto')) return 400;
+      if (this.classList?.contains('overflow-auto')) return clientHeight();
       return 0;
     },
   });
+}
+
+function userScroll(element: HTMLElement, top: number) {
+  element.scrollTop = top;
+  // A scroll event has no source information by itself. The component uses a
+  // preceding wheel/touch/key gesture to distinguish user movement from a
+  // measurement/virtualizer correction.
+  fireEvent.wheel(element);
+  fireEvent.scroll(element);
 }
 
 const msgs = (n: number, prefix = 'm') =>
@@ -75,8 +86,23 @@ const msgs = (n: number, prefix = 'm') =>
   }));
 
 let rafId = 0;
+let mockClientHeight = 400;
+let resizeObserverCallback: ResizeObserverCallback | null = null;
+
+class TestResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    resizeObserverCallback = callback;
+  }
+
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 
 beforeEach(() => {
+  mockClientHeight = 400;
+  resizeObserverCallback = null;
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
   mockScrollMetrics();
   // jsdom may or may not ship requestAnimationFrame — polyfill to be safe.
   globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
@@ -105,6 +131,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   cleanup();
 });
 
@@ -132,6 +159,26 @@ describe('ChatMessages scroll positioning', () => {
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
     expect(scrollEl).not.toBeNull();
     expect(scrollEl.scrollTop).toBe(2000);
+  });
+
+  it('binds user scroll tracking when async history mounts the first virtual rows', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [] });
+    const { container } = render(<ChatMessages />);
+    expect(container.querySelector('.overflow-auto')).toBeNull();
+
+    m.setTotalSize(2000);
+    act(() => {
+      useSessionStore.setState({ currentMessages: msgs(4) });
+    });
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    userScroll(scrollEl, 500);
+    m.setTotalSize(2600);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(3), { role: 'assistant', content: 'streamed after user scroll' }] });
+    });
+    expect(scrollEl.scrollTop).toBe(500);
   });
 
   it('re-scrolls to the true bottom when the virtualizer measures the real item heights', () => {
@@ -186,6 +233,80 @@ describe('ChatMessages scroll positioning', () => {
     expect(scrollEl.scrollTop).toBe(2600);
   });
 
+  it('keeps following through measurement scrolls, stream growth, final, result, and DONE', () => {
+    const initial = msgs(4);
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: initial });
+    m.setTotalSize(1400);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(1400);
+
+    const applyStep = (totalSize: number, currentMessages: Message[]) => {
+      // Simulate the browser/virtualizer emitting a layout scroll while the
+      // old scrollTop is still at the previous bottom. There is no user
+      // gesture in this sequence.
+      m.setTotalSize(totalSize);
+      fireEvent.scroll(scrollEl);
+      act(() => {
+        useSessionStore.setState({ currentMessages });
+      });
+      expect(scrollEl.scrollTop).toBe(totalSize);
+    };
+
+    applyStep(1800, [
+      ...initial.slice(0, 3),
+      { role: 'assistant', content: 'stream delta 1', nativeItemId: 'turn-1' },
+    ]);
+    applyStep(2200, [
+      ...initial.slice(0, 3),
+      {
+        role: 'assistant',
+        content: Array.from({ length: 40 }, (_, index) => `stream line ${index}`).join('\n'),
+        nativeItemId: 'turn-1',
+      },
+    ]);
+    applyStep(2400, [
+      ...initial.slice(0, 3),
+      { role: 'assistant', content: 'final answer', nativeItemId: 'turn-1' },
+    ]);
+    applyStep(2500, [
+      ...initial.slice(0, 3),
+      { role: 'assistant', content: 'final answer', messageId: 'canonical-1' },
+      { role: 'system', content: '[DONE] Task completed', nativeItemId: 'done-1' },
+    ]);
+    applyStep(2600, [
+      ...initial.slice(0, 3),
+      { role: 'assistant', content: 'final answer refreshed', messageId: 'canonical-1' },
+      { role: 'system', content: '[DONE] Task completed', nativeItemId: 'done-1' },
+    ]);
+  });
+
+  it('keeps follow mode through a programmatic viewport resize', () => {
+    vi.useFakeTimers();
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    mockClientHeight = 360;
+    act(() => {
+      resizeObserverCallback?.([], {} as ResizeObserver);
+      vi.runOnlyPendingTimers();
+    });
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({ currentMessages: msgs(4) });
+    });
+    act(() => {
+      resizeObserverCallback?.([], {} as ResizeObserver);
+      vi.runOnlyPendingTimers();
+    });
+    expect(scrollEl.scrollTop).toBe(2400);
+  });
+
   it('hides the button and follows new messages within the bottom threshold', () => {
     useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
     m.setTotalSize(2000);
@@ -195,8 +316,7 @@ describe('ChatMessages scroll positioning', () => {
     expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
 
     // 2000 - (2000 - 400 - threshold) - 400 = threshold.
-    scrollEl.scrollTop = 2000 - 400 - SCROLL_BOTTOM_THRESHOLD;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 2000 - 400 - SCROLL_BOTTOM_THRESHOLD);
     expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
 
     m.setTotalSize(2200);
@@ -215,8 +335,7 @@ describe('ChatMessages scroll positioning', () => {
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
 
     // One pixel beyond the follow zone must opt out.
-    scrollEl.scrollTop = 2000 - 400 - SCROLL_BOTTOM_THRESHOLD - 1;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 2000 - 400 - SCROLL_BOTTOM_THRESHOLD - 1);
     expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
     m.setTotalSize(2600);
     act(() => {
@@ -234,11 +353,8 @@ describe('ChatMessages scroll positioning', () => {
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
     expect(scrollEl.scrollTop).toBe(2000);
 
-    // Simulate a layout change occurring after the user has moved well beyond
-    // the follow zone.
-    // No scroll event is dispatched so this specifically covers the
-    // measurement effect's direct bottom check.
-    scrollEl.scrollTop = 700;
+    // A real user movement is explicitly marked before the layout change.
+    userScroll(scrollEl, 700);
     m.setTotalSize(2400);
     act(() => {
       useSessionStore.setState({ currentMessages: [...msgs(4)] });
@@ -255,8 +371,7 @@ describe('ChatMessages scroll positioning', () => {
 
     // Land at the bottom on entry, then the user scrolls up to the top.
     expect(scrollEl.scrollTop).toBe(2000);
-    scrollEl.scrollTop = 0;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 0);
     expect(scrollEl.scrollTop).toBe(0);
 
     // loadOlderMessages prepends messages → total size grows.
@@ -276,8 +391,7 @@ describe('ChatMessages scroll positioning', () => {
     const { container } = render(<ChatMessages />);
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
 
-    scrollEl.scrollTop = 0;
-    fireEvent.scroll(scrollEl); // user scrolls away → unpinned
+    userScroll(scrollEl, 0); // user scrolls away → unpinned
 
     m.setTotalSize(2600);
     act(() => {
@@ -292,8 +406,7 @@ describe('ChatMessages scroll positioning', () => {
     const { container } = render(<ChatMessages />);
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
 
-    scrollEl.scrollTop = 700;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 700);
 
     // A streaming update changes the same assistant message and its measured
     // height, rather than appending a new message.
@@ -313,8 +426,7 @@ describe('ChatMessages scroll positioning', () => {
     const { container } = render(<ChatMessages />);
     const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
 
-    scrollEl.scrollTop = 500;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 500);
     expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
     m.setTotalSize(2200);
     act(() => {
@@ -324,14 +436,37 @@ describe('ChatMessages scroll positioning', () => {
 
     // Returning within the threshold re-enables follow mode and hides the
     // button before the next message arrives.
-    scrollEl.scrollTop = 2200 - 400 - SCROLL_BOTTOM_THRESHOLD;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 2200 - 400 - SCROLL_BOTTOM_THRESHOLD);
     expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
     m.setTotalSize(2800);
     act(() => {
       useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(2, 'follow')] });
     });
     expect(scrollEl.scrollTop).toBe(2800);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
+  });
+
+  it('resets follow mode when switching sessions and returning to the first session', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4, 'A') });
+    m.setTotalSize(1800);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+    userScroll(scrollEl, 500);
+    expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
+
+    m.setTotalSize(1200);
+    act(() => {
+      useSessionStore.setState({ currentSessionId: 's2', currentMessages: msgs(3, 'B') });
+    });
+    expect(scrollEl.scrollTop).toBe(1200);
+
+    userScroll(scrollEl, 400);
+    m.setTotalSize(2100);
+    act(() => {
+      useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(6, 'A-return') });
+    });
+    expect(scrollEl.scrollTop).toBe(2100);
     expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
   });
 
@@ -360,8 +495,7 @@ describe('ChatMessages scroll positioning', () => {
     });
 
     // Pagination is triggered near the top, but not at the exact top.
-    scrollEl.scrollTop = 100;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 100);
     act(() => {
       vi.advanceTimersByTime(150);
     });
@@ -484,8 +618,7 @@ describe('ChatMessages scroll positioning', () => {
     // The user scrolls away from the bottom while the answer is still
     // streaming. A later, much taller content delta must not auto-scroll or
     // use an old absolute position to cover the tool/thinking rows.
-    scrollEl.scrollTop = 500;
-    fireEvent.scroll(scrollEl);
+    userScroll(scrollEl, 500);
     const tallAnswer = Array.from({ length: 100 }, (_, index) => `line ${index}`).join('\n');
     m.setTotalSize(2400);
     act(() => {
