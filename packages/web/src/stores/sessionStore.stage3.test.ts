@@ -41,6 +41,7 @@ describe('stage 3 consistency fixtures', () => {
       serverEpoch: null,
       liveStreamBuffers: {},
       terminalWatermarks: {},
+      sessionTranscripts: {},
       _historyRefreshSeq: {},
       _historyPageSeq: {},
       _selectionSeq: {},
@@ -75,7 +76,12 @@ describe('stage 3 consistency fixtures', () => {
     expect(state.currentMessages.map((item) => item.messageId)).toEqual(
       full.map((item) => item.messageId),
     );
-    expect(state.historyWindowStarts.A).toBe(100);
+    // A tail refresh merges rows by absolute offset: it must not move the
+    // oldest loaded offset. Rows 0..99 are still loaded, so the window start
+    // stays 0 (the previous expectation of 100 was the defect this repairs —
+    // it made loadOlderMessages request offset 100 again forever).
+    expect(state.historyWindowStarts.A).toBe(0);
+    expect(state.historyLoadEnd).toBe(0);
     expect(state.sessions[0]?.historyTotal).toBe(150);
   });
 

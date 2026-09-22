@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -82,10 +83,22 @@ export function TopBar() {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const [codexQuota, setCodexQuota] = useState<CodexQuotaProjection | null>(null);
+  // 细粒度订阅：toast/审批/交互队列只在 UI store 的分片里；Worker store 只取
+  // 稳定的 action 引用。整体订阅（useUIStore()/useWorkerStore()）会让每次 toast、
+  // 每个交互请求、任意 session 的 worker 更新都重渲染 TopBar。
   const { showToast, toggleTuiView, tuiViewEnabled } =
-    useUIStore();
+    useUIStore(useShallow((s) => ({
+      showToast: s.showToast,
+      toggleTuiView: s.toggleTuiView,
+      tuiViewEnabled: s.tuiViewEnabled,
+    })));
   const { restart, killCurrent, interrupt, takeover } =
-    useWorkerStore();
+    useWorkerStore(useShallow((s) => ({
+      restart: s.restart,
+      killCurrent: s.killCurrent,
+      interrupt: s.interrupt,
+      takeover: s.takeover,
+    })));
   const { isMobile } = useMediaQuery();
 
   useEffect(() => {

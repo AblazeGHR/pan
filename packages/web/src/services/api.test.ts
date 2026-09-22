@@ -86,4 +86,34 @@ describe('worker control business errors', () => {
 
     await expect(steerSessionWorker('s1', 'continue')).rejects.toThrow('Worker not found');
   });
+
+  it('queue mutations reject HTTP 200 responses that carry an error body', async () => {
+    const { enqueueSessionMessage, fetchSessionQueue, updateSessionQueueItem, deleteSessionQueueItem } =
+      await import('./api');
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ ok: false, error: { message: 'queue rejected' } }),
+    })));
+    await expect(enqueueSessionMessage('s1', 'hi', 'c1')).rejects.toThrow('queue rejected');
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ error: 'session gone' }),
+    })));
+    await expect(fetchSessionQueue('s1')).rejects.toThrow('session gone');
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ ok: false, error: 'revision conflict' }),
+    })));
+    await expect(updateSessionQueueItem('s1', 'q1', 'x', 1)).rejects.toThrow('revision conflict');
+    await expect(deleteSessionQueueItem('s1', 'q1')).rejects.toThrow('revision conflict');
+  });
 });

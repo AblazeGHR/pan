@@ -68,6 +68,9 @@ function resetStore(): void {
     historyLoadEnd: 0,
     _loadSeq: 0,
     _sessionWsTouchedSeq: {},
+    liveStreamBuffers: {},
+    terminalWatermarks: {},
+    sessionTranscripts: {},
   });
 }
 

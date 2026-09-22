@@ -90,6 +90,7 @@ function setSnapshot(
   sessionId: string,
   items: AgentQueueItem[],
   revision?: number,
+  allowEqualRevisionRepair = false,
 ): boolean {
   let accepted = false;
   set((state) => {
@@ -99,8 +100,11 @@ function setSnapshot(
     }
     if (revision !== undefined && currentRevision !== undefined && revision === currentRevision) {
       // Equal revisions are idempotent receipts, not permission to replace a
-      // newer projection with a differently-shaped stale HTTP payload.
-      return state;
+      // newer projection with a differently-shaped stale HTTP payload — unless
+      // the caller proved this response is a fresh authoritative observation
+      // of exactly the revision the projection already holds (the full-GET
+      // repair path), in which case it fixes an incomplete/stale projection.
+      if (!allowEqualRevisionRepair) return state;
     }
     const tombstones = state.queueTombstones[sessionId] ?? new Set<string>();
     const delivered = state.queueDeliveredIds[sessionId] ?? new Set<string>();
@@ -108,6 +112,8 @@ function setSnapshot(
       const id = canonicalQueueId(item.id);
       return !tombstones.has(id) && !delivered.has(id);
     });
+    const edit = state.edits[sessionId];
+    const editMissing = edit && !filtered.some((item) => queueIdMatches(item.id, edit.id));
     accepted = true;
     return {
       queues: { ...state.queues, [sessionId]: filtered },
@@ -115,6 +121,7 @@ function setSnapshot(
       ...(revision === undefined
         ? {}
         : { queueRevisions: { ...state.queueRevisions, [sessionId]: revision } }),
+      ...(editMissing ? { edits: { ...state.edits, [sessionId]: null } } : {}),
     };
   });
   return accepted;
@@ -186,6 +193,7 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     }));
     const request = (async () => {
       try {
+        const revisionAtRequest = get().queueRevisions[sessionId];
         const items = await fetchSessionQueue(sessionId);
         if (get().agentQueueLoadSeq[sessionId] !== requestSeq) return;
         const currentRevision = get().queueRevisions[sessionId];
@@ -195,7 +203,18 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
           items.queueRevision < currentRevision
         )
           return;
-        setSnapshot(set, sessionId, items, items.queueRevision);
+        // A full GET that observed exactly the revision the local projection
+        // already held at request time is a fresh authoritative observation:
+        // the equal revision proves no newer server state exists, so it may
+        // repair a projection left stale by a lost delivery event or a failed
+        // mutation.  A response whose local revision moved on while in flight
+        // keeps the strict stale-response rules instead.
+        const freshObservation = items.queueRevision !== undefined
+          && currentRevision !== undefined
+          && revisionAtRequest !== undefined
+          && items.queueRevision === currentRevision
+          && currentRevision === revisionAtRequest;
+        setSnapshot(set, sessionId, items, items.queueRevision, freshObservation);
       } catch {
         // Preserve the last authoritative snapshot; reconnect/session switch retries.
       }
@@ -346,6 +365,9 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
   startEdit: (id) => {
     const sid = useSessionStore.getState().currentSessionId;
     if (!sid) return;
+    // Preserve the first edit transaction, including an in-flight PATCH.
+    // Repeated clicks must not replace its draft or token.
+    if (get().edits[sid]) return;
     const items = get().queues[sid] ?? [];
     const item = items.find((candidate) => queueIdMatches(candidate.id, id));
     if (

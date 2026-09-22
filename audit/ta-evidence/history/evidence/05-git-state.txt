@@ -1,0 +1,21 @@
+# git state @ re-audit (final, round 2)
+2026-09-21T16:04:59Z
+
+## rev-parse HEAD
+591367a65f88e9d5270e8e99920ef5448d1d68c9
+
+## rev-parse --show-toplevel
+D:/project/pan-worktrees/frontend-reaudit-history-ds-20260921
+
+## git status --short --untracked-files=all
+?? AUDIT_HISTORY_QUEUE.md
+?? evidence/03-code-anchors.txt
+?? evidence/04-probe-raw-output.txt
+?? evidence/05-git-state.txt
+?? evidence/06-reproducibility.txt
+?? packages/web/src/hooks/reaudit.orderedEvents.test.tsx
+?? packages/web/src/stores/reaudit.history.test.ts
+?? packages/web/src/stores/reaudit.queue.test.ts
+
+## tracked-file diff (must be empty)
+(end)

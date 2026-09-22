@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, renderHook, act } from '@testing-library/react';
+import { render, renderHook, act, cleanup } from '@testing-library/react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -101,6 +101,7 @@ describe('useWebSocket worker.result wiring', () => {
       initialLoading: false,
       sessionsLoading: false,
       historyLoadEnd: 0,
+      sessionTranscripts: {},
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
       _historyRefreshSeq: {},
@@ -117,8 +118,11 @@ describe('useWebSocket worker.result wiring', () => {
     apiMock.updateUiSettings.mockResolvedValue({});
   });
 
-  // Never let a failing test leak fake timers into the rest of the file.
+  // Never let a failing test leak fake timers (or a still-mounted hook's
+  // window listeners) into the rest of the file. RTL auto-cleanup is not
+  // enabled in this repo's vitest config, so unmount explicitly.
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
   });
 
@@ -170,6 +174,97 @@ describe('useWebSocket worker.result wiring', () => {
       vi.advanceTimersByTime(100);
     });
     expect(wsMock.reconnect).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  // ── Browser-lifecycle recovery coalescing (FE-4) ──
+  // Focus/visibilitychange/pageshow are the same "the window came back" event;
+  // they must not fan out into duplicate authoritative request bursts, while a
+  // stale socket must still reconnect.
+
+  it('absorbs a duplicate focus/visibility recovery inside the coalescing window', async () => {
+    vi.useFakeTimers();
+    apiMock.fetchSessions.mockResolvedValue([
+      mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1 }),
+      mk('A', 'A', { history: [msg('user', 'u0')] }),
+    ]);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [msg('user', 'u0')], total: 1, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    const flush = async () => {
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    };
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      vi.advanceTimersByTime(100);
+      await flush();
+    });
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(2); // initial load + recovery
+
+    await act(async () => {
+      // Same resume, a little later than the debounce but inside the window.
+      document.dispatchEvent(new Event('visibilitychange'));
+      vi.advanceTimersByTime(100);
+      await flush();
+    });
+    // Duplicate signal folded into the recovery that already ran — no second burst.
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('runs a later recovery once the coalescing window has elapsed', async () => {
+    vi.useFakeTimers();
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A')]);
+    apiMock.fetchSessionHistory.mockResolvedValue({
+      history: [], total: 0, hasMore: false, start: 0,
+    });
+    renderHook(() => useWebSocket());
+    const flush = async () => {
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    };
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      vi.advanceTimersByTime(100);
+      await flush();
+    });
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(600); // outside RECOVERY_COALESCE_MS
+      window.dispatchEvent(new Event('focus'));
+      vi.advanceTimersByTime(100);
+      await flush();
+    });
+    // A genuinely new resume is not permanently suppressed.
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it('never absorbs duplicate signals while the socket is stale (disconnect recovery preserved)', () => {
+    vi.useFakeTimers();
+    wsMock.isConnectionFresh.mockReturnValue(false);
+    apiMock.fetchSessions.mockResolvedValue([mk('A', 'A')]);
+    renderHook(() => useWebSocket());
+    wsMock.reconnect.mockClear();
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      vi.advanceTimersByTime(100);
+    });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      vi.advanceTimersByTime(100);
+    });
+
+    // Stale socket is never absorbed: each recovery still attempts reconnect,
+    // and the open handler (not the recovery) owns the HTTP refresh.
+    expect(wsMock.reconnect).toHaveBeenCalled();
+    expect(apiMock.fetchSessions).toHaveBeenCalledTimes(1); // initial load only
     vi.useRealTimers();
   });
 
@@ -893,6 +988,7 @@ describe('useWebSocket agent-injected message sync', () => {
       initialLoading: false,
       sessionsLoading: false,
       historyLoadEnd: 0,
+      sessionTranscripts: {},
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
       liveStreamBuffers: {},
@@ -1231,6 +1327,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       initialLoading: false,
       sessionsLoading: false,
       historyLoadEnd: 0,
+      sessionTranscripts: {},
       _loadSeq: 0,
       _sessionWsTouchedSeq: {},
       liveStreamBuffers: {},

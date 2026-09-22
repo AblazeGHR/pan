@@ -52,6 +52,7 @@ function reset(): void {
     _sessionLocalTouchedSeq: {},
     liveStreamBuffers: {},
     terminalWatermarks: {},
+    sessionTranscripts: {},
   });
 }
 
@@ -201,6 +202,46 @@ describe('T-055 per-session live stream reconciliation', () => {
     expect(useSessionStore.getState().sessions[0]?.history.map((m) => m.content)).toEqual([
       'question A', 'steer instruction',
     ]);
+  });
+
+  it('converges an edited queue projection to canonical history without a duplicate', async () => {
+    const a = session('A', [msg('user', 'before')]);
+    useSessionStore.setState({
+      sessions: [a],
+      currentSessionId: 'A',
+      currentMessages: a.history,
+    });
+
+    useSessionStore.getState().appendQueuedMessage('A', {
+      id: 'q-edit-canonical',
+      text: 'before edit',
+    });
+    useSessionStore.getState().updateQueuedMessage('A', {
+      id: 'q-edit-canonical',
+      text: 'after edit',
+    });
+    expect(useSessionStore.getState().currentMessages.map((message) => message.content)).toEqual([
+      'before', 'after edit',
+    ]);
+
+    const refreshing = useSessionStore.getState().refreshCurrentSessionHistory();
+    await act(async () => {
+      pendingHistory.shift()?.({
+        // Canonical history intentionally has no transient queueItemIds.
+        history: [msg('user', 'before'), msg('user', 'after edit')],
+        total: 2,
+        hasMore: false,
+        start: 0,
+      });
+      await refreshing;
+    });
+
+    expect(useSessionStore.getState().currentMessages.map((message) => message.content)).toEqual([
+      'before', 'after edit',
+    ]);
+    expect(useSessionStore.getState().currentMessages.filter(
+      (message) => message.content === 'after edit',
+    )).toHaveLength(1);
   });
 
   it('does not let an old loadSessions response write history into the new Session', async () => {

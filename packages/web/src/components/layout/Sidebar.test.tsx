@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Profiler } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -184,5 +185,89 @@ describe('Sidebar Session search controls', () => {
     fireEvent.pointerUp(sort, { pointerType: 'mouse', button: 0, clientX: 10, clientY: 10 });
     fireEvent.click(sort);
     expect(useUIStore.getState().sortBy).toBe('name');
+  });
+});
+
+// FE-1: the sidebar chain must only re-render for state it actually reads.
+// Streaming chunks, draft keystrokes, unread markers, thinking/tool flags,
+// toasts and interactive requests are all irrelevant to the sidebar slice.
+describe('Sidebar render isolation (fine-grained selectors)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useSessionStore.setState({
+      sessions: [],
+      currentSessionId: null,
+      multiSelectMode: false,
+      selectedIds: new Set(),
+      inputDrafts: {},
+      sessionUnread: {},
+      currentMessages: [],
+      rendering: false,
+    });
+    useUIStore.setState({
+      sidebarCollapsed: false,
+      searchQuery: '',
+      specialFilters: new Set(),
+      hiddenSessionIds: new Set(),
+      collapsedGroups: new Set(),
+      groupBy: 'none',
+      sortBy: 'recent',
+      dragEnabled: true,
+      toastQueue: [],
+      approvalRequests: [],
+      userInputRequests: [],
+      elicitationRequests: [],
+      terminalInteractions: [],
+    });
+  });
+
+  function renderProfiledSidebar() {
+    const commits: number[] = [];
+    render(
+      <MemoryRouter>
+        <Profiler id="sidebar" onRender={() => commits.push(1)}>
+          <Sidebar />
+        </Profiler>
+      </MemoryRouter>,
+    );
+    return commits;
+  }
+
+  it('ignores streaming/draft/unread/toast updates but re-renders on a session change', () => {
+    const commits = renderProfiledSidebar();
+    const afterMount = commits.length;
+    expect(afterMount).toBeGreaterThan(0);
+
+    act(() => {
+      // Draft keystroke.
+      useSessionStore.setState((s) => ({ inputDrafts: { ...s.inputDrafts, A: 'draft' } }));
+      // A stream chunk landing on the selected session.
+      useSessionStore.setState({ currentMessages: [{ role: 'assistant', content: 'chunk' }] });
+      // Unread marker for a background block.
+      useSessionStore.setState((s) => ({
+        sessionUnread: { ...s.sessionUnread, A: new Set(['blk']) },
+      }));
+      // Thinking/tool rendering flag.
+      useSessionStore.setState({ rendering: true });
+    });
+    act(() => {
+      // Toast + interactive request (UI store, outside the sidebar slice).
+      useUIStore.setState({ toastQueue: [{ id: 't1', message: 'hi', type: 'info' }] });
+      useUIStore.setState({
+        approvalRequests: [
+          { sessionId: 'A', workerId: 'w1', requestId: 1, method: 'm', params: {} },
+        ],
+      });
+    });
+    expect(commits.length).toBe(afterMount);
+
+    act(() => {
+      useSessionStore.setState({
+        sessions: [
+          { id: 'A', name: 'Alpha', alwaysThinkingEnabled: false, effort: '', history: [], lastMessage: 'hi' },
+        ],
+      });
+    });
+    expect(commits.length).toBeGreaterThan(afterMount);
   });
 });

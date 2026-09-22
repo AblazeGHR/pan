@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useEditorStore } from '@/stores/editorStore';
@@ -46,12 +47,23 @@ export function Sidebar() {
   const isEditorRoute = location.pathname === '/editor';
   const { isMobile } = useMediaQuery();
 
-  // Session store
+  // Session store — 细粒度订阅（useShallow）：只在此切片变化时重渲染。
+  // 不能用 useSessionStore() 整体订阅：inputDrafts（每次敲键）、sessionUnread
+  // （markUnread）、liveStreamBuffers/currentMessages（每个流式 chunk）、
+  // rendering 等无关字段都会让整条侧栏链路重渲染。
   const { multiSelectMode, exitMultiSelect, selectedIds, batchRemoveSessions, removeSessions, removeSession, sessions } =
-    useSessionStore();
+    useSessionStore(useShallow((s) => ({
+      multiSelectMode: s.multiSelectMode,
+      exitMultiSelect: s.exitMultiSelect,
+      selectedIds: s.selectedIds,
+      batchRemoveSessions: s.batchRemoveSessions,
+      removeSessions: s.removeSessions,
+      removeSession: s.removeSession,
+      sessions: s.sessions,
+    })));
   const currentSession = useCurrentSession();
 
-  // UI store
+  // UI store — 同上：toast 队列、审批/输入/终端交互请求等高频字段不应触发侧栏重渲染。
   const {
     sidebarWidth,
     sidebarCollapsed,
@@ -76,7 +88,31 @@ export function Sidebar() {
     toggleTheme,
     dragEnabled,
     setDragEnabled,
-  } = useUIStore();
+  } = useUIStore(useShallow((s) => ({
+    sidebarWidth: s.sidebarWidth,
+    sidebarCollapsed: s.sidebarCollapsed,
+    toggleSidebar: s.toggleSidebar,
+    showToast: s.showToast,
+    groupBy: s.groupBy,
+    cycleGroupBy: s.cycleGroupBy,
+    searchQuery: s.searchQuery,
+    setSearchQuery: s.setSearchQuery,
+    sortBy: s.sortBy,
+    cycleSortBy: s.cycleSortBy,
+    specialFilters: s.specialFilters,
+    hiddenSessionIds: s.hiddenSessionIds,
+    toggleSpecialFilter: s.toggleSpecialFilter,
+    clearSpecialFilters: s.clearSpecialFilters,
+    collapsedGroups: s.collapsedGroups,
+    collapseAllGroups: s.collapseAllGroups,
+    expandAllGroups: s.expandAllGroups,
+    filesCollapsed: s.filesCollapsed,
+    toggleFilesCollapsed: s.toggleFilesCollapsed,
+    theme: s.theme,
+    toggleTheme: s.toggleTheme,
+    dragEnabled: s.dragEnabled,
+    setDragEnabled: s.setDragEnabled,
+  })));
 
   // Editor store
   const treeLoading = useEditorStore((s) => s.treeLoading);

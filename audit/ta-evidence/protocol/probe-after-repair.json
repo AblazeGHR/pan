@@ -1,0 +1,574 @@
+{
+  "aggregate_result_vs_two_canonical_rows": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "first half ",
+        "a1"
+      ],
+      [
+        "assistant",
+        "second half",
+        "a2"
+      ],
+      [
+        "assistant",
+        "first half second half",
+        null
+      ],
+      [
+        "assistant",
+        "first half ",
+        "a1"
+      ],
+      [
+        "assistant",
+        "first half second half",
+        "a2"
+      ]
+    ],
+    "historyTotal": 6,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "first half ",
+        "a1"
+      ],
+      [
+        "assistant",
+        "second half",
+        "a2"
+      ],
+      [
+        "assistant",
+        "first half second half",
+        null
+      ],
+      [
+        "assistant",
+        "first half ",
+        "a1"
+      ],
+      [
+        "assistant",
+        "first half second half",
+        "a2"
+      ]
+    ],
+    "lastMessage": "first half second half"
+  },
+  "exact_result_matches_canonical_tail": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "Hello",
+        "a1"
+      ],
+      [
+        "assistant",
+        "Hello",
+        "a1"
+      ]
+    ],
+    "historyTotal": 3,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "Hello",
+        "a1"
+      ],
+      [
+        "assistant",
+        "Hello",
+        "a1"
+      ]
+    ],
+    "lastMessage": "Hello"
+  },
+  "result_without_live_assistant": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "answer",
+        null
+      ]
+    ],
+    "historyTotal": 2,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "answer",
+        null
+      ]
+    ],
+    "lastMessage": "answer"
+  },
+  "ordered_turn_with_ids_result_equals_last": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        "local:user:ses-reconcile:0"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ]
+    ],
+    "historyTotal": 7,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        "local:user:ses-reconcile:0"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ]
+    ],
+    "lastMessage": "final"
+  },
+  "ordered_turn_with_ids_result_differs": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        "local:user:ses-reconcile:0"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "analysis\nfinal",
+        "n3"
+      ]
+    ],
+    "historyTotal": 7,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        "local:user:ses-reconcile:0"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "analysis\nfinal",
+        "n3"
+      ]
+    ],
+    "lastMessage": "analysis\nfinal"
+  },
+  "ordered_turn_idless_result_equals_last": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ]
+    ],
+    "historyTotal": 7,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ]
+    ],
+    "lastMessage": "final"
+  },
+  "ordered_turn_idless_result_differs": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "analysis\nfinal",
+        null
+      ]
+    ],
+    "historyTotal": 7,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "analysis\nfinal",
+        null
+      ]
+    ],
+    "lastMessage": "analysis\nfinal"
+  },
+  "partial_history_with_ids": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        "local:user:ses-reconcile:0"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ]
+    ],
+    "historyTotal": 4,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        "local:user:ses-reconcile:0"
+      ],
+      [
+        "assistant",
+        "analysis",
+        "n1"
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        "n2"
+      ],
+      [
+        "assistant",
+        "final",
+        "n3"
+      ]
+    ],
+    "lastMessage": "final"
+  },
+  "partial_history_idless": {
+    "sessionHistory": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ]
+    ],
+    "historyTotal": 7,
+    "currentMessages": [
+      [
+        "user",
+        "q",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ],
+      [
+        "assistant",
+        "analysis",
+        null
+      ],
+      [
+        "tool",
+        "Read({\"file_path\":\"a.txt\"})",
+        null
+      ],
+      [
+        "assistant",
+        "final",
+        null
+      ]
+    ],
+    "lastMessage": "final"
+  }
+}

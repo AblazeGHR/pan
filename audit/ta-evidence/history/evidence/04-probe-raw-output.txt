@@ -1,0 +1,106 @@
+# Raw probe output (temporary probes, since deleted)
+
+Worktree: D:/project/pan-worktrees/frontend-reaudit-history-ds-20260921
+HEAD: 591367a65f88e9d5270e8e99920ef5448d1d68c9
+Command: `pnpm exec vitest run <probe-file> --reporter=basic` (all probes exited 0; they only
+printed store output, and the deliverable assertions were derived from these values).
+
+--------------------------------------------------------------------------------
+PROBE 1 — store level: tail refresh then paginate  (src/stores/reaudit.probe.test.ts)
+--------------------------------------------------------------------------------
+P1 after refresh: windowStart= 100 loadEnd= 100 hasMore= true len= 150
+P1 after paginate: len= 200 loadEnd= 50 windowStart= 50
+P1 unique= 150
+P1 ids= ["m-50","m-51",...,"m-99","m-0","m-1",...,"m-99","m-100",...,"m-149"]
+      (the sequence m-50..m-99 appears twice: once at the front, once in place)
+
+Setup: 150 canonical rows (messageIds m-0..m-149), first 100 loaded (windowStart 0),
+       refresh returns tail page start=100 len=50.
+
+Conclusion: refresh rewrites historyWindowStarts/loadEnd to the tail page start (100);
+the subsequent loadOlderMessages(before=100) re-fetches rows 50..99, the prepend branch
+`pageStart + page.length <= previousWindowStart` (50+50<=100) fires, and both the order
+and the uniqueness of the loaded window are corrupted.
+
+--------------------------------------------------------------------------------
+PROBE 2 — store level: legit same-text duplicates  (src/stores/reaudit.probe.test.ts)
+--------------------------------------------------------------------------------
+P2 history= [["user","same","m-0",null],["assistant","a1","m-1",null],["user","same","m-2",null],["user","same",null,["q1"]]]
+P2 current= [["user","same","m-0",null],["assistant","a1","m-1",null],["user","same","m-2",null],["user","same",null,["q1"]]]
+
+Conclusion: no false text dedupe. This is a PASS (positive control R6).
+
+--------------------------------------------------------------------------------
+PROBE 3 — store level: stale historyEpoch/historyRevision page
+--------------------------------------------------------------------------------
+P3 session.epoch= eOlder rev= 1
+P3 current= [["u0","legacy:A:eOlder:0"],["OLD-a0","legacy:A:eOlder:1"]]
+
+Setup: local session already at historyEpoch='eOld' historyRevision=5 (probe label);
+       refresh returns a page with a DIFFERENT older epoch and revision 1.
+
+Conclusion: the stale page is applied wholesale; the stored epoch regresses to 'eOlder'
+and revision regresses 5 -> 1. historyEpoch/historyRevision are not gates.
+
+--------------------------------------------------------------------------------
+PROBE 4 — store level: live interleaved tool -> result -> refresh
+--------------------------------------------------------------------------------
+P4 after result current= [["user","u0","m-0",null],["assistant","Hello world",null,"item-2"],["tool","Run(x)",null,"tool-1"]]
+P4 after result history= [["user","u0","m-0",null],["assistant","Hello world",null,"item-2"]]
+P4 after refresh current= [["user","u0","m-0",null],["tool","Run(x)","m-1",null],["assistant","Hello world","m-2",null],["tool","Run(x)",null,"tool-1"]]
+
+Live arrival order was [user, tool, assistant]; after result it becomes
+[user, assistant, tool] (tool moved after the assistant). After the history refresh the
+tool row exists twice ('Run(x)' with messageId 'm-1' and with nativeItemId 'tool-1').
+
+--------------------------------------------------------------------------------
+PROBE 5 — queue store: ACK / tombstone / edit / failure  (src/stores/reaudit.queue.probe.test.ts)
+--------------------------------------------------------------------------------
+Q1 after delivery queues= [] rev= 2 deliveredIds= [ 'q1' ]
+Q1 after late ACK queues= [] rev= 2
+Q1 session history= [{"role":"user","content":"hi","queueItemIds":["q1"]}]          -> PASS
+
+Q2 queues= [] rev= 2
+Q2 session history= [{"role":"user","content":"original","queueItemIds":["q1"]}]
+Q2 current= [{"role":"user","content":"original","queueItemIds":["q1"]}]           -> PASS
+   (late PATCH ACK does not rewrite the delivered row)
+
+Q3 queues= [ [ 'q1', 'x', 1 ] ] rev= 1 tombstones= []
+Q3 toasts= [{"id":"toast-2","message":"删除失败：boom","type":"error"}]              -> PASS
+
+Q4 queues= [] rev= 6                                                               -> PASS (tombstone blocks re-add)
+
+Q5 queues= [ [ 'q2', 'b', 1 ], [ 'q1', 'a', 1 ] ] rev= 4                           -> PASS
+
+Q6 queues= [ [ 'q1', 'a', 1 ] ] rev= 4                                             -> PASS (equal-rev shape ignored)
+
+--------------------------------------------------------------------------------
+PROBE 6 — real useWebSocket pipeline  (src/hooks/reaudit.events.probe.test.tsx)
+--------------------------------------------------------------------------------
+W1 current= ["assistant|A|item-1","system|[DONE] Task completed|worker.result:A:1",
+             "assistant|B|item-2","system|[DONE] Task completed|worker.result:A:2"]
+W1 history= ["assistant|A|item-1","assistant|B|item-2"]                            -> PASS (two turns ordered)
+
+W2 live current= ["tool|Command({\"command\":\"echo hi\"})|tool-1","assistant|Hello world|item-2"]
+W2 after result current= ["assistant|Hello world|item-2","tool|Command({\"command\":\"echo hi\"})|tool-1",
+                          "system|[DONE] Task completed|worker.result:A:1"]
+   -> tool/assistant order swapped at result
+
+W2 pre-refresh prevHistory= ["assistant|Hello world|item-2"] windowStart= undefined
+W2 [windowStarts unset] current= ["assistant|Hello world|m-2","tool|Command({\"command\":\"echo hi\"})|m-1",
+                                  "user|u0|m-0","assistant|Hello world|item-2",
+                                  "tool|Command({\"command\":\"echo hi\"})|tool-1","system|[DONE] Task completed|worker.result:A:1"]
+   -> canonical page [u0, tool, assistant] reversed to [assistant, tool, u0] + duplicates.
+      Root cause: previousWindowStart fell back to `data.total - previousHistory.length`
+      (=2) although the page starts at 0, so mergeHistoryPageByWindow treats the page as
+      an older prepend and splices at clamped index 0. NOT separately asserted in the
+      deliverable (reachability of historyWindowStarts=undefined for a selected session is
+      weaker); reported as static/latent under the same root cause as F-A.
+
+W2 [windowStart=0] current= ["user|u0|m-0","tool|Command({\"command\":\"echo hi\"})|m-1",
+                             "assistant|Hello world|m-2","tool|Command({\"command\":\"echo hi\"})|tool-9",
+                             "system|[DONE] Task completed|worker.result:A:9"]
+   -> order preserved, but the tool row is duplicated (canonical m-1 + leftover live tool-9).
+
+W3 current= ["assistant|AB|item-1"]
+   -> repeated identical ordered delta for the same item is idempotent (PASS, control E1).

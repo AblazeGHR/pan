@@ -18,7 +18,21 @@ import {
 } from '@/services/api';
 import { isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
-import { cloneMessageWithIdentity, inheritMessageIdentity } from '@/utils/messageIdentity';
+import { inheritMessageIdentity } from '@/utils/messageIdentity';
+import {
+  canonicalHistory,
+  createWindow,
+  isDurableRow,
+  isLocalMarker,
+  liveProjectionKeys,
+  markLocalMarker,
+  mergeWindowPage,
+  taskScopeKey,
+  windowFromSession,
+  windowRows,
+  type HistoryPage,
+  type LoadedWindow,
+} from '@/stores/messageOrdering';
 
 interface SessionStore {
   // State
@@ -61,6 +75,8 @@ interface SessionStore {
   _pendingQueueIds: Record<string, Set<string>>;
   liveStreamBuffers: Record<string, LiveStreamBuffer>;
   terminalWatermarks: Record<string, TerminalWatermark>;
+  /** Loaded durable window + runtime-row coverage boundary, per Session. */
+  sessionTranscripts: Record<string, SessionTranscript>;
   /** Latest optimistic settings mutation per Session. */
   sessionSettingMutations: Record<string, SessionSettingMutationInternal>;
   /** Authoritative server process epoch for runtime watermarks. */
@@ -104,7 +120,14 @@ interface SessionStore {
   applyLiveStream: (sessionId: string, messages: Message[], meta: LiveStreamMeta) => boolean;
   reconcileWorkerResult: (
     sessionId: string,
-    event: { status?: string; cancelled?: boolean; result?: string },
+    event: {
+      status?: string;
+      cancelled?: boolean;
+      result?: string;
+      terminalCoverage?: TerminalCoverage;
+      historyEpoch?: string;
+      historyRevision?: number;
+    },
     meta: LiveStreamMeta,
   ) => boolean;
   applyWorkerStatus: (
@@ -113,6 +136,10 @@ interface SessionStore {
     meta: LiveStreamMeta,
     terminal?: boolean,
   ) => boolean;
+  /** Merge one history page into a Session's loaded durable window. */
+  applyHistoryPage: (sessionId: string, page: HistoryPage) => boolean;
+  /** Converge runtime rows onto canonical history after a terminal coverage. */
+  recoverSessionHistory: (sessionId: string) => Promise<void>;
   clearLiveStream: (sessionId: string) => void;
   /** Show a durably queued user message before local CLI hand-off. */
   appendQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
@@ -165,11 +192,6 @@ let localMessageSeq = 0;
 // that eventually contains it without adding state that every test/reset must
 // know how to clear.
 const localMessageOrigins = new WeakMap<Message, number>();
-
-function sameMessage(a: Message, b: Message): boolean {
-  return a.role === b.role && a.content === b.content
-    && JSON.stringify(a.parts ?? null) === JSON.stringify(b.parts ?? null);
-}
 
 function queueIds(message: Message): string[] {
   return Array.isArray(message.queueItemIds)
@@ -224,14 +246,6 @@ function copyLocalMessageOrigin(next: Message, previous: Message): void {
   if (origin !== undefined) localMessageOrigins.set(next, origin);
 }
 
-function canMatchLocalMessageToSnapshot(
-  message: Message,
-  serverTotal: number | undefined,
-): boolean {
-  const origin = localMessageOrigins.get(message);
-  return origin === undefined || serverTotal === undefined || serverTotal > origin;
-}
-
 function withLocalUserIdentity(sessionId: string, message: Message): Message {
   if (message.role !== 'user') return message;
   if (queueIds(message).length > 0 || message.nativeItemId?.startsWith('local:user:')) {
@@ -283,10 +297,57 @@ export interface LiveStreamBuffer {
   turnId?: string;
   itemId?: string;
   streamText?: string;
+  /** Identity of the task this buffer belongs to; scopes id-less block slots. */
+  taskKey?: string;
   revision: number;
   messages: Message[];
   /** Projection indexes let delta updates avoid scanning canonical history. */
   projectionIndexes?: Record<string, number>;
+  /**
+   * The exact row object this buffer last wrote at each projection index. A
+   * cached index is only reusable while the array still holds that object;
+   * a prepend/refresh/filter that shifts rows invalidates it instead of letting
+   * a stale index overwrite an unrelated message.
+   */
+  projectionRefs?: Record<string, Message>;
+}
+
+/**
+ * Per-Session transcript metadata: the loaded durable window (keyed by absolute
+ * storage offset) plus the runtime rows that are not covered by it yet.
+ *
+ * `currentMessages` stays the rendered authority so unrelated structural
+ * updates (a prepend by a merge, a display filter) are never silently dropped;
+ * this record supplies the ordering/coverage facts that identity alone cannot:
+ * offsets for pagination, and the boundary where runtime rows begin.
+ */
+export interface SessionTranscript {
+  window: LoadedWindow;
+  /** Unconverged display rows after the durable window, in insertion order. */
+  runtime: Message[];
+  /** Absolute offset where the runtime region starts. */
+  anchorOffset: number;
+  serverEpoch: string | null;
+}
+
+// Stable keys for runtime rows so a re-delivered live buffer replaces its own
+// previous run instead of appending a second copy.
+const runtimeKeys = new WeakMap<Message, string>();
+
+function bindRuntimeKey(message: Message, key: string): Message {
+  runtimeKeys.set(message, key);
+  return message;
+}
+
+function runtimeKeyOf(message: Message): string | null {
+  return runtimeKeys.get(message) ?? null;
+}
+
+/** Terminal coverage carried by `worker.result` (server.py `_publish_terminal_events`). */
+export interface TerminalCoverage {
+  historyEpoch?: string;
+  historyRevision?: number;
+  messageIds?: string[];
 }
 
 export interface LiveStreamMeta {
@@ -303,63 +364,21 @@ export interface LiveStreamMeta {
 interface TerminalWatermark extends LiveStreamMeta {
   status: string;
   revision: number;
+  /** Task identity of the terminal event, for idempotent replays. */
+  taskKey?: string;
+  /** Result body recorded at terminal time (replay detection without a cursor). */
+  result?: string;
+  /** Durable coverage boundary carried by `worker.result`. */
+  historyEpoch?: string;
+  historyRevision?: number;
 }
 
-function nonSystemMessages(messages: Message[]): Message[] {
-  return messages.filter((message) => message.role !== 'system');
-}
-
-function messagePrefixCompatible(local: Message, server: Message): boolean {
-  if (local.role !== server.role) return false;
-  if (local.nativeItemId && server.nativeItemId && local.nativeItemId !== server.nativeItemId) {
-    return false;
-  }
-  return local.content === server.content
-    || (local.role === 'assistant'
-      // Only local-longer means the HTTP snapshot is stale. A server final
-      // answer that is longer than the local delta must be allowed to replace
-      // it rather than being mistaken for a prefix and retained forever.
-      && local.content.startsWith(server.content));
-}
-
-function mergeServerHistoryWithLive(
-  serverHistory: Message[],
-  liveMessages: Message[],
-): Message[] {
-  // Preserve object identity for unchanged history and live rows. TanStack
-  // Virtual uses a WeakMap-backed key, so cloning every row on every delta
-  // remounts the growing Markdown block and makes the viewport flash.
-  const result = [...serverHistory];
-  const claimedIndexes = new Set<number>();
-  const identityIndexes = new Map<string, number>();
-  result.forEach((message, index) => {
-    for (const identity of explicitMessageIdentity(message)) {
-      if (!identityIndexes.has(identity)) identityIndexes.set(identity, index);
-    }
-  });
-  for (const live of liveMessages) {
-    const compatibleIndex = explicitMessageIdentity(live)
-      .map((identity) => identityIndexes.get(identity))
-      .find((index): index is number => index !== undefined && !claimedIndexes.has(index)) ?? -1;
-    if (compatibleIndex < 0) {
-      result.push(live);
-      claimedIndexes.add(result.length - 1);
-      for (const identity of explicitMessageIdentity(live)) {
-        identityIndexes.set(identity, result.length - 1);
-      }
-      continue;
-    }
-    claimedIndexes.add(compatibleIndex);
-    const existing = result[compatibleIndex]!;
-    // Prefer the longer/current live assistant, but never replace a server
-    // final answer with a shorter stale delta.
-    if (live.role !== 'assistant' || live.content.length >= existing.content.length) {
-      const merged = { ...existing, ...live };
-      inheritMessageIdentity(merged, live);
-      result[compatibleIndex] = merged;
-    }
-  }
-  return result;
+/**
+ * Page size for interactive history requests. Kept in one place so the loaded
+ * window, the lazy-load trigger and terminal recovery agree on the window.
+ */
+function historyPageSize(): number {
+  return 50;
 }
 
 function sameWorkerGeneration(a: LiveStreamMeta, b: LiveStreamMeta): boolean {
@@ -452,117 +471,6 @@ function isBlockedByTerminal(
   return false;
 }
 
-function mergeFinalMessages(local: Message[], canonical: Message[]): Message[] {
-  return mergeServerHistoryPreservingLocal(local, canonical)
-    .map((message) => {
-      const clone = cloneMessageWithIdentity(message);
-      copyLocalMessageOrigin(clone, message);
-      return clone;
-    });
-}
-
-/** Keep explicitly local user/system rows when a history snapshot lags them.
- *
- * User rows are matched by queue/native identity first.  A canonical history
- * response normally strips those transient ids, so a content+parts match is
- * allowed only after the response's total has advanced past the local row's
- * creation count.  That prevents an old same-text snapshot from consuming a
- * newly queued duplicate while still letting the canonical row converge
- * without a second visible copy.  There is deliberately no global text
- * dedupe: two queue ids carrying the same prompt are two messages.
- */
-function mergeServerHistoryPreservingLocal(
-  local: Message[],
-  server: Message[],
-  options: { serverTotal?: number } = {},
-): Message[] {
-  const serverNonSystem = server.filter((message) => message.role !== 'system');
-  const localNonSystem = local.filter((message) => message.role !== 'system');
-  const serverShorterPrefix = isServerHistoryPrefix(local, server)
-    && serverNonSystem.length < localNonSystem.length;
-  if (serverShorterPrefix) return local;
-
-  const result = [...server];
-  const claimedIndexes = new Set<number>();
-  const pendingInsertions: Array<{
-    message: Message;
-    ordinal: number;
-    localIndex: number;
-  }> = [];
-
-  const insertAtOrdinal = (message: Message, ordinal: number): void => {
-    let seen = 0;
-    let insertAt = result.length;
-    for (let index = 0; index < result.length; index++) {
-      if (result[index]!.role !== 'system' && seen >= ordinal) {
-        insertAt = index;
-        break;
-      }
-      if (result[index]!.role !== 'system') seen += 1;
-    }
-    result.splice(insertAt, 0, message);
-  };
-
-  for (let localIndex = 0; localIndex < local.length; localIndex++) {
-    const message = local[localIndex]!;
-    const preserve = message.role === 'system' || isLocallyOwnedUserMessage(message);
-    if (!preserve) continue;
-
-    const ordinal = local.slice(0, localIndex)
-      .filter((candidate) => candidate.role !== 'system').length;
-    const origin = localMessageOrigins.get(message);
-    // A summary-only projection may contain just the newly local row while
-    // historyTotal already says that many canonical rows precede it.  Use
-    // that durable count for placement when the full page arrives; otherwise
-    // the row would be inserted at ordinal zero before the old history.
-    const expectedOrdinal = message.role === 'user'
-      ? Math.max(ordinal, origin ?? ordinal)
-      : ordinal;
-    let matchedIndex = result.findIndex((candidate, index) =>
-      !claimedIndexes.has(index) && hasExplicitIdentityOverlap(message, candidate),
-    );
-
-    if (matchedIndex < 0 && message.role === 'user'
-        && canMatchLocalMessageToSnapshot(message, options.serverTotal)) {
-      const sameAtOrdinal = result.findIndex((candidate, index) =>
-        !claimedIndexes.has(index)
-        && candidate.role === 'user'
-        && sameMessage(candidate, message)
-        && result.slice(0, index).filter((item) => item.role !== 'system').length === expectedOrdinal,
-      );
-      matchedIndex = sameAtOrdinal >= 0
-        ? sameAtOrdinal
-        : -1;
-    }
-
-    if (matchedIndex >= 0) {
-      claimedIndexes.add(matchedIndex);
-      const canonical = result[matchedIndex]!;
-      const merged = { ...canonical };
-      // Carry transient ownership only for the local row.  Server content and
-      // parts remain authoritative once a matching canonical row exists.
-      if (message.role === 'user') {
-        if (queueIds(message).length > 0) merged.queueItemIds = [...queueIds(message)];
-        if (message.nativeItemId?.startsWith('local:user:')) {
-          merged.nativeItemId = message.nativeItemId;
-        }
-      }
-      inheritMessageIdentity(merged, message);
-      copyLocalMessageOrigin(merged, message);
-      result[matchedIndex] = merged;
-      continue;
-    }
-
-    const retained = cloneMessageWithIdentity(message);
-    copyLocalMessageOrigin(retained, message);
-    pendingInsertions.push({ message: retained, ordinal: expectedOrdinal, localIndex });
-  }
-  pendingInsertions
-    .sort((a, b) => a.ordinal - b.ordinal || a.localIndex - b.localIndex)
-    .forEach(({ message, ordinal }) => insertAtOrdinal(message, ordinal));
-  return result;
-}
-
 function valueEqual(a: unknown, b: unknown): boolean {
   return Array.isArray(a) || Array.isArray(b)
     ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
@@ -619,102 +527,357 @@ function preserveNewerSummary(current: Session, incoming: Session): Session {
   return preserved;
 }
 
-/** True when the server-reported history is a prefix of the locally-rendered
- *  history (element-wise by role+content). A stale snapshot during streaming
- *  is exactly this — the backend persists each streamed block slightly after
- *  broadcasting it, so its history lags what we already show locally. Blindly
- *  overwriting `currentMessages` with such a prefix would wipe the in-flight
- *  assistant reply. */
-function isServerHistoryPrefix(
-  localHistory: Message[],
-  serverHistory: Message[],
-): boolean {
-  const local = nonSystemMessages(localHistory);
-  const server = nonSystemMessages(serverHistory);
-  if (server.length > local.length) return false;
-  for (let i = 0; i < server.length; i++) {
-    const s = server[i];
-    const c = local[i];
-    if (!s || !c || !sameMessage(s, c)) {
-      if (!s || !c || !messagePrefixCompatible(c, s)) return false;
-    }
-  }
-  return true;
-}
+// ── Transcript helpers ──────────────────────────────────────────────────────
 
-function projectionKeys(message: Message): string[] {
-  const ids = explicitMessageIdentity(message);
-  return ids.length > 0
-    ? ids.map((id) => `${message.role}:${id}`)
-    : [`${message.role}:legacy:${message.content}`];
+/**
+ * Lazily build the transcript record for a Session from its loaded history.
+ * Seeded state (tests, fixtures, a Session list snapshot) has no transcript, so
+ * the durable window is derived once from `history` + `historyStart/total`.
+ */
+function ensureTranscript(
+  transcripts: Record<string, SessionTranscript> | undefined,
+  session: Session,
+): SessionTranscript {
+  const existing = transcripts?.[session.id];
+  if (existing && !transcriptIsStale(existing, session)) return existing;
+  return {
+    window: windowFromSession(session),
+    runtime: [],
+    anchorOffset: session.historyTotal ?? (session.history?.length ?? 0),
+    serverEpoch: null,
+  };
 }
 
 /**
- * Replace only the absolute history interval declared by the server page.
- * The old implementation treated every row absent from a tail page as a live
- * row and appended it, which dropped old users and moved old assistants. This
- * helper keeps the loaded canonical window indexed by absolute position and
- * appends live/pending overlays only after the page union is complete.
+ * A transcript is stale when the Session's canonical projection cannot be a
+ * continuation of the window it was built from: the epoch changed, or the row
+ * count shrank (history replaced rather than appended). Real flows only grow,
+ * so this never fires in production; it is what keeps a transcript from
+ * outliving the Session snapshot it was derived from.
  */
-function mergeHistoryPageByWindow(
-  local: Message[],
-  page: Message[],
-  pageStart: number,
-  previousWindowStart: number,
-  liveMessages: Message[] = [],
-): Message[] {
-  const liveIds = new Set(liveMessages.flatMap(explicitMessageIdentity));
-  const overlays: Message[] = [];
-  const canonical: Message[] = [];
-  for (const message of local) {
-    const ids = explicitMessageIdentity(message);
-    const isLive = ids.some((id) => liveIds.has(id));
-    if (isLive) overlays.push(message);
-    else canonical.push(message);
-  }
+function transcriptIsStale(transcript: SessionTranscript, session: Session): boolean {
+  if (session.historyEpoch && transcript.window.epoch
+      && session.historyEpoch !== transcript.window.epoch) return true;
+  if (typeof session.historyTotal === 'number'
+      && session.historyTotal < transcript.window.total) return true;
+  return false;
+}
 
-  // A non-overlapping older page is a prepend. This is the only operation
-  // allowed to move the loaded window; tail refreshes stay in-place.
-  if (page.length > 0 && pageStart + page.length <= previousWindowStart) {
-    return [...page, ...canonical, ...overlays];
-  }
+/**
+ * Compatibility between an unconverged runtime row and the canonical row that
+ * occupies the next expected storage offset.
+ *
+ * Provider rows carry no block id (the real CBC/Codex text shape), so the only
+ * available signal is the role plus the authoritative body. A different role
+ * means the canonical row is a *different* message the client never saw (an
+ * agent-injected user row, a tool row) and must be inserted before the runtime
+ * row instead of replacing it. Within one role the canonical body is
+ * authoritative (it may be the finalized, longer or shorter version of the same
+ * block). Deliberately never used to match rows *across* tasks.
+ */
+function runtimeRowCompatible(runtimeRow: Message, durableRow: Message): boolean {
+  if (runtimeRow.role !== durableRow.role) return false;
+  if (runtimeRow.content === durableRow.content) return true;
+  return runtimeRow.role !== 'user';
+}
 
-  const result = canonical.slice();
-  for (let offset = 0; offset < page.length; offset++) {
-    const incoming = page[offset]!;
-    const absolute = pageStart + offset;
-    const incomingIds = new Set(explicitMessageIdentity(incoming));
-    let target = -1;
-    if (incomingIds.size > 0) {
-      target = result.findIndex((candidate) =>
-        [...incomingIds].some((id) => explicitMessageIdentity(candidate).includes(id)),
-      );
+/**
+ * Project the display from the durable window plus the runtime region.
+ *
+ * The runtime region is aligned against the canonical rows that start at
+ * `anchorOffset`: a runtime row consumes the next canonical row when they are
+ * role-compatible, and any incompatible canonical row the server appended in
+ * between is emitted as its own row *before* it. Runtime rows with no canonical
+ * counterpart yet (the in-flight tail) are emitted after every canonical row
+ * the server already knows, and canonical rows past the aligned prefix follow.
+ * Display markers keep their exact runtime position, which is what anchors a
+ * DONE row inside its own task.
+ */
+function projectTranscript(transcript: SessionTranscript): Message[] {
+  const { window, runtime, anchorOffset } = transcript;
+  const ordered = [...window.rows.entries()].sort((a, b) => a[0] - b[0]);
+  const display: Message[] = [];
+  for (const [offset, message] of ordered) {
+    if (offset < anchorOffset) display.push(message);
+  }
+  const emitted = new Set<number>();
+  let next = anchorOffset;
+  let aligned = true;
+  for (const row of runtime) {
+    if (isLocalMarker(row)) {
+      display.push(row);
+      continue;
     }
-    if (target < 0) {
-      const relative = absolute - previousWindowStart;
-      if (relative >= 0 && relative < result.length) target = relative;
-    }
-    if (target >= 0) {
-      const previous = result[target]!;
-      if (previous.role !== incoming.role) {
-        result.splice(target, 0, incoming);
+    if (aligned) {
+      let matched = -1;
+      for (;;) {
+        const durable = window.rows.get(next);
+        if (!durable) break;
+        if (runtimeRowCompatible(row, durable)) {
+          matched = next;
+          break;
+        }
+        // A canonical row the client never streamed (agent/user/tool injection)
+        // belongs before this runtime row.
+        display.push(durable);
+        emitted.add(next);
+        next += 1;
+      }
+      if (matched >= 0) {
+        display.push(window.rows.get(matched)!);
+        emitted.add(matched);
+        next = matched + 1;
         continue;
       }
-      const next = {
-        ...incoming,
-        ...(queueIds(incoming).length === 0 && queueIds(previous).length > 0
-          ? { queueItemIds: [...queueIds(previous)] }
-          : {}),
-      };
-      inheritMessageIdentity(next, previous);
-      result[target] = next;
-    } else if (absolute >= previousWindowStart + result.length) {
-      result.push(incoming);
+      aligned = false;
+    }
+    display.push(row);
+  }
+  for (const [offset, message] of ordered) {
+    if (offset >= anchorOffset && !emitted.has(offset)) display.push(message);
+  }
+  return display;
+}
+
+function withTranscript(
+  state: SessionStore,
+  sessionId: string,
+  transcript: SessionTranscript,
+): { sessionTranscripts: Record<string, SessionTranscript> } {
+  return {
+    sessionTranscripts: { ...state.sessionTranscripts, [sessionId]: transcript },
+  };
+}
+
+/** Keep `Session.history` as the canonical (marker-free) projection. */
+function mirrorHistory(
+  sessions: Session[],
+  sessionId: string,
+  display: Message[],
+): Session[] {
+  const canonical = canonicalHistory(display);
+  return sessions.map((session) => session.id === sessionId
+    ? { ...session, history: canonical }
+    : session);
+}
+
+function sessionOf(state: SessionStore, sessionId: string): Session | undefined {
+  return state.sessions.find((session) => session.id === sessionId);
+}
+
+function explicitIdentityOf(message: Message): string[] {
+  return [
+    ...(message.messageId ? [`message:${message.messageId}`] : []),
+    ...(message.blockId ? [`block:${message.blockId}`] : []),
+    ...(message.nativeItemId ? [`native:${message.nativeItemId}`] : []),
+  ];
+}
+
+interface LiveProjection {
+  display: Message[];
+  indexes: Record<string, number>;
+  refs: Record<string, Message>;
+  appended: number;
+}
+
+/**
+ * Project one task's full live row list onto the rendered transcript.
+ *
+ * Rows are matched, in order of preference, by (1) a cached index that is still
+ * occupied by the exact row we last wrote there, (2) the previous buffer's own
+ * row object (survives an unrelated prepend), (3) explicit provider identity.
+ * A body-text match is never used. Anything unmatched is appended, so a row is
+ * never written over an unrelated message and two tasks can emit the same text.
+ */
+function projectLiveRows(
+  current: Message[],
+  previousBuffer: LiveStreamBuffer | undefined,
+  taskKey: string,
+  rows: Message[],
+): LiveProjection {
+  const display = current.slice();
+  const indexes: Record<string, number> = {};
+  const refs: Record<string, Message> = {};
+  let appended = 0;
+  for (const [slot, live] of rows.entries()) {
+    const keys = liveProjectionKeys(live, { taskKey, slot });
+    const previousRow = previousBuffer?.messages[slot];
+    const previousKeys = previousRow
+      ? liveProjectionKeys(previousRow, {
+          taskKey: previousBuffer?.taskKey ?? taskKey,
+          slot,
+        })
+      : [];
+    let targetIndex = -1;
+    const sameTask = previousBuffer?.taskKey === taskKey;
+    // The previous buffer's keys are only meaningful inside the same task: a
+    // new task must never reuse the old task's slot, or its first block would
+    // overwrite the previous answer.
+    for (const key of sameTask ? [...keys, ...previousKeys] : keys) {
+      const cached = previousBuffer?.projectionIndexes?.[key];
+      if (cached === undefined || cached < 0 || cached >= display.length) continue;
+      const row = display[cached]!;
+      if (row.role !== live.role) continue;
+      if (previousBuffer?.projectionRefs?.[key] !== row) continue;
+      targetIndex = cached;
+      break;
+    }
+    if (targetIndex < 0 && previousRow && sameTask) {
+      // The previous row object is still in the array (an older page was
+      // prepended, so its index moved). Locate it by object identity.
+      const found = display.indexOf(previousRow);
+      if (found >= 0 && display[found]!.role === live.role) targetIndex = found;
+    }
+    if (targetIndex < 0) {
+      const explicit = explicitIdentityOf(live);
+      if (explicit.length > 0) {
+        targetIndex = display.findIndex((candidate) =>
+          candidate.role === live.role
+          && explicitIdentityOf(candidate).some((id) => explicit.includes(id)),
+        );
+      }
+    }
+    if (targetIndex >= 0) {
+      const merged = { ...display[targetIndex], ...live };
+      inheritMessageIdentity(merged, display[targetIndex]!);
+      display[targetIndex] = merged;
     } else {
-      result.splice(Math.max(0, absolute - previousWindowStart), 0, incoming);
+      targetIndex = display.length;
+      display.push(live);
+      appended += 1;
+    }
+    for (const key of keys) {
+      indexes[key] = targetIndex;
+      refs[key] = display[targetIndex]!;
+      bindRuntimeKey(display[targetIndex]!, key);
     }
   }
-  return [...result, ...overlays];
+  return { display, indexes, refs, appended };
+}
+
+/**
+ * Merge one page into a Session's transcript and return the resulting state
+ * slice. `base` lets a caller pass the window as it was *before* a Session
+ * snapshot was overwritten (loadSessions must compare against the pre-refresh
+ * window, not against the history it just merged in).
+ */
+function applyHistoryPageToState(
+  s: SessionStore,
+  sessionId: string,
+  page: HistoryPage,
+  base?: SessionTranscript,
+): Partial<SessionStore> {
+  const session = sessionOf(s, sessionId);
+  if (!session) return s;
+  const transcript = base ?? ensureTranscript(s.sessionTranscripts, session);
+  const merged = mergeWindowPage(transcript.window, page);
+  if (!merged.accepted) {
+    // A page that neither adds an offset nor advances the revision is not an
+    // error — a focus refresh of an unchanged window is exactly this — but the
+    // in-flight loading flags must still settle.
+    return { historyLoading: false, initialLoading: false };
+  }
+  let next: SessionTranscript = {
+    ...transcript,
+    window: merged.window,
+    serverEpoch: s.serverEpoch,
+  };
+  if (merged.replacedEpoch) {
+    // A new epoch invalidates every runtime row of the old identity scope.
+    next = { ...next, runtime: [], anchorOffset: merged.window.total };
+  } else {
+    // Track rendered rows that neither carry a canonical offset nor belong to
+    // the runtime region, so a rebuild cannot drop them. The leading run that
+    // already mirrors the window (same order, role and body) is this
+    // projection's own copy of those canonical rows and is not adopted —
+    // otherwise it would be emitted a second time next to its window row.
+    const windowList = windowRows(next.window);
+    const tracked = new Set(next.runtime);
+    let mirrored = 0;
+    while (
+      mirrored < s.currentMessages.length
+      && mirrored < windowList.length
+      && s.currentMessages[mirrored]!.role === windowList[mirrored]!.role
+      && s.currentMessages[mirrored]!.content === windowList[mirrored]!.content
+    ) {
+      mirrored += 1;
+    }
+    const adopted = s.currentMessages
+      .slice(mirrored)
+      .filter((row) => !isDurableRow(row) && !tracked.has(row));
+    if (adopted.length > 0) next = { ...next, runtime: [...next.runtime, ...adopted] };
+  }
+  // Rebuild the rendered transcript only when the page actually contributed
+  // canonical rows (or replaced the epoch). A focus refresh that re-delivers
+  // the window we already have must not reconstruct the display: rows that
+  // exist only in the rendered projection (an optimistic user row, an
+  // agent-injected message) would be dropped by a rebuild.
+  const projected = projectTranscript(next);
+  // Keep the previous array reference when the projection is unchanged: callers
+  // (and the agent-injection retry) compare array identity to decide whether a
+  // refresh brought new content.
+  const unchanged = projected.length === s.currentMessages.length
+    && projected.every((row, index) => {
+      const other = s.currentMessages[index]!;
+      return row.role === other.role
+        && row.content === other.content
+        && (row.messageId ?? null) === (other.messageId ?? null)
+        && (row.nativeItemId ?? null) === (other.nativeItemId ?? null);
+    });
+  const display = unchanged ? s.currentMessages : projected;
+  const lastRow = windowRows(merged.window)[merged.window.rows.size - 1];
+  return {
+    sessions: s.sessions.map((candidate) => candidate.id === sessionId
+      ? {
+          ...candidate,
+          history: canonicalHistory(display),
+          historyTotal: merged.window.total,
+          historyStart: merged.window.start ?? 0,
+          historyTruncated: (merged.window.start ?? 0) > 0,
+          historyEpoch: merged.window.epoch ?? candidate.historyEpoch,
+          historyRevision: merged.window.revision,
+          ...(lastRow ? { lastMessage: String(lastRow.content).slice(0, 200) } : {}),
+        }
+      : candidate),
+    historyWindowStarts: {
+      ...s.historyWindowStarts,
+      [sessionId]: merged.window.start ?? 0,
+    },
+    historyLoadEnd: merged.window.start ?? 0,
+    hasMoreMessages: (merged.window.start ?? 0) > 0,
+    historyLoading: false,
+    initialLoading: false,
+    ...(s.currentSessionId === sessionId && !unchanged ? { currentMessages: display } : {}),
+    ...withTranscript(s, sessionId, next),
+  };
+}
+
+/**
+ * The canonical rows of a Session: the transcript's loaded window when one
+ * exists, otherwise the Session's projected history (seeded state, fixtures).
+ */
+function durableRowsOf(state: SessionStore, sessionId: string): Message[] {
+  const transcript = state.sessionTranscripts[sessionId];
+  if (transcript) return [...transcript.window.rows.values()];
+  const session = sessionOf(state, sessionId);
+  return (session?.history ?? []).filter((row) => !isLocalMarker(row));
+}
+
+/** Append rows that are not already represented, keeping the tail deduped. */
+function appendCanonicalRows(history: Message[], rows: Message[]): Message[] {
+  if (rows.length === 0) return history;
+  const result = history.slice();
+  const identities = new Set(result.flatMap(explicitIdentityOf));
+  for (const row of rows) {
+    const ids = explicitIdentityOf(row);
+    if (ids.length > 0 && ids.some((id) => identities.has(id))) continue;
+    const last = result[result.length - 1];
+    // Mirrors the backend rule for the result row: only an identical trailing
+    // assistant row is deduped (packages/core/worker.py `_persist_terminal_state`).
+    if (!(last && last.role === row.role && last.content === row.content)) result.push(row);
+    ids.forEach((id) => identities.add(id));
+  }
+  return result;
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -744,6 +907,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   _pendingQueueIds: {},
   liveStreamBuffers: {},
   terminalWatermarks: {},
+  sessionTranscripts: {},
   sessionSettingMutations: {},
   serverEpoch: null,
   historyWindowStarts: {},
@@ -754,6 +918,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // refresh nor revert sessions that were locally freshened while THIS
     // request was in flight.
     const loadSeq = get()._loadSeq + 1;
+    // The Session snapshot below overwrites `history`; remember the projection's
+    // own window so the restore step compares against the pre-refresh state.
+    const transcriptBeforeLoad = { ...get().sessionTranscripts };
+    const sessionsBeforeLoad = get().sessions;
     const touchedAtStart = get()._sessionWsTouchedSeq;
     const localTouchedAtStart = get()._sessionLocalTouchedSeq ?? {};
     const settingsTouchedAtStart = get()._sessionSettingsTouchedSeq ?? {};
@@ -918,49 +1086,52 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         useUIStore.getState().setCustomOrder(sessions.map((s) => s.id));
       }
 
-      // Restore current session messages after refresh — but NEVER clobber the
-      // live-rendered messages with a stale snapshot. While streaming, the
-      // server history is a prefix of what we already show locally (the
-      // backend persists each block slightly after broadcasting it), so a
-      // blind overwrite would wipe the in-flight assistant reply (bug: needs
-      // a manual refresh to reappear).
+      // Restore the selected Session's projection after a list refresh — but
+      // never clobber it with a summary-only snapshot.
+      //
+      // `summary=1` carries no per-Session history: the durable window and the
+      // runtime rows are the projection, and replaying an empty snapshot here
+      // is what used to erase a just-completed turn until the next manual
+      // refresh. A snapshot that *does* carry history is merged through the same
+      // offset-keyed window path as every other history response.
       const restoreSessionId = get().currentSessionId;
       if (restoreSessionId) {
-        // Read the merged store projection, not the raw summary response:
-        // summary=1 has no history and would otherwise replace current chat
-        // rows with an empty array immediately after the guarded merge above.
         const current = get();
         const found = current.sessions.find((s) => s.id === restoreSessionId);
         if (found) {
-          const liveMessages = current.liveStreamBuffers[restoreSessionId]?.messages || [];
-          const previousHistory = current.sessions.find((session) =>
-            session.id === restoreSessionId,
-          )?.history || [];
-          const windowStart = found.historyStart
-            ?? current.historyWindowStarts[restoreSessionId]
-            ?? Math.max(0, (found.historyTotal ?? found.history?.length ?? 0)
-              - (found.history?.length ?? 0));
-          const canonicalHistory = mergeHistoryPageByWindow(
-            previousHistory,
-            found.history || [],
-            windowStart,
-            current.historyWindowStarts[restoreSessionId] ?? windowStart,
-            liveMessages,
-          );
-          const serverHistory = mergeServerHistoryWithLive(canonicalHistory, liveMessages);
-          const keepLocal = isServerHistoryPrefix(
-            current.currentMessages,
-            serverHistory,
-          );
+          if (Array.isArray(found.history) && found.history.length > 0) {
+            const previousSession = sessionsBeforeLoad.find((s) => s.id === restoreSessionId);
+            const base = transcriptBeforeLoad[restoreSessionId]
+              ?? (previousSession
+                ? {
+                    window: windowFromSession(previousSession),
+                    runtime: current.sessionTranscripts[restoreSessionId]?.runtime ?? [],
+                    anchorOffset: current.sessionTranscripts[restoreSessionId]?.anchorOffset
+                      ?? (previousSession.historyTotal ?? 0),
+                    serverEpoch: current.serverEpoch,
+                  }
+                : undefined);
+            const windowStart = typeof found.historyStart === 'number'
+              ? found.historyStart
+              : base?.window.start ?? 0;
+            set((s) => applyHistoryPageToState(s, restoreSessionId, {
+              history: found.history,
+              start: windowStart,
+              total: found.historyTotal ?? found.history.length,
+              hasMore: !!found.historyTruncated,
+              historyEpoch: found.historyEpoch,
+              historyRevision: found.historyRevision,
+            }, base));
+          }
+          const after = get();
+          const transcript = after.sessionTranscripts[restoreSessionId]
+            ?? ensureTranscript(after.sessionTranscripts, found);
           set({
-            currentMessages: keepLocal
-              ? current.currentMessages
-              : mergeServerHistoryWithLive(canonicalHistory, liveMessages),
-            hasMoreMessages: !!found.historyTruncated,
-            historyLoadEnd: windowStart,
+            hasMoreMessages: (transcript.window.start ?? 0) > 0,
+            historyLoadEnd: transcript.window.start ?? 0,
             historyWindowStarts: {
-              ...current.historyWindowStarts,
-              [restoreSessionId]: windowStart,
+              ...after.historyWindowStarts,
+              [restoreSessionId]: transcript.window.start ?? 0,
             },
           });
         } else {
@@ -991,35 +1162,38 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const loaded = (session.history || []).length;
     const needsOlder = !!session.historyTruncated;
     const selectionSeq = (get()._selectionSeq[id] ?? 0) + 1;
+    const liveRows = get().liveStreamBuffers[id]?.messages ?? [];
 
-    // Single set — one render for session switch.
-    // NOTE: do NOT set historyLoading=true here. Previously this blocked the
-    // scroll-handler lazy-load race, but it also made the subsequent
-    // loadOlderMessages() call a no-op (its own guard sees historyLoading=true
-    // and returns), leaving the "Loading older messages..." indicator stuck
-    // forever and breaking scroll-up lazy loading. The scroll handler's 150ms
-    // debounce plus scrollToBottom() in ChatMessages is enough to prevent
-    // spurious loads on session switch.
-    set({
-      currentSessionId: id,
-      _selectionSeq: { ...get()._selectionSeq, [id]: selectionSeq },
-      currentMessages: mergeServerHistoryWithLive(
-        session.history || [],
-        get().liveStreamBuffers[id]?.messages || [],
-      ),
-      hasMoreMessages: needsOlder,
-      historyLoading: false,
-      historyLoadEnd: Math.max(
-        0,
-        (session.historyTotal ?? loaded) - loaded,
-      ),
-      historyWindowStarts: {
-        ...get().historyWindowStarts,
-        [id]: session.historyStart ?? Math.max(0, (session.historyTotal ?? loaded) - loaded),
-      },
-      // summary=1 快照不带每 session 的 history → 快照为空时，在下方 fresh
-      // history 拉取期间 chat 面板应显示转圈 loading，而不是「无消息」空态。
-      initialLoading: loaded === 0,
+    // Single set — one render for session switch. The window is reused when this
+    // Session already has a transcript: `Session.history` mirrors the rendered
+    // projection (it includes runtime rows), so re-deriving the window from it
+    // would mis-tag in-flight blocks as canonical history. Runtime rows come
+    // from the transcript when it exists (it already carries the deltas that
+    // arrived while this Session was not selected — A→B→A) and from the live
+    // buffer on a first entry.
+    set((s) => {
+      const existing = s.sessionTranscripts[id];
+      const transcript: SessionTranscript = existing
+        ? { ...existing, serverEpoch: s.serverEpoch }
+        : {
+            window: windowFromSession(session),
+            runtime: liveRows.slice(),
+            anchorOffset: session.historyTotal ?? loaded,
+            serverEpoch: s.serverEpoch,
+          };
+      const display = projectTranscript(transcript);
+      const start = transcript.window.start ?? 0;
+      return {
+        currentSessionId: id,
+        _selectionSeq: { ...s._selectionSeq, [id]: selectionSeq },
+        currentMessages: display,
+        hasMoreMessages: needsOlder,
+        historyLoading: false,
+        historyLoadEnd: start,
+        historyWindowStarts: { ...s.historyWindowStarts, [id]: start },
+        initialLoading: loaded === 0,
+        sessionTranscripts: { ...s.sessionTranscripts, [id]: transcript },
+      };
     });
 
     // 进入 session 后立即拉服务端最新历史替换快照。React 的快照只靠防抖
@@ -1029,7 +1203,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const data: ApiSessionHistoryResponse = await fetchSessionHistory(
         id,
         0,
-        50,
+        historyPageSize(),
       );
       if (
         get().currentSessionId !== id ||
@@ -1041,64 +1215,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         if (!get().currentSessionId) set({ initialLoading: false });
         return;
       }
-      const serverHistory = data.history || [];
-      const previousHistory = get().sessions.find((x) => x.id === id)?.history || [];
-      const previousWindowStart = get().historyWindowStarts[id]
-        ?? Math.max(0, data.total - previousHistory.length);
-      const reconciledHistory = mergeHistoryPageByWindow(
-        previousHistory,
-        serverHistory,
-        data.start,
-        previousWindowStart,
-        get().liveStreamBuffers[id]?.messages || [],
-      );
-      const historyWithLive = mergeServerHistoryWithLive(
-        reconciledHistory,
-        get().liveStreamBuffers[id]?.messages || [],
-      );
-      // 流式窗口防护：若服务端历史只是本地已渲染消息的前缀（部分块尚未
-      // 落盘），保留本地，避免把正在流式的回复抹掉。
-      const keepLocal = isServerHistoryPrefix(
-        get().currentMessages,
-        historyWithLive,
-      );
-      // Keep the card preview in sync with the freshly-fetched history tail.
-      const lastServerMsg = reconciledHistory[reconciledHistory.length - 1];
-      const lastMessage = lastServerMsg
-        ? String(lastServerMsg.content).slice(0, 200)
-        : '';
-      set((s) => ({
-        sessions: s.sessions.map((x) =>
-          x.id === id
-            ? {
-                ...x,
-                history: reconciledHistory,
-                historyTruncated: data.hasMore,
-                historyTotal: data.total,
-                historyStart: data.start,
-                historyEpoch: data.historyEpoch ?? x.historyEpoch,
-                historyRevision: data.historyRevision ?? x.historyRevision,
-                lastMessage,
-              }
-            : x,
-        ),
-        currentMessages: keepLocal
-          ? s.currentMessages
-          : mergeServerHistoryWithLive(
-            mergeHistoryPageByWindow(
-            s.currentMessages,
-              serverHistory,
-              data.start,
-              previousWindowStart,
-              s.liveStreamBuffers[id]?.messages || [],
-            ),
-            s.liveStreamBuffers[id]?.messages || [],
-          ),
-        hasMoreMessages: data.hasMore,
-        historyLoadEnd: data.start,
-        historyWindowStarts: { ...s.historyWindowStarts, [id]: data.start },
-        initialLoading: false,
-      }));
+      get().applyHistoryPage(id, data as HistoryPage);
     } catch {
       // 网络失败：保留快照（上方已 set），不阻塞切换。同样清掉
       // initialLoading——否则「空快照 + 拉取失败」会让 chat 面板一直转圈。
@@ -1120,68 +1237,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       _historyRefreshSeq: { ...s._historyRefreshSeq, [sid]: requestSeq },
     }));
     try {
-      const data = await fetchSessionHistory(sid, 0, 50);
+      const data = await fetchSessionHistory(sid, 0, historyPageSize());
       const current = get();
       if (
         current.currentSessionId !== sid ||
         current._historyRefreshSeq[sid] !== requestSeq
       ) return;
-      const serverHistory = data.history || [];
-      const previousHistory = current.sessions.find((x) => x.id === sid)?.history || [];
-      const firstPageRow = data.history?.[0];
-      const firstCurrentRow = current.currentMessages[0];
-      const pageAnchorsCurrentStart = Boolean(
-        firstPageRow && firstCurrentRow
-        && (hasExplicitIdentityOverlap(firstPageRow, firstCurrentRow)
-          || sameMessage(firstPageRow, firstCurrentRow)),
-      );
-      const previousWindowStart = previousHistory.length === 0 || pageAnchorsCurrentStart
-        ? data.start
-        : current.historyWindowStarts[sid]
-          ?? Math.max(0, data.total - previousHistory.length);
-      const reconciledHistory = mergeHistoryPageByWindow(
-        previousHistory,
-        serverHistory,
-        data.start,
-        previousWindowStart,
-        current.liveStreamBuffers[sid]?.messages || [],
-      );
-      const historyWithLive = mergeServerHistoryWithLive(
-        reconciledHistory,
-        current.liveStreamBuffers[sid]?.messages || [],
-      );
-      const keepLocal = isServerHistoryPrefix(current.currentMessages, historyWithLive);
-      const lastServerMsg = reconciledHistory[reconciledHistory.length - 1];
-      set((s) => ({
-        sessions: s.sessions.map((session) => session.id === sid
-          ? {
-              ...session,
-              history: reconciledHistory,
-              historyTruncated: data.hasMore,
-              historyTotal: data.total,
-              historyStart: data.start,
-              historyEpoch: data.historyEpoch ?? session.historyEpoch,
-              historyRevision: data.historyRevision ?? session.historyRevision,
-              lastMessage: lastServerMsg ? String(lastServerMsg.content).slice(0, 200) : '',
-            }
-          : session),
-        currentMessages: keepLocal
-          ? s.currentMessages
-          : mergeServerHistoryWithLive(
-            mergeHistoryPageByWindow(
-            s.currentMessages,
-              serverHistory,
-              data.start,
-              previousWindowStart,
-              s.liveStreamBuffers[sid]?.messages || [],
-            ),
-            s.liveStreamBuffers[sid]?.messages || [],
-          ),
-        hasMoreMessages: data.hasMore,
-        historyLoadEnd: data.start,
-        historyWindowStarts: { ...s.historyWindowStarts, [sid]: data.start },
-        initialLoading: false,
-      }));
+      // A tail refresh merges rows **by absolute offset** into the loaded
+      // window: it must never move the oldest loaded offset, and it must never
+      // rebuild the transcript from the page alone (that is what dropped live
+      // rows and reordered older pages).
+      current.applyHistoryPage(sid, data as HistoryPage);
     } catch {
       // A focus recovery is best effort; retain the stream and local snapshot.
     }
@@ -1205,52 +1271,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const data: ApiSessionHistoryResponse = await fetchSessionHistory(
         sid,
         historyLoadEnd,
-        50,
+        historyPageSize(),
       );
       if (get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
         if (get().currentSessionId === sid) set({ historyLoading: false });
         return;
       }
 
-      const msgs = data.history || data.history || [];
+      const msgs = data.history || [];
       if (msgs.length === 0) {
         set({ historyLoading: false });
         return;
       }
-
-      set((s) => {
-        const previousWindowStart = s.historyWindowStarts[sid] ?? historyLoadEnd;
-        const merged = mergeHistoryPageByWindow(
-          s.currentMessages,
-          msgs,
-          data.start,
-          previousWindowStart,
-          s.liveStreamBuffers[sid]?.messages || [],
-        );
-        // Update session in the list
-        const sessions = s.sessions.map((session) => {
-          if (session.id === sid) {
-            return {
-              ...session,
-              history: merged,
-              historyTruncated: data.start > 0,
-              historyStart: data.start,
-              historyTotal: data.total,
-              historyEpoch: data.historyEpoch ?? session.historyEpoch,
-              historyRevision: data.historyRevision ?? session.historyRevision,
-            };
-          }
-          return session;
-        });
-        return {
-          sessions,
-          currentMessages: merged,
-          hasMoreMessages: data.start > 0,
-          historyLoadEnd: data.start,
-          historyWindowStarts: { ...s.historyWindowStarts, [sid]: data.start },
-          historyLoading: false,
-        };
-      });
+      get().applyHistoryPage(sid, data as HistoryPage);
+      if (get()._historyPageSeq[sid] === pageSeq) set({ historyLoading: false });
     } catch {
       if (get().currentSessionId === sid && get()._historyPageSeq[sid] === pageSeq) {
         set({ historyLoading: false });
@@ -1490,9 +1524,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const staleIds = new Set(runtimeMessages.flatMap(explicitMessageIdentity));
       const runtimeRefs = new Set(runtimeMessages);
       const runtimeShapes = new Set(runtimeMessages.map(messageShapeKey));
-      const durableMessages = s.sessions.find((session) =>
-        session.id === s.currentSessionId,
-      )?.history || [];
+      // Durable rows are the Session's canonical window, not its mirrored
+      // history — after a terminal reconcile that projection also contains the
+      // runtime rows, and treating those as durable is what would keep a
+      // retired epoch's tail alive.
+      const durableMessages = s.currentSessionId
+        ? durableRowsOf(s, s.currentSessionId)
+        : [];
       const durableRefs = new Set(durableMessages);
       const durableIds = new Set(durableMessages.flatMap(explicitMessageIdentity));
       const durableShapeCounts = new Map<string, number>();
@@ -1501,6 +1539,43 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         durableShapeCounts.set(key, (durableShapeCounts.get(key) ?? 0) + 1);
       }
       const retainedDurableShapes = new Map<string, number>();
+      // Runtime rows of the retired epoch must not survive as a canonical tail;
+      // their owning transcripts are reset to the durable window.
+      const sessionTranscripts = Object.fromEntries(
+        Object.entries(s.sessionTranscripts).map(([sid, transcript]) => {
+          const session = s.sessions.find((candidate) => candidate.id === sid);
+          return [
+            sid,
+            {
+              ...transcript,
+              runtime: [],
+              anchorOffset: session?.historyTotal
+                ?? transcript.window.total
+                ?? transcript.anchorOffset,
+              serverEpoch: epoch,
+            } satisfies SessionTranscript,
+          ];
+        }),
+      );
+      const display = s.currentMessages.filter((message) => {
+        if (isLocalMarker(message)) return true;
+        // A row that carries a canonical offset is durable by construction and
+        // must never be evicted here.
+        if (isDurableRow(message)) return true;
+        const ids = explicitMessageIdentity(message);
+        if (runtimeRefs.has(message) && !durableRefs.has(message)) return false;
+        if (ids.some((id) => staleIds.has(id))
+            && !ids.some((id) => durableIds.has(id))) return false;
+        const shape = messageShapeKey(message);
+        if (!runtimeShapes.has(shape)) return true;
+        const durableCount = durableShapeCounts.get(shape) ?? 0;
+        const retained = retainedDurableShapes.get(shape) ?? 0;
+        if (retained < durableCount) {
+          retainedDurableShapes.set(shape, retained + 1);
+          return true;
+        }
+        return false;
+      });
       return {
         serverEpoch: epoch,
         liveStreamBuffers: {},
@@ -1508,56 +1583,64 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         _sessionEventPatches: {},
         ...(runtimeMessages.length > 0
           ? {
-              currentMessages: s.currentMessages.filter((message) => {
-                const ids = explicitMessageIdentity(message);
-                if (runtimeRefs.has(message) && !durableRefs.has(message)) return false;
-                if (ids.some((id) => staleIds.has(id))
-                    && !ids.some((id) => durableIds.has(id))) return false;
-                const shape = messageShapeKey(message);
-                if (!runtimeShapes.has(shape)) return true;
-                const durableCount = durableShapeCounts.get(shape) ?? 0;
-                const retained = retainedDurableShapes.get(shape) ?? 0;
-                if (retained < durableCount) {
-                  retainedDurableShapes.set(shape, retained + 1);
-                  return true;
-                }
-                return false;
-              }),
+              currentMessages: display,
+              ...(s.currentSessionId
+                ? { sessions: mirrorHistory(s.sessions, s.currentSessionId, display) }
+                : {}),
             }
           : {}),
+        sessionTranscripts,
       };
     });
   },
 
   addMessage: (msg: Message) => {
     const touchSeq = (localTouchSeq += 1);
-    set((s) => ({
-      currentMessages: [...s.currentMessages, msg],
-      ...(s.currentSessionId
-        ? {
-            _sessionLocalTouchedSeq: {
-              ...s._sessionLocalTouchedSeq,
-              [s.currentSessionId]: touchSeq,
-            },
-          }
-        : {}),
-    }));
+    set((s) => {
+      const sid = s.currentSessionId;
+      if (msg.role === 'system') markLocalMarker(msg);
+      const row = msg.role === 'system' ? bindRuntimeKey(msg, `marker:${localTouchSeq}`) : msg;
+      if (!sid) return { currentMessages: [...s.currentMessages, row] };
+      const session = sessionOf(s, sid);
+      const base = session
+        ? ensureTranscript(s.sessionTranscripts, session)
+        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const display = [...s.currentMessages, row];
+      return {
+        currentMessages: display,
+        sessions: mirrorHistory(s.sessions, sid, display),
+        ...withTranscript(s, sid, { ...base, runtime: [...base.runtime, row] }),
+        _sessionLocalTouchedSeq: {
+          ...s._sessionLocalTouchedSeq,
+          [sid]: touchSeq,
+        },
+      };
+    });
   },
 
   appendMessages: (msgs: Message[]) => {
     if (!msgs.length) return;
     const touchSeq = (localTouchSeq += 1);
-    set((s) => ({
-      currentMessages: [...s.currentMessages, ...msgs],
-      ...(s.currentSessionId
-        ? {
-            _sessionLocalTouchedSeq: {
-              ...s._sessionLocalTouchedSeq,
-              [s.currentSessionId]: touchSeq,
-            },
-          }
-        : {}),
-    }));
+    set((s) => {
+      const sid = s.currentSessionId;
+      const rows = msgs.map((msg, index) => {
+        if (msg.role !== 'system') return msg;
+        markLocalMarker(msg);
+        return bindRuntimeKey(msg, `marker:${localTouchSeq}:${index}`);
+      });
+      if (!sid) return { currentMessages: [...s.currentMessages, ...rows] };
+      const session = sessionOf(s, sid);
+      const base = session
+        ? ensureTranscript(s.sessionTranscripts, session)
+        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const display = [...s.currentMessages, ...rows];
+      return {
+        currentMessages: display,
+        sessions: mirrorHistory(s.sessions, sid, display),
+        ...withTranscript(s, sid, { ...base, runtime: [...base.runtime, ...rows] }),
+        _sessionLocalTouchedSeq: { ...s._sessionLocalTouchedSeq, [sid]: touchSeq },
+      };
+    });
   },
 
   appendLocalMessage: (sessionId, message) => {
@@ -1589,14 +1672,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const alreadyCurrent = s.currentMessages.some((candidate) =>
         hasExplicitIdentityOverlap(candidate, localMessage),
       );
+      const appendHere = s.currentSessionId === sessionId && !alreadyCurrent;
+      const display = appendHere ? [...s.currentMessages, localMessage] : s.currentMessages;
+      const base = ensureTranscript(s.sessionTranscripts, target);
       return {
         sessions,
         _sessionLocalTouchedSeq: {
           ...s._sessionLocalTouchedSeq,
           [sessionId]: touchSeq,
         },
-        ...(s.currentSessionId === sessionId && !alreadyCurrent
-          ? { currentMessages: [...s.currentMessages, localMessage] }
+        ...(appendHere
+          ? {
+              currentMessages: display,
+              ...withTranscript(s, sessionId, {
+                ...base,
+                runtime: [...base.runtime, bindRuntimeKey(localMessage, `local:${localTouchSeq}`)],
+              }),
+            }
           : {}),
       };
     });
@@ -1625,55 +1717,51 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         previous?.revision ?? 0,
         terminal?.revision ?? 0,
       ) + 1;
+      const taskKey = taskScopeKey(sessionId, meta, previous);
       const buffer: LiveStreamBuffer = {
         ...meta,
+        taskKey,
         revision,
         messages: messages.slice(),
       };
       accepted = true;
+      const session = sessionOf(s, sessionId);
+      const base = session
+        ? ensureTranscript(s.sessionTranscripts, session)
+        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const projected = s.currentSessionId === sessionId
+        ? projectLiveRows(s.currentMessages, previous, taskKey, buffer.messages)
+        : { display: s.currentMessages, indexes: {}, refs: {}, appended: 0 };
+      buffer.projectionIndexes = projected.indexes;
+      buffer.projectionRefs = projected.refs;
+      // The live rows replace the previous buffer's run in the runtime region;
+      // earlier turns' unconverged rows stay in front of them.
+      const previousLiveKeys = (previous?.messages ?? []).map((row, slot) =>
+        liveProjectionKeys(row, { taskKey: previous?.taskKey ?? taskKey, slot })[0]!,
+      );
+      const runtime = base.runtime.filter((row) => {
+        const key = runtimeKeyOf(row);
+        return key === null || !previousLiveKeys.includes(key);
+      });
+      const nextRuntime = buffer.messages.map((row, slot) => {
+        const key = liveProjectionKeys(row, { taskKey, slot })[0]!;
+        return bindRuntimeKey(row, key);
+      });
+      const transcript: SessionTranscript = {
+        ...base,
+        runtime: [...runtime, ...nextRuntime],
+      };
       if (s.currentSessionId === sessionId) {
-        const projected = s.currentMessages.slice();
-        const indexes: Record<string, number> = {};
-        for (const [liveOffset, live] of buffer.messages.entries()) {
-          const keys = projectionKeys(live);
-          let targetIndex = keys
-            .map((key) => previous?.projectionIndexes?.[key])
-            .find((index): index is number =>
-              index !== undefined && index >= 0 && index < projected.length
-                && projected[index]?.role === live.role,
-            ) ?? -1;
-          if (targetIndex < 0 && previous?.messages[liveOffset]?.role === live.role) {
-            targetIndex = projectionKeys(previous.messages[liveOffset]!)
-              .map((key) => previous.projectionIndexes?.[key])
-              .find((index): index is number =>
-                index !== undefined && index >= 0 && index < projected.length,
-              ) ?? -1;
-          }
-          if (targetIndex < 0) {
-            targetIndex = projected.findIndex((candidate) =>
-              candidate.role === live.role
-              && projectionKeys(candidate).some((key) => keys.includes(key)),
-            );
-          }
-          if (targetIndex >= 0) {
-            const merged = { ...projected[targetIndex], ...live };
-            inheritMessageIdentity(merged, projected[targetIndex]!);
-            projected[targetIndex] = merged;
-          } else {
-            targetIndex = projected.length;
-            projected.push(live);
-          }
-          for (const key of keys) indexes[key] = targetIndex;
-        }
-        buffer.projectionIndexes = indexes;
         return {
           liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
-          currentMessages: projected,
+          currentMessages: projected.display,
+          sessions: mirrorHistory(s.sessions, sessionId, projected.display),
+          ...withTranscript(s, sessionId, transcript),
         };
       }
-      buffer.projectionIndexes = {};
       return {
         liveStreamBuffers: { ...s.liveStreamBuffers, [sessionId]: buffer },
+        ...withTranscript(s, sessionId, transcript),
       };
     });
     return accepted;
@@ -1681,86 +1769,194 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   reconcileWorkerResult: (sessionId, event, meta) => {
     let accepted = false;
+    let needsRecovery = false;
     set((s) => {
       const terminal = s.terminalWatermarks[sessionId];
-      if (terminal && isOlderMeta(meta, terminal)) return s;
       const previousBuffer = s.liveStreamBuffers[sessionId];
-      if (previousBuffer && isOlderMeta(meta, previousBuffer)) return s;
       const result = typeof event.result === 'string' ? event.result : '';
+      const hasResult = result.trim().length > 0;
       const status = event.status === 'error'
         ? 'error'
         : event.status === 'cancelled' || event.cancelled
           ? 'cancelled'
           : 'done';
-      const liveMessages = previousBuffer?.messages || [];
-      const liveAssistant = [...liveMessages].reverse().find((message) => message.role === 'assistant');
-      const finalLiveMessages = liveMessages.map((message) => {
-        const finalMessage = result.trim() && message === liveAssistant
-          ? { ...message, content: result }
-          : { ...message };
-        inheritMessageIdentity(finalMessage, message);
-        return finalMessage;
-      });
-      if (result.trim() && !liveAssistant) {
-        finalLiveMessages.push({
-          role: 'assistant',
-          content: result,
-          ...(meta.turnId ? { nativeItemId: `turn:${meta.turnId}` } : {}),
-        });
+      const incomingTaskKey = taskScopeKey(sessionId, meta, previousBuffer);
+      if (terminal) {
+        // Every side effect of a terminal event is idempotent. A replay or a
+        // late event for the same task cursor must not add a second assistant
+        // row, clear a newer live buffer, or move the DONE anchor.
+        if (isOlderMeta(meta, terminal)) return s;
+        const sameCursor = terminal.taskSeq !== undefined && meta.taskSeq !== undefined
+          && terminal.taskSeq === meta.taskSeq;
+        const noCursor = terminal.taskSeq === undefined && meta.taskSeq === undefined
+          && terminal.taskId === undefined && meta.taskId === undefined;
+        if (sameCursor || terminal.taskKey === incomingTaskKey) return s;
+        if (noCursor && terminal.result === result) return s;
       }
-      const sessions = s.sessions.map((session) => {
-        if (session.id !== sessionId) return session;
-        const history = (session.history || []).slice();
-        let historyTotal = session.historyTotal ?? history.length;
-        let replaced = false;
-        if (result.trim()) {
-          const liveIds = liveAssistant
-            ? new Set(explicitMessageIdentity(liveAssistant))
-            : new Set<string>();
-          const lastAssistantIndex = history.reduce(
-            (last, candidate, index) => candidate.role === 'assistant' ? index : last,
-            -1,
-          );
-          for (let index = history.length - 1; index >= 0; index--) {
-            const candidate = history[index];
-            if (!candidate || candidate.role !== 'assistant') continue;
-            const candidateIds = new Set(explicitMessageIdentity(candidate));
-            const sameIdentity = liveIds.size > 0
-              && [...liveIds].some((id) => candidateIds.has(id));
-            // Legacy rows without identities may only converge by exact text
-            // at the current history tail. Never search all old assistant
-            // messages for a prefix or same text.
-            const legacyTailExact = liveIds.size === 0
-              && index === lastAssistantIndex
-              && candidate.content === result;
-            if (sameIdentity || legacyTailExact) {
-              history[index] = {
-                ...candidate,
-                content: result,
-                ...(liveAssistant?.nativeItemId
-                  ? { nativeItemId: liveAssistant.nativeItemId }
-                  : {}),
-              };
-              replaced = true;
+      if (previousBuffer && isOlderMeta(meta, previousBuffer)) return s;
+      const coverage: TerminalCoverage = event.terminalCoverage ?? {
+        ...(typeof event.historyEpoch === 'string' ? { historyEpoch: event.historyEpoch } : {}),
+        ...(typeof event.historyRevision === 'number'
+          ? { historyRevision: event.historyRevision }
+          : {}),
+      };
+      if (coverage.historyEpoch || typeof coverage.historyRevision === 'number') {
+        needsRecovery = true;
+      }
+
+      const session = sessionOf(s, sessionId);
+      const base = session
+        ? ensureTranscript(s.sessionTranscripts, session)
+        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const liveMessages = previousBuffer?.messages ?? [];
+      // The protocol-referenced final block is the last assistant block *of this
+      // task's own live rows* — never "the last assistant anywhere".
+      let finalSlot = -1;
+      for (let index = liveMessages.length - 1; index >= 0; index -= 1) {
+        if (liveMessages[index]!.role === 'assistant') {
+          finalSlot = index;
+          break;
+        }
+      }
+      let finalized = liveMessages;
+      let appendedResult = false;
+      if (hasResult) {
+        finalized = liveMessages.map((message, index) => {
+          const next = index === finalSlot ? { ...message, content: result } : { ...message };
+          inheritMessageIdentity(next, message);
+          return next;
+        });
+        if (finalSlot < 0) {
+          const row: Message = {
+            role: 'assistant',
+            content: result,
+            ...(meta.turnId ? { nativeItemId: `turn:${meta.turnId}` } : {}),
+          };
+          finalized = [...finalized, row];
+          appendedResult = true;
+        }
+      }
+      const revision = Math.max(
+        previousBuffer?.revision ?? 0,
+        terminal?.revision ?? 0,
+      ) + 1;
+
+      // Authoritative convergence for a replayed turn: when the terminal
+      // event carries a coverage revision that the loaded durable window
+      // already satisfies, the canonical history already holds this task's
+      // rows.  The live rows are then a replay/reconnect echo of durable
+      // content, not new blocks.  The check is structural — the finalized
+      // rows must line up, in order, with the window rows that end at the
+      // runtime anchor (anchorOffset - K .. anchorOffset - 1) — and guarded
+      // by exact role+content equality, so identity is never guessed from
+      // body text or an arbitrary ordinal and a legitimate new delta whose
+      // body differs (or that extends past the anchor) is never swallowed.
+      // Providers without a coverage revision on the terminal event keep the
+      // pre-existing behaviour unchanged.
+      let convergedReplay = false;
+      if (typeof coverage.historyRevision === 'number'
+          && base.window.revision >= coverage.historyRevision
+          && finalized.length > 0 && !appendedResult) {
+        const start = base.anchorOffset - finalized.length;
+        if (start >= 0) {
+          let allMatch = true;
+          for (let index = 0; index < finalized.length; index += 1) {
+            const durable = base.window.rows.get(start + index);
+            const row = finalized[index]!;
+            if (!durable || durable.role !== row.role
+                || durable.content !== row.content) {
+              allMatch = false;
               break;
             }
           }
-          if (!replaced) {
-            history.push({
-              role: 'assistant',
-              content: result,
-              ...(liveAssistant?.nativeItemId
-                ? { nativeItemId: liveAssistant.nativeItemId }
-                : {}),
-            });
-            historyTotal += 1;
-          }
+          convergedReplay = allMatch;
         }
+      }
+      if (convergedReplay) {
+        // The window is authoritative and already covers the task: recovery
+        // would re-fetch the same rows and converge nothing.
+        needsRecovery = false;
+      }
+
+      // The task's finalized rows keep their runtime order: rows another path
+      // appended while the task was running (a Steer or a delivered user row)
+      // stay in front of the result, which is the order the backend persists.
+      const previousLiveKeys = liveMessages.map((row, slot) =>
+        liveProjectionKeys(row, { taskKey: previousBuffer?.taskKey ?? incomingTaskKey, slot })[0]!,
+      );
+      const keptRuntime = base.runtime.filter((row) => {
+        const key = runtimeKeyOf(row);
+        return key === null || !previousLiveKeys.includes(key);
+      });
+      const finalizedRuntime = convergedReplay ? [] : finalized.map((row, slot) =>
+        bindRuntimeKey(row, liveProjectionKeys(row, { taskKey: incomingTaskKey, slot })[0]!),
+      );
+      let nextTranscript: SessionTranscript = {
+        ...base,
+        runtime: [...keptRuntime, ...finalizedRuntime],
+      };
+
+      // Re-project in place, keeping display order. Rows that exist only in the
+      // rendered projection (seeded state) are adopted so a rebuild keeps them.
+      // A converged replay must not adopt: the replayed live rows duplicate
+      // rows the window already holds, and adopting them would re-append the
+      // very duplication the convergence just removed.
+      const isCurrent = s.currentSessionId === sessionId;
+      if (isCurrent && !convergedReplay) {
+        const tracked = new Set(nextTranscript.runtime);
+        const trackedKeys = new Set(
+          nextTranscript.runtime
+            .map((row) => runtimeKeyOf(row))
+            .filter((key): key is string => key !== null),
+        );
+        // The leading run that already mirrors the window (same order, role and
+        // body) is this projection's own copy of those canonical rows, exactly
+        // as in applyHistoryPage: adopting it would emit it a second time next
+        // to its window row.
+        const windowList = windowRows(nextTranscript.window);
+        let mirrored = 0;
+        while (
+          mirrored < s.currentMessages.length
+          && mirrored < windowList.length
+          && s.currentMessages[mirrored]!.role === windowList[mirrored]!.role
+          && s.currentMessages[mirrored]!.content === windowList[mirrored]!.content
+        ) {
+          mirrored += 1;
+        }
+        const adopted = s.currentMessages.slice(mirrored).filter((row) => {
+          if (isDurableRow(row) || tracked.has(row)) return false;
+          // A row that already carries a runtime key is this transcript's own
+          // previous version of a row (a superseded live buffer object), not an
+          // untracked row that needs adopting.
+          const key = runtimeKeyOf(row);
+          return key === null || !trackedKeys.has(key);
+        });
+        if (adopted.length > 0) {
+          nextTranscript = { ...nextTranscript, runtime: [...adopted, ...nextTranscript.runtime] };
+        }
+      }
+      const display = isCurrent && finalized.length > 0
+        ? projectTranscript(nextTranscript)
+        : s.currentMessages;
+
+      const sessions = s.sessions.map((candidate) => {
+        if (candidate.id !== sessionId) return candidate;
+        // Only the selected Session has a rendered projection to mirror. A
+        // background Session keeps its own canonical history and receives just
+        // the finalized rows, so a result for Session B can never rewrite B's
+        // history from the chat pane of Session A.
+        const history = isCurrent
+          ? canonicalHistory(display)
+          : appendCanonicalRows(candidate.history ?? [], finalized);
         return {
-          ...session,
-          history: history.length > 500 ? history.slice(-500) : history,
-          historyTotal,
-          lastMessage: result.trim() ? result.slice(0, 200) : session.lastMessage,
+          ...candidate,
+          history,
+          historyTotal: Math.max(
+            candidate.historyTotal ?? history.length,
+            history.length,
+            (candidate.historyTotal ?? 0) + (appendedResult ? 1 : 0),
+          ),
+          lastMessage: hasResult ? result.slice(0, 200) : candidate.lastMessage,
           lastResult: {
             status,
             result,
@@ -1769,15 +1965,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           },
         };
       });
-      const session = sessions.find((candidate) => candidate.id === sessionId);
-      const canonical = session
-        ? mergeServerHistoryWithLive(session.history || [], finalLiveMessages)
-        : finalLiveMessages;
-      const revision = Math.max(
-        previousBuffer?.revision ?? 0,
-        terminal?.revision ?? 0,
-      ) + 1;
+
       accepted = true;
+      const needsRecoveryFlag = needsRecovery;
+      if (needsRecoveryFlag) {
+        // Authoritative recovery: the result's `terminalCoverage` says the
+        // durable history now covers this task, so converge the runtime rows
+        // onto the canonical rows instead of trusting the stream's shape.
+        queueMicrotask(() => {
+          void get().recoverSessionHistory(sessionId);
+        });
+      }
       return {
         sessions,
         liveStreamBuffers: Object.fromEntries(
@@ -1785,18 +1983,61 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ),
         terminalWatermarks: {
           ...s.terminalWatermarks,
-          [sessionId]: { ...meta, status, revision },
+          [sessionId]: {
+            ...meta,
+            taskKey: incomingTaskKey,
+            status,
+            revision,
+            result,
+            ...(coverage.historyEpoch ? { historyEpoch: coverage.historyEpoch } : {}),
+            ...(typeof coverage.historyRevision === 'number'
+              ? { historyRevision: coverage.historyRevision }
+              : {}),
+          },
         },
         _sessionLocalTouchedSeq: {
           ...s._sessionLocalTouchedSeq,
           [sessionId]: (localTouchSeq += 1),
         },
-        ...(s.currentSessionId === sessionId
-          ? { currentMessages: mergeFinalMessages(s.currentMessages, canonical) }
-          : {}),
+        ...(s.currentSessionId === sessionId ? { currentMessages: display } : {}),
+        ...withTranscript(s, sessionId, nextTranscript),
       };
     });
     return accepted;
+  },
+
+  /**
+   * Apply an authoritative history page to a Session transcript.
+   *
+   * Shared by focus refresh, lazy paging, session entry and terminal recovery so
+   * there is exactly one place that decides which canonical rows are loaded.
+   */
+  applyHistoryPage: (sessionId, page: HistoryPage) => {
+    let accepted = false;
+    set((s) => {
+      const session = sessionOf(s, sessionId);
+      if (!session) return s;
+      const base = ensureTranscript(s.sessionTranscripts, session);
+      accepted = mergeWindowPage(base.window, page).accepted;
+      return applyHistoryPageToState(s, sessionId, page);
+    });
+    return accepted;
+  },
+
+  /** Recover the canonical tail after a terminal event's coverage boundary. */
+  recoverSessionHistory: async (sessionId) => {
+    const requestSeq = (get()._historyRefreshSeq[sessionId] ?? 0) + 1;
+    set((s) => ({
+      _historyRefreshSeq: { ...s._historyRefreshSeq, [sessionId]: requestSeq },
+    }));
+    try {
+      const data = await fetchSessionHistory(sessionId, 0, historyPageSize());
+      if (get()._historyRefreshSeq[sessionId] !== requestSeq) return;
+      get().applyHistoryPage(sessionId, data as HistoryPage);
+    } catch {
+      // Recovery is best effort; the runtime rows remain visible and a later
+      // refresh (focus/reconnect) converges them.
+    }
   },
 
   applyWorkerStatus: (sessionId, status, meta, terminal = false) => {
@@ -2110,6 +2351,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         };
       });
 
+      const base = sessionOf(s, sessionId)
+        ? ensureTranscript(s.sessionTranscripts, sessionOf(s, sessionId)!)
+        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
+      const runtimeRows = currentAppend.length > 0
+        ? currentAppend.map((row, index) =>
+            bindRuntimeKey(row, `delivered:${touchSeq}:${index}`),
+          )
+        : [];
       return {
         sessions,
         _pendingQueueIds: {
@@ -2128,6 +2377,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         },
         ...(selected && (currentAppend.length || currentChanged)
           ? { currentMessages: [...selectedMessages, ...currentAppend] }
+          : {}),
+        ...(runtimeRows.length > 0
+          ? withTranscript(s, sessionId, { ...base, runtime: [...base.runtime, ...runtimeRows] })
           : {}),
       };
     });
@@ -2395,4 +2647,16 @@ export function useCurrentSession() {
       ? s.sessions.find((session) => session.id === s.currentSessionId) ?? null
       : null,
   );
+}
+
+// ── E2E inspection seam ─────────────────────────────────────────────────────
+// The read-only browser verification
+// (audit/run-e2e-consistency.mjs) must export the *store* order alongside the
+// server canonical history and the DOM order. The store is intentionally not a
+// global, so it is exposed only when the page is opened with an explicit
+// `?panE2E=1` query parameter. Normal app URLs never set it and the bundle
+// behaves exactly as before.
+if (typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('panE2E')) {
+  (window as unknown as Record<string, unknown>).__panSessionStore = useSessionStore;
 }

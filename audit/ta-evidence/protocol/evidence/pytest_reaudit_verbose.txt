@@ -1,0 +1,20 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\project\pan-worktrees\frontend-reaudit-protocol-ds-20260921
+configfile: pytest.ini
+plugins: anyio-4.14.2, timeout-2.4.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collected 13 items
+
+tests\test_reaudit_protocol_provider.py .x..xxxxx....                    [100%]
+
+=========================== short test summary info ===========================
+XFAIL tests/test_reaudit_protocol_provider.py::test_terminal_coverage_matches_persisted_rows - REPRODUCED with the real JSONL writer: the duplicated terminal row is persisted, so `history_revision` (3) exceeds the historyRevision published by worker.result (2).
+XFAIL tests/test_reaudit_protocol_provider.py::test_terminal_result_is_not_appended_when_a_trailing_tool_covers_it - REPRODUCED: _persist_terminal_state appends the result text whenever the last history row is not the identical assistant row, so a trailing tool block makes the final answer appear twice in canonical history.
+XFAIL tests/test_reaudit_protocol_provider.py::test_aggregate_result_does_not_add_a_duplicate_assistant_row - REPRODUCED: a provider result that aggregates several per-item assistant blocks is appended as an extra history row instead of being reconciled against the blocks that already cover it.
+XFAIL tests/test_reaudit_protocol_provider.py::test_terminal_coverage_revision_covers_a_late_assistant_event - REPRODUCED: an assistant event delivered after `result` is still appended to history while `worker.result` already published a smaller historyRevision, so terminalCoverage no longer covers canonical history.
+XFAIL tests/test_reaudit_protocol_provider.py::test_cbc_tool_projection_matches_between_live_and_history - REPRODUCED: cbc/sessions.py::_event_to_block serializes tool args with json.dumps(..., ensure_ascii=False) (spaced, unescaped, 500-char truncated) while the live cbc adapter uses compact escaped JSON, so the same cbc tool call has two different canonical texts.
+XFAIL tests/test_reaudit_protocol_provider.py::test_cbc_multi_text_block_projection_is_stable - REPRODUCED: a multi-text-block cbc assistant message is split into several live rows but joined and stripped into one canonical history row.
+======================== 7 passed, 6 xfailed in 0.41s =========================
