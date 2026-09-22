@@ -7,8 +7,11 @@ import type { LiveStreamMeta } from '@/stores/sessionStore';
  * The product contract this file encodes (see audit/FIELD_TABLE.md):
  *
  *  - The durable canonical history is **append-only within one `historyEpoch`**
- *    (`packages/core/session.py:append_history`); `history_revision` is monotonic
- *    inside that epoch and only `replace_history()` mints a new epoch.
+ *    (`packages/core/session.py:append_history`). `history_revision` is the
+ *    persisted, Session-level monotonic cursor: both `append_history()` and
+ *    `replace_history()` increment it, while `replace_history()` also mints a
+ *    new epoch. A cross-epoch page is therefore orderable only when its
+ *    revision is strictly newer; equal revisions are ambiguous.
  *  - A history page carries the **absolute storage offset** of its rows
  *    (`start`/`total`), so the loaded window must be tracked by offset — never by
  *    array length, and a tail refresh must never move the oldest loaded offset.
@@ -107,6 +110,7 @@ export interface HistoryPage {
   total: number;
   hasMore: boolean;
   historyEpoch?: string | null;
+  /** Persisted Session-level revision, monotonic across epoch replacement. */
   historyRevision?: number;
 }
 
@@ -180,10 +184,11 @@ export function mergeWindowPage(
   const rows = page.history ?? [];
 
   // An epoch change is a full-history boundary, but it is only authoritative
-  // when the response is at least as new as what is already applied. A page
-  // from an *older* epoch (lower revision) is a stale response and must be
-  // rejected outright — accepting every epoch change is what let an old epoch's
-  // page roll a newer canonical projection back.
+  // when the response is strictly newer on the persisted Session-level
+  // revision cursor. A page from an *older* epoch (lower revision), or an
+  // equal-revision epoch whose ordering is unknowable, must be rejected
+  // outright — accepting every epoch change is what let an old epoch's page
+  // roll a newer canonical projection back.
   if (epoch && current.epoch && epoch !== current.epoch) {
     if (revision <= current.revision) {
       return {

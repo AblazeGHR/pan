@@ -193,6 +193,261 @@ describe('sessionStore refresh staleness guards', () => {
     ]);
   });
 
+  it('keeps a selected transcript isolated while background terminal recovery is delayed', async () => {
+    const aHistory = [msg('user', 'A durable')];
+    const bFinal = msg('assistant', 'B final');
+    useSessionStore.setState({
+      sessions: [
+        mk('A', 'A', { history: aHistory, historyTotal: 1 }),
+        mk('B', 'B', {
+          history: [],
+          historyTotal: 0,
+          historyEpoch: 'B-epoch',
+          historyRevision: 0,
+        }),
+      ],
+      currentSessionId: 'A',
+      currentMessages: aHistory.slice(),
+      historyWindowStarts: { A: 7 },
+      historyLoadEnd: 7,
+      hasMoreMessages: true,
+      historyLoading: true,
+      initialLoading: true,
+      sessionTranscripts: {},
+    });
+    act(() => {
+      useSessionStore.getState().appendLocalMessage('A', {
+        role: 'user',
+        content: 'A optimistic',
+      });
+      useSessionStore.getState().applyLiveStream('A', [
+        { role: 'assistant', content: 'A live' },
+      ], {
+        serverEpoch: 'server',
+        workerId: 'worker-A',
+        generation: 1,
+        taskSeq: 1,
+      });
+    });
+    const beforeMessages = useSessionStore.getState().currentMessages.map((row) => ({
+      role: row.role,
+      content: row.content,
+    }));
+    const beforePaging = {
+      historyLoadEnd: useSessionStore.getState().historyLoadEnd,
+      hasMoreMessages: useSessionStore.getState().hasMoreMessages,
+      historyLoading: useSessionStore.getState().historyLoading,
+      initialLoading: useSessionStore.getState().initialLoading,
+      historyWindowStarts: { ...useSessionStore.getState().historyWindowStarts },
+    };
+
+    let resolveRecovery!: (page: unknown) => void;
+    api.fetchSessionHistory.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRecovery = resolve; }),
+    );
+    act(() => {
+      // A background B terminal result schedules recoverSessionHistory(B).
+      useSessionStore.getState().reconcileWorkerResult(
+        'B',
+        {
+          status: 'done',
+          result: bFinal.content,
+          terminalCoverage: { historyEpoch: 'B-epoch', historyRevision: 1 },
+        },
+        { serverEpoch: 'server', workerId: 'worker-B', generation: 1, taskSeq: 1 },
+      );
+    });
+    await act(async () => {
+      for (let i = 0; i < 4; i += 1) await Promise.resolve();
+    });
+    expect(resolveRecovery).toBeTypeOf('function');
+
+    resolveRecovery({
+      history: [bFinal],
+      start: 0,
+      total: 1,
+      hasMore: false,
+      historyEpoch: 'B-epoch',
+      historyRevision: 1,
+    });
+    await act(async () => {
+      for (let i = 0; i < 4; i += 1) await Promise.resolve();
+    });
+
+    const afterRecovery = useSessionStore.getState();
+    expect(afterRecovery.currentMessages.map((row) => ({
+      role: row.role,
+      content: row.content,
+    }))).toEqual(beforeMessages);
+    expect({
+      historyLoadEnd: afterRecovery.historyLoadEnd,
+      hasMoreMessages: afterRecovery.hasMoreMessages,
+      historyLoading: afterRecovery.historyLoading,
+      initialLoading: afterRecovery.initialLoading,
+      selectedHistoryWindowStart: afterRecovery.historyWindowStarts.A,
+    }).toEqual({
+      historyLoadEnd: beforePaging.historyLoadEnd,
+      hasMoreMessages: beforePaging.hasMoreMessages,
+      historyLoading: beforePaging.historyLoading,
+      initialLoading: beforePaging.initialLoading,
+      selectedHistoryWindowStart: beforePaging.historyWindowStarts.A,
+    });
+    expect(afterRecovery.historyWindowStarts.B).toBe(0);
+    expect(afterRecovery.sessionTranscripts.B?.runtime.map((row) => row.content))
+      .not.toContain('A optimistic');
+    expect(afterRecovery.sessionTranscripts.B?.runtime.map((row) => row.content))
+      .not.toContain('A live');
+
+    api.fetchSessionHistory.mockResolvedValueOnce({
+      history: [bFinal],
+      start: 0,
+      total: 1,
+      hasMore: false,
+      historyEpoch: 'B-epoch',
+      historyRevision: 1,
+    });
+    await act(async () => {
+      await useSessionStore.getState().selectSession('B');
+    });
+    expect(useSessionStore.getState().currentMessages.map((row) => row.content))
+      .toEqual(['B final']);
+  });
+
+  it('drops an older background recovery response by the per-session sequence', async () => {
+    const aRow = msg('user', 'A current');
+    const bFresh = msg('assistant', 'B fresh');
+    const bStale = msg('assistant', 'B stale');
+    useSessionStore.setState({
+      sessions: [
+        mk('A', 'A', { history: [aRow], historyTotal: 1 }),
+        mk('B', 'B', { history: [], historyTotal: 0 }),
+      ],
+      currentSessionId: 'A',
+      currentMessages: [aRow],
+      historyWindowStarts: { A: 0 },
+      historyLoadEnd: 0,
+      hasMoreMessages: false,
+      sessionTranscripts: {},
+    });
+
+    const pending: Array<(page: unknown) => void> = [];
+    api.fetchSessionHistory.mockImplementation(
+      () => new Promise((resolve) => { pending.push(resolve); }),
+    );
+    let older!: Promise<void>;
+    let newer!: Promise<void>;
+    act(() => {
+      older = useSessionStore.getState().recoverSessionHistory('B');
+      newer = useSessionStore.getState().recoverSessionHistory('B');
+    });
+    expect(pending).toHaveLength(2);
+
+    pending[1]!({
+      history: [bFresh],
+      start: 0,
+      total: 1,
+      hasMore: false,
+      historyEpoch: 'B-new',
+      historyRevision: 2,
+    });
+    await act(async () => { await newer!; });
+
+    // The older request deliberately carries a higher revision to prove that
+    // recover's request sequence, not a current-session restriction, owns the
+    // response ordering boundary.
+    pending[0]!({
+      history: [bStale],
+      start: 0,
+      total: 1,
+      hasMore: false,
+      historyEpoch: 'B-old',
+      historyRevision: 3,
+    });
+    await act(async () => { await older!; });
+
+    const b = useSessionStore.getState().sessions.find((session) => session.id === 'B')!;
+    expect(b.history.map((row) => row.content)).toEqual(['B fresh']);
+    expect(b.historyEpoch).toBe('B-new');
+    expect(b.historyRevision).toBe(2);
+    expect(useSessionStore.getState().currentMessages).toEqual([aRow]);
+  });
+
+  it('does not clear selected loading flags when a background page is rejected', () => {
+    const aRow = msg('user', 'A current');
+    const bRow = msg('assistant', 'B already loaded');
+    useSessionStore.setState({
+      sessions: [
+        mk('A', 'A', { history: [aRow], historyTotal: 1 }),
+        mk('B', 'B', {
+          history: [bRow],
+          historyTotal: 1,
+          historyEpoch: 'B-epoch',
+          historyRevision: 5,
+        }),
+      ],
+      currentSessionId: 'A',
+      currentMessages: [aRow],
+      historyWindowStarts: { A: 9, B: 0 },
+      historyLoadEnd: 9,
+      hasMoreMessages: true,
+      historyLoading: true,
+      initialLoading: true,
+      sessionTranscripts: {},
+    });
+
+    act(() => {
+      // Same object/offset/revision: B's page is a rejected no-op, but it is
+      // still a background operation and must not settle A's global flags.
+      useSessionStore.getState().applyHistoryPage('B', {
+        history: [bRow],
+        start: 0,
+        total: 1,
+        hasMore: false,
+        historyEpoch: 'B-epoch',
+        historyRevision: 5,
+      });
+    });
+
+    const state = useSessionStore.getState();
+    expect(state.currentMessages).toEqual([aRow]);
+    expect(state.historyLoadEnd).toBe(9);
+    expect(state.hasMoreMessages).toBe(true);
+    expect(state.historyLoading).toBe(true);
+    expect(state.initialLoading).toBe(true);
+    expect(state.historyWindowStarts).toEqual({ A: 9, B: 0 });
+  });
+
+  it('does not use selected currentMessages for a same-shaped background page', () => {
+    const aRow = { role: 'assistant', content: 'same text', queueItemIds: ['A'] } as Message;
+    const bRow = { role: 'assistant', content: 'same text', queueItemIds: ['B'] } as Message;
+    useSessionStore.setState({
+      sessions: [
+        mk('A', 'A', { history: [aRow], historyTotal: 1 }),
+        mk('B', 'B', { history: [], historyTotal: 0 }),
+      ],
+      currentSessionId: 'A',
+      currentMessages: [aRow],
+      historyWindowStarts: { A: 0 },
+      sessionTranscripts: {},
+    });
+
+    act(() => {
+      useSessionStore.getState().applyHistoryPage('B', {
+        history: [bRow],
+        start: 0,
+        total: 1,
+        hasMore: false,
+        historyEpoch: 'B-epoch',
+        historyRevision: 1,
+      });
+    });
+
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'B')?.history)
+      .toEqual([bRow]);
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'B')?.history[0])
+      .toBe(bRow);
+  });
+
   it('does not revert workerStatus freshened by WS while a fetch is in flight', async () => {
     useSessionStore.setState({
       sessions: [mk('A', 'A', { workerStatus: 'offline' })],

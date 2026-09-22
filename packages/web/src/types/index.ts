@@ -111,7 +111,7 @@ export interface Session {
   historyTotal?: number | null;
   /** Server history identity scope. Old sessions/clients may omit it. */
   historyEpoch?: string | null;
-  /** Monotonic canonical history revision within historyEpoch. */
+  /** Persisted Session-level canonical history revision across epoch changes. */
   historyRevision?: number;
   /** Absolute start offset of the currently loaded history window. */
   historyStart?: number;

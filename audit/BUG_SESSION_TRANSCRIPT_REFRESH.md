@@ -32,6 +32,8 @@
 
 本次追加修复将 runtime adoption 限定为：目标 Session 已选中时才读取当前显示；目标在后台时只从该 Session 自己的 transcript/runtime 投影。`historyWindowStarts[sessionId]` 仍按目标 Session 更新，而 `historyLoadEnd`、`hasMoreMessages`、`historyLoading`、`initialLoading` 只在 `currentSessionId === sessionId` 时更新。
 
+`recoverSessionHistory(sessionId)` 保持后台可达；它继续使用 per-Session `_historyRefreshSeq` 丢弃旧响应，并交给 epoch/revision merge gate 判断 page 是否权威，而不是通过禁止后台 recovery 来规避竞态。后端 `append_history()` 与 `replace_history()` 都递增持久化的 Session 级 `history_revision`；后者同时生成新 `history_epoch`。旧 JSON 缺失 revision 时从 0 开始，缺失 epoch 时使用稳定 `legacy:<session-id>`，正常 import/reimport 不会重置同一 Session 的 revision。因此跨 epoch 的严格 `incomingRevision > currentRevision` 有明确依据；相同 revision 只能按 ambiguous/stale 拒绝。
+
 ## 当前修复
 
 - `loadSessions()` 现在把 `summary=1` 限定为 session/card metadata reconciliation；不会用 list response 重建 selected `currentMessages` 或 transcript。
@@ -42,11 +44,14 @@
 
 追加的确定性回归同时覆盖：A 选中时 B 的 background history page 与未完成的 `loadSessions()`/summary refresh 交错、A 的 optimistic/runtime rows 不得进入 B、A 的分页游标不得被 B 覆盖，以及随后 A→B 切换不能显示污染内容。
 
+另外覆盖后台 terminal `worker.result → recoverSessionHistory(B)` 的延迟返回、后台 rejected page 不得清理 A 的 loading flags，以及 A/B role/content 相同但附加 identity 字段不同的 same-shaped page 不得把 A 对象写回 B。
+
 ## 回归测试
 
 新增确定性 Vitest 覆盖：
 
 - 长历史 + optimistic user + stream/result/status 与 `summaryBackfillCompleted`、session list refresh、history refresh、延迟旧 history response 交错；任何阶段不得丢既有行或新 user，A→B→A 后 `currentMessages` 的 role/content 序列一致。
 - summary 兼容 payload 携带只有尾部两行的 history 时，不得替换 selected chat。
+- 后台 terminal recovery、后台 rejected page 和 same-shaped background page 的跨 Session 隔离。
 
-红测曾观察到 selected transcript 从 16 行缩为 `thinking + final` 两行；修复后两条新增场景均通过。现有 history/window/epoch、终态对账和 virtualizer stable-key 测试也通过；本缺陷的修复不改变 `ChatMessages` 的虚拟列表数据源，只阻止错误的 store window replacement。
+红测曾观察到 selected transcript 从 16 行缩为 `thinking + final` 两行，也观察到后台 B page 将 A 的分页游标改写为 B 的 start；修复后上述场景均通过。现有 history/window/epoch、终态对账和 virtualizer stable-key 测试也通过；本缺陷的修复不改变 `ChatMessages` 的虚拟列表数据源，只阻止错误的 store window replacement。

@@ -826,7 +826,8 @@ function applyHistoryPageToState(
   // Keep the previous array reference when the projection is unchanged: callers
   // (and the agent-injection retry) compare array identity to decide whether a
   // refresh brought new content.
-  const unchanged = projected.length === s.currentMessages.length
+  const unchanged = isCurrentSession
+    && projected.length === s.currentMessages.length
     && projected.every((row, index) => {
       const other = s.currentMessages[index]!;
       return row.role === other.role

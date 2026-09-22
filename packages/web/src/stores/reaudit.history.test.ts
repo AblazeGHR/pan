@@ -497,6 +497,8 @@ describe('reaudit · multi-block turn order & consecutive DONE rounds', () => {
 
   // DEFECT R12 (astra: history-epoch-replacement-removes-old-tail). A historyEpoch
   // change means the server replaced its whole history (session.replace_history).
+  // history_revision is a persisted Session-level cursor, not an epoch-local
+  // counter: replace_history mints the new epoch and increments revision 10→11.
   // The old local tail must not survive the replacement.
   it('R12 · a historyEpoch change must drop the stale old-epoch tail', async () => {
     const start = [m('user', 'old user', 'old-u'), m('assistant', 'old answer', 'old-a')];
@@ -509,7 +511,7 @@ describe('reaudit · multi-block turn order & consecutive DONE rounds', () => {
     api.fetchSessionHistory.mockResolvedValueOnce({
       history: [m('user', 'replacement', 'new-u')],
       total: 1, hasMore: false, start: 0,
-      historyEpoch: 'replacement-epoch', historyRevision: 20,
+      historyEpoch: 'replacement-epoch', historyRevision: 11,
     });
 
     await act(async () => { await useSessionStore.getState().refreshCurrentSessionHistory(); });
