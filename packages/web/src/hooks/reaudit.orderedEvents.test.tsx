@@ -209,6 +209,70 @@ describe('reaudit · ordered event pipeline', () => {
     expect(shape()).toEqual(['tool:Command({"command":"echo"})', 'assistant:answer']);
   });
 
+  it('moves an open text delta behind a later tool completion and keeps it there', () => {
+    renderHook(() => useWebSocket());
+    act(() => {
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        taskSeq: 1, event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-text-before-tool', item_id: 'answer-item',
+          stream_text: 'answer prefix',
+          part: { type: 'text', text: 'answer prefix' },
+        },
+      });
+      // The command starts after the text item has already reserved a row.
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        taskSeq: 1, event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-text-before-tool', item_id: 'tool-item',
+          content: 'running command',
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        taskSeq: 1, event: {
+          type: 'assistant', final: true,
+          turn_id: 'turn-text-before-tool', item_id: 'tool-item',
+          message: { content: [{
+            type: 'tool_use', name: 'Command', input: { command: 'echo order' },
+          }] },
+        },
+      });
+      expect(shape()).toEqual([
+        'tool:Command({"command":"echo order"})',
+        'assistant:answer prefix',
+      ]);
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        taskSeq: 1, event: {
+          type: 'content.part', role: 'assistant', delta: true,
+          turn_id: 'turn-text-before-tool', item_id: 'answer-item',
+          stream_text: 'answer prefix body',
+          part: { type: 'text', text: ' body' },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+        taskSeq: 1, event: {
+          type: 'assistant', final: true,
+          turn_id: 'turn-text-before-tool', item_id: 'answer-item',
+          message: { content: [{ type: 'text', text: 'answer prefix body' }] },
+        },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1',
+        taskSeq: 1, status: 'done', result: 'answer prefix body',
+      });
+    });
+
+    expect(shape().filter((value) => !value.startsWith('system:'))).toEqual([
+      'tool:Command({"command":"echo order"})',
+      'assistant:answer prefix body',
+    ]);
+  });
+
   it('reconnect snapshot finalizes a partial answer when its terminal frame was lost', () => {
     renderHook(() => useWebSocket());
     act(() => {

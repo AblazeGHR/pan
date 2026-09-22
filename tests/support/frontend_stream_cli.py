@@ -46,7 +46,23 @@ def main():
         # The stress label deliberately creates one openable multi-tool group
         # and a much taller answer so the browser test exercises the exact
         # variable-height/scrolling path that is easy to miss with one tool.
-        tool_count = 8 if label == 'visual-order-stress' else 1
+        stress_label = label in {'visual-order-stress', 'switch-delta'}
+        # Codex can deliver the first assistant text delta before the command
+        # item is completed.  Keep this inverse arrival order in the fixture:
+        # the durable adapter records [tool, assistant], while the live UI
+        # initially observes [assistant, tool].  This is the runtime ordering
+        # that a refresh can hide and that the browser regression must catch.
+        text_before_tool = label == 'switch-delta'
+        tool_count = 8 if stress_label else 1
+        chunk_count = 220 if stress_label else 80
+        chunks = [f'answer:{label}\n'] + [f'line {i:03d} streaming text\n' for i in range(chunk_count)]
+        cumulative = ''
+        if text_before_tool:
+            first_chunk = chunks.pop(0)
+            cumulative += first_chunk
+            emit({'type': 'content.part', 'role': 'assistant', 'content': first_chunk,
+                  'stream_text': cumulative, 'item_id': f'answer:{label}', 'turn_id': turn, 'delta': True})
+            time.sleep(.008)
         for tool_index in range(tool_count):
             tool_id = f'tool:{label}:{tool_index}'
             emit({'type': 'content.part', 'role': 'assistant', 'content': 'running command',
@@ -54,14 +70,11 @@ def main():
             emit({'type': 'assistant', 'item_id': tool_id, 'turn_id': turn, 'final': True,
                   'message': {'content': [{'type': 'tool_use', 'name': 'Command',
                                             'input': {'command': f'{label}:{tool_index}'}}]}})
-        chunk_count = 220 if label == 'visual-order-stress' else 80
-        chunks = [f'answer:{label}\n'] + [f'line {i:03d} streaming text\n' for i in range(chunk_count)]
-        cumulative = ''
         for chunk in chunks:
             cumulative += chunk
             emit({'type': 'content.part', 'role': 'assistant', 'content': chunk,
                   'stream_text': cumulative, 'item_id': f'answer:{label}', 'turn_id': turn, 'delta': True})
-            time.sleep(.008 if label == 'visual-order-stress' else .018)
+            time.sleep(.008 if stress_label else .018)
         emit({'type': 'assistant', 'item_id': f'answer:{label}', 'turn_id': turn, 'final': True,
               'message': {'content': [{'type': 'text', 'text': cumulative}]}})
         emit({'type': 'result', 'result': cumulative, 'is_error': False})

@@ -708,10 +708,12 @@ function projectLiveRows(
   taskKey: string,
   rows: Message[],
 ): LiveProjection {
-  const display = current.slice();
+  let display = current.slice();
   const indexes: Record<string, number> = {};
   const refs: Record<string, Message> = {};
   const usedTargetIndexes = new Set<number>();
+  const targetIndexes: number[] = [];
+  const targetRefs: Message[] = [];
   let appended = 0;
   for (const [slot, live] of rows.entries()) {
     const keys = liveProjectionKeys(live, { taskKey, slot });
@@ -724,10 +726,11 @@ function projectLiveRows(
       : [];
     let targetIndex = -1;
     const sameTask = previousBuffer?.taskKey === taskKey;
+    const explicit = explicitIdentityOf(live);
     // The previous buffer's keys are only meaningful inside the same task: a
     // new task must never reuse the old task's slot, or its first block would
     // overwrite the previous answer.
-    for (const key of sameTask ? [...keys, ...previousKeys] : keys) {
+    if (targetIndex < 0) for (const key of sameTask ? [...keys, ...previousKeys] : keys) {
       const cached = previousBuffer?.projectionIndexes?.[key];
       if (cached === undefined || cached < 0 || cached >= display.length) continue;
       const row = display[cached]!;
@@ -747,11 +750,9 @@ function projectLiveRows(
           && !usedTargetIndexes.has(found)) targetIndex = found;
     }
     if (targetIndex < 0 && sameTask) {
-      const explicit = explicitIdentityOf(live);
       if (explicit.length > 0) {
         targetIndex = display.findIndex((candidate, index) =>
           !usedTargetIndexes.has(index)
-          && candidate.role === live.role
           && explicitIdentityOf(candidate).some((id) => explicit.includes(id)),
         );
       }
@@ -771,6 +772,8 @@ function projectLiveRows(
       appended += 1;
       usedTargetIndexes.add(targetIndex);
     }
+    targetIndexes[slot] = targetIndex;
+    targetRefs[slot] = display[targetIndex]!;
     for (const key of keys) {
       indexes[key] = targetIndex;
       refs[key] = display[targetIndex]!;
@@ -779,6 +782,45 @@ function projectLiveRows(
     // task and is deliberately primary; binding the later fallback identity
     // here made the displayed clone look untracked during terminal rebuild.
     bindRuntimeKey(display[targetIndex]!, keys[0]!);
+  }
+
+  // When a provider item changes the live order (for example text delta first,
+  // tool completion second), the identity matches above identify the right
+  // existing DOM rows but do not by themselves move those rows. Rebuild only a
+  // contiguous run belonging entirely to this task; canonical rows and rows
+  // from another task remain untouched. This keeps the path safe for the
+  // normal append-only/id-less provider shape while making native-item reorder
+  // explicit and stable across every subsequent delta.
+  const targetSet = new Set(targetIndexes);
+  const orderedTargets = [...targetSet].sort((a, b) => a - b);
+  const canReorder = previousBuffer?.taskKey === taskKey
+    && rows.some((row) => explicitIdentityOf(row).length > 0)
+    && targetIndexes.length === rows.length
+    && targetSet.size === rows.length
+    && orderedTargets.length > 0
+    && orderedTargets.at(-1)! - orderedTargets[0]! + 1 === rows.length
+    && targetIndexes.some((index, slot) => index !== orderedTargets[0]! + slot);
+  if (canReorder) {
+    const first = orderedTargets[0]!;
+    const taskRows = targetRefs.slice();
+    const withoutTask = display.filter((_row, index) => !targetSet.has(index));
+    const beforeCount = display
+      .slice(0, first)
+      .filter((_row, index) => !targetSet.has(index))
+      .length;
+    display = [
+      ...withoutTask.slice(0, beforeCount),
+      ...taskRows,
+      ...withoutTask.slice(beforeCount),
+    ];
+    for (const [slot, live] of rows.entries()) {
+      const row = targetRefs[slot]!;
+      const index = display.indexOf(row);
+      for (const key of liveProjectionKeys(live, { taskKey, slot })) {
+        indexes[key] = index;
+        refs[key] = row;
+      }
+    }
   }
   return { display, indexes, refs, appended };
 }

@@ -914,20 +914,45 @@ function appendEventToMessages(
     // use the native item id as the canonical identity. The turn id is only a
     // transient alias for bridges that change ids between delta and completed.
     const itemId = event.item_id !== undefined ? String(event.item_id) : undefined;
-    const turnId = b.role === 'assistant' && event.turn_id !== undefined
+    const eventTurnId = event.turn_id !== undefined
       ? String(event.turn_id)
       : undefined;
-    const scopeSuffix = turnId && scope?.taskSeq !== undefined
+    const turnId = b.role === 'assistant' ? eventTurnId : undefined;
+    const scopeSuffix = eventTurnId && scope?.taskSeq !== undefined
       ? `:seq:${scope.taskSeq}`
-      : turnId && scope?.taskId
+      : eventTurnId && scope?.taskId
         ? `:task:${scope.taskId}`
         : '';
-    const aliasKey = turnId ? `${sessionId}${scopeSuffix}:${turnId}` : undefined;
+    const turnKey = eventTurnId ? `${sessionId}${scopeSuffix}:${eventTurnId}` : undefined;
+    const aliasKey = turnId ? turnKey : undefined;
     const aliasedItemId = aliasKey ? nativeTurnItemAliases.get(aliasKey) : undefined;
     const nativeItemId = itemId ?? (aliasedItemId ?? (turnId ? `turn:${turnId}` : undefined));
     const blockId = b.blockId
       ?? (itemId && blocks.length > 1 ? `${itemId}:block:${blockIndex}` : undefined);
     if (aliasKey && itemId && !aliasedItemId) nativeTurnItemAliases.set(aliasKey, itemId);
+
+    // App-server may start the final assistant text before the command item
+    // completes.  The command completion is the durable ordering boundary:
+    // history will contain [tool, assistant], while the live buffer has so far
+    // reserved [assistant, tool].  Move only that still-open native assistant
+    // item behind the tool.  A completed assistant is protected by
+    // nativeTurnCompleted, and a tool-first turn has an alias pointing at its
+    // tool row rather than an assistant, so neither case is reordered.
+    if (b.role === 'tool' && turnKey && !usedIndexes
+        && !nativeTurnCompleted.has(turnKey)) {
+      const openItemId = nativeTurnItemAliases.get(turnKey);
+      const openIndex = openItemId === undefined ? -1 : messages.findIndex((message) =>
+        message.role === 'assistant' && message.nativeItemId === openItemId);
+      if (openIndex >= 0) {
+        const openMessage = messages[openIndex]!;
+        messages = [
+          ...messages.slice(0, openIndex),
+          ...messages.slice(openIndex + 1),
+          openMessage,
+        ];
+      }
+    }
+
     const nativeIds = [
       nativeItemId,
       ...((!event.delta || (aliasKey && nativeTurnCompleted.has(aliasKey))) && aliasedItemId
