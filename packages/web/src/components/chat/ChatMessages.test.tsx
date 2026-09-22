@@ -85,6 +85,15 @@ function programmaticScroll(element: HTMLElement) {
   fireEvent.scroll(element);
 }
 
+function pointerMove(element: HTMLElement, pointerType: 'mouse' | 'pen', buttons: number) {
+  const event = new Event('pointermove', { bubbles: true });
+  Object.defineProperties(event, {
+    pointerType: { configurable: true, value: pointerType },
+    buttons: { configurable: true, value: buttons },
+  });
+  element.dispatchEvent(event);
+}
+
 const chatMessagesSource = readFileSync(
   resolve(process.cwd(), 'src/components/chat/ChatMessages.tsx'),
   'utf8',
@@ -348,6 +357,53 @@ describe('ChatMessages scroll positioning', () => {
     });
 
     expect(scrollEl.scrollTop).toBe(2400);
+  });
+
+  it('does not treat a pure mouse hover pointermove as scroll intent', () => {
+    vi.useFakeTimers();
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    // Hover movement has no pressed button and must not open user-scroll
+    // activity before a delayed virtualizer/measurement correction.
+    pointerMove(scrollEl, 'mouse', 0);
+    vi.advanceTimersByTime(64);
+    scrollEl.scrollTop = 700;
+    programmaticScroll(scrollEl);
+    vi.advanceTimersByTime(64);
+
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4)] });
+    });
+
+    expect(scrollEl.scrollTop).toBe(2400);
+  });
+
+  it('lets a pressed mouse pointer drag opt out of follow mode', () => {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: msgs(4) });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    fireEvent.pointerDown(scrollEl, { pointerType: 'mouse', buttons: 1 });
+    pointerMove(scrollEl, 'mouse', 1);
+    scrollEl.scrollTop = 600;
+    fireEvent.scroll(scrollEl);
+
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({
+        currentMessages: [...msgs(4), { role: 'assistant', content: 'dragged away' }],
+      });
+    });
+
+    expect(scrollEl.scrollTop).toBe(600);
+    expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
   });
 
   it('lets a real user scroll opt out after the programmatic layout window ends', () => {

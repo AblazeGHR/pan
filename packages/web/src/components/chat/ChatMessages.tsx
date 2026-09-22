@@ -280,6 +280,14 @@ export function ChatMessages() {
         markUserScrollInput();
       }
     };
+    const markPointerScrollInput = (event: PointerEvent) => {
+      // Do not treat ordinary mouse hover or a body click as scroll intent.
+      // A pressed mouse/pen pointer can drag a scrollbar or drive a custom
+      // pointer scroller; touch remains covered by the touch listeners above.
+      if ((event.pointerType === 'mouse' || event.pointerType === 'pen') && event.buttons !== 0) {
+        markUserScrollInput();
+      }
+    };
     const handler = () => {
       initialScrollPendingRef.current = false;
       const nearBottom = isNearBottomPosition();
@@ -339,8 +347,7 @@ export function ChatMessages() {
     el.addEventListener('wheel', markUserScrollInput, { passive: true });
     el.addEventListener('touchstart', markUserScrollInput, { passive: true });
     el.addEventListener('touchmove', markUserScrollInput, { passive: true });
-    el.addEventListener('pointerdown', markUserScrollInput, { passive: true });
-    el.addEventListener('pointermove', markUserScrollInput, { passive: true });
+    el.addEventListener('pointermove', markPointerScrollInput, { passive: true });
     el.addEventListener('keydown', markUserScrollKey);
     el.addEventListener('scroll', handler);
     el.addEventListener('scrollend', handleScrollEnd);
@@ -348,8 +355,7 @@ export function ChatMessages() {
       el.removeEventListener('wheel', markUserScrollInput);
       el.removeEventListener('touchstart', markUserScrollInput);
       el.removeEventListener('touchmove', markUserScrollInput);
-      el.removeEventListener('pointerdown', markUserScrollInput);
-      el.removeEventListener('pointermove', markUserScrollInput);
+      el.removeEventListener('pointermove', markPointerScrollInput);
       el.removeEventListener('keydown', markUserScrollKey);
       el.removeEventListener('scroll', handler);
       el.removeEventListener('scrollend', handleScrollEnd);
