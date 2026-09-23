@@ -38,6 +38,17 @@ function disclosure(name: string | RegExp): HTMLElement {
 }
 
 /**
+ * Write the pre-removal `sessionUnread` map straight onto the store state so a
+ * residual consumer of it would still find data. Returns a restore callback:
+ * the key is not part of the store type any more.
+ */
+function injectLegacyUnread(map: Record<string, Set<string>>): () => void {
+  const state = useSessionStore.getState() as unknown as Record<string, unknown>;
+  state.sessionUnread = map;
+  return () => { delete state.sessionUnread; };
+}
+
+/**
  * jsdom has no layout engine, so the thinking content window is given explicit
  * scroll metrics to make the streaming-follow contract observable.
  */
@@ -105,6 +116,31 @@ describe('chat groups render no unread highlight', () => {
     const state = useSessionStore.getState();
     for (const key of ['sessionUnread', 'getUnread', 'markUnread', 'clearUnread']) {
       expect(key in state).toBe(false);
+    }
+  });
+
+  it('stays inert when the legacy unread map is injected into the store', () => {
+    // Before the removal a collapsed group painted a dot when one of its blocks
+    // was in sessionUnread[...]. Injecting that legacy shape must render
+    // nothing, which pins that no consumer of the removed state survives.
+    const restore = injectLegacyUnread({ 'session-1': new Set(['plan one']) });
+    try {
+      // The injection must really land, otherwise this test proves nothing.
+      const injected = useSessionStore.getState() as unknown as Record<string, unknown>;
+      expect(injected.sessionUnread).toBeDefined();
+
+      const first = thinking('plan one', 'think-1');
+      const { container } = render(
+        <>
+          <ThinkingGroup items={[first]} />
+          <ToolGroup items={[tool('Bash', 'true', 'tool-1')]} />
+          <NonBodyGroup items={[first, tool('Bash', 'true', 'tool-1')]} />
+        </>,
+      );
+
+      expect(highlightNodes(container)).toHaveLength(0);
+    } finally {
+      restore();
     }
   });
 });
