@@ -294,10 +294,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   const [reloadScope, setReloadScope] = useState<ReloadScope | null>(null);
-  // Which section owns the current reloadResult/reloadError — each reload
-  // section renders the outcome under its own rows instead of cross-fading
-  // results between sections.
-  const [reloadSection, setReloadSection] = useState<'config' | 'other' | null>(null);
+  // Keep each reload outcome with the page and controls that own it.
+  const [reloadSection, setReloadSection] = useState<'adapters' | 'worker' | 'other' | null>(null);
   const [reloadResult, setReloadResult] = useState<ApiConfigReloadResponse | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
 
@@ -584,7 +582,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
 
   const handleReload = async (scope: ReloadScope) => {
     setReloadScope(scope);
-    setReloadSection(scope === 'plugin' || scope === 'memory' ? 'other' : 'config');
+    setReloadSection(scope === 'plugin' || scope === 'memory' ? 'other' : scope);
     setReloadResult(null);
     setReloadError(null);
     try {
@@ -637,7 +635,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       const r = await updateWorkerSettings(patch);
       // Reuse the config-reload result block to render before→after.
       setReloadResult({ reloaded: true, worker: r });
-      setReloadSection('config');
+      setReloadSection('worker');
       setReloadError(null);
       setWorkerEditOpen(false);
       showToast('Worker config saved and applied', 'info');
@@ -737,6 +735,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6">
           {activeTab === 'adapter' ? (
+            <>
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                 Codex
@@ -787,6 +786,37 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </div>
               )}
             </section>
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                Adapter reload
+              </h3>
+              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                <ReloadRow
+                  label="Reload adapters"
+                  hint="Refresh adapter model lists from config.json"
+                  busy={reloadScope === 'adapters'}
+                  onClick={() => handleReload('adapters')}
+                />
+              </div>
+              {reloadError && reloadSection === 'adapters' && (
+                <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                  {reloadError}
+                </div>
+              )}
+              {!reloadError && reloadResult && reloadSection === 'adapters' && (
+                <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
+                  {reloadResult.adapters?.map((adapter) => (
+                    <div key={adapter.name}>
+                      {adapter.name}: {adapter.modelsBefore ?? '?'} → {adapter.modelsAfter ?? '?'} models
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                Applies adapter configuration changes without restarting the server.
+              </p>
+            </section>
+            </>
           ) : activeTab === 'notifications' ? (
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
@@ -866,23 +896,13 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </div>
               </section>
 
-              {/* Configuration reload — POST /api/config/reload, original
-              scopes. The worker row opens an edit dialog instead (PUT
-              /api/settings/worker: save + hot-apply in one step); a save
-              shows its before→after in this section's result block below.
-              plugin/memory live in the "Other hot-reload" section
-              below; ui settings are read live per request and need no reload. */}
+              {/* Worker settings are edited and hot-applied here. Adapter
+              reload feedback is shown with adapter controls on the Adapter tab. */}
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Configuration reload
+                  Worker configuration
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-                  <ReloadRow
-                    label="Reload adapters"
-                    hint="Adapter model lists (config.json per-adapter models)"
-                    busy={reloadScope === 'adapters'}
-                    onClick={() => handleReload('adapters')}
-                  />
                   <ReloadRow
                     label="Edit worker config"
                     hint="Worker timeout_sec / task_timeout_sec / idle_sec"
@@ -891,18 +911,13 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     onClick={openWorkerEdit}
                   />
                 </div>
-                {reloadError && reloadSection === 'config' && (
+                {reloadError && reloadSection === 'worker' && (
                   <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
                     {reloadError}
                   </div>
                 )}
-                {!reloadError && reloadResult && reloadSection === 'config' && (
+                {!reloadError && reloadResult && reloadSection === 'worker' && (
                   <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
-                    {reloadResult.adapters?.map((a) => (
-                      <div key={a.name}>
-                        {a.name}: {a.modelsBefore ?? '?'} → {a.modelsAfter ?? '?'} models
-                      </div>
-                    ))}
                     {reloadResult.worker &&
                       WORKER_KEYS.map((k) => {
                         const before = reloadResult.worker?.before[k];
@@ -917,7 +932,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   </div>
                 )}
                 <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Applies config.json changes without restarting the server.
+                  Applies worker timeout changes without restarting the server.
                 </p>
               </section>
 

@@ -6098,7 +6098,6 @@ async def api_codex_refresh_official_models():
         completed = subprocess.run(
             command,
             capture_output=True,
-            text=True,
             timeout=30,
             cwd=str(_PROJECT_DIR),
         )
@@ -6107,31 +6106,134 @@ async def api_codex_refresh_official_models():
     except OSError as e:
         raise HTTPException(status_code=502, detail=f"failed to run codex debug models: {e}") from e
 
+    stdout_raw = completed.stdout
+    stderr_raw = completed.stderr
+
+    def _capture_bytes(value) -> bytes | None:
+        # ``capture_output=True`` returns bytes. Accept strings too for older
+        # subprocess shims and callers, encoding them explicitly as UTF-8.
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, str):
+            return value.encode("utf-8")
+        return None
+
+    stdout_bytes = _capture_bytes(stdout_raw)
+    stderr_bytes = _capture_bytes(stderr_raw)
+    stdout_size = len(stdout_bytes) if stdout_bytes is not None else 0
+    stderr_size = len(stderr_bytes) if stderr_bytes is not None else 0
+
     if completed.returncode != 0:
-        message = (completed.stderr or completed.stdout or "command failed").strip()
-        raise HTTPException(status_code=502, detail=f"codex debug models failed: {message[-500:]}")
+        detail = (
+            "codex debug models failed "
+            f"(exit code {completed.returncode}; stdout {stdout_size} bytes; "
+            f"stderr {stderr_size} bytes)"
+        )
+        # Include only a short, plain-text first line from a small stderr. Never
+        # echo JSON/model payloads or large CLI output into the settings UI.
+        if stderr_bytes and stderr_size <= 200:
+            hint = stderr_bytes.decode("utf-8", errors="replace").strip().splitlines()
+            if hint:
+                first_line = " ".join(hint[0].split())
+                if first_line and not any(char in first_line for char in "{}[]"):
+                    detail += f": {first_line}"
+        raise HTTPException(status_code=502, detail=detail)
+
+    if stdout_bytes is None:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout was not captured "
+                f"(stderr {stderr_size} bytes)"
+            ),
+        )
+    if not stdout_bytes.strip():
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout is empty "
+                f"(stderr {stderr_size} bytes)"
+            ),
+        )
 
     try:
-        catalog = json.loads(completed.stdout)
-        if isinstance(catalog, dict):
-            if "models" not in catalog:
-                raise ValueError("expected a JSON object with models[] or a JSON array")
-            catalog = catalog["models"]
-        if not isinstance(catalog, list):
-            raise ValueError("expected a JSON object with models[] or a JSON array")
-        models = []
-        for item in catalog:
-            if not isinstance(item, dict):
-                raise ValueError("catalog entries must be objects")
-            if item.get("visibility") in (None, "list"):
-                slug = item.get("slug")
-                if not isinstance(slug, str) or not slug.strip():
-                    raise ValueError("visible catalog entry has no valid slug")
-                models.append(slug.strip())
-        if not models:
-            raise ValueError("catalog contains no visible models")
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
-        raise HTTPException(status_code=502, detail=f"invalid codex model catalog: {e}")
+        # Codex CLI writes UTF-8 JSON, including large model descriptions and
+        # instruction fields. Decode explicitly instead of using the Windows
+        # locale codec (which can fail and leave CompletedProcess.stdout=None).
+        stdout_text = stdout_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout is not valid UTF-8 "
+                f"at byte {e.start} ({stdout_size} bytes)"
+            ),
+        ) from e
+
+    try:
+        catalog = json.loads(stdout_text)
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout is not valid JSON "
+                f"at line {e.lineno}, column {e.colno} ({stdout_size} bytes)"
+            ),
+        ) from e
+
+    if isinstance(catalog, dict):
+        if "models" not in catalog:
+            keys = ", ".join(sorted(str(key) for key in catalog.keys()))
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "invalid codex model catalog: expected a JSON object with "
+                    f"models[] or a JSON array (object keys: {keys or '(none)'})"
+                ),
+            )
+        catalog = catalog["models"]
+    if not isinstance(catalog, list):
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: expected models[] or a JSON "
+                f"array, got {type(catalog).__name__}"
+            ),
+        )
+
+    models = []
+    seen_models = set()
+    for index, item in enumerate(catalog):
+        if not isinstance(item, dict):
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "invalid codex model catalog: "
+                    f"entry {index} is {type(item).__name__}, expected an object"
+                ),
+            )
+        if item.get("visibility") in (None, "list"):
+            slug = item.get("slug")
+            if not isinstance(slug, str) or not slug.strip():
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "invalid codex model catalog: "
+                        f"visible entry {index} has no valid slug"
+                    ),
+                )
+            slug = slug.strip()
+            if slug not in seen_models:
+                models.append(slug)
+                seen_models.add(slug)
+    if not models:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: catalog contains no visible models "
+                f"({len(catalog)} entries)"
+            ),
+        )
 
     before = list(get_adapter("codex").supported_models)
     raw = read_config_file()
