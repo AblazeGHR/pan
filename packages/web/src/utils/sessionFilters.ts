@@ -79,6 +79,31 @@ export function matchesSpecialFilters(
   return true;
 }
 
+/** Workspace scope key: 'all' / 'ungrouped' / a workspace id. */
+export const ALL_WORKSPACES = 'all';
+export const UNGROUPED_WORKSPACES = 'ungrouped';
+
+/**
+ * Sessions belonging to the active workspace scope.
+ *   - 'all' / missing      → every session (the historical, unscoped list);
+ *   - 'ungrouped'          → sessions without any membership;
+ *   - a workspace id       → members of that workspace only.
+ *
+ * The workspace scope is the OUTERMOST filter: search, special filters and
+ * select-all all run on top of it, so no list-level operation can ever reach
+ * across workspaces.
+ */
+export function scopeSessionsByWorkspace(
+  sessions: Session[],
+  activeWorkspaceId?: string | null,
+): Session[] {
+  if (!activeWorkspaceId || activeWorkspaceId === ALL_WORKSPACES) return sessions;
+  if (activeWorkspaceId === UNGROUPED_WORKSPACES) {
+    return sessions.filter((session) => (session.workspaceIds ?? []).length === 0);
+  }
+  return sessions.filter((session) => (session.workspaceIds ?? []).includes(activeWorkspaceId));
+}
+
 /**
  * Return the sessions that SessionList can operate on for the current view.
  * Select mode deliberately includes sessions hidden from the normal list,
@@ -93,11 +118,14 @@ export function getSessionListCandidates(
     hiddenSessionIds: Set<string>;
     searchQuery: string;
     specialFilters: Set<SpecialFilterId>;
+    /** Active workspace scope ('all' keeps the historical full list). */
+    activeWorkspaceId?: string | null;
   },
 ): Session[] {
+  const inScope = scopeSessionsByWorkspace(sessions, options.activeWorkspaceId);
   const base = options.multiSelectMode
-    ? sessions
-    : sessions.filter((session) => !options.hiddenSessionIds.has(session.id));
+    ? inScope
+    : inScope.filter((session) => !options.hiddenSessionIds.has(session.id));
 
   let candidates = base.filter((session) =>
     matchesSpecialFilters(session, sessions, options.specialFilters),

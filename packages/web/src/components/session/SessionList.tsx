@@ -4,7 +4,8 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
-import { getSessionListCandidates } from '@/utils/sessionFilters';
+import { getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
 import type { DropZone } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
@@ -198,6 +199,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const multiSelectMode = useSessionStore((s) => s.multiSelectMode);
   const selectedIds = useSessionStore((s) => s.selectedIds);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
 
   const {
     groupBy,
@@ -214,6 +216,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     pruneHiddenSessions,
     showToast,
     dragEnabled: dragPreference,
+    activeWorkspaceId,
   } = useUIStore(useShallow((s) => ({
     groupBy: s.groupBy,
     searchQuery: s.searchQuery,
@@ -229,6 +232,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     pruneHiddenSessions: s.pruneHiddenSessions,
     showToast: s.showToast,
     dragEnabled: s.dragEnabled,
+    activeWorkspaceId: s.activeWorkspaceId,
   })));
   const defaultGroupBy = useAppSettingsStore((s) => s.defaultGroupBy);
 
@@ -279,6 +283,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       hiddenSessionIds,
       searchQuery,
       specialFilters,
+      activeWorkspaceId,
     })];
 
     filtered.sort((a, b) => {
@@ -340,14 +345,16 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
 
     const managerTree = groupBy === 'manager' ? buildManagerTree(filtered) : [];
 
-    // Normal mode, sessions exist, but every one of them is hidden.
+    // Normal mode, sessions exist IN THE ACTIVE WORKSPACE, but every one of
+    // them is hidden. Scoped so a fully-hidden workspace still explains itself.
+    const scopedSessions = scopeSessionsByWorkspace(sessions, activeWorkspaceId);
     const allHidden =
       !multiSelectMode &&
-      sessions.length > 0 &&
-      sessions.every((session) => hiddenSessionIds.has(session.id));
+      scopedSessions.length > 0 &&
+      scopedSessions.every((session) => hiddenSessionIds.has(session.id));
 
     return { filtered, grouped: groups, managerTree, allHidden };
-  }, [sessions, searchQuery, sortBy, customOrder, groupBy, specialFilters, hiddenSessionIds, multiSelectMode]);
+  }, [sessions, searchQuery, sortBy, customOrder, groupBy, specialFilters, hiddenSessionIds, multiSelectMode, activeWorkspaceId]);
 
   // ── 稳定回调：SessionItem 已 React.memo，靠这些引用稳定才不触发无关卡片重渲染 ──
   // multiSelectMode / toggleSelection / selectSession 通过 getState() 读取最新值，
@@ -406,6 +413,68 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   } | null>(null);
   // Latest hit-test result, read on pointerup without re-subscribing handlers.
   const dropTargetRef = useRef<{ id: string; zone: 'before' | 'center' | 'after' } | null>(null);
+  /** Workspace-tab drop target while the pointer is over the rail. */
+  const railTargetRef = useRef<string | null>(null);
+  const [railZone, setRailZone] = useState(false);
+  const [railTarget, setRailTarget] = useState<string | null>(null);
+  const railTargetName = railTarget && railTarget !== 'all'
+    ? workspaces.find((w) => w.id === railTarget)?.name ?? '工作区'
+    : null;
+  /** Currently highlighted rail tab element (Tailwind ring utilities). */
+  const railHighlightRef = useRef<HTMLElement | null>(null);
+  const highlightRailTab = (el: HTMLElement | null) => {
+    if (railHighlightRef.current === el) return;
+    railHighlightRef.current?.classList.remove('ring-2', 'ring-accent');
+    if (el) el.classList.add('ring-2', 'ring-accent');
+    railHighlightRef.current = el;
+  };
+  const railExpandTimerRef = useRef<number | null>(null);
+  const railAutoExpandedRef = useRef(false);
+
+  /**
+   * Workspace drop zone = anything right of the session list (the rail's
+   * floating handle sits exactly on that boundary). While collapsed, hovering
+   * there expands the rail after a short delay so the tabs become droppable.
+   * Returns true when the pointer is inside that zone.
+   */
+  const updateRailHover = useCallback((clientX: number, clientY: number): boolean => {
+    const listRight = listRef.current?.getBoundingClientRect().right ?? 0;
+    const inZone = listRight > 0 && clientX >= listRight - 4;
+    if (!inZone) {
+      if (railExpandTimerRef.current !== null) {
+        window.clearTimeout(railExpandTimerRef.current);
+        railExpandTimerRef.current = null;
+      }
+      if (railTargetRef.current !== null) { railTargetRef.current = null; setRailTarget(null); }
+      setRailZone(false);
+      return false;
+    }
+    setRailZone(true);
+    const ui = useUIStore.getState();
+    if (!ui.railExpanded) {
+      if (railExpandTimerRef.current === null) {
+        railExpandTimerRef.current = window.setTimeout(() => {
+          railExpandTimerRef.current = null;
+          railAutoExpandedRef.current = true;
+          ui.setRailExpanded(true);
+        }, 320);
+      }
+      return true;
+    }
+    let found: string | null = null;
+    let foundEl: HTMLElement | null = null;
+    for (const el of document.querySelectorAll<HTMLElement>('[data-workspace-tab-id]')) {
+      const rect = el.getBoundingClientRect();
+      if (clientY >= rect.top && clientY < rect.bottom && clientX >= rect.left && clientX <= rect.right) {
+        found = el.dataset.workspaceTabId ?? null;
+        foundEl = el;
+        break;
+      }
+    }
+    highlightRailTab(foundEl);
+    if (found !== railTargetRef.current) { railTargetRef.current = found; setRailTarget(found); }
+    return true;
+  }, []);
   const dragIdRef = useRef<string | null>(null);
   // Press tracking for the drag-start threshold: a press must move beyond
   // DRAG_START_THRESHOLD_PX before it becomes a real drag; otherwise the
@@ -531,6 +600,15 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     dragIdRef.current = null;
     pressRef.current = null;
     clearDragFeedback();
+    // Rail drop state must not survive the drag either.
+    if (railExpandTimerRef.current !== null) {
+      window.clearTimeout(railExpandTimerRef.current);
+      railExpandTimerRef.current = null;
+    }
+    highlightRailTab(null);
+    railTargetRef.current = null;
+    setRailTarget(null);
+    setRailZone(false);
     // Keep didDrag set briefly so the click fired right after a drag release
     // is still suppressed, but never swallow a later genuine click.
     if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
@@ -558,6 +636,12 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       setDragId(press.id);
     }
     positionGhost(e.clientX, e.clientY);
+    if (updateRailHover(e.clientX, e.clientY)) {
+      // Over the Workspace rail: card-level hints must not linger, and the
+      // list's auto-scroll must not fight the rail's own scrolling.
+      clearDragFeedback();
+      return;
+    }
     hitTest(e.clientY);
     updateAutoScroll(e.clientY);
   };
@@ -571,7 +655,47 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     }
     const dragCurrent = dragIdRef.current;
     const target = dropTargetRef.current;
-    if (!dragCurrent || !target) {
+    if (!dragCurrent) {
+      finishDrag();
+      return;
+    }
+    // Workspace drop: over a rail tab → move (single membership + cascade).
+    // Over the rail but not on a tab → cancel, and re-collapse the rail when
+    // this drag was the thing that auto-expanded it.
+    if (railZone) {
+      const railTargetId = railTarget;
+      const sessionState = useSessionStore.getState();
+      const dragged = sessionState.sessions.find((s) => s.id === dragCurrent);
+      finishDrag();
+      if (!railTargetId || !dragged || dragged.id.startsWith('__pending_')) {
+        if (railAutoExpandedRef.current) {
+          railAutoExpandedRef.current = false;
+          useUIStore.getState().setRailExpanded(false);
+        }
+        return;
+      }
+      railAutoExpandedRef.current = false;
+      void useWorkspaceStore.getState()
+        .moveSessions([dragged.id], railTargetId === 'all' ? null : railTargetId)
+        .then((changed) => {
+          if (changed.length === 0) {
+            showToast(railTargetId === 'all' ? '该会话当前未归属任何工作区' : '该会话已在该工作区', 'error');
+            return;
+          }
+          const followed = changed.length - 1;
+          const label = railTargetId === 'all'
+            ? null
+            : useWorkspaceStore.getState().workspaces.find((w) => w.id === railTargetId)?.name ?? '工作区';
+          if (!label) showToast(`已将「${dragged.name}」移出工作区（未分组）`);
+          else if (followed > 0) showToast(`已将「${dragged.name}」及其 ${followed} 个子孙会话移入「${label}」`);
+          else showToast(`已将「${dragged.name}」移入「${label}」`);
+        })
+        .catch((err) => {
+          showToast(err instanceof Error ? err.message : '移动失败', 'error');
+        });
+      return;
+    }
+    if (!target) {
       finishDrag();
       return;
     }
@@ -824,9 +948,26 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         >
           排序
         </span>
+        <span
+          data-ghost-workspace
+          data-lit={railZone ? '1' : '0'}
+          className={`shrink-0 rounded px-1.5 py-px text-[10px] leading-tight transition-colors ${
+            railZone
+              ? 'bg-accent text-white font-medium'
+              : 'text-text-tertiary/70 border border-border-default'
+          }`}
+        >
+          工作区
+        </span>
       </div>
       <div className="mt-1 text-[10px] text-text-tertiary">
-        中心 = 交给管理 · 边缘 = 同级排序
+        {railZone
+          ? (railTarget === 'all'
+            ? '放到「全部」= 移出工作区（未分组）'
+            : railTarget
+              ? `移入「${railTargetName}」（管理者会话的子孙会跟随）`
+              : '放到某个工作区标签上')
+          : '中心 = 交给管理 · 边缘 = 同级排序'}
       </div>
     </div>
   );

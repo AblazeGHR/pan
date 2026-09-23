@@ -6,6 +6,7 @@ import { useWorkerStore } from '@/stores/workerStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   useAdapterStore,
 } from '@/stores/adapterStore';
@@ -687,6 +688,32 @@ export function useWebSocket() {
     // initially rendered an unknown count/preview.
     unsubscribers.push(wsClient.on('session.summaryBackfillCompleted', () => {
       scheduleRefreshSessions();
+    }));
+    // Workspaces: metadata is durable server state — refetch on any change
+    // (the payload is tiny). Membership snapshots are applied verbatim so the
+    // rail counts, the card badges and the active scope converge without a
+    // full session refetch.
+    unsubscribers.push(wsClient.on('workspace.created', () => {
+      void useWorkspaceStore.getState().loadWorkspaces();
+    }));
+    unsubscribers.push(wsClient.on('workspace.updated', () => {
+      void useWorkspaceStore.getState().loadWorkspaces();
+    }));
+    unsubscribers.push(wsClient.on('workspace.orderUpdated', () => {
+      void useWorkspaceStore.getState().loadWorkspaces();
+    }));
+    unsubscribers.push(wsClient.on('workspace.deleted', () => {
+      void useWorkspaceStore.getState().loadWorkspaces();
+    }));
+    unsubscribers.push(wsClient.on('workspace.membershipUpdated', (e: StreamEvent) => {
+      if (e.workspaceId && Array.isArray(e.sessionIds)) {
+        useWorkspaceStore.getState().applyMembership(e.workspaceId, e.sessionIds);
+      }
+    }));
+    unsubscribers.push(wsClient.on('session.workspaceUpdated', (e: StreamEvent) => {
+      if (e.sessionId && Array.isArray(e.workspaceIds)) {
+        useWorkspaceStore.getState().applySessionMembership(e.sessionId, e.workspaceIds);
+      }
     }));
     // Custom session order persisted (POST /api/sessions/order broadcast). A
     // debounced full-list refresh re-reads the server snapshot; in custom sort
