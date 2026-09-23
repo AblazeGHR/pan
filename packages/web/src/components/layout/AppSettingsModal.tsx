@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Settings, SlidersHorizontal, X } from 'lucide-react';
+import { Bell, Eye, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import {
@@ -38,7 +38,8 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
 
 const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
 
-type SettingsTab = 'general' | 'notifications' | 'adapter';
+type SettingsTab = 'general' | 'appearance' | 'notifications' | 'adapter';
+const SETTINGS_TABS: SettingsTab[] = ['general', 'appearance', 'notifications', 'adapter'];
 
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
 type MainRestartState =
@@ -690,10 +691,36 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </button>
         </div>
 
-        <div className="flex shrink-0 border-b border-border-default px-4 md:px-6">
+        <div
+          role="tablist"
+          aria-label="App settings sections"
+          className="flex shrink-0 border-b border-border-default px-4 md:px-6"
+          onKeyDown={(event) => {
+            const currentIndex = SETTINGS_TABS.indexOf(activeTab);
+            const nextIndex =
+              event.key === 'ArrowRight'
+                ? (currentIndex + 1) % SETTINGS_TABS.length
+                : event.key === 'ArrowLeft'
+                  ? (currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length
+                  : event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? SETTINGS_TABS.length - 1
+                      : null;
+            if (nextIndex === null) return;
+            event.preventDefault();
+            const nextTab = SETTINGS_TABS[nextIndex]!;
+            document.getElementById(`app-settings-tab-${nextTab}`)?.focus();
+            setActiveTab(nextTab);
+          }}
+        >
           <button
             type="button"
+            role="tab"
+            id="app-settings-tab-general"
+            aria-controls="app-settings-tabpanel"
             aria-selected={activeTab === 'general'}
+            tabIndex={activeTab === 'general' ? 0 : -1}
             onClick={() => setActiveTab('general')}
             className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'general'
@@ -706,7 +733,28 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            id="app-settings-tab-appearance"
+            aria-controls="app-settings-tabpanel"
+            aria-selected={activeTab === 'appearance'}
+            tabIndex={activeTab === 'appearance' ? 0 : -1}
+            onClick={() => setActiveTab('appearance')}
+            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'appearance'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <Eye size={14} />
+            Appearance
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="app-settings-tab-notifications"
+            aria-controls="app-settings-tabpanel"
             aria-selected={activeTab === 'notifications'}
+            tabIndex={activeTab === 'notifications' ? 0 : -1}
             onClick={() => setActiveTab('notifications')}
             className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'notifications'
@@ -719,7 +767,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            id="app-settings-tab-adapter"
+            aria-controls="app-settings-tabpanel"
             aria-selected={activeTab === 'adapter'}
+            tabIndex={activeTab === 'adapter' ? 0 : -1}
             onClick={() => setActiveTab('adapter')}
             className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
               activeTab === 'adapter'
@@ -733,7 +785,13 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6">
+        <div
+          role="tabpanel"
+          id="app-settings-tabpanel"
+          aria-labelledby={`app-settings-tab-${activeTab}`}
+          tabIndex={0}
+          className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6"
+        >
           {activeTab === 'adapter' ? (
             <>
             <section>
@@ -844,6 +902,32 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 interactive prompts are unchanged.
               </p>
             </section>
+          ) : activeTab === 'appearance' ? (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                Message visibility
+              </h3>
+              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                <SwitchRow
+                  label="Show meta-agent info"
+                  hint="////by agent"
+                  checked={showMetaAgent}
+                  onChange={setShowMetaAgent}
+                />
+                <SwitchRow
+                  label="Show task-agent info"
+                  hint="@@@@by agent"
+                  checked={showTaskAgent}
+                  onChange={setShowTaskAgent}
+                />
+                <SwitchRow
+                  label="Show QQ messages"
+                  hint="@@@@by qq"
+                  checked={showQQ}
+                  onChange={setShowQQ}
+                />
+              </div>
+            </section>
           ) : (
             <>
               {/* Session list grouping */}
@@ -867,33 +951,6 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   Applies to the session list as the default grouping. You can still cycle grouping
                   per view with the group button.
                 </p>
-              </section>
-
-              {/* Message visibility */}
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Message visibility
-                </h3>
-                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-                  <SwitchRow
-                    label="Show meta-agent info"
-                    hint="////by agent"
-                    checked={showMetaAgent}
-                    onChange={setShowMetaAgent}
-                  />
-                  <SwitchRow
-                    label="Show task-agent info"
-                    hint="@@@@by agent"
-                    checked={showTaskAgent}
-                    onChange={setShowTaskAgent}
-                  />
-                  <SwitchRow
-                    label="Show QQ messages"
-                    hint="@@@@by qq"
-                    checked={showQQ}
-                    onChange={setShowQQ}
-                  />
-                </div>
               </section>
 
               {/* Worker settings are edited and hot-applied here. Adapter
