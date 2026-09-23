@@ -220,7 +220,7 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
                       role="region"
                       tabIndex={0}
                       aria-label={`${tool.name} content`}
-                      className="max-h-[20rem] overflow-y-auto overscroll-contain"
+                      className="max-h-[20rem] overflow-y-auto"
                     >
                       <pre className="text-xs font-mono whitespace-pre-wrap break-words leading-relaxed text-text-secondary">
                         {tool.args ? formatArgs(tool.args, tool.name) : tool.rawContent}

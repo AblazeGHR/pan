@@ -92,6 +92,8 @@ describe('lazy long chat blocks', () => {
     expect(screen.getByText('third streamed thought')).toBeTruthy();
     expect(container.querySelector('[data-testid="thinking-content-window"] > div')?.className)
       .toContain('max-h-40 overflow-y-auto');
+    expect(container.querySelector('[data-testid="thinking-content-window"] > div')?.className)
+      .not.toContain('overscroll-contain');
 
     fireEvent.click(disclosure);
     const window = container.querySelector('[data-testid="thinking-content-window"]');
@@ -117,6 +119,7 @@ describe('lazy long chat blocks', () => {
     const content = screen.getByRole('region', { name: 'Bash content' });
     expect(content.className).toContain('max-h-[20rem]');
     expect(content.className).toContain('overflow-y-auto');
+    expect(content.className).not.toContain('overscroll-contain');
     expect(content.textContent).toContain(longValue);
     expect(useDetailStore.getState().detailTarget).toEqual({
       type: 'tool',
@@ -145,6 +148,8 @@ describe('lazy long chat blocks', () => {
     const groupWindow = screen.getByTestId('non-body-group-window');
     expect(groupWindow.className).toContain('max-h-[20rem]');
     expect(groupWindow.className).toContain('overflow-y-auto');
+    // Keep native scroll chaining enabled at this boundary for wheel and touch input.
+    expect(groupWindow.className).not.toContain('overscroll-contain');
     expect(screen.getByRole('button', { name: 'thinking' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '1 tools' })).toBeTruthy();
     expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
@@ -152,6 +157,7 @@ describe('lazy long chat blocks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'thinking' }));
     const thinkingWindow = container.querySelector('[data-testid="thinking-content-window"] > div');
     expect(thinkingWindow?.className).toContain('max-h-40 overflow-y-auto');
+    expect(thinkingWindow?.className).not.toContain('overscroll-contain');
     expect(screen.getByTestId('rendered-thinking-content').textContent)
       .toBe(longThinking.content.slice(0, 100));
 
@@ -160,6 +166,7 @@ describe('lazy long chat blocks', () => {
     const toolWindow = screen.getByRole('region', { name: 'Bash content' });
     expect(toolWindow.className).toContain('max-h-[20rem]');
     expect(toolWindow.className).toContain('overflow-y-auto');
+    expect(toolWindow.className).not.toContain('overscroll-contain');
     expect(toolWindow.textContent).toContain(longValue);
     expect(useDetailStore.getState().detailTarget).toEqual({
       type: 'tool',
