@@ -2,9 +2,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { render, act, fireEvent, cleanup } from '@testing-library/react';
+import { render, act, fireEvent, cleanup, screen } from '@testing-library/react';
 import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
-import { groupMessages } from './MessageBubble';
+import { groupMessages, getItemRole } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Message } from '@/types';
@@ -154,6 +154,27 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   cleanup();
+});
+
+it('groups only adjacent thinking blocks and keeps semantic boundaries', () => {
+  const messages: Message[] = [
+    { role: 'thinking', content: 'thought 1' },
+    { role: 'thinking', content: 'thought 2' },
+    { role: 'assistant', content: 'visible answer' },
+    { role: 'thinking', content: 'thought 3' },
+    { role: 'tool', content: 'Run({})' },
+    { role: 'thinking', content: 'thought 4' },
+    { role: 'user', content: 'next request' },
+  ];
+  const grouped = groupMessages(messages);
+
+  expect(grouped.map((item) => 'type' in item ? item.type : item.role)).toEqual([
+    'thinking_group', 'assistant', 'thinking_group', 'tool_group', 'thinking_group', 'user',
+  ]);
+  expect(grouped.map((item) => getItemRole(item))).toEqual([
+    'thinking', 'assistant', 'thinking', 'tool', 'thinking', 'user',
+  ]);
+  expect(grouped[0]).toMatchObject({ type: 'thinking_group', items: messages.slice(0, 2) });
 });
 
 describe('ChatMessages scroll positioning', () => {
@@ -802,13 +823,43 @@ describe('ChatMessages scroll positioning', () => {
       .toEqual(['0']);
   });
 
-  it('scopes virtual rows and expanded thinking state to the selected Session', () => {
-    const thinking: Message = {
+  it('keeps an expanded thinking group and its virtual row while adjacent thinking streams in', () => {
+    const first: Message = {
       role: 'thinking',
-      content: 'session-scoped plan',
-      messageId: 'same-message-id',
+      content: 'streamed first thought',
+      blockId: 'stream-group-first',
     };
-    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [thinking] });
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [first] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 120 }]);
+    const { container } = render(<ChatMessages />);
+    const getItemKey = m.state.options?.getItemKey;
+    const initialKey = getItemKey?.(0);
+    const firstDisclosure = screen.getByRole('button', { name: 'thinking' });
+    fireEvent.click(firstDisclosure);
+    expect(firstDisclosure.getAttribute('aria-expanded')).toBe('true');
+
+    act(() => {
+      useSessionStore.setState({
+        currentMessages: [
+          first,
+          { role: 'thinking', content: 'streamed second thought', blockId: 'stream-group-second' },
+        ],
+      });
+    });
+
+    const updatedDisclosure = screen.getByRole('button', { name: '2 thinking blocks' });
+    expect(getItemKey?.(0)).toBe(initialKey);
+    expect(updatedDisclosure.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('streamed first thought');
+    expect(container.textContent).toContain('streamed second thought');
+  });
+
+  it('scopes virtual rows and expanded thinking-group state to the selected Session', () => {
+    const thinking: Message[] = [
+      { role: 'thinking', content: 'session-scoped plan', messageId: 'same-message-id' },
+      { role: 'thinking', content: 'session-scoped detail', blockId: 'same-thinking-block' },
+    ];
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: thinking });
     m.setVirtualItems([{ index: 0, start: 0, size: 120 }]);
     const { container } = render(<ChatMessages />);
 
@@ -818,7 +869,7 @@ describe('ChatMessages scroll positioning', () => {
     expect(disclosure.getAttribute('aria-expanded')).toBe('true');
 
     act(() => {
-      useSessionStore.setState({ currentSessionId: 's2', currentMessages: [{ ...thinking }] });
+      useSessionStore.setState({ currentSessionId: 's2', currentMessages: thinking.map((item) => ({ ...item })) });
     });
 
     expect(m.state.options?.getItemKey?.(0)).not.toBe(firstKey);

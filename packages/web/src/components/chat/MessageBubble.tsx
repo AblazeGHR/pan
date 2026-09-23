@@ -2,15 +2,16 @@ import type { Message } from '@/types';
 import { memo, useMemo } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
+import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
-import type { ToolGroupDisplayItem } from '@/utils/messageIdentity';
+import type { GroupDisplayItem } from '@/utils/messageIdentity';
 
-export type GroupedItem = Message | ToolGroupDisplayItem;
+export type GroupedItem = Message | GroupDisplayItem;
 type PrevRole = Message['role'] | 'tool' | null;
 
-/** Role used for spacing decisions. Tool groups behave like 'tool'. */
+/** Role used for spacing decisions. Groups use the role of their member blocks. */
 export function getItemRole(item: GroupedItem): PrevRole {
-  if ('type' in item && item.type === 'tool_group') return 'tool';
+  if ('type' in item) return item.type === 'tool_group' ? 'tool' : 'thinking';
   return (item as Message).role;
 }
 
@@ -99,27 +100,32 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
 });
 
 /**
- * Group consecutive messages into display items.
- * Consecutive tool messages are grouped into a single ToolGroup.
+ * Group consecutive tool and thinking messages into semantic display rows.
+ * Other roles end the current group so blocks never cross a message boundary.
  */
-export function groupMessages(
-  messages: Message[],
-): Array<Message | { type: 'tool_group'; items: Message[] }> {
-  const grouped: Array<Message | { type: 'tool_group'; items: Message[] }> = [];
+export function groupMessages(messages: Message[]): GroupedItem[] {
+  const grouped: GroupedItem[] = [];
   let currentToolGroup: Message[] | null = null;
+  let currentThinkingGroup: Message[] | null = null;
 
   for (const msg of messages) {
     if (msg.role === 'tool') {
+      currentThinkingGroup = null;
       if (!currentToolGroup) {
         currentToolGroup = [];
-        grouped.push({
-          type: 'tool_group',
-          items: currentToolGroup,
-        });
+        grouped.push({ type: 'tool_group', items: currentToolGroup });
       }
       currentToolGroup.push(msg);
+    } else if (msg.role === 'thinking') {
+      currentToolGroup = null;
+      if (!currentThinkingGroup) {
+        currentThinkingGroup = [];
+        grouped.push({ type: 'thinking_group', items: currentThinkingGroup });
+      }
+      currentThinkingGroup.push(msg);
     } else {
       currentToolGroup = null;
+      currentThinkingGroup = null;
       grouped.push(msg);
     }
   }
@@ -133,10 +139,17 @@ interface MessageDisplayItemProps {
 }
 
 export const MessageDisplayItem = memo(function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItemProps) {
-  if ('type' in item && item.type === 'tool_group') {
+  if ('type' in item) {
+    if (item.type === 'tool_group') {
+      return (
+        <div className={`${marginTopClass('tool', prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>
+          <ToolGroup items={item.items} />
+        </div>
+      );
+    }
     return (
-      <div className={`${marginTopClass('tool', prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>
-        <ToolGroup items={item.items} />
+      <div className={`${marginTopClass('thinking', prevRole)} px-3 sm:px-6 lg:px-8`}>
+        <ThinkingGroup items={item.items} />
       </div>
     );
   }

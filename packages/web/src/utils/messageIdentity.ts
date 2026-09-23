@@ -50,6 +50,8 @@ export function getMessageIdentity(message: Message): string {
 }
 
 export type ToolGroupDisplayItem = { type: 'tool_group'; items: Message[] };
+export type ThinkingGroupDisplayItem = { type: 'thinking_group'; items: Message[] };
+export type GroupDisplayItem = ToolGroupDisplayItem | ThinkingGroupDisplayItem;
 
 /**
  * The key belongs to the logical display item, not its current array index or
@@ -59,18 +61,18 @@ export type ToolGroupDisplayItem = { type: 'tool_group'; items: Message[] };
  * exactly the moment its neighboring streamed delta is changing height, which
  * loses the virtualizer measurement and can move the reader's anchor. The
  * identity is already unique per displayed Message, so one display namespace
- * is sufficient for both shapes. A tool group uses its first tool because
- * appending/replacing later tools must not remount the whole group or discard
- * its measurement/expanded state.
+ * is sufficient for both shapes. A group uses its first member because
+ * appending/replacing later members must not remount the row or discard its
+ * measurement/expanded state.
  */
 export function getDisplayItemKey(
-  item: Message | ToolGroupDisplayItem | undefined,
+  item: Message | GroupDisplayItem | undefined,
   index: number,
 ): string {
   if (!item) return `missing:${index}`;
-  if ('type' in item && item.type === 'tool_group') {
-    const firstTool = item.items[0];
-    return firstTool ? `display:${getMessageIdentity(firstTool)}` : `display:empty:${index}`;
+  if ('type' in item) {
+    const firstItem = item.items[0];
+    return firstItem ? `display:${getMessageIdentity(firstItem)}` : `display:empty:${index}`;
   }
   return `display:${getMessageIdentity(item as Message)}`;
 }

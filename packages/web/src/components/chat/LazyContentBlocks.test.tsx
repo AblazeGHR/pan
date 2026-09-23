@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useDetailStore } from '@/stores/detailStore';
 import type { Message } from '@/types';
 import { ThinkingBlock } from './ThinkingBlock';
+import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
 import { LONG_BLOCK_CONTENT_THRESHOLD } from './lazyBlockContent';
 
@@ -47,6 +48,51 @@ describe('lazy long chat blocks', () => {
     expect(screen.getByTestId('rendered-thinking-content').textContent).toBe(updated.content.slice(0, 100));
 
     fireEvent.click(screen.getByRole('button', { name: 'thinking' }));
+    const window = container.querySelector('[data-testid="thinking-content-window"]');
+    expect(window).not.toBeNull();
+    fireEvent.transitionEnd(window!, { propertyName: 'max-height' });
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
+  });
+  it('toggles adjacent short thinking blocks as one group while keeping short Markdown eager', () => {
+    const items: Message[] = [
+      { role: 'thinking', content: 'first thought', blockId: 'thought-1' },
+      { role: 'thinking', content: 'second thought', blockId: 'thought-2' },
+    ];
+    render(<ThinkingGroup items={items} />);
+
+    const disclosure = screen.getByRole('button', { name: '2 thinking blocks' });
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getAllByTestId('rendered-thinking-content').map((node) => node.textContent))
+      .toEqual(['first thought', 'second thought']);
+
+    fireEvent.click(disclosure);
+    expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(disclosure);
+    expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getAllByTestId('rendered-thinking-content')).toHaveLength(2);
+  });
+
+  it('defers long grouped thinking, keeps an open group across streamed appends, then unloads after collapse', () => {
+    const items: Message[] = [
+      { role: 'thinking', content: 'a'.repeat(13_000), blockId: 'long-thought-1' },
+      { role: 'thinking', content: 'b'.repeat(13_000), blockId: 'long-thought-2' },
+    ];
+    const { rerender, container } = render(<ThinkingGroup items={items} />);
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '2 thinking blocks' }));
+    const streamed = { ...items[0]!, content: `${items[0]!.content} streamed` };
+    const third: Message = { role: 'thinking', content: 'third streamed thought', blockId: 'long-thought-3' };
+    rerender(<ThinkingGroup items={[streamed, items[1]!, third]} />);
+
+    const disclosure = screen.getByRole('button', { name: '3 thinking blocks' });
+    expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByTestId('rendered-thinking-content')).toHaveLength(3);
+    expect(screen.getByText('third streamed thought')).toBeTruthy();
+    expect(container.querySelector('[data-testid="thinking-content-window"] > div')?.className)
+      .toContain('max-h-40 overflow-y-auto');
+
+    fireEvent.click(disclosure);
     const window = container.querySelector('[data-testid="thinking-content-window"]');
     expect(window).not.toBeNull();
     fireEvent.transitionEnd(window!, { propertyName: 'max-height' });
