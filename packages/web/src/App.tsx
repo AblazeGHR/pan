@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sidebar } from './components/layout/Sidebar';
+import { WorkspaceRail } from './components/layout/WorkspaceRail';
 import { ToastContainer } from './components/ui/Toast';
 import { CommandPalette } from './components/CommandPalette';
 import { EditorConfirmationModal } from './components/editor/EditorConfirmationModal';
@@ -121,18 +122,21 @@ function Layout() {
         />
       )}
 
-      {/* Sidebar — full overlay on mobile — grid column 1 */}
+      {/* Sidebar — full overlay on mobile — grid column 1. The Workspace rail
+          is a sibling so its panel takes real layout width (pushing the chat
+          area right) while the collapsed handle floats over the chat gutter. */}
       <div
         className={`${
           isMobile
             ? `fixed inset-y-0 left-0 z-40 transform transition-transform duration-200 ${
                 mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
               }`
-            : 'relative'
+            : 'relative z-30 flex'
         }`}
         style={{ gridColumn: '1' }}
       >
         <Sidebar />
+        {!isMobile && <WorkspaceRail />}
       </div>
 
       {/* Resize handle gutter — grid column 2 (0-width) */}

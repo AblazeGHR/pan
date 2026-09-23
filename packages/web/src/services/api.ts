@@ -33,6 +33,10 @@ import type {
   FsEntry,
   ApiClaimResponse,
   ApiSessionOrderResponse,
+  ApiWorkspacesResponse,
+  ApiWorkspaceResponse,
+  ApiWorkspaceOrderResponse,
+  Workspace,
   ApiReportSubscribeResponse,
   ApiReadonlyResponse,
   ApiQqContactsResponse,
@@ -502,6 +506,88 @@ export async function reorderSessions(
     throw err;
   }
   return { ok: true, order: data.order || [] };
+}
+
+/* ── Workspaces: durable named session groups (sidebar rail) ── */
+
+export async function fetchWorkspaces(): Promise<Workspace[]> {
+  const data = await request<ApiWorkspacesResponse>(`${BASE}/workspaces`);
+  if (data.error) throw new Error(data.error);
+  return data.workspaces || [];
+}
+
+function workspaceFailure(data: ApiWorkspaceResponse, fallback: string): Error & { code?: string } {
+  const err = new Error(data.error?.message || fallback) as Error & { code?: string };
+  err.code = data.error?.code || 'workspace_request_failed';
+  return err;
+}
+
+export async function createWorkspace(name: string): Promise<Workspace> {
+  const data = await request<ApiWorkspaceResponse>(`${BASE}/workspaces`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  if (data.ok === false || !data.workspace) throw workspaceFailure(data, 'Create workspace failed');
+  return data.workspace;
+}
+
+export async function renameWorkspace(workspaceId: string, name: string): Promise<Workspace> {
+  const data = await request<ApiWorkspaceResponse>(`${BASE}/workspaces/${workspaceId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+  if (data.ok === false || !data.workspace) throw workspaceFailure(data, 'Rename workspace failed');
+  return data.workspace;
+}
+
+export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  const data = await request<{ ok?: boolean; error?: { code?: string; message?: string } }>(
+    `${BASE}/workspaces/${workspaceId}`,
+    { method: 'DELETE' },
+  );
+  if (data.ok === false) {
+    const err = new Error(data.error?.message || 'Delete workspace failed') as Error & { code?: string };
+    err.code = data.error?.code || 'delete_workspace_failed';
+    throw err;
+  }
+}
+
+/** Persist the full workspace display order (backend expands/validates ids). */
+export async function saveWorkspaceOrder(workspaceIds: string[]): Promise<string[]> {
+  const data = await request<ApiWorkspaceOrderResponse>(`${BASE}/workspaces/order`, {
+    method: 'POST',
+    body: JSON.stringify({ workspaceIds }),
+  });
+  if (data.ok === false) {
+    const err = new Error(data.error?.message || 'Reorder workspaces failed') as Error & { code?: string };
+    err.code = data.error?.code || 'reorder_workspaces_failed';
+    throw err;
+  }
+  return data.order || [];
+}
+
+/**
+ * Replace one session's workspace membership. Single membership rule: callers
+ * pass [] (ungrouped) or exactly one workspace id.
+ */
+export async function setSessionWorkspaces(
+  sessionId: string,
+  workspaceIds: string[],
+): Promise<Session | undefined> {
+  const data = await request<{
+    ok?: boolean;
+    session?: Session;
+    error?: { code?: string; message?: string };
+  }>(`${BASE}/sessions/${sessionId}/workspaces`, {
+    method: 'PUT',
+    body: JSON.stringify({ workspaceIds }),
+  });
+  if (data.ok === false) {
+    const err = new Error(data.error?.message || 'Set session workspace failed') as Error & { code?: string };
+    err.code = data.error?.code || 'set_session_workspace_failed';
+    throw err;
+  }
+  return data.session;
 }
 
 export async function claimSession(

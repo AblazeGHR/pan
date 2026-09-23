@@ -1,6 +1,8 @@
 import { memo, useMemo } from 'react';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
+import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { DropZone } from './sessionDrag';
 import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 
@@ -110,6 +112,13 @@ export const SessionItem = memo(function SessionItem({
       ? messages.length
       : '—';
   const credit = session.totalUsage?.credit ?? null;
+  // Workspace membership badge: shown only in the unscoped "all" view (inside
+  // a workspace tab the scope is already known, and the chip just costs width).
+  const workspaceId = session.workspaceIds?.[0] ?? null;
+  const workspaceName = useWorkspaceStore((s) =>
+    workspaceId ? s.workspaces.find((w) => w.id === workspaceId)?.name ?? null : null,
+  );
+  const showWorkspaceBadge = useUIStore((s) => s.activeWorkspaceId === 'all') && !!workspaceName;
 
   const handleClick = () => {
     if (isPending) return;
@@ -221,6 +230,15 @@ export const SessionItem = memo(function SessionItem({
           {session.adapter && (
             <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
               {session.adapter}
+            </span>
+          )}
+          {showWorkspaceBadge && (
+            <span
+              className="flex items-center gap-0.5 text-[10px] text-accent bg-accent/10 border border-accent/25 rounded px-1 py-px shrink-0"
+              title={`工作区：${workspaceName}`}
+            >
+              <Folder size={9} />
+              <span className="max-w-[72px] truncate">{workspaceName}</span>
             </span>
           )}
         </div>

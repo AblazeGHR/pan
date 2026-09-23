@@ -11,8 +11,13 @@ import {
   ListChecks,
   Info,
   Trash2,
+  Folder,
+  Layers,
+  Check,
+  ChevronLeft,
 } from 'lucide-react';
 import type { Session } from '@/types';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface SessionMenuProps {
   session: Session;
@@ -32,9 +37,38 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
   const menuRef = useRef<HTMLDivElement>(null);
   // 挂载前先用点击锚点，量取菜单尺寸后按视口空间翻转/收敛到最终落点。
   const [placement, setPlacement] = useState<{ x: number; y: number }>(() => position);
+  /** Submenu view: main actions vs. the single-select "move to workspace" list. */
+  const [view, setView] = useState<'main' | 'move'>('main');
   const { reimport, branch, toggleMultiSelect } =
     useSessionStore();
   const { showToast } = useUIStore();
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
+  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
+  const moveSessions = useWorkspaceStore((s) => s.moveSessions);
+  const currentWorkspaceId = (session.workspaceIds ?? [])[0] ?? null;
+
+  useEffect(() => {
+    if (view === 'move' && !workspacesLoaded) void loadWorkspaces();
+  }, [view, workspacesLoaded, loadWorkspaces]);
+
+  const handleMoveToWorkspace = async (workspaceId: string | null) => {
+    onClose();
+    try {
+      const changed = await moveSessions([session.id], workspaceId);
+      if (changed.length === 0) {
+        showToast(workspaceId ? '该会话已在该工作区' : '该会话当前未归属任何工作区', 'error');
+        return;
+      }
+      const followed = changed.length - 1;
+      const target = workspaceId ? workspaces.find((w) => w.id === workspaceId)?.name ?? '工作区' : null;
+      if (!target) showToast(`已将「${session.name}」移出工作区（未分组）`);
+      else if (followed > 0) showToast(`已将「${session.name}」及其 ${followed} 个子孙会话移入「${target}」`);
+      else showToast(`已将「${session.name}」移入「${target}」`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '移动失败', 'error');
+    }
+  };
 
   // 保证菜单始终落在视口内：下方放得下就向下展开（锚点即按钮顶边），放不下就
   // 向上翻转（bottom 对齐按钮顶边）；水平方向越界则右对齐/左对齐收敛，两侧都
@@ -149,6 +183,41 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
       className="fixed z-50 bg-bg-tertiary border border-border-default rounded-md shadow-xl py-1 min-w-[140px] max-h-[60vh] overflow-y-auto"
       style={{ left: placement.x, top: placement.y }}
     >
+      {view === 'move' ? (
+        <>
+          <button
+            onClick={() => setView('main')}
+            className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-accent/20 transition-colors flex items-center gap-2"
+          >
+            <ChevronLeft size={12} className="text-text-tertiary shrink-0" />
+            移入工作区
+          </button>
+          <div className="border-t border-border-muted my-1" />
+          <button
+            onClick={() => void handleMoveToWorkspace(null)}
+            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
+          >
+            <Layers size={12} className="text-text-tertiary shrink-0" />
+            未分组（无工作区）
+            {currentWorkspaceId === null && <Check size={12} className="ml-auto text-accent shrink-0" />}
+          </button>
+          {workspaces.map((workspace) => (
+            <button
+              key={workspace.id}
+              onClick={() => void handleMoveToWorkspace(workspace.id)}
+              className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
+            >
+              <Folder size={12} className="text-text-tertiary shrink-0" />
+              <span className="truncate">{workspace.name}</span>
+              {currentWorkspaceId === workspace.id && <Check size={12} className="ml-auto text-accent shrink-0" />}
+            </button>
+          ))}
+          {workspaces.length === 0 && (
+            <div className="px-3 py-1.5 text-xs text-text-tertiary">还没有工作区</div>
+          )}
+        </>
+      ) : (
+        <>
       <button
         onClick={handleRename}
         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
@@ -196,6 +265,13 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
         Details
       </button>
       <button
+        onClick={() => setView('move')}
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
+      >
+        <Folder size={12} className="text-text-tertiary shrink-0" />
+        移入工作区
+      </button>
+      <button
         onClick={handleMultiSelect}
         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
       >
@@ -210,6 +286,8 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
         <Trash2 size={12} className="shrink-0" />
         Delete
       </button>
+        </>
+      )}
     </div>,
     document.body,
   );

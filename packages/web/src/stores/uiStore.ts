@@ -119,6 +119,44 @@ function persistCustomOrder(order: string[]) {
 
 const HIDDEN_SESSIONS_KEY = 'pan:hiddenSessions';
 
+/**
+ * Active workspace scope for the session list ('all' | 'ungrouped' | ws id).
+ * Persisted so a reload lands back in the same workspace; the rail falls back
+ * to 'all' when the remembered workspace no longer exists.
+ */
+function loadActiveWorkspaceId(): string {
+  try {
+    return localStorage.getItem('pan:activeWorkspaceId') || 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+function persistActiveWorkspaceId(id: string) {
+  try {
+    localStorage.setItem('pan:activeWorkspaceId', id);
+  } catch {
+    // no-op
+  }
+}
+
+/** Workspace rail: collapsed = floating handle only; expanded = full panel. */
+function loadRailExpanded(): boolean {
+  try {
+    return localStorage.getItem('pan:railExpanded') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function persistRailExpanded(expanded: boolean) {
+  try {
+    localStorage.setItem('pan:railExpanded', expanded ? '1' : '0');
+  } catch {
+    // no-op
+  }
+}
+
 /** Session ids hidden via Select mode, persisted per session id across reloads. */
 function loadHiddenSessions(): Set<string> {
   try {
@@ -198,6 +236,10 @@ interface UIStore {
   collapsedGroups: Set<string>;
   filesCollapsed: boolean;
   theme: Theme;
+  /** Active workspace scope for the session list ('all' | 'ungrouped' | ws id). */
+  activeWorkspaceId: string;
+  /** Workspace rail panel expanded (false = the floating handle only). */
+  railExpanded: boolean;
   /** One-shot requests from the editor to the mounted chat composer. */
   chatAttachmentRequests: ChatAttachmentRequest[];
 
@@ -245,6 +287,9 @@ interface UIStore {
   pruneCollapsedGroups: (validKeys: Set<string>) => void;
   toggleFilesCollapsed: () => void;
   toggleTheme: () => void;
+  /** Switch the session-list scope (callers clear the multi-select selection). */
+  setActiveWorkspace: (id: string) => void;
+  setRailExpanded: (expanded: boolean) => void;
   requestChatAttachment: (sessionId: string, path: string) => void;
   consumeChatAttachmentRequests: (sessionId: string, paths: string[]) => void;
 }
@@ -273,6 +318,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
   collapsedGroups: new Set<string>(),
   filesCollapsed: false,
   theme: loadTheme(),
+  activeWorkspaceId: loadActiveWorkspaceId(),
+  railExpanded: loadRailExpanded(),
   chatAttachmentRequests: [],
 
   showToast: (message, type = 'info') => {
@@ -556,6 +603,17 @@ export const useUIStore = create<UIStore>((set, get) => ({
     const next = get().theme === 'dark' ? 'light' : 'dark';
     set({ theme: next });
     persistTheme(next);
+  },
+
+  setActiveWorkspace: (id) => {
+    if (get().activeWorkspaceId === id) return;
+    set({ activeWorkspaceId: id });
+    persistActiveWorkspaceId(id);
+  },
+
+  setRailExpanded: (expanded) => {
+    set({ railExpanded: expanded });
+    persistRailExpanded(expanded);
   },
 
   requestChatAttachment: (sessionId, path) => {
