@@ -52,6 +52,7 @@ export function EditorTabs() {
                 e.stopPropagation();
                 closeFile(p);
               }}
+              aria-label={`关闭 ${getFileName(p)}`}
               title="Close"
             >
               ✕

@@ -3881,6 +3881,11 @@ async def resolve_editor_attachment(attachment_id: str, session_id: str):
         "ok": True,
         "attachmentId": attachment_id,
         "displayName": _attachment_filename(record.get("displayName") or Path(str(record.get("path", ""))).name),
+        "mimeType": (
+            record.get("mimeType")
+            or mimetypes.guess_type(Path(str(record.get("path", ""))).name)[0]
+            or "application/octet-stream"
+        ),
         "path": str(Path(str(record.get("path", ""))).resolve()),
         "line": record.get("line"),
         "endLine": record.get("endLine"),

@@ -25,6 +25,16 @@ function transformMarkdownUrl(value: string): string {
   return parseMarkdownFileLink(value) ? value : defaultUrlTransform(value);
 }
 
+const RASTER_IMAGE_MIMES = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/avif',
+]);
+
+function looksLikeImageLink(href: string, label: React.ReactNode): boolean {
+  const extensionPattern = /\.(?:png|jpe?g|gif|webp|bmp|avif)$/i;
+  return extensionPattern.test(href.split(/[?#]/, 1)[0] || '')
+    || extensionPattern.test(extractLinkText(label));
+}
+
 function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: LinkProps & { attachmentId?: string }) {
   const navigate = useNavigate();
   const sessionId = useSessionStore((s) => s.currentSessionId);
@@ -48,6 +58,48 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
     }
     if (!href) return;
     const fileLink = parseMarkdownFileLink(href);
+
+    // Resolve image identity and MIME through the server-owned attachment
+    // registry. The Markdown href, label, and any path-like text are never
+    // used as permission to read a resource.
+    if (looksLikeImageLink(href, children) && isSafeAttachmentHref(href)) {
+      const attachmentId = fileLink?.serverAttachmentId
+        || extractOpaqueAttachmentId(href)
+        || extractUploadAttachmentId(href);
+      const sourceSessionId = fileLink?.serverSessionId || extractAttachmentSessionId(href) || sessionId;
+      if (!attachmentId || !sourceSessionId) return;
+      event.preventDefault();
+      if (!sessionId || !workdir) {
+        showToast('当前没有可用的 Editor 工作目录，无法预览图片', 'error');
+        return;
+      }
+      try {
+        const response = await fetch(
+          `/api/attachments/editor/${encodeURIComponent(attachmentId)}`
+          + `?session_id=${encodeURIComponent(sourceSessionId)}`,
+        );
+        const metadata = await response.json() as {
+          ok?: boolean; path?: unknown; displayName?: unknown; mimeType?: unknown;
+        };
+        if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
+          throw new Error('图片引用已失效');
+        }
+        if (typeof metadata.mimeType !== 'string' || !RASTER_IMAGE_MIMES.has(metadata.mimeType)) {
+          window.location.assign(href);
+          return;
+        }
+        await useEditorStore.getState().setRoot(sessionId, workdir);
+        const previewPath = typeof metadata.displayName === 'string' ? metadata.displayName : metadata.path;
+        const opened = useEditorStore.getState().openImage(
+          previewPath,
+          `/api/attachments/ref/${encodeURIComponent(attachmentId)}?session_id=${encodeURIComponent(sourceSessionId)}`,
+        );
+        if (opened) navigate('/editor');
+      } catch (error) {
+        showToast(`打开图片失败：${error instanceof Error ? error.message : '图片引用已失效'}`, 'error');
+      }
+      return;
+    }
     if (!fileLink) return;
     event.preventDefault();
 

@@ -10,6 +10,7 @@ import { copyText } from '@/utils/clipboard';
 interface EditorFileTopBarProps {
   /** Session-relative path used by backend operations and attachment queue. */
   operationPath: string;
+  imagePreview?: boolean;
 }
 
 export function getDisplayPath(workdir: string | null | undefined, operationPath: string): string {
@@ -53,7 +54,7 @@ export function getDisplayPath(workdir: string | null | undefined, operationPath
   return `${normalizedWorkdir}${separator}${normalizedPath}`;
 }
 
-export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
+export function EditorFileTopBar({ operationPath, imagePreview = false }: EditorFileTopBarProps) {
   const { isMobile } = useMediaQuery();
   const currentSession = useCurrentSession();
   const downloadFile = useEditorStore((s) => s.downloadFile);
@@ -157,7 +158,7 @@ export function EditorFileTopBar({ operationPath }: EditorFileTopBarProps) {
       >
         {copied ? <Check size={14} /> : <Copy size={14} />}
       </button>
-      {isMobile && (
+      {(isMobile || imagePreview) && (
         <>
           <button
             type="button"

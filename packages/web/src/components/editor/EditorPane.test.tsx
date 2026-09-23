@@ -89,4 +89,31 @@ describe('EditorPane editor action wiring', () => {
       { sessionId: 's1', path: 'src/main.ts' },
     ]));
   });
+
+  it('previews images with zoom, download, close, and visible load failure feedback', () => {
+    const downloadFile = vi.fn();
+    useEditorStore.setState({
+      openPaths: ['assets/photo.png'],
+      activePath: 'assets/photo.png',
+      imageSources: { 'assets/photo.png': '/api/fs/read?session_id=s1&path=assets%2Fphoto.png&download=1' },
+      downloadFile,
+    });
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorPane />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('img', { name: 'photo.png' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '保存文件' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '放大图片' }));
+    expect(screen.getByText('125%')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '下载当前文件' }));
+    expect(downloadFile).toHaveBeenCalledWith('assets/photo.png');
+    fireEvent.error(screen.getByRole('img', { name: 'photo.png' }));
+    expect(screen.getByRole('alert').textContent).toContain('图片加载失败');
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭 photo.png' }));
+    expect(useEditorStore.getState().openPaths).not.toContain('assets/photo.png');
+  });
 });

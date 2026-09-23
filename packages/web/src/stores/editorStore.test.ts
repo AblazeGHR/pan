@@ -31,6 +31,7 @@ beforeEach(() => {
     activePath: null,
     dirty: new Set(),
     contents: {},
+    imageSources: {},
     mdViewMode: {},
     pendingLocation: null,
     pendingConfirmation: null,
@@ -141,6 +142,20 @@ describe('editorStore.setRoot', () => {
       mdViewMode: { 'src/current.ts': 'edit' },
     });
     expect(useEditorStore.getState().dirty).toEqual(new Set(['src/current.ts']));
+  });
+});
+
+describe('editorStore image browsing', () => {
+  it('opens recognized raster image files through the authenticated download endpoint', async () => {
+    useEditorStore.setState({ sessionId: 's1', workdir: 'D:\\project' });
+
+    await expect(useEditorStore.getState().openFile('assets/photo.png')).resolves.toBe(true);
+
+    expect(readFile).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().imageSources['assets/photo.png']).toBe(
+      '/api/fs/read?session_id=s1&path=assets%2Fphoto.png&download=1',
+    );
+    expect(useEditorStore.getState().activePath).toBe('assets/photo.png');
   });
 });
 

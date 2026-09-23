@@ -223,6 +223,42 @@ describe('MarkdownRenderer', () => {
     });
   });
 
+  it('opens raster attachment links in the Editor preview using the server-owned opaque reference', async () => {
+    const attachmentId = `att_${'e'.repeat(32)}`;
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ok: true,
+      path: 'D:\\private\\photo.png',
+      displayName: 'photo.png',
+      mimeType: 'image/png',
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <MarkdownRenderer content={`[photo.png](/api/attachments/ref/${attachmentId}?session_id=s1)`} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: 'photo.png' }));
+
+    await waitFor(() => expect(useEditorStore.getState().imageSources['photo.png']).toBe(
+      `/api/attachments/ref/${attachmentId}?session_id=s1`,
+    ));
+    expect(fetch).toHaveBeenCalledWith(`/api/attachments/editor/${attachmentId}?session_id=s1`);
+    expect(useEditorStore.getState().activePath).toBe('photo.png');
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it('keeps non-image attachment links on their original browser path', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <MarkdownRenderer content={'[archive.zip](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.zip?session_id=s1)'} />
+      </MemoryRouter>,
+    );
+    const link = container.querySelector('a')!;
+    expect(link.getAttribute('href')).toContain('/api/attachments/upload_');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
   it('recovers a legacy attachment without display metadata using a safe download href', () => {
     const { container } = render(
       <MemoryRouter>
