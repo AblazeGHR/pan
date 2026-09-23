@@ -18,8 +18,8 @@ export function EditorPane() {
     editorSessionId === currentSession?.id && editorWorkdir === currentSession?.workdir;
   const activePath = editorRootMatchesSession ? storedActivePath : null;
   const contents = useEditorStore((s) => s.contents);
-  const imageSources = useEditorStore((s) => s.imageSources);
-  const imageSource = activePath ? imageSources[activePath] : undefined;
+  const imagePreviews = useEditorStore((s) => s.imagePreviews);
+  const imagePreview = activePath ? imagePreviews[activePath] : undefined;
   const mdViewMode = useEditorStore((s) => s.mdViewMode);
   const setMdViewMode = useEditorStore((s) => s.setMdViewMode);
 
@@ -67,10 +67,15 @@ export function EditorPane() {
           </div>
         )}
       </div>
-      {activePath && <EditorFileTopBar operationPath={activePath} imagePreview={!!imageSource} />}
+      {activePath && <EditorFileTopBar
+        operationPath={activePath}
+        imagePreview={!!imagePreview}
+        imageDisplayName={imagePreview?.displayName}
+        imageDownloadHref={imagePreview?.downloadHref}
+      />}
 
-      {activePath && imageSource ? (
-        <EditorImagePreview src={imageSource} alt={activePath.split(/[\\/]/).pop() || '图片'} />
+      {activePath && imagePreview ? (
+        <EditorImagePreview src={imagePreview.src} alt={imagePreview.displayName} />
       ) : !activePath ? (
         <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">
           Open a file to start editing

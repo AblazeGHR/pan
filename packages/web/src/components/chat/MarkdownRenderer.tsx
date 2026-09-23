@@ -89,10 +89,12 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
           return;
         }
         await useEditorStore.getState().setRoot(sessionId, workdir);
-        const previewPath = typeof metadata.displayName === 'string' ? metadata.displayName : metadata.path;
+        const displayName = typeof metadata.displayName === 'string' ? metadata.displayName : 'attachment';
+        const downloadHref = `/api/attachments/ref/${encodeURIComponent(attachmentId)}`
+          + `?session_id=${encodeURIComponent(sourceSessionId)}`;
         const opened = useEditorStore.getState().openImage(
-          previewPath,
-          `/api/attachments/ref/${encodeURIComponent(attachmentId)}?session_id=${encodeURIComponent(sourceSessionId)}`,
+          `attachment:${sourceSessionId}:${attachmentId}`,
+          { src: downloadHref, downloadHref, displayName },
         );
         if (opened) navigate('/editor');
       } catch (error) {

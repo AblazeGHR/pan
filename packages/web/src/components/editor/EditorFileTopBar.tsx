@@ -11,6 +11,8 @@ interface EditorFileTopBarProps {
   /** Session-relative path used by backend operations and attachment queue. */
   operationPath: string;
   imagePreview?: boolean;
+  imageDisplayName?: string;
+  imageDownloadHref?: string;
 }
 
 export function getDisplayPath(workdir: string | null | undefined, operationPath: string): string {
@@ -54,7 +56,12 @@ export function getDisplayPath(workdir: string | null | undefined, operationPath
   return `${normalizedWorkdir}${separator}${normalizedPath}`;
 }
 
-export function EditorFileTopBar({ operationPath, imagePreview = false }: EditorFileTopBarProps) {
+export function EditorFileTopBar({
+  operationPath,
+  imagePreview = false,
+  imageDisplayName,
+  imageDownloadHref,
+}: EditorFileTopBarProps) {
   const { isMobile } = useMediaQuery();
   const currentSession = useCurrentSession();
   const downloadFile = useEditorStore((s) => s.downloadFile);
@@ -65,7 +72,7 @@ export function EditorFileTopBar({ operationPath, imagePreview = false }: Editor
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const resetCopiedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const displayPath = getDisplayPath(currentSession?.workdir, operationPath);
+  const displayPath = imageDisplayName || getDisplayPath(currentSession?.workdir, operationPath);
   const copyKey = `${currentSession?.id ?? ''}\u0000${currentSession?.workdir ?? ''}\u0000${operationPath}`;
   const copyGenerationRef = useRef(0);
   const copyKeyRef = useRef(copyKey);
@@ -127,6 +134,20 @@ export function EditorFileTopBar({ operationPath, imagePreview = false }: Editor
     navigate('/');
   };
 
+  const handleDownload = () => {
+    if (!imageDownloadHref) {
+      downloadFile(operationPath);
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = imageDownloadHref;
+    link.download = '';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   return (
     <div
       data-testid="editor-file-topbar"
@@ -164,12 +185,12 @@ export function EditorFileTopBar({ operationPath, imagePreview = false }: Editor
             type="button"
             aria-label="下载当前文件"
             title="下载当前文件"
-            onClick={() => downloadFile(operationPath)}
+            onClick={handleDownload}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"
           >
             <Download size={14} />
           </button>
-          <button
+          {!imageDownloadHref && <button
             type="button"
             aria-label="加入聊天"
             title="加入聊天"
@@ -177,7 +198,7 @@ export function EditorFileTopBar({ operationPath, imagePreview = false }: Editor
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"
           >
             <MessageSquare size={14} />
-          </button>
+          </button>}
         </>
       )}
     </div>

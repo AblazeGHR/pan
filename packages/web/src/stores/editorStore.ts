@@ -124,7 +124,7 @@ interface EditorStore {
   activePath: string | null;
   dirty: Set<string>;
   contents: Record<string, string>;
-  imageSources: Record<string, string>;
+  imagePreviews: Record<string, EditorImagePreviewSource>;
   mdViewMode: Record<string, 'edit' | 'preview' | 'split'>;
   /** A one-shot location request produced by a Markdown file link. */
   pendingLocation: EditorLocation | null;
@@ -135,7 +135,7 @@ interface EditorStore {
   refreshTree: (dirPath?: string) => Promise<void>;
   toggleDir: (path: string) => Promise<void>;
   openFile: (path: string, location?: EditorLocation) => Promise<boolean>;
-  openImage: (path: string, src: string) => boolean;
+  openImage: (path: string, preview: EditorImagePreviewSource) => boolean;
   consumePendingLocation: (location: EditorLocation) => void;
   closeFile: (path: string) => void;
   setActive: (path: string) => void;
@@ -169,6 +169,13 @@ export interface EditorLocation {
   path: string;
   line: number;
   endLine?: number;
+}
+
+export interface EditorImagePreviewSource {
+  src: string;
+  displayName: string;
+  /** Server-authorized same-origin opaque attachment URL; absent for workdir files. */
+  downloadHref?: string;
 }
 
 const EDITOR_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif']);
@@ -282,7 +289,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activePath: null,
   dirty: new Set(),
   contents: {},
-  imageSources: {},
+  imagePreviews: {},
   mdViewMode: {},
   pendingLocation: null,
   pendingConfirmation: null,
@@ -317,7 +324,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             activePath: null,
             dirty: new Set<string>(),
             contents: {},
-            imageSources: {},
+            imagePreviews: {},
             mdViewMode: {},
             pendingLocation: null,
             pendingConfirmation: null,
@@ -441,7 +448,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         path,
         download: '1',
       }).toString()}`;
-      return get().openImage(path, imageUrl);
+      return get().openImage(path, {
+        src: imageUrl,
+        displayName: path.split(/[\\/]/).pop() || path,
+      });
     }
 
     // Already open — just switch active
@@ -474,15 +484,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
-  openImage: (path, src) => {
+  openImage: (path, preview) => {
     const state = get();
     const root = captureRoot(state);
-    if (!root || !src) return false;
+    if (!root || !preview.src) return false;
     set((s) => ({
       selectedPath: path,
       openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
       activePath: path,
-      imageSources: { ...s.imageSources, [path]: src },
+      imagePreviews: { ...s.imagePreviews, [path]: preview },
       pendingLocation: null,
     }));
     return true;
@@ -510,8 +520,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       newDirty.delete(path);
       const newContents = { ...s.contents };
       delete newContents[path];
-      const newImageSources = { ...s.imageSources };
-      delete newImageSources[path];
+      const newImagePreviews = { ...s.imagePreviews };
+      delete newImagePreviews[path];
       let newActive = s.activePath;
       if (s.activePath === path) {
         // Activate nearest tab
@@ -528,7 +538,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         openPaths: newOpen,
         dirty: newDirty,
         contents: newContents,
-        imageSources: newImageSources,
+        imagePreviews: newImagePreviews,
         activePath: newActive,
         selectedPath: s.selectedPath === path ? newActive : s.selectedPath,
         pendingLocation: s.pendingLocation?.path === path ? null : s.pendingLocation,

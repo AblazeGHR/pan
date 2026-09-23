@@ -225,6 +225,7 @@ describe('MarkdownRenderer', () => {
 
   it('opens raster attachment links in the Editor preview using the server-owned opaque reference', async () => {
     const attachmentId = `att_${'e'.repeat(32)}`;
+    const secondAttachmentId = `att_${'f'.repeat(32)}`;
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       ok: true,
       path: 'D:\\private\\photo.png',
@@ -233,17 +234,31 @@ describe('MarkdownRenderer', () => {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     render(
       <MemoryRouter initialEntries={['/']}>
-        <MarkdownRenderer content={`[photo.png](/api/attachments/ref/${attachmentId}?session_id=s1)`} />
+        <MarkdownRenderer content={[
+          `[photo.png](/api/attachments/ref/${attachmentId}?session_id=s1)`,
+          `[photo.png](/api/attachments/ref/${secondAttachmentId}?session_id=s1)`,
+        ].join(' ')} />
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('link', { name: 'photo.png' }));
+    const imageLinks = screen.getAllByRole('link', { name: 'photo.png' });
+    fireEvent.click(imageLinks[0]!);
 
-    await waitFor(() => expect(useEditorStore.getState().imageSources['photo.png']).toBe(
-      `/api/attachments/ref/${attachmentId}?session_id=s1`,
-    ));
+    await waitFor(() => expect(useEditorStore.getState().imagePreviews[`attachment:s1:${attachmentId}`]).toEqual({
+      src: `/api/attachments/ref/${attachmentId}?session_id=s1`,
+      downloadHref: `/api/attachments/ref/${attachmentId}?session_id=s1`,
+      displayName: 'photo.png',
+    }));
     expect(fetch).toHaveBeenCalledWith(`/api/attachments/editor/${attachmentId}?session_id=s1`);
-    expect(useEditorStore.getState().activePath).toBe('photo.png');
+    fireEvent.click(imageLinks[1]!);
+    await waitFor(() => expect(useEditorStore.getState().imagePreviews[`attachment:s1:${secondAttachmentId}`]).toEqual({
+      src: `/api/attachments/ref/${secondAttachmentId}?session_id=s1`,
+      downloadHref: `/api/attachments/ref/${secondAttachmentId}?session_id=s1`,
+      displayName: 'photo.png',
+    }));
+    expect(useEditorStore.getState().imagePreviews[`attachment:s1:${attachmentId}`]?.src)
+      .toBe(`/api/attachments/ref/${attachmentId}?session_id=s1`);
+    expect(useEditorStore.getState().activePath).toBe(`attachment:s1:${secondAttachmentId}`);
     expect(readFile).not.toHaveBeenCalled();
   });
 

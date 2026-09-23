@@ -53,6 +53,7 @@ beforeEach(() => {
     contents: { 'src/main.ts': 'export {}' },
     dirty: new Set(),
     mdViewMode: {},
+    imagePreviews: {},
     downloadFile: vi.fn(),
   });
   useUIStore.setState({ toastQueue: [], chatAttachmentRequests: [] });
@@ -95,7 +96,10 @@ describe('EditorPane editor action wiring', () => {
     useEditorStore.setState({
       openPaths: ['assets/photo.png'],
       activePath: 'assets/photo.png',
-      imageSources: { 'assets/photo.png': '/api/fs/read?session_id=s1&path=assets%2Fphoto.png&download=1' },
+      imagePreviews: { 'assets/photo.png': {
+        src: '/api/fs/read?session_id=s1&path=assets%2Fphoto.png&download=1',
+        displayName: 'photo.png',
+      } },
       downloadFile,
     });
     render(
@@ -115,5 +119,41 @@ describe('EditorPane editor action wiring', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '关闭 photo.png' }));
     expect(useEditorStore.getState().openPaths).not.toContain('assets/photo.png');
+  });
+
+  it('keeps same-name local and attachment image tabs separate while switching and closing', () => {
+    const localPath = 'assets/photo.png';
+    const attachmentA = `attachment:s1:att_${'a'.repeat(32)}`;
+    const attachmentB = `attachment:s1:att_${'b'.repeat(32)}`;
+    const localSrc = '/api/fs/read?session_id=s1&path=assets%2Fphoto.png&download=1';
+    const attachmentASrc = `/api/attachments/ref/att_${'a'.repeat(32)}?session_id=s1`;
+    const attachmentBSrc = `/api/attachments/ref/att_${'b'.repeat(32)}?session_id=s1`;
+    useEditorStore.setState({
+      openPaths: [localPath, attachmentA, attachmentB],
+      activePath: localPath,
+      imagePreviews: {
+        [localPath]: { src: localSrc, displayName: 'photo.png' },
+        [attachmentA]: { src: attachmentASrc, downloadHref: attachmentASrc, displayName: 'photo.png' },
+        [attachmentB]: { src: attachmentBSrc, downloadHref: attachmentBSrc, displayName: 'photo.png' },
+      },
+    });
+    const { container } = render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorPane />
+      </MemoryRouter>,
+    );
+
+    const tabs = () => [...container.querySelectorAll('[data-testid="editor-tab"]')];
+    expect(tabs()).toHaveLength(3);
+    expect(screen.getByRole('img', { name: 'photo.png' }).getAttribute('src')).toBe(localSrc);
+
+    fireEvent.click(tabs()[1]!);
+    expect(screen.getByRole('img', { name: 'photo.png' }).getAttribute('src')).toBe(attachmentASrc);
+    fireEvent.click(within(tabs()[1]!).getByRole('button', { name: '关闭 photo.png' }));
+    expect(useEditorStore.getState().openPaths).toEqual([localPath, attachmentB]);
+    expect(useEditorStore.getState().imagePreviews[attachmentB]?.src).toBe(attachmentBSrc);
+
+    fireEvent.click(tabs()[1]!);
+    expect(screen.getByRole('img', { name: 'photo.png' }).getAttribute('src')).toBe(attachmentBSrc);
   });
 });

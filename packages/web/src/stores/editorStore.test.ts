@@ -31,7 +31,7 @@ beforeEach(() => {
     activePath: null,
     dirty: new Set(),
     contents: {},
-    imageSources: {},
+    imagePreviews: {},
     mdViewMode: {},
     pendingLocation: null,
     pendingConfirmation: null,
@@ -152,9 +152,10 @@ describe('editorStore image browsing', () => {
     await expect(useEditorStore.getState().openFile('assets/photo.png')).resolves.toBe(true);
 
     expect(readFile).not.toHaveBeenCalled();
-    expect(useEditorStore.getState().imageSources['assets/photo.png']).toBe(
-      '/api/fs/read?session_id=s1&path=assets%2Fphoto.png&download=1',
-    );
+    expect(useEditorStore.getState().imagePreviews['assets/photo.png']).toEqual({
+      src: '/api/fs/read?session_id=s1&path=assets%2Fphoto.png&download=1',
+      displayName: 'photo.png',
+    });
     expect(useEditorStore.getState().activePath).toBe('assets/photo.png');
   });
 });

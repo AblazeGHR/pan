@@ -115,6 +115,36 @@ describe('EditorFileTopBar', () => {
     );
   });
 
+  it('downloads attachment previews through their opaque ref URL, never the virtual tab key', () => {
+    const downloadFile = vi.fn();
+    const clickedLinks: HTMLAnchorElement[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      clickedLinks.push(this);
+    });
+    useEditorStore.setState({ downloadFile });
+    const downloadHref = '/api/attachments/ref/att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?session_id=source-session';
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar
+          operationPath="attachment:source-session:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          imagePreview
+          imageDisplayName="photo.png"
+          imageDownloadHref={downloadHref}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '下载当前文件' }));
+
+    expect(clickedLinks).toHaveLength(1);
+    expect(clickedLinks[0]?.getAttribute('href')).toBe(downloadHref);
+    expect(clickedLinks[0]?.getAttribute('download')).toBe('');
+    expect(downloadFile).not.toHaveBeenCalled();
+    expect(clickedLinks[0]?.getAttribute('href')).not.toContain('photo.png');
+    expect(screen.getByTitle('photo.png').textContent).toBe('photo.png');
+    vi.restoreAllMocks();
+  });
+
   it('keeps the mobile-only actions out of the desktop editor TopBar', () => {
     mockMatchMedia(false);
     render(
