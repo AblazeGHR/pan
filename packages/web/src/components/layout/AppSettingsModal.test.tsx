@@ -115,6 +115,7 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();
     expect(card.textContent).toContain('Default group by');
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     expect(card.querySelectorAll('[role="switch"]')).toHaveLength(3);
     expect(card.textContent).toContain('Reset to defaults');
     expect(card.textContent).toContain('Notification');
@@ -273,6 +274,7 @@ describe('AppSettingsModal', () => {
 
   it('toggles a setting through a switch and writes the store', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
     expect(switches).toHaveLength(3);
     // meta-agent is on by default; toggle it off.
