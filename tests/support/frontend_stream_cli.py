@@ -46,7 +46,7 @@ def main():
         # The stress label deliberately creates one openable multi-tool group
         # and a much taller answer so the browser test exercises the exact
         # variable-height/scrolling path that is easy to miss with one tool.
-        stress_label = label in {'visual-order-stress', 'switch-delta'}
+        stress_label = label in {'visual-order-stress', 'switch-delta', 'background-resume'}
         # Codex can deliver the first assistant text delta before the command
         # item is completed.  Keep this inverse arrival order in the fixture:
         # the durable adapter records [tool, assistant], while the live UI

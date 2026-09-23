@@ -198,6 +198,32 @@ describe('useWebSocket worker.result wiring', () => {
     vi.useRealTimers();
   });
 
+  it('forces a new transport after a hidden-to-visible resume even when the socket looks fresh', () => {
+    vi.useFakeTimers();
+    renderHook(() => useWebSocket());
+    wsMock.reconnect.mockClear();
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      vi.advanceTimersByTime(100);
+    });
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new PageTransitionEvent('pageshow'));
+      vi.advanceTimersByTime(100);
+    });
+
+    // `isConnectionFresh()` is deliberately true: a background page can have
+    // an OPEN but half-open socket, so visibility recovery must replace it.
+    expect(wsMock.isConnectionFresh).toHaveBeenCalled();
+    expect(wsMock.reconnect).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
   // ── Browser-lifecycle recovery coalescing (FE-4) ──
   // Focus/visibilitychange/pageshow are the same "the window came back" event;
   // they must not fan out into duplicate authoritative request bursts, while a

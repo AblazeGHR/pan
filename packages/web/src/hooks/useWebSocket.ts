@@ -265,10 +265,23 @@ export function useWebSocket() {
     // every recovery, a stale socket is always reconnected (whose open handler
     // performs the authoritative refresh), and absorption only happens on a
     // fresh socket — so a duplicate signal never loses disconnect recovery.
+    // A hidden page is a special case: Chromium may freeze the JS event loop
+    // while the TCP/WebSocket object still reports OPEN. On resume, its last
+    // activity timestamp can therefore look fresh even though a resync sent
+    // through that half-open transport will never produce a response. A real
+    // hidden→visible transition forces one new physical socket; focus-only
+    // signals still use the cheaper freshness path.
     const RECOVERY_DEBOUNCE_MS = 100;
     const RECOVERY_COALESCE_MS = 500;
     let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
     let lastRecoveryAt = 0;
+    let lastRecoveryReplacedTransport = false;
+    // Track transitions observed by this mounted dashboard. If the app is
+    // first mounted in a background tab, its initial open/replay path is the
+    // appropriate owner; the next observed hidden→visible transition still
+    // receives the forced transport recovery.
+    let hiddenSince: number | null = null;
+    let forceTransportRecovery = false;
 
     const isConnectionFresh = (): boolean =>
       typeof wsClient.isConnectionFresh === 'function'
@@ -276,21 +289,30 @@ export function useWebSocket() {
         : wsClient.isOpen;
 
     const drainRecovery = (): void => {
+      const forceReconnect = forceTransportRecovery;
+      forceTransportRecovery = false;
       const fresh = isConnectionFresh();
       const elapsed = Date.now() - lastRecoveryAt;
-      if (fresh && lastRecoveryAt > 0 && elapsed < RECOVERY_COALESCE_MS) {
+      if (
+        fresh
+        && lastRecoveryAt > 0
+        && elapsed < RECOVERY_COALESCE_MS
+        && (!forceReconnect || lastRecoveryReplacedTransport)
+      ) {
         // Same resume already refreshed authoritative state on a live socket —
         // absorb the duplicate instead of issuing a second request burst.
         return;
       }
       lastRecoveryAt = Date.now();
-      if (!fresh) {
+      if (forceReconnect || !fresh) {
+        lastRecoveryReplacedTransport = true;
         // reconnect() preserves all subscribers and its open handler above
         // performs the authoritative refresh once the new socket is live.
         if (typeof wsClient.reconnect === 'function') wsClient.reconnect();
         else wsClient.connect();
         return;
       }
+      lastRecoveryReplacedTransport = false;
       // A buffered task needs its durable terminal boundary before history
       // can converge. Without a partial stream, HTTP alone is sufficient.
       if (Object.keys(useSessionStore.getState().liveStreamBuffers).length > 0) {
@@ -300,7 +322,8 @@ export function useWebSocket() {
       }
     };
 
-    const recover = (): void => {
+    const recover = (forceReconnect = false): void => {
+      if (forceReconnect) forceTransportRecovery = true;
       if (recoveryTimer) clearTimeout(recoveryTimer);
       recoveryTimer = setTimeout(() => {
         recoveryTimer = null;
@@ -308,11 +331,26 @@ export function useWebSocket() {
       }, RECOVERY_DEBOUNCE_MS);
     };
     const onVisibilityChange = (): void => {
-      if (document.visibilityState === 'visible') recover();
+      if (document.visibilityState === 'hidden') {
+        hiddenSince ??= Date.now();
+        return;
+      }
+      if (document.visibilityState === 'visible') {
+        const resumedFromBackground = hiddenSince !== null;
+        hiddenSince = null;
+        recover(resumedFromBackground);
+      }
     };
+    const onPageShow = (event: PageTransitionEvent): void => {
+      // `persisted` covers a bfcache restore where visibilitychange may not
+      // arrive while the document is frozen. An ordinary initial pageshow is
+      // intentionally cheap and remains covered by the normal open path.
+      recover(event.persisted || hiddenSince !== null);
+    };
+    const onFocus = (): void => recover();
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pageshow', recover);
-    window.addEventListener('focus', recover);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('focus', onFocus);
 
     // Queue events are convergence hints. The server snapshot remains the
     // business source of truth, so a stale or duplicated event cannot create
@@ -676,8 +714,8 @@ export function useWebSocket() {
       queueRefreshTimers.clear();
       if (recoveryTimer) clearTimeout(recoveryTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pageshow', recover);
-      window.removeEventListener('focus', recover);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('focus', onFocus);
     };
   }, []);
 }

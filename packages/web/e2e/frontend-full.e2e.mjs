@@ -225,8 +225,21 @@ async function assertLiveVisualOrder(label, snapshots) {
   assert.deepEqual(sample.violations, [], `${label}: live DOM order/geometry violation`);
 }
 const ids = {};
-const faults = { duplicate: false, reorder: false, held: null, delayedHistory: 0, historyDelay: 0, delaySnapshot: false };
+const faults = {
+  duplicate: false,
+  reorder: false,
+  held: null,
+  delayedHistory: 0,
+  historyDelay: 0,
+  delaySnapshot: false,
+  // A browser can keep an OPEN WebSocket object after its background page or
+  // an intermediary has stopped delivering frames. The E2E marks the current
+  // real socket as a one-way black hole while the page is backgrounded; a
+  // correct resume path must create a new socket and converge without reload.
+  backgroundDeadSocket: null,
+};
 let socketRoute;
+let socketConnectionCount = 0;
 try {
   await start();
   const listing = await api('/api/sessions?summary=1');
@@ -235,8 +248,10 @@ try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await context.routeWebSocket('**/ws', ws => {
     socketRoute = ws;
+    socketConnectionCount++;
     const upstream = ws.connectToServer();
     upstream.onMessage(message => {
+      if (faults.backgroundDeadSocket === ws) return;
       const e = JSON.parse(String(message));
       if (faults.delaySnapshot && e.type === 'resync.snapshot') {
         faults.delaySnapshot = false;
@@ -422,6 +437,57 @@ try {
   faults.historyDelay = 0;
   await equalCanonical('session switch during live delta and scroll');
   evidence.stages.push({ label: 'session switch during live delta and scroll', samples: switchVisualSnapshots.length });
+
+  // Regression: put the real Chromium page in the background while a real
+  // Worker continues streaming. Keep the old browser WebSocket OPEN-looking
+  // but drop its server-to-browser frames, which models the half-open socket
+  // commonly left behind by background throttling/sleep. The page must resume
+  // by replacing that transport and reconciling the durable terminal result;
+  // no page reload is allowed.
+  const backgroundPage = await context.newPage();
+  await backgroundPage.goto('about:blank');
+  await page.bringToFront();
+  await poll(() => page.evaluate(() => document.visibilityState), s => s === 'visible', 'page foreground before background stream');
+  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  await send('background-resume');
+  await poll(state, s => s.rows.some(m => m.role === 'tool' && m.content.includes('background-resume')), 'background stream tool visible');
+  assert.ok(socketRoute, 'background test needs the live WebSocket route');
+  const socketsBeforeBackground = socketConnectionCount;
+  faults.backgroundDeadSocket = socketRoute;
+  const pageLifecycle = await context.newCDPSession(page);
+  await backgroundPage.bringToFront();
+  // Headless Chromium does not update document.visibilityState merely because
+  // another headless Page is frontmost. Send the same browser lifecycle signal
+  // that the production page receives, then use the real CDP frozen state so
+  // timers/React work are actually suspended while the Worker continues.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new window.Event('visibilitychange'));
+  });
+  await pageLifecycle.send('Page.setWebLifecycleState', { state: 'frozen' });
+  assert.equal(await page.evaluate(() => document.visibilityState), 'hidden', 'page enters browser background');
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:background-resume'), 'background worker completes while page hidden');
+  await sleep(500);
+  await pageLifecycle.send('Page.setWebLifecycleState', { state: 'active' });
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    document.dispatchEvent(new window.Event('visibilitychange'));
+  });
+  await page.bringToFront();
+  const resumedAt = Date.now();
+  await poll(() => page.evaluate(() => document.visibilityState), s => s === 'visible', 'page resumes from browser background');
+  await poll(() => Promise.resolve(socketConnectionCount), count => count > socketsBeforeBackground, 'background resume opens a new websocket');
+  await poll(state, s => s.rows.some(m => m.role === 'assistant' && m.content.includes('answer:background-resume')), 'background resume converges without reload', 12000);
+  faults.backgroundDeadSocket = null;
+  await backgroundPage.close();
+  evidence.stages.push({
+    label: 'background tab resume replaces half-open websocket without reload',
+    resumedAt,
+    socketsBeforeBackground,
+    socketsAfterResume: socketConnectionCount,
+  });
 
   // The same invariant while follow-bottom is active. A growing delta must
   // move the viewport, never reorder or repaint the already-rendered tool row.
