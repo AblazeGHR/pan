@@ -809,10 +809,12 @@ export async function steerWorker(workerId: string, text: string): Promise<ApiGe
   return data;
 }
 
-export async function steerSessionWorker(sessionId: string, text: string): Promise<ApiGenericResponse> {
+export async function steerSessionWorker(
+  sessionId: string, text: string, messageId?: string,
+): Promise<ApiGenericResponse> {
   const data = await request<ApiGenericResponse>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/steer`,
-    { method: 'POST', body: JSON.stringify({ text }) },
+    { method: 'POST', body: JSON.stringify({ text, ...(messageId ? { messageId } : {}) }) },
   );
   if (data.error) throw new Error(data.error);
   return data;

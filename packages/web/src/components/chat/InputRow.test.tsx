@@ -202,13 +202,17 @@ describe('InputRow send queue wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Steer' }));
 
     await waitFor(() =>
-      expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'continue with the latest result'),
+      expect(steerSessionWorker).toHaveBeenCalledWith(
+        's1', 'continue with the latest result', expect.stringMatching(/^steer:/),
+      ),
     );
     await waitFor(() => expect(
       useSessionStore.getState().currentMessages.map((message) => message.content),
     ).toEqual(['continue with the latest result']));
     expect(useSessionStore.getState().sessions[0]?.history.map((message) => message.content))
       .toEqual(['continue with the latest result']);
+    expect(useSessionStore.getState().currentMessages[0]?.messageId)
+      .toBe(vi.mocked(steerSessionWorker).mock.calls[0]?.[2]);
   });
 
   it('does not put a delayed Steer response into a newly selected Session', async () => {
@@ -241,7 +245,9 @@ describe('InputRow send queue wiring', () => {
       target: { value: 'steer A' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Steer' }));
-    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'steer A'));
+    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith(
+      's1', 'steer A', expect.stringMatching(/^steer:/),
+    ));
 
     useSessionStore.setState({ currentSessionId: 's2', currentMessages: [] });
     pending.resolve({ workerId: 'w1', status: 'steer sent' });
@@ -276,7 +282,9 @@ describe('InputRow send queue wiring', () => {
       target: { value: 'steer A' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Steer' }));
-    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'steer A'));
+    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith(
+      's1', 'steer A', expect.stringMatching(/^steer:/),
+    ));
 
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
       target: { value: 'new draft after request' },

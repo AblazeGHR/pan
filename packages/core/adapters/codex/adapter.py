@@ -423,11 +423,17 @@ class CodexAdapter:
                 if not isinstance(part, dict):
                     continue
                 if part.get("type") == "text" and part.get("text"):
-                    blocks.append({"role": "assistant", "content": part["text"]})
+                    block = {"role": "assistant", "content": part["text"]}
+                    if native_item_id is not None:
+                        block["nativeItemId"] = str(native_item_id)
+                    blocks.append(block)
                 elif part.get("type") in ("thinking", "think"):
                     text = part.get("thinking") or part.get("think") or ""
                     if text:
-                        blocks.append({"role": "thinking", "content": text})
+                        block = {"role": "thinking", "content": text}
+                        if native_item_id is not None:
+                            block["nativeItemId"] = str(native_item_id)
+                        blocks.append(block)
                 elif part.get("type") == "tool_use":
                     name = part.get("name") or "tool"
                     args = part.get("input") or {}
@@ -439,7 +445,13 @@ class CodexAdapter:
             return blocks
         if event.get("type") == "thinking":
             text = event.get("content") or ""
-            return [{"role": "thinking", "content": text}] if text else []
+            if not text:
+                return []
+            block = {"role": "thinking", "content": text}
+            native_item_id = event.get("item_id") or event.get("itemId")
+            if native_item_id is not None:
+                block["nativeItemId"] = str(native_item_id)
+            return [block]
 
         item = event.get("item", {}) or {}
         # live stdout 用 snake_case（agent_message），持久化 thread_items 用
@@ -450,7 +462,10 @@ class CodexAdapter:
         if itype == "agentmessage":
             text = item.get("text", "")
             if text:
-                blocks.append({"role": "assistant", "content": text})
+                block = {"role": "assistant", "content": text}
+                if item.get("id") is not None:
+                    block["nativeItemId"] = str(item["id"])
+                blocks.append(block)
         elif itype == "reasoning":
             # reasoning 项用 text 或 summary[0]（持久化为 summary 数组）
             text = item.get("text") or ""
@@ -459,11 +474,17 @@ class CodexAdapter:
                 if summary:
                     text = summary[0] if isinstance(summary[0], str) else str(summary[0])
             if text:
-                blocks.append({"role": "thinking", "content": text})
+                block = {"role": "thinking", "content": text}
+                if item.get("id") is not None:
+                    block["nativeItemId"] = str(item["id"])
+                blocks.append(block)
         elif itype == "plan":
             text = item.get("text") or ""
             if text:
-                blocks.append({"role": "thinking", "content": text})
+                block = {"role": "thinking", "content": text}
+                if item.get("id") is not None:
+                    block["nativeItemId"] = str(item["id"])
+                blocks.append(block)
         elif itype == "commandexecution":
             cmd = item.get("command", "")
             out = item.get("aggregated_output", "") or item.get("aggregatedOutput", "") or item.get("output", "")

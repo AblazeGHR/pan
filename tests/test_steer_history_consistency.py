@@ -65,7 +65,8 @@ def test_steer_control_stream_result_history_barrier_is_ordered(tmp_path, monkey
     monkeypatch.setattr(_sess, "_append_jsonl", blocked_append)
 
     async def scenario():
-        steer_task = asyncio.create_task(worker.steer_worker(live.worker_id, "steer now"))
+        steer_task = asyncio.create_task(worker.steer_worker(
+            live.worker_id, "steer now", "steer:one"))
         assert await asyncio.to_thread(entered.wait, 2)
         while len(session.history) < 2:
             await asyncio.sleep(0)
@@ -91,7 +92,7 @@ def test_steer_control_stream_result_history_barrier_is_ordered(tmp_path, monkey
     ]
     assert _jsonl(_sess._history_path(session.id)) == [
         {"role": "user", "content": "question"},
-        {"role": "user", "content": "steer now"},
+        {"role": "user", "content": "steer now", "messageId": "steer:one"},
         {"role": "assistant", "content": "delta"},
         {"role": "assistant", "content": "final"},
     ]

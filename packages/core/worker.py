@@ -5974,7 +5974,8 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     return None
 
 
-async def steer_worker(worker_id: str, text: str) -> str | None:
+async def steer_worker(worker_id: str, text: str,
+                       message_id: str | None = None) -> str | None:
     """Inject a follow-up instruction into a native running turn.
 
     Codex app-server's ``turn/steer`` changes the native thread, but it does
@@ -5985,13 +5986,22 @@ async def steer_worker(worker_id: str, text: str) -> str | None:
     text = str(text or "").strip()
     if not text:
         return "Steer text is required"
+    if message_id is not None and (
+        not isinstance(message_id, str)
+        or not message_id.startswith("steer:")
+        or len(message_id) > 128
+    ):
+        return "Invalid Steer message id"
     err = await send_control_message(worker_id, {"type": "steer", "text": text})
     if err:
         return err
     w = workers.get(worker_id)
     s = _session(w) if w else None
     if s is not None:
-        _sess.append_history(s, {"role": "user", "content": text})
+        history_row = {"role": "user", "content": text}
+        if message_id:
+            history_row["messageId"] = message_id
+        _sess.append_history(s, history_row)
         # The native control has already been written successfully.  A
         # transient history-file failure must not make the caller retry Steer
         # (which would send the provider control a second time), so retry only
@@ -6627,7 +6637,8 @@ def find_worker_by_session(session_id: str) -> Worker | None:
     return None
 
 
-async def steer_session_worker(session_id: str, text: str) -> Worker | str | None:
+async def steer_session_worker(session_id: str, text: str,
+                               message_id: str | None = None) -> Worker | str | None:
     """Steer the session's live worker without exposing its runtime id."""
     if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
@@ -6636,7 +6647,7 @@ async def steer_session_worker(session_id: str, text: str) -> Worker | str | Non
         w = find_alive_worker_by_session(session_id)
         if w is None:
             return None
-        error = await steer_worker(w.worker_id, text)
+        error = await steer_worker(w.worker_id, text, message_id)
         return error or w
 
 

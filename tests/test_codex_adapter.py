@@ -245,19 +245,32 @@ def test_parse_agent_message():
     # live stdout 用 snake_case
     event = {"type": "item.completed", "item": {"id": "i1", "type": "agent_message", "text": "PONG"}}
     assert a.is_assistant_event(event)
-    assert a.extract_assistant_blocks(event) == [{"role": "assistant", "content": "PONG"}]
+    assert a.extract_assistant_blocks(event) == [{
+        "role": "assistant", "content": "PONG", "nativeItemId": "i1",
+    }]
     # 持久化 thread_items 用 camelCase
     event2 = {"type": "item.completed", "item": {"id": "i1", "type": "agentMessage", "text": "PONG2"}}
-    assert a.extract_assistant_blocks(event2) == [{"role": "assistant", "content": "PONG2"}]
+    assert a.extract_assistant_blocks(event2) == [{
+        "role": "assistant", "content": "PONG2", "nativeItemId": "i1",
+    }]
     print("PASS: parse agent_message (snake + camel)")
 
 
 def test_parse_reasoning():
     a = _adapter()
     event = {"type": "item.completed", "item": {"id": "i2", "type": "reasoning", "summary": ["think hard"]}}
-    assert a.extract_assistant_blocks(event) == [{"role": "thinking", "content": "think hard"}]
+    assert a.extract_assistant_blocks(event) == [{
+        "role": "thinking", "content": "think hard", "nativeItemId": "i2",
+    }]
     event2 = {"type": "item.completed", "item": {"id": "i3", "type": "reasoning", "text": "direct"}}
-    assert a.extract_assistant_blocks(event2) == [{"role": "thinking", "content": "direct"}]
+    assert a.extract_assistant_blocks(event2) == [{
+        "role": "thinking", "content": "direct", "nativeItemId": "i3",
+    }]
+    assert a.extract_assistant_blocks({
+        "type": "thinking", "item_id": "i4", "content": "live reasoning",
+    }) == [{
+        "role": "thinking", "content": "live reasoning", "nativeItemId": "i4",
+    }]
     print("PASS: parse reasoning")
 
 
@@ -316,6 +329,7 @@ def test_app_server_canonical_events_are_persistable():
     a = _adapter()
     final = {
         "type": "assistant",
+        "item_id": "native-item",
         "message": {"content": [
             {"type": "text", "text": "answer"},
             {"type": "tool_use", "name": "Command", "input": {"command": "dir"}},
@@ -323,8 +337,9 @@ def test_app_server_canonical_events_are_persistable():
     }
     assert a.is_assistant_event(final)
     assert a.extract_assistant_blocks(final) == [
-        {"role": "assistant", "content": "answer"},
-        {"role": "tool", "content": 'Command({"command":"dir"})'},
+        {"role": "assistant", "content": "answer", "nativeItemId": "native-item"},
+        {"role": "tool", "content": 'Command({"command":"dir"})',
+         "nativeItemId": "native-item"},
     ]
     delta = {
         "type": "content.part", "role": "assistant", "delta": True,

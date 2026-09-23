@@ -1153,8 +1153,9 @@ export function InputRow() {
       const draftRevision = draftState.inputDraftRevisions[steerSessionId] ?? 0;
       const draftText = draftState.inputDrafts[steerSessionId] ?? text;
       const attachmentRevision = attachments.map(attachmentOccurrenceId).join('\u0000');
+      const messageId = `steer:${attachmentId()}`;
       try {
-        await steer(steerSessionId, text);
+        await steer(steerSessionId, text, messageId);
         // The request may outlive a Session switch.  Only the original
         // composer may be cleared; the message projection is always written
         // to the captured target Session, never whichever Session is current
@@ -1170,7 +1171,7 @@ export function InputRow() {
           setInputDraft(steerSessionId, '');
           if (stillSelected) updateAttachments(() => []);
         }
-        appendLocalMessage(steerSessionId, { role: 'user', content: text });
+        appendLocalMessage(steerSessionId, { role: 'user', content: text, messageId });
       } catch (e) {
         showToast((e as Error).message || 'Steer failed', 'error');
       }
