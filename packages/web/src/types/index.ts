@@ -89,9 +89,9 @@ export interface Session {
   /** Ids of sessions this session manages (claims as a meta-agent). */
   managed?: string[];
   /**
-   * Durable workspace memberships. Product rule is SINGLE membership: the UI
-   * only ever writes at most one id here; an empty/missing array means the
-   * session is ungrouped. Old sessions may omit the field entirely.
+   * Durable workspace memberships. The backend permits multiple memberships;
+   * a missing or empty array means the session is ungrouped. Old sessions may
+   * omit the field entirely.
    */
   workspaceIds?: string[];
   /** Managed-session report subscriptions (ids this session gets reports from). */

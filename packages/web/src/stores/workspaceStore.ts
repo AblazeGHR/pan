@@ -8,8 +8,9 @@ import { buildManagerEdges, collectDescendants } from '@/components/session/sess
  * Durable Workspace (session group) metadata + membership mutations.
  *
  * Product rules implemented here:
- *  - SINGLE membership: a session belongs to at most one workspace; moving
- *    means REPLACING its membership (`[]` = ungrouped).
+ *  - A Session may belong to multiple workspaces. Moving it to a different
+ *    workspace replaces its memberships (`[]` = ungrouped); deleting one
+ *    workspace removes only that membership.
  *  - MANAGER CASCADE: moving a session that manages others moves every
  *    descendant with it (recursively, cycle-safe).
  *
@@ -106,7 +107,9 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
     const sessionStore = useSessionStore.getState();
     for (const session of sessionStore.sessions) {
       if ((session.workspaceIds ?? []).includes(id)) {
-        sessionStore.updateSession(session.id, { workspaceIds: [] });
+        sessionStore.updateSession(session.id, {
+          workspaceIds: (session.workspaceIds ?? []).filter((workspaceId) => workspaceId !== id),
+        });
       }
     }
   },
@@ -133,7 +136,12 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
     for (const id of targets) {
       const session = sessionStore.sessions.find((s) => s.id === id);
       const current = session?.workspaceIds ?? [];
-      const same = current.length === membership.length && current.every((v, i) => v === membership[i]);
+      // Selecting a workspace the session already belongs to must not discard
+      // any of its other memberships. Explicitly moving elsewhere still
+      // replaces the membership set with the selected workspace.
+      const same = workspaceId === null
+        ? current.length === 0
+        : current.includes(workspaceId);
       if (same) continue;   // no-op moves stay silent
       await api.setSessionWorkspaces(id, membership);
       sessionStore.updateSession(id, { workspaceIds: [...membership] });
