@@ -102,3 +102,6 @@ audit/e2e-runtime/workdirs/
 audit/e2e-runtime/attachments/
 evidence/cbc-strict/runtime/
 packages/web/test-results/
+
+# Local workflow documents are maintained outside Git on main
+/.workflow/
