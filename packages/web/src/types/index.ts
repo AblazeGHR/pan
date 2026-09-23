@@ -88,6 +88,12 @@ export interface Session {
   readonlySession?: boolean;
   /** Ids of sessions this session manages (claims as a meta-agent). */
   managed?: string[];
+  /**
+   * Durable workspace memberships. Product rule is SINGLE membership: the UI
+   * only ever writes at most one id here; an empty/missing array means the
+   * session is ungrouped. Old sessions may omit the field entirely.
+   */
+  workspaceIds?: string[];
   /** Managed-session report subscriptions (ids this session gets reports from). */
   reportSubscriptions?: string[];
   /** QQ inbox subscriptions, each formatted "user:<uin>" or "group:<uin>". */
@@ -127,6 +133,37 @@ export interface Session {
   totalUsage?: Record<string, number> | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** Durable named container grouping Sessions (sidebar Workspace rail). */
+export interface Workspace {
+  id: string;
+  name: string;
+  /** Independent display order; null = never explicitly ordered (sorts last). */
+  order: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  /** Server-computed member count (present on workspace endpoints). */
+  sessionCount?: number;
+  /** Server-computed member session ids. */
+  sessionIds?: string[];
+}
+
+export interface ApiWorkspacesResponse {
+  workspaces: Workspace[];
+  error?: string;
+}
+
+export interface ApiWorkspaceResponse {
+  ok?: boolean;
+  workspace: Workspace;
+  error?: { code?: string; message?: string };
+}
+
+export interface ApiWorkspaceOrderResponse {
+  ok?: boolean;
+  order?: string[];
+  error?: { code?: string; message?: string };
 }
 
 export interface SessionUsageView {
@@ -353,6 +390,12 @@ export interface StreamEvent {
   blockId?: string;
   /** True when the server replays a still-pending interactive prompt after WS reconnect. */
   replayed?: boolean;
+  /** Workspace events: the workspace whose membership/metadata changed. */
+  workspaceId?: string;
+  /** session.workspaceUpdated: the session's complete membership snapshot. */
+  workspaceIds?: string[];
+  /** workspace.membershipUpdated: the workspace's complete member id snapshot. */
+  sessionIds?: string[];
 }
 
 // ── API response types ──

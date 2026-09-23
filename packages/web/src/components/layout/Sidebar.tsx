@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useSessionStore, useCurrentSession } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { nextSessionDefaultName } from '@/utils/sessionName';
@@ -76,7 +77,12 @@ export function Sidebar() {
     toggleTheme,
     dragEnabled,
     setDragEnabled,
+    activeWorkspaceId,
   } = useUIStore();
+  // Workspace rail state (batch move menu + scope label).
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
+  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
 
   // Editor store
   const treeLoading = useEditorStore((s) => s.treeLoading);
@@ -184,8 +190,9 @@ export function Sidebar() {
       hiddenSessionIds,
       searchQuery,
       specialFilters,
+      activeWorkspaceId,
     }),
-    [sessions, hiddenSessionIds, searchQuery, specialFilters],
+    [sessions, hiddenSessionIds, searchQuery, specialFilters, activeWorkspaceId],
   );
   const selectableIds = useMemo(
     () => selectableSessions.map((session) => session.id),
@@ -202,6 +209,37 @@ export function Sidebar() {
       for (const id of selectable) next.add(id);
     }
     useSessionStore.setState({ selectedIds: next });
+  };
+
+  /** Batch workspace move (single membership + manager cascade, scoped selection). */
+  const [moveMenuOpen, setMoveMenuOpen] = useState(false);
+  const activeScopeName = activeWorkspaceId === 'all'
+    ? '全部'
+    : workspaces.find((w) => w.id === activeWorkspaceId)?.name ?? '全部';
+
+  // The rail loads workspaces on desktop; the batch menu is reachable on
+  // mobile too, so make sure the list exists before it renders items.
+  useEffect(() => {
+    if (multiSelectMode && !workspacesLoaded) void loadWorkspaces();
+  }, [multiSelectMode, workspacesLoaded, loadWorkspaces]);
+
+  const handleBatchMove = async (workspaceId: string | null) => {
+    setMoveMenuOpen(false);
+    if (selectedIds.size === 0) return;
+    try {
+      const changed = await useWorkspaceStore.getState().moveSessions([...selectedIds], workspaceId);
+      if (changed.length === 0) {
+        showToast(workspaceId ? '所选会话均已在目标工作区' : '所选会话本就没有归属', 'error');
+      } else if (workspaceId) {
+        const name = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)?.name ?? '工作区';
+        showToast(`已将 ${changed.length} 个会话移入「${name}」`);
+      } else {
+        showToast(`已将 ${changed.length} 个会话移出工作区（未分组）`);
+      }
+      exitMultiSelect();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '移动失败', 'error');
+    }
   };
 
   const handleBatchDelete = () => {
@@ -603,9 +641,12 @@ export function Sidebar() {
 
           {/* Multi-select bar */}
           {multiSelectMode && (
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-border-muted bg-bg-tertiary">
+            <div className="relative flex items-center gap-2 px-3 py-2 border-b border-border-muted bg-bg-tertiary">
               <span className="text-xs text-text-secondary">
                 {selectedIds.size} selected
+              </span>
+              <span className="text-[10px] text-text-tertiary truncate" title="批量操作的范围（永不跨工作区）">
+                范围：{activeScopeName}
               </span>
               <div className="flex-1" />
               <Button
@@ -617,6 +658,38 @@ export function Sidebar() {
               >
                 {allSelectableSelected ? 'Deselect all' : 'Select all'}
               </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setMoveMenuOpen((v) => !v)}
+                disabled={selectedIds.size === 0}
+              >
+                移入工作区
+              </Button>
+              {moveMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMoveMenuOpen(false)} />
+                  <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-44 overflow-y-auto rounded-md border border-border-default bg-bg-tertiary py-1 shadow-xl">
+                    <button
+                      type="button"
+                      className="w-full px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20"
+                      onClick={() => void handleBatchMove(null)}
+                    >
+                      未分组（移出工作区）
+                    </button>
+                    {workspaces.map((workspace) => (
+                      <button
+                        key={workspace.id}
+                        type="button"
+                        className="w-full truncate px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20"
+                        onClick={() => void handleBatchMove(workspace.id)}
+                      >
+                        {workspace.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <Button
                 variant="danger"
                 size="sm"
