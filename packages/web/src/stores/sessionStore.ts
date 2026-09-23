@@ -342,6 +342,8 @@ export interface SessionTranscript {
 // Stable keys for runtime rows so a re-delivered live buffer replaces its own
 // previous run instead of appending a second copy.
 const runtimeKeys = new WeakMap<Message, string>();
+/** Canonical end offset proven to precede a local worker.result marker. */
+const terminalMarkerOffsets = new WeakMap<Message, { epoch: string | null; end: number }>();
 
 function bindRuntimeKey(message: Message, key: string): Message {
   runtimeKeys.set(message, key);
@@ -697,6 +699,43 @@ function alignedLiveBufferStart(
   return matches.length === 1 ? matches[0] : undefined;
 }
 
+/**
+ * A completed task can stream its native items in a different order from the
+ * final history page. Match only the runtime run ending at that task's result
+ * marker, starting at the next unconsumed absolute history offset. Every
+ * runtime row needs a distinct canonical counterpart before this run can be
+ * replaced; an unseen user row is a task boundary, not a match to skip past.
+ */
+function coveredTerminalRunEnd(
+  window: LoadedWindow,
+  startOffset: number,
+  rows: Message[],
+): number | undefined {
+  if (rows.length === 0) return undefined;
+  const used = new Set<number>();
+  const limit = window.end ?? window.total;
+  let end = startOffset;
+  for (const row of rows) {
+    let matched = -1;
+    for (let offset = startOffset; offset < limit; offset += 1) {
+      const durable = window.rows.get(offset);
+      if (!durable) break;
+      if (!used.has(offset) && runtimeRowCompatible(row, durable)) {
+        matched = offset;
+        break;
+      }
+    }
+    if (matched < 0) return undefined;
+    used.add(matched);
+    end = Math.max(end, matched + 1);
+  }
+  for (let offset = startOffset; offset < end; offset += 1) {
+    const durable = window.rows.get(offset);
+    if (!durable || (durable.role === 'user' && !used.has(offset))) return undefined;
+  }
+  return end;
+}
+
 function projectTranscript(
   transcript: SessionTranscript,
   liveBuffer?: LiveStreamBuffer,
@@ -716,8 +755,52 @@ function projectTranscript(
   const emitted = new Set<number>();
   let next = anchorOffset;
   let aligned = true;
-  for (const row of runtime) {
+  for (let index = 0; index < runtime.length; index += 1) {
+    const row = runtime[index]!;
+    // Result markers bound a single completed turn. Once its whole runtime
+    // run is durable, show canonical order and keep the marker after that run.
+    // This also advances the offset before the next turn, so identical text in
+    // two separate tasks cannot consume one history row twice.
+    if (aligned && (index === 0 || isLocalMarker(runtime[index - 1]!))
+        && !isLocalMarker(row)) {
+      const markerIndex = runtime.findIndex((candidate, candidateIndex) =>
+        candidateIndex > index && isLocalMarker(candidate)
+          && candidate.nativeItemId?.startsWith('worker.result:') === true,
+      );
+      if (markerIndex >= 0) {
+        const run = runtime.slice(index, markerIndex);
+        if (run.every((candidate) => !isLocalMarker(candidate))) {
+          const coveredEnd = coveredTerminalRunEnd(window, next, run);
+          if (coveredEnd !== undefined) {
+            for (let offset = next; offset < coveredEnd; offset += 1) {
+              display.push(window.rows.get(offset)!);
+              emitted.add(offset);
+            }
+            const marker = runtime[markerIndex]!;
+            terminalMarkerOffsets.set(marker, { epoch: window.epoch, end: coveredEnd });
+            display.push(marker);
+            next = coveredEnd;
+            index = markerIndex;
+            continue;
+          }
+        }
+      }
+    }
     if (isLocalMarker(row)) {
+      const coverage = terminalMarkerOffsets.get(row);
+      if (aligned && coverage?.epoch === window.epoch && coverage.end >= next) {
+        let fullyLoaded = true;
+        for (let offset = next; offset < coverage.end; offset += 1) {
+          if (!window.rows.has(offset)) { fullyLoaded = false; break; }
+        }
+        if (fullyLoaded) {
+          for (let offset = next; offset < coverage.end; offset += 1) {
+            display.push(window.rows.get(offset)!);
+            emitted.add(offset);
+          }
+          next = coverage.end;
+        }
+      }
       display.push(row);
       continue;
     }
@@ -857,6 +940,20 @@ function projectLiveRows(
       if (found >= 0 && display[found]!.role === live.role
           && !usedTargetIndexes.has(found)) targetIndex = found;
     }
+    if (targetIndex < 0 && sameTask) {
+      // A history projection may have moved or cloned the row while leaving
+      // its task-local ownership key intact. The cached index then points at
+      // the newly inserted durable row, and object identity no longer finds
+      // the live row. Search only for this task's key before appending.
+      const keyed = display.flatMap((candidate, index) =>
+        !usedTargetIndexes.has(index)
+          && candidate.role === live.role
+          && keys.includes(runtimeKeyOf(candidate) ?? '')
+          ? [index]
+          : [],
+      );
+      if (keyed.length === 1) targetIndex = keyed[0]!;
+    }
     if (targetIndex < 0 && sameTask && explicit.length === 0) {
       // Id-less adapters can introduce earlier blocks in a final envelope and
       // move the already-streamed assistant to a later slot. Reuse its prior
@@ -977,6 +1074,10 @@ function projectLiveRows(
     && targetSet.size === rows.length
     && orderedTargets.length > 0
     && orderedTargets.at(-1)! - orderedTargets[0]! + 1 === rows.length
+    // A history refresh may have rebound live rows to canonical rows. Once a
+    // row has a durable offset, the server's absolute history order wins over
+    // any later-arriving stream snapshot for that same task.
+    && targetRefs.every((row) => !isDurableRow(row))
     && targetIndexes.some((index, slot) => index !== orderedTargets[0]! + slot);
   if (canReorder) {
     const first = orderedTargets[0]!;
@@ -2026,33 +2127,27 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           || s.unscopedReplayPending['*'])
         ? { ...s.unscopedReplayPending, [sessionId]: false }
         : s.unscopedReplayPending;
-      const projected = s.currentSessionId === sessionId
-        ? projectLiveRows(
-            s.currentMessages,
-            previous,
-            taskKey,
-            buffer.messages,
-            buffer.historyStartOffset ?? base.anchorOffset,
-          )
-        : { display: s.currentMessages, indexes: {}, refs: {}, appended: 0 };
+      // Keep each Session's own display projection in sync while it streams in
+      // the background. Rebuilding runtime as `other rows + whole live buffer`
+      // moves rows appended during the turn (Steer/queue delivery) in front of
+      // stream blocks that had already appeared. Use the target Session's
+      // current projection, then retain that exact interleaving in runtime.
+      const targetDisplay = s.currentSessionId === sessionId
+        ? s.currentMessages
+        : projectTranscript(base, previous);
+      const projected = projectLiveRows(
+        targetDisplay,
+        previous,
+        taskKey,
+        buffer.messages,
+        buffer.historyStartOffset ?? base.anchorOffset,
+      );
       buffer.projectionIndexes = projected.indexes;
       buffer.projectionRefs = projected.refs;
-      // The live rows replace the previous buffer's run in the runtime region;
-      // earlier turns' unconverged rows stay in front of them.
-      const previousLiveKeys = new Set((previous?.messages ?? []).map((row, slot) =>
-        liveProjectionKeys(row, { taskKey: previous?.taskKey ?? taskKey, slot })[0]!,
-      ));
-      const runtime = base.runtime.filter((row) => {
-        const key = runtimeKeyOf(row);
-        return key === null || !previousLiveKeys.has(key);
-      });
-      const nextRuntime = buffer.messages.map((row, slot) => {
-        const key = liveProjectionKeys(row, { taskKey, slot })[0]!;
-        return bindRuntimeKey(row, key);
-      });
+      const runtime = projected.display.filter((row) => !isDurableRow(row));
       const transcript: SessionTranscript = {
         ...base,
-        runtime: [...runtime, ...nextRuntime],
+        runtime,
       };
       if (s.currentSessionId === sessionId) {
         return {

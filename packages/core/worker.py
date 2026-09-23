@@ -1968,10 +1968,11 @@ async def _requeue_queue_unit(w: Worker, s, items: list[dict], reason: str,
         if item.get("type") == "task":
             _task_status_queued(w, item)
     if history_added:
-        keys = {_delivery_key(item) for item in items}
         for index in range(len(s.history) - 1, -1, -1):
             entry = s.history[index]
-            if keys.intersection(entry.get("delivered_keys") or ()):
+            if any(_delivery_key_matches(key, item)
+                   for key in (entry.get("delivered_keys") or ())
+                   for item in items):
                 s.history.pop(index)
                 _sess.replace_history(s, s.history)
                 break
@@ -3409,31 +3410,60 @@ _DELIVERY_SCAN_DEPTH: int = 50
 def _delivery_key(item: dict) -> str:
     """队列项的投递标记 key。
 
-    task 用 item.id；report/qq 用 taskId（保留可读性）+ 内容指纹（同 taskId
-    不同内容不误判，taskId 缺失回退纯指纹）。指纹取排序 JSON 的 sha1 前 12 位，
-    json 往返（磁盘重载）后内容一致 → 指纹一致。
+    Task 用 queue item id 作为稳定身份。Report/QQ 保留 taskId + 消息指纹，
+    区分同一 taskId 下的不同报告。投递状态和恢复元数据不参与身份，恢复时从
+    reserved/writing 归一到 queued 不能改变历史收据键。
     """
-    # Delivery bookkeeping is mutable, not message identity.  Excluding it
-    # keeps a history mark stable across retries and restart recovery.
     bookkeeping = {
-        "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
-        "deliveryAttempts", "nextAttemptAt", "lastDeliveryError", "queueItemId",
+        "deliveryState", "dispatchState", "lastDeliveryState",
+        "reservedBy", "reservedGeneration", "reservedAt",
+        "deliveryAttempts", "nextAttemptAt", "lastDeliveryError",
+        "queueItemId", "receiptAt", "deliveredAt", "deletedAt",
+        "position", "revision",
     }
+    if item.get("type") == "task":
+        return f"task:{_queue_item_id(item)}"
     identity = {k: v for k, v in item.items() if k not in bookkeeping}
     digest = hashlib.sha1(
         json.dumps(identity, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
     ).hexdigest()[:12]
-    if item.get("type") == "task":
-        return f"task:{item.get('id')}:{digest}"
     tid = item.get("taskId")
     return f"report:{tid if tid else 'anon'}:{digest}"
 
 
+def _delivery_key_matches(key: str, item: dict) -> bool:
+    """Match stable keys and receipts written by previous versions."""
+    current = _delivery_key(item)
+    if key == current:
+        return True
+    if item.get("type") == "task":
+        # Older task receipts appended a mutable-metadata digest after this
+        # unique queue item id. Preserve those marks during rolling upgrades.
+        return key.startswith(f"{current}:")
+
+    # The legacy report/QQ hash included delivery phase fields. Its initial
+    # pre-handoff shape was queued, with no recovery/terminal timestamps.
+    legacy_bookkeeping = {
+        "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
+        "deliveryAttempts", "nextAttemptAt", "lastDeliveryError", "queueItemId",
+    }
+    identity = {k: v for k, v in item.items() if k not in legacy_bookkeeping}
+    if "dispatchState" in identity:
+        identity["dispatchState"] = _DELIVERY_QUEUED
+    for field in ("lastDeliveryState", "receiptAt", "deliveredAt", "deletedAt"):
+        identity.pop(field, None)
+    digest = hashlib.sha1(
+        json.dumps(identity, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+    ).hexdigest()[:12]
+    tid = item.get("taskId")
+    return key == f"report:{tid if tid else 'anon'}:{digest}"
+
+
 def _delivery_mark_in_history(s, item: dict) -> bool:
     """history 尾部是否已有该队列项的投递标记（消费前对账，查条目元数据）。"""
-    key = _delivery_key(item)
     for h in s.history[-_DELIVERY_SCAN_DEPTH:]:
-        if key in (h.get("delivered_keys") or ()):
+        if any(_delivery_key_matches(key, item)
+               for key in (h.get("delivered_keys") or ())):
             return True
     return False
 

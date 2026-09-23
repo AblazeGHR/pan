@@ -912,6 +912,8 @@ function extractStreamText(event: WorkerEvent): string | null {
 // notifications. Keep that transient alias outside Message so it does not
 // become persisted history, while retaining the first item's position.
 const nativeTurnItemAliases = new Map<string, string>();
+/** Whether the first assistant item in a turn arrived as a delta or completed. */
+const nativeTurnAliasOrigins = new Map<string, 'delta' | 'completed'>();
 // An alias is safe for a late delta only after this turn has completed an
 // assistant item. Before that point, a new item id must remain a new message:
 // multiple native items can legitimately interleave within one turn.
@@ -964,10 +966,15 @@ function appendEventToMessages(
     const turnKey = eventTurnId ? `${sessionId}${scopeSuffix}:${eventTurnId}` : undefined;
     const aliasKey = turnId ? turnKey : undefined;
     const aliasedItemId = aliasKey ? nativeTurnItemAliases.get(aliasKey) : undefined;
+    const aliasOrigin = aliasKey ? nativeTurnAliasOrigins.get(aliasKey) : undefined;
+    const completedBeforeEvent = Boolean(aliasKey && nativeTurnCompleted.has(aliasKey));
     const nativeItemId = itemId ?? (aliasedItemId ?? (turnId ? `turn:${turnId}` : undefined));
     const blockId = b.blockId
       ?? (itemId && blocks.length > 1 ? `${itemId}:block:${blockIndex}` : undefined);
-    if (aliasKey && itemId && !aliasedItemId) nativeTurnItemAliases.set(aliasKey, itemId);
+    if (aliasKey && itemId && !aliasedItemId) {
+      nativeTurnItemAliases.set(aliasKey, itemId);
+      nativeTurnAliasOrigins.set(aliasKey, event.delta ? 'delta' : 'completed');
+    }
 
     // App-server may start the final assistant text before the command item
     // completes.  The command completion is the durable ordering boundary:
@@ -991,11 +998,29 @@ function appendEventToMessages(
       }
     }
 
+    if (event.delta && cumulativeStreamText !== undefined && completedBeforeEvent
+        && itemId && aliasedItemId && itemId !== aliasedItemId
+        && messages.some((message) => message.role === b.role
+          && message.nativeItemId === aliasedItemId
+          && message.content.startsWith(cumulativeStreamText))) {
+      // A late cumulative prefix of a completed item is an echo. Ignore the
+      // echo without claiming its new item id: if that id later diverges, it
+      // can still become a distinct assistant item in its proper position.
+      continue;
+    }
+
+    // A turn can contain several completed assistant items separated by tools.
+    // Cumulative stream_text belongs to its explicit item_id, so it must not
+    // update the first completed item just because both share a turn_id. Keep
+    // the narrow bridges for delta(A) → completed(B) and completed(B) → a
+    // late non-cumulative delta(A) from older adapters.
+    const allowTurnAlias = Boolean(aliasedItemId && itemId !== aliasedItemId
+      && ((event.final && aliasOrigin === 'delta' && !completedBeforeEvent)
+        || (event.delta && aliasOrigin === 'completed' && completedBeforeEvent
+          && cumulativeStreamText === undefined)));
     const nativeIds = [
       nativeItemId,
-      ...((!event.delta || (aliasKey && nativeTurnCompleted.has(aliasKey))) && aliasedItemId
-        ? [aliasedItemId]
-        : []),
+      ...(allowTurnAlias ? [aliasedItemId!] : []),
       ...(turnId && nativeItemId !== `turn:${turnId}` ? [`turn:${turnId}`] : []),
     ].filter((id): id is string => Boolean(id));
     let nativeIndex = -1;
@@ -1238,6 +1263,9 @@ function clearNativeTurnAliases(sessionId: string): void {
   const prefix = `${sessionId}:`;
   for (const key of nativeTurnItemAliases.keys()) {
     if (key.startsWith(prefix)) nativeTurnItemAliases.delete(key);
+  }
+  for (const key of nativeTurnAliasOrigins.keys()) {
+    if (key.startsWith(prefix)) nativeTurnAliasOrigins.delete(key);
   }
   for (const key of nativeTurnCompleted) {
     if (key.startsWith(prefix)) nativeTurnCompleted.delete(key);

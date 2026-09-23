@@ -55,6 +55,65 @@ it('completed runtime rows remain anchored when history is refreshed repeatedly 
   }
 });
 
+it('converges a real Codex terminal reorder before the next same-text turn', () => {
+  const first = { workerId: 'w', generation: 0, taskSeq: 1 };
+  const second = { ...first, taskSeq: 2 };
+  store().appendQueuedMessage('A', { id: 'q-first', text: 'first question' });
+  store().appendDeliveredMessages('A', [{
+    role: 'user', content: 'first question', queueItemIds: ['q-first'],
+  }]);
+  store().applyWorkerStatus('A', 'running', first);
+  // The browser observed the completed answer before a reasoning item. The
+  // persisted history puts reasoning before that answer and also includes an
+  // earlier assistant item that this browser never streamed.
+  store().applyLiveStream('A', [
+    { role: 'assistant', content: 'first final', nativeItemId: 'answer-1' },
+    { role: 'thinking', content: 'reasoning', nativeItemId: 'reason-1' },
+  ], first);
+  store().reconcileWorkerResult('A', { result: 'first final', status: 'done' }, first);
+  store().addMessage({
+    role: 'system', content: '[DONE] Task completed', nativeItemId: 'worker.result:A:1',
+  });
+  const firstHistory: Message[] = [
+    { role: 'user', content: 'first question' },
+    { role: 'assistant', content: 'interim answer' },
+    { role: 'thinking', content: 'reasoning' },
+    { role: 'assistant', content: 'first final' },
+  ];
+  store().applyHistoryPage('A', {
+    history: firstHistory, start: 0, total: 4, hasMore: false,
+    historyEpoch: 'h', historyRevision: 4,
+  });
+  expect(texts()).toEqual([
+    'first question', 'interim answer', 'reasoning', 'first final', '[DONE] Task completed',
+  ]);
+
+  store().appendQueuedMessage('A', { id: 'q-second', text: 'same question' });
+  store().appendDeliveredMessages('A', [{
+    role: 'user', content: 'same question', queueItemIds: ['q-second'],
+  }]);
+  store().applyWorkerStatus('A', 'running', second);
+  store().applyLiveStream('A', [
+    { role: 'assistant', content: 'same reply', nativeItemId: 'answer-2' },
+  ], second);
+  store().reconcileWorkerResult('A', { result: 'same reply', status: 'done' }, second);
+  store().addMessage({
+    role: 'system', content: '[DONE] Task completed', nativeItemId: 'worker.result:A:2',
+  });
+  store().applyHistoryPage('A', {
+    history: [
+      ...firstHistory,
+      { role: 'user', content: 'same question' },
+      { role: 'assistant', content: 'same reply' },
+    ],
+    start: 0, total: 6, hasMore: false, historyEpoch: 'h', historyRevision: 6,
+  });
+  expect(texts()).toEqual([
+    'first question', 'interim answer', 'reasoning', 'first final', '[DONE] Task completed',
+    'same question', 'same reply', '[DONE] Task completed',
+  ]);
+});
+
 it('a queued second user row keeps its position after the first completed turn', () => {
   store().appendQueuedMessage('A', { id: 'q1', text: 'question-1' });
   store().appendDeliveredMessages('A', [{ role: 'user', content: 'question-1', queueItemIds: ['q1'] }]);

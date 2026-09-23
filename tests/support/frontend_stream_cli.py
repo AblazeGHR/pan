@@ -32,6 +32,19 @@ def main():
         if not text:
             continue
         label = text.strip()
+        if 'crash-recovery-history-idempotency' in label:
+            receipt = Path(os.environ['PAN_E2E_RUNTIME']) / 'crash-recovery-cli-inputs.jsonl'
+            with receipt.open('a', encoding='utf-8') as stream:
+                stream.write(json.dumps({
+                    'marker': 'crash-recovery-history-idempotency',
+                    'pid': os.getpid(),
+                }) + '\n')
+        if label == 'handoff-context-before-crash':
+            runtime = Path(os.environ['PAN_E2E_RUNTIME'])
+            (runtime / 'handoff-context-ready').write_text('running', encoding='utf-8')
+            release = runtime / 'release-handoff-context'
+            while not release.exists():
+                time.sleep(.01)
         if label == 'hold-queue':
             emit({'type': 'thinking', 'content': 'queue gate waiting', 'item_id': 'queue-gate', 'final': True})
             gate = Path(os.environ['PAN_E2E_RUNTIME']) / 'release-queue'
@@ -69,6 +82,35 @@ def main():
             emit({'type': 'result', 'result': f'answer:{label}', 'is_error': False})
             continue
         turn = f'turn:{label}'
+        if label == 'codex-five-story-items':
+            runtime = Path(os.environ['PAN_E2E_RUNTIME'])
+            for story in range(1, 6):
+                if story > 1:
+                    emit({'type': 'assistant', 'final': True,
+                          'item_id': f'tool:{label}:{story}', 'turn_id': turn,
+                          'message': {'content': [{'type': 'tool_use',
+                              'name': 'Command', 'input': {'command': f'date-{story}'}}]}})
+                item_id = f'story:{label}:{story}'
+                prefix = f'story-{story}-first'
+                full = f'{prefix}\nstory-{story}-final'
+                emit({'type': 'content.part', 'role': 'assistant',
+                      'delta': True, 'item_id': item_id, 'turn_id': turn,
+                      'part': {'type': 'text', 'text': prefix},
+                      'stream_text': prefix})
+                if story > 1:
+                    (runtime / f'five-story-ready-{story}').write_text('ready', encoding='utf-8')
+                    release = runtime / f'five-story-release-{story}'
+                    while not release.exists():
+                        time.sleep(.01)
+                emit({'type': 'content.part', 'role': 'assistant',
+                      'delta': True, 'item_id': item_id, 'turn_id': turn,
+                      'part': {'type': 'text', 'text': '\nstory-' + str(story) + '-final'},
+                      'stream_text': full})
+                emit({'type': 'assistant', 'final': True,
+                      'item_id': item_id, 'turn_id': turn,
+                      'message': {'content': [{'type': 'text', 'text': full}]}})
+            emit({'type': 'result', 'result': full, 'is_error': False})
+            continue
         if label == 'codex-final-first-background':
             full_text = f'answer:{label}\n' + ''.join(
                 f'line {i:03d} streaming text\n' for i in range(160)
