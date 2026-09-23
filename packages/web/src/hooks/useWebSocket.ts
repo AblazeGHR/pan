@@ -1276,13 +1276,6 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
   if (before.length === 0) clearNativeTurnAliases(sessionId);
   const messages = appendEventToMessages(sessionId, event, before, meta);
   const accepted = store.applyLiveStream(sessionId, messages, scope);
-  if (accepted) {
-    for (const block of extractBlocks(event)) {
-      if (block.role === 'thinking' || block.role === 'tool') {
-        store.markUnread(sessionId, block.content);
-      }
-    }
-  }
   return accepted;
 }
 

@@ -1,7 +1,6 @@
 import { memo, useState } from 'react';
 import { ChevronDown, ChevronUp, CircleCheck, CircleX, Loader2, Wrench } from 'lucide-react';
 import type { Message } from '@/types';
-import { useSessionStore } from '@/stores/sessionStore';
 import { useDetailStore } from '@/stores/detailStore';
 import { getMessageIdentity } from '@/utils/messageIdentity';
 import { isLongBlockContent } from './lazyBlockContent';
@@ -142,20 +141,18 @@ function StatusIcon({ status }: { status: ToolInfo['status'] }) {
 export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
-  const unread = useSessionStore((s) => s.getUnread());
 
   if (items.length === 0) return null;
 
-  // A closed group needs only its count and unread indicator. Avoid parsing
-  // every tool payload until the user opens the group, and defer full JSON
-  // parsing of a long payload until that individual row is expanded.
+  // A closed group needs only its count. Avoid parsing every tool payload
+  // until the user opens the group, and defer full JSON parsing of a long
+  // payload until that individual row is expanded.
   const tools = isOpen
     ? items.map((item) => {
         const key = getMessageIdentity(item);
         return parseTool(item.content, expandedTools.has(key));
       })
     : [];
-  const hasUnread = items.some((t) => unread.has(t.content));
 
   const handleToolClick = (key: string, tool: ToolInfo) => {
     // Open detail panel for this tool
@@ -181,9 +178,6 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
       >
         <Wrench size={14} />
         <span>{items.length} tools</span>
-        {hasUnread && !isOpen && (
-          <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" title="unread" />
-        )}
         <span className="ml-auto text-text-tertiary">
           {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>

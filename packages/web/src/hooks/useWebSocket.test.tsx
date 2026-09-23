@@ -127,7 +127,6 @@ describe('useWebSocket worker.result wiring', () => {
       _historyRefreshSeq: {},
       liveStreamBuffers: {},
       terminalWatermarks: {},
-      sessionUnread: {},
       unscopedReplayPending: {},
     });
     useUIStore.setState({ terminalInteractions: [], toastQueue: [] });
@@ -1679,7 +1678,6 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       _sessionWsTouchedSeq: {},
       liveStreamBuffers: {},
       terminalWatermarks: {},
-      sessionUnread: {},
     });
     vi.useFakeTimers();
   });
@@ -1983,24 +1981,6 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
 
     expect(useSessionStore.getState().getLiveStreamMessages('A')
       .map((message) => message.content)).toEqual(['old']);
-  });
-
-  it('records background stream unread state on its own session', () => {
-    renderHook(() => useWebSocket());
-
-    act(() => {
-      wsMock.trigger('worker.stream', {
-        type: 'worker.stream', sessionId: 'B', workerId: 'w1',
-        event: {
-          type: 'content.part', role: 'thinking', delta: true,
-          part: { type: 'think', think: 'background plan' },
-        },
-      });
-    });
-
-    const unread = useSessionStore.getState().sessionUnread;
-    expect(unread.A).toBeUndefined();
-    expect(unread.B).toEqual(new Set(['background plan']));
   });
 
   it('converges a delta that arrives after its turn item completed under another native id', () => {

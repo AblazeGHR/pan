@@ -49,9 +49,9 @@ export function Sidebar() {
   const { isMobile } = useMediaQuery();
 
   // Session store — 细粒度订阅（useShallow）：只在此切片变化时重渲染。
-  // 不能用 useSessionStore() 整体订阅：inputDrafts（每次敲键）、sessionUnread
-  // （markUnread）、liveStreamBuffers/currentMessages（每个流式 chunk）、
-  // rendering 等无关字段都会让整条侧栏链路重渲染。
+  // 不能用 useSessionStore() 整体订阅：inputDrafts（每次敲键）、
+  // liveStreamBuffers/currentMessages（每个流式 chunk）、rendering 等无关字段
+  // 都会让整条侧栏链路重渲染。
   const { multiSelectMode, exitMultiSelect, selectedIds, batchRemoveSessions, removeSessions, removeSession, sessions } =
     useSessionStore(useShallow((s) => ({
       multiSelectMode: s.multiSelectMode,

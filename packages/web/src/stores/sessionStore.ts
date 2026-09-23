@@ -54,7 +54,6 @@ interface SessionStore {
   selectedIds: Set<string>;
   inputDrafts: Record<string, string>;
   inputDraftRevisions: Record<string, number>;
-  sessionUnread: Record<string, Set<string>>;
   rendering: boolean;
 
   // ── Internal staleness guards ──
@@ -172,16 +171,7 @@ interface SessionStore {
   toggleSelection: (id: string) => void;
   exitMultiSelect: () => void;
   setRendering: (v: boolean) => void;
-  getUnread: () => Set<string>;
-  markUnread: (sessionId: string, content: string) => void;
-  clearUnread: () => void;
 }
-
-// Stable empty Set returned by getUnread() when there are no unread items.
-// MUST be a shared reference — returning `new Set()` each call would make
-// `useSessionStore((s) => s.getUnread())` an unstable selector, which
-// (via useSyncExternalStore) triggers infinite re-renders → React #185.
-const EMPTY_UNREAD_SET: Set<string> = new Set();
 
 /** Monotonic sequence stamped onto `_sessionWsTouchedSeq` by updateSession().
  *  Kept outside the store because only the relative order *per session* matters
@@ -1331,7 +1321,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   selectedIds: new Set(),
   inputDrafts: {},
   inputDraftRevisions: {},
-  sessionUnread: {},
   rendering: false,
   _loadSeq: 0,
   _sessionWsTouchedSeq: {},
@@ -3142,38 +3131,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   setRendering: (v: boolean) => {
     set({ rendering: v });
-  },
-
-  getUnread: () => {
-    const { currentSessionId, sessionUnread } = get();
-    if (!currentSessionId) return EMPTY_UNREAD_SET;
-    return sessionUnread[currentSessionId] ?? EMPTY_UNREAD_SET;
-  },
-
-  markUnread: (sessionId: string, content: string) => {
-    if (!sessionId) return;
-    set((s) => {
-      const previous = s.sessionUnread[sessionId] ?? EMPTY_UNREAD_SET;
-      if (previous.has(content)) return {};
-      const perSession = new Set(previous);
-      perSession.add(content);
-      return {
-        sessionUnread: {
-          ...s.sessionUnread,
-          [sessionId]: perSession,
-        },
-      };
-    });
-  },
-
-  clearUnread: () => {
-    const { currentSessionId } = get();
-    if (!currentSessionId) return;
-    set((s) => {
-      const copy = { ...s.sessionUnread };
-      copy[currentSessionId] = new Set();
-      return { sessionUnread: copy };
-    });
   },
 }));
 

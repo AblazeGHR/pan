@@ -78,7 +78,7 @@ function resetStore() {
     hasMoreMessages: false, historyLoading: false, initialLoading: false, sessionsLoading: false,
     historyLoadEnd: 0, historyWindowStarts: { A: 0 }, _loadSeq: 0, _sessionWsTouchedSeq: {},
     _sessionLocalTouchedSeq: {}, _historyRefreshSeq: {}, _historyPageSeq: {}, _selectionSeq: {},
-    liveStreamBuffers: {}, terminalWatermarks: {}, sessionUnread: {}, unscopedReplayPending: {},
+    liveStreamBuffers: {}, terminalWatermarks: {}, unscopedReplayPending: {},
     _deliveredQueueIds: {}, _sessionEventPatches: {}, sessionSettingMutations: {},
     sessionTranscripts: {},
   });

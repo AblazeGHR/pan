@@ -199,8 +199,8 @@ describe('Sidebar Session search controls', () => {
 });
 
 // FE-1: the sidebar chain must only re-render for state it actually reads.
-// Streaming chunks, draft keystrokes, unread markers, thinking/tool flags,
-// toasts and interactive requests are all irrelevant to the sidebar slice.
+// Streaming chunks, draft keystrokes, thinking/tool flags, toasts and
+// interactive requests are all irrelevant to the sidebar slice.
 describe('Sidebar render isolation (fine-grained selectors)', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -210,7 +210,6 @@ describe('Sidebar render isolation (fine-grained selectors)', () => {
       multiSelectMode: false,
       selectedIds: new Set(),
       inputDrafts: {},
-      sessionUnread: {},
       currentMessages: [],
       rendering: false,
     });
@@ -243,7 +242,7 @@ describe('Sidebar render isolation (fine-grained selectors)', () => {
     return commits;
   }
 
-  it('ignores streaming/draft/unread/toast updates but re-renders on a session change', () => {
+  it('ignores streaming/draft/toast updates but re-renders on a session change', () => {
     const commits = renderProfiledSidebar();
     const afterMount = commits.length;
     expect(afterMount).toBeGreaterThan(0);
@@ -253,10 +252,6 @@ describe('Sidebar render isolation (fine-grained selectors)', () => {
       useSessionStore.setState((s) => ({ inputDrafts: { ...s.inputDrafts, A: 'draft' } }));
       // A stream chunk landing on the selected session.
       useSessionStore.setState({ currentMessages: [{ role: 'assistant', content: 'chunk' }] });
-      // Unread marker for a background block.
-      useSessionStore.setState((s) => ({
-        sessionUnread: { ...s.sessionUnread, A: new Set(['blk']) },
-      }));
       // Thinking/tool rendering flag.
       useSessionStore.setState({ rendering: true });
     });

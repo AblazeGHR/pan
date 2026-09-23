@@ -1,6 +1,5 @@
 import { memo, useEffect, useRef, useState, type TransitionEvent } from 'react';
 import type { Message } from '@/types';
-import { useSessionStore } from '@/stores/sessionStore';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { isLongBlockContent, LONG_BLOCK_CONTENT_THRESHOLD } from './lazyBlockContent';
@@ -14,21 +13,31 @@ interface ThinkingGroupProps {
 export const ThinkingGroup = memo(function ThinkingGroup({ items }: ThinkingGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoadedLongContent, setHasLoadedLongContent] = useState(false);
-  const unread = useSessionStore((s) => s.getUnread());
-  const hasUnread = items.some((message) => unread.has(message.content));
   const contentRef = useRef<HTMLDivElement>(null);
+  const previousItemsRef = useRef<Message[] | null>(null);
   const combinedLength = items.reduce((length, message) => length + message.content.length, 0)
     + Math.max(0, items.length - 1) * 2;
   const deferContent = items.some((message) => isLongBlockContent(message.content))
     || (items.length > 1 && combinedLength > LONG_BLOCK_CONTENT_THRESHOLD);
 
-  // Keep a streamed group pinned to its latest thinking content while it is
-  // open; appending a member keeps the first member's display identity stable.
+  // Keep an open group pinned to its latest thinking content while it streams;
+  // appending a member keeps the first member's display identity stable.
+  // A finished group never grows, so opening/re-opening one leaves the reading
+  // position untouched.
   useEffect(() => {
-    if (isOpen && hasUnread && contentRef.current) {
-      contentRef.current.scrollTop = contentRef.current.scrollHeight;
+    const previous = previousItemsRef.current;
+    previousItemsRef.current = items;
+    const content = contentRef.current;
+    if (!isOpen || !previous || !content) return;
+    const last = items[items.length - 1];
+    const previousLast = previous[previous.length - 1];
+    const appended = items.length > previous.length;
+    const extended = items.length === previous.length && !!last && !!previousLast
+      && last.content.length > previousLast.content.length;
+    if (appended || extended) {
+      content.scrollTop = content.scrollHeight;
     }
-  }, [isOpen, hasUnread, items]);
+  }, [isOpen, items]);
 
   const toggle = () => {
     if (!isOpen && deferContent) setHasLoadedLongContent(true);
@@ -62,9 +71,6 @@ export const ThinkingGroup = memo(function ThinkingGroup({ items }: ThinkingGrou
           <ChevronDown className="h-4 w-4" />
         )}
         <span>{label}</span>
-        {hasUnread && !isOpen && (
-          <span className="w-2 h-2 rounded-full bg-accent" title="unread" />
-        )}
       </button>
       <div
         data-testid="thinking-content-window"
