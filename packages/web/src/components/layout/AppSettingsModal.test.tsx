@@ -117,7 +117,7 @@ describe('AppSettingsModal', () => {
     expect(card.textContent).toContain('Default group by');
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
-    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(3);
+    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(4);
     expect(card.textContent).toContain('Notification');
   });
 
@@ -148,6 +148,7 @@ describe('AppSettingsModal', () => {
       'app-settings-tab-appearance',
     );
     expect(cardEl().textContent).toContain('Message visibility');
+    expect(cardEl().textContent).toContain('Message grouping');
     const metaSwitch = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
     ).find((element) => element.textContent?.includes('Show meta-agent info'))!;
@@ -173,6 +174,25 @@ describe('AppSettingsModal', () => {
         (element) => element.textContent?.includes('Show meta-agent info'),
       )?.getAttribute('aria-checked'),
     ).toBe('true');
+  });
+
+  it('toggles merged tool/thinking groups on the Appearance tab and persists the setting', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+
+    const mergeSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) =>
+      element.textContent?.includes('Group consecutive tool and thinking blocks'),
+    )!;
+    expect(mergeSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(mergeSwitch.textContent).toContain('disabled by default');
+
+    fireEvent.click(mergeSwitch);
+
+    expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ mergeConsecutiveNonBodyBlocks: true });
+    expect(mergeSwitch.getAttribute('aria-checked')).toBe('true');
   });
 
   it('shows the Codex warning Toast option on the Notification tab', () => {
@@ -276,7 +296,7 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
-    expect(switches).toHaveLength(3);
+    expect(switches).toHaveLength(4);
     // meta-agent is on by default; toggle it off.
     expect(switches[0]!.getAttribute('aria-checked')).toBe('true');
     fireEvent.click(switches[0]!);

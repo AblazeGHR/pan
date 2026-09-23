@@ -282,12 +282,14 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showTaskAgent,
     showQQ,
     showCodexTerminalInput,
+    mergeConsecutiveNonBodyBlocks,
     notifications,
     setDefaultGroupBy,
     setShowMetaAgent,
     setShowTaskAgent,
     setShowQQ,
     setShowCodexTerminalInput,
+    setMergeConsecutiveNonBodyBlocks,
     setCodexWarningToast,
     resetSettings,
   } = useAppSettingsStore();
@@ -903,31 +905,46 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               </p>
             </section>
           ) : activeTab === 'appearance' ? (
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                Message visibility
-              </h3>
-              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-                <SwitchRow
-                  label="Show meta-agent info"
-                  hint="////by agent"
-                  checked={showMetaAgent}
-                  onChange={setShowMetaAgent}
-                />
-                <SwitchRow
-                  label="Show task-agent info"
-                  hint="@@@@by agent"
-                  checked={showTaskAgent}
-                  onChange={setShowTaskAgent}
-                />
-                <SwitchRow
-                  label="Show QQ messages"
-                  hint="@@@@by qq"
-                  checked={showQQ}
-                  onChange={setShowQQ}
-                />
-              </div>
-            </section>
+            <>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Message visibility
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Show meta-agent info"
+                    hint="////by agent"
+                    checked={showMetaAgent}
+                    onChange={setShowMetaAgent}
+                  />
+                  <SwitchRow
+                    label="Show task-agent info"
+                    hint="@@@@by agent"
+                    checked={showTaskAgent}
+                    onChange={setShowTaskAgent}
+                  />
+                  <SwitchRow
+                    label="Show QQ messages"
+                    hint="@@@@by qq"
+                    checked={showQQ}
+                    onChange={setShowQQ}
+                  />
+                </div>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Message grouping
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Group consecutive tool and thinking blocks"
+                    hint="One collapsible parent per adjacent run; disabled by default."
+                    checked={mergeConsecutiveNonBodyBlocks}
+                    onChange={setMergeConsecutiveNonBodyBlocks}
+                  />
+                </div>
+              </section>
+            </>
           ) : (
             <>
               {/* Session list grouping */}
