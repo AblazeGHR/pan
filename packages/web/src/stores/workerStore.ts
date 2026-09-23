@@ -44,7 +44,7 @@ interface WorkerStore {
   startWorker: (sessionId: string, settings?: SettingsBody) => Promise<void>;
   killCurrent: (sessionId: string) => Promise<void>;
   interrupt: (sessionId: string) => Promise<void>;
-  steer: (sessionId: string, text: string) => Promise<void>;
+  steer: (sessionId: string, text: string, messageId?: string) => Promise<void>;
   restart: (sessionId: string, settings?: SettingsBody) => Promise<void>;
   takeover: (sessionId: string) => Promise<ApiGenericResponse>;
   updateWorker: (
@@ -119,8 +119,8 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
     await interruptSessionWorker(sessionId);
   },
 
-  steer: async (sessionId, text) => {
-    await steerSessionWorker(sessionId, text);
+  steer: async (sessionId, text, messageId) => {
+    await steerSessionWorker(sessionId, text, messageId);
   },
 
   restart: async (sessionId, settings) => {

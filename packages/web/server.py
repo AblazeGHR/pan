@@ -7687,7 +7687,8 @@ async def api_session_worker_control(session_id: str, data: dict):
 async def api_worker_steer(worker_id: str, data: dict):
     """Inject text into a running native turn (Claude stream / Codex)."""
     err = await worker.steer_worker(
-        worker_id, data.get("text") if isinstance(data, dict) else ""
+        worker_id, data.get("text") if isinstance(data, dict) else "",
+        data.get("messageId") if isinstance(data, dict) else None,
     )
     if err:
         return {"error": err}
@@ -7698,6 +7699,7 @@ async def api_worker_steer(worker_id: str, data: dict):
 async def api_session_worker_steer(session_id: str, data: dict):
     result = await worker.steer_session_worker(
         session_id, data.get("text") if isinstance(data, dict) else "",
+        data.get("messageId") if isinstance(data, dict) else None,
     )
     if isinstance(result, str):
         return {"error": result}

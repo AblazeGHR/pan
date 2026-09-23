@@ -33,6 +33,69 @@ it('history refresh between deltas never adopts the displayed clone as a second 
   expect(texts()).toEqual(['question', 'one two three']);
 });
 
+it('converges a Steer user row inserted ahead of an unfinished tool by its message id', () => {
+  const tool = (id: string, content: string): Message => ({
+    role: 'tool', content, nativeItemId: id,
+  });
+  const first = tool('tool-1', 'first');
+  const second = tool('tool-2', 'second');
+  const open = tool('tool-3', 'still streaming');
+  store().applyLiveStream('A', [first, second, open], meta);
+  store().appendLocalMessage('A', {
+    role: 'user', content: 'steer now', messageId: 'steer:one',
+  });
+  store().applyHistoryPage('A', {
+    history: [first, second, { role: 'user', content: 'steer now', messageId: 'steer:one' }],
+    start: 0, total: 3, hasMore: false, historyRevision: 3, historyEpoch: 'h',
+  });
+  expect(texts()).toEqual(['first', 'second', 'steer now', 'still streaming']);
+  store().applyLiveStream('A', [first, second, tool('tool-3', 'still streaming more')], meta);
+  expect(texts()).toEqual(['first', 'second', 'steer now', 'still streaming more']);
+});
+
+it('converges a legacy id-less Steer row only within its local history boundary', () => {
+  const tool: Message = { role: 'tool', content: 'still streaming', nativeItemId: 'tool-1' };
+  store().applyLiveStream('A', [tool], meta);
+  store().appendLocalMessage('A', { role: 'user', content: 'steer now' });
+  store().applyHistoryPage('A', {
+    history: [{ role: 'user', content: 'steer now' }],
+    start: 0, total: 1, hasMore: false, historyRevision: 1, historyEpoch: 'h',
+  });
+  expect(texts()).toEqual(['steer now', 'still streaming']);
+});
+
+it('converges an assistant item moved ahead of an interleaved tool by native id', () => {
+  const first: Message = { role: 'assistant', content: 'same text', nativeItemId: 'answer-1' };
+  const second: Message = { role: 'assistant', content: 'same text', nativeItemId: 'answer-2' };
+  const tool: Message = { role: 'tool', content: 'tool output', nativeItemId: 'tool-1' };
+  store().applyLiveStream('A', [first, tool, second], meta);
+  store().applyHistoryPage('A', {
+    history: [first, second, tool], start: 0, total: 3, hasMore: false,
+    historyRevision: 3, historyEpoch: 'h',
+  });
+  expect(store().currentMessages.map((message) => message.nativeItemId))
+    .toEqual(['answer-1', 'answer-2', 'tool-1']);
+});
+
+it('converges an id-less canonical assistant after a Session switch and tool reorder', () => {
+  const answer: Message = { role: 'assistant', content: 'finished text', nativeItemId: 'answer-1' };
+  const reasoning: Message = { role: 'thinking', content: 'reasoning', nativeItemId: 'reason-1' };
+  const tool: Message = { role: 'tool', content: 'still streaming', nativeItemId: 'tool-1' };
+  const nonDurable: Message = { role: 'tool', content: 'live only', nativeItemId: 'diff-1' };
+  store().applyLiveStream('A', [nonDurable, reasoning, answer, tool], meta);
+  void store().selectSession('B');
+  void store().selectSession('A');
+  store().applyHistoryPage('A', {
+    history: [
+      { role: 'thinking', content: 'reasoning' },
+      { role: 'assistant', content: 'finished text' },
+      tool,
+    ],
+    start: 0, total: 3, hasMore: false, historyRevision: 3, historyEpoch: 'h',
+  });
+  expect(texts()).toEqual(['reasoning', 'finished text', 'still streaming', 'live only']);
+});
+
 it('switching away and back invalidates cached displayed clones without duplicating the next delta', () => {
   store().applyLiveStream('A', [row('one')], meta);
   store().applyLiveStream('A', [row('one two')], meta);

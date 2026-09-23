@@ -748,6 +748,51 @@ function projectTranscript(
   const anchorOffset = alignedLiveBufferStart(transcript, liveBuffer)
     ?? transcript.anchorOffset;
   const ordered = [...window.rows.entries()].sort((a, b) => a[0] - b[0]);
+  // A canonical row can move ahead of a still-streaming tool row. Keep an
+  // explicit identity lookup so the matching runtime row can be discarded
+  // even after the ordinary in-order alignment has stopped.
+  const canonicalIds = new Map<string, number | null>();
+  if (runtime.length > 0) {
+    const runtimeIds = new Set(runtime.flatMap((row) =>
+      explicitIdentityOf(row).map((id) => `${row.role}\0${id}`)));
+    for (const [offset, row] of ordered) {
+      for (const id of explicitIdentityOf(row)) {
+        const key = `${row.role}\0${id}`;
+        if (!runtimeIds.has(key)) continue;
+        canonicalIds.set(key, canonicalIds.has(key) ? null : offset);
+      }
+    }
+  }
+  // Older Pan history rows have no provider/Steer identity. For just the
+  // current live task and locally owned users, an exact, unique body in their
+  // bounded canonical region can bridge those rows after an order mismatch.
+  // Never use this fallback across tasks or when either side is ambiguous.
+  const taskPrefix = liveBuffer?.taskKey ? `slot:${liveBuffer.taskKey}:` : null;
+  const legacyEligible = (row: Message): boolean => (
+    (row.role === 'user' && row.nativeItemId?.startsWith('local:user:') === true
+      && localMessageOrigins.has(row))
+    || ((row.role === 'assistant' || row.role === 'thinking')
+      && Boolean(row.nativeItemId && taskPrefix
+        && runtimeKeyOf(row)?.startsWith(taskPrefix)))
+  );
+  const legacyKey = (row: Message): string => `${row.role}\0${row.content}`;
+  const legacyRuntimeCounts = new Map<string, number>();
+  for (const row of runtime) {
+    if (!legacyEligible(row)) continue;
+    const key = legacyKey(row);
+    legacyRuntimeCounts.set(key, (legacyRuntimeCounts.get(key) ?? 0) + 1);
+  }
+  const legacyCanonicalOffsets = new Map<string, number[]>();
+  if (legacyRuntimeCounts.size > 0) {
+    for (const [offset, row] of ordered) {
+      if (row.nativeItemId || !['user', 'assistant', 'thinking'].includes(row.role)) continue;
+      const key = legacyKey(row);
+      if (!legacyRuntimeCounts.has(key)) continue;
+      const offsets = legacyCanonicalOffsets.get(key) ?? [];
+      offsets.push(offset);
+      legacyCanonicalOffsets.set(key, offsets);
+    }
+  }
   const display: Message[] = [];
   for (const [offset, message] of ordered) {
     if (offset < anchorOffset) display.push(message);
@@ -802,6 +847,30 @@ function projectTranscript(
         }
       }
       display.push(row);
+      continue;
+    }
+    const canonicalOffset = explicitIdentityOf(row)
+      .map((id) => canonicalIds.get(`${row.role}\0${id}`))
+      .find((offset): offset is number => offset !== undefined && offset !== null
+        && window.rows.get(offset)?.role === row.role);
+    const legacyMinimum = row.role === 'user'
+      ? Math.max(0, (localMessageOrigins.get(row) ?? 0) - 1)
+      : liveBuffer?.historyStartOffset;
+    const legacyOffsets = legacyEligible(row)
+      && legacyRuntimeCounts.get(legacyKey(row)) === 1
+      && legacyMinimum !== undefined
+      ? (legacyCanonicalOffsets.get(legacyKey(row)) ?? []).filter((offset) =>
+          offset >= legacyMinimum
+          && (!row.messageId || !window.rows.get(offset)?.messageId
+            || window.rows.get(offset)?.messageId?.startsWith('legacy:')))
+      : [];
+    const legacyOffset = legacyOffsets.length === 1 ? legacyOffsets[0] : undefined;
+    if ((canonicalOffset !== undefined && (!aligned || canonicalOffset < next))
+        || (canonicalOffset === undefined && legacyOffset !== undefined
+          && (!aligned || legacyOffset < next))) {
+      // The canonical row is already in the prefix, or will be emitted in the
+      // remaining canonical tail. It represents this exact runtime item even
+      // when another item changed their relative order.
       continue;
     }
     if (aligned) {
