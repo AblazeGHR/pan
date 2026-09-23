@@ -136,12 +136,9 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
     for (const id of targets) {
       const session = sessionStore.sessions.find((s) => s.id === id);
       const current = session?.workspaceIds ?? [];
-      // Selecting a workspace the session already belongs to must not discard
-      // any of its other memberships. Explicitly moving elsewhere still
-      // replaces the membership set with the selected workspace.
       const same = workspaceId === null
         ? current.length === 0
-        : current.includes(workspaceId);
+        : current.length === 1 && current[0] === workspaceId;
       if (same) continue;   // no-op moves stay silent
       await api.setSessionWorkspaces(id, membership);
       sessionStore.updateSession(id, { workspaceIds: [...membership] });
@@ -157,9 +154,7 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
       const has = (session.workspaceIds ?? []).includes(workspaceId);
       const should = members.has(session.id);
       if (has === should) continue;
-      const next = should
-        ? [...(session.workspaceIds ?? []), workspaceId]
-        : (session.workspaceIds ?? []).filter((id) => id !== workspaceId);
+      const next = should ? [workspaceId] : [];
       sessionStore.updateSession(session.id, { workspaceIds: next });
     }
   },

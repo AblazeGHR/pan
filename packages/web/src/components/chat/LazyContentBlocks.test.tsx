@@ -142,6 +142,9 @@ describe('lazy long chat blocks', () => {
     expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
     expect(screen.queryByLabelText('Bash content')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /2 non-body blocks/ }));
+    const groupWindow = screen.getByTestId('non-body-group-window');
+    expect(groupWindow.className).toContain('max-h-[20rem]');
+    expect(groupWindow.className).toContain('overflow-y-auto');
     expect(screen.getByRole('button', { name: 'thinking' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '1 tools' })).toBeTruthy();
     expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
