@@ -100,8 +100,8 @@ async function equalCanonical(label) {
   const result = await poll(state, s => JSON.stringify(projection(s.rows)) === JSON.stringify(expected.slice(s.start)), label);
   const violations = await page.evaluate(() => window.__transientViolations || []);
   assert.deepEqual(violations, [], 'no transient duplicate reply before convergence');
-  // Compare virtual DOM rows by their actual display index, including hidden
-  // thinking bodies and tool-group summaries. Also check visual geometry:
+  // Compare virtual DOM rows by their actual display index, including the
+  // collapsed thinking/tool-group summaries. Also check visual geometry:
   // correct store order is insufficient if measured rows overlap on screen.
   await page.waitForTimeout(80);
   const dom = await page.locator('main [data-index]').evaluateAll(rows => rows.map(el => ({
@@ -112,13 +112,22 @@ async function equalCanonical(label) {
   const grouped = [];
   for (const row of result.rows) {
     if (row.role === 'tool' && grouped.at(-1)?.role === 'tool') grouped.at(-1).items.push(row);
+    else if (row.role === 'thinking' && grouped.at(-1)?.role === 'thinking') grouped.at(-1).items.push(row);
+    else if (row.role === 'tool' || row.role === 'thinking') grouped.push({ role: row.role, items: [row] });
     else grouped.push({ ...row, items: [row] });
   }
   const normalize = x => x.replace(/\s+/g, ' ').trim();
   for (let i = 0; i < dom.length; i++) {
     const actual = dom[i], expectedRow = grouped[actual.index];
     assert.ok(expectedRow, `DOM row ${actual.index} has a store counterpart`);
-    if (expectedRow.role !== 'tool') {
+    if (expectedRow.role === 'thinking') {
+      assert.ok(normalize(actual.text).toLowerCase().includes('thinking'),
+        `thinking group ${actual.index}: ${actual.text}`);
+      if (expectedRow.items.length > 1) {
+        assert.ok(normalize(actual.text).includes(`${expectedRow.items.length} thinking blocks`),
+          `thinking group count ${actual.index}: ${actual.text}`);
+      }
+    } else if (expectedRow.role !== 'tool') {
       assert.ok(normalize(actual.text).includes(normalize(expectedRow.content)),
         `DOM/store mismatch at ${actual.index}: ${actual.text.slice(0,100)} expected ${expectedRow.content.slice(0,100)}`);
     } else {
@@ -142,8 +151,12 @@ async function assertLiveVisualOrder(label, snapshots) {
       const previous = grouped.at(-1);
       if (message.role === 'tool' && previous?.role === 'tool') {
         previous.items.push(message);
+      } else if (message.role === 'thinking' && previous?.role === 'thinking') {
+        previous.items.push(message);
       } else if (message.role === 'tool') {
         grouped.push({ role: 'tool', items: [message] });
+      } else if (message.role === 'thinking') {
+        grouped.push({ role: 'thinking', items: [message] });
       } else {
         grouped.push({ role: message.role, content: message.content, items: [message] });
       }
@@ -171,8 +184,10 @@ async function assertLiveVisualOrder(label, snapshots) {
         text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 180),
         actualRole,
         expectedRole: expected?.role || 'missing',
-        expectedContent: expected?.content ? normalize(expected.content).slice(0, 180).trimEnd() : null,
+        expectedContent: expected?.role !== 'thinking' && expected?.content
+          ? normalize(expected.content).slice(0, 180).trimEnd() : null,
         expectedToolCount: expected?.role === 'tool' ? expected.items.length : 0,
+        expectedThinkingCount: expected?.role === 'thinking' ? expected.items.length : 0,
       };
     });
     const violations = [];
@@ -193,7 +208,15 @@ async function assertLiveVisualOrder(label, snapshots) {
       if (node.expectedRole !== node.actualRole) {
         violations.push({ kind: 'role-mismatch', node });
       }
-      if (node.expectedRole !== 'tool' && node.expectedContent
+      if (node.expectedRole === 'thinking'
+          && !normalize(node.text).toLowerCase().includes('thinking')) {
+        violations.push({ kind: 'thinking-summary-mismatch', node });
+      }
+      if (node.expectedThinkingCount > 1
+          && !normalize(node.text).includes(`${node.expectedThinkingCount} thinking blocks`)) {
+        violations.push({ kind: 'thinking-count-mismatch', node });
+      }
+      if (node.expectedRole !== 'tool' && node.expectedRole !== 'thinking' && node.expectedContent
           && !normalize(node.text).includes(node.expectedContent)) {
         violations.push({ kind: 'content-mismatch', node });
       }
@@ -741,6 +764,112 @@ try {
   await select('E2E-LONG');
   assert.equal((await state()).start, 0, '5000-row window survives return');
   await equalCanonical('long history A/B/A after streaming');
+
+  // Reproduce the backend duplicate found in the persisted Session JSONL:
+  // write the agent user row and RESERVED receipt, then kill the real Pan
+  // process before the CLI hand-off callback. Recovery must reuse that same
+  // history receipt while delivering the queued task once to the fake Codex
+  // process. This crosses HTTP, Worker, Session JSONL, process restart, WS,
+  // Zustand projection, and the real Chromium virtual list.
+  const handoffContext = 'handoff-context-before-crash';
+  const managerHistoryBeforeRecovery = await canonical(ids['E2E-B']);
+  await api('/api/assign', {
+    sessionId: ids['E2E-A'],
+    text: handoffContext,
+    source: 'agent',
+    sourceSessionId: ids['E2E-B'],
+    taskId: 'e2e-handoff-recovery-context',
+  });
+  const contextReady = path.join(runtime, 'handoff-context-ready');
+  await poll(() => fs.stat(contextReady).then(() => true).catch(() => false),
+    Boolean, 'assigned MA task is active before the follow-up arrives');
+
+  const recoveryLabel = 'crash-recovery-history-idempotency';
+  await api('/api/send', {
+    sessionId: ids['E2E-A'],
+    text: `////by agent\n${recoveryLabel}`,
+    source: 'agent',
+    sourceSessionId: ids['E2E-B'],
+  });
+  const targetSessionFile = path.join(runtime, 'sessions', `${ids['E2E-A']}.json`);
+  const queueSnapshot = JSON.parse(await fs.readFile(targetSessionFile, 'utf8'));
+  const recoveryQueueItem = queueSnapshot.queue_pending.find(item =>
+    String(item.text).includes(recoveryLabel));
+  assert.ok(recoveryQueueItem, 'active task queues the agent follow-up durably');
+  assert.equal(recoveryQueueItem.taskId, 'e2e-handoff-recovery-context');
+  assert.equal(recoveryQueueItem.taskIdSource, 'active',
+    'agent_send records the active MA task id as pairing context');
+  assert.equal(recoveryQueueItem.sourceSessionId, ids['E2E-B']);
+
+  await fs.writeFile(path.join(runtime, 'release-handoff-context'), 'release');
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`),
+    s => s.lastResult?.result?.includes(`answer:${handoffContext}`),
+    'agent-assigned task establishes active task context');
+
+  const reservationMarker = path.join(runtime, 'handoff-reservation-paused-once');
+  await poll(() => fs.stat(reservationMarker).then(() => true).catch(() => false),
+    Boolean, 'queue history/receipt persisted before the CLI hand-off');
+  const historyFile = path.join(runtime, 'sessions', `${ids['E2E-A']}.history.jsonl`);
+  const countPersistedAgentRows = async () => {
+    const contents = await fs.readFile(historyFile, 'utf8');
+    return contents.split(/\r?\n/).filter(line => {
+      if (!line) return false;
+      const row = JSON.parse(line);
+      return row.role === 'user' && String(row.content).includes(recoveryLabel);
+    }).length;
+  };
+  assert.equal(await countPersistedAgentRows(), 1,
+    'the reservation boundary appends one durable agent history row');
+
+  const socketsBeforeCrash = socketConnectionCount;
+  await stop();
+  await start();
+  await poll(() => Promise.resolve(socketConnectionCount), count => count > socketsBeforeCrash,
+    'the same Chromium page reconnects after Pan process recovery', 30000);
+  await select('E2E-B');
+  assert.ok(!(await canonical(ids['E2E-B'])).some(row =>
+    String(row.content).includes(recoveryLabel)),
+  'the message queued for A never enters manager Session B history');
+  assert.equal((await state()).rows.some(row => String(row.content).includes(recoveryLabel)), false,
+    'switching to B does not project A queue history into the selected Session');
+  assert.deepEqual(projection(await canonical(ids['E2E-B'])),
+    projection(managerHistoryBeforeRecovery), 'manager Session B history stays unchanged');
+  await select('E2E-A');
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`),
+    s => s.lastResult?.result?.includes(recoveryLabel),
+    'recovered agent message reaches CLI and completes');
+  assert.equal(await countPersistedAgentRows(), 1,
+    'reserved-state recovery does not append a second JSONL user row');
+  const cliReceiptFile = path.join(runtime, 'crash-recovery-cli-inputs.jsonl');
+  const cliReceipts = await fs.readFile(cliReceiptFile, 'utf8');
+  assert.equal(cliReceipts.trim().split(/\r?\n/).length, 1,
+    'the task crosses the provider hand-off exactly once after restart');
+  const canonicalRecoveryRows = await canonical(ids['E2E-A']);
+  assert.equal(canonicalRecoveryRows.filter(row => row.role === 'user'
+    && String(row.content).includes(recoveryLabel)).length, 1,
+  'HTTP history contains one copy of the recovered agent message');
+  const recoveryState = await state();
+  assert.equal(recoveryState.rows.filter(row => row.role === 'user'
+    && String(row.content).includes(recoveryLabel)).length, 1,
+  'Zustand contains one copy of the recovered agent message');
+  const recoveryDomRows = await page.locator('main [data-index]').evaluateAll((nodes, label) => nodes
+    .filter(node => node.querySelector('.msg.user')?.textContent?.includes(label)).length,
+  recoveryLabel);
+  const recoveryDomAssistantRows = await page.locator('main [data-index]').evaluateAll((nodes, label) => nodes
+    .filter(node => node.querySelector('.msg.assistant')?.textContent?.includes(label)).length,
+  recoveryLabel);
+  assert.equal(recoveryDomRows, 1, 'Chromium renders one copy of the recovered agent user message');
+  assert.equal(recoveryDomAssistantRows, 1, 'Chromium renders one copy of the recovered assistant reply');
+  await equalCanonical('agent hand-off crash recovery and transcript identity');
+  evidence.stages.push({
+    label: 'agent history receipt survives process crash before CLI hand-off',
+    historyRows: await countPersistedAgentRows(),
+    cliReceipts: cliReceipts.trim().split(/\r?\n/).length,
+    canonicalRows: canonicalRecoveryRows.length,
+    domUserRows: recoveryDomRows,
+    domAssistantRows: recoveryDomAssistantRows,
+  });
+
   await select('E2E-A');
   await page.reload();
   await select('E2E-A');

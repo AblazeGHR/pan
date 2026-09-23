@@ -102,6 +102,53 @@ describe('T-055 per-session live stream reconciliation', () => {
     ]);
   });
 
+  it('preserves a midstream Steer row between earlier and later blocks when the Session streams in the background', async () => {
+    const a = session('A', [msg('user', 'question A')]);
+    const b = session('B', [msg('user', 'question B')]);
+    useSessionStore.setState({
+      sessions: [a, b],
+      currentSessionId: 'A',
+      currentMessages: a.history,
+    });
+    const meta = { workerId: 'worker-a', generation: 1, taskSeq: 1 };
+
+    act(() => {
+      useSessionStore.getState().applyWorkerStatus('A', 'running', meta);
+      useSessionStore.getState().applyLiveStream('A', [msg('tool', 'Command(one)', 'tool-1')], meta);
+      useSessionStore.getState().appendLocalMessage('A', msg('user', 'Steer A'));
+      useSessionStore.setState({ currentSessionId: 'B', currentMessages: b.history });
+      useSessionStore.getState().applyLiveStream('A', [
+        msg('tool', 'Command(one completed)', 'tool-1'),
+        msg('assistant', 'answer A', 'answer-1'),
+      ], meta);
+    });
+
+    const switchBack = useSessionStore.getState().selectSession('A');
+    expect(useSessionStore.getState().currentMessages.map(({ role, content }) => [role, content]))
+      .toEqual([
+        ['user', 'question A'],
+        ['tool', 'Command(one completed)'],
+        ['user', 'Steer A'],
+        ['assistant', 'answer A'],
+      ]);
+    await act(async () => {
+      pendingHistory.shift()?.({
+        history: [msg('user', 'question A')],
+        total: 1,
+        hasMore: false,
+        start: 0,
+      });
+      await switchBack;
+    });
+    expect(useSessionStore.getState().currentMessages.map(({ role, content }) => [role, content]))
+      .toEqual([
+        ['user', 'question A'],
+        ['tool', 'Command(one completed)'],
+        ['user', 'Steer A'],
+        ['assistant', 'answer A'],
+      ]);
+  });
+
   it('rebinds a late Codex delta to its canonical row after A → B → A history refresh', async () => {
     // Summary metadata can already include the canonical rows while this
     // browser still holds an older/shorter history window.

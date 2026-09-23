@@ -1,6 +1,8 @@
 """Regression tests for the durable FIFO queue hand-off contract."""
 
 import asyncio
+import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -157,6 +159,86 @@ def test_cancel_before_handoff_requeues(monkeypatch):
     assert task["deliveryState"] == "queued"
     assert task["deliveryAttempts"] == 1
     assert s.history == []
+    _cleanup()
+
+
+def test_task_history_receipt_survives_reserved_state_recovery(monkeypatch):
+    """A recovered queue item reuses its old history row instead of appending it again."""
+    _cleanup()
+    s = _setup_session()
+    task = _make_task()
+    task.update({
+        "kind": "task",
+        "queueItemId": task["id"],
+        "taskIdSource": "active",
+        "dispatchState": "queued",
+        "position": 0,
+        "revision": 1,
+    })
+    s.queue_pending = [task]
+    w = _make_worker(s.id)
+    monkeypatch.setattr(_sess, "save_async", _noop_save)
+    monkeypatch.setattr(worker, "_process_alive", lambda _worker: True)
+
+    async def scenario():
+        # This mark is the old format written before the crash. Its hash suffix
+        # represented the queue lifecycle state at the first reservation.
+        s.history = [{
+            "role": "user",
+            "content": task["text"],
+            "source": "agent",
+            "taskId": task["taskId"],
+            "taskIdSource": "active",
+            "delivered_keys": [f"task:{task['id']}:old-mutable-state-hash"],
+        }]
+        task["deliveryState"] = worker._DELIVERY_RESERVED
+        task["reservedBy"] = w.worker_id
+        task["reservedGeneration"] = w.generation
+        task["reservedAt"] = 1.0
+        worker._remember_queue_item(s, task, worker._DELIVERY_RESERVED)
+
+        # Process recovery records the last phase and returns the same queue
+        # item to queued state. That metadata used to change the receipt hash.
+        assert worker._recover_delivery_states(s) is True
+        assert task["deliveryState"] == worker._DELIVERY_QUEUED
+        assert task["lastDeliveryState"] == worker._DELIVERY_RESERVED
+
+        history_added = await worker._reserve_queue_unit(w, s, [task], task["text"])
+        assert history_added is False
+        assert len(s.history) == 1
+        assert s.history[0]["content"] == task["text"]
+
+    asyncio.run(scenario())
+    _cleanup()
+
+
+def test_report_history_key_ignores_mutable_delivery_phase_fields():
+    report = _make_report()
+    report.update({"dispatchState": "queued", "queueItemId": report["id"], "position": 0})
+    original = worker._delivery_key(report)
+    recovered = dict(report)
+    recovered.update({
+        "deliveryState": "queued",
+        "dispatchState": "queued",
+        "lastDeliveryState": "reserved",
+        "deliveryAttempts": 1,
+        "lastDeliveryError": "worker restarted before hand-off",
+    })
+    assert worker._delivery_key(recovered) == original
+    s = _setup_session()
+    old_bookkeeping = {
+        "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
+        "deliveryAttempts", "nextAttemptAt", "lastDeliveryError", "queueItemId",
+    }
+    legacy_identity = {key: value for key, value in report.items()
+                       if key not in old_bookkeeping}
+    legacy_digest = hashlib.sha1(
+        json.dumps(legacy_identity, sort_keys=True, ensure_ascii=False, default=str)
+        .encode("utf-8")
+    ).hexdigest()[:12]
+    legacy_key = f"report:{report['taskId']}:{legacy_digest}"
+    s.history = [{"role": "user", "content": "report", "delivered_keys": [legacy_key]}]
+    assert worker._delivery_mark_in_history(s, recovered) is True
     _cleanup()
 
 

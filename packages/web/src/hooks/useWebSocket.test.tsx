@@ -2136,6 +2136,78 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
       ]);
   });
 
+  it('ignores a late cumulative echo without absorbing the next distinct item', () => {
+    renderHook(() => useWebSocket());
+    const stream = (event: Record<string, unknown>) => wsMock.trigger('worker.stream', {
+      type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+      generation: 0, taskSeq: 1, event,
+    });
+    act(() => {
+      stream({ type: 'assistant', final: true, turn_id: 'turn-echo',
+        item_id: 'completed-item',
+        message: { content: [{ type: 'text', text: 'completed answer' }] } });
+      stream({ type: 'content.part', role: 'assistant', delta: true,
+        turn_id: 'turn-echo', item_id: 'late-item',
+        stream_text: 'completed', part: { type: 'text', text: 'completed' } });
+    });
+    expect(useSessionStore.getState().currentMessages.filter(m => m.role === 'assistant'))
+      .toEqual([{ role: 'assistant', content: 'completed answer', nativeItemId: 'completed-item' }]);
+    act(() => {
+      stream({ type: 'content.part', role: 'assistant', delta: true,
+        turn_id: 'turn-echo', item_id: 'late-item',
+        stream_text: 'a new answer', part: { type: 'text', text: 'a new answer' } });
+    });
+    expect(useSessionStore.getState().currentMessages.filter(m => m.role === 'assistant'))
+      .toEqual([
+        { role: 'assistant', content: 'completed answer', nativeItemId: 'completed-item' },
+        { role: 'assistant', content: 'a new answer', nativeItemId: 'late-item' },
+      ]);
+  });
+
+  it('streams a new cumulative Codex body after a completed body and intervening tool', () => {
+    renderHook(() => useWebSocket());
+    const stream = (event: Record<string, unknown>) => wsMock.trigger('worker.stream', {
+      type: 'worker.stream', sessionId: 'A', workerId: 'w1',
+      generation: 0, taskSeq: 11, event,
+    });
+    const turn = 'turn-five-stories';
+    act(() => {
+      stream({ type: 'content.part', role: 'assistant', delta: true,
+        turn_id: turn, item_id: 'story-1', stream_text: 'first story',
+        part: { type: 'text', text: 'first story' } });
+      stream({ type: 'assistant', final: true, turn_id: turn, item_id: 'story-1',
+        message: { content: [{ type: 'text', text: 'first story' }] } });
+    });
+    const expected: Array<[string, string, string]> = [
+      ['assistant', 'story-1', 'first story'],
+    ];
+    for (let story = 2; story <= 5; story += 1) {
+      const prefix = `story ${story}`;
+      const full = `${prefix} completed`;
+      act(() => {
+        stream({ type: 'assistant', final: true, turn_id: turn, item_id: `tool-${story}`,
+          message: { content: [{ type: 'tool_use', name: 'Command', input: { command: `date-${story}` } }] } });
+        stream({ type: 'content.part', role: 'assistant', delta: true,
+          turn_id: turn, item_id: `story-${story}`, stream_text: prefix,
+          part: { type: 'text', text: prefix } });
+        stream({ type: 'content.part', role: 'assistant', delta: true,
+          turn_id: turn, item_id: `story-${story}`, stream_text: full,
+          part: { type: 'text', text: ' completed' } });
+      });
+      expected.push(
+        ['tool', `tool-${story}`, `Command({"command":"date-${story}"})`],
+        ['assistant', `story-${story}`, full],
+      );
+      expect(useSessionStore.getState().currentMessages.map((row) => [
+        row.role, row.nativeItemId, row.content,
+      ])).toEqual(expected);
+      act(() => {
+        stream({ type: 'assistant', final: true, turn_id: turn, item_id: `story-${story}`,
+          message: { content: [{ type: 'text', text: full }] } });
+      });
+    }
+  });
+
   it('keeps one selected-session assistant message across an interleaved turn, result, and history refresh', async () => {
     renderHook(() => useWebSocket());
 
