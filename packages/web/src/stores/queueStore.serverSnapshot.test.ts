@@ -2,8 +2,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({
+  acquireSessionQueueItemEdit: vi.fn(),
   fetchSessionQueue: vi.fn(),
   enqueueSessionMessage: vi.fn(),
+  releaseSessionQueueItemEdit: vi.fn(),
   deleteSessionQueueItem: vi.fn(),
   updateSessionQueueItem: vi.fn(),
   reorderSessionQueue: vi.fn(),
@@ -44,6 +46,8 @@ beforeEach(() => {
     panelOpen: false, agentQueueLoadSeq: {}, queueRevisions: {},
   });
   vi.clearAllMocks();
+  api.acquireSessionQueueItemEdit.mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+  api.releaseSessionQueueItemEdit.mockResolvedValue(undefined);
 });
 
 describe('server-backed queue snapshot', () => {

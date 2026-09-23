@@ -5146,6 +5146,66 @@ async def api_session_queue_order_route(session_id: str, data: dict):
     return await api_session_queue_order(session_id, data)
 
 
+@app.post("/api/sessions/{session_id}/queue/{item_id}/edit")
+async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict):
+    """Acquire or renew the lease that keeps an edited item out of Worker hand-off."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    token = data.get("editToken")
+    if not isinstance(token, str) or not token or len(token) > 200:
+        return _queue_error("invalid_edit_token", "editToken is required", s)
+    expected = data.get("expectedRevision")
+    async with worker.queue_lock(session_id):
+        target = next((it for it in s.queue_pending or []
+                       if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
+        if target is None:
+            return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        if (worker._queue_item_kind(target) != "task"
+                or worker._task_source(target) != "user"):
+            return _queue_error("queue_item_readonly", "Only user task queue items can be edited", s)
+        if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        current_revision = int(target.get("revision", 1))
+        if expected is not None and expected != current_revision:
+            return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
+        previous = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
+        lease, conflict = worker.acquire_queue_edit_lock(s, item_id, token)
+        if conflict or lease is None:
+            return _queue_error("queue_item_edit_locked", "Queue item is being edited elsewhere", s)
+        try:
+            await worker._save_receipt(s)
+        except Exception:
+            if previous:
+                s.queue_edit_locks[item_id] = previous
+            else:
+                s.queue_edit_locks.pop(item_id, None)
+            raise
+    return {"ok": True, "editToken": token, "expiresAt": lease["expiresAt"]}
+
+
+@app.post("/api/sessions/{session_id}/queue/{item_id}/edit/release")
+async def api_session_queue_edit_release(session_id: str, item_id: str, data: dict):
+    """Release a matching edit lease and wake the Worker if it was holding the FIFO head."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    token = data.get("editToken")
+    if not isinstance(token, str) or not token:
+        return _queue_error("invalid_edit_token", "editToken is required", s)
+    async with worker.queue_lock(session_id):
+        previous = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
+        released = worker.release_queue_edit_lock(s, item_id, token)
+        if released:
+            try:
+                await worker._save_receipt(s)
+            except Exception:
+                s.queue_edit_locks[item_id] = previous
+                raise
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, "released": released}
+
+
 @app.patch("/api/sessions/{session_id}/queue/{item_id}")
 async def api_session_queue_update(session_id: str, item_id: str, data: dict):
     """Edit only a queued user task, retaining its durable identity."""
@@ -5154,6 +5214,9 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         return {"ok": False, "error": "Session not found"}
     text = data.get("text")
     expected = data.get("expectedRevision")
+    edit_token = data.get("editToken")
+    if not isinstance(edit_token, str) or not edit_token:
+        return _queue_error("invalid_edit_token", "editToken is required", s)
     async with worker.queue_lock(session_id):
         target = next((it for it in s.queue_pending or []
                        if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
@@ -5166,6 +5229,10 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
             return _queue_error("queue_item_readonly", "Only user task queue items can be edited", s)
         if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
             return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        lease = worker._active_queue_edit_lock(s, item_id)
+        if (lease is None
+                or lease.get("tokenHash") != worker._queue_edit_token_digest(edit_token)):
+            return _queue_error("queue_item_edit_expired", "Edit lease expired; reopen the editor", s)
         if not isinstance(text, str) or not text.strip():
             return _queue_error("text_required", "text is required", s)
         normalized_parts = None
@@ -5192,6 +5259,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
             return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
         old_target = dict(target)
         old_ledger = dict(s.queue_delivery_ledger.get(item_id, {}))
+        old_edit_lease = dict(lease)
         old_queue_revision = s.queue_revision
         target["text"] = text
         if normalized_parts is not None:
@@ -5203,6 +5271,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
             _ledger = dict(old_target)
             s.queue_delivery_ledger[item_id] = _ledger
         _ledger.update(target)
+        s.queue_edit_locks.pop(item_id, None)
         s.queue_revision += 1
         try:
             await worker._save_receipt(s)
@@ -5214,6 +5283,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
                 _ledger.update(old_ledger)
             else:
                 s.queue_delivery_ledger.pop(item_id, None)
+            s.queue_edit_locks[item_id] = old_edit_lease
             s.queue_revision = old_queue_revision
             raise
     await worker._bcast({
@@ -5223,6 +5293,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         "queueRevision": s.queue_revision,
         "item": _serialize_queue_item(target, s),
     })
+    await worker._wake_worker(session_id, auto_spawn=False)
     return {"ok": True, "item": _serialize_queue_item(target, s),
             "queueRevision": s.queue_revision}
 
@@ -5245,8 +5316,11 @@ async def api_session_queue_delete(session_id: str, item_id: str):
             return _queue_error("queue_item_not_deletable", "Queue item is no longer queued", s)
         old_pending = list(pending)
         old_record = dict(s.queue_delivery_ledger.get(item_id, {}))
+        was_edit_locked = worker.queue_item_edit_locked(s, item_id)
+        old_edit_lock = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
         old_queue_revision = s.queue_revision
         s.queue_pending = [it for it in pending if it is not target]
+        s.queue_edit_locks.pop(item_id, None)
         record = s.queue_delivery_ledger.get(item_id)
         if not isinstance(record, dict):
             record = dict(target)
@@ -5261,10 +5335,17 @@ async def api_session_queue_delete(session_id: str, item_id: str):
                 s.queue_delivery_ledger[item_id] = old_record
             else:
                 s.queue_delivery_ledger.pop(item_id, None)
+            if old_edit_lock:
+                s.queue_edit_locks[item_id] = old_edit_lock
+            else:
+                s.queue_edit_locks.pop(item_id, None)
             s.queue_revision = old_queue_revision
             raise
     await worker._bcast({"type": "queue.item_removed", "sessionId": session_id,
                          "queueItemId": item_id, "queueRevision": s.queue_revision})
+    if was_edit_locked:
+        # Removing the locked FIFO head can unblock later queue items.
+        await worker._wake_worker(session_id, auto_spawn=False)
     return {"ok": True, "queueItemId": item_id,
             "queueRevision": s.queue_revision}
 

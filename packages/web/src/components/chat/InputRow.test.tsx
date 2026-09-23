@@ -8,11 +8,13 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import {
   enqueueSessionMessage,
+  fetchSessionQueue,
   fetchDirectories,
   sendSession,
   spawnWorker,
   patchSession,
   steerSessionWorker,
+  updateSessionQueueItem,
   uploadSessionAttachment,
   registerServerFileAttachment,
 } from '@/services/api';
@@ -30,10 +32,18 @@ vi.mock('@/services/ws', () => ({
   },
 }));
 
+const queueApi = vi.hoisted(() => ({
+  acquireSessionQueueItemEdit: vi.fn(),
+  fetchSessionQueue: vi.fn(),
+  releaseSessionQueueItemEdit: vi.fn(),
+  updateSessionQueueItem: vi.fn(),
+}));
+
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
   return {
     ...actual,
+    ...queueApi,
     patchSession: vi.fn(async () => ({})),
     fetchSessions: vi.fn(async () => []),
     fetchDirectories: vi.fn(async () => ({
@@ -150,6 +160,17 @@ beforeEach(() => {
   vi.mocked(patchSession).mockClear();
   vi.mocked(sendSession).mockClear();
   vi.mocked(enqueueSessionMessage).mockClear();
+  queueApi.acquireSessionQueueItemEdit.mockReset().mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+  queueApi.fetchSessionQueue.mockReset().mockRejectedValue(new Error('offline'));
+  queueApi.releaseSessionQueueItemEdit.mockReset().mockResolvedValue(undefined);
+  queueApi.updateSessionQueueItem.mockReset().mockResolvedValue({
+    item: {
+      id: 'q-edit-send', queueItemId: 'q-edit-send', text: 'queued original',
+      source: 'user' as const, kind: 'task' as const, createdAt: 1,
+      meta: { dispatchState: 'queued', revision: 2 },
+    },
+    queueRevision: 2,
+  });
   vi.mocked(uploadSessionAttachment).mockClear();
   vi.mocked(registerServerFileAttachment).mockClear();
   vi.mocked(spawnWorker).mockClear();
@@ -743,6 +764,43 @@ describe('InputRow send queue wiring', () => {
     expect(screen.getByTestId('server-attachments')).toBeTruthy();
   });
 
+  it('does not finish an attachment send after a queue edit starts during validation', async () => {
+    setBusySession();
+    const queued = {
+      id: 'q-edit-attachment', queueItemId: 'q-edit-attachment', text: 'queued',
+      source: 'user' as const, kind: 'task' as const, createdAt: 1,
+      meta: { dispatchState: 'queued' as const, revision: 1 },
+    };
+    useQueueStore.setState({ queues: { s1: [queued] } });
+    const validation = deferred<Awaited<ReturnType<typeof fetchDirectories>>>();
+    vi.mocked(fetchDirectories).mockReturnValueOnce(validation.promise);
+    useUIStore.getState().requestChatAttachment('s1', 'D:\\attachments\\report.txt');
+    render(<InputRow />);
+    await waitFor(() =>
+      expect(screen.getByTestId('server-attachments').textContent).toContain('report.txt'),
+    );
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'review the attachment' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    useQueueStore.getState().startEdit(queued.id);
+    await vi.waitFor(() => expect(useQueueStore.getState().edits.s1?.acquiring).toBe(false));
+
+    validation.resolve({
+      current: 'D:\\attachments',
+      parent: 'D:\\',
+      entries: [{ name: 'report.txt', path: 'D:\\attachments\\report.txt', isDirectory: false }],
+    });
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(/Type a message/)).toHaveProperty(
+        'value', 'review the attachment',
+      ),
+    );
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+    expect(useQueueStore.getState().queues.s1?.map((item) => item.id)).toEqual([queued.id]);
+    expect(useQueueStore.getState().edits.s1?.id).toBe(queued.id);
+  });
+
   it('closes the server browser with its close button and backdrop', async () => {
     setBusySession();
     render(<InputRow />);
@@ -937,12 +995,54 @@ describe('InputRow send queue wiring', () => {
     expect(enqueueSessionMessage).not.toHaveBeenCalled();
     expect(useSessionStore.getState().currentMessages).toEqual([]);
 
-    // Cancel is local-only; it reopens the ordinary send path without
-    // changing the queue item's projection or adding an edit row.
+    // Cancel releases the server lease and reopens the ordinary send path
+    // without changing the queue item's projection or adding an edit row.
     useQueueStore.getState().cancelEdit();
     await waitFor(() => expect(send.disabled).toBe(false));
     fireEvent.click(send);
     await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledTimes(1));
+  });
+
+  it('keeps the queue badge at the real item count through one edit and repeated save', async () => {
+    setBusySession();
+    const first = {
+      id: 'q-count-edit', queueItemId: 'q-count-edit', text: 'before', source: 'user' as const,
+      kind: 'task' as const, createdAt: 1, meta: { dispatchState: 'queued' as const, revision: 1 },
+    };
+    const edited = {
+      ...first, text: 'after', meta: { dispatchState: 'queued' as const, revision: 2 },
+    };
+    useQueueStore.setState({ queues: { s1: [first] }, queueRevisions: { s1: 1 } });
+    const finalSnapshot = [edited];
+    Object.defineProperty(finalSnapshot, 'queueRevision', { value: 2, enumerable: false });
+    queueApi.fetchSessionQueue.mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(finalSnapshot);
+    queueApi.updateSessionQueueItem.mockResolvedValueOnce({ item: edited, queueRevision: 2 });
+    render(<InputRow />);
+
+    expect(screen.getByTestId('queue-count-badge').textContent).toBe('1');
+    fireEvent.click(screen.getByRole('button', { name: /发送队列/ }));
+    const row = screen.getByText('before').closest('.queue-row-in');
+    expect(row).toBeTruthy();
+    fireEvent.click(row!.querySelector('[title="编辑"]')!);
+    const editBox = await screen.findByDisplayValue('before') as HTMLTextAreaElement;
+    await waitFor(() => expect(editBox.disabled).toBe(false));
+    expect(screen.getByTestId('queue-count-badge').textContent).toBe('1');
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual(['q-count-edit']);
+
+    fireEvent.change(editBox, { target: { value: 'after' } });
+    useQueueStore.getState().saveEdit();
+    useQueueStore.getState().saveEdit();
+    await waitFor(() => expect(useQueueStore.getState().edits.s1).toBeNull());
+
+    expect(queueApi.updateSessionQueueItem).toHaveBeenCalledTimes(1);
+    expect(useQueueStore.getState().queues.s1).toHaveLength(1);
+    expect(useQueueStore.getState().queues.s1?.[0]).toMatchObject({ id: 'q-count-edit', text: 'after' });
+    expect(screen.getByTestId('queue-count-badge').textContent).toBe('1');
+    expect(fetchSessionQueue).toHaveBeenCalledWith('s1');
+    expect(updateSessionQueueItem).toHaveBeenCalledWith(
+      's1', 'q-count-edit', 'after', 1, expect.any(String),
+    );
   });
 
   it('uses the current Session runtime worker, not the stale summary, to suppress optimistic history', async () => {

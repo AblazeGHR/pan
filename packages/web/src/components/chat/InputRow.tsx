@@ -408,12 +408,11 @@ export function InputRow() {
   const enqueue = useQueueStore((s) => s.enqueue);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
-  // 队列计数（含编辑中的一条）：原始值比较，selector 稳定
+  // 计数只投影真正待发的队列项；编辑是同一项的状态，不是额外一条。
   const queueCount = useQueueStore((s) => {
     if (!currentSessionId) return 0;
     const q = s.queues[currentSessionId];
-    const e = s.edits[currentSessionId];
-    return (q ? q.length : 0) + (e ? 1 : 0);
+    return q?.filter((item) => item.meta?.dispatchState === 'queued').length ?? 0;
   });
   const queueEditActive = useQueueStore((s) =>
     currentSessionId ? Boolean(s.edits[currentSessionId]) : false,

@@ -16,8 +16,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 
 const api = vi.hoisted(() => ({
+  acquireSessionQueueItemEdit: vi.fn(),
   fetchSessionQueue: vi.fn(),
   enqueueSessionMessage: vi.fn(),
+  releaseSessionQueueItemEdit: vi.fn(),
   deleteSessionQueueItem: vi.fn(),
   updateSessionQueueItem: vi.fn(),
   reorderSessionQueue: vi.fn(),
@@ -56,6 +58,8 @@ describe('reaudit · queue ACK / tombstone / edit / recovery', () => {
     useUIStore.setState({ toastQueue: [] });
     useWorkerStore.setState({ workers: {} });
     api.fetchSessionQueue.mockResolvedValue([]);
+    api.acquireSessionQueueItemEdit.mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+    api.releaseSessionQueueItemEdit.mockResolvedValue(undefined);
   });
 
   it('Q1 · a late enqueue ACK (older revision) never revives a delivered item', async () => {
@@ -92,6 +96,7 @@ describe('reaudit · queue ACK / tombstone / edit / recovery', () => {
       _pendingQueueIds: { A: new Set(['q1']) },
     });
     act(() => useQueueStore.getState().startEdit('q1'));
+    await vi.waitFor(() => expect(useQueueStore.getState().edits.A?.acquiring).toBe(false));
     act(() => useQueueStore.getState().updateEditDraft('edited'));
     act(() => useQueueStore.getState().saveEdit());
 

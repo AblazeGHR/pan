@@ -12,6 +12,9 @@ def test_loads_session_written_by_newer_queue_version():
         "queue_delivery_ledger": {
             "q_example": {"deliveryState": "sent_to_cli"},
         },
+        "queue_edit_locks": {
+            "q_editing": {"tokenHash": "a" * 64, "expiresAt": 4_000_000_000},
+        },
         "queue_revision": 7,
     }
 
@@ -23,7 +26,11 @@ def test_loads_session_written_by_newer_queue_version():
         "q_example": {"deliveryState": "sent_to_cli"},
     }
     assert session.queue_revision == 7
+    assert session.queue_edit_locks == {
+        "q_editing": {"tokenHash": "a" * 64, "expiresAt": 4_000_000_000},
+    }
     assert session.to_dict()["queue_delivery_ledger"] == session.queue_delivery_ledger
+    assert session.to_dict()["queue_edit_locks"] == session.queue_edit_locks
     assert session.to_dict()["queue_revision"] == 7
     assert session.history_epoch == "legacy:ses_forward_compat"
     assert Session._from_data(data).history_epoch == session.history_epoch

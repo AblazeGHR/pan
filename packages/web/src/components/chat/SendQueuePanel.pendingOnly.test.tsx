@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const api = vi.hoisted(() => ({
+  acquireSessionQueueItemEdit: vi.fn(),
   fetchSessionQueue: vi.fn(),
   enqueueSessionMessage: vi.fn(),
+  releaseSessionQueueItemEdit: vi.fn(),
   deleteSessionQueueItem: vi.fn(),
   updateSessionQueueItem: vi.fn(),
   reorderSessionQueue: vi.fn(),
@@ -54,6 +56,8 @@ beforeEach(() => {
     panelOpen: true, agentQueueLoadSeq: {}, queueRevisions: {},
   });
   api.fetchSessionQueue.mockResolvedValue(snapshot([item('q-pending', '仍待发送', 'queued')]));
+  api.acquireSessionQueueItemEdit.mockResolvedValue({ expiresAt: Date.now() + 300_000 });
+  api.releaseSessionQueueItemEdit.mockResolvedValue(undefined);
   vi.clearAllMocks();
 });
 
@@ -110,13 +114,15 @@ describe('SendQueuePanel pending-only view', () => {
     const row = screen.getByText('原始用户任务').closest('div');
     expect(row).toBeTruthy();
     fireEvent.click(within(row!).getByTitle('编辑'));
-    fireEvent.change(screen.getByDisplayValue('原始用户任务'), {
+    const editBox = screen.getByDisplayValue('原始用户任务') as HTMLTextAreaElement;
+    await waitFor(() => expect(editBox.disabled).toBe(false));
+    fireEvent.change(editBox, {
       target: { value: '修改后的用户任务' },
     });
     fireEvent.click(screen.getByTitle('保存'));
 
     await waitFor(() => expect(api.updateSessionQueueItem).toHaveBeenCalledWith(
-      's1', 'q-user-edit', '修改后的用户任务', 1,
+      's1', 'q-user-edit', '修改后的用户任务', 1, expect.any(String),
     ));
     await waitFor(() => expect(screen.getByText('修改后的用户任务')).toBeTruthy());
     expect(screen.queryByDisplayValue('修改后的用户任务')).toBeNull();

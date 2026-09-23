@@ -225,25 +225,97 @@ def test_queue_api_edits_only_queued_user_and_reorders_all_sources(monkeypatch):
         events.append(event)
 
     worker.set_broadcaster(capture)
+    edit_token = "browser-edit-1"
+    locked = asyncio.run(server.api_session_queue_edit_lock(
+        value.id, user_id, {"editToken": edit_token, "expectedRevision": 1}))
+    assert locked["ok"] is True
+    assert worker.queue_item_edit_locked(value, user_id) is True
 
     edited = asyncio.run(server.api_session_queue_update(
-        value.id, user_id, {"text": "user edited", "expectedRevision": 1}))
+        value.id, user_id, {
+            "text": "user edited", "expectedRevision": 1, "editToken": edit_token,
+        }))
     assert edited["ok"] is True
     assert value.queue_pending[0]["text"] == "user edited"
+    assert value.queue_edit_locks == {}
     assert events[-1]["type"] == "queue.item_updated"
     assert events[-1]["queueItemId"] == user_id
     assert events[-1]["item"]["text"] == "user edited"
     denied = asyncio.run(server.api_session_queue_update(
-        value.id, agent_id, {"text": "spoof"}))
+        value.id, agent_id, {"text": "spoof", "editToken": "browser-edit-1"}))
     assert denied["error"]["code"] == "queue_item_readonly"
     report_denied = asyncio.run(server.api_session_queue_update(
-        value.id, "q-report", {"text": "spoof"}))
+        value.id, "q-report", {"text": "spoof", "editToken": "browser-edit-1"}))
     assert report_denied["error"]["code"] == "queue_item_readonly"
 
     ordered = asyncio.run(server.api_session_queue_order(
         value.id, {"orderedIds": ["q-report", agent_id, user_id],
                    "expectedQueueRevision": value.queue_revision}))
     assert [item["id"] for item in ordered["items"]] == ["q-report", agent_id, user_id]
+    _cleanup()
+
+
+def test_queue_edit_lease_blocks_an_already_selected_fifo_item(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    value = _session()
+    item, _ = asyncio.run(worker._persist_task_item(value, "user", "user", None, None, "queued"))
+    item_id = item["queueItemId"]
+    selected_before_edit = worker._select_queue_unit(value)
+    assert selected_before_edit == [item]
+
+    token = "browser-edit-race"
+    acquired = asyncio.run(server.api_session_queue_edit_lock(
+        value.id, item_id, {"editToken": token, "expectedRevision": 1}))
+    assert acquired["ok"] is True
+    assert len(value.queue_pending) == 1
+    assert value.queue_pending[0]["id"] == item_id
+    assert worker._select_queue_unit(value) is None
+
+    current = worker.Worker(
+        worker_id="w-edit-race", session_id=value.id, adapter=CbcAdapter(),
+        status="idle", process=type("Process", (), {"returncode": None})(),
+        pending_signal=asyncio.Queue(),
+    )
+    reserved = asyncio.run(worker._reserve_queue_unit(
+        current, value, selected_before_edit, "queued"))
+    assert reserved is False
+    assert value.queue_pending == [item]
+    assert value.history == []
+
+    released = asyncio.run(server.api_session_queue_edit_release(
+        value.id, item_id, {"editToken": token}))
+    assert released["ok"] is True
+    assert worker.queue_item_edit_locked(value, item_id) is False
+    assert worker._select_queue_unit(value) == [item]
+    _cleanup()
+
+
+def test_deleting_edited_queue_item_releases_lease_and_wakes_fifo(monkeypatch):
+    _cleanup()
+    monkeypatch.setattr(sess, "save_async", _save)
+    wake_calls = []
+
+    async def capture_wake(session_id, auto_spawn=False):
+        wake_calls.append((session_id, auto_spawn))
+
+    monkeypatch.setattr(worker, "_wake_worker", capture_wake)
+    value = _session()
+    edited, _ = asyncio.run(worker._persist_task_item(
+        value, "being edited", "user", None, None, "delete-edit"))
+    following, _ = asyncio.run(worker._persist_task_item(
+        value, "next", "user", None, None, "delete-next"))
+    token = "edit-delete-token"
+    acquired = asyncio.run(server.api_session_queue_edit_lock(
+        value.id, edited["queueItemId"], {"editToken": token, "expectedRevision": 1}))
+    assert acquired["ok"] is True
+
+    result = asyncio.run(server.api_session_queue_delete(value.id, edited["queueItemId"]))
+
+    assert result["ok"] is True
+    assert value.queue_edit_locks == {}
+    assert worker._select_queue_unit(value) == [following]
+    assert wake_calls == [(value.id, False)]
     _cleanup()
 
 

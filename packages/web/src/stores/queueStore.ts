@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import type { AgentQueueItem, MessagePart, QueueDispatchState, QueuedEdit } from '@/types';
 import {
+  acquireSessionQueueItemEdit,
   deleteSessionQueueItem,
   enqueueSessionMessage,
   fetchSessionQueue,
+  releaseSessionQueueItemEdit,
   reorderSessionQueue,
   updateSessionQueueItem,
 } from '@/services/api';
@@ -76,6 +78,43 @@ function clientMessageId(): string {
 }
 
 let editTokenSeq = 0;
+const EDIT_LEASE_RENEW_INTERVAL_MS = 30_000;
+const editLeaseTimers = new Map<
+  string,
+  { editToken: number; timer: ReturnType<typeof setInterval> }
+>();
+
+function stopEditLeaseRenewal(sessionId: string, expectedEditToken?: number): void {
+  const current = editLeaseTimers.get(sessionId);
+  if (!current || (expectedEditToken !== undefined && current.editToken !== expectedEditToken)) return;
+  clearInterval(current.timer);
+  editLeaseTimers.delete(sessionId);
+}
+
+function scheduleEditLeaseRenewal(
+  sessionId: string,
+  editToken: number,
+  readEdit: () => QueuedEdit | null,
+  readRevision: (edit: QueuedEdit) => number | undefined,
+  onRenewed: (expiresAt: number) => void,
+  onFailure: (error: unknown) => void,
+): void {
+  stopEditLeaseRenewal(sessionId);
+  const timer = setInterval(() => {
+    const edit = readEdit();
+    if (!edit || edit.editToken !== editToken || !edit.serverToken) {
+      stopEditLeaseRenewal(sessionId, editToken);
+      return;
+    }
+    void acquireSessionQueueItemEdit(
+      sessionId,
+      edit.id,
+      edit.serverToken,
+      readRevision(edit),
+    ).then(({ expiresAt }) => onRenewed(expiresAt)).catch(onFailure);
+  }, EDIT_LEASE_RENEW_INTERVAL_MS);
+  editLeaseTimers.set(sessionId, { editToken, timer });
+}
 
 function canonicalQueueId(id: string): string {
   return id.startsWith('queue:') ? id.slice('queue:'.length) : id;
@@ -170,7 +209,35 @@ function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem |
   } as AgentQueueItem;
 }
 
-export const useQueueStore = create<QueueStore>((set, get) => ({
+export const useQueueStore = create<QueueStore>((set, get) => {
+  const startLeaseRenewal = (sessionId: string, editToken: number) => {
+    scheduleEditLeaseRenewal(
+      sessionId,
+      editToken,
+      () => get().edits[sessionId] ?? null,
+      (edit) => (get().queues[sessionId] ?? []).find((candidate) =>
+        queueIdMatches(candidate.id, edit.id))?.meta?.revision,
+      (expiresAt) => {
+        const active = get().edits[sessionId];
+        if (!active || active.editToken !== editToken) return;
+        set((state) => ({
+          edits: { ...state.edits, [sessionId]: { ...active, leaseExpiresAt: expiresAt } },
+        }));
+      },
+      (error) => {
+        const active = get().edits[sessionId];
+        if (!active || active.editToken !== editToken) return;
+        stopEditLeaseRenewal(sessionId, editToken);
+        set((state) => ({ edits: { ...state.edits, [sessionId]: null } }));
+        useUIStore.getState().showToast(
+          `编辑锁已失效：${error instanceof Error ? error.message : String(error)}`,
+          'error',
+        );
+      },
+    );
+  };
+
+  return {
   queues: {},
   edits: {},
   batchSend: {},
@@ -268,7 +335,14 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       set((state) => {
         const nextTombstones = new Set(state.queueTombstones[sid] ?? []);
         nextTombstones.add(canonical);
-        return { queueTombstones: { ...state.queueTombstones, [sid]: nextTombstones } };
+        const activeEdit = state.edits[sid];
+        const edits = activeEdit && queueIdMatches(activeEdit.id, id)
+          ? { ...state.edits, [sid]: null }
+          : state.edits;
+        return {
+          queueTombstones: { ...state.queueTombstones, [sid]: nextTombstones },
+          edits,
+        };
       });
       next = current.filter((candidate) => !queueIdMatches(candidate.id, id));
     } else if (event.type === 'queue.item_delivered' && Array.isArray(event.queueItemIds)) {
@@ -377,25 +451,88 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
       item.meta?.dispatchState !== 'queued'
     )
       return;
+    const editToken = ++editTokenSeq;
+    const serverToken = clientMessageId();
+    const edit: QueuedEdit = {
+      id: item.id,
+      text: item.text,
+      originalText: item.text,
+      index: items.findIndex((candidate) => queueIdMatches(candidate.id, id)),
+      createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+      editToken,
+      serverToken,
+      acquiring: true,
+    };
     set((state) => ({
       edits: {
         ...state.edits,
-        [sid]: {
-          id: item.id,
-          text: item.text,
-          originalText: item.text,
-          index: items.findIndex((candidate) => queueIdMatches(candidate.id, id)),
-          createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
-          editToken: ++editTokenSeq,
-        },
+        [sid]: edit,
       },
     }));
+    void acquireSessionQueueItemEdit(sid, item.id, serverToken, item.meta?.revision)
+      .then(({ expiresAt }) => {
+        const current = get().edits[sid];
+        if (!current || current.editToken !== editToken) {
+          // A canceled or removed edit may acquire its server lease after the
+          // UI transaction has already moved on. Release only this token.
+          void releaseSessionQueueItemEdit(sid, item.id, serverToken).catch(() => {});
+          return;
+        }
+        if (current.cancelRequested) {
+          set((state) => ({
+            edits: { ...state.edits, [sid]: { ...current, acquiring: false, releasing: true } },
+          }));
+          void releaseSessionQueueItemEdit(sid, item.id, serverToken)
+            .then(() => {
+              stopEditLeaseRenewal(sid, editToken);
+              set((state) => {
+                const latest = state.edits[sid];
+                return latest?.editToken === editToken
+                  ? { edits: { ...state.edits, [sid]: null } }
+                  : state;
+              });
+            })
+            .catch((error) => {
+              const latest = get().edits[sid];
+              if (latest?.editToken !== editToken) return;
+              set((state) => ({
+                edits: {
+                  ...state.edits,
+                  [sid]: { ...latest, acquiring: false, releasing: false, cancelRequested: false },
+                },
+              }));
+              startLeaseRenewal(sid, editToken);
+              useUIStore.getState().showToast(
+                `取消编辑失败：${error instanceof Error ? error.message : String(error)}`,
+                'error',
+              );
+            });
+          return;
+        }
+        const acquired: QueuedEdit = {
+          ...current,
+          acquiring: false,
+          leaseExpiresAt: expiresAt,
+        };
+        set((state) => ({ edits: { ...state.edits, [sid]: acquired } }));
+        startLeaseRenewal(sid, editToken);
+      })
+      .catch((error) => {
+        const current = get().edits[sid];
+        if (!current || current.editToken !== editToken) return;
+        stopEditLeaseRenewal(sid, editToken);
+        set((state) => ({ edits: { ...state.edits, [sid]: null } }));
+        useUIStore.getState().showToast(
+          `无法编辑队列消息：${error instanceof Error ? error.message : String(error)}`,
+          'error',
+        );
+      });
   },
 
   updateEditDraft: (text) => {
     const sid = useSessionStore.getState().currentSessionId;
     const edit = sid ? get().edits[sid] : null;
-    if (!sid || !edit || edit.saving) return;
+    if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing) return;
     set((state) => ({ edits: { ...state.edits, [sid]: { ...edit, text } } }));
   },
 
@@ -405,12 +542,14 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
     const item = sid
       ? (get().queues[sid] ?? []).find((candidate) => edit && queueIdMatches(candidate.id, edit.id))
       : null;
-    if (!sid || !edit || edit.saving || !item) return;
+    if (!sid || !edit || edit.saving || edit.acquiring || edit.releasing || !item
+        || !edit.serverToken) return;
     const editToken = edit.editToken ?? ++editTokenSeq;
     const text = edit.text.trim() ? edit.text : edit.originalText;
+    stopEditLeaseRenewal(sid, editToken);
     set((state) => {
       const current = state.edits[sid];
-      if (!current || current.id !== edit.id) return state;
+      if (!current || current.editToken !== editToken) return state;
       return { edits: { ...state.edits, [sid]: { ...current, editToken, saving: true } } };
     });
     void (async () => {
@@ -420,7 +559,10 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
           edit.id,
           text,
           item.meta?.revision,
+          edit.serverToken,
         );
+        const active = get().edits[sid];
+        if (!active || active.editToken !== editToken) return;
         // Apply the server's returned item immediately. This avoids briefly
         // restoring the old text if the follow-up GET races an older snapshot.
         if (result.item) {
@@ -437,14 +579,16 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
         set((state) => {
           const current = state.edits[sid];
           if (!current || current.editToken !== editToken) return state;
+          stopEditLeaseRenewal(sid, editToken);
           return { edits: { ...state.edits, [sid]: null } };
         });
       } catch (error) {
-        set((state) => {
-          const current = state.edits[sid];
-          if (!current || current.editToken !== editToken) return state;
-          return { edits: { ...state.edits, [sid]: { ...current, saving: false } } };
-        });
+        const current = get().edits[sid];
+        if (!current || current.editToken !== editToken) return;
+        set((state) => ({
+          edits: { ...state.edits, [sid]: { ...current, saving: false } },
+        }));
+        startLeaseRenewal(sid, editToken);
         useUIStore.getState().showToast(
           `编辑失败：${error instanceof Error ? error.message : String(error)}`,
           'error',
@@ -455,7 +599,41 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
 
   cancelEdit: () => {
     const sid = useSessionStore.getState().currentSessionId;
-    if (sid) set((state) => ({ edits: { ...state.edits, [sid]: null } }));
+    const edit = sid ? get().edits[sid] : null;
+    if (!sid || !edit || edit.saving || edit.releasing) return;
+    if (edit.acquiring) {
+      set((state) => ({
+        edits: { ...state.edits, [sid]: { ...edit, cancelRequested: true } },
+      }));
+      return;
+    }
+    if (!edit.serverToken) return;
+    stopEditLeaseRenewal(sid, edit.editToken);
+    set((state) => ({
+      edits: { ...state.edits, [sid]: { ...edit, releasing: true } },
+    }));
+    void releaseSessionQueueItemEdit(sid, edit.id, edit.serverToken)
+      .then(() => {
+        set((state) => {
+          const current = state.edits[sid];
+          return current?.editToken === edit.editToken
+            ? { edits: { ...state.edits, [sid]: null } }
+            : state;
+        });
+      })
+      .catch((error) => {
+        const current = get().edits[sid];
+        if (!current || current.editToken !== edit.editToken) return;
+        const activeEdit = current;
+        set((state) => ({
+          edits: { ...state.edits, [sid]: { ...activeEdit, releasing: false } },
+        }));
+        startLeaseRenewal(sid, activeEdit.editToken ?? editTokenSeq);
+        useUIStore.getState().showToast(
+          `取消编辑失败：${error instanceof Error ? error.message : String(error)}`,
+          'error',
+        );
+      });
   },
   move: (id, delta) => {
     void get().moveQueueItem(id, delta);
@@ -559,7 +737,14 @@ export const useQueueStore = create<QueueStore>((set, get) => ({
 
   // Compatibility for callers that still use the old agent-specific name.
   moveAgentItem: async (id, delta) => get().moveQueueItem(id, delta),
-}));
+  };
+});
+
+useQueueStore.subscribe((state, previous) => {
+  for (const [sessionId, edit] of Object.entries(previous.edits)) {
+    if (edit && !state.edits[sessionId]) stopEditLeaseRenewal(sessionId, edit.editToken);
+  }
+});
 
 useSessionStore.subscribe((state, previous) => {
   if (state.sessions === previous.sessions) return;

@@ -398,6 +398,7 @@ export async function updateSessionQueueItem(
   itemId: string,
   text: string,
   expectedRevision?: number,
+  editToken?: string,
 ): Promise<Omit<ApiSessionQueueResponse, 'error'> & {
   item?: AgentQueueItem;
   error?: { code?: string; message?: string } | string;
@@ -407,13 +408,52 @@ export async function updateSessionQueueItem(
     error?: { code?: string; message?: string } | string;
   }>(`${BASE}/sessions/${sessionId}/queue/${itemId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ text, expectedRevision }),
+    body: JSON.stringify({ text, expectedRevision, editToken }),
   });
   if (data.ok === false || data.error) {
     const error = typeof data.error === 'string' ? data.error : data.error?.message;
     throw new Error(error || '队列项更新失败');
   }
   return data;
+}
+
+export async function acquireSessionQueueItemEdit(
+  sessionId: string,
+  itemId: string,
+  editToken: string,
+  expectedRevision?: number,
+): Promise<{ expiresAt: number }> {
+  const data = await request<{
+    ok?: boolean;
+    expiresAt?: number;
+    error?: { message?: string } | string;
+  }>(`${BASE}/sessions/${sessionId}/queue/${itemId}/edit`, {
+    method: 'POST',
+    body: JSON.stringify({ editToken, expectedRevision }),
+  });
+  if (!data.ok || typeof data.expiresAt !== 'number') {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || '无法锁定正在编辑的队列消息');
+  }
+  return { expiresAt: data.expiresAt };
+}
+
+export async function releaseSessionQueueItemEdit(
+  sessionId: string,
+  itemId: string,
+  editToken: string,
+): Promise<void> {
+  const data = await request<{
+    ok?: boolean;
+    error?: { message?: string } | string;
+  }>(`${BASE}/sessions/${sessionId}/queue/${itemId}/edit/release`, {
+    method: 'POST',
+    body: JSON.stringify({ editToken }),
+  });
+  if (!data.ok) {
+    const error = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw new Error(error || '无法释放队列消息编辑锁');
+  }
 }
 
 export async function deleteSessionQueueItem(

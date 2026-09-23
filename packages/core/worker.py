@@ -337,6 +337,7 @@ _queue_locks: dict[str, asyncio.Lock] = {}
 _usage_enrichment_locks: dict[str, asyncio.Lock] = {}
 _usage_enrichment_tasks: dict[str, asyncio.Task] = {}
 _usage_enrichment_adapters: dict[str, CliAdapter] = {}
+_QUEUE_EDIT_LOCK_TTL_SECONDS = 5 * 60
 
 # Usage lookup is provider-specific synchronous I/O (and cbc/kimi include a
 # deliberate post-result wait).  Keep it off the asyncio loop, retry forever
@@ -349,6 +350,62 @@ _ENRICH_RETRY_MAX_SEC = 30.0
 def queue_lock(session_id: str) -> asyncio.Lock:
     """Serialize queue API mutations and Worker reservation decisions per Session."""
     return _queue_locks.setdefault(session_id, asyncio.Lock())
+
+
+def _queue_edit_token_digest(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _active_queue_edit_lock(s, item_id: str, now: float | None = None) -> dict | None:
+    """Return an unexpired edit lease, discarding an expired one in memory."""
+    locks = getattr(s, "queue_edit_locks", None)
+    if not isinstance(locks, dict):
+        s.queue_edit_locks = locks = {}
+    lease = locks.get(item_id)
+    if not isinstance(lease, dict):
+        return None
+    expires_at = lease.get("expiresAt")
+    if (not isinstance(expires_at, (int, float))
+            or expires_at <= (time.time() if now is None else now)):
+        locks.pop(item_id, None)
+        return None
+    token_hash = lease.get("tokenHash")
+    if not isinstance(token_hash, str) or len(token_hash) != 64:
+        locks.pop(item_id, None)
+        return None
+    return lease
+
+
+def acquire_queue_edit_lock(s, item_id: str, token: str,
+                            now: float | None = None) -> tuple[dict | None, bool]:
+    """Acquire or renew an item edit lease; return (lease, conflict)."""
+    locks = getattr(s, "queue_edit_locks", None)
+    if not isinstance(locks, dict):
+        s.queue_edit_locks = locks = {}
+    current = _active_queue_edit_lock(s, item_id, now)
+    token_hash = _queue_edit_token_digest(token)
+    if current is not None and current.get("tokenHash") != token_hash:
+        return None, True
+    expires_at = (time.time() if now is None else now) + _QUEUE_EDIT_LOCK_TTL_SECONDS
+    lease = {"tokenHash": token_hash, "expiresAt": expires_at}
+    locks[item_id] = lease
+    return lease, False
+
+
+def release_queue_edit_lock(s, item_id: str, token: str) -> bool:
+    """Release only the matching lease; late clients cannot release a newer edit."""
+    lease = _active_queue_edit_lock(s, item_id)
+    locks = getattr(s, "queue_edit_locks", {})
+    if lease is None:
+        return False
+    if lease.get("tokenHash") != _queue_edit_token_digest(token):
+        return False
+    locks.pop(item_id, None)
+    return True
+
+
+def queue_item_edit_locked(s, item_id: str) -> bool:
+    return _active_queue_edit_lock(s, item_id) is not None
 
 
 def _usage_enrichment_lock(session_id: str) -> asyncio.Lock:
@@ -1850,6 +1907,10 @@ def _select_queue_unit(s) -> list[dict] | None:
             # reserved/writing/sent rows belong to the current/recovering
             # hand-off.  They must not let a later item overtake them.
             return None
+        if queue_item_edit_locked(s, _queue_item_id(item)):
+            # Keep FIFO ordering while the browser owns this item's edit
+            # lease.  Releasing or saving the lease sends a fresh wakeup.
+            return None
         if kind == "task":
             return [item]
         unit = [item]
@@ -1887,74 +1948,76 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
     """Persist reservation/writing states and the user history before hand-off."""
     if not _process_alive(w):
         return False
-    for item in items:
-        if (not any(existing is item for existing in s.queue_pending)
-                or not _is_dispatchable(item)):
+    async with queue_lock(s.id):
+        for item in items:
+            if (not any(existing is item for existing in s.queue_pending)
+                    or not _is_dispatchable(item)
+                    or queue_item_edit_locked(s, _queue_item_id(item))):
+                return False
+
+        history_items = [item for item in items if not _delivery_mark_in_history(s, item)]
+        history_added = bool(history_items)
+        if history_items:
+            if _queue_item_kind(items[0]) == "task":
+                item = items[0]
+                entry = {
+                    "role": "user",
+                    "content": text,
+                    "delivered_keys": [_delivery_key(item) for item in history_items],
+                    "source": _task_source(item) or "user",
+                }
+                if item.get("sourceSessionId") is not None:
+                    entry["sourceSessionId"] = item.get("sourceSessionId")
+                if item.get("taskId") is not None:
+                    entry["taskId"] = item.get("taskId")
+                    if item.get("taskIdSource") is not None:
+                        entry["taskIdSource"] = item.get("taskIdSource")
+                if item.get("clientMessageId"):
+                    entry["clientMessageId"] = item["clientMessageId"]
+                if isinstance(item.get("parts"), list):
+                    entry["parts"] = [dict(part) for part in item["parts"] if isinstance(part, dict)]
+            else:
+                entry = {
+                    "role": "user",
+                    "content": text,
+                    "delivered_keys": [_delivery_key(item) for item in history_items],
+                    "source": "report",
+                }
+                source_ids = sorted({
+                    item.get("sourceSessionId") for item in items
+                    if isinstance(item.get("sourceSessionId"), str)
+                    and item.get("sourceSessionId")
+                })
+                if source_ids:
+                    entry["sourceSessionIds"] = source_ids
+            _sess.append_history(s, entry)
+            history_added = True
+
+        for item in items:
+            item["deliveryState"] = _DELIVERY_RESERVED
+            item["reservedBy"] = w.worker_id
+            item["reservedGeneration"] = w.generation
+            item["reservedAt"] = time.time()
+            _remember_queue_item(s, item, _DELIVERY_RESERVED)
+        try:
+            await _save_receipt(s)
+        except Exception:
+            if history_added and s.history and set(s.history[-1].get("delivered_keys") or ()) == {
+                _delivery_key(item) for item in history_items
+            }:
+                s.history.pop()
+                _sess.replace_history(s, s.history)
+            for item in items:
+                _queue_item_backoff(item, "queue reservation save failed")
+                _remember_queue_item(s, item, _DELIVERY_QUEUED)
             return False
 
-    history_items = [item for item in items if not _delivery_mark_in_history(s, item)]
-    history_added = bool(history_items)
-    if history_items:
-        if _queue_item_kind(items[0]) == "task":
-            item = items[0]
-            entry = {
-                "role": "user",
-                "content": text,
-                "delivered_keys": [_delivery_key(item) for item in history_items],
-                "source": _task_source(item) or "user",
-            }
-            if item.get("sourceSessionId") is not None:
-                entry["sourceSessionId"] = item.get("sourceSessionId")
-            if item.get("taskId") is not None:
-                entry["taskId"] = item.get("taskId")
-                if item.get("taskIdSource") is not None:
-                    entry["taskIdSource"] = item.get("taskIdSource")
-            if item.get("clientMessageId"):
-                entry["clientMessageId"] = item["clientMessageId"]
-            if isinstance(item.get("parts"), list):
-                entry["parts"] = [dict(part) for part in item["parts"] if isinstance(part, dict)]
-        else:
-            entry = {
-                "role": "user",
-                "content": text,
-                "delivered_keys": [_delivery_key(item) for item in history_items],
-                "source": "report",
-            }
-            source_ids = sorted({
-                item.get("sourceSessionId") for item in items
-                if isinstance(item.get("sourceSessionId"), str)
-                and item.get("sourceSessionId")
-            })
-            if source_ids:
-                entry["sourceSessionIds"] = source_ids
-        _sess.append_history(s, entry)
-        history_added = True
-
-    for item in items:
-        item["deliveryState"] = _DELIVERY_RESERVED
-        item["reservedBy"] = w.worker_id
-        item["reservedGeneration"] = w.generation
-        item["reservedAt"] = time.time()
-        _remember_queue_item(s, item, _DELIVERY_RESERVED)
-    try:
-        await _save_receipt(s)
-    except Exception:
-        if history_added and s.history and set(s.history[-1].get("delivered_keys") or ()) == {
-            _delivery_key(item) for item in history_items
-        }:
-            s.history.pop()
-            _sess.replace_history(s, s.history)
+        # Keep the more precise writing state in memory for API/runtime observers,
+        # but the durable RESERVED marker is sufficient for restart recovery: any
+        # row left reserved is treated as an unfinished hand-off and requeued.
         for item in items:
-            _queue_item_backoff(item, "queue reservation save failed")
-            _remember_queue_item(s, item, _DELIVERY_QUEUED)
-        return False
-
-    # Keep the more precise writing state in memory for API/runtime observers,
-    # but the durable RESERVED marker is sufficient for restart recovery: any
-    # row left reserved is treated as an unfinished hand-off and requeued.
-    for item in items:
-        item["deliveryState"] = _DELIVERY_WRITING
-    return history_added
+            item["deliveryState"] = _DELIVERY_WRITING
+        return history_added
 
 
 async def _requeue_queue_unit(w: Worker, s, items: list[dict], reason: str,
@@ -5936,13 +5999,7 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     return new_w
 
 
-async def send_control_message(worker_id: str, control: dict) -> str | None:
-    """Send a narrowly-scoped out-of-band control message to a live worker.
-
-    Native adapters may use this for controls that are not user turns, such
-    as Codex app-server approval and user-input responses.  The adapter owns wire encoding;
-    workers without that optional capability keep the existing behavior.
-    """
+async def _send_control_message_unlocked(worker_id: str, control: dict) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -5972,6 +6029,30 @@ async def send_control_message(worker_id: str, control: dict) -> str | None:
     except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError):
         return "Worker control write failed"
     return None
+
+
+async def send_control_message(worker_id: str, control: dict) -> str | None:
+    """Send an out-of-band control, serializing Steer against queue edits.
+
+    Native adapters may use this for controls that are not user turns, such
+    as Codex app-server approval and user-input responses. The adapter owns
+    wire encoding; workers without that optional capability keep existing
+    behavior.
+    """
+    w = workers.get(worker_id)
+    if not w:
+        return "Worker not found"
+    if isinstance(control, dict) and control.get("type") == "steer":
+        s = _session(w)
+        if s is not None:
+            async with queue_lock(s.id):
+                if any(queue_item_edit_locked(s, item_id)
+                       for item_id in list(getattr(s, "queue_edit_locks", {}))):
+                    return "Cannot Steer while a queued message is being edited"
+                # Keep the lease check and stdin write in one critical section
+                # so direct API/programmatic Steer cannot race edit acquisition.
+                return await _send_control_message_unlocked(worker_id, control)
+    return await _send_control_message_unlocked(worker_id, control)
 
 
 async def steer_worker(worker_id: str, text: str,

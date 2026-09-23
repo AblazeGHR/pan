@@ -132,6 +132,55 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
     _sess._cache.clear()
 
 
+def test_programmatic_steer_is_blocked_by_queue_edit_lease(monkeypatch):
+    worker.workers.clear()
+    worker._queue_locks.clear()
+    _sess._cache.clear()
+    session = _sess.Session(id="ses_steer_edit", name="steer edit", adapter="codex")
+    _sess._cache[session.id] = session
+    item = {
+        "id": "q-being-edited",
+        "queueItemId": "q-being-edited",
+        "kind": "task",
+        "type": "task",
+        "source": "user",
+        "text": "old text",
+        "deliveryState": "queued",
+        "revision": 1,
+    }
+    session.queue_pending.append(item)
+    worker.acquire_queue_edit_lock(session, item["id"], "active-edit")
+
+    stdin = MagicMock()
+    stdin.drain = AsyncMock()
+    process = MagicMock()
+    process.returncode = None
+    process.stdin = stdin
+    live = worker.Worker(
+        worker_id="worker-steer-edit",
+        session_id=session.id,
+        adapter=CodexAdapter(),
+        process=process,
+    )
+    worker.workers[live.worker_id] = live
+    monkeypatch.setattr(_sess, "save_async", AsyncMock())
+
+    blocked = asyncio.run(worker.steer_worker(live.worker_id, "edited message"))
+
+    assert blocked == "Cannot Steer while a queued message is being edited"
+    stdin.write.assert_not_called()
+    assert session.history == []
+
+    worker.release_queue_edit_lock(session, item["id"], "active-edit")
+    assert asyncio.run(worker.steer_worker(live.worker_id, "after cancel")) is None
+    stdin.write.assert_called_once()
+    assert session.history == [{"role": "user", "content": "after cancel"}]
+
+    worker.workers.clear()
+    worker._queue_locks.clear()
+    _sess._cache.clear()
+
+
 def test_steer_worker_retries_one_transient_history_save_failure(monkeypatch):
     worker.workers.clear()
     _sess._cache.clear()

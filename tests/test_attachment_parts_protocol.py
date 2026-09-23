@@ -218,8 +218,13 @@ def test_queue_edit_updates_plain_composer_parts_and_delivery(monkeypatch, tmp_p
         "parts": [{"type": "text", "text": "original"}],
     }))
     item_id = result["item"]["id"]
+    edit_token = "attachment-edit-token"
+    locked = asyncio.run(srv.api_session_queue_edit_lock(first.id, item_id, {
+        "editToken": edit_token, "expectedRevision": 1,
+    }))
+    assert locked["ok"] is True
     edited = asyncio.run(srv.api_session_queue_update(first.id, item_id, {
-        "text": "edited", "expectedRevision": 1,
+        "text": "edited", "expectedRevision": 1, "editToken": edit_token,
     }))
     assert edited["ok"] is True
     assert edited["item"]["text"] == "edited"
@@ -246,8 +251,13 @@ def test_queue_edit_cannot_make_text_disagree_with_parts(monkeypatch, tmp_path):
         "parts": [{"type": "attachment", "attachmentId": stored.name}],
     }))
     item_id = result["item"]["id"]
+    edit_token = "attachment-conflict-token"
+    locked = asyncio.run(srv.api_session_queue_edit_lock(first.id, item_id, {
+        "editToken": edit_token, "expectedRevision": 1,
+    }))
+    assert locked["ok"] is True
     conflict = asyncio.run(srv.api_session_queue_update(first.id, item_id, {
-        "text": "different", "expectedRevision": 1,
+        "text": "different", "expectedRevision": 1, "editToken": edit_token,
     }))
     assert conflict["ok"] is False
     assert conflict["error"]["code"] == "parts_text_conflict"

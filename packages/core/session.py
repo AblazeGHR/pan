@@ -916,6 +916,9 @@ class Session:
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
     queue_pending: list = field(default_factory=list)  # persisted message queue (for report consumption)
+    # Expiring browser edit leases keep a queued item at the same durable
+    # position while preventing the Worker from handing it to the provider.
+    queue_edit_locks: dict[str, dict] = field(default_factory=dict)
     # Durable identity/state ledger for queue items that have crossed the
     # at-most-once reservation boundary.  queue_pending is deliberately only
     # the retryable (queued) subset; this ledger is what makes a removed item
@@ -993,6 +996,7 @@ class Session:
                  summary_projection: dict | None = None,
                  report_subscriptions=None,
                  qq_subscriptions=None, notification_settings=None, *,
+                 queue_edit_locks: dict[str, dict] | None = None,
                  original_prompt: str | None | object = _PROMPT_UNSET,
                  handoff_prompt: str | None = None):
         """Manual init so legacy top-level capability kwargs still construct.
@@ -1067,6 +1071,11 @@ class Session:
         self.managed_by = managed_by
         self.readonly_session = bool(readonly_session)
         self.queue_pending = queue_pending if queue_pending is not None else []
+        self.queue_edit_locks = {
+            key: copy.deepcopy(value)
+            for key, value in (queue_edit_locks or {}).items()
+            if isinstance(key, str) and key and isinstance(value, dict)
+        }
         self.queue_delivery_ledger, evicted_receipt_ids = _bound_loaded_receipt_ledger(
             queue_delivery_ledger, self.queue_pending,
         )
@@ -1307,6 +1316,7 @@ class Session:
             "managed_by": self.managed_by,
             "readonly_session": self.readonly_session,
             "queue_pending": self.queue_pending,
+            "queue_edit_locks": self.queue_edit_locks,
             "queue_delivery_ledger": self.queue_delivery_ledger,
             "queue_idempotency_index": self.queue_idempotency_index,
             "queue_revision": self.queue_revision,

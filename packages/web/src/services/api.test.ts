@@ -116,4 +116,41 @@ describe('worker control business errors', () => {
     await expect(updateSessionQueueItem('s1', 'q1', 'x', 1)).rejects.toThrow('revision conflict');
     await expect(deleteSessionQueueItem('s1', 'q1')).rejects.toThrow('revision conflict');
   });
+
+  it('carries one edit token through queue lease, save, and release requests', async () => {
+    const {
+      acquireSessionQueueItemEdit,
+      releaseSessionQueueItemEdit,
+      updateSessionQueueItem,
+    } = await import('./api');
+    const bodies = [
+      { ok: true, expiresAt: 4_000_000_000 },
+      { ok: true, item: { id: 'q1', text: 'edited' }, queueRevision: 3 },
+      { ok: true, released: true },
+    ];
+    const requests: RequestInit[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(init ?? {});
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => bodies.shift(),
+      };
+    }));
+
+    const lease = await acquireSessionQueueItemEdit('s1', 'q1', 'edit-token', 2);
+    await updateSessionQueueItem('s1', 'q1', 'edited', 2, 'edit-token');
+    await releaseSessionQueueItemEdit('s1', 'q1', 'edit-token');
+
+    expect(lease.expiresAt).toBe(4_000_000_000);
+    expect(requests.map((request) => request.method)).toEqual(['POST', 'PATCH', 'POST']);
+    expect(JSON.parse(requests[0]?.body as string)).toEqual({
+      editToken: 'edit-token', expectedRevision: 2,
+    });
+    expect(JSON.parse(requests[1]?.body as string)).toEqual({
+      text: 'edited', expectedRevision: 2, editToken: 'edit-token',
+    });
+    expect(JSON.parse(requests[2]?.body as string)).toEqual({ editToken: 'edit-token' });
+  });
 });

@@ -863,10 +863,10 @@ export interface QueuedMessage {
   status: 'pending'; // 首版恒 pending，预留扩展
 }
 
-/** 编辑中的队列项（先从队列取出，避免被自动 flush 发出）。 */
+/** Edit overlay for one queued item; the server lease keeps Worker hand-off paused. */
 export interface QueuedEdit {
   id: string;
-  /** 编辑框当前值（持久化，刷新恢复编辑态）。 */
+  /** Draft shown over the same pending queue row while its server lease is held. */
   text: string;
   /** 编辑前的原文（Esc 取消 / 保存为空时恢复）。 */
   originalText: string;
@@ -877,6 +877,12 @@ export interface QueuedEdit {
   editToken?: number;
   /** Keep editing locked while its PATCH and authoritative refresh settle. */
   saving?: boolean;
+  /** Opaque server lease identity that prevents Worker hand-off while editing. */
+  serverToken?: string;
+  acquiring?: boolean;
+  releasing?: boolean;
+  cancelRequested?: boolean;
+  leaseExpiresAt?: number;
 }
 
 // ── Agent queue (backend session.queue_pending, normalized) ──
