@@ -527,7 +527,7 @@ export function Sidebar() {
                   <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
                   <div
                     role="menu"
-                    className="absolute right-0 top-full mt-1 z-30 w-64 rounded border border-border-default bg-bg-primary shadow-lg py-1"
+                    className="absolute left-0 top-full mt-1 z-30 w-64 rounded border border-border-default bg-bg-primary shadow-lg py-1"
                   >
                     {SPECIAL_FILTERS.map((f) => (
                       <label

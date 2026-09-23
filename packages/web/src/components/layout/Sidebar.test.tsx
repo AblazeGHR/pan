@@ -45,6 +45,16 @@ describe('Sidebar Session search controls', () => {
     expect(screen.getByRole('button', { name: 'Clear session search' })).toBeTruthy();
   });
 
+  it('opens the special filters menu to the right of its trigger', () => {
+    renderSidebar();
+
+    fireEvent.click(screen.getByTitle('Special filters'));
+
+    const menu = screen.getByRole('menu');
+    expect(menu.className).toContain('left-0');
+    expect(menu.className).not.toContain('right-0');
+  });
+
   it('clears the query and restores the unfiltered state', () => {
     useSessionStore.setState({
       sessions: [

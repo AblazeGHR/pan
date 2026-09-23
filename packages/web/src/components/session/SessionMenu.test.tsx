@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SessionMenu } from './SessionMenu';
 import type { Session } from '@/types';
 
@@ -15,7 +15,22 @@ const session: Session = {
 afterEach(() => {
   cleanup();
   document.body.innerHTML = '';
+  vi.useRealTimers();
 });
+
+function renderMenuWithCard(onClose: () => void) {
+  vi.useFakeTimers();
+  const view = render(
+    <div data-testid="session-card">
+      <span data-testid="card-content">Session card content</span>
+      <SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={onClose} />
+    </div>,
+  );
+  // SessionMenu defers its document listener so the opening click cannot
+  // immediately dismiss the portal menu.
+  act(() => vi.advanceTimersByTime(0));
+  return view;
+}
 
 describe('SessionMenu details entry', () => {
   it('offers Details and closes the menu before opening the modal', () => {
@@ -37,5 +52,48 @@ describe('SessionMenu details entry', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onRename).toHaveBeenCalledWith(session.id);
     expect(promptSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('SessionMenu click-away dismissal', () => {
+  it('does not close when clicking inside the portal menu', () => {
+    const onClose = vi.fn();
+    renderMenuWithCard(onClose);
+
+    const menu = document.body.querySelector('.fixed');
+    expect(menu).toBeTruthy();
+    fireEvent.click(menu!);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('closes when clicking elsewhere inside the same session card', () => {
+    const onClose = vi.fn();
+    renderMenuWithCard(onClose);
+
+    fireEvent.click(screen.getByTestId('card-content'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes when clicking outside the session card', () => {
+    const onClose = vi.fn();
+    renderMenuWithCard(onClose);
+    const outside = document.createElement('button');
+    outside.textContent = 'Outside';
+    document.body.append(outside);
+
+    fireEvent.click(outside);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Escape dismissal available', () => {
+    const onClose = vi.fn();
+    renderMenuWithCard(onClose);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
