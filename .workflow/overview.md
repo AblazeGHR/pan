@@ -7,6 +7,7 @@
 - `DEC-004`：决定 Job UI 的标签页、创建/编辑控件和时间交互；责任人：用户；状态：待决策；下一事件：用户给出形态后恢复 T-043 UI。
 - `DEC-005`：决定 Workspace 标签页、Session 切换和归属编辑范围；责任人：用户；状态：待决策；下一事件：用户给出交互范围后恢复 T-044 UI。
 - `T-FRONTEND-CONSOLIDATED-20260922`：选择性前端集成已由 TA 完成、经 MA 验收并以 merge commit `92b363c0ab9d022a8fd89e03dbe1ab1dda251cf1` 合入本地 `main`；尚未 push、尚未真人验收；责任人：用户/开发者；下一事件：完成真人验收并决定是否 push。
+- `App Settings Appearance`：用户已明确验收；状态：已验收待清理。实现提交 `7b9f02e`、测试 follow-up `1704036`、最终 reset 断言位置修正 `ef95be3` 均已合入本地 `main` 与 `practical`（当前两者 HEAD 同为 `d3835a756f74b4f0faec20865c0fe61bfea5a470`），主线 `AppSettingsModal.tsx` 已包含 Appearance tab；`main` 比 `origin/main` ahead 26，push 未验证。TA worktree 因缺依赖未能运行定向 Vitest、TypeScript/build；最终断言修正后的 Vitest 也未在 TA worktree 运行。责任人：MA；下一事件：清理该功能的临时任务/分支记录后归档，不得将缺失的 TA 验证记作通过。
 - `T-034`：补齐早期功能的真实浏览器、Windows 和 OS 证据；责任人：开发者；状态：待验收；下一事件：按[批次 E](tasks/acceptance-batches.md)逐项填写操作、预期和结果。
 - `T-040`：确认普通消息的 taskId 继承与报告配对；责任人：开发者；状态：待验收；下一事件：按任务详情执行任务切换、重启恢复和 report 检查。
 - `T-041`：确认终态持久化、result/idle 广播与 usage 最终一致性；责任人：开发者；状态：待验收；下一事件：按任务详情完成真实 provider/CLI 与 HTTP/WS 行为检查。
@@ -37,6 +38,8 @@
 
 ## 最近交付
 
+- 2026-09-23 本地 `main` 一线新增的 UI/流式变更：Session menu dismissal/filter placement（`e10a911`）、相邻 tool/thinking blocks 分组及 Appearance 控制（`1f2656d`、`a899ef3`）、image preview 与下载身份修复（`e6af59f`、`18312e6`、测试 setup `eacc648`）、stream identity/transcript ordering fixes（merge `edada68`）、Windows launcher listener-child 判定（`d3835a7`）。上述代码提交均在当前 `main`；这些提交本身不构成 MA/用户验收证据。stream integrity 与 launcher 的验收状态仍需各自任务证据核实，不在此推断完成。
+- Appearance TA 验证边界：TA 报告的功能及测试修改均已提交；其定向 Vitest 因 TA worktree 缺少依赖未运行，TypeScript/build 因类型依赖缺失未通过，最终 reset 断言位置修正后也没有在 TA worktree 重跑。用户本轮已明确验收，因此该功能状态为“已验收待清理”，未验证项仍如实保留。
 - `T-060`：Pan skill 验收写法实验已结束；后续按“workflow 与 Pan 隔离”由 practical 的 scope 恢复提交取代，明确不合入 main、不再执行；最终边界见 [developLog.md](developLog.md)。
 - `T-059`：`T-049/T-050/T-051/T-053` 已合入本地 main，批次回归已完成；状态：交付完成，开发者验收仍由上方任务入口跟踪。
 - `T-062.1`：delta identity、流式渲染重建、InputRow 重渲染和后台 unread 归属的第一步止血修复已合入本地 main；后续长期优化仍在推进。
