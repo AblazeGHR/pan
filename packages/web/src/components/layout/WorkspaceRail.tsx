@@ -39,7 +39,12 @@ const HANDLE_WIDTH = 20;
  * The workspace scope itself is applied by `getSessionListCandidates`, so the
  * list, the search box and Select-all all narrow to the same workspace.
  */
-export function WorkspaceRail() {
+interface WorkspaceRailProps {
+  /** Render as a full-screen mobile overlay with a persistent collapsed handle. */
+  mobileOverlay?: boolean;
+}
+
+export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const loaded = useWorkspaceStore((s) => s.loaded);
   const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
@@ -50,6 +55,8 @@ export function WorkspaceRail() {
   const sessions = useSessionStore((s) => s.sessions);
   const expanded = useUIStore((s) => s.railExpanded);
   const setRailExpanded = useUIStore((s) => s.setRailExpanded);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const isExpanded = mobileOverlay ? mobileExpanded : expanded;
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
   const showToast = useUIStore((s) => s.showToast);
@@ -202,7 +209,7 @@ export function WorkspaceRail() {
     void reorderWorkspaces(ids).catch((e) => {
       showToast(e instanceof Error ? e.message : '排序失败', 'error');
     });
-  }, [dropHint, workspaces, reorderWorkspaces, showToast]);
+  }, [dropHint, workspaces, reorderWorkspaces, showToast, onDragMove]);
 
   const startTabDrag = (e: React.PointerEvent, workspaceId: string) => {
     if (e.button !== 0) return;
@@ -221,6 +228,7 @@ export function WorkspaceRail() {
 
   const tabClass = (active: boolean, isDragging: boolean, hint: 'before' | 'after' | null) => [
     'group relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs transition-colors',
+    mobileOverlay ? 'min-h-11 text-sm' : '',
     active
       ? 'border-accent/30 bg-accent/10 text-accent'
       : 'border-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary',
@@ -231,25 +239,50 @@ export function WorkspaceRail() {
 
   return (
     <div
-      className="relative z-30 flex-none self-stretch transition-[width] duration-200 ease-out"
-      style={{ width: expanded ? RAIL_WIDTH : 0 }}
+      data-testid={mobileOverlay ? (isExpanded ? 'mobile-workspace-rail-overlay' : 'mobile-workspace-rail-collapsed') : undefined}
+      className={mobileOverlay
+        ? isExpanded
+          ? 'fixed inset-0 z-[60] h-[100dvh] w-screen bg-bg-secondary pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]'
+          : 'fixed right-0 top-1/2 z-50 h-11 w-11 -translate-y-1/2'
+        : 'relative z-30 flex-none self-stretch transition-[width] duration-200 ease-out'}
+      style={mobileOverlay ? undefined : { width: isExpanded ? RAIL_WIDTH : 0 }}
     >
       {/* Expanded panel (clipped by the wrapper width while animating) */}
-      <div
-        className="absolute inset-y-0 right-0 flex w-[172px] flex-col overflow-hidden border-r border-border-default bg-bg-secondary transition-opacity duration-150"
-        style={{ opacity: expanded ? 1 : 0, pointerEvents: expanded ? 'auto' : 'none' }}
-        aria-hidden={!expanded}
+      {(!mobileOverlay || isExpanded) && <div
+        className={mobileOverlay
+          ? 'flex h-full w-full flex-col overflow-hidden bg-bg-secondary'
+          : 'absolute inset-y-0 right-0 flex w-[172px] flex-col overflow-hidden border-r border-border-default bg-bg-secondary transition-opacity duration-150'}
+        style={mobileOverlay ? undefined : { opacity: isExpanded ? 1 : 0, pointerEvents: isExpanded ? 'auto' : 'none' }}
+        aria-hidden={mobileOverlay ? undefined : !isExpanded}
       >
         <div className="flex items-center gap-1 border-b border-border-muted px-2 py-2">
-          <span className="flex-1 text-xs tracking-wide text-text-secondary">工作区</span>
-          <button
-            type="button"
-            className="rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-            title="收起"
-            onClick={() => setRailExpanded(false)}
-          >
-            <ChevronsLeft size={14} />
-          </button>
+          {mobileOverlay ? (
+            <>
+              <button
+                type="button"
+                className="flex min-h-11 items-center gap-2 rounded px-2 text-sm text-text-primary transition-colors hover:bg-bg-hover"
+                aria-label="收起工作区面板"
+                title="收起工作区面板"
+                onClick={() => setMobileExpanded(false)}
+              >
+                <ChevronsLeft size={16} />
+                返回
+              </button>
+              <span className="flex-1 text-sm font-medium text-text-primary">工作区</span>
+            </>
+          ) : (
+            <>
+              <span className="flex-1 text-xs tracking-wide text-text-secondary">工作区</span>
+              <button
+                type="button"
+                className="rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                title="收起"
+                onClick={() => setRailExpanded(false)}
+              >
+                <ChevronsLeft size={14} />
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -346,29 +379,40 @@ export function WorkspaceRail() {
           ) : (
             <button
               type="button"
-              className="mt-1 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-default px-2 py-1.5 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-              onClick={() => { nameErrorShown.current = false; setEditing({ id: '__new__', value: '' }); setRailExpanded(true); }}
+              className={`mt-1 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-default px-2 py-1.5 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary ${mobileOverlay ? 'min-h-11 text-sm' : ''}`}
+              onClick={() => {
+                nameErrorShown.current = false;
+                setEditing({ id: '__new__', value: '' });
+                if (mobileOverlay) setMobileExpanded(true);
+                else setRailExpanded(true);
+              }}
             >
               <Plus size={12} />
               新建工作区
             </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Floating handle: pinned to the panel's right edge, vertically centered */}
-      <button
+      {(!mobileOverlay || !isExpanded) && <button
         type="button"
-        className="absolute right-0 top-1/2 z-40 flex -translate-y-1/2 translate-x-full flex-col items-center gap-1.5 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary px-0.5 py-2.5 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary"
-        style={{ width: HANDLE_WIDTH }}
-        title={expanded ? `收起工作区面板（当前：${activeName}）` : `当前：${activeName} — 点击展开工作区`}
-        onClick={() => setRailExpanded(!expanded)}
+        className={mobileOverlay
+          ? 'absolute inset-0 flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-l-lg border border-r-0 border-border-default bg-bg-tertiary text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'
+          : 'absolute right-0 top-1/2 z-40 flex -translate-y-1/2 translate-x-full flex-col items-center gap-1.5 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary px-0.5 py-2.5 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'}
+        style={mobileOverlay ? undefined : { width: HANDLE_WIDTH }}
+        title={isExpanded ? `收起工作区面板（当前：${activeName}）` : `当前：${activeName} — 点击展开工作区`}
+        aria-label={mobileOverlay ? '展开工作区' : undefined}
+        onClick={() => {
+          if (mobileOverlay) setMobileExpanded(!isExpanded);
+          else setRailExpanded(!isExpanded);
+        }}
       >
-        {expanded ? <ChevronsLeft size={13} /> : <ChevronsRight size={13} />}
+        {isExpanded ? <ChevronsLeft size={13} /> : <ChevronsRight size={13} />}
         <span className="max-h-[52vh] overflow-hidden text-ellipsis whitespace-nowrap text-xs tracking-wide [text-orientation:mixed] [writing-mode:vertical-rl]">
           {activeName}
         </span>
-      </button>
+      </button>}
 
       {/* Tab actions menu */}
       {menuFor && (

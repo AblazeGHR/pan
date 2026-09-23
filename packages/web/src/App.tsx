@@ -14,7 +14,7 @@ import { useUIStore } from './stores/uiStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Outlet, useNavigate } from 'react-router-dom';
 
-function Layout() {
+export function Layout() {
   // The dashboard connection is route-independent. Keeping this singleton
   // consumer above <Outlet> lets editor/manage continue receiving Session,
   // worker, queue and reconnect events while ChatView is unmounted.
@@ -122,9 +122,8 @@ function Layout() {
         />
       )}
 
-      {/* Sidebar — full overlay on mobile — grid column 1. The Workspace rail
-          is a sibling so its panel takes real layout width (pushing the chat
-          area right) while the collapsed handle floats over the chat gutter. */}
+      {/* Sidebar drawer on mobile, Sidebar plus WorkspaceRail in the desktop
+          layout. The desktop rail takes real width when expanded. */}
       <div
         className={`${
           isMobile
@@ -138,6 +137,11 @@ function Layout() {
         <Sidebar />
         {!isMobile && <WorkspaceRail />}
       </div>
+
+      {/* Mobile workspace rail is independent from the Sidebar drawer. Its
+          collapsed handle stays on screen; expansion overlays both Sidebar
+          and chat at full viewport width. */}
+      {isMobile && <WorkspaceRail mobileOverlay />}
 
       {/* Resize handle gutter — grid column 2 (0-width) */}
 
