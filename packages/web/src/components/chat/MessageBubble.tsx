@@ -4,6 +4,7 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
+import { NonBodyGroup } from './NonBodyGroup';
 import type { GroupDisplayItem } from '@/utils/messageIdentity';
 
 export type GroupedItem = Message | GroupDisplayItem;
@@ -11,7 +12,10 @@ type PrevRole = Message['role'] | 'tool' | null;
 
 /** Role used for spacing decisions. Groups use the role of their member blocks. */
 export function getItemRole(item: GroupedItem): PrevRole {
-  if ('type' in item) return item.type === 'tool_group' ? 'tool' : 'thinking';
+  if ('type' in item) {
+    if (item.type === 'non_body_group') return item.items[item.items.length - 1]?.role ?? 'tool';
+    return item.type === 'tool_group' ? 'tool' : 'thinking';
+  }
   return (item as Message).role;
 }
 
@@ -103,8 +107,31 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
  * Group consecutive tool and thinking messages into semantic display rows.
  * Other roles end the current group so blocks never cross a message boundary.
  */
-export function groupMessages(messages: Message[]): GroupedItem[] {
+export function groupMessages(
+  messages: Message[],
+  mergeConsecutiveNonBodyBlocks = false,
+): GroupedItem[] {
   const grouped: GroupedItem[] = [];
+
+  if (mergeConsecutiveNonBodyBlocks) {
+    let currentNonBodyGroup: Message[] | null = null;
+
+    for (const msg of messages) {
+      if (msg.role === 'tool' || msg.role === 'thinking') {
+        if (!currentNonBodyGroup) {
+          currentNonBodyGroup = [];
+          grouped.push({ type: 'non_body_group', items: currentNonBodyGroup });
+        }
+        currentNonBodyGroup.push(msg);
+      } else {
+        currentNonBodyGroup = null;
+        grouped.push(msg);
+      }
+    }
+
+    return grouped;
+  }
+
   let currentToolGroup: Message[] | null = null;
   let currentThinkingGroup: Message[] | null = null;
 
@@ -140,6 +167,14 @@ interface MessageDisplayItemProps {
 
 export const MessageDisplayItem = memo(function MessageDisplayItem({ item, prevRole = null }: MessageDisplayItemProps) {
   if ('type' in item) {
+    if (item.type === 'non_body_group') {
+      const firstRole = item.items[0]?.role === 'thinking' ? 'thinking' : 'tool';
+      return (
+        <div className={`${marginTopClass(firstRole, prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>
+          <NonBodyGroup items={item.items} />
+        </div>
+      );
+    }
     if (item.type === 'tool_group') {
       return (
         <div className={`${marginTopClass('tool', prevRole)} pb-3 px-3 sm:px-6 lg:px-8`}>

@@ -37,6 +37,7 @@ export function ChatMessages() {
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
   const showQQ = useAppSettingsStore((s) => s.showQQ);
+  const mergeConsecutiveNonBodyBlocks = useAppSettingsStore((s) => s.mergeConsecutiveNonBodyBlocks);
 
   // Frontend-only display filter — currentMessages in the store is never
   // mutated; hidden messages reappear when their toggle is switched back on.
@@ -50,8 +51,12 @@ export function ChatMessages() {
     [currentMessages, showMetaAgent, showTaskAgent, showQQ],
   );
 
-  // Group messages: consecutive tool messages become ToolGroup
-  const grouped = useMemo(() => groupMessages(visibleMessages), [visibleMessages]);
+  // Preserve the existing separate tool/thinking rows unless the user opts in
+  // to one parent disclosure for each adjacent non-body run.
+  const grouped = useMemo(
+    () => groupMessages(visibleMessages, mergeConsecutiveNonBodyBlocks),
+    [visibleMessages, mergeConsecutiveNonBodyBlocks],
+  );
 
   const virtualizer = useVirtualizer({
     count: grouped.length,

@@ -7,6 +7,7 @@ import { ChatMessages, SCROLL_BOTTOM_THRESHOLD } from './ChatMessages';
 import { groupMessages, getItemRole } from './MessageBubble';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Message } from '@/types';
 
 // ── Mock @tanstack/react-virtual ──
@@ -148,6 +149,7 @@ beforeEach(() => {
     historyLoadEnd: 0,
   });
   useUIStore.setState({ tuiViewEnabled: true });
+  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
 });
 
 afterEach(() => {
@@ -175,6 +177,42 @@ it('groups only adjacent thinking blocks and keeps semantic boundaries', () => {
     'thinking', 'assistant', 'thinking', 'tool', 'thinking', 'user',
   ]);
   expect(grouped[0]).toMatchObject({ type: 'thinking_group', items: messages.slice(0, 2) });
+});
+
+it('merges each adjacent tool/thinking run only when the preference is enabled', () => {
+  const messages: Message[] = [
+    { role: 'thinking', content: 'thought 1' },
+    { role: 'thinking', content: 'thought 2' },
+    { role: 'tool', content: 'Run({})' },
+    { role: 'tool', content: 'Read({})' },
+    { role: 'assistant', content: 'visible answer' },
+    { role: 'tool', content: 'Write({})' },
+    { role: 'thinking', content: 'thought 3' },
+    { role: 'system', content: 'system notice' },
+    { role: 'thinking', content: 'thought 4' },
+  ];
+
+  const merged = groupMessages(messages, true);
+  expect(merged.map((item) => 'type' in item ? item.type : item.role)).toEqual([
+    'non_body_group', 'assistant', 'non_body_group', 'system', 'non_body_group',
+  ]);
+  expect(merged[0]).toMatchObject({ type: 'non_body_group', items: messages.slice(0, 4) });
+  expect(merged[2]).toMatchObject({ type: 'non_body_group', items: messages.slice(5, 7) });
+  expect(merged[0] && 'type' in merged[0] ? merged[0].items.map((item) => item.role) : []).toEqual([
+    'thinking', 'thinking', 'tool', 'tool',
+  ]);
+  expect(merged.map((item) => getItemRole(item))).toEqual([
+    'tool', 'assistant', 'thinking', 'system', 'thinking',
+  ]);
+
+  // Default and explicit off mode retain the established independent groups.
+  expect(groupMessages(messages).map((item) => 'type' in item ? item.type : item.role))
+    .toEqual(groupMessages(messages, false).map((item) => 'type' in item ? item.type : item.role));
+  expect(groupMessages(messages, false).map((item) => 'type' in item ? item.type : item.role)).toEqual([
+    'thinking_group', 'tool_group', 'assistant', 'tool_group', 'thinking_group', 'system', 'thinking_group',
+  ]);
+  expect(groupMessages(messages, false).filter((item) => 'type' in item && item.type === 'tool_group')[0])
+    .toMatchObject({ items: messages.slice(2, 4) });
 });
 
 describe('ChatMessages scroll positioning', () => {
@@ -874,6 +912,57 @@ describe('ChatMessages scroll positioning', () => {
 
     expect(m.state.options?.getItemKey?.(0)).not.toBe(firstKey);
     expect(container.querySelector('.thinking button')?.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps an expanded non-body parent across stream appends and resets it on Session change', () => {
+    useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
+    const first: Message = {
+      role: 'thinking',
+      content: 'session-scoped plan '.repeat(1_300),
+      blockId: 'non-body-stream-first',
+    };
+    const second: Message = {
+      role: 'tool',
+      content: 'Command({"command":"true"})',
+      blockId: 'non-body-stream-second',
+    };
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [first] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 120 }]);
+    const { container } = render(<ChatMessages />);
+
+    const parent = screen.getByRole('button', { name: /1 non-body blocks/ });
+    const firstKey = m.state.options?.getItemKey?.(0);
+    fireEvent.click(parent);
+    expect(parent.getAttribute('aria-expanded')).toBe('true');
+    const thinkingDisclosure = screen.getByRole('button', { name: 'thinking' });
+    fireEvent.click(thinkingDisclosure);
+    expect(thinkingDisclosure.getAttribute('aria-expanded')).toBe('true');
+
+    act(() => {
+      useSessionStore.setState({ currentMessages: [first, second] });
+    });
+    const streamedParent = screen.getByRole('button', { name: /2 non-body blocks/ });
+    expect(m.state.options?.getItemKey?.(0)).toBe(firstKey);
+    expect(streamedParent.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'thinking' }).getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('session-scoped plan');
+    expect(screen.getByRole('button', { name: '1 tools' })).toBeTruthy();
+
+    const streamedKey = m.state.options?.getItemKey?.(0);
+    act(() => {
+      useSessionStore.setState({
+        currentSessionId: 's2',
+        currentMessages: [first, second].map((item) => ({ ...item })),
+      });
+    });
+
+    expect(m.state.options?.getItemKey?.(0)).not.toBe(streamedKey);
+    expect(screen.getByRole('button', { name: /2 non-body blocks/ }).getAttribute('aria-expanded'))
+      .toBe('false');
+    expect(screen.queryByRole('button', { name: '1 tools' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /2 non-body blocks/ }));
+    expect(screen.getByRole('button', { name: 'thinking' }).getAttribute('aria-expanded'))
+      .toBe('false');
   });
 
   it('keeps a tall streamed block in document flow while preserving a scrolled-up viewport', () => {

@@ -13,6 +13,8 @@ export interface AppSettings {
   showQQ: boolean;
   /** Show the Codex terminal input popup when a process is waiting for stdin. */
   showCodexTerminalInput: boolean;
+  /** Combine adjacent tool and thinking display blocks under one disclosure. */
+  mergeConsecutiveNonBodyBlocks: boolean;
   /** Notification preferences for CLI adapter warnings. */
   notifications: {
     /** Show structured Codex warning events through a Toast. */
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showTaskAgent: true,
   showQQ: true,
   showCodexTerminalInput: false,
+  mergeConsecutiveNonBodyBlocks: false,
   notifications: {
     codexWarningToast: true,
   },
@@ -66,6 +69,10 @@ export function sanitizeSettings(
       typeof parsed.showCodexTerminalInput === 'boolean'
         ? parsed.showCodexTerminalInput
         : DEFAULT_SETTINGS.showCodexTerminalInput,
+    mergeConsecutiveNonBodyBlocks:
+      typeof parsed.mergeConsecutiveNonBodyBlocks === 'boolean'
+        ? parsed.mergeConsecutiveNonBodyBlocks
+        : DEFAULT_SETTINGS.mergeConsecutiveNonBodyBlocks,
     notifications: {
       codexWarningToast:
         typeof notifications.codexWarningToast === 'boolean'
@@ -83,6 +90,7 @@ interface AppSettingsStore extends AppSettings {
   setShowTaskAgent: (v: boolean) => void;
   setShowQQ: (v: boolean) => void;
   setShowCodexTerminalInput: (v: boolean) => void;
+  setMergeConsecutiveNonBodyBlocks: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
   /** Reset every field to its default and persist. */
   resetSettings: () => void;
@@ -143,6 +151,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
     setShowCodexTerminalInput: (v) => {
       set({ showCodexTerminalInput: v });
       persist({ showCodexTerminalInput: v });
+    },
+
+    setMergeConsecutiveNonBodyBlocks: (v) => {
+      set({ mergeConsecutiveNonBodyBlocks: v });
+      persist({ mergeConsecutiveNonBodyBlocks: v });
     },
 
     setCodexWarningToast: (v) => {

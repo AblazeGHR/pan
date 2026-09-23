@@ -33,6 +33,7 @@ describe('appSettingsStore', () => {
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
     expect(s.showCodexTerminalInput).toBe(false);
+    expect(s.mergeConsecutiveNonBodyBlocks).toBe(false);
   });
 
   it('applies backend ui settings on load', async () => {
@@ -41,6 +42,7 @@ describe('appSettingsStore', () => {
       showMetaAgent: false,
       showTaskAgent: true,
       showQQ: false,
+      mergeConsecutiveNonBodyBlocks: true,
     });
 
     await useAppSettingsStore.getState().loadSettings();
@@ -51,6 +53,7 @@ describe('appSettingsStore', () => {
     expect(s.showMetaAgent).toBe(false);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(false);
+    expect(s.mergeConsecutiveNonBodyBlocks).toBe(true);
   });
 
   it('validates server values on load, falling back to defaults', async () => {
@@ -90,6 +93,7 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowQQ(false);
     useAppSettingsStore.getState().setCodexWarningToast(false);
     useAppSettingsStore.getState().setShowCodexTerminalInput(true);
+    useAppSettingsStore.getState().setMergeConsecutiveNonBodyBlocks(true);
 
     expect(useAppSettingsStore.getState().defaultGroupBy).toBe('workdir');
     expect(mockedUpdate).toHaveBeenNthCalledWith(1, { defaultGroupBy: 'workdir' });
@@ -100,6 +104,8 @@ describe('appSettingsStore', () => {
       notifications: { codexWarningToast: false },
     });
     expect(mockedUpdate).toHaveBeenNthCalledWith(6, { showCodexTerminalInput: true });
+    expect(mockedUpdate).toHaveBeenNthCalledWith(7, { mergeConsecutiveNonBodyBlocks: true });
+    expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
   });
 
   it('resets all settings to defaults and writes them back', () => {
@@ -115,6 +121,7 @@ describe('appSettingsStore', () => {
     expect(s.showTaskAgent).toBe(DEFAULT_SETTINGS.showTaskAgent);
     expect(s.showQQ).toBe(DEFAULT_SETTINGS.showQQ);
     expect(s.showCodexTerminalInput).toBe(DEFAULT_SETTINGS.showCodexTerminalInput);
+    expect(s.mergeConsecutiveNonBodyBlocks).toBe(DEFAULT_SETTINGS.mergeConsecutiveNonBodyBlocks);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS });
   });
 
@@ -154,6 +161,10 @@ describe('appSettingsStore', () => {
     expect(sanitizeSettings({ showCodexTerminalInput: 'yes' }).showCodexTerminalInput)
       .toBe(false);
     expect(sanitizeSettings({ showCodexTerminalInput: true }).showCodexTerminalInput)
+      .toBe(true);
+    expect(sanitizeSettings({ mergeConsecutiveNonBodyBlocks: 'yes' }).mergeConsecutiveNonBodyBlocks)
+      .toBe(false);
+    expect(sanitizeSettings({ mergeConsecutiveNonBodyBlocks: true }).mergeConsecutiveNonBodyBlocks)
       .toBe(true);
   });
 });

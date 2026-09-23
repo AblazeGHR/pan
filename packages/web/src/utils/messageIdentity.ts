@@ -51,7 +51,8 @@ export function getMessageIdentity(message: Message): string {
 
 export type ToolGroupDisplayItem = { type: 'tool_group'; items: Message[] };
 export type ThinkingGroupDisplayItem = { type: 'thinking_group'; items: Message[] };
-export type GroupDisplayItem = ToolGroupDisplayItem | ThinkingGroupDisplayItem;
+export type NonBodyGroupDisplayItem = { type: 'non_body_group'; items: Message[] };
+export type GroupDisplayItem = ToolGroupDisplayItem | ThinkingGroupDisplayItem | NonBodyGroupDisplayItem;
 
 /**
  * The key belongs to the logical display item, not its current array index or

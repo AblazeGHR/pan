@@ -7,6 +7,7 @@ import type { Message } from '@/types';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ThinkingGroup } from './ThinkingGroup';
 import { ToolGroup } from './ToolGroup';
+import { NonBodyGroup } from './NonBodyGroup';
 import { LONG_BLOCK_CONTENT_THRESHOLD } from './lazyBlockContent';
 
 vi.mock('./MarkdownRenderer', () => ({
@@ -120,6 +121,46 @@ describe('lazy long chat blocks', () => {
     expect(useDetailStore.getState().detailTarget).toEqual({
       type: 'tool',
       content: tool.content,
+      title: 'Bash',
+    });
+  });
+
+  it('keeps long tool and thinking children lazy with their bounded viewports inside a merged parent', () => {
+    const longThinking: Message = {
+      role: 'thinking',
+      content: 'plan '.repeat(5_000),
+      blockId: 'merged-parent-long-thinking',
+    };
+    const longValue = 'payload'.repeat(Math.ceil(LONG_BLOCK_CONTENT_THRESHOLD / 7));
+    const longTool: Message = {
+      role: 'tool',
+      content: `tool call: Bash\nargs: ${JSON.stringify({ command: longValue })}`,
+      blockId: 'merged-parent-long-tool',
+    };
+    const { container } = render(<NonBodyGroup items={[longThinking, longTool]} />);
+
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
+    expect(screen.queryByLabelText('Bash content')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /2 non-body blocks/ }));
+    expect(screen.getByRole('button', { name: 'thinking' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '1 tools' })).toBeTruthy();
+    expect(screen.queryByTestId('rendered-thinking-content')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'thinking' }));
+    const thinkingWindow = container.querySelector('[data-testid="thinking-content-window"] > div');
+    expect(thinkingWindow?.className).toContain('max-h-40 overflow-y-auto');
+    expect(screen.getByTestId('rendered-thinking-content').textContent)
+      .toBe(longThinking.content.slice(0, 100));
+
+    fireEvent.click(screen.getByRole('button', { name: '1 tools' }));
+    fireEvent.click(screen.getByText('Bash'));
+    const toolWindow = screen.getByRole('region', { name: 'Bash content' });
+    expect(toolWindow.className).toContain('max-h-[20rem]');
+    expect(toolWindow.className).toContain('overflow-y-auto');
+    expect(toolWindow.textContent).toContain(longValue);
+    expect(useDetailStore.getState().detailTarget).toEqual({
+      type: 'tool',
+      content: longTool.content,
       title: 'Bash',
     });
   });
