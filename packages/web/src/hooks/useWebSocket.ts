@@ -1021,6 +1021,22 @@ function appendEventToMessages(
         if (nativeIndex >= 0) break;
       }
     }
+    if (nativeIndex < 0 && usedIndexes && event.final && !nativeItemId && !blockId) {
+      // Claude stream-json deltas do not carry an item id, while its final
+      // assistant envelope can add thinking/tool blocks before repeating the
+      // complete text. Rebind that final text only to one same-role live row
+      // in this task buffer whose body is a prefix of the final body (or the
+      // reverse for providers that corrected a suffix). This stays local to
+      // the current event/task and never dedupes equal text across turns.
+      const untaggedFinalMatches = messages.flatMap((candidate, index) =>
+        !usedIndexes.has(index)
+          && candidate.role === b.role
+          && (candidate.content.startsWith(b.content) || b.content.startsWith(candidate.content))
+          ? [index]
+          : [],
+      );
+      if (untaggedFinalMatches.length === 1) nativeIndex = untaggedFinalMatches[0]!;
+    }
     const lastIndex = messages.length - 1;
     // A native id is an explicit target. Falling back to the last message here
     // lets an interleaved later item be replaced by an earlier item's update.
@@ -1149,6 +1165,33 @@ function appendEventToMessages(
       rememberMessageIdentity(message);
       messages = [...messages, message];
       if (usedIndexes) usedIndexes.add(messages.length - 1);
+    }
+  }
+  if (event.final && usedIndexes && usedIndexes.size === blocks.length) {
+    // A multi-block final envelope defines the canonical order of those
+    // blocks. Reconcile first so an already-streamed id-less assistant row
+    // keeps its React identity, then move the matched block run into envelope
+    // order (for Claude: thinking → tool → assistant).
+    const targetIndexes = [...usedIndexes];
+    const orderedTargets = [...new Set(targetIndexes)].sort((a, b) => a - b);
+    const canReorder = orderedTargets.length === targetIndexes.length
+      && orderedTargets.length > 1
+      && orderedTargets.at(-1)! - orderedTargets[0]! + 1 === orderedTargets.length
+      && targetIndexes.some((index, slot) => index !== orderedTargets[0]! + slot);
+    if (canReorder) {
+      const first = orderedTargets[0]!;
+      const targetSet = new Set(orderedTargets);
+      const blockRows = targetIndexes.map((index) => messages[index]!);
+      const withoutBlocks = messages.filter((_message, index) => !targetSet.has(index));
+      const beforeCount = messages
+        .slice(0, first)
+        .filter((_message, index) => !targetSet.has(index))
+        .length;
+      messages = [
+        ...withoutBlocks.slice(0, beforeCount),
+        ...blockRows,
+        ...withoutBlocks.slice(beforeCount),
+      ];
     }
   }
   return messages;

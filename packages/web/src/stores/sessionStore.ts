@@ -22,9 +22,11 @@ import { inheritMessageIdentity } from '@/utils/messageIdentity';
 import {
   canonicalHistory,
   createWindow,
+  durableOffsetOf,
   isDurableRow,
   isLocalMarker,
   liveProjectionKeys,
+  markDurableRow,
   markLocalMarker,
   mergeWindowPage,
   taskScopeKey,
@@ -304,6 +306,8 @@ export interface LiveStreamBuffer {
   streamText?: string;
   /** Identity of the task this buffer belongs to; scopes id-less block slots. */
   taskKey?: string;
+  /** Absolute history boundary captured when this task entered running state. */
+  historyStartOffset?: number;
   revision: number;
   messages: Message[];
   /** Projection indexes let delta updates avoid scanning canonical history. */
@@ -582,9 +586,40 @@ function transcriptIsStale(transcript: SessionTranscript, session: Session): boo
  * authoritative (it may be the finalized, longer or shorter version of the same
  * block). Deliberately never used to match rows *across* tasks.
  */
+function normalizedToolContent(content: string): string | undefined {
+  const open = content.indexOf('(');
+  if (open <= 0 || !content.endsWith(')')) return undefined;
+  try {
+    const input = JSON.parse(content.slice(open + 1, -1)) as unknown;
+    const sortObjectKeys = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(sortObjectKeys);
+      if (value !== null && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, child]) => [key, sortObjectKeys(child)]));
+      }
+      return value;
+    };
+    return `${content.slice(0, open)}(${JSON.stringify(sortObjectKeys(input))})`;
+  } catch {
+    // Some adapters truncate very large tool inputs for display. Preserve the
+    // exact-content path for those rows instead of guessing their identity.
+    return undefined;
+  }
+}
+
 function runtimeRowCompatible(runtimeRow: Message, durableRow: Message): boolean {
   if (runtimeRow.role !== durableRow.role) return false;
   if (runtimeRow.content === durableRow.content) return true;
+  // Tool content is a display projection of structured JSON input. Providers
+  // serialize the same object with different whitespace/Unicode escaping, so
+  // exact string comparison can break alignment here and make every later
+  // row in the task appear a second time after history recovery.
+  if (runtimeRow.role === 'tool') {
+    const runtimeTool = normalizedToolContent(runtimeRow.content);
+    const durableTool = normalizedToolContent(durableRow.content);
+    if (runtimeTool !== undefined && runtimeTool === durableTool) return true;
+  }
   // A role-only match is unsafe: two adjacent assistant/thinking/tool rows
   // from different tasks can have different bodies at the same offset.  The
   // final result/history convergence path supplies the authoritative body; a
@@ -606,8 +641,73 @@ function runtimeRowCompatible(runtimeRow: Message, durableRow: Message): boolean
  * Display markers keep their exact runtime position, which is what anchors a
  * DONE row inside its own task.
  */
-function projectTranscript(transcript: SessionTranscript): Message[] {
-  const { window, runtime, anchorOffset } = transcript;
+function alignedLiveBufferStart(
+  transcript: SessionTranscript,
+  buffer: LiveStreamBuffer | undefined,
+): number | undefined {
+  if (!buffer?.taskKey || buffer.messages.length === 0) return undefined;
+  const taskPrefix = `slot:${buffer.taskKey}:`;
+  const taskRows = transcript.runtime.filter((row) =>
+    runtimeKeyOf(row)?.startsWith(taskPrefix),
+  );
+  if (taskRows.length !== buffer.messages.length) return undefined;
+  if (!taskRows.every((row, index) =>
+    row.role === buffer.messages[index]!.role
+      && row.content === buffer.messages[index]!.content,
+  )) return undefined;
+
+  const taskRuntimeIndexes = transcript.runtime.flatMap((row, index) =>
+    runtimeKeyOf(row)?.startsWith(taskPrefix) ? [index] : [],
+  );
+  const taskRuntimeStart = taskRuntimeIndexes[0]!;
+  const beforeTask = transcript.runtime.slice(0, taskRuntimeStart);
+  // A local/queued user row immediately before the live turn belongs in the
+  // same canonical run. Earlier unconverged task rows make a wider re-anchor
+  // ambiguous, so retain the ordinary projection in that case.
+  if (beforeTask.some((row) => !isLocalMarker(row) && row.role !== 'user')) {
+    return undefined;
+  }
+  const runtimePrefix = beforeTask.filter((row) => !isLocalMarker(row));
+  const expected = [...runtimePrefix, ...buffer.messages];
+  const prefixLength = runtimePrefix.length;
+  const taskStart = buffer.historyStartOffset ?? transcript.anchorOffset;
+  const minimumStart = Math.max(
+    transcript.window.start ?? 0,
+    taskStart - prefixLength,
+  );
+  const maximumStart = (transcript.window.end ?? transcript.window.total) - expected.length;
+  const matches: number[] = [];
+  for (let start = minimumStart; start <= maximumStart; start += 1) {
+    let matchesRun = true;
+    for (let index = 0; index < expected.length; index += 1) {
+      const durable = transcript.window.rows.get(start + index);
+      if (!durable || !runtimeRowCompatible(expected[index]!, durable)) {
+        matchesRun = false;
+        break;
+      }
+      // A same-text row from an earlier turn must not be mistaken for this
+      // active task. Its persisted response cannot precede the task boundary.
+      if (index >= prefixLength && start + index < taskStart) {
+        matchesRun = false;
+        break;
+      }
+    }
+    if (matchesRun) matches.push(start);
+  }
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function projectTranscript(
+  transcript: SessionTranscript,
+  liveBuffer?: LiveStreamBuffer,
+): Message[] {
+  const { window, runtime } = transcript;
+  // Session summary metadata may advance past the canonical rows while a
+  // background task is streaming. If this task's complete runtime block run
+  // now exists in history, start projection at that run so its live copies
+  // converge onto the canonical objects instead of being appended after them.
+  const anchorOffset = alignedLiveBufferStart(transcript, liveBuffer)
+    ?? transcript.anchorOffset;
   const ordered = [...window.rows.entries()].sort((a, b) => a[0] - b[0]);
   const display: Message[] = [];
   for (const [offset, message] of ordered) {
@@ -707,6 +807,7 @@ function projectLiveRows(
   previousBuffer: LiveStreamBuffer | undefined,
   taskKey: string,
   rows: Message[],
+  durableTailStart: number,
 ): LiveProjection {
   let display = current.slice();
   const indexes: Record<string, number> = {};
@@ -737,7 +838,14 @@ function projectLiveRows(
       const sameIdentity = explicitIdentityOf(row).some((identity) =>
         explicitIdentityOf(live).includes(identity));
       if (row.role !== live.role && !sameIdentity) continue;
-      if (previousBuffer?.projectionRefs?.[key] !== row) continue;
+      const durableOffset = durableOffsetOf(row);
+      const canonicalizedPreviousRow = sameTask
+        && previousRow !== undefined
+        && durableOffset !== undefined
+        && durableOffset >= durableTailStart
+        && row.role === previousRow.role
+        && row.content === previousRow.content;
+      if (previousBuffer?.projectionRefs?.[key] !== row && !canonicalizedPreviousRow) continue;
       if (usedTargetIndexes.has(cached)) continue;
       targetIndex = cached;
       break;
@@ -748,6 +856,61 @@ function projectLiveRows(
       const found = display.indexOf(previousRow);
       if (found >= 0 && display[found]!.role === live.role
           && !usedTargetIndexes.has(found)) targetIndex = found;
+    }
+    if (targetIndex < 0 && sameTask && explicit.length === 0) {
+      // Id-less adapters can introduce earlier blocks in a final envelope and
+      // move the already-streamed assistant to a later slot. Reuse its prior
+      // task-local slot only when there is exactly one role/content-prefix
+      // candidate in the previous buffer.
+      const priorSlots = previousBuffer!.messages.flatMap((candidate, slot) =>
+        explicitIdentityOf(candidate).length === 0
+          && candidate.role === live.role
+          && (candidate.content.startsWith(live.content)
+            || live.content.startsWith(candidate.content))
+          ? [slot]
+          : [],
+      );
+      if (priorSlots.length === 1) {
+        const priorSlot = priorSlots[0]!;
+        const prior = previousBuffer!.messages[priorSlot]!;
+        const priorKeys = liveProjectionKeys(prior, { taskKey, slot: priorSlot });
+        for (const key of priorKeys) {
+          const cached = previousBuffer!.projectionIndexes?.[key];
+          if (cached === undefined || cached < 0 || cached >= display.length) continue;
+          const row = display[cached]!;
+          if (row.role !== prior.role || usedTargetIndexes.has(cached)) continue;
+          const refMatches = previousBuffer!.projectionRefs?.[key] === row;
+          const offset = durableOffsetOf(row);
+          const durableMatches = offset !== undefined
+            && offset >= durableTailStart
+            && row.role === prior.role
+            && row.content === prior.content;
+          if (refMatches || durableMatches) {
+            targetIndex = cached;
+            break;
+          }
+        }
+      }
+    }
+    if (targetIndex < 0 && previousRow && sameTask) {
+      // A history refresh can replace the exact live row at its canonical
+      // offset with a new Message object that has messageId instead of the
+      // provider's nativeItemId. Rebind only when the durable row is adjacent
+      // to this task's runtime boundary and exactly equals the prior row for
+      // this task slot. The boundary may sit before or after the canonical
+      // write depending on which Session summary the browser last saw. This is
+      // a scoped identity bridge, not a transcript body-text dedupe.
+      const canonicalMatches = display.flatMap((candidate, index) => {
+        const offset = durableOffsetOf(candidate);
+        return !usedTargetIndexes.has(index)
+          && offset !== undefined
+          && offset >= durableTailStart
+          && candidate.role === previousRow.role
+          && candidate.content === previousRow.content
+          ? [index]
+          : [];
+      });
+      if (canonicalMatches.length === 1) targetIndex = canonicalMatches[0]!;
     }
     if (targetIndex < 0 && sameTask) {
       if (explicit.length > 0) {
@@ -761,8 +924,24 @@ function projectLiveRows(
       // Only the changed block needs a new object. Retain all other row refs
       // so React.memo can skip their Markdown/tool renderers during deltas.
       if (live !== previousRow || !sameTask) {
-        const merged = { ...display[targetIndex], ...live };
-        inheritMessageIdentity(merged, display[targetIndex]!);
+        const target = display[targetIndex]!;
+        const durableOffset = durableOffsetOf(target);
+        // When a terminal/canonical assistant was persisted before the last
+        // cumulative delta reached this browser, that delta may be only a
+        // prefix of the already complete row. Keep the authoritative body
+        // while attaching the live identity so subsequent deltas still update
+        // this same display row.
+        const keepDurableBody = durableOffset !== undefined
+          && durableOffset >= durableTailStart
+          && target.role === live.role
+          && target.content.startsWith(live.content);
+        const merged = {
+          ...target,
+          ...live,
+          ...(keepDurableBody ? { content: target.content } : {}),
+        };
+        inheritMessageIdentity(merged, target);
+        if (durableOffset !== undefined) markDurableRow(merged, durableOffset);
         display[targetIndex] = merged;
       }
       usedTargetIndexes.add(targetIndex);
@@ -794,7 +973,6 @@ function projectLiveRows(
   const targetSet = new Set(targetIndexes);
   const orderedTargets = [...targetSet].sort((a, b) => a - b);
   const canReorder = previousBuffer?.taskKey === taskKey
-    && rows.some((row) => explicitIdentityOf(row).length > 0)
     && targetIndexes.length === rows.length
     && targetSet.size === rows.length
     && orderedTargets.length > 0
@@ -873,7 +1051,7 @@ function applyHistoryPageToState(
     // runtime rows while applying B's history page.
     const targetDisplay = isCurrentSession
       ? s.currentMessages
-      : projectTranscript(transcript);
+      : projectTranscript(transcript, s.liveStreamBuffers[sessionId]);
     let mirrored = 0;
     while (
       mirrored < targetDisplay.length
@@ -897,7 +1075,7 @@ function applyHistoryPageToState(
   // the window we already have must not reconstruct the display: rows that
   // exist only in the rendered projection (an optimistic user row, an
   // agent-injected message) would be dropped by a rebuild.
-  const projected = projectTranscript(next);
+  const projected = projectTranscript(next, s.liveStreamBuffers[sessionId]);
   // Keep the previous array reference when the projection is unchanged: callers
   // (and the agent-injection retry) compare array identity to decide whether a
   // refresh brought new content.
@@ -1275,7 +1453,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             anchorOffset: session.historyTotal ?? loaded,
             serverEpoch: s.serverEpoch,
           };
-      const display = projectTranscript(transcript);
+      const display = projectTranscript(transcript, s.liveStreamBuffers[id]);
       const start = transcript.window.start ?? 0;
       return {
         currentSessionId: id,
@@ -1831,9 +2009,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         terminal?.revision ?? 0,
       ) + 1;
       const taskKey = taskScopeKey(sessionId, meta, previous);
+      const session = sessionOf(s, sessionId);
+      const base = session
+        ? ensureTranscript(s.sessionTranscripts, session)
+        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
       const buffer: LiveStreamBuffer = {
         ...meta,
         taskKey,
+        historyStartOffset: previous?.historyStartOffset ?? base.anchorOffset,
         revision,
         messages: messages.slice(),
       };
@@ -1843,12 +2026,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           || s.unscopedReplayPending['*'])
         ? { ...s.unscopedReplayPending, [sessionId]: false }
         : s.unscopedReplayPending;
-      const session = sessionOf(s, sessionId);
-      const base = session
-        ? ensureTranscript(s.sessionTranscripts, session)
-        : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
       const projected = s.currentSessionId === sessionId
-        ? projectLiveRows(s.currentMessages, previous, taskKey, buffer.messages)
+        ? projectLiveRows(
+            s.currentMessages,
+            previous,
+            taskKey,
+            buffer.messages,
+            buffer.historyStartOffset ?? base.anchorOffset,
+          )
         : { display: s.currentMessages, indexes: {}, refs: {}, appended: 0 };
       buffer.projectionIndexes = projected.indexes;
       buffer.projectionRefs = projected.refs;
@@ -2056,7 +2241,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         }
       }
       const display = isCurrent && finalized.length > 0
-        ? projectTranscript(nextTranscript)
+        ? projectTranscript(nextTranscript, previousBuffer)
         : s.currentMessages;
 
       const sessions = s.sessions.map((candidate) => {
@@ -2167,6 +2352,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const watermark = s.terminalWatermarks[sessionId];
       if (isBlockedByTerminal(meta, watermark, status || 'idle')) return s;
       const previous = s.liveStreamBuffers[sessionId];
+      const captureHistoryBoundary = (): number => {
+        const session = sessionOf(s, sessionId);
+        if (!session) return 0;
+        const transcript = ensureTranscript(s.sessionTranscripts, session);
+        return Math.max(
+          session.historyTotal ?? session.history?.length ?? 0,
+          transcript.window.total,
+          transcript.anchorOffset,
+        );
+      };
       // A late status must not move the Session projection back to an older
       // task while the current live buffer remains authoritative.  Keep the
       // legacy/taskId-only path compatible by applying this guard only when a
@@ -2190,6 +2385,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           generation: meta.generation,
           taskSeq: meta.taskSeq,
           taskId: meta.taskId,
+          taskKey: taskScopeKey(sessionId, meta),
+          historyStartOffset: captureHistoryBoundary(),
           revision,
           messages: [],
         };
@@ -2213,6 +2410,32 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           : session),
         _sessionWsTouchedSeq: { ...s._sessionWsTouchedSeq, [sessionId]: (wsTouchSeq += 1) },
       };
+      if (!terminal && status === 'running' && !previous
+          && (meta.taskSeq !== undefined || Boolean(meta.taskId))) {
+        const nextBuffers = { ...s.liveStreamBuffers };
+        nextBuffers[sessionId] = {
+          ...meta,
+          taskKey: taskScopeKey(sessionId, meta),
+          historyStartOffset: captureHistoryBoundary(),
+          revision: Math.max(0, watermark?.revision ?? 0) + 1,
+          messages: [],
+        };
+        return { ...next, liveStreamBuffers: nextBuffers };
+      }
+      if (!terminal && status === 'running' && previous
+          && previous.historyStartOffset === undefined
+          && (meta.taskSeq === undefined || previous.taskSeq === meta.taskSeq)) {
+        return {
+          ...next,
+          liveStreamBuffers: {
+            ...s.liveStreamBuffers,
+            [sessionId]: {
+              ...previous,
+              historyStartOffset: captureHistoryBoundary(),
+            },
+          },
+        };
+      }
       if (terminal) {
         const revision = Math.max(
           previous?.revision ?? 0,
@@ -2413,7 +2636,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const base = sessionOf(s, sessionId)
         ? ensureTranscript(s.sessionTranscripts, sessionOf(s, sessionId)!)
         : { window: createWindow(), runtime: [], anchorOffset: 0, serverEpoch: null };
-      const selectedMessages = selected ? [...s.currentMessages] : projectTranscript(base);
+      const selectedMessages = selected
+        ? [...s.currentMessages]
+        : projectTranscript(base, s.liveStreamBuffers[sessionId]);
       const existingIds = new Set(
         selectedMessages.flatMap((message) => explicitMessageIdentity(message)),
       );

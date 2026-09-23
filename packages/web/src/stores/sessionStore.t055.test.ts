@@ -22,7 +22,14 @@ function session(id: string, history: Message[] = []): Session {
   };
 }
 
-let pendingHistory: Array<(value: { history: Message[]; total: number; hasMore: boolean; start: number }) => void> = [];
+let pendingHistory: Array<(value: {
+  history: Message[];
+  total: number;
+  hasMore: boolean;
+  start: number;
+  historyEpoch?: string;
+  historyRevision?: number;
+}) => void> = [];
 let pendingSessions: Array<(value: Session[]) => void> = [];
 
 vi.mock('@/services/api', async (importOriginal) => {
@@ -93,6 +100,77 @@ describe('T-055 per-session live stream reconciliation', () => {
       msg('user', 'question A'),
       msg('assistant', 'Hello', 'item-a'),
     ]);
+  });
+
+  it('rebinds a late Codex delta to its canonical row after A → B → A history refresh', async () => {
+    // Summary metadata can already include the canonical rows while this
+    // browser still holds an older/shorter history window.
+    const a = session('A', [msg('user', 'question A')]);
+    const b = session('B', [msg('user', 'question B')]);
+    const full = 'answer that was persisted while A was in the background';
+    useSessionStore.setState({
+      sessions: [a, b],
+      currentSessionId: 'A',
+      currentMessages: a.history,
+    });
+    useSessionStore.getState().applyWorkerStatus('A', 'running', {
+      workerId: 'worker-a', generation: 1, taskSeq: 1,
+    });
+    act(() => {
+      useSessionStore.getState().applyLiveStream(
+        'A', [msg('assistant', full, 'completed-item')],
+        { workerId: 'worker-a', generation: 1, taskSeq: 1 },
+      );
+    });
+    useSessionStore.setState((state) => ({
+      sessions: state.sessions.map((candidate) => candidate.id === 'A'
+        ? { ...candidate, historyTotal: 2 }
+        : candidate),
+      sessionTranscripts: {
+        ...state.sessionTranscripts,
+        A: { ...state.sessionTranscripts.A!, anchorOffset: 2 },
+      },
+    }));
+
+    const switchToB = useSessionStore.getState().selectSession('B');
+    await act(async () => {
+      pendingHistory.shift()?.({
+        history: [msg('user', 'question B')], total: 1, hasMore: false, start: 0,
+      });
+      await switchToB;
+    });
+
+    const switchBackToA = useSessionStore.getState().selectSession('A');
+    expect(useSessionStore.getState().currentMessages.map((row) => row.content)).toEqual([
+      'question A', full,
+    ]);
+    await act(async () => {
+      pendingHistory.shift()?.({
+        history: [
+          msg('user', 'question A'),
+          { ...msg('assistant', full), messageId: 'canonical-assistant' },
+        ],
+        total: 2,
+        hasMore: false,
+        start: 0,
+        historyRevision: 2,
+      });
+      await switchBackToA;
+    });
+    expect(useSessionStore.getState().currentMessages.filter((row) => row.role === 'assistant'))
+      .toEqual([{ role: 'assistant', content: full, messageId: 'canonical-assistant' }]);
+
+    act(() => {
+      useSessionStore.getState().applyLiveStream(
+        'A', [msg('assistant', full.slice(0, 24), 'completed-item')],
+        { workerId: 'worker-a', generation: 1, taskSeq: 1 },
+      );
+    });
+    expect(useSessionStore.getState().currentMessages.filter((row) => row.role === 'assistant'))
+      .toEqual([{
+        role: 'assistant', content: full, messageId: 'canonical-assistant',
+        nativeItemId: 'completed-item',
+      }]);
   });
 
   it('keeps live suffixes over focus/snapshot/history reloads that are still server prefixes', async () => {
@@ -369,6 +447,58 @@ describe('T-055 per-session live stream reconciliation', () => {
     expect(current.currentMessages.filter((m) => m.role === 'assistant')).toEqual([
       msg('assistant', 'final answer', 'item-a'),
     ]);
+  });
+
+  it('reconciles Claude tool rows across JSON formatting during terminal history recovery', async () => {
+    const a = { ...session('A', [msg('user', 'previous turn')]), adapter: 'claude' };
+    useSessionStore.setState({ sessions: [a], currentSessionId: 'A', currentMessages: a.history });
+    const meta = { workerId: 'worker-a', generation: 1, taskSeq: 1 };
+    const answer = 'answer:background-live-claude';
+
+    act(() => {
+      useSessionStore.getState().applyWorkerStatus('A', 'running', meta);
+      useSessionStore.getState().applyLiveStream('A', [
+        msg('thinking', 'think:background-live-claude'),
+        msg('tool', 'Bash({"command":"background-live-claude"})'),
+        msg('assistant', answer),
+      ], meta);
+      useSessionStore.getState().reconcileWorkerResult('A', {
+        status: 'done',
+        result: answer,
+        terminalCoverage: { historyEpoch: 'epoch-a', historyRevision: 4 },
+      }, meta);
+    });
+
+    await act(async () => {
+      // Terminal coverage starts an asynchronous authoritative history read.
+      await Promise.resolve();
+      pendingHistory.shift()?.({
+        history: [
+          msg('user', 'previous turn'),
+          msg('user', 'background-live-claude'),
+          msg('thinking', 'think:background-live-claude'),
+          // Claude persistence uses Python's default JSON separators, while
+          // the browser's live tool row uses compact JSON.
+          msg('tool', 'Bash({"command": "background-live-claude"})'),
+          msg('assistant', answer),
+        ],
+        total: 5,
+        hasMore: false,
+        start: 0,
+        historyEpoch: 'epoch-a',
+        historyRevision: 4,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(useSessionStore.getState().currentMessages.map(({ role, content }) => [role, content]))
+      .toEqual([
+        ['user', 'previous turn'],
+        ['user', 'background-live-claude'],
+        ['thinking', 'think:background-live-claude'],
+        ['tool', 'Bash({"command": "background-live-claude"})'],
+        ['assistant', answer],
+      ]);
   });
 
   it('terminal watermark rejects a delayed old running event while accepting idle idempotently', () => {

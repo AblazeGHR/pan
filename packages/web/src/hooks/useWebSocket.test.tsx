@@ -2031,7 +2031,52 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
       .toEqual([{
         role: 'assistant', content: 'completed tail', nativeItemId: 'completed-item',
-      }]);
+    }]);
+  });
+
+  it('reconciles id-less Claude deltas with its multi-block final in canonical order', () => {
+    renderHook(() => useWebSocket());
+    const fullText = 'Claude streamed answer';
+
+    act(() => {
+      // Claude stream-json deltas have no item id. The final assistant event
+      // repeats the text after adding the thinking and tool blocks.
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', taskSeq: 1,
+        event: {
+          type: 'assistant', delta: true,
+          message: { content: [{ type: 'text', text: 'Claude streamed ' }] },
+        },
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'A', workerId: 'w1', taskSeq: 1,
+        event: {
+          type: 'assistant', final: true,
+          message: { content: [
+            { type: 'thinking', thinking: 'considered the request' },
+            { type: 'tool_use', name: 'Bash', input: { command: 'pwd' } },
+            { type: 'text', text: fullText },
+          ] },
+        },
+      });
+    });
+
+    const rows = useSessionStore.getState().currentMessages;
+    expect(rows.map((row) => row.role)).toEqual(['thinking', 'tool', 'assistant']);
+    expect(rows.filter((row) => row.role === 'assistant')).toEqual([
+      { role: 'assistant', content: fullText },
+    ]);
+
+    act(() => {
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'A', workerId: 'w1', taskSeq: 1,
+        status: 'done', result: fullText,
+      });
+    });
+    expect(useSessionStore.getState().currentMessages.filter((row) => row.role !== 'system')
+      .map((row) => row.role).slice(-3)).toEqual(['thinking', 'tool', 'assistant']);
+    expect(useSessionStore.getState().currentMessages.filter((row) => row.role === 'assistant'))
+      .toHaveLength(1);
   });
 
   it('does not reuse a transient turn alias after the worker is restarted', () => {

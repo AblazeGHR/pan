@@ -230,6 +230,7 @@ const faults = {
   reorder: false,
   held: null,
   delayedHistory: 0,
+  completedDelayedHistory: 0,
   historyDelay: 0,
   delaySnapshot: false,
   // A browser can keep an OPEN WebSocket object after its background page or
@@ -277,6 +278,7 @@ try {
     if (faults.historyDelay > 0) {
       faults.delayedHistory++;
       await sleep(faults.historyDelay);
+      faults.completedDelayedHistory++;
     }
     await route.fulfill({ response });
   });
@@ -438,6 +440,139 @@ try {
   await equalCanonical('session switch during live delta and scroll');
   evidence.stages.push({ label: 'session switch during live delta and scroll', samples: switchVisualSnapshots.length });
 
+  // Regression: a Codex Session keeps emitting deltas while it is not selected,
+  // then the user selects it again before the Worker finishes. This is the
+  // background-session projection path: every active store/DOM frame must still
+  // contain exactly one assistant row for the turn, and it must converge to the
+  // single canonical reply after completion.
+  await select('E2E-A');
+  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  const backgroundLiveLabel = 'background-live-select';
+  const backgroundLiveSamples = [];
+  evidence.backgroundLiveSamples = backgroundLiveSamples;
+  const delayedHistoryBeforeBackground = faults.delayedHistory;
+  const completedDelayedHistoryBeforeBackground = faults.completedDelayedHistory;
+  faults.duplicate = true;
+  faults.reorder = true;
+  await send(backgroundLiveLabel);
+  await poll(state, s => s.id === ids['E2E-A'] && s.rows.some(m =>
+    m.role === 'assistant' && m.content.includes(`answer:${backgroundLiveLabel}`)), 'background-live first delta');
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.workerStatus === 'running', 'background-live worker starts');
+  await select('E2E-B');
+  await sleep(400);
+  assert.equal((await api(`/api/sessions/${ids['E2E-A']}`)).workerStatus, 'running',
+    'Codex stream continues while its Session is in the background');
+  await equalCanonical('background A stream leaves selected B transcript isolated');
+  evidence.stages.push({ label: 'background A stream leaves selected B transcript isolated' });
+  // The entry request will carry a history page captured before the current
+  // live turn has finished. Let stream deltas race that delayed page merge.
+  faults.historyDelay = 2600;
+  await select('E2E-A');
+
+  const assertSingleBackgroundReply = async () => {
+    const sample = await page.evaluate(({ sessionId, label }) => {
+      const store = window.__panSessionStore.getState();
+      const rows = store.currentMessages.filter(message => message.role === 'assistant'
+        && String(message.content).includes(`answer:${label}`));
+      const dom = [...document.querySelectorAll('main [data-index]')]
+        .filter(element => element.textContent.includes(`answer:${label}`))
+        .map(element => ({ index: Number(element.dataset.index), text: element.textContent }));
+      return { sessionId: store.currentSessionId, rows, dom };
+    }, { sessionId: ids['E2E-A'], label: backgroundLiveLabel });
+    assert.equal(sample.sessionId, ids['E2E-A'], 'the streaming Session is selected');
+    assert.equal(sample.rows.length, 1, `store has one ${backgroundLiveLabel} assistant row`);
+    assert.equal(sample.dom.length, 1, `DOM has one ${backgroundLiveLabel} assistant row`);
+    backgroundLiveSamples.push({ at: Date.now(), contentLength: sample.rows[0].content.length,
+      index: sample.dom[0].index });
+  };
+  for (let i = 0; i < 12; i += 1) {
+    await assertSingleBackgroundReply();
+    await sleep(16);
+  }
+  await select('E2E-B');
+  await sleep(220);
+  assert.equal((await api(`/api/sessions/${ids['E2E-A']}`)).workerStatus, 'running',
+    'the stream remains active through a second session switch');
+  await select('E2E-A');
+  for (let i = 0; i < 18; i += 1) {
+    await assertSingleBackgroundReply();
+    await sleep(16);
+  }
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes(`answer:${backgroundLiveLabel}`),
+    'background-live worker completes');
+  // Include the terminal recovery request too, then wait until every delayed
+  // selection/recovery response has actually returned after the Worker result.
+  await sleep(160);
+  const delayedHistoryTarget = faults.delayedHistory;
+  assert.ok(delayedHistoryTarget - delayedHistoryBeforeBackground >= 2,
+    'background A/B/A issued multiple delayed selection-history requests');
+  await poll(() => Promise.resolve(faults.completedDelayedHistory), count => count >= delayedHistoryTarget,
+    'post-terminal delayed history responses complete', 10000);
+  await sleep(120);
+  evidence.backgroundHistoryRace = {
+    delayed: delayedHistoryTarget - delayedHistoryBeforeBackground,
+    completed: faults.completedDelayedHistory - completedDelayedHistoryBeforeBackground,
+    delayMs: 2600,
+  };
+  faults.duplicate = false;
+  faults.historyDelay = 0;
+  assert.equal(faults.reorder, false, 'background-live path actually reordered stream frames');
+  assert.ok(faults.delayedHistory > delayedHistoryBeforeBackground,
+    'background-live path delayed the selected Session history response');
+  await equalCanonical('background Codex stream selected while still running');
+  assert.ok(backgroundLiveSamples.length >= 24, 'sampled the selected background stream during live deltas');
+  evidence.stages.push({ label: 'background Codex stream selected while still running',
+    samples: backgroundLiveSamples.length });
+
+  // Claude's real stream-json adapter shape has id-less, incremental deltas,
+  // then one completed assistant event containing thinking, tool, and text
+  // blocks. Keep this separate from Codex's native item-ID reconciliation.
+  await select('E2E-C');
+  const backgroundClaudeLabel = 'background-live-claude';
+  const backgroundClaudeSamples = [];
+  evidence.backgroundClaudeSamples = backgroundClaudeSamples;
+  await send(backgroundClaudeLabel);
+  await poll(state, s => s.id === ids['E2E-C'] && s.rows.some(m =>
+    m.role === 'assistant' && m.content.includes(`answer:${backgroundClaudeLabel}`)), 'Claude background stream first delta');
+  await poll(() => api(`/api/sessions/${ids['E2E-C']}`), s => s.workerStatus === 'running', 'Claude background worker starts');
+  await select('E2E-B');
+  await sleep(350);
+  assert.equal((await api(`/api/sessions/${ids['E2E-C']}`)).workerStatus, 'running',
+    'Claude stream continues while its Session is in the background');
+  await select('E2E-C');
+  const assertSingleClaudeReply = async () => {
+    const sample = await page.evaluate(label => {
+      const store = window.__panSessionStore.getState();
+      const rows = store.currentMessages.filter(message => message.role === 'assistant'
+        && String(message.content).includes(`answer:${label}`));
+      const dom = [...document.querySelectorAll('main [data-index]')]
+        .filter(element => element.textContent.includes(`answer:${label}`))
+        .map(element => ({ index: Number(element.dataset.index), text: element.textContent }));
+      return { rows, dom };
+    }, backgroundClaudeLabel);
+    assert.equal(sample.rows.length, 1, `store has one ${backgroundClaudeLabel} assistant row`);
+    assert.equal(sample.dom.length, 1, `DOM has one ${backgroundClaudeLabel} assistant row`);
+    backgroundClaudeSamples.push({ at: Date.now(), contentLength: sample.rows[0].content.length,
+      index: sample.dom[0].index });
+  };
+  for (let i = 0; i < 10; i += 1) {
+    await assertSingleClaudeReply();
+    await sleep(16);
+  }
+  await select('E2E-B');
+  await sleep(180);
+  await select('E2E-C');
+  for (let i = 0; i < 12; i += 1) {
+    await assertSingleClaudeReply();
+    await sleep(16);
+  }
+  await poll(() => api(`/api/sessions/${ids['E2E-C']}`), s => s.lastResult?.result?.includes(`answer:${backgroundClaudeLabel}`),
+    'Claude background worker completes');
+  await equalCanonical('background Claude stream selected while still running');
+  assert.ok(backgroundClaudeSamples.length >= 22, 'sampled Claude stream while selected during live output');
+  evidence.stages.push({ label: 'background Claude stream selected while still running',
+    samples: backgroundClaudeSamples.length });
+
   // Regression: put the real Chromium page in the background while a real
   // Worker continues streaming. Keep the old browser WebSocket OPEN-looking
   // but drop its server-to-browser frames, which models the half-open socket
@@ -446,6 +581,9 @@ try {
   // no page reload is allowed.
   const backgroundPage = await context.newPage();
   await backgroundPage.goto('about:blank');
+  // The preceding provider-specific Claude regression leaves E2E-C selected.
+  // This background resume scenario is a Codex test and polls E2E-A below.
+  await select('E2E-A');
   await page.bringToFront();
   await poll(() => page.evaluate(() => document.visibilityState), s => s === 'visible', 'page foreground before background stream');
   await page.getByTitle('Scroll to bottom').click().catch(() => {});
