@@ -115,9 +115,9 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();
     expect(card.textContent).toContain('Default group by');
+    expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     expect(card.querySelectorAll('[role="switch"]')).toHaveLength(3);
-    expect(card.textContent).toContain('Reset to defaults');
     expect(card.textContent).toContain('Notification');
   });
 
