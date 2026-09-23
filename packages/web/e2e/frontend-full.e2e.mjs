@@ -135,7 +135,7 @@ async function equalCanonical(label) {
 }
 
 async function assertLiveVisualOrder(label, snapshots) {
-  const sample = await page.evaluate(() => {
+  const sample = await page.evaluate((sampleLabel) => {
     const store = window.__panSessionStore.getState();
     const grouped = [];
     for (const message of store.currentMessages) {
@@ -198,8 +198,29 @@ async function assertLiveVisualOrder(label, snapshots) {
         violations.push({ kind: 'content-mismatch', node });
       }
     }
+    if (sampleLabel === 'switch-delta') {
+      const toolIndexes = grouped
+        .map((item, index) => item.role === 'tool'
+          && item.items.some(message => String(message.content).includes(sampleLabel))
+          ? index : -1)
+        .filter(index => index >= 0);
+      const answerIndex = grouped.findIndex(item => item.role === 'assistant'
+        && String(item.content || '').includes(`answer:${sampleLabel}`));
+      if (toolIndexes.length > 0 && answerIndex >= 0 && Math.max(...toolIndexes) >= answerIndex) {
+        violations.push({
+          kind: 'semantic-tool-after-answer',
+          toolIndexes,
+          answerIndex,
+          grouped: grouped.map(item => ({
+            role: item.role,
+            content: item.content,
+            tools: item.items.map(message => message.content),
+          })),
+        });
+      }
+    }
     return { nodes, violations };
-  });
+  }, label);
   snapshots.push({ at: Date.now(), label, ...sample });
   assert.deepEqual(sample.violations, [], `${label}: live DOM order/geometry violation`);
 }
@@ -363,6 +384,44 @@ try {
   }
   await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:visual-order-round'), 'visual-order final');
   evidence.stages.push({ label: 'live delta visual order while user scrolls', samples: liveVisualSnapshots.length });
+
+  // Regression: switch away from a live turn after its tool blocks exist, let
+  // the selected Session continue receiving deltas in the background, then
+  // switch back while the history request is deliberately delayed. The final
+  // assistant text must remain after its own tool blocks in both the store and
+  // the rendered virtual rows.
+  await select('E2E-A');
+  await page.getByTitle('Scroll to bottom').click().catch(() => {});
+  await poll(() => scroller.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight), d => d <= 2, 'switch-delta before stream');
+  faults.historyDelay = 650;
+  const switchVisualSnapshots = [];
+  evidence.switchVisualSnapshots = switchVisualSnapshots;
+  await send('switch-delta');
+  await poll(state, s => s.id === ids['E2E-A']
+    && s.rows.some(m => m.role === 'tool' && m.content.includes('switch-delta'))
+    && s.rows.some(m => m.role === 'assistant' && m.content.includes('answer:switch-delta')), 'switch-delta live tool and answer');
+  const switchGroup = page.locator('.tool-group-header').last();
+  await switchGroup.click();
+  assert.ok(
+    await page.locator('.tool-group').last().evaluate(el => el.getBoundingClientRect().height > 200),
+    'switch-delta tool group should be expanded before switching sessions',
+  );
+  await scroller.hover();
+  await page.mouse.wheel(0, -500);
+  await sleep(35);
+  await select('E2E-B');
+  await select('E2E-A');
+  await scroller.hover();
+  await page.mouse.wheel(0, -500);
+  for (let i = 0; i < 120; i += 1) {
+    await assertLiveVisualOrder('switch-delta', switchVisualSnapshots);
+    if (i % 6 === 0) await page.mouse.wheel(0, i % 12 === 0 ? 180 : -120);
+    await sleep(16);
+  }
+  await poll(() => api(`/api/sessions/${ids['E2E-A']}`), s => s.lastResult?.result?.includes('answer:switch-delta'), 'switch-delta final');
+  faults.historyDelay = 0;
+  await equalCanonical('session switch during live delta and scroll');
+  evidence.stages.push({ label: 'session switch during live delta and scroll', samples: switchVisualSnapshots.length });
 
   // The same invariant while follow-bottom is active. A growing delta must
   // move the viewport, never reorder or repaint the already-rendered tool row.
