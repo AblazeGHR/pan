@@ -802,6 +802,29 @@ describe('ChatMessages scroll positioning', () => {
       .toEqual(['0']);
   });
 
+  it('scopes virtual rows and expanded thinking state to the selected Session', () => {
+    const thinking: Message = {
+      role: 'thinking',
+      content: 'session-scoped plan',
+      messageId: 'same-message-id',
+    };
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: [thinking] });
+    m.setVirtualItems([{ index: 0, start: 0, size: 120 }]);
+    const { container } = render(<ChatMessages />);
+
+    const firstKey = m.state.options?.getItemKey?.(0);
+    const disclosure = container.querySelector('.thinking button')!;
+    fireEvent.click(disclosure);
+    expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+
+    act(() => {
+      useSessionStore.setState({ currentSessionId: 's2', currentMessages: [{ ...thinking }] });
+    });
+
+    expect(m.state.options?.getItemKey?.(0)).not.toBe(firstKey);
+    expect(container.querySelector('.thinking button')?.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('keeps a tall streamed block in document flow while preserving a scrolled-up viewport', () => {
     const messages = [
       { role: 'thinking', content: 'planning', nativeItemId: 'thinking-1' },

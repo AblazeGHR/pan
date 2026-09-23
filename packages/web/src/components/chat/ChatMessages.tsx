@@ -61,7 +61,10 @@ export function ChatMessages() {
     // The default key is the array index. Streaming replaces message objects,
     // prepending history shifts indexes, and tool grouping changes row shapes;
     // an index key lets Virtualizer reuse another row's height/DOM node.
-    getItemKey: (index) => getDisplayItemKey(grouped[index], index),
+    // Local expansion state and measured row heights are Session-scoped even
+    // when two Sessions happen to expose the same native/message identity.
+    getItemKey: (index) =>
+      `${currentSessionId ?? 'no-session'}:${getDisplayItemKey(grouped[index], index)}`,
   });
   // Virtualized content height. Changes when messages are added/removed or
   // when items get measured after layout. Re-scrolling on this (while the user

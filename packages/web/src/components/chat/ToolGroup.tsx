@@ -4,6 +4,7 @@ import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useDetailStore } from '@/stores/detailStore';
 import { getMessageIdentity } from '@/utils/messageIdentity';
+import { isLongBlockContent } from './lazyBlockContent';
 
 interface ToolGroupProps {
   items: Message[];
@@ -17,7 +18,7 @@ interface ToolInfo {
   rawContent: string;
 }
 
-function parseTool(content: string): ToolInfo {
+function parseTool(content: string, parseLongArgs = false): ToolInfo {
   if (!content) {
     return { name: '(empty)', status: 'running', args: null, argsPreview: '', rawContent: content };
   }
@@ -55,7 +56,7 @@ function parseTool(content: string): ToolInfo {
   // Parse args JSON and extract first arg for preview
   let args: Record<string, unknown> | null = null;
   let argsPreview = '';
-  if (argsText) {
+  if (argsText && (!isLongBlockContent(content) || parseLongArgs)) {
     try {
       args = JSON.parse(argsText);
       if (args && typeof args === 'object' && !Array.isArray(args)) {
@@ -84,6 +85,8 @@ function parseTool(content: string): ToolInfo {
     } catch {
       argsPreview = argsText.length > 30 ? argsText.slice(0, 30) + '...' : argsText;
     }
+  } else if (argsText) {
+    argsPreview = argsText.length > 40 ? argsText.slice(0, 40) + '...' : argsText;
   }
 
   // Determine status
@@ -143,7 +146,15 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
 
   if (items.length === 0) return null;
 
-  const tools = items.map((t) => parseTool(t.content));
+  // A closed group needs only its count and unread indicator. Avoid parsing
+  // every tool payload until the user opens the group, and defer full JSON
+  // parsing of a long payload until that individual row is expanded.
+  const tools = isOpen
+    ? items.map((item) => {
+        const key = getMessageIdentity(item);
+        return parseTool(item.content, expandedTools.has(key));
+      })
+    : [];
   const hasUnread = items.some((t) => unread.has(t.content));
 
   const handleToolClick = (key: string, tool: ToolInfo) => {
@@ -165,6 +176,7 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
       {/* Group Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
         className="tool-group-header flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover/30 transition-colors w-full text-left select-none"
       >
         <Wrench size={14} />
@@ -203,10 +215,17 @@ export const ToolGroup = memo(function ToolGroup({ items }: ToolGroupProps) {
 
                 {/* Expanded content */}
                 {expandedTools.has(key) && (
-                  <div className="bg-bg-tertiary border-t border-border-default p-3 overflow-hidden">
-                    <pre className="text-xs font-mono whitespace-pre-wrap leading-relaxed text-text-secondary">
-                      {tool.args ? formatArgs(tool.args, tool.name) : tool.rawContent}
-                    </pre>
+                  <div className="bg-bg-tertiary border-t border-border-default p-3">
+                    <div
+                      role="region"
+                      tabIndex={0}
+                      aria-label={`${tool.name} content`}
+                      className="max-h-[20rem] overflow-y-auto overscroll-contain"
+                    >
+                      <pre className="text-xs font-mono whitespace-pre-wrap break-words leading-relaxed text-text-secondary">
+                        {tool.args ? formatArgs(tool.args, tool.name) : tool.rawContent}
+                      </pre>
+                    </div>
                   </div>
                 )}
               </div>
