@@ -7,6 +7,7 @@ separate from these identity and lifecycle primitives.
 
 import json
 import os
+import types
 from pathlib import Path
 
 import pytest
@@ -79,6 +80,29 @@ def test_identity_rejects_checkout_prefix_and_pid_reuse(tmp_path, monkeypatch):
     assert "outside" in result["error"]
 
 
+def test_readiness_accepts_verified_venv_child_and_rejects_unrelated_owner(tmp_path, monkeypatch):
+    import psutil
+
+    monkeypatch.setattr(launcher, "listener_owner", lambda port: 52)
+    monkeypatch.setattr(launcher, "process_create_time", lambda pid: {41: 10.0, 52: 10.1}[pid])
+    monkeypatch.setattr(launcher, "_inspect", lambda pid: {
+        **_info(tmp_path, created={41: 10.0, 52: 10.1}[pid]), "pid": pid,
+    })
+    monkeypatch.setattr(launcher, "_http_ready", lambda port: (True, None))
+    monkeypatch.setattr(psutil, "Process", lambda pid: types.SimpleNamespace(
+        parents=lambda: [types.SimpleNamespace(pid=41)] if pid == 52 else [],
+    ))
+    ready = launcher.readiness(root=tmp_path, port=8767, expected_pid=41, expected_created_at=10.0)
+    assert ready["ok"] is True
+    assert ready["listenerOwner"] == 52
+    assert ready["verifiedDescendant"] is True
+
+    monkeypatch.setattr(psutil, "Process", lambda pid: types.SimpleNamespace(parents=lambda: []))
+    unrelated = launcher.readiness(root=tmp_path, port=8767, expected_pid=41, expected_created_at=10.0)
+    assert unrelated["ok"] is False
+    assert "does not match" in unrelated["error"]
+
+
 def test_start_refuses_unverified_port_owner(tmp_path, monkeypatch):
     monkeypatch.setattr(launcher, "configured_port", lambda root: 8767)
     monkeypatch.setattr(launcher, "listener_owner", lambda port: 9001)
@@ -123,6 +147,26 @@ def test_stale_state_is_replaced_without_killing_reused_pid(tmp_path, monkeypatc
     result = launcher.start_service(root, timeout=0.1)
     assert result["main"]["pid"] == 42
     assert json.loads((root / "data" / "process.json").read_text(encoding="utf-8"))["main"]["pid"] == 42
+
+
+def test_start_records_verified_listener_child_for_later_stop(tmp_path, monkeypatch):
+    root = tmp_path.resolve()
+    monkeypatch.setattr(launcher, "configured_port", lambda root: 8767)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "resolve_python_argv", lambda root, probe=True: (["python"], "test"))
+    monkeypatch.setattr(launcher, "_console_hidden", lambda root: False)
+    parent = launcher._record(41, root, "main", ["python", str(root / "main.py")], 10.0,
+                              f"--pan-root-marker={root}")
+    monkeypatch.setattr(launcher, "_start_main", lambda *args, **kwargs: parent)
+    monkeypatch.setattr(launcher, "wait_ready", lambda **kwargs: {
+        "ok": True, "listenerOwner": 52, "listenerOwnerCreatedAt": 10.1,
+        "verifiedDescendant": True,
+    })
+    monkeypatch.setattr(launcher, "start_cloudflared", lambda *args, **kwargs: None)
+    monkeypatch.setattr(launcher, "process_identity", lambda *args, **kwargs: {"ok": False})
+    result = launcher.start_service(root, timeout=0.1)
+    assert result["main"]["pid"] == 52
+    assert json.loads((root / "data" / "process.json").read_text(encoding="utf-8"))["main"]["pid"] == 52
 
 
 def test_graceful_exit_success_does_not_use_fallback(tmp_path, monkeypatch):

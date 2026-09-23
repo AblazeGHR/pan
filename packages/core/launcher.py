@@ -678,11 +678,26 @@ def readiness(*, root: str | Path, port: int, expected_pid: int | None = None,
         result["error"] = "target port has no listener"
         return result
     if expected_pid is not None and owner != int(expected_pid):
-        result["error"] = "target port listener owner does not match the Pan PID"
-        return result
+        # Windows venv redirectors can keep the Popen PID alive while a child
+        # Python process runs main.py and owns the listening socket.
+        try:
+            import psutil
+            descendant = int(expected_pid) in {ancestor.pid for ancestor in psutil.Process(owner).parents()}
+        except (psutil.Error, ValueError):
+            descendant = False
+        parent_identity = process_identity(
+            expected_pid, root_path, expected_created_at,
+            process_type="main", marker=f"--pan-root-marker={root_path}",
+        ) if descendant else {"ok": False}
+        if (not parent_identity.get("ok") or expected_created_at is None
+                or result["listenerOwnerCreatedAt"] is None
+                or result["listenerOwnerCreatedAt"] < expected_created_at):
+            result["error"] = "target port listener owner does not match the Pan PID"
+            return result
+        result["verifiedDescendant"] = True
     identity = process_identity(
-        owner, root_path, expected_created_at or process_create_time(owner),
-        process_type="main",
+        owner, root_path, result["listenerOwnerCreatedAt"],
+        process_type="main", marker=f"--pan-root-marker={root_path}" if expected_pid is not None else None,
     )
     result["identity"] = identity
     if not identity.get("ok"):
@@ -927,6 +942,14 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
         expected_created_at=record["createdAt"], timeout=timeout, log_path=log_path,
     )
     if not checks.get("ok"):
+        listener_pid = checks.get("listenerOwner")
+        if (listener_pid and listener_pid != record["pid"]
+                and checks.get("verifiedDescendant") and checks.get("identity", {}).get("ok")):
+            listener_record = _record(
+                listener_pid, root_path, "main", record["argv"],
+                checks.get("listenerOwnerCreatedAt"), record["marker"],
+            )
+            _terminate_record(listener_record, root_path, log_path=log_path)
         qq_cleanup = _terminate_record(state.get("qq"), root_path, log_path=log_path)
         outcome = _terminate_record(record, root_path, log_path=log_path)
         clear_state(root_path)
@@ -934,6 +957,14 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
             f"Pan Core did not become ready on port {port} within {timeout:g} seconds: "
             f"{checks.get('error')}; cleanup={{'main': {outcome}, 'qq': {qq_cleanup}}}"
         )
+    listener_pid = checks.get("listenerOwner")
+    if listener_pid and listener_pid != record["pid"]:
+        record = _record(
+            listener_pid, root_path, "main", record["argv"],
+            checks["listenerOwnerCreatedAt"], record["marker"],
+        )
+        state["main"] = record
+        _write_log(log_path, f"Pan Core listener pid={listener_pid} (launcher child)")
     refresh_qq_state(root_path, state)
     save_state(root_path, state)
     start_cloudflared(root_path, port, state, log_path=log_path)
