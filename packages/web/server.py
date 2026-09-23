@@ -2431,6 +2431,8 @@ def _build_session_params(
                 or not all(isinstance(wid, str) and workspaces.get(wid)
                            for wid in requested_workspace_ids)):
             raise ValueError("workspaceIds must contain existing unique workspace ids")
+        if len(requested_workspace_ids) > 1:
+            raise ValueError("A Session can belong to at most one Workspace")
         params["workspace_ids"] = list(requested_workspace_ids)
     # These are deliberately added only when explicitly supplied.  In
     # particular, do not synthesize a model/default value into Session JSON.
@@ -4639,11 +4641,13 @@ async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=Non
             continue
         has = workspace_id in session.workspace_ids
         should = session.id in wanted
-        if has != should:
-            if should:
-                session.workspace_ids.append(workspace_id)
-            else:
-                session.workspace_ids.remove(workspace_id)
+        if should and session.workspace_ids != [workspace_id]:
+            # A Workspace membership update is a move: replace any previous
+            # membership instead of accumulating another Workspace id.
+            session.workspace_ids = [workspace_id]
+            sess.save(session)
+        elif has and not should:
+            session.workspace_ids = []
             sess.save(session)
     await broadcast({"type": "workspace.membershipUpdated", "workspaceId": workspace_id,
                      "sessionIds": [s.id for s in sess.list_all(load_history=False)
@@ -4682,6 +4686,8 @@ async def api_set_session_workspaces(session_id: str, data: dict):
             or not all(isinstance(wid, str) and wid for wid in workspace_ids)
             or len(set(workspace_ids)) != len(workspace_ids)):
         return {"ok": False, "error": {"code": "invalid_workspace_ids", "message": "workspaceIds must be a unique array"}}
+    if len(workspace_ids) > 1:
+        return {"ok": False, "error": {"code": "invalid_workspace_ids", "message": "A Session can belong to at most one Workspace"}}
     if not all(isinstance(wid, str) and workspaces.get(wid) for wid in workspace_ids):
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
     if not _workspace_write_allowed(data.get("actorSessionId"), session):
@@ -5540,6 +5546,8 @@ async def api_session_handoff(session_id: str, data: dict):
     session_a = sess.get(session_id)
     if session_a is None:
         return {"error": f"Session {session_id} not found"}
+    if len(session_a.workspace_ids) > 1:
+        return {"error": "Session has multiple Workspace memberships; resolve its legacy membership before handoff"}
     new_adapter_name = adapter or (session_a.adapter if copy_settings else "cbc")
     switched = new_adapter_name != session_a.adapter
     try:

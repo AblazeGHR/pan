@@ -911,7 +911,7 @@ class Session:
     created_at: str = ""
     updated_at: str = ""
     order: int | None = None  # 用户自定义展示顺序（None = 未排序，按 created_at 排在末尾）
-    workspace_ids: list[str] = field(default_factory=list)  # zero or more durable workspace memberships
+    workspace_ids: list[str] = field(default_factory=list)  # zero or one; empty means ungrouped
     managed: list[str] = field(default_factory=list)  # session ids this session manages
     managed_by: str | None = None  # session id of the session managing this one
     readonly_session: bool = False  # manager blocks operations sent to this session
@@ -1352,6 +1352,8 @@ def create(name: str, model: str | None = None,
            workspace_ids: list[str] | None = None,
            original_prompt: str | None | object = _PROMPT_UNSET,
            handoff_prompt: str | None = None) -> Session:
+    if workspace_ids is not None and len(workspace_ids) > 1:
+        raise ValueError("A Session can belong to at most one Workspace")
     # build adapter_config
     ac = dict(adapter_config) if adapter_config else {}
     if cli_session_id and "cli_session_id" not in ac:

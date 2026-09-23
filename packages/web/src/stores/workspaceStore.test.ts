@@ -13,28 +13,33 @@ vi.mock('@/services/api', async (importOriginal) => {
   };
 });
 
-describe('workspace membership preservation', () => {
+describe('workspace membership', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWorkspaceStore.getState().reset();
     useSessionStore.setState({
       sessions: [
-        { id: 'session-1', workspaceIds: ['workspace-a', 'workspace-b'], managed: [] } as unknown as Session,
+        { id: 'session-1', workspaceIds: ['workspace-a'], managed: [] } as unknown as Session,
       ],
     });
   });
 
-  it('removes only the deleted workspace from local session membership', async () => {
+  it('clears local membership when its workspace is deleted', async () => {
     await useWorkspaceStore.getState().deleteWorkspace('workspace-a');
 
-    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['workspace-b']);
+    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual([]);
   });
 
-  it('keeps additional memberships when moving into an already assigned workspace', async () => {
+  it('normalizes a moved session to its selected single workspace', async () => {
+    useSessionStore.setState({
+      sessions: [
+        { id: 'session-1', workspaceIds: ['workspace-b'], managed: [] } as unknown as Session,
+      ],
+    });
     const changed = await useWorkspaceStore.getState().moveSessions(['session-1'], 'workspace-a');
 
-    expect(changed).toEqual([]);
-    expect(api.setSessionWorkspaces).not.toHaveBeenCalled();
-    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['workspace-a', 'workspace-b']);
+    expect(changed).toEqual(['session-1']);
+    expect(api.setSessionWorkspaces).toHaveBeenCalledWith('session-1', ['workspace-a']);
+    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['workspace-a']);
   });
 });

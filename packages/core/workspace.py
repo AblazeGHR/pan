@@ -1,8 +1,8 @@
 """Durable workspace metadata for grouping Sessions.
 
 Workspaces are presentation-neutral named containers.  Membership is stored on
-each Session as ``workspace_ids`` so a Session may be in zero, one, or many
-workspaces; an empty list is the durable representation of an ungrouped
+each Session as ``workspace_ids`` so a Session may be in zero or one
+workspace; an empty list is the durable representation of an ungrouped
 Session.  Workspace metadata is deliberately separate from the managed
 Session tree and from Session display order.
 """

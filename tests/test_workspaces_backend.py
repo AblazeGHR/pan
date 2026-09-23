@@ -24,7 +24,9 @@ def test_workspace_crud_membership_and_ungrouped(monkeypatch, tmp_path):
 
     result = asyncio.run(server.api_set_session_workspaces(
         "ses_a", {"workspaceIds": [wid1, wid2]}))
-    assert result["ok"] and result["session"]["workspaceIds"] == [wid1, wid2]
+    assert result["error"]["code"] == "invalid_workspace_ids"
+    assert asyncio.run(server.api_set_session_workspaces(
+        "ses_a", {"workspaceIds": [wid1]}))["session"]["workspaceIds"] == [wid1]
     assert [s["id"] for s in asyncio.run(
         server.api_get_workspace_sessions(wid1, summary=1))["sessions"]] == ["ses_a"]
     assert [s["id"] for s in asyncio.run(
@@ -35,7 +37,7 @@ def test_workspace_crud_membership_and_ungrouped(monkeypatch, tmp_path):
     sess._cache.clear()
     sess._all_loaded = False
     assert workspace.get(wid1).name == "Inbox"
-    assert sess.get("ses_a").workspace_ids == [wid1, wid2]
+    assert sess.get("ses_a").workspace_ids == [wid1]
 
 
 def test_workspace_order_and_delete_removes_memberships(monkeypatch, tmp_path):
@@ -45,12 +47,12 @@ def test_workspace_order_and_delete_removes_memberships(monkeypatch, tmp_path):
     sess._cache[a.id] = a
     first = workspace.create("First")
     second = workspace.create("Second")
-    a.workspace_ids = [first.id, second.id]
+    a.workspace_ids = [first.id]
     sess.save(a)
     assert asyncio.run(server.api_workspaces_order(
         {"workspaceIds": [second.id, first.id]}))["order"] == [second.id, first.id]
     assert asyncio.run(server.api_delete_workspace(first.id))["ok"]
-    assert sess.get(a.id).workspace_ids == [second.id]
+    assert sess.get(a.id).workspace_ids == []
     assert workspace.get(first.id) is None
 
 
@@ -69,7 +71,34 @@ def test_workspace_membership_rejects_unknown_and_restricted_actor(monkeypatch, 
     assert unknown["error"]["code"] == "workspace_not_found"
 
 
+def test_workspace_membership_moves_session_and_create_rejects_multiple(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    one = workspace.create("One")
+    two = workspace.create("Two")
+    a = sess.Session(id="ses_move", name="move", workspace_ids=[one.id])
+    sess._cache[a.id] = a
+
+    moved = asyncio.run(server._set_workspace_membership(two.id, [a.id]))
+    assert moved["ok"]
+    assert sess.get(a.id).workspace_ids == [two.id]
+
+    rejected = asyncio.run(server.api_create_session({
+        "name": "too-many", "workspaceIds": [one.id, two.id],
+    }))
+    assert "at most one" in rejected["error"]
+
+
 def test_session_schema_compat_without_workspace_field():
     legacy = sess.Session._from_data({"id": "ses_legacy", "name": "legacy"})
     assert legacy.workspace_ids == []
     assert sess.Session._from_data(legacy.to_dict()).workspace_ids == []
+
+
+def test_core_session_create_rejects_multiple_workspace_ids():
+    try:
+        sess.create(name="invalid", workspace_ids=["ws_one", "ws_two"])
+    except ValueError as exc:
+        assert "at most one" in str(exc)
+    else:
+        raise AssertionError("core Session creation accepted multiple Workspace ids")
