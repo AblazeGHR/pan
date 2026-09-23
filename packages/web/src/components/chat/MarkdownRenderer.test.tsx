@@ -263,6 +263,7 @@ describe('MarkdownRenderer', () => {
   });
 
   it('keeps non-image attachment links on their original browser path', () => {
+    vi.stubGlobal('fetch', vi.fn());
     const { container } = render(
       <MemoryRouter>
         <MarkdownRenderer content={'[archive.zip](/api/attachments/upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.zip?session_id=s1)'} />

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { EditorPane } from './EditorPane';
 import { useEditorStore } from '@/stores/editorStore';
@@ -143,7 +143,7 @@ describe('EditorPane editor action wiring', () => {
       </MemoryRouter>,
     );
 
-    const tabs = () => [...container.querySelectorAll('[data-testid="editor-tab"]')];
+    const tabs = () => [...container.querySelectorAll<HTMLElement>('[data-testid="editor-tab"]')];
     expect(tabs()).toHaveLength(3);
     expect(screen.getByRole('img', { name: 'photo.png' }).getAttribute('src')).toBe(localSrc);
 
