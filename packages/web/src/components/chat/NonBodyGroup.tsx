@@ -66,7 +66,7 @@ export const NonBodyGroup = memo(function NonBodyGroup({ items }: NonBodyGroupPr
         )}
       </button>
       {isOpen && (
-        <div className="flex flex-col gap-2 px-2 pb-2">
+        <div data-testid="non-body-group-window" className="flex flex-col gap-2 px-2 pb-2 max-h-[20rem] overflow-y-auto overscroll-contain">
           {groupChildren(items).map((group) => {
             const firstItem = group.items[0]!;
             const key = `${group.role}:${getMessageIdentity(firstItem)}`;
