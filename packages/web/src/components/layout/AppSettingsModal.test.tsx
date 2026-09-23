@@ -12,6 +12,7 @@ const {
   fetchHealthMock,
   fetchMainExitStatusMock,
   exitMainServiceMock,
+  updateUiSettingsMock,
 } = vi.hoisted(() => ({
   fetchCodexModelsMock: vi.fn(),
   refreshCodexOfficialModelsMock: vi.fn(),
@@ -20,11 +21,13 @@ const {
   fetchHealthMock: vi.fn(),
   fetchMainExitStatusMock: vi.fn(),
   exitMainServiceMock: vi.fn(),
+  updateUiSettingsMock: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
   return {
     ...actual,
+    updateUiSettings: updateUiSettingsMock,
     fetchRemoteStatus: vi.fn().mockResolvedValue({
       available: false,
       enabled: false,
@@ -99,6 +102,8 @@ describe('AppSettingsModal', () => {
     fetchHealthMock.mockClear();
     fetchMainExitStatusMock.mockClear();
     exitMainServiceMock.mockClear();
+    updateUiSettingsMock.mockReset();
+    updateUiSettingsMock.mockResolvedValue({});
   });
 
   it('renders nothing when closed', () => {
@@ -113,6 +118,60 @@ describe('AppSettingsModal', () => {
     expect(card.querySelectorAll('[role="switch"]')).toHaveLength(3);
     expect(card.textContent).toContain('Reset to defaults');
     expect(card.textContent).toContain('Notification');
+  });
+
+  it('shows message visibility on the Appearance tab and keeps its settings and persistence', () => {
+    useAppSettingsStore.setState({
+      ...DEFAULT_SETTINGS,
+      showMetaAgent: false,
+      showTaskAgent: true,
+      showQQ: false,
+    });
+    render(<AppSettingsModal open onClose={() => {}} />);
+
+    const tabs = document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    const generalTab = document.getElementById('app-settings-tab-general') as HTMLButtonElement;
+    const appearanceTab = document.getElementById(
+      'app-settings-tab-appearance',
+    ) as HTMLButtonElement;
+
+    expect(tabs).toHaveLength(4);
+    expect(appearanceTab.getAttribute('aria-selected')).toBe('false');
+    expect(cardEl().textContent).not.toContain('Message visibility');
+    expect(cardEl().textContent).not.toContain('Show meta-agent info');
+
+    fireEvent.keyDown(generalTab, { key: 'ArrowRight' });
+
+    expect(appearanceTab.getAttribute('aria-selected')).toBe('true');
+    expect(document.getElementById('app-settings-tabpanel')?.getAttribute('aria-labelledby')).toBe(
+      'app-settings-tab-appearance',
+    );
+    expect(cardEl().textContent).toContain('Message visibility');
+    const metaSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) => element.textContent?.includes('Show meta-agent info'))!;
+    const taskSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) => element.textContent?.includes('Show task-agent info'))!;
+    const qqSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) => element.textContent?.includes('Show QQ messages'))!;
+    expect(metaSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(taskSwitch.getAttribute('aria-checked')).toBe('true');
+    expect(qqSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(metaSwitch);
+    expect(useAppSettingsStore.getState().showMetaAgent).toBe(true);
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ showMetaAgent: true });
+
+    fireEvent.click(generalTab);
+    expect(cardEl().textContent).not.toContain('Message visibility');
+    fireEvent.click(appearanceTab);
+    expect(
+      Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]')).find(
+        (element) => element.textContent?.includes('Show meta-agent info'),
+      )?.getAttribute('aria-checked'),
+    ).toBe('true');
   });
 
   it('shows the Codex warning Toast option on the Notification tab', () => {
