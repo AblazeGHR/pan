@@ -92,7 +92,9 @@ interface SessionStore {
   loadSessions: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
   refreshCurrentSessionHistory: () => Promise<void>;
-  loadOlderMessages: () => Promise<void>;
+  loadOlderMessages: (limit?: number) => Promise<void>;
+  /** Load pages until the stable fromEnd target is present in currentMessages. */
+  ensureMessageLoaded: (fromEnd: number, total: number) => Promise<Message | null>;
   createNewSession: (
     name: string,
     workdir?: string | null,
@@ -1684,7 +1686,33 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  loadOlderMessages: async () => {
+  ensureMessageLoaded: async (fromEnd: number, total: number) => {
+    const absoluteIndex = total - 1 - fromEnd;
+    if (absoluteIndex < 0) return null;
+    let previousEnd = Number.POSITIVE_INFINITY;
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      const state = get();
+      if (!state.currentSessionId) return null;
+      if (state.historyLoadEnd <= absoluteIndex || !state.hasMoreMessages) break;
+      if (state.historyLoading) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        continue;
+      }
+      if (state.historyLoadEnd >= previousEnd) break;
+      previousEnd = state.historyLoadEnd;
+      // A navigation jump knows the absolute span it still needs. Fetch that
+      // span in one bounded request instead of replaying 50-message pages;
+      // normal scroll pagination keeps its 50-message default below.
+      const needed = state.historyLoadEnd - absoluteIndex;
+      await state.loadOlderMessages(Math.min(Math.max(needed, 50), 1000));
+    }
+    const state = get();
+    if (!state.currentSessionId || state.historyLoadEnd > absoluteIndex) return null;
+    const localIndex = absoluteIndex - state.historyLoadEnd;
+    return state.currentMessages[localIndex] ?? null;
+  },
+
+  loadOlderMessages: async (limit?: number) => {
     const { currentSessionId, historyLoading, historyLoadEnd } = get();
     if (
       historyLoading ||
@@ -1702,7 +1730,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const data: ApiSessionHistoryResponse = await fetchSessionHistory(
         sid,
         historyLoadEnd,
-        historyPageSize(),
+        limit ?? historyPageSize(),
       );
       if (get().currentSessionId !== sid || get()._historyPageSeq[sid] !== pageSeq) {
         if (get().currentSessionId === sid) set({ historyLoading: false });

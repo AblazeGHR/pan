@@ -264,9 +264,11 @@ export async function fetchSessionHistory(
   id: string,
   before: number = 0,
   limit: number = 50,
+  signal?: AbortSignal,
 ): Promise<ApiSessionHistoryResponse> {
   const data = await request<ApiSessionHistoryResponse>(
     `${BASE}/sessions/${id}/history?before=${before}&limit=${limit}`,
+    { signal },
   );
   if (data.error) throw new Error(data.error);
   return data;
