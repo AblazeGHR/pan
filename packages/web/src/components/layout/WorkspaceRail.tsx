@@ -18,6 +18,12 @@ import type { Workspace } from '@/types';
 
 const RAIL_WIDTH = 172;
 const DRAG_THRESHOLD_PX = 5;
+const WORKSPACE_STATUS_RANK: Record<string, number> = { idle: 1, held: 2, running: 3 };
+const WORKSPACE_COUNT_STATUS_CLASSES: Record<string, string> = {
+  running: 'border-accent/30 bg-accent/10 text-accent',
+  idle: 'border-success/30 bg-success/10 text-success',
+  held: 'border-warning/40 bg-warning/10 text-warning',
+};
 /**
  * Handle width. Chosen to fit INSIDE the chat's existing left padding
  * (`MessageBubble` rows use `px-3 sm:px-6 lg:px-8`, and the rail only renders
@@ -91,12 +97,20 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
     }
   }, [loaded, workspaces, activeWorkspaceId, setActiveWorkspace]);
 
-  const memberCounts = useMemo(() => {
-    const counts = new Map<string, number>();
+  const memberStats = useMemo(() => {
+    const stats = new Map<string, { count: number; workerStatus: string | null }>();
     for (const session of sessions) {
-      for (const id of effectiveWorkspaceIds(session, sessions)) counts.set(id, (counts.get(id) ?? 0) + 1);
+      for (const id of effectiveWorkspaceIds(session, sessions)) {
+        const current = stats.get(id) ?? { count: 0, workerStatus: null };
+        current.count += 1;
+        const candidate = session.workerStatus ?? '';
+        if ((WORKSPACE_STATUS_RANK[candidate] ?? 0) > (WORKSPACE_STATUS_RANK[current.workerStatus ?? ''] ?? 0)) {
+          current.workerStatus = candidate;
+        }
+        stats.set(id, current);
+      }
     }
-    return counts;
+    return stats;
   }, [sessions]);
 
   const activeName = activeWorkspaceId === ALL_WORKSPACES
@@ -339,6 +353,7 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
 
           {workspaces.map((workspace) => {
             const isEditing = editing?.id === workspace.id;
+            const memberStat = memberStats.get(workspace.id);
             if (isEditing) {
               return (
                 <div key={workspace.id} className="flex items-center gap-1.5 px-2 py-1">
@@ -374,8 +389,12 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
               >
                 <Folder size={12} />
                 <span className="flex-1 truncate">{workspace.name}</span>
-                <span className="rounded-full border border-border-muted bg-bg-tertiary px-1.5 text-[10px] leading-4 text-text-tertiary">
-                  {memberCounts.get(workspace.id) ?? 0}
+                <span
+                  data-testid={`workspace-count-${workspace.id}`}
+                  data-worker-status={memberStat?.workerStatus ?? 'offline'}
+                  className={`rounded-full border px-1.5 text-[10px] leading-4 ${WORKSPACE_COUNT_STATUS_CLASSES[memberStat?.workerStatus ?? ''] ?? 'border-border-muted bg-bg-tertiary text-text-tertiary'}`}
+                >
+                  {memberStat?.count ?? 0}
                 </span>
                 <button
                   type="button"
@@ -484,8 +503,8 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
             <p className="text-xs leading-relaxed text-text-secondary">
               确定删除工作区「<span className="text-text-primary">{deleteTarget.name}</span>」？
               会话不会被删除，只会解除归属（变为未分组）。
-              {(memberCounts.get(deleteTarget.id) ?? 0) > 0 && (
-                <> 当前有 <span className="text-text-primary">{memberCounts.get(deleteTarget.id)}</span> 个会话在该工作区。</>
+              {(memberStats.get(deleteTarget.id)?.count ?? 0) > 0 && (
+                <> 当前有 <span className="text-text-primary">{memberStats.get(deleteTarget.id)?.count}</span> 个会话在该工作区。</>
               )}
             </p>
             <div className="flex justify-end gap-2">

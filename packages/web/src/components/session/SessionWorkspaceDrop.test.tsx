@@ -35,6 +35,26 @@ const SECOND_WORKSPACE: Workspace = {
   order: null,
 };
 
+function sessionWithStatus(
+  id: string,
+  workerStatus: string | null,
+  workspaceIds: string[] = ['ws-existing'],
+  managedBy: string | null = null,
+): Session {
+  return {
+    id,
+    name: id,
+    workspaceIds,
+    managedBy,
+    workerStatus,
+    managed: [],
+    alwaysThinkingEnabled: false,
+    effort: '',
+    history: [],
+    updatedAt: new Date().toISOString(),
+  } as unknown as Session;
+}
+
 const NULL_RECT = {
   top: 0, bottom: 0, height: 0, width: 0, left: 0, right: 0, x: 0, y: 0,
   toJSON: () => {},
@@ -118,6 +138,7 @@ describe('Workspace rail drag interactions', () => {
     await waitFor(() => expect(apiMocks.setSessionWorkspaces).toHaveBeenCalledWith('session-alpha', ['ws-existing']));
     expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['ws-existing']);
     expect(apiMocks.saveWorkspaceOrder).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="workspace-count-ws-existing"]')?.textContent).toBe('1');
   });
 
   it('reorders Workspace tabs and persists order without changing Session membership', async () => {
@@ -135,6 +156,71 @@ describe('Workspace rail drag interactions', () => {
     expect(useWorkspaceStore.getState().workspaces.map((workspace) => workspace.id)).toEqual(['ws-second', 'ws-existing']);
     expect(apiMocks.setSessionWorkspaces).not.toHaveBeenCalled();
     expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual([]);
+    expect(container.querySelector('[data-testid="workspace-count-ws-existing"]')?.textContent).toBe('0');
+  });
+
+  it.each([
+    ['running', 'bg-accent/10', 'text-accent'],
+    ['idle', 'bg-success/10', 'text-success'],
+    ['held', 'bg-warning/10', 'text-warning'],
+  ])('colours the count badge for %s workers', (status, backgroundClass, textClass) => {
+    useSessionStore.setState({ sessions: [sessionWithStatus('status-session', status)] });
+    const { container } = render(<WorkspaceRail />);
+    const badge = container.querySelector('[data-testid="workspace-count-ws-existing"]');
+    expect(badge?.className).toContain(backgroundClass);
+    expect(badge?.className).toContain(textClass);
+    expect(badge?.textContent).toBe('1');
+  });
+
+  it.each([
+    [['idle', 'held'], 'held', 'bg-warning/10'],
+    [['held', 'running'], 'running', 'bg-accent/10'],
+    [['idle', 'held', 'running'], 'running', 'bg-accent/10'],
+  ])('uses the highest-priority worker state in a Workspace', (statuses, expectedStatus, expectedClass) => {
+    useSessionStore.setState({
+      sessions: (statuses as string[]).map((status, index) => sessionWithStatus(`member-${index}`, status)),
+    });
+    const { container } = render(<WorkspaceRail />);
+    const badge = container.querySelector('[data-testid="workspace-count-ws-existing"]');
+    expect(badge?.getAttribute('data-worker-status')).toBe(expectedStatus);
+    expect(badge?.className).toContain(expectedClass);
+    expect(badge?.textContent).toBe(String((statuses as string[]).length));
+  });
+
+  it('keeps the current count style for offline, null, and unknown worker states', () => {
+    useSessionStore.setState({
+      sessions: [
+        sessionWithStatus('offline-member', 'offline'),
+        sessionWithStatus('null-member', null),
+        sessionWithStatus('unknown-member', 'future-state'),
+      ],
+    });
+    const { container } = render(<WorkspaceRail />);
+    const badge = container.querySelector('[data-testid="workspace-count-ws-existing"]');
+    expect(badge?.getAttribute('data-worker-status')).toBe('offline');
+    expect(badge?.className).toContain('border-border-muted');
+    expect(badge?.className).toContain('bg-bg-tertiary');
+    expect(badge?.className).toContain('text-text-tertiary');
+    expect(badge?.textContent).toBe('3');
+  });
+
+  it('counts managed descendants in their root Workspace and ignores stale child membership', () => {
+    useWorkspaceStore.setState({ workspaces: [BASE_WORKSPACE, SECOND_WORKSPACE] });
+    useSessionStore.setState({
+      sessions: [
+        sessionWithStatus('manager', 'idle', ['ws-existing']),
+        sessionWithStatus('worker', 'held', ['ws-second'], 'manager'),
+        sessionWithStatus('nested-worker', 'running', ['ws-second'], 'worker'),
+      ],
+    });
+    const { container } = render(<WorkspaceRail />);
+    const inheritedCount = container.querySelector('[data-testid="workspace-count-ws-existing"]');
+    const staleChildWorkspaceCount = container.querySelector('[data-testid="workspace-count-ws-second"]');
+    expect(inheritedCount?.textContent).toBe('3');
+    expect(inheritedCount?.getAttribute('data-worker-status')).toBe('running');
+    expect(inheritedCount?.className).toContain('bg-accent/10');
+    expect(staleChildWorkspaceCount?.textContent).toBe('0');
+    expect(staleChildWorkspaceCount?.getAttribute('data-worker-status')).toBe('offline');
   });
 
   it('creates a uniquely named Workspace when the Session is dropped on New Workspace', async () => {
