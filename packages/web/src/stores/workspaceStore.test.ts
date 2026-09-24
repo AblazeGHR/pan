@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -118,6 +119,7 @@ describe('workspace membership', () => {
     const workspace = await useWorkspaceStore.getState().createWorkspaceForSession('session-1');
 
     expect(api.createWorkspace).toHaveBeenCalledWith('Alpha-2');
+    if (!workspace) throw new Error('Expected workspace creation to complete');
     expect(workspace.name).toBe('Alpha-2');
     expect(api.setSessionWorkspaces).toHaveBeenCalledWith('session-1', ['workspace-new']);
     expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['workspace-new']);

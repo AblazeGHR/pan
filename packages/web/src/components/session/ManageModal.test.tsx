@@ -80,7 +80,7 @@ describe('ManageModal', () => {
     });
 
     render(<ManageModal open onClose={() => {}} sessionId="mgr" />);
-    fireEvent.click(await within(section(1)).findByRole('button', { name: 'Manage' }));
+    fireEvent.click(await section(1).findByRole('button', { name: 'Manage' }));
 
     await confirmation;
     expect(apiMock.claimSession).not.toHaveBeenCalled();

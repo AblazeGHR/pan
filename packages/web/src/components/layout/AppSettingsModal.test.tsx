@@ -203,8 +203,10 @@ describe('AppSettingsModal', () => {
     fireEvent.click(notificationTab);
     expect(cardEl().textContent).toContain('Codex warnings via Toast');
     expect(cardEl().textContent).toContain('CBC warnings via Toast');
-    expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(1);
-    fireEvent.click(cardEl().querySelector('[role="switch"]')!);
+    expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(2);
+    const codexWarningSwitch = Array.from(cardEl().querySelectorAll<HTMLElement>('[role="switch"]'))
+      .find((element) => element.textContent?.includes('Codex warnings via Toast'))!;
+    fireEvent.click(codexWarningSwitch);
     expect(useAppSettingsStore.getState().notifications.codexWarningToast).toBe(false);
   });
 
@@ -318,7 +320,7 @@ describe('AppSettingsModal', () => {
       showMetaAgent: false,
       showTaskAgent: false,
       showQQ: false,
-      notifications: { codexWarningToast: false },
+      notifications: { codexWarningToast: false, confirmCrossWorkspaceManagement: true },
     });
     render(<AppSettingsModal open onClose={() => {}} />);
     const resetBtn = Array.from(document.body.querySelectorAll<HTMLElement>('button')).find((b) =>
@@ -331,6 +333,7 @@ describe('AppSettingsModal', () => {
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
     expect(s.notifications.codexWarningToast).toBe(true);
+    expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
   });
 
   it('requires confirmation and reports successful main-service recovery', async () => {
