@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import ctypes
 import json
 import os
 import subprocess
@@ -245,10 +246,53 @@ def test_cross_process_read_modify_write_preserves_updates(tmp_path, monkeypatch
                               cwd=str(repo), env=env, check=False, capture_output=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
         results = list(pool.map(update, range(12)))
-    errors = [result.stderr.decode(errors="replace") for result in results]
-    assert all(not result.returncode for result in results), errors
+    process_results = [
+        {
+            "marker": f"marker{index}",
+            "returncode": result.returncode,
+            "stdout": result.stdout.decode(errors="replace"),
+            "stderr": result.stderr.decode(errors="replace"),
+        }
+        for index, result in enumerate(results)
+    ]
+    assert all(not result["returncode"] for result in process_results), process_results
     result = jobs.get("job_process_race")
     assert {result[f"marker{i}"] for i in range(12)} == set(range(12))
+
+
+def test_windows_named_mutex_declares_pointer_sized_win32_signatures(monkeypatch, tmp_path):
+    from ctypes import wintypes
+
+    class FakeWin32Function:
+        def __init__(self, result):
+            self.result = result
+            self.argtypes = None
+            self.restype = None
+            self.calls = []
+
+        def __call__(self, *args):
+            self.calls.append(args)
+            return self.result
+
+    api = type("Kernel32", (), {})()
+    api.CreateMutexW = FakeWin32Function(0x1234)
+    api.WaitForSingleObject = FakeWin32Function(0)
+    api.ReleaseMutex = FakeWin32Function(1)
+    api.CloseHandle = FakeWin32Function(1)
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: api, raising=False)
+
+    with jobs._windows_named_mutex(tmp_path / "mutex.lock", "Local\\PanTest_"):
+        pass
+
+    assert api.CreateMutexW.argtypes == (
+        wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
+    assert api.CreateMutexW.restype is wintypes.HANDLE
+    assert api.WaitForSingleObject.argtypes == (
+        wintypes.HANDLE, wintypes.DWORD)
+    assert api.ReleaseMutex.argtypes == (wintypes.HANDLE,)
+    assert api.CloseHandle.argtypes == (wintypes.HANDLE,)
+    assert api.ReleaseMutex.calls == [(0x1234,)]
+    assert api.CloseHandle.calls == [(0x1234,)]
 
 
 def test_missing_creation_time_never_owns_pid(monkeypatch):
