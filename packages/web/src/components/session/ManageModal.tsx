@@ -13,7 +13,7 @@ import {
   patchSession,
 } from '@/services/api';
 import type { McpServerInfo, PanAccess, Session } from '@/types';
-import { Search, Star, Check, Bell, Unlink, Lock, Unlock } from 'lucide-react';
+import { Search, Star, Check, Bell, Unlink, Lock, Unlock, Folder, Layers } from 'lucide-react';
 import { FreshnessSkeleton, FreshnessStatus, type FreshnessState } from './FreshnessStatus';
 import { effectiveWorkspaceIds } from '@/utils/sessionFilters';
 import { confirmWorkspaceManagerChange } from '@/utils/workspaceMoveConfirmation';
@@ -55,6 +55,18 @@ interface ManageModalProps {
   /** Id of the managing session; its `managed` ids drive the checked state. */
   sessionId: string | null;
 }
+
+/** Manage surfaces are tabbed: relationship, workspaces, access, MCP. */
+type ManageTab = 'relationship' | 'workspaces' | 'access' | 'mcp';
+
+const MANAGE_TABS: ManageTab[] = ['relationship', 'workspaces', 'access', 'mcp'];
+
+const MANAGE_TAB_LABELS: Record<ManageTab, string> = {
+  relationship: 'Relationship',
+  workspaces: 'Workspaces',
+  access: 'Access',
+  mcp: 'MCP and Plugins',
+};
 
 interface ManageSessionsPanelProps {
   /** When true, per-open state is reset and the full session + MCP catalog are
@@ -121,10 +133,187 @@ function SwitchRow({
 }
 
 /**
- * Session relationship + capability panel, split into three sections:
- *   1. "Managed by"  — who manages this session (and how to break the link).
- *   2. "Manages"     — claim / unclaim + report subscriptions of other sessions.
- *   3. "Pan Access"  — MCP-only capability flags (persisted via PATCH).
+ * Workspaces tab: the workspace the Session's management tree lives in.
+ *
+ * Persistence rule (unchanged): only a tree ROOT stores the membership
+ * (`workspaceIds`); a managed child inherits the root's workspace through the
+ * `managedBy` chain and its own stored value is ignored. Moving a managed
+ * child therefore goes through `workspaceStore.moveSessions`, which asks for
+ * the usual confirmation, detaches the child from its manager and only then
+ * writes the root membership. Declining that confirmation sends nothing.
+ */
+function ManageWorkspacesSection({
+  sessionId,
+  fallbackSession,
+}: {
+  sessionId: string;
+  /** Detail snapshot used only when the summary list has no such Session. */
+  fallbackSession: Session | null;
+}) {
+  const sessions = useSessionStore((s) => s.sessions);
+  const showToast = useUIStore((s) => s.showToast);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const workspacesLoaded = useWorkspaceStore((s) => s.loaded);
+  const workspacesLoading = useWorkspaceStore((s) => s.loading);
+  const workspacesError = useWorkspaceStore((s) => s.error);
+  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
+  const moveSessions = useWorkspaceStore((s) => s.moveSessions);
+  const [moving, setMoving] = useState(false);
+  const requested = useRef(false);
+
+  // moveSessions resolves ownership from the session list, so prefer the list
+  // entry over the detail snapshot to keep the shown state and the move equal.
+  const session = sessions.find((item) => item.id === sessionId) ?? fallbackSession;
+
+  // Lazy-load the catalog once per mount; a failure surfaces with a Retry
+  // button instead of re-requesting forever.
+  useEffect(() => {
+    if (workspacesLoaded || workspacesLoading || requested.current) return;
+    requested.current = true;
+    void loadWorkspaces();
+  }, [workspacesLoaded, workspacesLoading, loadWorkspaces]);
+
+  const retry = () => {
+    requested.current = true;
+    void loadWorkspaces();
+  };
+
+  // Effective ownership: inherited along the manage chain for a managed child.
+  const effectiveWorkspaceId = session
+    ? (effectiveWorkspaceIds(session, sessions)[0] ?? null)
+    : null;
+  const managerName = session?.managedBy
+    ? (sessions.find((item) => item.id === session.managedBy)?.name ?? session.managedBy)
+    : null;
+  const workspaceName = (id: string | null) =>
+    id ? (workspaces.find((workspace) => workspace.id === id)?.name ?? id) : 'Ungrouped';
+
+  const move = async (workspaceId: string | null) => {
+    if (!session || moving) return;
+    setMoving(true);
+    try {
+      const changed = await moveSessions([session.id], workspaceId);
+      // An empty result means the confirmation was declined — nothing was sent
+      // server-side — or the membership already matched. Both stay silent.
+      if (changed.length === 0) return;
+      const followed = changed.length - 1;
+      const target = workspaceId
+        ? (workspaces.find((workspace) => workspace.id === workspaceId)?.name ?? '工作区')
+        : null;
+      if (!target) showToast(`已将「${session.name}」移出工作区（未分组）`);
+      else if (followed > 0) showToast(`已将「${session.name}」及其 ${followed} 个子孙会话移入「${target}」`);
+      else showToast(`已将「${session.name}」移入「${target}」`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '移动失败', 'error');
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-2">
+      <SectionHeader
+        title="Workspaces"
+        subtitle="Only the tree root stores the workspace; managed children inherit it along the manage chain."
+      />
+      {!session ? (
+        <div className="py-4 text-center text-sm text-text-tertiary">Session not found</div>
+      ) : (
+        <>
+          <div className="rounded border border-border-muted bg-bg-primary px-2.5 py-2">
+            <div className="text-sm text-text-primary">{workspaceName(effectiveWorkspaceId)}</div>
+            <div className="mt-0.5 text-[11px] text-text-tertiary">
+              {session.managedBy
+                ? `Inherited from "${managerName}" — moving this session detaches it from its manager.`
+                : 'Stored on this session (management tree root).'}
+            </div>
+          </div>
+
+          {workspacesError && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2 text-[11px] text-danger">
+              <span>Workspaces unavailable: {workspacesError}</span>
+              <button
+                type="button"
+                className="rounded border border-border-default px-1.5 py-0.5 text-text-secondary hover:bg-bg-tertiary"
+                onClick={retry}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!workspacesError && !workspacesLoaded && (
+            <div className="py-3 text-center text-[11px] text-text-tertiary">
+              Loading workspaces…
+            </div>
+          )}
+
+          {!workspacesError && workspacesLoaded && (
+            <>
+              {workspaces.length === 0 && (
+                <div className="py-2 text-center text-[11px] text-text-tertiary">
+                  No workspaces yet
+                </div>
+              )}
+              <div
+                className={`flex flex-col gap-0.5 rounded border border-border-muted bg-bg-primary p-1 ${
+                  moving ? 'pointer-events-none opacity-70' : ''
+                }`}
+              >
+                <button
+                  type="button"
+                  aria-pressed={effectiveWorkspaceId === null}
+                  disabled={moving || effectiveWorkspaceId === null}
+                  onClick={() => void move(null)}
+                  className={`flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none ${
+                    effectiveWorkspaceId === null
+                      ? 'bg-accent/10 text-accent'
+                      : 'text-text-primary hover:bg-bg-tertiary'
+                  }`}
+                >
+                  <Layers size={12} className="shrink-0 text-text-tertiary" />
+                  Ungrouped
+                  {effectiveWorkspaceId === null && <Check size={12} className="ml-auto shrink-0" />}
+                </button>
+                {workspaces.map((workspace) => (
+                  <button
+                    key={workspace.id}
+                    type="button"
+                    aria-pressed={effectiveWorkspaceId === workspace.id}
+                    disabled={moving || effectiveWorkspaceId === workspace.id}
+                    onClick={() => void move(workspace.id)}
+                    title={workspace.name}
+                    className={`flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none ${
+                      effectiveWorkspaceId === workspace.id
+                        ? 'bg-accent/10 text-accent'
+                        : 'text-text-primary hover:bg-bg-tertiary'
+                    }`}
+                  >
+                    <Folder size={12} className="shrink-0 text-text-tertiary" />
+                    <span className="min-w-0 truncate">{workspace.name}</span>
+                    {effectiveWorkspaceId === workspace.id && (
+                      <Check size={12} className="ml-auto shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Session relationship + capability panel, split into four tabs:
+ *   1. "Relationship"      — "Managed by" (who manages this session and how to
+ *                            break the link) + "Manages" (claim / unclaim and
+ *                            report subscriptions of other sessions).
+ *   2. "Workspaces"        — where the management tree lives (root-stored,
+ *                            inherited by managed children).
+ *   3. "Access"            — "Pan Access" MCP-only capability flags (PATCH).
+ *   4. "MCP and Plugins"   — MCP server selection for this session.
  * All mutations hit the backend and then reload the session list so
  * `managed` / `managedBy` stay in sync.
  *
@@ -142,6 +331,8 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
 
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
+  /** Active Manage tab. Reset to the relationship tab on every open. */
+  const [activeTab, setActiveTab] = useState<ManageTab>('relationship');
   const [busyId, setBusyId] = useState<string | null>(null);
   // Busy flag shared by the three "Managed by" actions (unmanage / reports /
   // readonly) so they cannot race each other.
@@ -184,6 +375,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   // managedBy / panAccess).
   useEffect(() => {
     if (open && sessionId) {
+      setActiveTab('relationship');
       setQuery('');
       setShowAll(false);
       setBusyId(null);
@@ -629,6 +821,60 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
             onRetry={detailError ? () => setDetailRetrySeq((value) => value + 1) : undefined}
           />
           {detailLoading && !detailSession && <FreshnessSkeleton label="Loading session metadata" />}
+          {/* Tabs mirror the App Settings layout. The desktop modal and the
+              mobile full page render this same panel, so both share them. */}
+          <div
+            role="tablist"
+            aria-label="Manage sections"
+            className="flex shrink-0 flex-wrap border-b border-border-default"
+            onKeyDown={(event) => {
+              const currentIndex = MANAGE_TABS.indexOf(activeTab);
+              const nextIndex =
+                event.key === 'ArrowRight'
+                  ? (currentIndex + 1) % MANAGE_TABS.length
+                  : event.key === 'ArrowLeft'
+                    ? (currentIndex - 1 + MANAGE_TABS.length) % MANAGE_TABS.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? MANAGE_TABS.length - 1
+                        : null;
+              if (nextIndex === null) return;
+              event.preventDefault();
+              const nextTab = MANAGE_TABS[nextIndex]!;
+              document.getElementById(`manage-tab-${nextTab}`)?.focus();
+              setActiveTab(nextTab);
+            }}
+          >
+            {MANAGE_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                id={`manage-tab-${tab}`}
+                aria-controls="manage-tabpanel"
+                aria-selected={activeTab === tab}
+                tabIndex={activeTab === tab ? 0 : -1}
+                onClick={() => setActiveTab(tab)}
+                className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
+                  activeTab === tab
+                    ? 'border-accent text-text-primary'
+                    : 'border-transparent text-text-tertiary hover:text-text-primary'
+                }`}
+              >
+                {MANAGE_TAB_LABELS[tab]}
+              </button>
+            ))}
+          </div>
+          <div
+            role="tabpanel"
+            id="manage-tabpanel"
+            aria-labelledby={`manage-tab-${activeTab}`}
+            tabIndex={0}
+            className="flex flex-col gap-5"
+          >
+          {activeTab === 'relationship' && (
+            <>
           {/* ── Section 1: Managed by ── */}
           <section className="flex flex-col gap-2">
             <SectionHeader
@@ -885,11 +1131,19 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               </button>
             )}
           </section>
+            </>
+          )}
 
+          {activeTab === 'workspaces' && (
+            <ManageWorkspacesSection sessionId={managerId} fallbackSession={detailSession} />
+          )}
+
+          {activeTab === 'access' && (
+            <>
           {/* ── Section 3: Pan Access ── */}
           <section className="flex flex-col gap-2">
             <SectionHeader
-              title="Pan Access / MCP 权限"
+              title="Pan Access"
               subtitle="Capability flags for the MCP path only — manage actions from this UI are never restricted."
             />
             <div className="rounded border border-border-muted bg-bg-primary p-1 divide-y divide-border-muted">
@@ -906,7 +1160,11 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               ))}
             </div>
           </section>
+            </>
+          )}
 
+          {activeTab === 'mcp' && (
+            <>
           {/* ── Section 4: MCP Server ── */}
           <section className="flex flex-col gap-2">
             <SectionHeader
@@ -1003,6 +1261,9 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               </>
             )}
           </section>
+            </>
+          )}
+          </div>
         </>
       )}
     </div>
