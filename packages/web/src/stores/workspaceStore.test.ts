@@ -3,7 +3,7 @@ import type { Session } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import * as api from '@/services/api';
-import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -22,6 +22,7 @@ describe('workspace membership', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWorkspaceStore.getState().reset();
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
     useSessionStore.setState({
       sessions: [
         { id: 'session-1', workspaceIds: ['workspace-a'], managed: [] } as unknown as Session,
@@ -69,7 +70,8 @@ describe('workspace membership', () => {
     ] });
     const prompt = new Promise<void>((resolve) => {
       window.addEventListener('pan:confirm-workspace-manager-change', ((event: Event) => {
-        const detail = (event as CustomEvent<{ resolve: (accepted: boolean) => void }>).detail;
+        const detail = (event as CustomEvent<{ changeType: string; resolve: (accepted: boolean) => void }>).detail;
+        expect(detail.changeType).toBe('detach');
         expect(detail.resolve).toBeTypeOf('function');
         detail.resolve(false);
         resolve();
@@ -80,6 +82,26 @@ describe('workspace membership', () => {
     expect(await moving).toEqual([]);
     expect(api.unclaimSession).not.toHaveBeenCalled();
     expect(api.setSessionWorkspaces).not.toHaveBeenCalled();
+  });
+
+  it('detaches and moves a managed subtree without prompting when confirmation is disabled', async () => {
+    useAppSettingsStore.setState({
+      notifications: { ...DEFAULT_SETTINGS.notifications, confirmCrossWorkspaceManagement: false },
+    });
+    useSessionStore.setState({ sessions: [
+      { id: 'manager', name: 'Manager', workspaceIds: ['workspace-a'], managed: ['child'] } as unknown as Session,
+      { id: 'child', name: 'Child', managedBy: 'manager', workspaceIds: ['workspace-a'], managed: [] } as unknown as Session,
+    ] });
+    const prompt = vi.fn();
+    window.addEventListener('pan:confirm-workspace-manager-change', prompt);
+
+    const changed = await useWorkspaceStore.getState().moveSessions(['child'], 'workspace-b');
+    window.removeEventListener('pan:confirm-workspace-manager-change', prompt);
+
+    expect(changed).toEqual(['child']);
+    expect(api.unclaimSession).toHaveBeenCalledWith('manager', 'child');
+    expect(api.setSessionWorkspaces).toHaveBeenCalledWith('child', ['workspace-b']);
+    expect(prompt).not.toHaveBeenCalled();
   });
 
   it('creates a session-named workspace and increments the suffix for duplicate names', async () => {

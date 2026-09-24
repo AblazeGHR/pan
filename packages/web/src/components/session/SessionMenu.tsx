@@ -190,7 +190,7 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
             className="w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-accent/20 transition-colors flex items-center gap-2"
           >
             <ChevronLeft size={12} className="text-text-tertiary shrink-0" />
-            移入工作区
+            Back to menu
           </button>
           <div className="border-t border-border-muted my-1" />
           <button

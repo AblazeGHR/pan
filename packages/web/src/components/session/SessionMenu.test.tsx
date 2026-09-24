@@ -56,12 +56,13 @@ describe('SessionMenu details entry', () => {
 });
 
 describe('SessionMenu workspace action', () => {
-  it('labels the move action in English and opens the workspace destination list', () => {
+  it('labels the move action and submenu return navigation in English', () => {
     render(<SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Move to workspace' }));
-
     expect(screen.getByRole('button', { name: /未分组/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to menu' }));
+    expect(screen.getByRole('button', { name: 'Select' })).toBeTruthy();
   });
 });
 

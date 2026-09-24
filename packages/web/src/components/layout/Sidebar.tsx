@@ -22,7 +22,7 @@ import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
 import { AppSettingsModal } from './AppSettingsModal';
 import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
+import { WorkspaceManagerChangeConfirmationModal } from './WorkspaceManagerChangeConfirmationModal';
 import type { WorkspaceMoveConfirmationRequest } from '@/utils/workspaceMoveConfirmation';
 import {
   MessageSquare,
@@ -922,27 +922,17 @@ export function Sidebar() {
         open={showAppSettings}
         onClose={() => setShowAppSettings(false)}
       />
-      <Modal
-        open={!!workspaceMoveConfirmation}
-        title="Confirm management change"
+      <WorkspaceManagerChangeConfirmationModal
+        request={workspaceMoveConfirmation}
         onClose={() => {
           workspaceMoveConfirmation?.resolve(false);
           setWorkspaceMoveConfirmation(null);
         }}
-        size="md"
-      >
-        {workspaceMoveConfirmation && (
-          <div className="space-y-4">
-            <p className="text-sm text-text-secondary">
-              Moving <strong>{workspaceMoveConfirmation.sessionName}</strong> and its {workspaceMoveConfirmation.subtreeCount - 1} managed descendant(s) to <strong>{workspaceMoveConfirmation.targetWorkspaceName}</strong> will detach it from <strong>{workspaceMoveConfirmation.managerName}</strong>. The moved subtree will become its own management tree.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => { workspaceMoveConfirmation.resolve(false); setWorkspaceMoveConfirmation(null); }}>Cancel</Button>
-              <Button variant="primary" onClick={() => { workspaceMoveConfirmation.resolve(true); setWorkspaceMoveConfirmation(null); }}>Move and detach</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+        onConfirm={() => {
+          workspaceMoveConfirmation?.resolve(true);
+          setWorkspaceMoveConfirmation(null);
+        }}
+      />
       <NewSessionModal
         open={showNewModal}
         onClose={() => setShowNewModal(false)}

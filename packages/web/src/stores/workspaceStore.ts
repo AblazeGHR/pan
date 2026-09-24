@@ -105,6 +105,7 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
         const descendants = collectDescendants(buildManagerEdges(sessions), sessionId);
         const managerName = sessions.find((item) => item.id === session.managedBy)?.name ?? session.managedBy;
         const accepted = await confirmWorkspaceManagerChange({
+          changeType: 'detach',
           sessionName: session.name || session.id,
           subtreeCount: descendants.size + 1,
           managerName,
@@ -197,6 +198,7 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
       if (!confirmationAccepted && useAppSettingsStore.getState().notifications.confirmCrossWorkspaceManagement) {
         const managerName = all.find((s) => s.id === child.managedBy)?.name ?? child.managedBy!;
         const confirmed = await confirmWorkspaceManagerChange({
+          changeType: 'detach',
           sessionName: child.name || child.id,
           subtreeCount: descendants.size + 1,
           managerName,

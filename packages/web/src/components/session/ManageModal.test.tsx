@@ -10,6 +10,7 @@ import {
 } from '@testing-library/react';
 import { ManageModal } from './ManageModal';
 import { useSessionStore } from '@/stores/sessionStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { McpServerInfo, Session } from '@/types';
 
 const apiMock = vi.hoisted(() => ({
@@ -49,11 +50,41 @@ describe('ManageModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
     useSessionStore.setState({
       sessions: [mk('s1', 'Child', { managedBy: 'mgr' }), mk('mgr', 'Boss')],
       currentSessionId: 's1',
       loadSessions: vi.fn(async () => {}),
     });
+  });
+
+  it('cancels cross-workspace management from ManageModal before calling claim', async () => {
+    useSessionStore.setState({
+      sessions: [
+        mk('mgr', 'Manager', { workspaceIds: ['workspace-b'], managed: [] }),
+        mk('target', 'Target', { workspaceIds: ['workspace-a'] }),
+      ],
+      currentSessionId: 'mgr',
+      loadSessions: vi.fn(async () => {}),
+    });
+    apiMock.fetchSession.mockResolvedValue(
+      mk('mgr', 'Manager', { workspaceIds: ['workspace-b'], managed: [], reportSubscriptions: [] }),
+    );
+    const confirmation = new Promise<void>((resolve) => {
+      window.addEventListener('pan:confirm-workspace-manager-change', ((event: Event) => {
+        const detail = (event as CustomEvent<{ changeType: string; resolve: (accepted: boolean) => void }>).detail;
+        expect(detail.changeType).toBe('attach');
+        detail.resolve(false);
+        resolve();
+      }) as EventListener, { once: true });
+    });
+
+    render(<ManageModal open onClose={() => {}} sessionId="mgr" />);
+    fireEvent.click(await within(section(1)).findByRole('button', { name: 'Manage' }));
+
+    await confirmation;
+    expect(apiMock.claimSession).not.toHaveBeenCalled();
+    expect(apiMock.unclaimSession).not.toHaveBeenCalled();
   });
 
   it('shows the managing session and detaches it via unclaim', async () => {

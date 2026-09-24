@@ -1,4 +1,5 @@
 export interface WorkspaceMoveConfirmationRequest {
+  changeType: 'detach' | 'attach';
   sessionName: string;
   subtreeCount: number;
   managerName: string;

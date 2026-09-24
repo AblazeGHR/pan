@@ -161,6 +161,7 @@ async function persistSessionDrop(p: RealDropParams): Promise<void> {
         const subtreeCount = 1 + collectDescendants(edges, draggedId).size;
         const destinationName = useWorkspaceStore.getState().workspaces.find((w) => w.id === destinationWorkspace)?.name ?? '未分组';
         const accepted = await confirmWorkspaceManagerChange({
+          changeType: 'attach',
           sessionName: draggedName,
           subtreeCount,
           managerName: manager.name || manager.id,

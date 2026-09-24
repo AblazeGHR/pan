@@ -519,6 +519,7 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
         const destinationName = useWorkspaceStore.getState().workspaces.find((w) => w.id === destinationId)?.name ?? '未分组';
         const subtreeCount = 1 + collectDescendants(buildManagerEdges(sessions), targetId).size;
         const accepted = await confirmWorkspaceManagerChange({
+          changeType: 'attach',
           sessionName: label,
           subtreeCount,
           managerName: manager.name || manager.id,
