@@ -561,6 +561,7 @@ def _burst_evidence(results: list[dict], in_process: list[dict],
         "maxRequestMs": max(request_ms) if request_ms else None,
         "server": _latency_summary(server),
         "inProcess": _latency_summary(in_process),
+        "rawInProcessHeartbeat": in_process,
         "gapsOverTarget": [
             gap for gap in server_gaps if gap > MAX_STALL_SECONDS * 1000],
         "longestOverTargetRun": _longest_over_target_run(
@@ -792,9 +793,23 @@ def test_real_http_history_coldload_does_not_stall_dashboard_websocket(coldload_
         f"{steady_window['gapsOverTarget'][:5]}ms (baseline max gap "
         f"{evidence['baseline']['server']['maxGapMs']}ms, "
         f"{BURST_WORKERS} concurrent clients)")
+    worst_steady_server_sample = max(
+        steady_window["rawServerHeartbeat"],
+        key=lambda sample: sample["gapMs"] or 0,
+        default=None,
+    )
+    in_process_samples_near_worst_gap = [
+        sample for sample in steady_window["rawInProcessHeartbeat"]
+        if worst_steady_server_sample is not None
+        and abs(sample["at"] - worst_steady_server_sample["at"]) < 0.15
+    ]
     assert (steady_window["server"]["maxGapMs"] or 0) < 100, (
         "one severe heartbeat gap during steady-state cold reads: "
-        f"{steady_window['gapsOverTarget'][:5]}")
+        f"{steady_window['gapsOverTarget'][:5]}; "
+        f"serverSample={worst_steady_server_sample}; "
+        f"inProcessAtSameTime={in_process_samples_near_worst_gap}; "
+        f"inProcessSummary={steady_window['inProcess']}; "
+        f"requestMaxMs={steady_window['maxRequestMs']} requests={steady_window['requests']}")
     assert (cold_window["server"]["maxGapMs"] or 0) < 250, (
         "one-time store index load froze the loop: "
         f"{cold_window['gapsOverTarget'][:5]}")

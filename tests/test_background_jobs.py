@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import ctypes
 import json
 import os
 import subprocess
@@ -245,10 +246,124 @@ def test_cross_process_read_modify_write_preserves_updates(tmp_path, monkeypatch
                               cwd=str(repo), env=env, check=False, capture_output=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
         results = list(pool.map(update, range(12)))
-    errors = [result.stderr.decode(errors="replace") for result in results]
-    assert all(not result.returncode for result in results), errors
+    process_results = [
+        {
+            "marker": f"marker{index}",
+            "returncode": result.returncode,
+            "stdout": result.stdout.decode(errors="replace"),
+            "stderr": result.stderr.decode(errors="replace"),
+        }
+        for index, result in enumerate(results)
+    ]
+    assert all(not result["returncode"] for result in process_results), process_results
     result = jobs.get("job_process_race")
     assert {result[f"marker{i}"] for i in range(12)} == set(range(12))
+
+
+def _fake_kernel32(monkeypatch, *, create_result=0x1234, wait_result=0,
+                   release_result=1, close_result=1, last_error=0):
+    class FakeWin32Function:
+        def __init__(self, result):
+            self.result = result
+            self.argtypes = None
+            self.restype = None
+            self.calls = []
+
+        def __call__(self, *args):
+            self.calls.append(args)
+            return self.result
+
+    api = type("Kernel32", (), {})()
+    api.CreateMutexW = FakeWin32Function(create_result)
+    api.WaitForSingleObject = FakeWin32Function(wait_result)
+    api.ReleaseMutex = FakeWin32Function(release_result)
+    api.CloseHandle = FakeWin32Function(close_result)
+    monkeypatch.setattr(
+        ctypes, "WinDLL", lambda *_args, **_kwargs: api, raising=False)
+    monkeypatch.setattr(
+        ctypes, "get_last_error", lambda: last_error, raising=False)
+    return api
+
+
+@pytest.mark.parametrize("wait_result", [0, 0x80], ids=["acquired", "abandoned"])
+def test_windows_named_mutex_declares_pointer_sized_win32_signatures(
+        monkeypatch, tmp_path, wait_result):
+    from ctypes import wintypes
+
+    api = _fake_kernel32(monkeypatch, wait_result=wait_result)
+
+    with jobs._windows_named_mutex(tmp_path / "mutex.lock", "Local\\PanTest_"):
+        pass
+
+    assert api.CreateMutexW.argtypes == (
+        wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
+    assert api.CreateMutexW.restype is wintypes.HANDLE
+    assert api.WaitForSingleObject.argtypes == (
+        wintypes.HANDLE, wintypes.DWORD)
+    assert api.ReleaseMutex.argtypes == (wintypes.HANDLE,)
+    assert api.CloseHandle.argtypes == (wintypes.HANDLE,)
+    assert api.ReleaseMutex.calls == [(0x1234,)]
+    assert api.CloseHandle.calls == [(0x1234,)]
+
+
+def test_windows_named_mutex_create_failure_raises_winerror_without_closing(
+        monkeypatch, tmp_path):
+    api = _fake_kernel32(monkeypatch, create_result=0, last_error=5)
+
+    with pytest.raises(OSError) as error:
+        with jobs._windows_named_mutex(tmp_path / "mutex.lock", "Local\\PanTest_"):
+            pytest.fail("the lock body must not run")
+
+    assert error.value.winerror == 5
+    assert api.WaitForSingleObject.calls == []
+    assert api.CloseHandle.calls == []
+
+
+@pytest.mark.parametrize(
+    ("wait_result", "last_error", "expected_winerror"),
+    [(0xFFFFFFFF, 6, 6), (0x1234, 0, None)],
+    ids=["wait-failed", "unknown-result"],
+)
+def test_windows_named_mutex_wait_failure_closes_handle(
+        monkeypatch, tmp_path, wait_result, last_error, expected_winerror):
+    api = _fake_kernel32(
+        monkeypatch, wait_result=wait_result, last_error=last_error)
+
+    with pytest.raises(OSError) as error:
+        with jobs._windows_named_mutex(tmp_path / "mutex.lock", "Local\\PanTest_"):
+            pytest.fail("the lock body must not run")
+
+    if expected_winerror is not None:
+        assert error.value.winerror == expected_winerror
+    else:
+        assert str(wait_result) in str(error.value)
+    assert api.CloseHandle.calls == [(0x1234,)]
+    assert api.ReleaseMutex.calls == []
+
+
+def test_windows_named_mutex_release_failure_still_closes_handle(
+        monkeypatch, tmp_path):
+    api = _fake_kernel32(monkeypatch, release_result=0, last_error=5)
+
+    with pytest.raises(OSError) as error:
+        with jobs._windows_named_mutex(tmp_path / "mutex.lock", "Local\\PanTest_"):
+            pass
+
+    assert error.value.winerror == 5
+    assert api.ReleaseMutex.calls == [(0x1234,)]
+    assert api.CloseHandle.calls == [(0x1234,)]
+
+
+def test_windows_named_mutex_close_failure_raises_winerror(monkeypatch, tmp_path):
+    api = _fake_kernel32(monkeypatch, close_result=0, last_error=6)
+
+    with pytest.raises(OSError) as error:
+        with jobs._windows_named_mutex(tmp_path / "mutex.lock", "Local\\PanTest_"):
+            pass
+
+    assert error.value.winerror == 6
+    assert api.ReleaseMutex.calls == [(0x1234,)]
+    assert api.CloseHandle.calls == [(0x1234,)]
 
 
 def test_missing_creation_time_never_owns_pid(monkeypatch):

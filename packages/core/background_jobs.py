@@ -80,6 +80,46 @@ def _atomic_write(path: Path, value: dict) -> None:
 
 
 @contextmanager
+def _windows_named_mutex(lock_path: Path, namespace: str):
+    """Acquire a named Windows mutex with correctly typed Win32 handles."""
+    import ctypes
+    from ctypes import wintypes
+
+    digest = hashlib.sha256(str(lock_path.resolve()).encode("utf-8")).hexdigest()
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = (
+        wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+    kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    kernel32.ReleaseMutex.argtypes = (wintypes.HANDLE,)
+    kernel32.ReleaseMutex.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    mutex = kernel32.CreateMutexW(
+        None, False, f"{namespace}{digest}")
+    if not mutex:
+        raise ctypes.WinError(ctypes.get_last_error())
+    wait = kernel32.WaitForSingleObject(mutex, 0xFFFFFFFF)
+    if wait not in (0, 0x80):  # WAIT_OBJECT_0 / WAIT_ABANDONED
+        error = ctypes.get_last_error()
+        kernel32.CloseHandle(mutex)
+        if wait == 0xFFFFFFFF:  # WAIT_FAILED
+            raise ctypes.WinError(error)
+        raise OSError(f"WaitForSingleObject failed: {wait}")
+    try:
+        yield
+    finally:
+        try:
+            if not kernel32.ReleaseMutex(mutex):
+                raise ctypes.WinError(ctypes.get_last_error())
+        finally:
+            if not kernel32.CloseHandle(mutex):
+                raise ctypes.WinError(ctypes.get_last_error())
+
+
+@contextmanager
 def _job_lock(job_id: str, registry_root: str | Path | None = None):
     """Cross-process lock for a single job's read/modify/write transaction."""
     lock_path = _root(registry_root) / "jobs" / f"{job_id}.lock"
@@ -88,22 +128,8 @@ def _job_lock(job_id: str, registry_root: str | Path | None = None):
         # several fresh Python processes open/replace the same JSON quickly.
         # A named kernel mutex is process-wide, automatically released when a
         # process dies, and does not add a dependency to the MVP.
-        import ctypes
-        digest = hashlib.sha256(str(lock_path.resolve()).encode("utf-8")).hexdigest()
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.CreateMutexW.restype = ctypes.c_void_p
-        mutex = kernel32.CreateMutexW(None, False, f"Local\\PanBackgroundJob_{digest}")
-        if not mutex:
-            raise OSError(ctypes.get_last_error(), "CreateMutexW failed")
-        wait = kernel32.WaitForSingleObject(mutex, 0xFFFFFFFF)
-        if wait not in (0, 0x80):  # WAIT_OBJECT_0 / WAIT_ABANDONED
-            kernel32.CloseHandle(mutex)
-            raise OSError(f"WaitForSingleObject failed: {wait}")
-        try:
+        with _windows_named_mutex(lock_path, "Local\\PanBackgroundJob_"):
             yield
-        finally:
-            kernel32.ReleaseMutex(mutex)
-            kernel32.CloseHandle(mutex)
         return
     lock_path.touch(exist_ok=True)
     handle = open(lock_path, "r+b")
@@ -128,22 +154,8 @@ def _registry_lock(name: str, registry_root: str | Path | None = None):
     """Cross-process lock for a registry-wide key (for example root+port)."""
     lock_path = _root(registry_root) / "jobs" / f".{name}.lock"
     if os.name == "nt":
-        import ctypes
-        digest = hashlib.sha256(str(lock_path.resolve()).encode("utf-8")).hexdigest()
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.CreateMutexW.restype = ctypes.c_void_p
-        mutex = kernel32.CreateMutexW(None, False, f"Local\\PanBackgroundRegistry_{digest}")
-        if not mutex:
-            raise OSError(ctypes.get_last_error(), "CreateMutexW failed")
-        wait = kernel32.WaitForSingleObject(mutex, 0xFFFFFFFF)
-        if wait not in (0, 0x80):
-            kernel32.CloseHandle(mutex)
-            raise OSError(f"WaitForSingleObject failed: {wait}")
-        try:
+        with _windows_named_mutex(lock_path, "Local\\PanBackgroundRegistry_"):
             yield
-        finally:
-            kernel32.ReleaseMutex(mutex)
-            kernel32.CloseHandle(mutex)
         return
     lock_path.touch(exist_ok=True)
     handle = open(lock_path, "r+b")
