@@ -66,10 +66,14 @@ def test_session_summary_includes_cli_session_id():
     _cleanup()
 
 
-def test_import_cbc_template_and_pan_access(monkeypatch):
+def test_import_cbc_template_and_pan_access(monkeypatch, tmp_path):
     """New import applies sessionTemplate + panAccess via _build_session_params."""
     _cleanup()
     _fresh_session_dir()
+    from packages.core import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    target_workspace = workspace.create("Current scope")
     sid = "tpl-import-0001"
     jsonl = _write_cbc_jsonl(sid, [
         {"type": "message", "role": "user", "sessionId": sid,
@@ -90,11 +94,14 @@ def test_import_cbc_template_and_pan_access(monkeypatch):
             "name": "my-imported",
             "sessionTemplate": "meta-agent",
             "panAccess": {"restrictToManaged": True, "autoClaimCreated": True},
+            "workspaceIds": [target_workspace.id],
         }))
 
     assert "error" not in resp, resp
     s = next(x for x in _sess.list_all() if x.cli_session_id == sid)
     assert s.name == "my-imported"
+    assert s.workspace_ids == [target_workspace.id]
+    assert resp["workspaceIds"] == [target_workspace.id]
     assert s.session_template == "meta-agent"
     assert s.original_prompt == cm.get_session_template("meta-agent").system_prompt
     assert s.handoff_prompt is None
@@ -110,7 +117,24 @@ def test_import_cbc_template_and_pan_access(monkeypatch):
     assert resp["workdir"] == "D:/tmp/proj"
     assert resp["sessionTemplate"] == "meta-agent"
     assert resp["panAccess"]["restrictToManaged"] is True
+    deleted_sid = "tpl-import-deleted-workspace"
+    deleted_jsonl = _write_cbc_jsonl(deleted_sid, [
+        {"type": "message", "role": "user", "sessionId": deleted_sid,
+         "content": [{"type": "text", "text": "hi"}], "timestamp": 1786800000001},
+    ])
+    assert workspace.delete(target_workspace.id)
+    with patch.object(server, "broadcast", new=AsyncMock()), \
+         patch("packages.core.adapters.cbc.sessions._resolve_session_file",
+               return_value=deleted_jsonl):
+        rejected = asyncio.run(server.api_cbc_sessions_import({
+            "session_id": deleted_sid,
+            "cwd": "D:/tmp/proj",
+            "workspaceIds": [target_workspace.id],
+        }))
+    assert "workspaceIds must contain existing" in rejected["error"]
+    assert not any(s.cli_session_id == deleted_sid for s in _sess.list_all())
     _cleanup()
+    workspace.clear_cache()
 
 
 def test_import_without_template_keeps_existing_behavior():
@@ -165,10 +189,15 @@ def test_import_kimi_template_and_pan_access(monkeypatch):
     _cleanup()
 
 
-def test_import_reimport_marks_reimported():
+def test_import_reimport_marks_reimported(monkeypatch, tmp_path):
     """Overwriting an existing Pan session returns reimported: True."""
     _cleanup()
     _fresh_session_dir()
+    from packages.core import workspace
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    original_workspace = workspace.create("Original")
+    requested_workspace = workspace.create("Requested")
     sid = "reimport-0001"
     jsonl = _write_cbc_jsonl(sid, [
         {"type": "message", "role": "user", "sessionId": sid,
@@ -177,6 +206,7 @@ def test_import_reimport_marks_reimported():
 
     existing = _sess.Session(id="ses_existing", name="old", model="test-model",
                              adapter="cbc", original_prompt="stable rules",
+                             workspace_ids=[original_workspace.id],
                              handoff_prompt="latest brief")
     existing.cli_session_id = sid
     existing.history = [{"role": "user", "content": "old"}]
@@ -186,7 +216,8 @@ def test_import_reimport_marks_reimported():
          patch("packages.core.adapters.cbc.sessions._resolve_session_file",
                return_value=jsonl):
         resp = asyncio.run(server.api_cbc_sessions_import(
-            {"session_id": sid, "cwd": "D:/tmp/reimport"}))
+            {"session_id": sid, "cwd": "D:/tmp/reimport",
+             "workspaceIds": [requested_workspace.id]}))
 
     assert "error" not in resp, resp
     assert resp["reimported"] is True
@@ -194,11 +225,13 @@ def test_import_reimport_marks_reimported():
     assert resp["history"] == [{"role": "user", "content": "new"}]
     assert resp["originalPrompt"] == "stable rules"
     assert resp["handoffPrompt"] == "latest brief"
+    assert existing.workspace_ids == [original_workspace.id]
     _sess._cache.clear()
     reloaded = _sess.get(existing.id)
     assert reloaded.original_prompt == "stable rules"
     assert reloaded.handoff_prompt == "latest brief"
     _cleanup()
+    workspace.clear_cache()
 
 
 def test_import_bad_template_degrades_to_no_mcp(monkeypatch):

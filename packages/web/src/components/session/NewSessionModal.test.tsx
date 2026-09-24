@@ -5,6 +5,7 @@ import { NewSessionModal } from './NewSessionModal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { CliDiagnostic } from '@/types';
 
 const apiMock = vi.hoisted(() => ({
@@ -37,7 +38,8 @@ function setup() {
     loadAdapterList: vi.fn(async () => {}), loadCliStatus: vi.fn(async () => {}), loadConfig: vi.fn(async () => {}),
   });
   useSessionStore.setState({ sessions: [], createNewSession });
-  useUIStore.setState({ showToast });
+  useUIStore.setState({ showToast, activeWorkspaceId: 'all' });
+  useWorkspaceStore.setState({ workspaces: [], loaded: true, loading: false, error: null });
   return { createNewSession, showToast };
 }
 
@@ -109,7 +111,7 @@ describe('New Session directory input', () => {
     render(<NewSessionModal open onClose={() => {}} />);
     fireEvent.change(screen.getByTestId('new-session-workdir-input'), { target: { value: 'D:\\workspace\\app' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('session-1', 'D:\\workspace\\app', 'cbc', undefined, { outputMode: undefined }));
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('session-1', 'D:\\workspace\\app', 'cbc', undefined, { outputMode: undefined, workspaceIds: [] }));
     expect(apiMock.fetchDirectories).toHaveBeenLastCalledWith('D:\\workspace\\app');
   });
 
@@ -150,7 +152,50 @@ describe('New Session directory input', () => {
     await waitFor(() => expect(screen.getByRole('dialog', { name: '创建工作目录' }).textContent).toContain('目录不存在，是否创建？'));
     fireEvent.click(screen.getByRole('button', { name: '创建目录' }));
     await waitFor(() => expect(apiMock.createDirectory).toHaveBeenCalledWith('D:\\workspace\\new'));
-    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('session-1', 'D:\\workspace\\new', 'cbc', undefined, { outputMode: undefined }));
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith('session-1', 'D:\\workspace\\new', 'cbc', undefined, { outputMode: undefined, workspaceIds: [] }));
+  });
+
+  it('assigns a new Session to the selected Workspace at submit time', async () => {
+    const { createNewSession } = setup();
+    render(<NewSessionModal open onClose={() => {}} />);
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws-current', name: 'Current', order: null }],
+      loaded: true,
+    });
+    useUIStore.setState({ activeWorkspaceId: 'ws-current' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
+      'session-1', null, 'cbc', undefined,
+      { outputMode: undefined, workspaceIds: ['ws-current'] },
+    ));
+  });
+
+  it.each(['all', 'ungrouped'])('keeps new Sessions ungrouped in the %s scope', async (activeWorkspaceId) => {
+    const { createNewSession } = setup();
+    useUIStore.setState({ activeWorkspaceId });
+    render(<NewSessionModal open onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
+      'session-1', null, 'cbc', undefined,
+      { outputMode: undefined, workspaceIds: [] },
+    ));
+  });
+
+  it('keeps a stale selected Workspace id for authoritative server validation', async () => {
+    const { createNewSession } = setup();
+    useUIStore.setState({ activeWorkspaceId: 'ws-deleted' });
+    render(<NewSessionModal open onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
+      'session-1', null, 'cbc', undefined,
+      { outputMode: undefined, workspaceIds: ['ws-deleted'] },
+    ));
   });
 
   it('keeps adapter availability and mobile dialog guards intact', () => {

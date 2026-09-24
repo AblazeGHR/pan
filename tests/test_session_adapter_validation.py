@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 
 from packages.core import session as _sess
+from packages.core import workspace as _workspace
 from packages.core import worker
 from packages.core.adapters.cbc import CbcAdapter
 from packages.core.adapters.kimi import KimiAdapter
@@ -94,17 +95,31 @@ def test_create_invalid_model_rejected(monkeypatch):
     _cleanup()
 
 
-def test_create_valid_model_succeeds(monkeypatch):
+def test_create_valid_model_succeeds(monkeypatch, tmp_path):
     _cleanup()
     _patch_caps(monkeypatch)
+    monkeypatch.setattr(_workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    _workspace.clear_cache()
+    target_workspace = _workspace.create("Create target")
     # 默认模板会解析 pan MCP server → 需要 manifest catalog
     monkeypatch.setattr(srv, "_character_manager", _manifest_manager())
     with patch.object(srv, "broadcast", new=AsyncMock()):
-        r = asyncio.run(srv.api_create_session({"name": "ok-model", "model": "hy3"}))
+        r = asyncio.run(srv.api_create_session({
+            "name": "ok-model", "model": "hy3", "workspaceIds": [target_workspace.id],
+        }))
     assert "error" not in r, r
     s = _sess.get(r["id"])
     assert s.model == "hy3"
+    assert s.workspace_ids == [target_workspace.id]
+    assert r["workspaceIds"] == [target_workspace.id]
+    with patch.object(srv, "broadcast", new=AsyncMock()):
+        missing = asyncio.run(srv.api_create_session({
+            "name": "missing-workspace", "model": "hy3", "workspaceIds": ["ws_deleted"],
+        }))
+    assert "workspaceIds must contain existing" in missing["error"]
+    assert not any(session.name == "missing-workspace" for session in _sess.list_all())
     _cleanup()
+    _workspace.clear_cache()
 
 
 def test_create_max_thinking_tokens_rejected(monkeypatch):

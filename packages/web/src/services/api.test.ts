@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { steerSessionWorker, uploadSessionAttachment } from './api';
+import {
+  createSession,
+  importCbcSession,
+  importCodexSession,
+  importKimiSession,
+  importOpencodeSession,
+  steerSessionWorker,
+  uploadSessionAttachment,
+} from './api';
 
 class FakeXMLHttpRequest {
   static instances: FakeXMLHttpRequest[] = [];
@@ -152,5 +160,51 @@ describe('worker control business errors', () => {
       text: 'edited', expectedRevision: 2, editToken: 'edit-token',
     });
     expect(JSON.parse(requests[2]?.body as string)).toEqual({ editToken: 'edit-token' });
+  });
+});
+
+describe('workspace assignment for Session creation/import requests', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('sends workspaceIds when creating a new Session', async () => {
+    let body: Record<string, unknown> = {};
+    vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(init?.body as string);
+      return { ok: true, status: 200, statusText: 'OK', json: async () => ({ id: 'created' }) };
+    }));
+
+    await createSession('New', null, 'cbc', undefined, { workspaceIds: ['ws-active'] });
+
+    expect(body.workspaceIds).toEqual(['ws-active']);
+  });
+
+  it('sends an empty workspaceIds array for all and ungrouped creation scopes', async () => {
+    let body: Record<string, unknown> = {};
+    vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(init?.body as string);
+      return { ok: true, status: 200, statusText: 'OK', json: async () => ({ id: 'created' }) };
+    }));
+
+    await createSession('New', null, 'cbc', undefined, { workspaceIds: [] });
+
+    expect(body.workspaceIds).toEqual([]);
+  });
+
+  it.each([
+    ['cbc', (workspaceIds: string[]) => importCbcSession('native-cbc', 'C:/project', workspaceIds), 'project_dir'],
+    ['kimi', (workspaceIds: string[]) => importKimiSession('native-kimi', 'C:/project', workspaceIds), 'cwd'],
+    ['opencode', (workspaceIds: string[]) => importOpencodeSession('native-opencode', 'C:/project', workspaceIds), 'cwd'],
+    ['codex', (workspaceIds: string[]) => importCodexSession('native-codex', 'C:/project', workspaceIds), 'cwd'],
+  ])('includes the selected Workspace in %s import payloads', async (_adapter, invoke, pathKey) => {
+    let body: Record<string, unknown> = {};
+    vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(init?.body as string);
+      return { ok: true, status: 200, statusText: 'OK', json: async () => ({ id: 'imported' }) };
+    }));
+
+    await invoke(['ws-active']);
+
+    expect(body.workspaceIds).toEqual(['ws-active']);
+    expect(body[pathKey as string]).toBe('C:/project');
   });
 });

@@ -267,6 +267,7 @@ export interface CreateSessionSettings {
   outputMode?: string;
   modelContextWindow?: number;
   modelAutoCompactTokenLimit?: number;
+  workspaceIds?: string[];
 }
 
 export async function createSession(
@@ -291,6 +292,8 @@ export async function createSession(
     body.modelContextWindow = settings.modelContextWindow;
   if (settings?.modelAutoCompactTokenLimit !== undefined)
     body.modelAutoCompactTokenLimit = settings.modelAutoCompactTokenLimit;
+  if (settings?.workspaceIds !== undefined)
+    body.workspaceIds = settings.workspaceIds;
   const data = await request<ApiSessionResponse>(`${BASE}/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1036,10 +1039,14 @@ export async function fetchCbcSessions(projectDir: string): Promise<CbcSessionIt
   return data.sessions || [];
 }
 
-export async function importCbcSession(sessionId: string, projectDir: string): Promise<Session> {
+export async function importCbcSession(sessionId: string, projectDir: string, workspaceIds?: string[]): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/cbc/sessions/import`, {
     method: 'POST',
-    body: JSON.stringify({ session_id: sessionId, project_dir: projectDir }),
+    body: JSON.stringify({
+      session_id: sessionId,
+      project_dir: projectDir,
+      ...(workspaceIds !== undefined ? { workspaceIds } : {}),
+    }),
   });
   if (data.error) throw new Error(data.error);
   return data;
@@ -1059,10 +1066,14 @@ export async function fetchKimiSessions(cwd: string): Promise<KimiSessionItem[]>
   return data.sessions || [];
 }
 
-export async function importKimiSession(sessionId: string, cwd: string): Promise<Session> {
+export async function importKimiSession(sessionId: string, cwd: string, workspaceIds?: string[]): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/kimi/sessions/import`, {
     method: 'POST',
-    body: JSON.stringify({ session_id: sessionId, cwd }),
+    body: JSON.stringify({
+      session_id: sessionId,
+      cwd,
+      ...(workspaceIds !== undefined ? { workspaceIds } : {}),
+    }),
   });
   if (data.error) throw new Error(data.error);
   return data;
@@ -1077,10 +1088,14 @@ export async function fetchOpencodeSessions(cwd: string): Promise<OpencodeSessio
   return data.sessions || [];
 }
 
-export async function importOpencodeSession(sessionId: string, cwd: string): Promise<Session> {
+export async function importOpencodeSession(sessionId: string, cwd: string, workspaceIds?: string[]): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/opencode/sessions/import`, {
     method: 'POST',
-    body: JSON.stringify({ session_id: sessionId, cwd }),
+    body: JSON.stringify({
+      session_id: sessionId,
+      cwd,
+      ...(workspaceIds !== undefined ? { workspaceIds } : {}),
+    }),
   });
   if (data.error) throw new Error(data.error);
   return data;
@@ -1096,10 +1111,14 @@ export async function fetchCodexSessions(cwd: string): Promise<CodexSessionItem[
   return data.sessions || [];
 }
 
-export async function importCodexSession(sessionId: string, cwd: string): Promise<Session> {
+export async function importCodexSession(sessionId: string, cwd: string, workspaceIds?: string[]): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/adapters/codex/sessions/import`, {
     method: 'POST',
-    body: JSON.stringify({ session_id: sessionId, ...(cwd ? { cwd } : {}) }),
+    body: JSON.stringify({
+      session_id: sessionId,
+      ...(cwd ? { cwd } : {}),
+      ...(workspaceIds !== undefined ? { workspaceIds } : {}),
+    }),
   });
   if (data.error) throw new Error(data.error);
   return data;

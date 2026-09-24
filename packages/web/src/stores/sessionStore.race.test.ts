@@ -27,7 +27,8 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     fetchSessions: vi.fn(async () => serverSessions),
     createSession: vi.fn(
-      (name: string) =>
+      (name: string, _workdir?: string | null, _adapter?: string, _template?: string,
+       settings?: { workspaceIds?: string[] }) =>
         new Promise<Session>((resolve) => {
           resolveCreate = () =>
             resolve({
@@ -38,6 +39,7 @@ vi.mock('@/services/api', async (importOriginal) => {
               permissionMode: null,
               alwaysThinkingEnabled: false,
               effort: '',
+              workspaceIds: settings?.workspaceIds ?? [],
               history: [],
             } as Session);
         }),
@@ -113,5 +115,24 @@ describe('sessionStore createNewSession race', () => {
     const ids = useSessionStore.getState().sessions.map((s) => s.id);
     expect(ids.filter((id) => id === 'real_X').length).toBe(1);
     expect(useSessionStore.getState().currentSessionId).toBe('real_X');
+  });
+
+  it('keeps the requested Workspace on the optimistic placeholder and created Session', async () => {
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().createNewSession(
+        'Scoped', null, 'cbc', undefined, { workspaceIds: ['ws-current'] },
+      );
+    });
+
+    expect(useSessionStore.getState().sessions.find((item) => item.id === '__pending_Scoped')?.workspaceIds)
+      .toEqual(['ws-current']);
+    await act(async () => {
+      resolveCreate?.();
+      await promise!;
+    });
+
+    expect(useSessionStore.getState().sessions.find((item) => item.id === 'real_Scoped')?.workspaceIds)
+      .toEqual(['ws-current']);
   });
 });

@@ -104,6 +104,7 @@ interface SessionStore {
       alwaysThinkingEnabled?: boolean;
       effort?: string;
       outputMode?: string;
+      workspaceIds?: string[];
     },
   ) => Promise<void>;
   removeSession: (id: string) => Promise<void>;
@@ -1732,6 +1733,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       permissionMode: settings?.permissionMode ?? null,
       alwaysThinkingEnabled: settings?.alwaysThinkingEnabled ?? false,
       effort: settings?.effort || '',
+      workspaceIds: settings?.workspaceIds ? [...settings.workspaceIds] : [],
       history: [],
     };
     set((s) => ({

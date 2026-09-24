@@ -3,18 +3,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ImportModal } from './ImportModal';
 import { useAdapterStore } from '@/stores/adapterStore';
-import type { ApiCliStatusResponse } from '@/types';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import type {
+  ApiCliStatusResponse,
+  CbcProject,
+  CbcSessionItem,
+  KimiWorkspace,
+  KimiSessionItem,
+  OpencodeSessionItem,
+  CodexSessionItem,
+} from '@/types';
 
 const apiMock = vi.hoisted(() => ({
-  fetchCbcProjects: vi.fn(async () => []),
-  fetchCbcSessions: vi.fn(async () => []),
+  fetchCbcProjects: vi.fn(async (): Promise<CbcProject[]> => []),
+  fetchCbcSessions: vi.fn(async (): Promise<CbcSessionItem[]> => []),
   importCbcSession: vi.fn(),
-  fetchKimiWorkspaces: vi.fn(async () => []),
-  fetchKimiSessions: vi.fn(async () => []),
+  fetchKimiWorkspaces: vi.fn(async (): Promise<KimiWorkspace[]> => []),
+  fetchKimiSessions: vi.fn(async (): Promise<KimiSessionItem[]> => []),
   importKimiSession: vi.fn(),
-  fetchOpencodeSessions: vi.fn(async () => []),
+  fetchOpencodeSessions: vi.fn(async (): Promise<OpencodeSessionItem[]> => []),
   importOpencodeSession: vi.fn(),
-  fetchCodexSessions: vi.fn(async () => []),
+  fetchCodexSessions: vi.fn(async (): Promise<CodexSessionItem[]> => []),
   importCodexSession: vi.fn(),
 }));
 
@@ -36,6 +47,27 @@ const cliStatus = (...entries: Array<[string, boolean]>): ApiCliStatusResponse =
 describe('ImportModal adapter availability', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMock.fetchCbcProjects.mockResolvedValue([]);
+    apiMock.fetchCbcSessions.mockResolvedValue([]);
+    apiMock.fetchKimiWorkspaces.mockResolvedValue([]);
+    apiMock.fetchKimiSessions.mockResolvedValue([]);
+    apiMock.fetchOpencodeSessions.mockResolvedValue([]);
+    apiMock.fetchCodexSessions.mockResolvedValue([]);
+    apiMock.importCbcSession.mockResolvedValue({ id: 'pan-imported' });
+    apiMock.importKimiSession.mockResolvedValue({ id: 'pan-imported' });
+    apiMock.importOpencodeSession.mockResolvedValue({ id: 'pan-imported' });
+    apiMock.importCodexSession.mockResolvedValue({ id: 'pan-imported' });
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws-active', name: 'Active', order: null }],
+      loaded: true,
+      loading: false,
+      error: null,
+    });
+    useUIStore.setState({ activeWorkspaceId: 'ws-active' });
+    useSessionStore.setState({
+      loadSessions: vi.fn(async () => {}),
+      selectSession: vi.fn(async () => {}),
+    });
     useAdapterStore.setState({
       cliStatus: cliStatus(
         ['cbc', true],
@@ -111,4 +143,72 @@ describe('ImportModal adapter availability', () => {
     expect(screen.getByText(/请求的 adapter/).parentElement?.textContent)
       .toContain('kimi');
   });
+
+  it.each(['cbc', 'kimi', 'opencode', 'codex'] as const)(
+    'passes the active Workspace to the %s import adapter', async (adapter) => {
+      useAdapterStore.setState({
+        cliStatus: cliStatus(['cbc', true], ['kimi', true], ['opencode', true], ['codex', true]),
+      });
+      if (adapter === 'cbc') {
+        apiMock.fetchCbcProjects.mockResolvedValue([{
+          project_dir: 'C:\\project', session_count: 1, path_hint: '', drive: 'C:', short_label: 'project',
+        }]);
+        apiMock.fetchCbcSessions.mockResolvedValue([{
+          session_id: 'cbc-native', project_dir: 'C:\\project', title: 'CBC import target',
+          message_count: 1, first_timestamp: '', last_timestamp: '', model: '', forked_from: null,
+        }]);
+      } else if (adapter === 'kimi') {
+        apiMock.fetchKimiWorkspaces.mockResolvedValue([{
+          workspace_id: 'kimi-ws', name: 'Kimi workspace', root: 'C:\\project', session_count: 1,
+        }]);
+        apiMock.fetchKimiSessions.mockResolvedValue([{
+          session_id: 'kimi-native', workspace_id: 'kimi-ws', title: 'Kimi import target',
+          workDir: 'C:\\project', message_count: 1, model: '', updatedAt: '',
+        }]);
+      } else if (adapter === 'opencode') {
+        apiMock.fetchOpencodeSessions.mockResolvedValue([{
+          session_id: 'opencode-native', title: 'OpenCode import target', workDir: 'C:\\project',
+          createdAt: '', updatedAt: '', message_count: 1, model: '',
+        }]);
+      } else {
+        apiMock.fetchCodexSessions.mockResolvedValue([{
+          session_id: 'codex-native', title: 'Codex import target', workDir: 'C:\\project',
+          createdAt: '', updatedAt: '', message_count: 1, model: '',
+        }]);
+      }
+
+      render(<ImportModal open initialAdapter={adapter} onClose={() => {}} />);
+      if (adapter === 'cbc') {
+        await waitFor(() => expect(screen.getByLabelText('Project')).toBeTruthy());
+        fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'C:\\project' } });
+      } else if (adapter === 'kimi') {
+        await waitFor(() => expect(screen.getByLabelText('Workspace')).toBeTruthy());
+        fireEvent.change(screen.getByLabelText('Workspace'), { target: { value: 'C:\\project' } });
+      }
+
+      const title = {
+        cbc: 'CBC import target',
+        kimi: 'Kimi import target',
+        opencode: 'OpenCode import target',
+        codex: 'Codex import target',
+      }[adapter];
+      await waitFor(() => expect(screen.getByText(title)).toBeTruthy());
+      fireEvent.click(screen.getByText(title));
+
+      const importedId = `${adapter}-native`;
+      await waitFor(() => {
+        const importMock = {
+          cbc: apiMock.importCbcSession,
+          kimi: apiMock.importKimiSession,
+          opencode: apiMock.importOpencodeSession,
+          codex: apiMock.importCodexSession,
+        }[adapter];
+        expect(importMock).toHaveBeenCalledWith(
+          importedId,
+          'C:\\project',
+          ['ws-active'],
+        );
+      });
+    },
+  );
 });

@@ -7529,6 +7529,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
                 "adapter": adapter,
                 "name": name,
                 "sessionTemplate": data.get("sessionTemplate"),
+                **({"workspaceIds": data["workspaceIds"]} if "workspaceIds" in data else {}),
                 **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
                 **({key: data[key] for key in (
                     "modelContextWindow", "modelAutoCompactTokenLimit",
@@ -7564,6 +7565,7 @@ async def _import_session(provider, adapter: str, data: dict) -> dict:
         handoff_prompt=params.get("handoff_prompt"),
         pan_access=params.get("pan_access"),
         adapter_config=params.get("adapter_config"),
+        workspace_ids=params.get("workspace_ids", []),
     )
 
     await broadcast({

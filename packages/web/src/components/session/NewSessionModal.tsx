@@ -8,6 +8,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
+import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
 import { createDirectory, fetchDirectories, fetchSessionTemplates } from '@/services/api';
 import { isMissingDirectoryError, parseDirectoryInput } from '@/utils/directoryInput';
 import type { SessionTemplate } from '@/types';
@@ -175,12 +176,13 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const createSession = async (requestedWorkdir: string | null) => {
     const finalName = name.trim() || nextSessionDefaultName(sessions);
+    const workspaceIds = getCreationWorkspaceIds();
     await createNewSession(
       finalName,
       requestedWorkdir,
       adapter,
       sessionTemplate || undefined,
-      { outputMode: outputMode || undefined },
+      { outputMode: outputMode || undefined, workspaceIds },
     );
     onClose();
   };
