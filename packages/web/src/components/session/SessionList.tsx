@@ -5,7 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
 import { getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
 import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
 import type { DropZone } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
@@ -417,6 +417,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const railTargetRef = useRef<string | null>(null);
   const [railZone, setRailZone] = useState(false);
   const [railTarget, setRailTarget] = useState<string | null>(null);
+  const railZoneRef = useRef(false);
   const railTargetName = railTarget && railTarget !== 'all'
     ? workspaces.find((w) => w.id === railTarget)?.name ?? '工作区'
     : null;
@@ -430,6 +431,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   };
   const railExpandTimerRef = useRef<number | null>(null);
   const railAutoExpandedRef = useRef(false);
+  const mobileRailAutoExpandedRef = useRef(false);
 
   /**
    * Workspace drop zone = anything right of the session list (the rail's
@@ -439,19 +441,43 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
    */
   const updateRailHover = useCallback((clientX: number, clientY: number): boolean => {
     const listRight = listRef.current?.getBoundingClientRect().right ?? 0;
-    const inZone = listRight > 0 && clientX >= listRight - 4;
+    const mobileCollapsedHandle = document.querySelector<HTMLElement>(
+      '[data-testid="mobile-workspace-rail-collapsed"]',
+    );
+    const mobileExpandedRail = document.querySelector<HTMLElement>(
+      '[data-testid="mobile-workspace-rail-overlay"]',
+    );
+    const mobileHandleRect = mobileCollapsedHandle?.getBoundingClientRect();
+    const enteringMobileRail = !!mobileHandleRect
+      && clientX >= mobileHandleRect.left - 4
+      && clientX <= mobileHandleRect.right + 4
+      && clientY >= mobileHandleRect.top - 4
+      && clientY <= mobileHandleRect.bottom + 4;
+    const inZone = mobileExpandedRail !== null
+      || enteringMobileRail
+      || (listRight > 0 && clientX >= listRight - 4);
     if (!inZone) {
       if (railExpandTimerRef.current !== null) {
         window.clearTimeout(railExpandTimerRef.current);
         railExpandTimerRef.current = null;
       }
       if (railTargetRef.current !== null) { railTargetRef.current = null; setRailTarget(null); }
+      railZoneRef.current = false;
       setRailZone(false);
       return false;
     }
+    railZoneRef.current = true;
     setRailZone(true);
+    if (enteringMobileRail && !mobileExpandedRail) {
+      mobileRailAutoExpandedRef.current = true;
+      window.dispatchEvent(new Event('pan:workspace-rail-open-for-session-drop'));
+      return true;
+    }
+    if (mobileExpandedRail) {
+      railAutoExpandedRef.current = false;
+    }
     const ui = useUIStore.getState();
-    if (!ui.railExpanded) {
+    if (!mobileExpandedRail && !mobileCollapsedHandle && !ui.railExpanded) {
       if (railExpandTimerRef.current === null) {
         railExpandTimerRef.current = window.setTimeout(() => {
           railExpandTimerRef.current = null;
@@ -508,6 +534,16 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     setInsertTarget(null);
     dropTargetRef.current = null;
   }, []);
+
+  // Keep the event listeners registered on window stable while dispatching to
+  // the latest render's handlers. Directly registering ref.current captures an
+  // obsolete pointerup closure for the entire drag.
+  const onPointerMoveRef = useRef<(e: PointerEvent) => void>(() => {});
+  const onPointerUpRef = useRef<(e: PointerEvent) => void>(() => {});
+  const onPointerCancelRef = useRef<(e: PointerEvent) => void>(() => {});
+  const windowPointerMove = useCallback((e: PointerEvent) => onPointerMoveRef.current(e), []);
+  const windowPointerUp = useCallback((e: PointerEvent) => onPointerUpRef.current(e), []);
+  const windowPointerCancel = useCallback((e: PointerEvent) => onPointerCancelRef.current(e), []);
 
   const positionGhost = useCallback((x: number, y: number) => {
     ghostPosRef.current = { x, y };
@@ -592,9 +628,9 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   }, []);
 
   const finishDrag = useCallback(() => {
-    window.removeEventListener('pointermove', onPointerMoveRef.current);
-    window.removeEventListener('pointerup', onPointerUpRef.current);
-    window.removeEventListener('pointercancel', onPointerCancelRef.current);
+    window.removeEventListener('pointermove', windowPointerMove);
+    window.removeEventListener('pointerup', windowPointerUp);
+    window.removeEventListener('pointercancel', windowPointerCancel);
     stopAutoScroll();
     setDragId(null);
     dragIdRef.current = null;
@@ -608,20 +644,22 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     highlightRailTab(null);
     railTargetRef.current = null;
     setRailTarget(null);
+    railZoneRef.current = false;
     setRailZone(false);
+    if (mobileRailAutoExpandedRef.current) {
+      mobileRailAutoExpandedRef.current = false;
+      window.dispatchEvent(new Event('pan:workspace-rail-close-after-session-drop'));
+    }
     // Keep didDrag set briefly so the click fired right after a drag release
     // is still suppressed, but never swallow a later genuine click.
     if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
     didDragClearTimerRef.current = setTimeout(() => {
       didDragRef.current = false;
     }, 600);
-  }, [clearDragFeedback, stopAutoScroll]);
+  }, [clearDragFeedback, stopAutoScroll, windowPointerMove, windowPointerUp, windowPointerCancel]);
 
   // Listener wrappers live in refs so add/remove always target the same
   // function instances across mounts.
-  const onPointerMoveRef = useRef<(e: PointerEvent) => void>(() => {});
-  const onPointerUpRef = useRef<(e: PointerEvent) => void>(() => {});
-  const onPointerCancelRef = useRef<(e: PointerEvent) => void>(() => {});
   onPointerMoveRef.current = (e) => {
     const press = pressRef.current;
     if (!press) return;
@@ -662,8 +700,8 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     // Workspace drop: over a rail tab → move (single membership + cascade).
     // Over the rail but not on a tab → cancel, and re-collapse the rail when
     // this drag was the thing that auto-expanded it.
-    if (railZone) {
-      const railTargetId = railTarget;
+    if (railZoneRef.current) {
+      const railTargetId = railTargetRef.current;
       const sessionState = useSessionStore.getState();
       const dragged = sessionState.sessions.find((s) => s.id === dragCurrent);
       finishDrag();
@@ -675,6 +713,17 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         return;
       }
       railAutoExpandedRef.current = false;
+      if (railTargetId === CREATE_WORKSPACE_DROP_TARGET_ID) {
+        void useWorkspaceStore.getState()
+          .createWorkspaceForSession(dragged.id)
+          .then((workspace) => {
+            showToast(`已创建「${workspace.name}」并移入「${dragged.name}」`);
+          })
+          .catch((err) => {
+            showToast(err instanceof Error ? err.message : '创建工作区失败', 'error');
+          });
+        return;
+      }
       void useWorkspaceStore.getState()
         .moveSessions([dragged.id], railTargetId === 'all' ? null : railTargetId)
         .then((changed) => {
@@ -839,23 +888,23 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
       didDragRef.current = false;
       pressRef.current = { id, x: e.clientX, y: e.clientY, dragging: false };
-      window.addEventListener('pointermove', onPointerMoveRef.current);
-      window.addEventListener('pointerup', onPointerUpRef.current);
-      window.addEventListener('pointercancel', onPointerCancelRef.current);
+      window.addEventListener('pointermove', windowPointerMove);
+      window.addEventListener('pointerup', windowPointerUp);
+      window.addEventListener('pointercancel', windowPointerCancel);
     },
-    [],
+    [windowPointerMove, windowPointerUp, windowPointerCancel],
   );
 
   // Safety net: unmount mid-drag removes the window listeners.
   useEffect(() => {
     return () => {
-      window.removeEventListener('pointermove', onPointerMoveRef.current);
-      window.removeEventListener('pointerup', onPointerUpRef.current);
-      window.removeEventListener('pointercancel', onPointerCancelRef.current);
+      window.removeEventListener('pointermove', windowPointerMove);
+      window.removeEventListener('pointerup', windowPointerUp);
+      window.removeEventListener('pointercancel', windowPointerCancel);
       if (didDragClearTimerRef.current) clearTimeout(didDragClearTimerRef.current);
       stopAutoScroll();
     };
-  }, [stopAutoScroll]);
+  }, [stopAutoScroll, windowPointerMove, windowPointerUp, windowPointerCancel]);
 
   const dragSession = dragId ? sessions.find((s) => s.id === dragId) : null;
   // Drag works in the flat list AND the manager tree (same semantics:
@@ -962,7 +1011,9 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       </div>
       <div className="mt-1 text-[10px] text-text-tertiary">
         {railZone
-          ? (railTarget === 'all'
+          ? (railTarget === CREATE_WORKSPACE_DROP_TARGET_ID
+            ? `新建「${dragSession?.name || 'Untitled'}」工作区（重名自动编号）`
+            : railTarget === 'all'
             ? '放到「全部」= 移出工作区（未分组）'
             : railTarget
               ? `移入「${railTargetName}」（管理者会话的子孙会跟随）`

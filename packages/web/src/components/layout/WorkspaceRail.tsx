@@ -12,7 +12,7 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
 import { ALL_WORKSPACES } from '@/utils/sessionFilters';
 import type { Workspace } from '@/types';
 
@@ -71,6 +71,18 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
   useEffect(() => {
     if (!loaded) void loadWorkspaces();
   }, [loaded, loadWorkspaces]);
+
+  useEffect(() => {
+    if (!mobileOverlay) return;
+    const openForDrop = () => setMobileExpanded(true);
+    const closeAfterDrop = () => setMobileExpanded(false);
+    window.addEventListener('pan:workspace-rail-open-for-session-drop', openForDrop);
+    window.addEventListener('pan:workspace-rail-close-after-session-drop', closeAfterDrop);
+    return () => {
+      window.removeEventListener('pan:workspace-rail-open-for-session-drop', openForDrop);
+      window.removeEventListener('pan:workspace-rail-close-after-session-drop', closeAfterDrop);
+    };
+  }, [mobileOverlay]);
 
   // The remembered workspace may have been deleted elsewhere → fall back.
   useEffect(() => {
@@ -169,7 +181,7 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
     if (!drag?.active) return;
     for (const el of document.querySelectorAll<HTMLElement>('[data-workspace-tab-id]')) {
       const id = el.dataset.workspaceTabId!;
-      if (id === drag.id || id === ALL_WORKSPACES) continue;
+      if (id === drag.id || id === ALL_WORKSPACES || id === CREATE_WORKSPACE_DROP_TARGET_ID) continue;
       const rect = el.getBoundingClientRect();
       if (lastYRef.current >= rect.top && lastYRef.current < rect.bottom) {
         setDropHint({ id, place: lastYRef.current < rect.top + rect.height / 2 ? 'before' : 'after' });
@@ -379,6 +391,7 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
           ) : (
             <button
               type="button"
+              data-workspace-tab-id={CREATE_WORKSPACE_DROP_TARGET_ID}
               className={`mt-1 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-default px-2 py-1.5 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary ${mobileOverlay ? 'min-h-11 text-sm' : ''}`}
               onClick={() => {
                 nameErrorShown.current = false;

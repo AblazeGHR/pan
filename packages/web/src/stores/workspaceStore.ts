@@ -4,13 +4,14 @@ import * as api from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { buildManagerEdges, collectDescendants } from '@/components/session/sessionDrag';
 
+export const CREATE_WORKSPACE_DROP_TARGET_ID = '__create_workspace__';
+
 /**
  * Durable Workspace (session group) metadata + membership mutations.
  *
  * Product rules implemented here:
- *  - A Session may belong to multiple workspaces. Moving it to a different
- *    workspace replaces its memberships (`[]` = ungrouped); deleting one
- *    workspace removes only that membership.
+ *  - A Session belongs to at most one workspace. Moving it replaces its
+ *    membership (`[]` = ungrouped); deleting a workspace clears that membership.
  *  - MANAGER CASCADE: moving a session that manages others moves every
  *    descendant with it (recursively, cycle-safe).
  *
@@ -26,6 +27,8 @@ interface WorkspaceStoreState {
 
   loadWorkspaces: () => Promise<void>;
   createWorkspace: (name: string) => Promise<Workspace>;
+  /** Create a uniquely named Workspace and move this Session subtree into it. */
+  createWorkspaceForSession: (sessionId: string) => Promise<Workspace>;
   renameWorkspace: (id: string, name: string) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
   /** Persist a full display order (drag-reorder of the rail tabs). */
@@ -65,7 +68,7 @@ function withManagedDescendants(sessionIds: string[]): string[] {
   return [...out];
 }
 
-export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
+export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
   workspaces: [],
   loaded: false,
   loading: false,
@@ -90,6 +93,52 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
       workspaces: [...s.workspaces.filter((w) => w.id !== workspace.id), workspace].sort(sortWorkspaces),
     }));
     return workspace;
+  },
+
+  createWorkspaceForSession: async (sessionId) => {
+    const session = useSessionStore.getState().sessions.find((item) => item.id === sessionId);
+    if (!session) throw new Error('找不到要移动的会话');
+    const base = (String(session.name ?? '').trim() || 'Untitled').slice(0, 128);
+    const usedNames = new Set(get().workspaces.map((workspace) => workspace.name));
+
+    // Retry name_taken once per candidate in case another client creates the
+    // same name between our local check and the server request.
+    for (let suffix = 0; suffix < 10_000; suffix += 1) {
+      const tail = suffix === 0 ? '' : `-${suffix}`;
+      const candidate = `${base.slice(0, 128 - tail.length)}${tail}`;
+      if (usedNames.has(candidate)) continue;
+
+      let workspace: Workspace;
+      try {
+        workspace = await api.createWorkspace(candidate);
+      } catch (error) {
+        if ((error as { code?: string } | null)?.code === 'name_taken') {
+          usedNames.add(candidate);
+          continue;
+        }
+        throw error;
+      }
+
+      set((state) => ({
+        workspaces: [...state.workspaces.filter((item) => item.id !== workspace.id), workspace].sort(sortWorkspaces),
+      }));
+      try {
+        await get().moveSessions([sessionId], workspace.id);
+      } catch (moveError) {
+        try {
+          await get().deleteWorkspace(workspace.id);
+        } catch (cleanupError) {
+          // Keep the original membership failure visible; the workspace
+          // may remain only if server-side cleanup also failed.
+          const moveMessage = moveError instanceof Error ? moveError.message : String(moveError);
+          const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+          throw new Error(`${moveMessage}；清理新工作区也失败：${cleanupMessage}`);
+        }
+        throw moveError;
+      }
+      return workspace;
+    }
+    throw new Error('无法为该会话生成唯一工作区名称');
   },
 
   renameWorkspace: async (id, name) => {
