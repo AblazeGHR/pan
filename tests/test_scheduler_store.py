@@ -119,7 +119,9 @@ def test_create_once_and_cron():
             "schedule": {"kind": "once", "at": _dt(3600).isoformat()},
         }
     )
-    assert cron.parse_datetime(once["next_fire_at"]) == _dt(3600)
+    # The store stamps its own ``now()``: a second boundary crossed between the
+    # two calls is not a scheduling error, so allow a one-second drift.
+    assert abs((cron.parse_datetime(once["next_fire_at"]) - _dt(3600)).total_seconds()) <= 1
 
     cron_task = store.create_task(
         {

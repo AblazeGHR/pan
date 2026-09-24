@@ -572,7 +572,10 @@ def codex_quota(window: str = "all", session_id: str | None = None) -> dict:
     isolation boundary.
 
     The result may be a live app-server push, a persisted last-good snapshot,
-    or an optional read-only WHAM refresh. It does not execute a provider
+    or an optional read-only WHAM refresh. Pan never issues an
+    ``account/rateLimits/read`` initialisation call of its own: the first
+    snapshot has to arrive through the ``account/rateLimits/updated`` push.
+    It does not execute a provider
     OAuth/refresh flow. The
     compatibility ``updatedAt`` and explicit ``receivedAt`` are local Pan
     Worker receive times for ``account/rateLimits/updated``; the provider's
@@ -1888,6 +1891,7 @@ def scheduler_create(
         misfire_policy: 错过触发点的处理，"fire_now"（补派一次）| "skip"（跳过）
 
     调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks。
+    完整编排流程见 /pan skill。
     """
     denied = _scheduler_auth(target_session_id, claim=True)
     if denied:
@@ -1928,6 +1932,7 @@ def scheduler_list(target_session_id: str | None = None) -> dict:
             在 MCP 层按 targetSessionId 过滤）；省略 = 全部任务（只读）
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks。
+    完整编排流程见 /pan skill。
     """
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
@@ -1953,6 +1958,7 @@ def scheduler_get(task_id: str, target_session_id: str | None = None) -> dict:
         target_session_id: 该任务派发的目标 session（省略时按返回体补一次只读鉴权）
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}。
+    完整编排流程见 /pan skill。
     """
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
@@ -1994,6 +2000,7 @@ def scheduler_update(
         misfire_policy: "fire_now" | "skip"
 
     调用链：身份校验 → _check_access(claim=True) → PATCH /api/scheduler/tasks/{task_id}。
+    完整编排流程见 /pan skill。
     """
     body: dict = {}
     if name is not None:
@@ -2020,6 +2027,7 @@ def scheduler_delete(task_id: str, target_session_id: str | None = None) -> dict
         target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
 
     调用链：身份校验 → _check_access(claim=True) → DELETE /api/scheduler/tasks/{task_id}。
+    完整编排流程见 /pan skill。
     """
     return _scheduler_task_call("DELETE", task_id, target_session_id)
 
@@ -2036,6 +2044,7 @@ def scheduler_pause(task_id: str, target_session_id: str | None = None) -> dict:
         target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
 
     调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/pause。
+    完整编排流程见 /pan skill。
     """
     return _scheduler_task_call("POST", task_id, target_session_id, suffix="/pause")
 
@@ -2049,6 +2058,7 @@ def scheduler_resume(task_id: str, target_session_id: str | None = None) -> dict
         target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
 
     调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/resume。
+    完整编排流程见 /pan skill。
     """
     return _scheduler_task_call("POST", task_id, target_session_id, suffix="/resume")
 
@@ -2065,6 +2075,7 @@ def scheduler_run_now(task_id: str, target_session_id: str | None = None) -> dic
         target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
 
     调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/run-now。
+    完整编排流程见 /pan skill。
     """
     return _scheduler_task_call("POST", task_id, target_session_id, suffix="/run-now")
 
@@ -2083,6 +2094,7 @@ def scheduler_runs(task_id: str, target_session_id: str | None = None,
         limit: 返回条数上限
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}/runs。
+    完整编排流程见 /pan skill。
     """
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
