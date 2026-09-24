@@ -10,6 +10,7 @@ import type { Session, Workspace } from '@/types';
 
 const apiMocks = vi.hoisted(() => ({
   createWorkspace: vi.fn(),
+  saveWorkspaceOrder: vi.fn(),
   setSessionWorkspaces: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ vi.mock('@/services/api', async (importOriginal) => {
   return {
     ...actual,
     createWorkspace: apiMocks.createWorkspace,
+    saveWorkspaceOrder: apiMocks.saveWorkspaceOrder,
     setSessionWorkspaces: apiMocks.setSessionWorkspaces,
   };
 });
@@ -25,6 +27,11 @@ vi.mock('@/services/api', async (importOriginal) => {
 const BASE_WORKSPACE: Workspace = {
   id: 'ws-existing',
   name: 'Existing',
+  order: null,
+};
+const SECOND_WORKSPACE: Workspace = {
+  id: 'ws-second',
+  name: 'Second',
   order: null,
 };
 
@@ -44,7 +51,8 @@ function setupRects() {
     if (this.dataset.sessionCardId) return rect(0, 0, 280, 64);
     if (this.dataset.workspaceTabId === 'all') return rect(300, 0, 180, 32);
     if (this.dataset.workspaceTabId === BASE_WORKSPACE.id) return rect(300, 40, 180, 40);
-    if (this.dataset.workspaceTabId === '__create_workspace__') return rect(300, 90, 180, 40);
+    if (this.dataset.workspaceTabId === SECOND_WORKSPACE.id) return rect(300, 80, 180, 40);
+    if (this.dataset.workspaceTabId === '__create_workspace__') return rect(300, 130, 180, 40);
     if (this.dataset.testid === 'mobile-workspace-rail-collapsed') return rect(760, 450, 44, 44);
     if (this.querySelector('[data-session-card-id]')) return rect(0, 0, 300, 600);
     return { ...NULL_RECT };
@@ -65,13 +73,14 @@ function releasePointer() {
   act(() => window.dispatchEvent(new Event('pointerup', { bubbles: true })));
 }
 
-describe('Session drag into Workspace rail', () => {
+describe('Workspace rail drag interactions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.setSessionWorkspaces.mockResolvedValue(undefined);
     apiMocks.createWorkspace.mockImplementation(async (name: string) => ({
       id: 'ws-created', name, order: null,
     }));
+    apiMocks.saveWorkspaceOrder.mockResolvedValue(undefined);
     useSessionStore.setState({
       sessions: [{
         id: 'session-alpha', name: 'Alpha', workspaceIds: [], managed: [],
@@ -108,6 +117,24 @@ describe('Session drag into Workspace rail', () => {
 
     await waitFor(() => expect(apiMocks.setSessionWorkspaces).toHaveBeenCalledWith('session-alpha', ['ws-existing']));
     expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['ws-existing']);
+    expect(apiMocks.saveWorkspaceOrder).not.toHaveBeenCalled();
+  });
+
+  it('reorders Workspace tabs and persists order without changing Session membership', async () => {
+    useWorkspaceStore.setState({ workspaces: [BASE_WORKSPACE, SECOND_WORKSPACE] });
+    const { container } = render(<><SessionList /><WorkspaceRail /></>);
+    const source = container.querySelector('[data-workspace-tab-id="ws-existing"]');
+    expect(source).not.toBeNull();
+
+    act(() => fireEvent.pointerDown(source!, { button: 0, pointerType: 'mouse', clientY: 55 }));
+    movePointer(350, 112);
+    expect(document.body.classList.contains('select-none')).toBe(true);
+    releasePointer();
+
+    await waitFor(() => expect(apiMocks.saveWorkspaceOrder).toHaveBeenCalledWith(['ws-second', 'ws-existing']));
+    expect(useWorkspaceStore.getState().workspaces.map((workspace) => workspace.id)).toEqual(['ws-second', 'ws-existing']);
+    expect(apiMocks.setSessionWorkspaces).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual([]);
   });
 
   it('creates a uniquely named Workspace when the Session is dropped on New Workspace', async () => {
@@ -117,7 +144,7 @@ describe('Session drag into Workspace rail', () => {
     expect(container.querySelector('button[data-workspace-tab-id="__create_workspace__"]')).not.toBeNull();
 
     startSessionDrag(container);
-    movePointer(350, 105);
+    movePointer(350, 145);
     releasePointer();
 
     await waitFor(() => expect(apiMocks.createWorkspace).toHaveBeenCalledWith('Alpha-1'));

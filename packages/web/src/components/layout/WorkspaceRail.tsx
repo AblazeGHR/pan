@@ -51,7 +51,6 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
   const createWorkspace = useWorkspaceStore((s) => s.createWorkspace);
   const renameWorkspace = useWorkspaceStore((s) => s.renameWorkspace);
   const deleteWorkspace = useWorkspaceStore((s) => s.deleteWorkspace);
-  const reorderWorkspaces = useWorkspaceStore((s) => s.reorderWorkspaces);
   const sessions = useSessionStore((s) => s.sessions);
   const expanded = useUIStore((s) => s.railExpanded);
   const setRailExpanded = useUIStore((s) => s.setRailExpanded);
@@ -174,7 +173,15 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
 
   /* ── tab drag-reorder (pointer based; mirrors SessionList's drag rules) ── */
   const dragRef = useRef<{ id: string; startY: number; active: boolean } | null>(null);
+  const dropHintRef = useRef<typeof dropHint>(null);
   const lastYRef = useRef(0);
+  const pointerUpHandlerRef = useRef<() => void>(() => {});
+  const pointerCancelHandlerRef = useRef<() => void>(() => {});
+
+  const setCurrentDropHint = useCallback((hint: typeof dropHint) => {
+    dropHintRef.current = hint;
+    setDropHint(hint);
+  }, []);
 
   const updateDropHint = useCallback(() => {
     const drag = dragRef.current;
@@ -184,12 +191,12 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
       if (id === drag.id || id === ALL_WORKSPACES || id === CREATE_WORKSPACE_DROP_TARGET_ID) continue;
       const rect = el.getBoundingClientRect();
       if (lastYRef.current >= rect.top && lastYRef.current < rect.bottom) {
-        setDropHint({ id, place: lastYRef.current < rect.top + rect.height / 2 ? 'before' : 'after' });
+        setCurrentDropHint({ id, place: lastYRef.current < rect.top + rect.height / 2 ? 'before' : 'after' });
         return;
       }
     }
-    setDropHint(null);
-  }, []);
+    setCurrentDropHint(null);
+  }, [setCurrentDropHint]);
 
   const onDragMove = useCallback((e: PointerEvent) => {
     const drag = dragRef.current;
@@ -204,39 +211,55 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
     updateDropHint();
   }, [updateDropHint]);
 
-  const onDragUp = useCallback(() => {
+  const finishTabDrag = useCallback((shouldReorder: boolean) => {
     window.removeEventListener('pointermove', onDragMove);
-    window.removeEventListener('pointerup', onDragUp);
+    window.removeEventListener('pointerup', pointerUpHandlerRef.current);
+    window.removeEventListener('pointercancel', pointerCancelHandlerRef.current);
     const drag = dragRef.current;
     dragRef.current = null;
     document.body.classList.remove('select-none');
     setDraggingId(null);
-    const hint = dropHint;
-    setDropHint(null);
-    if (!drag?.active || !hint) return;
-    const ids = workspaces.map((w) => w.id).filter((id) => id !== drag.id);
+    const hint = dropHintRef.current;
+    setCurrentDropHint(null);
+    if (!shouldReorder || !drag?.active || !hint) return;
+    // Read the store at pointerup time. The pointer listener can outlive the
+    // render that installed it, so component state captured by that listener
+    // may no longer represent either the current hint or workspace order.
+    const current = useWorkspaceStore.getState();
+    const ids = current.workspaces.map((w) => w.id).filter((id) => id !== drag.id);
     const index = ids.indexOf(hint.id);
     if (index === -1) return;
     ids.splice(hint.place === 'before' ? index : index + 1, 0, drag.id);
-    void reorderWorkspaces(ids).catch((e) => {
-      showToast(e instanceof Error ? e.message : '排序失败', 'error');
+    const currentIds = current.workspaces.map((workspace) => workspace.id);
+    if (ids.every((id, i) => id === currentIds[i])) return;
+    void current.reorderWorkspaces(ids).catch((e) => {
+      useUIStore.getState().showToast(e instanceof Error ? e.message : '排序失败', 'error');
     });
-  }, [dropHint, workspaces, reorderWorkspaces, showToast, onDragMove]);
+  }, [onDragMove, setCurrentDropHint]);
+
+  const onDragUp = useCallback(() => finishTabDrag(true), [finishTabDrag]);
+  const onDragCancel = useCallback(() => finishTabDrag(false), [finishTabDrag]);
+  pointerUpHandlerRef.current = onDragUp;
+  pointerCancelHandlerRef.current = onDragCancel;
 
   const startTabDrag = (e: React.PointerEvent, workspaceId: string) => {
-    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     dragRef.current = { id: workspaceId, startY: e.clientY, active: false };
     lastYRef.current = e.clientY;
+    setCurrentDropHint(null);
     window.addEventListener('pointermove', onDragMove);
     window.addEventListener('pointerup', onDragUp);
+    window.addEventListener('pointercancel', onDragCancel);
   };
 
   useEffect(() => {
     return () => {
       window.removeEventListener('pointermove', onDragMove);
       window.removeEventListener('pointerup', onDragUp);
+      window.removeEventListener('pointercancel', onDragCancel);
+      document.body.classList.remove('select-none');
     };
-  }, [onDragMove, onDragUp]);
+  }, [onDragMove, onDragUp, onDragCancel]);
 
   const tabClass = (active: boolean, isDragging: boolean, hint: 'before' | 'after' | null) => [
     'group relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs transition-colors',
