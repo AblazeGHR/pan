@@ -44,7 +44,7 @@ import {
   Moon,
 } from 'lucide-react';
 
-export function Sidebar() {
+export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceExpanded?: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
   const isEditorRoute = location.pathname === '/editor';
@@ -71,6 +71,7 @@ export function Sidebar() {
     sidebarWidth,
     sidebarCollapsed,
     toggleSidebar,
+    setMobileSidebarOpen,
     showToast,
     groupBy,
     cycleGroupBy,
@@ -96,6 +97,7 @@ export function Sidebar() {
     sidebarWidth: s.sidebarWidth,
     sidebarCollapsed: s.sidebarCollapsed,
     toggleSidebar: s.toggleSidebar,
+    setMobileSidebarOpen: s.setMobileSidebarOpen,
     showToast: s.showToast,
     groupBy: s.groupBy,
     cycleGroupBy: s.cycleGroupBy,
@@ -431,8 +433,8 @@ export function Sidebar() {
 
   return (
     <aside
-      className="relative flex flex-col h-full border-r border-border-default bg-bg-secondary"
-      style={{ width: sidebarWidth }}
+      className="relative flex min-w-0 flex-col h-full border-r border-border-default bg-bg-secondary"
+      style={{ width: isMobile && mobileWorkspaceExpanded ? '65vw' : sidebarWidth }}
     >
       {/* ── Chat route content ── */}
       {!isEditorRoute && (
@@ -457,9 +459,14 @@ export function Sidebar() {
                   {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                 </button>
                 <button
-                  onClick={toggleSidebar}
+                  onClick={() => {
+                    if (isMobile) setMobileSidebarOpen(false);
+                    else toggleSidebar();
+                  }}
                   className="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
-                  title="Collapse sidebar"
+                  title={isMobile ? 'Close sidebar' : 'Collapse sidebar'}
+                  aria-label={isMobile ? '收起侧边栏' : 'Collapse sidebar'}
+                  data-testid={isMobile ? 'mobile-sidebar-close' : undefined}
                 >
                   <PanelLeftClose size={16} />
                 </button>

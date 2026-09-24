@@ -3,6 +3,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Folder,
+  GripVertical,
   Layers,
   MoreHorizontal,
   Pencil,
@@ -46,11 +47,17 @@ const HANDLE_WIDTH = 20;
  * list, the search box and Select-all all narrow to the same workspace.
  */
 interface WorkspaceRailProps {
-  /** Render as a full-screen mobile overlay with a persistent collapsed handle. */
-  mobileOverlay?: boolean;
+  /** Render as a handle attached to the mobile Sidebar, expanding beside it. */
+  mobileDrawer?: boolean;
+  mobileExpanded?: boolean;
+  onMobileExpandedChange?: (expanded: boolean) => void;
 }
 
-export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
+export function WorkspaceRail({
+  mobileDrawer = false,
+  mobileExpanded = false,
+  onMobileExpandedChange,
+}: WorkspaceRailProps) {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const loaded = useWorkspaceStore((s) => s.loaded);
   const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspaces);
@@ -60,8 +67,7 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
   const sessions = useSessionStore((s) => s.sessions);
   const expanded = useUIStore((s) => s.railExpanded);
   const setRailExpanded = useUIStore((s) => s.setRailExpanded);
-  const [mobileExpanded, setMobileExpanded] = useState(false);
-  const isExpanded = mobileOverlay ? mobileExpanded : expanded;
+  const isExpanded = mobileDrawer ? mobileExpanded : expanded;
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
   const showToast = useUIStore((s) => s.showToast);
@@ -76,18 +82,6 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
   useEffect(() => {
     if (!loaded) void loadWorkspaces();
   }, [loaded, loadWorkspaces]);
-
-  useEffect(() => {
-    if (!mobileOverlay) return;
-    const openForDrop = () => setMobileExpanded(true);
-    const closeAfterDrop = () => setMobileExpanded(false);
-    window.addEventListener('pan:workspace-rail-open-for-session-drop', openForDrop);
-    window.addEventListener('pan:workspace-rail-close-after-session-drop', closeAfterDrop);
-    return () => {
-      window.removeEventListener('pan:workspace-rail-open-for-session-drop', openForDrop);
-      window.removeEventListener('pan:workspace-rail-close-after-session-drop', closeAfterDrop);
-    };
-  }, [mobileOverlay]);
 
   // The remembered workspace may have been deleted elsewhere → fall back.
   useEffect(() => {
@@ -277,7 +271,7 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
 
   const tabClass = (active: boolean, isDragging: boolean, hint: 'before' | 'after' | null) => [
     'group relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs transition-colors',
-    mobileOverlay ? 'min-h-11 text-sm' : '',
+    mobileDrawer ? 'min-h-11 text-sm px-1.5' : '',
     active
       ? 'border-accent/30 bg-accent/10 text-accent'
       : 'border-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary',
@@ -288,34 +282,33 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
 
   return (
     <div
-      data-testid={mobileOverlay ? (isExpanded ? 'mobile-workspace-rail-overlay' : 'mobile-workspace-rail-collapsed') : undefined}
-      className={mobileOverlay
+      data-testid={mobileDrawer ? (isExpanded ? 'mobile-workspace-rail-expanded' : 'mobile-workspace-rail-collapsed') : undefined}
+      className={mobileDrawer
         ? isExpanded
-          ? 'fixed inset-0 z-[60] h-[100dvh] w-screen bg-bg-secondary pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]'
-          : 'fixed right-0 top-1/2 z-50 h-11 w-11 -translate-y-1/2'
+          ? 'relative z-30 flex h-full min-w-0 flex-1 self-stretch'
+          : 'relative z-30 h-full w-11 flex-none self-stretch'
         : 'relative z-30 flex-none self-stretch transition-[width] duration-200 ease-out'}
-      style={mobileOverlay ? undefined : { width: isExpanded ? RAIL_WIDTH : 0 }}
+      style={mobileDrawer ? undefined : { width: isExpanded ? RAIL_WIDTH : 0 }}
     >
       {/* Expanded panel (clipped by the wrapper width while animating) */}
-      {(!mobileOverlay || isExpanded) && <div
-        className={mobileOverlay
-          ? 'flex h-full w-full flex-col overflow-hidden bg-bg-secondary'
+      {(!mobileDrawer || isExpanded) && <div
+        className={mobileDrawer
+          ? 'flex h-full w-full min-w-0 flex-col overflow-hidden border-l border-border-default bg-bg-secondary'
           : 'absolute inset-y-0 right-0 flex w-[172px] flex-col overflow-hidden border-r border-border-default bg-bg-secondary transition-opacity duration-150'}
-        style={mobileOverlay ? undefined : { opacity: isExpanded ? 1 : 0, pointerEvents: isExpanded ? 'auto' : 'none' }}
-        aria-hidden={mobileOverlay ? undefined : !isExpanded}
+        style={mobileDrawer ? undefined : { opacity: isExpanded ? 1 : 0, pointerEvents: isExpanded ? 'auto' : 'none' }}
+        aria-hidden={mobileDrawer ? undefined : !isExpanded}
       >
         <div className="flex items-center gap-1 border-b border-border-muted px-2 py-2">
-          {mobileOverlay ? (
+          {mobileDrawer ? (
             <>
               <button
                 type="button"
-                className="flex min-h-11 items-center gap-2 rounded px-2 text-sm text-text-primary transition-colors hover:bg-bg-hover"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded px-2 text-sm text-text-primary transition-colors hover:bg-bg-hover"
                 aria-label="收起工作区面板"
                 title="收起工作区面板"
-                onClick={() => setMobileExpanded(false)}
+                onClick={() => onMobileExpandedChange?.(false)}
               >
                 <ChevronsLeft size={16} />
-                返回
               </button>
               <span className="flex-1 text-sm font-medium text-text-primary">工作区</span>
             </>
@@ -385,8 +378,23 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
                 onClick={() => switchTo(workspace.id)}
                 onDoubleClick={() => { nameErrorShown.current = false; setEditing({ id: workspace.id, value: workspace.name }); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') switchTo(workspace.id); }}
-                onPointerDown={(e) => startTabDrag(e, workspace.id)}
+                onPointerDown={mobileDrawer ? undefined : (e) => startTabDrag(e, workspace.id)}
               >
+                {mobileDrawer && (
+                  <button
+                    type="button"
+                    className="flex h-11 min-w-11 shrink-0 touch-none cursor-grab items-center justify-center rounded text-text-tertiary active:cursor-grabbing"
+                    aria-label={`拖动工作区「${workspace.name}」排序`}
+                    title="拖动排序"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      startTabDrag(e, workspace.id);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <GripVertical size={14} />
+                  </button>
+                )}
                 <Folder size={12} />
                 <span className="flex-1 truncate">{workspace.name}</span>
                 <span
@@ -434,11 +442,11 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
             <button
               type="button"
               data-workspace-tab-id={CREATE_WORKSPACE_DROP_TARGET_ID}
-              className={`mt-1 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-default px-2 py-1.5 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary ${mobileOverlay ? 'min-h-11 text-sm' : ''}`}
+              className={`mt-1 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-default px-2 py-1.5 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary ${mobileDrawer ? 'min-h-11 text-sm' : ''}`}
               onClick={() => {
                 nameErrorShown.current = false;
                 setEditing({ id: '__new__', value: '' });
-                if (mobileOverlay) setMobileExpanded(true);
+                if (mobileDrawer) onMobileExpandedChange?.(true);
                 else setRailExpanded(true);
               }}
             >
@@ -450,16 +458,16 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
       </div>}
 
       {/* Floating handle: pinned to the panel's right edge, vertically centered */}
-      {(!mobileOverlay || !isExpanded) && <button
+      {(!mobileDrawer || !isExpanded) && <button
         type="button"
-        className={mobileOverlay
-          ? 'absolute inset-0 flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-l-lg border border-r-0 border-border-default bg-bg-tertiary text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'
+        className={mobileDrawer
+          ? 'absolute left-0 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-l-lg border border-r-0 border-border-default bg-bg-tertiary text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'
           : 'absolute right-0 top-1/2 z-40 flex -translate-y-1/2 translate-x-full flex-col items-center gap-1.5 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary px-0.5 py-2.5 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'}
-        style={mobileOverlay ? undefined : { width: HANDLE_WIDTH }}
+        style={mobileDrawer ? undefined : { width: HANDLE_WIDTH }}
         title={isExpanded ? `收起工作区面板（当前：${activeName}）` : `当前：${activeName} — 点击展开工作区`}
-        aria-label={mobileOverlay ? '展开工作区' : undefined}
+        aria-label={mobileDrawer ? '展开工作区' : undefined}
         onClick={() => {
-          if (mobileOverlay) setMobileExpanded(!isExpanded);
+          if (mobileDrawer) onMobileExpandedChange?.(!isExpanded);
           else setRailExpanded(!isExpanded);
         }}
       >

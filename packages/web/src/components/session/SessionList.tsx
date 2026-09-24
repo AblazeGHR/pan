@@ -457,18 +457,21 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
   const mobileRailAutoExpandedRef = useRef(false);
 
   /**
-   * Workspace drop zone = anything right of the session list (the rail's
-   * floating handle sits exactly on that boundary). While collapsed, hovering
-   * there expands the rail after a short delay so the tabs become droppable.
+   * Desktop drops target the rail at the right edge of the session list. On
+   * mobile, the attached rail opens with the Sidebar when a drag reaches its
+   * collapsed handle, or the screen's left edge while the drawer is closed.
    * Returns true when the pointer is inside that zone.
    */
   const updateRailHover = useCallback((clientX: number, clientY: number): boolean => {
     const listRight = listRef.current?.getBoundingClientRect().right ?? 0;
+    const isMobileViewport = typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 767px)').matches;
+    const ui = useUIStore.getState();
     const mobileCollapsedHandle = document.querySelector<HTMLElement>(
       '[data-testid="mobile-workspace-rail-collapsed"]',
     );
     const mobileExpandedRail = document.querySelector<HTMLElement>(
-      '[data-testid="mobile-workspace-rail-overlay"]',
+      '[data-testid="mobile-workspace-rail-expanded"]',
     );
     const mobileHandleRect = mobileCollapsedHandle?.getBoundingClientRect();
     const enteringMobileRail = !!mobileHandleRect
@@ -476,9 +479,19 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       && clientX <= mobileHandleRect.right + 4
       && clientY >= mobileHandleRect.top - 4
       && clientY <= mobileHandleRect.bottom + 4;
-    const inZone = mobileExpandedRail !== null
+    const expandedRailRect = mobileExpandedRail?.getBoundingClientRect();
+    const insideMobileExpandedRail = !!expandedRailRect
+      && clientX >= expandedRailRect.left
+      && clientX <= expandedRailRect.right
+      && clientY >= expandedRailRect.top
+      && clientY <= expandedRailRect.bottom;
+    const openingClosedMobileDrawer = isMobileViewport
+      && !ui.mobileSidebarOpen
+      && clientX <= 24;
+    const inZone = insideMobileExpandedRail
       || enteringMobileRail
-      || (listRight > 0 && clientX >= listRight - 4);
+      || openingClosedMobileDrawer
+      || (!isMobileViewport && listRight > 0 && clientX >= listRight - 4);
     if (!inZone) {
       if (railExpandTimerRef.current !== null) {
         window.clearTimeout(railExpandTimerRef.current);
@@ -491,16 +504,20 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     }
     railZoneRef.current = true;
     setRailZone(true);
+    if (openingClosedMobileDrawer) {
+      mobileRailAutoExpandedRef.current = true;
+      window.dispatchEvent(new Event('pan:workspace-rail-open-for-session-drop'));
+      return true;
+    }
     if (enteringMobileRail && !mobileExpandedRail) {
       mobileRailAutoExpandedRef.current = true;
       window.dispatchEvent(new Event('pan:workspace-rail-open-for-session-drop'));
       return true;
     }
-    if (mobileExpandedRail) {
+    if (insideMobileExpandedRail) {
       railAutoExpandedRef.current = false;
     }
-    const ui = useUIStore.getState();
-    if (!mobileExpandedRail && !mobileCollapsedHandle && !ui.railExpanded) {
+    if (!isMobileViewport && !mobileExpandedRail && !mobileCollapsedHandle && !ui.railExpanded) {
       if (railExpandTimerRef.current === null) {
         railExpandTimerRef.current = window.setTimeout(() => {
           railExpandTimerRef.current = null;
