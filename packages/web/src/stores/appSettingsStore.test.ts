@@ -34,6 +34,7 @@ describe('appSettingsStore', () => {
     expect(s.showQQ).toBe(true);
     expect(s.showCodexTerminalInput).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(false);
+    expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
   });
 
   it('applies backend ui settings on load', async () => {
@@ -108,6 +109,14 @@ describe('appSettingsStore', () => {
     expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
   });
 
+  it('persists the cross-workspace management confirmation switch and defaults old settings to enabled', () => {
+    expect(sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications)
+      .toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true });
+    useAppSettingsStore.getState().setConfirmCrossWorkspaceManagement(false);
+    expect(useAppSettingsStore.getState().notifications.confirmCrossWorkspaceManagement).toBe(false);
+    expect(mockedUpdate).toHaveBeenCalledWith({ notifications: { confirmCrossWorkspaceManagement: false } });
+  });
+
   it('resets all settings to defaults and writes them back', () => {
     useAppSettingsStore.getState().setDefaultGroupBy('manager');
     useAppSettingsStore.getState().setShowMetaAgent(false);
@@ -156,7 +165,7 @@ describe('appSettingsStore', () => {
     });
     expect(
       sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications,
-    ).toEqual({ codexWarningToast: false });
+    ).toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true });
     expect(sanitizeSettings(null)).toEqual({ ...DEFAULT_SETTINGS });
     expect(sanitizeSettings({ showCodexTerminalInput: 'yes' }).showCodexTerminalInput)
       .toBe(false);

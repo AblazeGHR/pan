@@ -1,10 +1,10 @@
 """Durable workspace metadata for grouping Sessions.
 
-Workspaces are presentation-neutral named containers.  Membership is stored on
-each Session as ``workspace_ids`` so a Session may be in zero or one
-workspace; an empty list is the durable representation of an ungrouped
-Session.  Workspace metadata is deliberately separate from the managed
-Session tree and from Session display order.
+Workspaces are presentation-neutral named containers. Only a root Session
+(one without ``managed_by``) persists zero or one ``workspace_ids`` value;
+managed descendants inherit it through their manager chain. An empty root
+membership represents an ungrouped management tree. Workspace metadata stays
+separate from Session display order.
 """
 
 from __future__ import annotations

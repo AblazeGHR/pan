@@ -95,6 +95,86 @@ def test_session_schema_compat_without_workspace_field():
     assert sess.Session._from_data(legacy.to_dict()).workspace_ids == []
 
 
+def test_managed_workspace_inheritance_claim_detach_and_list(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    parent = sess.Session(id="ses_parent", name="parent")
+    child = sess.Session(id="ses_child", name="child", workspace_ids=["ws_stale"])
+    grandchild = sess.Session(id="ses_grandchild", name="grandchild", managed_by=child.id,
+                              workspace_ids=["ws_stale"])
+    one = workspace.create("One")
+    two = workspace.create("Two")
+    parent.workspace_ids = [one.id]
+    sess._cache.update({parent.id: parent, child.id: child, grandchild.id: grandchild})
+    sess.save(parent)
+    sess.save(child)
+    sess.save(grandchild)
+
+    assert sess.claim(parent.id, child.id) is None
+    assert child.workspace_ids == []
+    assert sess.effective_workspace_ids(child) == [one.id]
+    assert sess.effective_workspace_ids(grandchild) == [one.id]
+    assert [s["id"] for s in asyncio.run(server.api_list_sessions(workspaceId=one.id))["sessions"]] == [
+        parent.id, child.id, grandchild.id,
+    ]
+    assert asyncio.run(server.api_set_session_workspaces(
+        child.id, {"workspaceIds": [two.id]}))["error"]["code"] == "managed_session"
+
+    assert sess.unclaim(parent.id, child.id) is None
+    assert child.workspace_ids == [one.id]
+    child.workspace_ids = [two.id]
+    sess.save(child)
+    assert sess.effective_workspace_ids(grandchild) == [two.id]
+    assert [s["id"] for s in asyncio.run(server.api_get_workspace_sessions(two.id, summary=1))["sessions"]] == [
+        child.id, grandchild.id,
+    ]
+    # Reparenting clears the old root value and immediately inherits from the
+    # new manager, even though the grandchild still has its legacy field.
+    other_parent = sess.Session(id="ses_other_parent", name="other", workspace_ids=[one.id])
+    sess._cache[other_parent.id] = other_parent
+    assert sess.claim(other_parent.id, child.id) is None
+    assert child.workspace_ids == []
+    assert sess.effective_workspace_ids(grandchild) == [one.id]
+    # Removing a manager promotes direct children to roots with a snapshot of
+    # the inherited workspace; their descendants continue to follow.
+    assert sess.release(other_parent.id) is None
+    assert child.managed_by is None
+    assert child.workspace_ids == [one.id]
+    assert sess.effective_workspace_ids(grandchild) == [one.id]
+
+
+def test_legacy_child_membership_is_ignored_without_mass_rewrite(monkeypatch, tmp_path):
+    monkeypatch.setattr(workspace, "WORKSPACE_DIR", tmp_path / "workspaces")
+    workspace.clear_cache()
+    parent = sess.Session(id="ses_legacy_parent", name="parent")
+    child = sess.Session(id="ses_legacy_child", name="child", managed_by=parent.id,
+                         workspace_ids=["ws_old"])
+    before = child.to_dict()
+    assert sess.effective_workspace_ids(child) == []
+    assert child.to_dict() == before
+
+
+def test_broken_or_cyclic_manager_chains_fail_closed_to_ungrouped():
+    parent = sess.Session(id="ses_cycle_parent", name="parent", managed_by="ses_cycle_child",
+                          workspace_ids=["ws_stale"])
+    child = sess.Session(id="ses_cycle_child", name="child", managed_by=parent.id,
+                         workspace_ids=["ws_old"])
+    missing = sess.Session(id="ses_missing_parent", name="missing", managed_by="ses_absent",
+                           workspace_ids=["ws_old"])
+    sess._cache.update({parent.id: parent, child.id: child, missing.id: missing})
+    assert sess.effective_workspace_ids(parent) == []
+    assert sess.effective_workspace_ids(missing) == []
+
+
+def test_claim_rejects_management_cycles_and_broken_manager_ancestry():
+    root = sess.Session(id="ses_claim_root", name="root")
+    child = sess.Session(id="ses_claim_child", name="child", managed_by=root.id)
+    orphan = sess.Session(id="ses_claim_orphan", name="orphan", managed_by="ses_absent")
+    sess._cache.update({root.id: root, child.id: child, orphan.id: orphan})
+    assert "ancestor" in (sess.claim(child.id, root.id) or "")
+    assert "broken manager chain" in (sess.claim(orphan.id, root.id) or "")
+
+
 def test_core_session_create_rejects_multiple_workspace_ids():
     try:
         sess.create(name="invalid", workspace_ids=["ws_one", "ws_two"])

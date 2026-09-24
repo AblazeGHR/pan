@@ -4,9 +4,9 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { SessionItem } from './SessionItem';
-import { getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
+import { effectiveWorkspaceIds, getSessionListCandidates, scopeSessionsByWorkspace } from '@/utils/sessionFilters';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
-import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX } from './sessionDrag';
+import { resolveDropZone, decideManagerDrop, DRAG_START_THRESHOLD_PX, buildManagerEdges, collectDescendants } from './sessionDrag';
 import type { DropZone } from './sessionDrag';
 import { isMockMode, applyMockSessionUpdate } from '@/demo/mockBackend';
 import { claimSession, unclaimSession, reorderSessions } from '@/services/api';
@@ -14,6 +14,7 @@ import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
 import { FolderOpen, Loader2 } from 'lucide-react';
 import { getAutoScrollDelta, findScrollableAncestor } from './sessionDragAutoScroll';
+import { confirmWorkspaceManagerChange } from '@/utils/workspaceMoveConfirmation';
 
 interface SessionListProps {
   onSessionClick?: (id: string) => void;
@@ -148,6 +149,27 @@ async function persistSessionDrop(p: RealDropParams): Promise<void> {
   const { draggedId, draggedName, targetName, oldManager, newManager, zone, orderIds } = p;
   const findLabel = (id: string | null) =>
     id ? (sessionStore.sessions.find((s) => s.id === id)?.name ?? id) : null;
+
+  if (oldManager !== newManager && newManager) {
+    const target = sessionStore.sessions.find((s) => s.id === draggedId);
+    const manager = sessionStore.sessions.find((s) => s.id === newManager);
+    if (target && manager) {
+      const currentWorkspace = effectiveWorkspaceIds(target, sessionStore.sessions)[0] ?? null;
+      const destinationWorkspace = effectiveWorkspaceIds(manager, sessionStore.sessions)[0] ?? null;
+      if (currentWorkspace !== destinationWorkspace && useAppSettingsStore.getState().notifications.confirmCrossWorkspaceManagement) {
+        const edges = buildManagerEdges(sessionStore.sessions);
+        const subtreeCount = 1 + collectDescendants(edges, draggedId).size;
+        const destinationName = useWorkspaceStore.getState().workspaces.find((w) => w.id === destinationWorkspace)?.name ?? '未分组';
+        const accepted = await confirmWorkspaceManagerChange({
+          sessionName: draggedName,
+          subtreeCount,
+          managerName: manager.name || manager.id,
+          targetWorkspaceName: destinationName,
+        });
+        if (!accepted) return;
+      }
+    }
+  }
 
   // 1) Management transition (B manage A / move between groups / leave group).
   //    Server enforces exclusivity, so changing managers = unclaim old first.
@@ -717,6 +739,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
         void useWorkspaceStore.getState()
           .createWorkspaceForSession(dragged.id)
           .then((workspace) => {
+            if (!workspace) return;
             showToast(`已创建「${workspace.name}」并移入「${dragged.name}」`);
           })
           .catch((err) => {

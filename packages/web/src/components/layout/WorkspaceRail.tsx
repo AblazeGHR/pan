@@ -13,7 +13,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
-import { ALL_WORKSPACES } from '@/utils/sessionFilters';
+import { ALL_WORKSPACES, effectiveWorkspaceIds } from '@/utils/sessionFilters';
 import type { Workspace } from '@/types';
 
 const RAIL_WIDTH = 172;
@@ -95,7 +95,7 @@ export function WorkspaceRail({ mobileOverlay = false }: WorkspaceRailProps) {
   const memberCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const session of sessions) {
-      for (const id of session.workspaceIds ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
+      for (const id of effectiveWorkspaceIds(session, sessions)) counts.set(id, (counts.get(id) ?? 0) + 1);
     }
     return counts;
   }, [sessions]);

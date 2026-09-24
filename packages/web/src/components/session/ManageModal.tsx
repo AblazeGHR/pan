@@ -15,6 +15,11 @@ import {
 import type { McpServerInfo, PanAccess, Session } from '@/types';
 import { Search, Star, Check, Bell, Unlink, Lock, Unlock } from 'lucide-react';
 import { FreshnessSkeleton, FreshnessStatus, type FreshnessState } from './FreshnessStatus';
+import { effectiveWorkspaceIds } from '@/utils/sessionFilters';
+import { confirmWorkspaceManagerChange } from '@/utils/workspaceMoveConfirmation';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { buildManagerEdges, collectDescendants } from './sessionDrag';
 
 const SHOW_LIMIT = 20;
 
@@ -505,9 +510,24 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
 
   const toggle = async (targetId: string, checked: boolean) => {
     if (!managerId || !detailSession || busyId) return;
-    setBusyId(targetId);
     const target = sessions.find((s) => s.id === targetId);
     const label = target?.name || targetId;
+    if (checked && target && useAppSettingsStore.getState().notifications.confirmCrossWorkspaceManagement) {
+      const manager = sessions.find((s) => s.id === managerId);
+      if (manager && effectiveWorkspaceIds(target, sessions)[0] !== effectiveWorkspaceIds(manager, sessions)[0]) {
+        const destinationId = effectiveWorkspaceIds(manager, sessions)[0] ?? null;
+        const destinationName = useWorkspaceStore.getState().workspaces.find((w) => w.id === destinationId)?.name ?? '未分组';
+        const subtreeCount = 1 + collectDescendants(buildManagerEdges(sessions), targetId).size;
+        const accepted = await confirmWorkspaceManagerChange({
+          sessionName: label,
+          subtreeCount,
+          managerName: manager.name || manager.id,
+          targetWorkspaceName: destinationName,
+        });
+        if (!accepted) return;
+      }
+    }
+    setBusyId(targetId);
     try {
       if (checked) {
         await claimSession(managerId, targetId);

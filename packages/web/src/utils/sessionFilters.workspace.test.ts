@@ -46,6 +46,27 @@ describe('scopeSessionsByWorkspace', () => {
       'gamma', 'delta',
     ]);
   });
+
+  it('inherits workspace scope through managed descendants and ignores their legacy fields', () => {
+    const tree = [
+      makeSession('root', ['ws_1']),
+      { ...makeSession('child', ['ws_2']), managedBy: 'root' },
+      { ...makeSession('leaf', ['ws_2']), managedBy: 'child' },
+    ];
+    expect(scopeSessionsByWorkspace(tree, 'ws_1').map((s) => s.id)).toEqual(['root', 'child', 'leaf']);
+    expect(scopeSessionsByWorkspace(tree, 'ws_2')).toEqual([]);
+  });
+
+  it('fails closed for missing and cyclic manager chains', () => {
+    const broken = [
+      { ...makeSession('cycle-a', ['ws_1']), managedBy: 'cycle-b' },
+      { ...makeSession('cycle-b', ['ws_2']), managedBy: 'cycle-a' },
+      { ...makeSession('dangling', ['ws_1']), managedBy: 'missing' },
+    ];
+    expect(scopeSessionsByWorkspace(broken, 'ws_1')).toEqual([]);
+    expect(scopeSessionsByWorkspace(broken, UNGROUPED_WORKSPACES).map((s) => s.id))
+      .toEqual(['cycle-a', 'cycle-b', 'dangling']);
+  });
 });
 
 describe('getSessionListCandidates workspace scoping', () => {

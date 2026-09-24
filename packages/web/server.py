@@ -1719,7 +1719,7 @@ def _session_to_api(
         "createdAt": s.created_at,
         "updatedAt": s.updated_at,
         "order": s.order,
-        "workspaceIds": list(s.workspace_ids),
+        "workspaceIds": sess.effective_workspace_ids(s),
         "managed": s.managed,
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
@@ -1918,7 +1918,7 @@ def _session_summary(s: sess.Session) -> dict:
         "updatedAt": updated_at,
         "summaryRevision": projection["revision"],
         "order": s.order,
-        "workspaceIds": list(s.workspace_ids),
+        "workspaceIds": sess.effective_workspace_ids(s),
         "managedBy": s.managed_by,
         "readonlySession": s.readonly_session,
         "agentLevel": sess.agent_level(s.id, load_history=False),
@@ -4498,9 +4498,9 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
     if workspaceId == "ungrouped":
         # ``ungrouped`` is a stable query alias; an empty workspaceId is kept
         # equivalent to the historical all-sessions response.
-        sessions = [s for s in sessions if not s.workspace_ids]
+        sessions = [s for s in sessions if not sess.effective_workspace_ids(s)]
     elif workspaceId:
-        sessions = [s for s in sessions if workspaceId in s.workspace_ids]
+        sessions = [s for s in sessions if workspaceId in sess.effective_workspace_ids(s)]
     if summary:
         return {"sessions": [_session_summary(s) for s in sessions]}
     pages = await _store_read(
@@ -4517,7 +4517,7 @@ async def api_summary_projection_repair_status():
 
 def _workspace_view(workspace: workspaces.Workspace) -> dict:
     members = [s.id for s in sess.list_all(load_history=False)
-               if workspace.id in s.workspace_ids]
+               if workspace.id in sess.effective_workspace_ids(s)]
     return {
         "id": workspace.id,
         "name": workspace.name,
@@ -4613,7 +4613,8 @@ async def api_delete_workspace(workspace_id: str):
     if workspaces.get(workspace_id) is None:
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
     for session in sess.list_all(load_history=False):
-        if workspace_id in session.workspace_ids:
+        # Only roots persist membership. Children follow automatically.
+        if not session.managed_by and workspace_id in session.workspace_ids:
             session.workspace_ids.remove(workspace_id)
             sess.save(session)
     workspaces.delete(workspace_id)
@@ -4633,11 +4634,15 @@ async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=Non
         session = sess.get(session_id) if isinstance(session_id, str) else None
         if session is None:
             return {"ok": False, "error": {"code": "session_not_found", "message": f"Session {session_id} not found"}}
+        if session.managed_by:
+            return {"ok": False, "error": {"code": "managed_session", "message": f"Detach Session {session_id} before changing its workspace"}}
         if not _workspace_write_allowed(actor_id, session):
             return {"ok": False, "error": {"code": "forbidden", "message": "Workspace membership is restricted"}}
     wanted = set(session_ids)
     for session in sess.list_all(load_history=False):
         if not _workspace_write_allowed(actor_id, session):
+            continue
+        if session.managed_by:
             continue
         has = workspace_id in session.workspace_ids
         should = session.id in wanted
@@ -4651,7 +4656,7 @@ async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=Non
             sess.save(session)
     await broadcast({"type": "workspace.membershipUpdated", "workspaceId": workspace_id,
                      "sessionIds": [s.id for s in sess.list_all(load_history=False)
-                                     if workspace_id in s.workspace_ids]})
+                                     if workspace_id in sess.effective_workspace_ids(s)]})
     return {"ok": True, "workspace": _workspace_view(workspace)}
 
 
@@ -4665,7 +4670,7 @@ async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
     if workspaces.get(workspace_id) is None:
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
     sessions = [s for s in await _store_read(sess.list_all, load_history=False)
-                if workspace_id in s.workspace_ids]
+                if workspace_id in sess.effective_workspace_ids(s)]
     if summary:
         return {"ok": True, "workspaceId": workspace_id,
                 "sessions": [_session_summary(s) for s in sessions]}
@@ -4692,10 +4697,12 @@ async def api_set_session_workspaces(session_id: str, data: dict):
         return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
     if not _workspace_write_allowed(data.get("actorSessionId"), session):
         return {"ok": False, "error": {"code": "forbidden", "message": "Workspace membership is restricted"}}
+    if session.managed_by:
+        return {"ok": False, "error": {"code": "managed_session", "message": "Detach a managed Session before changing its workspace"}}
     session.workspace_ids = list(workspace_ids)
     sess.save(session)
     await broadcast({"type": "session.workspaceUpdated", "sessionId": session_id,
-                     "workspaceIds": list(session.workspace_ids)})
+                     "workspaceIds": sess.effective_workspace_ids(session)})
     return {"ok": True, "session": _session_to_api(session)}
 
 
@@ -5627,7 +5634,7 @@ async def api_session_handoff(session_id: str, data: dict):
     session_a = sess.get(session_id)
     if session_a is None:
         return {"error": f"Session {session_id} not found"}
-    if len(session_a.workspace_ids) > 1:
+    if len(sess.effective_workspace_ids(session_a)) > 1:
         return {"error": "Session has multiple Workspace memberships; resolve its legacy membership before handoff"}
     new_adapter_name = adapter or (session_a.adapter if copy_settings else "cbc")
     switched = new_adapter_name != session_a.adapter
@@ -6973,6 +6980,8 @@ async def api_claim(data: dict):
         return {"ok": False, "error": {
             "code": "claim_failed",
             "message": err}}
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    await broadcast({"type": "session.updated", "sessionId": manager_id})
     return {
         "ok": True,
         "managerId": manager_id,
@@ -7002,6 +7011,8 @@ async def api_unclaim(data: dict):
         return {"ok": False, "error": {
             "code": "unclaim_failed",
             "message": err}}
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    await broadcast({"type": "session.updated", "sessionId": manager_id})
     manager = sess.get(manager_id)
     return {
         "ok": True,

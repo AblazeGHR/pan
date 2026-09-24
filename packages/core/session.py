@@ -2215,6 +2215,27 @@ def expand_managed_descendants(root_ids: list[str]) -> list[str]:
     return descendants
 
 
+def effective_workspace_ids(session_or_id: "Session | str") -> list[str]:
+    """Resolve membership from the managed-tree root without rewriting legacy rows.
+
+    Broken/cyclic chains fail closed to ungrouped. Only a true root's persisted
+    value is authoritative; old child workspace_ids are deliberately ignored.
+    """
+    current = get(session_or_id) if isinstance(session_or_id, str) else session_or_id
+    seen: set[str] = set()
+    while current is not None:
+        if current.id in seen:
+            return []
+        seen.add(current.id)
+        if not current.managed_by:
+            return list(current.workspace_ids[:1])
+        parent = get(current.managed_by)
+        if parent is None:
+            return []
+        current = parent
+    return []
+
+
 @_store_serialized
 def claim(manager_id: str, session_id: str) -> str | None:
     """Set a bidirectional managed relationship (立项 4.2).
@@ -2241,6 +2262,21 @@ def claim(manager_id: str, session_id: str) -> str | None:
     target = get(session_id)
     if target is None:
         return f"Session {session_id} not found"
+    # Enforce the acyclic manager-tree invariant at the persistence boundary;
+    # browser drag validation alone cannot protect MCP/API callers.
+    current = manager
+    ancestry_seen: set[str] = set()
+    while current is not None:
+        if current.id == session_id:
+            return f"Cannot claim {session_id}: it is an ancestor of manager {manager_id}"
+        if current.id in ancestry_seen:
+            return f"Cannot claim into corrupt manager cycle at {current.id}"
+        ancestry_seen.add(current.id)
+        if not current.managed_by:
+            break
+        current = get(current.managed_by)
+        if current is None:
+            return f"Cannot claim into broken manager chain for {manager_id}"
     # A deleted manager can leave historical data with a dangling managed_by.
     # Treat that reference as unmanaged so the target can be recovered.
     if target.managed_by and target.managed_by != manager_id \
@@ -2255,8 +2291,10 @@ def claim(manager_id: str, session_id: str) -> str | None:
         changed = True
     if changed:
         save(manager)
-    if target.managed_by != manager_id:
+    if target.managed_by != manager_id or target.workspace_ids:
         target.managed_by = manager_id
+        # A child never persists a competing/stale membership value.
+        target.workspace_ids = []
         save(target)
     return None
 
@@ -2276,7 +2314,12 @@ def release(session_id: str) -> str | None:
     # 订阅残留清理：任何其它 session 的 report_subscriptions 不得引用被删 id。
     # 同时解除被删 session 作为 manager 时留下的子 session 关系，避免
     # children 被永久锁在一个不存在的 manager 上。
-    for s in list_all(load_history=False):
+    all_sessions = list_all(load_history=False)
+    detached_memberships = {
+        s.id: effective_workspace_ids(s)
+        for s in all_sessions if s.managed_by == session_id
+    }
+    for s in all_sessions:
         if s.id == session_id:
             continue
         if session_id in s.report_subscriptions:
@@ -2284,6 +2327,7 @@ def release(session_id: str) -> str | None:
             save(s)
         if s.managed_by == session_id:
             s.managed_by = None
+            s.workspace_ids = detached_memberships.get(s.id, [])
             save(s)
     target = get(session_id)
     if target is None:
@@ -2327,6 +2371,7 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
         if target.managed_by == manager_id:
             # The manager was deleted outside the normal release path.  Clear
             # the dangling reference directly; there is no manager to update.
+            target.workspace_ids = effective_workspace_ids(target)
             target.managed_by = None
             save(target)
             return None
@@ -2343,6 +2388,7 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
     if session_id in manager.managed:
         manager.managed.remove(session_id)
         save(manager)
+    target.workspace_ids = effective_workspace_ids(target)
     target.managed_by = None
     save(target)
     return None
@@ -2430,7 +2476,7 @@ def handoff_session(
             notification_settings=new_notification_settings,
             pan_access=new_pan_access,
             workdir=a.workdir,
-            workspace_ids=list(a.workspace_ids),
+            workspace_ids=effective_workspace_ids(a) if not a.managed_by else [],
         )
 
     # ── 2. 关系网接替 ──
@@ -2439,6 +2485,7 @@ def handoff_session(
         child = get(child_id)
         if child is not None:
             child.managed_by = b.id
+            child.workspace_ids = []
             save(child)
     b.managed = list(a.managed)
 
@@ -2475,6 +2522,7 @@ def handoff_session(
     # ── 3. 解除 A 的原关系网（A.managed_by 保留 = B，见 2b）──
     a.managed = []
     a.managed_by = b.id
+    a.workspace_ids = []
     a.report_subscriptions = set()
     a.qq_subscriptions = set()
     # Re-check the archive name after relationship work. Another handoff may

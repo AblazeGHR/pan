@@ -55,6 +55,16 @@ describe('SessionMenu details entry', () => {
   });
 });
 
+describe('SessionMenu workspace action', () => {
+  it('labels the move action in English and opens the workspace destination list', () => {
+    render(<SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move to workspace' }));
+
+    expect(screen.getByRole('button', { name: /未分组/ })).toBeTruthy();
+  });
+});
+
 describe('SessionMenu click-away dismissal', () => {
   it('does not close when clicking inside the portal menu', () => {
     const onClose = vi.fn();

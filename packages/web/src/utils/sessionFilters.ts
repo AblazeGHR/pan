@@ -83,6 +83,20 @@ export function matchesSpecialFilters(
 export const ALL_WORKSPACES = 'all';
 export const UNGROUPED_WORKSPACES = 'ungrouped';
 
+/** Resolve a session's workspace from its manager chain; corrupt chains fail closed. */
+export function effectiveWorkspaceIds(session: Session, sessions: Session[]): string[] {
+  const byId = new Map(sessions.map((item) => [item.id, item]));
+  const seen = new Set<string>();
+  let current: Session | undefined = session;
+  while (current) {
+    if (seen.has(current.id)) return [];
+    seen.add(current.id);
+    if (!current.managedBy) return (current.workspaceIds ?? []).slice(0, 1);
+    current = byId.get(current.managedBy);
+  }
+  return [];
+}
+
 /**
  * Sessions belonging to the active workspace scope.
  *   - 'all' / missing      → every session (the historical, unscoped list);
@@ -99,9 +113,9 @@ export function scopeSessionsByWorkspace(
 ): Session[] {
   if (!activeWorkspaceId || activeWorkspaceId === ALL_WORKSPACES) return sessions;
   if (activeWorkspaceId === UNGROUPED_WORKSPACES) {
-    return sessions.filter((session) => (session.workspaceIds ?? []).length === 0);
+    return sessions.filter((session) => effectiveWorkspaceIds(session, sessions).length === 0);
   }
-  return sessions.filter((session) => (session.workspaceIds ?? []).includes(activeWorkspaceId));
+  return sessions.filter((session) => effectiveWorkspaceIds(session, sessions).includes(activeWorkspaceId));
 }
 
 /**

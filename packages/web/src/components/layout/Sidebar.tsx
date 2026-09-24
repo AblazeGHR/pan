@@ -22,6 +22,8 @@ import { FileTree } from '@/components/editor/FileTree';
 import { SidebarResizer } from './SidebarResizer';
 import { AppSettingsModal } from './AppSettingsModal';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import type { WorkspaceMoveConfirmationRequest } from '@/utils/workspaceMoveConfirmation';
 import {
   MessageSquare,
   Code,
@@ -137,6 +139,9 @@ export function Sidebar() {
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showDragMenu, setShowDragMenu] = useState(false);
+  const [workspaceMoveConfirmation, setWorkspaceMoveConfirmation] = useState<(
+    WorkspaceMoveConfirmationRequest & { resolve: (confirmed: boolean) => void }
+  ) | null>(null);
   const sortMenuRef = useRef<HTMLDivElement | null>(null);
   const sortPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sortLongPressedRef = useRef(false);
@@ -155,6 +160,15 @@ export function Sidebar() {
   }, []);
 
   useEffect(() => clearSortPress, [clearSortPress]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceMoveConfirmationRequest & { resolve: (confirmed: boolean) => void }>).detail;
+      setWorkspaceMoveConfirmation(detail);
+    };
+    window.addEventListener('pan:confirm-workspace-manager-change', handler);
+    return () => window.removeEventListener('pan:confirm-workspace-manager-change', handler);
+  }, []);
 
   useEffect(() => {
     if (!showDragMenu) return;
@@ -908,6 +922,27 @@ export function Sidebar() {
         open={showAppSettings}
         onClose={() => setShowAppSettings(false)}
       />
+      <Modal
+        open={!!workspaceMoveConfirmation}
+        title="Confirm management change"
+        onClose={() => {
+          workspaceMoveConfirmation?.resolve(false);
+          setWorkspaceMoveConfirmation(null);
+        }}
+        size="md"
+      >
+        {workspaceMoveConfirmation && (
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary">
+              Moving <strong>{workspaceMoveConfirmation.sessionName}</strong> and its {workspaceMoveConfirmation.subtreeCount - 1} managed descendant(s) to <strong>{workspaceMoveConfirmation.targetWorkspaceName}</strong> will detach it from <strong>{workspaceMoveConfirmation.managerName}</strong>. The moved subtree will become its own management tree.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => { workspaceMoveConfirmation.resolve(false); setWorkspaceMoveConfirmation(null); }}>Cancel</Button>
+              <Button variant="primary" onClick={() => { workspaceMoveConfirmation.resolve(true); setWorkspaceMoveConfirmation(null); }}>Move and detach</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
       <NewSessionModal
         open={showNewModal}
         onClose={() => setShowNewModal(false)}

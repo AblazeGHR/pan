@@ -291,6 +291,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setShowCodexTerminalInput,
     setMergeConsecutiveNonBodyBlocks,
     setCodexWarningToast,
+    setConfirmCrossWorkspaceManagement,
     resetSettings,
   } = useAppSettingsStore();
 
@@ -888,6 +889,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   hint="Native Codex error, MCP startup failure, and model reroute warnings"
                   checked={notifications.codexWarningToast}
                   onChange={setCodexWarningToast}
+                />
+                <SwitchRow
+                  label="Confirm management changes across workspaces"
+                  hint="Moving a managed Session subtree to another workspace detaches it from its current manager."
+                  checked={notifications.confirmCrossWorkspaceManagement}
+                  onChange={setConfirmCrossWorkspaceManagement}
                 />
                 <div className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left opacity-60">
                   <span className="min-w-0">

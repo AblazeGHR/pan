@@ -3,6 +3,7 @@ import type { Session } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import * as api from '@/services/api';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -13,6 +14,7 @@ vi.mock('@/services/api', async (importOriginal) => {
     })),
     deleteWorkspace: vi.fn().mockResolvedValue(undefined),
     setSessionWorkspaces: vi.fn().mockResolvedValue(undefined),
+    unclaimSession: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -44,6 +46,40 @@ describe('workspace membership', () => {
     expect(changed).toEqual(['session-1']);
     expect(api.setSessionWorkspaces).toHaveBeenCalledWith('session-1', ['workspace-a']);
     expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['workspace-a']);
+  });
+
+  it('moves a manager tree by writing only its root membership', async () => {
+    useSessionStore.setState({ sessions: [
+      { id: 'root', name: 'Root', workspaceIds: ['workspace-b'], managed: ['child'] } as unknown as Session,
+      { id: 'child', name: 'Child', managedBy: 'root', workspaceIds: ['workspace-b'], managed: ['leaf'] } as unknown as Session,
+      { id: 'leaf', name: 'Leaf', managedBy: 'child', workspaceIds: ['workspace-b'], managed: [] } as unknown as Session,
+    ] });
+    const changed = await useWorkspaceStore.getState().moveSessions(['root'], 'workspace-a');
+
+    expect(api.setSessionWorkspaces).toHaveBeenCalledTimes(1);
+    expect(api.setSessionWorkspaces).toHaveBeenCalledWith('root', ['workspace-a']);
+    expect(changed).toEqual(['root', 'child', 'leaf']);
+  });
+
+  it('asks before moving a managed subtree across workspaces and sends no request on cancel', async () => {
+    useSessionStore.setState({ sessions: [
+      { id: 'manager', name: 'Manager', workspaceIds: ['workspace-a'], managed: ['child'] } as unknown as Session,
+      { id: 'child', name: 'Child', managedBy: 'manager', workspaceIds: ['workspace-a'], managed: ['leaf'] } as unknown as Session,
+      { id: 'leaf', name: 'Leaf', managedBy: 'child', workspaceIds: ['workspace-a'], managed: [] } as unknown as Session,
+    ] });
+    const prompt = new Promise<void>((resolve) => {
+      window.addEventListener('pan:confirm-workspace-manager-change', ((event: Event) => {
+        const detail = (event as CustomEvent<{ resolve: (accepted: boolean) => void }>).detail;
+        expect(detail.resolve).toBeTypeOf('function');
+        detail.resolve(false);
+        resolve();
+      }) as EventListener, { once: true });
+    });
+    const moving = useWorkspaceStore.getState().moveSessions(['child'], 'workspace-b');
+    await prompt;
+    expect(await moving).toEqual([]);
+    expect(api.unclaimSession).not.toHaveBeenCalled();
+    expect(api.setSessionWorkspaces).not.toHaveBeenCalled();
   });
 
   it('creates a session-named workspace and increments the suffix for duplicate names', async () => {

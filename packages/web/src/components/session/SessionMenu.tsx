@@ -269,7 +269,7 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 transition-colors flex items-center gap-2"
       >
         <Folder size={12} className="text-text-tertiary shrink-0" />
-        移入工作区
+        Move to workspace
       </button>
       <button
         onClick={handleMultiSelect}

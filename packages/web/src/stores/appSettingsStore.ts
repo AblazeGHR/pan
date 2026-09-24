@@ -19,6 +19,7 @@ export interface AppSettings {
   notifications: {
     /** Show structured Codex warning events through a Toast. */
     codexWarningToast: boolean;
+    confirmCrossWorkspaceManagement: boolean;
   };
 }
 
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mergeConsecutiveNonBodyBlocks: false,
   notifications: {
     codexWarningToast: true,
+    confirmCrossWorkspaceManagement: true,
   },
 };
 
@@ -78,6 +80,10 @@ export function sanitizeSettings(
         typeof notifications.codexWarningToast === 'boolean'
           ? notifications.codexWarningToast
           : DEFAULT_SETTINGS.notifications.codexWarningToast,
+      confirmCrossWorkspaceManagement:
+        typeof notifications.confirmCrossWorkspaceManagement === 'boolean'
+          ? notifications.confirmCrossWorkspaceManagement
+          : DEFAULT_SETTINGS.notifications.confirmCrossWorkspaceManagement,
     },
   };
 }
@@ -92,11 +98,16 @@ interface AppSettingsStore extends AppSettings {
   setShowCodexTerminalInput: (v: boolean) => void;
   setMergeConsecutiveNonBodyBlocks: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
+  setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   /** Reset every field to its default and persist. */
   resetSettings: () => void;
   /** Fetch the persisted ui object from config.json into the store. */
   loadSettings: () => Promise<void>;
 }
+
+type AppSettingsPatch = Omit<Partial<AppSettings>, 'notifications'> & {
+  notifications?: Partial<AppSettings['notifications']>;
+};
 
 export const useAppSettingsStore = create<AppSettingsStore>((set) => {
   // Race guard: if the user changes a setting while the initial GET is still
@@ -104,7 +115,7 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
   // Re-armed at the start of every load, so a later load still applies.
   let dirty = false;
 
-  const persist = (patch: Partial<AppSettings>) => {
+  const persist = (patch: AppSettingsPatch) => {
     dirty = true;
     void updateUiSettings(patch).catch(() => {
       // Best-effort writeback: a backend failure is non-fatal, the in-memory
@@ -166,6 +177,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
         },
       }));
       persist({ notifications: { codexWarningToast: v } });
+    },
+
+    setConfirmCrossWorkspaceManagement: (v) => {
+      set((s) => ({ notifications: { ...s.notifications, confirmCrossWorkspaceManagement: v } }));
+      persist({ notifications: { confirmCrossWorkspaceManagement: v } });
     },
 
     resetSettings: () => {
