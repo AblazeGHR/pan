@@ -738,8 +738,36 @@ def _bound_loaded_receipt_ledger(
 
 def _history_page_from_jsonl(
     path: Path, *, before: int, limit: int,
+    known_total: int | None = None,
 ) -> tuple[list[dict], int]:
     """Read one bounded history page without materializing the full JSONL."""
+    # The common cold-list path asks for the last page (before=0).  A complete
+    # durable summary projection gives us the exact row count, so use that to
+    # avoid parsing every historical JSON object just to count it.  Reading
+    # bytes and counting line separators is implemented in C; only the bounded
+    # tail is decoded and parsed in Python.  If the projection and file disagree
+    # (for example, a writer appended JSONL before committing metadata), or the
+    # file has a crash tail, fall through to the compatibility scan below.
+    if before <= 0 and _is_nonnegative_int(known_total):
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            return [], 0
+        if raw.endswith(b"\n") and raw.count(b"\n") == known_total:
+            lines = raw.rsplit(b"\n", min(limit, known_total) + 1)
+            tail = lines[-(min(limit, known_total) + 1):-1]
+            parsed: list[dict] = []
+            for line in tail:
+                try:
+                    value = json.loads(line.decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    break
+                if not isinstance(value, dict):
+                    break
+                parsed.append(value)
+            else:
+                return parsed, known_total
+
     page: deque[dict] = deque(maxlen=limit)
     total = 0
     try:
@@ -816,8 +844,14 @@ def history_page(session_id: str, *, before: int = 0,
 
     history_path = _history_path(session_id)
     if history_path.exists():
+        projection = data.get("summary_projection")
+        known_total = (
+            _projection_value(projection, "history_total")
+            if is_complete_summary_projection(projection) else None
+        )
         page, total = _history_page_from_jsonl(
             history_path, before=requested_before, limit=bounded_limit,
+            known_total=known_total,
         )
         effective_before = total if requested_before <= 0 else min(requested_before, total)
         start = max(0, effective_before - min(bounded_limit, len(page)))

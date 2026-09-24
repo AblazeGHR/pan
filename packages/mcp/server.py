@@ -569,6 +569,8 @@ def codex_quota(window: str = "all", session_id: str | None = None) -> dict:
     fabricated manager parameter to HTTP; this MCP-layer check is the
     isolation boundary.
 
+    Codex authorizes quota reads with the ``account/rateLimits/read`` scope.
+
     The result may be a live app-server push, a persisted last-good snapshot,
     or an optional read-only WHAM refresh. It does not execute a provider
     OAuth/refresh flow. The
