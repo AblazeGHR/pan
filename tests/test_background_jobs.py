@@ -224,13 +224,18 @@ def test_concurrent_read_modify_write_preserves_updates(tmp_path):
     assert {result[f"marker{i}"] for i in range(20)} == set(range(20))
 
 
-def test_cross_process_read_modify_write_preserves_updates(tmp_path):
+def test_cross_process_read_modify_write_preserves_updates(tmp_path, monkeypatch):
     _session(tmp_path)
+    registry_root = tmp_path / "background_jobs"
+    # _root intentionally lets PAN_BACKGROUND_JOBS_DIR override DEFAULT_ROOT.
+    # Pin the parent to the same isolated registry the child processes inherit,
+    # regardless of the shell or CI runner environment.
+    monkeypatch.setenv("PAN_BACKGROUND_JOBS_DIR", str(registry_root))
     jobs._save({"jobId": "job_process_race", "targetSessionId": "ses_target",
                 "status": "running", "createdAt": 1})
     repo = Path(__file__).resolve().parents[1]
     env = {**os.environ, "PYTHONPATH": str(repo),
-           "PAN_BACKGROUND_JOBS_DIR": str(tmp_path / "background_jobs")}
+           "PAN_BACKGROUND_JOBS_DIR": str(registry_root)}
     code = (
         "import sys; from packages.core import background_jobs as j; "
         "j.runner_update(sys.argv[1], **{sys.argv[2]: int(sys.argv[2][6:])})"

@@ -2,11 +2,11 @@
  * Read-only probe: run the *real* sessionStore reducer path for a worker result.
  *
  * Bundles packages/web/src/stores/sessionStore.ts with esbuild from the sibling
- * worktree (read-only) and stubs only the HTTP/UI collaborators.  Nothing in the
- * product source is modified.
+ * worktree (read-only) and stubs only the HTTP/UI collaborators. The resulting
+ * bundle stays in memory; this probe does not rewrite its checked-in evidence
+ * artifact or any file outside the current worktree.
  */
 const path = require('path');
-const fs = require('fs');
 
 const WEB = path.resolve(__dirname, '..', 'packages', 'web');
 const SIBLING = 'D:/project/pan-worktrees/frontend-reaudit-history-ds-20260921/packages/web';
@@ -74,7 +74,6 @@ const code = build ? null : null;
 
 (async () => {
   const bundled = await build();
-  fs.writeFileSync(path.join(__dirname, 'probe_frontend_reconcile.bundle.cjs'), bundled);
   const Module = require('module');
   const m = new Module('r');
   m.filename = path.join(__dirname, 'probe_frontend_reconcile.bundle.cjs');
@@ -87,25 +86,39 @@ const code = build ? null : null;
   const out = {};
 
   const runCase = (label, liveMessages, history, result, opts = {}) => {
+    const canonicalHistory = history.map((r) => ({ ...r }));
+    const matchedCanonicalIndexes = new Set();
+    const displayRows = (opts.currentMessages ?? []).map((row) => {
+      const canonicalIndex = canonicalHistory.findIndex((candidate, index) =>
+        !matchedCanonicalIndexes.has(index)
+        && candidate.role === row.role
+        && candidate.content === row.content
+        && candidate.nativeItemId === row.nativeItemId,
+      );
+      if (canonicalIndex < 0) return { ...row };
+      matchedCanonicalIndexes.add(canonicalIndex);
+      return canonicalHistory[canonicalIndex];
+    });
     useSessionStore.setState({
       serverEpoch: 'E',
       currentSessionId: sid,
-    sessions: [{
-      id: sid, name: sid, adapter: opts.adapter || 'codex', workdir: '',
-      history: history.map((r) => ({ ...r })),
-      historyTotal: history.length,
-      ...(typeof opts.historyRevision === 'number'
-        ? { historyRevision: opts.historyRevision } : {}),
-      ...(typeof opts.historyEpoch === 'string'
-        ? { historyEpoch: opts.historyEpoch } : {}),
-      lastMessage: '',
-    }],
-      // Each case must start from an empty transcript or the previous case's
-      // window/runtime leaks into this one.
+      sessions: [{
+        id: sid, name: sid, adapter: opts.adapter || 'codex', workdir: '',
+        history: canonicalHistory,
+        historyTotal: history.length,
+        ...(typeof opts.historyRevision === 'number'
+          ? { historyRevision: opts.historyRevision } : {}),
+        ...(typeof opts.historyEpoch === 'string'
+          ? { historyEpoch: opts.historyEpoch } : {}),
+        lastMessage: '',
+      }],
+      // Each case must start from a fresh transcript. Display rows representing
+      // the loaded canonical window share the same objects as Session.history,
+      // matching selectSession and preserving durable-offset tags.
       sessionTranscripts: {},
       terminalWatermarks: {},
       liveStreamBuffers: {},
-      currentMessages: (opts.currentMessages ?? []).map((r) => ({ ...r })),
+      currentMessages: displayRows,
     });
     // Produce the live buffer the way the real pipeline does — through
     // applyLiveStream — so the display, the buffer's projection refs and the
@@ -217,21 +230,22 @@ const code = build ? null : null;
   );
 
   // Precondition that can actually produce the reported [user, final, analysis, tool]:
-  // the client's cached session.history lags the live turn (typical mid-stream),
-  // so history.push(result) inserts the result BEFORE the live-only rows.
+  // the client's cached session.history lags the live turn (typical mid-stream).
+  // Seed only its canonical user row, then apply the real stream path so the
+  // live buffer and projected display are mutually consistent before result.
   runCase(
     'partial_history_with_ids',
     withIds.slice(1),
     [withIds[0]],                 // only the user row is canonical yet
     'final',
-    { currentMessages: withIds },
+    { currentMessages: [withIds[0]] },
   );
   runCase(
     'partial_history_idless',
     orderedTurn.slice(1),
     [orderedTurn[0]],
     'final',
-    { adapter: 'cbc', currentMessages: orderedTurn },
+    { adapter: 'cbc', currentMessages: [orderedTurn[0]] },
   );
 
   console.log(JSON.stringify(out, null, 2));

@@ -56,6 +56,8 @@ def test_partial_history_does_not_reorder_the_turn(reconcile_cases):
         ("tool", 'Read({"file_path":"a.txt"})'),
         ("assistant", "final"),
     ]
+    assert [(r[0], r[1]) for r in case["sessionHistory"]] == roles_contents
+    assert case["historyTotal"] == len(roles_contents)
 
 
 def test_idless_turn_is_not_duplicated(reconcile_cases):

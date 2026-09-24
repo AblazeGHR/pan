@@ -25,7 +25,18 @@ from websockets.sync.client import connect
 def _write_samples(path: Path, samples: list[dict]) -> None:
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(samples, ensure_ascii=False), encoding="utf-8")
-    os.replace(temporary, path)
+    # The parent test process reads the current sample file while this child
+    # refreshes it. Windows may deny replacement while that reader has the file
+    # open; keep the last complete snapshot and retry the atomic replace rather
+    # than letting the probe exit with stale heartbeat evidence.
+    for attempt in range(20):
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.005)
 
 
 def main() -> None:
