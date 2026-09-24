@@ -192,12 +192,12 @@ python -m packages.mcp.server --transport stdio
 
 ### 5.1 Manage 面板
 
-**Manage** 打开 `Manage Sessions`，不是打开 Worker 终端，而是管理关系、完成报告订阅、MCP 权限和 MCP server 的面板。它有四部分：
+**Manage** 打开 `Manage Sessions`，不是打开 Worker 终端，而是管理关系、完成报告订阅、workspace 归属、MCP 权限和 MCP server 的面板。它按标签页分成四部分（桌面版 Manage 弹窗与移动端 Manage 页面共用同一套标签）：
 
-1. **Managed by / 被谁管理**：显示当前 Session 的父 manager，可以解除父子关系。
-2. **Manages / 管理谁**：点击 **Manage** 认领，点击 **Managed** 解除；同一行的 **Subscribe** 独立控制完成报告。
-3. **Pan Access / MCP 权限**：编辑三个权限开关，只影响 MCP 调用。
-4. **MCP Server / MCP 服务**：从 manifest 声明的服务中选择当前 Session 要挂载的服务。变更通常需要 Worker 重启才在 CLI 中生效；模板可能锁定选择。
+1. **Relationship**：**Managed by** 显示当前 Session 的父 manager，可以解除父子关系；**Manages** 点击 **Manage** 认领，点击 **Managed** 解除，同一行的 **Subscribe** 独立控制完成报告。
+2. **Workspaces**：显示该 Session 所在的工作区并就地切换归属。只有管理树根节点持久化归属，子 Session 沿 manager 链继承；移动一个受管理的 Session 会先确认（可关闭该确认），再解除管理关系并写入归属。
+3. **Access**：**Pan Access** 编辑三个权限开关，只影响 MCP 调用（界面文案保持英文 `Pan Access`）。
+4. **MCP and Plugins**：**MCP Server** 从 manifest 声明的服务中选择当前 Session 要挂载的服务。变更通常需要 Worker 重启才在 CLI 中生效；模板可能锁定选择。
 
 ![Manage Sessions 面板](../assets/3.png)
 

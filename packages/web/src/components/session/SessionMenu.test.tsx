@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SessionMenu } from './SessionMenu';
-import type { Session } from '@/types';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import type { Session, Workspace } from '@/types';
 
 const session: Session = {
   id: 'ses-menu-test',
@@ -11,6 +12,8 @@ const session: Session = {
   effort: '',
   history: [],
 };
+
+const workspace: Workspace = { id: 'workspace-a', name: 'Alpha', order: null };
 
 afterEach(() => {
   cleanup();
@@ -55,14 +58,65 @@ describe('SessionMenu details entry', () => {
   });
 });
 
-describe('SessionMenu workspace action', () => {
-  it('labels the move action and submenu return navigation in English', () => {
-    render(<SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={vi.fn()} />);
+describe('SessionMenu workspace entry removal', () => {
+  // The workspace move action lives in the Manage panel's Workspaces tab now.
+  // The menu must not render it (nor its old in-menu submenu), and no remaining
+  // menu action may reach for a workspace store mutation.
+  it('no longer renders Move to workspace or its dedicated submenu view', () => {
+    const moveSessions = vi.fn(async () => []);
+    const originalMove = useWorkspaceStore.getState().moveSessions;
+    useWorkspaceStore.setState({ moveSessions, workspaces: [workspace], loaded: true });
+    try {
+      render(<SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move to workspace' }));
-    expect(screen.getByRole('button', { name: /未分组/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to menu' }));
-    expect(screen.getByRole('button', { name: 'Select' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Move to workspace' })).toBeNull();
+      expect(screen.queryByText('Back to menu')).toBeNull();
+      expect(screen.queryByText('未分组（无工作区）')).toBeNull();
+      expect(screen.queryByText('还没有工作区')).toBeNull();
+      // The workspace list never leaks into the menu either.
+      expect(screen.queryByText('Alpha')).toBeNull();
+
+      // The single main view keeps every remaining action.
+      for (const label of ['Rename', 'Manage', 'msgBridge', 'Details', 'Select', 'Delete']) {
+        expect(screen.getByRole('button', { name: label })).toBeTruthy();
+      }
+      expect(moveSessions).not.toHaveBeenCalled();
+    } finally {
+      useWorkspaceStore.setState({ moveSessions: originalMove });
+    }
+  });
+
+  it('issues no workspace request when the remaining actions run', () => {
+    const moveSessions = vi.fn(async () => []);
+    const originalMove = useWorkspaceStore.getState().moveSessions;
+    useWorkspaceStore.setState({ moveSessions, workspaces: [workspace], loaded: true });
+    const onClose = vi.fn();
+    const onRename = vi.fn();
+    const onManage = vi.fn();
+    const onDetails = vi.fn();
+    try {
+      render(
+        <SessionMenu
+          session={session}
+          position={{ x: 10, y: 10 }}
+          onClose={onClose}
+          onRename={onRename}
+          onManage={onManage}
+          onDetails={onDetails}
+        />,
+      );
+
+      for (const label of ['Rename', 'Manage', 'msgBridge', 'Details', 'Select']) {
+        fireEvent.click(screen.getByRole('button', { name: label }));
+      }
+
+      expect(moveSessions).not.toHaveBeenCalled();
+      expect(onRename).toHaveBeenCalledWith(session.id);
+      expect(onManage).toHaveBeenCalledWith(session.id);
+      expect(onDetails).toHaveBeenCalledWith(session.id);
+    } finally {
+      useWorkspaceStore.setState({ moveSessions: originalMove });
+    }
   });
 });
 

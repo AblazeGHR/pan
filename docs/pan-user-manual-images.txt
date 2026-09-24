@@ -21,8 +21,8 @@ Pan 用户手册截图清单
 
 3. assets/3.png
    截图步骤：选中一个 Session，打开右键菜单的 Manage，等待 Manage Sessions 面板加载完成。
-   截图内容：Managed by、Manages 列表中的 Manage/Managed 与 Subscribe/Subscribed、Pan Access、MCP Server 四个区域。
-   用途：建立管理关系、报告订阅和 MCP 权限的视觉对应关系。
+   截图内容：Relationship（Managed by、Manages 列表中的 Manage/Managed 与 Subscribe/Subscribed）、Workspaces、Access（Pan Access）、MCP and Plugins（MCP Server）四个标签页。
+   用途：建立管理关系、报告订阅、workspace 归属和 MCP 权限的视觉对应关系。
    对应章节：USER_MANUAL.md 第 5.1 节“Manage 面板”。
    建议裁剪：保留完整面板；会话名和 ID 使用演示数据，隐藏真实项目路径。
 
