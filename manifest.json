@@ -53,7 +53,7 @@
         "pan-wechat"
       ],
       "permission_mode": "bypassPermissions",
-      "system_prompt": ""
+      "system_prompt": "这是微信桥接会话模板：已接入 pan 与 pan-wechat MCP，用于通过微信通道收发消息。使用中文回复。"
     }
   ],
   "character_templates": [

@@ -6,10 +6,10 @@
 
 运行::
 
-    E:/python/python.exe -m pytest packages/wechat/test_ilink.py -q
+    python -m pytest packages/wechat/test_ilink.py -q
 
-（``pytest.ini`` 的 testpaths 暂未含 packages/wechat，需用显式路径；
-由另一位同事统一加入，本文件不改动 pytest.ini。）
+（``pytest.ini`` 的 ``testpaths`` 已含 ``packages/wechat``，所以从仓库根跑 ``pytest``
+就会收集本文件；上面写成显式路径只是为了单独复跑时更快。）
 """
 
 from __future__ import annotations
