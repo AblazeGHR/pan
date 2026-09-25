@@ -27,7 +27,8 @@ const m = vi.hoisted(() => {
     sizes: number[];
     /** Every scrollToIndex the component asked the virtualizer for. */
     scrollToIndexCalls: Array<{ index: number; align?: string }>;
-  } = { totalSize: 0, virtualItems: [], options: null, sizes: [], scrollToIndexCalls: [] };
+    measureCalls: number;
+  } = { totalSize: 0, virtualItems: [], options: null, sizes: [], scrollToIndexCalls: [], measureCalls: 0 };
   return {
     state,
     setTotalSize: (n: number) => {
@@ -57,6 +58,7 @@ vi.mock('@tanstack/react-virtual', () => ({
           key: options.getItemKey?.(item.index) ?? item.index,
         })),
       measureElement: () => {},
+      measure: () => { m.state.measureCalls += 1; },
       scrollToIndex: (index: number, options?: { align?: string }) => {
         m.state.scrollToIndexCalls.push({ index, align: options?.align });
       },
@@ -1562,6 +1564,43 @@ describe('scroll snapshot ownership across a session switch', () => {
     } finally {
       restoreGeometry();
     }
+  });
+});
+
+describe('non-body disclosure and virtual measurements across a session switch', () => {
+  it('switches from A to streaming B with B folded and no stale expanded-row spacer', () => {
+    mockClientHeight = 100;
+    useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
+    const bMessages = Array.from({ length: 39 }, (_, index) => ({
+      role: index % 3 === 0 ? 'tool' as const : 'thinking' as const,
+      content: `stream-${index}`,
+      blockId: `switch-b-${index}`,
+    }));
+    useSessionStore.setState({ currentSessionId: 'switch-a', currentMessages: msgs(2, 'A') });
+    m.setTotalSize(120);
+    m.setVirtualItems(rowWindow([0, 1]));
+    const view = render(<ChatMessages />);
+    const before = m.state.measureCalls;
+
+    act(() => {
+      // B's single grouped row is the actual virtual content. Its 39 children
+      // are streaming, but the outer disclosure starts folded after the switch.
+      m.setTotalSize(120);
+      m.setVirtualItems(rowWindow([0]));
+      useSessionStore.setState({ currentSessionId: 'switch-b', currentMessages: bMessages });
+    });
+
+    expect(screen.getByRole('button', { name: /39 non-body blocks/ }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('non-body-group-window')).toBeNull();
+    expect(m.state.measureCalls).toBeGreaterThan(before);
+    const scroller = view.container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scroller.scrollHeight).toBe(120);
+    expect(scroller.scrollHeight - scroller.clientHeight).toBe(20);
+
+    // A manual expand remains available and uses the intended 20rem window.
+    fireEvent.click(screen.getByRole('button', { name: /39 non-body blocks/ }));
+    expect(screen.getByRole('button', { name: /39 non-body blocks/ }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('non-body-group-window').className).toContain('max-h-[20rem]');
   });
 });
 

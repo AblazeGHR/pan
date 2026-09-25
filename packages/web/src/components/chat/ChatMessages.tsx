@@ -839,7 +839,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   // loads (async) and again after the virtualizer measures the real heights.
   // The rAF re-scroll covers the same-frame layout of the freshly swapped DOM.
   const handledSessionRef = useRef<string | null>(isRestoringRef.current ? currentSessionId : null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Same session and no session switch: this run is the mount of a route
     // re-entry, whose restored position must not be reset to the newest message.
     if (handledSessionRef.current === currentSessionId) return;
@@ -853,6 +853,11 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     // A genuine session switch without a saved anchor starts at the newest
     // message. Do not discard snapshots belonging to other sessions.
     if (currentSessionId) measuredHeights.delete(currentSessionId);
+    // A Session may have been visited with its non-body disclosure expanded.
+    // The component remounts folded on this switch, but TanStack can still
+    // hold the prior expanded row size under the same session-scoped key.
+    // Rebuild the virtual measurements against the committed (folded) DOM.
+    virtualizer.measure();
     shouldFollowBottomRef.current = true;
     setIsNearBottom(true);
     initialScrollPendingRef.current = true;
@@ -885,6 +890,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     clearUserScrollActivity,
     currentSessionId,
     scrollToBottom,
+    virtualizer,
   ]);
 
   // Empty state — but ONLY after the initial history fetch has settled. While
