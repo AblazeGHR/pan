@@ -1,22 +1,60 @@
 # Job 统一 GUI 设计（GUI_DESIGN）
 
-- 用途：JobsView（P3）GUI 需求讨论纪要，由 gui-TA 与用户逐轮收敛
-- 状态：讨论中（2026-09-25 开始）
+- 用途：JobsView（P3）GUI 需求讨论纪要，由 gui-TA 与用户（后端 MA 代拍板）逐轮收敛
+- 状态：**主体完成**（2026-09-25，8 个增量已落地并合入 `integrate/pr1`）
 - 规范位置：docs/design/job-unification/GUI_DESIGN.md（2026-09-25 由 data/workdirs/ 转正进版本库）
-- 前置：PLAN_JOB_UNIFICATION.md（后端契约源，已冻结方向）；现有面板 ScheduledTaskPanel.tsx
+- 前置：PLAN_JOB_UNIFICATION.md（后端契约源）；现有面板 ScheduledTaskPanel.tsx（已被取代）
+- demo 实现：`packages/web/src/views/JobsView.tsx` + `packages/web/src/components/jobs/{mockJobs,NewJobForm,ScheduleListEditor,JobDetailDrawer}.tsx`
 
 ---
 
 ## 已定决策
 
-**入口与信息架构（话题 1）**
+**话题 1 · 入口与信息架构**
 
 - 入口：新增规范路由 `/jobs`（JobsView）；`/schedules` 保留为重定向（`<Navigate replace>`）到 `/jobs`。
-- 侧边栏：入口标签用纯英文 `Jobs`（替换原 `Tasks`，保持 Chat | Editor | Jobs 三格纯英文风格）；图标弃用 `CalendarClock`（对进程类 job 语义过窄），改中性图标（候选 `ListChecks`，demo 里定稿）；rail / 展开态 / 移动端三处同步。
-- 面板去向：退役 `ScheduledTaskPanel` + `ScheduledTasksView`，由 JobsView 取代；其可复用件（cron 简单/高级模式、cron 预设、时间格式化、runs 渲染、SwitchRow）抽为共享模块供 JobsView 复用。
-- JobsView 页内结构：两个小标签 —— 「列表」+「创建新 Job」（最终标签文案待定）。
-- 创建流模板模型：**模板 = 表单预设**。未选模板 → 展示全部可写字段；选中模板 → 表单按该模板裁剪/预填。首个模板 = 「创建定时任务」（由原 ScheduledTaskPanel 页面演化）。
-- 交付方式：先做**伪后端 mock 的前端 demo**，供用户逐步调整（demo 承载需求验证）。
+- 侧边栏：标签用纯英文 `Jobs`（替换 `Tasks`，保持 Chat | Editor | Jobs 三格纯英文风格）；图标 `CalendarClock` → `ListChecks`（原图标对进程类 job 语义过窄）；rail / 展开态 / 移动端三处同步。
+- 面板去向：退役 `ScheduledTaskPanel` + `ScheduledTasksView`，由 JobsView 取代；其可复用件（cron 简单/高级模式、cron 预设、时间格式化、runs 渲染、开关控件）抽为共享模块。
+- JobsView 页内结构：两个小标签 —— `Jobs`（列表）+ `New Job`（创建）。
+- 交付方式：先做伪后端 mock 的前端 demo，逐步迭代验证。
+
+**话题 2 · 列表设计**
+
+- **Q2.1 范围与排序（已拍板）**：**全部 job 一律入列**（含 `completed`/`failed`/`cancelled` 终态历史）；排序 = **活跃优先**（active-first：running → starting → scheduled → pending → 终态，同档内按 `updatedAt` 倒序）；保留 status chips（All / Active / Scheduled / Failed / Undeliverable）+ kind 下拉筛选，AND 叠加。
+- **Q2.2 字段与可读标识（已拍板）**：job 增加 **`name`（必填）+ `description`（可选）**；空位默认命名（空槽位语义，demo 用 `job-N`）。列表**主列 = `name` + kind 标识 + status badge**；**次列 = `target` / 下次触发 / 最近结果**。
+- **Q2.3 首期模板清单（已拍板）**：两个 —— ①「定时任务」模板（由原 ScheduledTaskPanel 演化：schedule 列表 + target + text）②「自定义」（全字段）。广播 / 单发消息 / 进程模板**本期不做**，真实需求出现再加。
+- 模板层级：GUI「模板」作用于**整个 job**（决定整个表单的字段集与默认值）；后端字段级命名快捷模板（"工作日9点"）本期不做。
+
+**话题 3 · 详情视图**
+
+- 打开方式：**右侧抽屉**（点列表行打开；移动端全屏；Esc / 遮罩 / 关闭按钮三种关闭方式）。
+- 内容 6 分区（只读展示为起点）：① 概览（name/description/kind/status/source/target/runCount/时间戳/paused）② schedule entries（逐条 kind/表达式/timezone/misfirePolicy/enabled/nextFireAt）③ 最近结果（`lastDelivery`，broadcast `partial` 可展开 / `lastError`）④ runs 历史（最近 N 条 + Load more）⑤ 积压（`mailbox` 条数 + 逐条摘要）⑥ 日志（仅进程类有 `logPath`，带复制）。
+
+**话题 4 · 创建 / 编辑流**
+
+- 模板选择器两个：`创建定时任务`（默认）/ `无模板（全字段）`；有模板 → 表单按模板裁剪，无模板 → 全部可写字段。
+- 全字段 = 基本信息(name/description) · kind(5 种) · source(agent/user/system/plugin) · target(含"无 target") · schedule(列表编辑器) · action(api 下拉 + args 随 api 切换) · 限制(maxRuns/paused)。
+- schedule 编辑器抽为共享组件（`ScheduleListEditor`），两模板共用，复用 `cronPreview`（不复制 cron 解析逻辑），支持多条增删 + 逐条 enabled + 简单/高级模式 + misfirePolicy + next-fire 预览。
+- `name` 留空 → 自动生成 `job-N`；`description` 可空。
+- **编辑已有 job**：从详情 `Edit` 打开全字段表单（预填），**`kind` 只读**、**`name` 必填**；保存保持 `jobId`/`createdAt`，更新 `updatedAt`。
+
+**话题 5 · 通知与提醒**
+
+- toast：成功/信息类走 `info`；`undeliverable` / target 缺失**不弹 toast**（避免噪音），改为列表行常驻红条 + 详情顶部 banner。
+- 列表行：`mailbox` 非空即显示 `N backlogged` 计数（不限于 undeliverable）。
+- 详情顶部：`undeliverable` 时 banner「target missing — switch target to deliver N backlogged note(s)」。
+- 已知缺口：`uiStore.showToast` 仅支持 `info` / `error`，无 `warning` 变体 → `partial` 类提示暂用 `info`（**是否新增 warning 变体待定**）。
+
+**话题 6 · 管理动作**
+
+- 动作集合：`run_now` / 启停（job 级 `paused` + 逐 schedule entry `enabled`）/ 改 `target`（归属切换，切换后积压便条重投）/ 编辑 / 删除（二次确认）。
+- 位置：列表行 `⋯` 菜单放高频项（`Run now` / `Pause·Resume` / `Delete`）；完整动作组（含 `Change target` / `Edit`）放详情顶部。
+- 删除二次确认弹窗；**批量操作本期不做**。
+
+**有意未做（记录在案）**
+
+- P1 实现与 PLAN §1 的 schema 漂移（`scheduled-task` 连字符、`undeliveredFires`、扁平 `targetSessionId`）**暂不对齐**——用户明确"最终对接不着急，核心是把 GUI 做出来"；demo 维持 PLAN §1 形态。
+- 后端对接、批量操作、`warning` toast 变体。
 
 ---
 
@@ -26,27 +64,45 @@
 
 **背景**：现只有一个 `/schedules` → `ScheduledTasksView` → `ScheduledTaskPanel`；侧边栏 3 处指向它（rail 图标 / 展开态三格 / 移动端）。路由见 `packages/web/src/router.tsx:30`，侧边栏见 `Sidebar.tsx:409,521,900`。
 
-**提案与结论**：
-
 - 1.1 路由：提案新增 `/jobs` + `/schedules` 重定向 → **采纳**。
-- 1.2 侧边栏：提案保留三格结构、标签改 `Jobs`、图标换中性 → **采纳**（用户定：标签纯英文，与现有三格风格一致）。
-- 1.3 面板去向：提案退役 Panel+View、抽可复用件 → **采纳**（用户原话"job 替换掉原来的 task panel"）。
-- 追加（用户提出）：JobsView 内分「列表 / 创建新 Job」两个小标签；列表记录所有 job。
-- 追加（用户提出）：创建流分「无模板 = 全字段 / 有模板 = 按模板裁剪」，首个模板为「创建定时任务」。
-- 追加（用户提出）：先做伪后端 mock 的前端 demo，逐步调。
+- 1.2 侧边栏：提案保留三格、标签改 `Jobs`、图标换中性 → **采纳**（用户定：标签纯英文）。
+- 1.3 面板去向：提案退役 Panel+View、抽可复用件 → **采纳**（"job 替换掉原来的 task panel"）。
+- 追加（用户提出）：JobsView 内分「列表 / 创建新 Job」两个小标签；创建流分「无模板=全字段 / 有模板=按模板裁剪」；先做 mock demo 逐步调。
 
-**待确认（下一轮）**：
+### 第 2 轮（2026-09-25）：列表 / 创建模板 —— **已拍板**
 
-- 列表标签的展示范围：全部 job（含 completed/failed/cancelled 历史）还是仅活跃？
-- 两个小标签的最终文案（`Jobs` / `New Job`？或 `List` / `Create`？）。
-- 模板清单首期包含哪些：仅「定时任务」+「自定义」，还是加「广播 / 单发消息 / 后台进程」？
-- ~~GUI 的"模板"（表单预设）与后端 schedule 命名预设（"工作日9点"，PLAN §4）是两个层级，需确认后者作为 schedule 字段内部的快捷项。~~ → **已确认（第 2 轮）**：两者不是一层，GUI 模板作用于**整个 job**；字段级快捷模板本期不做。
+- 模板层级澄清（用户）：GUI 模板作用于**整个 job**；字段级快捷模板本期不做。
+- **Q2.1 已拍板**：全部 job 入列 + active-first 排序 + status/kind 筛选。demo 已实现（`908336d`），追认生效。
+- **Q2.2 已拍板**：后端加 `name`（必填）+ `description`（可选），空位默认命名；demo 与后端（`a2ee30a`、`packages/jobs/api.py` 的 rename/description patch）均已实现，追认生效。列表主列 = `name` + kind 标识 + status badge，次列 = target/下次触发/最近结果。
+  - 备注：demo 当前 kind 以**文字徽标**呈现，非图标（如需改为图标，属可选微调）。
+- **Q2.3 已拍板**：首期两个模板「定时任务」+「自定义」；广播/单发/进程本期不做。
+- 交付编排：由 gui-TA(MA) 派发实施 TA（会话 `jobsview-demo`，`ses_8731e1cfc25ef847`，cbc / deepseek-v4-pro）逐步实现，workdir = 工作树，与 MA 共用分支，逐增量 FF 合入 `integrate/pr1`。
 
-### 第 2 轮（2026-09-25 进行中）：列表 / 创建模板
+### 第 3 轮（2026-09-25）：详情视图
 
-- 模板层级澄清（用户）：GUI「模板」作用于**整个 job**（决定整个表单的字段集与默认值）；后端 PLAN §4 的字段级命名快捷模板（"工作日9点"等）本期不做——"之后某些字段的快捷模板先不管"。
-- 交付编排（用户）：由 gui-TA(MA) 派发实施 TA 逐步实现 mock demo，"说一点立刻做一点"。
-  - TA 会话 `jobsview-demo`（`ses_8731e1cfc25ef847`，cbc / deepseek-v4-pro），workdir = 工作树，与 MA 共用分支。
-  - 增量 1（已派发）：/jobs 路由 + /schedules 重定向 + 侧边栏 Jobs/ListChecks + JobsView 双 tab 骨架 + PLAN §1 类型 mock 数据 + 粗糙列表。
+- 打开方式：**右侧抽屉**（点行打开，移动端全屏）；仅读展示起步，动作留到话题 6。
+- 内容 6 分区：概览 / schedule entries / 最近结果 / runs 历史（含 Load more）/ 积压 mailbox / 日志 logPath。
 
-**待确认**：Q2.1 列表范围与排序 / Q2.2 列表字段与可读标识（是否加后端 `name` 字段）/ Q2.3 首期模板清单。
+### 第 4 轮（2026-09-25）：通知与提醒
+
+- `undeliverable` 不弹 toast，改列表红条 + 详情 banner 两级提示；列表行 `N backlogged` 计数；toast 仅 info/error（warning 变体待定）。
+
+### 第 5 轮（2026-09-25）：管理动作
+
+- 动作集合：`run_now` / 启停（job + 逐 entry）/ 改 target（重投积压）/ 编辑 / 删除（二次确认）；行内放高频、详情放全量；批量不做。
+
+---
+
+## 实现台账（demo，均已合入 `integrate/pr1`）
+
+| # | 增量 | commit |
+|---|---|---|
+| 0 | 设计文档转正进版本库 | `6d4dfa3` |
+| 1 | JobsView 骨架 + `/jobs` 路由 + 侧边栏 | `f315155` |
+| 2 | `name`/`description` + 默认命名语义 | `815c367` |
+| 3 | 列表筛选 + active-first 排序 + 行动作占位 | `908336d` |
+| 4 | 创建 tab：两模板 + 定时任务表单 | `f69f710` |
+| 5 | 详情抽屉（6 分区） | `5e2ab6e` |
+| 6 | 管理动作 + 通知联动 | `bd1dc86` |
+| 7 | 共享 schedule 编辑器 + 全字段表单可用 | `e0465fc` |
+| 8 | `Edit` 编辑已有 job | `81b49f4` |
