@@ -443,9 +443,9 @@ export function useWebSocket() {
       if (
         e.status === 'running' &&
         (e.source === 'agent' || e.source === 'report') &&
-        e.sessionId === useSessionStore.getState().currentSessionId
+        e.sessionId
       ) {
-        syncAgentInjectedMessage();
+        syncAgentInjectedMessage(e.sessionId);
       }
     }));
 
@@ -1302,13 +1302,12 @@ function clearNativeTurnAliases(sessionId: string): void {
 // 只广播 assistant 回复（worker.stream）与完成（worker.result）——user 消息前端
 // 无实时来源。worker.status(running) 可能先于 history 快照可读，故在首次未合并
 // 到新消息时做有界重试，覆盖落盘与 GET 的短暂竞态，同时避免无限轮询。
-let agentSyncInFlight = false;
+const agentSyncInFlight = new Set<string>();
 const AGENT_SYNC_RETRY_DELAYS_MS = [50, 150, 500] as const;
 
-function syncAgentInjectedMessage(): void {
-  const sid = useSessionStore.getState().currentSessionId;
-  if (!sid || agentSyncInFlight) return;
-  agentSyncInFlight = true;
+function syncAgentInjectedMessage(sid: string): void {
+  if (agentSyncInFlight.has(sid)) return;
+  agentSyncInFlight.add(sid);
   const sync = async (): Promise<void> => {
     for (let attempt = 0; attempt <= AGENT_SYNC_RETRY_DELAYS_MS.length; attempt++) {
       if (attempt > 0) {
@@ -1318,17 +1317,21 @@ function syncAgentInjectedMessage(): void {
       }
 
       const store = useSessionStore.getState();
-      if (store.currentSessionId !== sid) return; // 用户已切走，丢弃过期结果
+      const beforeSession = store.sessions.find((session) => session.id === sid);
+      const beforeTranscript = store.sessionTranscripts[sid];
+      const beforeTotal = beforeSession?.historyTotal ?? beforeTranscript?.window.total ?? 0;
+      const beforeRevision = beforeTranscript?.window.revision ?? beforeSession?.historyRevision ?? 0;
 
       try {
-        const before = store.currentMessages;
-        // Use the store's guarded history reconciliation rather than writing
-        // the HTTP response directly.  This keeps agent/report injection on
-        // the same identity-aware path as Steer, queue delivery, and replay.
-        await useSessionStore.getState().refreshCurrentSessionHistory();
+        // Fetch once per hand-off event (plus bounded race retries) and merge
+        // through the canonical offset-aware history path. This also updates a
+        // background Session without touching the selected Session's viewport.
+        await useSessionStore.getState().recoverSessionHistory(sid);
         const latest = useSessionStore.getState();
-        if (latest.currentSessionId !== sid) return;
-        if (latest.currentMessages !== before) {
+        const afterSession = latest.sessions.find((session) => session.id === sid);
+        const afterTranscript = latest.sessionTranscripts[sid];
+        if ((afterSession?.historyTotal ?? afterTranscript?.window.total ?? 0) > beforeTotal
+            || (afterTranscript?.window.revision ?? afterSession?.historyRevision ?? 0) > beforeRevision) {
           return;
         }
         // 当前快照没有带来新消息：注入可能仍在异步落盘，继续下一轮。
@@ -1339,6 +1342,6 @@ function syncAgentInjectedMessage(): void {
   };
 
   void sync().finally(() => {
-    agentSyncInFlight = false;
+    agentSyncInFlight.delete(sid);
   });
 }

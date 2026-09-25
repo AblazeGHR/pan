@@ -458,6 +458,74 @@ describe('reaudit · ordered event pipeline', () => {
       ]);
   });
 
+  it('background report and delivered user row stay in B transcript across selection and fresh history', async () => {
+    const a = mk('A');
+    const b = mk('B');
+    a.history = [{ role: 'user', content: 'A stays selected', messageId: 'a-1' }];
+    b.history = [{ role: 'user', content: 'B initial', messageId: 'b-1' }];
+    a.historyTotal = b.historyTotal = 1;
+    useSessionStore.setState({ sessions: [a, b], currentSessionId: 'A', currentMessages: a.history });
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockImplementation(async (sessionId: string) => sessionId === 'B' ? ({
+      history: [
+        { role: 'user', content: 'B initial', messageId: 'b-1' },
+        { role: 'user', content: 'Injected report request', messageId: 'b-injected' },
+      ], total: 2, hasMore: false, start: 0, historyEpoch: 'b-epoch', historyRevision: 2,
+    }) : ({
+      history: [{ role: 'user', content: 'A stays selected', messageId: 'a-1' }],
+      total: 1, hasMore: false, start: 0, historyEpoch: 'a-epoch', historyRevision: 1,
+    }));
+
+    act(() => {
+      wsMock.trigger('worker.status', {
+        type: 'worker.status', sessionId: 'B', workerId: 'w2', generation: 0,
+        taskSeq: 4, taskId: 'b-task-4', status: 'running', source: 'report',
+      });
+      wsMock.trigger('worker.stream', {
+        type: 'worker.stream', sessionId: 'B', workerId: 'w2', generation: 0,
+        taskSeq: 4, taskId: 'b-task-4',
+        event: { type: 'assistant', final: true, replace: true, item_id: 'b-report',
+          message: { content: [{ type: 'text', text: 'B report' }] } },
+      });
+      wsMock.trigger('worker.result', {
+        type: 'worker.result', sessionId: 'B', workerId: 'w2', generation: 0,
+        taskSeq: 4, taskId: 'b-task-4', status: 'done', result: 'B report',
+      });
+      wsMock.trigger('queue.item_delivered', {
+        type: 'queue.item_delivered', sessionId: 'B', messages: [
+          { role: 'user', content: 'B follow-up', messageId: 'b-user-2', queueItemId: 'q-b-2' },
+        ],
+      });
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    const stateAfterBackground = useSessionStore.getState();
+    expect(stateAfterBackground.currentMessages.map((row) => row.content)).toEqual(['A stays selected']);
+    expect(stateAfterBackground.sessions.find((session) => session.id === 'B')?.lastMessage).toBe('B follow-up');
+    expect(stateAfterBackground.sessionTranscripts.B?.runtime.map((row) => row.content)).toEqual(['B report', 'B follow-up']);
+    expect(stateAfterBackground.sessionTranscripts.B?.window.rows.size).toBe(2);
+
+    apiMock.fetchSessionHistory.mockImplementation(async (sessionId: string) => sessionId === 'B' ? ({
+      history: [
+        { role: 'user', content: 'B initial', messageId: 'b-1' },
+        { role: 'user', content: 'Injected report request', messageId: 'b-injected' },
+        { role: 'assistant', content: 'B report', messageId: 'b-report-durable' },
+        { role: 'user', content: 'B follow-up', messageId: 'b-user-2' },
+      ], total: 4, hasMore: false, start: 0, historyEpoch: 'b-epoch', historyRevision: 4,
+    }) : ({
+      history: [{ role: 'user', content: 'A stays selected', messageId: 'a-1' }],
+      total: 1, hasMore: false, start: 0, historyEpoch: 'a-epoch', historyRevision: 1,
+    }));
+    await act(async () => { await useSessionStore.getState().selectSession('B'); });
+    expect(useSessionStore.getState().currentMessages.map((row) => row.content))
+      .toEqual(['B initial', 'Injected report request', 'B report', 'B follow-up']);
+    await act(async () => { await useSessionStore.getState().selectSession('A'); });
+    expect(useSessionStore.getState().currentMessages.map((row) => row.content)).toEqual(['A stays selected']);
+    await act(async () => { await useSessionStore.getState().selectSession('B'); });
+    expect(useSessionStore.getState().currentMessages.map((row) => row.content))
+      .toEqual(['B initial', 'Injected report request', 'B report', 'B follow-up']);
+  });
+
   // DEFECT E2 (F-B). A tool event that arrives before the assistant text is
   // reordered after it once worker.result rebuilds the live projection.
   it('E2 · a tool block streamed before the assistant text keeps its position after result', () => {

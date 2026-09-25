@@ -1262,13 +1262,18 @@ function applyHistoryPageToState(
         && (row.nativeItemId ?? null) === (other.nativeItemId ?? null);
     });
   const display = unchanged ? s.currentMessages : projected;
-  const lastRow = windowRows(merged.window)[merged.window.rows.size - 1];
+  const lastRow = display[display.length - 1];
+  const projectedTotal = Math.max(
+    merged.window.total,
+    session.historyTotal ?? 0,
+    display.length,
+  );
   return {
     sessions: s.sessions.map((candidate) => candidate.id === sessionId
       ? {
           ...candidate,
           history: canonicalHistory(display),
-          historyTotal: merged.window.total,
+          historyTotal: projectedTotal,
           historyStart: merged.window.start ?? 0,
           historyTruncated: (merged.window.start ?? 0) > 0,
           historyEpoch: merged.window.epoch ?? candidate.historyEpoch,
