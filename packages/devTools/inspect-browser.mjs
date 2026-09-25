@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const resultsRoot = path.resolve(import.meta.dirname, '../../packages/web/test-results');
+const resultsRoot = path.resolve(import.meta.dirname, '../web/test-results');
 const dirs = (await fs.readdir(resultsRoot, { withFileTypes: true }))
   .filter(entry => entry.isDirectory() && entry.name.startsWith('browser-trace-'))
   .map(entry => entry.name).sort().reverse();
