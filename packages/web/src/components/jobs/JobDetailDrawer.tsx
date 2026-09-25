@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, X } from 'lucide-react';
+import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import type { Job, JobRun, JobSource } from '@/components/jobs/mockJobs';
 
 const RUNS_PAGE = 5;
@@ -83,6 +83,36 @@ function KV({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function MiniSwitch({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      title={checked ? 'Click to disable' : 'Click to enable'}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex w-8 h-[18px] shrink-0 rounded-full transition-colors ${
+        checked ? 'bg-accent' : 'bg-bg-hover'
+      }`}
+    >
+      <span
+        className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-[14px]' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  );
+}
+
 function scheduleKindLabel(kind: string): string {
   switch (kind) {
     case 'once':
@@ -109,7 +139,23 @@ function RunRow({ run }: { run: JobRun }) {
   );
 }
 
-export function JobDetailDrawer({ job, onClose }: { job: Job; onClose: () => void }) {
+export function JobDetailDrawer({
+  job,
+  onClose,
+  onRunNow,
+  onTogglePaused,
+  onDelete,
+  onChangeTarget,
+  onToggleEntryEnabled,
+}: {
+  job: Job;
+  onClose: () => void;
+  onRunNow: () => void;
+  onTogglePaused: () => void;
+  onDelete: () => void;
+  onChangeTarget: () => void;
+  onToggleEntryEnabled: (entryId: string) => void;
+}) {
   const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
   const [deliveryExpanded, setDeliveryExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -172,6 +218,59 @@ export function JobDetailDrawer({ job, onClose }: { job: Job; onClose: () => voi
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="flex flex-col gap-4">
+            {/* Undeliverable banner */}
+            {job.notificationState === 'undeliverable' && (
+              <div className="rounded border border-warning/50 bg-warning/10 px-2.5 py-2 text-[11px] text-warning">
+                target missing — switch target to deliver {job.mailbox.length} backlogged note(s)
+              </div>
+            )}
+
+            {/* Action group */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onRunNow}
+                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <Play size={12} />
+                Run now
+              </button>
+              <button
+                type="button"
+                onClick={onTogglePaused}
+                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                {job.paused ? <Play size={12} /> : <Pause size={12} />}
+                {job.paused ? 'Resume' : 'Pause'}
+              </button>
+              <button
+                type="button"
+                onClick={onChangeTarget}
+                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              >
+                <Target size={12} />
+                Change target
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-danger transition-colors hover:bg-danger/10"
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+              <button
+                type="button"
+                disabled
+                title="待细化"
+                aria-label="Edit (placeholder)"
+                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-tertiary opacity-50"
+              >
+                <Pencil size={12} />
+                Edit
+              </button>
+            </div>
+
             {/* 1. Overview */}
             <Section title="Overview">
               {job.description && (
@@ -210,15 +309,20 @@ export function JobDetailDrawer({ job, onClose }: { job: Job; onClose: () => voi
                           </span>
                           <span className="font-mono text-text-tertiary">{e.id}</span>
                         </div>
-                        <span
-                          className={`rounded border px-1.5 py-px text-[10px] font-medium ${
-                            e.enabled
-                              ? 'border-success/50 bg-success/10 text-success'
-                              : 'border-border-default bg-bg-tertiary text-text-tertiary'
-                          }`}
-                        >
-                          {e.enabled ? 'enabled' : 'disabled'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-[10px] font-medium ${
+                              e.enabled ? 'text-success' : 'text-text-tertiary'
+                            }`}
+                          >
+                            {e.enabled ? 'enabled' : 'disabled'}
+                          </span>
+                          <MiniSwitch
+                            label={`Schedule entry ${e.id} enabled`}
+                            checked={e.enabled}
+                            onChange={() => onToggleEntryEnabled(e.id)}
+                          />
+                        </div>
                       </div>
                       <div className="flex flex-col gap-0.5 text-text-secondary">
                         {e.kind === 'cron' && (

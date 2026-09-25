@@ -1,13 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ListChecks, MoreHorizontal, Plus } from 'lucide-react';
+import { ArrowLeft, ListChecks, MoreHorizontal, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { useUIStore } from '@/stores/uiStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import {
   mockJobs,
   type Job,
   type JobKind,
+  type JobRun,
   type JobSource,
   type JobStatus,
 } from '@/components/jobs/mockJobs';
@@ -32,6 +36,9 @@ const KIND_OPTIONS: { key: 'all' | JobKind; label: string }[] = [
   { key: 'main-lifecycle', label: 'main-lifecycle' },
   { key: 'scheduled_task', label: 'scheduled_task' },
 ];
+
+const selectClass =
+  'w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 px-2 text-text-primary outline-none focus:border-accent/50';
 
 /** 状态 → 徽标配色（沿用主题 token）。 */
 function statusClass(status: JobStatus): string {
@@ -63,6 +70,18 @@ function formatDateTime(iso?: string | null): string {
   if (Number.isNaN(d.getTime())) return iso;
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Naive local ISO（仓库时间戳约定，无时区后缀）。 */
+function naiveIso(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+}
+
+function randomHex(n: number): string {
+  let out = '';
+  for (let i = 0; i < n; i++) out += Math.floor(Math.random() * 16).toString(16);
+  return out;
 }
 
 /** 下次触发 = 各 enabled entry 中最早的 nextFireAt。 */
@@ -126,7 +145,26 @@ function matchesStatusFilter(job: Job, filter: StatusFilter): boolean {
   }
 }
 
-function JobRow({ job, onOpen }: { job: Job; onOpen: () => void }) {
+const menuItemClass =
+  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-primary transition-colors hover:bg-accent/20';
+
+function JobRow({
+  job,
+  onOpen,
+  menuOpen,
+  onToggleMenu,
+  onRunNow,
+  onTogglePaused,
+  onDelete,
+}: {
+  job: Job;
+  onOpen: () => void;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  onRunNow: () => void;
+  onTogglePaused: () => void;
+  onDelete: () => void;
+}) {
   const next = nextFireAt(job);
   return (
     <div
@@ -150,16 +188,77 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: () => void }) {
             Paused
           </span>
         )}
-        <button
-          type="button"
-          disabled
-          onClick={(e) => e.stopPropagation()}
-          title="动作集合待定"
-          aria-label="Job actions (placeholder)"
-          className="shrink-0 rounded border border-transparent p-1 text-text-tertiary opacity-50"
-        >
-          <MoreHorizontal size={14} />
-        </button>
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleMenu();
+            }}
+            title="Job actions"
+            aria-label="Job actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className="shrink-0 rounded border border-transparent p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          {menuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleMenu();
+                }}
+              />
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 z-30 w-40 rounded border border-border-default bg-bg-tertiary py-1 shadow-xl"
+              >
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleMenu();
+                    onRunNow();
+                  }}
+                  className={menuItemClass}
+                >
+                  <Play size={13} />
+                  Run now
+                </button>
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleMenu();
+                    onTogglePaused();
+                  }}
+                  className={menuItemClass}
+                >
+                  {job.paused ? <Play size={13} /> : <Pause size={13} />}
+                  {job.paused ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleMenu();
+                    onDelete();
+                  }}
+                  className={`${menuItemClass} text-danger hover:bg-danger/10`}
+                >
+                  <Trash2 size={13} />
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
@@ -169,6 +268,11 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: () => void }) {
         {next && <span>next {formatDateTime(next)}</span>}
         <span>runs {job.runCount}</span>
         <span>{lastResultSummary(job)}</span>
+        {job.mailbox.length > 0 && (
+          <span className="rounded border border-warning/50 bg-warning/10 px-1 py-px text-[10px] text-warning">
+            {job.mailbox.length} backlogged
+          </span>
+        )}
       </div>
 
       {job.description && (
@@ -185,7 +289,7 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: () => void }) {
 
       {job.notificationState === 'undeliverable' && (
         <div className="rounded border border-danger/50 bg-danger/10 px-2 py-1 text-[11px] text-danger">
-          undeliverable — target missing · {job.mailbox.length} note(s) backlogged
+          undeliverable — target missing
         </div>
       )}
     </div>
@@ -193,18 +297,22 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: () => void }) {
 }
 
 /**
- * JobsView（P3 最低范围骨架）。「列表 / 创建新 Job」两个可切换的小标签：
- * 列表按活跃优先排序 + 状态 chips / kind 下拉筛选，渲染 mock 种子数据；
- * 创建标签为占位。
+ * JobsView（P3 GUI）。「列表 / 创建新 Job」两个标签；列表支持筛选、排序、
+ * 行内 `⋯` 动作菜单与详情抽屉（drawer）。全部动作为 mock，仅改本地列表 state。
  */
 export default function JobsView() {
   const navigate = useNavigate();
   const showToast = useUIStore((s) => s.showToast);
+  const sessions = useSessionStore((s) => s.sessions);
   const [tab, setTab] = useState<Tab>('list');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [menuJobId, setMenuJobId] = useState<string | null>(null);
+  const [changeTargetJobId, setChangeTargetJobId] = useState<string | null>(null);
+  const [newTargetId, setNewTargetId] = useState('');
+  const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
 
   const visibleJobs = useMemo(() => {
     return jobs
@@ -213,10 +321,86 @@ export default function JobsView() {
       .sort(compareJobs);
   }, [jobs, statusFilter, kindFilter]);
 
+  const sessionOptions = useMemo(
+    () => sessions.filter((s) => !s.id.startsWith('__pending_')),
+    [sessions],
+  );
+
+  const selectedJob = jobs.find((j) => j.jobId === selectedJobId) ?? null;
+  const changeTargetJob = jobs.find((j) => j.jobId === changeTargetJobId) ?? null;
+  const deleteJob = jobs.find((j) => j.jobId === deleteJobId) ?? null;
+
+  const updateJob = (jobId: string, fn: (j: Job) => Job) =>
+    setJobs((prev) => prev.map((j) => (j.jobId === jobId ? fn(j) : j)));
+
   const handleCreate = (job: Job) => {
     setJobs((prev) => [...prev, job]);
     setTab('list');
     showToast(`Created job "${job.name}"`);
+  };
+
+  const handleRunNow = (job: Job) => {
+    const iso = naiveIso(new Date());
+    const run: JobRun = { runId: `run_${randomHex(6)}`, fireAt: iso, status: 'dispatched' };
+    updateJob(job.jobId, (j) => ({
+      ...j,
+      runs: [...(j.runs ?? []), run],
+      runCount: j.runCount + 1,
+      lastFireAt: iso,
+    }));
+    showToast(`Ran job "${job.name}"`);
+  };
+
+  const handleTogglePaused = (job: Job) => {
+    const next = !job.paused;
+    updateJob(job.jobId, (j) => ({ ...j, paused: next }));
+    showToast(next ? `Paused job "${job.name}"` : `Resumed job "${job.name}"`);
+  };
+
+  const handleToggleEntry = (jobId: string, entryId: string) => {
+    updateJob(jobId, (j) => ({
+      ...j,
+      schedule: j.schedule.map((e) =>
+        e.id === entryId
+          ? {
+              ...e,
+              enabled: !e.enabled,
+              nextFireAt: e.enabled ? null : naiveIso(new Date(Date.now() + 86400_000)),
+            }
+          : e,
+      ),
+    }));
+  };
+
+  const openChangeTarget = (job: Job) => {
+    setNewTargetId(job.target.sessionId ?? '');
+    setChangeTargetJobId(job.jobId);
+  };
+
+  const handleChangeTarget = () => {
+    if (!changeTargetJob) return;
+    const hadBacklog = changeTargetJob.notificationState === 'undeliverable';
+    const backlogCount = changeTargetJob.mailbox.length;
+    updateJob(changeTargetJob.jobId, (j) => ({
+      ...j,
+      target: { sessionId: newTargetId || null },
+      notificationState: j.notificationState === 'undeliverable' ? 'pending' : j.notificationState,
+      mailbox: j.notificationState === 'undeliverable' ? [] : j.mailbox,
+    }));
+    setChangeTargetJobId(null);
+    showToast(
+      hadBacklog
+        ? `Target updated; ${backlogCount} backlogged note(s) requeued`
+        : `Target updated for "${changeTargetJob.name}"`,
+    );
+  };
+
+  const handleDelete = () => {
+    if (!deleteJob) return;
+    setJobs((prev) => prev.filter((j) => j.jobId !== deleteJob.jobId));
+    if (selectedJobId === deleteJob.jobId) setSelectedJobId(null);
+    setDeleteJobId(null);
+    showToast(`Deleted job "${deleteJob.name}"`);
   };
 
   return (
@@ -317,7 +501,18 @@ export default function JobsView() {
               {visibleJobs.length > 0 ? (
                 <div className="flex flex-col gap-2">
                   {visibleJobs.map((job) => (
-                    <JobRow key={job.jobId} job={job} onOpen={() => setSelectedJob(job)} />
+                    <JobRow
+                      key={job.jobId}
+                      job={job}
+                      onOpen={() => setSelectedJobId(job.jobId)}
+                      menuOpen={menuJobId === job.jobId}
+                      onToggleMenu={() =>
+                        setMenuJobId(menuJobId === job.jobId ? null : job.jobId)
+                      }
+                      onRunNow={() => handleRunNow(job)}
+                      onTogglePaused={() => handleTogglePaused(job)}
+                      onDelete={() => setDeleteJobId(job.jobId)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -333,8 +528,74 @@ export default function JobsView() {
       </div>
 
       {selectedJob && (
-        <JobDetailDrawer job={selectedJob} onClose={() => setSelectedJob(null)} />
+        <JobDetailDrawer
+          job={selectedJob}
+          onClose={() => setSelectedJobId(null)}
+          onRunNow={() => handleRunNow(selectedJob)}
+          onTogglePaused={() => handleTogglePaused(selectedJob)}
+          onDelete={() => setDeleteJobId(selectedJob.jobId)}
+          onChangeTarget={() => openChangeTarget(selectedJob)}
+          onToggleEntryEnabled={(entryId) => handleToggleEntry(selectedJob.jobId, entryId)}
+        />
       )}
+
+      {/* Change target dialog */}
+      <Modal
+        open={changeTargetJobId !== null}
+        onClose={() => setChangeTargetJobId(null)}
+        title="Change target"
+        size="sm"
+      >
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">Target session</span>
+            <select
+              aria-label="Target session"
+              value={newTargetId}
+              onChange={(e) => setNewTargetId(e.target.value)}
+              className={selectClass}
+            >
+              <option value="">无 target</option>
+              {sessionOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name || 'Untitled'} · {s.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setChangeTargetJobId(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleChangeTarget}>
+              Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete confirmation dialog */}
+      <Modal
+        open={deleteJobId !== null}
+        onClose={() => setDeleteJobId(null)}
+        title="Delete job"
+        size="sm"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-text-secondary">
+            Delete job <span className="text-text-primary">"{deleteJob?.name}"</span>? This cannot
+            be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setDeleteJobId(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" size="sm" onClick={handleDelete}>
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
