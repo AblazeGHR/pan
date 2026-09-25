@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   render,
@@ -85,6 +86,18 @@ function seedManagedChild(extra?: { confirmation?: boolean }) {
   }
   apiMock.fetchSession.mockResolvedValue(
     mk('child', 'Child', { managedBy: 'mgr', managed: [], reportSubscriptions: [] }),
+  );
+}
+
+function DesktopManageNavigation({ initialSessionId, onClose }: { initialSessionId: string; onClose: () => void }) {
+  const [sessionId, setSessionId] = useState(initialSessionId);
+  return (
+    <ManageModal
+      open
+      onClose={onClose}
+      sessionId={sessionId}
+      onViewRelationship={setSessionId}
+    />
   );
 }
 
@@ -768,6 +781,43 @@ describe('ManageModal', () => {
 
     expect(screen.getByRole('tab', { name: 'Relationship' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('tab', { name: 'Access' }).getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('opens the Managed by Session relationship in the same desktop Manage modal', async () => {
+    const parent = mk('parent', 'Parent', { managed: ['child'], reportSubscriptions: [] });
+    const child = mk('child', 'Child', { managedBy: parent.id, managed: [], reportSubscriptions: [] });
+    useSessionStore.setState({ sessions: [parent, child], currentSessionId: child.id });
+    apiMock.fetchSession.mockImplementation(async (id: string) => id === parent.id ? parent : child);
+    const onClose = vi.fn();
+
+    render(<DesktopManageNavigation initialSessionId={child.id} onClose={onClose} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'View Relationship for Parent' }));
+
+    expect(await screen.findByText(/Parent manages the sessions marked below/)).toBeTruthy();
+    expect(apiMock.fetchSession).toHaveBeenCalledWith(parent.id);
+    expect(screen.getByRole('tab', { name: 'Relationship' }).getAttribute('aria-selected')).toBe('true');
+    expect(useSessionStore.getState().currentSessionId).toBe(child.id);
+    expect(apiMock.claimSession).not.toHaveBeenCalled();
+    expect(apiMock.unclaimSession).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('opens a managed Session relationship when selected from Manages', async () => {
+    const parent = mk('parent', 'Parent', { managed: ['child'], reportSubscriptions: [] });
+    const child = mk('child', 'Child', { managedBy: parent.id, managed: [], reportSubscriptions: [] });
+    useSessionStore.setState({ sessions: [parent, child], currentSessionId: parent.id });
+    apiMock.fetchSession.mockImplementation(async (id: string) => id === parent.id ? parent : child);
+
+    render(<DesktopManageNavigation initialSessionId={parent.id} onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'View Relationship for Child' }));
+
+    expect(await screen.findByText(/Child manages the sessions marked below/)).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'View Relationship for Parent' })).toBeTruthy();
+    expect(apiMock.fetchSession).toHaveBeenCalledWith(child.id);
+    expect(screen.getByRole('tab', { name: 'Relationship' }).getAttribute('aria-selected')).toBe('true');
+    expect(useSessionStore.getState().currentSessionId).toBe(parent.id);
+    expect(apiMock.claimSession).not.toHaveBeenCalled();
+    expect(apiMock.unclaimSession).not.toHaveBeenCalled();
   });
 
   it('fails closed without crashing when the manager is missing from the list', async () => {

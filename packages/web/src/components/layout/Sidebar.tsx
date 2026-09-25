@@ -952,6 +952,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
         open={!!manageSessionId}
         onClose={() => setManageSessionId(null)}
         sessionId={manageSessionId}
+        onViewRelationship={setManageSessionId}
       />
       <PostboxModal
         open={!!postboxSessionId}

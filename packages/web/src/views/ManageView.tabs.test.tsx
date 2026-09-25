@@ -3,8 +3,8 @@
 // must expose the same four tabs — and keep working with the real panel
 // (ManageView.test.tsx stubs the panel out to test close behaviour only).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ManageView from './ManageView';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -39,6 +39,7 @@ vi.mock('@/services/api', () => apiMock);
 
 describe('ManageView mobile tabs', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query === '(max-width: 767px)',
       media: query,
@@ -68,16 +69,22 @@ describe('ManageView mobile tabs', () => {
     vi.unstubAllGlobals();
   });
 
-  function renderManageView() {
-    return render(
-      <MemoryRouter initialEntries={['/manage/session-mobile']}>
-        <Routes>
-          <Route path="/manage/:sessionId" element={<ManageView />} />
-          <Route path="/" element={<div data-testid="chat-root">chat</div>} />
-        </Routes>
-      </MemoryRouter>,
-    );
-  }
+function CurrentPath() {
+  const location = useLocation();
+  return <output data-testid="current-path">{location.pathname}</output>;
+}
+
+function renderManageView(initialPath = '/manage/session-mobile') {
+  return render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <CurrentPath />
+      <Routes>
+        <Route path="/manage/:sessionId" element={<ManageView />} />
+        <Route path="/" element={<div data-testid="chat-root">chat</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
 
   it('shares the four Manage tabs and keeps closing the page intact', async () => {
     renderManageView();
@@ -103,6 +110,57 @@ describe('ManageView mobile tabs', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close Manage Sessions' }));
     await waitFor(() => expect(screen.getByTestId('chat-root')).toBeTruthy());
+    expect(useUIStore.getState().mobileSidebarOpen).toBe(true);
+    expect(useSessionStore.getState().currentSessionId).toBe('already-selected');
+  });
+
+  it('navigates through Managed by and Manages on the mobile Manage page, restoring the drawer only on close', async () => {
+    const manager: Session = {
+      ...mobileSession,
+      id: 'session-manager',
+      name: 'Mobile manager',
+      managed: [mobileSession.id],
+      managedBy: null,
+    };
+    const child: Session = {
+      ...mobileSession,
+      managedBy: manager.id,
+    };
+    useSessionStore.setState({ sessions: [manager, child] });
+    apiMock.fetchSession.mockImplementation(async (id: string) => ({
+      ...(id === manager.id ? manager : child),
+      reportSubscriptions: [],
+    }));
+
+    renderManageView(`/manage/${child.id}`);
+    expect(await screen.findByRole('button', { name: 'View Relationship for Mobile manager' })).toBeTruthy();
+    expect(screen.getByTestId('current-path').textContent).toBe(`/manage/${child.id}`);
+    expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Relationship for Mobile manager' }));
+
+    await waitFor(() => expect(screen.getByTestId('current-path').textContent).toBe(`/manage/${manager.id}`));
+    const pageHeading = screen.getByRole('heading', { name: 'Manage Sessions' }).parentElement!;
+    await waitFor(() => expect(within(pageHeading).getByText('Mobile manager')).toBeTruthy());
+    expect(screen.getByRole('tab', { name: 'Relationship' }).getAttribute('aria-selected')).toBe('true');
+    expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
+
+    expect(await screen.findByRole('button', { name: 'View Relationship for Mobile session' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Relationship for Mobile session' }));
+
+    await waitFor(() => expect(screen.getByTestId('current-path').textContent).toBe(`/manage/${child.id}`));
+    await waitFor(() => expect(within(pageHeading).getByText('Mobile session')).toBeTruthy());
+    expect(await screen.findByText(/Mobile session manages the sessions marked below/)).toBeTruthy();
+    expect(apiMock.fetchSession).toHaveBeenCalledWith(child.id);
+    expect(screen.getByRole('tab', { name: 'Relationship' }).getAttribute('aria-selected')).toBe('true');
+    expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
+    expect(useSessionStore.getState().currentSessionId).toBe('already-selected');
+    expect(apiMock.claimSession).not.toHaveBeenCalled();
+    expect(apiMock.unclaimSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Manage Sessions' }));
+    await waitFor(() => expect(screen.getByTestId('current-path').textContent).toBe('/'));
     expect(useUIStore.getState().mobileSidebarOpen).toBe(true);
     expect(useSessionStore.getState().currentSessionId).toBe('already-selected');
   });

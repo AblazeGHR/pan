@@ -54,6 +54,8 @@ interface ManageModalProps {
   onClose: () => void;
   /** Id of the managing session; its `managed` ids drive the checked state. */
   sessionId: string | null;
+  /** Open a related Session in this same Manage surface. */
+  onViewRelationship?: (sessionId: string) => void;
 }
 
 /** Manage surfaces are tabbed: relationship, workspaces, access, MCP. */
@@ -74,6 +76,8 @@ interface ManageSessionsPanelProps {
   open: boolean;
   /** Id of the managing session; its `managed` ids drive the checked state. */
   sessionId: string | null;
+  /** Open a related Session in the current desktop modal or mobile page. */
+  onViewRelationship?: (sessionId: string) => void;
 }
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
@@ -320,7 +324,7 @@ function ManageWorkspacesSection({
  * Shared by the desktop ManageModal (popup) and the mobile full-page
  * ManageView so both stay visually identical.
  */
-export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProps) {
+export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: ManageSessionsPanelProps) {
   const sessions = useSessionStore((s) => s.sessions);
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const showToast = useUIStore((s) => s.showToast);
@@ -926,6 +930,18 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
               </div>
               {managedBy && (
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                  {onViewRelationship && (
+                    <button
+                      type="button"
+                      data-testid={`view-relationship-${managedBy}`}
+                      aria-label={`View Relationship for ${managedByLabel || managedBy}`}
+                      title={`View Relationship for ${managedByLabel || managedBy}`}
+                      onClick={() => onViewRelationship(managedBy)}
+                      className="shrink-0 inline-flex items-center whitespace-nowrap rounded border border-border-default bg-bg-tertiary px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                    >
+                      View Relationship
+                    </button>
+                  )}
                   {/* Unmanage: removes the manage link (mirrors the manager's
                       "Managed" row action for this session). */}
                   <button
@@ -1077,6 +1093,19 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
                       {isManaged ? <Check size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Star size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                       {isManaged ? 'Managed' : 'Manage'}
                     </button>
+                    {isManaged && onViewRelationship && (
+                      <button
+                        type="button"
+                        data-testid={`view-relationship-${c.id}`}
+                        aria-label={`View Relationship for ${c.name || 'Untitled'}`}
+                        title={`View Relationship for ${c.name || 'Untitled'}`}
+                        onClick={() => onViewRelationship(c.id)}
+                        disabled={busyId !== null}
+                        className="shrink-0 inline-flex items-center whitespace-nowrap rounded border border-border-default bg-bg-tertiary px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        View Relationship
+                      </button>
+                    )}
                     {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
                     <button
                       type="button"
@@ -1270,10 +1299,10 @@ export function ManageSessionsPanel({ open, sessionId }: ManageSessionsPanelProp
   );
 }
 
-export function ManageModal({ open, onClose, sessionId }: ManageModalProps) {
+export function ManageModal({ open, onClose, sessionId, onViewRelationship }: ManageModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="Manage Sessions" size="xl">
-      <ManageSessionsPanel open={open} sessionId={sessionId} />
+      <ManageSessionsPanel open={open} sessionId={sessionId} onViewRelationship={onViewRelationship} />
     </Modal>
   );
 }

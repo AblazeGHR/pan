@@ -33,6 +33,9 @@ export default function ManageView() {
     if (isMobile) setMobileSidebarOpen(true);
     navigate('/');
   };
+  const viewRelationship = (targetSessionId: string) => {
+    navigate(`/manage/${encodeURIComponent(targetSessionId)}`);
+  };
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-bg-primary">
@@ -59,7 +62,11 @@ export default function ManageView() {
       {/* Body — scrollable, centered column on desktop */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl p-4">
-          <ManageSessionsPanel open sessionId={sessionId ?? null} />
+          <ManageSessionsPanel
+            open
+            sessionId={sessionId ?? null}
+            onViewRelationship={viewRelationship}
+          />
         </div>
       </div>
     </div>
