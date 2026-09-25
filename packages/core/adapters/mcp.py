@@ -27,13 +27,35 @@ _TRANSPORT_KEYS = (
     "command", "args", "url", "transport", "type", "cwd", "env", "headers",
 )
 
+# First-party module entries that call back into this Pan Core instance.
+_PAN_SERVER_MODULES = {
+    "pan": "packages.mcp.server",
+    "pan-qq": "packages.qq.mcp",
+    "pan-wechat": "packages.wechat.mcp",
+}
 # 需要注入 MA session 身份的 pan 系 server（worker_send 打标 / qq 订阅，立项 4.8）
 _PAN_IDENTITY_SERVERS = ("pan", "pan-qq")
+_PAN_API_SERVERS = tuple(_PAN_SERVER_MODULES)
 _PAN_SESSION_ID_ENV = "PAN_AGENT_SESSION_ID"
 _PAN_SESSION_TITLE_ENV = "PAN_AGENT_SESSION_TITLE"
 _PAN_API_URL_ENV = "PAN_API_URL"
 _PAN_PYTHON_ENV = "PAN_PYTHON"
 _PYTHONPATH_ENV = "PYTHONPATH"
+
+
+def _pan_module_for_entry(name: str, entry: dict) -> str | None:
+    """Return the known module only when this is its stdio descriptor."""
+    module = _PAN_SERVER_MODULES.get(name)
+    args = entry.get("args") or []
+    if not module or not isinstance(args, (list, tuple)):
+        return None
+    try:
+        module_index = args.index(module)
+    except ValueError:
+        return None
+    if module_index == 0 or args[module_index - 1] != "-m":
+        return None
+    return module
 
 
 def _refresh_pan_python_entry(name: str, entry: dict) -> None:
@@ -43,16 +65,13 @@ def _refresh_pan_python_entry(name: str, entry: dict) -> None:
     first-party module entries at generation time makes a config reload apply
     to a later worker respawn too, without changing unrelated user MCPs.
     """
-    if name not in _PAN_IDENTITY_SERVERS or not entry.get("command"):
+    if name not in _PAN_API_SERVERS or not entry.get("command"):
         return
-    module = "packages.mcp.server" if name == "pan" else "packages.qq.mcp"
+    module = _pan_module_for_entry(name, entry)
+    if not module:
+        return
     args = list(entry.get("args") or [])
-    try:
-        module_index = args.index(module)
-    except ValueError:
-        return
-    if module_index == 0 or args[module_index - 1] != "-m":
-        return
+    module_index = args.index(module)
     from ..config import resolve_pan_python_argv
 
     pan_python = resolve_pan_python_argv()
@@ -81,13 +100,11 @@ def _pan_runtime_env(entry: dict) -> dict:
             import_root + os.pathsep + inherited
             if inherited else import_root
         )
-    api_url = os.environ.get(_PAN_API_URL_ENV)
-    if not api_url:
-        port = os.environ.get("PAN_PORT")
-        if port:
-            api_url = f"http://127.0.0.1:{port}"
-    if api_url and _PAN_API_URL_ENV not in env:
-        env[_PAN_API_URL_ENV] = api_url
+    from ..config import resolve_pan_api_url
+
+    # Pan-owned descriptors must follow this instance's resolved startup
+    # settings instead of a possibly stale URL saved in the session.
+    env[_PAN_API_URL_ENV] = resolve_pan_api_url()
     if isinstance(command, str) and command and _PAN_PYTHON_ENV not in env:
         env[_PAN_PYTHON_ENV] = command
     return env
@@ -119,10 +136,15 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
             raise ValueError(
                 f"MCP server {name!r} has no command or URL configured"
             )
-        if name in _PAN_IDENTITY_SERVERS:
+        if name in _PAN_API_SERVERS and _pan_module_for_entry(name, entry):
             env = _pan_runtime_env(entry)
+        else:
+            env = dict(entry.get("env") or {})
+        if name in _PAN_IDENTITY_SERVERS:
             env[_PAN_SESSION_ID_ENV] = s.id
             env[_PAN_SESSION_TITLE_ENV] = s.name
+            entry["env"] = env
+        elif name in _PAN_API_SERVERS and env:
             entry["env"] = env
         entry.setdefault("type", "http" if entry.get("url") else "stdio")
         mcp_servers[name] = entry

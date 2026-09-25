@@ -332,13 +332,8 @@ class CodexAdapter:
         if not servers:
             return []
         opts: list[str] = []
-        # 透传 PAN_API_URL（若存在）到各 server env，确保 pan/pan-qq server 指向正确的
-        # Pan 服务（对齐 opencode._to_opencode_mcp_entry 的 PAN_API_URL 处理）。
-        pan_api_url = os.environ.get("PAN_API_URL")
         for name, entry in servers.items():
             env = dict(entry.get("env") or {})
-            if pan_api_url and "PAN_API_URL" not in env:
-                env["PAN_API_URL"] = pan_api_url
             if entry.get("url"):
                 opts.append("-c")
                 opts.append(_c_override(f"mcp_servers.{name}.url", entry["url"]))

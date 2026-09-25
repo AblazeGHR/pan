@@ -270,6 +270,30 @@ def load_config() -> dict:
     return _deep_merge(DEFAULT_CONFIG, user_config)
 
 
+def resolve_pan_api_url() -> str:
+    """Resolve the loopback API URL used by Pan-owned MCP child processes.
+
+    Keep the precedence aligned with Pan startup: an explicit API URL wins,
+    followed by the selected runtime port, then config.json and the default.
+    The launcher pins its resolved port into the main process environment so
+    later worker respawns keep using the instance that is already running.
+    """
+    api_url = os.environ.get("PAN_API_URL")
+    if api_url:
+        return api_url
+
+    port = os.environ.get("PAN_PORT")
+    if port is None or not str(port).strip():
+        port = load_config().get("port", DEFAULT_CONFIG["port"])
+    try:
+        port_number = int(port)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Pan port must be an integer, got {port!r}") from exc
+    if not 1 <= port_number <= 65535:
+        raise ValueError(f"Pan port is outside the valid range: {port_number}")
+    return f"http://127.0.0.1:{port_number}"
+
+
 def _deep_merge(base: dict, override: dict) -> dict:
     """Recursively merge override into base, returning a new dict."""
     result = dict(base)
