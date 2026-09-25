@@ -33,6 +33,8 @@ Tools exposed:
     - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
     - agent_message_job_create/get/list/update/cancel: Schedule Session messages or broadcasts
     - agent_send_many: Send one message to selected Sessions
+    - scheduler_create/list/get/update/delete/pause/resume/run_now/runs:
+      Scheduled tasks (闹钟式定时任务：设定任务文本 + 触发时间/重复规则，到点自动派给目标 session)
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
     - agent_list: List all agents (= sessions) — alias of session_list
     - worker_spawn / worker_task / worker_assign / worker_send / worker_send_force /
@@ -572,7 +574,10 @@ def codex_quota(window: str = "all", session_id: str | None = None) -> dict:
     Codex authorizes quota reads with the ``account/rateLimits/read`` scope.
 
     The result may be a live app-server push, a persisted last-good snapshot,
-    or an optional read-only WHAM refresh. It does not execute a provider
+    or an optional read-only WHAM refresh. Pan never issues an
+    ``account/rateLimits/read`` initialisation call of its own: the first
+    snapshot has to arrive through the ``account/rateLimits/updated`` push.
+    It does not execute a provider
     OAuth/refresh flow. The
     compatibility ``updatedAt`` and explicit ``receivedAt`` are local Pan
     Worker receive times for ``account/rateLimits/updated``; the provider's
@@ -1784,6 +1789,324 @@ def agent_background_retry(job_id: str) -> dict:
     if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
         return job
     return _api("POST", f"/api/background-jobs/{quote(job_id, safe='')}/retry")
+
+
+# ---------------------------------------------------------------------------
+# Scheduled tasks（定时任务插件）— /api/scheduler/* 的 MCP 薄封装
+# ---------------------------------------------------------------------------
+
+_SCHEDULER_TASKS_PATH = "/api/scheduler/tasks"
+
+
+def _scheduler_identity() -> str | None:
+    """Calling agent's session id (PAN_AGENT_SESSION_ID); None = 无身份。"""
+    return os.environ.get("PAN_AGENT_SESSION_ID") or None
+
+
+def _scheduler_auth(target_session_id: str | None, claim: bool) -> dict | None:
+    """Authorize a scheduler tool call. Returns None when allowed.
+
+    身份取 PAN_AGENT_SESSION_ID：缺失 → {"error": "missing_identity"}。
+    已知目标 session 时走 _check_access（写类 claim=True，只读 claim=False），
+    被拒时原样返回其 error dict，调用方**不得再发 HTTP**。
+    目标 session 未知（调用方未传且解析不到）时无对象可鉴权，交后端收口。
+    """
+    if not _scheduler_identity():
+        return {"error": "missing_identity"}
+    if not target_session_id:
+        return None
+    return _check_access(target_session_id, claim=claim)
+
+
+def _scheduler_target_of(payload: object) -> str | None:
+    """Read targetSessionId from a task payload（裸 task 或 {"task": {...}} 包络）。"""
+    if not isinstance(payload, dict):
+        return None
+    task = payload.get("task")
+    task = task if isinstance(task, dict) else payload
+    sid = task.get("targetSessionId")
+    return sid if isinstance(sid, str) and sid else None
+
+
+def _scheduler_task_path(task_id: str, suffix: str = "") -> str:
+    return f"{_SCHEDULER_TASKS_PATH}/{quote(task_id, safe='')}{suffix}"
+
+
+def _scheduler_task_call(method: str, task_id: str, target_session_id: str | None,
+                         body: dict | None = None, suffix: str = "") -> dict:
+    """Resolve → authorize (claim=True) → mutate，鉴权失败绝不发出写请求。"""
+    if not _scheduler_identity():
+        return {"error": "missing_identity"}
+    target = target_session_id or _scheduler_target_of(
+        _api("GET", _scheduler_task_path(task_id)))
+    denied = _scheduler_auth(target, claim=True)
+    if denied:
+        return denied
+    return _api(method, _scheduler_task_path(task_id, suffix), body)
+
+
+@mcp.tool()
+def scheduler_create(
+    target_session_id: str,
+    text: str,
+    kind: str,
+    name: str | None = None,
+    at: str | None = None,
+    interval_sec: int | None = None,
+    cron: str | None = None,
+    timezone: str | None = None,
+    enabled: bool = True,
+    max_runs: int | None = None,
+    misfire_policy: str | None = None,
+) -> dict:
+    """Create a scheduled task: a todo + a trigger time, dispatched to a session like an alarm.
+
+    像手机闹钟：提前设定「任务文本 + 触发时间 + 重复规则」，到点插件自动把
+    `text` 派发给 `target_session_id` 的 worker 执行（等价于到点替你发一次
+    agent_assign）。也可以给自己排一条「半小时后回来检查」的提醒。
+
+    三种 schedule（用 `kind` 选择，注意各自必填参数）：
+    - once：一次性。`at` = 本地朴素时间 "YYYY-MM-DDTHH:MM:SS"（如
+      "2026-09-16T09:00:00"），到点触发一次后自动停用。
+    - interval：固定间隔。`interval_sec` = 间隔秒数（>0，如 1800 = 每 30 分钟），
+      按创建锚点推进、不漂移。
+    - cron：日历重复。`cron` = 5 段表达式 "分 时 日 月 周"，如
+      "0 9 * * 1-5" = 每工作日 9:00，"*/30 * * * *" = 每 30 分钟；周 0/7 = 周日。
+
+    返回后端原样结果：成功 {"ok": true, "task": {...}}（含 nextFireAt）；
+    失败 {"ok": false, "error": {"code": ..., "message": ...}}，如
+    invalid_schedule / session_not_found。
+
+    Args:
+        target_session_id: 到点派发的目标 Agent（= session）ID；必须是自己或自己
+            managed 的 session，否则 permission_denied（写操作会自动 claim 未归属 session）
+        text: 到点要执行的任务文本（原样派发给目标 session）
+        kind: "once" | "interval" | "cron"
+        name: 任务名（展示用，建议填）
+        at: kind="once" 必填，本地时间 "YYYY-MM-DDTHH:MM:SS"
+        interval_sec: kind="interval" 必填，间隔秒数（>0）
+        cron: kind="cron" 必填，5 段 cron 表达式
+        timezone: IANA 时区名（默认取配置 scheduler.default_timezone，通常
+            "Asia/Shanghai"）；时间字符串本身不带时区
+        enabled: 总开关，False 则完全不参与扫描
+        max_runs: 最多触发次数，null = 无限；达到后自动停用
+        misfire_policy: 错过触发点的处理，"fire_now"（补派一次）| "skip"（跳过）
+
+    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks。
+    完整编排流程见 /pan skill。
+    """
+    denied = _scheduler_auth(target_session_id, claim=True)
+    if denied:
+        return denied
+    schedule: dict = {"kind": kind}
+    if at:
+        schedule["at"] = at
+    if interval_sec is not None:
+        schedule["intervalSec"] = interval_sec
+    if cron:
+        schedule["cron"] = cron
+    if timezone:
+        schedule["timezone"] = timezone
+    body: dict = {
+        "targetSessionId": target_session_id,
+        "text": text,
+        "schedule": schedule,
+        "enabled": enabled,
+    }
+    if name:
+        body["name"] = name
+    if max_runs is not None:
+        body["maxRuns"] = max_runs
+    if misfire_policy:
+        body["misfirePolicy"] = misfire_policy
+    return _api("POST", _SCHEDULER_TASKS_PATH, body)
+
+
+@mcp.tool()
+def scheduler_list(target_session_id: str | None = None) -> dict:
+    """List scheduled tasks with their next run time and last run status.
+
+    返回 {"ok": true, "tasks": [...]}，每条含 id / name / targetSessionId /
+    schedule / nextFireAt / lastFireAt / lastStatus / runCount / enabled / paused。
+
+    Args:
+        target_session_id: 只列出派发目标为该 session 的任务（后端无过滤参数，
+            在 MCP 层按 targetSessionId 过滤）；省略 = 全部任务（只读）
+
+    调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks。
+    完整编排流程见 /pan skill。
+    """
+    denied = _scheduler_auth(target_session_id, claim=False)
+    if denied:
+        return denied
+    result = _api("GET", _SCHEDULER_TASKS_PATH)
+    if not target_session_id or not isinstance(result, dict):
+        return result
+    tasks = result.get("tasks")
+    if not isinstance(tasks, list):
+        return result
+    result = dict(result)
+    result["tasks"] = [t for t in tasks
+                       if isinstance(t, dict) and t.get("targetSessionId") == target_session_id]
+    return result
+
+
+@mcp.tool()
+def scheduler_get(task_id: str, target_session_id: str | None = None) -> dict:
+    """Get one scheduled task by id.
+
+    Args:
+        task_id: 定时任务 ID（sch_ 前缀）
+        target_session_id: 该任务派发的目标 session（省略时按返回体补一次只读鉴权）
+
+    调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}。
+    完整编排流程见 /pan skill。
+    """
+    denied = _scheduler_auth(target_session_id, claim=False)
+    if denied:
+        return denied
+    result = _api("GET", _scheduler_task_path(task_id))
+    if not target_session_id:
+        denied = _scheduler_auth(_scheduler_target_of(result), claim=False)
+        if denied:
+            return denied
+    return result
+
+
+@mcp.tool()
+def scheduler_update(
+    task_id: str,
+    target_session_id: str | None = None,
+    name: str | None = None,
+    text: str | None = None,
+    schedule: dict | None = None,
+    enabled: bool | None = None,
+    max_runs: int | None = None,
+    misfire_policy: str | None = None,
+) -> dict:
+    """Patch a scheduled task (only the provided fields are changed).
+
+    改 schedule 时后端会按新规则重算 nextFireAt。三种 schedule 见
+    `scheduler_create`：once（at）/ interval（intervalSec）/ cron（cron，
+    如 "0 9 * * 1-5" = 每工作日 9:00）。
+
+    Args:
+        task_id: 定时任务 ID
+        target_session_id: 该任务当前派发的目标 session（省略时先只读解析再鉴权）
+        name: 新任务名
+        text: 新的任务文本
+        schedule: 新的 schedule dict，键 kind / at / intervalSec / anchor / cron /
+            timezone（如 {"kind": "cron", "cron": "0 9 * * 1-5"}）
+        enabled: 总开关（False 停用）
+        max_runs: 最多触发次数（null = 无限）
+        misfire_policy: "fire_now" | "skip"
+
+    调用链：身份校验 → _check_access(claim=True) → PATCH /api/scheduler/tasks/{task_id}。
+    完整编排流程见 /pan skill。
+    """
+    body: dict = {}
+    if name is not None:
+        body["name"] = name
+    if text is not None:
+        body["text"] = text
+    if schedule is not None:
+        body["schedule"] = schedule
+    if enabled is not None:
+        body["enabled"] = enabled
+    if max_runs is not None:
+        body["maxRuns"] = max_runs
+    if misfire_policy is not None:
+        body["misfirePolicy"] = misfire_policy
+    return _scheduler_task_call("PATCH", task_id, target_session_id, body)
+
+
+@mcp.tool()
+def scheduler_delete(task_id: str, target_session_id: str | None = None) -> dict:
+    """Delete a scheduled task.
+
+    Args:
+        task_id: 定时任务 ID
+        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
+
+    调用链：身份校验 → _check_access(claim=True) → DELETE /api/scheduler/tasks/{task_id}。
+    完整编排流程见 /pan skill。
+    """
+    return _scheduler_task_call("DELETE", task_id, target_session_id)
+
+
+@mcp.tool()
+def scheduler_pause(task_id: str, target_session_id: str | None = None) -> dict:
+    """Pause a scheduled task (skips firing but keeps advancing nextFireAt).
+
+    与 enabled 的区别：enabled 是总开关（关掉后 nextFireAt 不再推进）；paused 是
+    临时挂起，跳过触发但时间锚点照常走，恢复后不会爆发补跑。
+
+    Args:
+        task_id: 定时任务 ID
+        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
+
+    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/pause。
+    完整编排流程见 /pan skill。
+    """
+    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/pause")
+
+
+@mcp.tool()
+def scheduler_resume(task_id: str, target_session_id: str | None = None) -> dict:
+    """Resume a paused scheduled task (no back-fill of missed fires).
+
+    Args:
+        task_id: 定时任务 ID
+        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
+
+    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/resume。
+    完整编排流程见 /pan skill。
+    """
+    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/resume")
+
+
+@mcp.tool()
+def scheduler_run_now(task_id: str, target_session_id: str | None = None) -> dict:
+    """Trigger a scheduled task immediately, without touching its nextFireAt.
+
+    手动立即派发一次（用独立的 dispatch_key 幂等，不影响后续自动触发节奏）。
+    派发是异步的：本工具返回只代表已触发，执行结果看 scheduler_runs 历史。
+
+    Args:
+        task_id: 定时任务 ID
+        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
+
+    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/run-now。
+    完整编排流程见 /pan skill。
+    """
+    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/run-now")
+
+
+@mcp.tool()
+def scheduler_runs(task_id: str, target_session_id: str | None = None,
+                   limit: int = 50) -> dict:
+    """Execution history of a scheduled task (newest first).
+
+    返回 {"ok": true, "runs": [...]}，每条含 runId / taskId / fireAt / actualAt /
+    status（dispatched|error|skipped|expired|unknown）/ sessionId / error。
+
+    Args:
+        task_id: 定时任务 ID
+        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
+        limit: 返回条数上限
+
+    调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}/runs。
+    完整编排流程见 /pan skill。
+    """
+    denied = _scheduler_auth(target_session_id, claim=False)
+    if denied:
+        return denied
+    if not target_session_id:
+        task = _api("GET", _scheduler_task_path(task_id))
+        denied = _scheduler_auth(_scheduler_target_of(task), claim=False)
+        if denied:
+            return denied
+    return _api("GET", _scheduler_task_path(task_id, f"/runs?limit={limit}"))
 
 
 @mcp.tool()

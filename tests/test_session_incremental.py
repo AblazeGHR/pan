@@ -16,6 +16,7 @@ import json
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -84,6 +85,11 @@ def _jsonl_lines(sid: str) -> list[dict]:
     return out
 
 
+def _no_ts(entries) -> list[dict]:
+    """剥掉落盘入口打的 ts 字段，便于断言消息本体。"""
+    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+
+
 # ══════════════════════════════════════════════════════════════════════════ #
 #  完整生命周期 + 冷启动重载                                                  #
 # ══════════════════════════════════════════════════════════════════════════ #
@@ -123,7 +129,7 @@ def test_lifecycle_create_append_result_reload(tmp_path, monkeypatch):
     assert s2.managed_by == "ses_manager"
     assert s2.qq_subscriptions == {"user:12345"}
     assert s2.last_result == {"status": "done", "result": "a2", "timestamp": "t"}
-    assert s2.history == [
+    assert _no_ts(s2.history) == [
         {"role": "user", "content": "q0"}, {"role": "assistant", "content": "a0"},
         {"role": "user", "content": "q1"}, {"role": "assistant", "content": "a1"},
         {"role": "user", "content": "q2"}, {"role": "assistant", "content": "a2"},
@@ -133,7 +139,7 @@ def test_lifecycle_create_append_result_reload(tmp_path, monkeypatch):
     s2.history.append({"role": "user", "content": "q3"})
     _sess.save(s2)
     lines = _jsonl_lines(sid)
-    assert len(lines) == 8 and lines[-1] == {"role": "user", "content": "q3"}
+    assert len(lines) == 8 and _no_ts([lines[-1]]) == [{"role": "user", "content": "q3"}]
     _cleanup()
 
 
@@ -156,7 +162,7 @@ def test_append_tail_kept_main_file_constant(tmp_path, monkeypatch):
     main = json.loads(_sess._path(sid).read_text(encoding="utf-8"))
     assert main["name"] == "long-renamed"
     assert len(main["history"]) == 20
-    assert main["history"][-1] == {"role": "user", "content": "m49"}
+    assert _no_ts([main["history"][-1]]) == [{"role": "user", "content": "m49"}]
     _cleanup()
 
 
@@ -248,7 +254,7 @@ def test_legacy_and_incremental_formats_coexist(tmp_path, monkeypatch):
     assert leg.history == legacy_hist
 
     nw = by_id[sid_new]
-    assert nw.history == [{"role": "user", "content": "new1"}]
+    assert _no_ts(nw.history) == [{"role": "user", "content": "new1"}]
     _cleanup()
 
 
@@ -268,12 +274,12 @@ def test_crash_partial_line_tolerated(tmp_path, monkeypatch):
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
     s2 = _sess.get(sid)
     assert len(s2.history) == 5
-    assert s2.history[-1] == {"role": "user", "content": "x4"}
+    assert _no_ts([s2.history[-1]]) == [{"role": "user", "content": "x4"}]
     # 崩溃后继续 append：自动补换行，y0 不粘在半行上 → 可被恢复
     s2.history.append({"role": "user", "content": "y0"})
     _sess.save(s2)
     assert len(_jsonl_lines(sid)) == 6
-    assert _jsonl_lines(sid)[-1] == {"role": "user", "content": "y0"}
+    assert _no_ts(_jsonl_lines(sid)[-1:]) == [{"role": "user", "content": "y0"}]
     _cleanup()
 
 
@@ -310,6 +316,51 @@ def test_save_full_replaces_history_wholesale(tmp_path, monkeypatch):
 
 
 # ══════════════════════════════════════════════════════════════════════════ #
+#  历史条目 ts 时间戳（落盘入口打点，旧数据兼容）                            #
+# ══════════════════════════════════════════════════════════════════════════ #
+
+
+def test_history_ts_stamped_on_new_entries_only(tmp_path, monkeypatch):
+    """新落盘条目补 ts（本地 ISO-8601）；旧条目（无 ts）保持缺失不被补写，
+    已有 ts 不被覆盖——旧历史在界面静默无时间，不报错。"""
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+
+    # 旧数据：主文件内嵌 history、无 jsonl（迁移路径）→ 旧条目不补 ts
+    legacy = {
+        "id": "ses_ts_legacy", "name": "legacy", "adapter": "cbc",
+        "history": [{"role": "user", "content": "old1"}],
+        "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00",
+    }
+    (session_dir / "ses_ts_legacy.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+    s = _sess.get("ses_ts_legacy")
+    assert "ts" not in s.history[0]
+    s.history.append({"role": "assistant", "content": "new1"})
+    _sess.save(s)
+    lines = _jsonl_lines("ses_ts_legacy")
+    assert "ts" not in lines[0], "迁移的旧条目不应被补 ts"
+    assert "ts" in lines[1], "新条目应带 ts"
+    datetime.fromisoformat(lines[1]["ts"])  # 可解析的 ISO-8601
+
+    # 新 session：已有 ts 不被落盘入口覆盖
+    s2 = _sess.create(name="ts2")
+    s2.history.append({"role": "user", "content": "q", "ts": "2026-01-01T08:00:00"})
+    _sess.save(s2)
+    assert _jsonl_lines(s2.id)[0]["ts"] == "2026-01-01T08:00:00"
+
+    # 冷启动重载：ts 随条目持久化
+    sid = s2.id
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    r = _sess.get(sid)
+    assert r.history[0]["ts"] == "2026-01-01T08:00:00"
+    _cleanup()
+
+
+# ══════════════════════════════════════════════════════════════════════════ #
 #  worker 级 e2e：MockProcess 驱动 _read_stdout（走防抖 flush 落盘路径）      #
 # ══════════════════════════════════════════════════════════════════════════ #
 
@@ -337,7 +388,7 @@ def test_concurrent_save_async_no_duplication(tmp_path, monkeypatch):
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
     s2 = _sess.get(sid)
     expected = [{"role": "user", "content": f"c{i}"} for i in range(20)]
-    assert s2.history == expected
+    assert _no_ts(s2.history) == expected
     assert len(_jsonl_lines(sid)) == 20
     _cleanup()
 
@@ -450,7 +501,7 @@ def test_queue_ops_do_not_scale_with_history(tmp_path, monkeypatch):
     monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
     r = _sess.get(sid3)
     assert r.queue_pending == [{"type": "task", "id": "t1", "text": "go"}]
-    assert r.history == [{"role": "user", "content": "h1"}]
+    assert _no_ts(r.history) == [{"role": "user", "content": "h1"}]
     assert len(_jsonl_lines(sid3)) == 1
     _cleanup()
 
@@ -478,16 +529,16 @@ def test_worker_path_saves_incrementally_and_reloads(tmp_path, monkeypatch):
     ])
     asyncio.run(worker._read_stdout(w))
     sid = s.id
-    assert s.history == [{"role": "assistant", "content": "hello"}]
+    assert _no_ts(s.history) == [{"role": "assistant", "content": "hello"}]
     assert s.last_result["status"] == "done"
     assert len(_jsonl_lines(sid)) == 1
-    assert _jsonl_lines(sid)[0] == {"role": "assistant", "content": "hello"}
+    assert _no_ts(_jsonl_lines(sid)) == [{"role": "assistant", "content": "hello"}]
 
     # 冷启动重载：完整
     _cleanup()
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
     s2 = _sess.get(sid)
-    assert s2.history == [{"role": "assistant", "content": "hello"}]
+    assert _no_ts(s2.history) == [{"role": "assistant", "content": "hello"}]
     assert s2.cli_session_id == "cbc-e2e"
     assert s2.last_result["status"] == "done"
     _cleanup()

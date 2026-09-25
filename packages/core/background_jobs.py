@@ -170,10 +170,19 @@ def _registry_lock(name: str, registry_root: str | Path | None = None):
 
 
 def _load_path(path: Path) -> dict | None:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
+    # A concurrent ``_atomic_write`` can transiently deny the read on Windows
+    # (the same sharing violation its rename retry exists for). Reporting a
+    # live record as missing would fail the caller, so retry the read in the
+    # same bounded way before giving up.
+    for attempt in range(20):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except PermissionError:
+            if attempt == 19:
+                return None
+            time.sleep(0.01 * (attempt + 1))
+        except (OSError, json.JSONDecodeError):
+            return None
 
 
 def _normalize_job(job: dict | None) -> dict | None:

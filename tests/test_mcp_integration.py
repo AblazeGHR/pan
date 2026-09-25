@@ -380,14 +380,14 @@ def test_root_manifest_alone_exposes_pan_and_dedups_with_package(monkeypatch):
 
     root_cfg = load_manifests(["manifest.json"])
     servers = {server.name: server for server in root_cfg.mcp_servers}
-    assert set(servers) == {"pan", "pan-qq"}
+    assert set(servers) == {"pan", "pan-qq", "pan-wechat"}
     assert servers["pan"].command == sys.executable
     assert servers["pan"].args == ["-m", "packages.mcp.server"]
     assert servers["pan"].cwd == repo_root
 
     cfg = load_manifests(DEFAULT_PLUGIN_MANIFESTS)
     servers = {server.name: server for server in cfg.mcp_servers}
-    assert set(servers) == {"pan", "pan-qq"}
+    assert set(servers) == {"pan", "pan-qq", "pan-wechat"}
     assert [server.name for server in cfg.mcp_servers].count("pan") == 1
     assert [server.name for server in cfg.mcp_servers].count("pan-qq") == 1
     # The later package manifest wins by the documented loader rule, resolving

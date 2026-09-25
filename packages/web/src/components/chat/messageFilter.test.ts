@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { filterVisibleMessages } from './messageFilter';
+﻿import { describe, it, expect } from 'vitest';
+import {
+  filterVisibleMessages,
+  getQuickJumpIndexItems,
+  getQuickJumpKind,
+  getQuickJumpMessages,
+  getQuickJumpPreview,
+} from './messageFilter';
 import type { MessageVisibilitySettings } from './messageFilter';
 import type { Message } from '@/types';
 
@@ -71,3 +77,68 @@ describe('filterVisibleMessages', () => {
     expect(msgs).toEqual(snapshot);
   });
 });
+
+
+describe('quick-location classification', () => {
+  it('classifies user messages and task-agent reports separately', () => {
+    expect(getQuickJumpKind(mk('plain user', 'user'))).toBe('user');
+    expect(getQuickJumpKind(mk('@@@@by agent : ses_2 | Worker\nresult', 'user'))).toBe('worker');
+    expect(getQuickJumpKind(mk('@@@@by agent : ses_2 | Worker\nresult', 'assistant'))).toBe('worker');
+    expect(getQuickJumpKind(mk('assistant reply', 'assistant'))).toBeNull();
+  });
+
+  it('removes report headers and truncates hover previews', () => {
+    const preview = getQuickJumpPreview(
+      '@@@@by agent : ses_2 | Worker\n' + 'a '.repeat(100),
+    );
+    expect(preview.startsWith('a a a')).toBe(true);
+    expect(preview).toHaveLength(120);
+    expect(preview).not.toContain('@@@@by agent');
+  });
+
+  it('builds compact full-history targets keyed by stable fromEnd offsets', () => {
+    const targets = getQuickJumpIndexItems(
+      [
+        mk('old user', 'user'),
+        mk('assistant reply', 'assistant'),
+        mk('@@@@by agent : ses_2 | Worker\nold report', 'assistant'),
+      ],
+      203,
+      10,
+      ALL_SHOWN,
+    );
+    expect(targets).toEqual([
+      { fromEnd: 192, kind: 'user', preview: 'old user' },
+      { fromEnd: 190, kind: 'worker', preview: 'old report' },
+    ]);
+  });
+
+  it('applies source visibility before compacting a history page', () => {
+    const targets = getQuickJumpIndexItems(
+      [
+        mk('////by agent : ses_1 | Meta\ninstruction', 'user'),
+        mk('@@@@by agent : ses_2 | Worker\nreport', 'assistant'),
+        mk('@@@@by qq : user:1 | Nick\nhello', 'user'),
+        mk('plain user', 'user'),
+      ],
+      4,
+      0,
+      { showMetaAgent: false, showTaskAgent: false, showQQ: false },
+    );
+    expect(targets).toEqual([{ fromEnd: 0, kind: 'user', preview: 'plain user' }]);
+  });
+
+  it('honors visibility switches when building navigation targets', () => {
+    const targets = getQuickJumpMessages(
+      [
+        mk('user message', 'user'),
+        mk('@@@@by agent : ses_2 | Worker\nreport', 'assistant'),
+        mk('////by agent : ses_3 | Meta\ninstruction', 'user'),
+      ],
+      { ...ALL_SHOWN, showTaskAgent: false },
+    );
+    expect(targets.map((target) => target.kind)).toEqual(['user', 'user']);
+    expect(targets.map((target) => target.preview)).toEqual(['user message', 'instruction']);
+  });
+});
+

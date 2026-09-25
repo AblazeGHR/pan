@@ -79,6 +79,8 @@ from packages.core.codex_quota_store import (
 from packages.core import main_lifecycle
 from packages.core import launcher
 from packages.core import notifications, reminders
+from packages.scheduler import api as scheduler_api
+from packages.scheduler import engine as scheduler_engine
 
 # ── logging ──
 
@@ -186,6 +188,11 @@ async def lifespan(app: FastAPI):
     worker.start_global_watchdog()
     background_jobs.start_recovery_loop()
     reminder_task = asyncio.create_task(_reminder_loop())
+    # 定时任务调度循环（同 background_jobs：拿不到 leader 锁的实例只服务读请求）
+    try:
+        await scheduler_engine.start_loop(on_event=scheduler_api.on_event)
+    except Exception as e:
+        _log(f"[Pan] Scheduler loop not started: {e}")
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -212,6 +219,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     worker.stop_global_watchdog()
+    await scheduler_engine.stop_loop()
     await background_jobs.stop_recovery_loop()
     # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
     # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
@@ -1310,6 +1318,36 @@ def _project_worker_event(data: dict) -> dict:
     return {**data, "event": event} if changed else data
 
 
+def _stamp_ws_event_ts(data: dict):
+    """实时消息事件补 ts（本地 ISO-8601），供前端即时显示时间。
+
+    只在最终消息上打一次点：queue.item_delivered 的 user 消息（此时历史已
+    落盘），以及 worker.stream 的完整 assistant 事件（非 delta chunk）。
+    流式增量（delta）不带 ts，历史条目自身的 ts 由 session 落盘入口打点。
+    """
+    etype = data.get("type")
+    now: str | None = None
+    if etype == "queue.item_delivered":
+        msgs = data.get("messages")
+        if isinstance(msgs, list):
+            now = datetime.now().isoformat()
+            for m in msgs:
+                if isinstance(m, dict) and not m.get("ts"):
+                    m["ts"] = now
+        return
+    if etype == "worker.stream":
+        ev = data.get("event")
+        if not isinstance(ev, dict) or ev.get("delta"):
+            return
+        # kimi 增量块（content.part）不是完整消息；role/type 为 assistant
+        # 的完整事件（cbc/kimi 单块完成、codex final）才是最终消息。
+        if ev.get("type") == "content.part":
+            return
+        role = ev.get("role") or ev.get("type")
+        if role == "assistant" and not ev.get("ts"):
+            ev["ts"] = datetime.now().isoformat()
+
+
 async def broadcast(data: dict):
     """Enqueue one event for each eligible client and return immediately.
 
@@ -1323,6 +1361,7 @@ async def broadcast(data: dict):
     data = _attach_session_summary_patch(data)
     data = _project_worker_event(data)
     data = _stamp_live_event(data)
+    _stamp_ws_event_ts(data)
     for ws in list(ws_clients):
         _client_channel(ws, "dashboard").enqueue(data)
 
@@ -1726,6 +1765,7 @@ def _session_to_api(
         "agentLevel": sess.agent_level(s.id, load_history=False),
         "reportSubscriptions": sorted(s.report_subscriptions),
         "qqSubscriptions": sorted(s.qq_subscriptions),
+        "wechatSubscriptions": sorted(s.wechat_subscriptions),
         "notificationSettings": notifications.normalize_notification_settings(s.notification_settings),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
@@ -4974,16 +5014,22 @@ def _serialize_queue_item(item, session=None) -> dict | None:
             "source": source,
             "meta": meta,
         }
-    if t == "qq" or item.get("kind") == "qq":
+    # 通道提醒（qq/wechat/…）共用分支：kind/source 直接取 type，将来加通道不用
+    # 再复制一遍这段。
+    if t in ("qq", "wechat") or item.get("kind") in ("qq", "wechat"):
+        channel = t if t in ("qq", "wechat") else item.get("kind")
         return {
             "id": _queue_item_id(item),
             "queueItemId": _queue_item_id(item),
-            "kind": "qq",
+            "kind": channel,
             "text": item.get("text") if isinstance(item.get("text"), str) else "",
             "createdAt": item.get("createdAt", 0),
-            "source": "qq",
+            "source": channel,
             "meta": {
                 "qqTarget": item.get("qqTarget"),
+                "channelTarget": item.get("channelTarget") or item.get("qqTarget"),
+                "channel": item.get("channel") or channel,
+                "canReply": item.get("canReply", True),
                 "time": item.get("time"),
                 "revision": item.get("revision", 1),
                 "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
@@ -5958,6 +6004,11 @@ async def api_background_job_retry(job_id: str):
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
+# ── 定时任务（scheduler 插件） ──
+scheduler_api.bind(broadcast=broadcast)
+app.include_router(scheduler_api.router)
+
+
 @app.get("/api/adapter/config")
 async def api_adapter_config(adapter: str = "cbc"):
     """Return adapter configuration for frontend selects (per-adapter dynamic)."""
@@ -6799,7 +6850,108 @@ async def api_report_unsubscribe(data: dict):
     }
 
 
-# ── QQ session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──
+# ── 通道 session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──
+# 订阅**字段**保持平行（qq_subscriptions / wechat_subscriptions，老数据不动），
+# 但订阅/解绑/通知的**处理逻辑**在此泛化为通道无关：_channel_subscribe /
+# _channel_unsubscribe / _channel_notify 按 channel 名取 session 上的
+# <channel>_subscriptions 集合。将来加第三个通道只需多挂三个路由，不再复制
+# 一遍实现体。
+
+
+def _channel_subscriptions(s, channel: str) -> set:
+    """取某通道的订阅集合（未知 channel → 空 set，不抛）。
+
+    返回的是 session 上的真实集合对象（即便为空），这样 _channel_subscribe /
+    _channel_unsubscribe 的 .add()/.discard() 能就地改到订阅字段上。注意不能用
+    `getattr(...) or set()`：空 set 是 falsy，会落到 or 后面那个**全新空 set**，
+    导致首次订阅被加进一个临时集合、永远写不进 session（qq/wechat 都会中招）。
+    """
+    subs = getattr(s, f"{channel}_subscriptions", None)
+    return subs if isinstance(subs, set) else set()
+
+
+def _channel_subscribe(channel: str, data: dict) -> dict:
+    """订阅某通道会话的 inbox 更新提醒（通道无关实现）。
+
+    Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
+           "target_id": <id>, "bot_uin"?: <bot 账号>}
+
+    订阅后，该会话每次收到新消息都会推送一条 `@@@@by <channel>` 提醒到本
+    session 的落盘队列 queue_pending 并唤醒其 worker。
+
+    bot_uin 可选（多账号，目前仅 QQ 有此语义）：订阅粒度为「某 bot 的某用户/群」，
+    订阅键 `<type>:<id>@<bot_uin>`；缺省订阅键 `<type>:<id>`（不区分 bot）。
+    """
+    session_id = (data.get("sessionId") or "").strip()
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    bot_uin = (data.get("bot_uin") or "").strip()
+    if not session_id or not target_id or target_type not in ("user", "group"):
+        return {"error": "sessionId, target_type(user|group) and target_id are required"}
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
+    _channel_subscriptions(s, channel).add(target_key)
+    sess.save(s)
+    subs = _channel_subscriptions(s, channel)
+    return {
+        "sessionId": session_id,
+        f"{channel}Target": target_key,
+        "subscribed": True,
+        f"{channel}Subscriptions": sorted(subs),
+    }
+
+
+def _channel_unsubscribe(channel: str, data: dict) -> dict:
+    """取消订阅某通道会话的 inbox 更新提醒（通道无关实现）。"""
+    session_id = (data.get("sessionId") or "").strip()
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    bot_uin = (data.get("bot_uin") or "").strip()
+    if not session_id or not target_id or target_type not in ("user", "group"):
+        return {"error": "sessionId, target_type(user|group) and target_id are required"}
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
+    _channel_subscriptions(s, channel).discard(target_key)
+    sess.save(s)
+    subs = _channel_subscriptions(s, channel)
+    return {
+        "sessionId": session_id,
+        f"{channel}Target": target_key,
+        "subscribed": target_key in subs,
+        f"{channel}Subscriptions": sorted(subs),
+    }
+
+
+async def _channel_notify(channel: str, data: dict) -> dict:
+    """通道插件上报 inbox 更新（通道无关实现）。
+
+    Body: {"target_type": "user"|"group", "target_id": ..., "nickname": ...,
+           "text": ..., "time": ..., "bot_uin"?: <bot 账号>, "can_reply"?: bool}
+
+    找到所有订阅该会话的 session，各推送一条 `@@@@by <channel>` 提醒到其
+    queue_pending 并唤醒 worker。can_reply=false 用于微信这类不能主动推送、
+    只能带 context_token 回复的通道，提醒文本会带 `canReply: false` 提示。
+    """
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    if not target_id or target_type not in ("user", "group"):
+        return {"error": "target_type(user|group) and target_id are required"}
+    can_reply = data.get("can_reply")
+    delivered = await worker.enqueue_channel_reminder(
+        channel,
+        target_type,
+        target_id,
+        nickname=(data.get("nickname") or ""),
+        text=(data.get("text") or ""),
+        time_str=(data.get("time") or ""),
+        bot_uin=(data.get("bot_uin") or ""),
+        can_reply=True if can_reply is None else bool(can_reply),
+    )
+    return {"ok": True, "delivered": delivered}
 
 
 @app.post("/api/qq/subscribe")
@@ -6815,52 +6967,17 @@ async def api_qq_subscribe(data: dict):
     bot_uin 可选（多账号）：订阅粒度为「某 bot 的某用户/群」，订阅键
     `<type>:<id>@<bot_uin>`；缺省订阅键 `<type>:<id>`（不区分 bot，任何 bot
     收到都提醒，兼容旧订阅）。
+
+    响应字段（qqTarget / qqSubscriptions）保持不变，前端 Postbox 与 pan-qq
+    MCP 零感知——实现已转调通道无关的 _channel_subscribe。
     """
-    session_id = (data.get("sessionId") or "").strip()
-    target_type = (data.get("target_type") or "").strip().lower()
-    target_id = (data.get("target_id") or "").strip()
-    bot_uin = (data.get("bot_uin") or "").strip()
-    if not session_id or not target_id or target_type not in ("user", "group"):
-        return {"error": "sessionId, target_type(user|group) and target_id are required"}
-    s = sess.get(session_id)
-    if not s:
-        return {"error": f"Session {session_id} not found"}
-    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
-    s.qq_subscriptions.add(target_key)
-    sess.save(s)
-    return {
-        "sessionId": session_id,
-        "qqTarget": target_key,
-        "subscribed": True,
-        "qqSubscriptions": sorted(s.qq_subscriptions),
-    }
+    return _channel_subscribe("qq", data)
 
 
 @app.post("/api/qq/unsubscribe")
 async def api_qq_unsubscribe(data: dict):
-    """取消订阅某 QQ 会话的 inbox 更新提醒。
-
-    bot_uin 可选（多账号）：解绑 `<type>:<id>@<bot>` 订阅键；缺省解绑不区分
-    bot 的旧键 `<type>:<id>`。
-    """
-    session_id = (data.get("sessionId") or "").strip()
-    target_type = (data.get("target_type") or "").strip().lower()
-    target_id = (data.get("target_id") or "").strip()
-    bot_uin = (data.get("bot_uin") or "").strip()
-    if not session_id or not target_id or target_type not in ("user", "group"):
-        return {"error": "sessionId, target_type(user|group) and target_id are required"}
-    s = sess.get(session_id)
-    if not s:
-        return {"error": f"Session {session_id} not found"}
-    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
-    s.qq_subscriptions.discard(target_key)
-    sess.save(s)
-    return {
-        "sessionId": session_id,
-        "qqTarget": target_key,
-        "subscribed": target_key in s.qq_subscriptions,
-        "qqSubscriptions": sorted(s.qq_subscriptions),
-    }
+    """取消订阅某 QQ 会话的 inbox 更新提醒（转调 _channel_unsubscribe）。"""
+    return _channel_unsubscribe("qq", data)
 
 
 @app.post("/api/qq/notify")
@@ -6874,19 +6991,39 @@ async def api_qq_notify(data: dict):
     queue_pending 并唤醒 worker。bot_uin 可选（多账号来源标注）：同时命中
     不区分 bot 的旧订阅键与 `<type>:<id>@<bot>` 精确订阅键。返回投递数量。
     """
-    target_type = (data.get("target_type") or "").strip().lower()
-    target_id = (data.get("target_id") or "").strip()
-    if not target_id or target_type not in ("user", "group"):
-        return {"error": "target_type(user|group) and target_id are required"}
-    delivered = await worker.enqueue_qq_reminder(
-        target_type,
-        target_id,
-        nickname=(data.get("nickname") or ""),
-        text=(data.get("text") or ""),
-        time_str=(data.get("time") or ""),
-        bot_uin=(data.get("bot_uin") or ""),
-    )
-    return {"ok": True, "delivered": delivered}
+    return await _channel_notify("qq", data)
+
+
+@app.post("/api/wechat/subscribe")
+async def api_wechat_subscribe(data: dict):
+    """Pan session 订阅某微信会话的 inbox 更新提醒。
+
+    Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
+           "target_id": <微信用户/群 id>}
+
+    响应字段 wechatTarget / wechatSubscriptions（与 QQ 端点平行命名）。
+    """
+    return _channel_subscribe("wechat", data)
+
+
+@app.post("/api/wechat/unsubscribe")
+async def api_wechat_unsubscribe(data: dict):
+    """取消订阅某微信会话的 inbox 更新提醒。"""
+    return _channel_unsubscribe("wechat", data)
+
+
+@app.post("/api/wechat/notify")
+async def api_wechat_notify(data: dict):
+    """微信插件上报 inbox 更新（由 packages/wechat 插件调用）。
+
+    Body: {"target_type": "user"|"group", "target_id": ..., "nickname": ...,
+           "text": ..., "time": ..., "can_reply"?: bool}
+
+    找到所有订阅该微信会话的 session，各推送一条 `@@@@by wechat` 提醒到其
+    queue_pending 并唤醒 worker。can_reply=false 表示此刻无可用 context_token
+    （iLink 不能主动推送），提醒文本会带 `canReply: false`。返回投递数量。
+    """
+    return await _channel_notify("wechat", data)
 
 
 # 复用 AsyncClient：避免每个代理请求新建连接（Windows 下 async httpx 首次
@@ -6926,6 +7063,64 @@ async def _qq_plugin_get(path: str, params: dict | None = None) -> dict:
         return {"ok": False, "error": {
             "code": "connection_error",
             "message": f"{type(e).__name__}: {e}"}}
+
+
+_wechat_plugin_client: httpx.AsyncClient | None = None
+
+
+def _wechat_plugin_client_get() -> httpx.AsyncClient:
+    global _wechat_plugin_client
+    if _wechat_plugin_client is None:
+        _wechat_plugin_client = httpx.AsyncClient(timeout=5)
+    return _wechat_plugin_client
+
+
+async def _wechat_plugin_get(path: str, params: dict | None = None) -> dict:
+    """GET 代理到微信插件（packages/wechat，PAN_WECHAT_API_URL，默认 8081）。
+
+    与 _qq_plugin_get 同构：统一错误形态 {ok:false, error:{code,message}}；
+    连接失败归为 connection_error，HTTP 非 2xx 透传插件返回体。
+    """
+    plugin_url = os.environ.get(
+        "PAN_WECHAT_API_URL", "http://127.0.0.1:8081").rstrip("/")
+    try:
+        r = await _wechat_plugin_client_get().get(f"{plugin_url}{path}",
+                                                  params=params)
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        try:
+            body = e.response.json()
+            if isinstance(body, dict) and body.get("error"):
+                return body
+        except ValueError:
+            pass
+        return {"ok": False, "error": {
+            "code": e.response.status_code,
+            "message": e.response.text[:300]}}
+    except httpx.HTTPError as e:
+        return {"ok": False, "error": {
+            "code": "connection_error",
+            "message": f"{type(e).__name__}: {e}"}}
+
+
+@app.get("/api/wechat/contacts")
+async def api_wechat_contacts():
+    """列出近期的微信联系人（代理到微信插件 /api/wechat/recent_contacts）。
+
+    Postbox 弹窗需要可选微信会话列表。iLink 无权威联系人接口，插件从本地
+    落盘推导，因此响应的 source 恒为 "local"。
+    """
+    return await _wechat_plugin_get("/api/wechat/recent_contacts")
+
+
+@app.get("/api/wechat/channels")
+async def api_wechat_channels():
+    """列出已注册的微信通道（代理到插件 /api/wechat/channels）。
+
+    每项 {name, bot_uin, connected}；微信单通道（iLink），bot_uin 恒空。
+    """
+    return await _wechat_plugin_get("/api/wechat/channels")
 
 
 @app.get("/api/qq/contacts")

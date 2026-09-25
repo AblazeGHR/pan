@@ -215,6 +215,26 @@ it('merges each adjacent tool/thinking run only when the preference is enabled',
     .toMatchObject({ items: messages.slice(2, 4) });
 });
 
+describe('worker report message treatment', () => {
+  it('labels only task-agent reports in the message body', () => {
+    const messages = [
+      { role: 'assistant' as const, content: '@@@@by agent : ses_1 | Worker\nfinished' },
+      { role: 'assistant' as const, content: '////by agent : ses_2 | Meta\nplan' },
+      { role: 'assistant' as const, content: '@@@@by qq : user:1 | Nick\nhello' },
+      { role: 'assistant' as const, content: 'ordinary reply' },
+    ];
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: messages });
+    m.setTotalSize(400);
+    m.setVirtualItems(messages.map((_, index) => ({ index, start: index * 100, size: 100 })));
+
+    const { container } = render(<ChatMessages />);
+
+    expect(container.querySelectorAll('.worker-report-label')).toHaveLength(1);
+    expect(container.querySelector('.message-row-worker-report')?.textContent).toContain('finished');
+    expect(container.querySelector('.message-row-worker-report')?.textContent).toContain('Worker report');
+  });
+});
+
 describe('ChatMessages scroll positioning', () => {
   it('scrolls to the bottom when history finishes loading after entering a session', () => {
     // Refresh: no session selected, no messages → empty state, no scroll element.

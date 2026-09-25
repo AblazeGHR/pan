@@ -15,6 +15,8 @@ export interface Message {
   turnId?: string;
   /** Server-canonical parts; content remains the adapter/legacy fallback. */
   parts?: MessagePart[];
+  /** 本地 ISO-8601 发送/回复时间（后端写入历史时刻打点）；旧数据缺失则不显示时间。 */
+  ts?: string;
   /** Transient native Codex identity used to merge live Codex messages. */
   nativeItemId?: string;
   /** Queue item(s) whose local CLI hand-off produced this user message. */
@@ -215,6 +217,8 @@ export interface WorkerEventContent {
 
 export interface WorkerEvent {
   type: string;
+  /** 本地 ISO-8601 完成时刻（最终 assistant 消息一次性携带，delta 不带）。 */
+  ts?: string;
   /** Native app-server incremental event; UI merges it into one message. */
   delta?: boolean;
   /** Cumulative text for sidebar previews while `delta` is true. */
@@ -1009,6 +1013,144 @@ export interface ApiFsGenericResponse {
   to?: string;
   path?: string;
   deleted?: boolean;
+}
+
+// ── Scheduler (alarm-style scheduled tasks) ──
+
+/** How a task's next fire time is computed. */
+export type ScheduleKind = 'once' | 'interval' | 'cron';
+
+/** What the engine does with a fire time that was missed (Pan was asleep). */
+export type MisfirePolicy = 'fire_now' | 'skip';
+
+/** Outcome of one scheduled dispatch. */
+export type TaskRunStatus = 'dispatched' | 'error' | 'skipped' | 'expired' | 'unknown';
+
+/**
+ * Fire-time rule for a scheduled task. All keys that are not used by the
+ * selected `kind` stay null so the backend can switch kinds without leftovers.
+ */
+export interface TaskSchedule {
+  kind: ScheduleKind;
+  /** kind=once — local naive ISO datetime, e.g. "2026-09-16T09:00:00". */
+  at?: string | null;
+  /** kind=interval — seconds between fires (>0). */
+  intervalSec?: number | null;
+  /** kind=interval — anchor datetime; defaults to the task's createdAt. */
+  anchor?: string | null;
+  /** kind=cron — 5-field expression, e.g. "0 9 * * 1-5". */
+  cron?: string | null;
+  /** IANA zone name; cron is evaluated against wall-clock time in this zone. */
+  timezone?: string | null;
+}
+
+/** A scheduled task as returned by `/api/scheduler` (camelCase). */
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  /** Session the task text is dispatched to when it fires. */
+  targetSessionId: string;
+  /** Task text handed to the session's worker. */
+  text: string;
+  /** Master switch; a disabled task is never scanned. */
+  enabled: boolean;
+  /** Temporary hold: fires are skipped but the schedule keeps advancing. */
+  paused: boolean;
+  schedule: TaskSchedule;
+  nextFireAt: string | null;
+  lastFireAt: string | null;
+  lastStatus: TaskRunStatus | null;
+  lastError?: string | null;
+  runCount: number;
+  /** null = unlimited; reaching it auto-disables the task. */
+  maxRuns: number | null;
+  misfirePolicy: MisfirePolicy;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Payload of POST /api/scheduler/tasks. */
+export interface ScheduledTaskInput {
+  name: string;
+  targetSessionId: string;
+  text: string;
+  schedule: TaskSchedule;
+  enabled?: boolean;
+  maxRuns?: number | null;
+  misfirePolicy?: MisfirePolicy;
+}
+
+/** Payload of PATCH /api/scheduler/tasks/{id} — any subset of editable fields. */
+export type ScheduledTaskPatch = Partial<
+  Pick<
+    ScheduledTask,
+    'name' | 'targetSessionId' | 'text' | 'enabled' | 'maxRuns' | 'misfirePolicy' | 'schedule'
+  >
+>;
+
+/** One row of `/api/scheduler/tasks/{id}/runs`. */
+export interface TaskRun {
+  runId: string;
+  taskId: string;
+  fireAt: string | null;
+  actualAt: string | null;
+  dispatchKey?: string | null;
+  status: TaskRunStatus;
+  sessionId?: string | null;
+  workerId?: string | null;
+  error?: string | null;
+}
+
+/** One entry of GET /api/scheduler/next. */
+export interface SchedulerNextFire {
+  taskId: string;
+  fireAt: string | null;
+}
+
+/** Engine health from GET /api/scheduler/status. */
+export interface SchedulerStatus {
+  running: boolean;
+  tickSec?: number | null;
+  dueScanned?: number | null;
+  lastTickAt?: string | null;
+}
+
+/** Scheduler endpoints answer `{"ok":false,"error":{"code","message"}}` on
+ *  failure; older handlers may still answer a bare `{"error":"string"}`. */
+export type SchedulerApiError = ApiErrorInfo | string;
+
+export interface ApiScheduledTasksResponse {
+  ok?: boolean;
+  tasks?: ScheduledTask[];
+  error?: SchedulerApiError;
+}
+
+export interface ApiScheduledTaskResponse {
+  ok?: boolean;
+  task?: ScheduledTask;
+  error?: SchedulerApiError;
+}
+
+export interface ApiTaskRunsResponse {
+  ok?: boolean;
+  runs?: TaskRun[];
+  error?: SchedulerApiError;
+}
+
+export interface ApiSchedulerNextResponse {
+  ok?: boolean;
+  next?: SchedulerNextFire[];
+  error?: SchedulerApiError;
+}
+
+export interface ApiSchedulerStatusResponse extends SchedulerStatus {
+  ok?: boolean;
+  error?: SchedulerApiError;
+}
+
+export interface ApiSchedulerActionResponse {
+  ok?: boolean;
+  error?: SchedulerApiError;
 }
 
 // ── Worker info for store ──

@@ -303,5 +303,7 @@ def test_shallow_queue_save_preserves_legacy_main_file_history():
     loaded = _sess.get(session_id)
 
     assert loaded is not None
-    assert loaded.history == history
+    # ts 由落盘入口打点（首次整重写时旧条目也会补上）；本测试关注的是
+    # legacy 主文件历史不被 queue 回执落盘破坏，投影掉时间字段再比。
+    assert [{k: m[k] for k in ("role", "content")} for m in loaded.history] == history
     assert loaded.queue_pending[0]["queueItemId"] == "q-legacy-save"

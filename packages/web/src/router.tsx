@@ -3,6 +3,7 @@ import App from './App';
 import ChatView from './views/ChatView';
 import EditorView from './views/EditorView';
 import ManageView from './views/ManageView';
+import ScheduledTasksView from './views/ScheduledTasksView';
 
 const isProd = import.meta.env.PROD;
 const basename = isProd ? '/react' : '/';
@@ -24,6 +25,10 @@ export const router = createBrowserRouter(
         {
           path: 'manage/:sessionId',
           element: <ManageView />,
+        },
+        {
+          path: 'schedules',
+          element: <ScheduledTasksView />,
         },
       ],
     },
