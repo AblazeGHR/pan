@@ -460,9 +460,18 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
 
 
 def append_history(s: "Session", message: dict) -> None:
-    """Append one history row and advance the summary projection."""
+    """Append one history row and advance the summary projection.
+
+    新追加的条目在此处打本地 ISO-8601 ts（setdefault：已有 ts 的行不被改写）。
+    打点刻意放在追加边界而不是落盘边界：整体替换 / 导入 / branch 复制进来的
+    provider 行（它们没有真实时间，只有 role/content）不带 ts，前端对缺失 ts
+    不显示时间——「时间不确定就不显示」。若放在保存时打点，这些行会被伪造成
+    当前的落盘/导入时刻（旧实现的行为）。
+    """
     with s._summary_lock:
         ensure_summary_projection(s)
+        if isinstance(message, dict):
+            message.setdefault("ts", datetime.now().isoformat())
         s.history.append(message)
         s.history_revision = max(0, int(getattr(s, "history_revision", 0) or 0)) + 1
         _apply_summary_message(s.summary_projection, message)
@@ -975,6 +984,7 @@ class Session:
     accepted_input_ids: list[str] = field(default_factory=list)
     report_subscriptions: set[str] = field(default_factory=set)  # managed sessions whose completion reports this session subscribes to
     qq_subscriptions: set[str] = field(default_factory=set)  # QQ conversations this session subscribes to ("user:<qq>"/"group:<group_id>")
+    wechat_subscriptions: set[str] = field(default_factory=set)  # 微信会话（WeChat conversations）this session subscribes to ("user:<wxid>")
     notification_settings: dict = field(default_factory=dict)  # Pan completion notifications
 
     # ── adapter_config convenience accessors ──
@@ -1029,7 +1039,8 @@ class Session:
                  accepted_input_ids: list[str] | None = None,
                  summary_projection: dict | None = None,
                  report_subscriptions=None,
-                 qq_subscriptions=None, notification_settings=None, *,
+                 qq_subscriptions=None,
+                 wechat_subscriptions=None, notification_settings=None, *,
                  queue_edit_locks: dict[str, dict] | None = None,
                  original_prompt: str | None | object = _PROMPT_UNSET,
                  handoff_prompt: str | None = None):
@@ -1167,6 +1178,9 @@ class Session:
         self._summary_worker_state = None
         self.report_subscriptions = report_subscriptions if report_subscriptions is not None else set()
         self.qq_subscriptions = qq_subscriptions if qq_subscriptions is not None else set()
+        self.wechat_subscriptions = (
+            wechat_subscriptions if wechat_subscriptions is not None else set()
+        )
         self.notification_settings = normalize_notification_settings(notification_settings)
         self.__post_init__()
 
@@ -1250,6 +1264,8 @@ class Session:
             self.report_subscriptions = set(self.report_subscriptions)
         if isinstance(self.qq_subscriptions, (list, tuple)):
             self.qq_subscriptions = set(self.qq_subscriptions)
+        if isinstance(self.wechat_subscriptions, (list, tuple)):
+            self.wechat_subscriptions = set(self.wechat_subscriptions)
         # pan_access: normalize to a dict with all three capability keys,
         # defaulting to False. Migrate legacy top-level instance attrs (old
         # JSON / old constructor paths) into the nested dict.
@@ -1360,6 +1376,7 @@ class Session:
             "summary_projection": dict(self.summary_projection),
             "report_subscriptions": sorted(self.report_subscriptions),
             "qq_subscriptions": sorted(self.qq_subscriptions),
+            "wechat_subscriptions": sorted(self.wechat_subscriptions),
             "notification_settings": normalize_notification_settings(self.notification_settings),
         }
 
@@ -2552,6 +2569,8 @@ def handoff_session(
 
     # 2e. QQ postbox 绑定 → B
     b.qq_subscriptions = set(a.qq_subscriptions)
+    # 2f. 微信订阅 → B（与 QQ 平行：handoff 后由 B 继续接收该会话提醒）
+    b.wechat_subscriptions = set(a.wechat_subscriptions)
 
     # ── 3. 解除 A 的原关系网（A.managed_by 保留 = B，见 2b）──
     a.managed = []
@@ -2559,6 +2578,7 @@ def handoff_session(
     a.workspace_ids = []
     a.report_subscriptions = set()
     a.qq_subscriptions = set()
+    a.wechat_subscriptions = set()
     # Re-check the archive name after relationship work. Another handoff may
     # have archived a session while this one was transferring relationships.
     # Keep allocation and save atomic under the same lock as B creation.

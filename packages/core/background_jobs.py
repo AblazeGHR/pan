@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -24,6 +25,7 @@ from typing import Any
 
 from packages.core import session as _sessions
 from packages.core import worker as _worker
+from packages.jobs import cron as _job_cron
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = PROJECT_ROOT / "data" / "background_jobs"
@@ -38,6 +40,7 @@ BACKGROUND_PROCESS_KIND = "background-process"
 SESSION_MESSAGE_KIND = "session-message"
 SESSION_BROADCAST_KIND = "session-broadcast"
 SERVICE_LIFECYCLE_KIND = "main-lifecycle"
+SCHEDULED_TASK_KIND = "scheduled-task"
 SERVICE_ACTIVE_PHASES = frozenset({
     "requested", "stopping", "stopping_workers", "stopping_service",
     "stopped", "starting",
@@ -170,10 +173,19 @@ def _registry_lock(name: str, registry_root: str | Path | None = None):
 
 
 def _load_path(path: Path) -> dict | None:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
+    # A concurrent ``_atomic_write`` can transiently deny the read on Windows
+    # (the same sharing violation its rename retry exists for). Reporting a
+    # live record as missing would fail the caller, so retry the read in the
+    # same bounded way before giving up.
+    for attempt in range(20):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except PermissionError:
+            if attempt == 19:
+                return None
+            time.sleep(0.01 * (attempt + 1))
+        except (OSError, json.JSONDecodeError):
+            return None
 
 
 def _normalize_job(job: dict | None) -> dict | None:
@@ -183,6 +195,12 @@ def _normalize_job(job: dict | None) -> dict | None:
     result = dict(job)
     result.setdefault("kind", BACKGROUND_PROCESS_KIND)
     result.setdefault("operation", "run")
+    # name/description 必填规范（所有 kind）：旧记录读路径兜底，不重写文件。
+    # 兜底名只用 jobId 派生（无注册表扫描），避免读路径产生 I/O 放大。
+    if not str(result.get("name") or "").strip():
+        digest = re.sub(r"[^0-9a-f]", "", str(result.get("jobId") or ""))[:6]
+        result["name"] = f"job-{int(digest, 16) % 100000 + 1}" if digest else "job"
+    result.setdefault("description", "")
     # T-046: creator and target are independent identities.  Old records did
     # not persist creatorSessionId, so keep them readable with a null creator.
     if result.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
@@ -239,10 +257,188 @@ def get(job_id: str, registry_root: str | Path | None = None) -> dict | None:
         return None
 
 
+# ── name / description 规范（所有 kind 统一；2026-09-25 用户拍板）──
+#
+# - name 必填：strip 后为空（含 None/纯空白）→ 默认名 `job-N`，绝不拒绝创建；
+# - 默认名 = **存量最小空缺**序号（删了 job-3 → 新建可复用 job-3）；
+#   允许极端条件（并发创建）下重名——name 纯展示，唯一标识是 jobId；
+# - name 是普通可编辑字段，无 nameIsAuto 标记位；
+# - description 可空字符串，缺省 ""。
+
+
+_DEFAULT_NAME_RE = re.compile(r"^job-(\d+)$")
+
+
+def normalize_name(value: Any) -> str | None:
+    """显式名字：strip 后非空才收；否则 None（调用方走默认名）。"""
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def normalize_description(value: Any) -> str:
+    """description：非字符串一律收编为空串。"""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def default_job_name(registry_root: str | Path | None = None) -> str:
+    """存量最小空缺序号的默认名：job-1, job-2, ...（跳过被占用的号）。
+
+    无锁扫描一次存活 job；并发创建可能撞号，属已接受的产品语义。
+    """
+    taken: set[int] = set()
+    try:
+        for job in list_jobs(registry_root):
+            match = _DEFAULT_NAME_RE.match(str(job.get("name") or "").strip())
+            if match:
+                taken.add(int(match.group(1)))
+    except Exception:
+        pass
+    candidate = 1
+    while candidate in taken:
+        candidate += 1
+    return f"job-{candidate}"
+
+
 def list_jobs(registry_root: str | Path | None = None) -> list[dict]:
     root = _root(registry_root) / "jobs"
     jobs = [_normalize_job(_load_path(p)) for p in root.glob("job_*.json")]
     return sorted((j for j in jobs if j), key=lambda j: j.get("createdAt", ""), reverse=True)
+
+
+# ── 结构化 source / target（PLAN §1/§3；2026-09-25 定形）──
+#
+# 落盘形状（新记录）：sourceStruct: {type, sessionId?, pluginName?}、
+# targetStruct: {sessionId}。旧记录的扁平字段（source 字符串 + sourceSessionId +
+# targetSessionId [+ targetSessionIds]）在**读路径出口**折算成结构化形状展示，
+# 不重写旧文件；写入时双写（struct + 扁平），旧读者不破。
+
+SOURCE_TYPES_STRUCT = ("agent", "user", "system", "plugin")
+
+
+def normalize_source(value: Any) -> dict:
+    """输入 → 结构化 source。接受结构化 dict 或旧扁平字符串。"""
+    if isinstance(value, dict):
+        stype = str(value.get("type") or "").strip().lower()
+        if stype not in SOURCE_TYPES_STRUCT:
+            stype = "system"
+        out: dict[str, Any] = {"type": stype}
+        sid = value.get("sessionId")
+        if isinstance(sid, str) and sid.strip():
+            out["sessionId"] = sid.strip()
+        pname = value.get("pluginName")
+        if stype == "plugin" and isinstance(pname, str) and pname.strip():
+            out["pluginName"] = pname.strip()
+        return out
+    # 旧扁平形态：source 字符串（agent/user/automation/...）
+    text = str(value or "").strip().lower() if isinstance(value, str) else ""
+    if text == "automation":
+        text = "system"
+    if text not in SOURCE_TYPES_STRUCT:
+        text = "system"
+    return {"type": text}
+
+
+def normalize_target(session_id: Any, extra_ids: Any = None) -> dict:
+    """target：单目标或扇出列表 → 结构化形状。"""
+    ids: list[str] = []
+    if isinstance(session_id, str) and session_id.strip():
+        ids.append(session_id.strip())
+    if isinstance(extra_ids, list):
+        for sid in extra_ids:
+            if isinstance(sid, str) and sid.strip() and sid.strip() not in ids:
+                ids.append(sid.strip())
+    return {"sessionId": ids[0] if ids else None,
+            **({"sessionIds": ids} if len(ids) > 1 else {})}
+
+
+def _structured_identity(job: dict) -> dict:
+    """读路径：任何年代的 job 记录 → 统一的 {source, target} 结构（不重写文件）。
+
+    规则（PLAN §3 source 四类 × target 正交）：
+    - 结构化字段已存在 → 原样返回；
+    - 旧扁平字段 → 折算：source 字符串映射四类（automation→system），
+      sourceSessionId → source.sessionId，targetSessionId(s) → target。
+    - main-lifecycle 无 session 概念 → target.sessionId = None。
+    """
+    raw_source = job.get("sourceStruct")
+    if isinstance(raw_source, dict):
+        source = normalize_source(raw_source)
+    else:
+        source = normalize_source(job.get("source"))
+        if source.get("type") == "agent" and job.get("sourceSessionId"):
+            source["sessionId"] = job.get("sourceSessionId")
+    raw_target = job.get("targetStruct")
+    if isinstance(raw_target, dict):
+        target = normalize_target(raw_target.get("sessionId"),
+                                  raw_target.get("sessionIds"))
+    else:
+        extra = job.get("targetSessionIds") if isinstance(
+            job.get("targetSessionIds"), list) else None
+        target = normalize_target(job.get("targetSessionId"), extra)
+    return {"source": source, "target": target}
+
+
+def job_public_view(job: dict | None) -> dict | None:
+    """job 记录 → GUI/API 出口视图：扁平字段折算成结构化身份。
+
+    出口契约（camelCase，/api/jobs 与 GUI 共用）：source: {type, sessionId?,
+    pluginName?}、target: {sessionId, sessionIds?}；其余键原样透传。
+    """
+    if not isinstance(job, dict):
+        return job
+    view = dict(job)
+    identity = _structured_identity(job)
+    view["source"] = identity["source"]
+    view["target"] = identity["target"]
+    view.pop("sourceStruct", None)
+    view.pop("targetStruct", None)
+    return view
+
+
+def update_job_field(job_id: str, changes: dict[str, Any],
+                     registry_root: str | Path | None = None) -> dict:
+    """跨 kind 的通用字段更新（name/description/enabled/paused/target 切换等）。
+
+    - target 切换 = 写 targetStruct + 扁平字段双写（旧读者兼容）；
+      scheduled-task 的积压便条由统一循环按新 target 自动重投（PLAN §10）。
+    - enabled=False → completed + scheduled-task 的 entry 全停；True → 状态
+      交给循环/状态机按 nextFireAt 自行归类。
+    全程持跨进程 job 锁。
+    """
+    with _lock, _job_lock(job_id, registry_root):
+        path = _job_path(job_id, registry_root)
+        current = _load_path(path)
+        if not current:
+            raise ValueError("job not found")
+        patch = dict(changes)
+        if "target" in patch:
+            raw = patch["target"]
+            target = normalize_target(
+                raw.get("sessionId") if isinstance(raw, dict) else raw,
+                raw.get("sessionIds") if isinstance(raw, dict) else None)
+            patch["targetStruct"] = target
+            patch["targetSessionId"] = target.get("sessionId")
+            if target.get("sessionIds"):
+                patch["targetSessionIds"] = target["sessionIds"]
+            elif current.get("kind") != SESSION_BROADCAST_KIND:
+                patch["targetSessionIds"] = None
+            patch.pop("target", None)
+        if patch.get("enabled") is False:
+            patch["status"] = "completed"
+            if current.get("kind") == SCHEDULED_TASK_KIND:
+                patch["schedule"] = [
+                    {**entry, "enabled": False, "nextFireAt": None}
+                    for entry in (current.get("schedule") or [])
+                ]
+                patch["nextFireAt"] = None
+        elif patch.get("enabled") is True:
+            patch.pop("status", None)  # 循环/状态机按 nextFireAt 自行归类
+        patch["updatedAt"] = time.time()
+        current.update(patch)
+        _atomic_write(path, current)
+        return current
 
 
 def _validate_command(argv: Any, cwd: Any) -> tuple[list[str], Path]:
@@ -267,6 +463,8 @@ def _runner_command(job_id: str) -> list[str]:
 
 def start(target_session_id: str, argv: list[str], cwd: str, *,
           label: str | None = None,
+          name: str | None = None,
+          description: str | None = None,
           creator_session_id: str | None = None) -> dict:
     if not _sessions.get(target_session_id):
         raise ValueError("target session does not exist")
@@ -281,6 +479,11 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
         "jobId": job_id, "targetSessionId": target_session_id, "argv": argv,
         "kind": BACKGROUND_PROCESS_KIND, "operation": "run",
         "creatorSessionId": creator_sid,
+        "sourceStruct": normalize_source({"type": "agent",
+                                          "sessionId": creator_sid}),
+        "targetStruct": normalize_target(target_session_id),
+        "name": normalize_name(name) or default_job_name(),
+        "description": normalize_description(description),
         "commandSummary": " ".join(argv[:3]) + (" …" if len(argv) > 3 else ""),
         "cwd": str(cwd_path), "label": label, "status": "starting",
         "createdAt": now, "updatedAt": now, "pid": None, "processCreatedAt": None,
@@ -469,6 +672,7 @@ def _message_job_common(text: str, schedule: dict, *,
 
 
 def start_message(target_session_id: str, text: str, schedule: dict, *,
+                  name: str | None = None,
                   description: str | None = None, source: str = "agent",
                   source_session_id: str | None = None,
                   creator_session_id: str | None = None,
@@ -489,8 +693,12 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
     job = {
         "jobId": job_id, "kind": SESSION_MESSAGE_KIND, "operation": "send",
         "targetSessionId": target_session_id, "text": text,
-        "description": description if description is not None else "",
+        "name": normalize_name(name) or default_job_name(registry_root),
+        "description": normalize_description(description),
         "source": source_type, "sourceSessionId": source_sid,
+        "sourceStruct": normalize_source({"type": source_type,
+                                          "sessionId": source_sid}),
+        "targetStruct": normalize_target(target_session_id),
         "creatorSessionId": creator_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
         "status": "pending", "runCount": 0, "lastRunAt": None,
@@ -501,6 +709,7 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
 
 
 def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
+                    name: str | None = None,
                     description: str | None = None, source: str = "agent",
                     source_session_id: str | None = None,
                     creator_session_id: str | None = None,
@@ -516,8 +725,12 @@ def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
     job = {
         "jobId": job_id, "kind": SESSION_BROADCAST_KIND, "operation": "broadcast",
         "targetSessionIds": target_ids, "text": text,
-        "description": description if description is not None else "",
+        "name": normalize_name(name) or default_job_name(registry_root),
+        "description": normalize_description(description),
         "source": source_type, "sourceSessionId": source_sid,
+        "sourceStruct": normalize_source({"type": source_type,
+                                          "sessionId": source_sid}),
+        "targetStruct": normalize_target(target_ids[0], target_ids),
         "creatorSessionId": creator_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
         "status": "pending", "runCount": 0, "lastRunAt": None,
@@ -674,6 +887,15 @@ async def run_due_message_jobs(now: float | None = None) -> int:
         finished = time.time()
         recurring = job.get("schedule", {}).get("type") in {"interval", "weekly"}
         ok = isinstance(result, dict) and result.get("status") != "error"
+        # 部分失败：即时 toast 事件（第八轮定论——completed + toast + runs 可查）。
+        if isinstance(result, dict) and result.get("status") == "partial":
+            _scheduled_task_emit({
+                "type": "job.partial_failed",
+                "jobId": job["jobId"],
+                "name": job.get("name"),
+                "errors": result.get("errors") or [],
+                "results": result.get("results") or [],
+            })
         changes: dict[str, Any] = {
             "lastRunAt": _iso_utc(finished), "runCount": int(job.get("runCount", 0)) + 1,
             "lastDelivery": result if isinstance(result, dict) else {"status": "error"},
@@ -709,6 +931,612 @@ async def run_due_message_jobs(now: float | None = None) -> int:
                 latest.update(changes)
                 _atomic_write(path, latest)
     return delivered
+
+
+# ---------------------------------------------------------------------------
+# Scheduled-task Jobs — the unified scheduler kernel.
+#
+# P1 统一（docs/design/job-unification/）：定时任务收编为一种 job kind，与
+# session-message 共用同一套 claim 状态机与 stale-requeue 崩溃恢复。派发幂等
+# 由 dispatch_key（taskId:entryId:fire_ts）+ worker 持久化队列索引兜底，
+# 所以 requeue 重投不会双跑（DESIGN_DISPATCH_CLAIM_FUSION.md §2）。
+#
+# 分层纪律：core 不 import ``packages.scheduler`` 插件。插件在启动时通过
+# :func:`register_scheduled_tasks` 注册数据根/配置/事件回调；resolver 每次
+# pass 重新求值，保证测试期 monkeypatch 仍然生效。
+# ---------------------------------------------------------------------------
+
+SCHEDULED_TASK_REQUEUE_AFTER_SEC = 5.0
+SCHEDULED_TASK_UNDELIVERED_MAX = 20
+
+_scheduled_task_hooks: dict[str, Any] = {
+    "root_resolver": None,
+    "config_resolver": None,
+    "on_event": None,
+}
+_scheduled_task_stats: dict[str, Any] = {"dueScanned": 0, "lastTickAt": None}
+
+
+def register_scheduled_tasks(*, root_resolver=None, config_resolver=None,
+                             on_event=None) -> None:
+    """Register the scheduler plugin's registry root / config / event callback.
+
+    幂等：仅覆盖显式给出的可调用项，重复注册安全。
+    """
+    if callable(root_resolver):
+        _scheduled_task_hooks["root_resolver"] = root_resolver
+    if callable(config_resolver):
+        _scheduled_task_hooks["config_resolver"] = config_resolver
+    if on_event is not None:
+        _scheduled_task_hooks["on_event"] = on_event
+
+
+def scheduled_task_stats() -> dict:
+    """Unified-loop health snapshot for the compat status API."""
+    return dict(_scheduled_task_stats)
+
+
+def is_recovery_running() -> bool:
+    return bool(_recovery_task and not _recovery_task.done())
+
+
+def delete_job(job_id: str, registry_root: str | Path | None = None) -> bool:
+    """Remove one job record under its cross-process lock."""
+    with _lock, _job_lock(job_id, registry_root):
+        path = _job_path(job_id, registry_root)
+        if not path.exists():
+            return False
+        try:
+            path.unlink()
+        except OSError:
+            return False
+        return True
+
+
+# ── runs.jsonl（泛化执行历史，scheduled-task 首个消费者）──
+
+
+def append_run_record(record: dict, registry_root: str | Path | None = None,
+                      max_entries: int = 500) -> None:
+    """Append one run row to ``runs.jsonl``; roll to the newest ``max_entries``."""
+    if not isinstance(record, dict):
+        return
+    path = _root(registry_root) / "runs.jsonl"
+    line = json.dumps(record, ensure_ascii=False)
+    with _lock:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return
+        if len(lines) <= max_entries:
+            return
+        keep = lines[-max_entries:]
+        tmp = path.with_suffix(path.suffix + f".{secrets.token_hex(4)}.tmp")
+        tmp.write_text("\n".join(keep) + "\n", encoding="utf-8")
+        for attempt in range(20):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == 19:
+                    try:
+                        tmp.unlink()
+                    except OSError:
+                        pass
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+
+
+def list_run_records(task_id: str | None = None, limit: int = 100,
+                     registry_root: str | Path | None = None) -> list[dict]:
+    """Read run history, newest first; optional per-task filter."""
+    path = _root(registry_root) / "runs.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    records: list[dict] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        if task_id and record.get("task_id") != task_id:
+            continue
+        records.append(record)
+    records.reverse()
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 100
+    if limit > 0:
+        records = records[:limit]
+    return records
+
+
+# ── scheduled-task pass ──
+
+
+def _scheduled_task_root() -> Path | None:
+    resolver = _scheduled_task_hooks.get("root_resolver")
+    if not callable(resolver):
+        return None
+    try:
+        root = resolver()
+    except Exception:
+        return None
+    if not root:
+        return None
+    return Path(root)
+
+
+def _scheduled_task_config() -> dict:
+    resolver = _scheduled_task_hooks.get("config_resolver")
+    if not callable(resolver):
+        return {}
+    try:
+        cfg = resolver()
+    except Exception:
+        return {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _scheduled_task_grace(cfg: dict, entry: dict) -> float:
+    raw = entry.get("graceSec", cfg.get("misfire_grace_sec", 300))
+    try:
+        return max(0.0, float(raw or 0))
+    except (TypeError, ValueError):
+        return 300.0
+
+
+async def _run_job_action(job: dict, target: str | None,
+                          dispatch_key: str) -> dict:
+    """执行 job 的 action 模板（PLAN §1/§2：动作 = API 调用模板）。
+
+    首批两个原语：
+    - ``assign``（默认）：task 文本入目标 session 队列，worker 幂等索引兜底；
+    - ``send_session``：发人可读消息（走 message 语义，无 task_id 幂等）。
+
+    未知 action.api / 兼容层旧记录（无 action 字段）一律回落 assign。
+    """
+    action = job.get("action")
+    api = str(action.get("api") or "assign") if isinstance(action, dict) else "assign"
+    text = job.get("text") or ""
+    if api == "send_session":
+        return await _worker.send_session(target, text, source="automation")
+    return await _worker.assign(target, text, source="automation",
+                                task_id=dispatch_key)
+
+
+def _scheduled_task_requeue_after(job: dict) -> float:
+    """Stale-claim 判死超时：action 级 ``requeueAfterSec`` 覆盖全局默认 5s。"""
+    action = job.get("action")
+    raw = (action.get("requeueAfterSec") if isinstance(action, dict) else None)
+    if raw is None:
+        raw = job.get("requeueAfterSec", SCHEDULED_TASK_REQUEUE_AFTER_SEC)
+    try:
+        return max(1.0, float(raw))
+    except (TypeError, ValueError):
+        return SCHEDULED_TASK_REQUEUE_AFTER_SEC
+
+
+def _iso_local(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.replace(microsecond=0).isoformat()
+
+
+def _scheduled_task_emit(event: dict) -> None:
+    callback = _scheduled_task_hooks.get("on_event")
+    if callback is None:
+        return
+    try:
+        result = callback(event)
+    except Exception:
+        return
+    if inspect.isawaitable(result):
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None:
+            loop.create_task(_consume_emitted(result))
+
+
+async def _consume_emitted(awaitable) -> None:
+    try:
+        await awaitable
+    except Exception:
+        pass
+
+
+def _entry_next_fire(entry: dict, base_dt: datetime) -> datetime | None:
+    """Entry 自身就是合法 cron spec；在 base 之后找下一个网格点。"""
+    try:
+        return _job_cron.next_fire_after(entry, base_dt,
+                                         tz_name=entry.get("timezone"))
+    except ValueError:
+        return None
+
+
+def _entry_is_due(entry: dict, now_dt: datetime) -> bool:
+    fire = _job_cron.parse_datetime(entry.get("nextFireAt"))
+    return fire is not None and fire <= now_dt
+
+
+def _job_next_fire(job: dict) -> str | None:
+    """全部 enabled entries 的最早下一跳（ISO 或 None）。"""
+    points: list[datetime] = []
+    for entry in (job.get("schedule") or []):
+        if not entry.get("enabled", True):
+            continue
+        point = _job_cron.parse_datetime(entry.get("nextFireAt"))
+        if point is not None:
+            points.append(point)
+    if not points:
+        return None
+    return _iso_local(min(points))
+
+
+def _apply_entry_change(job_id: str, entry_id: str, entry_patch: dict,
+                        job_patch: dict, registry_root: str | Path | None) -> dict | None:
+    """单 entry 的读-改-写，全程持跨进程 job 锁（P0 锁纪律）。"""
+    with _lock, _job_lock(job_id, registry_root):
+        path = _job_path(job_id, registry_root)
+        current = _load_path(path)
+        if not current or current.get("kind") != SCHEDULED_TASK_KIND:
+            return None
+        schedule = list(current.get("schedule") or [])
+        replaced = False
+        for index, entry in enumerate(schedule):
+            if (entry.get("id") or "entry0") == entry_id:
+                merged = dict(entry)
+                merged.update(entry_patch)
+                schedule[index] = merged
+                replaced = True
+                break
+        if not replaced:
+            return None
+        current["schedule"] = schedule
+        current.update(job_patch)
+        current["nextFireAt"] = _job_next_fire(current)
+        current["updatedAt"] = time.time()
+        _atomic_write(path, current)
+        return current
+
+
+def _append_task_run(job: dict, task_id: str, fire_dt: datetime,
+                     dispatch_key: str, status: str, error: str | None,
+                     registry_root: str | Path | None, worker_id=None) -> dict:
+    record = {
+        "run_id": secrets.token_hex(6),
+        "task_id": task_id,
+        "fire_at": _iso_local(fire_dt),
+        "actual_at": _iso_local(datetime.now().replace(microsecond=0)),
+        "dispatch_key": dispatch_key,
+        "status": status,
+        "session_id": job.get("targetSessionId"),
+        "worker_id": worker_id,
+        "error": error,
+    }
+    try:
+        append_run_record(record, registry_root=registry_root)
+    except Exception:
+        pass
+    return record
+
+
+async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) -> int:
+    """target session 恢复/切换后，重投积压的未投递派发（PLAN §10）。"""
+    notes = list(job.get("undeliveredFires") or [])
+    if not notes:
+        return 0
+    target = job.get("targetSessionId")
+    if not target:
+        # target 仍缺失（可能被清空）：便条原样保留，等 target 恢复/切换。
+        return 0
+    remaining: list[dict] = []
+    delivered: list[dict] = []
+    for note in notes:
+        try:
+            result = await _run_job_action(job, target, note.get("dispatchKey"))
+        except Exception as exc:
+            result = {"status": "error", "result": str(exc)}
+        if isinstance(result, dict) and str(result.get("status")) != "error":
+            delivered.append(note)
+        else:
+            remaining.append(note)
+    if delivered:
+        try:
+            _update(job["jobId"], {"undeliveredFires": remaining,
+                                   "lastStatus": "dispatched", "lastError": None,
+                                   "updatedAt": time.time()},
+                    registry_root=registry_root)
+        except ValueError:
+            return 0
+        for note in delivered:
+            fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
+            _append_task_run(job, job.get("taskId") or job["jobId"], fire_dt,
+                             note.get("dispatchKey") or "", "dispatched", None,
+                             registry_root)
+    return len(delivered)
+
+
+def _advance_paused_entries(job: dict, now_dt: datetime,
+                            registry_root: str | Path | None) -> int:
+    """暂停任务：跳过触发但按网格推进 nextFireAt，恢复后不爆发补跑。"""
+    changed = 0
+    for entry in list(job.get("schedule") or []):
+        if not entry.get("enabled", True) or not _entry_is_due(entry, now_dt):
+            continue
+        next_fire = _entry_next_fire(entry, now_dt)
+        _apply_entry_change(job["jobId"], entry.get("id") or "entry0",
+                            {"nextFireAt": _iso_local(next_fire)}, {},
+                            registry_root)
+        changed += 1
+    return changed
+
+
+def _repair_missing_next_fire(job: dict, now_dt: datetime,
+                              registry_root: str | Path | None) -> None:
+    """数据残缺自愈：enabled 周期 entry 缺 nextFireAt → 从现在重算。"""
+    for entry in list(job.get("schedule") or []):
+        if not entry.get("enabled", True):
+            continue
+        if entry.get("kind") == "once":
+            continue
+        if _job_cron.parse_datetime(entry.get("nextFireAt")) is not None:
+            continue
+        next_fire = _entry_next_fire(entry, now_dt)
+        _apply_entry_change(job["jobId"], entry.get("id") or "entry0",
+                            {"nextFireAt": _iso_local(next_fire)}, {},
+                            registry_root)
+
+
+def _backlog_undelivered_fire(job: dict, task_id: str, entry: dict,
+                              entry_id: str, fire_dt: datetime,
+                              now_dt: datetime, dispatch_key: str,
+                              error: str, registry_root) -> int:
+    """PLAN §10：target 缺失/不可达 → 便条积压 + warning，节奏照常推进。
+
+    便条进 ``undeliveredFires``（上限截断），entry/job 推进与正常派发一致；
+    target 恢复/切换后由 :func:`_redeliver_undelivered` 重投（dispatch_key 幂等）。
+    """
+    kind = entry.get("kind")
+    note = {"entryId": entry_id, "fireAt": _iso_local(fire_dt),
+            "dispatchKey": dispatch_key, "text": job.get("text") or "",
+            "error": error}
+    backed = list(job.get("undeliveredFires") or [])
+    backed.append(note)
+    backed = backed[-SCHEDULED_TASK_UNDELIVERED_MAX:]
+    next_fire = _entry_next_fire(entry, max(fire_dt, now_dt))
+    entry_patch = {"nextFireAt": _iso_local(next_fire),
+                   "lastFireAt": _iso_local(fire_dt)}
+    job_patch = {"undeliveredFires": backed,
+                 "lastFireAt": _iso_local(fire_dt),
+                 "lastStatus": "undeliverable",
+                 "lastError": error,
+                 "updatedAt": time.time()}
+    if kind == "once":
+        entry_patch.update({"enabled": False, "nextFireAt": None})
+        job_patch["enabled"] = False
+    _apply_entry_change(job["jobId"], entry_id, entry_patch, job_patch,
+                        registry_root)
+    _append_task_run(job, task_id, fire_dt, dispatch_key, "undeliverable",
+                     error, registry_root)
+    _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                          "fireAt": _iso_local(fire_dt),
+                          "dispatchKey": dispatch_key,
+                          "status": "undeliverable", "error": error,
+                          "terminal": True})
+    return 1
+
+
+async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
+                                cfg: dict, registry_root: str | Path | None) -> int:
+    """Fire one due entry: grace → dispatch(assign) → advance."""
+    entry_id = entry.get("id") or "entry0"
+    fire_dt = _job_cron.parse_datetime(entry.get("nextFireAt"))
+    if fire_dt is None or fire_dt > now_dt:
+        return 0
+    task_id = job.get("taskId") or job["jobId"]
+    kind = entry.get("kind")
+    policy = str(entry.get("misfirePolicy")
+                 or job.get("misfirePolicy") or "fire_now")
+    grace = _scheduled_task_grace(cfg, entry)
+    late = (now_dt - fire_dt).total_seconds()
+    dispatch_key = f"{task_id}:{entry_id}:{int(fire_dt.timestamp())}"
+    target = job.get("targetSessionId")
+
+    if late > grace and kind == "once":
+        # 一次性超宽限：记 expired 并整体停用，绝不追补（PR 语义）。
+        _apply_entry_change(job["jobId"], entry_id,
+                            {"enabled": False, "nextFireAt": None},
+                            {"enabled": False, "lastFireAt": _iso_local(fire_dt),
+                             "lastStatus": "expired",
+                             "lastError": f"misfire {int(late)}s 超过宽限 {int(grace)}s，已过期",
+                             "updatedAt": time.time()}, registry_root)
+        _append_task_run(job, task_id, fire_dt, dispatch_key, "expired",
+                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root)
+        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                              "fireAt": _iso_local(fire_dt),
+                              "dispatchKey": dispatch_key, "status": "expired",
+                              "error": "misfire expired"})
+        return 1
+
+    if late > grace and policy == "skip":
+        next_fire = _entry_next_fire(entry, max(fire_dt, now_dt))
+        _apply_entry_change(job["jobId"], entry_id,
+                            {"nextFireAt": _iso_local(next_fire),
+                             "lastFireAt": _iso_local(fire_dt)},
+                            {"lastFireAt": _iso_local(fire_dt),
+                             "lastStatus": "skipped",
+                             "lastError": f"misfire {int(late)}s 超过宽限 {int(grace)}s，按策略跳过",
+                             "updatedAt": time.time()}, registry_root)
+        _append_task_run(job, task_id, fire_dt, dispatch_key, "skipped",
+                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root)
+        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                              "fireAt": _iso_local(fire_dt),
+                              "dispatchKey": dispatch_key, "status": "skipped",
+                              "error": "misfire skipped"})
+        return 1
+
+    # on-time or fire_now（宽限外仍补一次：休眠唤醒只结算一次）
+    _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                          "fireAt": _iso_local(fire_dt),
+                          "dispatchKey": dispatch_key, "status": "dispatched",
+                          "error": None})
+
+    if not target:
+        return _backlog_undelivered_fire(
+            job, task_id, entry, entry_id, fire_dt, now_dt, dispatch_key,
+            "target session is missing (no target set)", registry_root)
+
+    try:
+        result = await _run_job_action(job, target, dispatch_key)
+    except Exception as exc:
+        result = {"status": "error", "result": str(exc)}
+    if not isinstance(result, dict):
+        result = {"status": "error",
+                  "result": f"unexpected assign result: {result!r}"}
+    ok = str(result.get("status")) != "error"
+    not_found = (isinstance(result.get("result"), str)
+                 and result.get("result") == f"Session {target} not found")
+
+    if not ok and not_found:
+        # PLAN §10：target 缺失 → 便条积压 + warning，节奏照常推进，
+        # target 恢复/切换后由 _redeliver_undelivered 重投（dispatch_key 幂等）。
+        return _backlog_undelivered_fire(
+            job, task_id, entry, entry_id, fire_dt, now_dt, dispatch_key,
+            f"Session {target} not found", registry_root)
+
+    next_fire = None if kind == "once" else _entry_next_fire(entry, max(fire_dt, now_dt))
+    run_count = int(job.get("runCount") or 0) + 1
+    max_runs = job.get("maxRuns")
+    entry_patch = {"nextFireAt": _iso_local(next_fire),
+                   "lastFireAt": _iso_local(fire_dt)}
+    job_patch = {"lastFireAt": _iso_local(fire_dt),
+                  "lastStatus": "dispatched" if ok else "error",
+                  "lastError": None if ok else str(result.get("result") or "派发失败"),
+                  "runCount": run_count, "updatedAt": time.time()}
+    finished = kind == "once"
+    if isinstance(max_runs, int) and run_count >= max_runs:
+        finished = True
+    if finished:
+        entry_patch.update({"enabled": False, "nextFireAt": None})
+        job_patch["enabled"] = False
+    _apply_entry_change(job["jobId"], entry_id, entry_patch, job_patch,
+                        registry_root)
+    _append_task_run(job, task_id, fire_dt, dispatch_key,
+                     "dispatched" if ok else "error",
+                     None if ok else str(result.get("result") or "派发失败"),
+                     registry_root, worker_id=result.get("workerId"))
+    if not ok:
+        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                              "fireAt": _iso_local(fire_dt),
+                              "dispatchKey": dispatch_key, "status": "error",
+                              "error": job_patch["lastError"], "terminal": True})
+    return 1
+
+
+async def run_due_scheduled_tasks(now: float | None = None) -> int:
+    """One unified scheduler pass over the scheduled-task registry.
+
+    顺序：stale claim requeue → 积压重投 → 暂停推进/缺失自愈 → 认领 → 派发。
+    多实例安全：认领在跨进程 job 锁内做状态检查-置位，他实例跳过。
+    """
+    cfg = _scheduled_task_config()
+    if not cfg.get("enabled", True):
+        return 0
+    root = _scheduled_task_root()
+    if root is None:
+        return 0
+    now_dt = datetime.now().replace(microsecond=0)
+    now_ts = time.time() if now is None else float(now)
+    handled = 0
+
+    # 1) Stale claim requeue：running 超过 requeueAfterSec 无终态 → 视为崩溃，
+    #    放回 scheduled。entry 触发点不动，错过点重新走 grace 判定；
+    #    重投由 dispatch_key 幂等保证不双跑。
+    for job in list_jobs(root):
+        if job.get("kind") != SCHEDULED_TASK_KIND or job.get("status") != "running":
+            continue
+        started = job.get("runStartedAt")
+        if (isinstance(started, (int, float))
+                and now_ts - float(started) < _scheduled_task_requeue_after(job)):
+            continue
+        try:
+            _update(job["jobId"], {"status": "scheduled", "runStartedAt": None,
+                                   "updatedAt": now_ts}, registry_root=root)
+        except ValueError:
+            pass
+
+    # 2) 维护 + 认领
+    claimed: list[dict] = []
+    for job in list_jobs(root):
+        if job.get("kind") != SCHEDULED_TASK_KIND:
+            continue
+        if job.get("status") not in {"pending", "scheduled"}:
+            continue
+        if not job.get("enabled"):
+            continue
+        if job.get("undeliveredFires") and _sessions.get(job.get("targetSessionId")) is not None:
+            try:
+                handled += await _redeliver_undelivered(job, root)
+            except Exception:
+                pass
+        if job.get("paused"):
+            # 暂停推进不计入 handled（PR tick 返回值只数 fire）
+            _advance_paused_entries(job, now_dt, root)
+            continue
+        _repair_missing_next_fire(job, now_dt, root)
+        due = [entry for entry in (job.get("schedule") or [])
+               if entry.get("enabled", True) and _entry_is_due(entry, now_dt)]
+        if not due:
+            continue
+        with _lock, _job_lock(job["jobId"], root):
+            path = _job_path(job["jobId"], root)
+            current = _load_path(path)
+            if (not current or current.get("kind") != SCHEDULED_TASK_KIND
+                    or current.get("status") not in {"pending", "scheduled"}):
+                continue
+            current.update(status="running", runStartedAt=now_ts,
+                            updatedAt=now_ts)
+            _atomic_write(path, current)
+            claimed.append(current)
+
+    # 3) 执行被认领的到期 entries（认领即「落盘先于派发」）。每个 entry 前重载
+    #    最新容器：同轮多 entry 的 runCount/last 状态读到前一个的落盘结果。
+    for job in claimed:
+        latest = get(job["jobId"], registry_root=root)
+        if not latest or latest.get("status") != "running":
+            continue  # 认领与落终态之间被取消/停用 → 取消方获胜
+        for entry in list(latest.get("schedule") or []):
+            fresh = get(latest["jobId"], registry_root=root) or latest
+            try:
+                handled += await _fire_scheduled_entry(fresh, entry, now_dt, cfg, root)
+            except Exception:
+                pass  # 单 entry 异常不掀翻整轮
+        closing = {"status": "scheduled", "runStartedAt": None,
+                   "updatedAt": time.time()}
+        closing_job = get(job["jobId"], registry_root=root) or latest
+        if not closing_job.get("enabled"):
+            closing["status"] = "completed"
+        try:
+            _update(latest["jobId"], closing, registry_root=root)
+        except ValueError:
+            pass
+
+    _scheduled_task_stats["dueScanned"] = int(_scheduled_task_stats.get("dueScanned") or 0) + handled
+    _scheduled_task_stats["lastTickAt"] = _iso_local(now_dt)
+    return handled
 
 
 def _process_create_time(pid: int | None) -> float | None:
@@ -853,6 +1681,8 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
     registry_path = str(_root(registry_root))
     job = {
         "jobId": job_id, "kind": SERVICE_LIFECYCLE_KIND, "operation": operation,
+        "name": default_job_name(registry_path),
+        "description": "",
         "options": frozen_options,
         "requestId": request_id, "phase": "requested", "status": "pending",
         "root": str(root_path), "port": port, "registryRoot": registry_path,
@@ -957,7 +1787,8 @@ def reconcile_running() -> int:
     changed = 0
     for job in list_jobs():
         if job.get("kind") in {
-            SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
+            SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND,
+            SCHEDULED_TASK_KIND}:
             continue
         if job.get("status") not in {"starting", "running"}:
             continue
@@ -979,11 +1810,15 @@ async def recover_notifications() -> int:
     # not create a second terminal notice.  Running them here makes service
     # restart recovery share the existing one-second lifecycle loop.
     await run_due_message_jobs()
+    try:
+        await run_due_scheduled_tasks()
+    except Exception:
+        pass  # scheduler pass 不得饿死 message job / 终态通知恢复
     reconcile_running()
     delivered = 0
     for job in list_jobs():
         if job.get("kind") in {SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND,
-                                SESSION_BROADCAST_KIND}:
+                                SESSION_BROADCAST_KIND, SCHEDULED_TASK_KIND}:
             continue
         if job.get("status") not in {"completed", "failed", "cancelled"} or job.get("notificationState") == "delivered":
             continue

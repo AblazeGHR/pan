@@ -12,6 +12,11 @@ from packages.core import worker
 from packages.core.adapters import CodexAdapter
 
 
+def _no_ts(entries):
+    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
+    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+
+
 def test_codex_worker_branch_uses_sessions_provider(monkeypatch):
     """Codex's empty fork_args must not make /worker/{id}/branch fail."""
     worker.workers.clear()
@@ -42,7 +47,7 @@ def test_steer_worker_persists_only_after_control_write(monkeypatch):
     monkeypatch.setattr(_sess, "save_async", AsyncMock())
 
     assert asyncio.run(worker.steer_worker(live.worker_id, " focus here ")) is None
-    assert session.history == [{"role": "user", "content": "focus here"}]
+    assert _no_ts(session.history) == [{"role": "user", "content": "focus here"}]
 
     worker.workers.clear()
     _sess._cache.clear()
@@ -174,7 +179,7 @@ def test_programmatic_steer_is_blocked_by_queue_edit_lease(monkeypatch):
     worker.release_queue_edit_lock(session, item["id"], "active-edit")
     assert asyncio.run(worker.steer_worker(live.worker_id, "after cancel")) is None
     stdin.write.assert_called_once()
-    assert session.history == [{"role": "user", "content": "after cancel"}]
+    assert _no_ts(session.history) == [{"role": "user", "content": "after cancel"}]
 
     worker.workers.clear()
     worker._queue_locks.clear()
@@ -204,7 +209,7 @@ def test_steer_worker_retries_one_transient_history_save_failure(monkeypatch):
         live.worker_id, {"type": "steer", "text": "retry this"},
     )
     assert save.await_count == 2
-    assert session.history == [{"role": "user", "content": "retry this"}]
+    assert _no_ts(session.history) == [{"role": "user", "content": "retry this"}]
 
     worker.workers.clear()
     _sess._cache.clear()

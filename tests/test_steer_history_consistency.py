@@ -90,7 +90,9 @@ def test_steer_control_stream_result_history_barrier_is_ordered(tmp_path, monkey
         "result-history-append",
         "result-save-returned",
     ]
-    assert _jsonl(_sess._history_path(session.id)) == [
+    # ts 由 append_history 打点；barrier 测试关注的是条目顺序，投影掉时间字段再比
+    assert [{k: m[k] for k in ("role", "content", "messageId") if k in m}
+            for m in _jsonl(_sess._history_path(session.id))] == [
         {"role": "user", "content": "question"},
         {"role": "user", "content": "steer now", "messageId": "steer:one"},
         {"role": "assistant", "content": "delta"},

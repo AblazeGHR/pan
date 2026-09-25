@@ -163,10 +163,9 @@ export function TopBar() {
           <span className="text-sm font-medium text-text-primary truncate max-w-[120px] md:max-w-[200px]">
             {currentSession.name || currentSession.id?.slice(0, 12)}
           </span>
-          {/* Deprecated Bubble view: keep the toggle implementation for a
-              future re-enable, but hide this entry from the current UI. */}
+          {/* Toggle between the chat presentations: TUI rows (default) and the
+              Bubble view. */}
           <button
-            hidden
             onClick={toggleTuiView}
             className="text-sm text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors"
             title={tuiViewEnabled ? 'Switch to Bubble view' : 'Switch to TUI view'}

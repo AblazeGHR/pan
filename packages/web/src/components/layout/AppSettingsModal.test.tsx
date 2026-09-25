@@ -111,13 +111,13 @@ describe('AppSettingsModal', () => {
     expect(document.body.querySelector('.app-settings-overlay')).toBeNull();
   });
 
-  it('renders the 4 settings items plus Reset', () => {
+  it('renders the 6 settings items plus Reset', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();
     expect(card.textContent).toContain('Default group by');
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
-    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(4);
+    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(6);
     expect(card.textContent).toContain('Notification');
   });
 
@@ -193,6 +193,44 @@ describe('AppSettingsModal', () => {
     expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
     expect(updateUiSettingsMock).toHaveBeenCalledWith({ mergeConsecutiveNonBodyBlocks: true });
     expect(mergeSwitch.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('toggles the per-session scroll memory on the Appearance tab and persists it', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+
+    expect(cardEl().textContent).toContain('Scroll position');
+    const scrollSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) => element.textContent?.includes('Keep reading position per session'))!;
+    expect(scrollSwitch).toBeDefined();
+    // TUI sessions start at the newest message unless the reader opts in.
+    expect(scrollSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(scrollSwitch);
+
+    expect(useAppSettingsStore.getState().keepScrollOnSessionSwitch).toBe(true);
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ keepScrollOnSessionSwitch: true });
+    expect(scrollSwitch.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('toggles the message navigation rail on the Appearance tab and persists it', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+
+    expect(cardEl().textContent).toContain('Quick location');
+    const railSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) => element.textContent?.includes('Show message navigation rail'))!;
+    expect(railSwitch).toBeDefined();
+    // Off by default: the rail is an opt-in strip.
+    expect(railSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(railSwitch);
+
+    expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(true);
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({ showMessageNavigationRail: true });
+    expect(railSwitch.getAttribute('aria-checked')).toBe('true');
   });
 
   it('shows the Codex warning Toast option on the Notification tab', () => {
@@ -298,7 +336,7 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
-    expect(switches).toHaveLength(4);
+    expect(switches).toHaveLength(6);
     // meta-agent is on by default; toggle it off.
     expect(switches[0]!.getAttribute('aria-checked')).toBe('true');
     fireEvent.click(switches[0]!);
@@ -334,6 +372,8 @@ describe('AppSettingsModal', () => {
     expect(s.showQQ).toBe(true);
     expect(s.notifications.codexWarningToast).toBe(true);
     expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
+    expect(s.keepScrollOnSessionSwitch).toBe(DEFAULT_SETTINGS.keepScrollOnSessionSwitch);
+    expect(s.showMessageNavigationRail).toBe(DEFAULT_SETTINGS.showMessageNavigationRail);
   });
 
   it('requires confirmation and reports successful main-service recovery', async () => {

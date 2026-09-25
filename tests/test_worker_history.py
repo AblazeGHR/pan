@@ -108,6 +108,11 @@ def _setup_session(history: list[dict] = None, cli_session_id: str = "cbc-123"):
     return s
 
 
+def _no_ts(entries):
+    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
+    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+
+
 def _setup_worker(session_id: str, replaying: bool = False):
     """Create a Worker with a mock process (no real CLI)."""
     w = worker.Worker(
@@ -148,7 +153,7 @@ def test_normal_conversation_appends_history():
     asyncio.run(_drive_stdout(w, mock_proc))
 
     assert len(s.history) == 1, f"expected 1 assistant msg, got {s.history}"
-    assert s.history[0] == {"role": "assistant", "content": "hello"}
+    assert _no_ts(s.history) == [{"role": "assistant", "content": "hello"}]
     assert s.last_result["status"] == "done"
     assert s.last_result["result"] == "hello"
     print("PASS: normal conversation appends history")
@@ -257,7 +262,7 @@ def test_user_message_processed_immediately_even_with_replaying_flag():
         task = asyncio.create_task(worker._consumer(w))
         # 不再等待 replay：消息立即处理（旧行为会 sleep(0.5) 轮询等待）
         for _ in range(30):
-            if s.history[-1] == {"role": "user", "content": "new q"}:
+            if _no_ts([s.history[-1]]) == [{"role": "user", "content": "new q"}]:
                 break
             await asyncio.sleep(0.02)
         task.cancel()
@@ -271,7 +276,7 @@ def test_user_message_processed_immediately_even_with_replaying_flag():
     # User message appended immediately, history not doubled
     assert s.history[-1]["role"] == "user" and s.history[-1]["content"] == "new q", \
         f"user message not appended: {s.history}"
-    assert s.history[:2] == original_snapshot, \
+    assert _no_ts(s.history[:2]) == original_snapshot, \
         f"original history lost: {s.history[:2]} vs {original_snapshot}"
     print("PASS: user message processed immediately (no replay wait)")
     _cleanup()
@@ -315,7 +320,7 @@ def test_result_text_appended_when_no_assistant_event():
     asyncio.run(_drive_stdout(w, mock_proc))
 
     assert any(h == {"role": "assistant", "content": "only in result"}
-               for h in s.history), f"result text not appended: {s.history}"
+               for h in _no_ts(s.history)), f"result text not appended: {s.history}"
     print("PASS: result text appended when no assistant event")
     _cleanup()
 

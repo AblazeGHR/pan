@@ -222,7 +222,9 @@ def test_import_reimport_marks_reimported(monkeypatch, tmp_path):
     assert "error" not in resp, resp
     assert resp["reimported"] is True
     assert resp["id"] == "ses_existing"  # in-place overwrite
-    assert resp["history"] == [{"role": "user", "content": "new"}]
+    # 导入/替换进来的 provider 行不打 ts（时间不确定就不显示）；这里只断言消息本身
+    assert [{k: m[k] for k in ("role", "content")} for m in resp["history"]] \
+        == [{"role": "user", "content": "new"}]
     assert resp["originalPrompt"] == "stable rules"
     assert resp["handoffPrompt"] == "latest brief"
     assert existing.workspace_ids == [original_workspace.id]
@@ -511,7 +513,8 @@ def test_generic_codex_import_endpoint_uses_registered_provider(monkeypatch):
     assert "error" not in imported, imported
     assert imported["adapter"] == "codex"
     assert imported["cliSessionId"] == "thread-1"
-    assert imported["history"] == [{"role": "user", "content": "restored"}]
+    assert [{k: m[k] for k in ("role", "content")} for m in imported["history"]] \
+        == [{"role": "user", "content": "restored"}]
     assert imported["workdir"] == "D:/project/Pan"
     _cleanup()
 

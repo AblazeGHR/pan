@@ -969,6 +969,9 @@ function appendEventToMessages(
     ? event.stream_text
     : undefined;
 
+  // 最终 assistant 消息由服务端一次性携带的完成时刻（delta chunk 不带）。
+  const eventTs = typeof event.ts === 'string' ? event.ts : undefined;
+
   // Stream arrival order is the display order: the first event for a native
   // item reserves its position, and later deltas/completion replace that item
   // in place. Thinking/tool blocks therefore stay before or after content
@@ -1101,7 +1104,7 @@ function appendEventToMessages(
       itemId && aliasedItemId && target?.nativeItemId === aliasedItemId && itemId !== aliasedItemId,
     );
     if (event.replace && target && (target.role === b.role || nativeIndex >= 0)) {
-      const updated = { ...target, role: b.role, content: b.content };
+      const updated = { ...target, role: b.role, content: b.content, ...(eventTs ? { ts: eventTs } : {}) };
       if (blockId && !updated.blockId) updated.blockId = blockId;
       inheritMessageIdentity(updated, target);
       messages = messages.map((message, index) => index === targetIndex ? updated : message);
@@ -1159,6 +1162,7 @@ function appendEventToMessages(
           role: b.role,
           content: b.content,
           ...(nativeItemId && !target.nativeItemId ? { nativeItemId } : {}),
+          ...(eventTs ? { ts: eventTs } : {}),
         };
         inheritMessageIdentity(updated, target);
         messages = messages.map((message, index) => index === targetIndex ? updated : message);
@@ -1193,6 +1197,7 @@ function appendEventToMessages(
         content: b.content,
         ...(nativeItemId ? { nativeItemId } : {}),
         ...(blockId ? { blockId } : {}),
+        ...(eventTs ? { ts: eventTs } : {}),
       };
       rememberMessageIdentity(message);
       messages = [...messages, message];

@@ -18,6 +18,11 @@ from packages.core import worker
 from packages.core.adapters.codex import CodexAdapter
 
 
+def _no_ts(entries):
+    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
+    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+
+
 class _CodexProcess:
     def __init__(self, result: str):
         self._chunks = [
@@ -89,7 +94,7 @@ def test_codex_stream_results_keep_the_current_task_sequence(monkeypatch):
             assert session.last_result["result"] == result
             assert session.last_result["taskSeq"] == seq
             expected_history.append({"role": "assistant", "content": result})
-            assert session.history == expected_history
+            assert _no_ts(session.history) == expected_history
             assert session.queue_pending == []
     finally:
         _cleanup()

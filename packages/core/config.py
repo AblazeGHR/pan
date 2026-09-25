@@ -52,6 +52,19 @@ DEFAULT_CONFIG: dict = {
         # 空闲回收（秒）：idle 状态（任务完成）持续超过该值时回收进程。held/zombie 跳过。
         "idle_sec": 300,
     },
+    # 定时任务插件（packages/scheduler）：到点把任务文本派发给目标 session
+    "scheduler": {
+        # 是否启用调度循环；关闭后只读 API 仍可用，但不会自动派发。
+        "enabled": True,
+        # 扫描周期（秒）
+        "tick_sec": 1,
+        # 错过触发的宽限（秒）；超出后按任务 misfirePolicy（fire_now / skip）处理
+        "misfire_grace_sec": 300,
+        # 同时派发的任务数上限
+        "max_concurrent_dispatch": 5,
+        # cron 求值所用的默认时区（任务 schedule 未指定 timezone 时用）
+        "default_timezone": "Asia/Shanghai",
+    },
     # 本地日志（main.py 启动时配置）：文件大小/天轮转 + console 双输出
     "logging": {
         # 日志级别：DEBUG/INFO/WARNING/ERROR

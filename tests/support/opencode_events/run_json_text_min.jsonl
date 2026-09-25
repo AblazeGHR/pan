@@ -1,0 +1,3 @@
+{"type":"step_start","timestamp":1790336403142,"sessionID":"ses_fixture_0001","part":{"id":"prt_fixture_0001","messageID":"msg_fixture_0001","sessionID":"ses_fixture_0001","type":"step-start"}}
+{"type":"text","timestamp":1790336403388,"sessionID":"ses_fixture_0001","part":{"id":"prt_fixture_0002","messageID":"msg_fixture_0002","sessionID":"ses_fixture_0001","type":"text","text":"收到","time":{"start":1790336403370,"end":1790336403373}}}
+{"type":"step_finish","timestamp":1790336403388,"sessionID":"ses_fixture_0001","part":{"id":"prt_fixture_0003","reason":"stop","messageID":"msg_fixture_0003","sessionID":"ses_fixture_0001","type":"step-finish","tokens":{"total":11667,"input":9725,"output":1,"reasoning":16,"cache":{"write":0,"read":1925}},"cost":0}}

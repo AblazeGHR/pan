@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useUIStore } from '@/stores/uiStore';
-import { CheckCircle, AlertCircle, X } from 'lucide-react';
+import { CheckCircle, AlertCircle, AlertTriangle, X } from 'lucide-react';
 
 const TOAST_DURATION = 3000;
 
@@ -51,7 +51,15 @@ export function ToastContainer() {
 
   const iconFor = (type: string) => {
     if (type === 'error') return <AlertCircle size={16} />;
+    if (type === 'warning') return <AlertTriangle size={16} />;
     return <CheckCircle size={16} />;
+  };
+
+  // Amber (theme `warning` token) for warnings; solid dark text keeps it legible.
+  const colorFor = (type: string) => {
+    if (type === 'error') return 'bg-danger text-white';
+    if (type === 'warning') return 'bg-warning text-black';
+    return 'bg-accent text-white';
   };
 
   return (
@@ -67,7 +75,7 @@ export function ToastContainer() {
           key={toast.id}
           className={`toast-enter rounded-lg px-4 py-2.5 shadow-panel pointer-events-auto flex items-center gap-2.5 transition-all ${
             exitingIds.has(toast.id) ? 'toast-exit' : ''
-          } ${toast.type === 'error' ? 'bg-danger text-white' : 'bg-accent text-white'}`}
+          } ${colorFor(toast.type)}`}
           role="alert"
           aria-live="polite"
           onAnimationEnd={() => {

@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **定时任务插件（scheduler）HTTP API**：`/api/scheduler/*` 提供定时任务的增删改查、暂停/恢复、立即执行、执行历史与下次触发预览，统一返回 `{"ok":...}` 包络并广播 `scheduler.task.*` 事件；调度循环接入服务 lifespan，到点以 `source="automation"` 把任务文本派发给目标 session。
+
 ### Changed
 
 - **React-only 前端**：退役并归档 Vanilla 前端，根路径固定跳转 `/react/`；移除 `/vanilla` 路由和 `frontend` 配置，React 构建缺失时返回 503。
