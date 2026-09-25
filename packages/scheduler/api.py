@@ -43,7 +43,7 @@ _FIELD_RENAMES = {
     "misfire_policy": "misfirePolicy",
     "created_at": "createdAt",
     "updated_at": "updatedAt",
-}
+}  # name / description 两侧同名，无需映射
 
 _RUN_RENAMES = {
     "run_id": "runId",
@@ -288,6 +288,7 @@ async def create_task(data: dict):
 
     payload = {
         "name": data.get("name") if isinstance(data.get("name"), str) else "",
+        "description": data.get("description") if isinstance(data.get("description"), str) else "",
         "target_session_id": target,
         "text": text,
         "enabled": _as_bool(data.get("enabled"), True),
@@ -326,6 +327,10 @@ async def update_task(task_id: str, data: dict):
         if not isinstance(data["name"], str):
             return _err("invalid_argument", "name must be a string")
         patch["name"] = data["name"]
+    if "description" in data:
+        if not isinstance(data["description"], str):
+            return _err("invalid_argument", "description must be a string")
+        patch["description"] = data["description"]
     if "text" in data:
         if not isinstance(data["text"], str) or not data["text"].strip():
             return _err("invalid_argument", "text must be a non-empty string")

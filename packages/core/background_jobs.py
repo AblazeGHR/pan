@@ -195,6 +195,12 @@ def _normalize_job(job: dict | None) -> dict | None:
     result = dict(job)
     result.setdefault("kind", BACKGROUND_PROCESS_KIND)
     result.setdefault("operation", "run")
+    # name/description 必填规范（所有 kind）：旧记录读路径兜底，不重写文件。
+    # 兜底名只用 jobId 派生（无注册表扫描），避免读路径产生 I/O 放大。
+    if not str(result.get("name") or "").strip():
+        digest = re.sub(r"[^0-9a-f]", "", str(result.get("jobId") or ""))[:6]
+        result["name"] = f"job-{int(digest, 16) % 100000 + 1}" if digest else "job"
+    result.setdefault("description", "")
     # T-046: creator and target are independent identities.  Old records did
     # not persist creatorSessionId, so keep them readable with a null creator.
     if result.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
@@ -251,6 +257,50 @@ def get(job_id: str, registry_root: str | Path | None = None) -> dict | None:
         return None
 
 
+# ── name / description 规范（所有 kind 统一；2026-09-25 用户拍板）──
+#
+# - name 必填：strip 后为空（含 None/纯空白）→ 默认名 `job-N`，绝不拒绝创建；
+# - 默认名 = **存量最小空缺**序号（删了 job-3 → 新建可复用 job-3）；
+#   允许极端条件（并发创建）下重名——name 纯展示，唯一标识是 jobId；
+# - name 是普通可编辑字段，无 nameIsAuto 标记位；
+# - description 可空字符串，缺省 ""。
+
+
+_DEFAULT_NAME_RE = re.compile(r"^job-(\d+)$")
+
+
+def normalize_name(value: Any) -> str | None:
+    """显式名字：strip 后非空才收；否则 None（调用方走默认名）。"""
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def normalize_description(value: Any) -> str:
+    """description：非字符串一律收编为空串。"""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def default_job_name(registry_root: str | Path | None = None) -> str:
+    """存量最小空缺序号的默认名：job-1, job-2, ...（跳过被占用的号）。
+
+    无锁扫描一次存活 job；并发创建可能撞号，属已接受的产品语义。
+    """
+    taken: set[int] = set()
+    try:
+        for job in list_jobs(registry_root):
+            match = _DEFAULT_NAME_RE.match(str(job.get("name") or "").strip())
+            if match:
+                taken.add(int(match.group(1)))
+    except Exception:
+        pass
+    candidate = 1
+    while candidate in taken:
+        candidate += 1
+    return f"job-{candidate}"
+
+
 def list_jobs(registry_root: str | Path | None = None) -> list[dict]:
     root = _root(registry_root) / "jobs"
     jobs = [_normalize_job(_load_path(p)) for p in root.glob("job_*.json")]
@@ -279,6 +329,8 @@ def _runner_command(job_id: str) -> list[str]:
 
 def start(target_session_id: str, argv: list[str], cwd: str, *,
           label: str | None = None,
+          name: str | None = None,
+          description: str | None = None,
           creator_session_id: str | None = None) -> dict:
     if not _sessions.get(target_session_id):
         raise ValueError("target session does not exist")
@@ -293,6 +345,8 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
         "jobId": job_id, "targetSessionId": target_session_id, "argv": argv,
         "kind": BACKGROUND_PROCESS_KIND, "operation": "run",
         "creatorSessionId": creator_sid,
+        "name": normalize_name(name) or default_job_name(),
+        "description": normalize_description(description),
         "commandSummary": " ".join(argv[:3]) + (" …" if len(argv) > 3 else ""),
         "cwd": str(cwd_path), "label": label, "status": "starting",
         "createdAt": now, "updatedAt": now, "pid": None, "processCreatedAt": None,
@@ -481,6 +535,7 @@ def _message_job_common(text: str, schedule: dict, *,
 
 
 def start_message(target_session_id: str, text: str, schedule: dict, *,
+                  name: str | None = None,
                   description: str | None = None, source: str = "agent",
                   source_session_id: str | None = None,
                   creator_session_id: str | None = None,
@@ -501,7 +556,8 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
     job = {
         "jobId": job_id, "kind": SESSION_MESSAGE_KIND, "operation": "send",
         "targetSessionId": target_session_id, "text": text,
-        "description": description if description is not None else "",
+        "name": normalize_name(name) or default_job_name(registry_root),
+        "description": normalize_description(description),
         "source": source_type, "sourceSessionId": source_sid,
         "creatorSessionId": creator_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
@@ -513,6 +569,7 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
 
 
 def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
+                    name: str | None = None,
                     description: str | None = None, source: str = "agent",
                     source_session_id: str | None = None,
                     creator_session_id: str | None = None,
@@ -528,7 +585,8 @@ def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
     job = {
         "jobId": job_id, "kind": SESSION_BROADCAST_KIND, "operation": "broadcast",
         "targetSessionIds": target_ids, "text": text,
-        "description": description if description is not None else "",
+        "name": normalize_name(name) or default_job_name(registry_root),
+        "description": normalize_description(description),
         "source": source_type, "sourceSessionId": source_sid,
         "creatorSessionId": creator_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
@@ -1433,6 +1491,8 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
     registry_path = str(_root(registry_root))
     job = {
         "jobId": job_id, "kind": SERVICE_LIFECYCLE_KIND, "operation": operation,
+        "name": default_job_name(registry_path),
+        "description": "",
         "options": frozen_options,
         "requestId": request_id, "phase": "requested", "status": "pending",
         "root": str(root_path), "port": port, "registryRoot": registry_path,

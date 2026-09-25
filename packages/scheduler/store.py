@@ -216,6 +216,7 @@ def _task_from_job(job: dict | None) -> dict | None:
     return {
         "id": job.get("taskId") or job.get("jobId"),
         "name": job.get("name") or "",
+        "description": job.get("description") or "",
         "target_session_id": job.get("targetSessionId"),
         "text": job.get("text") or "",
         "enabled": bool(job.get("enabled")),
@@ -256,7 +257,9 @@ def _job_from_payload(payload: dict) -> dict:
         "jobId": "job_" + secrets.token_hex(6),
         "kind": background_jobs.SCHEDULED_TASK_KIND,
         "taskId": task_id,
-        "name": str(payload.get("name") or "").strip() or "未命名定时任务",
+        "name": (background_jobs.normalize_name(payload.get("name"))
+                 or background_jobs.default_job_name(data_root())),
+        "description": background_jobs.normalize_description(payload.get("description")),
         "targetSessionId": payload["target_session_id"],
         "text": payload["text"],
         "source": "automation",
@@ -371,7 +374,12 @@ def update_task(task_id: str, patch: dict) -> dict | None:
     entry_changes: dict = {}
 
     if "name" in patch:
-        job_changes["name"] = str(patch.get("name") or "").strip() or "未命名定时任务"
+        job_changes["name"] = (
+            background_jobs.normalize_name(patch.get("name"))
+            or background_jobs.default_job_name(data_root()))
+    if "description" in patch:
+        job_changes["description"] = background_jobs.normalize_description(
+            patch.get("description"))
     if "text" in patch:
         text = str(patch.get("text") or "").strip()
         if not text:
@@ -584,7 +592,9 @@ def _job_from_legacy_task(data: dict) -> dict:
         "jobId": "job_" + secrets.token_hex(6),
         "kind": background_jobs.SCHEDULED_TASK_KIND,
         "taskId": task_id,
-        "name": str(data.get("name") or "").strip() or "未命名定时任务",
+        "name": background_jobs.normalize_name(data.get("name"))
+                or background_jobs.default_job_name(data_root()),
+        "description": background_jobs.normalize_description(data.get("description")),
         "targetSessionId": str(data.get("target_session_id") or "").strip(),
         "text": str(data.get("text") or "").strip(),
         "source": "automation",
