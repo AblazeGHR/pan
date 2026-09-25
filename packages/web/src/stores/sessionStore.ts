@@ -1756,8 +1756,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   createNewSession: async (name, workdir, adapter, sessionTemplate, settings) => {
     // Resolve the default here as well as in modal callers so every new-session
     // entry point uses the Workspace scope at the moment its action is invoked.
-    const workspaceIds = settings?.workspaceIds ?? getCreationWorkspaceIds();
-    const createSettings = { ...settings, workspaceIds };
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
+    const initialWorkspaceIds = settings?.workspaceIds ?? [];
     const placeholder: Session = {
       id: `__pending_${name}`,
       name: '...',
@@ -1766,7 +1766,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       permissionMode: settings?.permissionMode ?? null,
       alwaysThinkingEnabled: settings?.alwaysThinkingEnabled ?? false,
       effort: settings?.effort || '',
-      workspaceIds: [...workspaceIds],
+      workspaceIds: [...initialWorkspaceIds],
       history: [],
     };
     set((s) => ({
@@ -1782,6 +1782,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
 
     try {
+      const defaultWorkspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
+      const workspaceIds = settings?.workspaceIds ?? defaultWorkspaceIds;
+      const createSettings = { ...settings, workspaceIds };
+      set((s) => ({
+        sessions: s.sessions.map((se) =>
+          se.id === placeholder.id ? { ...se, workspaceIds: [...workspaceIds] } : se,
+        ),
+      }));
       const session = await createSession(
         name,
         workdir,

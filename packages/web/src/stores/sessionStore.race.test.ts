@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
+import { createSession } from '@/services/api';
 import type { Session } from '@/types';
 
 function mk(id: string, name: string, managedBy?: string | null): Session {
@@ -22,12 +23,16 @@ function mk(id: string, name: string, managedBy?: string | null): Session {
 // new session until a page refresh.
 let serverSessions: Session[] = [];
 let resolveCreate: (() => void) | null = null;
-const apiMock = vi.hoisted(() => ({ reimportSession: vi.fn() }));
+const apiMock = vi.hoisted(() => ({
+  fetchUiSettings: vi.fn(),
+  reimportSession: vi.fn(),
+}));
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
   return {
     ...actual,
+    fetchUiSettings: apiMock.fetchUiSettings,
     fetchSessions: vi.fn(async () => serverSessions),
     createSession: vi.fn(
       (name: string, _workdir?: string | null, _adapter?: string, _template?: string,
@@ -55,6 +60,7 @@ describe('sessionStore createNewSession race', () => {
   beforeEach(() => {
     serverSessions = [mk('M', 'M'), mk('A', 'A', 'M')];
     resolveCreate = null;
+    apiMock.fetchUiSettings.mockResolvedValue({ defaultNewSessionToCurrentWorkspace: true });
     apiMock.reimportSession.mockReset();
     useSessionStore.setState({
       sessions: [mk('M', 'M'), mk('A', 'A', 'M')],
@@ -62,7 +68,37 @@ describe('sessionStore createNewSession race', () => {
       currentMessages: [],
     });
     useUIStore.setState({ activeWorkspaceId: 'all' });
-    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
+  });
+
+  it('waits for startup settings before sending createSession workspaceIds', async () => {
+    let resolveSettings!: (value: Record<string, unknown>) => void;
+    apiMock.fetchUiSettings.mockReturnValue(new Promise((resolve) => {
+      resolveSettings = resolve;
+    }));
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
+    useUIStore.setState({ activeWorkspaceId: 'ws-at-action-start' });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().createNewSession('Hydrated');
+    });
+    await waitFor(() => expect(apiMock.fetchUiSettings).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(createSession)).not.toHaveBeenCalled();
+
+    useUIStore.setState({ activeWorkspaceId: 'ws-after-action-start' });
+    resolveSettings({ defaultNewSessionToCurrentWorkspace: false });
+
+    await waitFor(() => expect(vi.mocked(createSession)).toHaveBeenCalledWith(
+      'Hydrated', undefined, undefined, undefined, { workspaceIds: [] },
+    ));
+
+    await act(async () => {
+      resolveCreate?.();
+      await promise!;
+    });
+    expect(useSessionStore.getState().sessions.find((item) => item.id === 'real_Hydrated')?.workspaceIds)
+      .toEqual([]);
   });
 
   it('keeps the new session when loadSessions interleaves during creation', async () => {
@@ -131,6 +167,10 @@ describe('sessionStore createNewSession race', () => {
       promise = useSessionStore.getState().createNewSession('X');
     });
 
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(useSessionStore.getState().sessions.find((s) => s.id === '__pending_X')?.workspaceIds)
       .toEqual(['ws-current']);
     await act(async () => {
@@ -178,6 +218,10 @@ describe('sessionStore createNewSession race', () => {
 
     expect(useSessionStore.getState().sessions.find((item) => item.id === '__pending_Scoped')?.workspaceIds)
       .toEqual(['ws-current']);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     await act(async () => {
       resolveCreate?.();
       await promise!;

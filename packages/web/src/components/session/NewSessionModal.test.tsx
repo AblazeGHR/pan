@@ -10,6 +10,8 @@ import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore
 import type { CliDiagnostic } from '@/types';
 
 const apiMock = vi.hoisted(() => ({
+  fetchUiSettings: vi.fn(),
+  updateUiSettings: vi.fn(),
   fetchSessionTemplates: vi.fn(),
   fetchDirectories: vi.fn(),
   createDirectory: vi.fn(),
@@ -40,7 +42,7 @@ function setup() {
   });
   useSessionStore.setState({ sessions: [], createNewSession });
   useUIStore.setState({ showToast, activeWorkspaceId: 'all' });
-  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
+  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
   useWorkspaceStore.setState({ workspaces: [], loaded: true, loading: false, error: null });
   return { createNewSession, showToast };
 }
@@ -49,6 +51,10 @@ describe('New Session directory input', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMock.fetchSessionTemplates.mockResolvedValue([]);
+    apiMock.fetchUiSettings.mockResolvedValue({
+      defaultNewSessionToCurrentWorkspace: true,
+    });
+    apiMock.updateUiSettings.mockResolvedValue({});
     apiMock.fetchDirectories.mockResolvedValue(listing('', []));
     apiMock.createDirectory.mockResolvedValue({ ok: true, path: 'D:\\workspace\\new' });
     setup();
@@ -179,6 +185,7 @@ describe('New Session directory input', () => {
     useUIStore.setState({ activeWorkspaceId: 'ws-current' });
     useAppSettingsStore.setState({
       ...DEFAULT_SETTINGS,
+      loaded: true,
       defaultNewSessionToCurrentWorkspace: false,
     });
     render(<NewSessionModal open onClose={() => {}} />);
@@ -217,6 +224,29 @@ describe('New Session directory input', () => {
     await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
       'session-1', 'D:\\workspace\\app', 'cbc', undefined,
       { outputMode: undefined, workspaceIds: ['ws-at-submit'] },
+    ));
+  });
+
+  it('waits for persisted false before submitting a Session and keeps the submit-time scope', async () => {
+    const { createNewSession } = setup();
+    let resolveSettings!: (value: Record<string, unknown>) => void;
+    apiMock.fetchUiSettings.mockReturnValue(new Promise((resolve) => {
+      resolveSettings = resolve;
+    }));
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
+    useUIStore.setState({ activeWorkspaceId: 'ws-at-submit' });
+    render(<NewSessionModal open onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(apiMock.fetchUiSettings).toHaveBeenCalledTimes(1));
+    expect(createNewSession).not.toHaveBeenCalled();
+
+    useUIStore.setState({ activeWorkspaceId: 'ws-after-submit' });
+    resolveSettings({ defaultNewSessionToCurrentWorkspace: false });
+
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
+      'session-1', null, 'cbc', undefined,
+      { outputMode: undefined, workspaceIds: [] },
     ));
   });
 

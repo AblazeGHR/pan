@@ -136,17 +136,20 @@ interface AppSettingsStore extends AppSettings {
   resetSettings: () => void;
   /** Fetch the persisted ui object from config.json into the store. */
   loadSettings: () => Promise<void>;
+  /** Wait for the initial settings GET, using defaults if it fails. */
+  ensureSettingsLoaded: () => Promise<void>;
 }
 
 type AppSettingsPatch = Omit<Partial<AppSettings>, 'notifications'> & {
   notifications?: Partial<AppSettings['notifications']>;
 };
 
-export const useAppSettingsStore = create<AppSettingsStore>((set) => {
+export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
   // Race guard: if the user changes a setting while the initial GET is still
   // in flight, the (possibly stale) server response must not clobber it.
   // Re-armed at the start of every load, so a later load still applies.
   let dirty = false;
+  let loadingPromise: Promise<void> | null = null;
 
   const persist = (patch: AppSettingsPatch) => {
     dirty = true;
@@ -160,16 +163,27 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
     ...DEFAULT_SETTINGS,
     loaded: false,
 
-    loadSettings: async () => {
+    loadSettings: () => {
+      if (loadingPromise) return loadingPromise;
       dirty = false;
-      try {
-        const ui = await fetchUiSettings();
-        if (!dirty) set(sanitizeSettings(ui));
-      } catch {
-        // Backend unreachable → keep defaults for this session.
-      } finally {
-        set({ loaded: true });
-      }
+      loadingPromise = Promise.resolve()
+        .then(fetchUiSettings)
+        .then((ui) => {
+          if (!dirty) set(sanitizeSettings(ui));
+        })
+        .catch(() => {
+          // Backend unreachable → keep defaults for this session.
+        })
+        .finally(() => {
+          set({ loaded: true });
+          loadingPromise = null;
+        });
+      return loadingPromise;
+    },
+
+    ensureSettingsLoaded: async () => {
+      if (get().loaded) return;
+      await (loadingPromise ?? get().loadSettings());
     },
 
     setDefaultGroupBy: (mode) => {

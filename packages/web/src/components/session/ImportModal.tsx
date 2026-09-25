@@ -285,9 +285,10 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   // ── Import CBC session ──
   const handleImportCbc = async (item: CbcSessionItem) => {
     if (importingId) return;
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     setImportingId(item.session_id);
     try {
-      const workspaceIds = getCreationWorkspaceIds();
+      const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
       const result = await importCbcSession(item.session_id, item.project_dir, workspaceIds);
       onClose();
       await loadSessions();
@@ -306,9 +307,10 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   // ── Import Kimi session ──
   const handleImportKimi = async (item: KimiSessionItem) => {
     if (importingId) return;
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     setImportingId(item.session_id);
     try {
-      const workspaceIds = getCreationWorkspaceIds();
+      const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
       const result = await importKimiSession(item.session_id, item.workDir, workspaceIds);
       onClose();
       await loadSessions();
@@ -327,9 +329,10 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   // ── Import OpenCode session ──
   const handleImportOpencode = async (item: OpencodeSessionItem) => {
     if (importingId) return;
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     setImportingId(item.session_id);
     try {
-      const workspaceIds = getCreationWorkspaceIds();
+      const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
       const result = await importOpencodeSession(item.session_id, item.workDir, workspaceIds);
       onClose();
       await loadSessions();
@@ -348,9 +351,10 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   // ── Import Codex session ──
   const handleImportCodex = async (item: CodexSessionItem) => {
     if (importingId) return;
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     setImportingId(item.session_id);
     try {
-      const workspaceIds = getCreationWorkspaceIds();
+      const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
       const result = await importCodexSession(item.session_id, item.workDir, workspaceIds);
       onClose();
       await loadSessions();

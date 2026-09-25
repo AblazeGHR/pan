@@ -3,14 +3,15 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
 
 /**
- * Snapshot the active scope immediately before a new Session request.
- * Special scopes stay ungrouped. The server validates concrete ids atomically
- * with creation, so a stale/deleted id cannot create an incorrectly grouped
- * Session and existing imported Sessions can still be reimported unchanged.
+ * Resolve membership after persisted app settings have hydrated. The default
+ * argument snapshots active scope synchronously, before the first await, so a
+ * Workspace switch while the settings request is pending cannot retarget the
+ * creation action.
  */
-export function getCreationWorkspaceIds(
+export async function getCreationWorkspaceIds(
   activeWorkspaceId = useUIStore.getState().activeWorkspaceId,
-): string[] {
+): Promise<string[]> {
+  await useAppSettingsStore.getState().ensureSettingsLoaded();
   if (!useAppSettingsStore.getState().defaultNewSessionToCurrentWorkspace) {
     return [];
   }

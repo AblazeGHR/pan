@@ -6,6 +6,7 @@ import {
   sanitizeSettings,
 } from '@/stores/appSettingsStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
+import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
 
 vi.mock('@/services/api', () => ({
   fetchUiSettings: vi.fn(async () => ({})),
@@ -94,6 +95,34 @@ describe('appSettingsStore', () => {
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
+  });
+
+  it('waits for one in-flight settings GET before resolving creation membership', async () => {
+    let resolveLoad!: (v: Record<string, unknown>) => void;
+    mockedFetch.mockReturnValue(new Promise((resolve) => {
+      resolveLoad = resolve;
+    }));
+
+    const startupLoad = useAppSettingsStore.getState().loadSettings();
+    const actionMembership = getCreationWorkspaceIds('ws-at-action-start');
+    await Promise.resolve();
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    resolveLoad({ defaultNewSessionToCurrentWorkspace: false });
+
+    await expect(actionMembership).resolves.toEqual([]);
+    await startupLoad;
+    expect(useAppSettingsStore.getState().loaded).toBe(true);
+  });
+
+  it('uses DEFAULT_SETTINGS after a failed hydration instead of waiting indefinitely', async () => {
+    mockedFetch.mockRejectedValue(new Error('network down'));
+
+    await expect(getCreationWorkspaceIds('ws-at-action-start'))
+      .resolves.toEqual(['ws-at-action-start']);
+
+    expect(useAppSettingsStore.getState().loaded).toBe(true);
+    expect(useAppSettingsStore.getState().defaultNewSessionToCurrentWorkspace).toBe(true);
   });
 
   it('writes each change back to the backend (PUT)', () => {

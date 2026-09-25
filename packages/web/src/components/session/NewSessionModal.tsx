@@ -178,7 +178,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
   const createSession = async (
     requestedWorkdir: string | null,
-    workspaceIds = getCreationWorkspaceIds(),
+    workspaceIds: string[],
   ) => {
     const finalName = name.trim() || nextSessionDefaultName(sessions);
     await createNewSession(
@@ -216,12 +216,13 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
     // Preserve the Workspace active when the user submits, even if a directory
     // check or the missing-directory confirmation takes time.
-    const workspaceIds = getCreationWorkspaceIds();
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     setSubmitting(true);
 
     const requestedWorkdir = workdir.trim() ? parseDirectoryInput(workdir).candidate : null;
 
     try {
+      const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
       if (requestedWorkdir) {
         try {
           await fetchDirectories(requestedWorkdir);
@@ -249,7 +250,9 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setDirectoryCreationPath(null);
       return;
     }
-    const workspaceIds = directoryCreationWorkspaceIds.current ?? getCreationWorkspaceIds();
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
+    const workspaceIds = directoryCreationWorkspaceIds.current
+      ?? await getCreationWorkspaceIds(activeWorkspaceId);
     directoryCreationWorkspaceIds.current = null;
     setDirectoryCreationPath(null);
     setSubmitting(true);
