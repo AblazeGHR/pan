@@ -47,8 +47,13 @@ job: {
   # ── 邮箱（第四轮定论：档位 1）──
   notificationState: pending|delivered      # 终态便条投递状态（沿用 :985-1015）
   terminalEventId: str|null                 # 幂等键（沿用）
-  mailbox: [ note ]                         # 仅便条级: {type, jobId, status, exitCode,
-                                            #   logPath, fireAt?, entryId?}，滚动上限
+  undeliveredFires: [ note ]                # P1 实现定名（原稿 mailbox）：调度触发
+                                            # 无法投递的便条 {entryId, fireAt,
+                                            # dispatchKey, text, error}，上限 20
+                                            # （SCHEDULED_TASK_UNDELIVERED_MAX）；
+                                            # target 恢复/切换后由统一循环重投。
+                                            # 进程 job 的终态通知仍走
+                                            # notificationState/terminalEventId。
   # ── 派发幂等 ──
   lastFireAt / runCount / lastError / maxRuns / paused
   lastDelivery?: dict                        # 最近一次动作返回（broadcast 时为
