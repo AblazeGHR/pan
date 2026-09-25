@@ -152,10 +152,12 @@ export interface JobCreateInput {
   enabled?: boolean;
 }
 
-/** `PATCH /api/jobs/{id}` 请求体（可显式清空 target）。 */
+/** `PATCH /api/jobs/{id}` 请求体（可显式清空 target；text 非空校验）。 */
 export interface JobPatchInput {
   name?: string;
   description?: string;
+  /** 派发正文；后端要求非空字符串。 */
+  text?: string;
   enabled?: boolean;
   paused?: boolean;
   target?: { sessionId: string | null } | null;

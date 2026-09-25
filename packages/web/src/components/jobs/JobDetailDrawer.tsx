@@ -179,7 +179,8 @@ export function JobDetailDrawer({
 
   const backlog = job.undeliveredFires ?? [];
   const isUndeliverable = job.lastStatus === 'undeliverable' || backlog.length > 0;
-  const canRunNow = job.kind === 'scheduled-task';
+  const isScheduledTask = job.kind === 'scheduled-task';
+  const hasTarget = !!job.target.sessionId;
 
   const copyLogPath = async () => {
     try {
@@ -236,11 +237,13 @@ export function JobDetailDrawer({
 
             {/* Action group */}
             <div className="flex flex-wrap items-center gap-1.5">
-              {canRunNow && (
+              {isScheduledTask && (
                 <button
                   type="button"
                   onClick={onRunNow}
-                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  disabled={!hasTarget}
+                  title={hasTarget ? undefined : '无 target，无法立即派发'}
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-tertiary disabled:hover:text-text-secondary"
                 >
                   <Play size={12} />
                   Run now

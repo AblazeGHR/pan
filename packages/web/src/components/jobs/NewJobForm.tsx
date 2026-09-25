@@ -31,8 +31,8 @@ const MISFIRE_POLICIES: { value: MisfirePolicy; label: string }[] = [
 /**
  * Job 表单（真实 /api/jobs 契约）。
  * - create：两个模板都创建 `scheduled-task`（POST 仅支持该 kind）；kind 不可选。
- * - edit：只暴露 PATCH 支持的子集（name / description / target / schedule）；
- *   target 可清空为无 target，name 必填。`text` 不可经 PATCH 修改，故不呈现。
+ * - edit：暴露 PATCH 支持的子集（name / description / text / target / schedule）；
+ *   target 可清空为无 target；name 与 text 必填（后端 PATCH text 非空校验）。
  */
 export function NewJobForm({
   mode = 'create',
@@ -113,13 +113,21 @@ export function NewJobForm({
   const handleSave = () => {
     if (!initialJob) return;
     const trimmedName = name.trim();
+    const trimmedText = text.trim();
+    let bad = false;
     if (!trimmedName) {
       setNameError('Name is required');
-      return;
+      bad = true;
     }
+    if (!trimmedText) {
+      setTextError('Text is required');
+      bad = true;
+    }
+    if (bad) return;
     const patch: JobPatchInput = {
       name: trimmedName,
       description: description.trim(),
+      text: trimmedText,
       target: { sessionId: targetSessionId.trim() || null },
     };
     if (initialJob.kind === 'scheduled-task') {
@@ -202,23 +210,21 @@ export function NewJobForm({
         <ScheduleListEditor entries={entries} onChange={setEntries} />
       )}
 
-      {/* text 仅创建可写（PATCH 无 text 字段） */}
-      {!editing && (
-        <Field label="派发正文 *">
-          <textarea
-            aria-label="Task text"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (textError) setTextError('');
-            }}
-            rows={3}
-            placeholder="到点后派发给 session 的任务文本"
-            className={`${inputClass} resize-y`}
-          />
-          {textError && <span className="text-[11px] text-danger">{textError}</span>}
-        </Field>
-      )}
+      {/* 派发正文：创建与编辑都必填（PATCH text 亦非空校验） */}
+      <Field label="派发正文 *">
+        <textarea
+          aria-label="Task text"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (textError) setTextError('');
+          }}
+          rows={3}
+          placeholder="到点后派发给 session 的任务文本"
+          className={`${inputClass} resize-y`}
+        />
+        {textError && <span className="text-[11px] text-danger">{textError}</span>}
+      </Field>
 
       {/* 自定义模板：限制项 */}
       {!editing && template === 'custom' && (

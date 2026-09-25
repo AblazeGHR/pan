@@ -179,7 +179,8 @@ function JobRow({
 }) {
   const next = nextFireAt(job);
   const backlog = job.undeliveredFires?.length ?? 0;
-  const canRunNow = job.kind === 'scheduled-task';
+  const isScheduledTask = job.kind === 'scheduled-task';
+  const hasTarget = !!job.target.sessionId;
   return (
     <div
       onClick={onOpen}
@@ -230,16 +231,19 @@ function JobRow({
                 role="menu"
                 className="absolute right-0 top-full mt-1 z-30 w-40 rounded border border-border-default bg-bg-tertiary py-1 shadow-xl"
               >
-                {canRunNow && (
+                {isScheduledTask && (
                   <button
                     role="menuitem"
                     type="button"
+                    disabled={!hasTarget}
+                    title={hasTarget ? undefined : '无 target，无法立即派发'}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!hasTarget) return;
                       onToggleMenu();
                       onRunNow();
                     }}
-                    className={menuItemClass}
+                    className={`${menuItemClass} disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`}
                   >
                     <Play size={13} />
                     Run now
