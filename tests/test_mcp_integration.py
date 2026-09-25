@@ -114,8 +114,10 @@ class TestCbcMCPArgs:
 
     # ── 4.8 pan env injection ──
 
-    def test_pan_server_env_injection(self):
+    def test_pan_server_env_injection(self, monkeypatch):
         """4.8: pan server entry gets MA session identity injected into env."""
+        monkeypatch.delenv("PAN_API_URL", raising=False)
+        monkeypatch.setenv("PAN_PORT", "19185")
         adapter = CbcAdapter()
         s = _make_session(mcp_servers=[{
             "name": "pan",
@@ -176,12 +178,15 @@ class TestCbcMCPArgs:
         env = _read_mcp_json(s)["mcpServers"]["pan"]["env"]
         assert env["PAN_API_URL"] == "http://127.0.0.1:8770"
 
-    def test_pan_env_merges_existing_env(self):
+    def test_pan_env_merges_existing_env(self, monkeypatch):
         """Injection merges on top of any existing env passthrough."""
+        monkeypatch.delenv("PAN_API_URL", raising=False)
+        monkeypatch.setenv("PAN_PORT", "19185")
         adapter = CbcAdapter()
         s = _make_session(mcp_servers=[{
             "name": "pan",
             "command": "python",
+            "args": ["-m", "packages.mcp.server"],
             "env": {"FOO": "bar"},
         }])
         adapter.mcp_args(s)

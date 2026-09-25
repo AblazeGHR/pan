@@ -757,12 +757,17 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
         if hidden:
             stdout_handle = _open_redirect(log_path.parent / "pan-console.out.log", "a")
             stderr_handle = _open_redirect(log_path.parent / "pan-console.err.log", "a")
+        child_env = os.environ.copy()
+        # Pin the port already selected by the launcher. Pan workers inherit this
+        # environment and generate their MCP descriptors later, including after a
+        # config reload has changed config.json.
+        child_env["PAN_PORT"] = str(port)
         process = subprocess.Popen(
             argv, cwd=str(root), stdin=subprocess.DEVNULL,
             stdout=stdout_handle if hidden else None,
             stderr=stderr_handle if hidden else None,
             close_fds=True, creationflags=_creation_flags(hidden),
-            env=os.environ.copy(),
+            env=child_env,
         )
     except OSError as exc:
         raise LauncherError(f"failed to launch Pan Core: {exc}") from exc

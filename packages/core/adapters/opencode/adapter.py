@@ -278,10 +278,6 @@ class OpencodeAdapter:
             if entry.get("cwd"):
                 out["cwd"] = entry["cwd"]
             env = dict(entry.get("env") or {})
-            # 透传 PAN_API_URL（若存在），确保 pan server 指向正确的 Pan 服务
-            pan_api_url = os.environ.get("PAN_API_URL")
-            if pan_api_url and "PAN_API_URL" not in env:
-                env["PAN_API_URL"] = pan_api_url
             if env:
                 out["environment"] = env
             return out
