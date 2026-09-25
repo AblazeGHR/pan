@@ -169,8 +169,6 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       return rect.bottom > viewport.top && rect.top < viewport.bottom;
     });
     const identity = anchor?.dataset.messageIdentity;
-    const debugSnapshot = (globalThis as { __panSnapshotDebug?: unknown[] }).__panSnapshotDebug ??= [];
-    debugSnapshot.push({ sid, st: el.scrollTop, sh: el.scrollHeight, nodes: el.querySelectorAll('[data-message-identity]').length, identity: identity ?? null });
     if (!anchor || !identity) return;
     const rect = anchor.getBoundingClientRect();
     const snap = {
@@ -543,8 +541,6 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   useLayoutEffect(() => {
     const memory = restoreRef.current;
     const el = parentRef.current;
-    const debugRestore = (globalThis as { __panRestoreDebug?: unknown[] }).__panRestoreDebug ??= [];
-    debugRestore.push({ phase: 'layout', memory: memory?.identity ?? null, grouped: grouped.length, st: el?.scrollTop ?? null, sh: el?.scrollHeight ?? null, loading: historyLoading, more: hasMoreMessages });
     if (!memory || !el || grouped.length === 0) return;
     if (restoreAttemptsRef.current > 8) {
       restoreRef.current = null;
@@ -557,10 +553,6 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     const anchorRow = [...el.querySelectorAll<HTMLElement>('[data-message-identity]')].find(
       (node) => node.dataset.messageIdentity === memory.identity,
     ) ?? null;
-    debugRestore.push({ phase: 'anchor', memory: memory.identity, found: Boolean(anchorRow), index: grouped.findIndex((item) => {
-      if ('type' in item && item.type === 'tool_group') return false;
-      return getMessageIdentity(item as import('@/types').Message) === memory.identity;
-    }), st: el.scrollTop, sh: el.scrollHeight });
     if (!anchorRow) {
       // The virtualizer has not rendered that window yet. If history changed
       // while away, the old content offset is no longer meaningful; use the

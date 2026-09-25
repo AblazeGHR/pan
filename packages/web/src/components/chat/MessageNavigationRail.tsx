@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type MouseEvent, type RefObject } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Bot, Loader2, UserRound } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
