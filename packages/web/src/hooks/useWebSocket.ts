@@ -1305,6 +1305,43 @@ function clearNativeTurnAliases(sessionId: string): void {
 const agentSyncInFlight = new Set<string>();
 const AGENT_SYNC_RETRY_DELAYS_MS = [50, 150, 500] as const;
 
+function canonicalUserTailSignature(sessionId: string): string | null {
+  const state = useSessionStore.getState();
+  const transcript = state.sessionTranscripts[sessionId];
+  if (transcript?.window.rows.size) {
+    let tailOffset = -1;
+    let tail: Message | undefined;
+    for (const [offset, row] of transcript.window.rows) {
+      if (row.role === 'user' && offset > tailOffset) {
+        tailOffset = offset;
+        tail = row;
+      }
+    }
+    if (tail) {
+      return JSON.stringify([
+        sessionId, tailOffset, tail.messageId ?? tail.nativeItemId ?? null, tail.content,
+      ]);
+    }
+  }
+
+  const session = state.sessions.find((candidate) => candidate.id === sessionId);
+  const history = session?.history ?? [];
+  let index = -1;
+  for (let cursor = history.length - 1; cursor >= 0; cursor -= 1) {
+    if (history[cursor]!.role === 'user') {
+      index = cursor;
+      break;
+    }
+  }
+  if (index < 0) return null;
+  const offset = (session?.historyStart ?? Math.max(0, (session?.historyTotal ?? history.length) - history.length))
+    + index;
+  const tail = history[index]!;
+  return JSON.stringify([
+    sessionId, offset, tail.messageId ?? tail.nativeItemId ?? null, tail.content,
+  ]);
+}
+
 function syncAgentInjectedMessage(sid: string): void {
   if (agentSyncInFlight.has(sid)) return;
   agentSyncInFlight.add(sid);
@@ -1316,22 +1353,21 @@ function syncAgentInjectedMessage(sid: string): void {
         });
       }
 
-      const store = useSessionStore.getState();
-      const beforeSession = store.sessions.find((session) => session.id === sid);
-      const beforeTranscript = store.sessionTranscripts[sid];
-      const beforeTotal = beforeSession?.historyTotal ?? beforeTranscript?.window.total ?? 0;
-      const beforeRevision = beforeTranscript?.window.revision ?? beforeSession?.historyRevision ?? 0;
+      const beforeTail = canonicalUserTailSignature(sid);
 
       try {
         // Fetch once per hand-off event (plus bounded race retries) and merge
         // through the canonical offset-aware history path. This also updates a
         // background Session without touching the selected Session's viewport.
         await useSessionStore.getState().recoverSessionHistory(sid);
-        const latest = useSessionStore.getState();
-        const afterSession = latest.sessions.find((session) => session.id === sid);
-        const afterTranscript = latest.sessionTranscripts[sid];
-        if ((afterSession?.historyTotal ?? afterTranscript?.window.total ?? 0) > beforeTotal
-            || (afterTranscript?.window.revision ?? afterSession?.historyRevision ?? 0) > beforeRevision) {
+        const afterTail = canonicalUserTailSignature(sid);
+        // A total/revision advance can describe only an older prefix becoming
+        // visible (the target user row may still be racing persistence). Stop
+        // retrying only once this Session's canonical user tail has changed;
+        // the injected row may be followed by already-persisted assistant rows.
+        // Comparison is scoped to the absolute user offset and explicit
+        // message identity where available, never a global text key.
+        if (afterTail !== null && afterTail !== beforeTail) {
           return;
         }
         // 当前快照没有带来新消息：注入可能仍在异步落盘，继续下一轮。

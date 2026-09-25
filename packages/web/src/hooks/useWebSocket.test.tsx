@@ -1478,10 +1478,14 @@ describe('useWebSocket agent-injected message sync', () => {
   it('retries when the first history snapshot races the injected message persistence', async () => {
     renderHook(() => useWebSocket());
     apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      // A stale prefix advances total/revision but still lacks the row this
+      // source=report event is expected to inject.
       history: [msg('user', 'u0')],
       total: 1,
       hasMore: false,
       start: 0,
+      historyEpoch: 'a-epoch',
+      historyRevision: 1,
     });
     apiMock.fetchSessionHistory.mockResolvedValueOnce({
       history: [
@@ -1491,6 +1495,8 @@ describe('useWebSocket agent-injected message sync', () => {
       total: 2,
       hasMore: false,
       start: 0,
+      historyEpoch: 'a-epoch',
+      historyRevision: 2,
     });
 
     await flushTrigger('worker.status', {
@@ -1631,8 +1637,26 @@ describe('useWebSocket agent-injected message sync', () => {
     ]);
   });
 
-  it('does not sync when the event targets a non-current session', async () => {
+  it('syncs injected report history for a background Session without changing the selected Session', async () => {
+    const injected = '////by agent : B | report\nnew request';
+    useSessionStore.setState({
+      sessions: [
+        mk('A', 'A', { history: [msg('user', 'u0')], historyTotal: 1 }),
+        mk('B', 'B', { history: [msg('user', 'u1')], historyTotal: 1, lastMessage: 'u1' }),
+      ],
+      currentSessionId: 'A',
+      currentMessages: [msg('user', 'u0')],
+      sessionTranscripts: {},
+    });
     renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValueOnce({
+      history: [msg('user', 'u1'), msg('user', injected)],
+      total: 2,
+      hasMore: false,
+      start: 0,
+      historyEpoch: 'b-epoch',
+      historyRevision: 2,
+    });
 
     await flushTrigger('worker.status', {
       type: 'worker.status',
@@ -1642,7 +1666,11 @@ describe('useWebSocket agent-injected message sync', () => {
       source: 'agent',
     });
 
-    expect(apiMock.fetchSessionHistory).not.toHaveBeenCalled();
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledTimes(1);
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledWith('B', 0, 50);
+    expect(useSessionStore.getState().sessionTranscripts.B?.window.rows.size).toBe(2);
+    expect(useSessionStore.getState().sessions.find((session) => session.id === 'B')?.lastMessage).toBe(injected);
+    expect(useSessionStore.getState().currentSessionId).toBe('A');
     expect(useSessionStore.getState().currentMessages.map((m) => m.content)).toEqual(['u0']);
   });
 
