@@ -71,6 +71,13 @@ import type {
   ApiSchedulerStatusResponse,
   ApiSchedulerActionResponse,
 } from '@/types';
+import type {
+  Job,
+  JobCreateInput,
+  JobKindMeta,
+  JobPatchInput,
+  JobRunRecord,
+} from '@/types/jobs';
 
 const BASE = '/api';
 
@@ -1363,4 +1370,85 @@ export async function fetchSchedulerStatus(): Promise<SchedulerStatus> {
   const data = await request<ApiSchedulerStatusResponse>(`${BASE}/scheduler/status`);
   if (data.error) throwSchedulerError(data.error);
   return { running: data.running === true, tickSec: data.tickSec, dueScanned: data.dueScanned, lastTickAt: data.lastTickAt };
+}
+
+// ── Jobs (unified /api/jobs/*; PLAN §5) ──
+
+interface ApiJobsResponse { ok?: boolean; jobs?: Job[]; error?: SchedulerApiError; }
+interface ApiJobResponse { ok?: boolean; job?: Job; error?: SchedulerApiError; }
+interface ApiJobKindsResponse { ok?: boolean; kinds?: JobKindMeta[]; error?: SchedulerApiError; }
+interface ApiJobRunsResponse { ok?: boolean; runs?: JobRunRecord[]; error?: SchedulerApiError; }
+interface ApiJobDeleteResponse { ok?: boolean; deleted?: boolean; jobId?: string; error?: SchedulerApiError; }
+
+/** GET /api/jobs — 全 kind 列表（客户端排序/筛选）。 */
+export async function fetchJobs(): Promise<Job[]> {
+  const data = await request<ApiJobsResponse>(`${BASE}/jobs`);
+  if (data.error) throwSchedulerError(data.error);
+  return data.jobs || [];
+}
+
+/** GET /api/jobs/kinds — kind 元数据（中文 label + 能力位）。 */
+export async function fetchJobKinds(): Promise<JobKindMeta[]> {
+  const data = await request<ApiJobKindsResponse>(`${BASE}/jobs/kinds`);
+  if (data.error) throwSchedulerError(data.error);
+  return data.kinds || [];
+}
+
+/** GET /api/jobs/{id} — 详情（结构化 source/target 视图）。 */
+export async function fetchJob(jobId: string): Promise<Job> {
+  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}`);
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.job) throw new Error('job missing in response');
+  return data.job;
+}
+
+/** POST /api/jobs — 创建（本期仅 scheduled-task）。 */
+export async function createJob(input: JobCreateInput): Promise<Job> {
+  const data = await request<ApiJobResponse>(`${BASE}/jobs`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.job) throw new Error('job missing in response');
+  return data.job;
+}
+
+/** PATCH /api/jobs/{id} — name/description/enabled/paused/target/schedule。 */
+export async function patchJob(jobId: string, patch: JobPatchInput): Promise<Job> {
+  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.job) throw new Error('job missing in response');
+  return data.job;
+}
+
+/** DELETE /api/jobs/{id}。 */
+export async function deleteJob(jobId: string): Promise<void> {
+  const data = await request<ApiJobDeleteResponse>(
+    `${BASE}/jobs/${encodeURIComponent(jobId)}`,
+    { method: 'DELETE' },
+  );
+  if (data.error) throwSchedulerError(data.error);
+}
+
+/** GET /api/jobs/{id}/runs?limit= — 执行历史（最新在前，limit 1..500）。 */
+export async function fetchJobRuns(jobId: string, limit = 50): Promise<JobRunRecord[]> {
+  const data = await request<ApiJobRunsResponse>(
+    `${BASE}/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`,
+  );
+  if (data.error) throwSchedulerError(data.error);
+  return data.runs || [];
+}
+
+/** POST /api/jobs/{id}/run-now — 手动触发（仅 scheduled-task）。 */
+export async function runJobNow(jobId: string): Promise<Job> {
+  const data = await request<ApiJobResponse>(
+    `${BASE}/jobs/${encodeURIComponent(jobId)}/run-now`,
+    { method: 'POST' },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.job) throw new Error('job missing in response');
+  return data.job;
 }

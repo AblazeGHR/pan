@@ -1,20 +1,33 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ListChecks, MoreHorizontal, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
+import { entryToSpec } from '@/components/jobs/ScheduleListEditor';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { wsClient } from '@/services/ws';
 import {
-  mockJobs,
-  type Job,
-  type JobKind,
-  type JobRun,
-  type JobSource,
-  type JobStatus,
-} from '@/components/jobs/mockJobs';
+  createJob,
+  deleteJob as deleteJobApi,
+  fetchJob,
+  fetchJobKinds,
+  fetchJobRuns,
+  fetchJobs,
+  patchJob,
+  runJobNow,
+} from '@/services/api';
+import type {
+  Job,
+  JobCreateInput,
+  JobKind,
+  JobKindMeta,
+  JobPatchInput,
+  JobRunRecord,
+  JobStatus,
+} from '@/types/jobs';
 
 type Tab = 'list' | 'create';
 
@@ -28,22 +41,26 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'undeliverable', label: 'Undeliverable' },
 ];
 
-const KIND_OPTIONS: { key: 'all' | JobKind; label: string }[] = [
-  { key: 'all', label: 'All kinds' },
-  { key: 'background-process', label: 'background-process' },
-  { key: 'session-message', label: 'session-message' },
-  { key: 'session-broadcast', label: 'session-broadcast' },
-  { key: 'main-lifecycle', label: 'main-lifecycle' },
-  { key: 'scheduled_task', label: 'scheduled_task' },
+const FALLBACK_KINDS: JobKind[] = [
+  'background-process',
+  'session-message',
+  'session-broadcast',
+  'main-lifecycle',
+  'scheduled-task',
 ];
+
+const RUNS_PAGE = 20;
 
 const selectClass =
   'w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 px-2 text-text-primary outline-none focus:border-accent/50';
 
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Request failed');
+
 /** 状态 → 徽标配色（沿用主题 token）。 */
-function statusClass(status: JobStatus): string {
+function statusColor(status: string): string {
   switch (status) {
     case 'running':
+    case 'starting':
       return 'border-accent/50 bg-accent/10 text-accent';
     case 'scheduled':
       return 'border-warning/50 bg-warning/10 text-warning';
@@ -51,37 +68,24 @@ function statusClass(status: JobStatus): string {
       return 'border-success/50 bg-success/10 text-success';
     case 'failed':
       return 'border-danger/50 bg-danger/10 text-danger';
-    case 'cancelled':
-      return 'border-border-default bg-bg-tertiary text-text-tertiary';
     default:
       return 'border-border-default bg-bg-tertiary text-text-secondary';
   }
 }
 
-function sourceSummary(source: JobSource): string {
-  if (source.type === 'plugin') return `plugin:${source.pluginName ?? '?'}`;
-  if (source.sessionId) return `${source.type}:${source.sessionId.slice(0, 8)}…`;
-  return source.type;
+function sourceSummary(job: Job): string {
+  const s = job.source;
+  if (s.type === 'plugin') return `plugin:${s.pluginName ?? '?'}`;
+  if (s.sessionId) return `${s.type}:${s.sessionId.slice(0, 8)}…`;
+  return s.type;
 }
 
-function formatDateTime(iso?: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+function formatDateTime(value?: number | string | null): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const d = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** Naive local ISO（仓库时间戳约定，无时区后缀）。 */
-function naiveIso(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-}
-
-function randomHex(n: number): string {
-  let out = '';
-  for (let i = 0; i < n; i++) out += Math.floor(Math.random() * 16).toString(16);
-  return out;
 }
 
 /** 下次触发 = 各 enabled entry 中最早的 nextFireAt。 */
@@ -93,16 +97,17 @@ function nextFireAt(job: Job): string | null {
   return min;
 }
 
-/** 最近结果摘要：lastDelivery（含 partial）> lastError > 状态。 */
+/** 最近结果摘要：lastDelivery（含 partial）> lastError > lastStatus。 */
 function lastResultSummary(job: Job): string {
   if (job.lastDelivery) {
     const { status, results, errors } = job.lastDelivery;
-    const ok = results?.length ?? 0;
     const bad = errors?.length ?? 0;
+    const ok = results?.length ?? 0;
     return `last ${status}${bad > 0 ? ` · ${ok} ok / ${bad} err` : ''}`;
   }
   if (job.lastError) return `last error: ${job.lastError}`;
-  return `last ${job.status}`;
+  if (job.lastStatus) return `last ${job.lastStatus}`;
+  return `runs ${job.runCount}`;
 }
 
 /** 活跃优先排序档位：running → starting → scheduled → pending → 终态。 */
@@ -121,12 +126,17 @@ function activeRank(status: JobStatus): number {
   }
 }
 
+function updatedAtMs(job: Job): number {
+  const v = job.updatedAt;
+  return typeof v === 'number' ? v * 1000 : Date.parse(v) || 0;
+}
+
 /** 活跃优先；同组内按 updatedAt 倒序（新在前）。 */
 function compareJobs(a: Job, b: Job): number {
   const ra = activeRank(a.status);
   const rb = activeRank(b.status);
   if (ra !== rb) return ra - rb;
-  return b.updatedAt.localeCompare(a.updatedAt);
+  return updatedAtMs(b) - updatedAtMs(a);
 }
 
 /** 状态 chips 匹配（与 kind 下拉 AND 叠加）。 */
@@ -139,7 +149,7 @@ function matchesStatusFilter(job: Job, filter: StatusFilter): boolean {
     case 'failed':
       return job.status === 'failed';
     case 'undeliverable':
-      return job.notificationState === 'undeliverable';
+      return job.lastStatus === 'undeliverable' || (job.undeliveredFires?.length ?? 0) > 0;
     default:
       return true;
   }
@@ -150,6 +160,7 @@ const menuItemClass =
 
 function JobRow({
   job,
+  kindLabel,
   onOpen,
   menuOpen,
   onToggleMenu,
@@ -158,6 +169,7 @@ function JobRow({
   onDelete,
 }: {
   job: Job;
+  kindLabel: string;
   onOpen: () => void;
   menuOpen: boolean;
   onToggleMenu: () => void;
@@ -166,6 +178,8 @@ function JobRow({
   onDelete: () => void;
 }) {
   const next = nextFireAt(job);
+  const backlog = job.undeliveredFires?.length ?? 0;
+  const canRunNow = job.kind === 'scheduled-task';
   return (
     <div
       onClick={onOpen}
@@ -173,12 +187,12 @@ function JobRow({
     >
       <div className="flex items-center gap-2">
         <span
-          className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-medium ${statusClass(job.status)}`}
+          className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-medium ${statusColor(job.status)}`}
         >
           {job.status}
         </span>
-        <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px font-mono text-[10px] text-text-secondary">
-          {job.kind}
+        <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px text-[10px] text-text-secondary">
+          {kindLabel}
         </span>
         <div className="min-w-0 flex-1 truncate text-sm text-text-primary" title={job.name}>
           {job.name}
@@ -216,19 +230,21 @@ function JobRow({
                 role="menu"
                 className="absolute right-0 top-full mt-1 z-30 w-40 rounded border border-border-default bg-bg-tertiary py-1 shadow-xl"
               >
-                <button
-                  role="menuitem"
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleMenu();
-                    onRunNow();
-                  }}
-                  className={menuItemClass}
-                >
-                  <Play size={13} />
-                  Run now
-                </button>
+                {canRunNow && (
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleMenu();
+                      onRunNow();
+                    }}
+                    className={menuItemClass}
+                  >
+                    <Play size={13} />
+                    Run now
+                  </button>
+                )}
                 <button
                   role="menuitem"
                   type="button"
@@ -263,14 +279,13 @@ function JobRow({
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
         <span>
-          {sourceSummary(job.source)} → {job.target.sessionId ? job.target.sessionId : 'no target'}
+          {sourceSummary(job)} → {job.target.sessionId ?? 'no target'}
         </span>
         {next && <span>next {formatDateTime(next)}</span>}
-        <span>runs {job.runCount}</span>
         <span>{lastResultSummary(job)}</span>
-        {job.mailbox.length > 0 && (
+        {backlog > 0 && (
           <span className="rounded border border-warning/50 bg-warning/10 px-1 py-px text-[10px] text-warning">
-            {job.mailbox.length} backlogged
+            {backlog} backlogged
           </span>
         )}
       </div>
@@ -287,7 +302,7 @@ function JobRow({
         </div>
       )}
 
-      {job.notificationState === 'undeliverable' && (
+      {(job.lastStatus === 'undeliverable' || backlog > 0) && (
         <div className="rounded border border-danger/50 bg-danger/10 px-2 py-1 text-[11px] text-danger">
           undeliverable — target missing
         </div>
@@ -297,23 +312,141 @@ function JobRow({
 }
 
 /**
- * JobsView（P3 GUI）。「列表 / 创建新 Job」两个标签；列表支持筛选、排序、
- * 行内 `⋯` 动作菜单与详情抽屉（drawer）。全部动作为 mock，仅改本地列表 state。
+ * JobsView（GUI）— 真实 /api/jobs 数据。列表/创建/编辑/详情/run-now 全走后端
+ * 契约；WS 订阅 5 类 job 事件驱动列表与 toast。客户端做排序与筛选。
  */
 export default function JobsView() {
   const navigate = useNavigate();
   const showToast = useUIStore((s) => s.showToast);
   const sessions = useSessionStore((s) => s.sessions);
+  const loadSessions = useSessionStore((s) => s.loadSessions);
+
   const [tab, setTab] = useState<Tab>('list');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [menuJobId, setMenuJobId] = useState<string | null>(null);
   const [changeTargetJobId, setChangeTargetJobId] = useState<string | null>(null);
   const [newTargetId, setNewTargetId] = useState('');
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [editJobId, setEditJobId] = useState<string | null>(null);
+
+  const [runs, setRuns] = useState<JobRunRecord[]>([]);
+  const [runsLoading, setRunsLoading] = useState(false);
+  const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
+
+  const upsert = useCallback((job: Job) => {
+    setJobs((prev) =>
+      prev.some((j) => j.jobId === job.jobId)
+        ? prev.map((j) => (j.jobId === job.jobId ? job : j))
+        : [...prev, job],
+    );
+  }, []);
+
+  const loadJobs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setJobs(await fetchJobs());
+    } catch (e) {
+      setError(errMsg(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadJobs();
+  }, [loadJobs]);
+
+  useEffect(() => {
+    void fetchJobKinds().then(setKindMetas).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  // WS：job.created/updated/deleted 驱动列表；fired/partial_failed 弹 toast。
+  useEffect(() => {
+    const offCreated = wsClient.on('job.created', (ev) => {
+      const job = (ev as unknown as { job?: Job }).job;
+      if (job) upsert(job);
+    });
+    const offUpdated = wsClient.on('job.updated', (ev) => {
+      const job = (ev as unknown as { job?: Job }).job;
+      if (job) upsert(job);
+    });
+    const offDeleted = wsClient.on('job.deleted', (ev) => {
+      const jobId = (ev as unknown as { jobId?: string }).jobId;
+      if (!jobId) return;
+      setJobs((prev) => prev.filter((j) => j.jobId !== jobId));
+      setSelectedJobId((cur) => (cur === jobId ? null : cur));
+    });
+    const offFired = wsClient.on('scheduler.task.fired', (ev) => {
+      const e = ev as unknown as { task?: { name?: string }; taskId?: string; name?: string; status?: string };
+      const name = e.task?.name ?? e.name ?? e.taskId ?? 'job';
+      showToast(`Fired: ${name}${e.status ? ` (${e.status})` : ''}`);
+    });
+    const offPartial = wsClient.on('job.partial_failed', (ev) => {
+      const e = ev as unknown as { name?: string; jobId?: string; errors?: unknown[] };
+      showToast(
+        `Partial failure: ${e.name ?? e.jobId ?? 'job'} (${(e.errors ?? []).length} error(s))`,
+        'warning',
+      );
+    });
+    return () => {
+      offCreated();
+      offUpdated();
+      offDeleted();
+      offFired();
+      offPartial();
+    };
+  }, [showToast, upsert]);
+
+  // 详情 runs：随选中 job / limit 拉取。
+  useEffect(() => {
+    if (!selectedJobId) {
+      setRuns([]);
+      return;
+    }
+    let cancelled = false;
+    setRunsLoading(true);
+    fetchJobRuns(selectedJobId, runsLimit)
+      .then((r) => {
+        if (!cancelled) setRuns(r);
+      })
+      .catch(() => {
+        if (!cancelled) setRuns([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRunsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedJobId, runsLimit]);
+
+  const kindLabels = useMemo(() => {
+    const map: Partial<Record<JobKind, string>> = {};
+    for (const m of kindMetas) map[m.kind] = m.label;
+    return map;
+  }, [kindMetas]);
+  const labelFor = useCallback(
+    (kind: JobKind) => kindLabels[kind] ?? kind,
+    [kindLabels],
+  );
+
+  const kindOptions = useMemo(
+    () => (kindMetas.length > 0 ? kindMetas.map((m) => m.kind) : FALLBACK_KINDS),
+    [kindMetas],
+  );
 
   const visibleJobs = useMemo(() => {
     return jobs
@@ -331,50 +464,77 @@ export default function JobsView() {
   const changeTargetJob = jobs.find((j) => j.jobId === changeTargetJobId) ?? null;
   const deleteJob = jobs.find((j) => j.jobId === deleteJobId) ?? null;
   const editJob = jobs.find((j) => j.jobId === editJobId) ?? null;
-  // The drawer panel is z-50 while Modal overlays are z-40 — hide the drawer
-  // while a centered modal is open so it can't paint over the dialog.
+  // 抽屉 z-50 会盖住 z-40 的居中 Modal → 有对话框时隐藏抽屉。
   const dialogOpen = changeTargetJobId !== null || deleteJobId !== null || editJobId !== null;
 
-  const updateJob = (jobId: string, fn: (j: Job) => Job) =>
-    setJobs((prev) => prev.map((j) => (j.jobId === jobId ? fn(j) : j)));
+  const openDetail = useCallback(async (jobId: string) => {
+    setSelectedJobId(jobId);
+    setRunsLimit(RUNS_PAGE);
+    try {
+      upsert(await fetchJob(jobId));
+    } catch {
+      // keep the list copy if the detail fetch fails
+    }
+  }, [upsert]);
 
-  const handleCreate = (job: Job) => {
-    setJobs((prev) => [...prev, job]);
-    setTab('list');
-    showToast(`Created job "${job.name}"`);
+  const handleCreate = async (input: JobCreateInput) => {
+    setSubmitting(true);
+    try {
+      const job = await createJob(input);
+      upsert(job);
+      setTab('list');
+      showToast(`Created job "${job.name}"`);
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleRunNow = (job: Job) => {
-    const iso = naiveIso(new Date());
-    const run: JobRun = { runId: `run_${randomHex(6)}`, fireAt: iso, status: 'dispatched' };
-    updateJob(job.jobId, (j) => ({
-      ...j,
-      runs: [...(j.runs ?? []), run],
-      runCount: j.runCount + 1,
-      lastFireAt: iso,
-    }));
-    showToast(`Ran job "${job.name}"`);
+  const handleUpdate = async (jobId: string, patch: JobPatchInput) => {
+    setSubmitting(true);
+    try {
+      const job = await patchJob(jobId, patch);
+      upsert(job);
+      setEditJobId(null);
+      showToast(`Saved job "${job.name}"`);
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleTogglePaused = (job: Job) => {
+  const handleRunNow = async (job: Job) => {
+    try {
+      upsert(await runJobNow(job.jobId));
+      showToast(`Ran job "${job.name}"`);
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    }
+  };
+
+  const handleTogglePaused = async (job: Job) => {
     const next = !job.paused;
-    updateJob(job.jobId, (j) => ({ ...j, paused: next }));
-    showToast(next ? `Paused job "${job.name}"` : `Resumed job "${job.name}"`);
+    try {
+      upsert(await patchJob(job.jobId, { paused: next }));
+      showToast(next ? `Paused job "${job.name}"` : `Resumed job "${job.name}"`);
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    }
   };
 
-  const handleToggleEntry = (jobId: string, entryId: string) => {
-    updateJob(jobId, (j) => ({
-      ...j,
-      schedule: j.schedule.map((e) =>
-        e.id === entryId
-          ? {
-              ...e,
-              enabled: !e.enabled,
-              nextFireAt: e.enabled ? null : naiveIso(new Date(Date.now() + 86400_000)),
-            }
-          : e,
-      ),
-    }));
+  const handleToggleEntry = async (job: Job, entryId: string) => {
+    const specs = job.schedule.map((e) => {
+      const spec = entryToSpec(e);
+      if (e.id === entryId) spec.enabled = !e.enabled;
+      return spec;
+    });
+    try {
+      upsert(await patchJob(job.jobId, { schedule: specs }));
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    }
   };
 
   const openChangeTarget = (job: Job) => {
@@ -382,41 +542,42 @@ export default function JobsView() {
     setChangeTargetJobId(job.jobId);
   };
 
-  const handleChangeTarget = () => {
+  const handleChangeTarget = async () => {
     if (!changeTargetJob) return;
-    const hadBacklog = changeTargetJob.notificationState === 'undeliverable';
-    const backlogCount = changeTargetJob.mailbox.length;
-    updateJob(changeTargetJob.jobId, (j) => ({
-      ...j,
-      target: { sessionId: newTargetId || null },
-      notificationState: j.notificationState === 'undeliverable' ? 'pending' : j.notificationState,
-      mailbox: j.notificationState === 'undeliverable' ? [] : j.mailbox,
-    }));
-    setChangeTargetJobId(null);
-    showToast(
-      hadBacklog
-        ? `Target updated; ${backlogCount} backlogged note(s) requeued`
-        : `Target updated for "${changeTargetJob.name}"`,
-    );
+    const hadBacklog = (changeTargetJob.undeliveredFires?.length ?? 0) > 0;
+    const backlogCount = changeTargetJob.undeliveredFires?.length ?? 0;
+    try {
+      const job = await patchJob(changeTargetJob.jobId, {
+        target: { sessionId: newTargetId.trim() || null },
+      });
+      upsert(job);
+      setChangeTargetJobId(null);
+      showToast(
+        hadBacklog
+          ? `Target updated; ${backlogCount} backlogged fire(s) requeued`
+          : `Target updated for "${job.name}"`,
+      );
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteJob) return;
-    setJobs((prev) => prev.filter((j) => j.jobId !== deleteJob.jobId));
-    if (selectedJobId === deleteJob.jobId) setSelectedJobId(null);
-    setDeleteJobId(null);
-    showToast(`Deleted job "${deleteJob.name}"`);
-  };
-
-  const handleUpdate = (job: Job) => {
-    updateJob(job.jobId, () => job);
-    setEditJobId(null);
-    showToast(`Saved job "${job.name}"`);
+    try {
+      await deleteJobApi(deleteJob.jobId);
+      setJobs((prev) => prev.filter((j) => j.jobId !== deleteJob.jobId));
+      if (selectedJobId === deleteJob.jobId) setSelectedJobId(null);
+      setDeleteJobId(null);
+      showToast(`Deleted job "${deleteJob.name}"`);
+    } catch (e) {
+      showToast(errMsg(e), 'error');
+    }
   };
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-bg-primary">
-      {/* Header — pl-10 clears the fixed mobile hamburger button */}
+      {/* Header */}
       <div className="flex items-center gap-2 pl-10 md:pl-3 pr-3 py-2.5 border-b border-border-default bg-bg-secondary/50 shrink-0">
         <button
           type="button"
@@ -460,12 +621,12 @@ export default function JobsView() {
         </button>
       </div>
 
-      {/* Body — scrollable, centered column on desktop */}
+      {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl p-4">
           {tab === 'list' ? (
             <div className="flex flex-col gap-3">
-              {/* Filters — status chips + kind dropdown, AND 叠加 */}
+              {/* Filters */}
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {STATUS_FILTERS.map((f) => (
@@ -494,12 +655,20 @@ export default function JobsView() {
                     onChange={(e) => setKindFilter(e.target.value as 'all' | JobKind)}
                     className="flex-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary outline-none focus:border-accent/50"
                   >
-                    {KIND_OPTIONS.map((o) => (
-                      <option key={o.key} value={o.key}>
-                        {o.label}
+                    <option value="all">All kinds</option>
+                    {kindOptions.map((k) => (
+                      <option key={k} value={k}>
+                        {labelFor(k)}
                       </option>
                     ))}
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => void loadJobs()}
+                    className="shrink-0 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  >
+                    Refresh
+                  </button>
                 </div>
               </div>
 
@@ -508,32 +677,44 @@ export default function JobsView() {
                 {visibleJobs.length} of {jobs.length} jobs
               </div>
 
-              {/* List / empty state */}
-              {visibleJobs.length > 0 ? (
+              {/* Loading / error / empty / list */}
+              {loading && jobs.length === 0 ? (
+                <div className="rounded border border-border-muted bg-bg-secondary/40 px-3 py-6 text-center text-xs text-text-tertiary">
+                  Loading…
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center gap-2 rounded border border-danger/50 bg-danger/10 px-3 py-6 text-center text-xs text-danger">
+                  <span>{error}</span>
+                  <Button variant="secondary" size="sm" onClick={() => void loadJobs()}>
+                    Retry
+                  </Button>
+                </div>
+              ) : visibleJobs.length > 0 ? (
                 <div className="flex flex-col gap-2">
                   {visibleJobs.map((job) => (
                     <JobRow
                       key={job.jobId}
                       job={job}
-                      onOpen={() => setSelectedJobId(job.jobId)}
+                      kindLabel={labelFor(job.kind)}
+                      onOpen={() => void openDetail(job.jobId)}
                       menuOpen={menuJobId === job.jobId}
                       onToggleMenu={() =>
                         setMenuJobId(menuJobId === job.jobId ? null : job.jobId)
                       }
-                      onRunNow={() => handleRunNow(job)}
-                      onTogglePaused={() => handleTogglePaused(job)}
+                      onRunNow={() => void handleRunNow(job)}
+                      onTogglePaused={() => void handleTogglePaused(job)}
                       onDelete={() => setDeleteJobId(job.jobId)}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="rounded border border-border-muted bg-bg-secondary/40 px-3 py-6 text-center text-xs text-text-tertiary">
-                  No jobs match
+                  {jobs.length === 0 ? 'No jobs yet' : 'No jobs match'}
                 </div>
               )}
             </div>
           ) : (
-            <NewJobForm jobs={jobs} onSubmit={handleCreate} />
+            <NewJobForm submitting={submitting} onCreate={handleCreate} />
           )}
         </div>
       </div>
@@ -541,33 +722,19 @@ export default function JobsView() {
       {selectedJob && !dialogOpen && (
         <JobDetailDrawer
           job={selectedJob}
+          kindLabel={labelFor(selectedJob.kind)}
+          runs={runs}
+          runsLoading={runsLoading}
+          onLoadMoreRuns={() => setRunsLimit((n) => n + RUNS_PAGE)}
           onClose={() => setSelectedJobId(null)}
-          onRunNow={() => handleRunNow(selectedJob)}
-          onTogglePaused={() => handleTogglePaused(selectedJob)}
+          onRunNow={() => void handleRunNow(selectedJob)}
+          onTogglePaused={() => void handleTogglePaused(selectedJob)}
           onDelete={() => setDeleteJobId(selectedJob.jobId)}
           onChangeTarget={() => openChangeTarget(selectedJob)}
           onEdit={() => setEditJobId(selectedJob.jobId)}
-          onToggleEntryEnabled={(entryId) => handleToggleEntry(selectedJob.jobId, entryId)}
+          onToggleEntryEnabled={(entryId) => void handleToggleEntry(selectedJob, entryId)}
         />
       )}
-
-      {/* Edit job dialog */}
-      <Modal
-        open={editJobId !== null}
-        onClose={() => setEditJobId(null)}
-        title="Edit job"
-        size="lg"
-      >
-        {editJob && (
-          <NewJobForm
-            key={editJob.jobId}
-            mode="edit"
-            jobs={jobs}
-            initialJob={editJob}
-            onSubmit={handleUpdate}
-          />
-        )}
-      </Modal>
 
       {/* Change target dialog */}
       <Modal
@@ -585,7 +752,7 @@ export default function JobsView() {
               onChange={(e) => setNewTargetId(e.target.value)}
               className={selectClass}
             >
-              <option value="">无 target</option>
+              <option value="">无 target（积压）</option>
               {sessionOptions.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name || 'Untitled'} · {s.id}
@@ -597,7 +764,7 @@ export default function JobsView() {
             <Button variant="ghost" size="sm" onClick={() => setChangeTargetJobId(null)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={handleChangeTarget}>
+            <Button variant="primary" size="sm" onClick={() => void handleChangeTarget()}>
               Save
             </Button>
           </div>
@@ -620,11 +787,29 @@ export default function JobsView() {
             <Button variant="ghost" size="sm" onClick={() => setDeleteJobId(null)}>
               Cancel
             </Button>
-            <Button variant="danger" size="sm" onClick={handleDelete}>
+            <Button variant="danger" size="sm" onClick={() => void handleDelete()}>
               Delete
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Edit job dialog */}
+      <Modal
+        open={editJobId !== null}
+        onClose={() => setEditJobId(null)}
+        title="Edit job"
+        size="lg"
+      >
+        {editJob && (
+          <NewJobForm
+            key={editJob.jobId}
+            mode="edit"
+            initialJob={editJob}
+            submitting={submitting}
+            onSave={(patch) => void handleUpdate(editJob.jobId, patch)}
+          />
+        )}
       </Modal>
     </div>
   );

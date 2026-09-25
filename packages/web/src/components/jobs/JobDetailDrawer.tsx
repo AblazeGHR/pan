@@ -1,18 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
-import type { Job, JobRun, JobSource } from '@/components/jobs/mockJobs';
-
-const RUNS_PAGE = 5;
+import type { Job, JobRunRecord, JobSource, JobTimestamp } from '@/types/jobs';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-function formatDateTime(iso?: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+/** epoch 秒（number）或本地朴素 ISO（string）→ "YYYY-MM-DD HH:mm"。 */
+function formatDateTime(value?: JobTimestamp | null): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const d = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
@@ -30,8 +29,8 @@ function statusColor(status: string): string {
     case 'starting':
       return 'border-accent/50 bg-accent/10 text-accent';
     case 'scheduled':
-      return 'border-warning/50 bg-warning/10 text-warning';
     case 'partial':
+    case 'undeliverable':
       return 'border-warning/50 bg-warning/10 text-warning';
     case 'completed':
     case 'delivered':
@@ -41,6 +40,8 @@ function statusColor(status: string): string {
     case 'error':
       return 'border-danger/50 bg-danger/10 text-danger';
     case 'cancelled':
+    case 'expired':
+    case 'skipped':
       return 'border-border-default bg-bg-tertiary text-text-tertiary';
     default:
       return 'border-border-default bg-bg-tertiary text-text-secondary';
@@ -126,21 +127,24 @@ function scheduleKindLabel(kind: string): string {
   }
 }
 
-function RunRow({ run }: { run: JobRun }) {
+function RunRow({ run }: { run: JobRunRecord }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded border border-border-default bg-bg-primary px-2 py-1.5 text-[11px]">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="font-mono text-text-tertiary">{formatDateTime(run.fireAt)}</span>
-        {run.entryId && <span className="font-mono text-text-tertiary">{run.entryId}</span>}
+        <span className="font-mono text-text-tertiary">{formatDateTime(run.fire_at ?? null)}</span>
         {run.error && <span className="truncate text-danger">{run.error}</span>}
       </div>
-      <StatusBadge status={run.status} />
+      <StatusBadge status={run.status ?? 'unknown'} />
     </div>
   );
 }
 
 export function JobDetailDrawer({
   job,
+  kindLabel,
+  runs,
+  runsLoading,
+  onLoadMoreRuns,
   onClose,
   onRunNow,
   onTogglePaused,
@@ -150,6 +154,10 @@ export function JobDetailDrawer({
   onToggleEntryEnabled,
 }: {
   job: Job;
+  kindLabel: string;
+  runs: JobRunRecord[];
+  runsLoading: boolean;
+  onLoadMoreRuns: () => void;
   onClose: () => void;
   onRunNow: () => void;
   onTogglePaused: () => void;
@@ -158,7 +166,6 @@ export function JobDetailDrawer({
   onEdit: () => void;
   onToggleEntryEnabled: (entryId: string) => void;
 }) {
-  const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
   const [deliveryExpanded, setDeliveryExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -170,9 +177,9 @@ export function JobDetailDrawer({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  const runs = job.runs ?? [];
-  const visibleRuns = runs.slice(0, runsLimit);
-  const hasMoreRuns = runsLimit < runs.length;
+  const backlog = job.undeliveredFires ?? [];
+  const isUndeliverable = job.lastStatus === 'undeliverable' || backlog.length > 0;
+  const canRunNow = job.kind === 'scheduled-task';
 
   const copyLogPath = async () => {
     try {
@@ -221,22 +228,24 @@ export function JobDetailDrawer({
         <div className="flex-1 overflow-y-auto p-4">
           <div className="flex flex-col gap-4">
             {/* Undeliverable banner */}
-            {job.notificationState === 'undeliverable' && (
+            {isUndeliverable && (
               <div className="rounded border border-warning/50 bg-warning/10 px-2.5 py-2 text-[11px] text-warning">
-                target missing — switch target to deliver {job.mailbox.length} backlogged note(s)
+                target missing — switch target to deliver {backlog.length} backlogged fire(s)
               </div>
             )}
 
             {/* Action group */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={onRunNow}
-                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-              >
-                <Play size={12} />
-                Run now
-              </button>
+              {canRunNow && (
+                <button
+                  type="button"
+                  onClick={onRunNow}
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                >
+                  <Play size={12} />
+                  Run now
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onTogglePaused}
@@ -277,9 +286,7 @@ export function JobDetailDrawer({
                 <div className="text-xs text-text-secondary">{job.description}</div>
               )}
               <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5">
-                <KV label="Kind">
-                  <span className="font-mono">{job.kind}</span>
-                </KV>
+                <KV label="Kind">{kindLabel}</KV>
                 <KV label="Source">{sourceSummary(job.source)}</KV>
                 <KV label="Target">
                   <span className="font-mono">{job.target.sessionId ?? 'no target'}</span>
@@ -288,6 +295,7 @@ export function JobDetailDrawer({
                 <KV label="Created">{formatDateTime(job.createdAt)}</KV>
                 <KV label="Updated">{formatDateTime(job.updatedAt)}</KV>
                 {job.paused && <KV label="Paused">Yes</KV>}
+                {job.maxRuns != null && <KV label="Max runs">{job.maxRuns}</KV>}
               </div>
             </Section>
 
@@ -325,17 +333,15 @@ export function JobDetailDrawer({
                         </div>
                       </div>
                       <div className="flex flex-col gap-0.5 text-text-secondary">
-                        {e.kind === 'cron' && (
-                          <span className="font-mono">{e.cron ?? '—'}</span>
-                        )}
+                        {e.kind === 'cron' && <span className="font-mono">{e.cron ?? '—'}</span>}
                         {e.kind === 'interval' && (
-                          <span>every {formatDuration(e.intervalSec ?? 0)}</span>
+                          <span>every {formatDuration(e.intervalSec ?? e.interval_sec ?? 0)}</span>
                         )}
-                        {e.kind === 'once' && <span>{formatDateTime(e.at)}</span>}
+                        {e.kind === 'once' && <span>{formatDateTime(e.at ?? null)}</span>}
                         {e.timezone && <span className="text-text-tertiary">tz {e.timezone}</span>}
                         <span className="text-text-tertiary">misfire {e.misfirePolicy}</span>
                         <span className="text-text-tertiary">
-                          next {formatDateTime(e.nextFireAt)}
+                          next {formatDateTime(e.nextFireAt ?? null)}
                         </span>
                       </div>
                     </div>
@@ -362,38 +368,32 @@ export function JobDetailDrawer({
                   </div>
                   {deliveryExpanded && (
                     <div className="flex flex-col gap-1 text-[11px]">
-                      {(delivery.results ?? []).length > 0 && (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-text-tertiary">results</span>
-                          {delivery.results!.map((r, i) => (
-                            <pre
-                              key={i}
-                              className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-text-secondary"
-                            >
-                              {JSON.stringify(r)}
-                            </pre>
-                          ))}
-                        </div>
-                      )}
-                      {(delivery.errors ?? []).length > 0 && (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-danger">errors</span>
-                          {delivery.errors!.map((r, i) => (
-                            <pre
-                              key={i}
-                              className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-danger"
-                            >
-                              {JSON.stringify(r)}
-                            </pre>
-                          ))}
-                        </div>
-                      )}
+                      {(delivery.results ?? []).map((r, i) => (
+                        <pre
+                          key={`r${i}`}
+                          className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-text-secondary"
+                        >
+                          {JSON.stringify(r)}
+                        </pre>
+                      ))}
+                      {(delivery.errors ?? []).map((r, i) => (
+                        <pre
+                          key={`e${i}`}
+                          className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-danger"
+                        >
+                          {JSON.stringify(r)}
+                        </pre>
+                      ))}
                     </div>
                   )}
                 </div>
               ) : job.lastError ? (
                 <div className="rounded border border-danger/50 bg-danger/10 px-2.5 py-2 text-xs text-danger">
                   {job.lastError}
+                </div>
+              ) : job.lastStatus ? (
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={job.lastStatus} />
                 </div>
               ) : (
                 <div className="text-xs text-text-tertiary">—</div>
@@ -403,42 +403,45 @@ export function JobDetailDrawer({
             {/* 4. Runs history */}
             <Section title="Runs">
               {runs.length === 0 ? (
-                <div className="text-xs text-text-tertiary">—</div>
+                <div className="text-xs text-text-tertiary">
+                  {runsLoading ? 'Loading…' : '—'}
+                </div>
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  {visibleRuns.map((r) => (
-                    <RunRow key={r.runId} run={r} />
+                  {runs.map((r, i) => (
+                    <RunRow key={r.run_id ?? `${r.fire_at}-${i}`} run={r} />
                   ))}
-                  {hasMoreRuns && (
-                    <button
-                      type="button"
-                      onClick={() => setRunsLimit((n) => n + RUNS_PAGE)}
-                      className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                    >
-                      Load more ({runs.length - runsLimit} remaining)
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={onLoadMoreRuns}
+                    disabled={runsLoading}
+                    className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+                  >
+                    {runsLoading ? 'Loading…' : 'Load more'}
+                  </button>
                 </div>
               )}
             </Section>
 
-            {/* 5. Mailbox backlog */}
-            {job.notificationState === 'undeliverable' && (
+            {/* 5. Backlog */}
+            {backlog.length > 0 && (
               <Section title="Backlog">
                 <div className="flex flex-col gap-1.5 rounded border border-warning/50 bg-warning/10 p-2.5">
                   <div className="text-xs font-medium text-warning">
-                    {job.mailbox.length} note(s) backlogged — target missing
+                    {backlog.length} fire(s) backlogged — target missing
                   </div>
-                  {job.mailbox.map((note, i) => (
+                  {backlog.map((note, i) => (
                     <div
-                      key={i}
+                      key={`${note.entryId ?? 'e'}-${note.fireAt ?? i}`}
                       className="flex items-center justify-between gap-2 rounded border border-border-default bg-bg-primary px-2 py-1 text-[11px]"
                     >
-                      <span className="font-mono text-text-tertiary">{formatDateTime(note.fireAt)}</span>
-                      <span className="text-text-secondary">{note.status}</span>
+                      <span className="font-mono text-text-tertiary">
+                        {formatDateTime(note.fireAt ?? null)}
+                      </span>
                       {note.entryId && (
                         <span className="font-mono text-text-tertiary">{note.entryId}</span>
                       )}
+                      {note.error && <span className="truncate text-danger">{note.error}</span>}
                     </div>
                   ))}
                 </div>

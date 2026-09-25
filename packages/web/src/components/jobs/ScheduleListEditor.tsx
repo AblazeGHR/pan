@@ -11,7 +11,12 @@ import {
   simpleToCron,
 } from '@/components/schedule/cronPreview';
 import type { SimpleFreq, SimpleSpec } from '@/components/schedule/cronPreview';
-import type { MisfirePolicy, ScheduleEntry, ScheduleEntryKind } from '@/components/jobs/mockJobs';
+import type {
+  JobScheduleSpec,
+  MisfirePolicy,
+  ScheduleEntry,
+  ScheduleEntryKind,
+} from '@/types/jobs';
 
 const DEFAULT_TIMEZONE = 'Asia/Shanghai';
 const PREVIEW_COUNT = 5;
@@ -84,12 +89,6 @@ function formatDateTime(iso?: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function randomHex(n: number): string {
-  let out = '';
-  for (let i = 0; i < n; i++) out += Math.floor(Math.random() * 16).toString(16);
-  return out;
 }
 
 // ── Shared form primitives ──
@@ -186,29 +185,49 @@ export function scheduleEntryToDraft(entry: ScheduleEntry): ScheduleEntryDraft {
   };
 }
 
-/** 把编辑态 entry 构建为 PLAN §1 的 ScheduleEntry，并估算 nextFireAt。 */
-export function buildScheduleEntry(d: ScheduleEntryDraft): ScheduleEntry {
+/** 编辑态 draft → 服务端 schedule spec（POST/PATCH 提交用；控制键由服务端定）。 */
+export function buildScheduleSpec(d: ScheduleEntryDraft): JobScheduleSpec {
   const timezone = d.timezone.trim() || DEFAULT_TIMEZONE;
-  let nextFireAt: string | null = null;
   if (d.kind === 'once') {
-    nextFireAt = d.at ? `${d.at}:00` : null;
-  } else if (d.kind === 'interval') {
-    const sec = Math.max(1, Math.round(d.intervalSec));
-    nextFireAt = toNaiveIso(new Date(Date.now() + sec * 1000));
-  } else {
-    nextFireAt = nextCronFires(d.cron.trim(), 1)[0] ?? null;
+    return {
+      kind: 'once',
+      at: d.at ? `${d.at}:00` : null,
+      timezone,
+      misfirePolicy: d.misfirePolicy,
+      enabled: d.enabled,
+    };
+  }
+  if (d.kind === 'interval') {
+    return {
+      kind: 'interval',
+      intervalSec: Math.max(1, Math.round(d.intervalSec)),
+      timezone,
+      misfirePolicy: d.misfirePolicy,
+      enabled: d.enabled,
+    };
   }
   return {
-    id: `schx_${randomHex(6)}`,
-    kind: d.kind,
-    at: d.kind === 'once' ? (d.at ? `${d.at}:00` : null) : null,
-    intervalSec: d.kind === 'interval' ? Math.max(1, Math.round(d.intervalSec)) : null,
-    cron: d.kind === 'cron' ? d.cron.trim() : null,
+    kind: 'cron',
+    cron: d.cron.trim(),
     timezone,
     misfirePolicy: d.misfirePolicy,
     enabled: d.enabled,
-    nextFireAt,
   };
+}
+
+/** 服务端 entry → spec（整体替换 schedule 时回传，保留 enabled/misfire 覆盖）。 */
+export function entryToSpec(entry: ScheduleEntry): JobScheduleSpec {
+  const spec: JobScheduleSpec = {
+    kind: entry.kind,
+    timezone: entry.timezone ?? undefined,
+    misfirePolicy: entry.misfirePolicy,
+    enabled: entry.enabled,
+  };
+  if (entry.anchor) spec.anchor = entry.anchor;
+  if (entry.kind === 'once') spec.at = entry.at ?? null;
+  else if (entry.kind === 'interval') spec.intervalSec = entry.intervalSec ?? entry.interval_sec ?? null;
+  else spec.cron = entry.cron ?? null;
+  return spec;
 }
 
 function ScheduleEntryEditor({
