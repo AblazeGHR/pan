@@ -1,6 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
+.sidebar-selection-bar {
+  container-type: inline-size;
+}
+
+.sidebar-selection-action-icon {
+  display: none;
+}
+
+@container (max-width: 420px) {
+  .sidebar-selection-action-label {
+    display: none;
+  }
+
+  .sidebar-selection-action-icon {
+    display: block;
+  }
+
+  .sidebar-selection-action-button {
+    justify-content: center;
+    padding-inline: 0.375rem;
+  }
+}
+
 /* ── iOS safe-area insets ── */
 
 :root {

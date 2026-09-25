@@ -14,7 +14,7 @@ export function SidebarResizer() {
       const now = Date.now();
       if (now - lastClick.current < 300) {
         lastClick.current = 0;
-        setSidebarWidth(260);
+        setSidebarWidth(280);
         return;
       }
       lastClick.current = now;

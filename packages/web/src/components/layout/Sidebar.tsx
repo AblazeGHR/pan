@@ -43,6 +43,8 @@ import {
   Sun,
   Moon,
   ListChecks,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceExpanded?: boolean }) {
@@ -449,7 +451,10 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   return (
     <aside
       className="relative flex min-w-0 flex-col h-full border-r border-border-default bg-bg-secondary"
-      style={{ width: isMobile && mobileWorkspaceExpanded ? '50vw' : sidebarWidth }}
+      style={{
+        width: isMobile && mobileWorkspaceExpanded ? '50vw' : `min(${sidebarWidth}px, 100vw)`,
+        minWidth: isMobile && mobileWorkspaceExpanded ? 'min(280px, 50vw)' : 'min(280px, 100vw)',
+      }}
     >
       {/* ── Chat route content ── */}
       {!isEditorRoute && (
@@ -727,31 +732,33 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
 
           {/* Multi-select bar */}
           {multiSelectMode && (
-            <div className="relative flex items-center gap-2 px-3 py-2 border-b border-border-muted bg-bg-tertiary">
-              <span className="text-xs text-text-secondary">
+            <div className="sidebar-selection-bar relative flex min-w-0 flex-wrap items-center gap-1.5 px-2 py-2 border-b border-border-muted bg-bg-tertiary">
+              <span className="shrink-0 text-xs text-text-secondary">
                 {selectedIds.size} selected
               </span>
-              <span className="text-[10px] text-text-tertiary truncate" title="批量操作的范围（永不跨工作区）">
+              <span className="min-w-0 max-w-full flex-1 text-[10px] text-text-tertiary truncate" title="批量操作的范围（永不跨工作区）">
                 范围：{activeScopeName}
               </span>
-              <div className="flex-1" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleToggleSelectAll}
-                disabled={selectableIds.length === 0}
-                aria-label={allSelectableSelected ? 'Deselect all visible sessions' : 'Select all visible sessions'}
-              >
-                {allSelectableSelected ? 'Deselect all' : 'Select all'}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setMoveMenuOpen((v) => !v)}
-                disabled={selectedIds.size === 0}
-              >
-                移入工作区
-              </Button>
+              <div className="sidebar-selection-actions ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleToggleSelectAll}
+                  disabled={selectableIds.length === 0}
+                  aria-label={allSelectableSelected ? 'Deselect all visible sessions' : 'Select all visible sessions'}
+                >
+                  {allSelectableSelected ? 'Deselect all' : 'Select all'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setMoveMenuOpen((v) => !v)}
+                  disabled={selectedIds.size === 0}
+                  aria-label="Move selected sessions to workspace"
+                  title="Move selected sessions to workspace"
+                >
+                  Workspace
+                </Button>
               {moveMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setMoveMenuOpen(false)} />
@@ -776,17 +783,30 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                   </div>
                 </>
               )}
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleBatchDelete}
-                disabled={selectedIds.size === 0}
-              >
-                Delete
-              </Button>
-              <Button variant="ghost" size="sm" onClick={exitMultiSelect}>
-                Cancel
-              </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleBatchDelete}
+                  disabled={selectedIds.size === 0}
+                  aria-label="Delete selected sessions"
+                  title="Delete selected sessions"
+                  className="sidebar-selection-action-button"
+                >
+                  <span className="sidebar-selection-action-label">Delete</span>
+                  <Trash2 className="sidebar-selection-action-icon" size={16} aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={exitMultiSelect}
+                  aria-label="Cancel selection"
+                  title="Cancel selection"
+                  className="sidebar-selection-action-button"
+                >
+                  <span className="sidebar-selection-action-label">Cancel</span>
+                  <X className="sidebar-selection-action-icon" size={16} aria-hidden="true" />
+                </Button>
+              </div>
             </div>
           )}
 
