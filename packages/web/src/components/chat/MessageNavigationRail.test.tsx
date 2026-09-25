@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import type { RefObject } from 'react';
 import { MessageNavigationRail } from './MessageNavigationRail';
+import { MessageNavigationDock } from './MessageNavigationDock';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { fetchSessionHistory } from '@/services/api';
@@ -47,7 +49,108 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe('message navigation dock', () => {
+  it('waits to index until desktop hover and keeps the indexed rail mounted when folded', async () => {
+    vi.useFakeTimers();
+    const dockRef = { current: null } as RefObject<HTMLDivElement | null>;
+    const { container } = render(
+      <MessageNavigationDock
+        chatRef={{ current: null }}
+        dockRef={dockRef}
+        isMobile={false}
+        mobileExpanded={false}
+        onMobileClose={() => {}}
+        onRestoreFocus={() => {}}
+      />,
+    );
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    const panel = container.querySelector<HTMLElement>('#message-navigation-panel')!;
+
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelector('.message-navigation-rail')).toBeNull();
+    expect(mockedHistory).not.toHaveBeenCalled();
+
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    expect(dock.getAttribute('data-expanded')).toBe('true');
+    await act(async () => { await Promise.resolve(); });
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+    expect(container.querySelector('.message-navigation-rail')).not.toBeNull();
+    expect(mockedHistory).toHaveBeenCalledTimes(1);
+
+    fireEvent.pointerLeave(dock, { pointerType: 'mouse' });
+    // The short grace period lets a pointer finish an in-rail action before
+    // the panel becomes inert, and the rail remains mounted after it folds.
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+    await act(async () => { vi.advanceTimersByTime(90); });
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelector('.message-navigation-rail')).not.toBeNull();
+
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+    expect(mockedHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not auto-collapse while keyboard focus is using a marker and supports Escape', async () => {
+    const dockRef = { current: null } as RefObject<HTMLDivElement | null>;
+    const { container } = render(
+      <MessageNavigationDock
+        chatRef={{ current: null }}
+        dockRef={dockRef}
+        isMobile={false}
+        mobileExpanded={false}
+        onMobileClose={() => {}}
+        onRestoreFocus={() => {}}
+      />,
+    );
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    const handle = container.querySelector<HTMLButtonElement>('button.message-navigation-dock__handle')!;
+    act(() => handle.focus());
+    await act(async () => { await Promise.resolve(); });
+    expect(container.querySelector('.message-navigation-rail')).not.toBeNull();
+
+    const marker = container.querySelector<HTMLButtonElement>('.message-navigation-marker')!;
+    act(() => marker.focus());
+    fireEvent.pointerLeave(dock, { pointerType: 'mouse' });
+    expect(container.querySelector('#message-navigation-panel')?.getAttribute('aria-hidden')).toBe('false');
+
+    fireEvent.keyDown(marker, { key: 'Escape' });
+    expect(container.querySelector('#message-navigation-panel')?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.activeElement).toBe(handle);
+  });
+
+  it('jumps to a history item after the dock is expanded', async () => {
+    const scrollToMessage = vi.fn(() => true);
+    const ensureMessageLoaded = vi.fn().mockResolvedValue(USER_MESSAGE);
+    useSessionStore.setState({ ensureMessageLoaded });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(performance.now());
+      return 1;
+    });
+    const dockRef = { current: null } as RefObject<HTMLDivElement | null>;
+    const { container } = render(
+      <MessageNavigationDock
+        chatRef={{ current: { scrollToMessage } as never }}
+        dockRef={dockRef}
+        isMobile={false}
+        mobileExpanded={false}
+        onMobileClose={() => {}}
+        onRestoreFocus={() => {}}
+      />,
+    );
+    const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    await act(async () => { await Promise.resolve(); });
+
+    const marker = container.querySelector<HTMLButtonElement>('.message-navigation-marker')!;
+    await act(async () => { fireEvent.click(marker); });
+    expect(ensureMessageLoaded).toHaveBeenCalledWith(0, 1);
+    expect(scrollToMessage).toHaveBeenCalledWith(USER_MESSAGE, 0);
+  });
 });
 
 describe('jump single-flight lock across session switches', () => {

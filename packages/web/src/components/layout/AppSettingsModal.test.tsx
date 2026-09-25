@@ -231,6 +231,13 @@ describe('AppSettingsModal', () => {
     expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(true);
     expect(updateUiSettingsMock).toHaveBeenCalledWith({ showMessageNavigationRail: true });
     expect(railSwitch.getAttribute('aria-checked')).toBe('true');
+
+    // It remains the master enable: turning it off persists false so ChatView
+    // can unmount the rail and release its history index.
+    fireEvent.click(railSwitch);
+    expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(false);
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showMessageNavigationRail: false });
+    expect(railSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
   it('shows the Codex warning Toast option on the Notification tab', () => {
