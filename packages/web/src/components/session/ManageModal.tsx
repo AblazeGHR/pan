@@ -885,8 +885,25 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
               title="Managed by"
               subtitle="The manager (parent) session that claimed this session."
             />
-            <div className="flex flex-col gap-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2 sm:flex-row sm:items-center">
-              <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded border border-border-muted bg-bg-primary px-2.5 py-2">
+              {managedBy && onViewRelationship && (
+                <div
+                  data-testid="managed-by-relationship-action"
+                  className="flex shrink-0 items-center border-r border-border-muted pr-3"
+                >
+                  <button
+                    type="button"
+                    data-testid={`view-relationship-${managedBy}`}
+                    aria-label={`View Relationship for ${managedByLabel || managedBy}`}
+                    title={`View Relationship for ${managedByLabel || managedBy}`}
+                    onClick={() => onViewRelationship(managedBy)}
+                    className="shrink-0 inline-flex items-center whitespace-nowrap rounded border border-border-default bg-bg-tertiary px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  >
+                    View Relationship
+                  </button>
+                </div>
+              )}
+              <div className="min-w-0 flex-1 basis-32">
                 {managedBy ? (
                   <>
                     <div className="text-sm text-text-primary truncate">
@@ -929,19 +946,7 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
                 )}
               </div>
               {managedBy && (
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
-                  {onViewRelationship && (
-                    <button
-                      type="button"
-                      data-testid={`view-relationship-${managedBy}`}
-                      aria-label={`View Relationship for ${managedByLabel || managedBy}`}
-                      title={`View Relationship for ${managedByLabel || managedBy}`}
-                      onClick={() => onViewRelationship(managedBy)}
-                      className="shrink-0 inline-flex items-center whitespace-nowrap rounded border border-border-default bg-bg-tertiary px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                    >
-                      View Relationship
-                    </button>
-                  )}
+                <div data-testid="managed-by-actions" className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   {/* Unmanage: removes the manage link (mirrors the manager's
                       "Managed" row action for this session). */}
                   <button
@@ -1040,10 +1045,9 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
               </span>
             </div>
 
-            {/* Candidate list — vertical scroll for length, horizontal scroll on
-                narrow screens so the action buttons are never crushed (the name
-                column keeps a min-width and truncates instead). */}
-            <div className="max-h-56 overflow-y-auto overflow-x-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
+            {/* Candidate list — rows wrap actions on narrow screens while the
+                list keeps its vertical scrolling behavior. */}
+            <div className="max-h-56 overflow-y-auto space-y-0.5 rounded border border-border-muted bg-bg-primary p-1">
               {visible.length === 0 && (
                 <div className="py-4 text-center text-sm text-text-tertiary">
                   No matching sessions
@@ -1056,14 +1060,31 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
                 return (
                   <div
                     key={c.id}
-                    className={`flex items-center gap-1.5 sm:gap-2 whitespace-nowrap px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
+                    className={`flex flex-wrap items-center gap-x-2 gap-y-1.5 px-2.5 py-1.5 rounded transition-colors hover:bg-bg-tertiary ${
                       busyId !== null ? 'pointer-events-none opacity-70' : ''
                     }`}
                   >
-                    {/* min-w-32 keeps the name readable on narrow screens; flex
-                        otherwise collapses it to ~0 next to the shrink-0 buttons.
-                        truncate + title preserve the full name for long labels. */}
-                    <div className="flex-1 min-w-32">
+                    {isManaged && onViewRelationship && (
+                      <div
+                        data-testid={`relationship-action-group-${c.id}`}
+                        className="flex shrink-0 items-center border-r border-border-muted pr-2 mr-1"
+                      >
+                        <button
+                          type="button"
+                          data-testid={`view-relationship-${c.id}`}
+                          aria-label={`View Relationship for ${c.name || 'Untitled'}`}
+                          title={`View Relationship for ${c.name || 'Untitled'}`}
+                          onClick={() => onViewRelationship(c.id)}
+                          disabled={busyId !== null}
+                          className="shrink-0 inline-flex items-center whitespace-nowrap rounded border border-border-default bg-bg-tertiary px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          View Relationship
+                        </button>
+                      </div>
+                    )}
+                    {/* The name can shrink and truncate; controls wrap onto the
+                        next line instead of forcing horizontal list overflow. */}
+                    <div className="min-w-0 flex-1 basis-32">
                       <div className="text-sm text-text-primary truncate" title={c.name || 'Untitled'}>
                         {c.name || 'Untitled'}
                       </div>
@@ -1074,6 +1095,7 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
                         {c.adapter}
                       </span>
                     )}
+                    <div data-testid={`candidate-actions-${c.id}`} className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     {/* Manage button: gray "Manage" → blue "Managed" when active */}
                     <button
                       type="button"
@@ -1093,19 +1115,6 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
                       {isManaged ? <Check size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Star size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                       {isManaged ? 'Managed' : 'Manage'}
                     </button>
-                    {isManaged && onViewRelationship && (
-                      <button
-                        type="button"
-                        data-testid={`view-relationship-${c.id}`}
-                        aria-label={`View Relationship for ${c.name || 'Untitled'}`}
-                        title={`View Relationship for ${c.name || 'Untitled'}`}
-                        onClick={() => onViewRelationship(c.id)}
-                        disabled={busyId !== null}
-                        className="shrink-0 inline-flex items-center whitespace-nowrap rounded border border-border-default bg-bg-tertiary px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:pointer-events-none disabled:opacity-50"
-                      >
-                        View Relationship
-                      </button>
-                    )}
                     {/* Subscribe button: gray "Subscribe" → blue "Subscribed" */}
                     <button
                       type="button"
@@ -1145,6 +1154,7 @@ export function ManageSessionsPanel({ open, sessionId, onViewRelationship }: Man
                       {isReadonly ? <Lock size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Unlock size={12} className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                       {isReadonly ? 'Readonly' : 'Readonly'}
                     </button>
+                    </div>
                   </div>
                 );
               })}
