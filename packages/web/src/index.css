@@ -748,6 +748,10 @@ body {
   transform: translateX(100%);
 }
 
+.message-navigation-dock.is-mobile.is-open .message-navigation-dock__panel {
+  transform: translateX(0);
+}
+
 .message-navigation-mobile-toggle {
   display: inline-flex;
   flex: 0 0 40px;
@@ -773,6 +777,7 @@ body {
   flex: 0 0 52px;
   flex-direction: column;
   width: 52px;
+  height: 100%;
   min-height: 0;
   border-left: 1px solid var(--color-border-muted);
   background: color-mix(in srgb, var(--color-bg-primary) 94%, var(--color-bg-secondary));
