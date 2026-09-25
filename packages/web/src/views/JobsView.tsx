@@ -1,14 +1,34 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ListChecks, Plus } from 'lucide-react';
+import { ArrowLeft, ListChecks, MoreHorizontal, Plus } from 'lucide-react';
 import {
   mockJobs,
   type Job,
+  type JobKind,
   type JobSource,
   type JobStatus,
 } from '@/components/jobs/mockJobs';
 
 type Tab = 'list' | 'create';
+
+type StatusFilter = 'all' | 'active' | 'scheduled' | 'failed' | 'undeliverable';
+
+const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'scheduled', label: 'Scheduled' },
+  { key: 'failed', label: 'Failed' },
+  { key: 'undeliverable', label: 'Undeliverable' },
+];
+
+const KIND_OPTIONS: { key: 'all' | JobKind; label: string }[] = [
+  { key: 'all', label: 'All kinds' },
+  { key: 'background-process', label: 'background-process' },
+  { key: 'session-message', label: 'session-message' },
+  { key: 'session-broadcast', label: 'session-broadcast' },
+  { key: 'main-lifecycle', label: 'main-lifecycle' },
+  { key: 'scheduled_task', label: 'scheduled_task' },
+];
 
 /** 状态 → 徽标配色（沿用主题 token）。 */
 function statusClass(status: JobStatus): string {
@@ -63,6 +83,46 @@ function lastResultSummary(job: Job): string {
   return `last ${job.status}`;
 }
 
+/** 活跃优先排序档位：running → starting → scheduled → pending → 终态。 */
+function activeRank(status: JobStatus): number {
+  switch (status) {
+    case 'running':
+      return 0;
+    case 'starting':
+      return 1;
+    case 'scheduled':
+      return 2;
+    case 'pending':
+      return 3;
+    default:
+      return 4; // completed / failed / cancelled
+  }
+}
+
+/** 活跃优先；同组内按 updatedAt 倒序（新在前）。 */
+function compareJobs(a: Job, b: Job): number {
+  const ra = activeRank(a.status);
+  const rb = activeRank(b.status);
+  if (ra !== rb) return ra - rb;
+  return b.updatedAt.localeCompare(a.updatedAt);
+}
+
+/** 状态 chips 匹配（与 kind 下拉 AND 叠加）。 */
+function matchesStatusFilter(job: Job, filter: StatusFilter): boolean {
+  switch (filter) {
+    case 'active':
+      return job.status === 'pending' || job.status === 'starting' || job.status === 'running';
+    case 'scheduled':
+      return job.status === 'scheduled';
+    case 'failed':
+      return job.status === 'failed';
+    case 'undeliverable':
+      return job.notificationState === 'undeliverable';
+    default:
+      return true;
+  }
+}
+
 function JobRow({ job }: { job: Job }) {
   const next = nextFireAt(job);
   return (
@@ -84,6 +144,15 @@ function JobRow({ job }: { job: Job }) {
             Paused
           </span>
         )}
+        <button
+          type="button"
+          disabled
+          title="动作集合待定"
+          aria-label="Job actions (placeholder)"
+          className="shrink-0 rounded border border-transparent p-1 text-text-tertiary opacity-50"
+        >
+          <MoreHorizontal size={14} />
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
@@ -117,12 +186,22 @@ function JobRow({ job }: { job: Job }) {
 }
 
 /**
- * JobsView（P3 最低范围骨架）。本轮只做「列表 / 创建新 Job」两个可切换的
- * 小标签：列表渲染 mock 种子数据；创建标签为占位。
+ * JobsView（P3 最低范围骨架）。「列表 / 创建新 Job」两个可切换的小标签：
+ * 列表按活跃优先排序 + 状态 chips / kind 下拉筛选，渲染 mock 种子数据；
+ * 创建标签为占位。
  */
 export default function JobsView() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('list');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
+
+  const visibleJobs = useMemo(() => {
+    return mockJobs
+      .filter((job) => matchesStatusFilter(job, statusFilter))
+      .filter((job) => kindFilter === 'all' || job.kind === kindFilter)
+      .sort(compareJobs);
+  }, [statusFilter, kindFilter]);
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-bg-primary">
@@ -174,13 +253,62 @@ export default function JobsView() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl p-4">
           {tab === 'list' ? (
-            <div className="flex flex-col gap-2">
-              <div className="text-[11px] text-text-tertiary">
-                {mockJobs.length} job{mockJobs.length === 1 ? '' : 's'} (mock)
+            <div className="flex flex-col gap-3">
+              {/* Filters — status chips + kind dropdown, AND 叠加 */}
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {STATUS_FILTERS.map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      aria-pressed={statusFilter === f.key}
+                      onClick={() => setStatusFilter(f.key)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        statusFilter === f.key
+                          ? 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="shrink-0 text-[11px] text-text-tertiary" htmlFor="job-kind-filter">
+                    Kind
+                  </label>
+                  <select
+                    id="job-kind-filter"
+                    value={kindFilter}
+                    onChange={(e) => setKindFilter(e.target.value as 'all' | JobKind)}
+                    className="flex-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary outline-none focus:border-accent/50"
+                  >
+                    {KIND_OPTIONS.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              {mockJobs.map((job) => (
-                <JobRow key={job.jobId} job={job} />
-              ))}
+
+              {/* Count */}
+              <div className="text-[11px] text-text-tertiary">
+                {visibleJobs.length} of {mockJobs.length} jobs
+              </div>
+
+              {/* List / empty state */}
+              {visibleJobs.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {visibleJobs.map((job) => (
+                    <JobRow key={job.jobId} job={job} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded border border-border-muted bg-bg-secondary/40 px-3 py-6 text-center text-xs text-text-tertiary">
+                  No jobs match
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded border border-border-muted bg-bg-secondary/40 px-3 py-6 text-center text-xs text-text-tertiary">
