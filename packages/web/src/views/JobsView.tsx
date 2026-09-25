@@ -313,6 +313,7 @@ export default function JobsView() {
   const [changeTargetJobId, setChangeTargetJobId] = useState<string | null>(null);
   const [newTargetId, setNewTargetId] = useState('');
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
+  const [editJobId, setEditJobId] = useState<string | null>(null);
 
   const visibleJobs = useMemo(() => {
     return jobs
@@ -329,6 +330,10 @@ export default function JobsView() {
   const selectedJob = jobs.find((j) => j.jobId === selectedJobId) ?? null;
   const changeTargetJob = jobs.find((j) => j.jobId === changeTargetJobId) ?? null;
   const deleteJob = jobs.find((j) => j.jobId === deleteJobId) ?? null;
+  const editJob = jobs.find((j) => j.jobId === editJobId) ?? null;
+  // The drawer panel is z-50 while Modal overlays are z-40 — hide the drawer
+  // while a centered modal is open so it can't paint over the dialog.
+  const dialogOpen = changeTargetJobId !== null || deleteJobId !== null || editJobId !== null;
 
   const updateJob = (jobId: string, fn: (j: Job) => Job) =>
     setJobs((prev) => prev.map((j) => (j.jobId === jobId ? fn(j) : j)));
@@ -401,6 +406,12 @@ export default function JobsView() {
     if (selectedJobId === deleteJob.jobId) setSelectedJobId(null);
     setDeleteJobId(null);
     showToast(`Deleted job "${deleteJob.name}"`);
+  };
+
+  const handleUpdate = (job: Job) => {
+    updateJob(job.jobId, () => job);
+    setEditJobId(null);
+    showToast(`Saved job "${job.name}"`);
   };
 
   return (
@@ -522,12 +533,12 @@ export default function JobsView() {
               )}
             </div>
           ) : (
-            <NewJobForm jobs={jobs} onCreate={handleCreate} />
+            <NewJobForm jobs={jobs} onSubmit={handleCreate} />
           )}
         </div>
       </div>
 
-      {selectedJob && (
+      {selectedJob && !dialogOpen && (
         <JobDetailDrawer
           job={selectedJob}
           onClose={() => setSelectedJobId(null)}
@@ -535,9 +546,28 @@ export default function JobsView() {
           onTogglePaused={() => handleTogglePaused(selectedJob)}
           onDelete={() => setDeleteJobId(selectedJob.jobId)}
           onChangeTarget={() => openChangeTarget(selectedJob)}
+          onEdit={() => setEditJobId(selectedJob.jobId)}
           onToggleEntryEnabled={(entryId) => handleToggleEntry(selectedJob.jobId, entryId)}
         />
       )}
+
+      {/* Edit job dialog */}
+      <Modal
+        open={editJobId !== null}
+        onClose={() => setEditJobId(null)}
+        title="Edit job"
+        size="lg"
+      >
+        {editJob && (
+          <NewJobForm
+            key={editJob.jobId}
+            mode="edit"
+            jobs={jobs}
+            initialJob={editJob}
+            onSubmit={handleUpdate}
+          />
+        )}
+      </Modal>
 
       {/* Change target dialog */}
       <Modal

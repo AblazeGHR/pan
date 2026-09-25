@@ -167,6 +167,25 @@ export function newEntryDraft(): ScheduleEntryDraft {
   };
 }
 
+/** 反向：把已有 ScheduleEntry 还原为编辑态 draft（供 Edit 表单预填）。 */
+export function scheduleEntryToDraft(entry: ScheduleEntry): ScheduleEntryDraft {
+  const simpleSpec =
+    entry.kind === 'cron' ? parseSimpleSchedule({ kind: 'cron', cron: entry.cron ?? '' }) : null;
+  const soon = new Date(Date.now() + 3600_000);
+  soon.setSeconds(0, 0);
+  return {
+    key: entry.id,
+    kind: entry.kind,
+    mode: entry.kind === 'cron' && simpleSpec ? 'simple' : 'advanced',
+    at: entry.at ? entry.at.slice(0, 16) : toLocalInput(soon),
+    intervalSec: entry.intervalSec ?? 3600,
+    cron: entry.cron ?? simpleToCron(DEFAULT_SIMPLE),
+    timezone: entry.timezone ?? DEFAULT_TIMEZONE,
+    misfirePolicy: entry.misfirePolicy,
+    enabled: entry.enabled,
+  };
+}
+
 /** 把编辑态 entry 构建为 PLAN §1 的 ScheduleEntry，并估算 nextFireAt。 */
 export function buildScheduleEntry(d: ScheduleEntryDraft): ScheduleEntry {
   const timezone = d.timezone.trim() || DEFAULT_TIMEZONE;

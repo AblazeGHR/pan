@@ -146,6 +146,7 @@ export function JobDetailDrawer({
   onTogglePaused,
   onDelete,
   onChangeTarget,
+  onEdit,
   onToggleEntryEnabled,
 }: {
   job: Job;
@@ -154,6 +155,7 @@ export function JobDetailDrawer({
   onTogglePaused: () => void;
   onDelete: () => void;
   onChangeTarget: () => void;
+  onEdit: () => void;
   onToggleEntryEnabled: (entryId: string) => void;
 }) {
   const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
@@ -261,10 +263,8 @@ export function JobDetailDrawer({
               </button>
               <button
                 type="button"
-                disabled
-                title="待细化"
-                aria-label="Edit (placeholder)"
-                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-tertiary opacity-50"
+                onClick={onEdit}
+                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
               >
                 <Pencil size={12} />
                 Edit
