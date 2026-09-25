@@ -1,7 +1,7 @@
 # Job 统一 GUI 设计（GUI_DESIGN）
 
 - 用途：JobsView（P3）GUI 需求讨论纪要，由 gui-TA 与用户（后端 MA 代拍板）逐轮收敛
-- 状态：**主体完成 + 对接中**（2026-09-25；8 个增量已落地并入 `integrate/pr1`；mock → 真实 `/api/jobs/*` 对接进行中）
+- 状态：**完成（对接闭环）**（2026-09-25；11 个增量全部落地并入 `integrate/pr1`，head `bdbed76`；已改走真实 `/api/jobs/*`，mock 数据层已删除）
 - 规范位置：docs/design/job-unification/GUI_DESIGN.md（2026-09-25 由 data/workdirs/ 转正进版本库）
 - 前置：PLAN_JOB_UNIFICATION.md（后端契约源）；现有面板 ScheduledTaskPanel.tsx（已被取代）
 - demo 实现：`packages/web/src/views/JobsView.tsx` + `packages/web/src/components/jobs/{mockJobs,NewJobForm,ScheduleListEditor,JobDetailDrawer}.tsx`
@@ -71,6 +71,14 @@
 - **E WS 订阅（5 类）**：`scheduler.task.fired` → 触发 toast（统一内核原生事件名，兼容层不再另发）；`job.partial_failed` → warning toast；`job.updated` → 行刷新/upsert；`job.created` → 行插入；`job.deleted` → 行移除。`undeliverable` 无独立事件，靠 `job.updated` + 列表刷新呈现。（`job.fired` 已删除——run-now 曾双发，修后**一次触发至多一个 fire 事件**。）
 - **F 列表筛选/排序**：**客户端做**（拉全量；服务端 `kind`/`status`/`includeCompleted` 参数不用）。
 - **G kind 展示**：kind 徽标改用后端 `/api/jobs/kinds` 的中文 label（后台进程 / 定时消息 / 群发消息 / 定时任务 / 服务生命周期）。
+- **落地补记（inc10 `8a26fff` / inc11 `bdbed76`；以裁定 + 实际代码为准）**：
+  - `PATCH /api/jobs/{id}` **已支持 `text`**（`c0318c4`，`packages/jobs/api.py:303-307`）；Edit 表单含「派发正文」编辑框（创建/编辑双态 + 非空校验）。
+  - **空 target 禁用 `Run now`**（行内 `⋯` 菜单 + 详情抽屉两处：`disabled` 样式 + tooltip + 守卫；`JobsView.tsx:238`、`JobDetailDrawer.tsx:244`）。
+  - **逐 entry 启停 = schedule 整体替换**（`PATCH {schedule: specs}`，`JobsView.tsx:538`）——后端无 per-entry 端点，追认此实现。
+  - **runs 记录补 `entryId` 缓办 → P4**（当前 `packages/jobs/api.py` 的 runs 无 `entryId`）。
+  - `POST /api/jobs` 仅 `scheduled-task`（`api.py:138,146-148`，`text` 必填、`target.sessionId` 必填）；模板①「定时任务」与②「自定义」**皆创建 `scheduled-task`**，其余 kind 创建入口隐藏。
+  - WS 五事件**已接线**（`JobsView.tsx:382-401`）：`job.created`/`job.updated`/`job.deleted` 驱动列表插入·更新·移除；`scheduler.task.fired` → info toast；`job.partial_failed` → warning toast；`job.fired` 不存在。
+  - `packages/web/src/components/jobs/mockJobs.ts` **已删除**，全仓无残留引用。
 
 **有意未做（记录在案）**
 
@@ -133,3 +141,7 @@
 | 6 | 管理动作 + 通知联动 | `bd1dc86` |
 | 7 | 共享 schedule 编辑器 + 全字段表单可用 | `e0465fc` |
 | 8 | `Edit` 编辑已有 job | `81b49f4` |
+| 9 | `warning` toast 变体（琥珀色） | `021a077` |
+| 10 | JobsView 改走真实 `/api/jobs/*`（删 mock 数据层）+ 5 类 WS 事件接线 | `8a26fff` |
+| 10b | 后端 `PATCH /api/jobs/{id}` 支持 `text` | `c0318c4` |
+| 11 | 表单支持派发正文编辑（双态+非空校验）+ 空 target 禁用 `Run now` | `bdbed76` |
