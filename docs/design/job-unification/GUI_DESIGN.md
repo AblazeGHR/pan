@@ -1,7 +1,7 @@
 # Job 统一 GUI 设计（GUI_DESIGN）
 
 - 用途：JobsView（P3）GUI 需求讨论纪要，由 gui-TA 与用户（后端 MA 代拍板）逐轮收敛
-- 状态：**主体完成**（2026-09-25，8 个增量已落地并合入 `integrate/pr1`）
+- 状态：**主体完成 + 对接中**（2026-09-25；8 个增量已落地并入 `integrate/pr1`；mock → 真实 `/api/jobs/*` 对接进行中）
 - 规范位置：docs/design/job-unification/GUI_DESIGN.md（2026-09-25 由 data/workdirs/ 转正进版本库）
 - 前置：PLAN_JOB_UNIFICATION.md（后端契约源）；现有面板 ScheduledTaskPanel.tsx（已被取代）
 - demo 实现：`packages/web/src/views/JobsView.tsx` + `packages/web/src/components/jobs/{mockJobs,NewJobForm,ScheduleListEditor,JobDetailDrawer}.tsx`
@@ -43,7 +43,8 @@
 - toast：成功/信息类走 `info`；`undeliverable` / target 缺失**不弹 toast**（避免噪音），改为列表行常驻红条 + 详情顶部 banner。
 - 列表行：`mailbox` 非空即显示 `N backlogged` 计数（不限于 undeliverable）。
 - 详情顶部：`undeliverable` 时 banner「target missing — switch target to deliver N backlogged note(s)」。
-- 已知缺口：`uiStore.showToast` 仅支持 `info` / `error`，无 `warning` 变体 → `partial` 类提示暂用 `info`（**是否新增 warning 变体待定**）。
+- **`warning` toast 变体（已拍板：加）**：`ToastMessage.type` 增加 `"warning"` + `Toast` 组件琥珀色系样式；`job.partial_failed` 事件 → warning toast。定性："部分失败 = 值得知道但不需处理"，info 信号不足、error 过度。
+- `undeliverable` **维持不弹 toast**（行红条 + 详情 banner 不变）——它是**持续状态不是事件**，弹了会刷屏。
 
 **话题 6 · 管理动作**
 
@@ -51,10 +52,18 @@
 - 位置：列表行 `⋯` 菜单放高频项（`Run now` / `Pause·Resume` / `Delete`）；完整动作组（含 `Change target` / `Edit`）放详情顶部。
 - 删除二次确认弹窗；**批量操作本期不做**。
 
+**话题 7 · mock → 真实 API 对接（已拍板：现在切）**
+
+- 决策：GUI 结构已稳定（6 话题全落地、8 增量全并入），**立即把 mock 换成真实 `/api/jobs/*`**；后端前置已就绪（`cd428cc` 修好 `_emit` 异步广播 bug）。
+- 计划：删 `mockJobs.ts`，改走 `packages/web/src/services/api.ts` → 真实 `/api/jobs/*`；契约源 = `packages/jobs/api.py` + `tests/test_jobs_api.py`。
+- WS：`scheduler.task.fired` / `job.partial_failed` → toast（info/warning/error 对号）；`undeliverable` 靠列表/详情刷新呈现，不依赖事件。
+- 已定事件名：`job.updated`、`job.deleted`、`job.fired`、`scheduler.task.fired`、`job.partial_failed`。
+- **待后端 MA 裁定的契约歧义**（不猜，见下）：创建端点缺失 / target 不可清空 / run-now 仅 scheduled-task / 积压字段名（`undeliveredFires` vs `mailbox`）等。
+
 **有意未做（记录在案）**
 
-- P1 实现与 PLAN §1 的 schema 漂移（`scheduled-task` 连字符、`undeliveredFires`、扁平 `targetSessionId`）**暂不对齐**——用户明确"最终对接不着急，核心是把 GUI 做出来"；demo 维持 PLAN §1 形态。
-- 后端对接、批量操作、`warning` toast 变体。
+- 批量操作。
+- ~~后端对接~~ → 已转为「话题 7」并拍板实施。
 
 ---
 
@@ -90,6 +99,12 @@
 ### 第 5 轮（2026-09-25）：管理动作
 
 - 动作集合：`run_now` / 启停（job + 逐 entry）/ 改 target（重投积压）/ 编辑 / 删除（二次确认）；行内放高频、详情放全量；批量不做。
+
+### 第 6 轮（2026-09-25）：开口项收口（后端 MA 代拍板）
+
+- **开口项 1 · `warning` toast 变体**：**采纳，加**。`ToastMessage.type` 增 `"warning"` + 琥珀色样式；`job.partial_failed` → warning toast；`undeliverable` 维持不弹（持续状态非事件）。
+- **开口项 2 · mock → 真实 API**：**现在切**，作为独立增量。前置 `cd428cc`（`_emit` 异步广播修复）已合入。
+- 同时记录：`integrate/pr1` 已含 **P2 统一 API**（`e8930b3` / `ae527e8`），后端契约文件 `packages/jobs/api.py`（310 行）+ `tests/test_jobs_api.py`（351 行）。
 
 ---
 
