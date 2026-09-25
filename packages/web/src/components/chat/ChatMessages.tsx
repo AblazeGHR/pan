@@ -171,11 +171,17 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   // content: it is independent of the virtualization window and survives a
   // re-measurement of everything above it. No layout (jsdom) yields no anchor —
   // and therefore no snapshot — which keeps this inert under unit tests.
-  const rememberScrollPosition = useCallback((el: HTMLElement) => {
-    // Use the render's session id rather than a module-level value updated by
-    // a passive effect. Route unmounts can run before that effect has painted,
-    // which otherwise loses the only round-trip snapshot.
-    const sid = currentSessionId;
+  // Bookkeeping for the single retry below. `null` means "no retry pending";
+  // holding the rAF id keeps the retry chain to exactly one frame.
+  const snapshotRetryRef = useRef<number | null>(null);
+
+  const rememberScrollPosition = useCallback((el: HTMLElement, allowRetry = true) => {
+    // The session whose rows are on screen right now — read from the ref rather
+    // than from this callback's closure. On a session switch React runs the
+    // previous render's effect cleanup *after* the DOM has been swapped, so a
+    // closure id would file the new session's rows under the session being
+    // left, overwriting its snapshot with a foreign identity/offset pair.
+    const sid = currentSessionIdRef.current;
     if (!sid) return;
     const viewport = el.getBoundingClientRect();
     const anchor = [...el.querySelectorAll<HTMLElement>('[data-message-identity]')].find((node) => {
@@ -183,7 +189,21 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       return rect.bottom > viewport.top && rect.top < viewport.bottom;
     });
     const identity = anchor?.dataset.messageIdentity;
-    if (!anchor || !identity) return;
+    if (!anchor || !identity) {
+      // The render window can lag the scroll position (a long jump lands before
+      // React has rendered the new window), leaving no anchor row to remember.
+      // Skipping the write that way loses the reader's place, so retry exactly
+      // once on the next frame. Only this failing path pays for the retry: a
+      // successful write never schedules anything, and `snapshotRetryRef` keeps
+      // the chain to a single frame even when several writes fail in a row.
+      if (allowRetry && snapshotRetryRef.current === null && el.isConnected) {
+        snapshotRetryRef.current = requestAnimationFrame(() => {
+          snapshotRetryRef.current = null;
+          if (el.isConnected) rememberScrollPosition(el, false);
+        });
+      }
+      return;
+    }
     const rect = anchor.getBoundingClientRect();
     const snap = {
       fingerprint: listFingerprint(groupedRef.current),
@@ -192,7 +212,10 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       contentOffset: rect.top - viewport.top + el.scrollTop,
     };
     scrollSnapshots.set(sid, snap);
-  }, [currentSessionId]);
+    // Stable identity: the session id is read from a ref, so the unmount
+    // cleanup that captures the final position no longer re-runs on every
+    // session switch (where it used to write a snapshot for the wrong session).
+  }, []);
 
   const scrollToMessage = useCallback((message: import('@/types').Message, historyIndex?: number): boolean => {
     const identity = getMessageIdentity(message);
@@ -481,11 +504,13 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       if (!el || !anchor) return;
 
       restorePaginationAnchor();
-      const anchorTop = anchor.element?.isConnected
-        ? anchor.element.getBoundingClientRect().top
-        : null;
+      // An anchor that is not rendered yet is *unresolved*, not stable: counting
+      // those frames lets the loop quit before the row ever appears (the row
+      // then lands wherever the entry positioning left it, hundreds of px off).
+      const resolved = Boolean(anchor.identity && anchor.element?.isConnected && anchor.measurable);
+      const anchorTop = resolved ? anchor.element!.getBoundingClientRect().top : null;
       const signature = `${el.scrollHeight}:${el.scrollTop}:${anchorTop}`;
-      stableFrames = signature === previousSignature ? stableFrames + 1 : 0;
+      stableFrames = resolved && signature === previousSignature ? stableFrames + 1 : 0;
       previousSignature = signature;
       frameCount += 1;
 
@@ -498,13 +523,20 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       // response, while React may render the intermediate state first.
       const routeRestore = Boolean(restoreRef.current);
       const quietLimit = routeRestore ? 12 : 2;
-      if (!historyLoadingRef.current && stableFrames >= quietLimit) {
+      if (resolved && !historyLoadingRef.current && stableFrames >= quietLimit) {
         paginationAnchorRef.current = null;
         if (routeRestore) restoreRef.current = null;
         return;
       }
-      if (!routeRestore && frameCount >= 30) {
+      if (resolved && !routeRestore && frameCount >= 30) {
         paginationAnchorRef.current = null;
+        return;
+      }
+      // Safety ceiling: never spin forever waiting for an anchor that may never
+      // render (a removed message, or a window that keeps evicting it).
+      if (frameCount >= 90) {
+        paginationAnchorRef.current = null;
+        if (routeRestore) restoreRef.current = null;
         return;
       }
       paginationRestoreRafRef.current = requestAnimationFrame(tick);
@@ -568,15 +600,15 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       (node) => node.dataset.messageIdentity === memory.identity,
     ) ?? null;
     if (!anchorRow) {
-      // The virtualizer has not rendered that window yet. If history changed
-      // while away, the old content offset is no longer meaningful; use the
-      // stable message identity to bring the row into the render window.
-      const anchorIndex = fingerprintMatches
-        ? -1
-        : grouped.findIndex((item) => {
-            if ('type' in item && item.type === 'tool_group') return false;
-            return getMessageIdentity(item as import('@/types').Message) === memory.identity;
-          });
+      // The virtualizer has not rendered that window yet. Resolve the row by its
+      // message identity first: an identity is authoritative and survives a
+      // history that changed while away, and the correction loop can pin the row
+      // to its remembered offset. Only when the message is gone is the remembered
+      // content offset the best (approximate) hint available.
+      const anchorIndex = grouped.findIndex((item) => {
+        if ('type' in item && item.type === 'tool_group') return false;
+        return getMessageIdentity(item as import('@/types').Message) === memory.identity;
+      });
       if (anchorIndex >= 0) {
         virtualizer.scrollToIndex(anchorIndex, { align: 'center', behavior: 'auto' });
         paginationAnchorRef.current = {
@@ -589,6 +621,13 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
         };
         schedulePaginationRestore();
       } else {
+        // The anchor message is no longer in the list (an edit replaces the
+        // Message object, and with it the identity), so the remembered content
+        // offset is the only hint left. Take the approximate jump: a rough
+        // position is strictly better than not moving at all, because staying at
+        // the top of the history loses the reader's place entirely. A stale
+        // offset can only be off by the content delta, and the identity path
+        // above already covers every case where the row still exists.
         el.scrollTop = Math.max(0, memory.contentOffset - memory.anchorOffset);
       }
       return;
@@ -599,7 +638,7 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     // Keep correcting the same identity while an off-screen history jump is
     // still loading pages. Clearing this after the first stable frame would
     // allow the next prepend to move the reader before the next render.
-    const keepRouteRestore = hasMoreMessages || historyLoading || memory.fingerprint !== listFingerprint(grouped);
+    const keepRouteRestore = hasMoreMessages || historyLoading || !fingerprintMatches;
     if (!keepRouteRestore) restoreRef.current = null;
     paginationAnchorRef.current = {
       top: desiredTop,

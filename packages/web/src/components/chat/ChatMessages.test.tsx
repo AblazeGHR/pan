@@ -25,7 +25,9 @@ const m = vi.hoisted(() => {
     } | null;
     /** Simulated measured row heights, in item order. */
     sizes: number[];
-  } = { totalSize: 0, virtualItems: [], options: null, sizes: [] };
+    /** Every scrollToIndex the component asked the virtualizer for. */
+    scrollToIndexCalls: Array<{ index: number; align?: string }>;
+  } = { totalSize: 0, virtualItems: [], options: null, sizes: [], scrollToIndexCalls: [] };
   return {
     state,
     setTotalSize: (n: number) => {
@@ -55,6 +57,9 @@ vi.mock('@tanstack/react-virtual', () => ({
           key: options.getItemKey?.(item.index) ?? item.index,
         })),
       measureElement: () => {},
+      scrollToIndex: (index: number, options?: { align?: string }) => {
+        m.state.scrollToIndexCalls.push({ index, align: options?.align });
+      },
       measurementsCache: m.state.sizes.map((size, index) => ({
         key: options.getItemKey?.(index) ?? index,
         size,
@@ -1375,6 +1380,243 @@ describe('measured row height attribution across a same-tick switch + unmount', 
       expect([0, 1, 2, 3, 4, 5].map((index) => aEstimate!(index))).toEqual(sizes);
     } finally {
       restoreGeometry();
+    }
+  });
+});
+
+// ── Route-return restore when the anchor row is not in the render window ──
+// The virtualizer only renders a window, so on a remount the remembered anchor
+// row is often absent. The restore must resolve it by message identity (the
+// authoritative key) and let the correction loop pin it, instead of jumping to
+// a remembered content offset that may have been measured against other heights.
+describe('route-return restore falls back to the anchor identity', () => {
+  const TALL = 2000;
+  const mountTall = (sessionId: string, messages: ReturnType<typeof msgs>) => {
+    useSessionStore.setState({ currentSessionId: sessionId, currentMessages: messages });
+    m.setTotalSize(TALL);
+    m.setVirtualItems(rowWindow([0, 1, 2, 3, 4, 5]));
+  };
+
+  beforeEach(() => {
+    m.state.scrollToIndexCalls = [];
+    useSessionStore.setState({ hasMoreMessages: false, historyLoading: false, historyLoadEnd: 0 });
+  });
+
+  it('resolves the anchor by identity (not by content offset) when the row is outside the window', async () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      const messages = msgs(6);
+      mountTall('anchor-id', messages);
+      const first = render(<ChatMessages />);
+      const scrollEl = first.container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200); // snapshot anchored on the row at the viewport top
+      first.unmount();
+
+      // Come back with a window that excludes the anchor row entirely.
+      m.setTotalSize(TALL);
+      m.setVirtualItems(rowWindow([0, 1]));
+      m.state.scrollToIndexCalls = [];
+      const second = render(<ChatMessages />);
+      const backEl = second.container.querySelector('.overflow-auto') as HTMLElement;
+
+      // The remembered content offset would have put scrollTop back at 200; the
+      // identity path instead asks the virtualizer for that row's index.
+      expect(m.state.scrollToIndexCalls.map((call) => call.index)).toContain(2);
+      expect(backEl.scrollTop).toBe(0);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it('keeps the content-offset fallback while the content still measures the same', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      // Same length and same first/last keys (so the fingerprint matches) but a
+      // different middle row: the remembered identity is gone from the list.
+      const original = msgs(6, 'MID');
+      mountTall('anchor-mid', original);
+      const first = render(<ChatMessages />);
+      const scrollEl = first.container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200);
+      first.unmount();
+
+      const swapped = [...original];
+      swapped[2] = { role: 'assistant', content: 'MID-swapped-2' };
+      useSessionStore.setState({ currentSessionId: 'anchor-mid', currentMessages: swapped });
+      m.setTotalSize(TALL); // same height → the coordinates are still valid
+      m.setVirtualItems(rowWindow([0, 1]));
+      m.state.scrollToIndexCalls = [];
+      const second = render(<ChatMessages />);
+      const backEl = second.container.querySelector('.overflow-auto') as HTMLElement;
+
+      expect(backEl.scrollTop).toBe(200);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it('falls back to the remembered content offset when the anchor message is gone', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      const original = msgs(6, 'MID');
+      mountTall('anchor-stale', original);
+      const first = render(<ChatMessages />);
+      const scrollEl = first.container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200);
+      first.unmount();
+
+      const swapped = [...original];
+      swapped[2] = { role: 'assistant', content: 'MID-swapped-2' };
+      useSessionStore.setState({ currentSessionId: 'anchor-stale', currentMessages: swapped });
+      // The anchor message is gone (its identity changed with the edit), so the
+      // content offset is the only hint — and it must still be used, even after
+      // the rows above re-measured: an approximate position beats staying at the
+      // top of the history, which would lose the reader's place entirely.
+      m.setTotalSize(900);
+      m.setVirtualItems(rowWindow([0, 1]));
+      m.state.scrollToIndexCalls = [];
+      const second = render(<ChatMessages />);
+      const backEl = second.container.querySelector('.overflow-auto') as HTMLElement;
+
+      expect(backEl.scrollTop).toBe(200);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it('keeps the correction loop alive while the anchor row stays unrendered', () => {
+    vi.useFakeTimers();
+    const restoreGeometry = installRowGeometry();
+    try {
+      const messages = msgs(6);
+      mountTall('anchor-loop', messages);
+      const first = render(<ChatMessages />);
+      const scrollEl = first.container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200);
+      first.unmount();
+
+      m.setTotalSize(TALL);
+      m.setVirtualItems(rowWindow([0, 1]));
+      m.state.scrollToIndexCalls = [];
+      const second = render(<ChatMessages />);
+      const backEl = second.container.querySelector('.overflow-auto') as HTMLElement;
+      expect(backEl).toBeDefined();
+      const afterMount = m.state.scrollToIndexCalls.length;
+
+      // An unrendered anchor is unresolved, not stable: the loop must keep
+      // re-centering instead of quitting after the quiet-frame window.
+      vi.advanceTimersByTime(400);
+      expect(m.state.scrollToIndexCalls.length).toBeGreaterThan(afterMount + 12);
+      // …but it never spins forever.
+      vi.advanceTimersByTime(3000);
+      expect(m.state.scrollToIndexCalls.length).toBeLessThan(100);
+    } finally {
+      restoreGeometry();
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ── Snapshot ownership across a session switch ──
+// Locks the *intended* behaviour: after switching away and back, session A's own
+// snapshot still restores the reader's row. NOTE: this does not discriminate the
+// cleanup-sid bug on its own — with the buggy closure id the polluted snapshot's
+// content offset happens to equal the correct scrollTop in this fixture (both
+// sides give 200), so it passes either way. The bug was confirmed in a real
+// browser instead, by instrumenting the snapshot writer: the buggy build emitted
+// one entry carrying the *other* session's identity under this
+// session's id, and the fixed build emitted none (that check used a temporary
+// debug hook that the target branch has since deleted).
+describe('scroll snapshot ownership across a session switch', () => {
+  it("restores session A's own remembered row after switching away and back", () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      const aMessages = msgs(6, 'OWN-A');
+      const bMessages = msgs(3, 'OWN-B');
+      const tallRows = rowWindow([0, 1, 2, 3, 4, 5]);
+      useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true });
+
+      useSessionStore.setState({ currentSessionId: 'own-a', currentMessages: aMessages });
+      m.setTotalSize(2000);
+      m.setVirtualItems(tallRows);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200); // session A's snapshot anchors its top row
+      expect(scrollEl.scrollTop).toBe(200);
+
+      // Leave A for B *while mounted*: the A→B cleanup is where the old code
+      // wrote A's snapshot from B's DOM.
+      act(() => {
+        m.setTotalSize(300);
+        m.setVirtualItems(rowWindow([0, 1, 2]));
+        useSessionStore.setState({ currentSessionId: 'own-b', currentMessages: bMessages });
+      });
+
+      // Back to A: only A's own snapshot can put the reader back at 200.
+      act(() => {
+        m.setTotalSize(2000);
+        m.setVirtualItems(tallRows);
+        useSessionStore.setState({ currentSessionId: 'own-a', currentMessages: aMessages });
+      });
+      expect(scrollEl.scrollTop).toBe(200);
+    } finally {
+      restoreGeometry();
+    }
+  });
+});
+
+// ── Snapshot write retry ──
+// A snapshot write can find no anchor row on screen (a long jump lands before
+// React has rendered the new window). Skipping the write that way would lose the
+// reader's place entirely, so it retries exactly once on the next frame — and
+// only that failing path pays for the extra frame.
+//
+// Observed purely through the product: whatever the retry writes is what a later
+// mount restores. No debug hook is involved.
+describe('scroll snapshot write retry', () => {
+  it('retries once on the next frame when no anchor row is on screen', () => {
+    vi.useFakeTimers();
+    const restoreGeometry = installRowGeometry();
+    const tuiBefore = useUIStore.getState().tuiViewEnabled;
+    try {
+      const messages = msgs(6);
+      useSessionStore.setState({
+        currentSessionId: 'retry-a',
+        currentMessages: messages,
+        hasMoreMessages: false,
+        historyLoading: false,
+      });
+      m.setTotalSize(2000);
+      m.setVirtualItems([]); // nothing rendered → no row can anchor the snapshot
+      const view = render(<ChatMessages />);
+      const scrollEl = view.container.querySelector('.overflow-auto') as HTMLElement;
+
+      // The write runs here, finds no anchor row, and queues exactly one retry.
+      userScroll(scrollEl, 100);
+
+      // The render window catches up before the retry frame fires.
+      act(() => {
+        m.setVirtualItems(rowWindow([0, 1, 2, 3, 4, 5]));
+        useUIStore.setState({ tuiViewEnabled: !tuiBefore }); // force a real commit
+      });
+      act(() => {
+        vi.advanceTimersByTime(32); // the rAF stub is setTimeout(0)
+      });
+
+      // Coming back must land on the row the retry managed to remember: with this
+      // geometry row 1 sat at the container top (scrollTop 100) when it wrote.
+      view.unmount();
+      m.setTotalSize(2000);
+      m.setVirtualItems(rowWindow([0, 1, 2, 3, 4, 5]));
+      const second = render(<ChatMessages />);
+      const backEl = second.container.querySelector('.overflow-auto') as HTMLElement;
+      expect(backEl.scrollTop).toBe(100);
+    } finally {
+      act(() => {
+        useUIStore.setState({ tuiViewEnabled: tuiBefore });
+      });
+      restoreGeometry();
+      vi.useRealTimers();
     }
   });
 });
