@@ -37,6 +37,7 @@
 - schedule 编辑器抽为共享组件（`ScheduleListEditor`），两模板共用，复用 `cronPreview`（不复制 cron 解析逻辑），支持多条增删 + 逐条 enabled + 简单/高级模式 + misfirePolicy + next-fire 预览。
 - `name` 留空 → 自动生成 `job-N`；`description` 可空。
 - **编辑已有 job**：从详情 `Edit` 打开全字段表单（预填），**`kind` 只读**、**`name` 必填**；保存保持 `jobId`/`createdAt`，更新 `updatedAt`。
+- **创建/编辑契约（见话题 7·A/B）**：本期创建仅 `scheduled-task`；创建时 `target` 必填且 session 须存在；编辑/改 target 可清空为「无 target」（→ `undeliverable` 积压）。
 
 **话题 5 · 通知与提醒**
 
@@ -51,6 +52,7 @@
 - 动作集合：`run_now` / 启停（job 级 `paused` + 逐 schedule entry `enabled`）/ 改 `target`（归属切换，切换后积压便条重投）/ 编辑 / 删除（二次确认）。
 - 位置：列表行 `⋯` 菜单放高频项（`Run now` / `Pause·Resume` / `Delete`）；完整动作组（含 `Change target` / `Edit`）放详情顶部。
 - 删除二次确认弹窗；**批量操作本期不做**。
+- **run_now 范围（见话题 7·C）**：仅 `scheduled-task` 显示 `Run now`；其余 kind 隐藏或禁用 + tooltip。
 
 **话题 7 · mock → 真实 API 对接（已拍板：现在切）**
 
@@ -59,6 +61,16 @@
 - WS：`scheduler.task.fired` / `job.partial_failed` → toast（info/warning/error 对号）；`undeliverable` 靠列表/详情刷新呈现，不依赖事件。
 - 已定事件名：`job.updated`、`job.deleted`、`job.fired`、`scheduler.task.fired`、`job.partial_failed`。
 - **待后端 MA 裁定的契约歧义**（不猜，见下）：创建端点缺失 / target 不可清空 / run-now 仅 scheduled-task / 积压字段名（`undeliveredFires` vs `mailbox`）等。
+
+**话题 7 · 契约裁定（2026-09-25，后端 MA 拍板；后端已实现 `1f6f94b`，`integrate/pr1` head `81f13fd`）**
+
+- **A 创建端点**：`POST /api/jobs` 已补，本期**仅 `kind=scheduled-task`**；其余 kind 返回 `invalid_argument` 并指回专有端点（`/api/background-jobs`、`/api/session-message-jobs`）。schedule 支持 **spec 列表**（多 entry，每项可覆盖 `misfirePolicy`/`enabled`）或单 spec（兼容）。→ GUI 模板①「定时任务」与②「自定义」**都创建 `scheduled-task`**（②的真实含义 = 全字段的定时任务）；其余 kind 创建入口**本期隐藏**。
+- **B target 清空**：**创建**时 `target` 必填且 session 必须存在（服务端 `session_not_found`）；**PATCH 允许显式清空**（`target: null` 或 `{sessionId: null}`）→ 进入 `undeliverable` 积压态（PLAN §10：后续触发直接积压不派发，切换/恢复后自动重投）。
+- **C run-now**：**仅 `scheduled-task`**；其余 kind 服务端返回 `invalid_argument`。GUI 其余 kind 隐藏或禁用 + tooltip；message 类 run-now 本期不做。
+- **D 积压字段**：GUI 改读真实视图 **`undeliveredFires`**（`{entryId, fireAt, dispatchKey, text, error}`，上限 20）+ **`lastStatus === 'undeliverable'`**。PLAN §1 的 `mailbox` 属**文档漂移**，后端已改文档对齐实现。
+- **E WS 订阅（5 类）**：`scheduler.task.fired` → 触发 toast（统一内核原生事件名，兼容层不再另发）；`job.partial_failed` → warning toast；`job.updated` → 行刷新/upsert；`job.created` → 行插入；`job.deleted` → 行移除。`undeliverable` 无独立事件，靠 `job.updated` + 列表刷新呈现。（`job.fired` 已删除——run-now 曾双发，修后**一次触发至多一个 fire 事件**。）
+- **F 列表筛选/排序**：**客户端做**（拉全量；服务端 `kind`/`status`/`includeCompleted` 参数不用）。
+- **G kind 展示**：kind 徽标改用后端 `/api/jobs/kinds` 的中文 label（后台进程 / 定时消息 / 群发消息 / 定时任务 / 服务生命周期）。
 
 **有意未做（记录在案）**
 
