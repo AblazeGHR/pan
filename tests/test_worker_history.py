@@ -109,7 +109,7 @@ def _setup_session(history: list[dict] = None, cli_session_id: str = "cbc-123"):
 
 
 def _no_ts(entries):
-    """剥掉落盘入口打的 ts 字段，便于断言消息本体。"""
+    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
     return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
 
 

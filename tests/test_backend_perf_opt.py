@@ -29,6 +29,11 @@ def _make_event(event_type: str, **fields) -> bytes:
     return (json.dumps({"type": event_type, **fields}) + "\n").encode("utf-8")
 
 
+def _no_ts(entries):
+    """剥掉 append_history 打的 ts 字段，便于断言消息本体。"""
+    return [{k: v for k, v in e.items() if k != "ts"} for e in entries]
+
+
 def _assistant_event(text: str = None) -> bytes:
     content = []
     if text:
@@ -169,7 +174,7 @@ def test_result_flushes_debounced_blocks_through_read_stdout(monkeypatch):
 
     asyncio.run(worker._read_stdout(w))
 
-    assert s.history == [{"role": "assistant", "content": "hi"}], s.history
+    assert _no_ts(s.history) == [{"role": "assistant", "content": "hi"}], s.history
     assert s.last_result["status"] == "done"
     assert saved == [1], f"expected exactly 1 save (result flush), got {saved}"
     _cleanup()

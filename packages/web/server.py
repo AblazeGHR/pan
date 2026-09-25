@@ -1323,7 +1323,8 @@ def _stamp_ws_event_ts(data: dict):
 
     只在最终消息上打一次点：queue.item_delivered 的 user 消息（此时历史已
     落盘），以及 worker.stream 的完整 assistant 事件（非 delta chunk）。
-    流式增量（delta）不带 ts，历史条目自身的 ts 由 session 落盘入口打点。
+    流式增量（delta）不带 ts；历史条目自身的 ts 由 history 追加边界打点
+    （packages/core/session.py ``append_history``），导入/替换进来的行不打。
     """
     etype = data.get("type")
     now: str | None = None

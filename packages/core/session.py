@@ -460,9 +460,18 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
 
 
 def append_history(s: "Session", message: dict) -> None:
-    """Append one history row and advance the summary projection."""
+    """Append one history row and advance the summary projection.
+
+    新追加的条目在此处打本地 ISO-8601 ts（setdefault：已有 ts 的行不被改写）。
+    打点刻意放在追加边界而不是落盘边界：整体替换 / 导入 / branch 复制进来的
+    provider 行（它们没有真实时间，只有 role/content）不带 ts，前端对缺失 ts
+    不显示时间——「时间不确定就不显示」。若放在保存时打点，这些行会被伪造成
+    当前的落盘/导入时刻（旧实现的行为）。
+    """
     with s._summary_lock:
         ensure_summary_projection(s)
+        if isinstance(message, dict):
+            message.setdefault("ts", datetime.now().isoformat())
         s.history.append(message)
         s.history_revision = max(0, int(getattr(s, "history_revision", 0) or 0)) + 1
         _apply_summary_message(s.summary_projection, message)
@@ -1844,14 +1853,6 @@ def _save_body(s: Session, force_full: bool = False):
     if not isinstance(start, int) or start < 0:
         start = 0
     end = len(s.history)
-    # 新落盘条目补本地时间戳 ts（ISO-8601，写入时刻打点）。游标之前的条目
-    # 是已落盘的旧数据（无 ts），保持缺失——前端对缺失 ts 不显示时间。
-    new_entries = s.history[start:end]
-    if new_entries:
-        now = datetime.now().isoformat()
-        for entry in new_entries:
-            if isinstance(entry, dict) and not entry.get("ts"):
-                entry["ts"] = now
     # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
     # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
     if not shallow_existing_history:
