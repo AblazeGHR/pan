@@ -34,6 +34,8 @@ describe('appSettingsStore', () => {
     expect(s.showQQ).toBe(true);
     expect(s.showCodexTerminalInput).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(false);
+    expect(s.keepScrollOnSessionSwitch).toBe(false);
+    expect(s.showMessageNavigationRail).toBe(false);
     expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
   });
 
@@ -44,6 +46,8 @@ describe('appSettingsStore', () => {
       showTaskAgent: true,
       showQQ: false,
       mergeConsecutiveNonBodyBlocks: true,
+      keepScrollOnSessionSwitch: true,
+      showMessageNavigationRail: true,
     });
 
     await useAppSettingsStore.getState().loadSettings();
@@ -55,6 +59,8 @@ describe('appSettingsStore', () => {
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(true);
+    expect(s.keepScrollOnSessionSwitch).toBe(true);
+    expect(s.showMessageNavigationRail).toBe(true);
   });
 
   it('validates server values on load, falling back to defaults', async () => {
@@ -107,6 +113,15 @@ describe('appSettingsStore', () => {
     expect(mockedUpdate).toHaveBeenNthCalledWith(6, { showCodexTerminalInput: true });
     expect(mockedUpdate).toHaveBeenNthCalledWith(7, { mergeConsecutiveNonBodyBlocks: true });
     expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
+
+    // The per-session scroll-memory switch writes through the same ui object.
+    useAppSettingsStore.getState().setKeepScrollOnSessionSwitch(true);
+    expect(useAppSettingsStore.getState().keepScrollOnSessionSwitch).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ keepScrollOnSessionSwitch: true });
+
+    useAppSettingsStore.getState().setShowMessageNavigationRail(true);
+    expect(useAppSettingsStore.getState().showMessageNavigationRail).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showMessageNavigationRail: true });
   });
 
   it('persists the cross-workspace management confirmation switch and defaults old settings to enabled', () => {
@@ -131,6 +146,8 @@ describe('appSettingsStore', () => {
     expect(s.showQQ).toBe(DEFAULT_SETTINGS.showQQ);
     expect(s.showCodexTerminalInput).toBe(DEFAULT_SETTINGS.showCodexTerminalInput);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(DEFAULT_SETTINGS.mergeConsecutiveNonBodyBlocks);
+    expect(s.keepScrollOnSessionSwitch).toBe(DEFAULT_SETTINGS.keepScrollOnSessionSwitch);
+    expect(s.showMessageNavigationRail).toBe(DEFAULT_SETTINGS.showMessageNavigationRail);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS });
   });
 
@@ -175,5 +192,17 @@ describe('appSettingsStore', () => {
       .toBe(false);
     expect(sanitizeSettings({ mergeConsecutiveNonBodyBlocks: true }).mergeConsecutiveNonBodyBlocks)
       .toBe(true);
+    // Missing / malformed scroll-memory values fall back to "off" (jump to newest).
+    expect(sanitizeSettings({ keepScrollOnSessionSwitch: 'yes' }).keepScrollOnSessionSwitch)
+      .toBe(false);
+    expect(sanitizeSettings({ keepScrollOnSessionSwitch: true }).keepScrollOnSessionSwitch)
+      .toBe(true);
+    expect(sanitizeSettings({}).keepScrollOnSessionSwitch).toBe(false);
+    // Missing / malformed rail visibility falls back to the (off) default.
+    expect(sanitizeSettings({ showMessageNavigationRail: 'no' }).showMessageNavigationRail)
+      .toBe(false);
+    expect(sanitizeSettings({ showMessageNavigationRail: true }).showMessageNavigationRail)
+      .toBe(true);
+    expect(sanitizeSettings({}).showMessageNavigationRail).toBe(false);
   });
 });

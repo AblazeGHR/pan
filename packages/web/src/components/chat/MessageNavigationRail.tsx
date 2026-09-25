@@ -65,6 +65,11 @@ export function MessageNavigationRail({ chatRef }: MessageNavigationRailProps) {
     setHovered(null);
     setJumpError(null);
     setActiveFromEnd(null);
+    // The jump lock is single-flight per session: a jump that started in the
+    // previous session must not keep every marker disabled here. `jumpTo`'s
+    // finally deliberately does not touch state after a session switch, so
+    // this reset is the only thing that releases the lock.
+    setJumpingFromEnd(null);
     setFullIndex([]);
     setIndexTotal(0);
     setIndexMetrics({ requests: 0, durationMs: 0 });

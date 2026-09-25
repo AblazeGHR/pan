@@ -15,6 +15,19 @@ export interface AppSettings {
   showCodexTerminalInput: boolean;
   /** Combine adjacent tool and thinking display blocks under one disclosure. */
   mergeConsecutiveNonBodyBlocks: boolean;
+  /**
+   * Remember where the reader was when switching back to a Session inside the
+   * Chat view. Off by default: selecting a Session always shows its newest
+   * message. Leaving and re-entering the Chat route (Editor / Manage / any
+   * route) always restores the position, independently of this switch.
+   */
+  keepScrollOnSessionSwitch: boolean;
+  /**
+   * Mount the quick-location strip on the chat's right edge. Off by default.
+   * Leaving it unmounted also skips its full-history index pass, so sessions
+   * open without that cost (one request per 200 messages of the session).
+   */
+  showMessageNavigationRail: boolean;
   /** Notification preferences for CLI adapter warnings. */
   notifications: {
     /** Show structured Codex warning events through a Toast. */
@@ -30,6 +43,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showQQ: true,
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
+  keepScrollOnSessionSwitch: false,
+  showMessageNavigationRail: false,
   notifications: {
     codexWarningToast: true,
     confirmCrossWorkspaceManagement: true,
@@ -75,6 +90,14 @@ export function sanitizeSettings(
       typeof parsed.mergeConsecutiveNonBodyBlocks === 'boolean'
         ? parsed.mergeConsecutiveNonBodyBlocks
         : DEFAULT_SETTINGS.mergeConsecutiveNonBodyBlocks,
+    keepScrollOnSessionSwitch:
+      typeof parsed.keepScrollOnSessionSwitch === 'boolean'
+        ? parsed.keepScrollOnSessionSwitch
+        : DEFAULT_SETTINGS.keepScrollOnSessionSwitch,
+    showMessageNavigationRail:
+      typeof parsed.showMessageNavigationRail === 'boolean'
+        ? parsed.showMessageNavigationRail
+        : DEFAULT_SETTINGS.showMessageNavigationRail,
     notifications: {
       codexWarningToast:
         typeof notifications.codexWarningToast === 'boolean'
@@ -97,6 +120,8 @@ interface AppSettingsStore extends AppSettings {
   setShowQQ: (v: boolean) => void;
   setShowCodexTerminalInput: (v: boolean) => void;
   setMergeConsecutiveNonBodyBlocks: (v: boolean) => void;
+  setKeepScrollOnSessionSwitch: (v: boolean) => void;
+  setShowMessageNavigationRail: (v: boolean) => void;
   setCodexWarningToast: (v: boolean) => void;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -167,6 +192,16 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
     setMergeConsecutiveNonBodyBlocks: (v) => {
       set({ mergeConsecutiveNonBodyBlocks: v });
       persist({ mergeConsecutiveNonBodyBlocks: v });
+    },
+
+    setKeepScrollOnSessionSwitch: (v) => {
+      set({ keepScrollOnSessionSwitch: v });
+      persist({ keepScrollOnSessionSwitch: v });
+    },
+
+    setShowMessageNavigationRail: (v) => {
+      set({ showMessageNavigationRail: v });
+      persist({ showMessageNavigationRail: v });
     },
 
     setCodexWarningToast: (v) => {

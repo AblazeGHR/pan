@@ -302,8 +302,10 @@ export const useUIStore = create<UIStore>((set, get) => ({
   userInputRequests: [],
   elicitationRequests: [],
   terminalInteractions: [],
-  // The old names were reversed: this flag now describes the retained TUI
-  // branch. The Bubble branch remains available for a future re-enable.
+  // Two independent chat presentations. `true` = TUI rows (default): full-width
+  // rows with 3px role color bars and the user ">" prompt. `false` = Bubble
+  // view: shrink-to-fit bubbles with row-level left/right alignment, applied by
+  // the `.bubble-mode` class scoped styles in index.css.
   tuiViewEnabled: true,
   sidebarWidth: loadSidebarWidth(),
   sidebarCollapsed: loadSidebarCollapsed(),

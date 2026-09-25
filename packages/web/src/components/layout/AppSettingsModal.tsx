@@ -283,6 +283,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showQQ,
     showCodexTerminalInput,
     mergeConsecutiveNonBodyBlocks,
+    keepScrollOnSessionSwitch,
+    showMessageNavigationRail,
     notifications,
     setDefaultGroupBy,
     setShowMetaAgent,
@@ -290,6 +292,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setShowQQ,
     setShowCodexTerminalInput,
     setMergeConsecutiveNonBodyBlocks,
+    setKeepScrollOnSessionSwitch,
+    setShowMessageNavigationRail,
     setCodexWarningToast,
     setConfirmCrossWorkspaceManagement,
     resetSettings,
@@ -950,6 +954,42 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     onChange={setMergeConsecutiveNonBodyBlocks}
                   />
                 </div>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Scroll position
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Keep reading position per session"
+                    hint="Restore where you were reading when you switch back to a session."
+                    checked={keepScrollOnSessionSwitch}
+                    onChange={setKeepScrollOnSessionSwitch}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Off by default: selecting a session shows its newest message. Leaving and
+                  re-entering the Chat view (Editor / Manage / any route) always restores your
+                  position either way.
+                </p>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Quick location
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Show message navigation rail"
+                    hint="The narrow quick-location strip on the chat's right edge."
+                    checked={showMessageNavigationRail}
+                    onChange={setShowMessageNavigationRail}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Off by default. Turning this on adds the strip, including a background scan of the
+                  session history (one request per 200 messages), so enabling it costs more on long
+                  sessions.
+                </p>
               </section>
             </>
           ) : (

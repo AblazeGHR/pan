@@ -348,52 +348,93 @@ body {
   }
 }
 
-/* ── Deprecated Bubble view (formerly named TUI) ── */
+/* ── Bubble view (opt-in: `tuiViewEnabled === false`) ──
+   Shrink-to-fit bubbles with row-level left/right alignment. The TUI view is
+   the default and keeps the full-width role-bar rows below; every rule in this
+   block must stay scoped to `.bubble-mode` so the two views cannot bleed into
+   each other. */
 
 .bubble-mode {
   padding: 12px 0 !important;
 }
 
+/* Base row overrides for the legacy full-width rows (thinking / tool / system).
+   User and assistant rows opt into bubbles further down, so this block must not
+   force `width: 100%` on them. */
 .bubble-mode .msg {
   border-radius: 0;
-  max-width: 100% !important;
-  width: 100%;
   padding: 2px 16px;
   margin: 0;
 }
 
-/* Bubble user: green left bar + ">" prefix */
-.bubble-mode .msg.user {
-  background: transparent !important;
-  border: none !important;
-  border-left: 3px solid var(--color-success);
-  border-top: 1px solid var(--color-success);
-  border-bottom: 1px solid var(--color-success);
-  padding: 4px 16px 4px 24px;
-  max-width: none !important;
-  margin: 6px 0;
-  position: relative;
+/* Row-level alignment belongs to the Bubble view only. In the TUI view the
+   same `.message-row-*` classes exist but must stay full-width left-aligned. */
+.bubble-mode .message-row-user {
+  align-items: flex-end;
 }
 
-.bubble-mode .msg.user::before {
-  content: '>';
-  position: absolute;
-  left: 6px;
-  top: 7px;
-  color: var(--color-success);
-  font-family: var(--font-mono);
-  font-size: .85rem;
-  line-height: 1;
+.bubble-mode .message-row-assistant {
+  align-items: flex-start;
 }
 
-/* Bubble assistant: white left bar */
+.bubble-mode .msg.user,
 .bubble-mode .msg.assistant {
-  background: transparent !important;
-  border: none !important;
-  border-left: 3px solid var(--color-text-tertiary);
-  padding: 2px 16px 2px 24px;
-  max-width: 100% !important;
-  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid;
+  border-radius: 1rem;
+  overflow-wrap: anywhere;
+}
+
+/* No ">" prompt inside a bubble: the TUI `::before` is base-scoped, so it must
+   be cancelled explicitly here. */
+.bubble-mode .msg.user::before {
+  content: none;
+}
+
+.bubble-mode .msg.user {
+  max-width: 75%;
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-secondary));
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border-default));
+  border-bottom-right-radius: 0.3rem;
+}
+
+.bubble-mode .msg.assistant {
+  max-width: 85%;
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-border-default);
+  border-bottom-left-radius: 0.3rem;
+}
+
+/* Keep markdown blocks inside the bubble's shrink-to-fit width. Code blocks
+   and tables retain their own horizontal scrolling instead of widening the
+   virtualized row. */
+.bubble-mode .msg.user .prose-kimi,
+.bubble-mode .msg.assistant .prose-kimi {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.bubble-mode .msg.user .prose-kimi pre,
+.bubble-mode .msg.assistant .prose-kimi pre,
+.bubble-mode .msg.user .prose-kimi table,
+.bubble-mode .msg.assistant .prose-kimi table {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .bubble-mode .message-row-user .msg.user {
+    max-width: 94%;
+  }
+
+  .bubble-mode .message-row-assistant .msg.assistant {
+    max-width: 96%;
+  }
 }
 
 /* Bubble thinking: collapsible with purple border */
@@ -455,7 +496,7 @@ body {
   content: '--- ';
 }
 
-/* Deprecated Bubble keeps its former centered done-message treatment. */
+/* Bubble keeps its former centered done-message treatment. */
 .bubble-mode .system-message {
   justify-content: center;
 }
@@ -464,6 +505,10 @@ body {
   align-self: center;
   text-align: center;
   padding: 4px 8px;
+  /* The shared `.bubble-mode .msg` block no longer forces a full width, so the
+     centered system row keeps it explicitly. */
+  width: 100%;
+  max-width: 100%;
 }
 
 .bubble-mode .msg.system::before {
@@ -488,24 +533,17 @@ body {
    role-colored bar on its left edge (user green, assistant gray, thinking
    purple, tool orange). */
 
-/* Role-based chat bubbles (retained TUI-style view) */
-
+/* The row wrapper is shared by both views: it stacks the role row and keeps a
+   shrinkable width. Left/right alignment is Bubble-only
+   (`.bubble-mode .message-row-*`), so the TUI view stays full-width. */
 .message-row {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.message-row-user {
-  align-items: flex-end;
-}
-
-.message-row-assistant {
-  align-items: flex-start;
-}
-
 /* Task-agent completion reports are visually identifiable in the message body
-   without changing ordinary assistant/user bubble geometry. */
+   in both views, without changing ordinary row geometry. */
 .worker-report-label {
   align-self: flex-start;
   margin: 0 0 3px 2px;
@@ -520,63 +558,44 @@ body {
   letter-spacing: .01em;
 }
 
-.msg.user,
+/* TUI user/assistant rows: full width, 3px role bar (user green, assistant
+   gray). Restored verbatim from before the Bubble restyle so the default view
+   keeps its original geometry. */
 .msg.assistant {
-  box-sizing: border-box;
-  min-width: 0;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0;
-  padding: 0.65rem 0.9rem;
-  border: 1px solid;
-  border-radius: 1rem;
-  overflow-wrap: anywhere;
+  border-left: 3px solid var(--color-text-secondary);
+  padding-left: 10px;
 }
 
+/* User green box: green left bar + full-width separator lines + ">" */
 .msg.user {
-  max-width: 75%;
-  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-bg-secondary));
-  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border-default));
-  border-bottom-right-radius: 0.3rem;
+  border-left: 3px solid var(--color-success);
+  border-top: 1px solid var(--color-success);
+  border-bottom: 1px solid var(--color-success);
+  padding: 8px 16px 8px 28px;
+  width: 100%;
+  margin: 6px 0;
+  position: relative;
 }
 
-.msg.assistant {
-  max-width: 85%;
-  background: var(--color-bg-tertiary);
-  border-color: var(--color-border-default);
-  border-bottom-left-radius: 0.3rem;
+.msg.user::before {
+  content: '>';
+  position: absolute;
+  left: 4px;
+  top: 7px;
+  color: var(--color-success);
+  font-weight: bold;
+  font-size: 0.85rem;
+  line-height: 1;
 }
+
+/* Worker reports carry a 3px green left edge in BOTH views. This rule must
+   stay after the base `.msg.user` / `.msg.assistant` rules above, and after
+   the earlier Bubble-scoped `.bubble-mode .msg.user` rules, so an
+   equal-specificity declaration cannot take the green edge away. */
 .message-row-worker-report .msg.user,
 .message-row-worker-report .msg.assistant {
   border-left-width: 3px;
   border-left-color: var(--color-success);
-}
-
-/* Keep markdown blocks inside the bubble's shrink-to-fit width. Code blocks
-   and tables retain their own horizontal scrolling instead of widening the
-   virtualized row. */
-.msg.user .prose-kimi,
-.msg.assistant .prose-kimi {
-  min-width: 0;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-
-.msg.user .prose-kimi pre,
-.msg.assistant .prose-kimi pre,
-.msg.user .prose-kimi table,
-.msg.assistant .prose-kimi table {
-  max-width: 100%;
-}
-
-@media (max-width: 640px) {
-  .message-row-user .msg.user {
-    max-width: 94%;
-  }
-
-  .message-row-assistant .msg.assistant {
-    max-width: 96%;
-  }
 }
 
 .thinking {

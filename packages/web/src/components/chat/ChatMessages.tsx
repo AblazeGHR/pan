@@ -66,13 +66,19 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   const initialLoading = useSessionStore((s) => s.initialLoading);
   const loadOlderMessages = useSessionStore((s) => s.loadOlderMessages);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
-  // The old Bubble/TUI names were reversed. Keep the deprecated Bubble branch
-  // wired for a possible future re-enable; TUI is the default branch here.
+  // Two chat presentations share this component. TUI (the default) lays out
+  // full-width role-bar rows; Bubble adds `.bubble-mode` on the scroll
+  // container, which is what the shrink-to-fit bubble rules are scoped to.
   const tuiViewEnabled = useUIStore((s) => s.tuiViewEnabled);
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
   const showQQ = useAppSettingsStore((s) => s.showQQ);
   const mergeConsecutiveNonBodyBlocks = useAppSettingsStore((s) => s.mergeConsecutiveNonBodyBlocks);
+  // Whether a Session switch may adopt the position this Session was left at.
+  // Read straight from the store so toggling the Appearance switch applies to
+  // the next switch without a reload. The route round-trip restore below is
+  // deliberately independent of this flag.
+  const keepScrollOnSessionSwitch = useAppSettingsStore((s) => s.keepScrollOnSessionSwitch);
 
   // Frontend-only display filter — currentMessages in the store is never
   // mutated; hidden messages reappear when their toggle is switched back on.
@@ -225,11 +231,16 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   const initialScrollPendingRef = useRef(!isRestoringRef.current);
 
   // Unlike a route round-trip, selecting another session reuses this mounted
-  // component. Pick up that session's saved anchor during render so the
-  // layout restore runs before the auto-scroll effect can pin it to the end.
+  // component. Pick up that session's saved anchor during render so the layout
+  // restore runs before the auto-scroll effect can pin it to the end — but only
+  // while the reader opted into position memory (`Keep reading position per
+  // session`). With the default (off) the adopt is skipped, so the session
+  // switch effect below runs its unconditional "start at the newest message"
+  // path. The snapshot is still consumed either way: a stale one must not be
+  // picked up by a later visit.
   if (restoreSessionRef.current !== currentSessionId) {
     restoreSessionRef.current = currentSessionId;
-    restoreRef.current = currentSessionId
+    restoreRef.current = keepScrollOnSessionSwitch && currentSessionId
       ? scrollSnapshots.get(currentSessionId) ?? null
       : null;
     if (currentSessionId) scrollSnapshots.delete(currentSessionId);

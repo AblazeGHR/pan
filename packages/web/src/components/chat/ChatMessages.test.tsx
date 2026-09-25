@@ -235,6 +235,57 @@ describe('worker report message treatment', () => {
   });
 });
 
+// ── TUI (default) vs Bubble view ──
+// The two presentations are separated by the `.bubble-mode` class on the scroll
+// container: only the Bubble view mounts it, and every bubble/alignment rule in
+// index.css is scoped to it. The shared row classes and the worker-report
+// treatment must exist in both views.
+describe('view mode layering', () => {
+  const viewMessages: Message[] = [
+    { role: 'user', content: 'plain user request' },
+    { role: 'assistant', content: '@@@@by agent : ses_1 | Worker\nfinished' },
+  ];
+
+  function renderView() {
+    useSessionStore.setState({ currentSessionId: 's1', currentMessages: viewMessages });
+    m.setTotalSize(200);
+    m.setVirtualItems(viewMessages.map((_, index) => ({ index, start: index * 100, size: 100 })));
+    const { container } = render(<ChatMessages />);
+    return { container, scroller: container.querySelector('.overflow-auto') };
+  }
+
+  it('mounts bubble-mode only in the Bubble view while keeping the shared row classes', () => {
+    useUIStore.setState({ tuiViewEnabled: true });
+    const tui = renderView();
+    expect(tui.scroller).not.toBeNull();
+    expect(tui.scroller?.className).not.toContain('bubble-mode');
+    expect(tui.container.querySelector('.message-row.message-row-user')).not.toBeNull();
+    expect(tui.container.querySelector('.message-row.message-row-assistant')).not.toBeNull();
+    cleanup();
+
+    useUIStore.setState({ tuiViewEnabled: false });
+    const bubble = renderView();
+    expect(bubble.scroller?.className).toContain('bubble-mode');
+    expect(bubble.container.querySelector('.message-row.message-row-user')).not.toBeNull();
+    expect(bubble.container.querySelector('.message-row.message-row-assistant')).not.toBeNull();
+  });
+
+  it('keeps the worker-report label and row marker in both views', () => {
+    for (const tuiViewEnabled of [true, false]) {
+      useUIStore.setState({ tuiViewEnabled });
+      const { container } = renderView();
+
+      expect(container.querySelectorAll('.worker-report-label')).toHaveLength(1);
+      const row = container.querySelector('.message-row-worker-report');
+      expect(row).not.toBeNull();
+      expect(row?.classList.contains('message-row-assistant')).toBe(true);
+      expect(row?.textContent).toContain('Worker report');
+
+      cleanup();
+    }
+  });
+});
+
 describe('ChatMessages scroll positioning', () => {
   it('scrolls to the bottom when history finishes loading after entering a session', () => {
     // Refresh: no session selected, no messages → empty state, no scroll element.
@@ -1028,4 +1079,190 @@ describe('ChatMessages scroll positioning', () => {
     // newly expanded row. Browser geometry still needs a real-browser check.
     expect(rows.every((row) => row.style.position === '' && !row.style.transform)).toBe(true);
   });
+});
+
+// ── Session-switch scroll memory (Appearance: "Keep reading position per session") ──
+// jsdom reports zero-size rects, which leaves the snapshot code inert (it needs
+// a rendered row intersecting the viewport). Model a fixed-row layout so the
+// real snapshot/restore path runs and the resulting scrollTop is deterministic:
+// a row's viewport top is `index * 100 - scrollTop`, the scroll container is the
+// viewport (top 0, height clientHeight), and every row is 100px tall.
+function installRowGeometry() {
+  const makeRect = (top: number, height: number, width: number): DOMRect => ({
+    top,
+    bottom: top + height,
+    left: 0,
+    right: width,
+    width,
+    height,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value(this: HTMLElement) {
+      if (this.classList?.contains('overflow-auto')) {
+        return makeRect(0, this.clientHeight, 800);
+      }
+      const index = Number(this.dataset?.index);
+      if (!Number.isNaN(index)) {
+        const scroller = this.closest('.overflow-auto') as HTMLElement | null;
+        return makeRect(index * 100 - (scroller?.scrollTop ?? 0), 100, 800);
+      }
+      return makeRect(0, 0, 800);
+    },
+  });
+  return () => {
+    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: original,
+    });
+  };
+}
+
+const rowWindow = (indices: number[]) =>
+  indices.map((index) => ({ index, start: index * 100, size: 100 }));
+
+describe('session-switch scroll memory switch', () => {
+  // Content is deliberately much taller than the mocked 400px viewport: the
+  // remembered row must be plainly outside the follow-bottom threshold, so a
+  // restore cannot be mistaken for "already at the bottom".
+  const tallMessages = (prefix: string) => msgs(20, prefix);
+  const tallWindow = rowWindow([0, 1, 2, 3, 4, 5]);
+  const TALL_SIZE = 2000;
+  const SHORT_SIZE = 300;
+
+  it('keeps the reading position on switch-back while the switch is on', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true });
+      const first = tallMessages('K1');
+      useSessionStore.setState({ currentSessionId: 'k1', currentMessages: first });
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+      // Read in the middle of session k1 → the component snapshots that row.
+      userScroll(scrollEl, 200);
+      expect(scrollEl.scrollTop).toBe(200);
+
+      // Leaving for another session still shows that session's newest message.
+      m.setTotalSize(SHORT_SIZE);
+      m.setVirtualItems(rowWindow([0, 1, 2]));
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'k2', currentMessages: msgs(3, 'K2') });
+      });
+      expect(scrollEl.scrollTop).toBe(SHORT_SIZE);
+
+      // Coming back restores the remembered row instead of jumping to the end.
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'k1', currentMessages: first });
+      });
+      expect(scrollEl.scrollTop).toBe(200);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it('defaults to off: switching back lands on the newest message', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      // Default value, set explicitly so the assertion cannot be masked.
+      useAppSettingsStore.setState({ keepScrollOnSessionSwitch: false });
+      const first = tallMessages('D1');
+      useSessionStore.setState({ currentSessionId: 'd1', currentMessages: first });
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+      userScroll(scrollEl, 200);
+
+      m.setTotalSize(SHORT_SIZE);
+      m.setVirtualItems(rowWindow([0, 1, 2]));
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'd2', currentMessages: msgs(3, 'D2') });
+      });
+      expect(scrollEl.scrollTop).toBe(SHORT_SIZE);
+
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'd1', currentMessages: first });
+      });
+      expect(scrollEl.scrollTop).toBe(TALL_SIZE);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it('applies a toggle made while the session is open to the next switch, without a reload', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      const first = tallMessages('T1');
+      useSessionStore.setState({ currentSessionId: 't1', currentMessages: first });
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+      // Start with the switch on and build a snapshot for t1…
+      useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true });
+      userScroll(scrollEl, 200);
+
+      // …then turn it off; the very next switch must use the new value.
+      act(() => {
+        useAppSettingsStore.setState({ keepScrollOnSessionSwitch: false });
+      });
+
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 't2', currentMessages: msgs(3, 'T2') });
+      });
+      m.setTotalSize(TALL_SIZE);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 't1', currentMessages: first });
+      });
+      expect(scrollEl.scrollTop).toBe(TALL_SIZE);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it.each([true, false])(
+    'restores a route round-trip regardless of the session-switch switch (switch on = %s)',
+    (enabled) => {
+      const restoreGeometry = installRowGeometry();
+      try {
+        useAppSettingsStore.setState({ keepScrollOnSessionSwitch: enabled });
+        const messages = tallMessages('R1');
+        useSessionStore.setState({ currentSessionId: 'route1', currentMessages: messages });
+        m.setTotalSize(TALL_SIZE);
+        m.setVirtualItems(tallWindow);
+        const first = render(<ChatMessages />);
+        const scrollEl = first.container.querySelector('.overflow-auto') as HTMLElement;
+        userScroll(scrollEl, 200);
+        expect(scrollEl.scrollTop).toBe(200);
+
+        // Leave the Chat route (Editor / Manage / …) and come back: the same
+        // session with the same message objects, a freshly mounted component.
+        first.unmount();
+        m.setTotalSize(TALL_SIZE);
+        m.setVirtualItems(tallWindow);
+        const second = render(<ChatMessages />);
+        const backEl = second.container.querySelector('.overflow-auto') as HTMLElement;
+
+        // Restored to the remembered row, never dragged to the newest message.
+        expect(backEl.scrollTop).toBe(200);
+      } finally {
+        restoreGeometry();
+      }
+    },
+  );
 });
