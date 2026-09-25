@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from datetime import datetime
 
 from fastapi import APIRouter
@@ -76,7 +77,25 @@ def _emit(event: dict) -> None:
     if fn is None:
         return
     try:
-        fn(event)
+        result = fn(event)
+    except Exception:
+        return
+    if inspect.isawaitable(result):
+        # broadcast 是异步函数（server.py 注入）：挂到当前循环消费，
+        # 异常吞掉不打扰调用方（与 scheduler.api._emit 同范式）。
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            close = getattr(result, "close", None)
+            if callable(close):
+                close()
+            return
+        loop.create_task(_drain(result))
+
+
+async def _drain(awaitable) -> None:
+    try:
+        await awaitable
     except Exception:
         pass
 
