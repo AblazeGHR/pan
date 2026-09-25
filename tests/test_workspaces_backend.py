@@ -82,6 +82,9 @@ def test_workspace_membership_moves_session_and_create_rejects_multiple(monkeypa
     moved = asyncio.run(server._set_workspace_membership(two.id, [a.id]))
     assert moved["ok"]
     assert sess.get(a.id).workspace_ids == [two.id]
+    sess._cache.clear()
+    sess._all_loaded = False
+    assert sess.get(a.id).workspace_ids == [two.id]
 
     rejected = asyncio.run(server.api_create_session({
         "name": "too-many", "workspaceIds": [one.id, two.id],

@@ -15,10 +15,12 @@ import {
   renameSession,
   branchSession,
   reimportSession,
+  setSessionWorkspaces,
 } from '@/services/api';
 import { isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
 import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
+import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
 import { inheritMessageIdentity } from '@/utils/messageIdentity';
 import {
   canonicalHistory,
@@ -115,7 +117,7 @@ interface SessionStore {
   batchRemoveSessions: () => Promise<void>;
   rename: (id: string, name: string) => Promise<void>;
   branch: (id: string, name: string) => Promise<void>;
-  reimport: (id: string) => Promise<void>;
+  reimport: (id: string, activeWorkspaceId?: string) => Promise<void>;
   setInputDraft: (id: string, draft: string) => void;
   acceptServerEpoch: (epoch: string | null | undefined) => void;
   beginUnscopedReplay: (sessionIds: string[]) => void;
@@ -1964,23 +1966,64 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await get().loadSessions();
   },
 
-  reimport: async (id: string) => {
+  reimport: async (id: string, activeWorkspaceId = useUIStore.getState().activeWorkspaceId) => {
     const session = get().sessions.find((s) => s.id === id);
     if (!session?.cliSessionId) return;
 
-    const newSession = await reimportSession(
+    const reimportedSession = await reimportSession(
       id,
       session.adapter || 'cbc',
       session.cliSessionId,
       session.workdir,
     );
-    // Reimport replaces history in place and does not move a Session between
-    // Workspaces. Keep the existing membership if an older/partial response
-    // omits it or unexpectedly returns an empty list.
-    const workspaceIds =
-      newSession.workspaceIds?.length
-        ? newSession.workspaceIds
-        : session.workspaceIds ?? [];
+    const concreteWorkspaceId = activeWorkspaceId
+      && activeWorkspaceId !== ALL_WORKSPACES
+      && activeWorkspaceId !== UNGROUPED_WORKSPACES
+      ? activeWorkspaceId
+      : null;
+    let newSession = reimportedSession;
+    let workspaceIds: string[];
+
+    if (concreteWorkspaceId) {
+      try {
+        const membershipUpdate = await setSessionWorkspaces(
+          reimportedSession.id,
+          [concreteWorkspaceId],
+        );
+        if (!membershipUpdate
+            || membershipUpdate.workspaceIds?.length !== 1
+            || membershipUpdate.workspaceIds[0] !== concreteWorkspaceId) {
+          throw new Error('The server did not confirm the requested Workspace membership.');
+        }
+        workspaceIds = membershipUpdate.workspaceIds;
+        newSession = {
+          ...membershipUpdate,
+          ...reimportedSession,
+          workspaceIds,
+        };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        set((s) => ({
+          sessions: s.sessions.map((item) =>
+            item.id === id
+              ? { ...reimportedSession, workspaceIds: session.workspaceIds ?? [] }
+              : item,
+          ),
+          currentSessionId: s.currentSessionId === id ? reimportedSession.id : s.currentSessionId,
+          initialLoading: false,
+        }));
+        // The import endpoint already replaced history. Refresh membership in
+        // case the update reached the server but its response was lost.
+        void get().loadSessions();
+        throw new Error(`Session history was reimported, but the Workspace move was not confirmed: ${reason}`);
+      }
+    } else {
+      // All and Ungrouped do not identify a destination, so preserve the
+      // current membership even when an older or partial response omits it.
+      workspaceIds = session.workspaceIds ?? [];
+      newSession = { ...reimportedSession, workspaceIds };
+    }
+
     set((s) => ({
       sessions: s.sessions.map((session) =>
         session.id === id ? { ...newSession, workspaceIds } : session,

@@ -6,6 +6,7 @@ import {
   importCodexSession,
   importKimiSession,
   importOpencodeSession,
+  reimportSession,
   steerSessionWorker,
   uploadSessionAttachment,
 } from './api';
@@ -76,6 +77,38 @@ describe('uploadSessionAttachment', () => {
       storageFilename: 'upload_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md',
     });
     expect(progress.at(-1)).toEqual([file.size, file.size]);
+  });
+});
+
+describe('reimportSession adapter routes', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['cbc', '/api/cbc/sessions/import'],
+    ['kimi', '/api/kimi/sessions/import'],
+    ['opencode', '/api/opencode/sessions/import'],
+    ['codex', '/api/adapters/codex/sessions/import'],
+    ['claude', '/api/adapters/claude/sessions/import'],
+  ])('uses the supported %s history-import route', async (adapter, expectedPath) => {
+    let requestUrl = '';
+    let requestBody: Record<string, unknown> = {};
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      requestUrl = String(url);
+      requestBody = JSON.parse(init?.body as string);
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ id: 'ses-existing', workspaceIds: ['ws-original'] }),
+      };
+    }));
+
+    await reimportSession('ses-existing', adapter, 'native-session', 'C:/work');
+
+    expect(requestUrl.endsWith(expectedPath)).toBe(true);
+    expect(requestBody).toEqual({ session_id: 'native-session', cwd: 'C:/work' });
   });
 });
 

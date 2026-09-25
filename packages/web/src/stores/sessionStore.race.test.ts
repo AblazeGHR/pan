@@ -26,6 +26,7 @@ let resolveCreate: (() => void) | null = null;
 const apiMock = vi.hoisted(() => ({
   fetchUiSettings: vi.fn(),
   reimportSession: vi.fn(),
+  setSessionWorkspaces: vi.fn(),
 }));
 
 vi.mock('@/services/api', async (importOriginal) => {
@@ -53,6 +54,7 @@ vi.mock('@/services/api', async (importOriginal) => {
         }),
     ),
     reimportSession: apiMock.reimportSession,
+    setSessionWorkspaces: apiMock.setSessionWorkspaces,
   };
 });
 
@@ -62,6 +64,7 @@ describe('sessionStore createNewSession race', () => {
     resolveCreate = null;
     apiMock.fetchUiSettings.mockResolvedValue({ defaultNewSessionToCurrentWorkspace: true });
     apiMock.reimportSession.mockReset();
+    apiMock.setSessionWorkspaces.mockReset();
     useSessionStore.setState({
       sessions: [mk('M', 'M'), mk('A', 'A', 'M')],
       currentSessionId: null,
@@ -231,7 +234,7 @@ describe('sessionStore createNewSession race', () => {
       .toEqual(['ws-current']);
   });
 
-  it('keeps existing Workspace membership when the reimport response omits it', async () => {
+  it.each(['all', 'ungrouped'])('preserves membership when reimport starts in %s scope', async (activeWorkspaceId) => {
     const existing = {
       ...mk('ses_reimport', 'Reimport'),
       adapter: 'cbc',
@@ -246,6 +249,7 @@ describe('sessionStore createNewSession race', () => {
       effort: '',
       history: [],
     } as Session);
+    useUIStore.setState({ activeWorkspaceId });
 
     await act(async () => {
       await useSessionStore.getState().reimport('ses_reimport');
@@ -255,5 +259,99 @@ describe('sessionStore createNewSession race', () => {
     expect(apiMock.reimportSession).toHaveBeenCalledWith(
       'ses_reimport', 'cbc', 'native-reimport', undefined,
     );
+    expect(apiMock.setSessionWorkspaces).not.toHaveBeenCalled();
+  });
+
+  it('moves an existing Session to the concrete Workspace regardless of the new-session preference', async () => {
+    const existing = {
+      ...mk('ses_reimport', 'Reimport'),
+      adapter: 'cbc',
+      cliSessionId: 'native-reimport',
+      workspaceIds: ['ws-original'],
+    } as Session;
+    const reimported = {
+      ...existing,
+      history: [{ role: 'user', content: 'updated history' }],
+    } as Session;
+    useSessionStore.setState({ sessions: [existing], currentSessionId: 'ses_reimport' });
+    useUIStore.setState({ activeWorkspaceId: 'ws-target' });
+    useAppSettingsStore.setState({
+      ...DEFAULT_SETTINGS,
+      loaded: true,
+      defaultNewSessionToCurrentWorkspace: false,
+    });
+    apiMock.reimportSession.mockResolvedValue(reimported);
+    apiMock.setSessionWorkspaces.mockResolvedValue({
+      ...existing,
+      workspaceIds: ['ws-target'],
+    });
+
+    await act(async () => {
+      await useSessionStore.getState().reimport('ses_reimport');
+    });
+
+    expect(apiMock.setSessionWorkspaces).toHaveBeenCalledWith('ses_reimport', ['ws-target']);
+    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['ws-target']);
+    expect(useSessionStore.getState().sessions[0]?.history).toEqual(reimported.history);
+  });
+
+  it('keeps the Reimport-start Workspace if the active Workspace changes during history import', async () => {
+    const existing = {
+      ...mk('ses_reimport', 'Reimport'),
+      adapter: 'cbc',
+      cliSessionId: 'native-reimport',
+      workspaceIds: ['ws-original'],
+    } as Session;
+    useSessionStore.setState({ sessions: [existing], currentSessionId: 'ses_reimport' });
+    useUIStore.setState({ activeWorkspaceId: 'ws-at-reimport-start' });
+    let resolveReimport!: (session: Session) => void;
+    apiMock.reimportSession.mockReturnValue(new Promise((resolve) => {
+      resolveReimport = resolve;
+    }));
+    apiMock.setSessionWorkspaces.mockResolvedValue({
+      ...existing,
+      workspaceIds: ['ws-at-reimport-start'],
+    });
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().reimport('ses_reimport');
+    });
+    useUIStore.setState({ activeWorkspaceId: 'ws-switched-during-reimport' });
+    resolveReimport({ ...existing, history: [{ role: 'user', content: 'updated' }] });
+
+    await act(async () => {
+      await promise!;
+    });
+
+    expect(apiMock.setSessionWorkspaces).toHaveBeenCalledWith(
+      'ses_reimport', ['ws-at-reimport-start'],
+    );
+    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['ws-at-reimport-start']);
+  });
+
+  it('reports membership persistence failure after preserving reimported history and prior membership', async () => {
+    const existing = {
+      ...mk('ses_reimport', 'Reimport'),
+      adapter: 'cbc',
+      cliSessionId: 'native-reimport',
+      workspaceIds: ['ws-original'],
+    } as Session;
+    const reimported = {
+      ...existing,
+      history: [{ role: 'user', content: 'updated history' }],
+    } as Session;
+    serverSessions = [reimported];
+    useSessionStore.setState({ sessions: [existing], currentSessionId: 'ses_reimport' });
+    apiMock.reimportSession.mockResolvedValue(reimported);
+    apiMock.setSessionWorkspaces.mockRejectedValue(new Error('Workspace not found'));
+
+    await expect(useSessionStore.getState().reimport('ses_reimport', 'ws-deleted'))
+      .rejects.toThrow('Session history was reimported, but the Workspace move was not confirmed: Workspace not found');
+    await waitFor(() => {
+      expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['ws-original']);
+      expect(useSessionStore.getState().sessions[0]?.history).toEqual(reimported.history);
+    });
+    expect(apiMock.setSessionWorkspaces).toHaveBeenCalledWith('ses_reimport', ['ws-deleted']);
   });
 });
