@@ -452,3 +452,18 @@ def test_patch_target_clear_enters_undeliverable(client, fake_worker):
     refreshed = scheduler_store._job_for_task(task["id"])
     assert refreshed["lastStatus"] == "undeliverable"
     assert len(refreshed["undeliveredFires"]) == 1
+
+
+# ── PATCH text（编辑派发正文）──
+
+
+def test_patch_text_updates_dispatch_body(client, fake_worker):
+    task = _make_scheduled_task()
+    job = scheduler_store._job_for_task(task["id"])
+    body = client.patch(f"/api/jobs/{job['jobId']}", json={"text": "新正文"}).json()
+    assert body["ok"] is True, body
+    assert body["job"]["text"] == "新正文"
+    assert scheduler_store.get_task(task["id"])["text"] == "新正文"
+    body = client.patch(f"/api/jobs/{job['jobId']}", json={"text": "   "}).json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "invalid_argument"

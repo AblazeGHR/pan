@@ -5,7 +5,7 @@
 - ``GET  /api/jobs``            列表（kind/status 过滤，active-first 排序）
 - ``POST /api/jobs``           创建（本期仅 scheduled-task；schedule 支持多 entry）
 - ``GET  /api/jobs/{id}``       详情（结构化 source/target 视图）
-- ``PATCH /api/jobs/{id}``      通用字段更新（name/description/enabled/paused/
+- ``PATCH /api/jobs/{id}``      通用字段更新（name/description/text/enabled/paused/
                                 target 切换与清空/schedule entry 列表整体替换）
 - ``DELETE /api/jobs/{id}``     删除
 - ``GET  /api/jobs/{id}/runs``  执行历史（runs.jsonl，最新在前）
@@ -300,6 +300,11 @@ async def patch_job(job_id: str, data: dict):
             return _err("invalid_argument", "description must be a string")
         changes["description"] = background_jobs.normalize_description(
             data.get("description"))
+    if "text" in data:
+        text = data.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return _err("invalid_argument", "text must be a non-empty string")
+        changes["text"] = text
     if "enabled" in data:
         changes["enabled"] = bool(data.get("enabled"))
     if "paused" in data:
