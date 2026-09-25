@@ -20,6 +20,7 @@ const m = vi.hoisted(() => {
     totalSize: number;
     virtualItems: Array<{ index: number; start: number; size: number }>;
     options: {
+      count?: number;
       getItemKey?: (index: number) => string | number;
       estimateSize?: (index: number) => number;
     } | null;
@@ -27,8 +28,26 @@ const m = vi.hoisted(() => {
     sizes: number[];
     /** Every scrollToIndex the component asked the virtualizer for. */
     scrollToIndexCalls: Array<{ index: number; align?: string }>;
-    measureCalls: number;
-  } = { totalSize: 0, virtualItems: [], options: null, sizes: [], scrollToIndexCalls: [], measureCalls: 0 };
+    dynamicMeasurements: boolean;
+    measuredByKey: Map<string, number>;
+  } = {
+    totalSize: 0,
+    virtualItems: [],
+    options: null,
+    sizes: [],
+    scrollToIndexCalls: [],
+    dynamicMeasurements: false,
+    measuredByKey: new Map(),
+  };
+  const rowHeight = (element: HTMLElement) =>
+    element.querySelector('[data-testid="non-body-group-window"]') ? 320 :
+      element.querySelector('button[aria-expanded]') ? 48 : 80;
+  const measureMountedRows = (options = state.options) => {
+    if (!options?.getItemKey) return;
+    for (const element of document.querySelectorAll<HTMLElement>('[data-index]')) {
+      state.measuredByKey.set(String(options.getItemKey(Number(element.dataset.index))), rowHeight(element));
+    }
+  };
   return {
     state,
     setTotalSize: (n: number) => {
@@ -41,34 +60,55 @@ const m = vi.hoisted(() => {
     setMeasuredSizes: (sizes: number[]) => {
       state.sizes = sizes;
     },
+    measureMountedRows,
+    getTotalSize: () => {
+      if (!state.dynamicMeasurements || !state.options) return state.totalSize;
+      return Array.from({ length: state.options.count ?? 0 }, (_, index) =>
+        state.measuredByKey.get(String(state.options!.getItemKey?.(index) ?? index)) ??
+          state.options!.estimateSize?.(index) ?? 80,
+      ).reduce((total, size) => total + size, 0);
+    },
   };
 });
 
-vi.mock('@tanstack/react-virtual', () => ({
+vi.mock('@tanstack/react-virtual', async () => {
+  const { useReducer } = await import('react');
+  return {
   useVirtualizer: (options: {
+    count?: number;
     getItemKey?: (index: number) => string | number;
     estimateSize?: (index: number) => number;
   }) => {
+    const [, rerender] = useReducer((value: number) => value + 1, 0);
     m.state.options = options;
     return {
-      getTotalSize: () => m.state.totalSize,
+      getTotalSize: () => m.getTotalSize(),
       getVirtualItems: () =>
         m.state.virtualItems.map((item) => ({
           ...item,
           key: options.getItemKey?.(item.index) ?? item.index,
         })),
+      // ResizeObserver delivery is explicit in this mock. Merely attaching a
+      // switched row must not silently overwrite a prior cached measurement.
       measureElement: () => {},
-      measure: () => { m.state.measureCalls += 1; },
+      measure: () => {
+        if (m.state.dynamicMeasurements) {
+          m.state.measuredByKey.clear();
+          m.measureMountedRows(options);
+        }
+        rerender();
+      },
       scrollToIndex: (index: number, options?: { align?: string }) => {
         m.state.scrollToIndexCalls.push({ index, align: options?.align });
       },
       measurementsCache: m.state.sizes.map((size, index) => ({
         key: options.getItemKey?.(index) ?? index,
         size,
-      })),
+      })).concat([...m.state.measuredByKey].map(([key, size]) => ({ key, size }))),
     };
   },
-}));
+  };
+});
 
 // ── jsdom has no layout engine. Give the chat scroll container a realistic
 // scrollHeight (the explicit height ChatMessages sets on the inner virtualizer
@@ -162,6 +202,8 @@ beforeEach(() => {
   m.setTotalSize(0);
   m.setVirtualItems([]);
   m.state.options = null;
+  m.state.dynamicMeasurements = false;
+  m.state.measuredByKey.clear();
   useSessionStore.setState({
     currentSessionId: null,
     currentMessages: [],
@@ -1568,34 +1610,54 @@ describe('scroll snapshot ownership across a session switch', () => {
 });
 
 describe('non-body disclosure and virtual measurements across a session switch', () => {
-  it('switches from A to streaming B with B folded and no stale expanded-row spacer', () => {
+  it('drops B\'s cached expanded height when switching from A to streaming B', () => {
     mockClientHeight = 100;
+    m.state.dynamicMeasurements = true;
     useAppSettingsStore.setState({ mergeConsecutiveNonBodyBlocks: true });
-    const bMessages = Array.from({ length: 39 }, (_, index) => ({
-      role: index % 3 === 0 ? 'tool' as const : 'thinking' as const,
-      content: `stream-${index}`,
-      blockId: `switch-b-${index}`,
-    }));
-    useSessionStore.setState({ currentSessionId: 'switch-a', currentMessages: msgs(2, 'A') });
-    m.setTotalSize(120);
-    m.setVirtualItems(rowWindow([0, 1]));
+    const bMessages = [
+      { role: 'user' as const, content: 'B before' },
+      ...Array.from({ length: 39 }, (_, index) => ({
+        role: index % 3 === 0 ? 'tool' as const : 'thinking' as const,
+        content: `stream-${index}`,
+        blockId: `switch-b-${index}`,
+      })),
+      { role: 'assistant' as const, content: 'B after' },
+    ];
+    m.setVirtualItems(rowWindow([0, 1, 2]));
+    useSessionStore.setState({ currentSessionId: 'switch-b', currentMessages: bMessages });
     const view = render(<ChatMessages />);
-    const before = m.state.measureCalls;
+
+    // Record the actual prior-visit expanded height under B's virtual item key.
+    fireEvent.click(screen.getByRole('button', { name: /39 non-body blocks/ }));
+    act(() => m.measureMountedRows());
+    expect(m.getTotalSize()).toBe(480); // 80 + 320 + 80
+    const staleExpandedSize = m.state.measuredByKey.get(String(m.state.options?.getItemKey?.(1)));
+    expect(staleExpandedSize).toBe(320);
 
     act(() => {
-      // B's single grouped row is the actual virtual content. Its 39 children
-      // are streaming, but the outer disclosure starts folded after the switch.
-      m.setTotalSize(120);
-      m.setVirtualItems(rowWindow([0]));
+      m.setVirtualItems(rowWindow([0, 1]));
+      useSessionStore.setState({ currentSessionId: 'switch-a', currentMessages: msgs(2, 'A') });
+    });
+
+    act(() => {
+      m.setVirtualItems(rowWindow([0, 1, 2]));
       useSessionStore.setState({ currentSessionId: 'switch-b', currentMessages: bMessages });
     });
 
     expect(screen.getByRole('button', { name: /39 non-body blocks/ }).getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByTestId('non-body-group-window')).toBeNull();
-    expect(m.state.measureCalls).toBeGreaterThan(before);
+    expect(m.state.measuredByKey.get(String(m.state.options?.getItemKey?.(1)))).toBe(48);
+    expect([...m.state.measuredByKey.values()]).toEqual([80, 48, 80]);
+    expect(m.getTotalSize()).toBe(208);
     const scroller = view.container.querySelector('.overflow-auto') as HTMLElement;
-    expect(scroller.scrollHeight).toBe(120);
-    expect(scroller.scrollHeight - scroller.clientHeight).toBe(20);
+    expect(scroller.scrollHeight).toBe(208); // folded: 80 + 48 + 80
+    expect(scroller.scrollHeight - scroller.clientHeight).toBe(108);
+
+    // The real scroll range reaches both ends and contains no extra 20rem spacer.
+    userScroll(scroller, scroller.scrollHeight - scroller.clientHeight);
+    expect(scroller.scrollTop).toBe(108);
+    userScroll(scroller, 0);
+    expect(scroller.scrollTop).toBe(0);
 
     // A manual expand remains available and uses the intended 20rem window.
     fireEvent.click(screen.getByRole('button', { name: /39 non-body blocks/ }));
