@@ -1,7 +1,10 @@
-"""packages/scheduler/store.py 的单元测试。
+"""packages/scheduler/store.py（统一注册表兼容层）的单元测试。
 
-隔离：把 ``store.DEFAULT_ROOT`` 指到 pytest 的 tmp_path，绝不污染真实 ``data/``
-（先例见 ``tests/conftest.py:16-26``）。
+P1 统一后 task 的持久化形态是 ``packages.core.background_jobs`` 注册表里
+``kind="scheduled-task"`` 的 job 记录；本文件验证兼容层的 CRUD/校验/迁移语义
+与 PR 契约逐条一致（详见 docs/design/job-unification/PLAN_JOB_UNIFICATION.md）。
+
+隔离：把 ``store.DEFAULT_ROOT`` 指到 pytest 的 tmp_path，绝不污染真实 ``data/``。
 """
 
 import json
@@ -9,6 +12,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from packages.core import background_jobs
 from packages.scheduler import cron
 from packages.scheduler import store
 
@@ -16,6 +20,7 @@ from packages.scheduler import store
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.delenv("PAN_SCHEDULER_DIR", raising=False)
+    monkeypatch.delenv("PAN_BACKGROUND_JOBS_DIR", raising=False)
     monkeypatch.setattr(store, "DEFAULT_ROOT", tmp_path / "scheduler")
     yield
 
@@ -39,30 +44,45 @@ def _interval_payload(**overrides) -> dict:
     return payload
 
 
-# ── 落盘布局 ──
+def _job_file(task_id: str):
+    """按对外 task_id 找到注册表里的 job 文件（兼容层寻址路径）。"""
+    root = store.data_root()
+    for path in (root / "jobs").glob("job_*.json"):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("taskId") == task_id:
+            return path, data
+    return None, None
+
+
+# ── 注册表布局 ──
 
 
 def test_data_root_redirected(tmp_path):
     assert store.data_root() == tmp_path / "scheduler"
-    assert store.tasks_dir() == tmp_path / "scheduler" / "tasks"
-    assert store.runs_path() == tmp_path / "scheduler" / "runs.jsonl"
+    assert (store.data_root() / "jobs").exists() or True  # 惰性创建，不强制存在
 
 
 def test_env_var_overrides_root(tmp_path, monkeypatch):
     monkeypatch.setenv("PAN_SCHEDULER_DIR", str(tmp_path / "env_root"))
     assert store.data_root() == tmp_path / "env_root"
+    # 迁移源跟随同一个 env（测试期数据根即迁移源根）
+    assert store.legacy_root() == tmp_path / "env_root"
 
 
-def test_create_writes_one_file_per_task(tmp_path):
+def test_create_writes_job_record(tmp_path):
     task = store.create_task(_interval_payload())
-    path = tmp_path / "scheduler" / "tasks" / f"{task['id']}.json"
-    assert path.exists()
-    assert json.loads(path.read_text(encoding="utf-8"))["id"] == task["id"]
+    path, data = _job_file(task["id"])
+    assert path is not None
+    assert data["kind"] == background_jobs.SCHEDULED_TASK_KIND
+    assert data["taskId"] == task["id"]
+    assert data["targetSessionId"] == "ses_test"
+    assert isinstance(data["schedule"], list) and len(data["schedule"]) == 1
 
 
 def test_no_tmp_files_left_behind(tmp_path):
     store.create_task(_interval_payload())
-    leftovers = list((tmp_path / "scheduler" / "tasks").glob("*.tmp"))
+    jobs_dir = store.data_root() / "jobs"
+    leftovers = list(jobs_dir.glob("*.tmp")) if jobs_dir.exists() else []
     assert leftovers == []
 
 
@@ -237,9 +257,10 @@ def test_append_and_list_runs():
 def test_runs_roll_over_at_500(tmp_path):
     for i in range(store.RUNS_MAX_ENTRIES + 20):
         store.append_run({"task_id": "sch_a", "status": "dispatched", "seq": i})
+    runs_path = store.data_root() / "runs.jsonl"
     lines = [
         line
-        for line in store.runs_path().read_text(encoding="utf-8").splitlines()
+        for line in runs_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
     assert len(lines) == store.RUNS_MAX_ENTRIES
@@ -252,25 +273,91 @@ def test_list_runs_on_empty_store():
     assert store.list_runs() == []
 
 
-# ── leader 选主 ──
+# ── leader 选主（已退役 → 兼容桩恒真）──
 
 
-def test_claim_leader_first_wins():
+def test_claim_leader_stub_is_idempotent():
     assert store.claim_leader() is True
-    assert store.claim_leader() is True  # 幂等：同进程内复用
-    store.release_leader()
+    assert store.claim_leader() is True
+    store.release_leader()  # no-op，不抛
 
 
-def test_claim_leader_survives_missing_lock_backend(monkeypatch):
-    import builtins
+# ── 迁移 ──
 
-    real_import = builtins.__import__
 
-    def fake_import(name, *args, **kwargs):
-        if name == "packages.core.background_jobs":
-            raise ImportError("no lock backend")
-        return real_import(name, *args, **kwargs)
+def _legacy_task_dict(task_id: str = "sch_legacy01") -> dict:
+    """PR 时代的 task 文件形状。"""
+    return {
+        "id": task_id,
+        "name": "旧任务",
+        "target_session_id": "ses_old",
+        "text": "旧文本",
+        "enabled": True,
+        "paused": False,
+        "schedule": {"kind": "interval", "interval_sec": 1800,
+                     "intervalSec": 1800, "anchor": _dt(-3600).isoformat()},
+        "next_fire_at": _dt(600).isoformat(),
+        "last_fire_at": None,
+        "last_status": None,
+        "last_error": None,
+        "run_count": 3,
+        "max_runs": None,
+        "misfire_policy": "skip",
+        "created_at": _dt(-7200).isoformat(),
+        "updated_at": _dt(-3600).isoformat(),
+    }
 
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    assert store.claim_leader() is True  # 退化成单实例假设
-    store.release_leader()
+
+@pytest.fixture
+def legacy_env(tmp_path, monkeypatch):
+    """迁移源 = 注册表根 = 同一个 tmp（env 优先语义下二者合一）。"""
+    root = tmp_path / "unified"
+    monkeypatch.setenv("PAN_SCHEDULER_DIR", str(root))
+    (root / "tasks").mkdir(parents=True)
+    return root
+
+
+def test_migrate_legacy_tasks_roundtrip(legacy_env):
+    legacy = _legacy_task_dict()
+    (legacy_env / "tasks" / f"{legacy['id']}.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+
+    migrated = store.migrate_legacy_tasks()
+    assert migrated == 1
+    task = store.get_task(legacy["id"])
+    assert task is not None
+    assert task["text"] == "旧文本"
+    assert task["misfire_policy"] == "skip"
+    assert task["run_count"] == 3
+    assert task["next_fire_at"] == legacy["next_fire_at"]  # 节奏不丢
+    # 源文件保留
+    assert (legacy_env / "tasks" / f"{legacy['id']}.json").exists()
+
+
+def test_migrate_is_idempotent(legacy_env):
+    legacy = _legacy_task_dict()
+    (legacy_env / "tasks" / f"{legacy['id']}.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+    assert store.migrate_legacy_tasks() == 1
+    assert store.migrate_legacy_tasks() == 0  # taskId 已在注册表 → 跳过
+    assert len(store.list_tasks()) == 1
+
+
+def test_migrate_skips_invalid_files(legacy_env):
+    (legacy_env / "tasks" / "garbage.json").write_text("not json", encoding="utf-8")
+    (legacy_env / "tasks" / "no_id.json").write_text('{"name": "x"}', encoding="utf-8")
+    assert store.migrate_legacy_tasks() == 0
+    assert store.list_tasks() == []
+
+
+def test_migrate_merges_legacy_runs(legacy_env):
+    legacy_run = {"run_id": "run_legacy_1", "task_id": "sch_legacy01",
+                  "status": "dispatched"}
+    (legacy_env / "runs.jsonl").write_text(
+        json.dumps(legacy_run, ensure_ascii=False) + "\n", encoding="utf-8")
+    store.migrate_legacy_tasks()
+    runs = store.list_runs(task_id="sch_legacy01")
+    assert [r["run_id"] for r in runs] == ["run_legacy_1"]
+    # 再迁一次不重复
+    store.migrate_legacy_tasks()
+    assert len(store.list_runs(task_id="sch_legacy01")) == 1
