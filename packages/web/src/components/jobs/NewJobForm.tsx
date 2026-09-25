@@ -12,7 +12,7 @@ import {
   scheduleEntryToDraft,
   type ScheduleEntryDraft,
 } from '@/components/jobs/ScheduleListEditor';
-import type { Job, JobCreateInput, JobPatchInput, MisfirePolicy } from '@/types/jobs';
+import { scheduleEntries, type Job, type JobCreateInput, type JobPatchInput, type MisfirePolicy } from '@/types/jobs';
 
 export type JobFormMode = 'create' | 'edit';
 
@@ -56,8 +56,8 @@ export function NewJobForm({
   const [targetSessionId, setTargetSessionId] = useState(initialJob?.target.sessionId ?? '');
   const [text, setText] = useState(initialJob?.text ?? '');
   const [entries, setEntries] = useState<ScheduleEntryDraft[]>(() =>
-    initialJob && initialJob.schedule.length > 0
-      ? initialJob.schedule.map(scheduleEntryToDraft)
+    initialJob && scheduleEntries(initialJob.schedule).length > 0
+      ? scheduleEntries(initialJob.schedule).map(scheduleEntryToDraft)
       : [newEntryDraft()],
   );
   const [maxRuns, setMaxRuns] = useState(

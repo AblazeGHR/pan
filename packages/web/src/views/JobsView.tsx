@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { wsClient } from '@/services/ws';
+import { scheduleEntries } from '@/types/jobs';
 import {
   createJob,
   deleteJob as deleteJobApi,
@@ -91,7 +92,7 @@ function formatDateTime(value?: number | string | null): string {
 /** 下次触发 = 各 enabled entry 中最早的 nextFireAt。 */
 function nextFireAt(job: Job): string | null {
   let min: string | null = null;
-  for (const e of job.schedule) {
+  for (const e of scheduleEntries(job.schedule)) {
     if (e.enabled && e.nextFireAt && (min === null || e.nextFireAt < min)) min = e.nextFireAt;
   }
   return min;
@@ -529,7 +530,8 @@ export default function JobsView() {
   };
 
   const handleToggleEntry = async (job: Job, entryId: string) => {
-    const specs = job.schedule.map((e) => {
+    if (job.kind !== 'scheduled-task') return;
+    const specs = scheduleEntries(job.schedule).map((e) => {
       const spec = entryToSpec(e);
       if (e.id === entryId) spec.enabled = !e.enabled;
       return spec;

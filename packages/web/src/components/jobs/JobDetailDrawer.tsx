@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
-import type { Job, JobRunRecord, JobSource, JobTimestamp } from '@/types/jobs';
+import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -181,6 +181,10 @@ export function JobDetailDrawer({
   const isUndeliverable = job.lastStatus === 'undeliverable' || backlog.length > 0;
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
+  const schedule = scheduleEntries(job.schedule);
+  const legacyScheduleText = !Array.isArray(job.schedule) && job.schedule != null
+    ? typeof job.schedule === 'string' ? job.schedule : JSON.stringify(job.schedule)
+    : null;
 
   const copyLogPath = async () => {
     try {
@@ -304,13 +308,19 @@ export function JobDetailDrawer({
 
             {/* 2. Schedule entries */}
             <Section title="Schedule">
-              {job.schedule.length === 0 ? (
-                <div className="text-xs text-text-tertiary">—</div>
+              {schedule.length === 0 ? (
+                legacyScheduleText ? (
+                  <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-border-default bg-bg-primary p-2.5 text-[11px] text-text-secondary">
+                    {legacyScheduleText}
+                  </pre>
+                ) : (
+                  <div className="text-xs text-text-tertiary">—</div>
+                )
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  {job.schedule.map((e) => (
+                  {schedule.map((e, index) => (
                     <div
-                      key={e.id}
+                      key={e.id ?? index}
                       className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5 text-[11px]"
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -328,11 +338,13 @@ export function JobDetailDrawer({
                           >
                             {e.enabled ? 'enabled' : 'disabled'}
                           </span>
-                          <MiniSwitch
-                            label={`Schedule entry ${e.id} enabled`}
-                            checked={e.enabled}
-                            onChange={() => onToggleEntryEnabled(e.id)}
-                          />
+                          {isScheduledTask && e.id && (
+                            <MiniSwitch
+                              label={`Schedule entry ${e.id} enabled`}
+                              checked={e.enabled}
+                              onChange={() => onToggleEntryEnabled(e.id)}
+                            />
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-col gap-0.5 text-text-secondary">

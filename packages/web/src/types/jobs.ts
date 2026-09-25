@@ -102,7 +102,8 @@ export interface Job {
   text?: string;
   enabled?: boolean;
   paused: boolean;
-  schedule: ScheduleEntry[];
+  /** Legacy Job kinds may expose one schedule object or omit/null this field. */
+  schedule?: unknown;
   misfirePolicy?: MisfirePolicy;
   nextFireAt?: string | null;
   lastFireAt?: string | null;
@@ -116,6 +117,14 @@ export interface Job {
   logPath?: string | null;
   createdAt: JobTimestamp;
   updatedAt: JobTimestamp;
+}
+
+/** Return only iterable schedule-entry arrays; legacy scalar/object values stay untouched. */
+export function scheduleEntries(schedule: unknown): ScheduleEntry[] {
+  if (!Array.isArray(schedule)) return [];
+  return schedule.filter(
+    (entry): entry is ScheduleEntry => typeof entry === 'object' && entry !== null && !Array.isArray(entry),
+  );
 }
 
 /** `GET /api/jobs/kinds` 的 kind 元数据（GUI 徽标/筛选用中文 label）。 */
