@@ -349,3 +349,106 @@ def test_partial_failed_event_emitted(client, monkeypatch, tmp_path):
     assert partial_events, "partial 必须发出即时 toast 事件"
     assert partial_events[0]["jobId"] == job["jobId"]
     assert any("ses_pb" in err for err in partial_events[0]["errors"])
+
+
+# ── POST /api/jobs（创建，多 entry）──
+
+
+def test_post_creates_scheduled_task_multi_entry(client, monkeypatch):
+    monkeypatch.setattr(jobs_api, "_session_exists", lambda sid: True)
+    body = client.post("/api/jobs", json={
+        "kind": "scheduled-task",
+        "name": "多 entry",
+        "target": {"sessionId": "ses_new"},
+        "text": "干活",
+        "schedule": [
+            {"kind": "interval", "intervalSec": 3600},
+            {"kind": "cron", "cron": "0 9 * * 1-5"},
+            {"kind": "once", "at": "2099-01-01T09:00:00", "enabled": False},
+        ],
+    }).json()
+    assert body["ok"] is True, body
+    job = body["job"]
+    entries = job["schedule"]
+    assert [e["kind"] for e in entries] == ["interval", "cron", "once"]
+    assert entries[2]["enabled"] is False
+    enabled_points = [e["nextFireAt"] for e in entries if e["enabled"]]
+    assert job["nextFireAt"] == min(enabled_points)
+    assert job["target"] == {"sessionId": "ses_new"}
+    assert job["targetSessionId"] == "ses_new"
+    # 旧契约视角兼容（同一注册表）
+    assert scheduler_store.get_task(job["taskId"])["target_session_id"] == "ses_new"
+
+
+def test_post_rejects_other_kinds_and_empty_schedule(client, monkeypatch):
+    monkeypatch.setattr(jobs_api, "_session_exists", lambda sid: True)
+    body = client.post("/api/jobs", json={
+        "kind": "session-message", "target": {"sessionId": "s"},
+        "text": "x", "schedule": {"kind": "interval", "intervalSec": 60}}).json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "invalid_argument"
+    body = client.post("/api/jobs", json={
+        "kind": "scheduled-task", "target": {"sessionId": "s"},
+        "text": "x", "schedule": []}).json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "invalid_schedule"
+
+
+def test_post_requires_existing_session(client):
+    body = client.post("/api/jobs", json={
+        "kind": "scheduled-task", "target": {"sessionId": "ses_ghost"},
+        "text": "x", "schedule": {"kind": "interval", "intervalSec": 60}}).json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "session_not_found"
+
+
+# ── PATCH schedule（entry 列表整体替换）──
+
+
+def test_patch_schedule_replaces_entries(client, fake_worker):
+    task = _make_scheduled_task()
+    job = scheduler_store._job_for_task(task["id"])
+    body = client.patch(f"/api/jobs/{job['jobId']}", json={
+        "schedule": [
+            {"kind": "cron", "cron": "30 8 * * *"},
+            {"kind": "interval", "intervalSec": 7200},
+        ]}).json()
+    assert body["ok"] is True, body
+    entries = body["job"]["schedule"]
+    assert [e["kind"] for e in entries] == ["cron", "interval"]
+    assert body["job"]["nextFireAt"] == min(
+        e["nextFireAt"] for e in entries if e["enabled"])
+    refreshed = scheduler_store._job_for_task(task["id"])
+    assert len(refreshed["schedule"]) == 2
+
+
+def test_patch_schedule_rejects_bad_spec(client, fake_worker):
+    task = _make_scheduled_task()
+    job = scheduler_store._job_for_task(task["id"])
+    body = client.patch(f"/api/jobs/{job['jobId']}", json={
+        "schedule": [{"kind": "cron", "cron": "not a cron"}]}).json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "invalid_schedule"
+
+
+# ── PATCH target 清空 → 短路积压 ─--
+
+
+def test_patch_target_clear_enters_undeliverable(client, fake_worker):
+    _register_unified_hooks()
+    task = _make_scheduled_task()
+    job = scheduler_store._job_for_task(task["id"])
+    body = client.patch(f"/api/jobs/{job['jobId']}",
+                        json={"target": None}).json()
+    assert body["ok"] is True, body
+    assert body["job"]["target"] == {"sessionId": None}
+    # 到期触发 → 空 target 短路：不派发、直接积压
+    jobs._update(job["jobId"], {
+        "schedule": [{**job["schedule"][0],
+                      "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
+        registry_root=scheduler_store.data_root())
+    asyncio.run(jobs.run_due_scheduled_tasks())
+    assert fake_worker == [], "空 target 不得派发"
+    refreshed = scheduler_store._job_for_task(task["id"])
+    assert refreshed["lastStatus"] == "undeliverable"
+    assert len(refreshed["undeliveredFires"]) == 1

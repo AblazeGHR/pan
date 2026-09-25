@@ -3,8 +3,10 @@
 全 kind 一览/详情/管理的统一入口（GUI JobsView 的后端契约）：
 
 - ``GET  /api/jobs``            列表（kind/status 过滤，active-first 排序）
+- ``POST /api/jobs``           创建（本期仅 scheduled-task；schedule 支持多 entry）
 - ``GET  /api/jobs/{id}``       详情（结构化 source/target 视图）
-- ``PATCH /api/jobs/{id}``      通用字段更新（name/description/enabled/paused/target 切换）
+- ``PATCH /api/jobs/{id}``      通用字段更新（name/description/enabled/paused/
+                                target 切换与清空/schedule entry 列表整体替换）
 - ``DELETE /api/jobs/{id}``     删除
 - ``GET  /api/jobs/{id}/runs``  执行历史（runs.jsonl，最新在前）
 - ``POST /api/jobs/{id}/run-now`` 手动触发（scheduled-task / message 类）
@@ -119,6 +121,70 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
     jobs.sort(key=lambda j: (_KIND_ORDER.get(str(j.get("status")), 9),
                              str(j.get("updatedAt") or "")), reverse=False)
     return _ok(jobs=jobs)
+
+
+def _session_exists(session_id: str) -> bool:
+    try:
+        from packages.core import session as sess
+
+        return sess.get(session_id) is not None
+    except Exception:
+        return False
+
+
+@router.post("")
+@router.post("/")
+async def create_job(data: dict):
+    """创建 job。本期仅支持 ``kind=scheduled-task``（其余 kind 走各自专有端点）。
+
+    Body: {kind?: "scheduled-task", name?, description?, target, text,
+           schedule: [spec...] | spec, maxRuns?, misfirePolicy?, enabled?}
+    ``schedule`` 为列表时每项一个 entry（可带 misfirePolicy/enabled 覆盖）。
+    """
+    if not isinstance(data, dict):
+        return _err("invalid_argument", "request body must be a JSON object")
+    kind = data.get("kind") or background_jobs.SCHEDULED_TASK_KIND
+    if kind != background_jobs.SCHEDULED_TASK_KIND:
+        return _err("invalid_argument",
+                    f"creating kind {kind!r} via /api/jobs is not supported yet; "
+                    "use the kind-specific endpoints")
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return _err("invalid_argument", "text is required")
+    raw_target = data.get("target")
+    sid = raw_target.get("sessionId") if isinstance(raw_target, dict) else raw_target
+    if not isinstance(sid, str) or not sid.strip():
+        return _err("invalid_argument", "target.sessionId is required")
+    if not _session_exists(sid.strip()):
+        return _err("session_not_found", f"Session {sid.strip()} not found")
+    schedule = data.get("schedule")
+    if isinstance(schedule, list):
+        if not schedule:
+            return _err("invalid_schedule", "schedule must not be an empty list")
+    elif not isinstance(schedule, dict):
+        return _err("invalid_schedule", "schedule must be an object or a list")
+
+    from packages.scheduler import store as scheduler_store
+
+    payload = {
+        "name": data.get("name") if isinstance(data.get("name"), str) else "",
+        "description": (data.get("description")
+                        if isinstance(data.get("description"), str) else ""),
+        "target_session_id": sid.strip(),
+        "text": text,
+        "schedule": schedule,
+        "misfire_policy": data.get("misfirePolicy"),
+        "max_runs": data.get("maxRuns"),
+        "enabled": bool(data.get("enabled", True)),
+    }
+    try:
+        task = scheduler_store.create_task(payload)
+    except ValueError as exc:
+        return _err("invalid_schedule", str(exc))
+    job = _find_job(task["id"]) or {}
+    view = background_jobs.job_public_view(job) if job else None
+    _emit({"type": "job.created", "jobId": job.get("jobId"), "job": view})
+    return _ok(job=view)
 
 
 @router.get("/kinds")
@@ -241,11 +307,34 @@ async def patch_job(job_id: str, data: dict):
     if "target" in data:
         raw = data.get("target")
         sid = raw.get("sessionId") if isinstance(raw, dict) else raw
-        if not isinstance(sid, str) or not sid.strip():
+        if sid is None or (isinstance(sid, str) and not sid.strip()):
+            # 显式清空 → 无 target 态：后续触发直接积压（PLAN §10），可再切换恢复
+            changes["target"] = {"sessionId": None}
+        elif isinstance(sid, str):
+            changes["target"] = {"sessionId": sid.strip()}
+        else:
             return _err("invalid_argument", "target.sessionId is required")
-        changes["target"] = {"sessionId": sid.strip()}
+    replaced: dict | None = None
+    if "schedule" in data:
+        # 多 entry 整体替换（仅 scheduled-task；其余 kind 无 entry 列表）
+        if job.get("kind") != background_jobs.SCHEDULED_TASK_KIND:
+            return _err("invalid_argument",
+                        "schedule patch is only supported for scheduled-task jobs")
+        from packages.scheduler import store as scheduler_store
+
+        task_key = job.get("taskId") or job["jobId"]
+        try:
+            replaced = scheduler_store.replace_task_schedule(task_key,
+                                                             data.get("schedule"))
+        except ValueError as exc:
+            return _err("invalid_schedule", str(exc))
+        if replaced is None:
+            return _err("not_found", f"job {job_id} not found")
     if not changes:
-        return _err("invalid_argument", "no updatable fields in request body")
+        if replaced is None:
+            return _err("invalid_argument", "no updatable fields in request body")
+        # 仅 schedule 替换：已生效，直接返回
+        return _ok(job=background_jobs.job_public_view(replaced))
 
     try:
         updated = background_jobs.update_job_field(
@@ -305,6 +394,6 @@ async def run_job_now(job_id: str):
         return _err(str(error.get("code") or "engine_error"),
                     str(error.get("message") or "run-now failed"))
     job = _find_job(job_id) or job
-    _emit({"type": "job.fired", "jobId": job["jobId"],
-           "taskId": task_id, "run": result.get("run")})
+    # 注意：内核 run_now 已发 scheduler.task.fired（含 tick 循环统一契约），
+    # 这里不再重复发 job.fired——一次触发至多一个 fire 事件，GUI 只订阅前者。
     return _ok(run=result.get("run"), job=_view(job))

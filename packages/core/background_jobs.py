@@ -1239,6 +1239,9 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
     if not notes:
         return 0
     target = job.get("targetSessionId")
+    if not target:
+        # target 仍缺失（可能被清空）：便条原样保留，等 target 恢复/切换。
+        return 0
     remaining: list[dict] = []
     delivered: list[dict] = []
     for note in notes:
@@ -1297,6 +1300,45 @@ def _repair_missing_next_fire(job: dict, now_dt: datetime,
                             registry_root)
 
 
+def _backlog_undelivered_fire(job: dict, task_id: str, entry: dict,
+                              entry_id: str, fire_dt: datetime,
+                              now_dt: datetime, dispatch_key: str,
+                              error: str, registry_root) -> int:
+    """PLAN §10：target 缺失/不可达 → 便条积压 + warning，节奏照常推进。
+
+    便条进 ``undeliveredFires``（上限截断），entry/job 推进与正常派发一致；
+    target 恢复/切换后由 :func:`_redeliver_undelivered` 重投（dispatch_key 幂等）。
+    """
+    kind = entry.get("kind")
+    note = {"entryId": entry_id, "fireAt": _iso_local(fire_dt),
+            "dispatchKey": dispatch_key, "text": job.get("text") or "",
+            "error": error}
+    backed = list(job.get("undeliveredFires") or [])
+    backed.append(note)
+    backed = backed[-SCHEDULED_TASK_UNDELIVERED_MAX:]
+    next_fire = _entry_next_fire(entry, max(fire_dt, now_dt))
+    entry_patch = {"nextFireAt": _iso_local(next_fire),
+                   "lastFireAt": _iso_local(fire_dt)}
+    job_patch = {"undeliveredFires": backed,
+                 "lastFireAt": _iso_local(fire_dt),
+                 "lastStatus": "undeliverable",
+                 "lastError": error,
+                 "updatedAt": time.time()}
+    if kind == "once":
+        entry_patch.update({"enabled": False, "nextFireAt": None})
+        job_patch["enabled"] = False
+    _apply_entry_change(job["jobId"], entry_id, entry_patch, job_patch,
+                        registry_root)
+    _append_task_run(job, task_id, fire_dt, dispatch_key, "undeliverable",
+                     error, registry_root)
+    _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                          "fireAt": _iso_local(fire_dt),
+                          "dispatchKey": dispatch_key,
+                          "status": "undeliverable", "error": error,
+                          "terminal": True})
+    return 1
+
+
 async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
                                 cfg: dict, registry_root: str | Path | None) -> int:
     """Fire one due entry: grace → dispatch(assign) → advance."""
@@ -1352,6 +1394,11 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
                           "dispatchKey": dispatch_key, "status": "dispatched",
                           "error": None})
 
+    if not target:
+        return _backlog_undelivered_fire(
+            job, task_id, entry, entry_id, fire_dt, now_dt, dispatch_key,
+            "target session is missing (no target set)", registry_root)
+
     try:
         result = await _run_job_action(job, target, dispatch_key)
     except Exception as exc:
@@ -1366,33 +1413,9 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
     if not ok and not_found:
         # PLAN §10：target 缺失 → 便条积压 + warning，节奏照常推进，
         # target 恢复/切换后由 _redeliver_undelivered 重投（dispatch_key 幂等）。
-        note = {"entryId": entry_id, "fireAt": _iso_local(fire_dt),
-                "dispatchKey": dispatch_key, "text": job.get("text") or "",
-                "error": f"Session {target} not found"}
-        backed = list(job.get("undeliveredFires") or [])
-        backed.append(note)
-        backed = backed[-SCHEDULED_TASK_UNDELIVERED_MAX:]
-        next_fire = _entry_next_fire(entry, max(fire_dt, now_dt))
-        entry_patch = {"nextFireAt": _iso_local(next_fire),
-                       "lastFireAt": _iso_local(fire_dt)}
-        job_patch = {"undeliveredFires": backed,
-                     "lastFireAt": _iso_local(fire_dt),
-                     "lastStatus": "undeliverable",
-                     "lastError": note["error"],
-                     "updatedAt": time.time()}
-        if kind == "once":
-            entry_patch.update({"enabled": False, "nextFireAt": None})
-            job_patch["enabled"] = False
-        _apply_entry_change(job["jobId"], entry_id, entry_patch, job_patch,
-                            registry_root)
-        _append_task_run(job, task_id, fire_dt, dispatch_key, "undeliverable",
-                         note["error"], registry_root)
-        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
-                              "fireAt": _iso_local(fire_dt),
-                              "dispatchKey": dispatch_key,
-                              "status": "undeliverable", "error": note["error"],
-                              "terminal": True})
-        return 1
+        return _backlog_undelivered_fire(
+            job, task_id, entry, entry_id, fire_dt, now_dt, dispatch_key,
+            f"Session {target} not found", registry_root)
 
     next_fire = None if kind == "once" else _entry_next_fire(entry, max(fire_dt, now_dt))
     run_count = int(job.get("runCount") or 0) + 1

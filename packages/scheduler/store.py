@@ -190,6 +190,44 @@ def effective_spec(task: dict) -> dict:
     return schedule
 
 
+#: 客户端不得经由 spec 注入的 entry 控制键（id/时间戳/启停/策略一律服务端定）
+_ENTRY_CONTROL_KEYS = ("id", "nextFireAt", "lastFireAt", "enabled",
+                       "misfirePolicy")
+
+
+def _spec_to_entry(raw: dict, *, default_misfire: str,
+                   created_iso: str) -> dict:
+    """单个客户端 schedule spec → job 记录 entry（含校验与 nextFireAt 计算）。
+
+    spec 里可选 ``misfirePolicy``（覆盖 job 级默认）与 ``enabled``（默认 True，
+    entry 级启停）；``id``/``nextFireAt``/``lastFireAt`` 等控制键一律剥离。
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("schedule 列表的每一项都必须是对象")
+    spec = _normalize_schedule(raw)
+    if spec["kind"] == "interval" and not spec.get("anchor"):
+        spec["anchor"] = created_iso
+    misfire = str(raw.get("misfirePolicy") or default_misfire)
+    if misfire not in MISFIRE_POLICIES:
+        raise ValueError("misfirePolicy 必须是 fire_now / skip")
+    clean = {k: v for k, v in spec.items() if k not in _ENTRY_CONTROL_KEYS}
+    task_view = {"id": "spec", "enabled": True, "schedule": clean,
+                 "created_at": created_iso}
+    next_fire = compute_next_fire(task_view, _now())
+    entry = _entry_from_schedule(clean, misfire_policy=misfire,
+                                 next_fire_at=next_fire)
+    entry["enabled"] = bool(raw.get("enabled", True))
+    return entry
+
+
+def _entries_next_fire(entries: list[dict]) -> str | None:
+    """全部 enabled entries 的最早 nextFireAt（无则 None）。"""
+    points = [cron.parse_datetime(e.get("nextFireAt"))
+              for e in entries if e.get("enabled", True)]
+    points = [p for p in points if p is not None]
+    return iso(min(points)) if points else None
+
+
 def compute_next_fire(task: dict, after: datetime | None = None) -> str | None:
     """按锚点算出 next_fire_at（ISO 字符串或 None）。disabled 恒为 None。"""
     if not task.get("enabled"):
@@ -237,18 +275,28 @@ def _task_from_job(job: dict | None) -> dict | None:
 def _job_from_payload(payload: dict) -> dict:
     """create_task 的 payload（已过校验，带 ``_normalized_schedule`` 等内参）→ job 记录。"""
     now_ts = time.time()
-    schedule = payload["_normalized_schedule"]
     created_iso = payload.get("created_at") or iso(_now())
-    if schedule["kind"] == "interval" and not schedule.get("anchor"):
-        anchor = cron.parse_datetime(created_iso) or _now()
-        schedule["anchor"] = iso(anchor)
+    specs = payload.get("_schedule_specs")
+    if specs is not None:
+        # 多 entry 路径（/api/jobs POST）：列表里每项一个 entry
+        entries = [_spec_to_entry(raw, default_misfire=payload["_misfire"],
+                                  created_iso=created_iso) for raw in specs]
+        next_fire = _entries_next_fire(entries)
+    else:
+        # 单 spec 路径（PR 契约 /api/scheduler/tasks）
+        schedule = payload["_normalized_schedule"]
+        if schedule["kind"] == "interval" and not schedule.get("anchor"):
+            anchor = cron.parse_datetime(created_iso) or _now()
+            schedule["anchor"] = iso(anchor)
+        task_view = {"id": str(payload.get("id") or _new_task_id()).strip(),
+                     "enabled": bool(payload.get("enabled", True)),
+                     "schedule": schedule, "created_at": created_iso}
+        next_fire = compute_next_fire(task_view, _now())
+        entries = [_entry_from_schedule(schedule,
+                                        misfire_policy=payload["_misfire"],
+                                        next_fire_at=next_fire)]
     task_id = str(payload.get("id") or _new_task_id()).strip()
     enabled = bool(payload.get("enabled", True))
-    task_view = {"id": task_id, "enabled": enabled, "schedule": schedule,
-                 "created_at": created_iso}
-    next_fire = compute_next_fire(task_view, _now())
-    entry = _entry_from_schedule(schedule, misfire_policy=payload["_misfire"],
-                                 next_fire_at=next_fire)
     created_dt = cron.parse_datetime(created_iso)
     status = "scheduled" if (enabled and next_fire) else "pending"
     if not enabled:
@@ -268,7 +316,7 @@ def _job_from_payload(payload: dict) -> dict:
         "creatorSessionId": None,
         "enabled": enabled,
         "paused": bool(payload.get("paused", False)),
-        "schedule": [entry],
+        "schedule": entries,
         "misfirePolicy": payload["_misfire"],
         "nextFireAt": next_fire,
         "lastFireAt": None,
@@ -346,7 +394,14 @@ def create_task(payload: dict) -> dict:
         max_runs = None
 
     prepared = dict(payload)
-    prepared["_normalized_schedule"] = _normalize_schedule(payload.get("schedule"))
+    raw_schedule = payload.get("schedule")
+    if isinstance(raw_schedule, list):
+        # 多 entry 路径（/api/jobs POST）：schedule 为 spec 列表
+        if not raw_schedule:
+            raise ValueError("schedule 不能为空列表")
+        prepared["_schedule_specs"] = raw_schedule
+    else:
+        prepared["_normalized_schedule"] = _normalize_schedule(raw_schedule)
     prepared["_misfire"] = misfire
     prepared["_max_runs"] = max_runs
     job = _job_from_payload(prepared)
@@ -360,6 +415,10 @@ def update_task(task_id: str, patch: dict) -> dict | None:
     - patch 显式给了 ``next_fire_at`` → 原样采用，不重算；
     - ``enabled`` 置 False → next_fire_at 置 None（不参与扫描）；
     - ``schedule`` 变更、``enabled`` 置 True → 按锚点重算。
+
+    注意：本函数服务旧契约（/api/scheduler/* 与 MCP），``schedule`` patch 会把
+    entry 列表塌缩为单条（PR 单 entry 心智）。多 entry job 的编辑请走
+    :func:`replace_task_schedule`（/api/jobs PATCH 的底层）。
     """
     job = _job_for_task(task_id)
     if job is None:
@@ -488,6 +547,49 @@ def delete_task(task_id: str) -> bool:
     if job is None:
         return False
     return background_jobs.delete_job(job["jobId"], registry_root=data_root())
+
+
+def replace_task_schedule(task_id: str, specs,
+                          registry_root: Path | None = None) -> dict | None:
+    """整体替换 scheduled-task 的 schedule entry 列表（/api/jobs PATCH 底层）。
+
+    ``specs`` 为非空 spec 列表（每项可带 ``misfirePolicy``/``enabled``，控制键
+    ``id``/``nextFireAt``/``lastFireAt`` 一律剥离）；全部 entry 重建（新 id）、
+    job 级 nextFireAt 取 enabled entries 最早值，全程持跨进程 job 锁。
+
+    Returns:
+        更新后的 job 记录；任务不存在返回 ``None``。
+
+    Raises:
+        ValueError: specs 非法（空/非列表/单项校验失败）。
+    """
+    job = _job_for_task(task_id, registry_root)
+    if job is None:
+        return None
+    if not isinstance(specs, list) or not specs:
+        raise ValueError("schedule 必须是非空列表")
+    created_iso = _epoch_to_iso(job.get("createdAt")) or iso(_now())
+    default_misfire = str(job.get("misfirePolicy") or "fire_now")
+    entries = [_spec_to_entry(raw, default_misfire=default_misfire,
+                              created_iso=created_iso) for raw in specs]
+    next_fire = _entries_next_fire(entries)
+    with background_jobs._lock, background_jobs._job_lock(
+            job["jobId"], registry_root):
+        path = background_jobs._job_path(job["jobId"], registry_root)
+        current = background_jobs._load_path(path)
+        if not current or current.get("kind") != background_jobs.SCHEDULED_TASK_KIND:
+            return None
+        current["schedule"] = entries
+        current["nextFireAt"] = next_fire
+        # 最小状态修复：enabled 且未暂停的 job 从无下次触发变为有 → scheduled；
+        # 反之（如全部换成已过期的 once）不强行降级，交给扫描/自愈路径。
+        if (current.get("enabled") and not current.get("paused")
+                and next_fire and current.get("status") in (None, "pending",
+                                                           "completed")):
+            current["status"] = "scheduled"
+        current["updatedAt"] = time.time()
+        background_jobs._atomic_write(path, current)
+        return current
 
 
 # ── 执行历史 ──
