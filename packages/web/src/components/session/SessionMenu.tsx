@@ -71,10 +71,10 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
       }
     };
     // Delay to avoid immediate close from the click that opened it
-    const timer = setTimeout(() => document.addEventListener('click', handler), 0);
+    const timer = setTimeout(() => document.addEventListener('click', handler, true), 0);
     return () => {
       clearTimeout(timer);
-      document.removeEventListener('click', handler);
+      document.removeEventListener('click', handler, true);
     };
   }, [onClose]);
 

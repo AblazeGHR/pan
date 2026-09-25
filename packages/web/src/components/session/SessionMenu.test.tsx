@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SessionMenu } from './SessionMenu';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -121,6 +122,26 @@ describe('SessionMenu workspace entry removal', () => {
 });
 
 describe('SessionMenu click-away dismissal', () => {
+  it('does not dismiss from the click that opens the menu', () => {
+    const onClose = vi.fn();
+    vi.useFakeTimers();
+    function MenuOpener() {
+      const [isOpen, setIsOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setIsOpen(true)}>Open menu</button>
+          {isOpen && <SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={onClose} />}
+        </>
+      );
+    }
+
+    render(<MenuOpener />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.body.querySelector('.fixed')).toBeTruthy();
+  });
+
   it('does not close when clicking inside the portal menu', () => {
     const onClose = vi.fn();
     renderMenuWithCard(onClose);
@@ -137,6 +158,42 @@ describe('SessionMenu click-away dismissal', () => {
     renderMenuWithCard(onClose);
 
     fireEvent.click(screen.getByTestId('card-content'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes for a Sidebar click even when a React handler stops bubbling', () => {
+    const onClose = vi.fn();
+    vi.useFakeTimers();
+    render(
+      <div>
+        <aside onClick={(event) => event.stopPropagation()}>
+          <button data-testid="sidebar-area">Sidebar area</button>
+        </aside>
+        <SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={onClose} />
+      </div>,
+    );
+    act(() => vi.advanceTimersByTime(0));
+
+    fireEvent.click(screen.getByTestId('sidebar-area'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes for a main-content click when its React handler stops bubbling', () => {
+    const onClose = vi.fn();
+    vi.useFakeTimers();
+    render(
+      <div>
+        <main onClick={(event) => event.stopPropagation()}>
+          <button data-testid="main-area">Main content</button>
+        </main>
+        <SessionMenu session={session} position={{ x: 10, y: 10 }} onClose={onClose} />
+      </div>,
+    );
+    act(() => vi.advanceTimersByTime(0));
+
+    fireEvent.click(screen.getByTestId('main-area'));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
