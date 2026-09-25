@@ -762,8 +762,7 @@ function projectTranscript(
   // Never use this fallback across tasks or when either side is ambiguous.
   const taskPrefix = liveBuffer?.taskKey ? `slot:${liveBuffer.taskKey}:` : null;
   const legacyEligible = (row: Message): boolean => (
-    (row.role === 'user' && row.nativeItemId?.startsWith('local:user:') === true
-      && localMessageOrigins.has(row))
+    (isLocallyOwnedUserMessage(row) && localMessageOrigins.has(row))
     || ((row.role === 'assistant' || row.role === 'thinking')
       && Boolean(row.nativeItemId && taskPrefix
         && runtimeKeyOf(row)?.startsWith(taskPrefix)))
@@ -2836,6 +2835,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         );
         if (queueMatch >= 0 && queueIds(selectedMessages[queueMatch]!).some((id) => queueSetMatches(pendingIds, id))) {
           const updated = { ...selectedMessages[queueMatch], ...message };
+          copyLocalMessageOrigin(updated, selectedMessages[queueMatch]!);
           inheritMessageIdentity(updated, selectedMessages[queueMatch]!);
           const key = runtimeKeyOf(selectedMessages[queueMatch]!);
           if (key !== null) bindRuntimeKey(updated, key);
@@ -2872,6 +2872,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           );
           if (queueMatch >= 0 && queueIds(nextHistory[queueMatch]!).some((id) => queueSetMatches(pendingIds, id))) {
             const updated = { ...nextHistory[queueMatch], ...message };
+            copyLocalMessageOrigin(updated, nextHistory[queueMatch]!);
             inheritMessageIdentity(updated, nextHistory[queueMatch]!);
             const key = runtimeKeyOf(nextHistory[queueMatch]!);
             if (key !== null) bindRuntimeKey(updated, key);
@@ -2910,6 +2911,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           queueIds(row).some(existing => queueIdMatches(existing, id))));
         if (!incoming) return row;
         const updated = { ...row, ...incoming };
+        copyLocalMessageOrigin(updated, row);
         inheritMessageIdentity(updated, row);
         const key = runtimeKeyOf(row);
         if (key !== null) bindRuntimeKey(updated, key);

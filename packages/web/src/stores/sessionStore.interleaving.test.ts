@@ -118,6 +118,45 @@ it('completed runtime rows remain anchored when history is refreshed repeatedly 
   }
 });
 
+it('moves a delivered queue user from after DONE onto its canonical task boundary across A/B/A', () => {
+  const task = { ...meta, taskSeq: 7 };
+  store().applyLiveStream('A', [row('answer')], task);
+  store().reconcileWorkerResult('A', { result: 'answer', status: 'done' }, task);
+  store().addMessage({ role: 'system', content: '[DONE] Task completed',
+    nativeItemId: 'worker.result:A:7' });
+  // The hand-off WS event can trail worker.result even though the backend
+  // writes the user row before the answer in durable history.
+  store().appendQueuedMessage('A', { id: 'q-done-boundary', text: 'queued prompt' });
+  store().appendDeliveredMessages('A', [{ role: 'user', content: 'queued prompt',
+    queueItemIds: ['q-done-boundary'] }]);
+  expect(texts()).toEqual(['answer', '[DONE] Task completed', 'queued prompt']);
+
+  store().applyHistoryPage('A', { history: [
+    { role: 'user', content: 'queued prompt' }, row('answer'),
+  ], start: 0, total: 2, hasMore: false, historyEpoch: 'h', historyRevision: 2 });
+  expect(texts()).toEqual(['queued prompt', 'answer', '[DONE] Task completed']);
+  void store().selectSession('B');
+  void store().selectSession('A');
+  expect(texts()).toEqual(['queued prompt', 'answer', '[DONE] Task completed']);
+  expect(texts().filter((text) => text === 'queued prompt')).toHaveLength(1);
+});
+
+it('keeps agent injected canonical user rows before DONE without creating a live duplicate', () => {
+  const task = { ...meta, taskSeq: 8 };
+  store().applyLiveStream('A', [row('agent answer')], task);
+  store().reconcileWorkerResult('A', { result: 'agent answer', status: 'done' }, task);
+  store().addMessage({ role: 'system', content: '[DONE] Task completed',
+    nativeItemId: 'worker.result:A:8' });
+  store().applyHistoryPage('A', { history: [
+    { role: 'user', content: 'injected instruction', messageId: 'agent-msg-8' },
+    row('agent answer'),
+  ], start: 0, total: 2, hasMore: false, historyEpoch: 'h', historyRevision: 2 });
+  expect(texts()).toEqual(['injected instruction', 'agent answer', '[DONE] Task completed']);
+  void store().selectSession('B');
+  void store().selectSession('A');
+  expect(texts()).toEqual(['injected instruction', 'agent answer', '[DONE] Task completed']);
+});
+
 it('converges a real Codex terminal reorder before the next same-text turn', () => {
   const first = { workerId: 'w', generation: 0, taskSeq: 1 };
   const second = { ...first, taskSeq: 2 };
