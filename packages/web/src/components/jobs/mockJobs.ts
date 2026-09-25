@@ -77,6 +77,15 @@ export interface JobDelivery {
   errors?: unknown[];
 }
 
+/** 单条运行历史（对应 runs.jsonl 的摘要行）。 */
+export interface JobRun {
+  runId: string;
+  fireAt: string;
+  entryId?: string | null;
+  status: string;
+  error?: string | null;
+}
+
 export interface Job {
   jobId: string;
   /** 人类可读名称；必填、不允许为空。缺省时由 defaultJobName 自动生成 job-N。 */
@@ -98,6 +107,8 @@ export interface Job {
   maxRuns: number | null;
   paused: boolean;
   lastDelivery?: JobDelivery;
+  /** 运行历史（runs.jsonl 摘要行），详情视图展示最近 N 条。 */
+  runs?: JobRun[];
   /** 进程类 job 专有；非进程类无此字段。 */
   logPath?: string;
   createdAt: string;
@@ -133,6 +144,9 @@ export const mockJobs: Job[] = [
     lastError: null,
     maxRuns: null,
     paused: false,
+    runs: [
+      { runId: 'run_1a2b3c', fireAt: '2026-09-25T10:12:00', status: 'running' },
+    ],
     logPath: 'data/jobs/job_1a2b3c4d5e6f.log',
     createdAt: '2026-09-25T10:12:00',
     updatedAt: '2026-09-25T10:12:01',
@@ -174,6 +188,16 @@ export const mockJobs: Job[] = [
     lastError: null,
     maxRuns: null,
     paused: false,
+    runs: [
+      { runId: 'run_2a2b3c', fireAt: '2026-09-24T09:00:00', entryId: 'schx_1a2b3c', status: 'dispatched' },
+      { runId: 'run_2a2b3d', fireAt: '2026-09-23T09:00:00', entryId: 'schx_1a2b3c', status: 'dispatched' },
+      { runId: 'run_2a2b3e', fireAt: '2026-09-22T09:00:00', entryId: 'schx_1a2b3c', status: 'dispatched' },
+      { runId: 'run_2a2b3f', fireAt: '2026-09-19T09:00:00', entryId: 'schx_1a2b3c', status: 'dispatched' },
+      { runId: 'run_2a2b40', fireAt: '2026-09-18T09:00:00', entryId: 'schx_1a2b3c', status: 'dispatched' },
+      { runId: 'run_2a2b41', fireAt: '2026-09-17T09:00:00', entryId: 'schx_1a2b3c', status: 'error', error: 'worker busy' },
+      { runId: 'run_2a2b42', fireAt: '2026-09-16T09:00:00', entryId: 'schx_1a2b3c', status: 'dispatched' },
+      { runId: 'run_2a2b43', fireAt: '2026-09-15T09:00:00', entryId: 'schx_1a2b3c', status: 'dispatched' },
+    ],
     createdAt: '2026-09-10T08:00:00',
     updatedAt: '2026-09-24T09:00:02',
   },
@@ -206,6 +230,10 @@ export const mockJobs: Job[] = [
       ],
       errors: [{ sessionId: 'sess_3f4a5b6c', error: 'session not found' }],
     },
+    runs: [
+      { runId: 'run_3a2b3c', fireAt: '2026-09-25T09:30:00', status: 'partial' },
+      { runId: 'run_3a2b3d', fireAt: '2026-09-24T09:30:00', status: 'dispatched' },
+    ],
     createdAt: '2026-09-25T09:29:00',
     updatedAt: '2026-09-25T09:30:05',
   },
@@ -262,6 +290,13 @@ export const mockJobs: Job[] = [
     lastError: null,
     maxRuns: null,
     paused: false,
+    runs: [
+      { runId: 'run_4a2b3c', fireAt: '2026-09-24T09:00:00', entryId: 'schx_7a8b9c', status: 'completed' },
+      { runId: 'run_4a2b3d', fireAt: '2026-09-23T09:00:00', entryId: 'schx_7a8b9c', status: 'completed' },
+      { runId: 'run_4a2b3e', fireAt: '2026-09-22T09:00:00', entryId: 'schx_7a8b9c', status: 'completed' },
+      { runId: 'run_4a2b3f', fireAt: '2026-09-21T09:00:00', entryId: 'schx_7a8b9c', status: 'completed' },
+      { runId: 'run_4a2b40', fireAt: '2026-09-20T09:00:00', entryId: 'schx_7a8b9c', status: 'completed' },
+    ],
     createdAt: '2026-09-20T08:00:00',
     updatedAt: '2026-09-24T09:00:02',
   },
@@ -288,6 +323,9 @@ export const mockJobs: Job[] = [
       results: [{ sessionId: 'sess_2b3c4d5e', ok: true }],
       errors: [],
     },
+    runs: [
+      { runId: 'run_5a2b3c', fireAt: '2026-09-25T08:15:00', status: 'delivered' },
+    ],
     createdAt: '2026-09-25T08:15:00',
     updatedAt: '2026-09-25T08:15:01',
   },

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ListChecks, MoreHorizontal, Plus } from 'lucide-react';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
+import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
 import { useUIStore } from '@/stores/uiStore';
 import {
   mockJobs,
@@ -125,10 +126,13 @@ function matchesStatusFilter(job: Job, filter: StatusFilter): boolean {
   }
 }
 
-function JobRow({ job }: { job: Job }) {
+function JobRow({ job, onOpen }: { job: Job; onOpen: () => void }) {
   const next = nextFireAt(job);
   return (
-    <div className="flex flex-col gap-1.5 rounded border border-border-default bg-bg-primary px-3 py-2.5">
+    <div
+      onClick={onOpen}
+      className="flex flex-col gap-1.5 rounded border border-border-default bg-bg-primary px-3 py-2.5 transition-colors hover:bg-bg-secondary/50 cursor-pointer"
+    >
       <div className="flex items-center gap-2">
         <span
           className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-medium ${statusClass(job.status)}`}
@@ -149,6 +153,7 @@ function JobRow({ job }: { job: Job }) {
         <button
           type="button"
           disabled
+          onClick={(e) => e.stopPropagation()}
           title="动作集合待定"
           aria-label="Job actions (placeholder)"
           className="shrink-0 rounded border border-transparent p-1 text-text-tertiary opacity-50"
@@ -199,6 +204,7 @@ export default function JobsView() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   const visibleJobs = useMemo(() => {
     return jobs
@@ -311,7 +317,7 @@ export default function JobsView() {
               {visibleJobs.length > 0 ? (
                 <div className="flex flex-col gap-2">
                   {visibleJobs.map((job) => (
-                    <JobRow key={job.jobId} job={job} />
+                    <JobRow key={job.jobId} job={job} onOpen={() => setSelectedJob(job)} />
                   ))}
                 </div>
               ) : (
@@ -325,6 +331,10 @@ export default function JobsView() {
           )}
         </div>
       </div>
+
+      {selectedJob && (
+        <JobDetailDrawer job={selectedJob} onClose={() => setSelectedJob(null)} />
+      )}
     </div>
   );
 }
