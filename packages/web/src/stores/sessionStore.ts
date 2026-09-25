@@ -1262,7 +1262,6 @@ function applyHistoryPageToState(
         && (row.nativeItemId ?? null) === (other.nativeItemId ?? null);
     });
   const display = unchanged ? s.currentMessages : projected;
-  const lastRow = display[display.length - 1];
   const projectedTotal = Math.max(
     merged.window.total,
     session.historyTotal ?? 0,
@@ -1278,7 +1277,6 @@ function applyHistoryPageToState(
           historyTruncated: (merged.window.start ?? 0) > 0,
           historyEpoch: merged.window.epoch ?? candidate.historyEpoch,
           historyRevision: merged.window.revision,
-          ...(lastRow ? { lastMessage: String(lastRow.content).slice(0, 200) } : {}),
         }
       : candidate),
     historyWindowStarts: {

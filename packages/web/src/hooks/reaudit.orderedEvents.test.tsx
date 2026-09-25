@@ -526,6 +526,39 @@ describe('reaudit · ordered event pipeline', () => {
       .toEqual(['B initial', 'Injected report request', 'B report', 'B follow-up']);
   });
 
+  it('late history page cannot replace selected result summary with the local DONE marker', () => {
+    const b = mk('B');
+    b.history = [{ role: 'user', content: 'B initial', messageId: 'b-1' }];
+    b.historyTotal = 1;
+    b.lastMessage = 'B initial';
+    useSessionStore.setState({ sessions: [b], currentSessionId: 'B', currentMessages: b.history });
+    renderHook(() => useWebSocket());
+
+    act(() => wsMock.trigger('worker.result', {
+      type: 'worker.result', sessionId: 'B', workerId: 'w2', generation: 0,
+      taskSeq: 7, taskId: 'b-task-7', status: 'done', result: 'Newest result',
+    }));
+
+    const completed = useSessionStore.getState();
+    expect(completed.currentMessages.map((row) => row.content)).toEqual([
+      'B initial', 'Newest result', '[DONE] Task completed',
+    ]);
+    expect(completed.sessions[0]?.lastMessage).toBe('Newest result');
+    expect(completed.sessions[0]?.history?.some((row) => row.content === '[DONE] Task completed')).toBe(false);
+
+    act(() => useSessionStore.getState().applyHistoryPage('B', {
+      history: [{ role: 'user', content: 'B initial', messageId: 'b-1' }],
+      total: 1, hasMore: false, start: 0, historyEpoch: 'b-epoch', historyRevision: 2,
+    }));
+
+    const afterLatePage = useSessionStore.getState();
+    expect(afterLatePage.sessions[0]?.lastMessage).toBe('Newest result');
+    expect(afterLatePage.sessions[0]?.historyTotal).toBeGreaterThanOrEqual(completed.sessions[0]!.historyTotal!);
+    expect(afterLatePage.currentMessages.map((row) => row.content)).toEqual([
+      'B initial', 'Newest result', '[DONE] Task completed',
+    ]);
+  });
+
   // DEFECT E2 (F-B). A tool event that arrives before the assistant text is
   // reordered after it once worker.result rebuilds the live projection.
   it('E2 · a tool block streamed before the assistant text keeps its position after result', () => {
