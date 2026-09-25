@@ -100,12 +100,12 @@
     },
     {
       "name": "pan-wechat",
-      "command": "E:/python/python.exe",
+      "command": "${PAN_PYTHON}",
       "args": [
         "-m",
         "packages.wechat.mcp"
       ],
-      "cwd": "E:/pan"
+      "cwd": "${PLUGIN_DIR}"
     }
   ],
   "command_routes": []
