@@ -86,7 +86,7 @@ describe('responsive WorkspaceRail placement', () => {
     expect(handle.className).toContain('rounded-r-lg');
     expect(handle.className).toContain('border-l-0');
     expect(handle.className).not.toContain('rounded-l-lg');
-    expect(drawer.querySelector('aside')?.style.width).toBe('260px');
+    expect(drawer.querySelector('aside')?.style.width).toBe('min(280px, 100vw)');
     expect(container.querySelector('[data-workspace-tab-id="ws-alpha"]')).toBeNull();
 
     fireEvent.click(handle);

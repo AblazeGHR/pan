@@ -124,6 +124,41 @@ describe('Sidebar Session search controls', () => {
     expect(useSessionStore.getState().selectedIds).toEqual(new Set());
   });
 
+  it.each([280, 240])('keeps selection actions within a %ipx-or-narrower viewport', (viewportWidth) => {
+    useSessionStore.setState({
+      sessions: [{ id: 'alpha', name: 'Alpha', alwaysThinkingEnabled: false, effort: '', history: [] }],
+      multiSelectMode: true,
+      selectedIds: new Set(['alpha']),
+    });
+    useUIStore.getState().setSidebarWidth(200);
+    expect(useUIStore.getState().sidebarWidth).toBe(280);
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: viewportWidth });
+    renderSidebar();
+
+    const sidebar = document.querySelector('aside');
+    const selectionBar = document.querySelector('.sidebar-selection-bar');
+    const actions = document.querySelector('.sidebar-selection-actions');
+    expect(sidebar?.style.width).toBe('min(280px, 100vw)');
+    expect(sidebar?.style.minWidth).toBe('min(280px, 100vw)');
+    expect(selectionBar?.className).toContain('flex-wrap');
+    expect(actions?.className).toContain('flex-wrap');
+    expect(screen.getByRole('button', { name: 'Delete selected sessions' }).title).toBe('Delete selected sessions');
+    expect(screen.getByRole('button', { name: 'Cancel selection' }).title).toBe('Cancel selection');
+    expect(screen.getByRole('button', { name: 'Move selected sessions to workspace' }).textContent).toContain('Workspace');
+  });
+
+  it('keeps full action labels and explicit accessible names in the wide selection bar', () => {
+    useSessionStore.setState({ multiSelectMode: true, selectedIds: new Set(['alpha']) });
+    useUIStore.setState({ sidebarWidth: 480 });
+    renderSidebar();
+
+    expect(document.querySelector('aside')?.style.width).toBe('min(480px, 100vw)');
+    expect(screen.getByRole('button', { name: 'Delete selected sessions' }).textContent).toContain('Delete');
+    expect(screen.getByRole('button', { name: 'Cancel selection' }).textContent).toContain('Cancel');
+    expect(screen.getByRole('button', { name: 'Move selected sessions to workspace' }).textContent).toContain('Workspace');
+    expect(document.querySelector('.sidebar-selection-action-icon')).toBeTruthy();
+  });
+
   it('uses special filters for the select-all candidate range', () => {
     useSessionStore.setState({
       sessions: [

@@ -13,10 +13,10 @@ import type { SpecialFilterId } from '@/utils/sessionFilters';
 function loadSidebarWidth(): number {
   try {
     const v = localStorage.getItem('pan:sidebarWidth');
-    const n = v ? parseInt(v, 10) : 260;
-    return Math.max(200, Math.min(480, n));
+    const n = v ? parseInt(v, 10) : 280;
+    return Math.max(280, Math.min(480, n));
   } catch {
-    return 260;
+    return 280;
   }
 }
 
@@ -444,7 +444,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   },
 
   setSidebarWidth: (w) => {
-    const clamped = Math.max(200, Math.min(480, Math.round(w)));
+    const clamped = Math.max(280, Math.min(480, Math.round(w)));
     set({ sidebarWidth: clamped });
     persistSidebarWidth(clamped);
   },
