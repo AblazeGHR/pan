@@ -1260,12 +1260,14 @@ function applyHistoryPageToState(
         && row.content === other.content
         && (row.messageId ?? null) === (other.messageId ?? null)
         && (row.nativeItemId ?? null) === (other.nativeItemId ?? null);
-    });
+  });
   const display = unchanged ? s.currentMessages : projected;
+  const canonicalDisplay = display.filter((row) => !isLocalMarker(row));
+  const lastCanonicalRow = canonicalDisplay[canonicalDisplay.length - 1];
   const projectedTotal = Math.max(
     merged.window.total,
     session.historyTotal ?? 0,
-    display.length,
+    canonicalDisplay.length,
   );
   return {
     sessions: s.sessions.map((candidate) => candidate.id === sessionId
@@ -1277,6 +1279,9 @@ function applyHistoryPageToState(
           historyTruncated: (merged.window.start ?? 0) > 0,
           historyEpoch: merged.window.epoch ?? candidate.historyEpoch,
           historyRevision: merged.window.revision,
+          ...(lastCanonicalRow
+            ? { lastMessage: String(lastCanonicalRow.content).slice(0, 200) }
+            : {}),
         }
       : candidate),
     historyWindowStarts: {

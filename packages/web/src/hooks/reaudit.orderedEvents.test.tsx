@@ -553,10 +553,36 @@ describe('reaudit · ordered event pipeline', () => {
 
     const afterLatePage = useSessionStore.getState();
     expect(afterLatePage.sessions[0]?.lastMessage).toBe('Newest result');
-    expect(afterLatePage.sessions[0]?.historyTotal).toBeGreaterThanOrEqual(completed.sessions[0]!.historyTotal!);
+    expect(completed.sessions[0]?.historyTotal).toBe(2);
+    expect(afterLatePage.sessions[0]?.historyTotal).toBe(2);
     expect(afterLatePage.currentMessages.map((row) => row.content)).toEqual([
       'B initial', 'Newest result', '[DONE] Task completed',
     ]);
+  });
+
+  it('background history page updates injected-row summary without changing selected messages', () => {
+    const a = mk('A');
+    const b = mk('B');
+    a.history = [{ role: 'user', content: 'A selected', messageId: 'a-1' }];
+    a.historyTotal = 1;
+    b.history = [{ role: 'user', content: 'B initial', messageId: 'b-1' }];
+    b.historyTotal = 1;
+    b.lastMessage = 'B initial';
+    useSessionStore.setState({ sessions: [a, b], currentSessionId: 'A', currentMessages: a.history });
+
+    act(() => useSessionStore.getState().applyHistoryPage('B', {
+      history: [
+        { role: 'user', content: 'B initial', messageId: 'b-1' },
+        { role: 'user', content: 'Injected report request', messageId: 'b-injected' },
+      ],
+      total: 2, hasMore: false, start: 0, historyEpoch: 'b-epoch', historyRevision: 2,
+    }));
+
+    const state = useSessionStore.getState();
+    expect(state.sessions.find((session) => session.id === 'B')?.lastMessage)
+      .toBe('Injected report request');
+    expect(state.sessionTranscripts.B?.window.rows.size).toBe(2);
+    expect(state.currentMessages.map((row) => row.content)).toEqual(['A selected']);
   });
 
   // DEFECT E2 (F-B). A tool event that arrives before the assistant text is
