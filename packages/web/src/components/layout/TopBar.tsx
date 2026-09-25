@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -79,7 +79,7 @@ function cachedQuotaLabel(quota: unknown): string | undefined {
   return available.length > 0 ? `quota ${available.join(' / ')}` : undefined;
 }
 
-export function TopBar() {
+export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const currentSession = useCurrentSession();
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const [codexQuota, setCodexQuota] = useState<CodexQuotaProjection | null>(null);
@@ -121,10 +121,11 @@ export function TopBar() {
 
   if (!currentSession) {
     return (
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border-default bg-bg-primary">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border-default bg-bg-primary gap-2">
         <span className="text-sm text-text-tertiary">
           Select a session to start
         </span>
+        {rightAction}
       </div>
     );
   }
@@ -281,6 +282,7 @@ export function TopBar() {
             Start
           </Button>
         )}
+        {rightAction}
       </div>
     </div>
   );
