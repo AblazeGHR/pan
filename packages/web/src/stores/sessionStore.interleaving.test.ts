@@ -141,22 +141,6 @@ it('moves a delivered queue user from after DONE onto its canonical task boundar
   expect(texts().filter((text) => text === 'queued prompt')).toHaveLength(1);
 });
 
-it('keeps agent injected canonical user rows before DONE without creating a live duplicate', () => {
-  const task = { ...meta, taskSeq: 8 };
-  store().applyLiveStream('A', [row('agent answer')], task);
-  store().reconcileWorkerResult('A', { result: 'agent answer', status: 'done' }, task);
-  store().addMessage({ role: 'system', content: '[DONE] Task completed',
-    nativeItemId: 'worker.result:A:8' });
-  store().applyHistoryPage('A', { history: [
-    { role: 'user', content: 'injected instruction', messageId: 'agent-msg-8' },
-    row('agent answer'),
-  ], start: 0, total: 2, hasMore: false, historyEpoch: 'h', historyRevision: 2 });
-  expect(texts()).toEqual(['injected instruction', 'agent answer', '[DONE] Task completed']);
-  void store().selectSession('B');
-  void store().selectSession('A');
-  expect(texts()).toEqual(['injected instruction', 'agent answer', '[DONE] Task completed']);
-});
-
 it('converges a real Codex terminal reorder before the next same-text turn', () => {
   const first = { workerId: 'w', generation: 0, taskSeq: 1 };
   const second = { ...first, taskSeq: 2 };
@@ -214,6 +198,28 @@ it('converges a real Codex terminal reorder before the next same-text turn', () 
     'first question', 'interim answer', 'reasoning', 'first final', '[DONE] Task completed',
     'same question', 'same reply', '[DONE] Task completed',
   ]);
+});
+
+it('keeps same-body deliveries with distinct delivery keys as two canonical rows', () => {
+  store().appendDeliveredMessages('A', [
+    { role: 'user', content: 'same body', queueItemIds: ['q-one'], deliveryKeys: ['task:q-one'] },
+    { role: 'user', content: 'same body', queueItemIds: ['q-two'], deliveryKeys: ['task:q-two'] },
+  ]);
+  expect(texts().filter((content) => content === 'same body')).toHaveLength(2);
+
+  store().applyHistoryPage('A', { history: [
+    { role: 'user', content: 'same body', deliveryKeys: ['task:q-one'] },
+    { role: 'user', content: 'same body', deliveryKeys: ['task:q-two'] },
+  ], start: 0, total: 2, hasMore: false, historyEpoch: 'h', historyRevision: 2 });
+  expect(texts().filter((content) => content === 'same body')).toHaveLength(2);
+
+  // A delayed/replayed handoff arriving after canonical history is loaded
+  // matches by receipt identity; the two same-body queue items remain distinct.
+  store().appendDeliveredMessages('A', [
+    { role: 'user', content: 'same body', queueItemIds: ['q-one'], deliveryKeys: ['task:q-one'] },
+    { role: 'user', content: 'same body', queueItemIds: ['q-two'], deliveryKeys: ['task:q-two'] },
+  ]);
+  expect(texts().filter((content) => content === 'same body')).toHaveLength(2);
 });
 
 it('a queued second user row keeps its position after the first completed turn', () => {

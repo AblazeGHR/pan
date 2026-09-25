@@ -416,6 +416,7 @@ def test_successful_delivery_broadcasts_user_message_after_durable_commit(monkey
     assert delivered["queueRevision"] == value.queue_revision
     assert delivered["messages"] == [{
         "role": "user", "content": "shown", "queueItemIds": ["q-event"],
+        "deliveryKeys": ["task:q-event"],
     }]
     assert delivered_index < next(i for i, event in enumerate(events)
                                   if event.get("type") == "queue.snapshot")

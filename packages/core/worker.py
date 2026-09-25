@@ -2093,6 +2093,7 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
             w.worker_id, exc,
         )
     delivered_ids = [_queue_item_id(item) for item in items]
+    delivered_keys = [_delivery_key(item) for item in items]
     delivered_text = (
         items[0].get("text", "")
         if _queue_item_kind(items[0]) == "task"
@@ -2111,6 +2112,7 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
             "role": "user",
             "content": delivered_text,
             "queueItemIds": delivered_ids,
+            "deliveryKeys": delivered_keys,
             **({"parts": public_message_parts(items[0].get("parts"))}
                if _queue_item_kind(items[0]) == "task" and isinstance(items[0].get("parts"), list)
                else {}),

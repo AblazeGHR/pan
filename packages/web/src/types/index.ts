@@ -21,6 +21,8 @@ export interface Message {
   nativeItemId?: string;
   /** Queue item(s) whose local CLI hand-off produced this user message. */
   queueItemIds?: string[];
+  /** Stable server receipt keys shared by queue delivery events and history. */
+  deliveryKeys?: string[];
 }
 
 export type MessagePart =

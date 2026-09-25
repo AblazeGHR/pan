@@ -3747,6 +3747,19 @@ def _api_history(
     normalized: list[dict] = []
     for offset, message in enumerate(history):
         absolute_index = max(0, int(start or 0)) + offset
+        delivery_keys = (
+            message.get("delivered_keys")
+            if isinstance(message, dict) and isinstance(message.get("delivered_keys"), list)
+            else None
+        )
+        public_message = (
+            {key: value for key, value in message.items() if key != "delivered_keys"}
+            if isinstance(message, dict) else message
+        )
+        if isinstance(public_message, dict) and delivery_keys:
+            public_message["deliveryKeys"] = [
+                key for key in delivery_keys if isinstance(key, str) and key
+            ]
         wire_identity = None
         if include_identity:
             wire_identity = (
@@ -3758,7 +3771,7 @@ def _api_history(
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             if isinstance(message, dict) and isinstance(message.get("parts"), list):
                 normalized.append({
-                    **message,
+                    **public_message,
                     **({"messageId": wire_identity} if wire_identity else {}),
                     "parts": [
                         {key: value for key, value in part.items() if key != "__serverPath"}
@@ -3767,14 +3780,14 @@ def _api_history(
                 })
             else:
                 normalized.append(
-                    {**message, **({"messageId": wire_identity} if wire_identity else {})}
+                    {**public_message, **({"messageId": wire_identity} if wire_identity else {})}
                     if isinstance(message, dict) else message
                 )
             continue
         content = _normalize_legacy_attachment_links(session_id, message["content"])
         content = _project_editor_links(session_id, content)
         safe_message = {
-            **message,
+            **public_message,
             "content": content,
             **({"messageId": wire_identity} if wire_identity else {}),
         }

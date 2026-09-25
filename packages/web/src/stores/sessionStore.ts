@@ -198,6 +198,14 @@ function queueIds(message: Message): string[] {
     : [];
 }
 
+function deliveryKeys(message: Message): string[] {
+  const values = message.deliveryKeys
+    ?? (message as Message & { delivered_keys?: unknown }).delivered_keys;
+  return Array.isArray(values)
+    ? values.filter((key): key is string => typeof key === 'string' && key.length > 0)
+    : [];
+}
+
 function canonicalQueueId(id: string): string {
   return id.startsWith('queue:') ? id.slice('queue:'.length) : id;
 }
@@ -219,6 +227,7 @@ function explicitMessageIdentity(message: Message): string[] {
     ...(message.messageId ? [`message:${message.messageId}`] : []),
     ...(message.blockId ? [`block:${message.blockId}`] : []),
     ...queueIds(message).map((id) => `queue:${canonicalQueueId(id)}`),
+    ...deliveryKeys(message).map((key) => `delivery:${key}`),
     ...(message.nativeItemId ? [`native:${message.nativeItemId}`] : []),
   ];
 }
@@ -926,6 +935,8 @@ function explicitIdentityOf(message: Message): string[] {
   return [
     ...(message.messageId ? [`message:${message.messageId}`] : []),
     ...(message.blockId ? [`block:${message.blockId}`] : []),
+    ...queueIds(message).map((id) => `queue:${canonicalQueueId(id)}`),
+    ...deliveryKeys(message).map((key) => `delivery:${key}`),
     ...(message.nativeItemId ? [`native:${message.nativeItemId}`] : []),
   ];
 }
