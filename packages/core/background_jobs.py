@@ -1214,7 +1214,8 @@ def _apply_entry_change(job_id: str, entry_id: str, entry_patch: dict,
 
 def _append_task_run(job: dict, task_id: str, fire_dt: datetime,
                      dispatch_key: str, status: str, error: str | None,
-                     registry_root: str | Path | None, worker_id=None) -> dict:
+                     registry_root: str | Path | None, worker_id=None,
+                     entry_id: str | None = None) -> dict:
     record = {
         "run_id": secrets.token_hex(6),
         "task_id": task_id,
@@ -1226,6 +1227,9 @@ def _append_task_run(job: dict, task_id: str, fire_dt: datetime,
         "worker_id": worker_id,
         "error": error,
     }
+    if entry_id is not None:
+        # P4：调度触发显式记录来源 entry（旧记录无此键，读侧需容忍缺省）
+        record["entry_id"] = entry_id
     try:
         append_run_record(record, registry_root=registry_root)
     except Exception:
@@ -1265,7 +1269,7 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
             fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
             _append_task_run(job, job.get("taskId") or job["jobId"], fire_dt,
                              note.get("dispatchKey") or "", "dispatched", None,
-                             registry_root)
+                             registry_root, entry_id=note.get("entryId"))
     return len(delivered)
 
 
@@ -1330,7 +1334,7 @@ def _backlog_undelivered_fire(job: dict, task_id: str, entry: dict,
     _apply_entry_change(job["jobId"], entry_id, entry_patch, job_patch,
                         registry_root)
     _append_task_run(job, task_id, fire_dt, dispatch_key, "undeliverable",
-                     error, registry_root)
+                     error, registry_root, entry_id=entry_id)
     _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
                           "fireAt": _iso_local(fire_dt),
                           "dispatchKey": dispatch_key,
@@ -1364,7 +1368,8 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
                              "lastError": f"misfire {int(late)}s 超过宽限 {int(grace)}s，已过期",
                              "updatedAt": time.time()}, registry_root)
         _append_task_run(job, task_id, fire_dt, dispatch_key, "expired",
-                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root)
+                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root,
+                         entry_id=entry_id)
         _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
                               "fireAt": _iso_local(fire_dt),
                               "dispatchKey": dispatch_key, "status": "expired",
@@ -1381,7 +1386,8 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
                              "lastError": f"misfire {int(late)}s 超过宽限 {int(grace)}s，按策略跳过",
                              "updatedAt": time.time()}, registry_root)
         _append_task_run(job, task_id, fire_dt, dispatch_key, "skipped",
-                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root)
+                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root,
+                         entry_id=entry_id)
         _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
                               "fireAt": _iso_local(fire_dt),
                               "dispatchKey": dispatch_key, "status": "skipped",
@@ -1437,7 +1443,8 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
     _append_task_run(job, task_id, fire_dt, dispatch_key,
                      "dispatched" if ok else "error",
                      None if ok else str(result.get("result") or "派发失败"),
-                     registry_root, worker_id=result.get("workerId"))
+                     registry_root, worker_id=result.get("workerId"),
+                     entry_id=entry_id)
     if not ok:
         _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
                               "fireAt": _iso_local(fire_dt),

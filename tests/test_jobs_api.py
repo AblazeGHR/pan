@@ -467,3 +467,21 @@ def test_patch_text_updates_dispatch_body(client, fake_worker):
     body = client.patch(f"/api/jobs/{job['jobId']}", json={"text": "   "}).json()
     assert body["ok"] is False
     assert body["error"]["code"] == "invalid_argument"
+
+
+# ── P4：runs 记录携带 entry_id ──
+
+
+def test_run_records_carry_entry_id(client, fake_worker):
+    _register_unified_hooks()
+    task = _make_scheduled_task()
+    job = scheduler_store._job_for_task(task["id"])
+    jobs._update(job["jobId"], {
+        "schedule": [{**job["schedule"][0],
+                      "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
+        registry_root=scheduler_store.data_root())
+    asyncio.run(jobs.run_due_scheduled_tasks())
+    runs = jobs.list_run_records(task_id=task["id"],
+                                 registry_root=scheduler_store.data_root())
+    assert runs, "fire 后应有 run 记录"
+    assert runs[0].get("entry_id") == job["schedule"][0]["id"]
