@@ -1,18 +1,24 @@
-"""packages/scheduler/engine.py 的单元测试。
+"""packages/scheduler/engine.py（统一循环薄封装）的行为测试。
+
+P1 统一后，真正的调度逻辑在 ``packages.core.background_jobs.run_due_scheduled_tasks``
+（claim 状态机 + stale requeue + dispatch_key 幂等，DESIGN_DISPATCH_CLAIM_FUSION.md）；
+engine.tick_once 只是薄封装。本文件验证统一循环保留 PR 语义（grace / misfire /
+max_runs / paused 推进 / run_now / preview）并落地新语义（认领先于派发、顺序派发、
+undeliverable 积压重投、多 entry 独立 dispatch_key）。
 
 - 数据隔离：``store.DEFAULT_ROOT`` → tmp_path，绝不写真实 ``data/``。
-- 派发隔离：monkeypatch 掉 ``packages.core.worker.assign``（engine 通过
-  ``engine._worker`` 引用它），绝不真的 spawn CLI 进程。
+- 派发隔离：monkeypatch 掉 ``packages.core.worker.assign``（统一循环通过
+  ``background_jobs._worker`` 引用它），绝不真的 spawn CLI 进程。
 - 无 pytest-asyncio（仓库未安装）：用例同步，内部用 ``asyncio.run`` 驱动。
-  注意「扫一轮 + 等在途派发」必须在**同一个** event loop 里完成，故统一走
-  :func:`cycle` 助手。
 """
 
 import asyncio
+import time
 from datetime import datetime, timedelta
 
 import pytest
 
+from packages.core import background_jobs
 from packages.core import worker as _worker
 from packages.scheduler import cron
 from packages.scheduler import engine
@@ -22,7 +28,10 @@ from packages.scheduler import store
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.delenv("PAN_SCHEDULER_DIR", raising=False)
+    monkeypatch.delenv("PAN_BACKGROUND_JOBS_DIR", raising=False)
     monkeypatch.setattr(store, "DEFAULT_ROOT", tmp_path / "scheduler")
+    monkeypatch.setattr(background_jobs, "_scheduled_task_stats",
+                        {"dueScanned": 0, "lastTickAt": None})
     monkeypatch.setattr(engine, "_loop_task", None)
     monkeypatch.setattr(engine, "_pending", set())
     monkeypatch.setattr(engine, "_on_event", None)
@@ -136,6 +145,16 @@ def run(coro):
     return asyncio.run(coro)
 
 
+def _entry_id_of(task_id: str) -> str:
+    job = store._job_for_task(task_id)
+    return job["schedule"][0]["id"]
+
+
+def _expected_key(task: dict, fire_at: datetime) -> str:
+    """统一 dispatch_key：taskId:entryId:fire_ts（DESIGN §3）。"""
+    return f"{task['id']}:{_entry_id_of(task['id'])}:{int(fire_at.timestamp())}"
+
+
 # ── 到期派发 ──
 
 
@@ -152,7 +171,7 @@ def test_due_task_dispatches_once_with_correct_dispatch_key(fake_assign, fixed_c
     assert call["session_id"] == "ses_target"
     assert call["text"] == "去做事"
     assert call["source"] == "automation"
-    assert call["task_id"] == f"{task['id']}:{int(fire_at.timestamp())}"
+    assert call["task_id"] == _expected_key(task, fire_at)
 
 
 def test_not_due_task_is_untouched(fake_assign, fixed_config):
@@ -193,33 +212,33 @@ def test_once_task_disabled_after_firing(fake_assign, fixed_config):
     assert saved["run_count"] == 1
 
 
-def test_next_fire_advances_and_persists_before_dispatch(monkeypatch, fixed_config):
-    """落盘先于派发：派发被 gate 卡住时，状态已经写进文件。"""
+def test_claim_persists_before_dispatch_completes(monkeypatch, fixed_config):
+    """认领即「落盘先于派发」：派发被 gate 卡住时，running 已写进注册表。"""
     fixed_config(misfire_grace_sec=300)
     gate = asyncio.Event()
     fake = FakeAssign(gate=gate)
     monkeypatch.setattr(_worker, "assign", fake)
-    anchor = _now() - timedelta(hours=3)
-    task = make_task(
-        next_fire_at=anchor + timedelta(hours=3),
-        schedule={
-            "kind": "interval",
-            "interval_sec": 3600,
-            "anchor": anchor.isoformat(),
-        },
-    )
+    task = due_task(seconds_ago=3)
 
     async def scenario():
-        assert await engine.tick_once() == 1
-        saved = store.get_task(task["id"])
-        assert saved["run_count"] == 1
-        assert cron.parse_datetime(saved["next_fire_at"]) == anchor + timedelta(hours=4)
-        assert saved["last_status"] == "dispatched"
+        ticking = asyncio.create_task(engine.tick_once())
+        for _ in range(100):  # 等派发真正开始（fake 先记调用再等 gate）
+            await asyncio.sleep(0.01)
+            if fake.calls:
+                break
+        assert fake.calls, "派发未开始"
+        job = store._job_for_task(task["id"])
+        assert job["status"] == "running"
+        assert job["runStartedAt"] is not None
         gate.set()
-        await engine.drain()
+        assert await ticking == 1
 
     run(scenario())
     assert len(fake.calls) == 1
+    saved = store.get_task(task["id"])
+    assert saved["last_status"] == "dispatched"
+    assert saved["run_count"] == 1
+    assert cron.parse_datetime(saved["next_fire_at"]) > _now()
 
 
 # ── misfire ──
@@ -243,7 +262,7 @@ def test_once_past_grace_expires_without_dispatch(fake_assign, fixed_config):
     assert saved["next_fire_at"] is None
     runs = store.list_runs(task_id=task["id"])
     assert runs and runs[0]["status"] == "expired"
-    assert runs[0]["dispatch_key"] == f"{task['id']}:{int(fire_at.timestamp())}"
+    assert runs[0]["dispatch_key"] == _expected_key(task, fire_at)
 
 
 def test_interval_past_grace_fires_now_by_default(fake_assign, fixed_config):
@@ -326,62 +345,46 @@ def test_max_runs_auto_disables(fake_assign, fixed_config):
     assert saved["next_fire_at"] is None
 
 
-# ── 并发限流 ──
+# ── 派发并发模型（统一循环：claim 后内联顺序派发，DESIGN §2）──
 
 
-def test_semaphore_limits_concurrent_dispatch(monkeypatch, fixed_config):
-    fixed_config(max_concurrent_dispatch=1)
-
-    async def scenario():
-        gate = asyncio.Event()
-        fake = FakeAssign(gate=gate)
-        monkeypatch.setattr(_worker, "assign", fake)
-        for _ in range(3):
-            due_task(seconds_ago=3)
-        assert await engine.tick_once() == 3
-        await asyncio.sleep(0)  # 让三个派发协程都跑到信号量前
-        assert fake.max_concurrent == 1
-        gate.set()
-        await engine.drain()
-        assert len(fake.calls) == 3
-
-    run(scenario())
-
-
-def test_semaphore_allows_configured_parallelism(monkeypatch, fixed_config):
-    fixed_config(max_concurrent_dispatch=2)
+def test_dispatches_are_sequential_within_a_pass(monkeypatch, fixed_config):
+    """一轮内的派发是内联顺序执行：前一个不完成，后一个不开始。"""
+    fixed_config()
+    gate = asyncio.Event()
+    fake = FakeAssign(gate=gate)
+    monkeypatch.setattr(_worker, "assign", fake)
+    for _ in range(3):
+        due_task(seconds_ago=3)
 
     async def scenario():
-        gate = asyncio.Event()
-        fake = FakeAssign(gate=gate)
-        monkeypatch.setattr(_worker, "assign", fake)
-        for _ in range(4):
-            due_task(seconds_ago=3)
-        await engine.tick_once()
-        await asyncio.sleep(0)
-        assert fake.max_concurrent == 2
+        ticking = asyncio.create_task(engine.tick_once())
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if fake.calls:
+                break
+        assert len(fake.calls) == 1  # 第一个派发被 gate 卡住，后续未开始
         gate.set()
-        await engine.drain()
-        assert len(fake.calls) == 4
+        assert await ticking == 3
 
     run(scenario())
+    assert len(fake.calls) == 3
+    assert fake.max_concurrent == 1
 
 
-# ── 生命周期 ──
+# ── 生命周期（循环已统一；start/stop 为注册/兼容桩）──
 
 
 def test_start_stop_loop_is_idempotent(fake_assign, fixed_config):
     fixed_config(tick_sec=1)
 
     async def scenario():
-        await engine.start_loop()
-        first = engine._loop_task
-        assert engine.status()["running"] is True
-        await engine.start_loop()  # 幂等：复用同一个 task
-        assert engine._loop_task is first
-        await engine.stop_loop()
+        await engine.start_loop()   # 注册 + 迁移，不抛
+        await engine.start_loop()   # 幂等
+        # 测试进程没有 recovery loop；生产环境由 server 启动统一循环
         assert engine.status()["running"] is False
-        await engine.stop_loop()  # 幂等
+        await engine.stop_loop()
+        await engine.stop_loop()    # 幂等
 
     run(scenario())
 
@@ -392,53 +395,46 @@ def test_start_loop_respects_disabled_config(fake_assign, fixed_config):
     async def scenario():
         await engine.start_loop()
         assert engine.status()["running"] is False
-
-    run(scenario())
-
-
-def test_start_loop_skips_when_not_leader(fake_assign, fixed_config, monkeypatch):
-    fixed_config()
-    monkeypatch.setattr(store, "claim_leader", lambda *a, **k: False)
-
-    async def scenario():
-        await engine.start_loop()
-        assert engine.status()["running"] is False
+        assert await engine.tick_once() == 0  # 配置关闭 → 扫描直接跳过
 
     run(scenario())
 
 
 def test_status_shape(fixed_config):
-    fixed_config(tick_sec=2)
+    fixed_config(tick_sec=2)  # 已退役的配置项，不再影响统一循环
     snapshot = engine.status()
     assert set(snapshot) >= {"running", "tickSec", "dueScanned", "lastTickAt"}
-    assert snapshot["tickSec"] == 2
+    assert snapshot["tickSec"] == 1  # 统一 recovery loop 固定 1s
     assert snapshot["running"] is False
 
 
-# ── 恢复语义 ──
+# ── 崩溃恢复（claim 状态机 + stale requeue，取代 PR 的 _recover）──
 
 
-def test_recovery_marks_unknown_without_redispatch(fake_assign, fixed_config,
-                                                   monkeypatch):
+def test_stale_running_claim_requeues_and_refires(fake_assign, fixed_config):
+    """认领后卡死（模拟崩溃）→ 下一轮 requeue → 重投（幂等键不变）。"""
     fixed_config()
     fake = fake_assign()
-    fire_at = _now() - timedelta(seconds=30)
-    task = make_task(next_fire_at=fire_at)
-    store.update_task(
-        task["id"],
-        {"last_status": "dispatched", "last_fire_at": store.iso(fire_at)},
-    )
-    # 目标 session 不存在 → 查不到终态
-    monkeypatch.setattr(engine, "_terminal_seen", lambda *a, **k: False)
+    task = due_task(seconds_ago=30)
+    fire_at = cron.parse_datetime(task["next_fire_at"])
+    job = store._job_for_task(task["id"])
+    # 模拟：认领后进程死掉，runStartedAt 已超过判死窗口
+    background_jobs._update(job["jobId"],
+                            {"status": "running",
+                             "runStartedAt": time.time() - 30},
+                            registry_root=store.data_root())
 
-    engine._recover()
+    assert cycle() == [1]
     saved = store.get_task(task["id"])
-    assert saved["last_status"] == "unknown"
-    assert fake.calls == []  # 绝不自动补派
+    assert saved["last_status"] == "dispatched"
+    # requeue 重投用的是同一个 dispatch_key（worker 幂等索引兜底，不双跑）
+    assert fake.calls[0]["task_id"] == _expected_key(task, fire_at)
 
 
-def test_recovery_recomputes_next_fire_from_anchor(fixed_config):
+def test_long_late_interval_fires_once_and_regrids(fake_assign, fixed_config):
+    """停机 10 小时：fire_now 只结算一次，nextFireAt 落回锚点网格。"""
     fixed_config()
+    fake = fake_assign()
     anchor = _now() - timedelta(hours=10)
     task = make_task(
         next_fire_at=anchor,  # 停机期间早就过期
@@ -448,11 +444,85 @@ def test_recovery_recomputes_next_fire_from_anchor(fixed_config):
             "anchor": anchor.isoformat(),
         },
     )
-    engine._recover()
+
+    assert cycle() == [1]
     saved = store.get_task(task["id"])
+    assert saved["last_status"] == "dispatched"
     point = cron.parse_datetime(saved["next_fire_at"])
     assert point > _now()
     assert (point - anchor).total_seconds() % 1800 == 0  # 仍在锚点网格上
+
+
+# ── undeliverable 积压与重投（PLAN §10）──
+
+
+def test_undeliverable_backs_up_without_breaking_cadence(fake_assign, fixed_config):
+    fixed_config()
+    fake_assign(result={"status": "error",
+                        "result": "Session ses_target not found"})
+    task = due_task(seconds_ago=3)
+
+    cycle()
+
+    saved = store.get_task(task["id"])
+    assert saved["last_status"] == "undeliverable"
+    job = store._job_for_task(task["id"])
+    assert len(job["undeliveredFires"]) == 1
+    assert job["undeliveredFires"][0]["text"] == "去做事"
+    assert store.list_runs(task_id=task["id"])[0]["status"] == "undeliverable"
+    # 周期节奏照常推进
+    assert cron.parse_datetime(saved["next_fire_at"]) > _now()
+
+
+def test_undelivered_redelivered_when_target_returns(fake_assign, fixed_config,
+                                                     monkeypatch):
+    fixed_config()
+    not_found = {"status": "error", "result": "Session ses_target not found"}
+    fake = fake_assign(result=not_found)
+    task = due_task(seconds_ago=3)
+    cycle()
+    assert len(fake.calls) == 1
+
+    # target 恢复（或切换到已存在的 session）→ 自动重投，dispatch_key 原样复用
+    monkeypatch.setattr(
+        "packages.core.session.get",
+        lambda session_id: object() if session_id == "ses_target" else None)
+    fake.result = {"status": "queued"}
+    first_key = fake.calls[0]["task_id"]
+
+    assert cycle() == [1]
+    assert len(fake.calls) == 2
+    assert fake.calls[1]["task_id"] == first_key  # 幂等键复用，接收端去重兜底
+    job = store._job_for_task(task["id"])
+    assert job["undeliveredFires"] == []
+    saved = store.get_task(task["id"])
+    assert saved["last_status"] == "dispatched"
+
+
+# ── 多 entry（schedule 列表）──
+
+
+def test_multi_entry_same_job_fires_independently(fake_assign, fixed_config):
+    """同 job 双 entry 同刻到期：两个 dispatch_key 各自独立（DESIGN §5.3）。"""
+    fixed_config()
+    fake = fake_assign()
+    task = due_task(seconds_ago=10)
+    fire_at = cron.parse_datetime(task["next_fire_at"])
+    job = store._job_for_task(task["id"])
+    entry0 = dict(job["schedule"][0])
+    entry1 = dict(entry0, id="sce_second01", nextFireAt=store.iso(fire_at))
+    background_jobs._update(job["jobId"], {"schedule": [entry0, entry1]},
+                            registry_root=store.data_root())
+
+    assert cycle() == [2]
+    assert len(fake.calls) == 2
+    keys = {call["task_id"] for call in fake.calls}
+    assert len(keys) == 2  # 不撞键：各自派发一次
+    expected = {f"{task['id']}:{entry0['id']}:{int(fire_at.timestamp())}",
+                f"{task['id']}:{entry1['id']}:{int(fire_at.timestamp())}"}
+    assert keys == expected
+    saved = store.get_task(task["id"])
+    assert saved["run_count"] == 2  # 每个 entry 各计一次
 
 
 # ── run_now / preview_next ──

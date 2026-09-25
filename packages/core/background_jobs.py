@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -24,6 +25,7 @@ from typing import Any
 
 from packages.core import session as _sessions
 from packages.core import worker as _worker
+from packages.jobs import cron as _job_cron
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = PROJECT_ROOT / "data" / "background_jobs"
@@ -38,6 +40,7 @@ BACKGROUND_PROCESS_KIND = "background-process"
 SESSION_MESSAGE_KIND = "session-message"
 SESSION_BROADCAST_KIND = "session-broadcast"
 SERVICE_LIFECYCLE_KIND = "main-lifecycle"
+SCHEDULED_TASK_KIND = "scheduled-task"
 SERVICE_ACTIVE_PHASES = frozenset({
     "requested", "stopping", "stopping_workers", "stopping_service",
     "stopped", "starting",
@@ -720,6 +723,574 @@ async def run_due_message_jobs(now: float | None = None) -> int:
     return delivered
 
 
+# ---------------------------------------------------------------------------
+# Scheduled-task Jobs — the unified scheduler kernel.
+#
+# P1 统一（docs/design/job-unification/）：定时任务收编为一种 job kind，与
+# session-message 共用同一套 claim 状态机与 stale-requeue 崩溃恢复。派发幂等
+# 由 dispatch_key（taskId:entryId:fire_ts）+ worker 持久化队列索引兜底，
+# 所以 requeue 重投不会双跑（DESIGN_DISPATCH_CLAIM_FUSION.md §2）。
+#
+# 分层纪律：core 不 import ``packages.scheduler`` 插件。插件在启动时通过
+# :func:`register_scheduled_tasks` 注册数据根/配置/事件回调；resolver 每次
+# pass 重新求值，保证测试期 monkeypatch 仍然生效。
+# ---------------------------------------------------------------------------
+
+SCHEDULED_TASK_REQUEUE_AFTER_SEC = 5.0
+SCHEDULED_TASK_UNDELIVERED_MAX = 20
+
+_scheduled_task_hooks: dict[str, Any] = {
+    "root_resolver": None,
+    "config_resolver": None,
+    "on_event": None,
+}
+_scheduled_task_stats: dict[str, Any] = {"dueScanned": 0, "lastTickAt": None}
+
+
+def register_scheduled_tasks(*, root_resolver=None, config_resolver=None,
+                             on_event=None) -> None:
+    """Register the scheduler plugin's registry root / config / event callback.
+
+    幂等：仅覆盖显式给出的可调用项，重复注册安全。
+    """
+    if callable(root_resolver):
+        _scheduled_task_hooks["root_resolver"] = root_resolver
+    if callable(config_resolver):
+        _scheduled_task_hooks["config_resolver"] = config_resolver
+    if on_event is not None:
+        _scheduled_task_hooks["on_event"] = on_event
+
+
+def scheduled_task_stats() -> dict:
+    """Unified-loop health snapshot for the compat status API."""
+    return dict(_scheduled_task_stats)
+
+
+def is_recovery_running() -> bool:
+    return bool(_recovery_task and not _recovery_task.done())
+
+
+def delete_job(job_id: str, registry_root: str | Path | None = None) -> bool:
+    """Remove one job record under its cross-process lock."""
+    with _lock, _job_lock(job_id, registry_root):
+        path = _job_path(job_id, registry_root)
+        if not path.exists():
+            return False
+        try:
+            path.unlink()
+        except OSError:
+            return False
+        return True
+
+
+# ── runs.jsonl（泛化执行历史，scheduled-task 首个消费者）──
+
+
+def append_run_record(record: dict, registry_root: str | Path | None = None,
+                      max_entries: int = 500) -> None:
+    """Append one run row to ``runs.jsonl``; roll to the newest ``max_entries``."""
+    if not isinstance(record, dict):
+        return
+    path = _root(registry_root) / "runs.jsonl"
+    line = json.dumps(record, ensure_ascii=False)
+    with _lock:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return
+        if len(lines) <= max_entries:
+            return
+        keep = lines[-max_entries:]
+        tmp = path.with_suffix(path.suffix + f".{secrets.token_hex(4)}.tmp")
+        tmp.write_text("\n".join(keep) + "\n", encoding="utf-8")
+        for attempt in range(20):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == 19:
+                    try:
+                        tmp.unlink()
+                    except OSError:
+                        pass
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+
+
+def list_run_records(task_id: str | None = None, limit: int = 100,
+                     registry_root: str | Path | None = None) -> list[dict]:
+    """Read run history, newest first; optional per-task filter."""
+    path = _root(registry_root) / "runs.jsonl"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    records: list[dict] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        if task_id and record.get("task_id") != task_id:
+            continue
+        records.append(record)
+    records.reverse()
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 100
+    if limit > 0:
+        records = records[:limit]
+    return records
+
+
+# ── scheduled-task pass ──
+
+
+def _scheduled_task_root() -> Path | None:
+    resolver = _scheduled_task_hooks.get("root_resolver")
+    if not callable(resolver):
+        return None
+    try:
+        root = resolver()
+    except Exception:
+        return None
+    if not root:
+        return None
+    return Path(root)
+
+
+def _scheduled_task_config() -> dict:
+    resolver = _scheduled_task_hooks.get("config_resolver")
+    if not callable(resolver):
+        return {}
+    try:
+        cfg = resolver()
+    except Exception:
+        return {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _scheduled_task_grace(cfg: dict, entry: dict) -> float:
+    raw = entry.get("graceSec", cfg.get("misfire_grace_sec", 300))
+    try:
+        return max(0.0, float(raw or 0))
+    except (TypeError, ValueError):
+        return 300.0
+
+
+def _scheduled_task_requeue_after(job: dict) -> float:
+    """Stale-claim 判死超时：action 级 ``requeueAfterSec`` 覆盖全局默认 5s。"""
+    action = job.get("action")
+    raw = (action.get("requeueAfterSec") if isinstance(action, dict) else None)
+    if raw is None:
+        raw = job.get("requeueAfterSec", SCHEDULED_TASK_REQUEUE_AFTER_SEC)
+    try:
+        return max(1.0, float(raw))
+    except (TypeError, ValueError):
+        return SCHEDULED_TASK_REQUEUE_AFTER_SEC
+
+
+def _iso_local(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.replace(microsecond=0).isoformat()
+
+
+def _scheduled_task_emit(event: dict) -> None:
+    callback = _scheduled_task_hooks.get("on_event")
+    if callback is None:
+        return
+    try:
+        result = callback(event)
+    except Exception:
+        return
+    if inspect.isawaitable(result):
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None:
+            loop.create_task(_consume_emitted(result))
+
+
+async def _consume_emitted(awaitable) -> None:
+    try:
+        await awaitable
+    except Exception:
+        pass
+
+
+def _entry_next_fire(entry: dict, base_dt: datetime) -> datetime | None:
+    """Entry 自身就是合法 cron spec；在 base 之后找下一个网格点。"""
+    try:
+        return _job_cron.next_fire_after(entry, base_dt,
+                                         tz_name=entry.get("timezone"))
+    except ValueError:
+        return None
+
+
+def _entry_is_due(entry: dict, now_dt: datetime) -> bool:
+    fire = _job_cron.parse_datetime(entry.get("nextFireAt"))
+    return fire is not None and fire <= now_dt
+
+
+def _job_next_fire(job: dict) -> str | None:
+    """全部 enabled entries 的最早下一跳（ISO 或 None）。"""
+    points: list[datetime] = []
+    for entry in (job.get("schedule") or []):
+        if not entry.get("enabled", True):
+            continue
+        point = _job_cron.parse_datetime(entry.get("nextFireAt"))
+        if point is not None:
+            points.append(point)
+    if not points:
+        return None
+    return _iso_local(min(points))
+
+
+def _apply_entry_change(job_id: str, entry_id: str, entry_patch: dict,
+                        job_patch: dict, registry_root: str | Path | None) -> dict | None:
+    """单 entry 的读-改-写，全程持跨进程 job 锁（P0 锁纪律）。"""
+    with _lock, _job_lock(job_id, registry_root):
+        path = _job_path(job_id, registry_root)
+        current = _load_path(path)
+        if not current or current.get("kind") != SCHEDULED_TASK_KIND:
+            return None
+        schedule = list(current.get("schedule") or [])
+        replaced = False
+        for index, entry in enumerate(schedule):
+            if (entry.get("id") or "entry0") == entry_id:
+                merged = dict(entry)
+                merged.update(entry_patch)
+                schedule[index] = merged
+                replaced = True
+                break
+        if not replaced:
+            return None
+        current["schedule"] = schedule
+        current.update(job_patch)
+        current["nextFireAt"] = _job_next_fire(current)
+        current["updatedAt"] = time.time()
+        _atomic_write(path, current)
+        return current
+
+
+def _append_task_run(job: dict, task_id: str, fire_dt: datetime,
+                     dispatch_key: str, status: str, error: str | None,
+                     registry_root: str | Path | None, worker_id=None) -> dict:
+    record = {
+        "run_id": secrets.token_hex(6),
+        "task_id": task_id,
+        "fire_at": _iso_local(fire_dt),
+        "actual_at": _iso_local(datetime.now().replace(microsecond=0)),
+        "dispatch_key": dispatch_key,
+        "status": status,
+        "session_id": job.get("targetSessionId"),
+        "worker_id": worker_id,
+        "error": error,
+    }
+    try:
+        append_run_record(record, registry_root=registry_root)
+    except Exception:
+        pass
+    return record
+
+
+async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) -> int:
+    """target session 恢复/切换后，重投积压的未投递派发（PLAN §10）。"""
+    notes = list(job.get("undeliveredFires") or [])
+    if not notes:
+        return 0
+    target = job.get("targetSessionId")
+    remaining: list[dict] = []
+    delivered: list[dict] = []
+    for note in notes:
+        try:
+            result = await _worker.assign(
+                target, note.get("text") or "",
+                source="automation", task_id=note.get("dispatchKey"))
+        except Exception as exc:
+            result = {"status": "error", "result": str(exc)}
+        if isinstance(result, dict) and str(result.get("status")) != "error":
+            delivered.append(note)
+        else:
+            remaining.append(note)
+    if delivered:
+        try:
+            _update(job["jobId"], {"undeliveredFires": remaining,
+                                   "lastStatus": "dispatched", "lastError": None,
+                                   "updatedAt": time.time()},
+                    registry_root=registry_root)
+        except ValueError:
+            return 0
+        for note in delivered:
+            fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
+            _append_task_run(job, job.get("taskId") or job["jobId"], fire_dt,
+                             note.get("dispatchKey") or "", "dispatched", None,
+                             registry_root)
+    return len(delivered)
+
+
+def _advance_paused_entries(job: dict, now_dt: datetime,
+                            registry_root: str | Path | None) -> int:
+    """暂停任务：跳过触发但按网格推进 nextFireAt，恢复后不爆发补跑。"""
+    changed = 0
+    for entry in list(job.get("schedule") or []):
+        if not entry.get("enabled", True) or not _entry_is_due(entry, now_dt):
+            continue
+        next_fire = _entry_next_fire(entry, now_dt)
+        _apply_entry_change(job["jobId"], entry.get("id") or "entry0",
+                            {"nextFireAt": _iso_local(next_fire)}, {},
+                            registry_root)
+        changed += 1
+    return changed
+
+
+def _repair_missing_next_fire(job: dict, now_dt: datetime,
+                              registry_root: str | Path | None) -> None:
+    """数据残缺自愈：enabled 周期 entry 缺 nextFireAt → 从现在重算。"""
+    for entry in list(job.get("schedule") or []):
+        if not entry.get("enabled", True):
+            continue
+        if entry.get("kind") == "once":
+            continue
+        if _job_cron.parse_datetime(entry.get("nextFireAt")) is not None:
+            continue
+        next_fire = _entry_next_fire(entry, now_dt)
+        _apply_entry_change(job["jobId"], entry.get("id") or "entry0",
+                            {"nextFireAt": _iso_local(next_fire)}, {},
+                            registry_root)
+
+
+async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
+                                cfg: dict, registry_root: str | Path | None) -> int:
+    """Fire one due entry: grace → dispatch(assign) → advance."""
+    entry_id = entry.get("id") or "entry0"
+    fire_dt = _job_cron.parse_datetime(entry.get("nextFireAt"))
+    if fire_dt is None or fire_dt > now_dt:
+        return 0
+    task_id = job.get("taskId") or job["jobId"]
+    kind = entry.get("kind")
+    policy = str(entry.get("misfirePolicy")
+                 or job.get("misfirePolicy") or "fire_now")
+    grace = _scheduled_task_grace(cfg, entry)
+    late = (now_dt - fire_dt).total_seconds()
+    dispatch_key = f"{task_id}:{entry_id}:{int(fire_dt.timestamp())}"
+    target = job.get("targetSessionId")
+
+    if late > grace and kind == "once":
+        # 一次性超宽限：记 expired 并整体停用，绝不追补（PR 语义）。
+        _apply_entry_change(job["jobId"], entry_id,
+                            {"enabled": False, "nextFireAt": None},
+                            {"enabled": False, "lastFireAt": _iso_local(fire_dt),
+                             "lastStatus": "expired",
+                             "lastError": f"misfire {int(late)}s 超过宽限 {int(grace)}s，已过期",
+                             "updatedAt": time.time()}, registry_root)
+        _append_task_run(job, task_id, fire_dt, dispatch_key, "expired",
+                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root)
+        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                              "fireAt": _iso_local(fire_dt),
+                              "dispatchKey": dispatch_key, "status": "expired",
+                              "error": "misfire expired"})
+        return 1
+
+    if late > grace and policy == "skip":
+        next_fire = _entry_next_fire(entry, max(fire_dt, now_dt))
+        _apply_entry_change(job["jobId"], entry_id,
+                            {"nextFireAt": _iso_local(next_fire),
+                             "lastFireAt": _iso_local(fire_dt)},
+                            {"lastFireAt": _iso_local(fire_dt),
+                             "lastStatus": "skipped",
+                             "lastError": f"misfire {int(late)}s 超过宽限 {int(grace)}s，按策略跳过",
+                             "updatedAt": time.time()}, registry_root)
+        _append_task_run(job, task_id, fire_dt, dispatch_key, "skipped",
+                         f"misfire {int(late)}s > grace {int(grace)}s", registry_root)
+        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                              "fireAt": _iso_local(fire_dt),
+                              "dispatchKey": dispatch_key, "status": "skipped",
+                              "error": "misfire skipped"})
+        return 1
+
+    # on-time or fire_now（宽限外仍补一次：休眠唤醒只结算一次）
+    _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                          "fireAt": _iso_local(fire_dt),
+                          "dispatchKey": dispatch_key, "status": "dispatched",
+                          "error": None})
+
+    try:
+        result = await _worker.assign(target, job.get("text") or "",
+                                      source="automation",
+                                      task_id=dispatch_key)
+    except Exception as exc:
+        result = {"status": "error", "result": str(exc)}
+    if not isinstance(result, dict):
+        result = {"status": "error",
+                  "result": f"unexpected assign result: {result!r}"}
+    ok = str(result.get("status")) != "error"
+    not_found = (isinstance(result.get("result"), str)
+                 and result.get("result") == f"Session {target} not found")
+
+    if not ok and not_found:
+        # PLAN §10：target 缺失 → 便条积压 + warning，节奏照常推进，
+        # target 恢复/切换后由 _redeliver_undelivered 重投（dispatch_key 幂等）。
+        note = {"entryId": entry_id, "fireAt": _iso_local(fire_dt),
+                "dispatchKey": dispatch_key, "text": job.get("text") or "",
+                "error": f"Session {target} not found"}
+        backed = list(job.get("undeliveredFires") or [])
+        backed.append(note)
+        backed = backed[-SCHEDULED_TASK_UNDELIVERED_MAX:]
+        next_fire = _entry_next_fire(entry, max(fire_dt, now_dt))
+        entry_patch = {"nextFireAt": _iso_local(next_fire),
+                       "lastFireAt": _iso_local(fire_dt)}
+        job_patch = {"undeliveredFires": backed,
+                     "lastFireAt": _iso_local(fire_dt),
+                     "lastStatus": "undeliverable",
+                     "lastError": note["error"],
+                     "updatedAt": time.time()}
+        if kind == "once":
+            entry_patch.update({"enabled": False, "nextFireAt": None})
+            job_patch["enabled"] = False
+        _apply_entry_change(job["jobId"], entry_id, entry_patch, job_patch,
+                            registry_root)
+        _append_task_run(job, task_id, fire_dt, dispatch_key, "undeliverable",
+                         note["error"], registry_root)
+        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                              "fireAt": _iso_local(fire_dt),
+                              "dispatchKey": dispatch_key,
+                              "status": "undeliverable", "error": note["error"],
+                              "terminal": True})
+        return 1
+
+    next_fire = None if kind == "once" else _entry_next_fire(entry, max(fire_dt, now_dt))
+    run_count = int(job.get("runCount") or 0) + 1
+    max_runs = job.get("maxRuns")
+    entry_patch = {"nextFireAt": _iso_local(next_fire),
+                   "lastFireAt": _iso_local(fire_dt)}
+    job_patch = {"lastFireAt": _iso_local(fire_dt),
+                  "lastStatus": "dispatched" if ok else "error",
+                  "lastError": None if ok else str(result.get("result") or "派发失败"),
+                  "runCount": run_count, "updatedAt": time.time()}
+    finished = kind == "once"
+    if isinstance(max_runs, int) and run_count >= max_runs:
+        finished = True
+    if finished:
+        entry_patch.update({"enabled": False, "nextFireAt": None})
+        job_patch["enabled"] = False
+    _apply_entry_change(job["jobId"], entry_id, entry_patch, job_patch,
+                        registry_root)
+    _append_task_run(job, task_id, fire_dt, dispatch_key,
+                     "dispatched" if ok else "error",
+                     None if ok else str(result.get("result") or "派发失败"),
+                     registry_root, worker_id=result.get("workerId"))
+    if not ok:
+        _scheduled_task_emit({"type": "scheduler.task.fired", "taskId": task_id,
+                              "fireAt": _iso_local(fire_dt),
+                              "dispatchKey": dispatch_key, "status": "error",
+                              "error": job_patch["lastError"], "terminal": True})
+    return 1
+
+
+async def run_due_scheduled_tasks(now: float | None = None) -> int:
+    """One unified scheduler pass over the scheduled-task registry.
+
+    顺序：stale claim requeue → 积压重投 → 暂停推进/缺失自愈 → 认领 → 派发。
+    多实例安全：认领在跨进程 job 锁内做状态检查-置位，他实例跳过。
+    """
+    cfg = _scheduled_task_config()
+    if not cfg.get("enabled", True):
+        return 0
+    root = _scheduled_task_root()
+    if root is None:
+        return 0
+    now_dt = datetime.now().replace(microsecond=0)
+    now_ts = time.time() if now is None else float(now)
+    handled = 0
+
+    # 1) Stale claim requeue：running 超过 requeueAfterSec 无终态 → 视为崩溃，
+    #    放回 scheduled。entry 触发点不动，错过点重新走 grace 判定；
+    #    重投由 dispatch_key 幂等保证不双跑。
+    for job in list_jobs(root):
+        if job.get("kind") != SCHEDULED_TASK_KIND or job.get("status") != "running":
+            continue
+        started = job.get("runStartedAt")
+        if (isinstance(started, (int, float))
+                and now_ts - float(started) < _scheduled_task_requeue_after(job)):
+            continue
+        try:
+            _update(job["jobId"], {"status": "scheduled", "runStartedAt": None,
+                                   "updatedAt": now_ts}, registry_root=root)
+        except ValueError:
+            pass
+
+    # 2) 维护 + 认领
+    claimed: list[dict] = []
+    for job in list_jobs(root):
+        if job.get("kind") != SCHEDULED_TASK_KIND:
+            continue
+        if job.get("status") not in {"pending", "scheduled"}:
+            continue
+        if not job.get("enabled"):
+            continue
+        if job.get("undeliveredFires") and _sessions.get(job.get("targetSessionId")) is not None:
+            try:
+                handled += await _redeliver_undelivered(job, root)
+            except Exception:
+                pass
+        if job.get("paused"):
+            # 暂停推进不计入 handled（PR tick 返回值只数 fire）
+            _advance_paused_entries(job, now_dt, root)
+            continue
+        _repair_missing_next_fire(job, now_dt, root)
+        due = [entry for entry in (job.get("schedule") or [])
+               if entry.get("enabled", True) and _entry_is_due(entry, now_dt)]
+        if not due:
+            continue
+        with _lock, _job_lock(job["jobId"], root):
+            path = _job_path(job["jobId"], root)
+            current = _load_path(path)
+            if (not current or current.get("kind") != SCHEDULED_TASK_KIND
+                    or current.get("status") not in {"pending", "scheduled"}):
+                continue
+            current.update(status="running", runStartedAt=now_ts,
+                            updatedAt=now_ts)
+            _atomic_write(path, current)
+            claimed.append(current)
+
+    # 3) 执行被认领的到期 entries（认领即「落盘先于派发」）。每个 entry 前重载
+    #    最新容器：同轮多 entry 的 runCount/last 状态读到前一个的落盘结果。
+    for job in claimed:
+        latest = get(job["jobId"], registry_root=root)
+        if not latest or latest.get("status") != "running":
+            continue  # 认领与落终态之间被取消/停用 → 取消方获胜
+        for entry in list(latest.get("schedule") or []):
+            fresh = get(latest["jobId"], registry_root=root) or latest
+            try:
+                handled += await _fire_scheduled_entry(fresh, entry, now_dt, cfg, root)
+            except Exception:
+                pass  # 单 entry 异常不掀翻整轮
+        closing = {"status": "scheduled", "runStartedAt": None,
+                   "updatedAt": time.time()}
+        closing_job = get(job["jobId"], registry_root=root) or latest
+        if not closing_job.get("enabled"):
+            closing["status"] = "completed"
+        try:
+            _update(latest["jobId"], closing, registry_root=root)
+        except ValueError:
+            pass
+
+    _scheduled_task_stats["dueScanned"] = int(_scheduled_task_stats.get("dueScanned") or 0) + handled
+    _scheduled_task_stats["lastTickAt"] = _iso_local(now_dt)
+    return handled
+
+
 def _process_create_time(pid: int | None) -> float | None:
     if not pid:
         return None
@@ -966,7 +1537,8 @@ def reconcile_running() -> int:
     changed = 0
     for job in list_jobs():
         if job.get("kind") in {
-            SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
+            SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND,
+            SCHEDULED_TASK_KIND}:
             continue
         if job.get("status") not in {"starting", "running"}:
             continue
@@ -988,11 +1560,15 @@ async def recover_notifications() -> int:
     # not create a second terminal notice.  Running them here makes service
     # restart recovery share the existing one-second lifecycle loop.
     await run_due_message_jobs()
+    try:
+        await run_due_scheduled_tasks()
+    except Exception:
+        pass  # scheduler pass 不得饿死 message job / 终态通知恢复
     reconcile_running()
     delivered = 0
     for job in list_jobs():
         if job.get("kind") in {SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND,
-                                SESSION_BROADCAST_KIND}:
+                                SESSION_BROADCAST_KIND, SCHEDULED_TASK_KIND}:
             continue
         if job.get("status") not in {"completed", "failed", "cancelled"} or job.get("notificationState") == "delivered":
             continue

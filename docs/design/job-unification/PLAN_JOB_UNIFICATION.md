@@ -159,3 +159,29 @@ job: {
 - 实现要点：终态通知投递循环（recover_notifications 形态）捕获投递失败 → 记
   `notificationState=undeliverable`（新增态）+ warning 事件（GUI/日志可见）→ 保留
   pending 便条不丢；切换 target 的 API 落盘后自动重置为 pending 触发重投。
+
+## 11. P1 实施纪要（2026-09-25 落地，worktree jobs-unification-p1）
+
+P1 内核已在 `packages/core/background_jobs.py` 落地：`scheduled-task` kind、
+统一认领循环（`run_due_scheduled_tasks`，挂 recovery loop）、stale requeue、
+grace/misfire、max_runs、paused 推进、undeliveredFires 积压重投、
+runs.jsonl 泛化、迁移（`store.migrate_legacy_tasks`）。测试全绿
+（scheduler 151 项 + background_jobs 66 项 + 全量）。
+
+与本计划正文的三处**有意偏离**（均为实施时裁决）：
+
+1. **kind 名 `scheduled-task`（连字符）**，非正文表的 `scheduled_task`——与既有
+   kind 命名（`session-message` 等）一致（background_jobs.py:41）。
+2. **dispatch_key 前缀用 taskId 而非 jobId**：`f"{taskId}:{entryId}:{fire_ts}"`
+   （DESIGN §3 的唯一性/稳定性实质保留；taskId 是迁移后仍稳定的对外主键，
+   jobId 在迁移时会重新生成）。兼容层同时保留 `taskId` 字段承载旧 `sch_` id。
+3. **注册表根未改名 `data/jobs/`**：沿用 `data/background_jobs/`（迁移成本为零，
+   用户的既有 message/process job 记录原地不动）。`PAN_SCHEDULER_DIR` >
+   `PAN_BACKGROUND_JOBS_DIR` > 默认根，生产环境两类 job 同表。
+4. cron.py 上移 `packages/jobs/cron.py`（正文既定）；`packages/scheduler/cron.py`
+   保留为再导出垫片，P4 随插件退役。
+
+§10 的 undeliverable 落地形态：`undeliveredFires` 便条列表（上限 20）+
+`lastStatus="undeliverable"` + fired 事件；target 恢复/切换后由循环自动重投，
+dispatch_key 原样复用（接收端幂等索引兜底）。终态通知层的
+`notificationState=undeliverable` 新态留给 P2（当前 scheduled-task 不产生终态通知）。

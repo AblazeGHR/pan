@@ -79,10 +79,14 @@ def _create(client, **overrides):
 def _force_due(task_id: str, seconds: int = 2) -> str:
     """把任务的 next_fire_at 拨到过去（在 misfire 宽限内），让它下一 tick 到期。"""
     due = (datetime.now() - timedelta(seconds=seconds)).isoformat(timespec="seconds")
-    task = scheduler_store.get_task(task_id)
-    task["next_fire_at"] = due
-    scheduler_store.save_task(task)
+    scheduler_store.update_task(task_id, {"next_fire_at": due})
     return due
+
+
+def _expected_dispatch_key(task_id: str, fire_at_iso: str) -> str:
+    """统一幂等键：taskId:entryId:fire_ts（DESIGN §3，兼容层 entry 可寻址）。"""
+    entry_id = scheduler_store._job_for_task(task_id)["schedule"][0]["id"]
+    return f"{task_id}:{entry_id}:{int(datetime.fromisoformat(fire_at_iso).timestamp())}"
 
 
 # ── 1. tick 触发 interval 任务：历史有记录 + nextFireAt 推进 ──
@@ -105,8 +109,8 @@ def test_tick_dispatches_and_advances_next_fire(env):
     run = runs["runs"][0]
     assert run["status"] == "dispatched", run
     assert run["taskId"] == task_id
-    # 命名纪律（PLAN §2.2）：幂等键 = f"{task_id}:{fire_at 的 epoch 秒}"
-    expected_key = f"{task_id}:{int(datetime.fromisoformat(due).timestamp())}"
+    # 命名纪律（DESIGN §3）：幂等键 = taskId:entryId:fire_at 的 epoch 秒
+    expected_key = _expected_dispatch_key(task_id, due)
     assert run["dispatchKey"] == expected_key, run
 
     # nextFireAt 已推进（> 触发点，且回到未来）

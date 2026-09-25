@@ -140,3 +140,20 @@ dispatch_key = f"{jobId}:{entryId}:{int(fire_at.timestamp())}"
      runs.jsonl（逐次可查）→ logs（仅进程类的过程细节，与部分失败无关）。
    - 依据：「算不算 failed」与「要不要让人知道」正交；broadcast 是通知类语义，
      部分失败是"值得知道但不需处理"级别，toast 即时性比列表标红合适。
+
+---
+
+## 7. P1 实施纪要（2026-09-25）
+
+§2 方案已落地（background_jobs.run_due_scheduled_tasks）。两点实施细节：
+
+1. **undeliverable 的判别**：不做派发前 `_sessions.get` 预检（预检会把行为
+   测试的假 session 全判 undeliverable，且引入 TOCTOU）；改为识别 assign 的
+   稳定字面量 `"Session {id} not found"`（worker.py assign 的缺 session
+   返回）→ 走 §2 的 undeliveredFires 积压路径。
+2. **同轮多 entry 的计数**：执行循环每个 entry 前重载最新 job 容器，使
+   runCount/last* 读到前一个 entry 的落盘结果（否则双 entry 同刻只计 1 次）。
+
+§5 验收清单对应测试：test_scheduler_engine.py（claim 先于派发 / 顺序派发 /
+stale requeue 幂等键不变 / 双 entry 不撞键 / undeliverable 积压重投）+
+test_scheduler_store.py（迁移幂等 / runs 合并）。
