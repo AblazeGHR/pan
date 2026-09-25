@@ -938,7 +938,7 @@ export interface ApiSessionQueueResponse {
 export interface ToastMessage {
   id: string;
   message: string;
-  type: 'info' | 'error';
+  type: 'info' | 'error' | 'warning';
 }
 
 export interface SyncedSettings {
