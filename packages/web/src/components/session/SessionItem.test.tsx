@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { SessionItem } from './SessionItem';
+import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { Session } from '@/types';
 
 function session(
@@ -53,6 +55,22 @@ describe('SessionItem streaming preview', () => {
     );
 
     expect(screen.getByText('Answer body')).toBeTruthy();
+  });
+
+  it('hides adapter and Workspace badges at mobile widths to leave room for session titles', () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws-mobile', name: 'Mobile Space', order: null }],
+    });
+    useUIStore.setState({ activeWorkspaceId: 'all' });
+    const { container } = render(
+      <SessionItem
+        session={session('preview', 'idle', { workspaceIds: ['ws-mobile'] })}
+        isActive={false}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="session-adapter-badge"]')?.className).toContain('max-md:hidden');
+    expect(container.querySelector('[data-testid="session-workspace-badge"]')?.className).toContain('max-md:hidden');
   });
 
   it('keeps the selected running session preview visible', () => {

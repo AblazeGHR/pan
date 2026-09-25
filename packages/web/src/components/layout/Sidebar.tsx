@@ -434,7 +434,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   return (
     <aside
       className="relative flex min-w-0 flex-col h-full border-r border-border-default bg-bg-secondary"
-      style={{ width: isMobile && mobileWorkspaceExpanded ? '65vw' : sidebarWidth }}
+      style={{ width: isMobile && mobileWorkspaceExpanded ? '50vw' : sidebarWidth }}
     >
       {/* ── Chat route content ── */}
       {!isEditorRoute && (

@@ -228,13 +228,14 @@ export const SessionItem = memo(function SessionItem({
             {session.name || 'Untitled'}
           </span>
           {session.adapter && (
-            <span className="text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
+            <span data-testid="session-adapter-badge" className="max-md:hidden text-[10px] text-text-tertiary bg-bg-tertiary border border-border-default rounded px-1 py-px shrink-0">
               {session.adapter}
             </span>
           )}
           {showWorkspaceBadge && (
             <span
-              className="flex items-center gap-0.5 text-[10px] text-accent bg-accent/10 border border-accent/25 rounded px-1 py-px shrink-0"
+              data-testid="session-workspace-badge"
+              className="max-md:hidden flex items-center gap-0.5 text-[10px] text-accent bg-accent/10 border border-accent/25 rounded px-1 py-px shrink-0"
               title={`工作区：${workspaceName}`}
             >
               <Folder size={9} />

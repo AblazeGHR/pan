@@ -3,7 +3,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Folder,
-  GripVertical,
   Layers,
   MoreHorizontal,
   Pencil,
@@ -19,6 +18,7 @@ import type { Workspace } from '@/types';
 
 const RAIL_WIDTH = 172;
 const DRAG_THRESHOLD_PX = 5;
+const MOBILE_DRAG_HOLD_MS = 350;
 const WORKSPACE_STATUS_RANK: Record<string, number> = { idle: 1, held: 2, running: 3 };
 const WORKSPACE_COUNT_STATUS_CLASSES: Record<string, string> = {
   running: 'border-accent/30 bg-accent/10 text-accent',
@@ -179,8 +179,21 @@ export function WorkspaceRail({
     }
   };
 
-  /* ── tab drag-reorder (pointer based; mirrors SessionList's drag rules) ── */
-  const dragRef = useRef<{ id: string; startY: number; active: boolean } | null>(null);
+  /* ── tab drag-reorder (whole-row long press on touch; threshold on mouse) ── */
+  const dragRef = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    lastY: number;
+    pointerType: string;
+    active: boolean;
+    scrollOnly: boolean;
+    longPressReady: boolean;
+    longPressTimer: number | null;
+  } | null>(null);
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const suppressTabClickRef = useRef(false);
+  const suppressTabClickTimerRef = useRef<number | null>(null);
   const dropHintRef = useRef<typeof dropHint>(null);
   const lastYRef = useRef(0);
   const pointerUpHandlerRef = useRef<() => void>(() => {});
@@ -209,6 +222,22 @@ export function WorkspaceRail({
   const onDragMove = useCallback((e: PointerEvent) => {
     const drag = dragRef.current;
     if (!drag) return;
+    if (drag.pointerType === 'touch' && !drag.active) {
+      const deltaY = e.clientY - drag.lastY;
+      const moved = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) >= DRAG_THRESHOLD_PX;
+      if (!drag.longPressReady && moved) {
+        if (drag.longPressTimer !== null) window.clearTimeout(drag.longPressTimer);
+        drag.longPressTimer = null;
+        drag.scrollOnly = true;
+      }
+      if (drag.scrollOnly) {
+        if (tabScrollRef.current) tabScrollRef.current.scrollTop -= deltaY;
+        suppressTabClickRef.current = true;
+      }
+      drag.lastY = e.clientY;
+      lastYRef.current = e.clientY;
+      return;
+    }
     if (!drag.active) {
       if (Math.abs(e.clientY - drag.startY) < DRAG_THRESHOLD_PX) return;
       drag.active = true;
@@ -225,6 +254,17 @@ export function WorkspaceRail({
     window.removeEventListener('pointercancel', pointerCancelHandlerRef.current);
     const drag = dragRef.current;
     dragRef.current = null;
+    if (drag?.longPressTimer !== null && drag?.longPressTimer !== undefined) {
+      window.clearTimeout(drag.longPressTimer);
+    }
+    if (drag?.active || drag?.scrollOnly) {
+      suppressTabClickRef.current = true;
+      if (suppressTabClickTimerRef.current !== null) window.clearTimeout(suppressTabClickTimerRef.current);
+      suppressTabClickTimerRef.current = window.setTimeout(() => {
+        suppressTabClickRef.current = false;
+        suppressTabClickTimerRef.current = null;
+      }, 0);
+    }
     document.body.classList.remove('select-none');
     setDraggingId(null);
     const hint = dropHintRef.current;
@@ -251,8 +291,33 @@ export function WorkspaceRail({
   pointerCancelHandlerRef.current = onDragCancel;
 
   const startTabDrag = (e: React.PointerEvent, workspaceId: string) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    dragRef.current = { id: workspaceId, startY: e.clientY, active: false };
+    const pointerType = e.pointerType || (mobileDrawer ? 'touch' : 'mouse');
+    if (pointerType === 'mouse' && typeof e.button === 'number' && e.button !== 0) return;
+    if (suppressTabClickTimerRef.current !== null) window.clearTimeout(suppressTabClickTimerRef.current);
+    suppressTabClickTimerRef.current = null;
+    suppressTabClickRef.current = false;
+    const drag = {
+      id: workspaceId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastY: e.clientY,
+      pointerType,
+      active: false,
+      scrollOnly: false,
+      longPressReady: false,
+      longPressTimer: null as number | null,
+    };
+    dragRef.current = drag;
+    if (mobileDrawer && pointerType === 'touch') {
+      drag.longPressTimer = window.setTimeout(() => {
+        if (dragRef.current !== drag) return;
+        drag.longPressTimer = null;
+        drag.longPressReady = true;
+        drag.active = true;
+        setDraggingId(workspaceId);
+        document.body.classList.add('select-none');
+      }, MOBILE_DRAG_HOLD_MS);
+    }
     lastYRef.current = e.clientY;
     setCurrentDropHint(null);
     window.addEventListener('pointermove', onDragMove);
@@ -265,13 +330,17 @@ export function WorkspaceRail({
       window.removeEventListener('pointermove', onDragMove);
       window.removeEventListener('pointerup', onDragUp);
       window.removeEventListener('pointercancel', onDragCancel);
+      if (dragRef.current?.longPressTimer !== null && dragRef.current?.longPressTimer !== undefined) {
+        window.clearTimeout(dragRef.current.longPressTimer);
+      }
+      if (suppressTabClickTimerRef.current !== null) window.clearTimeout(suppressTabClickTimerRef.current);
       document.body.classList.remove('select-none');
     };
   }, [onDragMove, onDragUp, onDragCancel]);
 
   const tabClass = (active: boolean, isDragging: boolean, hint: 'before' | 'after' | null) => [
-    'group relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs transition-colors',
-    mobileDrawer ? 'min-h-11 text-sm px-1.5' : '',
+    'group relative flex min-w-0 cursor-pointer items-center rounded-md border transition-colors',
+    mobileDrawer ? 'min-h-11 gap-1 px-1 py-1 text-xs touch-none select-none' : 'gap-1.5 px-2 py-1.5 text-xs',
     active
       ? 'border-accent/30 bg-accent/10 text-accent'
       : 'border-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary',
@@ -327,7 +396,7 @@ export function WorkspaceRail({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div ref={tabScrollRef} data-testid="workspace-tab-scroll" className="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div
             data-workspace-tab-id={ALL_WORKSPACES}
             role="button"
@@ -337,9 +406,9 @@ export function WorkspaceRail({
             onClick={() => switchTo(ALL_WORKSPACES)}
             onKeyDown={(e) => { if (e.key === 'Enter') switchTo(ALL_WORKSPACES); }}
           >
-            <Layers size={12} />
-            <span className="flex-1 truncate">全部</span>
-            <span className="rounded-full border border-border-muted bg-bg-tertiary px-1.5 text-[10px] leading-4 text-text-tertiary">
+            <Layers size={mobileDrawer ? 11 : 12} className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">全部</span>
+            <span className={`shrink-0 rounded-full border border-border-muted bg-bg-tertiary ${mobileDrawer ? 'px-1 text-[9px]' : 'px-1.5 text-[10px]'} leading-4 text-text-tertiary`}>
               {sessions.length}
             </span>
           </div>
@@ -371,36 +440,29 @@ export function WorkspaceRail({
               <div
                 key={workspace.id}
                 data-workspace-tab-id={workspace.id}
+                data-testid={`workspace-tab-${workspace.id}`}
                 role="button"
                 tabIndex={0}
                 className={tabClass(activeWorkspaceId === workspace.id, draggingId === workspace.id, dropHint?.id === workspace.id ? dropHint.place : null)}
+                aria-label={mobileDrawer ? `工作区 ${workspace.name}，短按切换，长按拖动排序` : undefined}
                 title={workspace.name}
-                onClick={() => switchTo(workspace.id)}
+                onClick={() => {
+                  if (suppressTabClickRef.current) {
+                    suppressTabClickRef.current = false;
+                    return;
+                  }
+                  switchTo(workspace.id);
+                }}
                 onDoubleClick={() => { nameErrorShown.current = false; setEditing({ id: workspace.id, value: workspace.name }); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') switchTo(workspace.id); }}
-                onPointerDown={mobileDrawer ? undefined : (e) => startTabDrag(e, workspace.id)}
+                onPointerDown={(e) => startTabDrag(e, workspace.id)}
               >
-                {mobileDrawer && (
-                  <button
-                    type="button"
-                    className="flex h-11 min-w-11 shrink-0 touch-none cursor-grab items-center justify-center rounded text-text-tertiary active:cursor-grabbing"
-                    aria-label={`拖动工作区「${workspace.name}」排序`}
-                    title="拖动排序"
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      startTabDrag(e, workspace.id);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <GripVertical size={14} />
-                  </button>
-                )}
-                <Folder size={12} />
-                <span className="flex-1 truncate">{workspace.name}</span>
+                <Folder size={mobileDrawer ? 11 : 12} className="shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
                 <span
                   data-testid={`workspace-count-${workspace.id}`}
                   data-worker-status={memberStat?.workerStatus ?? 'offline'}
-                  className={`rounded-full border px-1.5 text-[10px] leading-4 ${WORKSPACE_COUNT_STATUS_CLASSES[memberStat?.workerStatus ?? ''] ?? 'border-border-muted bg-bg-tertiary text-text-tertiary'}`}
+                  className={`shrink-0 rounded-full border ${mobileDrawer ? 'px-1 text-[9px]' : 'px-1.5 text-[10px]'} leading-4 ${WORKSPACE_COUNT_STATUS_CLASSES[memberStat?.workerStatus ?? ''] ?? 'border-border-muted bg-bg-tertiary text-text-tertiary'}`}
                 >
                   {memberStat?.count ?? 0}
                 </span>
@@ -442,7 +504,7 @@ export function WorkspaceRail({
             <button
               type="button"
               data-workspace-tab-id={CREATE_WORKSPACE_DROP_TARGET_ID}
-              className={`mt-1 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-default px-2 py-1.5 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary ${mobileDrawer ? 'min-h-11 text-sm' : ''}`}
+              className={`mt-1 flex w-full items-center gap-1 rounded-md border border-dashed border-border-default px-1.5 py-1 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary ${mobileDrawer ? 'min-h-11' : ''}`}
               onClick={() => {
                 nameErrorShown.current = false;
                 setEditing({ id: '__new__', value: '' });
@@ -461,7 +523,7 @@ export function WorkspaceRail({
       {(!mobileDrawer || !isExpanded) && <button
         type="button"
         className={mobileDrawer
-          ? 'absolute left-0 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-l-lg border border-r-0 border-border-default bg-bg-tertiary text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'
+          ? 'absolute left-0 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'
           : 'absolute right-0 top-1/2 z-40 flex -translate-y-1/2 translate-x-full flex-col items-center gap-1.5 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary px-0.5 py-2.5 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'}
         style={mobileDrawer ? undefined : { width: HANDLE_WIDTH }}
         title={isExpanded ? `收起工作区面板（当前：${activeName}）` : `当前：${activeName} — 点击展开工作区`}

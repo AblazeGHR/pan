@@ -90,6 +90,17 @@ function startSessionDrag(container: HTMLElement) {
   act(() => fireEvent.pointerDown(handle, { button: 0, pointerType: 'mouse', clientX: 10, clientY: 10 }));
 }
 
+function startPointerDown(
+  target: Element,
+  init: { button: number; pointerType: 'mouse' | 'touch'; clientX: number; clientY: number },
+) {
+  const event = new Event('pointerdown', { bubbles: true, cancelable: true });
+  for (const [key, value] of Object.entries(init)) {
+    Object.defineProperty(event, key, { configurable: true, value });
+  }
+  act(() => target.dispatchEvent(event));
+}
+
 function movePointer(clientX: number, clientY: number) {
   act(() => window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX, clientY })));
 }
@@ -119,6 +130,8 @@ describe('Workspace rail drag interactions', () => {
     useWorkspaceStore.setState({ workspaces: [BASE_WORKSPACE], loaded: true, loading: false, error: null });
     useUIStore.setState({
       railExpanded: true,
+      mobileSidebarOpen: false,
+      activeWorkspaceId: 'all',
       groupBy: 'none',
       dragEnabled: true,
       sortBy: 'recent',
@@ -135,6 +148,7 @@ describe('Workspace rail drag interactions', () => {
   afterEach(() => {
     rectSpy?.mockRestore();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('moves a dragged Session to the Workspace tab using the final pointer target', async () => {
@@ -155,7 +169,7 @@ describe('Workspace rail drag interactions', () => {
     const source = container.querySelector('[data-workspace-tab-id="ws-existing"]');
     expect(source).not.toBeNull();
 
-    act(() => fireEvent.pointerDown(source!, { button: 0, pointerType: 'mouse', clientY: 55 }));
+    startPointerDown(source!, { button: 0, pointerType: 'mouse', clientX: 350, clientY: 55 });
     movePointer(350, 112);
     expect(document.body.classList.contains('select-none')).toBe(true);
     releasePointer();
@@ -167,22 +181,75 @@ describe('Workspace rail drag interactions', () => {
     expect(container.querySelector('[data-testid="workspace-count-ws-existing"]')?.textContent).toBe('0');
   });
 
-  it('supports touch sorting from the mobile WorkspaceRail drag handle', async () => {
+  it('uses a short touch tap to select a mobile Workspace', () => {
     useWorkspaceStore.setState({ workspaces: [BASE_WORKSPACE, SECOND_WORKSPACE] });
-    const onMobileExpandedChange = vi.fn();
+    useUIStore.setState({ activeWorkspaceId: 'all' });
     const { container } = render(
-      <WorkspaceRail mobileDrawer mobileExpanded onMobileExpandedChange={onMobileExpandedChange} />,
+      <WorkspaceRail mobileDrawer mobileExpanded onMobileExpandedChange={vi.fn()} />,
     );
-    const handle = container.querySelector('[aria-label="拖动工作区「Existing」排序"]');
-    expect(handle).not.toBeNull();
-    expect(handle?.className).toContain('touch-none');
+    const tab = container.querySelector('[data-workspace-tab-id="ws-existing"]');
+    expect(tab).not.toBeNull();
+    expect(tab?.getAttribute('aria-label')).toBe('工作区 Existing，短按切换，长按拖动排序');
 
-    act(() => fireEvent.pointerDown(handle!, { button: 0, pointerType: 'touch', clientY: 55 }));
+    startPointerDown(tab!, { button: 0, pointerType: 'touch', clientX: 350, clientY: 55 });
+    releasePointer();
+    fireEvent.click(tab!);
+
+    expect(useUIStore.getState().activeWorkspaceId).toBe('ws-existing');
+    expect(apiMocks.saveWorkspaceOrder).not.toHaveBeenCalled();
+  });
+
+  it('keeps vertical list scrolling available before the long-press reorder delay', () => {
+    useWorkspaceStore.setState({ workspaces: [BASE_WORKSPACE, SECOND_WORKSPACE] });
+    useUIStore.setState({ activeWorkspaceId: 'all' });
+    const { container } = render(
+      <WorkspaceRail mobileDrawer mobileExpanded onMobileExpandedChange={vi.fn()} />,
+    );
+    const tab = container.querySelector('[data-workspace-tab-id="ws-existing"]');
+    const scroller = container.querySelector<HTMLElement>('[data-testid="workspace-tab-scroll"]');
+    expect(tab).not.toBeNull();
+    expect(scroller).not.toBeNull();
+    let scrollTop = 0;
+    Object.defineProperty(scroller!, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value; },
+    });
+
+    startPointerDown(tab!, { button: 0, pointerType: 'touch', clientX: 350, clientY: 55 });
+    movePointer(350, 30);
+    releasePointer();
+    fireEvent.click(tab!);
+
+    expect(scrollTop).toBe(25);
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
+    expect(apiMocks.saveWorkspaceOrder).not.toHaveBeenCalled();
+  });
+
+  it('sorts a mobile Workspace after a long press on any part of its row', async () => {
+    useWorkspaceStore.setState({ workspaces: [BASE_WORKSPACE, SECOND_WORKSPACE] });
+    const { container } = render(
+      <WorkspaceRail mobileDrawer mobileExpanded onMobileExpandedChange={vi.fn()} />,
+    );
+    const tab = container.querySelector('[data-workspace-tab-id="ws-existing"]');
+    expect(tab).not.toBeNull();
+    expect(tab?.className).toContain('touch-none');
+    expect(tab?.className).toContain('gap-1');
+    expect(tab?.querySelector('span')?.className).toContain('min-w-0 flex-1 truncate');
+    expect(container.querySelector('[aria-label^="拖动工作区"]')).toBeNull();
+
+    vi.useFakeTimers();
+    startPointerDown(tab!, { button: 0, pointerType: 'touch', clientX: 350, clientY: 55 });
+    act(() => vi.advanceTimersByTime(400));
     movePointer(350, 112);
     releasePointer();
+    fireEvent.click(tab!);
+    act(() => vi.runOnlyPendingTimers());
+    vi.useRealTimers();
 
     await waitFor(() => expect(apiMocks.saveWorkspaceOrder).toHaveBeenCalledWith(['ws-second', 'ws-existing']));
     expect(useWorkspaceStore.getState().workspaces.map((workspace) => workspace.id)).toEqual(['ws-second', 'ws-existing']);
+    expect(useUIStore.getState().activeWorkspaceId).toBe('all');
     expect(apiMocks.setSessionWorkspaces).not.toHaveBeenCalled();
   });
 

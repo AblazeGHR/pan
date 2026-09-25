@@ -19,7 +19,7 @@ describe('responsive WorkspaceRail placement', () => {
     localStorage.clear();
     useSessionStore.setState({
       sessions: [
-        { id: 'inside', name: 'Inside workspace', workspaceIds: ['ws-alpha'], alwaysThinkingEnabled: false, effort: '', history: [] },
+        { id: 'inside', name: 'Inside workspace', adapter: 'codex', workspaceIds: ['ws-alpha'], alwaysThinkingEnabled: false, effort: '', history: [] },
         { id: 'outside', name: 'Outside workspace', workspaceIds: [], alwaysThinkingEnabled: false, effort: '', history: [] },
       ],
       currentSessionId: null,
@@ -83,6 +83,9 @@ describe('responsive WorkspaceRail placement', () => {
     const collapsedRail = screen.getByTestId('mobile-workspace-rail-collapsed');
     expect(collapsedRail.className).toContain('w-11');
     expect(collapsedRail.className).toContain('flex-none');
+    expect(handle.className).toContain('rounded-r-lg');
+    expect(handle.className).toContain('border-l-0');
+    expect(handle.className).not.toContain('rounded-l-lg');
     expect(drawer.querySelector('aside')?.style.width).toBe('260px');
     expect(container.querySelector('[data-workspace-tab-id="ws-alpha"]')).toBeNull();
 
@@ -90,7 +93,7 @@ describe('responsive WorkspaceRail placement', () => {
 
     const expandedRail = screen.getByTestId('mobile-workspace-rail-expanded');
     expect(drawer.style.width).toBe('100vw');
-    expect(drawer.querySelector('aside')?.style.width).toBe('65vw');
+    expect(drawer.querySelector('aside')?.style.width).toBe('50vw');
     expect(expandedRail.className).toContain('flex-1');
     expect(expandedRail.className).not.toContain('fixed');
     expect(screen.getByRole('button', { name: '收起工作区面板' })).toBeTruthy();
