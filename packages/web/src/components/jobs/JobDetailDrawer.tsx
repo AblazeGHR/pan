@@ -208,7 +208,7 @@ export function JobDetailDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Job detail"
-        className="fixed inset-y-0 right-0 z-50 flex w-full md:max-w-md flex-col border-l border-border-default bg-bg-secondary shadow-xl"
+        className="fixed inset-y-0 right-0 z-50 flex w-full md:max-w-[28rem] flex-col border-l border-border-default bg-bg-secondary shadow-xl"
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-2 border-b border-border-default px-3 py-2.5">
