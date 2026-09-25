@@ -6,6 +6,7 @@ import { useAdapterStore } from '@/stores/adapterStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type {
   ApiCliStatusResponse,
   CbcProject,
@@ -17,6 +18,8 @@ import type {
 } from '@/types';
 
 const apiMock = vi.hoisted(() => ({
+  fetchUiSettings: vi.fn(),
+  updateUiSettings: vi.fn(),
   fetchCbcProjects: vi.fn(async (): Promise<CbcProject[]> => []),
   fetchCbcSessions: vi.fn(async (): Promise<CbcSessionItem[]> => []),
   importCbcSession: vi.fn(),
@@ -47,6 +50,10 @@ const cliStatus = (...entries: Array<[string, boolean]>): ApiCliStatusResponse =
 describe('ImportModal adapter availability', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMock.fetchUiSettings.mockResolvedValue({
+      defaultNewSessionToCurrentWorkspace: true,
+    });
+    apiMock.updateUiSettings.mockResolvedValue({});
     apiMock.fetchCbcProjects.mockResolvedValue([]);
     apiMock.fetchCbcSessions.mockResolvedValue([]);
     apiMock.fetchKimiWorkspaces.mockResolvedValue([]);
@@ -64,6 +71,7 @@ describe('ImportModal adapter availability', () => {
       error: null,
     });
     useUIStore.setState({ activeWorkspaceId: 'ws-active' });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
     useSessionStore.setState({
       loadSessions: vi.fn(async () => {}),
       selectSession: vi.fn(async () => {}),
@@ -211,4 +219,59 @@ describe('ImportModal adapter availability', () => {
       });
     },
   );
+
+  it('imports a new Pan Session without Workspace membership when the preference is off', async () => {
+    useAppSettingsStore.setState({
+      ...DEFAULT_SETTINGS,
+      loaded: true,
+      defaultNewSessionToCurrentWorkspace: false,
+    });
+    apiMock.fetchCbcProjects.mockResolvedValue([{
+      project_dir: 'C:\\project', session_count: 1, path_hint: '', drive: 'C:', short_label: 'project',
+    }]);
+    apiMock.fetchCbcSessions.mockResolvedValue([{
+      session_id: 'cbc-native', project_dir: 'C:\\project', title: 'CBC import target',
+      message_count: 1, first_timestamp: '', last_timestamp: '', model: '', forked_from: null,
+    }]);
+
+    render(<ImportModal open onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByLabelText('Project')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'C:\\project' } });
+    await waitFor(() => expect(screen.getByText('CBC import target')).toBeTruthy());
+    fireEvent.click(screen.getByText('CBC import target'));
+
+    await waitFor(() => expect(apiMock.importCbcSession).toHaveBeenCalledWith(
+      'cbc-native', 'C:\\project', [],
+    ));
+  });
+
+  it('waits for persisted false before importing a new Pan Session', async () => {
+    let resolveSettings!: (value: Record<string, unknown>) => void;
+    apiMock.fetchUiSettings.mockReturnValue(new Promise((resolve) => {
+      resolveSettings = resolve;
+    }));
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
+    apiMock.fetchCbcProjects.mockResolvedValue([{
+      project_dir: 'C:\\project', session_count: 1, path_hint: '', drive: 'C:', short_label: 'project',
+    }]);
+    apiMock.fetchCbcSessions.mockResolvedValue([{
+      session_id: 'cbc-native', project_dir: 'C:\\project', title: 'CBC import target',
+      message_count: 1, first_timestamp: '', last_timestamp: '', model: '', forked_from: null,
+    }]);
+
+    render(<ImportModal open onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByLabelText('Project')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'C:\\project' } });
+    await waitFor(() => expect(screen.getByText('CBC import target')).toBeTruthy());
+    fireEvent.click(screen.getByText('CBC import target'));
+    await waitFor(() => expect(apiMock.fetchUiSettings).toHaveBeenCalledTimes(1));
+    expect(apiMock.importCbcSession).not.toHaveBeenCalled();
+
+    useUIStore.setState({ activeWorkspaceId: 'ws-after-import-action' });
+    resolveSettings({ defaultNewSessionToCurrentWorkspace: false });
+
+    await waitFor(() => expect(apiMock.importCbcSession).toHaveBeenCalledWith(
+      'cbc-native', 'C:\\project', [],
+    ));
+  });
 });

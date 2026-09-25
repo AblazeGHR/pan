@@ -15,9 +15,12 @@ import {
   renameSession,
   branchSession,
   reimportSession,
+  setSessionWorkspaces,
 } from '@/services/api';
 import { isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
+import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
+import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
 import { inheritMessageIdentity } from '@/utils/messageIdentity';
 import {
   canonicalHistory,
@@ -114,7 +117,7 @@ interface SessionStore {
   batchRemoveSessions: () => Promise<void>;
   rename: (id: string, name: string) => Promise<void>;
   branch: (id: string, name: string) => Promise<void>;
-  reimport: (id: string) => Promise<void>;
+  reimport: (id: string, activeWorkspaceId?: string) => Promise<void>;
   setInputDraft: (id: string, draft: string) => void;
   acceptServerEpoch: (epoch: string | null | undefined) => void;
   beginUnscopedReplay: (sessionIds: string[]) => void;
@@ -1771,6 +1774,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   createNewSession: async (name, workdir, adapter, sessionTemplate, settings) => {
+    // Resolve the default here as well as in modal callers so every new-session
+    // entry point uses the Workspace scope at the moment its action is invoked.
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
+    const initialWorkspaceIds = settings?.workspaceIds ?? [];
     const placeholder: Session = {
       id: `__pending_${name}`,
       name: '...',
@@ -1779,7 +1786,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       permissionMode: settings?.permissionMode ?? null,
       alwaysThinkingEnabled: settings?.alwaysThinkingEnabled ?? false,
       effort: settings?.effort || '',
-      workspaceIds: settings?.workspaceIds ? [...settings.workspaceIds] : [],
+      workspaceIds: [...initialWorkspaceIds],
       history: [],
     };
     set((s) => ({
@@ -1795,12 +1802,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
 
     try {
+      const defaultWorkspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
+      const workspaceIds = settings?.workspaceIds ?? defaultWorkspaceIds;
+      const createSettings = { ...settings, workspaceIds };
+      set((s) => ({
+        sessions: s.sessions.map((se) =>
+          se.id === placeholder.id ? { ...se, workspaceIds: [...workspaceIds] } : se,
+        ),
+      }));
       const session = await createSession(
         name,
         workdir,
         adapter,
         sessionTemplate,
-        settings,
+        createSettings,
       );
       set((s) => {
         // Drop the placeholder first — a concurrent loadSessions() (e.g. from
@@ -1813,8 +1828,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         );
         // Only append the real session if a concurrent reload didn't already
         // bring it in (avoids a duplicate row).
-        const sessions = withoutPlaceholder.some((se) => se.id === session.id)
-          ? withoutPlaceholder
+        const alreadyLoaded = withoutPlaceholder.some((se) => se.id === session.id);
+        // A session.created event can trigger loadSessions before this POST
+        // resolves. Keep the refreshed row's runtime fields, but take the
+        // membership from the authoritative create response.
+        const sessions = alreadyLoaded
+          ? withoutPlaceholder.map((se) =>
+              se.id === session.id
+                ? { ...se, workspaceIds: session.workspaceIds ?? se.workspaceIds }
+                : se,
+            )
           : [...withoutPlaceholder, session];
         // A concurrent loadSessions() also resets currentSessionId to null
         // when it can't find the client-only placeholder in the server list —
@@ -1961,19 +1984,80 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await get().loadSessions();
   },
 
-  reimport: async (id: string) => {
+  reimport: async (id: string, activeWorkspaceId = useUIStore.getState().activeWorkspaceId) => {
     const session = get().sessions.find((s) => s.id === id);
     if (!session?.cliSessionId) return;
 
-    const newSession = await reimportSession(
+    const reimportedSession = await reimportSession(
       id,
       session.adapter || 'cbc',
       session.cliSessionId,
       session.workdir,
     );
+    const concreteWorkspaceId = activeWorkspaceId
+      && activeWorkspaceId !== ALL_WORKSPACES
+      && activeWorkspaceId !== UNGROUPED_WORKSPACES
+      ? activeWorkspaceId
+      : null;
+    let newSession = reimportedSession;
+    let workspaceIds: string[];
+
+    if (session.managedBy) {
+      // Workspace membership is inherited from the managed root. Reimport
+      // only replaces history; it must not try to move this child or its root.
+      workspaceIds = Object.prototype.hasOwnProperty.call(reimportedSession, 'workspaceIds')
+        ? reimportedSession.workspaceIds ?? []
+        : session.workspaceIds ?? [];
+      newSession = {
+        ...reimportedSession,
+        managedBy: Object.prototype.hasOwnProperty.call(reimportedSession, 'managedBy')
+          ? reimportedSession.managedBy
+          : session.managedBy,
+        workspaceIds,
+      };
+    } else if (concreteWorkspaceId) {
+      try {
+        const membershipUpdate = await setSessionWorkspaces(
+          reimportedSession.id,
+          [concreteWorkspaceId],
+        );
+        if (!membershipUpdate
+            || membershipUpdate.workspaceIds?.length !== 1
+            || membershipUpdate.workspaceIds[0] !== concreteWorkspaceId) {
+          throw new Error('The server did not confirm the requested Workspace membership.');
+        }
+        workspaceIds = membershipUpdate.workspaceIds;
+        newSession = {
+          ...membershipUpdate,
+          ...reimportedSession,
+          workspaceIds,
+        };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        set((s) => ({
+          sessions: s.sessions.map((item) =>
+            item.id === id
+              ? { ...reimportedSession, workspaceIds: session.workspaceIds ?? [] }
+              : item,
+          ),
+          currentSessionId: s.currentSessionId === id ? reimportedSession.id : s.currentSessionId,
+          initialLoading: false,
+        }));
+        // The import endpoint already replaced history. Refresh membership in
+        // case the update reached the server but its response was lost.
+        void get().loadSessions();
+        throw new Error(`Session history was reimported, but the Workspace move was not confirmed: ${reason}`);
+      }
+    } else {
+      // All and Ungrouped do not identify a destination, so preserve the
+      // current membership even when an older or partial response omits it.
+      workspaceIds = session.workspaceIds ?? [];
+      newSession = { ...reimportedSession, workspaceIds };
+    }
+
     set((s) => ({
       sessions: s.sessions.map((session) =>
-        session.id === id ? newSession : session,
+        session.id === id ? { ...newSession, workspaceIds } : session,
       ),
       currentSessionId:
         s.currentSessionId === id ? newSession.id : s.currentSessionId,

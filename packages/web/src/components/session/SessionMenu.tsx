@@ -92,9 +92,10 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
   };
 
   const handleReimport = async () => {
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     onClose();
     try {
-      await reimport(session.id);
+      await reimport(session.id, activeWorkspaceId);
       showToast('Session reimported');
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Reimport failed', 'error');

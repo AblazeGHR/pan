@@ -1159,9 +1159,9 @@ export async function reimportSession(
       ? `${BASE}/kimi/sessions/import`
       : adapter === 'opencode'
         ? `${BASE}/opencode/sessions/import`
-        : adapter === 'codex'
-          ? `${BASE}/adapters/codex/sessions/import`
-          : `${BASE}/cbc/sessions/import`;
+        : adapter === 'cbc'
+          ? `${BASE}/cbc/sessions/import`
+          : `${BASE}/adapters/${encodeURIComponent(adapter)}/sessions/import`;
   const body: Record<string, string> = { session_id: cliSessionId };
   if (workdir) body.cwd = workdir;
   const data = await request<ApiSessionResponse>(url, {

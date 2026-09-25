@@ -41,6 +41,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [directoryCreationPath, setDirectoryCreationPath] = useState<string | null>(null);
+  const directoryCreationWorkspaceIds = useRef<string[] | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
   const cliStatus = useAdapterStore((s) => s.cliStatus);
@@ -84,6 +85,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       setSessionTemplate('');
       setSubmitting(false);
       setDirectoryCreationPath(null);
+      directoryCreationWorkspaceIds.current = null;
       fetchSessionTemplates()
         .then(setTemplates)
         .catch(() => setTemplates([]));
@@ -174,9 +176,11 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
   };
 
-  const createSession = async (requestedWorkdir: string | null) => {
+  const createSession = async (
+    requestedWorkdir: string | null,
+    workspaceIds: string[],
+  ) => {
     const finalName = name.trim() || nextSessionDefaultName(sessions);
-    const workspaceIds = getCreationWorkspaceIds();
     await createNewSession(
       finalName,
       requestedWorkdir,
@@ -210,21 +214,26 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       showToast('请选择一个当前可用的 adapter', 'error');
       return;
     }
+    // Preserve the Workspace active when the user submits, even if a directory
+    // check or the missing-directory confirmation takes time.
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     setSubmitting(true);
 
     const requestedWorkdir = workdir.trim() ? parseDirectoryInput(workdir).candidate : null;
 
     try {
+      const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
       if (requestedWorkdir) {
         try {
           await fetchDirectories(requestedWorkdir);
         } catch (error: unknown) {
           if (!isMissingDirectoryError(error)) throw error;
+          directoryCreationWorkspaceIds.current = workspaceIds;
           setDirectoryCreationPath(requestedWorkdir);
           return;
         }
       }
-      await createSession(requestedWorkdir);
+      await createSession(requestedWorkdir, workspaceIds);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to create session';
@@ -237,14 +246,19 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const confirmDirectoryCreation = async () => {
     const path = directoryCreationPath;
     if (!path || path !== (workdir.trim() ? parseDirectoryInput(workdir).candidate : '')) {
+      directoryCreationWorkspaceIds.current = null;
       setDirectoryCreationPath(null);
       return;
     }
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
+    const workspaceIds = directoryCreationWorkspaceIds.current
+      ?? await getCreationWorkspaceIds(activeWorkspaceId);
+    directoryCreationWorkspaceIds.current = null;
     setDirectoryCreationPath(null);
     setSubmitting(true);
     try {
       await createDirectory(path);
-      await createSession(path);
+      await createSession(path, workspaceIds);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : '目录创建失败', 'error');
     } finally {

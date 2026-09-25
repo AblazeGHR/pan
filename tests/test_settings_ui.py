@@ -41,6 +41,7 @@ def _read(p):
 
 _UI_DEFAULTS = {
     "defaultGroupBy": "none",
+    "defaultNewSessionToCurrentWorkspace": True,
     "showMetaAgent": True,
     "showTaskAgent": True,
     "showQQ": True,
@@ -115,6 +116,21 @@ def test_put_ui_notification_setting_persists(tmp_path, monkeypatch):
     )
     assert r["notifications"]["codexWarningToast"] is False
     assert _read(p)["ui"]["notifications"]["codexWarningToast"] is False
+
+
+def test_put_default_new_session_workspace_setting_persists(tmp_path, monkeypatch):
+    p = _use_temp_config(tmp_path, monkeypatch)
+    _write(p, {"port": 1234, "ui": {"showQQ": True}})
+
+    response = asyncio.run(srv.api_put_settings_ui({
+        "defaultNewSessionToCurrentWorkspace": False,
+    }))
+
+    assert response["defaultNewSessionToCurrentWorkspace"] is False
+    assert _read(p)["port"] == 1234
+    assert _read(p)["ui"]["defaultNewSessionToCurrentWorkspace"] is False
+    assert _read(p)["ui"]["showQQ"] is True
+    assert asyncio.run(srv.api_get_settings_ui())["defaultNewSessionToCurrentWorkspace"] is False
 
 
 def test_put_ui_full_replacement(tmp_path, monkeypatch):

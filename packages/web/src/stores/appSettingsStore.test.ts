@@ -6,6 +6,7 @@ import {
   sanitizeSettings,
 } from '@/stores/appSettingsStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
+import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
 
 vi.mock('@/services/api', () => ({
   fetchUiSettings: vi.fn(async () => ({})),
@@ -29,6 +30,7 @@ describe('appSettingsStore', () => {
     const s = useAppSettingsStore.getState();
     expect(s.loaded).toBe(false);
     expect(s.defaultGroupBy).toBe('none');
+    expect(s.defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
@@ -45,6 +47,7 @@ describe('appSettingsStore', () => {
       showMetaAgent: false,
       showTaskAgent: true,
       showQQ: false,
+      defaultNewSessionToCurrentWorkspace: false,
       mergeConsecutiveNonBodyBlocks: true,
       keepScrollOnSessionSwitch: true,
       showMessageNavigationRail: true,
@@ -58,6 +61,7 @@ describe('appSettingsStore', () => {
     expect(s.showMetaAgent).toBe(false);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(false);
+    expect(s.defaultNewSessionToCurrentWorkspace).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(true);
     expect(s.keepScrollOnSessionSwitch).toBe(true);
     expect(s.showMessageNavigationRail).toBe(true);
@@ -93,6 +97,34 @@ describe('appSettingsStore', () => {
     expect(s.showQQ).toBe(true);
   });
 
+  it('waits for one in-flight settings GET before resolving creation membership', async () => {
+    let resolveLoad!: (v: Record<string, unknown>) => void;
+    mockedFetch.mockReturnValue(new Promise((resolve) => {
+      resolveLoad = resolve;
+    }));
+
+    const startupLoad = useAppSettingsStore.getState().loadSettings();
+    const actionMembership = getCreationWorkspaceIds('ws-at-action-start');
+    await Promise.resolve();
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    resolveLoad({ defaultNewSessionToCurrentWorkspace: false });
+
+    await expect(actionMembership).resolves.toEqual([]);
+    await startupLoad;
+    expect(useAppSettingsStore.getState().loaded).toBe(true);
+  });
+
+  it('uses DEFAULT_SETTINGS after a failed hydration instead of waiting indefinitely', async () => {
+    mockedFetch.mockRejectedValue(new Error('network down'));
+
+    await expect(getCreationWorkspaceIds('ws-at-action-start'))
+      .resolves.toEqual(['ws-at-action-start']);
+
+    expect(useAppSettingsStore.getState().loaded).toBe(true);
+    expect(useAppSettingsStore.getState().defaultNewSessionToCurrentWorkspace).toBe(true);
+  });
+
   it('writes each change back to the backend (PUT)', () => {
     useAppSettingsStore.getState().setDefaultGroupBy('workdir');
     useAppSettingsStore.getState().setShowMetaAgent(false);
@@ -113,6 +145,12 @@ describe('appSettingsStore', () => {
     expect(mockedUpdate).toHaveBeenNthCalledWith(6, { showCodexTerminalInput: true });
     expect(mockedUpdate).toHaveBeenNthCalledWith(7, { mergeConsecutiveNonBodyBlocks: true });
     expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
+
+    useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
+    expect(useAppSettingsStore.getState().defaultNewSessionToCurrentWorkspace).toBe(false);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({
+      defaultNewSessionToCurrentWorkspace: false,
+    });
 
     // The per-session scroll-memory switch writes through the same ui object.
     useAppSettingsStore.getState().setKeepScrollOnSessionSwitch(true);
@@ -136,11 +174,14 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setDefaultGroupBy('manager');
     useAppSettingsStore.getState().setShowMetaAgent(false);
     useAppSettingsStore.getState().setShowQQ(false);
+    useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
 
     useAppSettingsStore.getState().resetSettings();
 
     const s = useAppSettingsStore.getState();
     expect(s.defaultGroupBy).toBe(DEFAULT_SETTINGS.defaultGroupBy);
+    expect(s.defaultNewSessionToCurrentWorkspace)
+      .toBe(DEFAULT_SETTINGS.defaultNewSessionToCurrentWorkspace);
     expect(s.showMetaAgent).toBe(DEFAULT_SETTINGS.showMetaAgent);
     expect(s.showTaskAgent).toBe(DEFAULT_SETTINGS.showTaskAgent);
     expect(s.showQQ).toBe(DEFAULT_SETTINGS.showQQ);
@@ -180,6 +221,10 @@ describe('appSettingsStore', () => {
       ...DEFAULT_SETTINGS,
       showQQ: false,
     });
+    expect(sanitizeSettings({ defaultNewSessionToCurrentWorkspace: false })
+      .defaultNewSessionToCurrentWorkspace).toBe(false);
+    expect(sanitizeSettings({ defaultNewSessionToCurrentWorkspace: 'no' })
+      .defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(
       sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications,
     ).toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true });

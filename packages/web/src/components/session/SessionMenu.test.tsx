@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SessionMenu } from './SessionMenu';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { Session, Workspace } from '@/types';
 
@@ -56,6 +58,35 @@ describe('SessionMenu details entry', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onRename).toHaveBeenCalledWith(session.id);
     expect(promptSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('SessionMenu Reimport Workspace snapshot', () => {
+  it('passes the Workspace active when Reimport starts, before closing the menu', async () => {
+    const originalReimport = useSessionStore.getState().reimport;
+    const originalWorkspaceId = useUIStore.getState().activeWorkspaceId;
+    const reimport = vi.fn(async () => {});
+    const onClose = vi.fn(() => useUIStore.setState({ activeWorkspaceId: 'ws-after-click' }));
+    useSessionStore.setState({ reimport });
+    useUIStore.setState({ activeWorkspaceId: 'ws-at-click' });
+    try {
+      render(
+        <SessionMenu
+          session={{ ...session, cliSessionId: 'native-menu-test' }}
+          position={{ x: 10, y: 10 }}
+          onClose={onClose}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reimport' }));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(reimport).toHaveBeenCalledWith(session.id, 'ws-at-click');
+      await act(async () => { await Promise.resolve(); });
+    } finally {
+      useSessionStore.setState({ reimport: originalReimport });
+      useUIStore.setState({ activeWorkspaceId: originalWorkspaceId });
+    }
   });
 });
 
