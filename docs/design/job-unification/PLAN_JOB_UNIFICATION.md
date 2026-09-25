@@ -185,3 +185,28 @@ runs.jsonl 泛化、迁移（`store.migrate_legacy_tasks`）。测试全绿
 `lastStatus="undeliverable"` + fired 事件；target 恢复/切换后由循环自动重投，
 dispatch_key 原样复用（接收端幂等索引兜底）。终态通知层的
 `notificationState=undeliverable` 新态留给 P2（当前 scheduled-task 不产生终态通知）。
+
+## 12. P2 实施纪要（2026-09-25 落地，worktree jobs-unification-p1）
+
+P2 后端收口，GUI 对接面齐备：
+
+- **/api/jobs/***（packages/jobs/api.py，挂 server.py）：全 kind 列表
+  （kind/status 过滤 + active-first）、详情、PATCH（name/description/enabled/
+  paused/target 归属切换）、DELETE、runs、run-now、next 预览、kinds 元数据、
+  schedule 模板 CRUD。`/api/scheduler/*` 兼容别名照旧（§9）。
+- **结构化 source/target**：新记录双写 `sourceStruct`/`targetStruct`（扁平
+  字段保留兼容旧读者）；出口 `job_public_view` 把任何年代的记录折算成
+  `source: {type, sessionId?, pluginName?}` × `target: {sessionId, sessionIds?}`
+  （automation→system；旧记录读路径折算不重写文件）。归属切换 =
+  PATCH target，scheduled-task 积压便条由统一循环按新 target 重投。
+- **action 模板**：`_run_job_action` 按 `action.api` 分派，首批
+  assign（默认，幂等键兜底）/ send_session（message 语义）；未知 api 或
+  兼容层旧记录（无 action 字段）一律回落 assign。
+- **schedule 模板**：packages/jobs/templates.py，内置 4 条（工作日9点/
+  每小时/每天21点/每周一9点）+ 自定义持久化（schedule_templates.json，
+  原子写），内置不可删。
+- **partial_failed 事件**：run_due_message_jobs 的 partial 分支即时广播
+  `job.partial_failed`（jobId/name/errors/results），GUI toast 监听用。
+
+遗留到 P4：mailbox 终态通知的 notificationState=undeliverable 新态
+（scheduled-task 暂不产生终态通知，无消费方）；MCP jobs_* 薄封装。

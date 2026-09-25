@@ -261,6 +261,8 @@ def _job_from_payload(payload: dict) -> dict:
                  or background_jobs.default_job_name(data_root())),
         "description": background_jobs.normalize_description(payload.get("description")),
         "targetSessionId": payload["target_session_id"],
+        "sourceStruct": background_jobs.normalize_source({"type": "system"}),
+        "targetStruct": background_jobs.normalize_target(payload["target_session_id"]),
         "text": payload["text"],
         "source": "automation",
         "creatorSessionId": None,
@@ -390,6 +392,7 @@ def update_task(task_id: str, patch: dict) -> dict | None:
         if not target:
             raise ValueError("target_session_id 不能为空")
         job_changes["targetSessionId"] = target
+        job_changes["targetStruct"] = background_jobs.normalize_target(target)
         # PLAN §10：切换 target → 积压便条由统一循环自动重投新 target。
     if "paused" in patch:
         job_changes["paused"] = bool(patch.get("paused"))
@@ -596,6 +599,9 @@ def _job_from_legacy_task(data: dict) -> dict:
                 or background_jobs.default_job_name(data_root()),
         "description": background_jobs.normalize_description(data.get("description")),
         "targetSessionId": str(data.get("target_session_id") or "").strip(),
+        "sourceStruct": background_jobs.normalize_source({"type": "system"}),
+        "targetStruct": background_jobs.normalize_target(
+            str(data.get("target_session_id") or "").strip()),
         "text": str(data.get("text") or "").strip(),
         "source": "automation",
         "creatorSessionId": None,

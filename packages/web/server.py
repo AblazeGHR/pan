@@ -6009,6 +6009,12 @@ async def api_background_job_retry(job_id: str):
 scheduler_api.bind(broadcast=broadcast)
 app.include_router(scheduler_api.router)
 
+# ── Job 统一 API（P2：全 kind 一览/管理；/api/scheduler/* 兼容别名照旧） ──
+from packages.jobs import api as jobs_api  # noqa: E402  延迟导入避免启动期循环
+
+jobs_api.bind(broadcast=broadcast)
+app.include_router(jobs_api.router)
+
 
 @app.get("/api/adapter/config")
 async def api_adapter_config(adapter: str = "cbc"):

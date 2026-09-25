@@ -307,6 +307,140 @@ def list_jobs(registry_root: str | Path | None = None) -> list[dict]:
     return sorted((j for j in jobs if j), key=lambda j: j.get("createdAt", ""), reverse=True)
 
 
+# ── 结构化 source / target（PLAN §1/§3；2026-09-25 定形）──
+#
+# 落盘形状（新记录）：sourceStruct: {type, sessionId?, pluginName?}、
+# targetStruct: {sessionId}。旧记录的扁平字段（source 字符串 + sourceSessionId +
+# targetSessionId [+ targetSessionIds]）在**读路径出口**折算成结构化形状展示，
+# 不重写旧文件；写入时双写（struct + 扁平），旧读者不破。
+
+SOURCE_TYPES_STRUCT = ("agent", "user", "system", "plugin")
+
+
+def normalize_source(value: Any) -> dict:
+    """输入 → 结构化 source。接受结构化 dict 或旧扁平字符串。"""
+    if isinstance(value, dict):
+        stype = str(value.get("type") or "").strip().lower()
+        if stype not in SOURCE_TYPES_STRUCT:
+            stype = "system"
+        out: dict[str, Any] = {"type": stype}
+        sid = value.get("sessionId")
+        if isinstance(sid, str) and sid.strip():
+            out["sessionId"] = sid.strip()
+        pname = value.get("pluginName")
+        if stype == "plugin" and isinstance(pname, str) and pname.strip():
+            out["pluginName"] = pname.strip()
+        return out
+    # 旧扁平形态：source 字符串（agent/user/automation/...）
+    text = str(value or "").strip().lower() if isinstance(value, str) else ""
+    if text == "automation":
+        text = "system"
+    if text not in SOURCE_TYPES_STRUCT:
+        text = "system"
+    return {"type": text}
+
+
+def normalize_target(session_id: Any, extra_ids: Any = None) -> dict:
+    """target：单目标或扇出列表 → 结构化形状。"""
+    ids: list[str] = []
+    if isinstance(session_id, str) and session_id.strip():
+        ids.append(session_id.strip())
+    if isinstance(extra_ids, list):
+        for sid in extra_ids:
+            if isinstance(sid, str) and sid.strip() and sid.strip() not in ids:
+                ids.append(sid.strip())
+    return {"sessionId": ids[0] if ids else None,
+            **({"sessionIds": ids} if len(ids) > 1 else {})}
+
+
+def _structured_identity(job: dict) -> dict:
+    """读路径：任何年代的 job 记录 → 统一的 {source, target} 结构（不重写文件）。
+
+    规则（PLAN §3 source 四类 × target 正交）：
+    - 结构化字段已存在 → 原样返回；
+    - 旧扁平字段 → 折算：source 字符串映射四类（automation→system），
+      sourceSessionId → source.sessionId，targetSessionId(s) → target。
+    - main-lifecycle 无 session 概念 → target.sessionId = None。
+    """
+    raw_source = job.get("sourceStruct")
+    if isinstance(raw_source, dict):
+        source = normalize_source(raw_source)
+    else:
+        source = normalize_source(job.get("source"))
+        if source.get("type") == "agent" and job.get("sourceSessionId"):
+            source["sessionId"] = job.get("sourceSessionId")
+    raw_target = job.get("targetStruct")
+    if isinstance(raw_target, dict):
+        target = normalize_target(raw_target.get("sessionId"),
+                                  raw_target.get("sessionIds"))
+    else:
+        extra = job.get("targetSessionIds") if isinstance(
+            job.get("targetSessionIds"), list) else None
+        target = normalize_target(job.get("targetSessionId"), extra)
+    return {"source": source, "target": target}
+
+
+def job_public_view(job: dict | None) -> dict | None:
+    """job 记录 → GUI/API 出口视图：扁平字段折算成结构化身份。
+
+    出口契约（camelCase，/api/jobs 与 GUI 共用）：source: {type, sessionId?,
+    pluginName?}、target: {sessionId, sessionIds?}；其余键原样透传。
+    """
+    if not isinstance(job, dict):
+        return job
+    view = dict(job)
+    identity = _structured_identity(job)
+    view["source"] = identity["source"]
+    view["target"] = identity["target"]
+    view.pop("sourceStruct", None)
+    view.pop("targetStruct", None)
+    return view
+
+
+def update_job_field(job_id: str, changes: dict[str, Any],
+                     registry_root: str | Path | None = None) -> dict:
+    """跨 kind 的通用字段更新（name/description/enabled/paused/target 切换等）。
+
+    - target 切换 = 写 targetStruct + 扁平字段双写（旧读者兼容）；
+      scheduled-task 的积压便条由统一循环按新 target 自动重投（PLAN §10）。
+    - enabled=False → completed + scheduled-task 的 entry 全停；True → 状态
+      交给循环/状态机按 nextFireAt 自行归类。
+    全程持跨进程 job 锁。
+    """
+    with _lock, _job_lock(job_id, registry_root):
+        path = _job_path(job_id, registry_root)
+        current = _load_path(path)
+        if not current:
+            raise ValueError("job not found")
+        patch = dict(changes)
+        if "target" in patch:
+            raw = patch["target"]
+            target = normalize_target(
+                raw.get("sessionId") if isinstance(raw, dict) else raw,
+                raw.get("sessionIds") if isinstance(raw, dict) else None)
+            patch["targetStruct"] = target
+            patch["targetSessionId"] = target.get("sessionId")
+            if target.get("sessionIds"):
+                patch["targetSessionIds"] = target["sessionIds"]
+            elif current.get("kind") != SESSION_BROADCAST_KIND:
+                patch["targetSessionIds"] = None
+            patch.pop("target", None)
+        if patch.get("enabled") is False:
+            patch["status"] = "completed"
+            if current.get("kind") == SCHEDULED_TASK_KIND:
+                patch["schedule"] = [
+                    {**entry, "enabled": False, "nextFireAt": None}
+                    for entry in (current.get("schedule") or [])
+                ]
+                patch["nextFireAt"] = None
+        elif patch.get("enabled") is True:
+            patch.pop("status", None)  # 循环/状态机按 nextFireAt 自行归类
+        patch["updatedAt"] = time.time()
+        current.update(patch)
+        _atomic_write(path, current)
+        return current
+
+
 def _validate_command(argv: Any, cwd: Any) -> tuple[list[str], Path]:
     if not isinstance(argv, list) or not argv or not all(isinstance(x, str) and x for x in argv):
         raise ValueError("argv must be a non-empty string array")
@@ -345,6 +479,9 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
         "jobId": job_id, "targetSessionId": target_session_id, "argv": argv,
         "kind": BACKGROUND_PROCESS_KIND, "operation": "run",
         "creatorSessionId": creator_sid,
+        "sourceStruct": normalize_source({"type": "agent",
+                                          "sessionId": creator_sid}),
+        "targetStruct": normalize_target(target_session_id),
         "name": normalize_name(name) or default_job_name(),
         "description": normalize_description(description),
         "commandSummary": " ".join(argv[:3]) + (" …" if len(argv) > 3 else ""),
@@ -559,6 +696,9 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
         "name": normalize_name(name) or default_job_name(registry_root),
         "description": normalize_description(description),
         "source": source_type, "sourceSessionId": source_sid,
+        "sourceStruct": normalize_source({"type": source_type,
+                                          "sessionId": source_sid}),
+        "targetStruct": normalize_target(target_session_id),
         "creatorSessionId": creator_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
         "status": "pending", "runCount": 0, "lastRunAt": None,
@@ -588,6 +728,9 @@ def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
         "name": normalize_name(name) or default_job_name(registry_root),
         "description": normalize_description(description),
         "source": source_type, "sourceSessionId": source_sid,
+        "sourceStruct": normalize_source({"type": source_type,
+                                          "sessionId": source_sid}),
+        "targetStruct": normalize_target(target_ids[0], target_ids),
         "creatorSessionId": creator_sid,
         "schedule": normalized, "nextRunAt": _iso_utc(next_run),
         "status": "pending", "runCount": 0, "lastRunAt": None,
@@ -744,6 +887,15 @@ async def run_due_message_jobs(now: float | None = None) -> int:
         finished = time.time()
         recurring = job.get("schedule", {}).get("type") in {"interval", "weekly"}
         ok = isinstance(result, dict) and result.get("status") != "error"
+        # 部分失败：即时 toast 事件（第八轮定论——completed + toast + runs 可查）。
+        if isinstance(result, dict) and result.get("status") == "partial":
+            _scheduled_task_emit({
+                "type": "job.partial_failed",
+                "jobId": job["jobId"],
+                "name": job.get("name"),
+                "errors": result.get("errors") or [],
+                "results": result.get("results") or [],
+            })
         changes: dict[str, Any] = {
             "lastRunAt": _iso_utc(finished), "runCount": int(job.get("runCount", 0)) + 1,
             "lastDelivery": result if isinstance(result, dict) else {"status": "error"},
@@ -944,6 +1096,25 @@ def _scheduled_task_grace(cfg: dict, entry: dict) -> float:
         return 300.0
 
 
+async def _run_job_action(job: dict, target: str | None,
+                          dispatch_key: str) -> dict:
+    """执行 job 的 action 模板（PLAN §1/§2：动作 = API 调用模板）。
+
+    首批两个原语：
+    - ``assign``（默认）：task 文本入目标 session 队列，worker 幂等索引兜底；
+    - ``send_session``：发人可读消息（走 message 语义，无 task_id 幂等）。
+
+    未知 action.api / 兼容层旧记录（无 action 字段）一律回落 assign。
+    """
+    action = job.get("action")
+    api = str(action.get("api") or "assign") if isinstance(action, dict) else "assign"
+    text = job.get("text") or ""
+    if api == "send_session":
+        return await _worker.send_session(target, text, source="automation")
+    return await _worker.assign(target, text, source="automation",
+                                task_id=dispatch_key)
+
+
 def _scheduled_task_requeue_after(job: dict) -> float:
     """Stale-claim 判死超时：action 级 ``requeueAfterSec`` 覆盖全局默认 5s。"""
     action = job.get("action")
@@ -1072,9 +1243,7 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
     delivered: list[dict] = []
     for note in notes:
         try:
-            result = await _worker.assign(
-                target, note.get("text") or "",
-                source="automation", task_id=note.get("dispatchKey"))
+            result = await _run_job_action(job, target, note.get("dispatchKey"))
         except Exception as exc:
             result = {"status": "error", "result": str(exc)}
         if isinstance(result, dict) and str(result.get("status")) != "error":
@@ -1184,9 +1353,7 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
                           "error": None})
 
     try:
-        result = await _worker.assign(target, job.get("text") or "",
-                                      source="automation",
-                                      task_id=dispatch_key)
+        result = await _run_job_action(job, target, dispatch_key)
     except Exception as exc:
         result = {"status": "error", "result": str(exc)}
     if not isinstance(result, dict):
