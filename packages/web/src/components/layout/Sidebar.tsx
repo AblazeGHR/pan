@@ -42,7 +42,7 @@ import {
   ChevronDown,
   Sun,
   Moon,
-  CalendarClock,
+  ListChecks,
 } from 'lucide-react';
 
 export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceExpanded?: boolean }) {
@@ -406,8 +406,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
         </NavLink>
 
         <NavLink
-          to="/schedules"
-          title="Scheduled tasks"
+          to="/jobs"
+          title="Jobs"
           className={({ isActive }) =>
             `p-1.5 rounded transition-colors ${
               isActive
@@ -416,7 +416,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
             }`
           }
         >
-          <CalendarClock size={18} />
+          <ListChecks size={18} />
         </NavLink>
 
         <div className="flex-1" />
@@ -518,7 +518,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                 Editor
               </NavLink>
               <NavLink
-                to="/schedules"
+                to="/jobs"
                 className={({ isActive }) =>
                   `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
                     isActive
@@ -527,8 +527,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                   }`
                 }
               >
-                <CalendarClock size={12} />
-                Tasks
+                <ListChecks size={12} />
+                Jobs
               </NavLink>
             </div>
 
@@ -897,7 +897,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                 Editor
               </NavLink>
               <NavLink
-                to="/schedules"
+                to="/jobs"
                 className={({ isActive }) =>
                   `flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded transition-colors ${
                     isActive
@@ -906,8 +906,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                   }`
                 }
               >
-                <CalendarClock size={12} />
-                Tasks
+                <ListChecks size={12} />
+                Jobs
               </NavLink>
             </div>
           </div>
