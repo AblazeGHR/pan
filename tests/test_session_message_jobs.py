@@ -236,3 +236,23 @@ def test_scheduled_broadcast_edit_and_cancel_prevent_future_send(monkeypatch, tm
     assert cancelled["status"] == "cancelled"
     assert asyncio.run(jobs.run_due_message_jobs(now=time.time() + 1000)) == 0
     assert calls == []
+
+
+# ── name / description 规范（所有 kind 统一，2026-09-25 用户拍板）──
+
+
+def test_message_job_default_name_min_vacant(monkeypatch, tmp_path):
+    """不传 name → job-N（存量最小空缺）；显式名字优先；description 缺省空串。"""
+    target = _session(tmp_path)
+    monkeypatch.setattr(sess, "get", lambda sid: target if sid == "ses_target" else None)
+    first = jobs.start_message("ses_target", "hi",
+                               {"type": "interval", "intervalSeconds": 60})
+    assert first["name"] == "job-1"
+    second = jobs.start_message("ses_target", "hi",
+                                {"type": "interval", "intervalSeconds": 60},
+                                name="  周报  ")
+    assert second["name"] == "周报"  # strip 收编
+    third = jobs.start_message("ses_target", "hi",
+                               {"type": "interval", "intervalSeconds": 60})
+    assert third["name"] == "job-2"
+    assert first["description"] == ""  # 缺省空串

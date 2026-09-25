@@ -361,3 +361,62 @@ def test_migrate_merges_legacy_runs(legacy_env):
     # 再迁一次不重复
     store.migrate_legacy_tasks()
     assert len(store.list_runs(task_id="sch_legacy01")) == 1
+
+
+# ── name / description 规范（所有 kind 统一，2026-09-25 用户拍板）──
+
+
+def test_create_defaults_name_to_min_vacant_job_n():
+    """不填 name → job-N；N = 存量最小空缺（改名腾号后可复用）。"""
+    first = store.create_task(_interval_payload(name=None))
+    assert first["name"] == "job-1"
+    second = store.create_task(_interval_payload(name=None))
+    assert second["name"] == "job-2"
+    third = store.create_task(_interval_payload(name=None))
+    assert third["name"] == "job-3"
+
+    # 显式改名让 job-2 空缺 → 下一个默认名复用 job-2
+    store.update_task(second["id"], {"name": "日报任务"})
+    fourth = store.create_task(_interval_payload(name=None))
+    assert fourth["name"] == "job-2"
+
+
+def test_create_blank_name_variants_all_get_default():
+    """None / 空串 / 纯空白一律走默认名，绝不因 name 拒绝创建。"""
+    a = store.create_task(_interval_payload(name=None))
+    b = store.create_task(_interval_payload(name="   "))
+    c = store.create_task(_interval_payload(name=""))
+    assert a["name"] == "job-1"
+    assert b["name"] == "job-2"
+    assert c["name"] == "job-3"
+    # 显式名字 strip 后收编
+    d = store.create_task(_interval_payload(name="  x  "))
+    assert d["name"] == "x"
+
+
+def test_name_is_editable_and_description_roundtrip():
+    task = store.create_task(_interval_payload(description="  说明  "))
+    assert task["description"] == "说明"  # strip 收编
+    updated = store.update_task(task["id"], {"name": "改名", "description": ""})
+    assert updated["name"] == "改名"
+    assert updated["description"] == ""
+    # name 改成空白 → 回退默认名（不允许空）
+    reverted = store.update_task(task["id"], {"name": "  "})
+    assert reverted["name"].startswith("job-")
+
+
+def test_description_defaults_empty_and_exports():
+    task = store.create_task(_interval_payload())
+    assert task["description"] == ""
+    job = store._job_for_task(task["id"])
+    assert job["description"] == ""
+
+
+def test_migrated_legacy_task_gets_name_description(legacy_env):
+    legacy = _legacy_task_dict()
+    (legacy_env / "tasks" / f"{legacy['id']}.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+    store.migrate_legacy_tasks()
+    task = store.get_task(legacy["id"])
+    assert task["name"] == "旧任务"          # 迁移保留原名
+    assert task["description"] == ""          # 旧数据无 description → 兜底空串
