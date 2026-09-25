@@ -6,6 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { CliDiagnostic } from '@/types';
 
 const apiMock = vi.hoisted(() => ({
@@ -39,6 +40,7 @@ function setup() {
   });
   useSessionStore.setState({ sessions: [], createNewSession });
   useUIStore.setState({ showToast, activeWorkspaceId: 'all' });
+  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   useWorkspaceStore.setState({ workspaces: [], loaded: true, loading: false, error: null });
   return { createNewSession, showToast };
 }
@@ -169,6 +171,52 @@ describe('New Session directory input', () => {
     await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
       'session-1', null, 'cbc', undefined,
       { outputMode: undefined, workspaceIds: ['ws-current'] },
+    ));
+  });
+
+  it('leaves a new Session ungrouped when the default Workspace preference is off', async () => {
+    const { createNewSession } = setup();
+    useUIStore.setState({ activeWorkspaceId: 'ws-current' });
+    useAppSettingsStore.setState({
+      ...DEFAULT_SETTINGS,
+      defaultNewSessionToCurrentWorkspace: false,
+    });
+    render(<NewSessionModal open onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
+      'session-1', null, 'cbc', undefined,
+      { outputMode: undefined, workspaceIds: [] },
+    ));
+  });
+
+  it('captures the active Workspace when submitted before async directory validation', async () => {
+    const { createNewSession } = setup();
+    let resolveValidation!: (value: ReturnType<typeof listing>) => void;
+    apiMock.fetchDirectories.mockImplementation((path: string) => {
+      if (path === 'D:\\workspace\\app') {
+        return new Promise((resolve) => {
+          resolveValidation = resolve;
+        });
+      }
+      return Promise.resolve(listing('', []));
+    });
+    useUIStore.setState({ activeWorkspaceId: 'ws-at-submit' });
+    render(<NewSessionModal open onClose={() => {}} />);
+    fireEvent.change(screen.getByTestId('new-session-workdir-input'), {
+      target: { value: 'D:\\workspace\\app' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(apiMock.fetchDirectories)
+      .toHaveBeenCalledWith('D:\\workspace\\app'));
+
+    useUIStore.setState({ activeWorkspaceId: 'ws-after-submit' });
+    resolveValidation(listing('D:\\workspace\\app', []));
+
+    await waitFor(() => expect(createNewSession).toHaveBeenCalledWith(
+      'session-1', 'D:\\workspace\\app', 'cbc', undefined,
+      { outputMode: undefined, workspaceIds: ['ws-at-submit'] },
     ));
   });
 

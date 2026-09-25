@@ -228,6 +228,7 @@ def test_import_reimport_marks_reimported(monkeypatch, tmp_path):
     assert resp["originalPrompt"] == "stable rules"
     assert resp["handoffPrompt"] == "latest brief"
     assert existing.workspace_ids == [original_workspace.id]
+    assert resp["workspaceIds"] == [original_workspace.id]
     _sess._cache.clear()
     reloaded = _sess.get(existing.id)
     assert reloaded.original_prompt == "stable rules"

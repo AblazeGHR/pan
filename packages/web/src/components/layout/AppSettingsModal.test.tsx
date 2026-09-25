@@ -115,6 +115,8 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();
     expect(card.textContent).toContain('Default group by');
+    expect(document.getElementById('app-settings-tab-preferences')?.textContent)
+      .toContain('Preferences');
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     expect(card.querySelectorAll('[role="switch"]')).toHaveLength(6);
@@ -136,12 +138,17 @@ describe('AppSettingsModal', () => {
       'app-settings-tab-appearance',
     ) as HTMLButtonElement;
 
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(5);
     expect(appearanceTab.getAttribute('aria-selected')).toBe('false');
     expect(cardEl().textContent).not.toContain('Message visibility');
     expect(cardEl().textContent).not.toContain('Show meta-agent info');
 
     fireEvent.keyDown(generalTab, { key: 'ArrowRight' });
+    expect(document.getElementById('app-settings-tab-preferences')?.getAttribute('aria-selected'))
+      .toBe('true');
+    fireEvent.keyDown(document.getElementById('app-settings-tab-preferences')!, {
+      key: 'ArrowRight',
+    });
 
     expect(appearanceTab.getAttribute('aria-selected')).toBe('true');
     expect(document.getElementById('app-settings-tabpanel')?.getAttribute('aria-labelledby')).toBe(
@@ -174,6 +181,27 @@ describe('AppSettingsModal', () => {
         (element) => element.textContent?.includes('Show meta-agent info'),
       )?.getAttribute('aria-checked'),
     ).toBe('true');
+  });
+
+  it('toggles the default new Session Workspace preference and persists it', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-preferences')!);
+
+    expect(cardEl().textContent).toContain('New Sessions');
+    const workspaceSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="switch"]'),
+    ).find((element) =>
+      element.textContent?.includes('Place new Sessions in the current Workspace by default'),
+    )!;
+    expect(workspaceSwitch.getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(workspaceSwitch);
+
+    expect(useAppSettingsStore.getState().defaultNewSessionToCurrentWorkspace).toBe(false);
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({
+      defaultNewSessionToCurrentWorkspace: false,
+    });
+    expect(workspaceSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
   it('toggles merged tool/thinking groups on the Appearance tab and persists the setting', () => {

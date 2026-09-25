@@ -160,6 +160,8 @@ DEFAULT_CONFIG: dict = {
     "ui": {
         # 会话列表默认分组方式
         "defaultGroupBy": "none",
+        # 新建 Session 默认归入当前 Workspace
+        "defaultNewSessionToCurrentWorkspace": True,
         # 是否显示 meta-agent（////by agent）消息
         "showMetaAgent": True,
         # 是否显示 task-agent（@@@@by agent）消息

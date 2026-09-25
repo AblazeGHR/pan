@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Session } from '@/types';
 
 function mk(id: string, name: string, managedBy?: string | null): Session {
@@ -20,6 +22,7 @@ function mk(id: string, name: string, managedBy?: string | null): Session {
 // new session until a page refresh.
 let serverSessions: Session[] = [];
 let resolveCreate: (() => void) | null = null;
+const apiMock = vi.hoisted(() => ({ reimportSession: vi.fn() }));
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -44,6 +47,7 @@ vi.mock('@/services/api', async (importOriginal) => {
             } as Session);
         }),
     ),
+    reimportSession: apiMock.reimportSession,
   };
 });
 
@@ -51,11 +55,14 @@ describe('sessionStore createNewSession race', () => {
   beforeEach(() => {
     serverSessions = [mk('M', 'M'), mk('A', 'A', 'M')];
     resolveCreate = null;
+    apiMock.reimportSession.mockReset();
     useSessionStore.setState({
       sessions: [mk('M', 'M'), mk('A', 'A', 'M')],
       currentSessionId: null,
       currentMessages: [],
     });
+    useUIStore.setState({ activeWorkspaceId: 'all' });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   });
 
   it('keeps the new session when loadSessions interleaves during creation', async () => {
@@ -117,6 +124,50 @@ describe('sessionStore createNewSession race', () => {
     expect(useSessionStore.getState().currentSessionId).toBe('real_X');
   });
 
+  it('uses the active Workspace by default for new-session entry points without explicit settings', async () => {
+    useUIStore.setState({ activeWorkspaceId: 'ws-current' });
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().createNewSession('X');
+    });
+
+    expect(useSessionStore.getState().sessions.find((s) => s.id === '__pending_X')?.workspaceIds)
+      .toEqual(['ws-current']);
+    await act(async () => {
+      resolveCreate?.();
+      await promise!;
+    });
+
+    expect(useSessionStore.getState().sessions.find((s) => s.id === 'real_X')?.workspaceIds)
+      .toEqual(['ws-current']);
+  });
+
+  it('keeps the create response Workspace when a concurrent list inserted the same Session', async () => {
+    let promise: Promise<void>;
+    act(() => {
+      promise = useSessionStore.getState().createNewSession(
+        'X', null, 'cbc', undefined, { workspaceIds: ['ws-current'] },
+      );
+    });
+    serverSessions = [
+      mk('M', 'M'),
+      mk('A', 'A', 'M'),
+      { ...mk('real_X', 'X'), workspaceIds: [] },
+    ];
+    await act(async () => {
+      await useSessionStore.getState().loadSessions();
+    });
+
+    await act(async () => {
+      resolveCreate?.();
+      await promise!;
+    });
+
+    const created = useSessionStore.getState().sessions.filter((s) => s.id === 'real_X');
+    expect(created).toHaveLength(1);
+    expect(created[0]?.workspaceIds).toEqual(['ws-current']);
+  });
+
   it('keeps the requested Workspace on the optimistic placeholder and created Session', async () => {
     let promise: Promise<void>;
     act(() => {
@@ -134,5 +185,31 @@ describe('sessionStore createNewSession race', () => {
 
     expect(useSessionStore.getState().sessions.find((item) => item.id === 'real_Scoped')?.workspaceIds)
       .toEqual(['ws-current']);
+  });
+
+  it('keeps existing Workspace membership when the reimport response omits it', async () => {
+    const existing = {
+      ...mk('ses_reimport', 'Reimport'),
+      adapter: 'cbc',
+      cliSessionId: 'native-reimport',
+      workspaceIds: ['ws-original'],
+    } as Session;
+    useSessionStore.setState({ sessions: [existing], currentSessionId: 'ses_reimport' });
+    apiMock.reimportSession.mockResolvedValue({
+      id: 'ses_reimport',
+      name: 'Reimport',
+      alwaysThinkingEnabled: false,
+      effort: '',
+      history: [],
+    } as Session);
+
+    await act(async () => {
+      await useSessionStore.getState().reimport('ses_reimport');
+    });
+
+    expect(useSessionStore.getState().sessions[0]?.workspaceIds).toEqual(['ws-original']);
+    expect(apiMock.reimportSession).toHaveBeenCalledWith(
+      'ses_reimport', 'cbc', 'native-reimport', undefined,
+    );
   });
 });

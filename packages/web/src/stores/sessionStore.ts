@@ -18,6 +18,7 @@ import {
 } from '@/services/api';
 import { isMockMode } from '@/demo/mockBackend';
 import { useUIStore } from '@/stores/uiStore';
+import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
 import { inheritMessageIdentity } from '@/utils/messageIdentity';
 import {
   canonicalHistory,
@@ -1753,6 +1754,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   createNewSession: async (name, workdir, adapter, sessionTemplate, settings) => {
+    // Resolve the default here as well as in modal callers so every new-session
+    // entry point uses the Workspace scope at the moment its action is invoked.
+    const workspaceIds = settings?.workspaceIds ?? getCreationWorkspaceIds();
+    const createSettings = { ...settings, workspaceIds };
     const placeholder: Session = {
       id: `__pending_${name}`,
       name: '...',
@@ -1761,7 +1766,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       permissionMode: settings?.permissionMode ?? null,
       alwaysThinkingEnabled: settings?.alwaysThinkingEnabled ?? false,
       effort: settings?.effort || '',
-      workspaceIds: settings?.workspaceIds ? [...settings.workspaceIds] : [],
+      workspaceIds: [...workspaceIds],
       history: [],
     };
     set((s) => ({
@@ -1782,7 +1787,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         workdir,
         adapter,
         sessionTemplate,
-        settings,
+        createSettings,
       );
       set((s) => {
         // Drop the placeholder first — a concurrent loadSessions() (e.g. from
@@ -1795,8 +1800,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         );
         // Only append the real session if a concurrent reload didn't already
         // bring it in (avoids a duplicate row).
-        const sessions = withoutPlaceholder.some((se) => se.id === session.id)
-          ? withoutPlaceholder
+        const alreadyLoaded = withoutPlaceholder.some((se) => se.id === session.id);
+        // A session.created event can trigger loadSessions before this POST
+        // resolves. Keep the refreshed row's runtime fields, but take the
+        // membership from the authoritative create response.
+        const sessions = alreadyLoaded
+          ? withoutPlaceholder.map((se) =>
+              se.id === session.id
+                ? { ...se, workspaceIds: session.workspaceIds ?? se.workspaceIds }
+                : se,
+            )
           : [...withoutPlaceholder, session];
         // A concurrent loadSessions() also resets currentSessionId to null
         // when it can't find the client-only placeholder in the server list —
@@ -1953,9 +1966,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       session.cliSessionId,
       session.workdir,
     );
+    // Reimport replaces history in place and does not move a Session between
+    // Workspaces. Keep the existing membership if an older/partial response
+    // omits it or unexpectedly returns an empty list.
+    const workspaceIds =
+      newSession.workspaceIds?.length
+        ? newSession.workspaceIds
+        : session.workspaceIds ?? [];
     set((s) => ({
       sessions: s.sessions.map((session) =>
-        session.id === id ? newSession : session,
+        session.id === id ? { ...newSession, workspaceIds } : session,
       ),
       currentSessionId:
         s.currentSessionId === id ? newSession.id : s.currentSessionId,

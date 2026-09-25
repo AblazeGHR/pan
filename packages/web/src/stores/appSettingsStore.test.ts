@@ -29,6 +29,7 @@ describe('appSettingsStore', () => {
     const s = useAppSettingsStore.getState();
     expect(s.loaded).toBe(false);
     expect(s.defaultGroupBy).toBe('none');
+    expect(s.defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
@@ -45,6 +46,7 @@ describe('appSettingsStore', () => {
       showMetaAgent: false,
       showTaskAgent: true,
       showQQ: false,
+      defaultNewSessionToCurrentWorkspace: false,
       mergeConsecutiveNonBodyBlocks: true,
       keepScrollOnSessionSwitch: true,
       showMessageNavigationRail: true,
@@ -58,6 +60,7 @@ describe('appSettingsStore', () => {
     expect(s.showMetaAgent).toBe(false);
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(false);
+    expect(s.defaultNewSessionToCurrentWorkspace).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(true);
     expect(s.keepScrollOnSessionSwitch).toBe(true);
     expect(s.showMessageNavigationRail).toBe(true);
@@ -114,6 +117,12 @@ describe('appSettingsStore', () => {
     expect(mockedUpdate).toHaveBeenNthCalledWith(7, { mergeConsecutiveNonBodyBlocks: true });
     expect(useAppSettingsStore.getState().mergeConsecutiveNonBodyBlocks).toBe(true);
 
+    useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
+    expect(useAppSettingsStore.getState().defaultNewSessionToCurrentWorkspace).toBe(false);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({
+      defaultNewSessionToCurrentWorkspace: false,
+    });
+
     // The per-session scroll-memory switch writes through the same ui object.
     useAppSettingsStore.getState().setKeepScrollOnSessionSwitch(true);
     expect(useAppSettingsStore.getState().keepScrollOnSessionSwitch).toBe(true);
@@ -136,11 +145,14 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setDefaultGroupBy('manager');
     useAppSettingsStore.getState().setShowMetaAgent(false);
     useAppSettingsStore.getState().setShowQQ(false);
+    useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
 
     useAppSettingsStore.getState().resetSettings();
 
     const s = useAppSettingsStore.getState();
     expect(s.defaultGroupBy).toBe(DEFAULT_SETTINGS.defaultGroupBy);
+    expect(s.defaultNewSessionToCurrentWorkspace)
+      .toBe(DEFAULT_SETTINGS.defaultNewSessionToCurrentWorkspace);
     expect(s.showMetaAgent).toBe(DEFAULT_SETTINGS.showMetaAgent);
     expect(s.showTaskAgent).toBe(DEFAULT_SETTINGS.showTaskAgent);
     expect(s.showQQ).toBe(DEFAULT_SETTINGS.showQQ);
@@ -180,6 +192,10 @@ describe('appSettingsStore', () => {
       ...DEFAULT_SETTINGS,
       showQQ: false,
     });
+    expect(sanitizeSettings({ defaultNewSessionToCurrentWorkspace: false })
+      .defaultNewSessionToCurrentWorkspace).toBe(false);
+    expect(sanitizeSettings({ defaultNewSessionToCurrentWorkspace: 'no' })
+      .defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(
       sanitizeSettings({ notifications: { codexWarningToast: false } }).notifications,
     ).toEqual({ codexWarningToast: false, confirmCrossWorkspaceManagement: true });

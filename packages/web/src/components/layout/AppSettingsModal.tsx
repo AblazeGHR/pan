@@ -38,8 +38,14 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
 
 const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
 
-type SettingsTab = 'general' | 'appearance' | 'notifications' | 'adapter';
-const SETTINGS_TABS: SettingsTab[] = ['general', 'appearance', 'notifications', 'adapter'];
+type SettingsTab = 'general' | 'preferences' | 'appearance' | 'notifications' | 'adapter';
+const SETTINGS_TABS: SettingsTab[] = [
+  'general',
+  'preferences',
+  'appearance',
+  'notifications',
+  'adapter',
+];
 
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
 type MainRestartState =
@@ -278,6 +284,7 @@ function PluginResult({ plugin }: { plugin: NonNullable<ApiConfigReloadResponse[
 export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const {
     defaultGroupBy,
+    defaultNewSessionToCurrentWorkspace,
     showMetaAgent,
     showTaskAgent,
     showQQ,
@@ -287,6 +294,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showMessageNavigationRail,
     notifications,
     setDefaultGroupBy,
+    setDefaultNewSessionToCurrentWorkspace,
     setShowMetaAgent,
     setShowTaskAgent,
     setShowQQ,
@@ -741,6 +749,23 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           <button
             type="button"
             role="tab"
+            id="app-settings-tab-preferences"
+            aria-controls="app-settings-tabpanel"
+            aria-selected={activeTab === 'preferences'}
+            tabIndex={activeTab === 'preferences' ? 0 : -1}
+            onClick={() => setActiveTab('preferences')}
+            className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'preferences'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <SlidersHorizontal size={14} />
+            Preferences
+          </button>
+          <button
+            type="button"
+            role="tab"
             id="app-settings-tab-appearance"
             aria-controls="app-settings-tabpanel"
             aria-selected={activeTab === 'appearance'}
@@ -992,6 +1017,20 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </p>
               </section>
             </>
+          ) : activeTab === 'preferences' ? (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                New Sessions
+              </h3>
+              <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                <SwitchRow
+                  label="Place new Sessions in the current Workspace by default"
+                  hint="Sessions created from All or Ungrouped remain ungrouped."
+                  checked={defaultNewSessionToCurrentWorkspace}
+                  onChange={setDefaultNewSessionToCurrentWorkspace}
+                />
+              </div>
+            </section>
           ) : (
             <>
               {/* Session list grouping */}

@@ -6,6 +6,7 @@ import { useAdapterStore } from '@/stores/adapterStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type {
   ApiCliStatusResponse,
   CbcProject,
@@ -64,6 +65,7 @@ describe('ImportModal adapter availability', () => {
       error: null,
     });
     useUIStore.setState({ activeWorkspaceId: 'ws-active' });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
     useSessionStore.setState({
       loadSessions: vi.fn(async () => {}),
       selectSession: vi.fn(async () => {}),
@@ -211,4 +213,28 @@ describe('ImportModal adapter availability', () => {
       });
     },
   );
+
+  it('imports a new Pan Session without Workspace membership when the preference is off', async () => {
+    useAppSettingsStore.setState({
+      ...DEFAULT_SETTINGS,
+      defaultNewSessionToCurrentWorkspace: false,
+    });
+    apiMock.fetchCbcProjects.mockResolvedValue([{
+      project_dir: 'C:\\project', session_count: 1, path_hint: '', drive: 'C:', short_label: 'project',
+    }]);
+    apiMock.fetchCbcSessions.mockResolvedValue([{
+      session_id: 'cbc-native', project_dir: 'C:\\project', title: 'CBC import target',
+      message_count: 1, first_timestamp: '', last_timestamp: '', model: '', forked_from: null,
+    }]);
+
+    render(<ImportModal open onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByLabelText('Project')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'C:\\project' } });
+    await waitFor(() => expect(screen.getByText('CBC import target')).toBeTruthy());
+    fireEvent.click(screen.getByText('CBC import target'));
+
+    await waitFor(() => expect(apiMock.importCbcSession).toHaveBeenCalledWith(
+      'cbc-native', 'C:\\project', [],
+    ));
+  });
 });

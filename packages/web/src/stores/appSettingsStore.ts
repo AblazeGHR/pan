@@ -5,6 +5,8 @@ import { fetchUiSettings, updateUiSettings } from '@/services/api';
 export interface AppSettings {
   /** Default session-list grouping (mirrors uiStore GroupMode options). */
   defaultGroupBy: GroupMode;
+  /** Put new Sessions in the active Workspace when the active scope is concrete. */
+  defaultNewSessionToCurrentWorkspace: boolean;
   /** Show meta-agent info (e.g. messages with the `////by agent` prefix). */
   showMetaAgent: boolean;
   /** Show task-agent info (e.g. messages with the `@@@@by agent` prefix). */
@@ -38,6 +40,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultGroupBy: 'none',
+  defaultNewSessionToCurrentWorkspace: true,
   showMetaAgent: true,
   showTaskAgent: true,
   showQQ: true,
@@ -70,6 +73,10 @@ export function sanitizeSettings(
       parsed.defaultGroupBy === 'workdir' || parsed.defaultGroupBy === 'manager'
         ? parsed.defaultGroupBy
         : DEFAULT_SETTINGS.defaultGroupBy,
+    defaultNewSessionToCurrentWorkspace:
+      typeof parsed.defaultNewSessionToCurrentWorkspace === 'boolean'
+        ? parsed.defaultNewSessionToCurrentWorkspace
+        : DEFAULT_SETTINGS.defaultNewSessionToCurrentWorkspace,
     showMetaAgent:
       typeof parsed.showMetaAgent === 'boolean'
         ? parsed.showMetaAgent
@@ -115,6 +122,7 @@ interface AppSettingsStore extends AppSettings {
   /** True once the initial GET finished (success or failure). */
   loaded: boolean;
   setDefaultGroupBy: (mode: GroupMode) => void;
+  setDefaultNewSessionToCurrentWorkspace: (v: boolean) => void;
   setShowMetaAgent: (v: boolean) => void;
   setShowTaskAgent: (v: boolean) => void;
   setShowQQ: (v: boolean) => void;
@@ -167,6 +175,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set) => {
     setDefaultGroupBy: (mode) => {
       set({ defaultGroupBy: mode });
       persist({ defaultGroupBy: mode });
+    },
+
+    setDefaultNewSessionToCurrentWorkspace: (v) => {
+      set({ defaultNewSessionToCurrentWorkspace: v });
+      persist({ defaultNewSessionToCurrentWorkspace: v });
     },
 
     setShowMetaAgent: (v) => {

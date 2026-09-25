@@ -1,4 +1,5 @@
 import { useUIStore } from '@/stores/uiStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
 
 /**
@@ -7,8 +8,12 @@ import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
  * with creation, so a stale/deleted id cannot create an incorrectly grouped
  * Session and existing imported Sessions can still be reimported unchanged.
  */
-export function getCreationWorkspaceIds(): string[] {
-  const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
+export function getCreationWorkspaceIds(
+  activeWorkspaceId = useUIStore.getState().activeWorkspaceId,
+): string[] {
+  if (!useAppSettingsStore.getState().defaultNewSessionToCurrentWorkspace) {
+    return [];
+  }
   if (
     !activeWorkspaceId ||
     activeWorkspaceId === ALL_WORKSPACES ||
