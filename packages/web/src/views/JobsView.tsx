@@ -28,12 +28,6 @@ function statusClass(status: JobStatus): string {
   }
 }
 
-/** schema 无 name，派生一个可读标识：action.api → target 摘要。 */
-function jobTitle(job: Job): string {
-  const target = job.target.sessionId ? job.target.sessionId.slice(0, 8) : 'no target';
-  return `${job.action.api} → ${target}…`;
-}
-
 function sourceSummary(source: JobSource): string {
   if (source.type === 'plugin') return `plugin:${source.pluginName ?? '?'}`;
   if (source.sessionId) return `${source.type}:${source.sessionId.slice(0, 8)}…`;
@@ -82,8 +76,8 @@ function JobRow({ job }: { job: Job }) {
         <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px font-mono text-[10px] text-text-secondary">
           {job.kind}
         </span>
-        <div className="min-w-0 flex-1 truncate text-sm text-text-primary" title={job.jobId}>
-          {jobTitle(job)}
+        <div className="min-w-0 flex-1 truncate text-sm text-text-primary" title={job.name}>
+          {job.name}
         </div>
         {job.paused && (
           <span className="shrink-0 rounded border border-warning/50 bg-warning/10 px-1 py-px text-[10px] text-warning">
@@ -100,6 +94,12 @@ function JobRow({ job }: { job: Job }) {
         <span>runs {job.runCount}</span>
         <span>{lastResultSummary(job)}</span>
       </div>
+
+      {job.description && (
+        <div className="truncate text-[11px] text-text-secondary" title={job.description}>
+          {job.description}
+        </div>
+      )}
 
       {job.logPath && (
         <div className="truncate font-mono text-[11px] text-text-tertiary" title={job.logPath}>

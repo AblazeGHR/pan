@@ -79,6 +79,10 @@ export interface JobDelivery {
 
 export interface Job {
   jobId: string;
+  /** 人类可读名称；必填、不允许为空。缺省时由 defaultJobName 自动生成 job-N。 */
+  name: string;
+  /** 可选描述；允许为空字符串。 */
+  description: string;
   kind: JobKind;
   status: JobStatus;
   source: JobSource;
@@ -100,10 +104,21 @@ export interface Job {
   updatedAt: string;
 }
 
+/**
+ * 默认命名语义：name 不允许为空，创建时若用户不填，自动生成递增的 `job-N`。
+ * `existingCount` 为当前已有 job 数量，返回下一个序号（existingCount + 1）。
+ * 供后续创建表单复用。description 可空，无默认值。
+ */
+export function defaultJobName(existingCount: number): string {
+  return `job-${existingCount + 1}`;
+}
+
 /** 5 条代表性种子数据，覆盖 PLAN §5 最低展示字段的各类形态。 */
 export const mockJobs: Job[] = [
   {
     jobId: 'job_1a2b3c4d5e6f',
+    name: '抓取脚本后台运行',
+    description: '运行 scripts/crawl.py 抓取最新数据',
     kind: 'background-process',
     status: 'running',
     source: { type: 'agent', sessionId: 'sess_7f3a1b2c' },
@@ -124,6 +139,8 @@ export const mockJobs: Job[] = [
   },
   {
     jobId: 'job_2b3c4d5e6f7a',
+    name: '每日复盘',
+    description: '工作日 9:00 触发复盘任务',
     kind: 'scheduled_task',
     status: 'scheduled',
     source: { type: 'user' },
@@ -162,6 +179,8 @@ export const mockJobs: Job[] = [
   },
   {
     jobId: 'job_3c4d5e6f7a8b',
+    name: '广播通知',
+    description: '',
     kind: 'session-broadcast',
     status: 'completed',
     source: { type: 'agent', sessionId: 'sess_1a2b3c4d' },
@@ -192,6 +211,8 @@ export const mockJobs: Job[] = [
   },
   {
     jobId: 'job_4d5e6f7a8b9c',
+    name: 'job-6',
+    description: '',
     kind: 'scheduled_task',
     status: 'scheduled',
     source: { type: 'user' },
@@ -246,6 +267,8 @@ export const mockJobs: Job[] = [
   },
   {
     jobId: 'job_5e6f7a8b9c0d',
+    name: '任务完成通知',
+    description: '完成后向目标会话发送通知',
     kind: 'session-message',
     status: 'completed',
     source: { type: 'system' },
