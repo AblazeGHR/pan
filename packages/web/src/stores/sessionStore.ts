@@ -1984,7 +1984,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     let newSession = reimportedSession;
     let workspaceIds: string[];
 
-    if (concreteWorkspaceId) {
+    if (session.managedBy) {
+      // Workspace membership is inherited from the managed root. Reimport
+      // only replaces history; it must not try to move this child or its root.
+      workspaceIds = Object.prototype.hasOwnProperty.call(reimportedSession, 'workspaceIds')
+        ? reimportedSession.workspaceIds ?? []
+        : session.workspaceIds ?? [];
+      newSession = {
+        ...reimportedSession,
+        managedBy: Object.prototype.hasOwnProperty.call(reimportedSession, 'managedBy')
+          ? reimportedSession.managedBy
+          : session.managedBy,
+        workspaceIds,
+      };
+    } else if (concreteWorkspaceId) {
       try {
         const membershipUpdate = await setSessionWorkspaces(
           reimportedSession.id,

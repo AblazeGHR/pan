@@ -262,6 +262,43 @@ describe('sessionStore createNewSession race', () => {
     expect(apiMock.setSessionWorkspaces).not.toHaveBeenCalled();
   });
 
+  it('reimports a managed child in a concrete Workspace without changing inherited membership or manager', async () => {
+    const manager = {
+      ...mk('ses_manager', 'Manager'),
+      workspaceIds: ['ws-inherited'],
+    } as Session;
+    const child = {
+      ...mk('ses_managed_child', 'Managed child', manager.id),
+      adapter: 'cbc',
+      cliSessionId: 'native-managed-child',
+      workspaceIds: ['ws-inherited'],
+    } as Session;
+    const reimportedChild = {
+      ...child,
+      history: [{ role: 'user', content: 'updated child history' }],
+    } as Session;
+    useSessionStore.setState({
+      sessions: [manager, child],
+      currentSessionId: child.id,
+    });
+    useUIStore.setState({ activeWorkspaceId: 'ws-target' });
+    apiMock.reimportSession.mockResolvedValue(reimportedChild);
+    apiMock.setSessionWorkspaces.mockRejectedValue(new Error('managed_session'));
+
+    await act(async () => {
+      await useSessionStore.getState().reimport(child.id);
+    });
+
+    expect(apiMock.setSessionWorkspaces).not.toHaveBeenCalled();
+    const sessions = useSessionStore.getState().sessions;
+    expect(sessions.find((item) => item.id === manager.id)?.workspaceIds).toEqual(['ws-inherited']);
+    expect(sessions.find((item) => item.id === child.id)).toMatchObject({
+      managedBy: manager.id,
+      workspaceIds: ['ws-inherited'],
+      history: reimportedChild.history,
+    });
+  });
+
   it('moves an existing Session to the concrete Workspace regardless of the new-session preference', async () => {
     const existing = {
       ...mk('ses_reimport', 'Reimport'),
