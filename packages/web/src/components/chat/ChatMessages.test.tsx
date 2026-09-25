@@ -879,6 +879,52 @@ describe('ChatMessages scroll positioning', () => {
     expect(scrollEl.scrollTop).toBe(1100);
   });
 
+  it('lets a new upward gesture cancel the prior page anchor and load another page', async () => {
+    vi.useFakeTimers();
+    let page = 0;
+    const loadOlderMessages = vi.fn(async () => {
+      page += 1;
+      m.setTotalSize(m.state.totalSize + 1000);
+      useSessionStore.setState({
+        currentMessages: [...msgs(2, `older-${page}`),
+          ...useSessionStore.getState().currentMessages],
+        historyLoading: false,
+      });
+    });
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      currentMessages: msgs(4),
+      hasMoreMessages: true,
+      historyLoading: false,
+      loadOlderMessages,
+    });
+    m.setTotalSize(2000);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+
+    userScroll(scrollEl, 100);
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+    expect(scrollEl.scrollTop).toBe(1100);
+
+    // The first prepend's anchor correction is still queued in requestAnimationFrame.
+    // A second explicit upward gesture must take control before that correction runs.
+    userScroll(scrollEl, 0);
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+
+    expect(loadOlderMessages).toHaveBeenCalledTimes(2);
+  });
+
   it('shows a spinner instead of the empty state while history is loading, then the empty state after', () => {
     // Enter a session whose snapshot has no history: messages empty + the
     // fresh-history fetch in flight (initialLoading=true) → spinner, no empty

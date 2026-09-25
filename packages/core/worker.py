@@ -1820,6 +1820,7 @@ async def _legacy_consumer_reference(w: Worker):
                     # 投递标记记为 history 条目元数据（不进消息正文，恢复对账据此
                     # 去重）；直连消息（claimed=None）不经队列，无对账、不打标记
                     hist_entry["delivered_keys"] = [_delivery_key(claimed)]
+                    hist_entry["queueItemIds"] = [_queue_item_id(claimed)]
                     hist_entry["source"] = source
                     if claimed.get("sourceSessionId") is not None:
                         hist_entry["sourceSessionId"] = claimed.get("sourceSessionId")
@@ -1964,6 +1965,7 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
                     "role": "user",
                     "content": text,
                     "delivered_keys": [_delivery_key(item) for item in history_items],
+                    "queueItemIds": [_queue_item_id(item) for item in items],
                     "source": _task_source(item) or "user",
                 }
                 if item.get("sourceSessionId") is not None:
@@ -1981,6 +1983,7 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str) -> boo
                     "role": "user",
                     "content": text,
                     "delivered_keys": [_delivery_key(item) for item in history_items],
+                    "queueItemIds": [_queue_item_id(item) for item in items],
                     "source": "report",
                 }
                 source_ids = sorted({

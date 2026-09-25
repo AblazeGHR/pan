@@ -204,6 +204,18 @@ def test_legacy_attachment_history_gets_markdown_fallback_without_touching_norma
     )
 
 
+def test_history_serialization_preserves_queue_message_identity():
+    import packages.web.server as server
+
+    normalized = server._api_history("ses_a", [{
+        "role": "user",
+        "content": "queued message",
+        "queueItemIds": ["queue-item-1"],
+    }])
+
+    assert normalized[0]["queueItemIds"] == ["queue-item-1"]
+
+
 def test_uploaded_attachment_route_is_session_scoped_and_rejects_path_input(monkeypatch, tmp_path):
     import packages.web.server as server
     from fastapi import HTTPException

@@ -945,6 +945,11 @@ const nativeTurnAliasOrigins = new Map<string, 'delta' | 'completed'>();
 // assistant item. Before that point, a new item id must remain a new message:
 // multiple native items can legitimately interleave within one turn.
 const nativeTurnCompleted = new Set<string>();
+// Remember tool items that started before the assistant item completed. Codex
+// can deliver that assistant completion before the tool's final notification;
+// the tool's start order is the evidence that its row belongs before the body.
+const nativeTurnOpenToolItems = new Map<string, Set<string>>();
+const nativeTurnAssistantItemsAfterOpenTool = new Map<string, Map<string, Set<string>>>();
 
 function appendEventToMessages(
   sessionId: string,
@@ -1006,25 +1011,54 @@ function appendEventToMessages(
       nativeTurnAliasOrigins.set(aliasKey, event.delta ? 'delta' : 'completed');
     }
 
+    if (b.role === 'tool' && turnKey && itemId && event.delta) {
+      const openTools = nativeTurnOpenToolItems.get(turnKey) ?? new Set<string>();
+      openTools.add(itemId);
+      nativeTurnOpenToolItems.set(turnKey, openTools);
+    }
+    const openTools = turnKey ? nativeTurnOpenToolItems.get(turnKey) : undefined;
+    const completingOpenTool = b.role === 'tool'
+      && Boolean(turnKey && itemId && openTools?.has(itemId))
+      && (event.final === true || (!event.delta && event.replace === true)
+        || event.type === 'codex.item.completed');
+    const deferredAssistantItems = completingOpenTool && turnKey && itemId
+      ? [...(nativeTurnAssistantItemsAfterOpenTool.get(turnKey) ?? new Map())]
+        .filter(([, toolIds]) => toolIds.has(itemId))
+        .map(([assistantId]) => assistantId)
+      : [];
+    if (completingOpenTool && turnKey && itemId && openTools) {
+      openTools.delete(itemId);
+      if (openTools.size === 0) {
+        nativeTurnOpenToolItems.delete(turnKey);
+      }
+      const pendingAssistantItems = nativeTurnAssistantItemsAfterOpenTool.get(turnKey);
+      if (pendingAssistantItems) {
+        for (const [assistantId, toolIds] of pendingAssistantItems) {
+          if (!toolIds.delete(itemId)) continue;
+          if (toolIds.size === 0) pendingAssistantItems.delete(assistantId);
+        }
+        if (pendingAssistantItems.size === 0) {
+          nativeTurnAssistantItemsAfterOpenTool.delete(turnKey);
+        }
+      }
+    }
+
     // App-server may start the final assistant text before the command item
-    // completes.  The command completion is the durable ordering boundary:
-    // history will contain [tool, assistant], while the live buffer has so far
-    // reserved [assistant, tool].  Move only that still-open native assistant
-    // item behind the tool.  A completed assistant is protected by
-    // nativeTurnCompleted, and a tool-first turn has an alias pointing at its
-    // tool row rather than an assistant, so neither case is reordered.
-    if (b.role === 'tool' && turnKey && !usedIndexes
-        && !nativeTurnCompleted.has(turnKey)) {
-      const openItemId = nativeTurnItemAliases.get(turnKey);
-      const openIndex = openItemId === undefined ? -1 : messages.findIndex((message) =>
-        message.role === 'assistant' && message.nativeItemId === openItemId);
-      if (openIndex >= 0) {
-        const openMessage = messages[openIndex]!;
-        messages = [
-          ...messages.slice(0, openIndex),
-          ...messages.slice(openIndex + 1),
-          openMessage,
-        ];
+    // completes. If that tool started before the assistant completed, keep the
+    // completed body behind it when its final notification arrives. A tool
+    // started after the assistant completed does not reorder the earlier body.
+    if (b.role === 'tool' && turnKey && !usedIndexes) {
+      const assistantIdsToMove = nativeTurnCompleted.has(turnKey)
+        ? deferredAssistantItems
+        : [nativeTurnItemAliases.get(turnKey)].filter((id): id is string => Boolean(id));
+      if (assistantIdsToMove.length > 0) {
+        const ids = new Set(assistantIdsToMove);
+        const moving = messages.filter((message) =>
+          message.role === 'assistant' && message.nativeItemId && ids.has(message.nativeItemId));
+        if (moving.length > 0) {
+          const movingRows = new Set(moving);
+          messages = [...messages.filter((message) => !movingRows.has(message)), ...moving];
+        }
       }
     }
 
@@ -1151,6 +1185,17 @@ function appendEventToMessages(
     }
     if (aliasKey && event.final && b.role === 'assistant') {
       nativeTurnCompleted.add(aliasKey);
+      const pendingTools = nativeTurnOpenToolItems.get(aliasKey);
+      const completedItemId = target?.role === 'assistant'
+        ? target.nativeItemId
+        : nativeItemId;
+      if (pendingTools?.size && completedItemId) {
+        const assistantItems = nativeTurnAssistantItemsAfterOpenTool.get(aliasKey) ?? new Map();
+        const toolItems = assistantItems.get(completedItemId) ?? new Set<string>();
+        pendingTools.forEach((toolId) => toolItems.add(toolId));
+        assistantItems.set(completedItemId, toolItems);
+        nativeTurnAssistantItemsAfterOpenTool.set(aliasKey, assistantItems);
+      }
     }
     if (event.final && target && (target.role === b.role || nativeIndex >= 0)
         && target.content !== b.content) {
@@ -1294,6 +1339,12 @@ function clearNativeTurnAliases(sessionId: string): void {
   }
   for (const key of nativeTurnCompleted) {
     if (key.startsWith(prefix)) nativeTurnCompleted.delete(key);
+  }
+  for (const key of nativeTurnOpenToolItems.keys()) {
+    if (key.startsWith(prefix)) nativeTurnOpenToolItems.delete(key);
+  }
+  for (const key of nativeTurnAssistantItemsAfterOpenTool.keys()) {
+    if (key.startsWith(prefix)) nativeTurnAssistantItemsAfterOpenTool.delete(key);
   }
 }
 

@@ -273,6 +273,65 @@ describe('reaudit · ordered event pipeline', () => {
     ]);
   });
 
+  it('keeps a tool that started before assistant completion ahead of that completed body', () => {
+    renderHook(() => useWebSocket());
+    const turnId = 'turn-tool-started-first';
+    const toolMessage = { content: [{
+      type: 'tool_use', name: 'Command', input: { command: 'echo delayed' },
+    }] };
+    const stream = (event: Record<string, unknown>) => wsMock.trigger('worker.stream', {
+      type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+      taskSeq: 1, event,
+    });
+
+    act(() => {
+      stream({ type: 'content.part', role: 'assistant', delta: true,
+        turn_id: turnId, item_id: 'answer-item', stream_text: 'answer prefix',
+        part: { type: 'text', text: 'answer prefix' } });
+      // Codex emits item/started and output updates as replaceable tool deltas.
+      stream({ type: 'assistant', delta: true, replace: false,
+        turn_id: turnId, item_id: 'tool-item', message: toolMessage });
+      stream({ type: 'assistant', final: true,
+        turn_id: turnId, item_id: 'answer-item',
+        message: { content: [{ type: 'text', text: 'answer complete' }] } });
+      // The tool's completed notification can arrive after the text item.
+      stream({ type: 'assistant', replace: true,
+        turn_id: turnId, item_id: 'tool-item', message: toolMessage });
+    });
+
+    expect(shape()).toEqual([
+      'tool:Command({"command":"echo delayed"})',
+      'assistant:answer complete',
+    ]);
+  });
+
+  it('preserves an assistant completed before a later tool starts', () => {
+    renderHook(() => useWebSocket());
+    const turnId = 'turn-answer-before-tool';
+    const toolMessage = { content: [{
+      type: 'tool_use', name: 'Command', input: { command: 'echo later' },
+    }] };
+    const stream = (event: Record<string, unknown>) => wsMock.trigger('worker.stream', {
+      type: 'worker.stream', sessionId: 'A', workerId: 'w1', generation: 0,
+      taskSeq: 1, event,
+    });
+
+    act(() => {
+      stream({ type: 'assistant', final: true, turn_id: turnId,
+        item_id: 'answer-item',
+        message: { content: [{ type: 'text', text: 'answer first' }] } });
+      stream({ type: 'assistant', delta: true, replace: false,
+        turn_id: turnId, item_id: 'tool-item', message: toolMessage });
+      stream({ type: 'assistant', replace: true,
+        turn_id: turnId, item_id: 'tool-item', message: toolMessage });
+    });
+
+    expect(shape()).toEqual([
+      'assistant:answer first',
+      'tool:Command({"command":"echo later"})',
+    ]);
+  });
+
   it('reconnect snapshot finalizes a partial answer when its terminal frame was lost', () => {
     renderHook(() => useWebSocket());
     act(() => {

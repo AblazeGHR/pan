@@ -64,6 +64,51 @@ it('converges a legacy id-less Steer row only within its local history boundary'
   expect(texts()).toEqual(['steer now', 'still streaming']);
 });
 
+it('does not duplicate a queued user row reordered ahead of a live tool', () => {
+  const tool: Message = { role: 'tool', content: 'live tool', nativeItemId: 'tool-1' };
+  store().applyLiveStream('A', [tool], meta);
+  store().appendQueuedMessage('A', { id: 'q-ordered', text: 'sent while streaming' });
+  store().applyHistoryPage('A', {
+    history: [
+      { role: 'user', content: 'sent while streaming' },
+      { role: 'tool', content: 'live tool' },
+    ],
+    start: 0, total: 2, hasMore: false, historyRevision: 2, historyEpoch: 'h',
+  });
+  expect(texts()).toEqual(['sent while streaming', 'live tool']);
+});
+
+it('matches a queued user row to canonical history by its persisted queue item id', () => {
+  const tool: Message = { role: 'tool', content: 'live tool', nativeItemId: 'tool-queue-id' };
+  store().applyLiveStream('A', [tool], meta);
+  store().appendQueuedMessage('A', { id: 'q-persisted', text: 'queued question' });
+  store().applyHistoryPage('A', {
+    history: [
+      { role: 'user', content: 'queued question', queueItemIds: ['q-persisted'] },
+      { role: 'tool', content: 'live tool', nativeItemId: 'tool-queue-id' },
+    ],
+    start: 0, total: 2, hasMore: false, historyRevision: 2, historyEpoch: 'h',
+  });
+  expect(texts()).toEqual(['queued question', 'live tool']);
+});
+
+it('retains queued user identity through delivery before an id-less history refresh', () => {
+  const tool: Message = { role: 'tool', content: 'live tool', nativeItemId: 'tool-2' };
+  store().applyLiveStream('A', [tool], meta);
+  store().appendQueuedMessage('A', { id: 'q-delivered-ordered', text: 'delivered while streaming' });
+  store().appendDeliveredMessages('A', [{
+    role: 'user', content: 'delivered while streaming', queueItemIds: ['q-delivered-ordered'],
+  }]);
+  store().applyHistoryPage('A', {
+    history: [
+      { role: 'user', content: 'delivered while streaming' },
+      { role: 'tool', content: 'live tool' },
+    ],
+    start: 0, total: 2, hasMore: false, historyRevision: 2, historyEpoch: 'h',
+  });
+  expect(texts()).toEqual(['delivered while streaming', 'live tool']);
+});
+
 it('converges an assistant item moved ahead of an interleaved tool by native id', () => {
   const first: Message = { role: 'assistant', content: 'same text', nativeItemId: 'answer-1' };
   const second: Message = { role: 'assistant', content: 'same text', nativeItemId: 'answer-2' };

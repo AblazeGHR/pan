@@ -403,6 +403,17 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     // A new explicit input always wins over an older layout suppression. This
     // prevents a bounded correction window from swallowing the next gesture.
     clearProgrammaticSuppression();
+    // A previous prepend/route restore may still be correcting its anchor on
+    // animation frames. Letting that stale correction run after this gesture
+    // can pull the viewport away from the top before the debounced pagination
+    // check, making the next history page impossible to request.
+    if (paginationRestoreRafRef.current !== null) {
+      cancelAnimationFrame(paginationRestoreRafRef.current);
+      paginationRestoreRafRef.current = null;
+    }
+    paginationAnchorRef.current = null;
+    restoreRef.current = null;
+    isRestoringRef.current = false;
     const state = userScrollStateRef.current;
     state.generation += 1;
     state.active = true;

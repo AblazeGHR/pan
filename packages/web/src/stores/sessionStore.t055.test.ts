@@ -352,7 +352,7 @@ describe('T-055 per-session live stream reconciliation', () => {
     const refreshing = useSessionStore.getState().refreshCurrentSessionHistory();
     await act(async () => {
       pendingHistory.shift()?.({
-        // Canonical history intentionally has no transient queueItemIds.
+        // Legacy canonical history can lack the queue IDs persisted by newer Workers.
         history: [msg('user', 'before'), msg('user', 'after edit')],
         total: 2,
         hasMore: false,

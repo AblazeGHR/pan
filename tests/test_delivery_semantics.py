@@ -242,6 +242,23 @@ def test_report_history_key_ignores_mutable_delivery_phase_fields():
     _cleanup()
 
 
+def test_queue_reservation_persists_frontend_message_identity(monkeypatch):
+    _cleanup()
+    s = _setup_session()
+    task = _make_task()
+    s.queue_pending = [task]
+    w = _make_worker(s.id)
+    monkeypatch.setattr(_sess, "save_async", _noop_save)
+    monkeypatch.setattr(worker, "_process_alive", lambda _worker: True)
+
+    async def scenario():
+        assert await worker._reserve_queue_unit(w, s, [task], task["text"]) is True
+        assert s.history[0]["queueItemIds"] == [task["id"]]
+
+    asyncio.run(scenario())
+    _cleanup()
+
+
 def test_report_and_qq_batch_is_contiguous_and_all_or_back(monkeypatch):
     _cleanup()
     s = _setup_session()
@@ -275,6 +292,7 @@ def test_report_and_qq_batch_is_contiguous_and_all_or_back(monkeypatch):
     assert s.queue_pending == [task]
     assert len(s.history) == 1
     assert len(s.history[0]["delivered_keys"]) == 3
+    assert s.history[0]["queueItemIds"] == [report1["id"], report2["id"], qq["id"]]
     _cleanup()
 
 
