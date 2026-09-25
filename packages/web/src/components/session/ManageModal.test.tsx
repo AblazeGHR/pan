@@ -401,7 +401,7 @@ describe('ManageModal', () => {
     expect(await screen.findByRole('button', { name: 'Readonly' })).toBeTruthy();
   });
 
-  it('keeps candidate rows readable with horizontal scroll and intact action buttons', async () => {
+  it('wraps candidate rows on narrow layouts and keeps action buttons intact', async () => {
     apiMock.fetchSession.mockResolvedValue(
       mk('s1', 'Boss', { managed: ['child'], reportSubscriptions: ['child'] }),
     );
@@ -426,19 +426,20 @@ describe('ManageModal', () => {
       'A very long child session name that must stay readable',
     );
 
-    // Name column keeps a min-width so flex can't crush it to zero next to the
-    // shrink-0 action buttons on narrow screens.
+    // The name can shrink and truncate, allowing the action group to wrap
+    // instead of forcing horizontal overflow on narrow screens.
     const nameCol = nameEl.parentElement!;
-    expect(nameCol.className).toContain('min-w-32');
-    expect(nameCol.className).not.toContain('min-w-0');
+    expect(nameCol.className).toContain('min-w-0');
 
-    // Rows stay on a single line and the list container scrolls horizontally
-    // instead of collapsing row content (vertical scrolling stays intact).
+    // Rows wrap, and the list retains vertical scrolling without adding a
+    // horizontal scroller.
     const row = nameCol.parentElement!;
-    expect(row.className).toContain('whitespace-nowrap');
+    expect(row.className).toContain('flex-wrap');
+    expect(row.className).not.toContain('whitespace-nowrap');
     const list = row.parentElement!;
-    expect(list.className).toContain('overflow-x-auto');
+    expect(list.className).not.toContain('overflow-x-auto');
     expect(list.className).toContain('overflow-y-auto');
+    expect(screen.getByTestId('candidate-actions-child').className).toContain('flex-wrap');
 
     // All three action buttons remain present on the row with their labels.
     const labels = within(row)

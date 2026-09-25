@@ -133,15 +133,32 @@ function renderManageView(initialPath = '/manage/session-mobile') {
     }));
 
     renderManageView(`/manage/${child.id}`);
-    expect(await screen.findByRole('button', { name: 'View Relationship for Mobile manager' })).toBeTruthy();
+    const managerRelationship = await screen.findByRole('button', { name: 'View Relationship for Mobile manager' });
+    const managedByRelationshipGroup = screen.getByTestId('managed-by-relationship-action');
+    const managedByRow = managedByRelationshipGroup.parentElement!;
+    expect(managedByRow.firstElementChild).toBe(managedByRelationshipGroup);
+    expect(managedByRow.className).toContain('flex-wrap');
+    expect(managedByRelationshipGroup.className).toContain('border-r');
+    expect(screen.getByTestId('managed-by-actions').parentElement).toBe(managedByRow);
     expect(screen.getByTestId('current-path').textContent).toBe(`/manage/${child.id}`);
     expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
 
-    fireEvent.click(screen.getByRole('button', { name: 'View Relationship for Mobile manager' }));
+    fireEvent.click(managerRelationship);
 
     await waitFor(() => expect(screen.getByTestId('current-path').textContent).toBe(`/manage/${manager.id}`));
     const pageHeading = screen.getByRole('heading', { name: 'Manage Sessions' }).parentElement!;
     await waitFor(() => expect(within(pageHeading).getByText('Mobile manager')).toBeTruthy());
+    // The Manages row wraps its controls on narrow layouts and the candidate
+    // list does not force a horizontal scroller to fit them.
+    const candidateRelationshipGroup = screen.getByTestId(`relationship-action-group-${child.id}`);
+    const candidateRow = candidateRelationshipGroup.parentElement!;
+    expect(candidateRow.firstElementChild).toBe(candidateRelationshipGroup);
+    expect(candidateRow.className).toContain('flex-wrap');
+    expect(candidateRow.className).not.toContain('whitespace-nowrap');
+    expect(candidateRelationshipGroup.className).toContain('border-r');
+    expect(screen.getByTestId(`candidate-actions-${child.id}`).parentElement).toBe(candidateRow);
+    expect(screen.getByTestId(`candidate-actions-${child.id}`).className).toContain('flex-wrap');
+    expect(screen.getByText('Manages / 管理谁').closest('section')?.querySelector('.overflow-x-auto')).toBeNull();
     expect(screen.getByRole('tab', { name: 'Relationship' }).getAttribute('aria-selected')).toBe('true');
     expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
 
