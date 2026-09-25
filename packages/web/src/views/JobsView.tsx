@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ListChecks, MoreHorizontal, Plus } from 'lucide-react';
+import { NewJobForm } from '@/components/jobs/NewJobForm';
+import { useUIStore } from '@/stores/uiStore';
 import {
   mockJobs,
   type Job,
@@ -192,16 +194,24 @@ function JobRow({ job }: { job: Job }) {
  */
 export default function JobsView() {
   const navigate = useNavigate();
+  const showToast = useUIStore((s) => s.showToast);
   const [tab, setTab] = useState<Tab>('list');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
+  const [jobs, setJobs] = useState<Job[]>(mockJobs);
 
   const visibleJobs = useMemo(() => {
-    return mockJobs
+    return jobs
       .filter((job) => matchesStatusFilter(job, statusFilter))
       .filter((job) => kindFilter === 'all' || job.kind === kindFilter)
       .sort(compareJobs);
-  }, [statusFilter, kindFilter]);
+  }, [jobs, statusFilter, kindFilter]);
+
+  const handleCreate = (job: Job) => {
+    setJobs((prev) => [...prev, job]);
+    setTab('list');
+    showToast(`Created job "${job.name}"`);
+  };
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-bg-primary">
@@ -294,7 +304,7 @@ export default function JobsView() {
 
               {/* Count */}
               <div className="text-[11px] text-text-tertiary">
-                {visibleJobs.length} of {mockJobs.length} jobs
+                {visibleJobs.length} of {jobs.length} jobs
               </div>
 
               {/* List / empty state */}
@@ -311,9 +321,7 @@ export default function JobsView() {
               )}
             </div>
           ) : (
-            <div className="rounded border border-border-muted bg-bg-secondary/40 px-3 py-6 text-center text-xs text-text-tertiary">
-              创建表单待设计（后续增量补齐模板化快捷创建）。
-            </div>
+            <NewJobForm jobs={jobs} onCreate={handleCreate} />
           )}
         </div>
       </div>
