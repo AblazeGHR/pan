@@ -19,8 +19,13 @@ const m = vi.hoisted(() => {
   const state: {
     totalSize: number;
     virtualItems: Array<{ index: number; start: number; size: number }>;
-    options: { getItemKey?: (index: number) => string | number } | null;
-  } = { totalSize: 0, virtualItems: [], options: null };
+    options: {
+      getItemKey?: (index: number) => string | number;
+      estimateSize?: (index: number) => number;
+    } | null;
+    /** Simulated measured row heights, in item order. */
+    sizes: number[];
+  } = { totalSize: 0, virtualItems: [], options: null, sizes: [] };
   return {
     state,
     setTotalSize: (n: number) => {
@@ -29,11 +34,18 @@ const m = vi.hoisted(() => {
     setVirtualItems: (items: Array<{ index: number; start: number; size: number }>) => {
       state.virtualItems = items;
     },
+    /** What the real virtualizer would report after measuring the rendered rows. */
+    setMeasuredSizes: (sizes: number[]) => {
+      state.sizes = sizes;
+    },
   };
 });
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: (options: { getItemKey?: (index: number) => string | number }) => {
+  useVirtualizer: (options: {
+    getItemKey?: (index: number) => string | number;
+    estimateSize?: (index: number) => number;
+  }) => {
     m.state.options = options;
     return {
       getTotalSize: () => m.state.totalSize,
@@ -43,6 +55,10 @@ vi.mock('@tanstack/react-virtual', () => ({
           key: options.getItemKey?.(item.index) ?? item.index,
         })),
       measureElement: () => {},
+      measurementsCache: m.state.sizes.map((size, index) => ({
+        key: options.getItemKey?.(index) ?? index,
+        size,
+      })),
     };
   },
 }));
@@ -1265,4 +1281,100 @@ describe('session-switch scroll memory switch', () => {
       }
     },
   );
+});
+
+// ── Measured row-height cache ──
+// The virtualizer's item key and the cache key must be the same expression: the
+// write side stores `measurementsCache[].key` (produced by `getItemKey`), so a
+// bare `getDisplayItemKey` on the read side can never hit.
+//
+// The cache is only consulted while a restore is in flight: a remount without a
+// session snapshot takes the "genuine session switch" path, which deletes the
+// cached heights by design. Real layout always produces a snapshot (scroll
+// events / the unmount safety net), so this test installs row geometry and
+// scrolls first, like the route round-trip case.
+describe('measured row height cache', () => {
+  it('reuses the measured heights for a remount instead of falling back to the 100px estimate', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      const sessionId = 'heights-cache';
+      // The same message objects across both mounts: the cache key contains the
+      // display identity, which is per Message object.
+      const messages = msgs(6);
+      const rows = rowWindow([0, 1, 2, 3, 4, 5]);
+      useSessionStore.setState({ currentSessionId: sessionId, currentMessages: messages });
+      m.setTotalSize(2000);
+      m.setVirtualItems(rows);
+      // Deliberately far from the flat 100px estimate, so a miss is unmistakable.
+      m.setMeasuredSizes([320, 140, 460, 90, 260, 180]);
+
+      const first = render(<ChatMessages />);
+      expect(m.state.options?.estimateSize?.(0)).toBe(100); // nothing cached yet
+      const scrollEl = first.container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200); // writes this session's scroll snapshot
+      first.unmount(); // …and the measured heights for the next mount
+
+      m.setTotalSize(2000);
+      m.setVirtualItems(rows);
+      render(<ChatMessages />);
+
+      const estimateSize = m.state.options?.estimateSize;
+      expect(estimateSize).toBeDefined();
+      expect([0, 1, 2, 3, 4, 5].map((index) => estimateSize!(index)))
+        .toEqual([320, 140, 460, 90, 260, 180]);
+    } finally {
+      restoreGeometry();
+    }
+  });
+});
+
+describe('measured row height attribution across a same-tick switch + unmount', () => {
+  it('attributes the heights to the session whose rows were on screen', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      const aMessages = msgs(6, 'SAME-A');
+      const rows = rowWindow([0, 1, 2, 3, 4, 5]);
+      const sizes = [300, 120, 440, 90, 250, 170]; // far from the 100px estimate
+
+      useSessionStore.setState({ currentSessionId: 'same-a', currentMessages: aMessages });
+      m.setTotalSize(2000);
+      m.setVirtualItems(rows);
+      m.setMeasuredSizes(sizes);
+      const view = render(<ChatMessages />);
+      const scrollEl = view.container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200); // session A keeps a scroll snapshot
+
+      // Switch the session and unmount in one tick. React discards the pending
+      // session update, so the rows on screen stay A's: A must own the heights.
+      // This pins "attribute to the render that produced the rows" rather than
+      // "read the session store when the cleanup finally runs".
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'same-b', currentMessages: msgs(6, 'SAME-B') });
+        view.unmount();
+      });
+
+      // Session B never rendered those rows, so it must NOT inherit them: no
+      // snapshot exists for it, and the session-change effect drops its cache.
+      m.setTotalSize(2000);
+      m.setVirtualItems(rows);
+      m.setMeasuredSizes(sizes);
+      render(<ChatMessages />);
+      const bEstimate = m.state.options?.estimateSize;
+      expect(bEstimate).toBeDefined();
+      expect([0, 1, 2, 3, 4, 5].map((index) => bEstimate!(index))).toEqual([100, 100, 100, 100, 100, 100]);
+      cleanup();
+
+      // Session A adopts its snapshot on the next mount, and with it its heights.
+      useSessionStore.setState({ currentSessionId: 'same-a', currentMessages: aMessages });
+      m.setTotalSize(2000);
+      m.setVirtualItems(rows);
+      m.setMeasuredSizes(sizes);
+      render(<ChatMessages />);
+      const aEstimate = m.state.options?.estimateSize;
+      expect(aEstimate).toBeDefined();
+      expect([0, 1, 2, 3, 4, 5].map((index) => aEstimate!(index))).toEqual(sizes);
+    } finally {
+      restoreGeometry();
+    }
+  });
 });

@@ -43,12 +43,20 @@ interface ScrollSnapshot {
 const scrollSnapshots = new Map<string, ScrollSnapshot>();
 /** sessionId → measured row height by virtual item key, for the next mount. */
 const measuredHeights = new Map<string, Map<string, number>>();
-let activeSessionId: string | null = null;
 
 function listFingerprint(items: DisplayItem[]): string {
   if (items.length === 0) return 'empty';
   const last = items.length - 1;
   return `${items.length}:${getDisplayItemKey(items[0], 0)}:${getDisplayItemKey(items[last], last)}`;
+}
+
+/** Key shared by the virtualizer's item identity and the measured-height cache. */
+function measuredRowKey(
+  sessionId: string | null,
+  item: DisplayItem | undefined,
+  index: number,
+): string {
+  return `${sessionId ?? 'no-session'}:${getDisplayItemKey(item, index)}`;
 }
 
 type DisplayItem = ReturnType<typeof groupMessages>[number];
@@ -106,6 +114,12 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
   const groupedRef = useRef(grouped);
   groupedRef.current = grouped;
 
+  // Latest render's session id, for the unmount cleanup. An effect-assigned
+  // module variable is one paint too late: a session switch that unmounts the
+  // view in the same tick would file the heights under the previous session.
+  const currentSessionIdRef = useRef(currentSessionId);
+  currentSessionIdRef.current = currentSessionId;
+
   // Route round-trip: adopt the position this session was left at, but only for
   // a remount of the *same* session whose message list did not change.
   const restoreRef = useRef<ScrollSnapshot | null | undefined>(undefined);
@@ -129,19 +143,19 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     getScrollElement: () => parentRef.current,
     // Rows measured during the previous visit. Without them the remounted
     // virtualizer starts from the flat estimate, whose total size differs from
-    // the one the remembered content offset was taken against.
+    // the one the remembered content offset was taken against. The lookup key
+    // must be the same expression the write side stores (see `measuredRowKey`).
     estimateSize: (index) =>
       measuredHeights
         .get(currentSessionId ?? '')
-        ?.get(getDisplayItemKey(grouped[index], index)) ?? 100,
+        ?.get(measuredRowKey(currentSessionId, grouped[index], index)) ?? 100,
     overscan: 5,
     // The default key is the array index. Streaming replaces message objects,
     // prepending history shifts indexes, and tool grouping changes row shapes;
     // an index key lets Virtualizer reuse another row's height/DOM node.
     // Local expansion state and measured row heights are Session-scoped even
     // when two Sessions happen to expose the same native/message identity.
-    getItemKey: (index) =>
-      `${currentSessionId ?? 'no-session'}:${getDisplayItemKey(grouped[index], index)}`,
+    getItemKey: (index) => measuredRowKey(currentSessionId, grouped[index], index),
   });
   // Virtualized content height. Changes when messages are added/removed or
   // when items get measured after layout. Re-scrolling on this (while the user
@@ -620,14 +634,16 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
     schedulePaginationRestore();
   }, [currentMessages, totalSize, restorePaginationAnchor, schedulePaginationRestore]);
 
-  // Keep this session's measured row heights for the next mount, and track which
-  // session this mounted instance belongs to.
+  // Keep this session's measured row heights for the next mount.
   useEffect(() => {
     return () => {
       // The user can leave in the same tick as a navigation jump. Capture at
       // unmount as a final safety net instead of relying only on scroll events
       // or the jump's delayed rAF callback.
-      const sid = activeSessionId;
+      // Read the session id from the render that produced these rows (not from
+      // an effect-assigned variable): a switch that unmounts in the same tick
+      // must file the heights under the session whose rows are on screen.
+      const sid = currentSessionIdRef.current;
       if (parentRef.current && (!sid || !scrollSnapshots.has(sid))) {
         rememberScrollPosition(parentRef.current);
       }
@@ -638,10 +654,6 @@ export const ChatMessages = forwardRef<ChatMessagesHandle>(function ChatMessages
       if (heights.size > 0) measuredHeights.set(sid, heights);
     };
   }, [rememberScrollPosition]);
-
-  useEffect(() => {
-    activeSessionId = currentSessionId;
-  }, [currentSessionId]);
 
   // Lazy load older messages on scroll to top
   useEffect(() => {
