@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
+import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
 import { entryToSpec } from '@/components/jobs/ScheduleListEditor';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -26,15 +27,8 @@ import {
   fetchJobKinds,
   fetchJobRuns,
   fetchJobs,
-  fetchCompletedJobRetentionSettings,
   patchJob,
   runJobNow,
-  updateCompletedJobRetentionSettings,
-} from '@/services/api';
-import type {
-  CompletedJobRetentionRun,
-  JobRetentionRule,
-  JobRetentionRules,
 } from '@/services/api';
 import type {
   Job,
@@ -70,46 +64,6 @@ const FALLBACK_KINDS: JobKind[] = [
 ];
 
 const RUNS_PAGE = 20;
-
-const RETENTION_RULE_META: {
-  key: JobRetentionRule;
-  label: string;
-  description: string;
-}[] = [
-  {
-    key: 'completed',
-    label: 'Completed Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly completed and whose updatedAt is old enough.',
-  },
-  {
-    key: 'failed',
-    label: 'Failed Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly failed and whose updatedAt is old enough.',
-  },
-  {
-    key: 'timed_out',
-    label: 'Timed out Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly timed_out and whose updatedAt is old enough.',
-  },
-  {
-    key: 'cancelled',
-    label: 'Cancelled Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly cancelled and whose updatedAt is old enough.',
-  },
-  {
-    key: 'logs',
-    label: 'Job log files',
-    description: 'Uses each uniquely owned regular log file’s last-modified time inside the Pan Jobs logs directory.',
-  },
-];
-
-const DEFAULT_RETENTION_RULES: JobRetentionRules = {
-  completed: { enabled: false, days: null },
-  failed: { enabled: false, days: null },
-  timed_out: { enabled: false, days: null },
-  cancelled: { enabled: false, days: null },
-  logs: { enabled: false, days: null },
-};
 
 const selectClass =
   'w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 px-2 text-text-primary outline-none focus:border-accent/50';
@@ -452,16 +406,6 @@ export default function JobsView() {
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retentionRules, setRetentionRules] = useState<JobRetentionRules | null>(null);
-  const [retentionRulesDraft, setRetentionRulesDraft] = useState<JobRetentionRules>(DEFAULT_RETENTION_RULES);
-  const [retentionLastRuns, setRetentionLastRuns] = useState<Record<
-    JobRetentionRule,
-    CompletedJobRetentionRun | null
-  > | null>(null);
-  const [retentionLoading, setRetentionLoading] = useState(true);
-  const [retentionSaving, setRetentionSaving] = useState(false);
-  const [retentionError, setRetentionError] = useState<string | null>(null);
-  const [retentionFeedback, setRetentionFeedback] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(() => new Set());
@@ -504,75 +448,9 @@ export default function JobsView() {
     }
   }, []);
 
-  const loadRetentionSettings = useCallback(async () => {
-    setRetentionLoading(true);
-    setRetentionError(null);
-    try {
-      const result = await fetchCompletedJobRetentionSettings();
-      setRetentionRules(result.rules);
-      setRetentionRulesDraft({
-        completed: { ...result.rules.completed },
-        failed: { ...result.rules.failed },
-        timed_out: { ...result.rules.timed_out },
-        cancelled: { ...result.rules.cancelled },
-        logs: { ...result.rules.logs },
-      });
-      setRetentionLastRuns(result.lastRuns);
-      if (!result.configValid) {
-        const invalidRules = RETENTION_RULE_META
-          .filter(({ key }) => !result.configValidity[key])
-          .map(({ label }) => label);
-        setRetentionError(`Invalid saved values for ${invalidRules.join(', ')}. Those rules remain disabled until valid values are saved.`);
-      }
-    } catch (e) {
-      setRetentionError(errMsg(e));
-    } finally {
-      setRetentionLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
-
-  useEffect(() => {
-    void loadRetentionSettings();
-  }, [loadRetentionSettings]);
-
-  const saveRetentionSettings = useCallback(async () => {
-    for (const { key, label } of RETENTION_RULE_META) {
-      const days = retentionRulesDraft[key].days;
-      if (days !== null && (!Number.isInteger(days) || days < 1 || days > 36500)) {
-        setRetentionError(`${label} keep days must be blank or a whole number from 1 to 36500.`);
-        setRetentionFeedback(null);
-        return;
-      }
-    }
-    setRetentionSaving(true);
-    setRetentionError(null);
-    setRetentionFeedback(null);
-    try {
-      const result = await updateCompletedJobRetentionSettings(retentionRulesDraft);
-      setRetentionRules(result.rules);
-      setRetentionRulesDraft({
-        completed: { ...result.rules.completed },
-        failed: { ...result.rules.failed },
-        timed_out: { ...result.rules.timed_out },
-        cancelled: { ...result.rules.cancelled },
-        logs: { ...result.rules.logs },
-      });
-      setRetentionLastRuns(result.lastRuns);
-      if (!result.configValid) {
-        setRetentionError('Some saved retention values are invalid. Automatic cleanup remains disabled for those rules.');
-      } else {
-        setRetentionFeedback('Settings saved. The server applies changes without a restart.');
-      }
-    } catch (e) {
-      setRetentionError(errMsg(e));
-    } finally {
-      setRetentionSaving(false);
-    }
-  }, [retentionRulesDraft]);
 
   useEffect(() => {
     void fetchJobKinds()
@@ -1281,158 +1159,7 @@ export default function JobsView() {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
-            <div className="flex flex-col gap-4">
-              <div>
-                <h2 className="text-sm font-semibold text-text-primary">Automatic cleanup settings</h2>
-                <p className="mt-1 text-xs leading-5 text-text-secondary">
-                  Each rule is independent and disabled by default. Rules with a day count run on the server
-                  at most once every 24 hours without requiring this page to stay open. A blank day count
-                  prevents cleanup even when a switch is on. Job record
-                  rules use the exact top-level status and updatedAt; missing or invalid timestamps
-                  are kept. Logs and Job records are retained independently.
-                </p>
-              </div>
-
-              {retentionLoading ? (
-                <p className="text-xs text-text-tertiary" role="status">Loading settings…</p>
-              ) : (
-                <>
-                  {RETENTION_RULE_META.map(({ key, label, description }) => {
-                    const ruleSettings = retentionRulesDraft[key];
-                    const lastRun = retentionLastRuns?.[key] ?? null;
-                    return (
-                      <section
-                        key={key}
-                        aria-labelledby={`job-retention-${key}-title`}
-                        className="flex flex-col gap-3 rounded border border-border-muted bg-bg-secondary/40 p-4"
-                      >
-                        <div>
-                          <h3
-                            id={`job-retention-${key}-title`}
-                            className="text-sm font-semibold text-text-primary"
-                          >
-                            {label}
-                          </h3>
-                          <p className="mt-1 text-xs leading-5 text-text-secondary">{description}</p>
-                          {key === 'logs' ? (
-                            <p className="mt-1 text-xs leading-5 text-text-secondary">
-                              This does not delete Job records or runs history. A Job record may remain
-                              after its expired log is removed, but that log can no longer be viewed.
-                              Files with unknown ownership, links, directories, and logs for active
-                              Jobs or Runners are kept.
-                            </p>
-                          ) : (
-                            <p className="mt-1 text-xs leading-5 text-text-secondary">
-                              Other Job statuses are unaffected; this rule does not infer or group statuses.
-                            </p>
-                          )}
-                        </div>
-
-                        <label className="flex items-start gap-2 text-xs text-text-primary">
-                          <input
-                            type="checkbox"
-                            aria-label={`Enable ${label} cleanup`}
-                            checked={ruleSettings.enabled}
-                            disabled={retentionSaving || retentionRules === null}
-                            onChange={(event) => {
-                              setRetentionRulesDraft((current) => ({
-                                ...current,
-                                [key]: { ...current[key], enabled: event.target.checked },
-                              }));
-                              setRetentionFeedback(null);
-                            }}
-                            className="mt-0.5 accent-accent"
-                          />
-                          <span>Enable automatic cleanup</span>
-                        </label>
-
-                        <label className="flex max-w-sm flex-col gap-1 text-xs text-text-secondary">
-                          <span>Keep {label} for at least</span>
-                          <span className="flex items-center gap-2">
-                            <input
-                              aria-label={`Keep ${label} for days`}
-                              type="number"
-                              min={1}
-                              max={36500}
-                              step={1}
-                              value={ruleSettings.days ?? ''}
-                              disabled={retentionSaving || retentionRules === null}
-                              onChange={(event) => {
-                                const value = event.target.value;
-                                setRetentionRulesDraft((current) => ({
-                                  ...current,
-                                  [key]: {
-                                    ...current[key],
-                                    days: value === '' ? null : Number(value),
-                                  },
-                                }));
-                                setRetentionFeedback(null);
-                              }}
-                              className={`${selectClass} max-w-32`}
-                            />
-                            <span>days</span>
-                          </span>
-                          <span>Leave blank to prevent this rule from running.</span>
-                        </label>
-
-                        <div className="border-t border-border-muted pt-2 text-xs text-text-tertiary">
-                          <p className="font-medium text-text-secondary">Last check for this rule</p>
-                          {lastRun ? (
-                            <>
-                              <p className="mt-1">
-                                {new Date(lastRun.scannedAt).toLocaleString()} · scanned {lastRun.scanned}
-                                {' · '}deleted {lastRun.deleted}{' · '}skipped {lastRun.skipped}
-                                {' · '}errors {lastRun.errorCount}
-                              </p>
-                              {lastRun.errors.length > 0 && (
-                                <details className="mt-1">
-                                  <summary className="cursor-pointer">Error details</summary>
-                                  <ul className="mt-1 list-disc pl-4">
-                                    {lastRun.errors.map((message, index) => (
-                                      <li key={`${key}-error-${index}`}>{message}</li>
-                                    ))}
-                                  </ul>
-                                </details>
-                              )}
-                            </>
-                          ) : (
-                            <p className="mt-1">No automatic check has run for this rule yet.</p>
-                          )}
-                        </div>
-                      </section>
-                    );
-                  })}
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      disabled={retentionSaving || retentionRules === null}
-                      onClick={() => void saveRetentionSettings()}
-                      className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {retentionSaving ? 'Saving…' : 'Save settings'}
-                    </button>
-                    {retentionFeedback && (
-                      <span className="text-xs text-success" role="status">{retentionFeedback}</span>
-                    )}
-                    {retentionError && (
-                      <span className="inline-flex items-center gap-2 text-xs text-danger" role="alert">
-                        {retentionError}
-                        {retentionRules === null && (
-                          <button
-                            type="button"
-                            onClick={() => void loadRetentionSettings()}
-                            className="underline underline-offset-2"
-                          >
-                            Retry
-                          </button>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+            <JobRetentionSettings />
           </div>
         </div>
       )}

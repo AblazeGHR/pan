@@ -230,6 +230,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
       retentionResponse(savedRules, savedRuns),
     );
     renderView();
+    expect(api.fetchCompletedJobRetentionSettings).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
     const daysInput = await screen.findByRole('spinbutton', { name: 'Keep Completed Jobs for days' });
