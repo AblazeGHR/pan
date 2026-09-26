@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Eye, Settings, SlidersHorizontal, X } from 'lucide-react';
+import { Bell, Database, Eye, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import {
@@ -15,6 +15,7 @@ import {
   updateWorkerSettings,
   fetchCodexModels,
   refreshCodexOfficialModels,
+  fetchDataCatalog,
 } from '@/services/api';
 import type {
   ApiConfigReloadResponse,
@@ -22,8 +23,10 @@ import type {
   ApiMainRestartStatusResponse,
   ApiMainExitStatusResponse,
   ApiModelsResponse,
+  ApiDataCatalogResponse,
 } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
+import { DataSettingsPanel } from './DataSettingsPanel';
 
 interface AppSettingsModalProps {
   open: boolean;
@@ -38,13 +41,14 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
 
 const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
 
-type SettingsTab = 'general' | 'preferences' | 'appearance' | 'notifications' | 'adapter';
+type SettingsTab = 'general' | 'preferences' | 'appearance' | 'notifications' | 'adapter' | 'data';
 const SETTINGS_TABS: SettingsTab[] = [
   'general',
   'preferences',
   'appearance',
   'notifications',
   'adapter',
+  'data',
 ];
 
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
@@ -340,6 +344,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     after: string[];
   } | null>(null);
   const [codexRefreshError, setCodexRefreshError] = useState<string | null>(null);
+  const [dataCatalog, setDataCatalog] = useState<ApiDataCatalogResponse | null>(null);
+  const [dataCatalogLoading, setDataCatalogLoading] = useState(false);
+  const [dataCatalogError, setDataCatalogError] = useState<string | null>(null);
 
   // Worker config edit dialog — opened from the "Edit worker config" row.
   // Prefills current values (reloadConfig('worker').before — idempotent),
@@ -465,6 +472,28 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       })
       .finally(() => {
         if (!cancelled) setCodexModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeTab]);
+
+  useEffect(() => {
+    if (!open || activeTab !== 'data') return;
+    let cancelled = false;
+    setDataCatalogLoading(true);
+    setDataCatalogError(null);
+    fetchDataCatalog()
+      .then((catalog) => {
+        if (!cancelled) setDataCatalog(catalog);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setDataCatalogError(e instanceof Error ? e.message : String(e));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDataCatalogLoading(false);
       });
     return () => {
       cancelled = true;
@@ -834,6 +863,23 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             <SlidersHorizontal size={14} />
             Adapter
           </button>
+          <button
+            type="button"
+            role="tab"
+            id="app-settings-tab-data"
+            aria-controls="app-settings-tabpanel"
+            aria-selected={activeTab === 'data'}
+            tabIndex={activeTab === 'data' ? 0 : -1}
+            onClick={() => setActiveTab('data')}
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'data'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <Database size={14} />
+            Data
+          </button>
         </div>
 
         {/* Body */}
@@ -1064,6 +1110,17 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 />
               </div>
             </section>
+          ) : activeTab === 'data' ? (
+            <DataSettingsPanel
+              catalog={dataCatalog}
+              loading={dataCatalogLoading}
+              error={dataCatalogError}
+              jobsRetentionSlot={
+                <p className="text-[10px] leading-relaxed text-text-tertiary">
+                  Jobs 保留期控件将在 Jobs API 字段确认后接入此处。
+                </p>
+              }
+            />
           ) : (
             <>
               {/* Session list grouping */}

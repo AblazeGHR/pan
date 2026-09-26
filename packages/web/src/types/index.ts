@@ -597,6 +597,36 @@ export interface ApiConfigResponse {
   executionModes?: string[];
 }
 
+export type DataCatalogPolicyStatus = 'policy_confirmation' | 'not_auto_cleanable';
+
+export interface DataCatalogPath {
+  label: string;
+  path: string;
+  exists: boolean;
+  source: string;
+  overridden: boolean;
+  external: boolean;
+}
+
+export interface DataCatalogCategory {
+  id: string;
+  name: string;
+  purpose: string;
+  policyStatus: DataCatalogPolicyStatus;
+  paths: DataCatalogPath[];
+  note?: string;
+}
+
+export interface ApiDataCatalogResponse {
+  categories: DataCatalogCategory[];
+  notice: string;
+  jobsRetention: {
+    slot: string;
+    status: 'reserved';
+    message: string;
+  };
+}
+
 export interface AdapterInfo {
   name: string;
   defaultModel: string;

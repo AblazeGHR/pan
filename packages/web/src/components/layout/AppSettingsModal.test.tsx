@@ -13,6 +13,7 @@ const {
   fetchMainExitStatusMock,
   exitMainServiceMock,
   updateUiSettingsMock,
+  fetchDataCatalogMock,
 } = vi.hoisted(() => ({
   fetchCodexModelsMock: vi.fn(),
   refreshCodexOfficialModelsMock: vi.fn(),
@@ -22,12 +23,14 @@ const {
   fetchMainExitStatusMock: vi.fn(),
   exitMainServiceMock: vi.fn(),
   updateUiSettingsMock: vi.fn(),
+  fetchDataCatalogMock: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
   return {
     ...actual,
     updateUiSettings: updateUiSettingsMock,
+    fetchDataCatalog: fetchDataCatalogMock,
     fetchRemoteStatus: vi.fn().mockResolvedValue({
       available: false,
       enabled: false,
@@ -104,6 +107,66 @@ describe('AppSettingsModal', () => {
     exitMainServiceMock.mockClear();
     updateUiSettingsMock.mockReset();
     updateUiSettingsMock.mockResolvedValue({});
+    fetchDataCatalogMock.mockReset();
+    fetchDataCatalogMock.mockResolvedValue({
+      categories: [
+        {
+          id: 'sessions-history',
+          name: 'Sessions 元数据与 history',
+          purpose: 'Session JSON、history JSONL 与队列。',
+          policyStatus: 'policy_confirmation',
+          paths: [
+            {
+              label: 'Sessions 与 history 目录',
+              path: 'D:\\Pan\\data\\sessions',
+              exists: false,
+              source: 'default',
+              overridden: false,
+              external: false,
+            },
+          ],
+          note: '清理策略待确认。',
+        },
+        {
+          id: 'jobs-records',
+          name: 'Jobs 记录',
+          purpose: '统一 Jobs JSON 记录。',
+          policyStatus: 'policy_confirmation',
+          paths: [
+            {
+              label: 'jobs 目录',
+              path: 'E:\\PanData\\jobs',
+              exists: true,
+              source: 'environment: PAN_BACKGROUND_JOBS_DIR',
+              overridden: true,
+              external: true,
+            },
+          ],
+        },
+        {
+          id: 'external-provider-auth',
+          name: '外部 provider 与 auth 数据',
+          purpose: 'CLI 用户目录和凭据。',
+          policyStatus: 'not_auto_cleanable',
+          paths: [
+            {
+              label: 'Codex CLI HOME',
+              path: 'C:\\Users\\tester\\.codex',
+              exists: true,
+              source: 'platform default',
+              overridden: false,
+              external: true,
+            },
+          ],
+        },
+      ],
+      notice: 'data/ 下其他用户自建目录未登记。',
+      jobsRetention: {
+        slot: 'jobs-retention-control',
+        status: 'reserved',
+        message: 'Jobs 保留期控件将在 Jobs API 字段确认后接入。',
+      },
+    });
   });
 
   it('renders nothing when closed', () => {
@@ -111,7 +174,7 @@ describe('AppSettingsModal', () => {
     expect(document.body.querySelector('.app-settings-overlay')).toBeNull();
   });
 
-  it('renders the 6 settings items plus Reset', () => {
+  it('renders the settings sections plus Reset', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     const card = cardEl();
     expect(card.textContent).toContain('Default group by');
@@ -135,6 +198,7 @@ describe('AppSettingsModal', () => {
       'Appearance',
       'Notification',
       'Adapter',
+      'Data',
     ]);
     expect(tabList.className).toContain('overflow-x-auto');
     expect(tabList.className).toContain('overscroll-x-contain');
@@ -146,14 +210,77 @@ describe('AppSettingsModal', () => {
     expect(panel.className).not.toContain('overflow-x-auto');
 
     fireEvent.keyDown(tabs[0]!, { key: 'End' });
+    expect(tabs[5]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs[5]!.tabIndex).toBe(0);
+    expect(tabs.slice(0, 5).every((tab) => tab.tabIndex === -1)).toBe(true);
+    fireEvent.keyDown(tabs[5]!, { key: 'ArrowLeft' });
     expect(tabs[4]!.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[4]!.tabIndex).toBe(0);
-    expect(tabs.slice(0, 4).every((tab) => tab.tabIndex === -1)).toBe(true);
-    fireEvent.keyDown(tabs[4]!, { key: 'ArrowLeft' });
-    expect(tabs[3]!.getAttribute('aria-selected')).toBe('true');
-    fireEvent.keyDown(tabs[3]!, { key: 'Home' });
+    fireEvent.keyDown(tabs[4]!, { key: 'Home' });
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(panel.getAttribute('aria-labelledby')).toBe('app-settings-tab-general');
+  });
+
+  it('loads the Data catalog on demand and keeps long paths usable in a narrow panel', async () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    expect(fetchDataCatalogMock).not.toHaveBeenCalled();
+
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+    expect(fetchDataCatalogMock).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('app-settings-tabpanel')?.getAttribute('aria-labelledby'))
+      .toBe('app-settings-tab-data');
+    expect(cardEl().querySelector('[role="tabpanel"]')?.className).toContain('overflow-y-auto');
+    expect(cardEl().querySelector('[role="tabpanel"]')?.className).not.toContain('overflow-x-auto');
+
+    await waitFor(() => expect(cardEl().textContent).toContain('D:\\Pan\\data\\sessions'));
+    const panel = document.querySelector<HTMLElement>('[data-testid="data-settings-panel"]')!;
+    expect(panel.className).toContain('min-w-0');
+    expect(panel.textContent).toContain('自动清理待策略确认');
+    expect(panel.textContent).toContain('不可自动清理');
+    expect(panel.textContent).toContain('尚未创建');
+    expect(panel.textContent).toContain('外部路径');
+    expect(panel.textContent).toContain('用户自建目录未登记');
+    expect(panel.querySelector('code')?.className).toContain('break-all');
+    expect(panel.textContent).toContain('Jobs 保留期控件将在 Jobs API 字段确认后接入此处');
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(6);
+    expect(updateUiSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it('shows Data catalog loading and failure states without blocking other tabs', async () => {
+    let resolveCatalog!: (value: {
+      categories: [];
+      notice: string;
+      jobsRetention: { slot: string; status: 'reserved'; message: string };
+    }) => void;
+    fetchDataCatalogMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveCatalog = resolve;
+    }));
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+    expect(await document.querySelector('[role="status"]')?.textContent)
+      .toContain('正在读取存储路径');
+
+    await act(async () => {
+      resolveCatalog({
+        categories: [],
+        notice: '登记路径',
+        jobsRetention: {
+          slot: 'jobs-retention-control',
+          status: 'reserved',
+          message: '保留期字段待定',
+        },
+      });
+    });
+    await waitFor(() => expect(cardEl().textContent).toContain('登记路径'));
+
+    fetchDataCatalogMock.mockRejectedValueOnce(new Error('catalog unavailable'));
+    fireEvent.click(document.getElementById('app-settings-tab-general')!);
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+    await waitFor(() =>
+      expect(document.querySelector('[role="alert"]')?.textContent)
+        .toContain('catalog unavailable'),
+    );
+    fireEvent.click(document.getElementById('app-settings-tab-general')!);
+    expect(cardEl().textContent).toContain('Default group by');
   });
 
   it('shows message visibility on the Appearance tab and keeps its settings and persistence', () => {
@@ -171,7 +298,7 @@ describe('AppSettingsModal', () => {
       'app-settings-tab-appearance',
     ) as HTMLButtonElement;
 
-    expect(tabs).toHaveLength(5);
+    expect(tabs).toHaveLength(6);
     expect(appearanceTab.getAttribute('aria-selected')).toBe('false');
     expect(cardEl().textContent).not.toContain('Message visibility');
     expect(cardEl().textContent).not.toContain('Show meta-agent info');

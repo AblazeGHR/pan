@@ -432,6 +432,17 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   if (path === '/api/settings/ui' && method === 'PUT') {
     return body ?? {};
   }
+  if (path === '/api/data/catalog' && method === 'GET') {
+    return {
+      categories: [],
+      notice: 'Demo mode does not expose filesystem paths; connect to a Pan backend to view its registered storage locations.',
+      jobsRetention: {
+        slot: 'jobs-retention-control',
+        status: 'reserved',
+        message: 'Jobs retention controls will follow the Jobs API field contract.',
+      },
+    };
+  }
   if (path === '/api/adapters') {
     return {
       adapters: [

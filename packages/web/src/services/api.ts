@@ -8,6 +8,7 @@ import type {
   ApiGenericResponse,
   AdapterConfig,
   ApiConfigResponse,
+  ApiDataCatalogResponse,
   ApiConfigReloadResponse,
   ApiModelsResponse,
   ApiCodexRefreshOfficialModelsResponse,
@@ -1317,6 +1318,11 @@ export async function updateUiSettings(
   });
   if (data.error) throw new Error(String(data.error));
   return data;
+}
+
+/** Read the registered Pan storage paths without enumerating directory contents. */
+export async function fetchDataCatalog(): Promise<ApiDataCatalogResponse> {
+  return request<ApiDataCatalogResponse>(`${BASE}/data/catalog`);
 }
 
 // ── Worker settings (config.json worker, hot-applied) ──

@@ -66,6 +66,7 @@ from packages.core.cli_diagnostics import get_cli_diagnostics
 from packages.core.character import CharacterManager
 from packages.core.manifest_loader import SessionTemplate
 from packages.core import background_jobs
+from packages.core.data_catalog import get_data_catalog
 from packages.core.codex_quota import (
     format_codex_quota_record,
     validate_quota_window,
@@ -6554,6 +6555,16 @@ async def api_get_settings_ui():
     browsers/sessions (previously they lived in browser localStorage).
     """
     return load_config().get("ui") or {}
+
+
+@app.get("/api/data/catalog")
+async def api_get_data_catalog():
+    """Return the read-only inventory of registered Pan storage locations.
+
+    The catalog contains resolved paths and existence flags only. It does not
+    traverse directories, inspect file contents, or accept path filters.
+    """
+    return get_data_catalog()
 
 
 @app.put("/api/settings/ui")
