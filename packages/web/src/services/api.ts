@@ -1453,6 +1453,89 @@ interface ApiJobKindsResponse { ok?: boolean; kinds?: JobKindMeta[]; error?: Sch
 interface ApiJobRunsResponse { ok?: boolean; runs?: JobRunRecord[]; error?: SchedulerApiError; }
 interface ApiJobDeleteResponse { ok?: boolean; deleted?: boolean; jobId?: string; error?: SchedulerApiError; }
 
+export interface CompletedJobRetentionRun {
+  scannedAt: string;
+  scanned: number;
+  deleted: number;
+  skipped: number;
+  errorCount: number;
+  errors: string[];
+}
+
+export interface CompletedJobRetentionSettings {
+  enabled: boolean;
+  days: number | null;
+}
+
+export type JobRetentionRule = 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'logs';
+export type JobRetentionRules = Record<JobRetentionRule, CompletedJobRetentionSettings>;
+
+interface ApiCompletedJobRetentionResponse {
+  ok?: boolean;
+  settings?: CompletedJobRetentionSettings;
+  rules?: JobRetentionRules;
+  configValid?: boolean;
+  configValidity?: Record<JobRetentionRule, boolean>;
+  lastRun?: CompletedJobRetentionRun | null;
+  lastRuns?: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
+  error?: SchedulerApiError;
+}
+
+/** GET /api/jobs/settings/completed-retention. */
+export async function fetchCompletedJobRetentionSettings(): Promise<{
+  settings: CompletedJobRetentionSettings;
+  rules: JobRetentionRules;
+  configValid: boolean;
+  configValidity: Record<JobRetentionRule, boolean>;
+  lastRun: CompletedJobRetentionRun | null;
+  lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
+}> {
+  const data = await request<ApiCompletedJobRetentionResponse>(
+    `${BASE}/jobs/settings/completed-retention`,
+  );
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
+    throw new Error('Job retention settings missing');
+  }
+  return {
+    settings: data.settings,
+    rules: data.rules,
+    configValid: data.configValid === true,
+    configValidity: data.configValidity,
+    lastRun: data.lastRun ?? null,
+    lastRuns: data.lastRuns,
+  };
+}
+
+/** PUT /api/jobs/settings/completed-retention. */
+export async function updateCompletedJobRetentionSettings(
+  rules: JobRetentionRules,
+): Promise<{
+  settings: CompletedJobRetentionSettings;
+  rules: JobRetentionRules;
+  configValid: boolean;
+  configValidity: Record<JobRetentionRule, boolean>;
+  lastRun: CompletedJobRetentionRun | null;
+  lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
+}> {
+  const data = await request<ApiCompletedJobRetentionResponse>(
+    `${BASE}/jobs/settings/completed-retention`,
+    { method: 'PUT', body: JSON.stringify({ rules }) },
+  );
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
+    throw new Error('Job retention settings missing');
+  }
+  return {
+    settings: data.settings,
+    rules: data.rules,
+    configValid: data.configValid === true,
+    configValidity: data.configValidity,
+    lastRun: data.lastRun ?? null,
+    lastRuns: data.lastRuns,
+  };
+}
+
 /** GET /api/jobs — 全 kind 列表（客户端排序/筛选）。 */
 export async function fetchJobs(): Promise<Job[]> {
   const data = await request<ApiJobsResponse>(`${BASE}/jobs`);

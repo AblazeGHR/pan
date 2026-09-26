@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ListChecks, MoreHorizontal, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ListChecks,
+  MoreHorizontal,
+  Pause,
+  Play,
+  Plus,
+  Settings2,
+  Trash2,
+} from 'lucide-react';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
+import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
 import { entryToSpec } from '@/components/jobs/ScheduleListEditor';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -30,7 +40,7 @@ import type {
   JobStatus,
 } from '@/types/jobs';
 
-type Tab = 'list' | 'create';
+type Tab = 'list' | 'create' | 'settings';
 
 type StatusFilter =
   'all' | 'active' | 'scheduled' | 'completed' | 'failed' | 'timed_out' | 'undeliverable';
@@ -882,6 +892,24 @@ export default function JobsView() {
           <Plus size={12} />
           New Job
         </button>
+        <button
+          type="button"
+          aria-pressed={tab === 'settings'}
+          disabled={bulkAction !== null}
+          onClick={() => {
+            setTab('settings');
+            setSelectionMode(false);
+            clearSelectionForViewChange();
+          }}
+          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+            tab === 'settings'
+              ? 'border-accent/50 bg-accent/10 text-accent'
+              : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+          }`}
+        >
+          <Settings2 size={12} />
+          Settings
+        </button>
       </div>
 
       {tab === 'list' ? (
@@ -1118,7 +1146,7 @@ export default function JobsView() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : tab === 'create' ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
             <NewJobForm
@@ -1126,6 +1154,12 @@ export default function JobsView() {
               submitting={submitting}
               onCreate={handleCreate}
             />
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-2xl p-4">
+            <JobRetentionSettings />
           </div>
         </div>
       )}
