@@ -139,11 +139,12 @@ function mockScrollMetrics() {
 }
 
 function userScroll(element: HTMLElement, top: number) {
+  const previousTop = element.scrollTop;
   element.scrollTop = top;
   // A scroll event has no source information by itself. The component uses a
   // preceding wheel/touch/key gesture to distinguish user movement from a
   // measurement/virtualizer correction.
-  fireEvent.wheel(element);
+  fireEvent.wheel(element, { deltaY: top < previousTop ? -100 : top > previousTop ? 100 : 0 });
   fireEvent.scroll(element);
 }
 
@@ -173,6 +174,7 @@ const msgs = (n: number, prefix = 'm') =>
   }));
 
 let rafId = 0;
+const rafTimers = new Map<number, ReturnType<typeof setTimeout>>();
 let mockClientHeight = 400;
 let resizeObserverCallback: ResizeObserverCallback | null = null;
 
@@ -189,16 +191,23 @@ class TestResizeObserver {
 beforeEach(() => {
   mockClientHeight = 400;
   resizeObserverCallback = null;
+  rafTimers.clear();
   vi.stubGlobal('ResizeObserver', TestResizeObserver);
   mockScrollMetrics();
   // jsdom may or may not ship requestAnimationFrame — polyfill to be safe.
   globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
     const id = ++rafId;
-    setTimeout(() => cb(Date.now()), 0);
+    const timer = setTimeout(() => {
+      rafTimers.delete(id);
+      cb(Date.now());
+    }, 0);
+    rafTimers.set(id, timer);
     return id;
   }) as typeof requestAnimationFrame;
   globalThis.cancelAnimationFrame = ((id: number) => {
-    clearTimeout(id);
+    const timer = rafTimers.get(id);
+    if (timer !== undefined) clearTimeout(timer);
+    rafTimers.delete(id);
   }) as typeof cancelAnimationFrame;
 
   m.setTotalSize(0);
@@ -215,7 +224,7 @@ beforeEach(() => {
     initialLoading: false,
     historyLoadEnd: 0,
   });
-  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
+  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
 });
 
 afterEach(() => {
@@ -1143,6 +1152,121 @@ describe('ChatMessages scroll positioning', () => {
     expect(loadOlderMessages).toHaveBeenCalledTimes(2);
   });
 
+  it('does not request another history page after a prepend restore without a new upward gesture', async () => {
+    vi.useFakeTimers();
+    let page = 0;
+    const loadOlderMessages = vi.fn(async () => {
+      page += 1;
+      const current = useSessionStore.getState().currentMessages;
+      m.setTotalSize(2000 + page * 1000);
+      m.setVirtualItems(rowWindow([0, 1, 2, 3, 4, 5]));
+      useSessionStore.setState({
+        currentMessages: [...msgs(2, `page-${page}`), ...current],
+        historyLoading: false,
+      });
+    });
+    useSessionStore.setState({
+      currentSessionId: 'no-auto-page',
+      currentMessages: msgs(4),
+      hasMoreMessages: true,
+      historyLoading: false,
+      loadOlderMessages,
+    });
+    m.setTotalSize(2000);
+    m.setVirtualItems(rowWindow([0, 1, 2, 3]));
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+
+    userScroll(scrollEl, 100);
+    await act(async () => {
+      vi.advanceTimersByTime(180);
+      await Promise.resolve();
+    });
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+
+    // Let the virtualizer correction frames and their programmatic scroll
+    // events settle. They must not be interpreted as another user request.
+    act(() => {
+      vi.advanceTimersByTime(1400);
+    });
+    expect(loadOlderMessages).toHaveBeenCalledOnce();
+  });
+
+  it('does not paginate from programmatic scroll or a downward wheel at the top', () => {
+    vi.useFakeTimers();
+    const loadOlderMessages = vi.fn(async () => {});
+    useSessionStore.setState({
+      currentSessionId: 'programmatic-no-page',
+      currentMessages: msgs(6),
+      hasMoreMessages: true,
+      historyLoading: false,
+      loadOlderMessages,
+    });
+    m.setTotalSize(1200);
+    const { container } = render(<ChatMessages />);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    scrollEl.scrollTop = 100;
+    programmaticScroll(scrollEl);
+    fireEvent.wheel(scrollEl, { deltaY: 100 });
+    fireEvent.scroll(scrollEl);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(loadOlderMessages).not.toHaveBeenCalled();
+  });
+
+  it('keeps the same logical row and viewport offset through a prepended page', async () => {
+    vi.useFakeTimers();
+    const restoreGeometry = installRowGeometry();
+    try {
+      const initial = msgs(4, 'page-anchor');
+      const loadOlderMessages = vi.fn(async () => {
+        m.setTotalSize(600);
+        m.setVirtualItems(rowWindow([0, 1, 2, 3, 4, 5]));
+        useSessionStore.setState({
+          currentMessages: [...msgs(2, 'prepended'), ...initial],
+          historyLoading: false,
+        });
+      });
+      useSessionStore.setState({
+        currentSessionId: 'row-anchor-prepend',
+        currentMessages: initial,
+        hasMoreMessages: true,
+        historyLoading: false,
+        loadOlderMessages,
+      });
+      m.setTotalSize(400);
+      m.setVirtualItems(rowWindow([0, 1, 2, 3]));
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+      const beforeKey = m.state.options!.getItemKey!(1);
+      userScroll(scrollEl, 100);
+      const beforeRow = [...container.querySelectorAll<HTMLElement>('[data-scroll-anchor-key]')]
+        .find((row) => row.dataset.scrollAnchorKey === beforeKey)!;
+      const beforeOffset = beforeRow.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top;
+
+      await act(async () => {
+        vi.advanceTimersByTime(180);
+        await Promise.resolve();
+      });
+
+      const afterRow = [...container.querySelectorAll<HTMLElement>('[data-scroll-anchor-key]')]
+        .find((row) => row.dataset.scrollAnchorKey === beforeKey)!;
+      expect(loadOlderMessages).toHaveBeenCalledOnce();
+      expect(afterRow).toBeTruthy();
+      expect(afterRow.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top).toBe(beforeOffset);
+      expect(scrollEl.scrollTop).toBe(300);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
   it('shows a spinner instead of the empty state while history is loading, then the empty state after', () => {
     // Enter a session whose snapshot has no history: messages empty + the
     // fresh-history fetch in flight (initialLoading=true) → spinner, no empty
@@ -1463,6 +1587,27 @@ describe('session-switch scroll memory switch', () => {
   const TALL_SIZE = 2000;
   const SHORT_SIZE = 300;
 
+  it('opens a session without a saved position at the latest message, even when the switch is on', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true, loaded: true });
+      useSessionStore.setState({
+        currentSessionId: 'first-open-without-position',
+        currentMessages: tallMessages('first-open'),
+        historyLoading: false,
+      });
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+      expect(scrollEl.scrollTop).toBe(TALL_SIZE);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
   it('keeps the reading position on switch-back while the switch is on', () => {
     const restoreGeometry = installRowGeometry();
     try {
@@ -1491,6 +1636,72 @@ describe('session-switch scroll memory switch', () => {
       m.setVirtualItems(tallWindow);
       act(() => {
         useSessionStore.setState({ currentSessionId: 'k1', currentMessages: first });
+      });
+      expect(scrollEl.scrollTop).toBe(200);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it('keeps separate saved anchors for each session', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true, loaded: true });
+      const first = tallMessages('multi-A');
+      const second = tallMessages('multi-B');
+      useSessionStore.setState({ currentSessionId: 'multi-a', currentMessages: first });
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+      userScroll(scrollEl, 200);
+      m.setVirtualItems(tallWindow);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'multi-b', currentMessages: second });
+      });
+      userScroll(scrollEl, 100);
+      m.setVirtualItems(tallWindow);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'multi-a', currentMessages: first });
+      });
+      expect(scrollEl.scrollTop).toBe(200);
+
+      m.setVirtualItems(tallWindow);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'multi-b', currentMessages: second });
+      });
+      expect(scrollEl.scrollTop).toBe(100);
+    } finally {
+      restoreGeometry();
+    }
+  });
+
+  it('waits for settings hydration before deciding how a fast session round-trip positions', () => {
+    const restoreGeometry = installRowGeometry();
+    try {
+      useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true, loaded: false });
+      const first = tallMessages('hydrate-A');
+      useSessionStore.setState({ currentSessionId: 'hydrate-a', currentMessages: first });
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      const { container } = render(<ChatMessages />);
+      const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+      userScroll(scrollEl, 200);
+
+      m.setTotalSize(SHORT_SIZE);
+      m.setVirtualItems(rowWindow([0, 1, 2]));
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'hydrate-b', currentMessages: msgs(3, 'hydrate-B') });
+      });
+      m.setTotalSize(TALL_SIZE);
+      m.setVirtualItems(tallWindow);
+      act(() => {
+        useSessionStore.setState({ currentSessionId: 'hydrate-a', currentMessages: first });
+      });
+
+      act(() => {
+        useAppSettingsStore.setState({ keepScrollOnSessionSwitch: true, loaded: true });
       });
       expect(scrollEl.scrollTop).toBe(200);
     } finally {
