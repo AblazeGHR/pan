@@ -63,6 +63,21 @@ function sortWorkspaces(a: Workspace, b: Workspace): number {
   return a.id.localeCompare(b.id);
 }
 
+/**
+ * Key for comparing two Workspace directory paths that arrive from different
+ * sources: the server stores its own canonical form (backslashes on Windows,
+ * e.g. `D:\foo`), while editor roots normalize to forward slashes (`D:/foo`).
+ * A raw string comparison would miss the same directory, leaving removal a
+ * no-op. Windows-style paths (drive-letter or UNC) also compare
+ * case-insensitively, matching that filesystem's semantics; POSIX paths stay
+ * case-sensitive.
+ */
+function dirComparisonKey(path: string): string {
+  const normalized = path.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  const isWindowsStyle = /^[A-Za-z]:/.test(normalized) || normalized.startsWith('//');
+  return isWindowsStyle ? normalized.toLowerCase() : normalized;
+}
+
 export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
   workspaces: [],
   loaded: false,
@@ -159,9 +174,11 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
   addWorkspaceDir: async (id, path) => {
     const current = get().workspaces.find((w) => w.id === id);
     if (!current) throw new Error('找不到工作区');
-    const dirs = [...(current.dirs ?? [])];
-    if (!dirs.includes(path)) dirs.push(path);
-    const workspace = await api.updateWorkspaceDirs(id, dirs);
+    const dirs = current.dirs ?? [];
+    // Compare through the canonical key so the editor's forward-slash path
+    // does not add a duplicate of the server's backslash form.
+    if (dirs.some((dir) => dirComparisonKey(dir) === dirComparisonKey(path))) return;
+    const workspace = await api.updateWorkspaceDirs(id, [...dirs, path]);
     set((s) => ({
       workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
     }));
@@ -170,7 +187,11 @@ export const useWorkspaceStore = create<WorkspaceStoreState>((set, get) => ({
   removeWorkspaceDir: async (id, path) => {
     const current = get().workspaces.find((w) => w.id === id);
     if (!current) throw new Error('找不到工作区');
-    const dirs = (current.dirs ?? []).filter((dir) => dir !== path);
+    const currentDirs = current.dirs ?? [];
+    const key = dirComparisonKey(path);
+    const dirs = currentDirs.filter((dir) => dirComparisonKey(dir) !== key);
+    // Nothing matched (already removed): do not PATCH an unchanged list.
+    if (dirs.length === currentDirs.length) return;
     const workspace = await api.updateWorkspaceDirs(id, dirs);
     set((s) => ({
       workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...workspace } : w)),
