@@ -37,6 +37,7 @@ function statusColor(status: string): string {
     case 'dispatched':
       return 'border-success/50 bg-success/10 text-success';
     case 'failed':
+    case 'timed_out':
     case 'error':
       return 'border-danger/50 bg-danger/10 text-danger';
     case 'cancelled':

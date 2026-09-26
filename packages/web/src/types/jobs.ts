@@ -23,6 +23,7 @@ export type JobStatus =
   | 'running'
   | 'completed'
   | 'failed'
+  | 'timed_out'
   | 'cancelled';
 
 export type SourceType = 'agent' | 'user' | 'system' | 'plugin';
