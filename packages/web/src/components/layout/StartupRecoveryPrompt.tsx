@@ -208,15 +208,6 @@ export function StartupRecoveryPrompt() {
             ))}
           </ul>
         )}
-        {failedResults.length > 0 && (
-          <ul className="mt-2 space-y-1 text-[10px] text-danger">
-            {failedResults.map((result, index) => (
-              <li key={`${String(result.sessionId ?? 'session')}-${index}`}>
-                {String(result.sessionId ?? 'Session')}: {String(result.error ?? result.result ?? result.status ?? 'failed')}
-              </li>
-            ))}
-          </ul>
-        )}
         <div className="mt-4 flex items-center justify-between gap-3">
           <span className="text-[10px] text-text-tertiary">
             {processing ? 'Applying saved choice…' : lockedChoice ? 'Retry is limited to the saved choice.' : 'Choose one action to continue.'}
