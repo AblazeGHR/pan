@@ -16,6 +16,8 @@ import {
   fetchCodexModels,
   refreshCodexOfficialModels,
   fetchDataCatalog,
+  fetchDataRetention,
+  updateDataRetention,
 } from '@/services/api';
 import type {
   ApiConfigReloadResponse,
@@ -24,6 +26,8 @@ import type {
   ApiMainExitStatusResponse,
   ApiModelsResponse,
   ApiDataCatalogResponse,
+  ApiDataRetentionResponse,
+  DataRetentionPolicyId,
 } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
 import { DataSettingsPanel } from './DataSettingsPanel';
@@ -347,6 +351,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [dataCatalog, setDataCatalog] = useState<ApiDataCatalogResponse | null>(null);
   const [dataCatalogLoading, setDataCatalogLoading] = useState(false);
   const [dataCatalogError, setDataCatalogError] = useState<string | null>(null);
+  const [dataRetention, setDataRetention] = useState<ApiDataRetentionResponse | null>(null);
+  const [dataRetentionDraft, setDataRetentionDraft] = useState<ApiDataRetentionResponse['policies'] | null>(null);
+  const [dataRetentionLoading, setDataRetentionLoading] = useState(false);
+  const [dataRetentionError, setDataRetentionError] = useState<string | null>(null);
+  const [dataRetentionSaving, setDataRetentionSaving] = useState(false);
+  const [dataRetentionSaveError, setDataRetentionSaveError] = useState<string | null>(null);
 
   // Worker config edit dialog — opened from the "Edit worker config" row.
   // Prefills current values (reloadConfig('worker').before — idempotent),
@@ -499,6 +509,67 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       cancelled = true;
     };
   }, [open, activeTab]);
+
+  useEffect(() => {
+    if (!open) {
+      setDataRetention(null);
+      setDataRetentionDraft(null);
+      setDataRetentionError(null);
+      setDataRetentionSaveError(null);
+      setDataRetentionLoading(false);
+      return;
+    }
+    if (activeTab !== 'data' || dataRetention !== null) return;
+    let cancelled = false;
+    setDataRetentionLoading(true);
+    setDataRetentionError(null);
+    fetchDataRetention()
+      .then((settings) => {
+        if (cancelled) return;
+        setDataRetention(settings);
+        setDataRetentionDraft(settings.policies);
+      })
+      .catch((e) => {
+        if (!cancelled) setDataRetentionError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setDataRetentionLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeTab, dataRetention]);
+
+  const dataRetentionDirty = Boolean(
+    dataRetention && dataRetentionDraft
+    && JSON.stringify(dataRetention.policies) !== JSON.stringify(dataRetentionDraft),
+  );
+
+  const updateDataRetentionDraft = (
+    id: DataRetentionPolicyId,
+    field: 'enabled' | 'days',
+    value: boolean | number | null,
+  ) => {
+    setDataRetentionDraft((current) => current && ({
+      ...current,
+      [id]: { ...current[id], [field]: value },
+    }));
+  };
+
+  const saveDataRetentionDraft = async () => {
+    if (!dataRetentionDraft) return;
+    setDataRetentionSaving(true);
+    setDataRetentionSaveError(null);
+    try {
+      const result = await updateDataRetention({ policies: dataRetentionDraft });
+      setDataRetention(result);
+      setDataRetentionDraft(result.policies);
+    } catch (e) {
+      setDataRetentionSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDataRetentionSaving(false);
+    }
+  };
 
   const handleCodexRefresh = async () => {
     setCodexRefreshBusy(true);
@@ -1115,6 +1186,15 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               catalog={dataCatalog}
               loading={dataCatalogLoading}
               error={dataCatalogError}
+              retention={dataRetention}
+              retentionDraft={dataRetentionDraft}
+              retentionLoading={dataRetentionLoading}
+              retentionError={dataRetentionError}
+              retentionSaving={dataRetentionSaving}
+              retentionSaveError={dataRetentionSaveError}
+              retentionDirty={dataRetentionDirty}
+              onRetentionChange={updateDataRetentionDraft}
+              onSaveRetention={() => void saveDataRetentionDraft()}
               jobsRetentionSlot={
                 <p className="text-[10px] leading-relaxed text-text-tertiary">
                   Jobs 保留期控件将在 Jobs API 字段确认后接入此处。

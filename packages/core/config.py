@@ -22,6 +22,15 @@ CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config.json"
 DEFAULT_PLUGIN_MANIFESTS = ["manifest.json", "packages/mcp/manifest.json"]
 
 DEFAULT_CONFIG: dict = {
+    # Data retention is opt-in. A null day count means never clean; there is
+    # deliberately no implicit duration. Jobs keeps its shared API-owned slot.
+    "data_retention": {
+        "sessions": {"enabled": False, "days": None},
+        "attachments": {"enabled": False, "days": None},
+        "qq_history": {"enabled": False, "days": None},
+        "qq_media": {"enabled": False, "days": None},
+        "pan_logs": {"enabled": False, "days": None},
+    },
     # Pan itself and first-party MCP servers use this interpreter.  Keep the
     # value empty by default so the resolver can fall back to PAN_PYTHON and
     # then the interpreter running the current Pan process.

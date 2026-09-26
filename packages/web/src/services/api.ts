@@ -9,6 +9,7 @@ import type {
   AdapterConfig,
   ApiConfigResponse,
   ApiDataCatalogResponse,
+  ApiDataRetentionResponse,
   ApiConfigReloadResponse,
   ApiModelsResponse,
   ApiCodexRefreshOfficialModelsResponse,
@@ -1323,6 +1324,21 @@ export async function updateUiSettings(
 /** Read the registered Pan storage paths without enumerating directory contents. */
 export async function fetchDataCatalog(): Promise<ApiDataCatalogResponse> {
   return request<ApiDataCatalogResponse>(`${BASE}/data/catalog`);
+}
+
+/** Read Data retention settings and the shared Jobs policy slot. */
+export async function fetchDataRetention(): Promise<ApiDataRetentionResponse> {
+  return request<ApiDataRetentionResponse>(`${BASE}/settings/data-retention`);
+}
+
+/** Persist Data policies through the shared config.json retention namespace. */
+export async function updateDataRetention(
+  value: Pick<ApiDataRetentionResponse, 'policies'> & { jobs?: Record<string, unknown> },
+): Promise<ApiDataRetentionResponse> {
+  return request<ApiDataRetentionResponse>(`${BASE}/settings/data-retention`, {
+    method: 'PUT',
+    body: JSON.stringify(value),
+  });
 }
 
 // ── Worker settings (config.json worker, hot-applied) ──

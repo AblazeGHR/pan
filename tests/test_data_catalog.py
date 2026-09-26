@@ -47,6 +47,11 @@ def test_catalog_projects_env_overrides_and_missing_paths_without_creating_them(
     job_record_paths = {Path(entry["path"]) for entry in categories["jobs-records"]["paths"]}
     assert (tmp_path / "lower-priority" / "jobs").resolve() in job_record_paths
     assert (data_root / "background_jobs" / "jobs").resolve() in job_record_paths
+    runs_paths = {Path(entry["path"]) for entry in categories["jobs-runs"]["paths"]}
+    assert (external_jobs / "runs.jsonl").resolve() in runs_paths
+    assert (tmp_path / "lower-priority" / "runs.jsonl").resolve() in runs_paths
+    assert (external_jobs / "schedule_templates.json").resolve() in runs_paths
+    assert (tmp_path / "lower-priority" / "schedule_templates.json").resolve() in runs_paths
 
     quota = categories["codex-quota-cache"]["paths"][0]
     assert Path(quota["path"]) == external_quota.resolve()
@@ -70,6 +75,8 @@ def test_catalog_projects_env_overrides_and_missing_paths_without_creating_them(
     assert pan_log["overridden"] is True
     assert pan_log["external"] is True
     assert pan_log["exists"] is False
+    assert Path(categories["pan-logs"]["paths"][1]["path"]) == configured_log.parent.resolve()
+    assert categories["pan-logs"]["policyStatus"] == "data_retention_policy"
 
     assert not project.exists()
     assert not external_jobs.exists()
@@ -101,11 +108,16 @@ def test_catalog_lists_registered_categories_without_creating_missing_paths(
         "workspaces", "workdirs", "qq-history", "qq-inbox", "qq-media",
         "wechat-history-queues",
         "characters-memory", "mcp-config", "kimi-isolated-home", "codex-quota-cache",
-        "pan-logs", "startup-recovery", "config", "external-provider-auth",
+        "pan-logs", "startup-recovery", "retention-status", "config", "external-provider-auth",
     }
     assert expected <= categories.keys()
     assert categories["config"]["policyStatus"] == "not_auto_cleanable"
-    assert categories["sessions-history"]["policyStatus"] == "policy_confirmation"
+    assert categories["sessions-history"]["policyStatus"] == "data_retention_policy"
+    assert categories["mcp-config"]["policyStatus"] == "session_lifecycle_cleanup"
+    assert categories["kimi-isolated-home"]["policyStatus"] == "session_lifecycle_cleanup"
+    assert categories["workdirs"]["policyStatus"] == "session_lifecycle_cleanup"
+    assert categories["jobs-runs"]["policyStatus"] == "jobs_policy_shared"
+    assert categories["qq-inbox"]["policyStatus"] == "not_auto_cleanable"
     assert all("path" in entry for item in result["categories"] for entry in item["paths"])
     assert not project.exists()
     assert result["notice"].startswith("仅列出代码登记的路径")

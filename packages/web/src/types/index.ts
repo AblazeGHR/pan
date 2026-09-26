@@ -597,7 +597,11 @@ export interface ApiConfigResponse {
   executionModes?: string[];
 }
 
-export type DataCatalogPolicyStatus = 'policy_confirmation' | 'not_auto_cleanable';
+export type DataCatalogPolicyStatus =
+  | 'data_retention_policy'
+  | 'jobs_policy_shared'
+  | 'session_lifecycle_cleanup'
+  | 'not_auto_cleanable';
 
 export interface DataCatalogPath {
   label: string;
@@ -625,6 +629,30 @@ export interface ApiDataCatalogResponse {
     status: 'reserved';
     message: string;
   };
+}
+
+export type DataRetentionPolicyId = 'sessions' | 'attachments' | 'qq_history' | 'qq_media' | 'pan_logs';
+
+export interface ApiDataRetentionPolicy {
+  enabled: boolean;
+  days: number | null;
+}
+
+export interface ApiDataRetentionScanResult {
+  scanned: number;
+  deleted: number;
+  skipped: number;
+  skipReasons: Record<string, number>;
+  error?: string | null;
+  completedAt?: string | null;
+  lastScanAt?: string | null;
+}
+
+export interface ApiDataRetentionResponse {
+  policies: Record<DataRetentionPolicyId, ApiDataRetentionPolicy>;
+  jobsPolicy: Record<string, unknown>;
+  configKey: 'data_retention';
+  lastScans: Record<DataRetentionPolicyId, ApiDataRetentionScanResult>;
 }
 
 export interface AdapterInfo {

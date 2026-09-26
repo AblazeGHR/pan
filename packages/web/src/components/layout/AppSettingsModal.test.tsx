@@ -14,6 +14,8 @@ const {
   exitMainServiceMock,
   updateUiSettingsMock,
   fetchDataCatalogMock,
+  fetchDataRetentionMock,
+  updateDataRetentionMock,
 } = vi.hoisted(() => ({
   fetchCodexModelsMock: vi.fn(),
   refreshCodexOfficialModelsMock: vi.fn(),
@@ -24,6 +26,8 @@ const {
   exitMainServiceMock: vi.fn(),
   updateUiSettingsMock: vi.fn(),
   fetchDataCatalogMock: vi.fn(),
+  fetchDataRetentionMock: vi.fn(),
+  updateDataRetentionMock: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -31,6 +35,8 @@ vi.mock('@/services/api', async (importOriginal) => {
     ...actual,
     updateUiSettings: updateUiSettingsMock,
     fetchDataCatalog: fetchDataCatalogMock,
+    fetchDataRetention: fetchDataRetentionMock,
+    updateDataRetention: updateDataRetentionMock,
     fetchRemoteStatus: vi.fn().mockResolvedValue({
       available: false,
       enabled: false,
@@ -114,7 +120,7 @@ describe('AppSettingsModal', () => {
           id: 'sessions-history',
           name: 'Sessions 元数据与 history',
           purpose: 'Session JSON、history JSONL 与队列。',
-          policyStatus: 'policy_confirmation',
+          policyStatus: 'data_retention_policy',
           paths: [
             {
               label: 'Sessions 与 history 目录',
@@ -125,13 +131,13 @@ describe('AppSettingsModal', () => {
               external: false,
             },
           ],
-          note: '清理策略待确认。',
+          note: '仅按明确配置的保留期清理。',
         },
         {
           id: 'jobs-records',
           name: 'Jobs 记录',
           purpose: '统一 Jobs JSON 记录。',
-          policyStatus: 'policy_confirmation',
+          policyStatus: 'jobs_policy_shared',
           paths: [
             {
               label: 'jobs 目录',
@@ -166,6 +172,30 @@ describe('AppSettingsModal', () => {
         status: 'reserved',
         message: 'Jobs 保留期控件将在 Jobs API 字段确认后接入。',
       },
+    });
+    const policies = {
+      sessions: { enabled: false, days: null },
+      attachments: { enabled: false, days: null },
+      qq_history: { enabled: false, days: null },
+      qq_media: { enabled: false, days: null },
+      pan_logs: { enabled: false, days: null },
+    };
+    const lastScans = Object.fromEntries(Object.keys(policies).map((key) => [key, {
+      scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null,
+    }]));
+    fetchDataRetentionMock.mockReset();
+    fetchDataRetentionMock.mockResolvedValue({
+      policies,
+      jobsPolicy: {},
+      configKey: 'data_retention',
+      lastScans,
+    });
+    updateDataRetentionMock.mockReset();
+    updateDataRetentionMock.mockResolvedValue({
+      policies,
+      jobsPolicy: {},
+      configKey: 'data_retention',
+      lastScans,
     });
   });
 
@@ -234,13 +264,14 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(cardEl().textContent).toContain('D:\\Pan\\data\\sessions'));
     const panel = document.querySelector<HTMLElement>('[data-testid="data-settings-panel"]')!;
     expect(panel.className).toContain('min-w-0');
-    expect(panel.textContent).toContain('自动清理待策略确认');
+    expect(panel.textContent).toContain('Jobs 策略共用槽位');
+    expect(panel.textContent).toContain('每类默认关闭');
     expect(panel.textContent).toContain('不可自动清理');
     expect(panel.textContent).toContain('尚未创建');
     expect(panel.textContent).toContain('外部路径');
     expect(panel.textContent).toContain('用户自建目录未登记');
     expect(panel.querySelector('code')?.className).toContain('break-all');
-    expect(panel.textContent).toContain('Jobs 保留期控件将在 Jobs API 字段确认后接入此处');
+    expect(panel.textContent).toContain('Jobs API 字段确认后接入此处');
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(6);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
   });
@@ -281,6 +312,92 @@ describe('AppSettingsModal', () => {
     );
     fireEvent.click(document.getElementById('app-settings-tab-general')!);
     expect(cardEl().textContent).toContain('Default group by');
+  });
+
+  it('loads disabled retention policies, edits days, saves, and shows recent scan counts', async () => {
+    const policies = {
+      sessions: { enabled: false, days: null },
+      attachments: { enabled: false, days: 45 },
+      qq_history: { enabled: false, days: 60 },
+      qq_media: { enabled: false, days: 90 },
+      pan_logs: { enabled: false, days: null },
+    };
+    const lastScans = {
+      sessions: { scanned: 3, deleted: 1, skipped: 2, skipReasons: { live_worker: 2 }, lastScanAt: '2026-09-27T00:00:00+08:00' },
+      attachments: { scanned: 4, deleted: 2, skipped: 0, skipReasons: {}, lastScanAt: null },
+      qq_history: { scanned: 5, deleted: 3, skipped: 1, skipReasons: { qq_history_format_or_timestamp_unclear: 1 }, lastScanAt: null },
+      qq_media: { scanned: 6, deleted: 4, skipped: 0, skipReasons: {}, lastScanAt: null },
+      pan_logs: { scanned: 2, deleted: 1, skipped: 1, skipReasons: { active_log_file: 1 }, lastScanAt: null },
+    };
+    fetchDataRetentionMock.mockResolvedValueOnce({
+      policies, jobsPolicy: { enabled: false }, configKey: 'data_retention', lastScans,
+    });
+    updateDataRetentionMock.mockImplementationOnce(async ({ policies: submitted }) => ({
+      policies: submitted,
+      jobsPolicy: { enabled: false },
+      configKey: 'data_retention',
+      lastScans,
+    }));
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+
+    await waitFor(() => expect(document.querySelector(
+      '[aria-label="Sessions 与 history 自动清理"]',
+    )).not.toBeNull());
+    const sessionSwitch = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Sessions 与 history 自动清理"]',
+    )!;
+    expect(sessionSwitch?.getAttribute('aria-checked')).toBe('false');
+    expect(document.querySelector<HTMLInputElement>(
+      '[aria-label="Sessions 与 history 保留天数"]',
+    )?.value).toBe('');
+    expect(cardEl().textContent).toContain('扫描 3，删除 1，跳过 2');
+    expect(cardEl().textContent).toContain('live_worker: 2');
+    expect(cardEl().textContent).toContain('Jobs API 已保存共享策略对象');
+    const saveButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('保存清理策略'))!;
+    expect(saveButton.disabled).toBe(true);
+
+    fireEvent.click(sessionSwitch!);
+    fireEvent.change(document.querySelector<HTMLInputElement>(
+      '[aria-label="Sessions 与 history 保留天数"]',
+    )!, { target: { value: '14' } });
+    fireEvent.click(document.getElementById('app-settings-tab-general')!);
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+    await waitFor(() => expect(document.querySelector<HTMLButtonElement>(
+      '[aria-label="Sessions 与 history 自动清理"]',
+    )?.getAttribute('aria-checked')).toBe('true'));
+    expect(document.querySelector<HTMLInputElement>(
+      '[aria-label="Sessions 与 history 保留天数"]',
+    )?.value).toBe('14');
+    const currentSaveButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('保存清理策略'))!;
+    expect(currentSaveButton.disabled).toBe(false);
+    fireEvent.change(document.querySelector<HTMLInputElement>(
+      '[aria-label="Sessions 与 history 保留天数"]',
+    )!, { target: { value: '' } });
+    expect(document.querySelector<HTMLInputElement>(
+      '[aria-label="Sessions 与 history 保留天数"]',
+    )?.value).toBe('');
+    fireEvent.click(currentSaveButton);
+    await waitFor(() => expect(updateDataRetentionMock).toHaveBeenCalledWith({
+      policies: {
+        ...policies,
+        sessions: { enabled: true, days: null },
+      },
+    }));
+  });
+
+  it('shows retention settings loading and failure while keeping the Data path panel usable', async () => {
+    fetchDataRetentionMock.mockRejectedValueOnce(new Error('retention unavailable'));
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+    await waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent)
+      .toContain('retention unavailable'));
+    expect(document.querySelector('[data-testid="data-settings-panel"]')?.textContent)
+      .toContain('用户自建目录未登记');
+    expect(document.getElementById('app-settings-tabpanel')?.className).toContain('overflow-y-auto');
+    expect(document.getElementById('app-settings-tabpanel')?.className).not.toContain('overflow-x-auto');
   });
 
   it('shows message visibility on the Appearance tab and keeps its settings and persistence', () => {

@@ -443,6 +443,42 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       },
     };
   }
+  if (path === '/api/settings/data-retention' && method === 'GET') {
+    const policies = {
+      sessions: { enabled: false, days: null },
+      attachments: { enabled: false, days: null },
+      qq_history: { enabled: false, days: null },
+      qq_media: { enabled: false, days: null },
+      pan_logs: { enabled: false, days: null },
+    };
+    const lastScans = Object.fromEntries(Object.keys(policies).map((key) => [key, {
+      scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null,
+    }]));
+    return { policies, jobsPolicy: {}, configKey: 'data_retention', lastScans };
+  }
+  if (path === '/api/settings/data-retention' && method === 'PUT') {
+    const submitted = body && typeof body === 'object' && !Array.isArray(body)
+      ? body as { policies?: Record<string, { enabled: boolean; days: number | null }> }
+      : {};
+    return {
+      policies: submitted.policies ?? {
+        sessions: { enabled: false, days: null },
+        attachments: { enabled: false, days: null },
+        qq_history: { enabled: false, days: null },
+        qq_media: { enabled: false, days: null },
+        pan_logs: { enabled: false, days: null },
+      },
+      jobsPolicy: {},
+      configKey: 'data_retention',
+      lastScans: {
+        sessions: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        attachments: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        qq_history: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        qq_media: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+        pan_logs: { scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null },
+      },
+    };
+  }
   if (path === '/api/adapters') {
     return {
       adapters: [
