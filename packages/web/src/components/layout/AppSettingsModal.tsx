@@ -1371,8 +1371,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               )}
 
               {/* Reset */}
-              <div className="border-t border-border-muted pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <p className="text-[11px] text-text-tertiary leading-relaxed sm:max-w-md">
+              <div className="border-t border-border-muted pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-start gap-3">
+                <p className="text-[11px] text-text-tertiary leading-relaxed sm:max-w-[32rem]">
                   Hiding affects frontend display only — original messages stay in session history
                   and reappear when toggled back on.
                 </p>
