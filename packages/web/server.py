@@ -1706,11 +1706,12 @@ def _session_to_api(
     include_history: bool = True,
     include_raw_usage: bool = True,
     include_last_result: bool = True,
+    app_config: dict | None = None,
 ):
     """Convert Session to API response dict."""
     w = worker.find_alive_worker_by_session(s.id)
     a = get_adapter(s.adapter)
-    config = load_config().get(s.adapter, {})
+    config = (load_config() if app_config is None else app_config).get(s.adapter, {})
     ac = s.adapter_config
     last_result = s.last_result if include_last_result else None
     if include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
@@ -1800,9 +1801,12 @@ def _session_to_api(
 # ── BE-3: Session-store reads scheduled off the event loop ──
 #
 # ``/api/sessions`` and ``/api/sessions/{id}/history`` are the dashboard's cold
-# load.  Both parse Session metadata and stream the companion ``.history.jsonl``
-# (O(total history) per request), which blocks the FastAPI event loop and
-# therefore stalls dashboard WebSocket traffic and worker streaming.
+# load.  A cold tail-page read may need to inspect its companion
+# ``.history.jsonl``; unchanged default-tail pages reuse a bounded,
+# file-signature-checked snapshot. Non-tail and unknown-total reads retain the
+# compatibility scan. Keep this store work and the bounded nested-row copies
+# off the FastAPI event loop so history traffic cannot starve dashboard
+# WebSocket messages and worker streaming.
 #
 # The helpers below are the blocking halves of those endpoints.  They are
 # deliberately restricted to what is already thread-safe in the Session store:
@@ -1824,12 +1828,12 @@ _PAGE_UNSET = object()
 _NOT_FOUND = object()
 
 # One dedicated thread serves every offloaded store read.  The reads are
-# pure-Python JSON parsing, so they are GIL-bound: a pool cannot make them
-# faster, but an unbounded pool (the default executor's min(32, cpu+4)) lets a
-# cold-read storm starve the event loop, which measurement showed as 200ms+
-# heartbeat gaps.  A single thread keeps at most one competing Python thread,
-# which is also exactly the serialization these reads had before they moved off
-# the loop.
+# store reads include Python JSON parsing and nested page copies, so a pool
+# cannot make one read faster. An unbounded pool (the default executor's
+# min(32, cpu+4)) also lets a cold-read storm create many competing Python
+# threads. A single worker preserves the previous store serialization while
+# the bounded tail-page cache avoids repeating full-file work for unchanged
+# default-tail requests.
 _STORE_READ_EXECUTOR = ThreadPoolExecutor(
     max_workers=1, thread_name_prefix="pan-store-read")
 
@@ -1859,7 +1863,13 @@ def _history_page_lookup(session_id: str, before: int, limit: int):
     return _NOT_FOUND if page is None else page
 
 
-def _session_list_api(s: sess.Session, *, history_limit: int = 50, page=_PAGE_UNSET) -> dict:
+def _session_list_api(
+    s: sess.Session,
+    *,
+    history_limit: int = 50,
+    page=_PAGE_UNSET,
+    app_config: dict | None = None,
+) -> dict:
     """Serialize the list view without hydrating a Session's full history.
 
     ``page`` is the BE-3 seam: an async caller may pass a history page that was
@@ -1867,7 +1877,7 @@ def _session_list_api(s: sess.Session, *, history_limit: int = 50, page=_PAGE_UN
     the companion JSONL on the event loop.  Omitting it keeps the historical
     inline read for the remaining synchronous callers.
     """
-    api = _session_to_api(s, include_history=False)
+    api = _session_to_api(s, include_history=False, app_config=app_config)
     if page is _PAGE_UNSET:
         page = sess.history_page(s.id, limit=history_limit)
     if page is None:
@@ -4470,9 +4480,11 @@ async def ws_agent_endpoint(ws: WebSocket):
                 sessions = await _store_read(sess.list_all, load_history=False)
                 pages = await _store_read(
                     _history_pages_for, [s.id for s in sessions], 50)
+                app_config = load_config()
                 await _send_ws(ws, {
                     "type": "session.list",
-                    "sessions": [_session_list_api(s, page=pages.get(s.id))
+                    "sessions": [_session_list_api(
+                        s, page=pages.get(s.id), app_config=app_config)
                                  for s in sessions],
                 })
 
@@ -4559,8 +4571,13 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None):
         return {"sessions": [_session_summary(s) for s in sessions]}
     pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
-    return {"sessions": [_session_list_api(s, page=pages.get(s.id))
-                         for s in sessions]}
+    # Resolve dynamic configuration once per response. Reading and deep-merging
+    # config.json for each Session made list shaping perform one filesystem
+    # read per row while the event loop was also serving dashboard heartbeats.
+    app_config = load_config()
+    return {"sessions": [_session_list_api(
+                s, page=pages.get(s.id), app_config=app_config)
+            for s in sessions]}
 
 
 @app.get("/api/sessions/summary-repair")
@@ -4730,8 +4747,10 @@ async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
                 "sessions": [_session_summary(s) for s in sessions]}
     pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
+    app_config = load_config()
     return {"ok": True, "workspaceId": workspace_id,
-            "sessions": [_session_list_api(s, page=pages.get(s.id))
+            "sessions": [_session_list_api(
+                s, page=pages.get(s.id), app_config=app_config)
                          for s in sessions]}
 
 

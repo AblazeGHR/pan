@@ -136,6 +136,98 @@ def test_cold_tail_page_uses_complete_projection_without_parsing_full_jsonl(
     assert _sess.get(sid, load_history=False)._history_loaded is False
 
 
+def test_cold_tail_page_cache_reuses_unchanged_file_and_invalidates_after_mutation(
+    monkeypatch,
+):
+    sid = "ses-cold-tail-cache"
+    rows = _rows(1_000)
+    nested_original = {
+        "parts": [
+            {
+                "type": "tool",
+                "tool": {"input": {"items": [{"name": "disk-value"}]}},
+            },
+        ],
+    }
+    rows[-1].update(nested_original)
+    _seed(sid, rows)
+    disk_nested_original = json.loads(
+        _sess._history_path(sid).read_text(encoding="utf-8").splitlines()[-1]
+    )["parts"]
+    # The dashboard listing establishes the shallow in-process index before
+    # it fans out into per-session tail-page reads.
+    _sess.list_all(load_history=False)
+    shallow = _sess.get(sid, load_history=False)
+    assert shallow is not None and shallow._history_loaded is False
+
+    original_reader = _sess._history_page_from_jsonl
+    reader_calls = 0
+
+    def count_reads(*args, **kwargs):
+        nonlocal reader_calls
+        reader_calls += 1
+        return original_reader(*args, **kwargs)
+
+    monkeypatch.setattr(_sess, "_history_page_from_jsonl", count_reads)
+    first = _sess.history_page(sid, limit=50)
+    second = _sess.history_page(sid, limit=50)
+    assert reader_calls == 1
+    assert first["history"][-1]["content"] == "msg-000999 " + ROW_SUFFIX
+
+    # Cache-fill and cache-hit results must be detached at every nesting
+    # level, just like rows returned by a fresh JSONL parse.
+    first["history"][-1]["parts"][0]["tool"]["input"]["items"][0]["name"] = (
+        "first-caller-mutation"
+    )
+    first["history"][-1]["parts"].append({"type": "caller-added"})
+    assert second["history"][-1]["parts"] == disk_nested_original
+    second["history"][-1]["content"] = "caller mutation"
+    second["history"][-1]["parts"][0]["tool"]["input"]["items"].append(
+        {"name": "second-caller-mutation"}
+    )
+    third = _sess.history_page(sid, limit=50)
+    assert third["history"][-1]["content"] == "msg-000999 " + ROW_SUFFIX
+    assert third["history"][-1]["parts"] == disk_nested_original
+    assert reader_calls == 1
+
+    appended = {"role": "assistant", "content": "appended-after-cache"}
+    with _sess._history_path(sid).open("ab") as handle:
+        handle.write((json.dumps(appended) + "\n").encode("utf-8"))
+
+    updated = _sess.history_page(sid, limit=50)
+    assert reader_calls == 2
+    assert updated["total"] == 1_001
+    assert updated["start"] == 951
+    assert updated["history"][-1] == appended
+    assert _sess.get(sid, load_history=False)._history_loaded is False
+
+    _sess.history_page(sid, limit=50)
+    assert reader_calls == 2
+
+    replaced_rows = [
+        {
+            "role": "assistant" if index % 2 else "user",
+            "content": f"replacement-{index:06d} {ROW_SUFFIX}",
+        }
+        for index in range(1_001)
+    ]
+    replacement_path = _sess._history_path(sid).with_name(
+        _sess._history_path(sid).name + ".replacement")
+    replacement_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in replaced_rows),
+        encoding="utf-8",
+    )
+    replacement_path.replace(_sess._history_path(sid))
+    replaced = _sess.history_page(sid, limit=50)
+    assert reader_calls == 3
+    assert replaced["total"] == 1_001
+    assert replaced["history"][-1]["content"] == (
+        "replacement-001000 " + ROW_SUFFIX)
+
+    _sess.history_page(sid, limit=50)
+    assert reader_calls == 3
+
+
 def test_summary_projection_120k_history_stays_jsonl_free_and_keeps_heartbeat(
     monkeypatch,
 ):
